@@ -111,7 +111,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     );
     await announceGiftcardStatus(interaction.client, giftcardsRemaining);
   } else {
-    await interaction.reply('Better luck next time, your luck increased by 1%');
+    await interaction.reply('No prize this time—your success chance increased by 1% for the next roll.');
   }
 });
 
