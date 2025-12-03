@@ -1,0 +1,21 @@
+{
+  "name": "coinsprite",
+  "version": "1.0.0",
+  "description": "A simple Discord bot that provides a `/roll` command to award $10 giftcards based on a 1% chance and announces remaining prizes.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "giftcard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}

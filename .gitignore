@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+node_modules/
+data/
