@@ -62,17 +62,54 @@ def save_cooldowns(cooldowns: dict) -> None:
         json.dump(cooldowns, f)
 
 
-def reset_cooldowns_file() -> None:
-    """Clear any stored cooldowns so they reset when the bot restarts."""
+def cleanup_expired_cooldowns() -> None:
+    """Remove cooldown entries that have already expired."""
 
-    COOLDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cooldowns = load_cooldowns()
+    now = datetime.now(timezone.utc)
+    updated_cooldowns = {}
 
-    if COOLDOWN_FILE.exists():
+    for user_id, expiry_str in cooldowns.items():
         try:
-            COOLDOWN_FILE.unlink()
-            logger.info("Cooldown file cleared on startup to reset user cooldowns.")
-        except OSError as error:
-            logger.warning("Unable to clear cooldown file: %s", error)
+            expiry = datetime.fromisoformat(expiry_str)
+        except ValueError:
+            logger.warning("Invalid cooldown timestamp for user %s; removing entry.", user_id)
+            continue
+
+        if expiry > now:
+            updated_cooldowns[user_id] = expiry_str
+
+    if len(updated_cooldowns) != len(cooldowns):
+        save_cooldowns(updated_cooldowns)
+        logger.info("Removed %d expired cooldown entries.", len(cooldowns) - len(updated_cooldowns))
+
+
+async def enforce_persistent_cooldown(interaction: discord.Interaction) -> bool:
+    """Ensure users remain on cooldown across bot restarts."""
+
+    cooldowns = load_cooldowns()
+    user_key = str(interaction.user.id)
+    expiry_str = cooldowns.get(user_key)
+
+    if expiry_str is None:
+        return True
+
+    try:
+        expiry = datetime.fromisoformat(expiry_str)
+    except ValueError:
+        logger.warning("Invalid cooldown timestamp for user %s; removing entry.", user_key)
+        cooldowns.pop(user_key, None)
+        save_cooldowns(cooldowns)
+        return True
+
+    now = datetime.now(timezone.utc)
+    if expiry > now:
+        retry_after = (expiry - now).total_seconds()
+        raise app_commands.CommandOnCooldown(app_commands.Cooldown(1, 24 * 60 * 60), retry_after)
+
+    cooldowns.pop(user_key, None)
+    save_cooldowns(cooldowns)
+    return True
 
 
 class RollBot(commands.Bot):
@@ -87,8 +124,8 @@ class RollBot(commands.Bot):
 bot = RollBot()
 
 
+@app_commands.check(enforce_persistent_cooldown)
 @bot.tree.command(name="roll", description="Try your luck for a 10$ giftcard!")
-@app_commands.checks.cooldown(1, 24 * 60 * 60, key=lambda interaction: interaction.user.id)
 async def roll(interaction: discord.Interaction) -> None:
     state = load_state()
     cooldowns = load_cooldowns()
@@ -205,7 +242,7 @@ async def announce_giftcard_status(client: discord.Client, giftcards_remaining: 
 
 def main() -> None:
     load_dotenv()
-    reset_cooldowns_file()
+    cleanup_expired_cooldowns()
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
