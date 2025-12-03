@@ -102,7 +102,10 @@ async def roll(interaction: discord.Interaction) -> None:
     if roll_value <= success_chance / 100:
         giftcards_remaining -= 1
         state["giftcards_remaining"] = giftcards_remaining
-        user_chances[user_key] = success_chance
+
+        next_success_chance = 1
+        next_fail_chance = 99
+        user_chances[user_key] = next_success_chance
         state["user_chances"] = user_chances
         save_state(state)
 
@@ -114,8 +117,9 @@ async def roll(interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             (
                 f"Congratulation, {interaction.user.mention} you have won 10$ Giftcard!"
-                f"\n-# Your current Success chance - {success_chance}% ; "
-                f"Fail chance - {fail_chance}%"
+                " Your success chance has been reset for the next roll."
+                f"\n-# Your current Success chance - {next_success_chance}% ; "
+                f"Fail chance - {next_fail_chance}%"
             )
         )
         await announce_giftcard_status(interaction.client, giftcards_remaining)
