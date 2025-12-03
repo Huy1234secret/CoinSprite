@@ -80,10 +80,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const remainingMs = ROLL_COOLDOWN_MS - (now - lastUsed);
 
   if (remainingMs > 0) {
-    const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
-    const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+    const availableAt = Math.floor((now + remainingMs) / 1000);
     await interaction.reply({
-      content: `You can use this command again in ${remainingHours}h ${remainingMinutes}m.`,
+      content: `You can use this command again <t:${availableAt}:R>.`,
       ephemeral: true
     });
     return;
