@@ -133,7 +133,7 @@ async def roll(interaction: discord.Interaction) -> None:
 
         await interaction.response.send_message(
             (
-                "Better luck next time, your luck increased by 1%"
+                "No prize this time—your success chance increased by 1% for the next roll."
                 f"\n-# Your current Success chance - {success_chance}% ; "
                 f"Fail chance - {fail_chance}%"
             )
