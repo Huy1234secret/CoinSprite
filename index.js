@@ -12,15 +12,19 @@ const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) {
-    return { giftcards_remaining: TOTAL_GIFTCARDS };
+    return { giftcards_remaining: TOTAL_GIFTCARDS, user_chances: {} };
   }
 
   try {
     const raw = fs.readFileSync(STATE_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const state = JSON.parse(raw);
+    return {
+      giftcards_remaining: state.giftcards_remaining ?? TOTAL_GIFTCARDS,
+      user_chances: state.user_chances ?? {}
+    };
   } catch (error) {
     console.warn('State file was corrupted; resetting state.', error);
-    return { giftcards_remaining: TOTAL_GIFTCARDS };
+    return { giftcards_remaining: TOTAL_GIFTCARDS, user_chances: {} };
   }
 }
 
@@ -89,6 +93,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   const state = loadState();
   let giftcardsRemaining = state.giftcards_remaining ?? TOTAL_GIFTCARDS;
+  const userKey = interaction.user.id;
+  const userChances = state.user_chances ?? {};
+  const successChance = Math.min(100, Math.max(0, userChances[userKey] ?? 1));
 
   if (giftcardsRemaining <= 0) {
     await interaction.reply({
@@ -99,19 +106,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   const rollValue = Math.random();
-  console.info(`User ${interaction.user.id} rolled ${rollValue.toFixed(4)}`);
+  console.info(`User ${interaction.user.id} rolled ${rollValue.toFixed(4)} with success chance ${successChance}%`);
 
-  if (rollValue <= 0.01) {
+  if (rollValue <= successChance / 100) {
     giftcardsRemaining -= 1;
     state.giftcards_remaining = giftcardsRemaining;
+    state.user_chances = { ...userChances, [userKey]: 1 };
     saveState(state);
 
     await interaction.reply(
-      `Congratulation, ${interaction.user} you have won 10$ Giftcard!`
+      `Congratulation, ${interaction.user} you have won 10$ Giftcard! Your success chance has been reset for the next roll.\n-# Your current Success chance - 1% ; Fail chance - 99%`
     );
     await announceGiftcardStatus(interaction.client, giftcardsRemaining);
   } else {
-    await interaction.reply('No prize this time—your success chance increased by 1% for the next roll.');
+    const nextSuccess = Math.min(100, successChance + 1);
+    const nextFail = 100 - nextSuccess;
+    state.user_chances = { ...userChances, [userKey]: nextSuccess };
+    saveState(state);
+
+    await interaction.reply(
+      `No prize this time—your success chance increased by 1% for the next roll.\n-# Your current Success chance - ${nextSuccess}% ; Fail chance - ${nextFail}%`
+    );
   }
 });
 
