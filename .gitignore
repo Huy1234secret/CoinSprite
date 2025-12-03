@@ -4,4 +4,5 @@ __pycache__/
 .vscode/
 .idea/
 node_modules/
-data/
+data/*
+!data/.gitkeep

@@ -62,6 +62,19 @@ def save_cooldowns(cooldowns: dict) -> None:
         json.dump(cooldowns, f)
 
 
+def reset_cooldowns_file() -> None:
+    """Clear any stored cooldowns so they reset when the bot restarts."""
+
+    COOLDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    if COOLDOWN_FILE.exists():
+        try:
+            COOLDOWN_FILE.unlink()
+            logger.info("Cooldown file cleared on startup to reset user cooldowns.")
+        except OSError as error:
+            logger.warning("Unable to clear cooldown file: %s", error)
+
+
 class RollBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
@@ -192,6 +205,7 @@ async def announce_giftcard_status(client: discord.Client, giftcards_remaining: 
 
 def main() -> None:
     load_dotenv()
+    reset_cooldowns_file()
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
