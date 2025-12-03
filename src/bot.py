@@ -19,14 +19,17 @@ STATE_FILE = Path("data/state.json")
 
 def load_state() -> dict:
     if not STATE_FILE.exists():
-        return {"giftcards_remaining": TOTAL_GIFTCARDS}
+        return {"giftcards_remaining": TOTAL_GIFTCARDS, "user_chances": {}}
 
     try:
         with STATE_FILE.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            state = json.load(f)
+            state.setdefault("giftcards_remaining", TOTAL_GIFTCARDS)
+            state.setdefault("user_chances", {})
+            return state
     except json.JSONDecodeError:
         logger.warning("State file was corrupted; resetting state.")
-        return {"giftcards_remaining": TOTAL_GIFTCARDS}
+        return {"giftcards_remaining": TOTAL_GIFTCARDS, "user_chances": {}}
 
 
 def save_state(state: dict) -> None:
@@ -52,6 +55,10 @@ bot = RollBot()
 async def roll(interaction: discord.Interaction) -> None:
     state = load_state()
     giftcards_remaining = state.get("giftcards_remaining", TOTAL_GIFTCARDS)
+    user_chances: dict[str, int] = state.get("user_chances", {})
+    user_key = str(interaction.user.id)
+    success_chance = max(0, min(100, user_chances.get(user_key, 1)))
+    fail_chance = 100 - success_chance
 
     if giftcards_remaining <= 0:
         await interaction.response.send_message(
@@ -60,20 +67,41 @@ async def roll(interaction: discord.Interaction) -> None:
         return
 
     roll_value = random.random()
-    logger.info("User %s rolled %.4f", interaction.user.id, roll_value)
+    logger.info(
+        "User %s rolled %.4f with success chance %d%%",
+        interaction.user.id,
+        roll_value,
+        success_chance,
+    )
 
-    if roll_value <= 0.01:
+    if roll_value <= success_chance / 100:
         giftcards_remaining -= 1
         state["giftcards_remaining"] = giftcards_remaining
+        user_chances[user_key] = success_chance
+        state["user_chances"] = user_chances
         save_state(state)
 
         await interaction.response.send_message(
-            f"Congratulation, {interaction.user.mention} you have won 10$ Giftcard!"
+            (
+                f"Congratulation, {interaction.user.mention} you have won 10$ Giftcard!"
+                f"\n-# Your current Success chance - {success_chance}% ; "
+                f"Fail chance - {fail_chance}%"
+            )
         )
         await announce_giftcard_status(interaction.client, giftcards_remaining)
     else:
+        success_chance = min(100, success_chance + 1)
+        fail_chance = 100 - success_chance
+        user_chances[user_key] = success_chance
+        state["user_chances"] = user_chances
+        save_state(state)
+
         await interaction.response.send_message(
-            "Better luck next time, your luck increased by 1%"
+            (
+                "Better luck next time, your luck increased by 1%"
+                f"\n-# Your current Success chance - {success_chance}% ; "
+                f"Fail chance - {fail_chance}%"
+            )
         )
 
 
