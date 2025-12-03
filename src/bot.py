@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import random
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import discord
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 TOTAL_GIFTCARDS = 2
 ANNOUNCEMENT_CHANNEL_ID = 1372572234949853367
 STATE_FILE = Path("data/state.json")
+COOLDOWN_FILE = Path("data/cooldowns.json")
 
 
 def load_state() -> dict:
@@ -38,6 +40,28 @@ def save_state(state: dict) -> None:
         json.dump(state, f)
 
 
+def load_cooldowns() -> dict:
+    if not COOLDOWN_FILE.exists():
+        return {}
+
+    try:
+        with COOLDOWN_FILE.open("r", encoding="utf-8") as f:
+            cooldowns = json.load(f)
+            if not isinstance(cooldowns, dict):
+                logger.warning("Cooldowns file content invalid; resetting cooldowns.")
+                return {}
+            return cooldowns
+    except json.JSONDecodeError:
+        logger.warning("Cooldown file was corrupted; resetting cooldowns.")
+        return {}
+
+
+def save_cooldowns(cooldowns: dict) -> None:
+    COOLDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with COOLDOWN_FILE.open("w", encoding="utf-8") as f:
+        json.dump(cooldowns, f)
+
+
 class RollBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
@@ -54,6 +78,7 @@ bot = RollBot()
 @app_commands.checks.cooldown(1, 24 * 60 * 60, key=lambda interaction: interaction.user.id)
 async def roll(interaction: discord.Interaction) -> None:
     state = load_state()
+    cooldowns = load_cooldowns()
     giftcards_remaining = state.get("giftcards_remaining", TOTAL_GIFTCARDS)
     user_chances: dict[str, int] = state.get("user_chances", {})
     user_key = str(interaction.user.id)
@@ -81,6 +106,11 @@ async def roll(interaction: discord.Interaction) -> None:
         state["user_chances"] = user_chances
         save_state(state)
 
+        cooldowns[user_key] = (
+            datetime.now(timezone.utc) + timedelta(hours=24)
+        ).isoformat()
+        save_cooldowns(cooldowns)
+
         await interaction.response.send_message(
             (
                 f"Congratulation, {interaction.user.mention} you have won 10$ Giftcard!"
@@ -96,6 +126,11 @@ async def roll(interaction: discord.Interaction) -> None:
         state["user_chances"] = user_chances
         save_state(state)
 
+        cooldowns[user_key] = (
+            datetime.now(timezone.utc) + timedelta(hours=24)
+        ).isoformat()
+        save_cooldowns(cooldowns)
+
         await interaction.response.send_message(
             (
                 "Better luck next time, your luck increased by 1%"
@@ -110,6 +145,13 @@ async def on_app_command_error(interaction: discord.Interaction, error: Exceptio
     if isinstance(error, app_commands.CommandOnCooldown):
         retry_after_hours = int(error.retry_after // 3600)
         retry_after_minutes = int((error.retry_after % 3600) // 60)
+
+        cooldowns = load_cooldowns()
+        cooldowns[str(interaction.user.id)] = (
+            datetime.now(timezone.utc) + timedelta(seconds=error.retry_after)
+        ).isoformat()
+        save_cooldowns(cooldowns)
+
         await interaction.response.send_message(
             f"You can use this command again in {retry_after_hours}h {retry_after_minutes}m.",
             ephemeral=True,
