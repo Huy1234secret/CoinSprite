@@ -11,6 +11,18 @@ const ANNOUNCEMENT_CHANNEL_ID = '1372572234949853367';
 const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+async function safeErrorReply(interaction, message) {
+  try {
+    if (interaction.deferred || interaction.replied) {
+      await interaction.followUp({ content: message, flags: 64 });
+    } else {
+      await interaction.reply({ content: message, flags: 64 });
+    }
+  } catch (error) {
+    console.error('Failed to send error response for interaction:', error);
+  }
+}
+
 function loadState() {
   if (!fs.existsSync(STATE_FILE)) {
     return { giftcards_remaining: TOTAL_GIFTCARDS, user_chances: {} };
@@ -90,7 +102,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         const availableAt = Math.floor((now + remainingMs) / 1000);
         await interaction.reply({
           content: `You can use this command again <t:${availableAt}:R>.`,
-          ephemeral: true
+          flags: 64
         });
         return;
       }
@@ -104,12 +116,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (giftcardsRemaining <= 0) {
         await interaction.reply({
           content: 'All giftcards have been claimed. The event has ended.',
-          ephemeral: true
+          flags: 64
         });
         return;
       }
 
-      await interaction.deferReply();
+      try {
+        await interaction.deferReply();
+      } catch (error) {
+        console.error('Failed to acknowledge /roll interaction:', error);
+        return;
+      }
+
       cooldowns.set(interaction.user.id, now);
 
       const rollValue = Math.random();
@@ -137,11 +155,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     } catch (error) {
       console.error('Failed to process /roll interaction:', error);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.followUp({ content: 'Something went wrong handling your roll. Please try again in a moment.', ephemeral: true });
-      } else {
-        await interaction.reply({ content: 'Something went wrong handling your roll. Please try again in a moment.', ephemeral: true });
-      }
+      await safeErrorReply(interaction, 'Something went wrong handling your roll. Please try again in a moment.');
     }
     return;
   }
