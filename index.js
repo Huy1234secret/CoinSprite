@@ -81,57 +81,67 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (interaction.commandName === 'roll') {
-    const now = Date.now();
-    const lastUsed = cooldowns.get(interaction.user.id) ?? 0;
-    const remainingMs = ROLL_COOLDOWN_MS - (now - lastUsed);
+    try {
+      const now = Date.now();
+      const lastUsed = cooldowns.get(interaction.user.id) ?? 0;
+      const remainingMs = ROLL_COOLDOWN_MS - (now - lastUsed);
 
-    if (remainingMs > 0) {
-      const availableAt = Math.floor((now + remainingMs) / 1000);
-      await interaction.reply({
-        content: `You can use this command again <t:${availableAt}:R>.`,
-        ephemeral: true
-      });
-      return;
-    }
+      if (remainingMs > 0) {
+        const availableAt = Math.floor((now + remainingMs) / 1000);
+        await interaction.reply({
+          content: `You can use this command again <t:${availableAt}:R>.`,
+          ephemeral: true
+        });
+        return;
+      }
 
-    cooldowns.set(interaction.user.id, now);
+      const state = loadState();
+      let giftcardsRemaining = state.giftcards_remaining ?? TOTAL_GIFTCARDS;
+      const userKey = interaction.user.id;
+      const userChances = state.user_chances ?? {};
+      const successChance = Math.min(100, Math.max(0, userChances[userKey] ?? 1));
 
-    const state = loadState();
-    let giftcardsRemaining = state.giftcards_remaining ?? TOTAL_GIFTCARDS;
-    const userKey = interaction.user.id;
-    const userChances = state.user_chances ?? {};
-    const successChance = Math.min(100, Math.max(0, userChances[userKey] ?? 1));
+      if (giftcardsRemaining <= 0) {
+        await interaction.reply({
+          content: 'All giftcards have been claimed. The event has ended.',
+          ephemeral: true
+        });
+        return;
+      }
 
-    if (giftcardsRemaining <= 0) {
-      await interaction.reply({
-        content: 'All giftcards have been claimed. The event has ended.',
-        ephemeral: true
-      });
-      return;
-    }
+      await interaction.deferReply();
+      cooldowns.set(interaction.user.id, now);
 
-    const rollValue = Math.random();
-    console.info(`User ${interaction.user.id} rolled ${rollValue.toFixed(4)} with success chance ${successChance}%`);
+      const rollValue = Math.random();
+      console.info(`User ${interaction.user.id} rolled ${rollValue.toFixed(4)} with success chance ${successChance}%`);
 
-    if (rollValue <= successChance / 100) {
-      giftcardsRemaining -= 1;
-      state.giftcards_remaining = giftcardsRemaining;
-      state.user_chances = { ...userChances, [userKey]: 1 };
-      saveState(state);
+      if (rollValue <= successChance / 100) {
+        giftcardsRemaining -= 1;
+        state.giftcards_remaining = giftcardsRemaining;
+        state.user_chances = { ...userChances, [userKey]: 1 };
+        saveState(state);
 
-      await interaction.reply(
-        `Congratulation, ${interaction.user} you have won 10$ Giftcard! Your success chance has been reset for the next roll.\n-# Your current Success chance - 1% ; Fail chance - 99%`
-      );
-      await announceGiftcardStatus(interaction.client, giftcardsRemaining);
-    } else {
-      const nextSuccess = Math.min(100, successChance + 1);
-      const nextFail = 100 - nextSuccess;
-      state.user_chances = { ...userChances, [userKey]: nextSuccess };
-      saveState(state);
+        await interaction.editReply(
+          `Congratulation, ${interaction.user} you have won 10$ Giftcard! Your success chance has been reset for the next roll.\n-# Your current Success chance - 1% ; Fail chance - 99%`
+        );
+        await announceGiftcardStatus(interaction.client, giftcardsRemaining);
+      } else {
+        const nextSuccess = Math.min(100, successChance + 1);
+        const nextFail = 100 - nextSuccess;
+        state.user_chances = { ...userChances, [userKey]: nextSuccess };
+        saveState(state);
 
-      await interaction.reply(
-        `No prize this time—your success chance increased by 1% for the next roll.\n-# Your current Success chance - ${nextSuccess}% ; Fail chance - ${nextFail}%`
-      );
+        await interaction.editReply(
+          `No prize this time—your success chance increased by 1% for the next roll.\n-# Your current Success chance - ${nextSuccess}% ; Fail chance - ${nextFail}%`
+        );
+      }
+    } catch (error) {
+      console.error('Failed to process /roll interaction:', error);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: 'Something went wrong handling your roll. Please try again in a moment.', ephemeral: true });
+      } else {
+        await interaction.reply({ content: 'Something went wrong handling your roll. Please try again in a moment.', ephemeral: true });
+      }
     }
     return;
   }
