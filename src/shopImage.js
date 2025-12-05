@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const Canvas = require('canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const assetDir = path.join(__dirname, '..', 'data', 'shop-assets');
 
@@ -111,7 +111,7 @@ function roundedImageClip(ctx, x, y, width, height, radius) {
 
 async function loadImageSafe(source) {
   try {
-    return await Canvas.loadImage(source);
+    return await loadImage(source);
   } catch (error) {
     console.warn(`Failed to load image ${source}:`, error);
     return null;
@@ -127,7 +127,7 @@ async function createShopImage(items, currencyIconPath) {
   const canvasW = (cardW * 2) + gap + (margin * 2);
   const canvasH = (cardH * 2) + gap + (margin * 2);
 
-  const canvas = Canvas.createCanvas(canvasW, canvasH);
+  const canvas = createCanvas(canvasW, canvasH);
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = '#2F3136';
