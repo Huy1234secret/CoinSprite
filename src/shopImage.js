@@ -36,20 +36,35 @@ const assetsToDownload = [
   }
 ];
 
-function downloadFile(url, destination) {
+function downloadFile(url, destination, redirectCount = 0) {
   return new Promise((resolve, reject) => {
-    const fileStream = fs.createWriteStream(destination);
     https
       .get(url, (response) => {
-        if (response.statusCode !== 200) {
-          fs.unlink(destination, () => {
-            reject(new Error(`Failed to download ${url}. Status code: ${response.statusCode}`));
-          });
-          return;
+        const status = response.statusCode;
+
+        if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
+          if (redirectCount >= 5) {
+            response.resume();
+            return reject(new Error(`Too many redirects while downloading ${url}`));
+          }
+
+          const redirectUrl = new URL(response.headers.location, url).toString();
+          response.resume();
+          return downloadFile(redirectUrl, destination, redirectCount + 1).then(resolve).catch(reject);
         }
+
+        if (status !== 200) {
+          response.resume();
+          return reject(new Error(`Failed to download ${url}. Status code: ${status}`));
+        }
+
+        const fileStream = fs.createWriteStream(destination);
 
         response.pipe(fileStream);
         fileStream.on('finish', () => fileStream.close(resolve));
+        fileStream.on('error', (error) => {
+          fs.unlink(destination, () => reject(error));
+        });
       })
       .on('error', (error) => {
         fs.unlink(destination, () => reject(error));
