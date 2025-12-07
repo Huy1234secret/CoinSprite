@@ -125,6 +125,11 @@ function roundedImageClip(ctx, x, y, width, height, radius) {
 }
 
 async function loadImageSafe(source) {
+  if (!source) {
+    console.warn('Skipping image load because source was falsy:', source);
+    return null;
+  }
+
   try {
     return await loadImage(source);
   } catch (error) {
