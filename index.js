@@ -24,6 +24,7 @@ const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SHOP_RESTOCK_INTERVAL_HOURS = 1;
 const SHOP_PAGE_SELECT_ID = 'shop-page-select';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
+const HUNT_BUTTON_PREFIX = 'hunt:';
 const COMPONENTS_V2_FLAG = 1 << 15;
 
 async function safeErrorReply(interaction, message) {
@@ -87,6 +88,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName('shop-view')
     .setDescription('Generate a preview image of the current shop rotation.')
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('hunt')
+    .setDescription('Open the hunting menu.')
     .toJSON()
 ];
 
@@ -180,6 +185,125 @@ function buildShopComponents(items) {
   return [previewContainer, buttonsContainer];
 }
 
+function buildProgressBar(current, total, width = 20) {
+  const safeTotal = Math.max(total, 1);
+  const ratio = Math.max(0, Math.min(1, current / safeTotal));
+  const filled = Math.round(ratio * width);
+  const empty = width - filled;
+  return `${'█'.repeat(filled)}${'░'.repeat(empty)}`;
+}
+
+function buildHuntHomeContent(userId) {
+  const embed = {
+    description: '## Hunting\n-# Hunting is currently WIP. Stay tuned!',
+    color: 0xb2b2b2,
+    thumbnail: { url: 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless' }
+  };
+
+  const actionRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
+        .setLabel('HUNT')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
+        .setLabel('Hunt Stat')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
+        .setLabel('Equipment')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+  return { embeds: [embed], components: [actionRow] };
+}
+
+function buildHuntStatsContent(userId) {
+  const level = 1;
+  const xp = 0;
+  const nextLevel = 100;
+  const progressBar = buildProgressBar(xp, nextLevel);
+  const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
+
+  const embed = {
+    color: 0xb2b2b2,
+    description: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: 100 ❤️\n* User Defense: 0 🛡️`,
+    thumbnail: { url: 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless' }
+  };
+
+  const actionRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
+        .setLabel('Back')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
+        .setLabel('Hunt Stat')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
+        .setLabel('Equipment')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+  return { embeds: [embed], components: [actionRow] };
+}
+
+function buildHuntEquipmentContent(userId) {
+  const embed = {
+    color: 0x808080,
+    description: '## Hunting Equipment\n-# Equipment selection is coming soon.'
+  };
+
+  const actionRow = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
+        .setLabel('Back')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
+        .setLabel('Hunt Stat')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
+        .setLabel('Equipment')
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(true)
+    );
+
+  return { embeds: [embed], components: [actionRow] };
+}
+
+function handleHuntButton(interaction) {
+  const [, action, userId] = interaction.customId.split(':');
+
+  if (interaction.user.id !== userId) {
+    return safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+  }
+
+  if (action === 'home') {
+    const content = buildHuntHomeContent(userId);
+    return interaction.update({ ...content, ephemeral: true });
+  }
+
+  if (action === 'stats') {
+    const content = buildHuntStatsContent(userId);
+    return interaction.update({ ...content, ephemeral: true });
+  }
+
+  if (action === 'equipment') {
+    const content = buildHuntEquipmentContent(userId);
+    return interaction.update({ ...content, ephemeral: true });
+  }
+
+  return safeErrorReply(interaction, 'Unknown hunting action.');
+}
+
 client.once(Events.ClientReady, async () => {
   try {
     await client.application.commands.set(commands);
@@ -191,6 +315,11 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton()) {
+    if (interaction.customId.startsWith(HUNT_BUTTON_PREFIX)) {
+      await handleHuntButton(interaction);
+      return;
+    }
+
     if (interaction.customId.startsWith(SHOP_ITEM_BUTTON_PREFIX)) {
       await safeErrorReply(interaction, 'Item purchase is not available in the preview.');
     }
@@ -298,6 +427,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
         flags: COMPONENTS_V2_FLAG
       });
     }
+  }
+
+  if (interaction.commandName === 'hunt') {
+    const content = buildHuntHomeContent(interaction.user.id);
+    await interaction.reply({ ...content, ephemeral: true });
   }
 });
 
