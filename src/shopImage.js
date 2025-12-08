@@ -12,7 +12,6 @@ const DISCORD_EMOJIS = {
   currency: '1447459216574124074',
   rarity: {
     common: '1447459423185272952',
-    uncommon: '1447459432165408789',
     rare: '1447459432165408789',
     epic: '1447459425303527465',
     legendary: '1447459428273098835',
@@ -23,7 +22,6 @@ const DISCORD_EMOJIS = {
 
 const RARITY_COLORS = {
   common: '#95a5a6',
-  uncommon: '#2ecc71',
   rare: '#3498db',
   epic: '#9b59b6',
   legendary: '#f1c40f',
@@ -31,7 +29,7 @@ const RARITY_COLORS = {
   secret: '#000000'
 };
 
-const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.png`;
+const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.webp?size=64&quality=lossless`;
 
 async function ensureShopAssets() {
   return {
@@ -43,11 +41,12 @@ async function ensureShopAssets() {
 function getPlaceholderItems() {
   return [
     { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null },
-    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'uncommon', image: null },
+    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null },
     { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null },
     { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null },
-    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'rare', image: null },
-    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'epic', image: null }
+    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null },
+    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null },
+    { name: 'Shadow Relic', price: 7200, stock: 1, rarity: 'secret', image: null }
   ];
 }
 
