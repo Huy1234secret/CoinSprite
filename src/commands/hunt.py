@@ -14,8 +14,8 @@ HUNT_DATA_FILE = Path("data/hunt_profiles.json")
 HUNT_THUMBNAIL_URL = (
     "https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless"
 )
-HEALTH_EMOJI = "❤️"
-DEFENSE_EMOJI = "🛡️"
+HEALTH_EMOJI = "<:SBHeart:1447532986378485882>"
+DEFENSE_EMOJI = "<:SBDefense:1447532983933472900>"
 DEFAULT_PROFILE: dict[str, Any] = {
     "level": 1,
     "xp": 0,
@@ -130,6 +130,15 @@ def format_equipment_embeds(profile: dict[str, Any]) -> List[discord.Embed]:
     misc_name = misc.get("name", "None")
     misc_emoji = misc.get("emoji", "")
 
+    template_embed = discord.Embed(color=discord.Color.dark_grey())
+    template_embed.description = (
+        "## Hunt Equipment Template\n"
+        "-# Fill your loadout using the selectors below.\n"
+        f"* Gear Slot: `{gear_name}` {gear_emoji}\n"
+        f"* Misc Slot: `{misc_name}` {misc_emoji}"
+    )
+    template_embed.set_thumbnail(url=HUNT_THUMBNAIL_URL)
+
     info_embed = discord.Embed(color=discord.Color.light_grey())
     info_embed.description = (
         "## Hunting Equipment\n"
@@ -142,7 +151,7 @@ def format_equipment_embeds(profile: dict[str, Any]) -> List[discord.Embed]:
     selection_embed.description = (
         "Use the selectors below to choose your Hunting Gear and Misc equipment."
     )
-    return [info_embed, selection_embed]
+    return [template_embed, info_embed, selection_embed]
 
 
 def gear_placeholder(profile: dict[str, Any]) -> str:
@@ -196,9 +205,21 @@ def build_misc_options(profile: dict[str, Any]) -> List[discord.SelectOption]:
 
 
 class BaseHuntView(discord.ui.View):
-    def __init__(self, user: discord.abc.User, *, timeout: Optional[float] = 300):
+    def __init__(
+        self,
+        user: discord.abc.User,
+        *,
+        timeout: Optional[float] = 300,
+        add_separator: bool = True,
+    ):
         super().__init__(timeout=timeout)
         self.user = user
+
+        if add_separator:
+            separator = discord.ui.Button(
+                label=" ", style=discord.ButtonStyle.secondary, disabled=True, row=0
+            )
+            self.add_item(separator)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
@@ -214,15 +235,17 @@ class HuntHomeView(BaseHuntView):
     def __init__(self, user: discord.abc.User):
         super().__init__(user)
 
-    @discord.ui.button(label="HUNT", style=discord.ButtonStyle.danger, disabled=True)
+    @discord.ui.button(
+        label="HUNT", style=discord.ButtonStyle.danger, disabled=True, row=1
+    )
     async def hunt_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         await interaction.response.send_message(
-            "Hunting is currently WIP. Stay tuned!", ephemeral=True
+            "Hunting is currently WIP. Stay tuned!"
         )
 
-    @discord.ui.button(label="Hunt Stat", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Hunt Stat", style=discord.ButtonStyle.secondary, row=1)
     async def hunt_stat_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -231,7 +254,7 @@ class HuntHomeView(BaseHuntView):
             embeds=[format_stats_embed(profile)], view=HuntStatsView(interaction.user)
         )
 
-    @discord.ui.button(label="Equipment", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Equipment", style=discord.ButtonStyle.secondary, row=1)
     async def equipment_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -246,7 +269,7 @@ class HuntStatsView(BaseHuntView):
     def __init__(self, user: discord.abc.User):
         super().__init__(user)
 
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, row=1)
     async def back_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -256,7 +279,7 @@ class HuntStatsView(BaseHuntView):
         )
 
     @discord.ui.button(
-        label="Hunt Stat", style=discord.ButtonStyle.danger, disabled=True
+        label="Hunt Stat", style=discord.ButtonStyle.danger, disabled=True, row=1
     )
     async def hunt_stat_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
@@ -264,7 +287,7 @@ class HuntStatsView(BaseHuntView):
         # Button remains disabled as the user is already on this view
         await interaction.response.defer()
 
-    @discord.ui.button(label="Equipment", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Equipment", style=discord.ButtonStyle.secondary, row=1)
     async def equipment_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -345,12 +368,21 @@ class MiscSelect(discord.ui.Select):
 
 class HuntEquipmentView(BaseHuntView):
     def __init__(self, user: discord.abc.User):
-        super().__init__(user)
+        super().__init__(user, add_separator=False)
         profile = get_user_profile(user.id)
-        self.add_item(GearSelect(user, profile))
-        self.add_item(MiscSelect(user, profile))
+        gear_select = GearSelect(user, profile)
+        gear_select.row = 0
+        misc_select = MiscSelect(user, profile)
+        misc_select.row = 1
+        self.add_item(gear_select)
+        self.add_item(misc_select)
 
-    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary)
+        separator = discord.ui.Button(
+            label=" ", style=discord.ButtonStyle.secondary, disabled=True, row=2
+        )
+        self.add_item(separator)
+
+    @discord.ui.button(label="Back", style=discord.ButtonStyle.secondary, row=3)
     async def back_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -359,7 +391,7 @@ class HuntEquipmentView(BaseHuntView):
             embeds=[format_home_embed(profile)], view=HuntHomeView(interaction.user)
         )
 
-    @discord.ui.button(label="Hunt Stat", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Hunt Stat", style=discord.ButtonStyle.secondary, row=3)
     async def hunt_stat_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -368,7 +400,9 @@ class HuntEquipmentView(BaseHuntView):
             embeds=[format_stats_embed(profile)], view=HuntStatsView(interaction.user)
         )
 
-    @discord.ui.button(label="Equipment", style=discord.ButtonStyle.danger, disabled=True)
+    @discord.ui.button(
+        label="Equipment", style=discord.ButtonStyle.danger, disabled=True, row=3
+    )
     async def equipment_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
