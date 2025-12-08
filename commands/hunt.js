@@ -2,6 +2,9 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = re
 const { safeErrorReply } = require('../src/utils/interactions');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
+const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
+const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
+const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 
 function buildProgressBar(current, total, width = 20) {
   const safeTotal = Math.max(total, 1);
@@ -11,31 +14,46 @@ function buildProgressBar(current, total, width = 20) {
   return `${'█'.repeat(filled)}${'░'.repeat(empty)}`;
 }
 
+function buildSeparatorRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel(' ')
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(true),
+  );
+}
+
+function buildNavigationRow(userId, { active } = { active: 'home' }) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
+      .setLabel('HUNT')
+      .setStyle(active === 'home' ? ButtonStyle.Danger : ButtonStyle.Secondary)
+      .setDisabled(active === 'home'),
+    new ButtonBuilder()
+      .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
+      .setLabel('Hunt Stat')
+      .setStyle(active === 'stats' ? ButtonStyle.Danger : ButtonStyle.Secondary)
+      .setDisabled(active === 'stats'),
+    new ButtonBuilder()
+      .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
+      .setLabel('Equipment')
+      .setStyle(active === 'equipment' ? ButtonStyle.Danger : ButtonStyle.Secondary)
+      .setDisabled(active === 'equipment'),
+  );
+}
+
 function buildHuntHomeContent(userId) {
   const embed = {
-    description: "## Hunting\n-# Hunting is currently WIP. Stay tuned!",
+    description: '## Hunting\n-# Hunting is currently WIP. Stay tuned!',
     color: 0xb2b2b2,
-    thumbnail: { url: 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless' }
+    thumbnail: { url: HUNT_THUMBNAIL },
   };
 
-  const actionRow = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
-        .setLabel('HUNT')
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
-        .setLabel('Hunt Stat')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
-        .setLabel('Equipment')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-  return { embeds: [embed], components: [actionRow] };
+  return {
+    embeds: [embed],
+    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'home' })],
+  };
 }
 
 function buildHuntStatsContent(userId) {
@@ -47,54 +65,40 @@ function buildHuntStatsContent(userId) {
 
   const embed = {
     color: 0xb2b2b2,
-    description: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: 100 ❤️\n* User Defense: 0 🛡️`,
-    thumbnail: { url: 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless' }
+    description: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`
+\n* User Health: 100 ${HEART_EMOJI}\n* User Defense: 0 ${DEFENSE_EMOJI}`,
+    thumbnail: { url: HUNT_THUMBNAIL },
   };
 
-  const actionRow = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
-        .setLabel('Back')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
-        .setLabel('Hunt Stat')
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(true),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
-        .setLabel('Equipment')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-  return { embeds: [embed], components: [actionRow] };
+  return {
+    embeds: [embed],
+    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'stats' })],
+  };
 }
 
 function buildHuntEquipmentContent(userId) {
-  const embed = {
-    color: 0x808080,
-    description: '## Hunting Equipment\n-# Equipment selection is coming soon.'
+  const templateEmbed = {
+    color: 0x2f3136,
+    description: '## Hunt Equipment Template\n-# Fill your loadout using the selectors below.\n* Gear Slot: `None`\n* Misc Slot: `None`',
+    thumbnail: { url: HUNT_THUMBNAIL },
   };
 
-  const actionRow = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
-        .setLabel('Back')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
-        .setLabel('Hunt Stat')
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
-        .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
-        .setLabel('Equipment')
-        .setStyle(ButtonStyle.Danger)
-        .setDisabled(true)
-    );
+  const infoEmbed = {
+    color: 0xb2b2b2,
+    description: '## Hunting Equipment\n### * Gear equipped: None\n### * Misc equipped: None',
+    thumbnail: { url: HUNT_THUMBNAIL },
+  };
 
-  return { embeds: [embed], components: [actionRow] };
+  const selectionEmbed = {
+    color: 0x2f3136,
+    description: 'Use the selectors below to choose your Hunting Gear and Misc equipment.',
+    thumbnail: { url: HUNT_THUMBNAIL },
+  };
+
+  return {
+    embeds: [templateEmbed, infoEmbed, selectionEmbed],
+    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'equipment' })],
+  };
 }
 
 async function handleHuntButton(interaction) {
@@ -107,19 +111,19 @@ async function handleHuntButton(interaction) {
 
   if (action === 'home') {
     const content = buildHuntHomeContent(userId);
-    await interaction.update({ ...content, ephemeral: true });
+    await interaction.update(content);
     return true;
   }
 
   if (action === 'stats') {
     const content = buildHuntStatsContent(userId);
-    await interaction.update({ ...content, ephemeral: true });
+    await interaction.update(content);
     return true;
   }
 
   if (action === 'equipment') {
     const content = buildHuntEquipmentContent(userId);
-    await interaction.update({ ...content, ephemeral: true });
+    await interaction.update(content);
     return true;
   }
 
@@ -134,7 +138,7 @@ module.exports = {
 
   async execute(interaction) {
     const content = buildHuntHomeContent(interaction.user.id);
-    await interaction.reply({ ...content, ephemeral: true });
+    await interaction.reply(content);
   },
 
   async handleComponent(interaction) {
