@@ -1,10 +1,71 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { safeErrorReply } = require('../src/utils/interactions');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
+const HUNT_SELECT_PREFIX = 'hunt-select:';
 const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
+
+const HUNT_DATA_FILE = path.join(__dirname, '..', 'data', 'hunt_profiles.json');
+const DEFAULT_PROFILE = {
+  level: 1,
+  xp: 0,
+  next_level_xp: 100,
+  health: 100,
+  defense: 0,
+  gear_equipped: null,
+  misc_equipped: null,
+  gear_inventory: [],
+  misc_inventory: [],
+};
+
+function loadProfiles() {
+  if (!fs.existsSync(HUNT_DATA_FILE)) {
+    return {};
+  }
+
+  try {
+    const raw = fs.readFileSync(HUNT_DATA_FILE, 'utf-8');
+    const data = JSON.parse(raw);
+    return typeof data === 'object' && data !== null ? data : {};
+  } catch (error) {
+    console.warn('Failed to read hunt profiles; starting fresh.', error);
+    return {};
+  }
+}
+
+function saveProfiles(profiles) {
+  const safeProfiles = typeof profiles === 'object' && profiles !== null ? profiles : {};
+  fs.mkdirSync(path.dirname(HUNT_DATA_FILE), { recursive: true });
+  fs.writeFileSync(HUNT_DATA_FILE, JSON.stringify(safeProfiles));
+}
+
+function ensureProfileShape(profile = {}) {
+  return {
+    ...DEFAULT_PROFILE,
+    ...profile,
+    gear_inventory: Array.isArray(profile.gear_inventory) ? profile.gear_inventory : [],
+    misc_inventory: Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [],
+  };
+}
+
+function getUserProfile(userId) {
+  const profiles = loadProfiles();
+  const userKey = String(userId);
+  const existing = ensureProfileShape(profiles[userKey]);
+  profiles[userKey] = existing;
+  saveProfiles(profiles);
+  return existing;
+}
+
+function updateUserProfile(userId, profile) {
+  const profiles = loadProfiles();
+  profiles[String(userId)] = ensureProfileShape(profile);
+  saveProfiles(profiles);
+}
 
 function buildProgressBar(current, total, width = 20) {
   const safeTotal = Math.max(total, 1);
@@ -14,117 +75,315 @@ function buildProgressBar(current, total, width = 20) {
   return `${'█'.repeat(filled)}${'░'.repeat(empty)}`;
 }
 
-function buildSeparatorRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${HUNT_BUTTON_PREFIX}separator`)
-      .setLabel('\u200b')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true),
-  );
+function userHasHuntingTools(profile) {
+  return Boolean((profile.gear_inventory ?? []).length || (profile.misc_inventory ?? []).length);
 }
 
-function buildNavigationRow(userId, { active } = { active: 'home' }) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${HUNT_BUTTON_PREFIX}home:${userId}`)
-      .setLabel('HUNT')
-      .setStyle(active === 'home' ? ButtonStyle.Danger : ButtonStyle.Secondary)
-      .setDisabled(active === 'home'),
-    new ButtonBuilder()
-      .setCustomId(`${HUNT_BUTTON_PREFIX}stats:${userId}`)
-      .setLabel('Hunt Stat')
-      .setStyle(active === 'stats' ? ButtonStyle.Danger : ButtonStyle.Secondary)
-      .setDisabled(active === 'stats'),
-    new ButtonBuilder()
-      .setCustomId(`${HUNT_BUTTON_PREFIX}equipment:${userId}`)
-      .setLabel('Equipment')
-      .setStyle(active === 'equipment' ? ButtonStyle.Danger : ButtonStyle.Secondary)
-      .setDisabled(active === 'equipment'),
-  );
-}
+function buildNavigationRow({
+  userId,
+  view,
+}) {
+  if (view === 'home') {
+    return {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 4,
+          custom_id: `${HUNT_BUTTON_PREFIX}start:${userId}`,
+          label: 'HUNT',
+        },
+        {
+          type: 2,
+          style: 2,
+          custom_id: `${HUNT_BUTTON_PREFIX}stats:${userId}`,
+          label: 'Hunt Stat',
+        },
+        {
+          type: 2,
+          style: 2,
+          custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
+          label: 'Equipment',
+        },
+      ],
+    };
+  }
 
-function buildHuntHomeContent(userId) {
-  const embed = {
-    description: '## Hunting\n-# Hunting is currently WIP. Stay tuned!',
-    color: 0xb2b2b2,
-    thumbnail: { url: HUNT_THUMBNAIL },
-  };
+  if (view === 'stats') {
+    return {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          custom_id: `${HUNT_BUTTON_PREFIX}home:${userId}`,
+          label: 'Back',
+        },
+        {
+          type: 2,
+          style: 4,
+          custom_id: `${HUNT_BUTTON_PREFIX}stats:${userId}`,
+          label: 'Hunt Stat',
+          disabled: true,
+        },
+        {
+          type: 2,
+          style: 2,
+          custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
+          label: 'Equipment',
+        },
+      ],
+    };
+  }
 
   return {
-    embeds: [embed],
-    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'home' })],
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 2,
+        custom_id: `${HUNT_BUTTON_PREFIX}home:${userId}`,
+        label: 'Back',
+      },
+      {
+        type: 2,
+        style: 2,
+        custom_id: `${HUNT_BUTTON_PREFIX}stats:${userId}`,
+        label: 'Hunt Stat',
+      },
+      {
+        type: 2,
+        style: 4,
+        custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
+        label: 'Equipment',
+        disabled: true,
+      },
+    ],
   };
 }
 
-function buildHuntStatsContent(userId) {
-  const level = 1;
-  const xp = 0;
-  const nextLevel = 100;
+function buildHomeContainer(profile, userId) {
+  const message = userHasHuntingTools(profile)
+    ? 'Press **HUNT** button to start hunting.'
+    : "You don't have any HUNTING tool...";
+
+  return {
+    type: 17,
+    accent_color: 0xffffff,
+    components: [
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: `## Hunting\n-# ${message}`,
+          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: HUNT_THUMBNAIL },
+          description: 'Hunt icon',
+        },
+      },
+      { type: 14 },
+      buildNavigationRow({ userId, view: 'home' }),
+    ],
+  };
+}
+
+function buildStatsContainer(profile, userId) {
+  const { level, xp, next_level_xp: nextLevel, health, defense } = profile;
   const progressBar = buildProgressBar(xp, nextLevel);
   const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
 
-  const embed = {
-    color: 0xb2b2b2,
-    description: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`
-\n* User Health: 100 ${HEART_EMOJI}\n* User Defense: 0 ${DEFENSE_EMOJI}`,
-    thumbnail: { url: HUNT_THUMBNAIL },
-  };
-
   return {
-    embeds: [embed],
-    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'stats' })],
+    type: 17,
+    accent_color: 0xffffff,
+    components: [
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: ${health} ${HEART_EMOJI}\n* User Defense: ${defense} ${DEFENSE_EMOJI}`,
+          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: HUNT_THUMBNAIL },
+          description: 'Hunt stats icon',
+        },
+      },
+      { type: 14 },
+      buildNavigationRow({ userId, view: 'stats' }),
+    ],
   };
 }
 
-function buildHuntEquipmentContent(userId) {
-  const templateEmbed = {
-    color: 0x2f3136,
-    description: '## Hunt Equipment Template\n-# Fill your loadout using the selectors below.\n* Gear Slot: `None`\n* Misc Slot: `None`',
-    thumbnail: { url: HUNT_THUMBNAIL },
+function gearPlaceholder(profile) {
+  if (!(profile.gear_inventory ?? []).length) {
+    return "You don't have any Gear";
+  }
+  if (!profile.gear_equipped) {
+    return 'No Gear equipped';
+  }
+  const { name, emoji } = profile.gear_equipped;
+  return `${name ?? 'Gear'} ${emoji ?? ''}`.trim();
+}
+
+function miscPlaceholder(profile) {
+  if (!(profile.misc_inventory ?? []).length) {
+    return "You don't have any Misc";
+  }
+  if (!profile.misc_equipped) {
+    return 'No Misc equipped';
+  }
+  const { name, emoji } = profile.misc_equipped;
+  return `${name ?? 'Misc'} ${emoji ?? ''}`.trim();
+}
+
+function buildSelectOptions(items, equippedName) {
+  const options = [];
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const name = item.name ?? 'Item';
+    options.push({
+      label: name,
+      value: name,
+      emoji: item.emoji,
+      default: equippedName ? equippedName === name : undefined,
+    });
+  }
+
+  if (!options.length) {
+    options.push({ label: 'No items available', value: 'none', default: true });
+  }
+
+  return options;
+}
+
+function buildEquipmentContainers(profile, userId) {
+  const gearName = profile.gear_equipped?.name ?? 'None';
+  const gearEmoji = profile.gear_equipped?.emoji ?? '';
+  const miscName = profile.misc_equipped?.name ?? 'None';
+  const miscEmoji = profile.misc_equipped?.emoji ?? '';
+
+  const infoContainer = {
+    type: 17,
+    accent_color: 0xffffff,
+    components: [
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: `## Hunting Equipment\n### * Gear equipped: ${gearName} ${gearEmoji}\n### * Misc equipped: ${miscName} ${miscEmoji}`,
+          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: HUNT_THUMBNAIL },
+          description: 'Equipment icon',
+        },
+      },
+      { type: 14 },
+      buildNavigationRow({ userId, view: 'equipment' }),
+    ],
   };
 
-  const infoEmbed = {
-    color: 0xb2b2b2,
-    description: '## Hunting Equipment\n### * Gear equipped: None\n### * Misc equipped: None',
-    thumbnail: { url: HUNT_THUMBNAIL },
+  const selectionContainer = {
+    type: 17,
+    accent_color: 0x000000,
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `${HUNT_SELECT_PREFIX}gear:${userId}`,
+            placeholder: gearPlaceholder(profile),
+            options: buildSelectOptions(profile.gear_inventory ?? [], profile.gear_equipped?.name),
+            disabled: !(profile.gear_inventory ?? []).length,
+            min_values: 1,
+            max_values: 1,
+          },
+        ],
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `${HUNT_SELECT_PREFIX}misc:${userId}`,
+            placeholder: miscPlaceholder(profile),
+            options: buildSelectOptions(profile.misc_inventory ?? [], profile.misc_equipped?.name),
+            disabled: !(profile.misc_inventory ?? []).length,
+            min_values: 1,
+            max_values: 1,
+          },
+        ],
+      },
+    ],
   };
 
-  const selectionEmbed = {
-    color: 0x2f3136,
-    description: 'Use the selectors below to choose your Hunting Gear and Misc equipment.',
-    thumbnail: { url: HUNT_THUMBNAIL },
-  };
+  return [infoContainer, selectionContainer];
+}
 
+function buildHomeContent(profile, userId) {
   return {
-    embeds: [templateEmbed, infoEmbed, selectionEmbed],
-    components: [buildSeparatorRow(), buildNavigationRow(userId, { active: 'equipment' })],
+    flags: MessageFlags.IsComponentsV2,
+    components: [buildHomeContainer(profile, userId)],
   };
 }
 
-async function handleHuntButton(interaction) {
-  const [, action, userId] = interaction.customId.split(':');
+function buildStatsContent(profile, userId) {
+  return {
+    flags: MessageFlags.IsComponentsV2,
+    components: [buildStatsContainer(profile, userId)],
+  };
+}
 
+function buildEquipmentContent(profile, userId) {
+  return {
+    flags: MessageFlags.IsComponentsV2,
+    components: buildEquipmentContainers(profile, userId),
+  };
+}
+
+async function handleStartHunt(interaction) {
+  await interaction.reply({
+    content: 'Hunting is currently WIP. Stay tuned!',
+    ephemeral: true,
+  });
+}
+
+async function handleNavigation(interaction, action, userId) {
   if (interaction.user.id !== userId) {
     await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
     return true;
   }
 
+  const profile = getUserProfile(userId);
+
   if (action === 'home') {
-    const content = buildHuntHomeContent(userId);
-    await interaction.update(content);
+    await interaction.update(buildHomeContent(profile, userId));
     return true;
   }
 
   if (action === 'stats') {
-    const content = buildHuntStatsContent(userId);
-    await interaction.update(content);
+    await interaction.update(buildStatsContent(profile, userId));
     return true;
   }
 
   if (action === 'equipment') {
-    const content = buildHuntEquipmentContent(userId);
-    await interaction.update(content);
+    await interaction.update(buildEquipmentContent(profile, userId));
+    return true;
+  }
+
+  if (action === 'start') {
+    await handleStartHunt(interaction);
     return true;
   }
 
@@ -132,20 +391,60 @@ async function handleHuntButton(interaction) {
   return true;
 }
 
+function applySelection(profile, type, value) {
+  if (!value || value === 'none') {
+    return profile;
+  }
+
+  const key = type === 'gear' ? 'gear_inventory' : 'misc_inventory';
+  const equippedKey = type === 'gear' ? 'gear_equipped' : 'misc_equipped';
+  const list = profile[key] ?? [];
+  const selectedItem = list.find((item) => item && item.name === value);
+
+  if (selectedItem) {
+    profile[equippedKey] = selectedItem;
+  }
+
+  return profile;
+}
+
+async function handleSelect(interaction, selectType, userId) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const profile = getUserProfile(userId);
+  const selectedValue = interaction.values?.[0];
+  applySelection(profile, selectType, selectedValue);
+  updateUserProfile(userId, profile);
+
+  await interaction.update(buildEquipmentContent(profile, userId));
+  return true;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('hunt')
-    .setDescription('Open the hunting menu.'),
+    .setDescription("Open the hunting menu using Discord's components v2."),
 
   async execute(interaction) {
-    const content = buildHuntHomeContent(interaction.user.id);
+    const profile = getUserProfile(interaction.user.id);
+    const content = buildHomeContent(profile, interaction.user.id);
     await interaction.reply(content);
   },
 
   async handleComponent(interaction) {
     if (interaction.isButton() && interaction.customId.startsWith(HUNT_BUTTON_PREFIX)) {
-      return handleHuntButton(interaction);
+      const [, action, userId] = interaction.customId.split(':');
+      return handleNavigation(interaction, action, userId);
     }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(HUNT_SELECT_PREFIX)) {
+      const [, type, userId] = interaction.customId.split(':');
+      return handleSelect(interaction, type, userId);
+    }
+
     return false;
   }
 };
