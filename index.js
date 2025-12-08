@@ -24,6 +24,7 @@ const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SHOP_PAGE_SELECT_ID = 'shop-page-select';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
+const COMPONENTS_V2_FLAG = 1 << 15;
 
 async function safeErrorReply(interaction, message) {
   try {
@@ -103,39 +104,55 @@ async function buildShopPreview() {
   const buffer = await createShopImage(items, assetPaths.currencyIcon);
   const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
 
-  const embed = {
-    color: 0xffffff,
-    description: `## Jag's Shop\n-# Shop restock <t:${getRestockTimestamp()}:R>`,
-    image: { url: 'attachment://shop-view.png' }
-  };
-
   const components = buildShopComponents(items);
 
-  return { attachment, embed, components };
+  return { attachment, components };
 }
 
 function buildShopComponents(items) {
-  const rows = [];
-
-  const pageSelect = new StringSelectMenuBuilder()
-    .setCustomId(SHOP_PAGE_SELECT_ID)
-    .setPlaceholder('Page 1')
-    .addOptions({ label: 'Page 1', value: 'page-1', default: true });
-
-  rows.push(new ActionRowBuilder().addComponents(pageSelect));
+  const previewContainer = {
+    type: 17,
+    accent_color: 0xffffff,
+    components: [
+      {
+        type: 10,
+        content: `## Jag's Shop\n-# Shop restock <t:${getRestockTimestamp()}:R>`
+      },
+      {
+        type: 12,
+        items: [
+          {
+            media: {
+              url: 'attachment://shop-view.png'
+            }
+          }
+        ]
+      },
+      new ActionRowBuilder()
+        .addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(SHOP_PAGE_SELECT_ID)
+            .setPlaceholder('Page 1')
+            .addOptions({ label: 'Page 1', value: 'page-1', default: true })
+        )
+        .toJSON()
+    ]
+  };
 
   const BUTTONS_PER_ROW = 3;
+  const buttonRows = [];
+
   for (let i = 0; i < items.length; i += BUTTONS_PER_ROW) {
     const slice = items.slice(i, i + BUTTONS_PER_ROW);
     const row = new ActionRowBuilder();
 
     slice.forEach((item, index) => {
+      const buttonEmoji = item.emoji || ITEM_PLACEHOLDER_EMOJI;
+
       const button = new ButtonBuilder()
         .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${i + index}`)
         .setLabel(item.name)
         .setStyle(ButtonStyle.Success);
-
-      const buttonEmoji = item.image ? item.emoji : ITEM_PLACEHOLDER_EMOJI;
 
       if (buttonEmoji) {
         button.setEmoji(buttonEmoji);
@@ -144,10 +161,16 @@ function buildShopComponents(items) {
       row.addComponents(button);
     });
 
-    rows.push(row);
+    buttonRows.push(row.toJSON());
   }
 
-  return rows;
+  const buttonsContainer = {
+    type: 17,
+    accent_color: 0xffffff,
+    components: buttonRows
+  };
+
+  return [previewContainer, buttonsContainer];
 }
 
 client.once(Events.ClientReady, async () => {
@@ -247,12 +270,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (interaction.commandName === 'shop-view') {
-    await interaction.deferReply();
+    await interaction.deferReply({ flags: COMPONENTS_V2_FLAG });
     try {
-      const { attachment, embed, components } = await buildShopPreview();
+      const { attachment, components } = await buildShopPreview();
 
       await interaction.editReply({
-        embeds: [embed],
         files: [attachment],
         components
       });
