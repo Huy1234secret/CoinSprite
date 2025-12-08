@@ -1,115 +1,197 @@
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-const assetDir = path.join(__dirname, '..', 'data', 'shop-assets');
+const CANVAS_WIDTH = 1200;
+const CANVAS_HEIGHT = 800;
+const PADDING = 20;
+const COLS = 3;
+const BACKGROUND_COLOR = '#2f3136';
+const CARD_BG_COLOR = '#202225';
+const TEXT_COLOR = '#ffffff';
 
-const assetsToDownload = [
-  {
-    filename: 'currency.png',
-    url: 'https://github.com/twitter/twemoji/raw/master/assets/72x72/1f4b0.png'
-  },
-  {
-    filename: 'rarity-common.png',
-    url: 'https://github.com/twitter/twemoji/raw/master/assets/72x72/2b50.png'
-  },
-  {
-    filename: 'rarity-legendary.png',
-    url: 'https://github.com/twitter/twemoji/raw/master/assets/72x72/1f451.png'
-  },
-  {
-    filename: 'item-blade.png',
-    url: 'https://placehold.co/600x600/4e5d94/FFFFFF/png?text=Placeholder+Blade'
-  },
-  {
-    filename: 'item-scout.png',
-    url: 'https://placehold.co/600x600/437c90/FFFFFF/png?text=Scout+Map'
-  },
-  {
-    filename: 'item-cape.png',
-    url: 'https://placehold.co/600x600/6f1d1b/FFFFFF/png?text=Crimson+Cloak'
-  },
-  {
-    filename: 'item-brew.png',
-    url: 'https://placehold.co/600x600/2f3e46/FFFFFF/png?text=Alchemist+Brew'
+const DISCORD_EMOJIS = {
+  currency: '1447459216574124074',
+  rarity: {
+    common: '1447459423185272952',
+    uncommon: '1447459432165408789',
+    rare: '1447459432165408789',
+    epic: '1447459425303527465',
+    legendary: '1447459428273098835',
+    mythical: '1447459430760317172',
+    secret: '1447459434677665874'
   }
-];
+};
 
-function downloadFile(url, destination, redirectCount = 0) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, (response) => {
-        const status = response.statusCode;
+const RARITY_COLORS = {
+  common: '#95a5a6',
+  uncommon: '#2ecc71',
+  rare: '#3498db',
+  epic: '#9b59b6',
+  legendary: '#f1c40f',
+  mythical: '#e74c3c',
+  secret: '#000000'
+};
 
-        if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
-          if (redirectCount >= 5) {
-            response.resume();
-            return reject(new Error(`Too many redirects while downloading ${url}`));
-          }
-
-          const redirectUrl = new URL(response.headers.location, url).toString();
-          response.resume();
-          return downloadFile(redirectUrl, destination, redirectCount + 1).then(resolve).catch(reject);
-        }
-
-        if (status !== 200) {
-          response.resume();
-          return reject(new Error(`Failed to download ${url}. Status code: ${status}`));
-        }
-
-        const fileStream = fs.createWriteStream(destination);
-
-        response.pipe(fileStream);
-        fileStream.on('finish', () => fileStream.close(resolve));
-        fileStream.on('error', (error) => {
-          fs.unlink(destination, () => reject(error));
-        });
-      })
-      .on('error', (error) => {
-        fs.unlink(destination, () => reject(error));
-      });
-  });
-}
+const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.png`;
 
 async function ensureShopAssets() {
-  fs.mkdirSync(assetDir, { recursive: true });
-
-  const downloads = assetsToDownload.map(async (asset) => {
-    const destination = path.join(assetDir, asset.filename);
-    if (!fs.existsSync(destination)) {
-      await downloadFile(asset.url, destination);
-    }
-    return destination;
-  });
-
-  await Promise.all(downloads);
-
   return {
-    currencyIcon: path.join(assetDir, 'currency.png'),
-    rarities: {
-      common: path.join(assetDir, 'rarity-common.png'),
-      legendary: path.join(assetDir, 'rarity-legendary.png')
-    },
-    items: {
-      blade: path.join(assetDir, 'item-blade.png'),
-      scout: path.join(assetDir, 'item-scout.png'),
-      cape: path.join(assetDir, 'item-cape.png'),
-      brew: path.join(assetDir, 'item-brew.png')
-    }
+    currencyIcon: DISCORD_EMOJIS.currency,
+    rarities: DISCORD_EMOJIS.rarity
   };
 }
 
-const applyText = (canvas, text, baseFontSize, maxWidth) => {
-  const ctx = canvas.getContext('2d');
-  let fontSize = baseFontSize;
-  do {
-    ctx.font = `bold ${fontSize -= 2}px sans-serif`;
-  } while (ctx.measureText(text).width > maxWidth && fontSize > 10);
-  return ctx.font;
-};
+function getPlaceholderItems() {
+  return [
+    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null },
+    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'uncommon', image: null },
+    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null },
+    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null },
+    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'rare', image: null },
+    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'epic', image: null }
+  ];
+}
 
-function roundedImageClip(ctx, x, y, width, height, radius) {
+async function createShopImage(items = getPlaceholderItems(), currencyIconId = DISCORD_EMOJIS.currency) {
+  const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  const cardWidth = (CANVAS_WIDTH - (PADDING * (COLS + 1))) / COLS;
+  const rows = Math.ceil(items.length / COLS) || 1;
+  const cardHeight = (CANVAS_HEIGHT - (PADDING * (rows + 1))) / rows;
+
+  const currencyIcon = await loadImageSafe(resolveEmojiSource(currencyIconId));
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const colIndex = i % COLS;
+    const rowIndex = Math.floor(i / COLS);
+
+    const x = PADDING + (colIndex * (cardWidth + PADDING));
+    const y = PADDING + (rowIndex * (cardHeight + PADDING));
+
+    await drawCard(ctx, x, y, cardWidth, cardHeight, item, currencyIcon);
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
+  const radius = 15;
+  const rarityColor = RARITY_COLORS[item.rarity] || '#ffffff';
+
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = CARD_BG_COLOR;
+  ctx.fill();
+  ctx.strokeStyle = rarityColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+
+  const imgSize = 120;
+  const imgX = x + (w / 2) - (imgSize / 2);
+  const imgY = y + 25;
+
+  if (item.image) {
+    const img = await loadImageSafe(item.image);
+    if (img) {
+      ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
+    } else {
+      drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
+    }
+  } else {
+    drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
+  }
+
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 26px Sans-Serif';
+  ctx.fillStyle = TEXT_COLOR;
+  ctx.fillText(item.name, x + (w / 2), y + 190);
+
+  const rarityEmojiId = DISCORD_EMOJIS.rarity[item.rarity] || DISCORD_EMOJIS.rarity.common;
+  const rarityIconSize = 32;
+  const rarityY = y + 210;
+
+  try {
+    const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
+    const rarityText = item.rarity.toUpperCase();
+    ctx.font = 'italic 18px Sans-Serif';
+    const textWidth = ctx.measureText(rarityText).width;
+    const totalWidth = rarityIconSize + 5 + textWidth;
+    const startX = x + (w / 2) - (totalWidth / 2);
+
+    ctx.drawImage(rarityImg, startX, rarityY, rarityIconSize, rarityIconSize);
+
+    ctx.fillStyle = rarityColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(rarityText, startX + rarityIconSize + 5, rarityY + 22);
+  } catch (error) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = rarityColor;
+    ctx.fillText(item.rarity.toUpperCase(), x + (w / 2), y + 230);
+  }
+
+  const priceY = y + 270;
+  const iconSize = 28;
+  ctx.font = 'bold 24px Sans-Serif';
+  ctx.textAlign = 'center';
+
+  const priceText = `${item.price}`;
+  const priceWidth = ctx.measureText(priceText).width;
+
+  const fullPriceWidth = priceWidth + 10 + iconSize;
+  const priceStartX = x + (w / 2) - (fullPriceWidth / 2);
+
+  ctx.fillStyle = '#f1c40f';
+  ctx.textAlign = 'left';
+  ctx.fillText(priceText, priceStartX, priceY + 22);
+
+  if (currencyIcon) {
+    ctx.drawImage(currencyIcon, priceStartX + priceWidth + 10, priceY, iconSize, iconSize);
+  } else {
+    ctx.fillText('Gold', priceStartX + priceWidth + 10, priceY + 22);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.font = '20px Sans-Serif';
+  ctx.fillStyle = '#95a5a6';
+  ctx.fillText(`Stock: ${item.stock}`, x + (w / 2), y + 330);
+}
+
+function resolveEmojiSource(source) {
+  if (!source) {
+    return null;
+  }
+
+  if (/^https?:\/\//.test(source)) {
+    return source;
+  }
+
+  if (/^\d+$/.test(source)) {
+    return getEmojiUrl(source);
+  }
+
+  return source;
+}
+
+async function loadImageSafe(source) {
+  if (!source) {
+    return null;
+  }
+
+  try {
+    return await loadImage(source);
+  } catch (error) {
+    console.warn(`Failed to load image from ${source}:`, error);
+    return null;
+  }
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
   ctx.lineTo(x + width - radius, y);
@@ -121,147 +203,22 @@ function roundedImageClip(ctx, x, y, width, height, radius) {
   ctx.lineTo(x, y + radius);
   ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
-  ctx.clip();
 }
 
-async function loadImageSafe(source) {
-  if (!source) {
-    console.warn('Skipping image load because source was falsy:', source);
-    return null;
-  }
+function drawPlaceholderImage(ctx, x, y, size, color) {
+  ctx.save();
+  ctx.fillStyle = '#2c2f33';
+  ctx.fillRect(x, y, size, size);
 
-  try {
-    return await loadImage(source);
-  } catch (error) {
-    console.warn(`Failed to load image ${source}:`, error);
-    return null;
-  }
-}
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, size, size);
 
-async function createShopImage(items, currencyIconPath) {
-  const cardW = 300;
-  const cardH = 380;
-  const gap = 20;
-  const margin = 20;
-
-  const canvasW = (cardW * 2) + gap + (margin * 2);
-  const canvasH = (cardH * 2) + gap + (margin * 2);
-
-  const canvas = createCanvas(canvasW, canvasH);
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = '#2F3136';
-  ctx.fillRect(0, 0, canvasW, canvasH);
-
-  const currencyIcon = currencyIconPath ? await loadImageSafe(currencyIconPath) : null;
-
-  for (let i = 0; i < 4; i++) {
-    const item = items[i] || { name: 'Empty', price: 0 };
-
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = margin + col * (cardW + gap);
-    const y = margin + row * (cardH + gap);
-
-    ctx.fillStyle = '#202225';
-    ctx.fillRect(x, y, cardW, cardH);
-
-    const headerH = 50;
-    const iconSize = 35;
-    const padding = 10;
-
-    const rarityX = x + cardW - iconSize - padding;
-    const rarityY = y + (headerH - iconSize) / 2;
-
-    const rarityImg = item.rarityURL ? await loadImageSafe(item.rarityURL) : null;
-    if (rarityImg) {
-      ctx.drawImage(rarityImg, rarityX, rarityY, iconSize, iconSize);
-    } else {
-      ctx.beginPath();
-      ctx.arc(rarityX + iconSize / 2, rarityY + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'purple';
-      ctx.fill();
-    }
-
-    const maxTextW = cardW - iconSize - (padding * 3);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = applyText(canvas, item.name, 32, maxTextW);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(item.name, x + padding, y + headerH / 2);
-
-    const imgSize = cardW - (padding * 2);
-    const imgX = x + padding;
-    const imgY = y + headerH;
-    const radius = 15;
-
-    ctx.save();
-    roundedImageClip(ctx, imgX, imgY, imgSize, imgSize, radius);
-
-    const itemImg = item.imageURL ? await loadImageSafe(item.imageURL) : null;
-    if (itemImg) {
-      ctx.drawImage(itemImg, imgX, imgY, imgSize, imgSize);
-    } else {
-      const grd = ctx.createLinearGradient(imgX, imgY, imgX, imgY + imgSize);
-      grd.addColorStop(0, '#4e5d94');
-      grd.addColorStop(1, '#23272a');
-      ctx.fillStyle = grd;
-      ctx.fillRect(imgX, imgY, imgSize, imgSize);
-    }
-
-    ctx.restore();
-
-    const footerY = imgY + imgSize + 15;
-    const currencySize = 30;
-
-    if (currencyIcon) {
-      ctx.drawImage(currencyIcon, x + padding, footerY, currencySize, currencySize);
-    } else {
-      ctx.beginPath();
-      ctx.arc(x + padding + currencySize / 2, footerY + currencySize / 2, currencySize / 2, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFD700';
-      ctx.fill();
-    }
-
-    const priceX = x + padding + currencySize + 10;
-    const maxPriceW = cardW - (padding * 2) - currencySize - 10;
-
-    ctx.fillStyle = '#FFD700';
-    ctx.font = applyText(canvas, item.price.toLocaleString(), 30, maxPriceW);
-    ctx.textAlign = 'left';
-    ctx.fillText(item.price.toLocaleString(), priceX, footerY + currencySize / 2);
-  }
-
-  return canvas.toBuffer();
-}
-
-function getPlaceholderItems(assetPaths) {
-  return [
-    {
-      name: 'Placeholder Blade',
-      price: 1200,
-      imageURL: assetPaths.items.blade,
-      rarityURL: assetPaths.rarities.legendary
-    },
-    {
-      name: 'Scout Map',
-      price: 850,
-      imageURL: assetPaths.items.scout,
-      rarityURL: assetPaths.rarities.common
-    },
-    {
-      name: 'Crimson Cloak',
-      price: 1500,
-      imageURL: assetPaths.items.cape,
-      rarityURL: assetPaths.rarities.legendary
-    },
-    {
-      name: 'Alchemist Brew',
-      price: 500,
-      imageURL: assetPaths.items.brew,
-      rarityURL: assetPaths.rarities.common
-    }
-  ];
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = 'bold 16px Sans-Serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('ITEM', x + size / 2, y + size / 2 + 5);
+  ctx.restore();
 }
 
 module.exports = {
