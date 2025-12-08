@@ -123,7 +123,7 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
     const rarityText = item.rarity.toUpperCase();
     ctx.font = 'italic 18px Sans-Serif';
     const textWidth = ctx.measureText(rarityText).width;
-    const rarityScale = 32 / Math.max(rarityImg.width, rarityImg.height);
+    const rarityScale = 64 / Math.max(rarityImg.width, rarityImg.height);
     const rarityWidth = rarityImg.width * rarityScale;
     const rarityHeight = rarityImg.height * rarityScale;
     const totalWidth = rarityWidth + 5 + textWidth;
@@ -141,7 +141,7 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
   }
 
   const priceY = y + 270;
-  const iconSize = 28;
+  const iconSize = 56;
   ctx.font = 'bold 24px Sans-Serif';
   ctx.textAlign = 'center';
 
