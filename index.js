@@ -9,6 +9,7 @@ const {
   Collection,
   Events,
   GatewayIntentBits,
+  EmbedBuilder,
   StringSelectMenuBuilder,
   SlashCommandBuilder
 } = require('discord.js');
@@ -24,7 +25,6 @@ const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SHOP_PAGE_SELECT_ID = 'shop-page-select';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
-const COMPONENTS_V2_FLAG = 1 << 15;
 
 async function safeErrorReply(interaction, message) {
   try {
@@ -104,43 +104,29 @@ async function buildShopPreview() {
   const buffer = await createShopImage(items, assetPaths.currencyIcon);
   const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
 
+  const embed = new EmbedBuilder()
+    .setTitle("Jag's Shop")
+    .setDescription(`Shop restock <t:${getRestockTimestamp()}:R>`)
+    .setColor(0xffffff)
+    .setImage('attachment://shop-view.png');
+
   const components = buildShopComponents(items);
 
-  return { attachment, components };
+  return { attachment, embed, components };
 }
 
 function buildShopComponents(items) {
-  const previewContainer = {
-    type: 17,
-    accent_color: 0xffffff,
-    components: [
-      {
-        type: 10,
-        content: `## Jag's Shop\n-# Shop restock <t:${getRestockTimestamp()}:R>`
-      },
-      {
-        type: 12,
-        items: [
-          {
-            media: {
-              url: 'attachment://shop-view.png'
-            }
-          }
-        ]
-      },
-      new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(SHOP_PAGE_SELECT_ID)
-            .setPlaceholder('Page 1')
-            .addOptions({ label: 'Page 1', value: 'page-1', default: true })
-        )
-        .toJSON()
-    ]
-  };
-
   const BUTTONS_PER_ROW = 3;
-  const buttonRows = [];
+  const rows = [];
+
+  const selectRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(SHOP_PAGE_SELECT_ID)
+      .setPlaceholder('Page 1')
+      .addOptions({ label: 'Page 1', value: 'page-1', default: true })
+  );
+
+  rows.push(selectRow);
 
   for (let i = 0; i < items.length; i += BUTTONS_PER_ROW) {
     const slice = items.slice(i, i + BUTTONS_PER_ROW);
@@ -161,16 +147,10 @@ function buildShopComponents(items) {
       row.addComponents(button);
     });
 
-    buttonRows.push(row.toJSON());
+    rows.push(row);
   }
 
-  const buttonsContainer = {
-    type: 17,
-    accent_color: 0xffffff,
-    components: buttonRows
-  };
-
-  return [previewContainer, buttonsContainer];
+  return rows;
 }
 
 client.once(Events.ClientReady, async () => {
@@ -270,12 +250,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   if (interaction.commandName === 'shop-view') {
-    await interaction.deferReply({ flags: COMPONENTS_V2_FLAG });
+    await interaction.deferReply();
     try {
-      const { attachment, components } = await buildShopPreview();
+      const { attachment, embed, components } = await buildShopPreview();
 
       await interaction.editReply({
         files: [attachment],
+        embeds: [embed],
         components
       });
     } catch (error) {
