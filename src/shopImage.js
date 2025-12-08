@@ -137,10 +137,10 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
   } catch (error) {
     ctx.textAlign = 'center';
     ctx.fillStyle = rarityColor;
-    ctx.fillText(item.rarity.toUpperCase(), x + (w / 2), y + 230);
+    ctx.fillText(item.rarity.toUpperCase(), x + (w / 2), y + 200);
   }
 
-  const priceY = y + 350;
+  const priceY = y + 270;
   const iconSize = 56;
   ctx.font = 'bold 24px Sans-Serif';
   ctx.textAlign = 'center';
