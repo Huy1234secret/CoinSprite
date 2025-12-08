@@ -9,6 +9,7 @@ const {
   Collection,
   Events,
   GatewayIntentBits,
+  StringSelectMenuBuilder,
   SlashCommandBuilder
 } = require('discord.js');
 const { config } = require('dotenv');
@@ -22,6 +23,8 @@ const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SHOP_REFRESH_BUTTON_ID = 'shop-refresh-preview';
+const SHOP_PAGE_SELECT_ID = 'shop-page-select';
+const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
 
 async function safeErrorReply(interaction, message) {
   try {
@@ -103,11 +106,47 @@ async function buildShopPreview() {
 
   const embed = {
     color: 0xffffff,
-    description: `## JAG's Shop\n-# Shop restock in <t:${getRestockTimestamp()}:R>`,
+    description: `## Jag's Shop\n-# Shop restock <t:${getRestockTimestamp()}:R>`,
     image: { url: 'attachment://shop-view.png' }
   };
 
-  const components = [
+  const components = buildShopComponents(items);
+
+  return { attachment, embed, components };
+}
+
+function buildShopComponents(items) {
+  const rows = [];
+
+  const pageSelect = new StringSelectMenuBuilder()
+    .setCustomId(SHOP_PAGE_SELECT_ID)
+    .setPlaceholder('Page 1')
+    .addOptions({ label: 'Page 1', value: 'page-1', default: true });
+
+  rows.push(new ActionRowBuilder().addComponents(pageSelect));
+
+  const BUTTONS_PER_ROW = 3;
+  for (let i = 0; i < items.length; i += BUTTONS_PER_ROW) {
+    const slice = items.slice(i, i + BUTTONS_PER_ROW);
+    const row = new ActionRowBuilder();
+
+    slice.forEach((item, index) => {
+      const button = new ButtonBuilder()
+        .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${i + index}`)
+        .setLabel(item.name)
+        .setStyle(ButtonStyle.Success);
+
+      if (item.emoji) {
+        button.setEmoji(item.emoji);
+      }
+
+      row.addComponents(button);
+    });
+
+    rows.push(row);
+  }
+
+  rows.push(
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(SHOP_REFRESH_BUTTON_ID)
@@ -115,9 +154,9 @@ async function buildShopPreview() {
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🔄')
     )
-  ];
+  );
 
-  return { attachment, embed, components };
+  return rows;
 }
 
 client.once(Events.ClientReady, async () => {
@@ -140,6 +179,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
         console.error('Failed to refresh shop preview:', error);
         await safeErrorReply(interaction, 'Unable to refresh the shop preview right now.');
       }
+    } else if (interaction.customId.startsWith(SHOP_ITEM_BUTTON_PREFIX)) {
+      await safeErrorReply(interaction, 'Item purchase is not available in the preview.');
+    }
+    return;
+  }
+
+  if (interaction.isStringSelectMenu()) {
+    if (interaction.customId === SHOP_PAGE_SELECT_ID) {
+      await safeErrorReply(interaction, 'Pagination will be available when multiple pages exist.');
     }
     return;
   }

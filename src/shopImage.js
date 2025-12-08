@@ -29,7 +29,7 @@ const RARITY_COLORS = {
   secret: '#000000'
 };
 
-const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.webp?size=64&quality=lossless`;
+const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.png`;
 
 async function ensureShopAssets() {
   return {
@@ -38,24 +38,20 @@ async function ensureShopAssets() {
   };
 }
 
-function getPlaceholderItems() {
+function getPlaceholderItems({ rarities } = { rarities: DISCORD_EMOJIS.rarity }) {
   return [
-    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null },
-    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null },
-    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null },
-    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null },
-    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null },
-    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null },
-    { name: 'Shadow Relic', price: 7200, stock: 1, rarity: 'secret', image: null }
+    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null, emoji: rarities.common },
+    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null, emoji: rarities.rare },
+    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null, emoji: rarities.legendary },
+    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null, emoji: rarities.common },
+    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null, emoji: rarities.epic },
+    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null, emoji: rarities.mythical }
   ];
 }
 
 async function createShopImage(items = getPlaceholderItems(), currencyIconId = DISCORD_EMOJIS.currency) {
   const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
   const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = BACKGROUND_COLOR;
-  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
   const cardWidth = (CANVAS_WIDTH - (PADDING * (COLS + 1))) / COLS;
   const rows = Math.ceil(items.length / COLS) || 1;
