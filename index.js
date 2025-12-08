@@ -276,11 +276,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       await interaction.editReply({
         files: [attachment],
-        components
+        components,
+        flags: COMPONENTS_V2_FLAG
       });
     } catch (error) {
       console.error('Failed to generate shop view:', error);
-      await interaction.editReply('Unable to generate the shop view right now.');
+      await interaction.editReply({
+        components: [
+          {
+            type: 10,
+            content: 'Unable to generate the shop view right now.'
+          }
+        ],
+        flags: COMPONENTS_V2_FLAG
+      });
     }
   }
 });
