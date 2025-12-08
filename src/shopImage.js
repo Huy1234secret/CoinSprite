@@ -20,6 +20,8 @@ const DISCORD_EMOJIS = {
   }
 };
 
+const ITEM_PLACEHOLDER_EMOJI = '<:ITPlaceholder:1447469370421940304>';
+
 const RARITY_COLORS = {
   common: '#95a5a6',
   rare: '#3498db',
@@ -58,6 +60,7 @@ async function createShopImage(items = getPlaceholderItems(), currencyIconId = D
   const cardHeight = (CANVAS_HEIGHT - (PADDING * (rows + 1))) / rows;
 
   const currencyIcon = await loadImageSafe(resolveEmojiSource(currencyIconId));
+  const placeholderItemImage = await loadImageSafe(resolveEmojiSource(ITEM_PLACEHOLDER_EMOJI));
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -67,13 +70,13 @@ async function createShopImage(items = getPlaceholderItems(), currencyIconId = D
     const x = PADDING + (colIndex * (cardWidth + PADDING));
     const y = PADDING + (rowIndex * (cardHeight + PADDING));
 
-    await drawCard(ctx, x, y, cardWidth, cardHeight, item, currencyIcon);
+    await drawCard(ctx, x, y, cardWidth, cardHeight, item, currencyIcon, placeholderItemImage);
   }
 
   return canvas.toBuffer('image/png');
 }
 
-async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
+async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImage) {
   const radius = 15;
   const rarityColor = RARITY_COLORS[item.rarity] || '#ffffff';
 
@@ -90,13 +93,18 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
   const imgX = x + (w / 2) - (imgSize / 2);
   const imgY = y + 25;
 
+  let itemImage = null;
+
   if (item.image) {
-    const img = await loadImageSafe(item.image);
-    if (img) {
-      ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
-    } else {
-      drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
-    }
+    itemImage = await loadImageSafe(item.image);
+  }
+
+  if (!itemImage) {
+    itemImage = placeholderItemImage;
+  }
+
+  if (itemImage) {
+    drawImageWithinBounds(ctx, itemImage, imgX, imgY, imgSize);
   } else {
     drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
   }
@@ -108,7 +116,6 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
   ctx.fillText(item.name, x + (w / 2), y + 190);
 
   const rarityEmojiId = DISCORD_EMOJIS.rarity[item.rarity] || DISCORD_EMOJIS.rarity.common;
-  const rarityIconSize = 32;
   const rarityY = y + 210;
 
   try {
@@ -116,14 +123,17 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
     const rarityText = item.rarity.toUpperCase();
     ctx.font = 'italic 18px Sans-Serif';
     const textWidth = ctx.measureText(rarityText).width;
-    const totalWidth = rarityIconSize + 5 + textWidth;
+    const rarityScale = 32 / Math.max(rarityImg.width, rarityImg.height);
+    const rarityWidth = rarityImg.width * rarityScale;
+    const rarityHeight = rarityImg.height * rarityScale;
+    const totalWidth = rarityWidth + 5 + textWidth;
     const startX = x + (w / 2) - (totalWidth / 2);
 
-    ctx.drawImage(rarityImg, startX, rarityY, rarityIconSize, rarityIconSize);
+    ctx.drawImage(rarityImg, startX, rarityY, rarityWidth, rarityHeight);
 
     ctx.fillStyle = rarityColor;
     ctx.textAlign = 'left';
-    ctx.fillText(rarityText, startX + rarityIconSize + 5, rarityY + 22);
+    ctx.fillText(rarityText, startX + rarityWidth + 5, rarityY + 22);
   } catch (error) {
     ctx.textAlign = 'center';
     ctx.fillStyle = rarityColor;
@@ -168,6 +178,11 @@ function resolveEmojiSource(source) {
 
   if (/^\d+$/.test(source)) {
     return getEmojiUrl(source);
+  }
+
+  const customEmojiMatch = /<:\w+:(\d+)>/.exec(source);
+  if (customEmojiMatch) {
+    return getEmojiUrl(customEmojiMatch[1]);
   }
 
   return source;
@@ -216,8 +231,19 @@ function drawPlaceholderImage(ctx, x, y, size, color) {
   ctx.restore();
 }
 
+function drawImageWithinBounds(ctx, image, x, y, size) {
+  const scale = Math.min(size / image.width, size / image.height);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+  const offsetX = x + ((size - drawWidth) / 2);
+  const offsetY = y + ((size - drawHeight) / 2);
+
+  ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+}
+
 module.exports = {
   ensureShopAssets,
   createShopImage,
-  getPlaceholderItems
+  getPlaceholderItems,
+  ITEM_PLACEHOLDER_EMOJI
 };
