@@ -13,7 +13,7 @@ const {
   SlashCommandBuilder
 } = require('discord.js');
 const { config } = require('dotenv');
-const { ensureShopAssets, createShopImage, getPlaceholderItems } = require('./src/shopImage');
+const { ensureShopAssets, createShopImage, getPlaceholderItems, ITEM_PLACEHOLDER_EMOJI } = require('./src/shopImage');
 
 config();
 
@@ -22,7 +22,6 @@ const ANNOUNCEMENT_CHANNEL_ID = '1372572234949853367';
 const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const SHOP_REFRESH_BUTTON_ID = 'shop-refresh-preview';
 const SHOP_PAGE_SELECT_ID = 'shop-page-select';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
 
@@ -136,8 +135,10 @@ function buildShopComponents(items) {
         .setLabel(item.name)
         .setStyle(ButtonStyle.Success);
 
-      if (item.emoji) {
-        button.setEmoji(item.emoji);
+      const buttonEmoji = item.image ? item.emoji : ITEM_PLACEHOLDER_EMOJI;
+
+      if (buttonEmoji) {
+        button.setEmoji(buttonEmoji);
       }
 
       row.addComponents(button);
@@ -145,16 +146,6 @@ function buildShopComponents(items) {
 
     rows.push(row);
   }
-
-  rows.push(
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(SHOP_REFRESH_BUTTON_ID)
-        .setLabel('Refresh preview')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🔄')
-    )
-  );
 
   return rows;
 }
@@ -170,16 +161,7 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton()) {
-    if (interaction.customId === SHOP_REFRESH_BUTTON_ID) {
-      try {
-        await interaction.deferUpdate();
-        const { attachment, embed, components } = await buildShopPreview();
-        await interaction.editReply({ embeds: [embed], files: [attachment], components });
-      } catch (error) {
-        console.error('Failed to refresh shop preview:', error);
-        await safeErrorReply(interaction, 'Unable to refresh the shop preview right now.');
-      }
-    } else if (interaction.customId.startsWith(SHOP_ITEM_BUTTON_PREFIX)) {
+    if (interaction.customId.startsWith(SHOP_ITEM_BUTTON_PREFIX)) {
       await safeErrorReply(interaction, 'Item purchase is not available in the preview.');
     }
     return;
