@@ -121,29 +121,35 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
   try {
     const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
     const rarityText = item.rarity.toUpperCase();
+    const raritySpacing = 3;
     ctx.font = 'italic 18px Sans-Serif';
     const textWidth = ctx.measureText(rarityText).width;
     const rarityScale = 64 / Math.max(rarityImg.width, rarityImg.height);
     const rarityWidth = rarityImg.width * rarityScale;
     const rarityHeight = rarityImg.height * rarityScale;
-    const totalWidth = rarityWidth + 5 + textWidth;
+    const totalWidth = rarityWidth + raritySpacing + textWidth;
     const startX = x + (w / 2) - (totalWidth / 2);
+    const rarityCenterY = rarityY + (rarityHeight / 2);
 
     ctx.drawImage(rarityImg, startX, rarityY, rarityWidth, rarityHeight);
 
     ctx.fillStyle = rarityColor;
     ctx.textAlign = 'left';
-    ctx.fillText(rarityText, startX + rarityWidth + 5, rarityY + 22);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(rarityText, startX + rarityWidth + raritySpacing, rarityCenterY);
   } catch (error) {
     ctx.textAlign = 'center';
     ctx.fillStyle = rarityColor;
     ctx.fillText(item.rarity.toUpperCase(), x + (w / 2), y + 200);
   }
 
+  ctx.textBaseline = 'alphabetic';
+
   const priceY = y + 270;
   const iconSize = 56;
   ctx.font = 'bold 24px Sans-Serif';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
   const priceText = `${item.price}`;
   const priceWidth = ctx.measureText(priceText).width;
@@ -153,16 +159,17 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
 
   ctx.fillStyle = '#f1c40f';
   ctx.textAlign = 'left';
-  ctx.fillText(priceText, priceStartX, priceY + 22);
+  ctx.fillText(priceText, priceStartX, priceY + (iconSize / 2));
 
   if (currencyIcon) {
     ctx.drawImage(currencyIcon, priceStartX + priceWidth + 10, priceY, iconSize, iconSize);
   } else {
-    ctx.fillText('Gold', priceStartX + priceWidth + 10, priceY + 22);
+    ctx.fillText('Gold', priceStartX + priceWidth + 10, priceY + (iconSize / 2));
   }
 
   ctx.textAlign = 'center';
   ctx.font = '20px Sans-Serif';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#95a5a6';
   ctx.fillText(`Stock: ${item.stock}`, x + (w / 2), y + 330);
 }
