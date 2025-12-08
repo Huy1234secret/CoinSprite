@@ -121,7 +121,7 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
   try {
     const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
     const rarityText = item.rarity.toUpperCase();
-    const raritySpacing = 1;
+    const raritySpacing = 0;
     ctx.font = 'italic 18px Sans-Serif';
     const textWidth = ctx.measureText(rarityText).width;
     const rarityScale = 64 / Math.max(rarityImg.width, rarityImg.height);
@@ -145,7 +145,7 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImag
 
   ctx.textBaseline = 'alphabetic';
 
-  const priceY = y + 230;
+  const priceY = y + 250;
   const iconSize = 56;
   ctx.font = 'bold 24px Sans-Serif';
   ctx.textAlign = 'center';
