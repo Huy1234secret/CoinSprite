@@ -21,7 +21,7 @@ const TOTAL_GIFTCARDS = 2;
 const ANNOUNCEMENT_CHANNEL_ID = '1372572234949853367';
 const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SHOP_RESTOCK_INTERVAL_HOURS = 1;
 const SHOP_PAGE_SELECT_ID = 'shop-page-select';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
 const COMPONENTS_V2_FLAG = 1 << 15;
@@ -94,8 +94,15 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const cooldowns = new Collection();
 
 function getRestockTimestamp() {
-  const now = Date.now();
-  return Math.floor((now + SHOP_RESTOCK_INTERVAL_MS) / 1000);
+  const now = new Date();
+  const nextRestock = new Date(now);
+  nextRestock.setMinutes(0, 0, 0);
+
+  if (now >= nextRestock) {
+    nextRestock.setHours(nextRestock.getHours() + SHOP_RESTOCK_INTERVAL_HOURS);
+  }
+
+  return Math.floor(nextRestock.getTime() / 1000);
 }
 
 async function buildShopPreview() {
