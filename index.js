@@ -1,6 +1,16 @@
 const fs = require('fs');
 const path = require('path');
-const { AttachmentBuilder, Client, Collection, Events, GatewayIntentBits, SlashCommandBuilder } = require('discord.js');
+const {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Client,
+  Collection,
+  Events,
+  GatewayIntentBits,
+  SlashCommandBuilder
+} = require('discord.js');
 const { config } = require('dotenv');
 const { ensureShopAssets, createShopImage, getPlaceholderItems } = require('./src/shopImage');
 
@@ -10,6 +20,8 @@ const TOTAL_GIFTCARDS = 2;
 const ANNOUNCEMENT_CHANNEL_ID = '1372572234949853367';
 const STATE_FILE = path.join(__dirname, 'data', 'state.json');
 const ROLL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const SHOP_RESTOCK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SHOP_REFRESH_BUTTON_ID = 'shop-refresh-preview';
 
 async function safeErrorReply(interaction, message) {
   try {
@@ -78,6 +90,36 @@ const commands = [
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const cooldowns = new Collection();
 
+function getRestockTimestamp() {
+  const now = Date.now();
+  return Math.floor((now + SHOP_RESTOCK_INTERVAL_MS) / 1000);
+}
+
+async function buildShopPreview() {
+  const assetPaths = await ensureShopAssets();
+  const items = getPlaceholderItems(assetPaths);
+  const buffer = await createShopImage(items, assetPaths.currencyIcon);
+  const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
+
+  const embed = {
+    color: 0xffffff,
+    description: `## JAG's Shop\n-# Shop restock in <t:${getRestockTimestamp()}:R>`,
+    image: { url: 'attachment://shop-view.png' }
+  };
+
+  const components = [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(SHOP_REFRESH_BUTTON_ID)
+        .setLabel('Refresh preview')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('🔄')
+    )
+  ];
+
+  return { attachment, embed, components };
+}
+
 client.once(Events.ClientReady, async () => {
   try {
     await client.application.commands.set(commands);
@@ -88,6 +130,20 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) {
+    if (interaction.customId === SHOP_REFRESH_BUTTON_ID) {
+      try {
+        await interaction.deferUpdate();
+        const { attachment, embed, components } = await buildShopPreview();
+        await interaction.editReply({ embeds: [embed], files: [attachment], components });
+      } catch (error) {
+        console.error('Failed to refresh shop preview:', error);
+        await safeErrorReply(interaction, 'Unable to refresh the shop preview right now.');
+      }
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) {
     return;
   }
@@ -163,14 +219,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.commandName === 'shop-view') {
     await interaction.deferReply();
     try {
-      const assetPaths = await ensureShopAssets();
-      const items = getPlaceholderItems(assetPaths);
-      const buffer = await createShopImage(items, assetPaths.currencyIcon);
-      const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
+      const { attachment, embed, components } = await buildShopPreview();
 
       await interaction.editReply({
-        content: 'Here is the current shop preview:',
-        files: [attachment]
+        embeds: [embed],
+        files: [attachment],
+        components
       });
     } catch (error) {
       console.error('Failed to generate shop view:', error);
