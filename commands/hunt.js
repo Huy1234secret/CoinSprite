@@ -17,7 +17,8 @@ function buildProgressBar(current, total, width = 20) {
 function buildSeparatorRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setLabel(' ')
+      .setCustomId(`${HUNT_BUTTON_PREFIX}separator`)
+      .setLabel('\u200b')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true),
   );
