@@ -42,12 +42,12 @@ async function ensureShopAssets() {
 
 function getPlaceholderItems({ rarities } = { rarities: DISCORD_EMOJIS.rarity }) {
   return [
-    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null, emoji: rarities.common },
-    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null, emoji: rarities.rare },
-    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null, emoji: rarities.legendary },
-    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null, emoji: rarities.common },
-    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null, emoji: rarities.epic },
-    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null, emoji: rarities.mythical }
+    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null, emoji: null },
+    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null, emoji: null },
+    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null, emoji: null },
+    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null, emoji: null },
+    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null, emoji: null },
+    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null, emoji: null }
   ];
 }
 

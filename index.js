@@ -147,7 +147,7 @@ function buildShopComponents(items) {
     const row = new ActionRowBuilder();
 
     slice.forEach((item, index) => {
-      const buttonEmoji = item.emoji || ITEM_PLACEHOLDER_EMOJI;
+      const buttonEmoji = item.emoji || (!item.image ? ITEM_PLACEHOLDER_EMOJI : null);
 
       const button = new ButtonBuilder()
         .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${i + index}`)
