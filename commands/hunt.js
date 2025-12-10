@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { AttachmentBuilder, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { safeErrorReply } = require('../src/utils/interactions');
+const { createHuntBattleImage } = require('../src/huntImage');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
 const HUNT_SELECT_PREFIX = 'hunt-select:';
@@ -353,9 +354,60 @@ function buildEquipmentContent(profile, userId) {
 }
 
 async function handleStartHunt(interaction) {
-  await interaction.reply({
-    content: 'Hunting is currently WIP. Stay tuned!',
-    ephemeral: true,
+  await interaction.deferReply({ ephemeral: true });
+
+  const profile = getUserProfile(interaction.user.id);
+  const playerName = interaction.user.globalName ?? interaction.user.username;
+  const playerAvatar = interaction.user.displayAvatarURL({ extension: 'png', size: 256 });
+
+  const enemies = [
+    {
+      label: 'Goblin Raider',
+      level: Math.max(1, profile.level - 1),
+      health: 75,
+      maxHealth: 90,
+      shield: 0,
+      accentColor: '#f35b5b',
+    },
+    {
+      label: 'Forest Wisp',
+      level: profile.level,
+      health: 60,
+      maxHealth: 80,
+      shield: 1,
+      accentColor: '#8be9fd',
+    },
+    {
+      label: 'Stone Guardian',
+      level: profile.level + 1,
+      health: 120,
+      maxHealth: 140,
+      shield: 2,
+      accentColor: '#f9c74f',
+    },
+  ].slice(0, Math.max(1, Math.min(5, profile.level % 5 || 3)));
+
+  const player = {
+    name: playerName,
+    avatar: playerAvatar,
+    level: profile.level,
+    maxHealth: profile.health,
+    health: profile.health,
+    defense: profile.defense,
+    shield: profile.defense,
+    team: [
+      { label: 'Pet', level: profile.level, health: 85, accentColor: '#7b8ab8' },
+      { label: 'Companion', level: profile.level - 1, health: 70, accentColor: '#89f0d0' },
+      { label: 'Support', level: profile.level, health: 90, accentColor: '#f78c6c' },
+    ],
+  };
+
+  const buffer = await createHuntBattleImage({ player, enemies });
+  const attachment = new AttachmentBuilder(buffer, { name: 'hunt-battle.png' });
+
+  await interaction.editReply({
+    content: 'Your hunt is ready. Here is your battle preview!',
+    files: [attachment],
   });
 }
 
