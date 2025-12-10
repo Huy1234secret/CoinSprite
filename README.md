@@ -11,8 +11,9 @@ A simple Discord bot written in JavaScript that provides a `/roll` command to aw
 ## Setup
 1. **Install dependencies**
    ```bash
-   npm install
+   ./scripts/install-deps.sh
    ```
+   - Pass `--upgrade-npm` (or set `UPGRADE_NPM=1`) to let the script upgrade npm to the latest pinned minor version if your local installation is older.
 2. **Configure environment**
    - Copy `.env.example` to `.env` and set `DISCORD_TOKEN` to your bot token.
 
