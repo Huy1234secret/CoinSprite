@@ -1,10 +1,14 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-// === BASIC CONFIG (width > height, but not too wide) ===
+// === BASIC CONFIG ===
 const CANVAS_WIDTH = 1280;
-const CANVAS_HEIGHT = 720;
+const CANVAS_HEIGHT = 720; // still 16:9, but content is shorter
 
-// === COLOR PALETTE (RPG-ish) ===
+// Card height presets (used for panel height)
+const MAIN_CARD_HEIGHT = 180;   // main player card
+const PARTY_CARD_HEIGHT = 140;  // 3 small party slots
+
+// === COLOR PALETTE ===
 const BG_TOP = '#05060a';
 const BG_BOTTOM = '#141927';
 const PANEL_FILL = '#161925';
@@ -22,6 +26,7 @@ const TEXT_SOFT = '#a9b4d4';
 function truncateWithEllipsis(ctx, text, maxWidth) {
   if (!text) return '';
   if (ctx.measureText(text).width <= maxWidth) return text;
+
   let truncated = text;
   while (truncated.length > 0 && ctx.measureText(`${truncated}…`).width > maxWidth) {
     truncated = truncated.slice(0, -1);
@@ -44,14 +49,12 @@ function drawRoundedRect(ctx, x, y, width, height, radius = 18) {
 }
 
 function drawBackground(ctx) {
-  // Vignette gradient
   const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
   grad.addColorStop(0, BG_TOP);
   grad.addColorStop(1, BG_BOTTOM);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Soft radial glow in the middle
   const radial = ctx.createRadialGradient(
     CANVAS_WIDTH / 2,
     CANVAS_HEIGHT / 2,
@@ -65,7 +68,7 @@ function drawBackground(ctx) {
   ctx.fillStyle = radial;
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // Center divider
+  // center divider
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
   ctx.lineWidth = 2;
   ctx.setLineDash([14, 12]);
@@ -83,7 +86,7 @@ function drawAvatar(ctx, image, x, y, size, accentColor) {
 
   ctx.save();
 
-  // Outer glowing ring
+  // glowing ring
   ctx.beginPath();
   ctx.arc(cx, cy, r + 6, 0, Math.PI * 2);
   const ringGrad = ctx.createRadialGradient(cx, cy, r, cx, cy, r + 8);
@@ -95,7 +98,7 @@ function drawAvatar(ctx, image, x, y, size, accentColor) {
   ctx.fillStyle = ringGrad;
   ctx.fill();
 
-  // Inner avatar circle
+  // avatar circle
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.closePath();
@@ -116,12 +119,10 @@ function drawHealthBar(ctx, x, y, width, height, value, maxValue) {
   const ratio = Math.max(0, Math.min(1, value / safeMax));
   const filledWidth = width * ratio;
 
-  // Background
   drawRoundedRect(ctx, x, y, width, height, height / 2);
   ctx.fillStyle = HP_BAR_BG;
   ctx.fill();
 
-  // Filled
   drawRoundedRect(ctx, x, y, filledWidth, height, height / 2);
   const grad = ctx.createLinearGradient(x, y, x + width, y);
   grad.addColorStop(0, HP_BAR_FILL);
@@ -129,23 +130,25 @@ function drawHealthBar(ctx, x, y, width, height, value, maxValue) {
   ctx.fillStyle = grad;
   ctx.fill();
 
-  // Top highlight line
-  ctx.beginPath();
-  ctx.moveTo(x + 4, y + 3);
-  ctx.lineTo(x + filledWidth - 4, y + 3);
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // top highlight
+  if (filledWidth > 8) {
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y + 3);
+    ctx.lineTo(x + filledWidth - 4, y + 3);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 }
 
 function drawShield(ctx, x, y, size, value) {
   if (!value || value <= 0) return;
 
   ctx.save();
-  // Hex shield
   const r = size / 2;
   const cx = x + r;
   const cy = y + r;
+
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
     const angle = (Math.PI / 3) * i - Math.PI / 2;
@@ -166,19 +169,19 @@ function drawShield(ctx, x, y, size, value) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Value text
   ctx.fillStyle = '#ffffff';
   ctx.font = `bold ${size * 0.55}px Sans-Serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(String(value), cx, cy + 1);
+
   ctx.restore();
 }
 
 // === GENERIC UNIT CARD ===
 // options:
 //   variant: 'main' | 'small'
-//   showName: boolean (NO names for team slots & enemies)
+//   showName: boolean
 //   accentColor: string
 function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
   const {
@@ -189,7 +192,6 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
 
   ctx.save();
 
-  // Card background with inner border
   const radius = variant === 'main' ? 20 : 16;
   drawRoundedRect(ctx, x, y, width, height, radius);
   const cardGrad = ctx.createLinearGradient(x, y, x, y + height);
@@ -202,7 +204,7 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
   ctx.lineWidth = 2.2;
   ctx.stroke();
 
-  // Top glow edge
+  // top highlight
   ctx.beginPath();
   ctx.moveTo(x + radius, y + 1.5);
   ctx.lineTo(x + width - radius, y + 1.5);
@@ -216,7 +218,6 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
   const innerW = width - padding * 2;
   const innerH = height - padding * 2;
 
-  // Avatar size
   const avatarSize = variant === 'main'
     ? Math.min(innerH * 0.7, innerW * 0.45)
     : Math.min(innerH * 0.8, innerW * 0.55);
@@ -226,7 +227,6 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
 
   drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, accentColor);
 
-  // Right side info
   const infoX = avatarX + avatarSize + (variant === 'main' ? 18 : 12);
   const infoWidth = x + width - padding - infoX;
 
@@ -246,20 +246,29 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
     levelY = innerY + 12;
   }
 
-  // Level text
+  // Level
   ctx.fillStyle = TEXT_SOFT;
   ctx.font = (variant === 'main' ? '18px Sans-Serif' : '16px Sans-Serif');
-  const level = unit.level ?? 1;
-  ctx.fillText(`Lv. ${level}`, infoX, levelY);
+  ctx.fillText(`Lv. ${unit.level ?? 1}`, infoX, levelY);
 
-  // Shield icon below level
+  // Shield
   const shieldSize = variant === 'main' ? 36 : 30;
   drawShield(ctx, infoX, levelY + 8, shieldSize, unit.shield ?? 0);
 
-  // HP bar area (bottom)
+  // HP bar (bottom, full slot width for small cards)
   const hpBarHeight = variant === 'main' ? 18 : 14;
-  const hpBarWidth = infoWidth;
-  const hpBarX = infoX;
+  let hpBarWidth;
+  let hpBarX;
+
+  if (variant === 'small') {
+    // FULL WIDTH for team + enemies
+    hpBarWidth = innerW;
+    hpBarX = innerX;
+  } else {
+    hpBarWidth = infoWidth;
+    hpBarX = infoX;
+  }
+
   const hpBarY = y + height - padding - hpBarHeight - (variant === 'main' ? 8 : 4);
 
   drawHealthBar(
@@ -284,12 +293,8 @@ function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
   ctx.restore();
 }
 
-// === LAYOUT HELPERS ===
+// === ENEMY LAYOUT (auto size when many) ===
 function layoutEnemySlotsRPG(count, areaX, areaY, areaWidth, areaHeight) {
-  // For RPG feeling:
-  // 1 enemy -> centered
-  // 2-3 enemies -> single row
-  // 4-5 enemies -> 3 on top, rest bottom
   const clampedCount = Math.max(1, Math.min(5, count));
 
   let rows, colsTop, colsBottom;
@@ -306,18 +311,28 @@ function layoutEnemySlotsRPG(count, areaX, areaY, areaWidth, areaHeight) {
   }
 
   const gap = 14;
-  const cardHeight = rows === 1
-    ? Math.min(190, areaHeight - gap * 2)
-    : Math.min(160, (areaHeight - gap * 3) / 2);
+
+  let cardHeight;
+  if (clampedCount <= 2) {
+    cardHeight = Math.min(190, areaHeight - gap * 2);
+  } else if (clampedCount === 3) {
+    cardHeight = Math.min(180, areaHeight - gap * 2);
+  } else {
+    cardHeight = Math.min(150, (areaHeight - gap * 3) / 2); // smaller when 4–5 enemies
+  }
 
   const positions = [];
 
-  // Helper to push row
-  function layoutRow(itemCount, rowIndex, totalRows) {
-    const rowY =
-      areaY + gap + rowIndex * (cardHeight + gap);
+  function layoutRow(itemCount, rowIndex) {
+    const rowY = areaY + gap + rowIndex * (cardHeight + gap);
+
+    let maxWidth;
+    if (clampedCount <= 2) maxWidth = 260;
+    else if (clampedCount === 3) maxWidth = 240;
+    else maxWidth = 220;
+
     const cardWidth = Math.min(
-      250,
+      maxWidth,
       (areaWidth - gap * (itemCount + 1)) / itemCount,
     );
 
@@ -333,13 +348,12 @@ function layoutEnemySlotsRPG(count, areaX, areaY, areaWidth, areaHeight) {
   }
 
   if (rows === 1) {
-    layoutRow(colsTop, 0, 1);
+    layoutRow(colsTop, 0);
   } else {
-    layoutRow(colsTop, 0, 2);
-    layoutRow(colsBottom, 1, 2);
+    layoutRow(colsTop, 0);
+    layoutRow(colsBottom, 1);
   }
 
-  // If exactly 1, center it
   if (clampedCount === 1) {
     const p = positions[0];
     const dx = (areaWidth - p.width) / 2;
@@ -353,13 +367,23 @@ function layoutEnemySlotsRPG(count, areaX, areaY, areaWidth, areaHeight) {
 function drawPlayerSide(ctx, player) {
   const marginX = 32;
   const panelWidth = CANVAS_WIDTH / 2 - marginX * 1.5;
-  const panelHeight = CANVAS_HEIGHT - 100;
   const x = marginX;
   const y = 50;
 
+  const topOffsetToMain = 40;
+  const gapMainToParty = 32;
+  const bottomPadding = 28;
+
+  const panelHeight =
+    topOffsetToMain +
+    MAIN_CARD_HEIGHT +
+    gapMainToParty +
+    PARTY_CARD_HEIGHT +
+    bottomPadding;
+
   ctx.save();
 
-  // Panel frame
+  // Panel frame (height reduced, bottom close to 3 slots)
   drawRoundedRect(ctx, x, y, panelWidth, panelHeight, 28);
   ctx.fillStyle = PANEL_FILL;
   ctx.fill();
@@ -367,10 +391,18 @@ function drawPlayerSide(ctx, player) {
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Header banner
+  // Header banner: "PLAYER"
   const bannerHeight = 32;
-  drawRoundedRect(ctx, x + 18, y - bannerHeight / 2, 140, bannerHeight, 16);
-  const bannerGrad = ctx.createLinearGradient(x, y, x + 140, y + bannerHeight);
+  const bannerWidth = 120;
+  drawRoundedRect(
+    ctx,
+    x + 18,
+    y - bannerHeight / 2,
+    bannerWidth,
+    bannerHeight,
+    16,
+  );
+  const bannerGrad = ctx.createLinearGradient(x, y, x + bannerWidth, y + bannerHeight);
   bannerGrad.addColorStop(0, '#26c6da');
   bannerGrad.addColorStop(1, '#00acc1');
   ctx.fillStyle = bannerGrad;
@@ -380,16 +412,16 @@ function drawPlayerSide(ctx, player) {
   ctx.font = 'bold 18px Serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('PLAYER PARTY', x + 88, y);
+  ctx.fillText('PLAYER', x + 18 + bannerWidth / 2, y);
 
   ctx.textAlign = 'start';
   ctx.textBaseline = 'alphabetic';
 
-  // Main hero card (shows name)
+  // Main player card (shows name)
   const mainCardX = x + 24;
-  const mainCardY = y + 40;
+  const mainCardY = y + topOffsetToMain;
   const mainCardW = panelWidth - 48;
-  const mainCardH = 190;
+  const mainCardH = MAIN_CARD_HEIGHT;
 
   drawUnitCard(
     ctx,
@@ -409,12 +441,12 @@ function drawPlayerSide(ctx, player) {
     },
   );
 
-  // Party slots (3, no names)
-  const partyY = mainCardY + mainCardH + 40;
+  // 3 team slots (no names)
+  const slotHeight = PARTY_CARD_HEIGHT;
+  const partyY = mainCardY + mainCardH + gapMainToParty;
   const gap = 14;
   const slotCount = 3;
   const slotWidth = (panelWidth - 48 - gap * (slotCount - 1)) / slotCount;
-  const slotHeight = 150;
 
   for (let i = 0; i < slotCount; i++) {
     const slotData = player.team?.[i] ?? {};
@@ -435,7 +467,7 @@ function drawPlayerSide(ctx, player) {
       slotHeight,
       {
         variant: 'small',
-        showName: false,                 // <-- NO NAMES for team slots
+        showName: false, // no names for 3 slots
         accentColor: slotData.accentColor ?? '#7b8ab8',
       },
     );
@@ -448,13 +480,21 @@ function drawPlayerSide(ctx, player) {
 function drawEnemySide(ctx, enemies) {
   const marginX = 32;
   const panelWidth = CANVAS_WIDTH / 2 - marginX * 1.5;
-  const panelHeight = CANVAS_HEIGHT - 100;
   const x = CANVAS_WIDTH - panelWidth - marginX;
   const y = 50;
 
+  const topOffset = 40;
+  const bottomPadding = 28;
+  // Use same panel height as player side (for symmetry)
+  const panelHeight =
+    topOffset +
+    MAIN_CARD_HEIGHT +    // not actually used for a card here, but keeps same height
+    32 +                  // spacing equivalent
+    PARTY_CARD_HEIGHT +
+    bottomPadding;
+
   ctx.save();
 
-  // Panel frame
   drawRoundedRect(ctx, x, y, panelWidth, panelHeight, 28);
   ctx.fillStyle = PANEL_FILL;
   ctx.fill();
@@ -462,7 +502,7 @@ function drawEnemySide(ctx, enemies) {
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Header banner
+  // Header banner: ENEMIES
   const bannerHeight = 32;
   const bannerWidth = 130;
   drawRoundedRect(
@@ -494,17 +534,17 @@ function drawEnemySide(ctx, enemies) {
   ctx.textBaseline = 'alphabetic';
 
   const areaX = x + 18;
-  const areaY = y + 40;
+  const areaY = y + topOffset;
   const areaW = panelWidth - 36;
-  const areaH = panelHeight - 60;
+  const areaH = panelHeight - topOffset - bottomPadding;
 
   const enemyCount = Math.max(1, Math.min(5, enemies.length));
   const positions = layoutEnemySlotsRPG(enemyCount, areaX, areaY, areaW, areaH);
 
-  // Draw each enemy card (NO names)
   for (let i = 0; i < positions.length; i++) {
     const src = enemies[i] ?? {};
     const pos = positions[i];
+
     drawUnitCard(
       ctx,
       {
@@ -518,7 +558,7 @@ function drawEnemySide(ctx, enemies) {
       pos.height,
       {
         variant: 'small',
-        showName: false,                 // <-- NO NAMES for enemies (kể cả enemy)
+        showName: false, // no names for enemies
         accentColor: src.accentColor ?? PANEL_ACCENT_ENEMY,
       },
     );
@@ -545,23 +585,22 @@ async function createHuntBattleImage({ player, enemies }) {
 
   drawBackground(ctx);
 
-  // Prepare player
+  // prepare player
   const playerAvatar = await loadImageSafe(player.avatar);
-  const preparedPlayer = {
-    ...player,
-    image: playerAvatar,
-  };
-
-  // Prepare team avatars
   const preparedTeam = await Promise.all(
     (player.team || []).slice(0, 3).map(async (slot) => ({
       ...slot,
       image: await loadImageSafe(slot?.avatar),
     })),
   );
-  preparedPlayer.team = preparedTeam;
 
-  // Prepare enemies (max 5)
+  const preparedPlayer = {
+    ...player,
+    image: playerAvatar,
+    team: preparedTeam,
+  };
+
+  // prepare enemies (max 5)
   const preparedEnemies = await Promise.all(
     enemies.slice(0, 5).map(async (enemy) => ({
       ...enemy,
@@ -572,7 +611,7 @@ async function createHuntBattleImage({ player, enemies }) {
   drawPlayerSide(ctx, preparedPlayer);
   drawEnemySide(ctx, preparedEnemies);
 
-  // Big VS in the center
+  // VS text
   ctx.save();
   ctx.globalAlpha = 0.9;
   ctx.fillStyle = '#ffffff';
@@ -581,7 +620,6 @@ async function createHuntBattleImage({ player, enemies }) {
   ctx.textBaseline = 'middle';
   ctx.fillText('VS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
 
-  // small glow ring behind VS
   const vsRad = 70;
   const vsGrad = ctx.createRadialGradient(
     CANVAS_WIDTH / 2,
