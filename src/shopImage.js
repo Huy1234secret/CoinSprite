@@ -1,256 +1,408 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 800;
-const PADDING = 20;
-const COLS = 3;
-const BACKGROUND_COLOR = '#2f3136';
-const CARD_BG_COLOR = '#202225';
-const TEXT_COLOR = '#ffffff';
+// === CONFIGURATION ===
+const CANVAS_WIDTH = 1280;
+const CANVAS_HEIGHT = 720;
 
-const DISCORD_EMOJIS = {
-  currency: '1447459216574124074',
-  rarity: {
-    common: '1447459423185272952',
-    rare: '1447459432165408789',
-    epic: '1447459425303527465',
-    legendary: '1447459428273098835',
-    mythical: '1447459430760317172',
-    secret: '1447459434677665874'
-  }
+// === JUNGLE THEME PALETTE ===
+const PALETTE = {
+    bgGradientTop: '#0f2015',    // Deep dark forest green
+    bgGradientBot: '#1b3a26',    // Lighter foliage green
+    
+    cardBg: '#1e2b22',           // Dark card background
+    cardBorderPlayer: '#d4af37', // Gold border for player
+    cardBorderPet: '#8b5a2b',    // Wood/Bronze for pets
+    cardBorderEnemy: '#c94c4c',  // Reddish/Danger for enemies
+    
+    textMain: '#f0f7f2',         // Off-white
+    textAccent: '#ffd700',       // Gold text
+    
+    hpFill: '#43a047',           // Vibrant Jungle Green
+    hpBg: '#b71c1c',             // Deep Red
+    hpText: '#ffffff'
 };
 
-const ITEM_PLACEHOLDER_EMOJI = '<:ITPlaceholder:1447469370421940304>';
-
-const RARITY_COLORS = {
-  common: '#95a5a6',
-  rare: '#3498db',
-  epic: '#9b59b6',
-  legendary: '#f1c40f',
-  mythical: '#e74c3c',
-  secret: '#000000'
-};
-
-const getEmojiUrl = (id) => `https://cdn.discordapp.com/emojis/${id}.png`;
-
-async function ensureShopAssets() {
-  return {
-    currencyIcon: DISCORD_EMOJIS.currency,
-    rarities: DISCORD_EMOJIS.rarity
-  };
+// === HELPER: SAFE IMAGE LOADER ===
+// Prevents "TypeError: unsupported image source" crash
+async function safeLoad(source) {
+    if (!source || typeof source !== 'string') return null;
+    try {
+        return await loadImage(source);
+    } catch (err) {
+        // console.warn(`[Canvas Warning] Failed to load image: ${source}`);
+        return null;
+    }
 }
 
-function getPlaceholderItems({ rarities } = { rarities: DISCORD_EMOJIS.rarity }) {
-  return [
-    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null, emoji: null },
-    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'rare', image: null, emoji: null },
-    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null, emoji: null },
-    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null, emoji: null },
-    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'epic', image: null, emoji: null },
-    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'mythical', image: null, emoji: null }
-  ];
+// === GRAPHICS HELPERS ===
+
+function drawRoundedRect(ctx, x, y, width, height, radius = 10) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.closePath();
 }
 
-async function createShopImage(items = getPlaceholderItems(), currencyIconId = DISCORD_EMOJIS.currency) {
-  const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
-  const ctx = canvas.getContext('2d');
+function drawBackground(ctx) {
+    // 1. Base Gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    grad.addColorStop(0, PALETTE.bgGradientTop);
+    grad.addColorStop(1, PALETTE.bgGradientBot);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  const cardWidth = (CANVAS_WIDTH - (PADDING * (COLS + 1))) / COLS;
-  const rows = Math.ceil(items.length / COLS) || 1;
-  const cardHeight = (CANVAS_HEIGHT - (PADDING * (rows + 1))) / rows;
+    // 2. Vignette (Dark Corners)
+    const radial = ctx.createRadialGradient(
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.3,
+        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.9
+    );
+    radial.addColorStop(0, 'rgba(0,0,0,0)');
+    radial.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  const currencyIcon = await loadImageSafe(resolveEmojiSource(currencyIconId));
-  const placeholderItemImage = await loadImageSafe(resolveEmojiSource(ITEM_PLACEHOLDER_EMOJI));
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const colIndex = i % COLS;
-    const rowIndex = Math.floor(i / COLS);
-
-    const x = PADDING + (colIndex * (cardWidth + PADDING));
-    const y = PADDING + (rowIndex * (cardHeight + PADDING));
-
-    await drawCard(ctx, x, y, cardWidth, cardHeight, item, currencyIcon, placeholderItemImage);
-  }
-
-  return canvas.toBuffer('image/png');
+    // 3. Center Vine Divider
+    ctx.strokeStyle = 'rgba(100, 150, 100, 0.2)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([20, 15]);
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_WIDTH / 2, 20);
+    ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
+    ctx.stroke();
+    ctx.setLineDash([]);
 }
 
-async function drawCard(ctx, x, y, w, h, item, currencyIcon, placeholderItemImage) {
-  const radius = 15;
-  const rarityColor = RARITY_COLORS[item.rarity] || '#ffffff';
+function drawAvatar(ctx, img, x, y, size, borderColor) {
+    const r = size / 2;
+    const cx = x + r;
+    const cy = y + r;
 
-  ctx.save();
-  roundedRect(ctx, x, y, w, h, radius);
-  ctx.fillStyle = CARD_BG_COLOR;
-  ctx.fill();
-  ctx.strokeStyle = rarityColor;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.restore();
+    ctx.save();
+    
+    // Shadow
+    ctx.shadowColor = 'black';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-  const imgSize = 120;
-  const imgX = x + (w / 2) - (imgSize / 2);
-  const imgY = y + 25;
+    // Clip & Draw Image
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
 
-  let itemImage = null;
+    if (img) {
+        ctx.drawImage(img, x, y, size, size);
+    } else {
+        // Fallback placeholder if image failed to load
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x, y, size, size);
+    }
+    ctx.restore();
 
-  if (item.image) {
-    itemImage = await loadImageSafe(item.image);
-  }
+    // Border Ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+}
 
-  if (!itemImage) {
-    itemImage = placeholderItemImage;
-  }
+function drawHpBar(ctx, x, y, width, height, current, max) {
+    const radius = 6;
+    // Prevent division by zero
+    const safeMax = Math.max(max || 100, 1); 
+    const safeCurrent = Math.max(0, current || 0);
+    const pct = Math.max(0, Math.min(1, safeCurrent / safeMax));
+    
+    // 1. Background (Red - Missing HP)
+    ctx.save();
+    drawRoundedRect(ctx, x, y, width, height, radius);
+    ctx.clip();
+    ctx.fillStyle = PALETTE.hpBg;
+    ctx.fill();
 
-  if (itemImage) {
-    drawImageWithinBounds(ctx, itemImage, imgX, imgY, imgSize);
-  } else {
-    drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
-  }
+    // 2. Foreground (Green - Current HP)
+    ctx.fillStyle = PALETTE.hpFill;
+    ctx.fillRect(x, y, width * pct, height);
+    
+    // 3. Glassy Shine (Optional)
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(x, y, width, height/2);
+    ctx.restore();
 
-  ctx.textAlign = 'center';
+    // 4. Border
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-  ctx.font = 'bold 26px Sans-Serif';
-  ctx.fillStyle = TEXT_COLOR;
-  ctx.fillText(item.name, x + (w / 2), y + 190);
+    // 5. Text (Centered)
+    ctx.fillStyle = PALETTE.hpText;
+    // Fallback font stack ensures something always renders
+    ctx.font = 'bold 14px Sans-Serif'; 
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'black';
+    ctx.shadowBlur = 4;
+    
+    const textX = x + width / 2;
+    const textY = y + height / 2 + 1;
+    ctx.fillText(`${safeCurrent} / ${safeMax}`, textX, textY);
+    ctx.shadowBlur = 0;
+}
 
-  const rarityEmojiId = DISCORD_EMOJIS.rarity[item.rarity] || DISCORD_EMOJIS.rarity.common;
-  const rarityY = y + 210;
-
-  try {
-    const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
-    const rarityText = item.rarity.toUpperCase();
-    const raritySpacing = 0;
-    ctx.font = 'italic 18px Sans-Serif';
-    const textWidth = ctx.measureText(rarityText).width;
-    const rarityScale = 64 / Math.max(rarityImg.width, rarityImg.height);
-    const rarityWidth = rarityImg.width * rarityScale;
-    const rarityHeight = rarityImg.height * rarityScale;
-    const totalWidth = rarityWidth + raritySpacing + textWidth;
-    const startX = x + (w / 2) - (totalWidth / 2);
-    const rarityCenterY = rarityY + (rarityHeight / 2);
-
-    ctx.drawImage(rarityImg, startX, rarityY, rarityWidth, rarityHeight);
-
-    ctx.fillStyle = rarityColor;
+function drawEffectSlots(ctx, effects, x, y, size = 20) {
+    if (!effects || !Array.isArray(effects) || effects.length === 0) return;
+    
+    ctx.font = `${size}px Sans-Serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(rarityText, startX + rarityWidth + raritySpacing, rarityCenterY);
-  } catch (error) {
+
+    effects.slice(0, 5).forEach((eff, i) => {
+        if (!eff) return;
+        const dx = x + i * (size + 5);
+        
+        // Dark backing circle for readability
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.arc(dx + size/2, y, size/2 + 2, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#fff'; // Fallback color for text/emoji
+        ctx.fillText(eff, dx, y + 2);
+    });
+}
+
+// === COMPONENT: MAIN PLAYER CARD ===
+function drawPlayerMainCard(ctx, player, x, y, w, h) {
+    // Card Background
+    ctx.save();
+    drawRoundedRect(ctx, x, y, w, h, 16);
+    ctx.fillStyle = PALETTE.cardBg;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = PALETTE.cardBorderPlayer;
+    ctx.stroke();
+    
+    // Avatar
+    const avatarSize = h - 30;
+    const avatarX = x + 20;
+    const avatarY = y + 15;
+    drawAvatar(ctx, player.image, avatarX, avatarY, avatarSize, PALETTE.cardBorderPlayer);
+
+    // Info Area
+    const infoX = avatarX + avatarSize + 20;
+    const infoW = w - (infoX - x) - 20;
+
+    // Name
+    ctx.fillStyle = PALETTE.textMain;
+    ctx.font = 'bold 28px Serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(player.name || 'Unknown Player', infoX, y + 40);
+
+    // Level
+    ctx.fillStyle = PALETTE.textAccent;
+    ctx.font = 'bold 18px Sans-Serif';
+    ctx.fillText(`Lv. ${player.level || 1}`, infoX, y + 70);
+
+    // Effect Slots (next to Level)
+    drawEffectSlots(ctx, player.effects, infoX + 80, y + 68, 22);
+
+    // HP Bar
+    const barH = 24;
+    const barY = y + h - barH - 25;
+    drawHpBar(ctx, infoX, barY, infoW, barH, player.hp, player.maxHp);
+
+    ctx.restore();
+}
+
+// === COMPONENT: SMALL UNIT CARD (Pet/Enemy) ===
+function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
+    const borderColor = isEnemy ? PALETTE.cardBorderEnemy : PALETTE.cardBorderPet;
+
+    // Background
+    ctx.save();
+    drawRoundedRect(ctx, x, y, w, h, 12);
+    ctx.fillStyle = PALETTE.cardBg;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = borderColor;
+    ctx.stroke();
+
+    // Avatar
+    const avatarSize = 64;
+    const avatarX = x + 15;
+    const avatarY = y + (h - avatarSize) / 2 - 10; 
+    drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
+
+    // Rarity Badge (Enemy Only)
+    if (isEnemy && unit.rarity) {
+        const badgeSize = 24;
+        const bx = avatarX - 5;
+        const by = avatarY + avatarSize - 15;
+        
+        ctx.beginPath();
+        ctx.arc(bx + badgeSize/2, by + badgeSize/2, badgeSize/2, 0, Math.PI*2);
+        ctx.fillStyle = '#222';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        
+        ctx.font = '14px Sans-Serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(unit.rarity, bx + badgeSize/2, by + badgeSize/2 + 2);
+    }
+
+    // Info Area
+    const infoX = avatarX + avatarSize + 15;
+    const infoW = (x + w) - infoX - 10;
+
+    // Level
+    ctx.fillStyle = PALETTE.textAccent;
+    ctx.font = 'bold 14px Sans-Serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Lv. ${unit.level || 1}`, infoX, y + 30);
+
+    // Effects
+    drawEffectSlots(ctx, unit.effects, infoX + 50, y + 30, 16);
+
+    // HP Bar
+    const barH = 18;
+    const barY = y + h - barH - 15;
+    drawHpBar(ctx, infoX - 5, barY, infoW, barH, unit.hp, unit.maxHp);
+
+    ctx.restore();
+}
+
+// === MAIN GENERATOR FUNCTION ===
+async function createHuntBattleImage({ player, enemies }) {
+    const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+    const ctx = canvas.getContext('2d');
+
+    // --- 1. Load Assets Safely ---
+    const playerImg = await safeLoad(player.avatar);
+
+    const petImages = await Promise.all(
+        (player.pets || []).map(p => safeLoad(p.avatar))
+    );
+
+    const enemyImages = await Promise.all(
+        (enemies || []).map(e => safeLoad(e.avatar))
+    );
+
+    // --- 2. Draw Scene ---
+    drawBackground(ctx);
+
+    // --- 3. Player Zone (Left) ---
+    const ZONE_PAD = 40;
+    const PLAYER_ZONE_W = (CANVAS_WIDTH / 2) - ZONE_PAD;
+    
+    // Main Card
+    const mainCardH = 160;
+    const mainCardW = PLAYER_ZONE_W - 20;
+    const mainCardX = ZONE_PAD;
+    const mainCardY = 60;
+
+    drawPlayerMainCard(ctx, { ...player, image: playerImg }, mainCardX, mainCardY, mainCardW, mainCardH);
+
+    // Pet Cards (3 Slots)
+    const petY = mainCardY + mainCardH + 30;
+    const petH = 110;
+    const petGap = 15;
+    const petW = (mainCardW - (petGap * 2)) / 3;
+
+    for (let i = 0; i < 3; i++) {
+        const px = mainCardX + i * (petW + petGap);
+        const petData = player.pets ? player.pets[i] : null;
+
+        if (petData) {
+             drawSmallCard(ctx, { ...petData, image: petImages[i] }, px, petY, petW, petH, false);
+        } else {
+             // Empty Slot
+             ctx.save();
+             drawRoundedRect(ctx, px, petY, petW, petH, 12);
+             ctx.fillStyle = 'rgba(0,0,0,0.3)';
+             ctx.fill();
+             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+             ctx.stroke();
+             ctx.restore();
+        }
+    }
+
+    // --- 4. Enemy Zone (Right) ---
+    const ENEMY_ZONE_X = CANVAS_WIDTH / 2 + 20;
+    const ENEMY_ZONE_W = (CANVAS_WIDTH / 2) - 60;
+    const ENEMY_ZONE_Y_START = 60;
+    const ENEMY_ZONE_H = CANVAS_HEIGHT - 100;
+
+    // Ensure enemies array exists and limit to 5
+    const enemyList = enemies || [];
+    const enemyCount = Math.min(enemyList.length, 5);
+    
+    const cardH = 110;
+    const cardW = 280; 
+    
+    // Calculate Layout Positions
+    let enemyPositions = [];
+    
+    if (enemyCount <= 3) {
+        // Single Column Centered
+        const totalH = enemyCount * cardH + (enemyCount - 1) * 20;
+        let startY = ENEMY_ZONE_Y_START + (ENEMY_ZONE_H - totalH) / 2;
+        const centerX = ENEMY_ZONE_X + (ENEMY_ZONE_W - cardW) / 2;
+        
+        for(let i=0; i<enemyCount; i++) {
+            enemyPositions.push({ x: centerX, y: startY + i * (cardH + 20) });
+        }
+    } else {
+        // Two Columns Grid
+        const col1X = ENEMY_ZONE_X + 20;
+        const col2X = ENEMY_ZONE_X + ENEMY_ZONE_W - cardW - 20;
+        const rowGap = 30;
+        const startY = ENEMY_ZONE_Y_START + 80;
+        
+        for(let i=0; i<enemyCount; i++) {
+            const col = i % 2; // 0 = left, 1 = right
+            const row = Math.floor(i / 2);
+            const ex = col === 0 ? col1X : col2X;
+            const ey = startY + row * (cardH + rowGap);
+            enemyPositions.push({ x: ex, y: ey });
+        }
+        // Center the 5th element
+        if (enemyCount === 5) {
+            enemyPositions[4].x = ENEMY_ZONE_X + (ENEMY_ZONE_W - cardW) / 2;
+        }
+    }
+
+    // Draw Enemy Cards
+    for (let i = 0; i < enemyCount; i++) {
+        const pos = enemyPositions[i];
+        // Ensure we pass the image from our safe-loaded array
+        drawSmallCard(ctx, { ...enemyList[i], image: enemyImages[i] }, pos.x, pos.y, cardW, cardH, true);
+    }
+
+    // --- 5. VS Overlay ---
+    ctx.save();
+    ctx.font = 'bold italic 80px Serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = rarityColor;
-    ctx.fillText(item.rarity.toUpperCase(), x + (w / 2), y + 230);
-  }
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 20;
+    
+    const vsGrad = ctx.createLinearGradient(CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 40, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 40);
+    vsGrad.addColorStop(0, '#ffffff');
+    vsGrad.addColorStop(1, '#999');
+    
+    ctx.fillStyle = vsGrad;
+    ctx.fillText('VS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    ctx.restore();
 
-  ctx.textBaseline = 'alphabetic';
-
-  const priceY = y + 250;
-  const iconSize = 56;
-  ctx.font = 'bold 24px Sans-Serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  const priceText = `${item.price}`;
-  const priceWidth = ctx.measureText(priceText).width;
-
-  const fullPriceWidth = priceWidth + 10 + iconSize;
-  const priceStartX = x + (w / 2) - (fullPriceWidth / 2);
-
-  ctx.fillStyle = '#f1c40f';
-  ctx.textAlign = 'left';
-  ctx.fillText(priceText, priceStartX, priceY + (iconSize / 2));
-
-  if (currencyIcon) {
-    ctx.drawImage(currencyIcon, priceStartX + priceWidth + 10, priceY, iconSize, iconSize);
-  } else {
-    ctx.fillText('Gold', priceStartX + priceWidth + 10, priceY + (iconSize / 2));
-  }
-
-  ctx.textAlign = 'center';
-  ctx.font = '20px Sans-Serif';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#95a5a6';
-  ctx.fillText(`Stock: ${item.stock}`, x + (w / 2), y + 330);
+    return canvas.toBuffer('image/png');
 }
 
-function resolveEmojiSource(source) {
-  if (!source) {
-    return null;
-  }
-
-  if (/^https?:\/\//.test(source)) {
-    return source;
-  }
-
-  if (/^\d+$/.test(source)) {
-    return getEmojiUrl(source);
-  }
-
-  const customEmojiMatch = /<:\w+:(\d+)>/.exec(source);
-  if (customEmojiMatch) {
-    return getEmojiUrl(customEmojiMatch[1]);
-  }
-
-  return source;
-}
-
-async function loadImageSafe(source) {
-  if (!source) {
-    return null;
-  }
-
-  try {
-    return await loadImage(source);
-  } catch (error) {
-    console.warn(`Failed to load image from ${source}:`, error);
-    return null;
-  }
-}
-
-function roundedRect(ctx, x, y, width, height, radius) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-}
-
-function drawPlaceholderImage(ctx, x, y, size, color) {
-  ctx.save();
-  ctx.fillStyle = '#2c2f33';
-  ctx.fillRect(x, y, size, size);
-
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, size, size);
-
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = 'bold 16px Sans-Serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('ITEM', x + size / 2, y + size / 2 + 5);
-  ctx.restore();
-}
-
-function drawImageWithinBounds(ctx, image, x, y, size) {
-  const scale = Math.min(size / image.width, size / image.height);
-  const drawWidth = image.width * scale;
-  const drawHeight = image.height * scale;
-  const offsetX = x + ((size - drawWidth) / 2);
-  const offsetY = y + ((size - drawHeight) / 2);
-
-  ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-}
-
-module.exports = {
-  ensureShopAssets,
-  createShopImage,
-  getPlaceholderItems,
-  ITEM_PLACEHOLDER_EMOJI
-};
+module.exports = { createHuntBattleImage };
