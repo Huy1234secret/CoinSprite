@@ -370,7 +370,8 @@ async function safeLoadImage(src, fallback = FALLBACK_IMAGE_DATA) {
 
 function computeCanvasHeight(player, enemies) {
     const TOP_MARGIN = 40;
-    const BOTTOM_PADDING = 40;
+    // Keep only a slim buffer beneath the lowest card to avoid the large empty area
+    const BOTTOM_PADDING = 12;
 
     // Player stack height (main card + pets if any)
     const mainCardH = 150;
@@ -402,7 +403,7 @@ function computeCanvasHeight(player, enemies) {
     }
 
     // Keep a sensible minimum height to preserve background details
-    const minHeight = 320;
+    const minHeight = 220;
     return Math.max(minHeight, Math.max(playerHeight, enemyHeight) + BOTTOM_PADDING);
 }
 
