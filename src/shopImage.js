@@ -25,6 +25,7 @@ const PALETTE = {
 // === HELPER: SAFE IMAGE LOADER ===
 // Prevents "TypeError: unsupported image source" crash
 async function safeLoad(source) {
+    // Strictly check for string type. undefined/null/numbers will cause the crash.
     if (!source || typeof source !== 'string') return null;
     try {
         return await loadImage(source);
@@ -285,14 +286,15 @@ async function createHuntBattleImage({ player, enemies }) {
     const ctx = canvas.getContext('2d');
 
     // --- 1. Load Assets Safely ---
-    const playerImg = await safeLoad(player.avatar);
+    // Added optional chaining (?.) to prevent crashes on bad objects
+    const playerImg = await safeLoad(player?.avatar);
 
     const petImages = await Promise.all(
-        (player.pets || []).map(p => safeLoad(p.avatar))
+        (player.pets || []).map(p => safeLoad(p?.avatar))
     );
 
     const enemyImages = await Promise.all(
-        (enemies || []).map(e => safeLoad(e.avatar))
+        (enemies || []).map(e => safeLoad(e?.avatar))
     );
 
     // --- 2. Draw Scene ---
