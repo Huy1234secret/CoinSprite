@@ -8,30 +8,7 @@ from discord import app_commands
 
 logger = logging.getLogger(__name__)
 
-TOTAL_GIFTCARDS = 2
-STATE_FILE = Path("data/state.json")
 COOLDOWN_FILE = Path("data/cooldowns.json")
-
-
-def load_state() -> dict:
-    if not STATE_FILE.exists():
-        return {"giftcards_remaining": TOTAL_GIFTCARDS, "user_chances": {}}
-
-    try:
-        with STATE_FILE.open("r", encoding="utf-8") as f:
-            state = json.load(f)
-            state.setdefault("giftcards_remaining", TOTAL_GIFTCARDS)
-            state.setdefault("user_chances", {})
-            return state
-    except json.JSONDecodeError:
-        logger.warning("State file was corrupted; resetting state.")
-        return {"giftcards_remaining": TOTAL_GIFTCARDS, "user_chances": {}}
-
-
-def save_state(state: dict) -> None:
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with STATE_FILE.open("w", encoding="utf-8") as f:
-        json.dump(state, f)
 
 
 def load_cooldowns() -> dict:

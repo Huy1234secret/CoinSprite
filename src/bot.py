@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 COMMANDS_DIR = Path(__file__).parent / "commands"
 
 
-class RollBot(commands.Bot):
+class CoinSpriteBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         super().__init__(command_prefix="!", intents=intents)
@@ -47,7 +47,7 @@ def main() -> None:
     if not token:
         raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
 
-    bot = RollBot()
+    bot = CoinSpriteBot()
     bot.run(token)
 
 
