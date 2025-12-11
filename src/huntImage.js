@@ -34,14 +34,95 @@ function drawRoundedRect(ctx, x, y, width, height, radius = 10) {
     ctx.closePath();
 }
 
-// Draw the Background with a "Vignette" feel
+// Draw leafy canopy silhouettes
+function drawCanopy(ctx) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(10, 40, 20, 0.55)';
+    for (let i = 0; i < 8; i++) {
+        const height = 80 + Math.random() * 80;
+        const width = 180 + Math.random() * 160;
+        const x = i * 180 + (Math.random() * 30 - 15);
+        ctx.beginPath();
+        ctx.ellipse(x, height / 2, width / 2, height / 2, Math.random() * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+// Draw foreground vines
+function drawVines(ctx) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(60, 120, 70, 0.6)';
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 5; i++) {
+        const startX = (i + 1) * (CANVAS_WIDTH / 6);
+        ctx.beginPath();
+        ctx.moveTo(startX, 0);
+        for (let y = 0; y <= CANVAS_HEIGHT; y += 60) {
+            const sway = Math.sin((y / 60) + i) * 25;
+            ctx.lineTo(startX + sway, y + 60);
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+// Draw fireflies / light orbs
+function drawFireflies(ctx) {
+    ctx.save();
+    for (let i = 0; i < 30; i++) {
+        const x = Math.random() * CANVAS_WIDTH;
+        const y = Math.random() * CANVAS_HEIGHT;
+        const radius = 2 + Math.random() * 2;
+        const alpha = 0.25 + Math.random() * 0.5;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
+        grad.addColorStop(0, `rgba(255, 215, 120, ${alpha})`);
+        grad.addColorStop(1, 'rgba(255, 215, 120, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+// Draw foliage layers for jungle depth
+function drawFoliage(ctx) {
+    ctx.save();
+    const layerColors = [
+        'rgba(20, 60, 30, 0.55)',
+        'rgba(25, 70, 35, 0.5)',
+        'rgba(30, 80, 40, 0.45)'
+    ];
+
+    layerColors.forEach((color, idx) => {
+        ctx.fillStyle = color;
+        const baseY = CANVAS_HEIGHT - (idx * 20 + 30);
+        for (let x = -50; x < CANVAS_WIDTH + 50; x += 120) {
+            const height = 60 + Math.random() * 40;
+            const width = 140 + Math.random() * 80;
+            ctx.beginPath();
+            ctx.ellipse(x + Math.random() * 40, baseY, width / 2, height / 2, Math.random() * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+    ctx.restore();
+}
+
+// Draw the Background with a jungle feel
 function drawBackground(ctx) {
     // Linear gradient base
     const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    grad.addColorStop(0, PALETTE.bgGradientTop);
+    grad.addColorStop(0, '#0c1b10');
+    grad.addColorStop(0.45, PALETTE.bgGradientTop);
     grad.addColorStop(1, PALETTE.bgGradientBot);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    drawCanopy(ctx);
+    drawVines(ctx);
+    drawFoliage(ctx);
+    drawFireflies(ctx);
 
     // Vignette (dark corners)
     const radial = ctx.createRadialGradient(
@@ -53,8 +134,8 @@ function drawBackground(ctx) {
     ctx.fillStyle = radial;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Center divider (Vine style - dashed)
-    ctx.strokeStyle = 'rgba(100, 150, 100, 0.2)';
+    // Center divider (subtle vine)
+    ctx.strokeStyle = 'rgba(100, 150, 100, 0.25)';
     ctx.lineWidth = 4;
     ctx.setLineDash([20, 15]);
     ctx.beginPath();
@@ -390,23 +471,6 @@ async function createHuntBattleImage({ player, enemies }) {
         const pos = enemyPositions[i];
         drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i] }, pos.x, pos.y, cardW, cardH, true);
     }
-
-    // === VS LABEL ===
-    ctx.save();
-    ctx.font = 'bold italic 80px Serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 20;
-    
-    // Text Gradient
-    const vsGrad = ctx.createLinearGradient(CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 40, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 40);
-    vsGrad.addColorStop(0, '#ffffff');
-    vsGrad.addColorStop(1, '#999');
-    
-    ctx.fillStyle = vsGrad;
-    ctx.fillText('VS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    ctx.restore();
 
     return canvas.toBuffer('image/png');
 }
