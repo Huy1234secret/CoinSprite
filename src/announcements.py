@@ -11,7 +11,7 @@ def _format_message(giftcards_remaining: int) -> str:
     if giftcards_remaining == 1:
         return (
             "@here there's only 1 Giftcard left, goodluck users! "
-            "Try your luck by using command `/roll`"
+            "Try your luck before they're gone!"
         )
 
     return (

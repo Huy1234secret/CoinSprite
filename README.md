@@ -1,12 +1,10 @@
 # CoinSprite Discord Bot
 
-A simple Discord bot written in JavaScript that provides a `/roll` command to award $10 giftcards based on a 1% chance and announces remaining prizes.
+A simple Discord bot written in JavaScript that powers interactive slash commands like `/hunt` and `/shop-view`.
 
 ## Features
-- Slash command `/roll` with a 24-hour user-specific cooldown.
-- 1% chance to win a $10 giftcard with celebratory messaging.
-- Automatic announcements to channel `1372572234949853367` when there is only one giftcard left or when all have been claimed.
-- Persistent tracking of remaining giftcards in `data/state.json`.
+- `/hunt` lets users view and interact with their hunting profile.
+- `/shop-view` generates a preview image of the current shop rotation.
 
 ## Setup
 1. **Install dependencies**
