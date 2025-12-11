@@ -276,7 +276,9 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
 
 // === LAYOUT LOGIC ===
 
-async function safeLoadImage(src, fallback = 'https://via.placeholder.com/150') {
+const FALLBACK_IMAGE_DATA = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/xcAAn8B9HZTqz8AAAAASUVORK5CYII=';
+
+async function safeLoadImage(src, fallback = FALLBACK_IMAGE_DATA) {
     const finalSrc = (typeof src === 'string' && src.trim()) ? src : fallback;
     try {
         return await loadImage(finalSrc);
