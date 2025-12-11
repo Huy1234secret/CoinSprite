@@ -1,410 +1,654 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-// === CONFIGURATION ===
+// === BASIC CONFIG ===
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 
-// === JUNGLE THEME PALETTE ===
-const PALETTE = {
-    bgGradientTop: '#0f2015',    // Deep dark forest green
-    bgGradientBot: '#1b3a26',    // Lighter foliage green
-    
-    cardBg: '#1e2b22',           // Dark card background
-    cardBorderPlayer: '#d4af37', // Gold border for player
-    cardBorderPet: '#8b5a2b',    // Wood/Bronze for pets
-    cardBorderEnemy: '#c94c4c',  // Reddish/Danger for enemies
-    
-    textMain: '#f0f7f2',         // Off-white
-    textAccent: '#ffd700',       // Gold text
-    
-    hpFill: '#43a047',           // Vibrant Jungle Green
-    hpBg: '#b71c1c',             // Deep Red
-    hpText: '#ffffff'
+// Card & panel sizing
+const MAIN_CARD_HEIGHT = 180;   // player main card
+const PET_CARD_HEIGHT = 130;    // pets / enemies
+const PANEL_TOP_OFFSET = 52;
+const PANEL_GAP_MAIN_TO_ROW = 28;
+const PANEL_BOTTOM_PADDING = 26;
+const PANEL_HEIGHT =
+  PANEL_TOP_OFFSET + MAIN_CARD_HEIGHT + PANEL_GAP_MAIN_TO_ROW + PET_CARD_HEIGHT + PANEL_BOTTOM_PADDING;
+
+// === JUNGLE COLOR PALETTE ===
+const COLORS = {
+  bgTop: '#020a05',
+  bgBottom: '#03140d',
+  panelFill: '#050b08',
+  panelBorderPlayer: '#2ecc71',
+  panelBorderEnemy: '#e74c3c',
+  cardFillTop: '#071710',
+  cardFillBottom: '#050e09',
+  hpBg: '#08130b',
+  hpBorder: '#295437',
+  textMain: '#f6ffe9',
+  textSoft: '#c4dfc7',
 };
 
-// === HELPER: SAFE IMAGE LOADER ===
-// Prevents "TypeError: unsupported image source" crash
-async function safeLoad(source) {
-    // Strictly check for string type. undefined/null/numbers will cause the crash.
-    if (!source || typeof source !== 'string') return null;
-    try {
-        return await loadImage(source);
-    } catch (err) {
-        // console.warn(`[Canvas Warning] Failed to load image: ${source}`);
-        return null;
-    }
+// ================== HELPERS ==================
+
+function truncateWithEllipsis(ctx, text, maxWidth) {
+  if (!text) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+
+  let truncated = text;
+  while (truncated.length > 0 && ctx.measureText(`${truncated}…`).width > maxWidth) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
 }
 
-// === GRAPHICS HELPERS ===
-
-function drawRoundedRect(ctx, x, y, width, height, radius = 10) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, radius);
-    ctx.closePath();
+function drawRoundedRect(ctx, x, y, width, height, radius = 18) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function drawBackground(ctx) {
-    // 1. Base Gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    grad.addColorStop(0, PALETTE.bgGradientTop);
-    grad.addColorStop(1, PALETTE.bgGradientBot);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  // Jungle gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+  grad.addColorStop(0, COLORS.bgTop);
+  grad.addColorStop(0.5, '#04150d');
+  grad.addColorStop(1, COLORS.bgBottom);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // 2. Vignette (Dark Corners)
-    const radial = ctx.createRadialGradient(
-        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.3,
-        CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_HEIGHT * 0.9
+  // Soft jungle glows behind each side
+  const radius = CANVAS_HEIGHT * 0.7;
+
+  const leftGlow = ctx.createRadialGradient(
+    CANVAS_WIDTH * 0.24,
+    CANVAS_HEIGHT * 0.4,
+    0,
+    CANVAS_WIDTH * 0.24,
+    CANVAS_HEIGHT * 0.4,
+    radius,
+  );
+  leftGlow.addColorStop(0, 'rgba(46, 204, 113, 0.26)');
+  leftGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = leftGlow;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  const rightGlow = ctx.createRadialGradient(
+    CANVAS_WIDTH * 0.76,
+    CANVAS_HEIGHT * 0.4,
+    0,
+    CANVAS_WIDTH * 0.76,
+    CANVAS_HEIGHT * 0.4,
+    radius,
+  );
+  rightGlow.addColorStop(0, 'rgba(231, 76, 60, 0.24)');
+  rightGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = rightGlow;
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // Simple vine strokes (lightweight)
+  ctx.strokeStyle = 'rgba(27, 94, 32, 0.35)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) {
+    const offsetX = i * 60;
+    ctx.beginPath();
+    ctx.moveTo(40 + offsetX, CANVAS_HEIGHT);
+    ctx.bezierCurveTo(
+      120 + offsetX,
+      CANVAS_HEIGHT * 0.75,
+      20 + offsetX,
+      CANVAS_HEIGHT * 0.4,
+      80 + offsetX,
+      0,
     );
-    radial.addColorStop(0, 'rgba(0,0,0,0)');
-    radial.addColorStop(1, 'rgba(0,0,0,0.6)');
-    ctx.fillStyle = radial;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    // 3. Center Vine Divider
-    ctx.strokeStyle = 'rgba(100, 150, 100, 0.2)';
-    ctx.lineWidth = 4;
-    ctx.setLineDash([20, 15]);
-    ctx.beginPath();
-    ctx.moveTo(CANVAS_WIDTH / 2, 20);
-    ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
     ctx.stroke();
-    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = 'rgba(56, 142, 60, 0.32)';
+  for (let i = 0; i < 3; i++) {
+    const offsetX = i * 60;
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_WIDTH - 40 - offsetX, CANVAS_HEIGHT);
+    ctx.bezierCurveTo(
+      CANVAS_WIDTH - 120 - offsetX,
+      CANVAS_HEIGHT * 0.75,
+      CANVAS_WIDTH - 20 - offsetX,
+      CANVAS_HEIGHT * 0.4,
+      CANVAS_WIDTH - 80 - offsetX,
+      0,
+    );
+    ctx.stroke();
+  }
+
+  // Center divider
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 12]);
+  ctx.beginPath();
+  ctx.moveTo(CANVAS_WIDTH / 2, 40);
+  ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 40);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
-function drawAvatar(ctx, img, x, y, size, borderColor) {
-    const r = size / 2;
-    const cx = x + r;
-    const cy = y + r;
+function drawAvatar(ctx, image, x, y, size, accentColor, options = {}) {
+  const { rarityEmoji } = options;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const r = size / 2;
 
-    ctx.save();
-    
-    // Shadow
-    ctx.shadowColor = 'black';
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#000';
+  ctx.save();
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 5, 0, Math.PI * 2);
+  ctx.strokeStyle = accentColor || 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Circular mask
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+
+  if (image) {
+    ctx.drawImage(image, x, y, size, size);
+  } else {
+    ctx.fillStyle = '#0a120c';
+    ctx.fillRect(x, y, size, size);
+  }
+
+  ctx.restore();
+
+  // Rarity badge (for enemies)
+  if (rarityEmoji) {
+    const badgeSize = Math.round(size * 0.35);
+    const bx = x - badgeSize * 0.25;
+    const by = y + size - badgeSize * 0.75;
+
+    drawRoundedRect(ctx, bx, by, badgeSize, badgeSize, 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Clip & Draw Image
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-
-    if (img) {
-        ctx.drawImage(img, x, y, size, size);
-    } else {
-        // Fallback placeholder if image failed to load
-        ctx.fillStyle = '#333';
-        ctx.fillRect(x, y, size, size);
-    }
-    ctx.restore();
-
-    // Border Ring
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = borderColor;
-    ctx.stroke();
-}
-
-function drawHpBar(ctx, x, y, width, height, current, max) {
-    const radius = 6;
-    // Prevent division by zero
-    const safeMax = Math.max(max || 100, 1); 
-    const safeCurrent = Math.max(0, current || 0);
-    const pct = Math.max(0, Math.min(1, safeCurrent / safeMax));
-    
-    // 1. Background (Red - Missing HP)
-    ctx.save();
-    drawRoundedRect(ctx, x, y, width, height, radius);
-    ctx.clip();
-    ctx.fillStyle = PALETTE.hpBg;
-    ctx.fill();
-
-    // 2. Foreground (Green - Current HP)
-    ctx.fillStyle = PALETTE.hpFill;
-    ctx.fillRect(x, y, width * pct, height);
-    
-    // 3. Glassy Shine (Optional)
-    ctx.fillStyle = 'rgba(255,255,255,0.1)';
-    ctx.fillRect(x, y, width, height/2);
-    ctx.restore();
-
-    // 4. Border
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 5. Text (Centered)
-    ctx.fillStyle = PALETTE.hpText;
-    // Fallback font stack ensures something always renders
-    ctx.font = 'bold 14px Sans-Serif'; 
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${Math.round(badgeSize * 0.7)}px Sans-Serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'black';
-    ctx.shadowBlur = 4;
-    
-    const textX = x + width / 2;
-    const textY = y + height / 2 + 1;
-    ctx.fillText(`${safeCurrent} / ${safeMax}`, textX, textY);
-    ctx.shadowBlur = 0;
+    ctx.fillText(rarityEmoji, bx + badgeSize / 2, by + badgeSize / 2 + 1);
+  }
 }
 
-function drawEffectSlots(ctx, effects, x, y, size = 20) {
-    if (!effects || !Array.isArray(effects) || effects.length === 0) return;
-    
-    ctx.font = `${size}px Sans-Serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
+function drawHealthBar(ctx, x, y, width, height, value, maxValue) {
+  const safeMax = Math.max(1, maxValue || 1);
+  const hp = Math.max(0, Math.min(value || 0, safeMax));
+  const ratio = hp / safeMax;
+  const filledWidth = Math.max(3, width * ratio);
 
-    effects.slice(0, 5).forEach((eff, i) => {
-        if (!eff) return;
-        const dx = x + i * (size + 5);
-        
-        // Dark backing circle for readability
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.beginPath();
-        ctx.arc(dx + size/2, y, size/2 + 2, 0, Math.PI*2);
-        ctx.fill();
-        
-        ctx.fillStyle = '#fff'; // Fallback color for text/emoji
-        ctx.fillText(eff, dx, y + 2);
-    });
+  // Background
+  drawRoundedRect(ctx, x, y, width, height, height / 2);
+  ctx.fillStyle = COLORS.hpBg;
+  ctx.fill();
+  ctx.strokeStyle = COLORS.hpBorder;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  // Fill (green → yellow → red)
+  const grad = ctx.createLinearGradient(x, y, x + width, y);
+  grad.addColorStop(0, '#2ecc71');
+  grad.addColorStop(0.5, '#f1c40f');
+  grad.addColorStop(1, '#e74c3c');
+
+  drawRoundedRect(ctx, x, y, filledWidth, height, height / 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // HP text inside the bar
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `${Math.round(height * 0.7)}px Sans-Serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${hp}/${safeMax} HP`, x + width / 2, y + height / 2 + 0.5);
 }
 
-// === COMPONENT: MAIN PLAYER CARD ===
-function drawPlayerMainCard(ctx, player, x, y, w, h) {
-    // Card Background
-    ctx.save();
-    drawRoundedRect(ctx, x, y, w, h, 16);
-    ctx.fillStyle = PALETTE.cardBg;
+function drawEffectSlots(ctx, effects, x, y, maxSlots, slotSize, gap) {
+  if (!effects || !effects.length) return;
+
+  const count = Math.min(effects.length, maxSlots);
+  for (let i = 0; i < count; i++) {
+    const sx = x + i * (slotSize + gap);
+    const sy = y;
+
+    drawRoundedRect(ctx, sx, sy, slotSize, slotSize, 6);
+    ctx.fillStyle = 'rgba(3, 25, 16, 0.9)';
     ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = PALETTE.cardBorderPlayer;
-    ctx.stroke();
-    
-    // Avatar
-    const avatarSize = h - 30;
-    const avatarX = x + 20;
-    const avatarY = y + 15;
-    drawAvatar(ctx, player.image, avatarX, avatarY, avatarSize, PALETTE.cardBorderPlayer);
-
-    // Info Area
-    const infoX = avatarX + avatarSize + 20;
-    const infoW = w - (infoX - x) - 20;
-
-    // Name
-    ctx.fillStyle = PALETTE.textMain;
-    ctx.font = 'bold 28px Serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(player.name || 'Unknown Player', infoX, y + 40);
-
-    // Level
-    ctx.fillStyle = PALETTE.textAccent;
-    ctx.font = 'bold 18px Sans-Serif';
-    ctx.fillText(`Lv. ${player.level || 1}`, infoX, y + 70);
-
-    // Effect Slots (next to Level)
-    drawEffectSlots(ctx, player.effects, infoX + 80, y + 68, 22);
-
-    // HP Bar
-    const barH = 24;
-    const barY = y + h - barH - 25;
-    drawHpBar(ctx, infoX, barY, infoW, barH, player.hp, player.maxHp);
-
-    ctx.restore();
-}
-
-// === COMPONENT: SMALL UNIT CARD (Pet/Enemy) ===
-function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
-    const borderColor = isEnemy ? PALETTE.cardBorderEnemy : PALETTE.cardBorderPet;
-
-    // Background
-    ctx.save();
-    drawRoundedRect(ctx, x, y, w, h, 12);
-    ctx.fillStyle = PALETTE.cardBg;
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = borderColor;
+    ctx.strokeStyle = 'rgba(131, 232, 176, 0.9)';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Avatar
-    const avatarSize = 64;
-    const avatarX = x + 15;
-    const avatarY = y + (h - avatarSize) / 2 - 10; 
-    drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
-
-    // Rarity Badge (Enemy Only)
-    if (isEnemy && unit.rarity) {
-        const badgeSize = 24;
-        const bx = avatarX - 5;
-        const by = avatarY + avatarSize - 15;
-        
-        ctx.beginPath();
-        ctx.arc(bx + badgeSize/2, by + badgeSize/2, badgeSize/2, 0, Math.PI*2);
-        ctx.fillStyle = '#222';
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#fff';
-        ctx.stroke();
-        
-        ctx.font = '14px Sans-Serif';
-        ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(unit.rarity, bx + badgeSize/2, by + badgeSize/2 + 2);
+    const data = effects[i];
+    let iconText = '';
+    if (typeof data === 'string') {
+      iconText = data;
+    } else if (data && typeof data === 'object') {
+      iconText = data.emoji || data.icon || data.short || '';
     }
-
-    // Info Area
-    const infoX = avatarX + avatarSize + 15;
-    const infoW = (x + w) - infoX - 10;
-
-    // Level
-    ctx.fillStyle = PALETTE.textAccent;
-    ctx.font = 'bold 14px Sans-Serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Lv. ${unit.level || 1}`, infoX, y + 30);
-
-    // Effects
-    drawEffectSlots(ctx, unit.effects, infoX + 50, y + 30, 16);
-
-    // HP Bar
-    const barH = 18;
-    const barY = y + h - barH - 15;
-    drawHpBar(ctx, infoX - 5, barY, infoW, barH, unit.hp, unit.maxHp);
-
-    ctx.restore();
+    if (iconText) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${Math.round(slotSize * 0.7)}px Sans-Serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(iconText, sx + slotSize / 2, sy + slotSize / 2 + 0.5);
+    }
+  }
 }
 
-// === MAIN GENERATOR FUNCTION ===
+function drawSidePanel(ctx, x, y, width, height, accentColor, title, align) {
+  ctx.save();
+
+  drawRoundedRect(ctx, x, y, width, height, 26);
+  ctx.fillStyle = COLORS.panelFill;
+  ctx.fill();
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // header banner
+  const bannerWidth = 140;
+  const bannerHeight = 32;
+  const bannerX = align === 'left' ? x + 24 : x + width - bannerWidth - 24;
+  const bannerY = y - bannerHeight / 2;
+
+  drawRoundedRect(ctx, bannerX, bannerY, bannerWidth, bannerHeight, 16);
+  const bannerGrad = ctx.createLinearGradient(
+    bannerX,
+    bannerY,
+    bannerX + bannerWidth,
+    bannerY + bannerHeight,
+  );
+  if (align === 'left') {
+    bannerGrad.addColorStop(0, '#66bb6a');
+    bannerGrad.addColorStop(1, '#a5d6a7');
+  } else {
+    bannerGrad.addColorStop(0, '#ef5350');
+    bannerGrad.addColorStop(1, '#ffb74d');
+  }
+  ctx.fillStyle = bannerGrad;
+  ctx.fill();
+
+  ctx.fillStyle = '#02110b';
+  ctx.font = 'bold 18px Sans-Serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(title, bannerX + bannerWidth / 2, bannerY + bannerHeight / 2);
+
+  ctx.restore();
+}
+
+// === GENERIC UNIT CARD ===
+//
+// variants:
+// - 'playerMain': main player card with name + hunt level + effects
+// - 'ally': pet / army (no name, level + effects)
+// - 'enemy': monster (no name, level + effects + rarity badge on avatar)
+function drawUnitCard(ctx, unit, x, y, width, height, options = {}) {
+  const variant = options.variant || 'ally';
+  const accentColor = options.accentColor || 'rgba(255,255,255,0.6)';
+  const isMain = variant === 'playerMain';
+  const isEnemy = variant === 'enemy';
+
+  ctx.save();
+
+  const radius = isMain ? 22 : 18;
+  drawRoundedRect(ctx, x, y, width, height, radius);
+  const cardGrad = ctx.createLinearGradient(x, y, x, y + height);
+  cardGrad.addColorStop(0, COLORS.cardFillTop);
+  cardGrad.addColorStop(1, COLORS.cardFillBottom);
+  ctx.fillStyle = cardGrad;
+  ctx.fill();
+
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const padding = isMain ? 18 : 12;
+  const innerX = x + padding;
+  const innerY = y + padding;
+  const innerW = width - padding * 2;
+  const innerH = height - padding * 2;
+
+  const avatarSize = isMain
+    ? Math.min(innerH * 0.9, innerW * 0.4)
+    : Math.min(innerH * 0.85, innerW * 0.55);
+  const avatarX = innerX;
+  const avatarY = innerY + (innerH - avatarSize) / 2;
+
+  const rarityIcon = isEnemy
+    ? unit.rarityEmoji || unit.rarityIcon || unit.rarity || null
+    : null;
+
+  drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, accentColor, {
+    rarityEmoji: rarityIcon,
+  });
+
+  const infoX = avatarX + avatarSize + (isMain ? 16 : 10);
+  const infoRight = innerX + innerW;
+  const infoWidth = Math.max(0, infoRight - infoX);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  if (isMain) {
+    const name = truncateWithEllipsis(
+      ctx,
+      unit.name || unit.username || 'Unknown',
+      infoWidth,
+    );
+    ctx.fillStyle = COLORS.textMain;
+    ctx.font = 'bold 24px Sans-Serif';
+    ctx.fillText(name, infoX, innerY + 6);
+
+    const huntLevel = unit.huntLevel != null ? unit.huntLevel : unit.level || 1;
+    ctx.fillStyle = COLORS.textSoft;
+    ctx.font = '16px Sans-Serif';
+    ctx.fillText(`Hunt Lv. ${huntLevel}`, infoX, innerY + 30);
+
+    // effects row
+    const effectsY = innerY + 44;
+    drawEffectSlots(ctx, unit.effects || [], infoX, effectsY, 4, 22, 6);
+  } else {
+    const lvl = unit.level || 1;
+    ctx.fillStyle = COLORS.textSoft;
+    ctx.font = '16px Sans-Serif';
+    ctx.fillText(`Lv. ${lvl}`, infoX, innerY + 14);
+
+    const effectsY = innerY + 26;
+    drawEffectSlots(ctx, unit.effects || [], infoX, effectsY, 3, 18, 4);
+  }
+
+  // HP bar: full width, under card, same style for pets & enemies
+  const hpBarHeight = isMain ? 18 : 14;
+  const hpBarX = innerX;
+  const hpBarY = y + height - padding - hpBarHeight;
+  const hpBarWidth = width - padding * 2;
+  drawHealthBar(
+    ctx,
+    hpBarX,
+    hpBarY,
+    hpBarWidth,
+    hpBarHeight,
+    unit.health ?? unit.hp ?? 0,
+    unit.maxHealth ?? unit.maxHp ?? 1,
+  );
+
+  ctx.restore();
+}
+
+// === ENEMY LAYOUT (1–5 cards) ===
+function layoutEnemySlots(count, areaX, areaY, areaW, areaH) {
+  const n = Math.max(1, Math.min(5, count || 0));
+  const gap = 18;
+
+  let rows;
+  let topCount;
+  let bottomCount;
+
+  if (n <= 3) {
+    rows = 1;
+    topCount = n;
+  } else {
+    rows = 2;
+    topCount = 3;
+    bottomCount = n - 3;
+  }
+
+  const cardHeight =
+    rows === 1
+      ? Math.min(PET_CARD_HEIGHT + 10, areaH - gap * 2)
+      : Math.min(PET_CARD_HEIGHT, (areaH - gap * 3) / 2);
+
+  const positions = [];
+
+  function layoutRow(rowIndex, countInRow) {
+    if (!countInRow) return;
+    const widthAvailable = areaW - gap * (countInRow + 1);
+    const cardWidth = Math.min(220, widthAvailable / countInRow);
+    const y = areaY + gap + rowIndex * (cardHeight + gap);
+
+    for (let i = 0; i < countInRow; i++) {
+      const x = areaX + gap + i * (cardWidth + gap);
+      positions.push({ x, y, width: cardWidth, height: cardHeight });
+    }
+  }
+
+  if (rows === 1) {
+    layoutRow(0, topCount);
+  } else {
+    layoutRow(0, topCount);
+    layoutRow(1, bottomCount);
+  }
+
+  // center single enemy
+  if (n === 1 && positions[0]) {
+    const p = positions[0];
+    p.x = areaX + (areaW - p.width) / 2;
+    p.y = areaY + (areaH - cardHeight) / 2;
+  }
+
+  return positions.slice(0, n);
+}
+
+// ================== PLAYER SIDE ==================
+
+function drawPlayerSide(ctx, player) {
+  const marginX = 40;
+  const panelWidth = CANVAS_WIDTH / 2 - marginX * 1.5;
+  const x = marginX;
+  const y = 60;
+
+  drawSidePanel(
+    ctx,
+    x,
+    y,
+    panelWidth,
+    PANEL_HEIGHT,
+    COLORS.panelBorderPlayer,
+    'PLAYER',
+    'left',
+  );
+
+  const mainCardX = x + 26;
+  const mainCardY = y + PANEL_TOP_OFFSET;
+  const mainCardW = panelWidth - 52;
+  const mainCardH = MAIN_CARD_HEIGHT;
+
+  drawUnitCard(
+    ctx,
+    {
+      ...player,
+    },
+    mainCardX,
+    mainCardY,
+    mainCardW,
+    mainCardH,
+    {
+      variant: 'playerMain',
+      accentColor: COLORS.panelBorderPlayer,
+    },
+  );
+
+  // 3 pet / army cards
+  const pets = Array.isArray(player.team) ? player.team.slice(0, 3) : [];
+  const rowY = mainCardY + mainCardH + PANEL_GAP_MAIN_TO_ROW;
+  const slots = 3;
+  const gap = 16;
+  const slotWidth = (panelWidth - 52 - gap * (slots - 1)) / slots;
+  const slotHeight = PET_CARD_HEIGHT;
+
+  for (let i = 0; i < slots; i++) {
+    const pet = pets[i] || {};
+    const slotX = mainCardX + i * (slotWidth + gap);
+
+    drawUnitCard(
+      ctx,
+      {
+        ...pet,
+      },
+      slotX,
+      rowY,
+      slotWidth,
+      slotHeight,
+      {
+        variant: 'ally',
+        accentColor: pet.accentColor || '#7fbf8c',
+      },
+    );
+  }
+}
+
+// ================== ENEMY SIDE ==================
+
+function drawEnemySide(ctx, enemies) {
+  const marginX = 40;
+  const panelWidth = CANVAS_WIDTH / 2 - marginX * 1.5;
+  const x = CANVAS_WIDTH - panelWidth - marginX;
+  const y = 60;
+
+  drawSidePanel(
+    ctx,
+    x,
+    y,
+    panelWidth,
+    PANEL_HEIGHT,
+    COLORS.panelBorderEnemy,
+    'ENEMIES',
+    'right',
+  );
+
+  const areaX = x + 26;
+  const areaY = y + PANEL_TOP_OFFSET;
+  const areaW = panelWidth - 52;
+  const areaH = PANEL_HEIGHT - PANEL_TOP_OFFSET - PANEL_BOTTOM_PADDING;
+
+  const list = Array.isArray(enemies) ? enemies : [];
+  const positions = layoutEnemySlots(list.length, areaX, areaY, areaW, areaH);
+
+  for (let i = 0; i < positions.length; i++) {
+    const enemy = list[i] || {};
+    const pos = positions[i];
+
+    drawUnitCard(
+      ctx,
+      {
+        ...enemy,
+      },
+      pos.x,
+      pos.y,
+      pos.width,
+      pos.height,
+      {
+        variant: 'enemy',
+        accentColor: enemy.accentColor || COLORS.panelBorderEnemy,
+      },
+    );
+  }
+}
+
+// ================== VS MARKER ==================
+
+function drawVsMarker(ctx) {
+  ctx.save();
+  const cx = CANVAS_WIDTH / 2;
+  const cy = CANVAS_HEIGHT / 2;
+
+  ctx.fillStyle = '#fdfcf5';
+  ctx.font = 'bold 64px Serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('VS', cx, cy - 4);
+
+  // ring
+  const ringR = 70;
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, ringR + 30);
+  glow.addColorStop(0, 'rgba(255,255,255,0.18)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR + 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ================== IMAGE LOADING ==================
+
+async function loadImageSafe(source) {
+  if (!source) return null;
+  try {
+    return await loadImage(source);
+  } catch (err) {
+    console.warn('Failed to load image:', err?.message || err);
+    return null;
+  }
+}
+
+// ================== MAIN ENTRY ==================
+
 async function createHuntBattleImage({ player, enemies }) {
-    const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
-    const ctx = canvas.getContext('2d');
+  if (!player) {
+    throw new Error('createHuntBattleImage: "player" is required');
+  }
 
-    // --- 1. Load Assets Safely ---
-    // Added optional chaining (?.) to prevent crashes on bad objects
-    const playerImg = await safeLoad(player?.avatar);
+  const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+  const ctx = canvas.getContext('2d');
 
-    const petImages = await Promise.all(
-        (player.pets || []).map(p => safeLoad(p?.avatar))
-    );
+  drawBackground(ctx);
 
-    const enemyImages = await Promise.all(
-        (enemies || []).map(e => safeLoad(e?.avatar))
-    );
+  // Player + pets
+  const playerAvatar = await loadImageSafe(player.avatar);
+  const preparedTeam = await Promise.all(
+    (player.team || []).slice(0, 3).map(async (slot) => ({
+      ...slot,
+      image: await loadImageSafe(slot?.avatar),
+    })),
+  );
 
-    // --- 2. Draw Scene ---
-    drawBackground(ctx);
+  const preparedPlayer = {
+    ...player,
+    image: playerAvatar,
+    team: preparedTeam,
+  };
 
-    // --- 3. Player Zone (Left) ---
-    const ZONE_PAD = 40;
-    const PLAYER_ZONE_W = (CANVAS_WIDTH / 2) - ZONE_PAD;
-    
-    // Main Card
-    const mainCardH = 160;
-    const mainCardW = PLAYER_ZONE_W - 20;
-    const mainCardX = ZONE_PAD;
-    const mainCardY = 60;
+  // Enemies (1–5)
+  const enemyList = Array.isArray(enemies) ? enemies.slice(0, 5) : [];
+  const preparedEnemies = await Promise.all(
+    enemyList.map(async (enemy) => ({
+      ...enemy,
+      image: await loadImageSafe(enemy.avatar),
+    })),
+  );
 
-    drawPlayerMainCard(ctx, { ...player, image: playerImg }, mainCardX, mainCardY, mainCardW, mainCardH);
+  drawPlayerSide(ctx, preparedPlayer);
+  drawEnemySide(ctx, preparedEnemies);
+  drawVsMarker(ctx);
 
-    // Pet Cards (3 Slots)
-    const petY = mainCardY + mainCardH + 30;
-    const petH = 110;
-    const petGap = 15;
-    const petW = (mainCardW - (petGap * 2)) / 3;
-
-    for (let i = 0; i < 3; i++) {
-        const px = mainCardX + i * (petW + petGap);
-        const petData = player.pets ? player.pets[i] : null;
-
-        if (petData) {
-             drawSmallCard(ctx, { ...petData, image: petImages[i] }, px, petY, petW, petH, false);
-        } else {
-             // Empty Slot
-             ctx.save();
-             drawRoundedRect(ctx, px, petY, petW, petH, 12);
-             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-             ctx.fill();
-             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-             ctx.stroke();
-             ctx.restore();
-        }
-    }
-
-    // --- 4. Enemy Zone (Right) ---
-    const ENEMY_ZONE_X = CANVAS_WIDTH / 2 + 20;
-    const ENEMY_ZONE_W = (CANVAS_WIDTH / 2) - 60;
-    const ENEMY_ZONE_Y_START = 60;
-    const ENEMY_ZONE_H = CANVAS_HEIGHT - 100;
-
-    // Ensure enemies array exists and limit to 5
-    const enemyList = enemies || [];
-    const enemyCount = Math.min(enemyList.length, 5);
-    
-    const cardH = 110;
-    const cardW = 280; 
-    
-    // Calculate Layout Positions
-    let enemyPositions = [];
-    
-    if (enemyCount <= 3) {
-        // Single Column Centered
-        const totalH = enemyCount * cardH + (enemyCount - 1) * 20;
-        let startY = ENEMY_ZONE_Y_START + (ENEMY_ZONE_H - totalH) / 2;
-        const centerX = ENEMY_ZONE_X + (ENEMY_ZONE_W - cardW) / 2;
-        
-        for(let i=0; i<enemyCount; i++) {
-            enemyPositions.push({ x: centerX, y: startY + i * (cardH + 20) });
-        }
-    } else {
-        // Two Columns Grid
-        const col1X = ENEMY_ZONE_X + 20;
-        const col2X = ENEMY_ZONE_X + ENEMY_ZONE_W - cardW - 20;
-        const rowGap = 30;
-        const startY = ENEMY_ZONE_Y_START + 80;
-        
-        for(let i=0; i<enemyCount; i++) {
-            const col = i % 2; // 0 = left, 1 = right
-            const row = Math.floor(i / 2);
-            const ex = col === 0 ? col1X : col2X;
-            const ey = startY + row * (cardH + rowGap);
-            enemyPositions.push({ x: ex, y: ey });
-        }
-        // Center the 5th element
-        if (enemyCount === 5) {
-            enemyPositions[4].x = ENEMY_ZONE_X + (ENEMY_ZONE_W - cardW) / 2;
-        }
-    }
-
-    // Draw Enemy Cards
-    for (let i = 0; i < enemyCount; i++) {
-        const pos = enemyPositions[i];
-        // Ensure we pass the image from our safe-loaded array
-        drawSmallCard(ctx, { ...enemyList[i], image: enemyImages[i] }, pos.x, pos.y, cardW, cardH, true);
-    }
-
-    // --- 5. VS Overlay ---
-    ctx.save();
-    ctx.font = 'bold italic 80px Serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 20;
-    
-    const vsGrad = ctx.createLinearGradient(CANVAS_WIDTH/2, CANVAS_HEIGHT/2 - 40, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 40);
-    vsGrad.addColorStop(0, '#ffffff');
-    vsGrad.addColorStop(1, '#999');
-    
-    ctx.fillStyle = vsGrad;
-    ctx.fillText('VS', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-    ctx.restore();
-
-    return canvas.toBuffer('image/png');
+  return canvas.toBuffer('image/png');
 }
 
 module.exports = { createHuntBattleImage };
