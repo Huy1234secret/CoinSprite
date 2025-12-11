@@ -2,7 +2,8 @@ const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
 
 // === CONFIGURATION ===
 const CANVAS_WIDTH = 1280;
-const CANVAS_HEIGHT = 720;
+// Reduced height so content hugs the player army slots instead of floating in extra vertical space.
+const CANVAS_HEIGHT = 480;
 
 // === JUNGLE THEME PALETTE ===
 const PALETTE = {
@@ -306,15 +307,15 @@ async function createHuntBattleImage({ player, enemies }) {
     const PLAYER_ZONE_W = (CANVAS_WIDTH / 2) - ZONE_PAD;
     
     // A. Main Player Card
-    const mainCardH = 160;
+    const mainCardH = 150;
     const mainCardW = PLAYER_ZONE_W - 20;
     const mainCardX = ZONE_PAD;
-    const mainCardY = 60; // Top margin
+    const mainCardY = 40; // Top margin, tightened for shorter canvas
 
     drawPlayerMainCard(ctx, { ...player, image: playerImg }, mainCardX, mainCardY, mainCardW, mainCardH);
 
     // B. Pet Cards (3 slots)
-    const petY = mainCardY + mainCardH + 30; // Gap
+    const petY = mainCardY + mainCardH + 20; // Gap
     const petH = 110;
     const petGap = 15;
     const petW = (mainCardW - (petGap * 2)) / 3;
@@ -339,8 +340,8 @@ async function createHuntBattleImage({ player, enemies }) {
     // === ENEMY ZONE (RIGHT) ===
     const ENEMY_ZONE_X = CANVAS_WIDTH / 2 + 20;
     const ENEMY_ZONE_W = (CANVAS_WIDTH / 2) - 60;
-    const ENEMY_ZONE_Y_START = 60;
-    const ENEMY_ZONE_H = CANVAS_HEIGHT - 100;
+    const ENEMY_ZONE_Y_START = 40;
+    const ENEMY_ZONE_H = CANVAS_HEIGHT - 80;
 
     // Logic to center 1-5 enemies
     const enemyCount = Math.min(enemies.length, 5);
