@@ -276,16 +276,25 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
 
 // === LAYOUT LOGIC ===
 
+async function safeLoadImage(src, fallback = 'https://via.placeholder.com/150') {
+    const finalSrc = (typeof src === 'string' && src.trim()) ? src : fallback;
+    try {
+        return await loadImage(finalSrc);
+    } catch (err) {
+        return loadImage(fallback);
+    }
+}
+
 async function createHuntBattleImage({ player, enemies }) {
     const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
     const ctx = canvas.getContext('2d');
 
-    // 1. Load Assets
-    const playerImg = await loadImage(player.avatar || 'https://via.placeholder.com/150');
+    // 1. Load Assets with fallbacks to avoid unsupported sources
+    const playerImg = await safeLoadImage(player.avatar);
     // Preload pet images
-    const petImages = await Promise.all((player.pets || []).map(p => loadImage(p.avatar)));
+    const petImages = await Promise.all((player.pets || []).map(p => safeLoadImage(p.avatar)));
     // Preload enemy images
-    const enemyImages = await Promise.all((enemies || []).map(e => loadImage(e.avatar)));
+    const enemyImages = await Promise.all((enemies || []).map(e => safeLoadImage(e.avatar)));
 
     // 2. Draw Background
     drawBackground(ctx);
