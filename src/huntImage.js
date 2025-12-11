@@ -2,8 +2,7 @@ const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
 
 // === CONFIGURATION ===
 const CANVAS_WIDTH = 1280;
-// Reduced height so content hugs the player army slots instead of floating in extra vertical space.
-const CANVAS_HEIGHT = 480;
+let CANVAS_HEIGHT = 480; // Updated dynamically based on card counts
 
 // === JUNGLE THEME PALETTE ===
 const PALETTE = {
@@ -369,7 +368,46 @@ async function safeLoadImage(src, fallback = FALLBACK_IMAGE_DATA) {
     }
 }
 
+function computeCanvasHeight(player, enemies) {
+    const TOP_MARGIN = 40;
+    const BOTTOM_PADDING = 40;
+
+    // Player stack height (main card + pets if any)
+    const mainCardH = 150;
+    const petGap = 20;
+    const petH = 110;
+    const petCount = (player.pets || []).filter(Boolean).length;
+
+    let playerHeight = TOP_MARGIN + mainCardH;
+    if (petCount > 0) {
+        playerHeight += petGap + petH;
+    }
+
+    // Enemy stack height, mirrors layout logic
+    const enemyCount = Math.min((enemies || []).length, 5);
+    const ENEMY_ZONE_Y_START = 40;
+    const cardH = 110;
+    let enemyHeight = ENEMY_ZONE_Y_START;
+
+    if (enemyCount > 0) {
+        if (enemyCount <= 3) {
+            const gap = 20;
+            enemyHeight += enemyCount * cardH + (enemyCount - 1) * gap;
+        } else {
+            const rowGap = 30;
+            const rows = Math.ceil(enemyCount / 2);
+            const startY = ENEMY_ZONE_Y_START + 80;
+            enemyHeight = startY + rows * cardH + (rows - 1) * rowGap;
+        }
+    }
+
+    // Keep a sensible minimum height to preserve background details
+    const minHeight = 320;
+    return Math.max(minHeight, Math.max(playerHeight, enemyHeight) + BOTTOM_PADDING);
+}
+
 async function createHuntBattleImage({ player, enemies }) {
+    CANVAS_HEIGHT = computeCanvasHeight(player, enemies);
     const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
     const ctx = canvas.getContext('2d');
 
@@ -395,26 +433,28 @@ async function createHuntBattleImage({ player, enemies }) {
 
     drawPlayerMainCard(ctx, { ...player, image: playerImg }, mainCardX, mainCardY, mainCardW, mainCardH);
 
-    // B. Pet Cards (3 slots)
-    const petY = mainCardY + mainCardH + 20; // Gap
-    const petH = 110;
-    const petGap = 15;
-    const petW = (mainCardW - (petGap * 2)) / 3;
+    // B. Pet Cards (only draw when player has an army/pets)
+    const hasPets = (player.pets || []).some(Boolean);
+    if (hasPets) {
+        const petY = mainCardY + mainCardH + 20; // Gap
+        const petH = 110;
+        const petGap = 15;
+        const petW = (mainCardW - (petGap * 2)) / 3;
 
-    for (let i = 0; i < 3; i++) {
-        const px = mainCardX + i * (petW + petGap);
-        // Draw empty slot frame if no pet
-        if (player.pets && player.pets[i]) {
-             drawSmallCard(ctx, { ...player.pets[i], image: petImages[i] }, px, petY, petW, petH, false);
-        } else {
-             // Draw Empty Slot placeholder
-             ctx.save();
-             drawRoundedRect(ctx, px, petY, petW, petH, 12);
-             ctx.fillStyle = 'rgba(0,0,0,0.3)';
-             ctx.fill();
-             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-             ctx.stroke();
-             ctx.restore();
+        for (let i = 0; i < 3; i++) {
+            const px = mainCardX + i * (petW + petGap);
+            if (player.pets && player.pets[i]) {
+                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i] }, px, petY, petW, petH, false);
+            } else {
+                 // Draw Empty Slot placeholder
+                 ctx.save();
+                 drawRoundedRect(ctx, px, petY, petW, petH, 12);
+                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                 ctx.fill();
+                 ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                 ctx.stroke();
+                 ctx.restore();
+            }
         }
     }
 
