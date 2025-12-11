@@ -396,7 +396,7 @@ function computeCanvasHeight(player, enemies) {
         } else {
             const rowGap = 30;
             const rows = Math.ceil(enemyCount / 2);
-            const startY = ENEMY_ZONE_Y_START + 80;
+            const startY = ENEMY_ZONE_Y_START;
             enemyHeight = startY + rows * cardH + (rows - 1) * rowGap;
         }
     }
@@ -471,13 +471,12 @@ async function createHuntBattleImage({ player, enemies }) {
     
     // We calculate positions to center them in the right panel
     let enemyPositions = [];
-    
+
     if (enemyCount <= 3) {
-        // Single Column centered vertically
-        const totalH = enemyCount * cardH + (enemyCount - 1) * 20;
-        let startY = ENEMY_ZONE_Y_START + (ENEMY_ZONE_H - totalH) / 2;
+        // Single Column with matching top margin to player card
+        let startY = ENEMY_ZONE_Y_START;
         const centerX = ENEMY_ZONE_X + (ENEMY_ZONE_W - cardW) / 2;
-        
+
         for(let i=0; i<enemyCount; i++) {
             enemyPositions.push({ x: centerX, y: startY + i * (cardH + 20) });
         }
@@ -487,9 +486,9 @@ async function createHuntBattleImage({ player, enemies }) {
         const col1X = ENEMY_ZONE_X + 20;
         const col2X = ENEMY_ZONE_X + ENEMY_ZONE_W - cardW - 20;
         const rowGap = 30;
-        
-        // Simple alternating layout
-        const startY = ENEMY_ZONE_Y_START + 80; // Push down a bit
+
+        // Simple alternating layout with consistent top margin
+        const startY = ENEMY_ZONE_Y_START;
         
         for(let i=0; i<enemyCount; i++) {
             const col = i % 2; // 0 = left, 1 = right
