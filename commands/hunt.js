@@ -765,7 +765,6 @@ function buildBattleContent(state, user, attachment, profile) {
   const creatures = state.creatures.filter((creature) => creature.health > 0);
   const thumbnail = getEmojiUrl(creatures[0]?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
   const miscOptions = buildMiscOptions(profile);
-  const miscPlaceholder = miscPlaceholder(profile);
 
   return {
     flags: COMPONENTS_V2_FLAG,
