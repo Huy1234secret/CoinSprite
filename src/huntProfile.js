@@ -99,6 +99,31 @@ function ensureProfileShape(profile = {}) {
   };
 }
 
+function addItemToInventory(profile, item, amount = 1) {
+  if (!item || typeof item !== 'object') {
+    return profile;
+  }
+
+  const safeAmount = Math.max(0, amount);
+  if (safeAmount === 0) {
+    return profile;
+  }
+
+  const miscInventory = Array.isArray(profile.misc_inventory) ? [...profile.misc_inventory] : [];
+  const existingIndex = miscInventory.findIndex((entry) => entry?.name === item.name);
+
+  if (existingIndex >= 0) {
+    const existing = miscInventory[existingIndex];
+    const currentAmount = Number.isFinite(existing.amount) ? existing.amount : 1;
+    miscInventory[existingIndex] = { ...existing, ...item, amount: currentAmount + safeAmount };
+  } else {
+    miscInventory.push({ ...item, amount: safeAmount });
+  }
+
+  profile.misc_inventory = miscInventory;
+  return profile;
+}
+
 function getUserProfile(userId) {
   const profiles = loadProfiles();
   const userKey = String(userId);
@@ -125,6 +150,7 @@ module.exports = {
   UPGRADE_TOKEN_ITEM,
   WOODEN_SWORD_GEAR,
   calculatePlayerMaxHealth,
+  addItemToInventory,
   getUserProfile,
   normalizeGearInventory,
   normalizeGearItem,

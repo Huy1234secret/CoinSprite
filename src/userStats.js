@@ -102,6 +102,12 @@ function addXpToUser(userId, amount) {
   return setUserStats(userId, withXp);
 }
 
+function addCoinsToUser(userId, amount) {
+  const current = getUserStats(userId);
+  const updatedCoins = Math.max(0, current.coins + amount);
+  return setUserStats(userId, { ...current, coins: updatedCoins });
+}
+
 function buildProgressBar(current, total, width = 20) {
   const safeTotal = Math.max(1, total);
   const ratio = Math.max(0, Math.min(1, current / safeTotal));
@@ -113,6 +119,7 @@ function buildProgressBar(current, total, width = 20) {
 module.exports = {
   DEFAULT_STATS,
   addXpToUser,
+  addCoinsToUser,
   buildProgressBar,
   getNextLevelRequirement,
   getUserStats,

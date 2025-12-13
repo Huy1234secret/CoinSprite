@@ -5,11 +5,14 @@ const {
   DEFAULT_PROFILE,
   FIST_GEAR,
   KNOWN_GEAR,
+  UPGRADE_TOKEN_ITEM,
   calculatePlayerMaxHealth,
+  addItemToInventory,
   getUserProfile,
   normalizeGearItem,
   updateUserProfile,
 } = require('../src/huntProfile');
+const { addCoinsToUser } = require('../src/userStats');
 const { JUNGLE_BETTLE } = require('../src/creatures');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
@@ -502,16 +505,22 @@ function calculateRewards(creatures) {
   return rewards;
 }
 
-function applyRewards(profile, rewards) {
+function applyRewards(userId, profile, rewards) {
   let leveledUp = 0;
   profile.coins = Math.max(0, profile.coins + rewards.coins);
   profile.xp = Math.max(0, profile.xp + rewards.xp);
+
+  addCoinsToUser(userId, rewards.coins);
 
   while (profile.xp >= profile.next_level_xp) {
     profile.xp -= profile.next_level_xp;
     profile.level += 1;
     leveledUp += 1;
     profile.upgrade_tokens += 5;
+  }
+
+  if (leveledUp > 0) {
+    profile = addItemToInventory(profile, UPGRADE_TOKEN_ITEM, leveledUp * 5);
   }
 
   const scaledHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
@@ -820,7 +829,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   const aliveCreatures = state.creatures.filter((creature) => creature.health > 0);
   if (!aliveCreatures.length) {
     const rewards = calculateRewards(state.initialCreatures);
-    const leveledUp = applyRewards(profile, rewards);
+    const leveledUp = applyRewards(userId, profile, rewards);
     updateUserProfile(userId, profile);
     const successContent = buildSuccessContent(profile, userId, state.initialCreatures, rewards, leveledUp);
     await interaction.update(successContent);
