@@ -741,8 +741,8 @@ async function buildBattleAttachment(state, user) {
     name: state.player.name,
     avatar,
     level: state.player.level,
-    maxHealth: state.player.maxHealth,
-    health: state.player.health,
+    maxHp: state.player.maxHealth,
+    hp: state.player.health,
     defense: state.player.defense,
     shield: state.player.defense,
     team: [],
@@ -751,10 +751,11 @@ async function buildBattleAttachment(state, user) {
   const enemies = state.creatures.map((creature) => ({
     label: `${creature.name} ${formatCreatureLevel(creature.level)}`,
     level: creature.level,
-    health: creature.health,
-    maxHealth: creature.maxHealth,
+    hp: creature.health,
+    maxHp: creature.maxHealth,
     shield: 0,
     accentColor: '#1abc9c',
+    avatar: getEmojiUrl(creature.emoji) ?? HUNT_THUMBNAIL,
   }));
 
   const buffer = await createHuntBattleImage({ player, enemies });
@@ -777,20 +778,20 @@ function buildBattleContent(state, user, attachment, profile) {
             type: 10,
             content: `### You found a ${creatures[0]?.name ?? JUNGLE_BETTLE.name}`,
           },
+          {
+            type: 12,
+            items: [
+              {
+                media: { url: 'attachment://hunt-battle.png' },
+              },
+            ],
+          },
         ],
         accessory: {
           type: 11,
           media: { url: thumbnail },
           description: 'Hunt target thumbnail',
         },
-      },
-      {
-        type: 12,
-        items: [
-          {
-            media: { url: 'attachment://hunt-battle.png' },
-          },
-        ],
       },
       {
         type: 17,
@@ -804,33 +805,35 @@ function buildBattleContent(state, user, attachment, profile) {
         accent_color: 0x2ecc71,
         components: [
           { type: 10, content: `-# You have \`${state.player.actionsLeft} action\` left` },
-        ],
-      },
-      {
-        type: 1,
-        components: [
           {
-            type: 3,
-            custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
-            placeholder: 'Select a creature to attack',
-            options: buildCreatureOptions(state),
-            disabled: !creatures.length || state.player.actionsLeft <= 0,
-            min_values: 1,
-            max_values: 1,
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
+                placeholder: 'Select a creature to attack',
+                options: buildCreatureOptions(state),
+                disabled: !creatures.length || state.player.actionsLeft <= 0,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
           },
-        ],
-      },
-      {
-        type: 1,
-        components: [
           {
-            type: 3,
-            custom_id: `${HUNT_SELECT_PREFIX}misc:${user.id}`,
-            placeholder: miscPlaceholder(profile) || miscPlaceholder({ misc_inventory: [] }),
-            options: miscOptions,
-            disabled: !(profile.misc_inventory ?? []).length,
-            min_values: 1,
-            max_values: 1,
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${HUNT_SELECT_PREFIX}misc:${user.id}`,
+                placeholder: (profile.misc_inventory ?? []).length
+                  ? 'Use a misc'
+                  : "You don't have any misc",
+                options: miscOptions,
+                disabled: !(profile.misc_inventory ?? []).length,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
           },
         ],
       },
