@@ -2,54 +2,13 @@ const fs = require('fs');
 const path = require('path');
 
 const HUNT_DATA_FILE = path.join(__dirname, '..', 'data', 'hunt_profiles.json');
-
-const FIST_GEAR = {
-  id: 'ITFist',
-  name: 'Fist',
-  emoji: '<:ITFist:1449009707355476069>',
-  rarity: 'Common',
-  type: 'Tool/Gear',
-  value: 0,
-  sellPrice: 0,
-  tradable: false,
-  durability: Infinity,
-  maxDurability: Infinity,
-  damage: { min: 1, max: 5 },
-  info: 'Useable as a gear in Hunt, deal 1 - 5 damages per hit.'
-};
-
-const WOODEN_SWORD_GEAR = {
-  id: 'ITWoodenSword',
-  name: 'Wooden Sword',
-  emoji: '<:ITWoodenSword:1448987035363704955>',
-  rarity: 'Common',
-  type: 'Tool/Gear',
-  value: 13,
-  sellPrice: 100,
-  tradable: true,
-  durability: 50,
-  maxDurability: 50,
-  damage: { min: 3, max: 8 },
-  info: 'Useable as a gear in Hunt, deal 3 - 8 damages per hit. Lose 1 durability per hit.'
-};
-
-const UPGRADE_TOKEN_ITEM = {
-  id: 'ITUpgradeToken',
-  name: 'Upgrade Token',
-  emoji: '<:ITUpgradeToken:1447502158059540481>',
-  rarity: 'Rare',
-  type: 'Material',
-  value: 300,
-  sellPrice: null,
-  tradable: false,
-  durability: null,
-  info: 'Coming soon'
-};
-
-const KNOWN_GEAR = {
-  [FIST_GEAR.name]: FIST_GEAR,
-  [WOODEN_SWORD_GEAR.name]: WOODEN_SWORD_GEAR
-};
+const {
+  FIST_GEAR,
+  KNOWN_GEAR,
+  UPGRADE_TOKEN_ITEM,
+  WOODEN_SWORD_GEAR,
+  ITEMS,
+} = require('./items');
 
 const DEFAULT_PROFILE = {
   level: 1,
@@ -161,6 +120,7 @@ function updateUserProfile(userId, profile) {
 
 module.exports = {
   DEFAULT_PROFILE,
+  ITEMS,
   FIST_GEAR,
   KNOWN_GEAR,
   UPGRADE_TOKEN_ITEM,
