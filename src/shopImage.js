@@ -1,10 +1,38 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-const SHOP_PREVIEW_WIDTH = 1000;
-const SHOP_PREVIEW_HEIGHT = 560;
-const SHOP_CARD_HEIGHT = 110;
+const SHOP_PREVIEW_WIDTH = 1200;
+const SHOP_PREVIEW_HEIGHT = 800;
 const ITEM_PLACEHOLDER_EMOJI = '🛒';
 const DEFAULT_CURRENCY_ICON = '🪙';
+
+const SHOP_PADDING = 20;
+const SHOP_COLS = 3;
+const SHOP_BACKGROUND_COLOR = '#2f3136';
+const SHOP_CARD_BG_COLOR = '#202225';
+const SHOP_TEXT_COLOR = '#ffffff';
+
+const DISCORD_EMOJIS = {
+  currency: '1447459216574124074',
+  rarity: {
+    common: '1447459423185272952',
+    uncommon: '1447459432165408789',
+    rare: '1447459432165408789',
+    epic: '1447459425303527465',
+    legendary: '1447459428273098835',
+    mythical: '1447459430760317172',
+    secret: '1447459434677665874',
+  },
+};
+
+const RARITY_COLORS = {
+  common: '#95a5a6',
+  uncommon: '#2ecc71',
+  rare: '#3498db',
+  epic: '#9b59b6',
+  legendary: '#f1c40f',
+  mythical: '#e74c3c',
+  secret: '#000000',
+};
 
 // === BASIC CONFIG ===
 const CANVAS_WIDTH = 1280;
@@ -659,114 +687,185 @@ async function createHuntBattleImage({ player, enemies }) {
 
 // ================== SHOP PREVIEW HELPERS ==================
 
-function getPlaceholderItems(assetPaths = {}) {
-  const currency = assetPaths.currencyIcon || DEFAULT_CURRENCY_ICON;
+function getEmojiUrl(id) {
+  return `https://cdn.discordapp.com/emojis/${id}.png`;
+}
+
+function resolveEmojiSource(source) {
+  if (!source) {
+    return null;
+  }
+
+  if (/^https?:\/\//.test(source)) {
+    return source;
+  }
+
+  if (/^\d+$/.test(source)) {
+    return getEmojiUrl(source);
+  }
+
+  return source;
+}
+
+function getPlaceholderItems() {
   return [
-    {
-      name: 'Jungle Explorer Kit',
-      price: 1250,
-      description: 'Everything you need for a quick expedition.',
-      emoji: '🎒',
-      currency,
-    },
-    {
-      name: 'Mystic Seed Pouch',
-      price: 800,
-      description: 'Grow a random rare plant friend.',
-      emoji: '🌱',
-      currency,
-    },
-    {
-      name: 'Guardian Talisman',
-      price: 1500,
-      description: 'A charm said to ward off angry spirits.',
-      emoji: '🛡️',
-      currency,
-    },
-    {
-      name: 'Luminescent Lantern',
-      price: 600,
-      description: 'Lights your path in the darkest caves.',
-      emoji: '🏮',
-      currency,
-    },
-    {
-      name: 'Fresh Supplies Crate',
-      price: 450,
-      description: 'Snacks, bandages, and a smile.',
-      emoji: '📦',
-      currency,
-    },
-    {
-      name: 'Ancient Coin Cache',
-      price: 900,
-      description: 'A bundle of coins from a forgotten era.',
-      emoji: '🪙',
-      currency,
-    },
+    { name: 'Steel Sword', price: 150, stock: 5, rarity: 'common', image: null },
+    { name: 'Golden Apple', price: 50, stock: 99, rarity: 'uncommon', image: null },
+    { name: 'Dragon Egg', price: 5000, stock: 1, rarity: 'legendary', image: null },
+    { name: 'Health Potion', price: 25, stock: 15, rarity: 'common', image: null },
+    { name: 'Magic Wand', price: 1200, stock: 3, rarity: 'rare', image: null },
+    { name: 'Ancient Shield', price: 850, stock: 2, rarity: 'epic', image: null },
   ];
 }
 
 async function ensureShopAssets() {
   return {
-    currencyIcon: DEFAULT_CURRENCY_ICON,
+    currencyIcon: DISCORD_EMOJIS.currency,
+    rarities: DISCORD_EMOJIS.rarity,
   };
 }
 
-async function createShopImage(items, currencyIcon) {
+async function createShopImage(items = getPlaceholderItems(), currencyIconId = DISCORD_EMOJIS.currency) {
   const canvas = createCanvas(SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#0b1a12';
+  ctx.fillStyle = SHOP_BACKGROUND_COLOR;
   ctx.fillRect(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
 
-  const gradient = ctx.createLinearGradient(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
-  gradient.addColorStop(0, '#0f2d1f');
-  gradient.addColorStop(1, '#0b140f');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
+  const cardWidth = (SHOP_PREVIEW_WIDTH - SHOP_PADDING * (SHOP_COLS + 1)) / SHOP_COLS;
+  const rows = Math.max(1, Math.ceil(items.length / SHOP_COLS));
+  const cardHeight = (SHOP_PREVIEW_HEIGHT - SHOP_PADDING * (rows + 1)) / rows;
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '28px Sans-Serif';
-  ctx.textBaseline = 'top';
-  ctx.fillText("Jag's Shop Rotation", 32, 24);
+  const currencyIcon = await loadImageSafe(resolveEmojiSource(currencyIconId));
 
-  const preparedItems = Array.isArray(items) && items.length ? items : getPlaceholderItems({ currencyIcon });
-  const startY = 80;
-  const verticalGap = 16;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const colIndex = i % SHOP_COLS;
+    const rowIndex = Math.floor(i / SHOP_COLS);
 
-  preparedItems.slice(0, 6).forEach((item, index) => {
-    const y = startY + index * (SHOP_CARD_HEIGHT + verticalGap);
-    const x = 32;
-    const width = SHOP_PREVIEW_WIDTH - x * 2;
+    const x = SHOP_PADDING + colIndex * (cardWidth + SHOP_PADDING);
+    const y = SHOP_PADDING + rowIndex * (cardHeight + SHOP_PADDING);
 
-    drawRoundedRect(ctx, x, y, width, SHOP_CARD_HEIGHT, 18);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.stroke();
-
-    ctx.fillStyle = '#d2f0db';
-    ctx.font = '22px Sans-Serif';
-    const emoji = item.emoji || (!item.image ? ITEM_PLACEHOLDER_EMOJI : '');
-    const nameText = emoji ? `${emoji} ${item.name}` : item.name;
-    ctx.fillText(nameText || 'Mystery Item', x + 20, y + 16);
-
-    ctx.fillStyle = '#b9d1c1';
-    ctx.font = '16px Sans-Serif';
-    const description = item.description || 'Preview item description coming soon.';
-    const maxWidth = width - 200;
-    ctx.fillText(description, x + 20, y + 48, maxWidth);
-
-    const priceLabel = `${item.price || 0} ${item.currency || currencyIcon || DEFAULT_CURRENCY_ICON}`;
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#f6ffe9';
-    ctx.font = '20px Sans-Serif';
-    ctx.fillText(priceLabel, x + width - 24, y + SHOP_CARD_HEIGHT / 2 - 6);
-    ctx.textAlign = 'left';
-  });
+    await drawCard(ctx, x, y, cardWidth, cardHeight, item, currencyIcon);
+  }
 
   return canvas.toBuffer('image/png');
+}
+
+async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
+  const radius = 15;
+  const rarity = item.rarity || 'common';
+  const rarityColor = RARITY_COLORS[rarity] || '#ffffff';
+
+  ctx.save();
+  roundedRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = SHOP_CARD_BG_COLOR;
+  ctx.fill();
+  ctx.strokeStyle = rarityColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+
+  const imgSize = Math.min(120, w * 0.7);
+  const imgX = x + w / 2 - imgSize / 2;
+  const imgY = y + 25;
+
+  if (item.image) {
+    const img = await loadImageSafe(item.image);
+    if (img) {
+      ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
+    } else {
+      drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
+    }
+  } else {
+    drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
+  }
+
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 26px Sans-Serif';
+  ctx.fillStyle = SHOP_TEXT_COLOR;
+  ctx.fillText(item.name || 'Mystery Item', x + w / 2, y + imgSize + 70);
+
+  const rarityEmojiId = DISCORD_EMOJIS.rarity[rarity] || DISCORD_EMOJIS.rarity.common;
+  const rarityIconSize = 32;
+  const rarityY = y + imgSize + 90;
+  const rarityText = rarity.toUpperCase();
+
+  const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
+  if (rarityImg) {
+    ctx.font = 'italic 18px Sans-Serif';
+    const textWidth = ctx.measureText(rarityText).width;
+    const totalWidth = rarityIconSize + 5 + textWidth;
+    const startX = x + w / 2 - totalWidth / 2;
+
+    ctx.drawImage(rarityImg, startX, rarityY, rarityIconSize, rarityIconSize);
+
+    ctx.fillStyle = rarityColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(rarityText, startX + rarityIconSize + 5, rarityY + 22);
+  } else {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = rarityColor;
+    ctx.fillText(rarityText, x + w / 2, rarityY + 22);
+  }
+
+  const priceY = y + h - 70;
+  const iconSize = 28;
+  ctx.font = 'bold 24px Sans-Serif';
+  ctx.textAlign = 'center';
+
+  const priceText = `${item.price ?? 0}`;
+  const priceWidth = ctx.measureText(priceText).width;
+
+  const fullPriceWidth = priceWidth + 10 + iconSize;
+  const priceStartX = x + w / 2 - fullPriceWidth / 2;
+
+  ctx.fillStyle = '#f1c40f';
+  ctx.textAlign = 'left';
+  ctx.fillText(priceText, priceStartX, priceY + 22);
+
+  if (currencyIcon) {
+    ctx.drawImage(currencyIcon, priceStartX + priceWidth + 10, priceY, iconSize, iconSize);
+  } else {
+    ctx.fillText('Gold', priceStartX + priceWidth + 10, priceY + 22);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.font = '20px Sans-Serif';
+  ctx.fillStyle = '#95a5a6';
+  const stockText = item.stock != null ? `Stock: ${item.stock}` : 'Stock: --';
+  ctx.fillText(stockText, x + w / 2, y + h - 20);
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function drawPlaceholderImage(ctx, x, y, size, color) {
+  ctx.save();
+  ctx.fillStyle = '#2c2f33';
+  ctx.fillRect(x, y, size, size);
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, size, size);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = 'bold 16px Sans-Serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('ITEM', x + size / 2, y + size / 2 + 5);
+  ctx.restore();
 }
 
 module.exports = {
