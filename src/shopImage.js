@@ -1,5 +1,11 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
+const SHOP_PREVIEW_WIDTH = 1000;
+const SHOP_PREVIEW_HEIGHT = 560;
+const SHOP_CARD_HEIGHT = 110;
+const ITEM_PLACEHOLDER_EMOJI = '🛒';
+const DEFAULT_CURRENCY_ICON = '🪙';
+
 // === BASIC CONFIG ===
 const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
@@ -651,4 +657,122 @@ async function createHuntBattleImage({ player, enemies }) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { createHuntBattleImage };
+// ================== SHOP PREVIEW HELPERS ==================
+
+function getPlaceholderItems(assetPaths = {}) {
+  const currency = assetPaths.currencyIcon || DEFAULT_CURRENCY_ICON;
+  return [
+    {
+      name: 'Jungle Explorer Kit',
+      price: 1250,
+      description: 'Everything you need for a quick expedition.',
+      emoji: '🎒',
+      currency,
+    },
+    {
+      name: 'Mystic Seed Pouch',
+      price: 800,
+      description: 'Grow a random rare plant friend.',
+      emoji: '🌱',
+      currency,
+    },
+    {
+      name: 'Guardian Talisman',
+      price: 1500,
+      description: 'A charm said to ward off angry spirits.',
+      emoji: '🛡️',
+      currency,
+    },
+    {
+      name: 'Luminescent Lantern',
+      price: 600,
+      description: 'Lights your path in the darkest caves.',
+      emoji: '🏮',
+      currency,
+    },
+    {
+      name: 'Fresh Supplies Crate',
+      price: 450,
+      description: 'Snacks, bandages, and a smile.',
+      emoji: '📦',
+      currency,
+    },
+    {
+      name: 'Ancient Coin Cache',
+      price: 900,
+      description: 'A bundle of coins from a forgotten era.',
+      emoji: '🪙',
+      currency,
+    },
+  ];
+}
+
+async function ensureShopAssets() {
+  return {
+    currencyIcon: DEFAULT_CURRENCY_ICON,
+  };
+}
+
+async function createShopImage(items, currencyIcon) {
+  const canvas = createCanvas(SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#0b1a12';
+  ctx.fillRect(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
+
+  const gradient = ctx.createLinearGradient(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
+  gradient.addColorStop(0, '#0f2d1f');
+  gradient.addColorStop(1, '#0b140f');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '28px Sans-Serif';
+  ctx.textBaseline = 'top';
+  ctx.fillText("Jag's Shop Rotation", 32, 24);
+
+  const preparedItems = Array.isArray(items) && items.length ? items : getPlaceholderItems({ currencyIcon });
+  const startY = 80;
+  const verticalGap = 16;
+
+  preparedItems.slice(0, 6).forEach((item, index) => {
+    const y = startY + index * (SHOP_CARD_HEIGHT + verticalGap);
+    const x = 32;
+    const width = SHOP_PREVIEW_WIDTH - x * 2;
+
+    drawRoundedRect(ctx, x, y, width, SHOP_CARD_HEIGHT, 18);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.stroke();
+
+    ctx.fillStyle = '#d2f0db';
+    ctx.font = '22px Sans-Serif';
+    const emoji = item.emoji || (!item.image ? ITEM_PLACEHOLDER_EMOJI : '');
+    const nameText = emoji ? `${emoji} ${item.name}` : item.name;
+    ctx.fillText(nameText || 'Mystery Item', x + 20, y + 16);
+
+    ctx.fillStyle = '#b9d1c1';
+    ctx.font = '16px Sans-Serif';
+    const description = item.description || 'Preview item description coming soon.';
+    const maxWidth = width - 200;
+    ctx.fillText(description, x + 20, y + 48, maxWidth);
+
+    const priceLabel = `${item.price || 0} ${item.currency || currencyIcon || DEFAULT_CURRENCY_ICON}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#f6ffe9';
+    ctx.font = '20px Sans-Serif';
+    ctx.fillText(priceLabel, x + width - 24, y + SHOP_CARD_HEIGHT / 2 - 6);
+    ctx.textAlign = 'left';
+  });
+
+  return canvas.toBuffer('image/png');
+}
+
+module.exports = {
+  createHuntBattleImage,
+  ensureShopAssets,
+  createShopImage,
+  getPlaceholderItems,
+  ITEM_PLACEHOLDER_EMOJI,
+};
