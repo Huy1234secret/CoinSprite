@@ -2,7 +2,7 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUserStats } = require('../src/userStats');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
-const COIN_EMOJI = '<:CRCoin:1447459216574124074?>';
+const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
 const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
 const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
 
@@ -18,10 +18,14 @@ function buildWalletResponse(user, stats) {
         accent_color: 0xffffff,
         components: [
           {
-            type: 12,
-            items: [{ media: { url: avatarUrl } }],
+            type: 9,
+            components: [{ type: 10, content }],
+            accessory: {
+              type: 11,
+              media: { url: avatarUrl },
+              description: `${user.username} avatar`,
+            },
           },
-          { type: 10, content },
         ],
       },
     ],
