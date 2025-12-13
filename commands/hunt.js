@@ -10,6 +10,7 @@ const {
   normalizeGearItem,
   updateUserProfile,
 } = require('../src/huntProfile');
+const { JUNGLE_BETTLE } = require('../src/creatures');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
 const HUNT_SELECT_PREFIX = 'hunt-select:';
@@ -23,22 +24,6 @@ const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
 const HUNTING_DELAY_MS = 3000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
-
-const JUNGLE_BETTLE = {
-  name: 'Jungle Bettle',
-  emoji: '<:MCJungleBettle:1448989040509452338>',
-  baseHealth: 15,
-  rarity: 'Common',
-  rarityEmoji: '★',
-  damage: { min: 1, max: 2 },
-  reward: { coins: { min: 50, max: 200 }, xp: { min: 10, max: 40 } },
-  levelDistribution: [
-    { level: 1, chance: 0.65 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.045 },
-    { level: 4, chance: 0.005 }
-  ]
-};
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
