@@ -17,7 +17,7 @@ const HUNT_ATTACK_SELECT_PREFIX = 'hunt-attack:';
 const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
-const COIN_EMOJI = '<:SBCoin:1447468020152463411>';
+const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
 const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
 
 const HUNTING_DELAY_MS = 3000;
@@ -465,6 +465,10 @@ function decrementGearDurability(profile, gear) {
   target.durability = Math.max(0, currentDurability - 1);
   target.maxDurability = target.maxDurability ?? gear.maxDurability;
 
+  if (profile.gear_equipped?.name === target.name) {
+    profile.gear_equipped = target;
+  }
+
   if (target.durability <= 0) {
     profile.gear_inventory = inventory.filter((item) => item && item.name !== gear.name);
     if (profile.gear_equipped?.name === gear.name) {
@@ -764,14 +768,16 @@ function applySelection(profile, type, value) {
   const equippedKey = type === 'gear' ? 'gear_equipped' : 'misc_equipped';
   const list = profile[key] ?? [];
   if (type === 'gear' && value === FIST_GEAR.name) {
-    profile[equippedKey] = { ...FIST_GEAR };
+    profile[equippedKey] = null;
     return profile;
   }
 
   const selectedItem = list.find((item) => item && item.name === value);
 
   if (selectedItem) {
-    profile[equippedKey] = normalizeGearItem(selectedItem);
+    const normalized = normalizeGearItem(selectedItem);
+    Object.assign(selectedItem, normalized);
+    profile[equippedKey] = selectedItem;
   }
 
   return profile;
