@@ -79,9 +79,8 @@ function ensureProfileShape(profile = {}) {
     Array.isArray(profile.gear_inventory) ? profile.gear_inventory : []
   );
   const normalizedEquipped = profile.gear_equipped ? normalizeGearItem(profile.gear_equipped) : null;
-  const gearEquipped = normalizedGearInventory.some((item) => item?.name === normalizedEquipped?.name)
-    ? normalizedEquipped
-    : normalizedGearInventory[0] || null;
+  const matchedGear = normalizedGearInventory.find((item) => item?.name === normalizedEquipped?.name);
+  const gearEquipped = matchedGear ?? normalizedGearInventory[0] || null;
 
   return {
     ...DEFAULT_PROFILE,

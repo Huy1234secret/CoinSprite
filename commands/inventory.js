@@ -22,13 +22,21 @@ const RARITY_EMOJIS = {
 
 const activeInventories = new Map();
 
-function normalizeInventoryItem(item) {
+function isEquippedGear(item, equippedGear) {
+  return (
+    equippedGear?.name === item.name &&
+    (!Number.isFinite(equippedGear.durability) || item.durability === equippedGear.durability)
+  );
+}
+
+function normalizeInventoryItem(item, equippedGear) {
   if (!item || typeof item !== 'object') {
     return null;
   }
 
   const normalized = normalizeGearItem(item) ?? { ...item };
   const amount = Number.isFinite(item.amount) ? item.amount : 1;
+  const equipped = normalized.type === 'Tool/Gear' && isEquippedGear(normalized, equippedGear);
 
   return {
     amount,
@@ -37,6 +45,8 @@ function normalizeInventoryItem(item) {
     emoji: normalized.emoji ?? '',
     name: normalized.name ?? 'Unknown Item',
     value: Number.isFinite(normalized.value) ? normalized.value : 0,
+    equippedCount: equipped ? 1 : 0,
+    equippedDurability: equipped ? normalized.durability ?? null : null,
   };
 }
 
@@ -45,7 +55,7 @@ function collectInventoryItems(profile) {
   const aggregated = new Map();
 
   for (const rawItem of items) {
-    const normalized = normalizeInventoryItem(rawItem);
+    const normalized = normalizeInventoryItem(rawItem, profile.gear_equipped);
     if (!normalized) {
       continue;
     }
@@ -54,10 +64,18 @@ function collectInventoryItems(profile) {
     const existing = aggregated.get(key);
     if (existing) {
       existing.amount += normalized.amount;
+      existing.equippedCount += normalized.equippedCount ?? 0;
+      if (normalized.equippedDurability !== null && normalized.equippedDurability !== undefined) {
+        existing.equippedDurability = normalized.equippedDurability;
+      }
       continue;
     }
 
-    aggregated.set(key, { ...normalized });
+    aggregated.set(key, {
+      ...normalized,
+      equippedCount: normalized.equippedCount ?? 0,
+      equippedDurability: normalized.equippedDurability ?? null,
+    });
   }
 
   return Array.from(aggregated.values());
@@ -68,7 +86,14 @@ function formatItemLine(item) {
   const titleLine = `* ×${item.amount} ${item.name} ${item.emoji}`.trim();
   const rarityLine = `-# Rarity: ${item.rarity} ${rarityEmoji}`.trim();
   const typeLine = `-# Item type: ${item.type}`;
-  return `${titleLine}\n${rarityLine}\n${typeLine}`;
+  const durabilityLine =
+    item.equippedCount > 0
+      ? `-# * Using ×${item.equippedCount} ${item.name} ${item.emoji}  - Durability left: ${
+          Number.isFinite(item.equippedDurability) ? item.equippedDurability : '∞'
+        }`
+      : null;
+
+  return [titleLine, durabilityLine, rarityLine, typeLine].filter(Boolean).join('\n');
 }
 
 function paginateItems(items, page) {
