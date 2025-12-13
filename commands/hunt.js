@@ -28,6 +28,8 @@ const JUNGLE_BETTLE = {
   name: 'Jungle Bettle',
   emoji: '<:MCJungleBettle:1448989040509452338>',
   baseHealth: 15,
+  rarity: 'Common',
+  rarityEmoji: '★',
   damage: { min: 1, max: 2 },
   reward: { coins: { min: 50, max: 200 }, xp: { min: 10, max: 40 } },
   levelDistribution: [
@@ -67,6 +69,8 @@ function createJungleBettle() {
     id: `${JUNGLE_BETTLE.name}-${Date.now()}-${Math.random()}`,
     name: JUNGLE_BETTLE.name,
     emoji: JUNGLE_BETTLE.emoji,
+    rarity: JUNGLE_BETTLE.rarity,
+    rarityEmoji: JUNGLE_BETTLE.rarityEmoji,
     level,
     maxHealth: health,
     health,
@@ -562,7 +566,7 @@ function resolveCreatureTurn(state) {
     const mitigated = Math.max(0, damage - (state.player.defense ?? 0));
     const finalDamage = Math.max(1, mitigated);
     state.player.health = Math.max(0, state.player.health - finalDamage);
-    messages.push(`${creature.name} attacked you and dealt **${finalDamage} damages**.`);
+    messages.push(`${creature.name} has **Bitten** you and dealth **${finalDamage} damages**.`);
   }
   state.actionMessages = messages;
   return messages;
@@ -588,6 +592,8 @@ async function buildBattleAttachment(state, user) {
     maxHp: creature.maxHealth,
     shield: 0,
     accentColor: '#1abc9c',
+    rarity: creature.rarity,
+    rarityEmoji: creature.rarityEmoji,
     avatar: getEmojiUrl(creature.emoji) ?? HUNT_THUMBNAIL,
   }));
 

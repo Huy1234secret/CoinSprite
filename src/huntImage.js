@@ -308,17 +308,17 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     ctx.stroke();
 
     // Avatar
-    const avatarSize = 64;
+    const avatarSize = Math.min(h - 24, 96);
     const avatarX = x + 15;
-    const avatarY = y + (h - avatarSize) / 2 - 10; // moved up slightly to fit HP
+    const avatarY = y + (h - avatarSize) / 2;
     drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
 
-    // Rarity Badge (Enemy Only - Bottom Left of Avatar)
+    // Rarity Badge (Enemy Only - Bottom Right of Avatar)
     if (isEnemy && unit.rarity) {
         const badgeSize = 24;
-        const bx = avatarX - 5;
-        const by = avatarY + avatarSize - 15;
-        
+        const bx = avatarX + avatarSize - badgeSize + 6;
+        const by = avatarY + avatarSize - badgeSize + 6;
+
         ctx.beginPath();
         ctx.arc(bx + badgeSize/2, by + badgeSize/2, badgeSize/2, 0, Math.PI*2);
         ctx.fillStyle = '#222';
@@ -326,22 +326,22 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#fff';
         ctx.stroke();
-        
+
         ctx.font = '16px Sans-Serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(unit.rarity, bx + badgeSize/2, by + badgeSize/2 + 2);
+        ctx.fillText(unit.rarityEmoji || unit.rarity, bx + badgeSize/2, by + badgeSize/2 + 2);
     }
 
     // Info
-    const infoX = avatarX + avatarSize + 15;
-    const infoW = (x + w) - infoX - 10;
+    const infoX = avatarX + avatarSize + 20;
+    const infoW = (x + w) - infoX - 15;
 
     // Level (Small text)
     ctx.fillStyle = PALETTE.textAccent;
     ctx.font = 'bold 14px Sans-Serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`Lv. ${unit.level}`, infoX, y + 30);
+    ctx.fillText(`Lv. ${unit.level}`, infoX, y + 35);
 
     // Effects
     drawEffectSlots(ctx, unit.effects, infoX + 50, y + 30, 16);
