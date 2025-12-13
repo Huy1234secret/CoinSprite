@@ -1,8 +1,15 @@
-const fs = require('fs');
-const path = require('path');
 const { AttachmentBuilder, SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { safeErrorReply } = require('../src/utils/interactions');
 const { createHuntBattleImage } = require('../src/huntImage');
+const {
+  DEFAULT_PROFILE,
+  FIST_GEAR,
+  KNOWN_GEAR,
+  calculatePlayerMaxHealth,
+  getUserProfile,
+  normalizeGearItem,
+  updateUserProfile,
+} = require('../src/huntProfile');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
 const HUNT_SELECT_PREFIX = 'hunt-select:';
@@ -15,51 +22,7 @@ const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
 
 const HUNTING_DELAY_MS = 3000;
 const CRIT_CHANCE = 0.15;
-
-const FIST_GEAR = {
-  id: 'ITFist',
-  name: 'Fist',
-  emoji: '<:ITFist:1449009707355476069>',
-  rarity: 'Common',
-  value: 0,
-  sellPrice: 0,
-  tradable: false,
-  durability: Infinity,
-  maxDurability: Infinity,
-  damage: { min: 1, max: 5 },
-  info: 'Useable as a gear in Hunt, deal 1 - 5 damages per hit.'
-};
-
-const WOODEN_SWORD_GEAR = {
-  id: 'ITWoodenSword',
-  name: 'Wooden Sword',
-  emoji: '<:ITWoodenSword:1448987035363704955>',
-  rarity: 'Common',
-  value: 13,
-  sellPrice: 100,
-  tradable: true,
-  durability: 50,
-  maxDurability: 50,
-  damage: { min: 3, max: 8 },
-  info: 'Useable as a gear in Hunt, deal 3 - 8 damages per hit. Lose 1 durability per hit.'
-};
-
-const UPGRADE_TOKEN_ITEM = {
-  id: 'ITUpgradeToken',
-  name: 'Upgrade Token',
-  emoji: '<:ITUpgradeToken:1447502158059540481>',
-  rarity: 'Rare',
-  value: 300,
-  sellPrice: null,
-  tradable: false,
-  durability: null,
-  info: 'Coming soon'
-};
-
-const KNOWN_GEAR = {
-  [FIST_GEAR.name]: FIST_GEAR,
-  [WOODEN_SWORD_GEAR.name]: WOODEN_SWORD_GEAR
-};
+const ACTIONS_PER_TURN = 2;
 
 const JUNGLE_BETTLE = {
   name: 'Jungle Bettle',
@@ -77,94 +40,6 @@ const JUNGLE_BETTLE = {
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
-
-const HUNT_DATA_FILE = path.join(__dirname, '..', 'data', 'hunt_profiles.json');
-const DEFAULT_PROFILE = {
-  level: 1,
-  xp: 0,
-  next_level_xp: 100,
-  health: 100,
-  max_health: 100,
-  defense: 0,
-  coins: 0,
-  upgrade_tokens: 0,
-  gear_equipped: null,
-  misc_equipped: null,
-  gear_inventory: [WOODEN_SWORD_GEAR],
-  misc_inventory: [],
-};
-
-function loadProfiles() {
-  if (!fs.existsSync(HUNT_DATA_FILE)) {
-    return {};
-  }
-
-  try {
-    const raw = fs.readFileSync(HUNT_DATA_FILE, 'utf-8');
-    const data = JSON.parse(raw);
-    return typeof data === 'object' && data !== null ? data : {};
-  } catch (error) {
-    console.warn('Failed to read hunt profiles; starting fresh.', error);
-    return {};
-  }
-}
-
-function saveProfiles(profiles) {
-  const safeProfiles = typeof profiles === 'object' && profiles !== null ? profiles : {};
-  fs.mkdirSync(path.dirname(HUNT_DATA_FILE), { recursive: true });
-  fs.writeFileSync(HUNT_DATA_FILE, JSON.stringify(safeProfiles));
-}
-
-function ensureProfileShape(profile = {}) {
-  const normalizedGearInventory = normalizeGearInventory(
-    Array.isArray(profile.gear_inventory) ? profile.gear_inventory : []
-  );
-  const normalizedEquipped = profile.gear_equipped ? normalizeGearItem(profile.gear_equipped) : null;
-  const gearEquipped = normalizedEquipped || normalizedGearInventory[0] || null;
-  return {
-    ...DEFAULT_PROFILE,
-    ...profile,
-    gear_equipped: gearEquipped,
-    gear_inventory: normalizedGearInventory,
-    misc_inventory: Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [],
-    max_health: typeof profile.max_health === 'number' ? profile.max_health : DEFAULT_PROFILE.max_health,
-    coins: typeof profile.coins === 'number' ? profile.coins : DEFAULT_PROFILE.coins,
-    upgrade_tokens:
-      typeof profile.upgrade_tokens === 'number' ? profile.upgrade_tokens : DEFAULT_PROFILE.upgrade_tokens,
-  };
-}
-
-function normalizeGearItem(item) {
-  if (!item || typeof item !== 'object') {
-    return null;
-  }
-
-  const lookupKey = item.name ?? item.id;
-  const known = lookupKey ? KNOWN_GEAR[lookupKey] : null;
-  const base = known ? { ...known } : { ...item };
-  const durability = Number.isFinite(item.durability) ? item.durability : base.durability;
-
-  return {
-    ...base,
-    ...item,
-    durability,
-    maxDurability:
-      item.maxDurability ?? (Number.isFinite(base.maxDurability) ? base.maxDurability : durability),
-  };
-}
-
-function normalizeGearInventory(list) {
-  const normalized = list.map(normalizeGearItem).filter(Boolean);
-  const hasWoodenSword = normalized.some((item) => item?.name === WOODEN_SWORD_GEAR.name);
-  if (!hasWoodenSword) {
-    normalized.unshift({ ...WOODEN_SWORD_GEAR });
-  }
-  return normalized;
-}
-
-function calculatePlayerMaxHealth(level, baseHealth = DEFAULT_PROFILE.max_health) {
-  return Math.round(baseHealth * Math.pow(1.25, Math.max(0, level - 1)));
-}
 
 function scaleStatForLevel(base, level, growth = 0.5) {
   return Math.ceil(base * Math.pow(1 + growth, Math.max(0, level - 1)));
@@ -209,24 +84,6 @@ function selectGear(profile) {
     return normalizeGearItem(equipped);
   }
   return { ...FIST_GEAR };
-}
-
-function getUserProfile(userId) {
-  const profiles = loadProfiles();
-  const userKey = String(userId);
-  const existing = ensureProfileShape(profiles[userKey]);
-  const scaledHealth = calculatePlayerMaxHealth(existing.level, DEFAULT_PROFILE.max_health);
-  existing.health = scaledHealth;
-  existing.max_health = scaledHealth;
-  profiles[userKey] = existing;
-  saveProfiles(profiles);
-  return existing;
-}
-
-function updateUserProfile(userId, profile) {
-  const profiles = loadProfiles();
-  profiles[String(userId)] = ensureProfileShape(profile);
-  saveProfiles(profiles);
 }
 
 function buildProgressBar(current, total, width = 20) {
@@ -324,21 +181,24 @@ function buildNavigationRow({
   };
 }
 
-function buildHomeContainer(profile, userId) {
-  const message = userHasHuntingTools(profile)
-    ? 'Press **HUNT** button to start hunting.'
-    : "You don't have any HUNTING tool...";
+function buildHomeContainer(profile, userId, options = {}) {
+  const { message, accentColor = 0xffffff } = options;
+  const messageText = message
+    ? message
+    : userHasHuntingTools(profile)
+      ? '-# Press **HUNT** button to start hunting.'
+      : "-# You don't have any HUNTING tool...";
 
   return {
     type: 17,
-    accent_color: 0xffffff,
+    accent_color: accentColor,
     components: [
       {
         type: 9,
         components: [
           {
             type: 10,
-            content: `## Hunting\n-# ${message}`,
+            content: `## Hunting\n${messageText}`,
           },
         ],
         accessory: {
@@ -502,10 +362,10 @@ function buildEquipmentContainers(profile, userId) {
   return [infoContainer, selectionContainer];
 }
 
-function buildHomeContent(profile, userId) {
+function buildHomeContent(profile, userId, options = {}) {
   return {
     flags: COMPONENTS_V2_FLAG,
-    components: [buildHomeContainer(profile, userId)],
+    components: [buildHomeContainer(profile, userId, options)],
   };
 }
 
@@ -562,7 +422,7 @@ function createBattleState(profile, user) {
       maxHealth,
       health: maxHealth,
       defense: profile.defense,
-      actionsLeft: 2,
+      actionsLeft: ACTIONS_PER_TURN,
       gear,
     },
     creatures,
@@ -679,44 +539,17 @@ function rewardLines(rewards, leveledUp) {
 }
 
 function buildSuccessContent(profile, userId, creatures, rewards, leveledUp) {
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0x2ecc71,
-        components: [
-          {
-            type: 10,
-            content: `## Hunting\nYou have successfully hunted ${creatureListText(creatures)} and got:\n${rewardLines(rewards, leveledUp)}`,
-          },
-        ],
-      },
-      { type: 14 },
-      buildHomeContainer(profile, userId),
-    ],
-  };
+  const message = `-# You have successfully hunted ${creatureListText(creatures)} and got:\n${rewardLines(
+    rewards,
+    leveledUp
+  )}`;
+  return buildHomeContent(profile, userId, { message, accentColor: 0x2ecc71 });
 }
 
 function buildFailureContent(profile, userId, creatures, diedReason) {
-  const failureLine = diedReason ?? 'You ran out of actions...';
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0xe74c3c,
-        components: [
-          {
-            type: 10,
-            content: `## Hunting\nYou have failed hunting ${creatureListText(creatures)}.\n-# ${failureLine}`,
-          },
-        ],
-      },
-      { type: 14 },
-      buildHomeContainer(profile, userId),
-    ],
-  };
+  const failureLine = diedReason ?? 'You were defeated.';
+  const message = `-# You have failed hunting ${creatureListText(creatures)}.\n-# ${failureLine}`;
+  return buildHomeContent(profile, userId, { message, accentColor: 0xe74c3c });
 }
 
 function resolveCreatureTurn(state) {
@@ -804,7 +637,12 @@ function buildBattleContent(state, user, attachment, profile) {
         type: 17,
         accent_color: 0x2ecc71,
         components: [
-          { type: 10, content: `-# You have \`${state.player.actionsLeft} action\` left` },
+          {
+            type: 10,
+            content: `-# You have \`${state.player.actionsLeft} action${
+              state.player.actionsLeft === 1 ? '' : 's'
+            }\` left`,
+          },
           {
             type: 1,
             components: [
@@ -994,7 +832,8 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   }
 
   if (state.player.actionsLeft <= 0) {
-    resolveCreatureTurn(state);
+    const playerMessages = [...state.actionMessages];
+    const enemyMessages = resolveCreatureTurn(state);
 
     if (state.player.health <= 0) {
       const failureContent = buildFailureContent(profile, userId, state.initialCreatures, 'You died...');
@@ -1003,10 +842,12 @@ async function handleAttackSelection(interaction, userId, creatureId) {
       return true;
     }
 
-    const failureContent = buildFailureContent(profile, userId, state.initialCreatures, 'You ran out of actions...');
-    await interaction.update(failureContent);
-    activeHunts.delete(userId);
-    return true;
+    state.player.actionsLeft = ACTIONS_PER_TURN;
+    state.actionMessages = [
+      ...playerMessages,
+      ...enemyMessages,
+      'Your actions have been refreshed for the next turn.',
+    ];
   }
 
   const attachment = await buildBattleAttachment(state, interaction.user);
