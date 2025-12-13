@@ -26,11 +26,6 @@ function buildStatMessage(user, stats) {
     `## ${user.username} Server Stat`,
     `User level: ${stats.level}`,
     `-# ${bar} ${label}`,
-    '- how to earn xp in server stat',
-    '+ Server stat is user doing activities in the server like chatting, voice chatting, etc',
-    '+ Every 1 msg user send give 1 - 5 XP',
-    '+ Every 1 minutes in voice channel [not need turn on voice] will earn 3 XP. Note the bot will count total minutes user stayed and calculate the total XP upon user left voice chat [change voice chat doesn\'t count]',
-    '+ Every 1 command, action [like button, selection panel] do give 1 XP',
   ];
 
   return {

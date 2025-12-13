@@ -294,6 +294,31 @@ function drawPlayerMainCard(ctx, player, x, y, w, h) {
     ctx.restore();
 }
 
+function drawRarityBadge(ctx, image, avatarX, avatarY, avatarSize) {
+    if (!image) return;
+
+    const badgeSize = Math.max(18, Math.round(avatarSize * 0.35));
+    const padding = Math.max(4, Math.round(badgeSize * 0.15));
+    const bx = avatarX + avatarSize - badgeSize + padding;
+    const by = avatarY + avatarSize - badgeSize + padding;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bx + badgeSize / 2, by + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.fill();
+    ctx.clip();
+
+    ctx.drawImage(image, bx + padding, by + padding, badgeSize - padding * 2, badgeSize - padding * 2);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(bx + badgeSize / 2, by + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
 // 2. SMALL CARD (Pet / Army / Enemy)
 function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const borderColor = isEnemy ? PALETTE.cardBorderEnemy : PALETTE.cardBorderPet;
@@ -313,25 +338,7 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const avatarY = y + (h - avatarSize) / 2;
     drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
 
-    // Rarity Badge (Enemy Only - Bottom Right of Avatar)
-    if (isEnemy && unit.rarity) {
-        const badgeSize = 24;
-        const bx = avatarX + avatarSize - badgeSize + 6;
-        const by = avatarY + avatarSize - badgeSize + 6;
-
-        ctx.beginPath();
-        ctx.arc(bx + badgeSize/2, by + badgeSize/2, badgeSize/2, 0, Math.PI*2);
-        ctx.fillStyle = '#222';
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#fff';
-        ctx.stroke();
-
-        ctx.font = '16px Sans-Serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(unit.rarityEmoji || unit.rarity, bx + badgeSize/2, by + badgeSize/2 + 2);
-    }
+    drawRarityBadge(ctx, unit.rarityImage, avatarX, avatarY, avatarSize);
 
     // Info
     const infoX = avatarX + avatarSize + 20;
@@ -365,6 +372,44 @@ async function safeLoadImage(src, fallback = FALLBACK_IMAGE_DATA) {
         return await loadImage(finalSrc);
     } catch (err) {
         return loadImage(fallback);
+    }
+}
+
+function resolveEmojiUrl(emoji) {
+    const match = emoji?.match(/<a?:[^:]+:(\d+)>/);
+    if (match) {
+        const isAnimated = emoji.startsWith('<a:');
+        const ext = isAnimated ? 'gif' : 'png';
+        return `https://cdn.discordapp.com/emojis/${match[1]}.${ext}?size=64&quality=lossless`;
+    }
+
+    const trimmed = emoji?.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const codepoints = Array.from(trimmed)
+        .map((char) => char.codePointAt(0)?.toString(16))
+        .filter(Boolean)
+        .join('-');
+
+    if (!codepoints) {
+        return null;
+    }
+
+    return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${codepoints}.png`;
+}
+
+async function loadRarityImage(emoji) {
+    const url = resolveEmojiUrl(emoji);
+    if (!url) {
+        return null;
+    }
+
+    try {
+        return await loadImage(url);
+    } catch (err) {
+        return null;
     }
 }
 
@@ -416,8 +461,10 @@ async function createHuntBattleImage({ player, enemies }) {
     const playerImg = await safeLoadImage(player.avatar);
     // Preload pet images
     const petImages = await Promise.all((player.pets || []).map(p => safeLoadImage(p.avatar)));
+    const petRarityImages = await Promise.all((player.pets || []).map(p => loadRarityImage(p?.rarityEmoji || p?.rarityIcon)));
     // Preload enemy images
     const enemyImages = await Promise.all((enemies || []).map(e => safeLoadImage(e.avatar)));
+    const enemyRarityImages = await Promise.all((enemies || []).map(e => loadRarityImage(e?.rarityEmoji || e?.rarityIcon)));
 
     // 2. Draw Background
     drawBackground(ctx);
@@ -445,7 +492,7 @@ async function createHuntBattleImage({ player, enemies }) {
         for (let i = 0; i < 3; i++) {
             const px = mainCardX + i * (petW + petGap);
             if (player.pets && player.pets[i]) {
-                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i] }, px, petY, petW, petH, false);
+                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], rarityImage: petRarityImages[i] }, px, petY, petW, petH, false);
             } else {
                  // Draw Empty Slot placeholder
                  ctx.save();
@@ -509,7 +556,7 @@ async function createHuntBattleImage({ player, enemies }) {
     // Draw Enemies
     for (let i = 0; i < enemyCount; i++) {
         const pos = enemyPositions[i];
-        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i] }, pos.x, pos.y, cardW, cardH, true);
+        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i], rarityImage: enemyRarityImages[i] }, pos.x, pos.y, cardW, cardH, true);
     }
 
     return canvas.toBuffer('image/png');
