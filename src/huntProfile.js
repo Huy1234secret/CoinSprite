@@ -80,7 +80,7 @@ function ensureProfileShape(profile = {}) {
   );
   const normalizedEquipped = profile.gear_equipped ? normalizeGearItem(profile.gear_equipped) : null;
   const matchedGear = normalizedGearInventory.find((item) => item?.name === normalizedEquipped?.name);
-  const gearEquipped = matchedGear ?? normalizedGearInventory[0] || null;
+  const gearEquipped = matchedGear ?? (normalizedGearInventory[0] || null);
 
   return {
     ...DEFAULT_PROFILE,
