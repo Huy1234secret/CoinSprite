@@ -3,11 +3,20 @@ const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { config } = require('dotenv');
 const { safeErrorReply } = require('./src/utils/interactions');
+const { addXpToUser } = require('./src/userStats');
 
 config();
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
+  ],
+});
 client.commands = new Collection();
+
+const activeVoiceSessions = new Map();
 
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
@@ -42,6 +51,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       await command.execute(interaction, client);
+      await addXpToUser(interaction.user.id, 1);
     } catch (error) {
       console.error(`Failed to execute /${interaction.commandName}:`, error);
       await safeErrorReply(interaction, 'There was an error while executing this command.');
@@ -53,9 +63,46 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (typeof command.handleComponent === 'function') {
       const handled = await command.handleComponent(interaction);
       if (handled) {
+        await addXpToUser(interaction.user.id, 1);
         return;
       }
     }
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) {
+    return;
+  }
+
+  const randomXp = Math.floor(Math.random() * 5) + 1;
+  await addXpToUser(message.author.id, randomXp);
+});
+
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  const user = newState.member?.user ?? oldState.member?.user;
+  if (!user || user.bot) {
+    return;
+  }
+
+  const wasInChannel = Boolean(oldState.channelId);
+  const isInChannel = Boolean(newState.channelId);
+  const userId = user.id;
+
+  if (!wasInChannel && isInChannel) {
+    activeVoiceSessions.set(userId, Date.now());
+    return;
+  }
+
+  if (wasInChannel && !isInChannel) {
+    const joinedAt = activeVoiceSessions.get(userId);
+    if (joinedAt) {
+      const minutes = Math.floor((Date.now() - joinedAt) / 60000);
+      if (minutes > 0) {
+        await addXpToUser(userId, minutes * 3);
+      }
+    }
+    activeVoiceSessions.delete(userId);
   }
 });
 
