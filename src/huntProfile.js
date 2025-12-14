@@ -8,6 +8,7 @@ const {
   UPGRADE_TOKEN_ITEM,
   WOODEN_SWORD_GEAR,
   ITEMS,
+  ITEMS_BY_ID,
 } = require('./items');
 
 const DEFAULT_PROFILE = {
@@ -148,6 +149,7 @@ module.exports = {
   FIST_GEAR,
   KNOWN_GEAR,
   UPGRADE_TOKEN_ITEM,
+  ITEMS_BY_ID,
   WOODEN_SWORD_GEAR,
   calculatePlayerMaxHealth,
   addItemToInventory,

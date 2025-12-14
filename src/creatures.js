@@ -12,6 +12,10 @@ const JUNGLE_BETTLE = {
     { level: 3, chance: 0.045 },
     { level: 4, chance: 0.005 },
   ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.4 },
+    { itemId: 'ITMossyShavings', chance: 0.25 },
+  ],
 };
 
 const CREATURES = [JUNGLE_BETTLE];

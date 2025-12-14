@@ -39,10 +39,35 @@ const ITEMS = [
     durability: null,
     info: 'Coming soon',
   },
+  {
+    id: 'ITBeastMeat',
+    name: 'Beast Meat',
+    emoji: '<:ITBeastMeat:1449725581217501340>',
+    rarity: 'Common',
+    type: 'Material',
+    value: 8,
+    sellPrice: 8,
+    tradable: true,
+    durability: null,
+    info: 'A chunk of raw beast meat dropped from jungle beetles.',
+  },
+  {
+    id: 'ITMossyShavings',
+    name: 'Mossy Shavings',
+    emoji: '<:ITMossyShavings:1449725583884812338>',
+    rarity: 'Common',
+    type: 'Material',
+    value: 23,
+    sellPrice: 23,
+    tradable: true,
+    durability: null,
+    info: 'Damp moss scraps collected from jungle beetles.',
+  },
 ];
 
 const GEAR_ITEMS = ITEMS.filter((item) => item.type === 'Tool/Gear');
 const KNOWN_GEAR = Object.fromEntries(GEAR_ITEMS.map((item) => [item.name, item]));
+const ITEMS_BY_ID = Object.fromEntries(ITEMS.map((item) => [item.id, item]));
 
 const FIST_GEAR = KNOWN_GEAR['Fist'];
 const WOODEN_SWORD_GEAR = KNOWN_GEAR['Wooden Sword'];
@@ -52,6 +77,7 @@ module.exports = {
   ITEMS,
   GEAR_ITEMS,
   KNOWN_GEAR,
+  ITEMS_BY_ID,
   FIST_GEAR,
   WOODEN_SWORD_GEAR,
   UPGRADE_TOKEN_ITEM,
