@@ -6,6 +6,7 @@ const {
   FIST_GEAR,
   KNOWN_GEAR,
   UPGRADE_TOKEN_ITEM,
+  ITEMS_BY_ID,
   calculatePlayerMaxHealth,
   addItemToInventory,
   getUserProfile,
@@ -34,6 +35,10 @@ const ACTIONS_PER_TURN = 2;
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
+
+function findItemById(itemId) {
+  return ITEMS_BY_ID[itemId] ?? null;
+}
 
 function scaleStatForLevel(base, level, growth = 0.5) {
   return Math.ceil(base * Math.pow(1 + growth, Math.max(0, level - 1)));
@@ -67,6 +72,7 @@ function createJungleBettle() {
     maxHealth: health,
     health,
     damage: { min: minDamage, max: maxDamage },
+    drops: JUNGLE_BETTLE.drops ?? [],
   };
 }
 
@@ -422,7 +428,11 @@ function createBattleState(profile, user) {
       gear,
     },
     creatures,
-    initialCreatures: creatures.map((creature) => ({ name: creature.name, level: creature.level })),
+    initialCreatures: creatures.map((creature) => ({
+      name: creature.name,
+      level: creature.level,
+      drops: creature.drops ?? [],
+    })),
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
   };
@@ -515,6 +525,27 @@ function calculateRewards(creatures) {
   return rewards;
 }
 
+function rollCreatureDrops(creatures) {
+  const drops = [];
+
+  for (const creature of creatures) {
+    for (const drop of creature.drops ?? []) {
+      const chance = typeof drop.chance === 'number' ? drop.chance : 0;
+      if (Math.random() > chance) {
+        continue;
+      }
+
+      const amount = Number.isFinite(drop.amount) ? drop.amount : 1;
+      const item = findItemById(drop.itemId);
+      if (item) {
+        drops.push({ item, amount });
+      }
+    }
+  }
+
+  return drops;
+}
+
 function applyRewards(userId, profile, rewards) {
   let leveledUp = 0;
   profile.coins = Math.max(0, profile.coins + rewards.coins);
@@ -539,7 +570,23 @@ function applyRewards(userId, profile, rewards) {
   return leveledUp;
 }
 
-function rewardLines(rewards, leveledUp) {
+function applyDrops(profile, drops) {
+  const granted = [];
+
+  for (const drop of drops) {
+    if (!drop?.item) {
+      continue;
+    }
+
+    const amount = Number.isFinite(drop.amount) ? drop.amount : 1;
+    addItemToInventory(profile, drop.item, amount);
+    granted.push({ item: drop.item, amount });
+  }
+
+  return granted;
+}
+
+function rewardLines(rewards, leveledUp, drops = []) {
   const lines = [
     `-# * ${rewards.coins} coins ${COIN_EMOJI}`,
     `-# * ${rewards.xp} Hunt XP`,
@@ -547,13 +594,19 @@ function rewardLines(rewards, leveledUp) {
   if (leveledUp > 0) {
     lines.push(`-# * ${leveledUp * 5} Upgrade Tokens ${UPGRADE_TOKEN_EMOJI}`);
   }
+  if (drops.length) {
+    for (const drop of drops) {
+      lines.push(`-# * ×${drop.amount} ${drop.item.name} ${drop.item.emoji ?? ''}`.trim());
+    }
+  }
   return lines.join('\n');
 }
 
-function buildSuccessContent(profile, userId, creatures, rewards, leveledUp) {
+function buildSuccessContent(profile, userId, creatures, rewards, leveledUp, drops) {
   const message = `-# You have successfully hunted ${creatureListText(creatures)} and got:\n${rewardLines(
     rewards,
-    leveledUp
+    leveledUp,
+    drops
   )}`;
   return buildHomeContent(profile, userId, { message, accentColor: 0x2ecc71 });
 }
@@ -839,9 +892,18 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   const aliveCreatures = state.creatures.filter((creature) => creature.health > 0);
   if (!aliveCreatures.length) {
     const rewards = calculateRewards(state.initialCreatures);
+    const drops = rollCreatureDrops(state.initialCreatures);
+    const grantedDrops = applyDrops(profile, drops);
     const leveledUp = applyRewards(userId, profile, rewards);
     updateUserProfile(userId, profile);
-    const successContent = buildSuccessContent(profile, userId, state.initialCreatures, rewards, leveledUp);
+    const successContent = buildSuccessContent(
+      profile,
+      userId,
+      state.initialCreatures,
+      rewards,
+      leveledUp,
+      grantedDrops
+    );
     await interaction.update(successContent);
     activeHunts.delete(userId);
     return true;
