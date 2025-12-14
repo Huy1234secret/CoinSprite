@@ -24,6 +24,10 @@ const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
 const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
 
+const CREATURE_HEALTH_GROWTH = 0.5;
+const CREATURE_DAMAGE_GROWTH = 0.35;
+const CREATURE_REWARD_GROWTH = 0.25;
+
 const HUNTING_DELAY_MS = 3000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
@@ -49,9 +53,9 @@ function pickCreatureLevel(distribution) {
 
 function createJungleBettle() {
   const level = pickCreatureLevel(JUNGLE_BETTLE.levelDistribution);
-  const health = scaleStatForLevel(JUNGLE_BETTLE.baseHealth, level, 0.5);
-  const minDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.min, level, 0.5);
-  const maxDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.max, level, 0.5);
+  const health = scaleStatForLevel(JUNGLE_BETTLE.baseHealth, level, CREATURE_HEALTH_GROWTH);
+  const minDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.min, level, CREATURE_DAMAGE_GROWTH);
+  const maxDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.max, level, CREATURE_DAMAGE_GROWTH);
 
   return {
     id: `${JUNGLE_BETTLE.name}-${Date.now()}-${Math.random()}`,
@@ -418,7 +422,7 @@ function createBattleState(profile, user) {
       gear,
     },
     creatures,
-    initialCreatures: creatures.map((creature) => ({ name: creature.name })),
+    initialCreatures: creatures.map((creature) => ({ name: creature.name, level: creature.level })),
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
   };
@@ -499,8 +503,14 @@ function creatureListText(creatures) {
 function calculateRewards(creatures) {
   const rewards = { coins: 0, xp: 0 };
   for (const creature of creatures) {
-    rewards.coins += rollDamage(JUNGLE_BETTLE.reward.coins.min, JUNGLE_BETTLE.reward.coins.max);
-    rewards.xp += rollDamage(JUNGLE_BETTLE.reward.xp.min, JUNGLE_BETTLE.reward.xp.max);
+    const level = creature.level ?? 1;
+    const coinMin = scaleStatForLevel(JUNGLE_BETTLE.reward.coins.min, level, CREATURE_REWARD_GROWTH);
+    const coinMax = scaleStatForLevel(JUNGLE_BETTLE.reward.coins.max, level, CREATURE_REWARD_GROWTH);
+    const xpMin = scaleStatForLevel(JUNGLE_BETTLE.reward.xp.min, level, CREATURE_REWARD_GROWTH);
+    const xpMax = scaleStatForLevel(JUNGLE_BETTLE.reward.xp.max, level, CREATURE_REWARD_GROWTH);
+
+    rewards.coins += rollDamage(coinMin, coinMax);
+    rewards.xp += rollDamage(xpMin, xpMax);
   }
   return rewards;
 }
