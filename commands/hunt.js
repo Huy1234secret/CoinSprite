@@ -406,33 +406,22 @@ function buildTeamContent(user, petProfile) {
   const slotOptions = [1, 2, 3].map((slot) => ({ label: `#${slot}`, value: String(slot) }));
 
   return {
-    flags: COMPONENTS_V2_FLAG,
+    content: `## ${user.username}'s Team\n${teamMessage}`,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
           {
-            type: 10,
-            content: `## ${user.username}'s Team\n${teamMessage}`,
+            type: 3,
+            custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
+            placeholder: 'Select a slot to edit',
+            options: slotOptions,
+            min_values: 1,
+            max_values: 1,
           },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
-                placeholder: 'Select a slot to edit',
-                options: slotOptions,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
-          },
-          { type: 14 },
-          buildNavigationRow({ userId: user.id, view: 'team' }),
         ],
       },
+      buildNavigationRow({ userId: user.id, view: 'team' }),
     ],
   };
 }
@@ -462,56 +451,47 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
 
   return {
     flags: MessageFlags.Ephemeral,
+    content: `## You are editting slot #${slotNumber}\n### Army/Pet selected: ${
+      selectedPet ? `${selectedPet.name} ${selectedPet.emoji ?? ''}` : 'None'
+    }\n-# Target type: ${targetType ?? 'Not selected'}`,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
           {
-            type: 10,
-            content: `## You are editting slot #${slotNumber}\n### Army/Pet selected: ${
-              selectedPet ? `${selectedPet.name} ${selectedPet.emoji ?? ''}` : 'None'
-            }\n-# Target type: ${targetType ?? 'Not selected'}`,
+            type: 3,
+            custom_id: `${TEAM_PET_SELECT_PREFIX}${user.id}:${slotNumber}`,
+            placeholder: placeholderPet,
+            options: petOptions.length ? petOptions : [{ label: placeholderPet, value: 'none', default: true }],
+            disabled: !hasPets,
+            min_values: 1,
+            max_values: 1,
           },
+        ],
+      },
+      {
+        type: 1,
+        components: [
           {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${TEAM_PET_SELECT_PREFIX}${user.id}:${slotNumber}`,
-                placeholder: placeholderPet,
-                options: petOptions.length ? petOptions : [{ label: placeholderPet, value: 'none', default: true }],
-                disabled: !hasPets,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
+            type: 3,
+            custom_id: `${TEAM_TARGET_SELECT_PREFIX}${user.id}:${slotNumber}`,
+            placeholder: targetPlaceholder,
+            options: targetOptions,
+            disabled: !canPickTargets,
+            min_values: 1,
+            max_values: 1,
           },
+        ],
+      },
+      {
+        type: 1,
+        components: [
           {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${TEAM_TARGET_SELECT_PREFIX}${user.id}:${slotNumber}`,
-                placeholder: targetPlaceholder,
-                options: targetOptions,
-                disabled: !canPickTargets,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 3,
-                custom_id: `${TEAM_SUBMIT_PREFIX}${user.id}:${slotNumber}`,
-                label: 'SUBMIT',
-                disabled: !(selectedPet && targetType),
-              },
-            ],
+            type: 2,
+            style: 3,
+            custom_id: `${TEAM_SUBMIT_PREFIX}${user.id}:${slotNumber}`,
+            label: 'SUBMIT',
+            disabled: !(selectedPet && targetType),
           },
         ],
       },
