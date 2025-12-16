@@ -1,0 +1,47 @@
+{
+  "867926077920673802": {
+    "inventory": [
+      {
+        "id": "PETUFO",
+        "name": "UFO",
+        "emoji": "<:PETUFO:1450110098692112384>",
+        "rarity": "Secret",
+        "rarityEmoji": "<:SBSecret:1447459434677665874>",
+        "value": 7777,
+        "sellable": false,
+        "tradable": false,
+        "adminOnly": true,
+        "baseHealth": 1000000,
+        "attacks": [
+          {
+            "name": "Laser Beam",
+            "type": "Singular",
+            "hits": 1,
+            "damage": {
+              "min": 1000,
+              "max": 5000
+            }
+          }
+        ],
+        "level": 0,
+        "xp": 0,
+        "nextLevelXp": 500,
+        "instanceId": "pet-1765897268769-84822f44eb115"
+      }
+    ],
+    "team": [
+      {
+        "petInstanceId": null,
+        "targetType": "Random"
+      },
+      {
+        "petInstanceId": null,
+        "targetType": "Random"
+      },
+      {
+        "petInstanceId": null,
+        "targetType": "Random"
+      }
+    ]
+  }
+}
