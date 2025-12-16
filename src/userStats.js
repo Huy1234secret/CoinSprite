@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const USER_STATS_FILE = path.join(__dirname, '..', 'data', 'user_stats.json');
+const { addItemToInventory, getUserProfile, updateUserProfile, UPGRADE_TOKEN_ITEM } = require('./huntProfile');
 
 const DEFAULT_STATS = {
   level: 0,
@@ -59,6 +60,17 @@ function setUserStats(userId, stats) {
   return allStats[String(userId)];
 }
 
+function grantUpgradeTokens(userId, amount) {
+  const safeAmount = Math.max(0, amount);
+  if (safeAmount === 0 || !UPGRADE_TOKEN_ITEM) {
+    return;
+  }
+
+  const profile = getUserProfile(userId);
+  addItemToInventory(profile, UPGRADE_TOKEN_ITEM, safeAmount);
+  updateUserProfile(userId, profile);
+}
+
 function getUserStats(userId) {
   const allStats = loadStats();
   const userKey = String(userId);
@@ -99,7 +111,14 @@ function applyXpGains(stats, amount) {
 function addXpToUser(userId, amount) {
   const current = getUserStats(userId);
   const withXp = applyXpGains(current, amount);
-  return setUserStats(userId, withXp);
+  const leveledUp = Math.max(0, withXp.level - current.level);
+  const saved = setUserStats(userId, withXp);
+
+  if (leveledUp > 0) {
+    grantUpgradeTokens(userId, leveledUp * 5);
+  }
+
+  return saved;
 }
 
 function addCoinsToUser(userId, amount) {
