@@ -220,8 +220,29 @@ function drawHpBar(ctx, x, y, width, height, current, max) {
     ctx.shadowBlur = 4;
     const textX = x + width / 2;
     const textY = y + height / 2 + 1; // +1 for visual centering
-    ctx.fillText(`${current} / ${max}`, textX, textY);
+    const displayCurrent = formatAbbreviatedNumber(current);
+    const displayMax = formatAbbreviatedNumber(max);
+    ctx.fillText(`${displayCurrent} / ${displayMax}`, textX, textY);
     ctx.shadowBlur = 0;
+}
+
+function formatAbbreviatedNumber(value) {
+    const units = [
+        { value: 1_000_000_000_000, suffix: 't' },
+        { value: 1_000_000_000, suffix: 'b' },
+        { value: 1_000_000, suffix: 'm' },
+        { value: 1_000, suffix: 'k' },
+    ];
+
+    for (const unit of units) {
+        if (value >= unit.value) {
+            const scaled = value / unit.value;
+            const decimals = scaled < 10 && value % unit.value !== 0 ? 1 : 0;
+            return `${parseFloat(scaled.toFixed(decimals))}${unit.suffix}`;
+        }
+    }
+
+    return `${value}`;
 }
 
 // Draw Effect Slots (Placeholder squares/circles)
