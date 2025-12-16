@@ -1,3 +1,8 @@
+function extractEmojiName(emoji) {
+  const match = emoji?.match(/^<a?:([^:]+):\d+>$/);
+  return match?.[1] ?? null;
+}
+
 const ITEMS = [
   {
     id: 'ITFist',
@@ -64,6 +69,13 @@ const ITEMS = [
     info: 'Damp moss scraps collected from jungle beetles.',
   },
 ];
+
+for (const item of ITEMS) {
+  const emojiName = extractEmojiName(item.emoji);
+  if (emojiName) {
+    item.id = emojiName;
+  }
+}
 
 const GEAR_ITEMS = ITEMS.filter((item) => item.type === 'Tool/Gear');
 const KNOWN_GEAR = Object.fromEntries(GEAR_ITEMS.map((item) => [item.name, item]));
