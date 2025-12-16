@@ -406,22 +406,33 @@ function buildTeamContent(user, petProfile) {
   const slotOptions = [1, 2, 3].map((slot) => ({ label: `#${slot}`, value: String(slot) }));
 
   return {
-    content: `## ${user.username}'s Team\n${teamMessage}`,
+    flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 1,
+        type: 17,
+        accent_color: 0xffffff,
         components: [
           {
-            type: 3,
-            custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
-            placeholder: 'Select a slot to edit',
-            options: slotOptions,
-            min_values: 1,
-            max_values: 1,
+            type: 10,
+            content: `## ${user.username}'s Team\n${teamMessage}`,
           },
+          { type: 14 },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
+                placeholder: 'Select a slot to edit',
+                options: slotOptions,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
+          },
+          buildNavigationRow({ userId: user.id, view: 'team' }),
         ],
       },
-      buildNavigationRow({ userId: user.id, view: 'team' }),
     ],
   };
 }
