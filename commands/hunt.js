@@ -15,10 +15,21 @@ const {
 } = require('../src/huntProfile');
 const { addCoinsToUser } = require('../src/userStats');
 const { JUNGLE_BETTLE } = require('../src/creatures');
+const {
+  addPetToInventory,
+  buildBattlePets,
+  findPetInstance,
+  getUserPetProfile,
+  updateUserPetProfile,
+} = require('../src/pets');
 
 const HUNT_BUTTON_PREFIX = 'hunt:';
 const HUNT_SELECT_PREFIX = 'hunt-select:';
 const HUNT_ATTACK_SELECT_PREFIX = 'hunt-attack:';
+const TEAM_SLOT_SELECT_PREFIX = 'hunt-team-slot:';
+const TEAM_PET_SELECT_PREFIX = 'hunt-team-pet:';
+const TEAM_TARGET_SELECT_PREFIX = 'hunt-team-target:';
+const TEAM_SUBMIT_PREFIX = 'hunt-team-submit:';
 const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
@@ -35,9 +46,24 @@ const ACTIONS_PER_TURN = 2;
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
+const teamEditState = new Map();
 
 function findItemById(itemId) {
   return ITEMS_BY_ID[itemId] ?? null;
+}
+
+function maybeGrantOwnerPet(interaction) {
+  if (!interaction.guild || interaction.user.id !== interaction.guild.ownerId) {
+    return null;
+  }
+
+  const petProfile = getUserPetProfile(interaction.user.id);
+  const alreadyHas = (petProfile.inventory ?? []).some((pet) => pet.id === 'PETUFO');
+  if (alreadyHas) {
+    return petProfile;
+  }
+
+  return addPetToInventory(interaction.user.id, 'PETUFO');
 }
 
 function scaleStatForLevel(base, level, growth = 0.5) {
@@ -126,36 +152,21 @@ function buildNavigationRow({
           custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
           label: 'Equipment',
         },
+        {
+          type: 2,
+          style: 2,
+          custom_id: `${HUNT_BUTTON_PREFIX}team:${userId}`,
+          label: 'Team',
+        },
       ],
     };
   }
 
-  if (view === 'stats') {
-    return {
-      type: 1,
-      components: [
-        {
-          type: 2,
-          style: 2,
-          custom_id: `${HUNT_BUTTON_PREFIX}home:${userId}`,
-          label: 'Back',
-        },
-        {
-          type: 2,
-          style: 4,
-          custom_id: `${HUNT_BUTTON_PREFIX}stats:${userId}`,
-          label: 'Hunt Stat',
-          disabled: true,
-        },
-        {
-          type: 2,
-          style: 2,
-          custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
-          label: 'Equipment',
-        },
-      ],
-    };
-  }
+  const views = [
+    { key: 'stats', label: 'Hunt Stat' },
+    { key: 'equipment', label: 'Equipment' },
+    { key: 'team', label: 'Team' },
+  ];
 
   return {
     type: 1,
@@ -166,19 +177,13 @@ function buildNavigationRow({
         custom_id: `${HUNT_BUTTON_PREFIX}home:${userId}`,
         label: 'Back',
       },
-      {
+      ...views.map((entry) => ({
         type: 2,
-        style: 2,
-        custom_id: `${HUNT_BUTTON_PREFIX}stats:${userId}`,
-        label: 'Hunt Stat',
-      },
-      {
-        type: 2,
-        style: 4,
-        custom_id: `${HUNT_BUTTON_PREFIX}equipment:${userId}`,
-        label: 'Equipment',
-        disabled: true,
-      },
+        style: entry.key === view ? 4 : 2,
+        custom_id: `${HUNT_BUTTON_PREFIX}${entry.key}:${userId}`,
+        label: entry.label,
+        disabled: entry.key === view,
+      })),
     ],
   };
 }
@@ -296,9 +301,6 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
 function buildEquipmentContainers(profile, userId) {
   const gearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
   const gearEmoji = profile.gear_equipped?.emoji ?? FIST_GEAR.emoji;
-  const miscName = profile.misc_equipped?.name ?? 'None';
-  const miscEmoji = profile.misc_equipped?.emoji ?? '';
-
   const infoContainer = {
     type: 17,
     accent_color: 0xffffff,
@@ -308,7 +310,7 @@ function buildEquipmentContainers(profile, userId) {
         components: [
           {
             type: 10,
-            content: `## Hunting Equipment\n### * Gear equipped: ${gearName} ${gearEmoji}\n### * Misc equipped: ${miscName} ${miscEmoji}`,
+            content: `## Hunting Equipment\n### * Gear equipped: ${gearName} ${gearEmoji}\n### * Misc equipped: Not available yet`,
           },
         ],
         accessory: {
@@ -348,13 +350,8 @@ function buildEquipmentContainers(profile, userId) {
         type: 1,
         components: [
           {
-            type: 3,
-            custom_id: `${HUNT_SELECT_PREFIX}misc:${userId}`,
-            placeholder: miscPlaceholder(profile),
-            options: buildSelectOptions(profile.misc_inventory ?? [], profile.misc_equipped?.name),
-            disabled: !(profile.misc_inventory ?? []).length,
-            min_values: 1,
-            max_values: 1,
+            type: 10,
+            content: '-# Misc selection will be available later.',
           },
         ],
       },
@@ -385,6 +382,143 @@ function buildEquipmentContent(profile, userId) {
   };
 }
 
+function formatTeamMessage(user, petProfile) {
+  const lines = (petProfile.team ?? [])
+    .map((slot, index) => {
+      const pet = findPetInstance(petProfile, slot?.petInstanceId);
+      if (!pet) {
+        return null;
+      }
+
+      return `### ${pet.emoji ?? ''} ${pet.name} - Lv ${pet.level}\n-# Target: ${slot?.targetType ?? 'Random'}`;
+    })
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return "You haven't equipped any army/pet.";
+  }
+
+  return lines.join('\n');
+}
+
+function buildTeamContent(user, petProfile) {
+  const teamMessage = formatTeamMessage(user, petProfile);
+  const slotOptions = [1, 2, 3].map((slot) => ({ label: `#${slot}`, value: String(slot) }));
+
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content: `## ${user.username}'s Team\n${teamMessage}`,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
+                placeholder: 'Select a slot to edit',
+                options: slotOptions,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
+          },
+          { type: 14 },
+          buildNavigationRow({ userId: user.id, view: 'team' }),
+        ],
+      },
+    ],
+  };
+}
+
+function buildTeamEditContent(user, petProfile, slot, state = {}) {
+  const slotNumber = Number(slot);
+  const selectedPetId = state.petInstanceId ?? petProfile.team?.[slotNumber - 1]?.petInstanceId ?? null;
+  const selectedPet = selectedPetId ? findPetInstance(petProfile, selectedPetId) : null;
+  const targetType = state.targetType ?? petProfile.team?.[slotNumber - 1]?.targetType ?? null;
+
+  const hasPets = (petProfile.inventory ?? []).length > 0;
+  const placeholderPet = hasPets ? 'Choose an army/pet' : "You don't have any pet/army";
+  const petOptions = (petProfile.inventory ?? []).map((pet) => ({
+    label: `${pet.name} (Lv ${pet.level})`,
+    value: pet.instanceId,
+    emoji: pet.emoji,
+    default: selectedPetId === pet.instanceId,
+  }));
+
+  const canPickTargets = Boolean(selectedPet);
+  const targetPlaceholder = canPickTargets ? 'Choose target type' : 'Select an army/pet first';
+  const targetOptions = ['Weakest', 'Strongest', 'Random'].map((label) => ({
+    label,
+    value: label,
+    default: targetType === label,
+  }));
+
+  return {
+    flags: MessageFlags.Ephemeral,
+    components: [
+      {
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content: `## You are editting slot #${slotNumber}\n### Army/Pet selected: ${
+              selectedPet ? `${selectedPet.name} ${selectedPet.emoji ?? ''}` : 'None'
+            }\n-# Target type: ${targetType ?? 'Not selected'}`,
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${TEAM_PET_SELECT_PREFIX}${user.id}:${slotNumber}`,
+                placeholder: placeholderPet,
+                options: petOptions.length ? petOptions : [{ label: placeholderPet, value: 'none', default: true }],
+                disabled: !hasPets,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `${TEAM_TARGET_SELECT_PREFIX}${user.id}:${slotNumber}`,
+                placeholder: targetPlaceholder,
+                options: targetOptions,
+                disabled: !canPickTargets,
+                min_values: 1,
+                max_values: 1,
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 3,
+                custom_id: `${TEAM_SUBMIT_PREFIX}${user.id}:${slotNumber}`,
+                label: 'SUBMIT',
+                disabled: !(selectedPet && targetType),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function buildHuntDelayContent() {
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -411,10 +545,11 @@ function getEmojiUrl(emoji) {
   return `https://cdn.discordapp.com/emojis/${match[1]}.png?size=128&quality=lossless`;
 }
 
-function createBattleState(profile, user) {
+function createBattleState(profile, user, petProfile) {
   const gear = selectGear(profile);
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
   const creatures = [createJungleBettle()];
+  const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
     userId: user.id,
@@ -426,6 +561,7 @@ function createBattleState(profile, user) {
       defense: profile.defense,
       actionsLeft: ACTIONS_PER_TURN,
       gear,
+      pets,
     },
     creatures,
     initialCreatures: creatures.map((creature) => ({
@@ -433,6 +569,7 @@ function createBattleState(profile, user) {
       level: creature.level,
       drops: creature.drops ?? [],
     })),
+    pets,
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
   };
@@ -445,6 +582,16 @@ function rollDamage(min, max) {
 function calculateGearDamage(gear) {
   const min = gear?.damage?.min ?? 1;
   const max = gear?.damage?.max ?? min;
+  const crit = Math.random() < CRIT_CHANCE;
+  if (crit) {
+    return { amount: Math.ceil(max * 1.25), crit };
+  }
+  return { amount: rollDamage(min, max), crit };
+}
+
+function calculatePetDamageAmount(pet) {
+  const min = pet?.damage?.min ?? 1;
+  const max = pet?.damage?.max ?? min;
   const crit = Math.random() < CRIT_CHANCE;
   if (crit) {
     return { amount: Math.ceil(max * 1.25), crit };
@@ -487,6 +634,59 @@ function buildCreatureOptions(state) {
       value: creature.id,
       emoji: creature.emoji,
     }));
+}
+
+function pickCreatureTarget(creatures, targetType) {
+  const alive = creatures.filter((creature) => creature.health > 0);
+  if (!alive.length) {
+    return null;
+  }
+
+  if (targetType === 'Weakest') {
+    return alive.reduce((lowest, creature) =>
+      creature.health < (lowest?.health ?? Infinity) ? creature : lowest
+    );
+  }
+
+  if (targetType === 'Strongest') {
+    return alive.reduce((highest, creature) =>
+      creature.health > (highest?.health ?? -Infinity) ? creature : highest
+    );
+  }
+
+  const randomIndex = Math.floor(Math.random() * alive.length);
+  return alive[randomIndex];
+}
+
+function performPetTurn(state) {
+  const messages = [];
+  if (!state.pets || !state.pets.length) {
+    return messages;
+  }
+
+  for (const pet of state.pets) {
+    const target = pickCreatureTarget(state.creatures, pet.targetType ?? 'Random');
+    if (!target) {
+      continue;
+    }
+
+    const hits = Math.max(1, pet.hits ?? 1);
+    for (let i = 0; i < hits; i++) {
+      const { amount, crit } = calculatePetDamageAmount(pet);
+      target.health = Math.max(0, target.health - amount);
+      const actionLine = crit
+        ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for **${amount}** on ${target.name}!`
+        : `${pet.emoji ?? '🐾'} ${pet.name} hits ${target.name} for **${amount}** damages.`;
+      messages.push(actionLine);
+
+      if (target.health <= 0) {
+        messages.push(`${target.name} has been taken down by ${pet.name}!`);
+        break;
+      }
+    }
+  }
+
+  return messages;
 }
 
 function buildMiscOptions(profile) {
@@ -623,11 +823,17 @@ function resolveCreatureTurn(state) {
     if (creature.health <= 0 || state.player.health <= 0) {
       continue;
     }
-    const damage = rollDamage(creature.damage.min, creature.damage.max);
-    const mitigated = Math.max(0, damage - (state.player.defense ?? 0));
-    const finalDamage = Math.max(1, mitigated);
-    state.player.health = Math.max(0, state.player.health - finalDamage);
-    messages.push(`${creature.name} has **Bitten** you and dealth **${finalDamage} damages**.`);
+    const hits = Math.max(1, creature.hits ?? (creature.attackType === 'Multi' ? 2 : 1));
+    for (let i = 0; i < hits; i++) {
+      const damage = rollDamage(creature.damage.min, creature.damage.max);
+      const mitigated = Math.max(0, damage - (state.player.defense ?? 0));
+      const finalDamage = Math.max(1, mitigated);
+      state.player.health = Math.max(0, state.player.health - finalDamage);
+      messages.push(`${creature.name} has **Bitten** you and dealth **${finalDamage} damages**.`);
+      if (state.player.health <= 0) {
+        break;
+      }
+    }
   }
   state.actionMessages = messages;
   return messages;
@@ -635,6 +841,17 @@ function resolveCreatureTurn(state) {
 
 async function buildBattleAttachment(state, user) {
   const avatar = user.displayAvatarURL({ extension: 'png', size: 256 });
+  const playerPets = (state.pets ?? []).map((pet) => ({
+    name: pet.name,
+    avatar: getEmojiUrl(pet.emoji) ?? HUNT_THUMBNAIL,
+    level: pet.level,
+    hp: pet.health,
+    maxHp: pet.maxHealth,
+    shield: 0,
+    rarityEmoji: pet.rarityEmoji,
+    rarityIcon: pet.rarityEmoji,
+  }));
+
   const player = {
     name: state.player.name,
     avatar,
@@ -643,7 +860,7 @@ async function buildBattleAttachment(state, user) {
     hp: state.player.health,
     defense: state.player.defense,
     shield: state.player.defense,
-    team: [],
+    pets: playerPets,
   };
 
   const enemies = state.creatures.map((creature) => ({
@@ -662,10 +879,9 @@ async function buildBattleAttachment(state, user) {
   return new AttachmentBuilder(buffer, { name: 'hunt-battle.png' });
 }
 
-function buildBattleContent(state, user, attachment, profile) {
+function buildBattleContent(state, user, attachment) {
   const creatures = state.creatures.filter((creature) => creature.health > 0);
   const thumbnail = getEmojiUrl(creatures[0]?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
-  const miscOptions = buildMiscOptions(profile);
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -724,22 +940,6 @@ function buildBattleContent(state, user, attachment, profile) {
               },
             ],
           },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${HUNT_SELECT_PREFIX}misc:${user.id}`,
-                placeholder: (profile.misc_inventory ?? []).length
-                  ? 'Use a misc'
-                  : "You don't have any misc",
-                options: miscOptions,
-                disabled: !(profile.misc_inventory ?? []).length,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
-          },
         ],
       },
     ],
@@ -767,8 +967,10 @@ function performPlayerAttack(state, creatureId, gear) {
 }
 
 async function handleStartHunt(interaction) {
+  maybeGrantOwnerPet(interaction);
   const profile = getUserProfile(interaction.user.id);
-  const battleState = createBattleState(profile, interaction.user);
+  const petProfile = getUserPetProfile(interaction.user.id);
+  const battleState = createBattleState(profile, interaction.user, petProfile);
   activeHunts.set(interaction.user.id, battleState);
 
   await interaction.update(buildHuntDelayContent());
@@ -776,7 +978,7 @@ async function handleStartHunt(interaction) {
   setTimeout(async () => {
     try {
       const attachment = await buildBattleAttachment(battleState, interaction.user);
-      const content = buildBattleContent(battleState, interaction.user, attachment, profile);
+      const content = buildBattleContent(battleState, interaction.user, attachment);
       await interaction.editReply(content);
     } catch (error) {
       console.error('Failed to start hunt:', error);
@@ -804,6 +1006,12 @@ async function handleNavigation(interaction, action, userId) {
 
   if (action === 'equipment') {
     await interaction.update(buildEquipmentContent(profile, userId));
+    return true;
+  }
+
+  if (action === 'team') {
+    const petProfile = getUserPetProfile(userId);
+    await interaction.update(buildTeamContent(interaction.user, petProfile));
     return true;
   }
 
@@ -838,6 +1046,99 @@ function applySelection(profile, type, value) {
   }
 
   return profile;
+}
+
+async function handleTeamSlotSelect(interaction, userId, slot) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const petProfile = getUserPetProfile(userId);
+  const slotNumber = Number(slot);
+  const initialState = {
+    slot: slotNumber,
+    petInstanceId: petProfile.team?.[slotNumber - 1]?.petInstanceId ?? null,
+    targetType: petProfile.team?.[slotNumber - 1]?.targetType ?? null,
+    huntMessageId: interaction.message?.id,
+    channelId: interaction.channelId,
+  };
+
+  teamEditState.set(userId, initialState);
+  await interaction.reply(buildTeamEditContent(interaction.user, petProfile, slotNumber, initialState));
+  return true;
+}
+
+async function handleTeamPetSelection(interaction, userId, slot, petInstanceId) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const state = teamEditState.get(userId) ?? {};
+  const petProfile = getUserPetProfile(userId);
+  state.slot = Number(slot);
+  state.petInstanceId = petInstanceId === 'none' ? null : petInstanceId;
+  teamEditState.set(userId, state);
+
+  await interaction.update(buildTeamEditContent(interaction.user, petProfile, slot, state));
+  return true;
+}
+
+async function handleTeamTargetSelection(interaction, userId, slot, targetType) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const state = teamEditState.get(userId) ?? {};
+  const petProfile = getUserPetProfile(userId);
+  state.slot = Number(slot);
+  state.targetType = targetType;
+  teamEditState.set(userId, state);
+
+  await interaction.update(buildTeamEditContent(interaction.user, petProfile, slot, state));
+  return true;
+}
+
+async function handleTeamSubmit(interaction, userId, slot) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const state = teamEditState.get(userId);
+  if (!state || !state.petInstanceId || !state.targetType) {
+    await safeErrorReply(interaction, 'Select an army/pet and target type before submitting.');
+    return true;
+  }
+
+  const petProfile = getUserPetProfile(userId);
+  const slotIndex = Number(slot) - 1;
+  if (!findPetInstance(petProfile, state.petInstanceId)) {
+    await safeErrorReply(interaction, 'The selected pet/army could not be found.');
+    return true;
+  }
+
+  petProfile.team[slotIndex] = { petInstanceId: state.petInstanceId, targetType: state.targetType };
+  updateUserPetProfile(userId, petProfile);
+  teamEditState.delete(userId);
+
+  const confirmation = buildTeamEditContent(interaction.user, petProfile, slot, {
+    petInstanceId: state.petInstanceId,
+    targetType: state.targetType,
+  });
+
+  try {
+    const channel = await interaction.client.channels.fetch(state.channelId);
+    const huntMessage = await channel.messages.fetch(state.huntMessageId);
+    await huntMessage.edit(buildTeamContent(interaction.user, petProfile));
+  } catch (error) {
+    console.warn('Failed to update hunt team message:', error);
+  }
+
+  await interaction.update(confirmation);
+  return true;
 }
 
 async function handleSelect(interaction, selectType, userId) {
@@ -880,8 +1181,13 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   decrementGearDurability(profile, state.player.gear);
   updateUserProfile(userId, profile);
 
+  const petMessages = performPetTurn(state);
+  if (petMessages.length) {
+    state.actionMessages = [...state.actionMessages, ...petMessages];
+  }
+
   if (!target) {
-    await interaction.update(buildBattleContent(state, interaction.user, await buildBattleAttachment(state, interaction.user), profile));
+    await interaction.update(buildBattleContent(state, interaction.user, await buildBattleAttachment(state, interaction.user)));
     return true;
   }
 
@@ -929,7 +1235,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   }
 
   const attachment = await buildBattleAttachment(state, interaction.user);
-  const content = buildBattleContent(state, interaction.user, attachment, profile);
+  const content = buildBattleContent(state, interaction.user, attachment);
   await interaction.update(content);
   return true;
 }
@@ -940,7 +1246,9 @@ module.exports = {
     .setDescription("Open the hunting menu using Discord's components v2."),
 
   async execute(interaction) {
+    maybeGrantOwnerPet(interaction);
     const profile = getUserProfile(interaction.user.id);
+    getUserPetProfile(interaction.user.id);
     const content = buildHomeContent(profile, interaction.user.id);
     await interaction.reply(content);
   },
@@ -955,6 +1263,29 @@ module.exports = {
       const userId = interaction.customId.replace(HUNT_ATTACK_SELECT_PREFIX, '');
       const selectedId = interaction.values?.[0];
       return handleAttackSelection(interaction, userId, selectedId);
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(TEAM_SLOT_SELECT_PREFIX)) {
+      const userId = interaction.customId.replace(TEAM_SLOT_SELECT_PREFIX, '');
+      const slot = interaction.values?.[0];
+      return handleTeamSlotSelect(interaction, userId, slot);
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(TEAM_PET_SELECT_PREFIX)) {
+      const [userId, slot] = interaction.customId.replace(TEAM_PET_SELECT_PREFIX, '').split(':');
+      const selectedPet = interaction.values?.[0];
+      return handleTeamPetSelection(interaction, userId, slot, selectedPet);
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(TEAM_TARGET_SELECT_PREFIX)) {
+      const [userId, slot] = interaction.customId.replace(TEAM_TARGET_SELECT_PREFIX, '').split(':');
+      const targetType = interaction.values?.[0];
+      return handleTeamTargetSelection(interaction, userId, slot, targetType);
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(TEAM_SUBMIT_PREFIX)) {
+      const [userId, slot] = interaction.customId.replace(TEAM_SUBMIT_PREFIX, '').split(':');
+      return handleTeamSubmit(interaction, userId, slot);
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(HUNT_SELECT_PREFIX)) {

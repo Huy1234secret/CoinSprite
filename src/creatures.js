@@ -1,10 +1,11 @@
 const JUNGLE_BETTLE = {
   name: 'Jungle Bettle',
   emoji: '<:MCJungleBettle:1448989040509452338>',
-  baseHealth: 15,
+  baseHealth: 100000,
   rarity: 'Common',
   rarityEmoji: '★',
   damage: { min: 1, max: 2 },
+  attackType: 'Singular',
   reward: { coins: { min: 50, max: 200 }, xp: { min: 10, max: 40 } },
   levelDistribution: [
     { level: 1, chance: 0.65 },
