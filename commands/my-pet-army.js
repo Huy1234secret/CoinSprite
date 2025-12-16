@@ -8,7 +8,6 @@ const {
 } = require('../src/pets');
 const { buildProgressBar } = require('../src/userStats');
 
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const RARITY_SELECT_PREFIX = 'pet-army:rarity:';
 const PET_SELECT_PREFIX = 'pet-army:pet:';
 const ACTION_BUTTON_PREFIX = 'pet-army:action-btn:';
@@ -84,26 +83,27 @@ function formatPetDetails(user, pet, totalCount = 0) {
   const nextXp = pet.nextLevelXp ?? null;
   const percent = nextXp ? Math.min(100, (pet.xp / Math.max(1, nextXp)) * 100) : 100;
   const progressBar = nextXp ? buildProgressBar(pet.xp, nextXp) : buildProgressBar(1, 1);
+  const emojiUrl = pet.emoji ? `https://cdn.discordapp.com/emojis/${pet.emoji.replace(/[^\d]/g, '')}.png` : null;
+
+  const description = [
+    `You have ${totalCount} pet/army`,
+    '',
+    `### ${pet.name}`,
+    `* Lv ${pet.level}`,
+    `-# ${progressBar} \`${pet.xp} / ${nextXp ?? 'Max'} - ${percent.toFixed(2)}%\``,
+  ].join('\n');
 
   return {
-    type: 17,
-    accent_color: 0xffffff,
-    components: [
+    color: 0xffffff,
+    title: `${user.username}'s Pet/Army`,
+    description,
+    fields: [
       {
-        type: 10,
-        content: `## ${user.username}'s Pet/Army\n-# You have ${totalCount} pet/army\n### ${pet.name}\n* Lv ${pet.level}\n-# ${progressBar} \`${pet.xp} / ${nextXp ?? 'Max'} - ${percent.toFixed(2)}%\``,
-      },
-      { type: 14 },
-      {
-        type: 10,
-        content: `Stat:\n* Damage ⚔️: ${definition.attacks?.[0]?.damage?.min ?? 0} - ${definition.attacks?.[0]?.damage?.max ?? 0}\n* Defense <:SBDefense:1447532983933472900>: ${pet.defense ?? 0}\n* Skills:\n${formatSkills(definition)}`,
+        name: 'Stats',
+        value: `* Damage ⚔️: ${definition.attacks?.[0]?.damage?.min ?? 0} - ${definition.attacks?.[0]?.damage?.max ?? 0}\n* Defense <:SBDefense:1447532983933472900>: ${pet.defense ?? 0}\n* Skills:\n${formatSkills(definition)}`,
       },
     ],
-    accessory: {
-      type: 11,
-      media: { url: pet.emoji ? `https://cdn.discordapp.com/emojis/${pet.emoji.replace(/[^\d]/g, '')}.png` : '' },
-      description: 'Pet/Army avatar',
-    },
+    thumbnail: emojiUrl ? { url: emojiUrl } : undefined,
   };
 }
 
@@ -114,39 +114,29 @@ function buildPetArmyContent(user, petProfile, state) {
     : [];
   const selectedPet = filteredPets.find((pet) => pet.instanceId === state.selectedPetId);
 
-  const baseContainer = {
-    type: 17,
-    accent_color: 0xffffff,
-    components: [
-      {
-        type: 10,
-        content: `## ${user.username}'s Pet/Army\n-# You have ${(petProfile.inventory ?? []).length} pet/army.`,
-      },
-      {
-        type: 1,
-        components: [buildRaritySelect(user.id, rarity ?? undefined)],
-      },
-      {
-        type: 1,
-        components: [buildPetSelect(user.id, filteredPets, state.selectedPetId, Boolean(rarity))],
-      },
-    ],
+  const baseEmbed = {
+    color: 0xffffff,
+    title: `${user.username}'s Pet/Army`,
+    description: `You have ${(petProfile.inventory ?? []).length} pet/army.`,
   };
 
   if (!selectedPet) {
     return {
-      flags: COMPONENTS_V2_FLAG,
-      components: [baseContainer],
+      embeds: [baseEmbed],
+      components: [
+        { type: 1, components: [buildRaritySelect(user.id, rarity ?? undefined)] },
+        { type: 1, components: [buildPetSelect(user.id, filteredPets, state.selectedPetId, Boolean(rarity))] },
+      ],
     };
   }
 
-  const detailContainer = formatPetDetails(user, selectedPet, (petProfile.inventory ?? []).length);
+  const detailEmbed = formatPetDetails(user, selectedPet, (petProfile.inventory ?? []).length);
 
   return {
-    flags: COMPONENTS_V2_FLAG,
+    embeds: [detailEmbed],
     components: [
-      detailContainer,
-      baseContainer,
+      { type: 1, components: [buildRaritySelect(user.id, rarity ?? undefined)] },
+      { type: 1, components: [buildPetSelect(user.id, filteredPets, state.selectedPetId, Boolean(rarity))] },
       {
         type: 1,
         components: [
@@ -165,27 +155,26 @@ function buildPetArmyContent(user, petProfile, state) {
 function buildActionPrompt(userId) {
   return {
     flags: MessageFlags.Ephemeral,
+    embeds: [
+      {
+        color: 0xffffff,
+        title: 'Choose an action',
+      },
+    ],
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
-          { type: 10, content: 'Choose and action' },
           {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${ACTION_SELECT_PREFIX}${userId}`,
-                placeholder: 'Actions',
-                options: [
-                  { label: 'Feed', value: 'Feed' },
-                  { label: 'Promote', value: 'Promote' },
-                ],
-                min_values: 1,
-                max_values: 1,
-              },
+            type: 3,
+            custom_id: `${ACTION_SELECT_PREFIX}${userId}`,
+            placeholder: 'Actions',
+            options: [
+              { label: 'Feed', value: 'Feed' },
+              { label: 'Promote', value: 'Promote' },
             ],
+            min_values: 1,
+            max_values: 1,
           },
         ],
       },
@@ -196,35 +185,31 @@ function buildActionPrompt(userId) {
 function buildActionDetail(userId, action) {
   const hasItems = false;
   const placeholder = hasItems ? 'Choose' : "You don't have any";
-  const messageTitle = action === 'Promote' ? '## Promoting' : '## Feeding';
   const actionMsg = hasItems ? `${action} item selected` : '';
 
   return {
     flags: MessageFlags.Ephemeral,
+    embeds: [
+      {
+        color: 0xffffff,
+        title: action === 'Promote' ? 'Promote your pet' : 'Feed your pet',
+        description: actionMsg,
+      },
+    ],
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
           {
-            type: 10,
-            content: `${messageTitle}\n* ${actionMsg}`,
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${ACTION_ITEM_SELECT_PREFIX}${userId}:${action}`,
-                placeholder,
-                options: hasItems
-                  ? [{ label: 'Item', value: 'item-1' }]
-                  : [{ label: "You don't have any", value: 'none', default: true }],
-                disabled: !hasItems,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
+            type: 3,
+            custom_id: `${ACTION_ITEM_SELECT_PREFIX}${userId}:${action}`,
+            placeholder,
+            options: hasItems
+              ? [{ label: 'Item', value: 'item-1' }]
+              : [{ label: "You don't have any", value: 'none', default: true }],
+            disabled: !hasItems,
+            min_values: 1,
+            max_values: 1,
           },
         ],
       },
