@@ -318,14 +318,29 @@ function drawPlayerMainCard(ctx, player, x, y, w, h) {
 function drawRarityBadge(ctx, image, avatarX, avatarY, avatarSize) {
     if (!image) return;
 
-    const badgeSize = Math.max(18, Math.round(avatarSize * 0.35));
+    const badgeSize = Math.max(24, Math.round(avatarSize * 0.45));
     const bx = avatarX + avatarSize - badgeSize;
     const by = avatarY + avatarSize - badgeSize;
+
+    const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
+    let drawW = badgeSize;
+    let drawH = badgeSize;
+
+    if (Number.isFinite(aspectRatio) && aspectRatio > 0) {
+        if (aspectRatio >= 1) {
+            drawH = Math.round(badgeSize / aspectRatio);
+        } else {
+            drawW = Math.round(badgeSize * aspectRatio);
+        }
+    }
+
+    const offsetX = bx + (badgeSize - drawW) / 2;
+    const offsetY = by + (badgeSize - drawH) / 2;
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
     ctx.shadowBlur = 8;
-    ctx.drawImage(image, bx, by, badgeSize, badgeSize);
+    ctx.drawImage(image, offsetX, offsetY, drawW, drawH);
     ctx.restore();
 }
 
