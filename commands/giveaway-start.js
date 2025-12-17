@@ -36,32 +36,34 @@ const DEFAULT_STATE = {
 const giveawayStates = new Map();
 
 function buildPreview(state) {
-  const container = {
-    type: 17,
-    accent_color: 0x00aa5b,
-    components: [
-      {
-        type: 10,
-        content: `## \`${state.title}\`\n-# * Giveaway ends \`${state.endTimeDisplay}\`\n-# * Claim time \`${state.claimTimeDisplay}\`\n-# * Winner amount \`${state.winnerCount ?? 'Not set'}\`\n-# * Requirement: \`${state.requirements || 'None'}\``
-      },
-      { type: 1, components: [] },
-      {
-        type: 10,
-        content: `\`${state.description || 'No description provided.'}\``
-      }
-    ]
-  };
+  const containerComponents = [
+    {
+      type: 10,
+      content: `## \`${state.title}\`\n-# * Giveaway ends \`${state.endTimeDisplay}\`\n-# * Claim time \`${state.claimTimeDisplay}\`\n-# * Winner amount \`${state.winnerCount ?? 'Not set'}\`\n-# * Requirement: \`${state.requirements || 'None'}\``
+    }
+  ];
 
   if (state.thumbnail) {
-    container.components[1] = {
+    containerComponents.push({
       type: 12,
       items: [
         {
           media: { url: state.thumbnail }
         }
       ]
-    };
+    });
   }
+
+  containerComponents.push({
+    type: 10,
+    content: `\`${state.description || 'No description provided.'}\``
+  });
+
+  const container = {
+    type: 17,
+    accent_color: 0x00aa5b,
+    components: containerComponents
+  };
 
   const buttons = new ActionRowBuilder()
     .addComponents(
@@ -136,23 +138,27 @@ async function updatePreviewMessage(client, state) {
 }
 
 function buildEnterMessageComponents(state) {
+  const containerComponents = [
+    {
+      type: 10,
+      content: `## \`${state.title}\`\n-# * Giveaway ends \`${state.endTimeDisplay}\`\n-# * Claim time \`${state.claimTimeDisplay}\`\n-# * Winner amount \`${state.winnerCount}\`\n-# * Requirement: \`${state.requirements}\``
+    }
+  ];
+
+  if (state.thumbnail) {
+    containerComponents.push({
+      type: 12,
+      items: [{ media: { url: state.thumbnail } }]
+    });
+  }
+
+  containerComponents.push({ type: 10, content: `\`${state.description}\`` });
+
   return [
     {
       type: 17,
       accent_color: 0x00aa5b,
-      components: [
-        {
-          type: 10,
-          content: `## \`${state.title}\`\n-# * Giveaway ends \`${state.endTimeDisplay}\`\n-# * Claim time \`${state.claimTimeDisplay}\`\n-# * Winner amount \`${state.winnerCount}\`\n-# * Requirement: \`${state.requirements}\``
-        },
-        state.thumbnail
-          ? {
-              type: 12,
-              items: [{ media: { url: state.thumbnail } }]
-            }
-          : { type: 1, components: [] },
-        { type: 10, content: `\`${state.description}\`` }
-      ]
+      components: containerComponents
     },
     new ActionRowBuilder()
       .addComponents(
