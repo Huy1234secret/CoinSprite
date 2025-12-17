@@ -11,10 +11,15 @@ const {
   ITEMS_BY_ID,
 } = require('./items');
 
+function calculateNextLevelXp(level) {
+  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  return Math.ceil(100 * Math.pow(safeLevel, 1.5));
+}
+
 const DEFAULT_PROFILE = {
   level: 1,
   xp: 0,
-  next_level_xp: 100,
+  next_level_xp: calculateNextLevelXp(1),
   health: 100,
   max_health: 100,
   defense: 0,
@@ -82,10 +87,16 @@ function ensureProfileShape(profile = {}) {
   const normalizedEquipped = profile.gear_equipped ? normalizeGearItem(profile.gear_equipped) : null;
   const matchedGear = normalizedGearInventory.find((item) => item?.name === normalizedEquipped?.name);
   const gearEquipped = matchedGear ?? (normalizedGearInventory[0] || null);
+  const level = Math.max(1, Math.floor(Number(profile.level) || DEFAULT_PROFILE.level));
+  const xpValue = Number(profile.xp);
+  const xp = Math.max(0, Number.isFinite(xpValue) ? xpValue : DEFAULT_PROFILE.xp);
 
   return {
     ...DEFAULT_PROFILE,
     ...profile,
+    level,
+    xp,
+    next_level_xp: calculateNextLevelXp(level),
     gear_equipped: gearEquipped,
     gear_inventory: normalizedGearInventory,
     misc_inventory: Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [],
@@ -152,6 +163,7 @@ module.exports = {
   ITEMS_BY_ID,
   WOODEN_SWORD_GEAR,
   calculatePlayerMaxHealth,
+  calculateNextLevelXp,
   addItemToInventory,
   getUserProfile,
   normalizeGearInventory,
