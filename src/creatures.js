@@ -32,10 +32,11 @@ const VINE_SNAKE = {
   attackType: 'Singular',
   reward: { coins: { min: 100, max: 350 }, xp: { min: 25, max: 50 } },
   levelDistribution: [
-    { level: 1, chance: 0.65 },
+    { level: 1, chance: 0.55 },
     { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.045 },
-    { level: 4, chance: 0.005 },
+    { level: 3, chance: 0.13 },
+    { level: 4, chance: 0.017 },
+    { level: 5, chance: 0.003 },
   ],
   actions: [
     {
