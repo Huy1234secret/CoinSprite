@@ -105,11 +105,63 @@ const LEAF_FROG = {
   ],
 };
 
-const CREATURES = [JUNGLE_BETTLE, VINE_SNAKE, LEAF_FROG];
+const CORRUPTED_CUBE = {
+  name: 'Corrupted Cube',
+  emoji: '<:MSCorruptedCube:1450727554339311668>',
+  baseHealth: 1111,
+  rarity: 'Secret',
+  rarityEmoji: RARITY_EMOJIS.Secret,
+  rarityIcon: RARITY_EMOJIS.Secret,
+  attackType: 'Singular',
+  reward: {
+    coins: { min: 10000, max: 22222 },
+    xp: { min: 1000, max: 2500 },
+    diamonds: { min: 10, max: 250 },
+    prismatic: { min: 1, max: 50, chance: 0.25 },
+  },
+  levelDistribution: [
+    { level: 1, chance: 0.16 },
+    { level: 2, chance: 0.14 },
+    { level: 3, chance: 0.13 },
+    { level: 4, chance: 0.12 },
+    { level: 5, chance: 0.11 },
+    { level: 6, chance: 0.1 },
+    { level: 7, chance: 0.09 },
+    { level: 8, chance: 0.08 },
+    { level: 9, chance: 0.07 },
+  ],
+  actions: [
+    {
+      key: 'nullBeam',
+      name: 'Null Beam',
+      chance: 0.8,
+      damage: { min: 75, max: 150 },
+      damageIfPoisoned: { min: 100, max: 200 },
+      message:
+        'Corrupted Cube fires a null beam that tears through everything for {amount} damage!',
+      alreadyPoisonedMessage:
+        'Corrupted Cube amplifies its null beam on your corrupted body for {amount} damage!',
+    },
+    {
+      key: 'corruption',
+      name: 'Corruption',
+      chance: 0.2,
+      damage: { min: 0, max: 0 },
+      poison: { percent: 0.9, duration: Infinity },
+      message: 'Corrupted Cube infects you with endless corruption, poisoning you forever.',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 1, amount: { min: 15, max: 30 } },
+  ],
+};
+
+const CREATURES = [JUNGLE_BETTLE, VINE_SNAKE, LEAF_FROG, CORRUPTED_CUBE];
 
 module.exports = {
   CREATURES,
   JUNGLE_BETTLE,
   VINE_SNAKE,
   LEAF_FROG,
+  CORRUPTED_CUBE,
 };

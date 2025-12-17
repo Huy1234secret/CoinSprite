@@ -127,6 +127,18 @@ function addCoinsToUser(userId, amount) {
   return setUserStats(userId, { ...current, coins: updatedCoins });
 }
 
+function addDiamondsToUser(userId, amount) {
+  const current = getUserStats(userId);
+  const updatedDiamonds = Math.max(0, current.diamonds + amount);
+  return setUserStats(userId, { ...current, diamonds: updatedDiamonds });
+}
+
+function addPrismaticToUser(userId, amount) {
+  const current = getUserStats(userId);
+  const updatedPrismatic = Math.max(0, current.prismatic + amount);
+  return setUserStats(userId, { ...current, prismatic: updatedPrismatic });
+}
+
 function buildProgressBar(current, total, width = 20) {
   const safeTotal = Math.max(1, total);
   const ratio = Math.max(0, Math.min(1, current / safeTotal));
@@ -139,6 +151,8 @@ module.exports = {
   DEFAULT_STATS,
   addXpToUser,
   addCoinsToUser,
+  addDiamondsToUser,
+  addPrismaticToUser,
   buildProgressBar,
   getNextLevelRequirement,
   getUserStats,
