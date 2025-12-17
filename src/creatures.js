@@ -64,10 +64,52 @@ const VINE_SNAKE = {
   ],
 };
 
-const CREATURES = [JUNGLE_BETTLE, VINE_SNAKE];
+const LEAF_FROG = {
+  name: 'Leaf Frog',
+  emoji: '<:CMLeafFrog:1450727549977231453>',
+  baseHealth: 40,
+  rarity: 'Common',
+  rarityEmoji: RARITY_EMOJIS.Common,
+  rarityIcon: RARITY_EMOJIS.Common,
+  attackType: 'Singular',
+  reward: { coins: { min: 100, max: 350 }, xp: { min: 15, max: 40 } },
+  levelDistribution: [
+    { level: 1, chance: 0.5 },
+    { level: 2, chance: 0.3 },
+    { level: 3, chance: 0.18 },
+    { level: 4, chance: 0.015 },
+    { level: 5, chance: 0.005 },
+  ],
+  actions: [
+    {
+      key: 'poisonousLiquid',
+      name: 'Poisonous Liquid',
+      chance: 0.35,
+      damage: { min: 2, max: 4 },
+      poison: { percent: 0.1, duration: 3 },
+      message:
+        'The leaf frog spill out some poisonous liquid onto you and poisoned you for 3 turns',
+    },
+    {
+      key: 'tongueHit',
+      name: 'Tongue Hit',
+      chance: 0.65,
+      damage: { min: 3, max: 8 },
+      damageIfPoisoned: { min: 5, max: 10 },
+      message: 'The leaf frog hit you with the tonge, dealt {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.45 },
+    { itemId: 'ITWeakVenomGland', chance: 0.4 },
+  ],
+};
+
+const CREATURES = [JUNGLE_BETTLE, VINE_SNAKE, LEAF_FROG];
 
 module.exports = {
   CREATURES,
   JUNGLE_BETTLE,
   VINE_SNAKE,
+  LEAF_FROG,
 };
