@@ -662,10 +662,13 @@ function decrementGearDurability(profile, gear) {
 }
 
 function buildCreatureOptions(state) {
+  const truncateLabel = (text) => (text.length > 25 ? `${text.slice(0, 22)}...` : text);
+
   return state.creatures
     .filter((creature) => creature.health > 0)
     .map((creature) => ({
-      label: `${creature.name} ${formatCreatureLevel(creature.level)} (${creature.health}/${creature.maxHealth})`,
+      label: truncateLabel(`${creature.name} ${formatCreatureLevel(creature.level)}`),
+      description: `HP ${creature.health}/${creature.maxHealth}`,
       value: creature.id,
       emoji: creature.emoji,
     }));
