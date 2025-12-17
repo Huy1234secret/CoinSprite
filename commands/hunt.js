@@ -663,9 +663,21 @@ function decrementGearDurability(profile, gear) {
 
 function buildCreatureOptions(state) {
   const truncateLabel = (text) => (text.length > 25 ? `${text.slice(0, 22)}...` : text);
+  const aliveCreatures = state.creatures.filter((creature) => creature.health > 0);
 
-  return state.creatures
-    .filter((creature) => creature.health > 0)
+  if (!aliveCreatures.length) {
+    return [
+      {
+        label: 'No creatures available',
+        description: 'All targets have been defeated',
+        value: 'none',
+        emoji: '✅',
+      },
+    ];
+  }
+
+  return aliveCreatures
+    .slice(0, 25)
     .map((creature) => ({
       label: truncateLabel(`${creature.name} ${formatCreatureLevel(creature.level)}`),
       description: `HP ${creature.health}/${creature.maxHealth}`,
