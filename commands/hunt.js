@@ -14,7 +14,7 @@ const {
   updateUserProfile,
 } = require('../src/huntProfile');
 const { addCoinsToUser } = require('../src/userStats');
-const { JUNGLE_BETTLE } = require('../src/creatures');
+const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
 const {
   addPetToInventory,
   buildBattlePets,
@@ -45,6 +45,7 @@ const HUNT_END_COUNTDOWN_SECONDS = 5;
 const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
+const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '☠️' };
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -83,24 +84,54 @@ function pickCreatureLevel(distribution) {
   }
   return distribution[distribution.length - 1]?.level ?? 1;
 }
+function scaleDamageRange(range, level) {
+  const min = scaleStatForLevel(range?.min ?? 1, level, CREATURE_DAMAGE_GROWTH);
+  const max = scaleStatForLevel(range?.max ?? min, level, CREATURE_DAMAGE_GROWTH);
+  return { min, max };
+}
 
-function createJungleBettle() {
-  const level = pickCreatureLevel(JUNGLE_BETTLE.levelDistribution);
-  const health = scaleStatForLevel(JUNGLE_BETTLE.baseHealth, level, CREATURE_HEALTH_GROWTH);
-  const minDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.min, level, CREATURE_DAMAGE_GROWTH);
-  const maxDamage = scaleStatForLevel(JUNGLE_BETTLE.damage.max, level, CREATURE_DAMAGE_GROWTH);
+function prepareActionsForLevel(actions = [], level) {
+  return actions.map((action) => ({
+    ...action,
+    damage: scaleDamageRange(action.damage ?? { min: 1, max: 1 }, level),
+    damageIfPoisoned: action.damageIfPoisoned
+      ? scaleDamageRange(action.damageIfPoisoned, level)
+      : null,
+  }));
+}
+
+function pickCreatureDefinition() {
+  if (!Array.isArray(CREATURES) || CREATURES.length === 0) {
+    return JUNGLE_BETTLE;
+  }
+  const index = Math.floor(Math.random() * CREATURES.length);
+  return CREATURES[index];
+}
+
+function createCreatureInstance(definition = JUNGLE_BETTLE) {
+  const level = pickCreatureLevel(definition.levelDistribution ?? [{ level: 1, chance: 1 }]);
+  const health = scaleStatForLevel(definition.baseHealth ?? 1, level, CREATURE_HEALTH_GROWTH);
+
+  const baseDamage = definition.damage
+    ? scaleDamageRange(definition.damage, level)
+    : { min: 1, max: 1 };
+
+  const actions = prepareActionsForLevel(definition.actions ?? [], level);
 
   return {
-    id: `${JUNGLE_BETTLE.name}-${Date.now()}-${Math.random()}`,
-    name: JUNGLE_BETTLE.name,
-    emoji: JUNGLE_BETTLE.emoji,
-    rarity: JUNGLE_BETTLE.rarity,
-    rarityEmoji: JUNGLE_BETTLE.rarityEmoji,
+    id: `${definition.name}-${Date.now()}-${Math.random()}`,
+    name: definition.name,
+    emoji: definition.emoji,
+    rarity: definition.rarity,
+    rarityEmoji: definition.rarityEmoji ?? definition.rarityIcon,
     level,
     maxHealth: health,
     health,
-    damage: { min: minDamage, max: maxDamage },
-    drops: JUNGLE_BETTLE.drops ?? [],
+    damage: baseDamage,
+    attackType: definition.attackType ?? 'Singular',
+    actions,
+    drops: definition.drops ?? [],
+    reward: definition.reward ?? JUNGLE_BETTLE.reward,
   };
 }
 
@@ -541,7 +572,7 @@ function getEmojiUrl(emoji) {
 function createBattleState(profile, user, petProfile) {
   const gear = selectGear(profile);
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
-  const creatures = [createJungleBettle()];
+  const creatures = [createCreatureInstance(pickCreatureDefinition())];
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
@@ -554,6 +585,7 @@ function createBattleState(profile, user, petProfile) {
       defense: profile.defense,
       actionsLeft: ACTIONS_PER_TURN,
       gear,
+      statuses: [],
       pets,
     },
     creatures,
@@ -561,6 +593,7 @@ function createBattleState(profile, user, petProfile) {
       name: creature.name,
       level: creature.level,
       drops: creature.drops ?? [],
+      reward: creature.reward,
     })),
     pets,
     actionMessages: [],
@@ -707,10 +740,11 @@ function calculateRewards(creatures) {
   const rewards = { coins: 0, xp: 0 };
   for (const creature of creatures) {
     const level = creature.level ?? 1;
-    const coinMin = scaleStatForLevel(JUNGLE_BETTLE.reward.coins.min, level, CREATURE_REWARD_GROWTH);
-    const coinMax = scaleStatForLevel(JUNGLE_BETTLE.reward.coins.max, level, CREATURE_REWARD_GROWTH);
-    const xpMin = scaleStatForLevel(JUNGLE_BETTLE.reward.xp.min, level, CREATURE_REWARD_GROWTH);
-    const xpMax = scaleStatForLevel(JUNGLE_BETTLE.reward.xp.max, level, CREATURE_REWARD_GROWTH);
+    const reward = creature.reward ?? JUNGLE_BETTLE.reward;
+    const coinMin = scaleStatForLevel(reward.coins.min, level, CREATURE_REWARD_GROWTH);
+    const coinMax = scaleStatForLevel(reward.coins.max, level, CREATURE_REWARD_GROWTH);
+    const xpMin = scaleStatForLevel(reward.xp.min, level, CREATURE_REWARD_GROWTH);
+    const xpMax = scaleStatForLevel(reward.xp.max, level, CREATURE_REWARD_GROWTH);
 
     rewards.coins += rollDamage(coinMin, coinMax);
     rewards.xp += rollDamage(xpMin, xpMax);
@@ -737,6 +771,81 @@ function rollCreatureDrops(creatures) {
   }
 
   return drops;
+}
+
+function findStatus(player, type) {
+  return (player.statuses ?? []).find((status) => status?.type === type) ?? null;
+}
+
+function addStatusEffect(player, status) {
+  if (!status) {
+    return null;
+  }
+
+  player.statuses = Array.isArray(player.statuses) ? [...player.statuses] : [];
+  const existing = findStatus(player, status.type);
+  if (existing) {
+    existing.percent = Math.max(existing.percent ?? 0, status.percent ?? 0);
+    const incomingRemaining = status.remaining ?? status.duration ?? 0;
+    if (existing.remaining !== Infinity) {
+      if (incomingRemaining === Infinity) {
+        existing.remaining = Infinity;
+      } else if (Number.isFinite(incomingRemaining)) {
+        existing.remaining = Math.max(existing.remaining ?? 0, incomingRemaining);
+      }
+    }
+    return existing;
+  }
+
+  const remaining = status.remaining ?? status.duration ?? 0;
+  const newStatus = { ...status, remaining: remaining === undefined ? null : remaining };
+  player.statuses.push(newStatus);
+  return newStatus;
+}
+
+function applyStatusEffects(state) {
+  const messages = [];
+  const player = state.player;
+  const remainingStatuses = [];
+
+  for (const status of player.statuses ?? []) {
+    if (status.type === POISON_STATUS.type) {
+      const percent = Math.max(0, status.percent ?? 0);
+      const damage = Math.max(1, Math.floor(player.health * percent));
+      player.health = Math.max(0, player.health - damage);
+      messages.push(`${POISON_STATUS.emoji} Poison saps **${damage}** HP from you.`);
+    }
+
+    let remaining = status.remaining ?? status.duration;
+    if (remaining !== Infinity) {
+      remaining = Math.max(0, (remaining ?? 1) - 1);
+    }
+
+    const shouldKeep = player.health > 0 && (remaining === Infinity || remaining > 0);
+    if (shouldKeep) {
+      remainingStatuses.push({ ...status, remaining });
+    }
+  }
+
+  player.statuses = remainingStatuses;
+  return messages;
+}
+
+function formatStatusDuration(remaining) {
+  if (remaining === Infinity) {
+    return '∞';
+  }
+  if (!Number.isFinite(remaining)) {
+    return 0;
+  }
+  return Math.max(0, remaining);
+}
+
+function statusEffectsForDisplay(statuses = []) {
+  return (statuses ?? []).map((status) => ({
+    emoji: status.emoji ?? POISON_STATUS.emoji,
+    remaining: formatStatusDuration(status.remaining ?? status.duration ?? 0),
+  }));
 }
 
 function applyRewards(userId, profile, rewards) {
@@ -810,6 +919,69 @@ function buildFailureContent(profile, userId, creatures, diedReason) {
   return buildHomeContent(profile, userId, { message, accentColor: 0xe74c3c });
 }
 
+function pickCreatureAction(creature) {
+  const actions = creature.actions ?? [];
+  if (!actions.length) {
+    return null;
+  }
+
+  const totalChance = actions.reduce((sum, action) => sum + (action.chance ?? 0), 0);
+  const roll = Math.random() * (totalChance || 1);
+  let cumulative = 0;
+
+  for (const action of actions) {
+    cumulative += action.chance ?? 0;
+    if (roll <= cumulative) {
+      return action;
+    }
+  }
+
+  return actions[actions.length - 1];
+}
+
+function calculateCreatureDamage(creature, action, isPlayerPoisoned) {
+  const damageRange = isPlayerPoisoned && action?.damageIfPoisoned ? action.damageIfPoisoned : action?.damage;
+  if (damageRange) {
+    return rollDamage(damageRange.min ?? 1, damageRange.max ?? damageRange.min ?? 1);
+  }
+  return rollDamage(creature.damage?.min ?? 1, creature.damage?.max ?? creature.damage?.min ?? 1);
+}
+
+function performCreatureAction(state, creature) {
+  const messages = [];
+  const player = state.player;
+  const action = pickCreatureAction(creature);
+  const isPlayerPoisoned = Boolean(findStatus(player, POISON_STATUS.type));
+  const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
+  const mitigated = Math.max(1, rawDamage - (player.defense ?? 0));
+  player.health = Math.max(0, player.health - mitigated);
+
+  if (action) {
+    const baseTemplate = isPlayerPoisoned && action.alreadyPoisonedMessage
+      ? action.alreadyPoisonedMessage
+      : action.message;
+    const actionMessage = (baseTemplate ?? `${creature.name} attacked you for {amount} damages.`)
+      .replace('{amount}', mitigated);
+    messages.push(actionMessage);
+
+    if (action.poison && !isPlayerPoisoned) {
+      const status = addStatusEffect(player, {
+        ...POISON_STATUS,
+        percent: action.poison.percent,
+        remaining: action.poison.duration ?? action.poison.remaining ?? Infinity,
+        emoji: action.poison.emoji ?? POISON_STATUS.emoji,
+      });
+      const durationText = formatStatusDuration(status?.remaining ?? action.poison.duration ?? Infinity);
+      messages.push(`${POISON_STATUS.emoji} You got poisoned for ${durationText} round`);
+    }
+
+    return messages;
+  }
+
+  messages.push(`${creature.name} has **Bitten** you and dealth **${mitigated} damages**.`);
+  return messages;
+}
+
 function resolveCreatureTurn(state) {
   const messages = [];
   for (const creature of state.creatures) {
@@ -818,11 +990,7 @@ function resolveCreatureTurn(state) {
     }
     const hits = Math.max(1, creature.hits ?? (creature.attackType === 'Multi' ? 2 : 1));
     for (let i = 0; i < hits; i++) {
-      const damage = rollDamage(creature.damage.min, creature.damage.max);
-      const mitigated = Math.max(0, damage - (state.player.defense ?? 0));
-      const finalDamage = Math.max(1, mitigated);
-      state.player.health = Math.max(0, state.player.health - finalDamage);
-      messages.push(`${creature.name} has **Bitten** you and dealth **${finalDamage} damages**.`);
+      messages.push(...performCreatureAction(state, creature));
       if (state.player.health <= 0) {
         break;
       }
@@ -843,6 +1011,7 @@ async function buildBattleAttachment(state, user) {
     shield: 0,
     rarityEmoji: pet.rarityEmoji,
     rarityIcon: pet.rarityEmoji,
+    effects: statusEffectsForDisplay(pet.statuses ?? []),
   }));
 
   const player = {
@@ -853,6 +1022,7 @@ async function buildBattleAttachment(state, user) {
     hp: state.player.health,
     defense: state.player.defense,
     shield: state.player.defense,
+    effects: statusEffectsForDisplay(state.player.statuses),
     pets: playerPets,
   };
 
@@ -866,6 +1036,7 @@ async function buildBattleAttachment(state, user) {
     rarity: creature.rarity,
     rarityEmoji: creature.rarityEmoji,
     avatar: getEmojiUrl(creature.emoji) ?? HUNT_THUMBNAIL,
+    effects: statusEffectsForDisplay(creature.statuses ?? []),
   }));
 
   const buffer = await createHuntBattleImage({ player, enemies });
@@ -1312,14 +1483,20 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   if (state.player.actionsLeft <= 0) {
     const playerMessages = [...state.actionMessages];
     const enemyMessages = resolveCreatureTurn(state);
+    let diedReason = state.player.health <= 0 ? 'You died...' : null;
+    const statusMessages = diedReason ? [] : applyStatusEffects(state);
 
-    if (state.player.health <= 0) {
+    if (!diedReason && state.player.health <= 0) {
+      diedReason = 'You died...';
+    }
+
+    if (diedReason) {
       clearHuntInactivityTimeout(userId);
       state.isEnding = true;
       await runHuntEndCountdown(interaction, state, (remaining) =>
         `You have died, hunt ending in ${remaining}s.`
       );
-      const failureContent = buildFailureContent(profile, userId, state.initialCreatures, 'You died...');
+      const failureContent = buildFailureContent(profile, userId, state.initialCreatures, diedReason);
       await interaction.editReply(failureContent);
       activeHunts.delete(userId);
       return true;
@@ -1329,6 +1506,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     state.actionMessages = [
       ...playerMessages,
       ...enemyMessages,
+      ...statusMessages,
       'Your actions have been refreshed for the next turn.',
     ];
   }

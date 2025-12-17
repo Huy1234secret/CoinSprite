@@ -35,13 +35,13 @@ const PETS = [
     sellable: false,
     tradable: false,
     adminOnly: true,
-    baseHealth: 1_000_000,
+    baseHealth: 1000,
     attacks: [
       {
         name: 'Laser Beam',
         type: 'Singular',
         hits: 1,
-        damage: { min: 1000, max: 5000 },
+        damage: { min: 300, max: 500 },
       },
     ],
   },
