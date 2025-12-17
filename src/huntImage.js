@@ -184,7 +184,7 @@ function drawAvatar(ctx, img, x, y, size, borderColor) {
 }
 
 // Draw HP Bar (Green/Red with Text Inside)
-function drawHpBar(ctx, x, y, width, height, current, max) {
+function drawHpBar(ctx, x, y, width, height, current, max, showMax = true) {
     const radius = 6;
     const safeMax = Math.max(max, 1);
     const pct = Math.max(0, Math.min(1, current / safeMax));
@@ -222,7 +222,8 @@ function drawHpBar(ctx, x, y, width, height, current, max) {
     const textY = y + height / 2 + 1; // +1 for visual centering
     const displayCurrent = formatAbbreviatedNumber(current);
     const displayMax = formatAbbreviatedNumber(max);
-    ctx.fillText(`${displayCurrent} / ${displayMax}`, textX, textY);
+    const label = showMax ? `${displayCurrent} / ${displayMax}` : `${displayCurrent}`;
+    ctx.fillText(label, textX, textY);
     ctx.shadowBlur = 0;
 }
 
@@ -246,27 +247,49 @@ function formatAbbreviatedNumber(value) {
 }
 
 // Draw Effect Slots (Placeholder squares/circles)
-function drawEffectSlots(ctx, effects, x, y, size = 20) {
+function drawEffectSlots(ctx, effects, x, centerY, size = 20) {
     if (!effects || effects.length === 0) return;
-    
-    // Assuming 'effects' is an array of strings/emojis. 
-    // If images, you would need to load them first. 
-    // Here we stick to text/emojis for simplicity.
-    
-    ctx.font = `${size}px Sans-Serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
 
-    effects.slice(0, 5).forEach((eff, i) => {
-        const dx = x + i * (size + 5);
-        // Draw a small backing glow
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    const count = Math.min(effects.length, 5);
+    for (let i = 0; i < count; i++) {
+        const effect = effects[i];
+        const dx = x + i * (size + 6);
+        const dy = centerY - size / 2;
+
+        ctx.save();
         ctx.beginPath();
-        ctx.arc(dx + size/2, y, size/2 + 2, 0, Math.PI*2);
+        ctx.arc(dx + size / 2, centerY, size / 2 + 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.fill();
-        
-        ctx.fillText(eff, dx, y + 2);
-    });
+
+        if (effect?.icon) {
+            ctx.drawImage(effect.icon, dx, dy, size, size);
+        } else if (effect?.emoji || typeof effect === 'string') {
+            const text = effect.emoji ?? effect;
+            ctx.font = `${Math.round(size * 0.8)}px Sans-Serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, dx + size / 2, centerY + 1);
+        }
+
+        if (effect?.remaining !== undefined && effect?.remaining !== null) {
+            const label = `${effect.remaining}`;
+            if (label) {
+                ctx.font = `bold ${Math.round(size * 0.45)}px Sans-Serif`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+                ctx.lineWidth = 3;
+                const textX = dx + 3;
+                const textY = dy + size - 3;
+                ctx.strokeText(label, textX, textY);
+                ctx.fillText(label, textX, textY);
+            }
+        }
+        ctx.restore();
+    }
 }
 
 // === CARD DRAWING FUNCTIONS ===
@@ -382,7 +405,7 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     // HP Bar
     const barH = 18;
     const barY = y + h - barH - 15;
-    drawHpBar(ctx, infoX - 5, barY, infoW, barH, unit.hp, unit.maxHp); // -5 to pull bar left slightly
+    drawHpBar(ctx, infoX - 5, barY, infoW, barH, unit.hp, unit.maxHp, false); // -5 to pull bar left slightly
 
     ctx.restore();
 }
@@ -427,16 +450,36 @@ function resolveEmojiUrl(emoji) {
 }
 
 async function loadRarityImage(emoji) {
-    const url = resolveEmojiUrl(emoji);
-    if (!url) {
-        return null;
-    }
+  const url = resolveEmojiUrl(emoji);
+  if (!url) {
+    return null;
+  }
 
     try {
         return await loadImage(url);
     } catch (err) {
         return null;
+  }
+}
+
+async function prepareEffectIcons(effects = []) {
+  return Promise.all((effects ?? []).map(async (effect) => {
+    const emoji = effect?.emoji ?? (typeof effect === 'string' ? effect : null);
+    let icon = effect?.icon ?? null;
+
+    if (!icon && emoji) {
+      const url = resolveEmojiUrl(emoji);
+      if (url) {
+        icon = await safeLoadImage(url);
+      }
     }
+
+    return {
+      ...(typeof effect === 'object' ? effect : {}),
+      emoji,
+      icon,
+    };
+  }));
 }
 
 function computeCanvasHeight(player, enemies) {
@@ -488,9 +531,12 @@ async function createHuntBattleImage({ player, enemies }) {
     // Preload pet images
     const petImages = await Promise.all((player.pets || []).map(p => safeLoadImage(p.avatar)));
     const petRarityImages = await Promise.all((player.pets || []).map(p => loadRarityImage(p?.rarityEmoji || p?.rarityIcon)));
+    const playerEffects = await prepareEffectIcons(player.effects || []);
+    const petEffects = await Promise.all((player.pets || []).map((p) => prepareEffectIcons(p.effects || [])));
     // Preload enemy images
     const enemyImages = await Promise.all((enemies || []).map(e => safeLoadImage(e.avatar)));
     const enemyRarityImages = await Promise.all((enemies || []).map(e => loadRarityImage(e?.rarityEmoji || e?.rarityIcon)));
+    const enemyEffects = await Promise.all((enemies || []).map((e) => prepareEffectIcons(e.effects || [])));
 
     // 2. Draw Background
     drawBackground(ctx);
@@ -505,7 +551,7 @@ async function createHuntBattleImage({ player, enemies }) {
     const mainCardX = ZONE_PAD;
     const mainCardY = 40; // Top margin, tightened for shorter canvas
 
-    drawPlayerMainCard(ctx, { ...player, image: playerImg }, mainCardX, mainCardY, mainCardW, mainCardH);
+    drawPlayerMainCard(ctx, { ...player, image: playerImg, effects: playerEffects }, mainCardX, mainCardY, mainCardW, mainCardH);
 
     // B. Pet Cards (only draw when player has an army/pets)
     const hasPets = (player.pets || []).some(Boolean);
@@ -518,7 +564,7 @@ async function createHuntBattleImage({ player, enemies }) {
         for (let i = 0; i < 3; i++) {
             const px = mainCardX + i * (petW + petGap);
             if (player.pets && player.pets[i]) {
-                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], rarityImage: petRarityImages[i] }, px, petY, petW, petH, false);
+                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], rarityImage: petRarityImages[i], effects: petEffects[i] }, px, petY, petW, petH, false);
             } else {
                  // Draw Empty Slot placeholder
                  ctx.save();
@@ -582,7 +628,7 @@ async function createHuntBattleImage({ player, enemies }) {
     // Draw Enemies
     for (let i = 0; i < enemyCount; i++) {
         const pos = enemyPositions[i];
-        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i], rarityImage: enemyRarityImages[i] }, pos.x, pos.y, cardW, cardH, true);
+        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i], rarityImage: enemyRarityImages[i], effects: enemyEffects[i] }, pos.x, pos.y, cardW, cardH, true);
     }
 
     return canvas.toBuffer('image/png');
