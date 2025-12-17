@@ -319,25 +319,14 @@ function drawRarityBadge(ctx, image, avatarX, avatarY, avatarSize) {
     if (!image) return;
 
     const badgeSize = Math.max(18, Math.round(avatarSize * 0.35));
-    const padding = Math.max(4, Math.round(badgeSize * 0.15));
-    const bx = avatarX + avatarSize - badgeSize + padding;
-    const by = avatarY + avatarSize - badgeSize + padding;
+    const bx = avatarX + avatarSize - badgeSize;
+    const by = avatarY + avatarSize - badgeSize;
 
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(bx + badgeSize / 2, by + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-    ctx.fill();
-    ctx.clip();
-
-    ctx.drawImage(image, bx + padding, by + padding, badgeSize - padding * 2, badgeSize - padding * 2);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 8;
+    ctx.drawImage(image, bx, by, badgeSize, badgeSize);
     ctx.restore();
-
-    ctx.beginPath();
-    ctx.arc(bx + badgeSize / 2, by + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
 }
 
 // 2. SMALL CARD (Pet / Army / Enemy)
