@@ -14,7 +14,7 @@ const {
   normalizeGearItem,
   updateUserProfile,
 } = require('../src/huntProfile');
-const { addCoinsToUser } = require('../src/userStats');
+const { addCoinsToUser, addDiamondsToUser, addPrismaticToUser } = require('../src/userStats');
 const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
 const {
   addPetToInventory,
@@ -36,6 +36,8 @@ const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.pn
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
+const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
+const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
 const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
 
 const CREATURE_HEALTH_GROWTH = 0.5;
@@ -762,19 +764,55 @@ function creatureListText(creatures) {
 }
 
 function calculateRewards(creatures) {
-  const rewards = { coins: 0, xp: 0 };
+  const rewards = { coins: 0, xp: 0, diamonds: 0, prismatic: 0 };
   for (const creature of creatures) {
     const level = creature.level ?? 1;
     const reward = creature.reward ?? JUNGLE_BETTLE.reward;
-    const coinMin = scaleStatForLevel(reward.coins.min, level, CREATURE_REWARD_GROWTH);
-    const coinMax = scaleStatForLevel(reward.coins.max, level, CREATURE_REWARD_GROWTH);
-    const xpMin = scaleStatForLevel(reward.xp.min, level, CREATURE_REWARD_GROWTH);
-    const xpMax = scaleStatForLevel(reward.xp.max, level, CREATURE_REWARD_GROWTH);
 
-    rewards.coins += rollDamage(coinMin, coinMax);
-    rewards.xp += rollDamage(xpMin, xpMax);
+    rewards.coins += rollRewardAmount(reward.coins, level);
+    rewards.xp += rollRewardAmount(reward.xp, level);
+
+    if (reward.diamonds) {
+      rewards.diamonds += rollRewardAmount(reward.diamonds, level);
+    }
+
+    if (reward.prismatic) {
+      const chance = typeof reward.prismatic.chance === 'number' ? reward.prismatic.chance : 1;
+      if (Math.random() <= chance) {
+        rewards.prismatic += rollRewardAmount(reward.prismatic, level);
+      }
+    }
   }
   return rewards;
+}
+
+function rollRewardAmount(range, level) {
+  if (!range) {
+    return 0;
+  }
+
+  const minBase = Number.isFinite(range.min) ? range.min : Number.isFinite(range.max) ? range.max : 0;
+  const maxBase = Number.isFinite(range.max) ? range.max : Number.isFinite(range.min) ? range.min : 0;
+  const min = Math.max(0, scaleStatForLevel(minBase, level, CREATURE_REWARD_GROWTH));
+  const max = Math.max(min, scaleStatForLevel(maxBase, level, CREATURE_REWARD_GROWTH));
+
+  if (max <= 0 && min <= 0) {
+    return 0;
+  }
+
+  return rollDamage(Math.max(1, min), Math.max(1, max));
+}
+
+function rollDropAmount(drop) {
+  const amount = drop?.amount ?? 1;
+
+  if (typeof amount === 'object' && amount !== null) {
+    const min = Number.isFinite(amount.min) ? amount.min : Number.isFinite(amount.max) ? amount.max : 1;
+    const max = Number.isFinite(amount.max) ? amount.max : min;
+    return rollDamage(Math.max(1, min), Math.max(1, max));
+  }
+
+  return Number.isFinite(amount) ? Math.max(1, amount) : 1;
 }
 
 function rollCreatureDrops(creatures) {
@@ -787,7 +825,7 @@ function rollCreatureDrops(creatures) {
         continue;
       }
 
-      const amount = Number.isFinite(drop.amount) ? drop.amount : 1;
+      const amount = rollDropAmount(drop);
       const item = findItemById(drop.itemId);
       if (item) {
         drops.push({ item, amount });
@@ -875,10 +913,21 @@ function statusEffectsForDisplay(statuses = []) {
 
 function applyRewards(userId, profile, rewards) {
   let leveledUp = 0;
-  profile.coins = Math.max(0, profile.coins + rewards.coins);
-  profile.xp = Math.max(0, profile.xp + rewards.xp);
+  const coinsReward = Math.max(0, rewards.coins ?? 0);
+  const xpReward = Math.max(0, rewards.xp ?? 0);
+  const diamondReward = Math.max(0, rewards.diamonds ?? 0);
+  const prismaticReward = Math.max(0, rewards.prismatic ?? 0);
 
-  addCoinsToUser(userId, rewards.coins);
+  profile.coins = Math.max(0, profile.coins + coinsReward);
+  profile.xp = Math.max(0, profile.xp + xpReward);
+
+  addCoinsToUser(userId, coinsReward);
+  if (diamondReward) {
+    addDiamondsToUser(userId, diamondReward);
+  }
+  if (prismaticReward) {
+    addPrismaticToUser(userId, prismaticReward);
+  }
 
   let nextLevelRequirement = calculateNextLevelXp(profile.level);
   while (profile.xp >= nextLevelRequirement) {
@@ -922,6 +971,12 @@ function rewardLines(rewards, leveledUp, drops = []) {
     `-# * ${rewards.coins} coins ${COIN_EMOJI}`,
     `-# * ${rewards.xp} Hunt XP`,
   ];
+  if (rewards.diamonds) {
+    lines.push(`-# * ${rewards.diamonds} diamonds ${DIAMOND_EMOJI}`);
+  }
+  if (rewards.prismatic) {
+    lines.push(`-# * ${rewards.prismatic} prismatic coins ${PRISMATIC_EMOJI}`);
+  }
   if (leveledUp > 0) {
     lines.push(`-# * ${leveledUp * 5} Upgrade Tokens ${UPGRADE_TOKEN_EMOJI}`);
   }
