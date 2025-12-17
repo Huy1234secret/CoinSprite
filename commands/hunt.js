@@ -30,6 +30,7 @@ const TEAM_SLOT_SELECT_PREFIX = 'hunt-team-slot:';
 const TEAM_PET_SELECT_PREFIX = 'hunt-team-pet:';
 const TEAM_TARGET_SELECT_PREFIX = 'hunt-team-target:';
 const TEAM_SUBMIT_PREFIX = 'hunt-team-submit:';
+const TEAM_UNEQUIP_PREFIX = 'hunt-team-unequip:';
 const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
@@ -475,6 +476,7 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
   const selectedPetId = state.petInstanceId ?? petProfile.team?.[slotNumber - 1]?.petInstanceId ?? null;
   const selectedPet = selectedPetId ? findPetInstance(petProfile, selectedPetId) : null;
   const targetType = state.targetType ?? petProfile.team?.[slotNumber - 1]?.targetType ?? null;
+  const hasEquipped = Boolean(petProfile.team?.[slotNumber - 1]?.petInstanceId);
 
   const hasPets = (petProfile.inventory ?? []).length > 0;
   const placeholderPet = hasPets ? 'Choose an army/pet' : "You don't have any pet/army";
@@ -530,6 +532,13 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
       {
         type: 1,
         components: [
+          {
+            type: 2,
+            style: 4,
+            custom_id: `${TEAM_UNEQUIP_PREFIX}${user.id}:${slotNumber}`,
+            label: 'UNEQUIP',
+            disabled: !hasEquipped,
+          },
           {
             type: 2,
             style: 3,
@@ -1394,6 +1403,42 @@ async function handleTeamSubmit(interaction, userId, slot) {
   return true;
 }
 
+async function handleTeamUnequip(interaction, userId, slot) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const slotIndex = Number(slot) - 1;
+  const petProfile = getUserPetProfile(userId);
+  const currentSlot = petProfile.team?.[slotIndex];
+
+  if (!currentSlot?.petInstanceId) {
+    await safeErrorReply(interaction, 'There is no army/pet equipped in this slot.');
+    return true;
+  }
+
+  petProfile.team[slotIndex] = { petInstanceId: null, targetType: 'Random' };
+  updateUserPetProfile(userId, petProfile);
+
+  const state = teamEditState.get(userId) ?? {};
+  state.slot = slotIndex + 1;
+  state.petInstanceId = null;
+  state.targetType = null;
+  teamEditState.set(userId, state);
+
+  try {
+    const channel = await interaction.client.channels.fetch(state.channelId);
+    const huntMessage = await channel.messages.fetch(state.huntMessageId);
+    await huntMessage.edit(buildTeamContent(interaction.user, petProfile));
+  } catch (error) {
+    console.warn('Failed to update hunt team message:', error);
+  }
+
+  await interaction.update(buildTeamEditContent(interaction.user, petProfile, slotIndex + 1, state));
+  return true;
+}
+
 async function handleSelect(interaction, selectType, userId) {
   if (interaction.user.id !== userId) {
     await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
@@ -1564,6 +1609,11 @@ module.exports = {
     if (interaction.isButton() && interaction.customId.startsWith(TEAM_SUBMIT_PREFIX)) {
       const [userId, slot] = interaction.customId.replace(TEAM_SUBMIT_PREFIX, '').split(':');
       return handleTeamSubmit(interaction, userId, slot);
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(TEAM_UNEQUIP_PREFIX)) {
+      const [userId, slot] = interaction.customId.replace(TEAM_UNEQUIP_PREFIX, '').split(':');
+      return handleTeamUnequip(interaction, userId, slot);
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(HUNT_SELECT_PREFIX)) {
