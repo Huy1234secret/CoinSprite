@@ -41,6 +41,7 @@ const CREATURE_DAMAGE_GROWTH = 0.35;
 const CREATURE_REWARD_GROWTH = 0.25;
 
 const HUNTING_DELAY_MS = 3000;
+const HUNT_END_COUNTDOWN_SECONDS = 5;
 const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
@@ -873,7 +874,18 @@ async function buildBattleAttachment(state, user) {
 
 function buildBattleContent(state, user, attachment) {
   const creatures = state.creatures.filter((creature) => creature.health > 0);
-  const thumbnail = getEmojiUrl(creatures[0]?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
+  const fallbackCreature = creatures[0] ?? state.creatures[0];
+  const headerCreatureName = fallbackCreature?.name ?? JUNGLE_BETTLE.name;
+  const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
+  const headerLine = state.isEnding
+    ? '### Hunt ending soon'
+    : creatures.length
+      ? `### You found a ${headerCreatureName}`
+      : '### Hunt cleared';
+  const actionsLine = state.isEnding
+    ? '-# Hunt ending...'
+    : `-# You have \`${state.player.actionsLeft} action${state.player.actionsLeft === 1 ? '' : 's'}\` left`;
+  const selectDisabled = state.isEnding || !creatures.length || state.player.actionsLeft <= 0;
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -884,7 +896,7 @@ function buildBattleContent(state, user, attachment) {
         components: [
           {
             type: 10,
-            content: `### You found a ${creatures[0]?.name ?? JUNGLE_BETTLE.name}`,
+            content: headerLine,
           },
           {
             type: 12,
@@ -914,9 +926,7 @@ function buildBattleContent(state, user, attachment) {
         components: [
           {
             type: 10,
-            content: `-# You have \`${state.player.actionsLeft} action${
-              state.player.actionsLeft === 1 ? '' : 's'
-            }\` left`,
+            content: actionsLine,
           },
           {
             type: 1,
@@ -926,7 +936,7 @@ function buildBattleContent(state, user, attachment) {
                 custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
                 placeholder: 'Select a creature to attack',
                 options: buildCreatureOptions(state),
-                disabled: !creatures.length || state.player.actionsLeft <= 0,
+                disabled: selectDisabled,
                 min_values: 1,
                 max_values: 1,
               },
@@ -1004,6 +1014,36 @@ function scheduleHuntInactivityTimeout(interaction, userId) {
     () => failHuntDueToInactivity(interaction, userId),
     HUNT_INACTIVITY_TIMEOUT_MS
   );
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runHuntEndCountdown(interaction, state, countdownBuilder) {
+  state.isEnding = true;
+  for (let remaining = HUNT_END_COUNTDOWN_SECONDS; remaining >= 1; remaining -= 1) {
+    state.actionMessages = [countdownBuilder(remaining)];
+    state.player.actionsLeft = 0;
+    try {
+      const attachment = await buildBattleAttachment(state, interaction.user);
+      const content = buildBattleContent(state, interaction.user, attachment);
+      content.components = content.components ?? [];
+      if (remaining === HUNT_END_COUNTDOWN_SECONDS) {
+        await interaction.update(content);
+      } else {
+        await interaction.editReply(content);
+      }
+    } catch (error) {
+      console.error('Failed to update hunt ending countdown:', error);
+    }
+
+    if (remaining > 1) {
+      await delay(1000);
+    }
+  }
+
+  await delay(1000);
 }
 
 async function handleStartHunt(interaction) {
@@ -1217,6 +1257,11 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     return true;
   }
 
+  if (state.isEnding) {
+    await safeErrorReply(interaction, 'This hunt is ending. Please wait for the result.');
+    return true;
+  }
+
   scheduleHuntInactivityTimeout(interaction, userId);
 
   const profile = getUserProfile(userId);
@@ -1246,6 +1291,11 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     const grantedDrops = applyDrops(profile, drops);
     const leveledUp = applyRewards(userId, profile, rewards);
     updateUserProfile(userId, profile);
+    clearHuntInactivityTimeout(userId);
+    state.isEnding = true;
+    await runHuntEndCountdown(interaction, state, (remaining) =>
+      `You have defeated all creatures. Hunt ending in ${remaining}s.`
+    );
     const successContent = buildSuccessContent(
       profile,
       userId,
@@ -1254,8 +1304,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
       leveledUp,
       grantedDrops
     );
-    await interaction.update(successContent);
-    clearHuntInactivityTimeout(userId);
+    await interaction.editReply(successContent);
     activeHunts.delete(userId);
     return true;
   }
@@ -1265,9 +1314,13 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     const enemyMessages = resolveCreatureTurn(state);
 
     if (state.player.health <= 0) {
-      const failureContent = buildFailureContent(profile, userId, state.initialCreatures, 'You died...');
-      await interaction.update(failureContent);
       clearHuntInactivityTimeout(userId);
+      state.isEnding = true;
+      await runHuntEndCountdown(interaction, state, (remaining) =>
+        `You have died, hunt ending in ${remaining}s.`
+      );
+      const failureContent = buildFailureContent(profile, userId, state.initialCreatures, 'You died...');
+      await interaction.editReply(failureContent);
       activeHunts.delete(userId);
       return true;
     }
