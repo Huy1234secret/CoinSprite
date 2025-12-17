@@ -318,9 +318,10 @@ function drawPlayerMainCard(ctx, player, x, y, w, h) {
 function drawRarityBadge(ctx, image, avatarX, avatarY, avatarSize) {
     if (!image) return;
 
-    const badgeSize = Math.max(24, Math.round(avatarSize * 0.45));
-    const bx = avatarX + avatarSize - badgeSize;
-    const by = avatarY + avatarSize - badgeSize;
+    const badgeSize = Math.max(28, Math.round(avatarSize * 0.55));
+    const padding = Math.max(3, Math.round(avatarSize * 0.05));
+    const bx = avatarX + padding;
+    const by = avatarY + avatarSize - badgeSize - padding;
 
     const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
     let drawW = badgeSize;
