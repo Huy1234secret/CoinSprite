@@ -1,9 +1,12 @@
+const { RARITY_EMOJIS } = require('./pets');
+
 const JUNGLE_BETTLE = {
   name: 'Jungle Bettle',
   emoji: '<:MCJungleBettle:1448989040509452338>',
   baseHealth: 100000,
   rarity: 'Common',
-  rarityEmoji: '★',
+  rarityEmoji: RARITY_EMOJIS.Common,
+  rarityIcon: RARITY_EMOJIS.Common,
   damage: { min: 1, max: 2 },
   attackType: 'Singular',
   reward: { coins: { min: 50, max: 200 }, xp: { min: 10, max: 40 } },
