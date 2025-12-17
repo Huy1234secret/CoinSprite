@@ -1246,28 +1246,22 @@ function delay(ms) {
 
 async function runHuntEndCountdown(interaction, state, countdownBuilder) {
   state.isEnding = true;
-  for (let remaining = HUNT_END_COUNTDOWN_SECONDS; remaining >= 1; remaining -= 1) {
-    state.actionMessages = [countdownBuilder(remaining)];
-    state.player.actionsLeft = 0;
-    try {
-      const attachment = await buildBattleAttachment(state, interaction.user);
-      const content = buildBattleContent(state, interaction.user, attachment);
-      content.components = content.components ?? [];
-      if (remaining === HUNT_END_COUNTDOWN_SECONDS) {
-        await interaction.update(content);
-      } else {
-        await interaction.editReply(content);
-      }
-    } catch (error) {
-      console.error('Failed to update hunt ending countdown:', error);
-    }
+  const endTimestampSeconds = Math.floor(
+    (Date.now() + HUNT_END_COUNTDOWN_SECONDS * 1000) / 1000
+  );
+  state.actionMessages = [countdownBuilder(endTimestampSeconds)];
+  state.player.actionsLeft = 0;
 
-    if (remaining > 1) {
-      await delay(1000);
-    }
+  try {
+    const attachment = await buildBattleAttachment(state, interaction.user);
+    const content = buildBattleContent(state, interaction.user, attachment);
+    content.components = content.components ?? [];
+    await interaction.update(content);
+  } catch (error) {
+    console.error('Failed to update hunt ending countdown:', error);
   }
 
-  await delay(1000);
+  await delay(HUNT_END_COUNTDOWN_SECONDS * 1000);
 }
 
 async function handleStartHunt(interaction) {
@@ -1554,8 +1548,8 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     updateUserProfile(userId, profile);
     clearHuntInactivityTimeout(userId);
     state.isEnding = true;
-    await runHuntEndCountdown(interaction, state, (remaining) =>
-      `You have defeated all creatures. Hunt ending in ${remaining}s.`
+    await runHuntEndCountdown(interaction, state, (endTimestampSeconds) =>
+      `You have defeated all creatures. Hunt ending <t:${endTimestampSeconds}:R>.`
     );
     const successContent = buildSuccessContent(
       profile,
@@ -1583,8 +1577,8 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     if (diedReason) {
       clearHuntInactivityTimeout(userId);
       state.isEnding = true;
-      await runHuntEndCountdown(interaction, state, (remaining) =>
-        `You have died, hunt ending in ${remaining}s.`
+      await runHuntEndCountdown(interaction, state, (endTimestampSeconds) =>
+        `You have died, hunt ending <t:${endTimestampSeconds}:R>.`
       );
       const failureContent = buildFailureContent(profile, userId, state.initialCreatures, diedReason);
       await interaction.editReply(failureContent);
