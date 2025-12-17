@@ -8,6 +8,7 @@ const {
   UPGRADE_TOKEN_ITEM,
   ITEMS_BY_ID,
   calculatePlayerMaxHealth,
+  calculateNextLevelXp,
   addItemToInventory,
   getUserProfile,
   normalizeGearItem,
@@ -879,12 +880,16 @@ function applyRewards(userId, profile, rewards) {
 
   addCoinsToUser(userId, rewards.coins);
 
-  while (profile.xp >= profile.next_level_xp) {
-    profile.xp -= profile.next_level_xp;
+  let nextLevelRequirement = calculateNextLevelXp(profile.level);
+  while (profile.xp >= nextLevelRequirement) {
+    profile.xp -= nextLevelRequirement;
     profile.level += 1;
     leveledUp += 1;
     profile.upgrade_tokens += 5;
+    nextLevelRequirement = calculateNextLevelXp(profile.level);
   }
+
+  profile.next_level_xp = nextLevelRequirement;
 
   if (leveledUp > 0) {
     profile = addItemToInventory(profile, UPGRADE_TOKEN_ITEM, leveledUp * 5);
