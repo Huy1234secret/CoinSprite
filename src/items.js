@@ -71,7 +71,7 @@ const ITEMS = [
   {
     id: 'ITVineFiber',
     name: 'Vine Fiber',
-    emoji: '<:ITVineFiber:1450765105967927297>',
+    emoji: '<:ITVineFiber:1450771201097207871>',
     rarity: 'Common',
     type: 'Material',
     value: 6,
@@ -95,7 +95,7 @@ const ITEMS = [
   {
     id: 'ITWeakVenomGland',
     name: 'Weak Venom Gland',
-    emoji: '<:ITWeakVenomGland:1450765107784061069>',
+    emoji: '<:ITWeakVenomGland:1450771203823370260>',
     rarity: 'Common',
     type: 'Material',
     value: 12,
