@@ -77,7 +77,7 @@ function normalizeGearInventory(list) {
 }
 
 function calculatePlayerMaxHealth(level, baseHealth = DEFAULT_PROFILE.max_health) {
-  return Math.round(baseHealth * Math.pow(1.25, Math.max(0, level - 1)));
+  return Math.round(baseHealth * Math.pow(1.05, Math.max(0, level - 1)));
 }
 
 function ensureProfileShape(profile = {}) {
@@ -90,6 +90,8 @@ function ensureProfileShape(profile = {}) {
   const level = Math.max(1, Math.floor(Number(profile.level) || DEFAULT_PROFILE.level));
   const xpValue = Number(profile.xp);
   const xp = Math.max(0, Number.isFinite(xpValue) ? xpValue : DEFAULT_PROFILE.xp);
+  const scaledHealth = calculatePlayerMaxHealth(level, DEFAULT_PROFILE.max_health);
+  const currentHealth = Number.isFinite(profile.health) ? profile.health : scaledHealth;
 
   return {
     ...DEFAULT_PROFILE,
@@ -100,7 +102,8 @@ function ensureProfileShape(profile = {}) {
     gear_equipped: gearEquipped,
     gear_inventory: normalizedGearInventory,
     misc_inventory: Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [],
-    max_health: typeof profile.max_health === 'number' ? profile.max_health : DEFAULT_PROFILE.max_health,
+    max_health: scaledHealth,
+    health: Math.min(scaledHealth, currentHealth),
     coins: typeof profile.coins === 'number' ? profile.coins : DEFAULT_PROFILE.coins,
     upgrade_tokens:
       typeof profile.upgrade_tokens === 'number' ? profile.upgrade_tokens : DEFAULT_PROFILE.upgrade_tokens,
