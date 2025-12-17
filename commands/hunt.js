@@ -46,7 +46,7 @@ const HUNT_END_COUNTDOWN_SECONDS = 5;
 const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
-const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '☠️' };
+const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -1173,6 +1173,12 @@ async function failHuntDueToInactivity(interaction, userId) {
 
   clearHuntInactivityTimeout(userId);
 
+  const targetInteraction = interaction ?? state.inactivityInteraction;
+  if (!targetInteraction) {
+    activeHunts.delete(userId);
+    return;
+  }
+
   const profile = getUserProfile(userId);
   const failureContent = buildFailureContent(
     profile,
@@ -1182,7 +1188,7 @@ async function failHuntDueToInactivity(interaction, userId) {
   );
 
   try {
-    await interaction.editReply(failureContent);
+    await targetInteraction.editReply(failureContent);
   } catch (error) {
     console.warn('Failed to end hunt due to inactivity:', error);
   }
@@ -1197,10 +1203,29 @@ function scheduleHuntInactivityTimeout(interaction, userId) {
     return;
   }
 
+  if (interaction) {
+    state.inactivityInteraction = interaction;
+  }
+
+  const targetInteraction = state.inactivityInteraction;
+  if (!targetInteraction) {
+    return;
+  }
+
   state.inactivityTimeout = setTimeout(
-    () => failHuntDueToInactivity(interaction, userId),
+    () => failHuntDueToInactivity(targetInteraction, userId),
     HUNT_INACTIVITY_TIMEOUT_MS
   );
+}
+
+function recordHuntActivity(interaction, userId) {
+  const state = activeHunts.get(userId);
+  if (!state) {
+    return;
+  }
+
+  state.inactivityInteraction = interaction;
+  scheduleHuntInactivityTimeout(interaction, userId);
 }
 
 function delay(ms) {
@@ -1248,7 +1273,7 @@ async function handleStartHunt(interaction) {
       const attachment = await buildBattleAttachment(battleState, interaction.user);
       const content = buildBattleContent(battleState, interaction.user, attachment);
       await interaction.editReply(content);
-      scheduleHuntInactivityTimeout(interaction, interaction.user.id);
+      recordHuntActivity(interaction, interaction.user.id);
     } catch (error) {
       console.error('Failed to start hunt:', error);
     }
@@ -1485,7 +1510,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     return true;
   }
 
-  scheduleHuntInactivityTimeout(interaction, userId);
+  recordHuntActivity(interaction, userId);
 
   const profile = getUserProfile(userId);
   state.player.gear = selectGear(profile);
@@ -1500,6 +1525,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
 
   if (!target) {
     await interaction.update(buildBattleContent(state, interaction.user, await buildBattleAttachment(state, interaction.user)));
+    recordHuntActivity(interaction, userId);
     return true;
   }
 
@@ -1566,7 +1592,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   const attachment = await buildBattleAttachment(state, interaction.user);
   const content = buildBattleContent(state, interaction.user, attachment);
   await interaction.update(content);
-  scheduleHuntInactivityTimeout(interaction, userId);
+  recordHuntActivity(interaction, userId);
   return true;
 }
 
