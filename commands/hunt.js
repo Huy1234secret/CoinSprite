@@ -1056,11 +1056,15 @@ function buildBattleContent(state, user, attachment) {
   const creatures = state.creatures.filter((creature) => creature.health > 0);
   const fallbackCreature = creatures[0] ?? state.creatures[0];
   const headerCreatureName = fallbackCreature?.name ?? JUNGLE_BETTLE.name;
+  const headerCreatureRarity = fallbackCreature?.rarityEmoji ?? '';
+  const headerCreatureLabel = headerCreatureRarity
+    ? `${headerCreatureName} ${headerCreatureRarity}`
+    : headerCreatureName;
   const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
   const headerLine = state.isEnding
     ? '### Hunt ending soon'
     : creatures.length
-      ? `### You found a ${headerCreatureName}`
+      ? `### You found a ${headerCreatureLabel}`
       : '### Hunt cleared';
   const actionsLine = state.isEnding
     ? '-# Hunt ending...'
@@ -1171,7 +1175,7 @@ async function failHuntDueToInactivity(interaction, userId) {
     profile,
     userId,
     state.initialCreatures ?? state.creatures ?? [],
-    'The creature despawed....'
+    'The creature despawned after 30s of inactivity.'
   );
 
   try {

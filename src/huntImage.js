@@ -338,36 +338,6 @@ function drawPlayerMainCard(ctx, player, x, y, w, h) {
     ctx.restore();
 }
 
-function drawRarityBadge(ctx, image, avatarX, avatarY, avatarSize) {
-    if (!image) return;
-
-    const badgeSize = Math.max(28, Math.round(avatarSize * 0.55));
-    const padding = Math.max(3, Math.round(avatarSize * 0.05));
-    const bx = avatarX + padding;
-    const by = avatarY + avatarSize - badgeSize - padding;
-
-    const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
-    let drawW = badgeSize;
-    let drawH = badgeSize;
-
-    if (Number.isFinite(aspectRatio) && aspectRatio > 0) {
-        if (aspectRatio >= 1) {
-            drawH = Math.round(badgeSize / aspectRatio);
-        } else {
-            drawW = Math.round(badgeSize * aspectRatio);
-        }
-    }
-
-    const offsetX = bx + (badgeSize - drawW) / 2;
-    const offsetY = by + (badgeSize - drawH) / 2;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 8;
-    ctx.drawImage(image, offsetX, offsetY, drawW, drawH);
-    ctx.restore();
-}
-
 // 2. SMALL CARD (Pet / Army / Enemy)
 function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const borderColor = isEnemy ? PALETTE.cardBorderEnemy : PALETTE.cardBorderPet;
@@ -386,8 +356,6 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const avatarX = x + 15;
     const avatarY = y + (h - avatarSize) / 2;
     drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
-
-    drawRarityBadge(ctx, unit.rarityImage, avatarX, avatarY, avatarSize);
 
     // Info
     const infoX = avatarX + avatarSize + 20;
@@ -447,19 +415,6 @@ function resolveEmojiUrl(emoji) {
     }
 
     return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${codepoints}.png`;
-}
-
-async function loadRarityImage(emoji) {
-  const url = resolveEmojiUrl(emoji);
-  if (!url) {
-    return null;
-  }
-
-    try {
-        return await loadImage(url);
-    } catch (err) {
-        return null;
-  }
 }
 
 async function prepareEffectIcons(effects = []) {
@@ -530,12 +485,10 @@ async function createHuntBattleImage({ player, enemies }) {
     const playerImg = await safeLoadImage(player.avatar);
     // Preload pet images
     const petImages = await Promise.all((player.pets || []).map(p => safeLoadImage(p.avatar)));
-    const petRarityImages = await Promise.all((player.pets || []).map(p => loadRarityImage(p?.rarityEmoji || p?.rarityIcon)));
     const playerEffects = await prepareEffectIcons(player.effects || []);
     const petEffects = await Promise.all((player.pets || []).map((p) => prepareEffectIcons(p.effects || [])));
     // Preload enemy images
     const enemyImages = await Promise.all((enemies || []).map(e => safeLoadImage(e.avatar)));
-    const enemyRarityImages = await Promise.all((enemies || []).map(e => loadRarityImage(e?.rarityEmoji || e?.rarityIcon)));
     const enemyEffects = await Promise.all((enemies || []).map((e) => prepareEffectIcons(e.effects || [])));
 
     // 2. Draw Background
@@ -564,7 +517,7 @@ async function createHuntBattleImage({ player, enemies }) {
         for (let i = 0; i < 3; i++) {
             const px = mainCardX + i * (petW + petGap);
             if (player.pets && player.pets[i]) {
-                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], rarityImage: petRarityImages[i], effects: petEffects[i] }, px, petY, petW, petH, false);
+                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], effects: petEffects[i] }, px, petY, petW, petH, false);
             } else {
                  // Draw Empty Slot placeholder
                  ctx.save();
@@ -628,7 +581,7 @@ async function createHuntBattleImage({ player, enemies }) {
     // Draw Enemies
     for (let i = 0; i < enemyCount; i++) {
         const pos = enemyPositions[i];
-        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i], rarityImage: enemyRarityImages[i], effects: enemyEffects[i] }, pos.x, pos.y, cardW, cardH, true);
+        drawSmallCard(ctx, { ...enemies[i], image: enemyImages[i], effects: enemyEffects[i] }, pos.x, pos.y, cardW, cardH, true);
     }
 
     return canvas.toBuffer('image/png');
