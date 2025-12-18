@@ -158,6 +158,21 @@ function ensurePetProfile(profile = {}) {
     };
   });
 
+  const seenInstances = new Set();
+  for (const slot of team) {
+    if (!slot.petInstanceId) {
+      continue;
+    }
+
+    if (seenInstances.has(slot.petInstanceId)) {
+      slot.petInstanceId = null;
+      slot.targetType = 'Random';
+      continue;
+    }
+
+    seenInstances.add(slot.petInstanceId);
+  }
+
   return { inventory, team };
 }
 

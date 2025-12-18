@@ -416,16 +416,6 @@ function buildEquipmentContent(profile, userId) {
   };
 }
 
-function isPetEquippedInOtherSlot(petProfile, petInstanceId, currentSlotIndex) {
-  if (!petInstanceId) {
-    return false;
-  }
-
-  return (petProfile.team ?? []).some(
-    (entry, index) => index !== currentSlotIndex && entry?.petInstanceId === petInstanceId
-  );
-}
-
 function formatTeamMessage(user, petProfile) {
   const lines = (petProfile.team ?? [])
     .map((slot, index) => {
@@ -481,7 +471,7 @@ function buildTeamContent(user, petProfile) {
   };
 }
 
-function buildTeamEditContent(user, petProfile, slot, state = {}) {
+function buildTeamEditContent(user, petProfile, slot, state = {}, statusMessage = '') {
   const slotNumber = Number(slot);
   const slotIndex = Math.max(0, slotNumber - 1);
   const selectedPetId = state.petInstanceId ?? petProfile.team?.[slotIndex]?.petInstanceId ?? null;
@@ -489,17 +479,16 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
   const targetType = state.targetType ?? petProfile.team?.[slotIndex]?.targetType ?? null;
   const hasEquipped = Boolean(petProfile.team?.[slotIndex]?.petInstanceId);
 
-  const availablePets = (petProfile.inventory ?? []).filter((pet) => {
-    if (!pet) {
-      return false;
-    }
-    const equippedElsewhere = isPetEquippedInOtherSlot(petProfile, pet.instanceId, slotIndex);
-    return !equippedElsewhere;
-  });
+  const availablePets = (petProfile.inventory ?? []).filter(Boolean);
   const hasSelectablePets = availablePets.length > 0;
   const placeholderPet = hasSelectablePets ? 'Choose an army/pet' : "You don't have any pet";
   const petOptions = availablePets.map((pet) => ({
-    label: `${pet.name} (Lv ${pet.level})`,
+    label: `${pet.name} (Lv ${pet.level})${(() => {
+      const equippedSlot = (petProfile.team ?? []).findIndex(
+        (entry, index) => index !== slotIndex && entry?.petInstanceId === pet.instanceId
+      );
+      return equippedSlot !== -1 ? ` (Equipped in #${equippedSlot + 1})` : '';
+    })()}`,
     value: pet.instanceId,
     emoji: pet.emoji,
     default: selectedPetId === pet.instanceId,
@@ -513,11 +502,13 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
     default: targetType === label,
   }));
 
+  const statusLine = statusMessage ? `\n-# ${statusMessage}` : '';
+
   return {
     flags: MessageFlags.Ephemeral,
     content: `## You are editting slot #${slotNumber}\n### Army/Pet selected: ${
       selectedPet ? `${selectedPet.name} ${selectedPet.emoji ?? ''}` : 'None'
-    }\n-# Target type: ${targetType ?? 'Not selected'}`,
+    }\n-# Target type: ${targetType ?? 'Not selected'}${statusLine}`,
     components: [
       {
         type: 1,
@@ -1423,6 +1414,20 @@ function applySelection(profile, type, value) {
   return profile;
 }
 
+async function updateTeamSummaryMessage(interaction, state, petProfile) {
+  if (!state?.channelId || !state?.huntMessageId) {
+    return;
+  }
+
+  try {
+    const channel = await interaction.client.channels.fetch(state.channelId);
+    const huntMessage = await channel.messages.fetch(state.huntMessageId);
+    await huntMessage.edit(buildTeamContent(interaction.user, petProfile));
+  } catch (error) {
+    console.warn('Failed to update hunt team message:', error);
+  }
+}
+
 async function handleTeamSlotSelect(interaction, userId, slot) {
   if (interaction.user.id !== userId) {
     await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
@@ -1450,31 +1455,28 @@ async function handleTeamPetSelection(interaction, userId, slot, petInstanceId) 
     return true;
   }
 
-  const state = teamEditState.get(userId) ?? {};
   const petProfile = getUserPetProfile(userId);
   const slotIndex = Math.max(0, Number(slot) - 1);
   const selectedPetId = petInstanceId === 'none' ? null : petInstanceId;
-
-  const duplicateSlotIndex = selectedPetId
+  const conflictSlot = selectedPetId
     ? (petProfile.team ?? []).findIndex(
         (entry, index) => index !== slotIndex && entry?.petInstanceId === selectedPetId
       )
     : -1;
 
-  if (duplicateSlotIndex !== -1) {
-    const humanSlot = duplicateSlotIndex + 1;
-    await safeErrorReply(
-      interaction,
-      `This army/pet is already equipped in slot #${humanSlot}. Unequip it first before reassigning.`
-    );
-    return true;
-  }
-
+  const state = teamEditState.get(userId) ?? {};
   state.slot = slotIndex + 1;
   state.petInstanceId = selectedPetId;
   teamEditState.set(userId, state);
 
-  await interaction.update(buildTeamEditContent(interaction.user, petProfile, slot, state));
+  const statusMessage =
+    conflictSlot !== -1
+      ? `This pet is currently equipped in slot #${conflictSlot + 1}. It will be moved here when you submit.`
+      : '';
+
+  await interaction.update(
+    buildTeamEditContent(interaction.user, petProfile, slot, state, statusMessage)
+  );
   return true;
 }
 
@@ -1513,34 +1515,36 @@ async function handleTeamSubmit(interaction, userId, slot) {
     return true;
   }
 
-  const duplicateSlotIndex = (petProfile.team ?? []).findIndex(
-    (entry, index) => index !== slotIndex && entry?.petInstanceId === state.petInstanceId
-  );
-
-  if (duplicateSlotIndex !== -1) {
-    await safeErrorReply(
-      interaction,
-      `This army/pet is already equipped in slot #${duplicateSlotIndex + 1}. Unequip it first.`
-    );
-    return true;
-  }
+  const removedSlots = [];
+  (petProfile.team ?? []).forEach((entry, index) => {
+    if (index !== slotIndex && entry?.petInstanceId === state.petInstanceId) {
+      removedSlots.push(index);
+      petProfile.team[index] = { petInstanceId: null, targetType: 'Random' };
+    }
+  });
 
   petProfile.team[slotIndex] = { petInstanceId: state.petInstanceId, targetType: state.targetType };
   updateUserPetProfile(userId, petProfile);
+
+  const statusMessage = removedSlots.length
+    ? `Auto-unequipped this pet from slot${removedSlots.length > 1 ? 's' : ''} ${
+        removedSlots.map((idx) => `#${idx + 1}`).join(', ')
+      } to avoid duplicates.`
+    : '';
+
+  const confirmation = buildTeamEditContent(
+    interaction.user,
+    petProfile,
+    slot,
+    {
+      petInstanceId: state.petInstanceId,
+      targetType: state.targetType,
+    },
+    statusMessage
+  );
+
+  await updateTeamSummaryMessage(interaction, state, petProfile);
   teamEditState.delete(userId);
-
-  const confirmation = buildTeamEditContent(interaction.user, petProfile, slot, {
-    petInstanceId: state.petInstanceId,
-    targetType: state.targetType,
-  });
-
-  try {
-    const channel = await interaction.client.channels.fetch(state.channelId);
-    const huntMessage = await channel.messages.fetch(state.huntMessageId);
-    await huntMessage.edit(buildTeamContent(interaction.user, petProfile));
-  } catch (error) {
-    console.warn('Failed to update hunt team message:', error);
-  }
 
   await interaction.update(confirmation);
   return true;
@@ -1570,13 +1574,7 @@ async function handleTeamUnequip(interaction, userId, slot) {
   state.targetType = null;
   teamEditState.set(userId, state);
 
-  try {
-    const channel = await interaction.client.channels.fetch(state.channelId);
-    const huntMessage = await channel.messages.fetch(state.huntMessageId);
-    await huntMessage.edit(buildTeamContent(interaction.user, petProfile));
-  } catch (error) {
-    console.warn('Failed to update hunt team message:', error);
-  }
+  await updateTeamSummaryMessage(interaction, state, petProfile);
 
   await interaction.update(buildTeamEditContent(interaction.user, petProfile, slotIndex + 1, state));
   return true;
