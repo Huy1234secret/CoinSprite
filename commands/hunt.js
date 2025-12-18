@@ -18,6 +18,7 @@ const { addCoinsToUser, addDiamondsToUser, addPrismaticToUser } = require('../sr
 const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
 const {
   addPetToInventory,
+  addXpToEquippedPets,
   buildBattlePets,
   findPetInstance,
   getUserPetProfile,
@@ -724,6 +725,10 @@ function performPetTurn(state) {
   }
 
   for (const pet of state.pets) {
+    if (!pet || pet.health <= 0) {
+      continue;
+    }
+
     const target = pickCreatureTarget(state.creatures, pet.targetType ?? 'Random');
     if (!target) {
       continue;
@@ -1037,25 +1042,58 @@ function calculateCreatureDamage(creature, action, isPlayerPoisoned) {
   return rollDamage(creature.damage?.min ?? 1, creature.damage?.max ?? creature.damage?.min ?? 1);
 }
 
-function performCreatureAction(state, creature) {
+function getAliveDefenders(state) {
+  const defenders = [];
+
+  if (state.player?.health > 0) {
+    defenders.push({ type: 'player', entity: state.player, label: 'you' });
+  }
+
+  for (const pet of state.pets ?? []) {
+    if (pet?.health > 0) {
+      defenders.push({ type: 'pet', entity: pet, label: pet.name ?? 'your pet' });
+    }
+  }
+
+  return defenders;
+}
+
+function formatCreatureActionMessage(action, creature, amount, targetLabel, isPlayerPoisoned) {
+  const baseTemplate = isPlayerPoisoned && action?.alreadyPoisonedMessage
+    ? action.alreadyPoisonedMessage
+    : action?.message;
+
+  const fallback = `${creature.name} attacked {target} for {amount} damages.`;
+  return (baseTemplate ?? fallback)
+    .replace('{amount}', amount)
+    .replace('{target}', targetLabel ?? 'you');
+}
+
+function performCreatureAction(state, creature, action, target) {
   const messages = [];
-  const player = state.player;
-  const action = pickCreatureAction(creature);
-  const isPlayerPoisoned = Boolean(findStatus(player, POISON_STATUS.type));
+  if (!target) {
+    return messages;
+  }
+
+  const isPlayerTarget = target.type === 'player';
+  const isPlayerPoisoned = isPlayerTarget && Boolean(findStatus(state.player, POISON_STATUS.type));
   const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
-  const mitigated = Math.max(1, rawDamage - (player.defense ?? 0));
-  player.health = Math.max(0, player.health - mitigated);
+  const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
+  const mitigated = Math.max(1, rawDamage - defenseMitigation);
+  target.entity.health = Math.max(0, target.entity.health - mitigated);
 
   if (action) {
-    const baseTemplate = isPlayerPoisoned && action.alreadyPoisonedMessage
-      ? action.alreadyPoisonedMessage
-      : action.message;
-    const actionMessage = (baseTemplate ?? `${creature.name} attacked you for {amount} damages.`)
-      .replace('{amount}', mitigated);
+    const actionMessage = formatCreatureActionMessage(
+      action,
+      creature,
+      mitigated,
+      target.label,
+      isPlayerPoisoned
+    );
     messages.push(actionMessage);
 
-    if (action.poison && !isPlayerPoisoned) {
-      const status = addStatusEffect(player, {
+    if (isPlayerTarget && action.poison && !isPlayerPoisoned) {
+      const status = addStatusEffect(state.player, {
         ...POISON_STATUS,
         percent: action.poison.percent,
         remaining: action.poison.duration ?? action.poison.remaining ?? Infinity,
@@ -1068,7 +1106,8 @@ function performCreatureAction(state, creature) {
     return messages;
   }
 
-  messages.push(`${creature.name} has **Bitten** you and dealth **${mitigated} damages**.`);
+  const targetLabel = target.label ?? 'you';
+  messages.push(`${creature.name} has **Bitten** ${targetLabel} and dealth **${mitigated} damages**.`);
   return messages;
 }
 
@@ -1078,9 +1117,23 @@ function resolveCreatureTurn(state) {
     if (creature.health <= 0 || state.player.health <= 0) {
       continue;
     }
-    const hits = Math.max(1, creature.hits ?? (creature.attackType === 'Multi' ? 2 : 1));
+    const hits = Math.max(1, creature.hits ?? 1);
+    const action = pickCreatureAction(creature);
     for (let i = 0; i < hits; i++) {
-      messages.push(...performCreatureAction(state, creature));
+      const defenders = getAliveDefenders(state);
+      if (!defenders.length) {
+        break;
+      }
+
+      if (creature.attackType === 'Multi') {
+        for (const target of defenders) {
+          messages.push(...performCreatureAction(state, creature, action, target));
+        }
+      } else {
+        const targetIndex = Math.floor(Math.random() * defenders.length);
+        messages.push(...performCreatureAction(state, creature, action, defenders[targetIndex]));
+      }
+
       if (state.player.health <= 0) {
         break;
       }
@@ -1648,6 +1701,9 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     const drops = rollCreatureDrops(state.initialCreatures);
     const grantedDrops = applyDrops(profile, drops);
     const leveledUp = applyRewards(userId, profile, rewards);
+    const petProfile = getUserPetProfile(userId);
+    const { profile: updatedPetProfile } = addXpToEquippedPets(petProfile, rewards.xp);
+    updateUserPetProfile(userId, updatedPetProfile);
     updateUserProfile(userId, profile);
     clearHuntInactivityTimeout(userId);
     state.isEnding = true;

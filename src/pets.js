@@ -176,6 +176,74 @@ function ensurePetProfile(profile = {}) {
   return { inventory, team };
 }
 
+function applyPetXp(pet, xpAmount) {
+  if (!pet || !Number.isFinite(xpAmount) || xpAmount <= 0) {
+    return { pet, leveledUp: 0 };
+  }
+
+  let updatedPet = { ...pet };
+  let remainingXp = (pet.xp ?? 0) + xpAmount;
+  let leveledUp = 0;
+
+  while (true) {
+    const requirement = calculatePetXpRequirement(updatedPet.level, updatedPet.rarity);
+    if (requirement === null || remainingXp < requirement) {
+      break;
+    }
+
+    remainingXp -= requirement;
+    updatedPet.level = Math.min(PET_LEVEL_CAP, (updatedPet.level ?? 0) + 1);
+    leveledUp += 1;
+
+    if (updatedPet.level >= PET_LEVEL_CAP) {
+      remainingXp = 0;
+      break;
+    }
+  }
+
+  updatedPet.xp = remainingXp;
+  updatedPet.nextLevelXp = calculatePetXpRequirement(updatedPet.level, updatedPet.rarity);
+
+  return { pet: updatedPet, leveledUp };
+}
+
+function addXpToEquippedPets(profile, xpAmount) {
+  const normalizedProfile = ensurePetProfile(profile);
+  const leveledPets = [];
+
+  if (!Number.isFinite(xpAmount) || xpAmount <= 0) {
+    return { profile: normalizedProfile, leveledPets };
+  }
+
+  const inventoryById = new Map(
+    (normalizedProfile.inventory ?? []).map((pet) => [pet.instanceId, pet])
+  );
+
+  for (const slot of normalizedProfile.team ?? []) {
+    if (!slot?.petInstanceId) {
+      continue;
+    }
+
+    const pet = inventoryById.get(slot.petInstanceId);
+    if (!pet) {
+      continue;
+    }
+
+    const { pet: updatedPet, leveledUp } = applyPetXp(pet, xpAmount);
+    inventoryById.set(updatedPet.instanceId, updatedPet);
+
+    if (leveledUp > 0) {
+      leveledPets.push({ pet: updatedPet, leveledUp });
+    }
+  }
+
+  normalizedProfile.inventory = normalizedProfile.inventory.map(
+    (pet) => inventoryById.get(pet.instanceId) ?? pet
+  );
+
+  return { profile: normalizedProfile, leveledPets };
+}
+
 function getUserPetProfile(userId) {
   const profiles = loadPetProfiles();
   const userKey = String(userId);
@@ -277,4 +345,6 @@ module.exports = {
   buildBattlePet,
   scalePetHealth,
   scalePetDamage,
+  applyPetXp,
+  addXpToEquippedPets,
 };
