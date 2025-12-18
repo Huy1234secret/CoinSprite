@@ -288,10 +288,10 @@ function buildStatsContainer(profile, userId) {
 
 function gearPlaceholder(profile) {
   if (!profile.gear_equipped) {
-    return `${FIST_GEAR.name} ${FIST_GEAR.emoji}`;
+    return 'Select your gear';
   }
   const { name, emoji } = profile.gear_equipped;
-  return `${name ?? 'Gear'} ${emoji ?? ''}`.trim();
+  return `${emoji ?? ''} ${name ?? 'Gear'}`.trim();
 }
 
 function miscPlaceholder(profile) {
@@ -306,13 +306,14 @@ function miscPlaceholder(profile) {
 }
 
 function buildSelectOptions(items, equippedName, includeFist = false) {
+  const selectedName = equippedName ?? null;
   const options = [];
   if (includeFist) {
     options.push({
       label: FIST_GEAR.name,
       value: FIST_GEAR.name,
       emoji: FIST_GEAR.emoji,
-      default: equippedName ? equippedName === FIST_GEAR.name : undefined,
+      default: selectedName === FIST_GEAR.name,
     });
   }
   for (const item of items) {
@@ -324,7 +325,7 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
       label: name,
       value: name,
       emoji: item.emoji,
-      default: equippedName ? equippedName === name : undefined,
+      default: selectedName === name,
     });
   }
 
@@ -336,6 +337,7 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
 }
 
 function buildEquipmentContainers(profile, userId) {
+  const equippedGearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
   const gearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
   const gearEmoji = profile.gear_equipped?.emoji ?? FIST_GEAR.emoji;
   const infoContainer = {
@@ -374,7 +376,7 @@ function buildEquipmentContainers(profile, userId) {
             placeholder: gearPlaceholder(profile),
             options: buildSelectOptions(
               profile.gear_inventory ?? [],
-              profile.gear_equipped?.name,
+              equippedGearName,
               true
             ),
             disabled: false,
@@ -412,6 +414,16 @@ function buildEquipmentContent(profile, userId) {
     flags: COMPONENTS_V2_FLAG,
     components: buildEquipmentContainers(profile, userId),
   };
+}
+
+function isPetEquippedInOtherSlot(petProfile, petInstanceId, currentSlotIndex) {
+  if (!petInstanceId) {
+    return false;
+  }
+
+  return (petProfile.team ?? []).some(
+    (entry, index) => index !== currentSlotIndex && entry?.petInstanceId === petInstanceId
+  );
 }
 
 function formatTeamMessage(user, petProfile) {
@@ -471,19 +483,25 @@ function buildTeamContent(user, petProfile) {
 
 function buildTeamEditContent(user, petProfile, slot, state = {}) {
   const slotNumber = Number(slot);
-  const selectedPetId = state.petInstanceId ?? petProfile.team?.[slotNumber - 1]?.petInstanceId ?? null;
+  const slotIndex = Math.max(0, slotNumber - 1);
+  const selectedPetId = state.petInstanceId ?? petProfile.team?.[slotIndex]?.petInstanceId ?? null;
   const selectedPet = selectedPetId ? findPetInstance(petProfile, selectedPetId) : null;
-  const targetType = state.targetType ?? petProfile.team?.[slotNumber - 1]?.targetType ?? null;
-  const hasEquipped = Boolean(petProfile.team?.[slotNumber - 1]?.petInstanceId);
+  const targetType = state.targetType ?? petProfile.team?.[slotIndex]?.targetType ?? null;
+  const hasEquipped = Boolean(petProfile.team?.[slotIndex]?.petInstanceId);
 
   const hasPets = (petProfile.inventory ?? []).length > 0;
   const placeholderPet = hasPets ? 'Choose an army/pet' : "You don't have any pet/army";
-  const petOptions = (petProfile.inventory ?? []).map((pet) => ({
-    label: `${pet.name} (Lv ${pet.level})`,
-    value: pet.instanceId,
-    emoji: pet.emoji,
-    default: selectedPetId === pet.instanceId,
-  }));
+  const petOptions = (petProfile.inventory ?? []).map((pet) => {
+    const equippedElsewhere = isPetEquippedInOtherSlot(petProfile, pet.instanceId, slotIndex);
+    return {
+      label: `${pet.name} (Lv ${pet.level})`,
+      value: pet.instanceId,
+      emoji: pet.emoji,
+      default: selectedPetId === pet.instanceId,
+      description: equippedElsewhere ? 'Equipped in another slot' : undefined,
+      disabled: equippedElsewhere,
+    };
+  });
 
   const canPickTargets = Boolean(selectedPet);
   const targetPlaceholder = canPickTargets ? 'Choose target type' : 'Select an army/pet first';
@@ -1432,8 +1450,26 @@ async function handleTeamPetSelection(interaction, userId, slot, petInstanceId) 
 
   const state = teamEditState.get(userId) ?? {};
   const petProfile = getUserPetProfile(userId);
-  state.slot = Number(slot);
-  state.petInstanceId = petInstanceId === 'none' ? null : petInstanceId;
+  const slotIndex = Math.max(0, Number(slot) - 1);
+  const selectedPetId = petInstanceId === 'none' ? null : petInstanceId;
+
+  const duplicateSlotIndex = selectedPetId
+    ? (petProfile.team ?? []).findIndex(
+        (entry, index) => index !== slotIndex && entry?.petInstanceId === selectedPetId
+      )
+    : -1;
+
+  if (duplicateSlotIndex !== -1) {
+    const humanSlot = duplicateSlotIndex + 1;
+    await safeErrorReply(
+      interaction,
+      `This army/pet is already equipped in slot #${humanSlot}. Unequip it first before reassigning.`
+    );
+    return true;
+  }
+
+  state.slot = slotIndex + 1;
+  state.petInstanceId = selectedPetId;
   teamEditState.set(userId, state);
 
   await interaction.update(buildTeamEditContent(interaction.user, petProfile, slot, state));
@@ -1472,6 +1508,18 @@ async function handleTeamSubmit(interaction, userId, slot) {
   const slotIndex = Number(slot) - 1;
   if (!findPetInstance(petProfile, state.petInstanceId)) {
     await safeErrorReply(interaction, 'The selected pet/army could not be found.');
+    return true;
+  }
+
+  const duplicateSlotIndex = (petProfile.team ?? []).findIndex(
+    (entry, index) => index !== slotIndex && entry?.petInstanceId === state.petInstanceId
+  );
+
+  if (duplicateSlotIndex !== -1) {
+    await safeErrorReply(
+      interaction,
+      `This army/pet is already equipped in slot #${duplicateSlotIndex + 1}. Unequip it first.`
+    );
     return true;
   }
 
