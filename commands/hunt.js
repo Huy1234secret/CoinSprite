@@ -285,6 +285,11 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
 function buildEquipmentContent(profile, userId) {
   const gearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
   const gearEmoji = profile.gear_equipped?.emoji ?? FIST_GEAR.emoji;
+  const equippedGearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
+  const gearOptions = buildSelectOptions(profile.gear_inventory ?? [], equippedGearName, true);
+  if (gearOptions.length && !gearOptions.some((option) => option.default)) {
+    gearOptions[0] = { ...gearOptions[0], default: true };
+  }
   const embed = buildEmbed({
     title: 'Hunting Equipment',
     description: `* Gear equipped: ${gearName} ${gearEmoji}\n* Misc equipped: Not available yet`,
@@ -298,7 +303,7 @@ function buildEquipmentContent(profile, userId) {
         type: 3,
         custom_id: `${HUNT_SELECT_PREFIX}gear:${userId}`,
         placeholder: gearPlaceholder(profile),
-        options: buildSelectOptions(profile.gear_inventory ?? [], profile.gear_equipped?.name, true),
+        options: gearOptions,
         disabled: false,
         min_values: 1,
         max_values: 1,

@@ -174,18 +174,25 @@ def misc_placeholder(profile: dict[str, Any]) -> str:
     return f"{equipped.get('name', 'Misc')} {equipped.get('emoji', '')}".strip()
 
 
-def build_gear_options(profile: dict[str, Any]) -> List[discord.SelectOption]:
+def build_gear_options(
+    profile: dict[str, Any], equipped_name: Optional[str] = None
+) -> List[discord.SelectOption]:
+    equipped_name = equipped_name or (profile.get("gear_equipped") or {}).get("name")
     options = []
     for item in profile.get("gear_inventory", []):
         if not isinstance(item, dict):
             continue
+        item_name = item.get("name", "Gear")
         options.append(
             discord.SelectOption(
-                label=item.get("name", "Gear"),
-                value=item.get("name", "Gear"),
+                label=item_name,
+                value=item_name,
                 emoji=item.get("emoji"),
+                default=equipped_name == item_name,
             )
         )
+    if options and not any(option.default for option in options):
+        options[0].default = True
     return options
 
 
@@ -300,7 +307,8 @@ class HuntStatsView(BaseHuntView):
 
 class GearSelect(discord.ui.Select):
     def __init__(self, user: discord.abc.User, profile: dict[str, Any]):
-        options = build_gear_options(profile)
+        equipped_name = (profile.get("gear_equipped") or {}).get("name")
+        options = build_gear_options(profile, equipped_name)
         placeholder = gear_placeholder(profile)
         super().__init__(
             placeholder=placeholder,
