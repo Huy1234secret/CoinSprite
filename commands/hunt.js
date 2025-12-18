@@ -489,19 +489,21 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
   const targetType = state.targetType ?? petProfile.team?.[slotIndex]?.targetType ?? null;
   const hasEquipped = Boolean(petProfile.team?.[slotIndex]?.petInstanceId);
 
-  const hasPets = (petProfile.inventory ?? []).length > 0;
-  const placeholderPet = hasPets ? 'Choose an army/pet' : "You don't have any pet/army";
-  const petOptions = (petProfile.inventory ?? []).map((pet) => {
+  const availablePets = (petProfile.inventory ?? []).filter((pet) => {
+    if (!pet) {
+      return false;
+    }
     const equippedElsewhere = isPetEquippedInOtherSlot(petProfile, pet.instanceId, slotIndex);
-    return {
-      label: `${pet.name} (Lv ${pet.level})`,
-      value: pet.instanceId,
-      emoji: pet.emoji,
-      default: selectedPetId === pet.instanceId,
-      description: equippedElsewhere ? 'Equipped in another slot' : undefined,
-      disabled: equippedElsewhere,
-    };
+    return !equippedElsewhere;
   });
+  const hasSelectablePets = availablePets.length > 0;
+  const placeholderPet = hasSelectablePets ? 'Choose an army/pet' : "You don't have any pet";
+  const petOptions = availablePets.map((pet) => ({
+    label: `${pet.name} (Lv ${pet.level})`,
+    value: pet.instanceId,
+    emoji: pet.emoji,
+    default: selectedPetId === pet.instanceId,
+  }));
 
   const canPickTargets = Boolean(selectedPet);
   const targetPlaceholder = canPickTargets ? 'Choose target type' : 'Select an army/pet first';
@@ -525,7 +527,7 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
             custom_id: `${TEAM_PET_SELECT_PREFIX}${user.id}:${slotNumber}`,
             placeholder: placeholderPet,
             options: petOptions.length ? petOptions : [{ label: placeholderPet, value: 'none', default: true }],
-            disabled: !hasPets,
+            disabled: !hasSelectablePets,
             min_values: 1,
             max_values: 1,
           },
