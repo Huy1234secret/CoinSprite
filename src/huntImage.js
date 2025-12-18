@@ -3,6 +3,7 @@ const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
 // === CONFIGURATION ===
 const CANVAS_WIDTH = 1280;
 let CANVAS_HEIGHT = 480; // Updated dynamically based on card counts
+const backgroundCache = new Map();
 
 // === JUNGLE THEME PALETTE ===
 const PALETTE = {
@@ -492,7 +493,8 @@ async function createHuntBattleImage({ player, enemies }) {
     const enemyEffects = await Promise.all((enemies || []).map((e) => prepareEffectIcons(e.effects || [])));
 
     // 2. Draw Background
-    drawBackground(ctx);
+    const background = getBackgroundCanvas(CANVAS_HEIGHT);
+    ctx.drawImage(background, 0, 0);
 
     // === PLAYER ZONE (LEFT) ===
     const ZONE_PAD = 40;
@@ -585,6 +587,22 @@ async function createHuntBattleImage({ player, enemies }) {
     }
 
     return canvas.toBuffer('image/png');
+}
+
+function getBackgroundCanvas(height) {
+    const cached = backgroundCache.get(height);
+    if (cached) return cached;
+
+    const backgroundCanvas = createCanvas(CANVAS_WIDTH, height);
+    const backgroundCtx = backgroundCanvas.getContext('2d');
+
+    const previousHeight = CANVAS_HEIGHT;
+    CANVAS_HEIGHT = height;
+    drawBackground(backgroundCtx);
+    CANVAS_HEIGHT = previousHeight;
+
+    backgroundCache.set(height, backgroundCanvas);
+    return backgroundCanvas;
 }
 
 module.exports = { createHuntBattleImage };
