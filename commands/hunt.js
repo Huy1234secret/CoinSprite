@@ -384,13 +384,8 @@ function buildEquipmentContainers(profile, userId) {
         ],
       },
       {
-        type: 1,
-        components: [
-          {
-            type: 10,
-            content: '-# Misc selection will be available later.',
-          },
-        ],
+        type: 10,
+        content: '-# Misc selection will be available later.',
       },
     ],
   };

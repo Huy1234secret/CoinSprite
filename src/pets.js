@@ -80,6 +80,29 @@ function getRarityMultiplier(rarity) {
   return RARITY_MULTIPLIERS[rarity] ?? 1;
 }
 
+function pickPreferredPet(existing, candidate) {
+  if (!existing) {
+    return candidate;
+  }
+
+  const existingLevel = existing.level ?? 0;
+  const candidateLevel = candidate.level ?? 0;
+  if (candidateLevel > existingLevel) {
+    return candidate;
+  }
+  if (candidateLevel < existingLevel) {
+    return existing;
+  }
+
+  const existingXp = existing.xp ?? 0;
+  const candidateXp = candidate.xp ?? 0;
+  if (candidateXp > existingXp) {
+    return candidate;
+  }
+
+  return existing;
+}
+
 function calculatePetXpRequirement(level, rarity) {
   if (level >= PET_LEVEL_CAP) {
     return null;
@@ -113,13 +136,27 @@ function normalizePetInstance(pet) {
 }
 
 function ensurePetProfile(profile = {}) {
-  const inventory = Array.isArray(profile.inventory) ? profile.inventory.map(normalizePetInstance).filter(Boolean) : [];
-  const team = Array.isArray(profile.team)
-    ? profile.team.map((entry) => ({
-        petInstanceId: entry?.petInstanceId ?? null,
-        targetType: entry?.targetType ?? 'Random',
-      }))
-    : [{ petInstanceId: null, targetType: 'Random' }, { petInstanceId: null, targetType: 'Random' }, { petInstanceId: null, targetType: 'Random' }];
+  const normalizedInventory = Array.isArray(profile.inventory)
+    ? profile.inventory.map(normalizePetInstance).filter(Boolean)
+    : [];
+
+  const uniqueById = new Map();
+  for (const pet of normalizedInventory) {
+    const existing = uniqueById.get(pet.id);
+    uniqueById.set(pet.id, pickPreferredPet(existing, pet));
+  }
+  const inventory = Array.from(uniqueById.values());
+  const validInstanceIds = new Set(inventory.map((pet) => pet.instanceId));
+
+  const rawTeam = Array.isArray(profile.team) ? profile.team : [];
+  const team = [0, 1, 2].map((index) => {
+    const entry = rawTeam[index] ?? {};
+    const petInstanceId = validInstanceIds.has(entry?.petInstanceId) ? entry.petInstanceId : null;
+    return {
+      petInstanceId,
+      targetType: entry?.targetType ?? 'Random',
+    };
+  });
 
   return { inventory, team };
 }
@@ -144,6 +181,11 @@ function addPetToInventory(userId, petId) {
   const profile = getUserPetProfile(userId);
   const definition = getPetDefinition(petId);
   if (!definition) {
+    return profile;
+  }
+
+  const hasPetType = (profile.inventory ?? []).some((pet) => pet.id === petId);
+  if (hasPetType) {
     return profile;
   }
 
