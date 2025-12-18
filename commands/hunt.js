@@ -51,7 +51,6 @@ const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
 
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
 const teamEditState = new Map();
 
@@ -225,64 +224,12 @@ function buildNavigationRow({
   };
 }
 
-function buildHomeContainer(profile, userId, options = {}) {
-  const { message, accentColor = 0xffffff } = options;
-  const messageText = message
-    ? message
-    : userHasHuntingTools(profile)
-      ? '-# Press **HUNT** button to start hunting.'
-      : "-# You don't have any HUNTING tool...";
-
+function buildEmbed({ title, description, color = 0xffffff, thumbnail }) {
   return {
-    type: 17,
-    accent_color: accentColor,
-    components: [
-      {
-        type: 9,
-        components: [
-          {
-            type: 10,
-            content: `## Hunting\n${messageText}`,
-          },
-        ],
-        accessory: {
-          type: 11,
-          media: { url: HUNT_THUMBNAIL },
-          description: 'Hunt icon',
-        },
-      },
-      { type: 14 },
-      buildNavigationRow({ userId, view: 'home' }),
-    ],
-  };
-}
-
-function buildStatsContainer(profile, userId) {
-  const { level, xp, next_level_xp: nextLevel, health, defense } = profile;
-  const progressBar = buildProgressBar(xp, nextLevel);
-  const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
-
-  return {
-    type: 17,
-    accent_color: 0xffffff,
-    components: [
-      {
-        type: 9,
-        components: [
-          {
-            type: 10,
-            content: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: ${health} ${HEART_EMOJI}\n* User Defense: ${defense} ${DEFENSE_EMOJI}`,
-          },
-        ],
-        accessory: {
-          type: 11,
-          media: { url: HUNT_THUMBNAIL },
-          description: 'Hunt stats icon',
-        },
-      },
-      { type: 14 },
-      buildNavigationRow({ userId, view: 'stats' }),
-    ],
+    title,
+    description,
+    color,
+    thumbnail: thumbnail ? { url: thumbnail } : undefined,
   };
 }
 
@@ -335,87 +282,85 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
   return options;
 }
 
-function buildEquipmentContainers(profile, userId) {
+function buildEquipmentContent(profile, userId) {
   const gearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
   const gearEmoji = profile.gear_equipped?.emoji ?? FIST_GEAR.emoji;
-  const infoContainer = {
-    type: 17,
-    accent_color: 0xffffff,
-    components: [
-      {
-        type: 9,
-        components: [
-          {
-            type: 10,
-            content: `## Hunting Equipment\n### * Gear equipped: ${gearName} ${gearEmoji}\n### * Misc equipped: Not available yet`,
-          },
-        ],
-        accessory: {
-          type: 11,
-          media: { url: HUNT_THUMBNAIL },
-          description: 'Equipment icon',
-        },
-      },
-      { type: 14 },
-      buildNavigationRow({ userId, view: 'equipment' }),
-    ],
-  };
+  const embed = buildEmbed({
+    title: 'Hunting Equipment',
+    description: `* Gear equipped: ${gearName} ${gearEmoji}\n* Misc equipped: Not available yet`,
+    thumbnail: HUNT_THUMBNAIL,
+  });
 
-  const selectionContainer = {
-    type: 17,
-    accent_color: 0x000000,
+  const gearSelectRow = {
+    type: 1,
     components: [
       {
-        type: 1,
-        components: [
-          {
-            type: 3,
-            custom_id: `${HUNT_SELECT_PREFIX}gear:${userId}`,
-            placeholder: gearPlaceholder(profile),
-            options: buildSelectOptions(
-              profile.gear_inventory ?? [],
-              profile.gear_equipped?.name,
-              true
-            ),
-            disabled: false,
-            min_values: 1,
-            max_values: 1,
-          },
-        ],
-      },
-      {
-        type: 1,
-        components: [
-          {
-            type: 10,
-            content: '-# Misc selection will be available later.',
-          },
-        ],
+        type: 3,
+        custom_id: `${HUNT_SELECT_PREFIX}gear:${userId}`,
+        placeholder: gearPlaceholder(profile),
+        options: buildSelectOptions(profile.gear_inventory ?? [], profile.gear_equipped?.name, true),
+        disabled: false,
+        min_values: 1,
+        max_values: 1,
       },
     ],
   };
 
-  return [infoContainer, selectionContainer];
+  const miscRow = {
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 2,
+        custom_id: 'hunt-misc-disabled',
+        label: 'Misc selection coming soon',
+        disabled: true,
+      },
+    ],
+  };
+
+  return {
+    embeds: [embed],
+    components: [gearSelectRow, miscRow, buildNavigationRow({ userId, view: 'equipment' })],
+  };
 }
 
 function buildHomeContent(profile, userId, options = {}) {
+  const { message, accentColor = 0xffffff } = options;
+  const messageText = message
+    ? message
+    : userHasHuntingTools(profile)
+      ? 'Press **HUNT** button to start hunting.'
+      : "You don't have any HUNTING tool...";
+
+  const embed = buildEmbed({
+    title: 'Hunting',
+    description: messageText,
+    color: accentColor,
+    thumbnail: HUNT_THUMBNAIL,
+  });
+
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [buildHomeContainer(profile, userId, options)],
+    embeds: [embed],
+    components: [buildNavigationRow({ userId, view: 'home' })],
   };
 }
 
 function buildStatsContent(profile, userId) {
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [buildStatsContainer(profile, userId)],
-  };
-}
+  const { level, xp, next_level_xp: nextLevel, health, defense } = profile;
+  const progressBar = buildProgressBar(xp, nextLevel);
+  const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
+  const description = `Hunt Level: ${level}\n${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\nUser Health: ${health} ${HEART_EMOJI}\nUser Defense: ${defense} ${DEFENSE_EMOJI}`;
 
-function buildEquipmentContent(profile, userId) {
+  const embed = buildEmbed({
+    title: 'Hunting Stat',
+    description,
+    thumbnail: HUNT_THUMBNAIL,
+  });
+
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: buildEquipmentContainers(profile, userId),
+    embeds: [embed],
+    components: [buildNavigationRow({ userId, view: 'stats' })],
   };
 }
 
@@ -443,33 +388,28 @@ function buildTeamContent(user, petProfile) {
   const slotOptions = [1, 2, 3].map((slot) => ({ label: `#${slot}`, value: String(slot) }));
 
   return {
-    flags: COMPONENTS_V2_FLAG,
+    embeds: [
+      buildEmbed({
+        title: `${user.username}'s Team`,
+        description: teamMessage,
+        thumbnail: HUNT_THUMBNAIL,
+      }),
+    ],
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
           {
-            type: 10,
-            content: `## ${user.username}'s Team\n${teamMessage}`,
+            type: 3,
+            custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
+            placeholder: 'Select a slot to edit',
+            options: slotOptions,
+            min_values: 1,
+            max_values: 1,
           },
-          { type: 14 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${TEAM_SLOT_SELECT_PREFIX}${user.id}`,
-                placeholder: 'Select a slot to edit',
-                options: slotOptions,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
-          },
-          buildNavigationRow({ userId: user.id, view: 'team' }),
         ],
       },
+      buildNavigationRow({ userId: user.id, view: 'team' }),
     ],
   };
 }
@@ -557,19 +497,13 @@ function buildTeamEditContent(user, petProfile, slot, state = {}) {
 
 function buildHuntDelayContent() {
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0x808080,
-        components: [
-          {
-            type: 10,
-            content: '### You are going for a hunt...'
-          }
-        ]
-      }
-    ]
+    embeds: [
+      buildEmbed({
+        title: 'Hunting',
+        description: 'You are going for a hunt...',
+        color: 0x808080,
+      }),
+    ],
   };
 }
 
@@ -1137,73 +1071,41 @@ function buildBattleContent(state, user, attachment) {
     : headerCreatureName;
   const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
   const headerLine = state.isEnding
-    ? '### Hunt ending soon'
+    ? 'Hunt ending soon'
     : creatures.length
-      ? `### You found a ${headerCreatureLabel}`
-      : '### Hunt cleared';
+      ? `You found a ${headerCreatureLabel}`
+      : 'Hunt cleared';
   const actionsLine = state.isEnding
-    ? '-# Hunt ending...'
-    : `-# You have \`${state.player.actionsLeft} action${state.player.actionsLeft === 1 ? '' : 's'}\` left`;
+    ? 'Hunt ending...'
+    : `You have \`${state.player.actionsLeft} action${state.player.actionsLeft === 1 ? '' : 's'}\` left`;
   const selectDisabled = state.isEnding || !creatures.length || state.player.actionsLeft <= 0;
 
-  return {
-    flags: COMPONENTS_V2_FLAG,
+  const embedDescription = `${actionsLine}\n\n${formatActionMessages(state)}`;
+  const embed = buildEmbed({
+    title: headerLine,
+    description: embedDescription,
+    thumbnail,
+  });
+  embed.image = { url: 'attachment://hunt-battle.png' };
+
+  const targetRow = {
+    type: 1,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
-            type: 10,
-            content: headerLine,
-          },
-          {
-            type: 12,
-            items: [
-              {
-                media: { url: 'attachment://hunt-battle.png' },
-              },
-            ],
-          },
-        ],
-        accessory: {
-          type: 11,
-          media: { url: thumbnail },
-          description: 'Hunt target thumbnail',
-        },
-      },
-      {
-        type: 17,
-        accent_color: 0x000000,
-        components: [
-          { type: 10, content: formatActionMessages(state) },
-        ],
-      },
-      {
-        type: 17,
-        accent_color: 0x2ecc71,
-        components: [
-          {
-            type: 10,
-            content: actionsLine,
-          },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
-                placeholder: 'Select a creature to attack',
-                options: buildCreatureOptions(state),
-                disabled: selectDisabled,
-                min_values: 1,
-                max_values: 1,
-              },
-            ],
-          },
-        ],
+        type: 3,
+        custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
+        placeholder: 'Select a creature to attack',
+        options: buildCreatureOptions(state),
+        disabled: selectDisabled,
+        min_values: 1,
+        max_values: 1,
       },
     ],
+  };
+
+  return {
+    embeds: [embed],
+    components: [targetRow],
     files: [attachment],
   };
 }
