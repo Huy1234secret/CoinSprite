@@ -112,7 +112,7 @@ const CORRUPTED_CUBE = {
   rarity: 'Secret',
   rarityEmoji: RARITY_EMOJIS.Secret,
   rarityIcon: RARITY_EMOJIS.Secret,
-  attackType: 'Singular',
+  attackType: 'Multi',
   reward: {
     coins: { min: 10000, max: 22222 },
     xp: { min: 1000, max: 2500 },
