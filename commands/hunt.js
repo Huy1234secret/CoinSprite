@@ -629,7 +629,7 @@ function buildDungeonInfoContent(dungeonProfile, dungeonLevel, stage) {
     .join('\n');
 
   return {
-    flags: MessageFlags.Ephemeral,
+    flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG,
     components: [
       {
         type: 17,
