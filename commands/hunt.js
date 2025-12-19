@@ -52,6 +52,7 @@ const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
 const DEFENSE_STATUS = { type: 'Defense', name: 'Defense', emoji: DEFENSE_EMOJI };
+const ACTION_LOCK_STATUS = { type: 'ActionLock', name: 'Root Trap', emoji: '⛓️' };
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -896,6 +897,11 @@ function applyStatusEffects(state) {
       player.health = Math.max(0, player.health - damage);
       messages.push(`${POISON_STATUS.emoji} Poison saps **${damage}** HP from you.`);
     }
+    if (status.type === ACTION_LOCK_STATUS.type) {
+      const penalty = Math.max(1, status.amount ?? 1);
+      player.actionPenalty = Math.max(player.actionPenalty ?? 0, penalty);
+      messages.push(`${ACTION_LOCK_STATUS.emoji} Roots bind you. You will lose ${penalty} action.`);
+    }
 
     let remaining = status.remaining ?? status.duration;
     if (remaining !== Infinity) {
@@ -1127,6 +1133,13 @@ function performCreatureAction(state, creature, action, target) {
       });
       const durationText = formatStatusDuration(status?.remaining ?? action.poison.duration ?? Infinity);
       messages.push(`${POISON_STATUS.emoji} You got poisoned for ${durationText} round`);
+    }
+    if (isPlayerTarget && action.actionPenalty) {
+      addStatusEffect(state.player, {
+        ...ACTION_LOCK_STATUS,
+        amount: action.actionPenalty,
+        remaining: 1,
+      });
     }
 
     return messages;
@@ -1773,6 +1786,10 @@ async function handleAttackSelection(interaction, userId, creatureId) {
     }
 
     state.player.actionsLeft = ACTIONS_PER_TURN;
+    if (state.player.actionPenalty) {
+      state.player.actionsLeft = Math.max(0, state.player.actionsLeft - state.player.actionPenalty);
+      state.player.actionPenalty = 0;
+    }
     state.actionMessages = [
       ...playerMessages,
       ...enemyMessages,

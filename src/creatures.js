@@ -144,6 +144,7 @@ const JUNGLE_BETTLE = {
   drops: [
     { itemId: 'ITBeastMeat', chance: 0.4 },
     { itemId: 'ITMossyShavings', chance: 0.25 },
+    { itemId: 'ITBeetleCarapaceShard', chance: 0.55 },
   ],
 };
 
@@ -226,6 +227,231 @@ const CLAWFOOT_BIRD = {
   ],
 };
 
+const BRISTLE_JAGUAR = {
+  name: 'Bristle Jaguar',
+  emoji: '<:MRBristleJaguar:1450727571179442186>',
+  baseHealth: 170,
+  rarity: 'Rare',
+  rarityEmoji: RARITY_EMOJIS.Rare,
+  rarityIcon: RARITY_EMOJIS.Rare,
+  attackType: 'Singular',
+  reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
+  levelDistribution: [
+    { level: 1, chance: 0.4 },
+    { level: 2, chance: 0.3 },
+    { level: 3, chance: 0.2 },
+    { level: 4, chance: 0.08 },
+    { level: 5, chance: 0.02 },
+  ],
+  actions: [
+    {
+      key: 'clawScratch',
+      name: 'Claw Scratch',
+      chance: 0.65,
+      damage: { min: 15, max: 20 },
+      message:
+        'The Bristle Jarguar Scratched {target} with sharp fingers. Dealt {amount} damages',
+    },
+    {
+      key: 'bite',
+      name: 'Bite',
+      chance: 0.35,
+      damage: { min: 30, max: 45 },
+      message:
+        'The Bristle Jarguar Scratched strongly bites {target}. Dealt {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.6 },
+    { itemId: 'ITToughHideScrap', chance: 0.55 },
+    { itemId: 'ITSharpFang', chance: 0.35 },
+    { itemId: 'ITHunterPeltStrip', chance: 0.18 },
+    { itemId: 'ITJaguarSoulFang', chance: 0.05 },
+  ],
+};
+
+const SPOREBACK_TORTOISE = {
+  name: 'Sporeback Tortoise',
+  emoji: '<:MRSporebackTortoise:1450727579492548718>',
+  baseHealth: 230,
+  rarity: 'Rare',
+  rarityEmoji: RARITY_EMOJIS.Rare,
+  rarityIcon: RARITY_EMOJIS.Rare,
+  attackType: 'Singular',
+  defense: 0.35,
+  reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
+  levelDistribution: [
+    { level: 1, chance: 0.4 },
+    { level: 2, chance: 0.3 },
+    { level: 3, chance: 0.2 },
+    { level: 4, chance: 0.08 },
+    { level: 5, chance: 0.02 },
+  ],
+  actions: [
+    {
+      key: 'poisonGas',
+      name: 'Poison Gas',
+      chance: 0.3,
+      damage: { min: 1, max: 1 },
+      poison: { percent: 0.25, duration: 3 },
+      message:
+        'The Sporeback Tortoise release a poisonous gas from it mush. Poisoned everyone for 3 turns',
+    },
+    {
+      key: 'bite',
+      name: 'Bite',
+      chance: 0.7,
+      damage: { min: 15, max: 20 },
+      damageIfPoisoned: { min: 20, max: 35 },
+      message: 'The Sporeback Tortoise bite {target}. Deal {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.6 },
+    { itemId: 'ITMossyShavings', chance: 0.5 },
+    { itemId: 'ITPoisonSporeCluster', chance: 0.35 },
+    { itemId: 'ITShellguardPlate', chance: 0.18 },
+    { itemId: 'ITBeetleCarapaceShard', chance: 0.6 },
+  ],
+};
+
+const RAZORWING_PARROT = {
+  name: 'Razorwing Parrot',
+  emoji: '<:MRRazorwingParrot:1450727575109238793>',
+  baseHealth: 130,
+  rarity: 'Rare',
+  rarityEmoji: RARITY_EMOJIS.Rare,
+  rarityIcon: RARITY_EMOJIS.Rare,
+  attackType: 'Singular',
+  reward: { coins: { min: 500, max: 800 }, xp: { min: 33, max: 48 } },
+  levelDistribution: [
+    { level: 1, chance: 0.4 },
+    { level: 2, chance: 0.3 },
+    { level: 3, chance: 0.2 },
+    { level: 4, chance: 0.08 },
+    { level: 5, chance: 0.02 },
+  ],
+  actions: [
+    {
+      key: 'throwSharpFeather',
+      name: 'Throw Sharp Feather',
+      chance: 0.34,
+      damage: { min: 20, max: 30 },
+      message: 'The Razorwing Parrot throws many sharp feather at {target}, dealt {amount} damages',
+    },
+    {
+      key: 'scratch',
+      name: 'Scratch',
+      chance: 0.33,
+      damage: { min: 8, max: 13 },
+      message: 'The Razorwing Parrot scratched {target} with it sharp claw, dealt {amount} damages',
+    },
+    {
+      key: 'bite',
+      name: 'Bite',
+      chance: 0.33,
+      damage: { min: 15, max: 20 },
+      message: 'The Razorwing Parrot bites {target}, dealt {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITJungleFeather', chance: 0.65 },
+    { itemId: 'ITRazorTalon', chance: 0.45 },
+    { itemId: 'ITRazorfeatherQuill', chance: 0.2 },
+  ],
+};
+
+const MUDSCALE_LIZARD = {
+  name: 'Mudscale Lizard',
+  emoji: '<:MRMudscaleLizard:1450727572911689758>',
+  baseHealth: 190,
+  rarity: 'Rare',
+  rarityEmoji: RARITY_EMOJIS.Rare,
+  rarityIcon: RARITY_EMOJIS.Rare,
+  attackType: 'Singular',
+  defense: 0.15,
+  reward: { coins: { min: 600, max: 850 }, xp: { min: 35, max: 49 } },
+  levelDistribution: [
+    { level: 1, chance: 0.4 },
+    { level: 2, chance: 0.3 },
+    { level: 3, chance: 0.2 },
+    { level: 4, chance: 0.08 },
+    { level: 5, chance: 0.02 },
+  ],
+  actions: [
+    {
+      key: 'bite',
+      name: 'Bite',
+      chance: 1,
+      damage: { min: 10, max: 20 },
+      damageIfPoisoned: { min: 20, max: 40 },
+      poison: { percent: 0.2, duration: 2 },
+      message:
+        'The Mudscale Lizard bites {target}, dealt {amount} damages and poisoned {target} for 2 turns',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.55 },
+    { itemId: 'ITWeakVenomGland', chance: 0.45 },
+    { itemId: 'ITResinLump', chance: 0.4 },
+    { itemId: 'ITBurrowerScale', chance: 0.18 },
+  ],
+};
+
+const ROOTED_APE = {
+  name: 'Rooted Ape',
+  emoji: '<:MRRootedApe:1450727577260920852>',
+  baseHealth: 210,
+  rarity: 'Rare',
+  rarityEmoji: RARITY_EMOJIS.Rare,
+  rarityIcon: RARITY_EMOJIS.Rare,
+  attackType: 'Singular',
+  defense: 0.5,
+  reward: { coins: { min: 800, max: 1200 }, xp: { min: 45, max: 55 } },
+  levelDistribution: [
+    { level: 1, chance: 0.41 },
+    { level: 2, chance: 0.31 },
+    { level: 3, chance: 0.21 },
+    { level: 4, chance: 0.12 },
+    { level: 5, chance: 0.08 },
+    { level: 6, chance: 0.05 },
+    { level: 7, chance: 0.019 },
+    { level: 8, chance: 0.001 },
+  ],
+  actions: [
+    {
+      key: 'stomp',
+      name: 'Stomp',
+      chance: 0.35,
+      damage: { min: 20, max: 20 },
+      message: 'The Rooted Ape crushed {target} with it leg, dealt {amount} damage',
+    },
+    {
+      key: 'punch',
+      name: 'Punch',
+      chance: 0.4,
+      damage: { min: 15, max: 25 },
+      message: 'the Rooted Ape punched {target} strongly, dealt {amount} damages',
+    },
+    {
+      key: 'rootTrap',
+      name: 'Root Trap',
+      chance: 0.25,
+      damage: { min: 15, max: 15 },
+      actionPenalty: 1,
+      message:
+        'The Rooted Ape summon roots and trapped {target}, dealt 15 damages and make them unable to do 1 action for the next turn',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.6 },
+    { itemId: 'ITToughHideScrap', chance: 0.5 },
+    { itemId: 'ITVineFiber', chance: 0.45 },
+    { itemId: 'ITRootbindingSplinter', chance: 0.15 },
+    { itemId: 'ITWorldrootFragment', chance: 0.03 },
+  ],
+};
+
 const CORRUPTED_CUBE = {
   name: 'Corrupted Cube',
   emoji: '<:MSCorruptedCube:1450727554339311668>',
@@ -284,6 +510,11 @@ const CREATURES = [
   JUNGLE_BETTLE,
   LEAF_FROG,
   CLAWFOOT_BIRD,
+  BRISTLE_JAGUAR,
+  SPOREBACK_TORTOISE,
+  RAZORWING_PARROT,
+  MUDSCALE_LIZARD,
+  ROOTED_APE,
   CORRUPTED_CUBE,
 ];
 
@@ -295,5 +526,10 @@ module.exports = {
   JUNGLE_BETTLE,
   LEAF_FROG,
   CLAWFOOT_BIRD,
+  BRISTLE_JAGUAR,
+  SPOREBACK_TORTOISE,
+  RAZORWING_PARROT,
+  MUDSCALE_LIZARD,
+  ROOTED_APE,
   CORRUPTED_CUBE,
 };
