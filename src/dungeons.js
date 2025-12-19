@@ -35,11 +35,11 @@ const DUNGEONS = {
         rewards: {
           coins: { min: 8000, max: 10000 },
           xp: { min: 350, max: 425 },
-          diamonds: { min: 10, max: 80, firstWin: true },
+          diamonds: { min: 100, max: 100, firstWin: true },
           items: [
-            { itemId: 'ITBeastMeat', amount: 9, firstWin: true },
-            { itemId: 'ITMossyShavings', amount: 4, firstWin: true },
-            { itemId: 'ITVineFiber', amount: 6, firstWin: true },
+            { itemId: 'ITBeastMeat', amount: 20, firstWin: true },
+            { itemId: 'ITMossyShavings', amount: 10, firstWin: true },
+            { itemId: 'ITVineFiber', amount: 8, firstWin: true },
           ],
         },
       },
