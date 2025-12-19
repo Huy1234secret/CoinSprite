@@ -51,6 +51,7 @@ const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
+const DEFENSE_STATUS = { type: 'Defense', name: 'Defense', emoji: DEFENSE_EMOJI };
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -123,6 +124,11 @@ function createCreatureInstance(definition = JUNGLE_BETTLE) {
 
   const actions = prepareActionsForLevel(definition.actions ?? [], level);
 
+  const statuses = Array.isArray(definition.statuses) ? [...definition.statuses] : [];
+  if (Number.isFinite(definition.defense) && definition.defense > 0) {
+    statuses.push({ ...DEFENSE_STATUS, percent: definition.defense, remaining: Infinity });
+  }
+
   return {
     id: `${definition.name}-${Date.now()}-${Math.random()}`,
     name: definition.name,
@@ -135,6 +141,7 @@ function createCreatureInstance(definition = JUNGLE_BETTLE) {
     damage: baseDamage,
     attackType: definition.attackType ?? 'Singular',
     actions,
+    statuses,
     drops: definition.drops ?? [],
     reward: definition.reward ?? JUNGLE_BETTLE.reward,
   };
@@ -915,10 +922,18 @@ function formatStatusDuration(remaining) {
   return Math.max(0, remaining);
 }
 
+function formatStatusDisplayValue(status) {
+  if (status.type === DEFENSE_STATUS.type) {
+    const percent = Math.max(0, status.percent ?? 0);
+    return Math.round(percent * 100);
+  }
+  return formatStatusDuration(status.remaining ?? status.duration ?? 0);
+}
+
 function statusEffectsForDisplay(statuses = []) {
   return (statuses ?? []).map((status) => ({
     emoji: status.emoji ?? POISON_STATUS.emoji,
-    remaining: formatStatusDuration(status.remaining ?? status.duration ?? 0),
+    remaining: formatStatusDisplayValue(status),
   }));
 }
 
@@ -1069,6 +1084,15 @@ function formatCreatureActionMessage(action, creature, amount, targetLabel, isPl
     .replace('{target}', targetLabel ?? 'you');
 }
 
+function getDefensePercent(entity) {
+  const status = findStatus(entity, DEFENSE_STATUS.type);
+  return Math.max(0, status?.percent ?? 0);
+}
+
+function applyDefensePercent(amount, percent) {
+  return Math.max(1, Math.floor(amount * (1 - percent)));
+}
+
 function performCreatureAction(state, creature, action, target) {
   const messages = [];
   if (!target) {
@@ -1078,8 +1102,10 @@ function performCreatureAction(state, creature, action, target) {
   const isPlayerTarget = target.type === 'player';
   const isPlayerPoisoned = isPlayerTarget && Boolean(findStatus(state.player, POISON_STATUS.type));
   const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
+  const defensePercent = getDefensePercent(target.entity);
+  const percentMitigated = applyDefensePercent(rawDamage, defensePercent);
   const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
-  const mitigated = Math.max(1, rawDamage - defenseMitigation);
+  const mitigated = Math.max(1, percentMitigated - defenseMitigation);
   target.entity.health = Math.max(0, target.entity.health - mitigated);
 
   if (action) {
@@ -1275,12 +1301,13 @@ function performPlayerAttack(state, creatureId, gear) {
   }
 
   const { amount, crit } = calculateGearDamage(gear);
-  creature.health = Math.max(0, creature.health - amount);
+  const mitigated = applyDefensePercent(amount, getDefensePercent(creature));
+  creature.health = Math.max(0, creature.health - mitigated);
   state.player.actionsLeft = Math.max(0, state.player.actionsLeft - 1);
 
   const actionText = crit
-    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of **${amount}**!`
-    : `You have used **${gear.name}** on ${creature.name} and deal **${amount} damages**.`;
+    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of **${mitigated}**!`
+    : `You have used **${gear.name}** on ${creature.name} and deal **${mitigated} damages**.`;
 
   state.actionMessages = [actionText];
   return creature;
