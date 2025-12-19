@@ -615,15 +615,17 @@ function buildDungeonInfoContent(dungeonProfile, dungeonLevel, stage) {
   );
   const rewardItems = stageData.rewards.items ?? [];
   const rewardLines = [
-    `- ${stageData.rewards.coins.min} - ${stageData.rewards.coins.max} coins`,
-    `- ${stageData.rewards.xp.min} - ${stageData.rewards.xp.max} Hunt XP`,
+    `- ${COIN_EMOJI} ${stageData.rewards.coins.min} - ${stageData.rewards.coins.max} coins`,
+    `- 🎯 ${stageData.rewards.xp.min} - ${stageData.rewards.xp.max} Hunt XP`,
     stageData.rewards.diamonds
-      ? `- ${stageData.rewards.diamonds.min} - ${stageData.rewards.diamonds.max} diamonds [first win]`
+      ? `- ${DIAMOND_EMOJI} ${stageData.rewards.diamonds.min} - ${stageData.rewards.diamonds.max} diamonds \`[first win]\``
       : null,
-    ...rewardItems.map(
-      (item) =>
-        `- ${item.amount} ${findItemById(item.itemId)?.name ?? item.itemId} [first win]`
-    ),
+    ...rewardItems.map((item) => {
+      const rewardItem = findItemById(item.itemId);
+      return `- ${rewardItem?.emoji ?? '🎁'} ${item.amount} ${
+        rewardItem?.name ?? item.itemId
+      } \`[first win]\``;
+    }),
   ]
     .filter(Boolean)
     .join('\n');
