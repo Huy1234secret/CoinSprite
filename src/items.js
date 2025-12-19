@@ -45,6 +45,18 @@ const ITEMS = [
     info: 'Coming soon',
   },
   {
+    id: 'ITDungeonToken',
+    name: 'Dungeon Token',
+    emoji: '🎫',
+    rarity: 'Rare',
+    type: 'Material',
+    value: 0,
+    sellPrice: null,
+    tradable: false,
+    durability: null,
+    info: 'A token required to enter a dungeon.',
+  },
+  {
     id: 'ITBeastMeat',
     name: 'Beast Meat',
     emoji: '<:ITBeastMeat:1449725581217501340>',
