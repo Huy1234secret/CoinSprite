@@ -274,20 +274,19 @@ function drawEffectSlots(ctx, effects, x, centerY, size = 20) {
             ctx.fillText(text, dx + size / 2, centerY + 1);
         }
 
-        if (effect?.remaining !== undefined && effect?.remaining !== null) {
-            const label = `${effect.remaining}`;
-            if (label) {
-                ctx.font = `bold ${Math.round(size * 0.45)}px Sans-Serif`;
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'alphabetic';
-                ctx.fillStyle = '#ffffff';
-                ctx.strokeStyle = 'rgba(0,0,0,0.65)';
-                ctx.lineWidth = 3;
-                const textX = dx + 3;
-                const textY = dy + size - 3;
-                ctx.strokeText(label, textX, textY);
-                ctx.fillText(label, textX, textY);
-            }
+        const labelValue = effect?.label ?? effect?.remaining;
+        if (labelValue !== undefined && labelValue !== null && `${labelValue}` !== '') {
+            const label = `${labelValue}`;
+            ctx.font = `bold ${Math.round(size * 0.45)}px Sans-Serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+            ctx.lineWidth = 3;
+            const textX = dx + 3;
+            const textY = dy + size - 3;
+            ctx.strokeText(label, textX, textY);
+            ctx.fillText(label, textX, textY);
         }
         ctx.restore();
     }

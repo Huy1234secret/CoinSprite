@@ -15,7 +15,7 @@ const {
   updateUserProfile,
 } = require('../src/huntProfile');
 const { addCoinsToUser, addDiamondsToUser, addPrismaticToUser } = require('../src/userStats');
-const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
+const { CREATURES, JUNGLE_BEETLE } = require('../src/creatures');
 const {
   addPetToInventory,
   addXpToEquippedPets,
@@ -51,6 +51,7 @@ const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
+const DEFENSE_STATUS = { type: 'Defense', name: 'Defense', emoji: DEFENSE_EMOJI };
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -58,6 +59,41 @@ const teamEditState = new Map();
 
 function findItemById(itemId) {
   return ITEMS_BY_ID[itemId] ?? null;
+}
+
+function normalizeDefense(defenseValue) {
+  const numeric = Number(defenseValue);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  if (numeric > 1) {
+    return Math.min(1, numeric / 100);
+  }
+  return Math.min(1, Math.max(0, numeric));
+}
+
+function formatDefensePercent(defenseValue) {
+  const percent = normalizeDefense(defenseValue) * 100;
+  const needsDecimal = percent % 1 !== 0;
+  return `${needsDecimal ? percent.toFixed(1) : percent.toFixed(0)}%`;
+}
+
+function buildDefenseStatus(defenseValue) {
+  const percent = normalizeDefense(defenseValue);
+  if (percent <= 0) {
+    return null;
+  }
+  return { ...DEFENSE_STATUS, percent, remaining: Infinity };
+}
+
+function applyDefenseMitigation(amount, defenseValue) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return 0;
+  }
+
+  const percent = normalizeDefense(defenseValue);
+  const reduced = Math.round(amount * (1 - percent));
+  return Math.max(0, reduced);
 }
 
 function maybeGrantOwnerPet(interaction) {
@@ -107,21 +143,27 @@ function prepareActionsForLevel(actions = [], level) {
 
 function pickCreatureDefinition() {
   if (!Array.isArray(CREATURES) || CREATURES.length === 0) {
-    return JUNGLE_BETTLE;
+    return JUNGLE_BEETLE;
   }
   const index = Math.floor(Math.random() * CREATURES.length);
   return CREATURES[index];
 }
 
-function createCreatureInstance(definition = JUNGLE_BETTLE) {
+function createCreatureInstance(definition = JUNGLE_BEETLE) {
   const level = pickCreatureLevel(definition.levelDistribution ?? [{ level: 1, chance: 1 }]);
   const health = scaleStatForLevel(definition.baseHealth ?? 1, level, CREATURE_HEALTH_GROWTH);
+  const defense = normalizeDefense(definition.defense);
 
   const baseDamage = definition.damage
     ? scaleDamageRange(definition.damage, level)
     : { min: 1, max: 1 };
 
   const actions = prepareActionsForLevel(definition.actions ?? [], level);
+  const creatureStatuses = definition.statuses ? [...definition.statuses] : [];
+  const creatureDefenseStatus = buildDefenseStatus(defense);
+  if (creatureDefenseStatus) {
+    creatureStatuses.push(creatureDefenseStatus);
+  }
 
   return {
     id: `${definition.name}-${Date.now()}-${Math.random()}`,
@@ -132,11 +174,14 @@ function createCreatureInstance(definition = JUNGLE_BETTLE) {
     level,
     maxHealth: health,
     health,
+    defense,
     damage: baseDamage,
     attackType: definition.attackType ?? 'Singular',
+    counterChance: definition.counterChance,
     actions,
+    statuses: creatureStatuses,
     drops: definition.drops ?? [],
-    reward: definition.reward ?? JUNGLE_BETTLE.reward,
+    reward: definition.reward ?? JUNGLE_BEETLE.reward,
   };
 }
 
@@ -262,6 +307,7 @@ function buildStatsContainer(profile, userId) {
   const { level, xp, next_level_xp: nextLevel, health, defense } = profile;
   const progressBar = buildProgressBar(xp, nextLevel);
   const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
+  const defenseLabel = formatDefensePercent(defense);
 
   return {
     type: 17,
@@ -272,7 +318,7 @@ function buildStatsContainer(profile, userId) {
         components: [
           {
             type: 10,
-            content: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: ${health} ${HEART_EMOJI}\n* User Defense: ${defense} ${DEFENSE_EMOJI}`,
+            content: `## Hunting Stat\n### Hunt Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* User Health: ${health} ${HEART_EMOJI}\n* User Defense: ${defenseLabel} ${DEFENSE_EMOJI}`,
           },
         ],
         accessory: {
@@ -593,6 +639,9 @@ function createBattleState(profile, user, petProfile) {
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
   const creatures = [createCreatureInstance(pickCreatureDefinition())];
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
+  const playerDefense = normalizeDefense(profile.defense);
+  const defenseStatus = buildDefenseStatus(playerDefense);
+  const playerStatuses = defenseStatus ? [defenseStatus] : [];
 
   return {
     userId: user.id,
@@ -601,10 +650,10 @@ function createBattleState(profile, user, petProfile) {
       level: profile.level,
       maxHealth,
       health: maxHealth,
-      defense: profile.defense,
+      defense: playerDefense,
       actionsLeft: ACTIONS_PER_TURN,
       gear,
-      statuses: [],
+      statuses: playerStatuses,
       pets,
     },
     creatures,
@@ -737,10 +786,11 @@ function performPetTurn(state) {
     const hits = Math.max(1, pet.hits ?? 1);
     for (let i = 0; i < hits; i++) {
       const { amount, crit } = calculatePetDamageAmount(pet);
-      target.health = Math.max(0, target.health - amount);
+      const mitigated = applyDefenseMitigation(amount, target.defense);
+      target.health = Math.max(0, target.health - mitigated);
       const actionLine = crit
-        ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for **${amount}** on ${target.name}!`
-        : `${pet.emoji ?? '🐾'} ${pet.name} hits ${target.name} for **${amount}** damages.`;
+        ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for **${mitigated}** on ${target.name}!`
+        : `${pet.emoji ?? '🐾'} ${pet.name} hits ${target.name} for **${mitigated}** damages.`;
       messages.push(actionLine);
 
       if (target.health <= 0) {
@@ -778,7 +828,7 @@ function calculateRewards(creatures) {
   const rewards = { coins: 0, xp: 0, diamonds: 0, prismatic: 0 };
   for (const creature of creatures) {
     const level = creature.level ?? 1;
-    const reward = creature.reward ?? JUNGLE_BETTLE.reward;
+    const reward = creature.reward ?? JUNGLE_BEETLE.reward;
 
     rewards.coins += rollRewardAmount(reward.coins, level);
     rewards.xp += rollRewardAmount(reward.xp, level);
@@ -883,6 +933,11 @@ function applyStatusEffects(state) {
   const remainingStatuses = [];
 
   for (const status of player.statuses ?? []) {
+    if (status.type === DEFENSE_STATUS.type) {
+      remainingStatuses.push({ ...status, remaining: Infinity });
+      continue;
+    }
+
     if (status.type === POISON_STATUS.type) {
       const percent = Math.max(0, status.percent ?? 0);
       const damage = Math.max(1, Math.floor(player.health * percent));
@@ -916,10 +971,20 @@ function formatStatusDuration(remaining) {
 }
 
 function statusEffectsForDisplay(statuses = []) {
-  return (statuses ?? []).map((status) => ({
-    emoji: status.emoji ?? POISON_STATUS.emoji,
-    remaining: formatStatusDuration(status.remaining ?? status.duration ?? 0),
-  }));
+  return (statuses ?? []).map((status) => {
+    if (status.type === DEFENSE_STATUS.type) {
+      return {
+        emoji: status.emoji ?? DEFENSE_STATUS.emoji,
+        label: formatDefensePercent(status.percent ?? status.amount ?? 0),
+        remaining: null,
+      };
+    }
+
+    return {
+      emoji: status.emoji ?? POISON_STATUS.emoji,
+      remaining: formatStatusDuration(status.remaining ?? status.duration ?? 0),
+    };
+  });
 }
 
 function applyRewards(userId, profile, rewards) {
@@ -1037,7 +1102,12 @@ function pickCreatureAction(creature) {
 function calculateCreatureDamage(creature, action, isPlayerPoisoned) {
   const damageRange = isPlayerPoisoned && action?.damageIfPoisoned ? action.damageIfPoisoned : action?.damage;
   if (damageRange) {
-    return rollDamage(damageRange.min ?? 1, damageRange.max ?? damageRange.min ?? 1);
+    const min = Number.isFinite(damageRange.min) ? damageRange.min : damageRange.max;
+    const max = Number.isFinite(damageRange.max) ? damageRange.max : min;
+    if ((max ?? 0) <= 0) {
+      return 0;
+    }
+    return rollDamage(Math.max(1, min ?? 1), Math.max(1, max ?? 1));
   }
   return rollDamage(creature.damage?.min ?? 1, creature.damage?.max ?? creature.damage?.min ?? 1);
 }
@@ -1066,7 +1136,8 @@ function formatCreatureActionMessage(action, creature, amount, targetLabel, isPl
   const fallback = `${creature.name} attacked {target} for {amount} damages.`;
   return (baseTemplate ?? fallback)
     .replace('{amount}', amount)
-    .replace('{target}', targetLabel ?? 'you');
+    .replace('{target}', targetLabel ?? 'you')
+    .replace('{name}', targetLabel ?? 'you');
 }
 
 function performCreatureAction(state, creature, action, target) {
@@ -1078,8 +1149,8 @@ function performCreatureAction(state, creature, action, target) {
   const isPlayerTarget = target.type === 'player';
   const isPlayerPoisoned = isPlayerTarget && Boolean(findStatus(state.player, POISON_STATUS.type));
   const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
-  const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
-  const mitigated = Math.max(1, rawDamage - defenseMitigation);
+  const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : target.entity?.defense ?? 0;
+  const mitigated = applyDefenseMitigation(rawDamage, defenseMitigation);
   target.entity.health = Math.max(0, target.entity.health - mitigated);
 
   if (action) {
@@ -1189,12 +1260,12 @@ async function buildBattleAttachment(state, user) {
 function buildBattleContent(state, user, attachment) {
   const creatures = state.creatures.filter((creature) => creature.health > 0);
   const fallbackCreature = creatures[0] ?? state.creatures[0];
-  const headerCreatureName = fallbackCreature?.name ?? JUNGLE_BETTLE.name;
+  const headerCreatureName = fallbackCreature?.name ?? JUNGLE_BEETLE.name;
   const headerCreatureRarity = fallbackCreature?.rarityEmoji ?? '';
   const headerCreatureLabel = headerCreatureRarity
     ? `${headerCreatureName} ${headerCreatureRarity}`
     : headerCreatureName;
-  const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
+  const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BEETLE.emoji) ?? HUNT_THUMBNAIL;
   const headerLine = state.isEnding
     ? '### Hunt ending soon'
     : creatures.length
@@ -1275,12 +1346,13 @@ function performPlayerAttack(state, creatureId, gear) {
   }
 
   const { amount, crit } = calculateGearDamage(gear);
-  creature.health = Math.max(0, creature.health - amount);
+  const mitigated = applyDefenseMitigation(amount, creature.defense);
+  creature.health = Math.max(0, creature.health - mitigated);
   state.player.actionsLeft = Math.max(0, state.player.actionsLeft - 1);
 
   const actionText = crit
-    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of **${amount}**!`
-    : `You have used **${gear.name}** on ${creature.name} and deal **${amount} damages**.`;
+    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of **${mitigated}**!`
+    : `You have used **${gear.name}** on ${creature.name} and deal **${mitigated} damages**.`;
 
   state.actionMessages = [actionText];
   return creature;
