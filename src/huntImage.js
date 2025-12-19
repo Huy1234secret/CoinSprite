@@ -146,7 +146,7 @@ function drawBackground(ctx) {
 }
 
 // Draw Avatar with circle crop and border
-function drawAvatar(ctx, img, x, y, size, borderColor) {
+function drawAvatar(ctx, img, x, y, size, borderColor, isDead = false) {
     const r = size / 2;
     const cx = x + r;
     const cy = y + r;
@@ -169,9 +169,13 @@ function drawAvatar(ctx, img, x, y, size, borderColor) {
     ctx.clip();
 
     if (img) {
+        if (isDead) {
+            ctx.filter = 'brightness(0)';
+        }
         ctx.drawImage(img, x, y, size, size);
+        ctx.filter = 'none';
     } else {
-        ctx.fillStyle = '#333';
+        ctx.fillStyle = isDead ? '#000' : '#333';
         ctx.fillRect(x, y, size, size);
     }
     ctx.restore();
@@ -310,7 +314,15 @@ function drawPlayerMainCard(ctx, player, x, y, w, h) {
     const avatarSize = h - 30; // 15px padding top/bottom
     const avatarX = x + 20;
     const avatarY = y + 15;
-    drawAvatar(ctx, player.image, avatarX, avatarY, avatarSize, PALETTE.cardBorderPlayer);
+    drawAvatar(
+        ctx,
+        player.image,
+        avatarX,
+        avatarY,
+        avatarSize,
+        PALETTE.cardBorderPlayer,
+        player.hp <= 0
+    );
 
     // Info Area
     const infoX = avatarX + avatarSize + 20;
@@ -356,7 +368,7 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const avatarSize = Math.min(h - 24, 96);
     const avatarX = x + 15;
     const avatarY = y + (h - avatarSize) / 2;
-    drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor);
+    drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor, unit.hp <= 0);
 
     // Info
     const infoX = avatarX + avatarSize + 20;

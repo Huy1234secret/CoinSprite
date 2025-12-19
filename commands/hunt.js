@@ -16,6 +16,8 @@ const {
 } = require('../src/huntProfile');
 const { addCoinsToUser, addDiamondsToUser, addPrismaticToUser } = require('../src/userStats');
 const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
+const { DUNGEONS, DUNGEON_DIFFICULTY_EMOJI, getDungeonStage } = require('../src/dungeons');
+const { getUserDungeonProfile, updateUserDungeonProfile } = require('../src/dungeonProfile');
 const {
   addPetToInventory,
   addXpToEquippedPets,
@@ -28,12 +30,16 @@ const {
 const HUNT_BUTTON_PREFIX = 'hunt:';
 const HUNT_SELECT_PREFIX = 'hunt-select:';
 const HUNT_ATTACK_SELECT_PREFIX = 'hunt-attack:';
+const DUNGEON_BUTTON_PREFIX = 'dungeon:';
+const DUNGEON_SELECT_PREFIX = 'dungeon-select:';
+const DUNGEON_ATTACK_SELECT_PREFIX = 'dungeon-attack:';
 const TEAM_SLOT_SELECT_PREFIX = 'hunt-team-slot:';
 const TEAM_PET_SELECT_PREFIX = 'hunt-team-pet:';
 const TEAM_TARGET_SELECT_PREFIX = 'hunt-team-target:';
 const TEAM_SUBMIT_PREFIX = 'hunt-team-submit:';
 const TEAM_UNEQUIP_PREFIX = 'hunt-team-unequip:';
 const HUNT_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1447497801033453589.png?size=128&quality=lossless';
+const DUNGEON_THUMBNAIL_EMOJI = '<:SBDUNGEON1:1451548437039550636>';
 const HEART_EMOJI = '<:SBHeart:1447532986378485882>';
 const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
@@ -48,6 +54,8 @@ const CREATURE_REWARD_GROWTH = 0.25;
 const HUNTING_DELAY_MS = 3000;
 const HUNT_END_COUNTDOWN_SECONDS = 5;
 const HUNT_INACTIVITY_TIMEOUT_MS = 30 * 1000;
+const DUNGEON_FLOOR_TIMEOUT_MS = 2 * 60 * 1000;
+const DUNGEON_FLOOR_TRANSITION_SECONDS = 5;
 const CRIT_CHANCE = 0.15;
 const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
@@ -56,6 +64,7 @@ const ACTION_LOCK_STATUS = { type: 'ActionLock', name: 'Root Trap', emoji: '⛓�
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
+const activeDungeons = new Map();
 const teamEditState = new Map();
 
 function findItemById(itemId) {
@@ -137,6 +146,36 @@ function createCreatureInstance(definition = JUNGLE_BETTLE) {
     rarity: definition.rarity,
     rarityEmoji: definition.rarityEmoji ?? definition.rarityIcon,
     level,
+    maxHealth: health,
+    health,
+    damage: baseDamage,
+    attackType: definition.attackType ?? 'Singular',
+    actions,
+    statuses,
+    drops: definition.drops ?? [],
+    reward: definition.reward ?? JUNGLE_BETTLE.reward,
+  };
+}
+
+function createCreatureInstanceAtLevel(definition = JUNGLE_BETTLE, level = 1) {
+  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  const health = scaleStatForLevel(definition.baseHealth ?? 1, safeLevel, CREATURE_HEALTH_GROWTH);
+  const baseDamage = definition.damage
+    ? scaleDamageRange(definition.damage, safeLevel)
+    : { min: 1, max: 1 };
+  const actions = prepareActionsForLevel(definition.actions ?? [], safeLevel);
+  const statuses = Array.isArray(definition.statuses) ? [...definition.statuses] : [];
+  if (Number.isFinite(definition.defense) && definition.defense > 0) {
+    statuses.push({ ...DEFENSE_STATUS, percent: definition.defense, remaining: Infinity });
+  }
+
+  return {
+    id: `${definition.name}-${Date.now()}-${Math.random()}`,
+    name: definition.name,
+    emoji: definition.emoji,
+    rarity: definition.rarity,
+    rarityEmoji: definition.rarityEmoji ?? definition.rarityIcon,
+    level: safeLevel,
     maxHealth: health,
     health,
     damage: baseDamage,
@@ -425,6 +464,201 @@ function buildEquipmentContent(profile, userId) {
   };
 }
 
+function getDungeonThumbnail() {
+  return getEmojiUrl(DUNGEON_THUMBNAIL_EMOJI) ?? HUNT_THUMBNAIL;
+}
+
+function getDungeonStageKey(dungeonLevel, stage) {
+  return `${dungeonLevel}-${stage}`;
+}
+
+function getDungeonStageSelection(profile, dungeonLevel) {
+  const selected =
+    profile.currentStageByDungeon?.[String(dungeonLevel)] ?? 1;
+  const dungeon = DUNGEONS[dungeonLevel];
+  if (!dungeon?.stages?.[selected]) {
+    return 1;
+  }
+  return selected;
+}
+
+function buildDungeonRequirementLines(stageData) {
+  const requirement = stageData?.requirement;
+  if (!requirement) {
+    return '- None';
+  }
+
+  const item = findItemById(requirement.itemId);
+  const label = item ? `${item.name} ${item.emoji ?? ''}`.trim() : requirement.itemId;
+  return `- x${requirement.amount ?? 1} ${label}`.trim();
+}
+
+function buildDungeonStageSelect(dungeonProfile, dungeonLevel, currentStage, userId) {
+  const completedStages =
+    dungeonProfile.completedStagesByDungeon?.[String(dungeonLevel)] ?? [];
+
+  if (!completedStages.length) {
+    return {
+      type: 3,
+      custom_id: `${DUNGEON_SELECT_PREFIX}${dungeonLevel}:${userId}`,
+      placeholder: 'locked',
+      options: [{ label: 'Locked', value: 'locked', default: true }],
+      disabled: true,
+      min_values: 1,
+      max_values: 1,
+    };
+  }
+
+  const options = completedStages
+    .slice()
+    .sort((a, b) => a - b)
+    .map((stage) => ({
+      label: `Stage ${stage}`,
+      value: String(stage),
+      default: Number(stage) === Number(currentStage),
+    }));
+
+  return {
+    type: 3,
+    custom_id: `${DUNGEON_SELECT_PREFIX}${dungeonLevel}:${userId}`,
+    placeholder: 'Change stage',
+    options,
+    disabled: false,
+    min_values: 1,
+    max_values: 1,
+  };
+}
+
+function buildDungeonHomeContainer(userId, dungeonProfile, dungeonLevel = 1) {
+  const dungeon = DUNGEONS[dungeonLevel];
+  const stage = getDungeonStageSelection(dungeonProfile, dungeonLevel);
+  const stageData = getDungeonStage(dungeonLevel, stage);
+  const completedStages =
+    dungeonProfile.completedStagesByDungeon?.[String(dungeonLevel)] ?? [];
+  const completedCount = completedStages.length;
+  const totalStages = Object.keys(dungeon?.stages ?? {}).length;
+  const requirementLines = stageData ? buildDungeonRequirementLines(stageData) : '- None';
+
+  return {
+    type: 17,
+    accent_color: 0xffffff,
+    components: [
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: `## Dungeon ${dungeonLevel} - Stage ${stage}\n-# You have completed ${completedCount} / ${totalStages}`,
+          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: getDungeonThumbnail() },
+          description: 'Dungeon icon',
+        },
+      },
+      { type: 14 },
+      {
+        type: 10,
+        content: `Requirement:\n${requirementLines}`,
+      },
+      {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            style: 3,
+            custom_id: `${DUNGEON_BUTTON_PREFIX}start:${userId}:${dungeonLevel}`,
+            label: 'Start Dungeon',
+          },
+          {
+            type: 2,
+            style: 2,
+            custom_id: `${DUNGEON_BUTTON_PREFIX}info:${userId}:${dungeonLevel}`,
+            label: 'View Stage',
+          },
+        ],
+      },
+      {
+        type: 1,
+        components: [buildDungeonStageSelect(dungeonProfile, dungeonLevel, stage, userId)],
+      },
+    ],
+  };
+}
+
+function buildDungeonHomeContent(userId, dungeonProfile, dungeonLevel = 1) {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [buildDungeonHomeContainer(userId, dungeonProfile, dungeonLevel)],
+  };
+}
+
+function buildDungeonInfoContent(dungeonProfile, dungeonLevel, stage) {
+  const stageData = getDungeonStage(dungeonLevel, stage);
+  const completedKey = getDungeonStageKey(dungeonLevel, stage);
+  const completedDifficulties =
+    dungeonProfile.completedDifficultiesByStage?.[completedKey] ?? [];
+  const difficultyLine = completedDifficulties.length
+    ? completedDifficulties.join(' ')
+    : 'None';
+
+  if (!stageData) {
+    return {
+      flags: MessageFlags.Ephemeral,
+      content: 'Dungeon stage info is unavailable.',
+    };
+  }
+
+  const uniqueCreatures = new Set(
+    stageData.floors.flatMap((floor) => floor.map((entry) => entry.creature?.name)).filter(Boolean)
+  );
+  const rewardItems = stageData.rewards.items ?? [];
+  const rewardLines = [
+    `- ${stageData.rewards.coins.min} - ${stageData.rewards.coins.max} coins`,
+    `- ${stageData.rewards.xp.min} - ${stageData.rewards.xp.max} Hunt XP`,
+    stageData.rewards.diamonds
+      ? `- ${stageData.rewards.diamonds.min} - ${stageData.rewards.diamonds.max} diamonds [first win]`
+      : null,
+    ...rewardItems.map(
+      (item) =>
+        `- ${item.amount} ${findItemById(item.itemId)?.name ?? item.itemId} [first win]`
+    ),
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    flags: MessageFlags.Ephemeral,
+    components: [
+      {
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `## Dungeon ${dungeonLevel} - Stage ${stage} info:\n-# Total floors: ${
+                  stageData.totalFloors
+                }\n-# Creature Variety: ${uniqueCreatures.size}\n-# Danger: ${
+                  stageData.danger
+                }\n### Reward:\n${rewardLines}\n### Completed Difficulty: ${difficultyLine}`,
+              },
+            ],
+            accessory: {
+              type: 11,
+              media: { url: getDungeonThumbnail() },
+              description: 'Dungeon icon',
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function formatTeamMessage(user, petProfile) {
   const lines = (petProfile.team ?? [])
     .map((slot, index) => {
@@ -588,6 +822,24 @@ function buildHuntDelayContent() {
   };
 }
 
+function buildDungeonDelayContent() {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: 0x808080,
+        components: [
+          {
+            type: 10,
+            content: '### Starting...'
+          }
+        ]
+      }
+    ]
+  };
+}
+
 function getEmojiUrl(emoji) {
   const match = emoji?.match(/<:[^:]+:(\d+)>/);
   if (!match) {
@@ -603,6 +855,8 @@ function createBattleState(profile, user, petProfile) {
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
+    mode: 'hunt',
+    attackSelectPrefix: HUNT_ATTACK_SELECT_PREFIX,
     userId: user.id,
     player: {
       name: user.globalName ?? user.username,
@@ -625,6 +879,58 @@ function createBattleState(profile, user, petProfile) {
     pets,
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
+  };
+}
+
+function buildDungeonCreatures(stageData, floorNumber) {
+  const floorIndex = Math.max(0, floorNumber - 1);
+  const floor = stageData.floors?.[floorIndex] ?? [];
+  const creatures = [];
+
+  for (const entry of floor) {
+    const count = Math.max(0, Number(entry?.count) || 0);
+    for (let i = 0; i < count; i += 1) {
+      creatures.push(createCreatureInstanceAtLevel(entry.creature, entry.level));
+    }
+  }
+
+  return creatures;
+}
+
+function createDungeonBattleState(profile, user, petProfile, dungeonLevel, stageData) {
+  const gear = selectGear(profile);
+  const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
+  const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
+  const creatures = buildDungeonCreatures(stageData, 1);
+
+  return {
+    mode: 'dungeon',
+    attackSelectPrefix: DUNGEON_ATTACK_SELECT_PREFIX,
+    userId: user.id,
+    dungeon: {
+      level: dungeonLevel,
+      stage: stageData.stage,
+      floor: 1,
+      totalFloors: stageData.totalFloors,
+    },
+    player: {
+      name: user.globalName ?? user.username,
+      level: profile.level,
+      maxHealth,
+      health: maxHealth,
+      defense: profile.defense,
+      actionsLeft: ACTIONS_PER_TURN,
+      gear,
+      statuses: [],
+      pets,
+    },
+    creatures,
+    pets,
+    actionMessages: [],
+    miscInventory: profile.misc_inventory ?? [],
+    floorEndsAt: null,
+    floorTimeout: null,
+    isTransitioning: false,
   };
 }
 
@@ -1020,6 +1326,59 @@ function rewardLines(rewards, leveledUp, drops = []) {
   return lines.join('\n');
 }
 
+function getInventoryItemAmount(profile, itemId) {
+  const item = findItemById(itemId);
+  if (!item) {
+    return 0;
+  }
+  const entry = (profile.misc_inventory ?? []).find((misc) => misc?.name === item.name);
+  return Number.isFinite(entry?.amount) ? entry.amount : 0;
+}
+
+function consumeInventoryItem(profile, itemId, amount) {
+  const item = findItemById(itemId);
+  if (!item) {
+    return profile;
+  }
+  const miscInventory = Array.isArray(profile.misc_inventory) ? [...profile.misc_inventory] : [];
+  const index = miscInventory.findIndex((misc) => misc?.name === item.name);
+  if (index === -1) {
+    return profile;
+  }
+  const currentAmount = Number.isFinite(miscInventory[index].amount)
+    ? miscInventory[index].amount
+    : 0;
+  const nextAmount = Math.max(0, currentAmount - amount);
+  if (nextAmount === 0) {
+    miscInventory.splice(index, 1);
+  } else {
+    miscInventory[index] = { ...miscInventory[index], amount: nextAmount };
+  }
+  profile.misc_inventory = miscInventory;
+  return profile;
+}
+
+function rollDungeonRewardAmount(range) {
+  if (!range) {
+    return 0;
+  }
+  const min = Number.isFinite(range.min) ? range.min : 0;
+  const max = Number.isFinite(range.max) ? range.max : min;
+  return rollDamage(Math.max(1, min), Math.max(1, max));
+}
+
+function calculateDungeonRewards(stageData, isFirstWin) {
+  const rewards = {
+    coins: rollDungeonRewardAmount(stageData.rewards.coins),
+    xp: rollDungeonRewardAmount(stageData.rewards.xp),
+    diamonds: 0,
+  };
+  if (stageData.rewards.diamonds && isFirstWin) {
+    rewards.diamonds = rollDungeonRewardAmount(stageData.rewards.diamonds);
+  }
+  return rewards;
+}
+
 function buildSuccessContent(profile, userId, creatures, rewards, leveledUp, drops) {
   const message = `-# You have successfully hunted ${creatureListText(creatures)} and got:\n${rewardLines(
     rewards,
@@ -1234,15 +1593,35 @@ function buildBattleContent(state, user, attachment) {
     ? `${headerCreatureName} ${headerCreatureRarity}`
     : headerCreatureName;
   const thumbnail = getEmojiUrl(fallbackCreature?.emoji ?? JUNGLE_BETTLE.emoji) ?? HUNT_THUMBNAIL;
-  const headerLine = state.isEnding
-    ? '### Hunt ending soon'
-    : creatures.length
-      ? `### You found a ${headerCreatureLabel}`
-      : '### Hunt cleared';
+  const isDungeon = state.mode === 'dungeon';
+  const dungeonHeader = (() => {
+    if (!isDungeon) {
+      return null;
+    }
+    if (state.isEnding) {
+      return '### Dungeon ending soon';
+    }
+    const floorEndsAt = state.floorEndsAt;
+    const timeLeft = floorEndsAt ? `<t:${floorEndsAt}:R>` : 'soon';
+    return `## Dungeon Lv ${state.dungeon?.level ?? 1} - Stage ${state.dungeon?.stage ?? 1}\n-# Floor ${
+      state.dungeon?.floor ?? 1
+    } - time ${timeLeft}`;
+  })();
+  const headerLine = isDungeon
+    ? dungeonHeader
+    : state.isEnding
+      ? '### Hunt ending soon'
+      : creatures.length
+        ? `### You found a ${headerCreatureLabel}`
+        : '### Hunt cleared';
   const actionsLine = state.isEnding
-    ? '-# Hunt ending...'
+    ? isDungeon
+      ? '-# Dungeon ending...'
+      : '-# Hunt ending...'
     : `-# You have \`${state.player.actionsLeft} action${state.player.actionsLeft === 1 ? '' : 's'}\` left`;
-  const selectDisabled = state.isEnding || !creatures.length || state.player.actionsLeft <= 0;
+  const selectDisabled =
+    state.isEnding || state.isTransitioning || !creatures.length || state.player.actionsLeft <= 0;
+  const attackSelectPrefix = state.attackSelectPrefix ?? HUNT_ATTACK_SELECT_PREFIX;
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -1290,7 +1669,7 @@ function buildBattleContent(state, user, attachment) {
             components: [
               {
                 type: 3,
-                custom_id: `${HUNT_ATTACK_SELECT_PREFIX}${user.id}`,
+                custom_id: `${attackSelectPrefix}${user.id}`,
                 placeholder: 'Select a creature to attack',
                 options: buildCreatureOptions(state),
                 disabled: selectDisabled,
@@ -1367,6 +1746,35 @@ async function failHuntDueToInactivity(interaction, userId) {
   activeHunts.delete(userId);
 }
 
+async function failDungeonDueToTimeout(interaction, userId) {
+  const state = activeDungeons.get(userId);
+  if (!state) {
+    return;
+  }
+
+  clearDungeonFloorTimeout(userId);
+  const targetInteraction = interaction ?? state.floorInteraction;
+  if (!targetInteraction) {
+    activeDungeons.delete(userId);
+    return;
+  }
+
+  state.isEnding = true;
+  await runDungeonEndCountdown(targetInteraction, state, (endTimestampSeconds) =>
+    `You have failed Stage ${state.dungeon?.stage ?? 1}, exiting <t:${endTimestampSeconds}:R>.`
+  );
+  const dungeonProfile = getUserDungeonProfile(userId);
+  const homeContent = buildDungeonHomeContent(userId, dungeonProfile, state.dungeon?.level ?? 1);
+
+  try {
+    await targetInteraction.editReply(homeContent);
+  } catch (error) {
+    console.warn('Failed to end dungeon due to timeout:', error);
+  }
+
+  activeDungeons.delete(userId);
+}
+
 function scheduleHuntInactivityTimeout(interaction, userId) {
   clearHuntInactivityTimeout(userId);
   const state = activeHunts.get(userId);
@@ -1423,6 +1831,88 @@ async function runHuntEndCountdown(interaction, state, countdownBuilder) {
   await delay(HUNT_END_COUNTDOWN_SECONDS * 1000);
 }
 
+function clearDungeonFloorTimeout(userId) {
+  const state = activeDungeons.get(userId);
+  if (!state?.floorTimeout) {
+    return;
+  }
+  clearTimeout(state.floorTimeout);
+  state.floorTimeout = null;
+}
+
+function recordDungeonInteraction(interaction, userId) {
+  const state = activeDungeons.get(userId);
+  if (!state) {
+    return;
+  }
+  state.floorInteraction = interaction;
+}
+
+function scheduleDungeonFloorTimeout(interaction, userId) {
+  clearDungeonFloorTimeout(userId);
+  const state = activeDungeons.get(userId);
+  if (!state) {
+    return;
+  }
+
+  if (interaction) {
+    state.floorInteraction = interaction;
+  }
+
+  state.floorEndsAt = Math.floor((Date.now() + DUNGEON_FLOOR_TIMEOUT_MS) / 1000);
+  const targetInteraction = state.floorInteraction;
+  if (!targetInteraction) {
+    return;
+  }
+
+  state.floorTimeout = setTimeout(
+    () => failDungeonDueToTimeout(targetInteraction, userId),
+    DUNGEON_FLOOR_TIMEOUT_MS
+  );
+}
+
+async function runDungeonEndCountdown(interaction, state, messageBuilder) {
+  state.isEnding = true;
+  const endTimestampSeconds = Math.floor(
+    (Date.now() + HUNT_END_COUNTDOWN_SECONDS * 1000) / 1000
+  );
+  state.actionMessages = [messageBuilder(endTimestampSeconds)];
+  state.player.actionsLeft = 0;
+
+  try {
+    const attachment = await buildBattleAttachment(state, interaction.user);
+    const content = buildBattleContent(state, interaction.user, attachment);
+    await interaction.update(content);
+  } catch (error) {
+    console.error('Failed to update dungeon ending countdown:', error);
+  }
+
+  await delay(HUNT_END_COUNTDOWN_SECONDS * 1000);
+}
+
+async function runDungeonFloorTransition(interaction, state) {
+  const currentFloor = state.dungeon?.floor ?? 1;
+  const nextFloor = currentFloor + 1;
+  state.isTransitioning = true;
+  const endTimestampSeconds = Math.floor(
+    (Date.now() + DUNGEON_FLOOR_TRANSITION_SECONDS * 1000) / 1000
+  );
+  state.actionMessages = [
+    `You have cleared floor ${currentFloor}, moving to floor ${nextFloor} <t:${endTimestampSeconds}:R>.`,
+  ];
+  state.player.actionsLeft = 0;
+
+  try {
+    const attachment = await buildBattleAttachment(state, interaction.user);
+    const content = buildBattleContent(state, interaction.user, attachment);
+    await interaction.update(content);
+  } catch (error) {
+    console.error('Failed to update dungeon floor transition:', error);
+  }
+
+  await delay(DUNGEON_FLOOR_TRANSITION_SECONDS * 1000);
+}
+
 async function handleStartHunt(interaction) {
   maybeGrantOwnerPet(interaction);
   const profile = getUserProfile(interaction.user.id);
@@ -1443,6 +1933,108 @@ async function handleStartHunt(interaction) {
       console.error('Failed to start hunt:', error);
     }
   }, HUNTING_DELAY_MS);
+}
+
+function buildDungeonRewardSummary(rewards, firstWinItems) {
+  const lines = [
+    `- ${rewards.coins} coins ${COIN_EMOJI}`,
+    `- ${rewards.xp} Hunt XP`,
+  ];
+  if (rewards.diamonds) {
+    lines.push(`- ${rewards.diamonds} diamonds ${DIAMOND_EMOJI}`);
+  }
+  if (firstWinItems.length) {
+    for (const drop of firstWinItems) {
+      lines.push(`- ×${drop.amount} ${drop.item.name} ${drop.item.emoji ?? ''}`.trim());
+    }
+  }
+  return lines.join('\n');
+}
+
+function markDungeonStageCompleted(dungeonProfile, dungeonLevel, stage) {
+  const dungeonKey = String(dungeonLevel);
+  const stageNumber = Number(stage);
+  const completedStages = new Set(
+    dungeonProfile.completedStagesByDungeon?.[dungeonKey] ?? []
+  );
+  completedStages.add(stageNumber);
+  dungeonProfile.completedStagesByDungeon = {
+    ...dungeonProfile.completedStagesByDungeon,
+    [dungeonKey]: Array.from(completedStages),
+  };
+
+  const stageKey = getDungeonStageKey(dungeonLevel, stageNumber);
+  const completedDifficulties = new Set(
+    dungeonProfile.completedDifficultiesByStage?.[stageKey] ?? []
+  );
+  completedDifficulties.add(DUNGEON_DIFFICULTY_EMOJI);
+  dungeonProfile.completedDifficultiesByStage = {
+    ...dungeonProfile.completedDifficultiesByStage,
+    [stageKey]: Array.from(completedDifficulties),
+  };
+}
+
+function isDungeonFirstWin(dungeonProfile, dungeonLevel, stage) {
+  const stageKey = getDungeonStageKey(dungeonLevel, stage);
+  return !(dungeonProfile.firstWinStages ?? []).includes(stageKey);
+}
+
+function markDungeonFirstWin(dungeonProfile, dungeonLevel, stage) {
+  const stageKey = getDungeonStageKey(dungeonLevel, stage);
+  if (!(dungeonProfile.firstWinStages ?? []).includes(stageKey)) {
+    dungeonProfile.firstWinStages = [...(dungeonProfile.firstWinStages ?? []), stageKey];
+  }
+}
+
+async function handleDungeonStart(interaction, userId, dungeonLevel) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const dungeonProfile = getUserDungeonProfile(userId);
+  const stage = getDungeonStageSelection(dungeonProfile, dungeonLevel);
+  const stageData = getDungeonStage(dungeonLevel, stage);
+
+  if (!stageData) {
+    await safeErrorReply(interaction, 'This dungeon stage is not available yet.');
+    return true;
+  }
+
+  const profile = getUserProfile(userId);
+  const requiredAmount = stageData.requirement?.amount ?? 0;
+  const requiredItemId = stageData.requirement?.itemId ?? null;
+  if (requiredItemId && getInventoryItemAmount(profile, requiredItemId) < requiredAmount) {
+    await safeErrorReply(interaction, `You don't meet the requirement: x${requiredAmount} Dungeon Tokens.`);
+    return true;
+  }
+
+  if (requiredItemId && requiredAmount > 0) {
+    consumeInventoryItem(profile, requiredItemId, requiredAmount);
+    updateUserProfile(userId, profile);
+  }
+
+  const petProfile = getUserPetProfile(userId);
+  const battleState = createDungeonBattleState(profile, interaction.user, petProfile, dungeonLevel, stageData);
+  battleState.stageData = stageData;
+  clearDungeonFloorTimeout(userId);
+  activeDungeons.set(userId, battleState);
+
+  await interaction.update(buildDungeonDelayContent());
+
+  setTimeout(async () => {
+    try {
+      scheduleDungeonFloorTimeout(interaction, userId);
+      const attachment = await buildBattleAttachment(battleState, interaction.user);
+      const content = buildBattleContent(battleState, interaction.user, attachment);
+      await interaction.editReply(content);
+      recordDungeonInteraction(interaction, userId);
+    } catch (error) {
+      console.error('Failed to start dungeon:', error);
+    }
+  }, HUNTING_DELAY_MS);
+
+  return true;
 }
 
 async function handleNavigation(interaction, action, userId) {
@@ -1695,6 +2287,200 @@ async function handleSelect(interaction, selectType, userId) {
   return true;
 }
 
+async function handleDungeonInfo(interaction, userId, dungeonLevel) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const dungeonProfile = getUserDungeonProfile(userId);
+  const stage = getDungeonStageSelection(dungeonProfile, dungeonLevel);
+  const infoContent = buildDungeonInfoContent(dungeonProfile, dungeonLevel, stage);
+
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp(infoContent);
+    return true;
+  }
+
+  await interaction.reply(infoContent);
+  return true;
+}
+
+async function handleDungeonStageSelect(interaction, userId, dungeonLevel, stage) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  if (!stage || stage === 'locked') {
+    await safeErrorReply(interaction, 'You have not unlocked any stages yet.');
+    return true;
+  }
+
+  const dungeonProfile = getUserDungeonProfile(userId);
+  dungeonProfile.currentStageByDungeon = {
+    ...dungeonProfile.currentStageByDungeon,
+    [String(dungeonLevel)]: Number(stage),
+  };
+  updateUserDungeonProfile(userId, dungeonProfile);
+
+  await interaction.update(buildDungeonHomeContent(userId, dungeonProfile, dungeonLevel));
+  return true;
+}
+
+async function handleDungeonAttackSelection(interaction, userId, creatureId) {
+  if (interaction.user.id !== userId) {
+    await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+    return true;
+  }
+
+  const state = activeDungeons.get(userId);
+  if (!state) {
+    await safeErrorReply(interaction, 'This dungeon is no longer active.');
+    return true;
+  }
+
+  if (state.isEnding || state.isTransitioning) {
+    await safeErrorReply(interaction, 'This dungeon is not ready for actions yet.');
+    return true;
+  }
+
+  recordDungeonInteraction(interaction, userId);
+
+  const profile = getUserProfile(userId);
+  state.player.gear = selectGear(profile);
+  const target = performPlayerAttack(state, creatureId, state.player.gear);
+  decrementGearDurability(profile, state.player.gear);
+  updateUserProfile(userId, profile);
+
+  const petMessages = performPetTurn(state);
+  if (petMessages.length) {
+    state.actionMessages = [...state.actionMessages, ...petMessages];
+  }
+
+  if (!target) {
+    await interaction.update(
+      buildBattleContent(state, interaction.user, await buildBattleAttachment(state, interaction.user))
+    );
+    recordDungeonInteraction(interaction, userId);
+    return true;
+  }
+
+  if (target.health <= 0) {
+    state.actionMessages[0] += ' The creature has been defeated.';
+  }
+
+  const aliveCreatures = state.creatures.filter((creature) => creature.health > 0);
+  if (!aliveCreatures.length) {
+    const stageData = state.stageData;
+    const currentFloor = state.dungeon?.floor ?? 1;
+    if (currentFloor < (stageData?.totalFloors ?? 1)) {
+      clearDungeonFloorTimeout(userId);
+      await runDungeonFloorTransition(interaction, state);
+      const nextFloor = currentFloor + 1;
+      state.dungeon.floor = nextFloor;
+      state.creatures = buildDungeonCreatures(stageData, nextFloor);
+      state.actionMessages = [];
+      state.player.actionsLeft = ACTIONS_PER_TURN;
+      state.isTransitioning = false;
+      scheduleDungeonFloorTimeout(interaction, userId);
+      const attachment = await buildBattleAttachment(state, interaction.user);
+      await interaction.editReply(buildBattleContent(state, interaction.user, attachment));
+      recordDungeonInteraction(interaction, userId);
+      return true;
+    }
+
+    const dungeonProfile = getUserDungeonProfile(userId);
+    const firstWin = isDungeonFirstWin(dungeonProfile, state.dungeon?.level ?? 1, state.dungeon?.stage ?? 1);
+    const rewards = calculateDungeonRewards(stageData, firstWin);
+    const leveledUp = applyRewards(userId, profile, rewards);
+    const petProfile = getUserPetProfile(userId);
+    const { profile: updatedPetProfile } = addXpToEquippedPets(petProfile, rewards.xp);
+    updateUserPetProfile(userId, updatedPetProfile);
+    const firstWinItems = [];
+    if (firstWin) {
+      for (const itemReward of stageData.rewards.items ?? []) {
+        const item = findItemById(itemReward.itemId);
+        if (!item) {
+          continue;
+        }
+        addItemToInventory(profile, item, itemReward.amount);
+        firstWinItems.push({ item, amount: itemReward.amount });
+      }
+    }
+    updateUserProfile(userId, profile);
+
+    markDungeonStageCompleted(dungeonProfile, state.dungeon?.level ?? 1, state.dungeon?.stage ?? 1);
+    if (firstWin) {
+      markDungeonFirstWin(dungeonProfile, state.dungeon?.level ?? 1, state.dungeon?.stage ?? 1);
+    }
+    updateUserDungeonProfile(userId, dungeonProfile);
+
+    clearDungeonFloorTimeout(userId);
+    await runDungeonEndCountdown(interaction, state, (endTimestampSeconds) =>
+      `You have cleared Stage ${state.dungeon?.stage ?? 1}, exiting <t:${endTimestampSeconds}:R>.`
+    );
+
+    const homeContent = buildDungeonHomeContent(userId, dungeonProfile, state.dungeon?.level ?? 1);
+    await interaction.editReply(homeContent);
+    activeDungeons.delete(userId);
+
+    try {
+      await interaction.user.send(
+        `## Dungeon ${state.dungeon?.level ?? 1} - Stage ${state.dungeon?.stage ?? 1} Rewards\n${buildDungeonRewardSummary(
+          rewards,
+          firstWinItems
+        )}`
+      );
+    } catch (error) {
+      console.warn('Failed to DM dungeon rewards:', error);
+    }
+
+    return true;
+  }
+
+  if (state.player.actionsLeft <= 0) {
+    const playerMessages = [...state.actionMessages];
+    const enemyMessages = resolveCreatureTurn(state);
+    let diedReason = state.player.health <= 0 ? 'You died...' : null;
+    const statusMessages = diedReason ? [] : applyStatusEffects(state);
+
+    if (!diedReason && state.player.health <= 0) {
+      diedReason = 'You died...';
+    }
+
+    if (diedReason) {
+      clearDungeonFloorTimeout(userId);
+      state.isEnding = true;
+      await runDungeonEndCountdown(interaction, state, (endTimestampSeconds) =>
+        `You have failed Stage ${state.dungeon?.stage ?? 1}, exiting <t:${endTimestampSeconds}:R>.`
+      );
+      const dungeonProfile = getUserDungeonProfile(userId);
+      await interaction.editReply(buildDungeonHomeContent(userId, dungeonProfile, state.dungeon?.level ?? 1));
+      activeDungeons.delete(userId);
+      return true;
+    }
+
+    state.player.actionsLeft = ACTIONS_PER_TURN;
+    if (state.player.actionPenalty) {
+      state.player.actionsLeft = Math.max(0, state.player.actionsLeft - state.player.actionPenalty);
+      state.player.actionPenalty = 0;
+    }
+    state.actionMessages = [
+      ...playerMessages,
+      ...enemyMessages,
+      ...statusMessages,
+      'Your actions have been refreshed for the next turn.',
+    ];
+  }
+
+  const attachment = await buildBattleAttachment(state, interaction.user);
+  const content = buildBattleContent(state, interaction.user, attachment);
+  await interaction.update(content);
+  recordDungeonInteraction(interaction, userId);
+  return true;
+}
+
 async function handleAttackSelection(interaction, userId, creatureId) {
   if (interaction.user.id !== userId) {
     await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
@@ -1805,6 +2591,34 @@ async function handleAttackSelection(interaction, userId, creatureId) {
   return true;
 }
 
+async function handleDungeonComponent(interaction) {
+  if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_BUTTON_PREFIX)) {
+    const [, action, userId, dungeonLevel] = interaction.customId.split(':');
+    if (action === 'start') {
+      return handleDungeonStart(interaction, userId, Number(dungeonLevel));
+    }
+    if (action === 'info') {
+      return handleDungeonInfo(interaction, userId, Number(dungeonLevel));
+    }
+    await safeErrorReply(interaction, 'Unknown dungeon action.');
+    return true;
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(DUNGEON_SELECT_PREFIX)) {
+    const [, dungeonLevel, userId] = interaction.customId.split(':');
+    const stage = interaction.values?.[0];
+    return handleDungeonStageSelect(interaction, userId, Number(dungeonLevel), stage);
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(DUNGEON_ATTACK_SELECT_PREFIX)) {
+    const userId = interaction.customId.replace(DUNGEON_ATTACK_SELECT_PREFIX, '');
+    const selectedId = interaction.values?.[0];
+    return handleDungeonAttackSelection(interaction, userId, selectedId);
+  }
+
+  return false;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('hunt')
@@ -1864,5 +2678,8 @@ module.exports = {
     }
 
     return false;
-  }
+  },
+
+  buildDungeonHomeContent,
+  handleDungeonComponent,
 };
