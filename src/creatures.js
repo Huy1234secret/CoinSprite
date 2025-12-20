@@ -9,13 +9,6 @@ const MOSSBACK_MONKEY = {
   rarityIcon: RARITY_EMOJIS.Common,
   attackType: 'Singular',
   reward: { coins: { min: 275, max: 450 }, xp: { min: 12, max: 24 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'rockThrow',
@@ -47,13 +40,6 @@ const VINE_SNAKE = {
   rarityIcon: RARITY_EMOJIS.Common,
   attackType: 'Singular',
   reward: { coins: { min: 300, max: 500 }, xp: { min: 25, max: 50 } },
-  levelDistribution: [
-    { level: 1, chance: 0.55 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.13 },
-    { level: 4, chance: 0.015 },
-    { level: 5, chance: 0.005 },
-  ],
   actions: [
     {
       key: 'poisonousBite',
@@ -92,13 +78,6 @@ const THORNBACK_BOAR = {
   attackType: 'Singular',
   defense: 0.15,
   reward: { coins: { min: 250, max: 500 }, xp: { min: 15, max: 30 } },
-  levelDistribution: [
-    { level: 1, chance: 0.45 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.18 },
-    { level: 4, chance: 0.06 },
-    { level: 5, chance: 0.01 },
-  ],
   actions: [
     {
       key: 'gored',
@@ -125,13 +104,6 @@ const JUNGLE_BETTLE = {
   attackType: 'Singular',
   defense: 0.3,
   reward: { coins: { min: 350, max: 600 }, xp: { min: 10, max: 40 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.35 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.045 },
-    { level: 5, chance: 0.005 },
-  ],
   actions: [
     {
       key: 'bite',
@@ -157,13 +129,6 @@ const LEAF_FROG = {
   rarityIcon: RARITY_EMOJIS.Common,
   attackType: 'Singular',
   reward: { coins: { min: 200, max: 350 }, xp: { min: 10, max: 30 } },
-  levelDistribution: [
-    { level: 1, chance: 0.5 },
-    { level: 2, chance: 0.35 },
-    { level: 3, chance: 0.1 },
-    { level: 4, chance: 0.045 },
-    { level: 5, chance: 0.005 },
-  ],
   actions: [
     {
       key: 'poisonousLiquid',
@@ -198,13 +163,6 @@ const CLAWFOOT_BIRD = {
   rarityIcon: RARITY_EMOJIS.Common,
   attackType: 'Singular',
   reward: { coins: { min: 300, max: 450 }, xp: { min: 25, max: 40 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'clawScratch',
@@ -236,13 +194,6 @@ const BRISTLE_JAGUAR = {
   rarityIcon: RARITY_EMOJIS.Rare,
   attackType: 'Singular',
   reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'clawScratch',
@@ -280,13 +231,6 @@ const SPOREBACK_TORTOISE = {
   attackType: 'Singular',
   defense: 0.35,
   reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'poisonGas',
@@ -324,13 +268,6 @@ const RAZORWING_PARROT = {
   rarityIcon: RARITY_EMOJIS.Rare,
   attackType: 'Singular',
   reward: { coins: { min: 500, max: 800 }, xp: { min: 33, max: 48 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'throwSharpFeather',
@@ -371,13 +308,6 @@ const MUDSCALE_LIZARD = {
   attackType: 'Singular',
   defense: 0.15,
   reward: { coins: { min: 600, max: 850 }, xp: { min: 35, max: 49 } },
-  levelDistribution: [
-    { level: 1, chance: 0.4 },
-    { level: 2, chance: 0.3 },
-    { level: 3, chance: 0.2 },
-    { level: 4, chance: 0.08 },
-    { level: 5, chance: 0.02 },
-  ],
   actions: [
     {
       key: 'bite',
@@ -408,16 +338,6 @@ const ROOTED_APE = {
   attackType: 'Singular',
   defense: 0.5,
   reward: { coins: { min: 800, max: 1200 }, xp: { min: 45, max: 55 } },
-  levelDistribution: [
-    { level: 1, chance: 0.41 },
-    { level: 2, chance: 0.31 },
-    { level: 3, chance: 0.21 },
-    { level: 4, chance: 0.12 },
-    { level: 5, chance: 0.08 },
-    { level: 6, chance: 0.05 },
-    { level: 7, chance: 0.019 },
-    { level: 8, chance: 0.001 },
-  ],
   actions: [
     {
       key: 'stomp',
@@ -466,17 +386,6 @@ const CORRUPTED_CUBE = {
     diamonds: { min: 10, max: 250 },
     prismatic: { min: 1, max: 50, chance: 0.25 },
   },
-  levelDistribution: [
-    { level: 1, chance: 0.16 },
-    { level: 2, chance: 0.14 },
-    { level: 3, chance: 0.13 },
-    { level: 4, chance: 0.12 },
-    { level: 5, chance: 0.11 },
-    { level: 6, chance: 0.1 },
-    { level: 7, chance: 0.09 },
-    { level: 8, chance: 0.08 },
-    { level: 9, chance: 0.07 },
-  ],
   actions: [
     {
       key: 'nullBeam',
