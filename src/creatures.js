@@ -372,6 +372,312 @@ const ROOTED_APE = {
   ],
 };
 
+const THUNDERFANG_PANTHER = {
+  name: 'Thunderfang Panther',
+  emoji: '🐆',
+  baseHealth: 320,
+  rarity: 'Epic',
+  rarityEmoji: RARITY_EMOJIS.Epic,
+  rarityIcon: RARITY_EMOJIS.Epic,
+  attackType: 'Singular',
+  reward: { coins: { min: 1100, max: 1500 }, xp: { min: 60, max: 85 } },
+  actions: [
+    {
+      key: 'thunderSlash',
+      name: 'Thunder Slash',
+      chance: 0.6,
+      damage: { min: 28, max: 40 },
+      message: 'The Thunderfang Panther slashes {target} with crackling claws for {amount} damages',
+    },
+    {
+      key: 'stormPounce',
+      name: 'Storm Pounce',
+      chance: 0.4,
+      damage: { min: 38, max: 55 },
+      message: 'The Thunderfang Panther pounces on {target} for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.75 },
+    { itemId: 'ITSharpFang', chance: 0.45 },
+    { itemId: 'ITHunterPeltStrip', chance: 0.2 },
+  ],
+};
+
+const BLOOM_SERPENT = {
+  name: 'Bloom Serpent',
+  emoji: '🐍',
+  baseHealth: 280,
+  rarity: 'Epic',
+  rarityEmoji: RARITY_EMOJIS.Epic,
+  rarityIcon: RARITY_EMOJIS.Epic,
+  attackType: 'Singular',
+  reward: { coins: { min: 1000, max: 1450 }, xp: { min: 60, max: 80 } },
+  actions: [
+    {
+      key: 'bloomSpit',
+      name: 'Bloom Spit',
+      chance: 0.45,
+      damage: { min: 12, max: 18 },
+      poison: { percent: 0.3, duration: 3 },
+      message: 'The Bloom Serpent spits a toxic bloom at {target}, dealing {amount} damages',
+    },
+    {
+      key: 'constrict',
+      name: 'Constrict',
+      chance: 0.55,
+      damage: { min: 30, max: 45 },
+      damageIfPoisoned: { min: 42, max: 55 },
+      message: 'The Bloom Serpent constricts {target}, dealing {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITVineFiber', chance: 0.6 },
+    { itemId: 'ITWeakVenomGland', chance: 0.5 },
+    { itemId: 'ITSharpFang', chance: 0.3 },
+  ],
+};
+
+const EMERALD_STALKER = {
+  name: 'Emerald Stalker',
+  emoji: '🦎',
+  baseHealth: 300,
+  rarity: 'Epic',
+  rarityEmoji: RARITY_EMOJIS.Epic,
+  rarityIcon: RARITY_EMOJIS.Epic,
+  attackType: 'Singular',
+  reward: { coins: { min: 1050, max: 1500 }, xp: { min: 62, max: 88 } },
+  actions: [
+    {
+      key: 'ambush',
+      name: 'Ambush',
+      chance: 0.5,
+      damage: { min: 32, max: 48 },
+      message: 'The Emerald Stalker ambushes {target} for {amount} damages',
+    },
+    {
+      key: 'venomSwipe',
+      name: 'Venom Swipe',
+      chance: 0.5,
+      damage: { min: 24, max: 34 },
+      poison: { percent: 0.25, duration: 2 },
+      message: 'The Emerald Stalker swipes {target} with venomous claws for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITResinLump', chance: 0.5 },
+    { itemId: 'ITSharpFang', chance: 0.4 },
+    { itemId: 'ITBurrowerScale', chance: 0.2 },
+  ],
+};
+
+const TOTEM_GUARDIAN = {
+  name: 'Totem Guardian',
+  emoji: '🗿',
+  baseHealth: 360,
+  rarity: 'Epic',
+  rarityEmoji: RARITY_EMOJIS.Epic,
+  rarityIcon: RARITY_EMOJIS.Epic,
+  attackType: 'Singular',
+  defense: 0.4,
+  reward: { coins: { min: 1200, max: 1650 }, xp: { min: 65, max: 90 } },
+  actions: [
+    {
+      key: 'totemSmash',
+      name: 'Totem Smash',
+      chance: 0.6,
+      damage: { min: 30, max: 42 },
+      message: 'The Totem Guardian smashes {target}, dealing {amount} damages',
+    },
+    {
+      key: 'stonePulse',
+      name: 'Stone Pulse',
+      chance: 0.4,
+      damage: { min: 22, max: 32 },
+      message: 'The Totem Guardian releases a stone pulse at {target} for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITMossyShavings', chance: 0.45 },
+    { itemId: 'ITToughHideScrap', chance: 0.4 },
+    { itemId: 'ITWorldrootFragment', chance: 0.05 },
+  ],
+};
+
+const ANCIENT_HORNED_GORILLA = {
+  name: 'Ancient Horned Gorilla',
+  emoji: '🦍',
+  baseHealth: 520,
+  rarity: 'Legendary',
+  rarityEmoji: RARITY_EMOJIS.Legendary,
+  rarityIcon: RARITY_EMOJIS.Legendary,
+  attackType: 'Singular',
+  defense: 0.25,
+  reward: { coins: { min: 2200, max: 3000 }, xp: { min: 120, max: 160 } },
+  actions: [
+    {
+      key: 'hornCharge',
+      name: 'Horn Charge',
+      chance: 0.5,
+      damage: { min: 45, max: 60 },
+      message: 'The Ancient Horned Gorilla charges {target} for {amount} damages',
+    },
+    {
+      key: 'groundQuake',
+      name: 'Ground Quake',
+      chance: 0.5,
+      damage: { min: 35, max: 50 },
+      actionPenalty: 1,
+      message: 'The Ancient Horned Gorilla slams the ground, rattling {target} for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 0.8 },
+    { itemId: 'ITToughHideScrap', chance: 0.6 },
+    { itemId: 'ITHeavyHornFragment', chance: 0.25 },
+  ],
+};
+
+const STORM_CANOPY_EAGLE = {
+  name: 'Storm Canopy Eagle',
+  emoji: '🦅',
+  baseHealth: 440,
+  rarity: 'Legendary',
+  rarityEmoji: RARITY_EMOJIS.Legendary,
+  rarityIcon: RARITY_EMOJIS.Legendary,
+  attackType: 'Multi',
+  reward: { coins: { min: 2100, max: 2800 }, xp: { min: 115, max: 150 } },
+  actions: [
+    {
+      key: 'stormDive',
+      name: 'Storm Dive',
+      chance: 0.55,
+      damage: { min: 40, max: 55 },
+      message: 'The Storm Canopy Eagle dives at {target} for {amount} damages',
+    },
+    {
+      key: 'windLash',
+      name: 'Wind Lash',
+      chance: 0.45,
+      damage: { min: 32, max: 45 },
+      message: 'The Storm Canopy Eagle lashes {target} with wind for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITJungleFeather', chance: 0.75 },
+    { itemId: 'ITRazorTalon', chance: 0.5 },
+    { itemId: 'ITRazorfeatherQuill', chance: 0.25 },
+  ],
+};
+
+const VINE_TITAN = {
+  name: 'Vine Titan',
+  emoji: '🌿',
+  baseHealth: 600,
+  rarity: 'Legendary',
+  rarityEmoji: RARITY_EMOJIS.Legendary,
+  rarityIcon: RARITY_EMOJIS.Legendary,
+  attackType: 'Singular',
+  defense: 0.35,
+  reward: { coins: { min: 2300, max: 3200 }, xp: { min: 125, max: 170 } },
+  actions: [
+    {
+      key: 'vineCrush',
+      name: 'Vine Crush',
+      chance: 0.6,
+      damage: { min: 38, max: 55 },
+      actionPenalty: 1,
+      message: 'The Vine Titan crushes {target} in thick vines for {amount} damages',
+    },
+    {
+      key: 'thornBarrage',
+      name: 'Thorn Barrage',
+      chance: 0.4,
+      damage: { min: 30, max: 42 },
+      message: 'The Vine Titan launches thorns at {target}, dealing {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITVineFiber', chance: 0.7 },
+    { itemId: 'ITToughHideScrap', chance: 0.5 },
+    { itemId: 'ITWorldrootFragment', chance: 0.15 },
+  ],
+};
+
+const SOLAR_JAGUAR = {
+  name: 'Solar Jaguar',
+  emoji: '☀️',
+  baseHealth: 760,
+  rarity: 'Mythical',
+  rarityEmoji: RARITY_EMOJIS.Mythical,
+  rarityIcon: RARITY_EMOJIS.Mythical,
+  attackType: 'Singular',
+  reward: {
+    coins: { min: 5200, max: 8000 },
+    xp: { min: 300, max: 450 },
+    diamonds: { min: 2, max: 12 },
+    prismatic: { min: 1, max: 10, chance: 0.2 },
+  },
+  actions: [
+    {
+      key: 'solarFlare',
+      name: 'Solar Flare',
+      chance: 0.5,
+      damage: { min: 60, max: 85 },
+      message: 'The Solar Jaguar releases a solar flare at {target} for {amount} damages',
+    },
+    {
+      key: 'blazingPounce',
+      name: 'Blazing Pounce',
+      chance: 0.5,
+      damage: { min: 70, max: 100 },
+      message: 'The Solar Jaguar pounces on {target} with blazing heat for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 1, amount: { min: 5, max: 12 } },
+    { itemId: 'ITJaguarSoulFang', chance: 0.2 },
+  ],
+};
+
+const PHANTOM_ORCHID_WARDEN = {
+  name: 'Phantom Orchid Warden',
+  emoji: '🌸',
+  baseHealth: 1250,
+  rarity: 'Secret',
+  rarityEmoji: RARITY_EMOJIS.Secret,
+  rarityIcon: RARITY_EMOJIS.Secret,
+  attackType: 'Multi',
+  defense: 0.5,
+  reward: {
+    coins: { min: 10000, max: 18000 },
+    xp: { min: 600, max: 900 },
+    diamonds: { min: 8, max: 30 },
+    prismatic: { min: 1, max: 25, chance: 0.35 },
+  },
+  actions: [
+    {
+      key: 'orchidCurse',
+      name: 'Orchid Curse',
+      chance: 0.4,
+      damage: { min: 20, max: 30 },
+      poison: { percent: 0.5, duration: Infinity },
+      message: 'The Phantom Orchid Warden curses {target} with a toxic bloom for {amount} damages',
+    },
+    {
+      key: 'phantomSlash',
+      name: 'Phantom Slash',
+      chance: 0.6,
+      damage: { min: 90, max: 140 },
+      message: 'The Phantom Orchid Warden slashes {target} through the veil for {amount} damages',
+    },
+  ],
+  drops: [
+    { itemId: 'ITBeastMeat', chance: 1, amount: { min: 12, max: 25 } },
+    { itemId: 'ITWorldrootFragment', chance: 0.25 },
+  ],
+};
+
 const CORRUPTED_CUBE = {
   name: 'Corrupted Cube',
   emoji: '<:MSCorruptedCube:1450727554339311668>',
@@ -424,6 +730,15 @@ const CREATURES = [
   RAZORWING_PARROT,
   MUDSCALE_LIZARD,
   ROOTED_APE,
+  THUNDERFANG_PANTHER,
+  BLOOM_SERPENT,
+  EMERALD_STALKER,
+  TOTEM_GUARDIAN,
+  ANCIENT_HORNED_GORILLA,
+  STORM_CANOPY_EAGLE,
+  VINE_TITAN,
+  SOLAR_JAGUAR,
+  PHANTOM_ORCHID_WARDEN,
   CORRUPTED_CUBE,
 ];
 
@@ -440,5 +755,14 @@ module.exports = {
   RAZORWING_PARROT,
   MUDSCALE_LIZARD,
   ROOTED_APE,
+  THUNDERFANG_PANTHER,
+  BLOOM_SERPENT,
+  EMERALD_STALKER,
+  TOTEM_GUARDIAN,
+  ANCIENT_HORNED_GORILLA,
+  STORM_CANOPY_EAGLE,
+  VINE_TITAN,
+  SOLAR_JAGUAR,
+  PHANTOM_ORCHID_WARDEN,
   CORRUPTED_CUBE,
 };

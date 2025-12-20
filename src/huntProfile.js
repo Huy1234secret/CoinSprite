@@ -80,7 +80,8 @@ function normalizeGearInventory(list) {
 }
 
 function calculatePlayerMaxHealth(level, baseHealth = DEFAULT_PROFILE.max_health) {
-  return Math.round(baseHealth * Math.pow(1.05, Math.max(0, level - 1)));
+  const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+  return Math.round(baseHealth + safeLevel * 25);
 }
 
 function ensureProfileShape(profile = {}) {

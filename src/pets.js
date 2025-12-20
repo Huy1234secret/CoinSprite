@@ -282,12 +282,17 @@ function findPetInstance(profile, instanceId) {
 }
 
 function scalePetHealth(base, level) {
-  return Math.ceil(base * Math.pow(1.5, Math.max(0, level)));
+  const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+  const safeBase = Math.max(1, Number(base) || 1);
+  return Math.ceil(safeBase + safeBase * 0.1 * safeLevel);
 }
 
 function scalePetDamage(damage, level) {
-  const min = Math.ceil((damage?.min ?? 1) * Math.pow(1.35, Math.max(0, level)));
-  const max = Math.ceil((damage?.max ?? min) * Math.pow(1.35, Math.max(0, level)));
+  const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+  const baseMin = Math.max(1, Number(damage?.min) || 1);
+  const baseMax = Math.max(baseMin, Number(damage?.max) || baseMin);
+  const min = Math.ceil(baseMin + baseMin * 0.05 * safeLevel);
+  const max = Math.ceil(baseMax + baseMax * 0.05 * safeLevel);
   return { min, max };
 }
 
