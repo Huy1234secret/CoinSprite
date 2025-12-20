@@ -15,7 +15,29 @@ const {
   updateUserProfile,
 } = require('../src/huntProfile');
 const { addCoinsToUser, addDiamondsToUser, addPrismaticToUser } = require('../src/userStats');
-const { CREATURES, JUNGLE_BETTLE } = require('../src/creatures');
+const {
+  CREATURES,
+  JUNGLE_BETTLE,
+  MOSSBACK_MONKEY,
+  VINE_SNAKE,
+  THORNBACK_BOAR,
+  LEAF_FROG,
+  CLAWFOOT_BIRD,
+  BRISTLE_JAGUAR,
+  SPOREBACK_TORTOISE,
+  RAZORWING_PARROT,
+  MUDSCALE_LIZARD,
+  ROOTED_APE,
+  THUNDERFANG_PANTHER,
+  BLOOM_SERPENT,
+  EMERALD_STALKER,
+  TOTEM_GUARDIAN,
+  ANCIENT_HORNED_GORILLA,
+  STORM_CANOPY_EAGLE,
+  VINE_TITAN,
+  SOLAR_JAGUAR,
+  PHANTOM_ORCHID_WARDEN,
+} = require('../src/creatures');
 const { DUNGEONS, DUNGEON_DIFFICULTY_EMOJI, getDungeonStage } = require('../src/dungeons');
 const { getUserDungeonProfile, updateUserDungeonProfile } = require('../src/dungeonProfile');
 const {
@@ -61,6 +83,45 @@ const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
 const DEFENSE_STATUS = { type: 'Defense', name: 'Defense', emoji: DEFENSE_EMOJI };
 const ACTION_LOCK_STATUS = { type: 'ActionLock', name: 'Root Trap', emoji: '⛓️' };
+const CREATURE_RARITY_ORDER = ['Common', 'Rare', 'Epic', 'Legendary', 'Mythical', 'Secret'];
+const CREATURE_RARITY_WEIGHTS = {
+  Common: 60,
+  Rare: 25,
+  Epic: 10,
+  Legendary: 4,
+  Mythical: 0.7,
+  Secret: 0.3,
+};
+const CREATURE_WEIGHT_BY_RARITY = {
+  Common: [
+    { creature: MOSSBACK_MONKEY, weight: 24 },
+    { creature: VINE_SNAKE, weight: 18 },
+    { creature: THORNBACK_BOAR, weight: 12 },
+    { creature: JUNGLE_BETTLE, weight: 10 },
+    { creature: LEAF_FROG, weight: 20 },
+    { creature: CLAWFOOT_BIRD, weight: 16 },
+  ],
+  Rare: [
+    { creature: BRISTLE_JAGUAR, weight: 22 },
+    { creature: SPOREBACK_TORTOISE, weight: 22 },
+    { creature: RAZORWING_PARROT, weight: 18 },
+    { creature: MUDSCALE_LIZARD, weight: 18 },
+    { creature: ROOTED_APE, weight: 20 },
+  ],
+  Epic: [
+    { creature: THUNDERFANG_PANTHER, weight: 28 },
+    { creature: BLOOM_SERPENT, weight: 20 },
+    { creature: EMERALD_STALKER, weight: 22 },
+    { creature: TOTEM_GUARDIAN, weight: 30 },
+  ],
+  Legendary: [
+    { creature: ANCIENT_HORNED_GORILLA, weight: 35 },
+    { creature: STORM_CANOPY_EAGLE, weight: 30 },
+    { creature: VINE_TITAN, weight: 35 },
+  ],
+  Mythical: [{ creature: SOLAR_JAGUAR, weight: 100 }],
+  Secret: [{ creature: PHANTOM_ORCHID_WARDEN, weight: 100 }],
+};
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
@@ -99,6 +160,39 @@ function pickCreatureLevel(distribution) {
     }
   }
   return distribution[distribution.length - 1]?.level ?? 1;
+}
+
+function pickWeightedEntry(entries = []) {
+  if (!entries.length) {
+    return null;
+  }
+  const total = entries.reduce((sum, entry) => sum + (Number(entry.weight) || 0), 0);
+  if (total <= 0) {
+    return entries[0];
+  }
+  const roll = Math.random() * total;
+  let cumulative = 0;
+  for (const entry of entries) {
+    cumulative += Number(entry.weight) || 0;
+    if (roll <= cumulative) {
+      return entry;
+    }
+  }
+  return entries[entries.length - 1];
+}
+
+function getMaxCreatureRarity(huntLevel) {
+  const level = Math.max(0, Math.floor(Number(huntLevel) || 0));
+  if (level >= 51) {
+    return 'Secret';
+  }
+  if (level >= 31) {
+    return 'Legendary';
+  }
+  if (level >= 16) {
+    return 'Epic';
+  }
+  return 'Rare';
 }
 
 function getCreatureLevelDistribution(huntLevel) {
@@ -177,12 +271,26 @@ function prepareActionsForLevel(actions = [], level) {
   }));
 }
 
-function pickCreatureDefinition() {
+function pickCreatureDefinition(huntLevel = 0) {
   if (!Array.isArray(CREATURES) || CREATURES.length === 0) {
     return JUNGLE_BETTLE;
   }
-  const index = Math.floor(Math.random() * CREATURES.length);
-  return CREATURES[index];
+
+  const maxRarity = getMaxCreatureRarity(huntLevel);
+  const maxIndex = CREATURE_RARITY_ORDER.indexOf(maxRarity);
+  const allowedRarities =
+    maxIndex >= 0 ? CREATURE_RARITY_ORDER.slice(0, maxIndex + 1) : CREATURE_RARITY_ORDER;
+  const rarityEntries = allowedRarities
+    .map((rarity) => ({
+      rarity,
+      weight: CREATURE_RARITY_WEIGHTS[rarity] ?? 0,
+      creatures: CREATURE_WEIGHT_BY_RARITY[rarity] ?? [],
+    }))
+    .filter((entry) => entry.weight > 0 && entry.creatures.length);
+
+  const chosenRarity = pickWeightedEntry(rarityEntries)?.rarity ?? 'Common';
+  const creatureEntry = pickWeightedEntry(CREATURE_WEIGHT_BY_RARITY[chosenRarity] ?? []);
+  return creatureEntry?.creature ?? CREATURES[0] ?? JUNGLE_BETTLE;
 }
 
 function createCreatureInstance(definition = JUNGLE_BETTLE, huntLevel = 0) {
@@ -914,7 +1022,7 @@ function getEmojiUrl(emoji) {
 function createBattleState(profile, user, petProfile) {
   const gear = selectGear(profile);
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
-  const creatures = [createCreatureInstance(pickCreatureDefinition(), profile.level)];
+  const creatures = [createCreatureInstance(pickCreatureDefinition(profile.level), profile.level)];
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
@@ -1885,7 +1993,10 @@ async function runHuntEndCountdown(interaction, state, countdownBuilder) {
   const endTimestampSeconds = Math.floor(
     (Date.now() + HUNT_END_COUNTDOWN_SECONDS * 1000) / 1000
   );
-  state.actionMessages = [countdownBuilder(endTimestampSeconds)];
+  state.actionMessages = [
+    ...(state.actionMessages ?? []),
+    countdownBuilder(endTimestampSeconds),
+  ];
   state.player.actionsLeft = 0;
 
   try {
@@ -2628,6 +2739,8 @@ async function handleAttackSelection(interaction, userId, creatureId) {
       diedReason = 'You died...';
     }
 
+    state.actionMessages = [...playerMessages, ...enemyMessages, ...statusMessages];
+
     if (diedReason) {
       clearHuntInactivityTimeout(userId);
       state.isEnding = true;
@@ -2646,9 +2759,7 @@ async function handleAttackSelection(interaction, userId, creatureId) {
       state.player.actionPenalty = 0;
     }
     state.actionMessages = [
-      ...playerMessages,
-      ...enemyMessages,
-      ...statusMessages,
+      ...state.actionMessages,
       'Your actions have been refreshed for the next turn.',
     ];
   }
