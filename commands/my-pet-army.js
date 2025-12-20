@@ -5,6 +5,8 @@ const {
   addPetToInventory,
   getPetDefinition,
   getUserPetProfile,
+  scalePetDamage,
+  scalePetHealth,
 } = require('../src/pets');
 const { buildProgressBar } = require('../src/userStats');
 
@@ -67,14 +69,17 @@ function buildPetSelect(userId, pets, selectedPetId, enabled) {
   };
 }
 
-function formatSkills(petDefinition) {
+function formatSkills(petDefinition, level) {
   const attacks = petDefinition?.attacks ?? [];
   if (!attacks.length) {
     return '- None';
   }
 
   return attacks
-    .map((attack) => `* ${attack.name}: ${attack.damage?.min ?? 0} - ${attack.damage?.max ?? 0} damage (${attack.type ?? 'Singular'})`)
+    .map((attack) => {
+      const scaledDamage = scalePetDamage(attack.damage ?? { min: 0, max: 0 }, level);
+      return `* ${attack.name}: ${scaledDamage.min} - ${scaledDamage.max} damage (${attack.type ?? 'Singular'})`;
+    })
     .join('\n');
 }
 
@@ -84,6 +89,9 @@ function formatPetDetails(user, pet, totalCount = 0) {
   const percent = nextXp ? Math.min(100, (pet.xp / Math.max(1, nextXp)) * 100) : 100;
   const progressBar = nextXp ? buildProgressBar(pet.xp, nextXp) : buildProgressBar(1, 1);
   const emojiUrl = pet.emoji ? `https://cdn.discordapp.com/emojis/${pet.emoji.replace(/[^\d]/g, '')}.png` : null;
+  const baseAttack = definition.attacks?.[0];
+  const scaledDamage = scalePetDamage(baseAttack?.damage ?? { min: 0, max: 0 }, pet.level ?? 0);
+  const scaledHealth = scalePetHealth(definition.baseHealth ?? 1, pet.level ?? 0);
 
   const description = [
     `You have ${totalCount} pet/army`,
@@ -100,7 +108,7 @@ function formatPetDetails(user, pet, totalCount = 0) {
     fields: [
       {
         name: 'Stats',
-        value: `* Damage ⚔️: ${definition.attacks?.[0]?.damage?.min ?? 0} - ${definition.attacks?.[0]?.damage?.max ?? 0}\n* Defense <:SBDefense:1447532983933472900>: ${pet.defense ?? 0}\n* Skills:\n${formatSkills(definition)}`,
+        value: `* Health: ${scaledHealth}\n* Damage ⚔️: ${scaledDamage.min} - ${scaledDamage.max}\n* Defense <:SBDefense:1447532983933472900>: ${pet.defense ?? 0}\nSkills:\n${formatSkills(definition, pet.level ?? 0)}`,
       },
     ],
     thumbnail: emojiUrl ? { url: emojiUrl } : undefined,
