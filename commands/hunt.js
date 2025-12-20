@@ -100,6 +100,67 @@ function pickCreatureLevel(distribution) {
   }
   return distribution[distribution.length - 1]?.level ?? 1;
 }
+
+function getCreatureLevelDistribution(huntLevel) {
+  const level = Math.max(0, Math.floor(Number(huntLevel) || 0));
+  if (level >= 80) {
+    return [
+      { level: 1, chance: 0.24 },
+      { level: 2, chance: 0.17 },
+      { level: 3, chance: 0.15 },
+      { level: 4, chance: 0.13 },
+      { level: 5, chance: 0.1 },
+      { level: 6, chance: 0.08 },
+      { level: 7, chance: 0.06 },
+      { level: 8, chance: 0.04 },
+      { level: 9, chance: 0.02 },
+      { level: 10, chance: 0.007 },
+      { level: 11, chance: 0.0025 },
+      { level: 12, chance: 0.0005 },
+    ];
+  }
+  if (level >= 51) {
+    return [
+      { level: 1, chance: 0.31 },
+      { level: 2, chance: 0.25 },
+      { level: 3, chance: 0.18 },
+      { level: 4, chance: 0.12 },
+      { level: 5, chance: 0.08 },
+      { level: 6, chance: 0.034 },
+      { level: 7, chance: 0.018 },
+      { level: 8, chance: 0.007 },
+      { level: 9, chance: 0.001 },
+    ];
+  }
+  if (level >= 36) {
+    return [
+      { level: 1, chance: 0.35 },
+      { level: 2, chance: 0.25 },
+      { level: 3, chance: 0.17 },
+      { level: 4, chance: 0.13 },
+      { level: 5, chance: 0.07 },
+      { level: 6, chance: 0.025 },
+      { level: 7, chance: 0.005 },
+    ];
+  }
+  if (level >= 21) {
+    return [
+      { level: 1, chance: 0.5 },
+      { level: 2, chance: 0.3 },
+      { level: 3, chance: 0.12 },
+      { level: 4, chance: 0.07 },
+      { level: 5, chance: 0.01 },
+    ];
+  }
+  if (level >= 11) {
+    return [
+      { level: 1, chance: 0.6 },
+      { level: 2, chance: 0.35 },
+      { level: 3, chance: 0.05 },
+    ];
+  }
+  return [{ level: 1, chance: 1 }];
+}
 function scaleDamageRange(range, level) {
   const min = scaleStatForLevel(range?.min ?? 1, level, CREATURE_DAMAGE_GROWTH);
   const max = scaleStatForLevel(range?.max ?? min, level, CREATURE_DAMAGE_GROWTH);
@@ -124,8 +185,8 @@ function pickCreatureDefinition() {
   return CREATURES[index];
 }
 
-function createCreatureInstance(definition = JUNGLE_BETTLE) {
-  const level = pickCreatureLevel(definition.levelDistribution ?? [{ level: 1, chance: 1 }]);
+function createCreatureInstance(definition = JUNGLE_BETTLE, huntLevel = 0) {
+  const level = pickCreatureLevel(getCreatureLevelDistribution(huntLevel));
   const health = scaleStatForLevel(definition.baseHealth ?? 1, level, CREATURE_HEALTH_GROWTH);
 
   const baseDamage = definition.damage
@@ -853,7 +914,7 @@ function getEmojiUrl(emoji) {
 function createBattleState(profile, user, petProfile) {
   const gear = selectGear(profile);
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
-  const creatures = [createCreatureInstance(pickCreatureDefinition())];
+  const creatures = [createCreatureInstance(pickCreatureDefinition(), profile.level)];
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
