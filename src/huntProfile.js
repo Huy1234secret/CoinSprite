@@ -12,14 +12,17 @@ const {
 } = require('./items');
 
 function calculateNextLevelXp(level) {
-  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
-  return Math.ceil(100 * Math.pow(safeLevel, 1.5));
+  const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+  if (safeLevel >= 100) {
+    return 1000;
+  }
+  return Math.min(1000, 100 + safeLevel * 50);
 }
 
 const DEFAULT_PROFILE = {
-  level: 1,
+  level: 0,
   xp: 0,
-  next_level_xp: calculateNextLevelXp(1),
+  next_level_xp: calculateNextLevelXp(0),
   health: 100,
   max_health: 100,
   defense: 0,
@@ -87,7 +90,7 @@ function ensureProfileShape(profile = {}) {
   const normalizedEquipped = profile.gear_equipped ? normalizeGearItem(profile.gear_equipped) : null;
   const matchedGear = normalizedGearInventory.find((item) => item?.name === normalizedEquipped?.name);
   const gearEquipped = matchedGear ?? (normalizedGearInventory[0] || null);
-  const level = Math.max(1, Math.floor(Number(profile.level) || DEFAULT_PROFILE.level));
+  const level = Math.min(100, Math.max(0, Math.floor(Number(profile.level) || DEFAULT_PROFILE.level)));
   const xpValue = Number(profile.xp);
   const xp = Math.max(0, Number.isFinite(xpValue) ? xpValue : DEFAULT_PROFILE.xp);
   const scaledHealth = calculatePlayerMaxHealth(level, DEFAULT_PROFILE.max_health);

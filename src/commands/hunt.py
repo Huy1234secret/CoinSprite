@@ -17,7 +17,7 @@ HUNT_THUMBNAIL_URL = (
 HEALTH_EMOJI = "<:SBHeart:1447532986378485882>"
 DEFENSE_EMOJI = "<:SBDefense:1447532983933472900>"
 DEFAULT_PROFILE: dict[str, Any] = {
-    "level": 1,
+    "level": 0,
     "xp": 0,
     "next_level_xp": 100,
     "health": 100,

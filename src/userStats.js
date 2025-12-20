@@ -34,11 +34,12 @@ function saveStats(stats) {
 }
 
 function getNextLevelRequirement(level) {
-  if (level >= 100) {
-    return null;
+  const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
+  if (safeLevel >= 100) {
+    return 1000;
   }
 
-  return Math.ceil(100 * Math.pow(1.25, level));
+  return Math.min(1000, 100 + safeLevel * 50);
 }
 
 function ensureStatsShape(stats = {}) {
