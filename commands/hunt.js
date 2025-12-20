@@ -1270,11 +1270,17 @@ function applyRewards(userId, profile, rewards) {
   }
 
   let nextLevelRequirement = calculateNextLevelXp(profile.level);
-  while (profile.xp >= nextLevelRequirement) {
+  while (profile.level < 100 && profile.xp >= nextLevelRequirement) {
     profile.xp -= nextLevelRequirement;
     profile.level += 1;
     leveledUp += 1;
     profile.upgrade_tokens += 5;
+    nextLevelRequirement = calculateNextLevelXp(profile.level);
+  }
+
+  if (profile.level >= 100) {
+    profile.level = 100;
+    profile.xp = 0;
     nextLevelRequirement = calculateNextLevelXp(profile.level);
   }
 
