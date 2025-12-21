@@ -83,6 +83,7 @@ const ACTIONS_PER_TURN = 2;
 const POISON_STATUS = { type: 'Poison', name: 'Poison', emoji: '<:SBPoison:1450756566587543614>' };
 const DEFENSE_STATUS = { type: 'Defense', name: 'Defense', emoji: DEFENSE_EMOJI };
 const ACTION_LOCK_STATUS = { type: 'ActionLock', name: 'Root Trap', emoji: '⛓️' };
+const PET_STUN_STATUS = { type: 'PetStun', name: 'Pet Stun', emoji: '💫' };
 const CREATURE_RARITY_ORDER = ['Common', 'Rare', 'Epic', 'Legendary', 'Mythical', 'Secret'];
 const CREATURE_RARITY_WEIGHTS = {
   Common: 60,
@@ -1214,6 +1215,19 @@ function performPetTurn(state) {
       continue;
     }
 
+    const petStun = findStatus(pet, PET_STUN_STATUS.type);
+    if (petStun) {
+      const remaining = petStun.remaining ?? petStun.duration ?? 0;
+      const nextRemaining = remaining === Infinity ? Infinity : Math.max(0, remaining - 1);
+      const remainingStatuses = (pet.statuses ?? []).filter((status) => status?.type !== PET_STUN_STATUS.type);
+      if (nextRemaining === Infinity || nextRemaining > 0) {
+        remainingStatuses.push({ ...petStun, remaining: nextRemaining });
+      }
+      pet.statuses = remainingStatuses;
+      messages.push(`${PET_STUN_STATUS.emoji} ${pet.name} is stunned and cannot act.`);
+      continue;
+    }
+
     const target = pickCreatureTarget(state.creatures, pet.targetType ?? 'Random');
     if (!target) {
       continue;
@@ -1332,17 +1346,17 @@ function rollCreatureDrops(creatures) {
   return drops;
 }
 
-function findStatus(player, type) {
-  return (player.statuses ?? []).find((status) => status?.type === type) ?? null;
+function findStatus(entity, type) {
+  return (entity.statuses ?? []).find((status) => status?.type === type) ?? null;
 }
 
-function addStatusEffect(player, status) {
+function addStatusEffect(entity, status) {
   if (!status) {
     return null;
   }
 
-  player.statuses = Array.isArray(player.statuses) ? [...player.statuses] : [];
-  const existing = findStatus(player, status.type);
+  entity.statuses = Array.isArray(entity.statuses) ? [...entity.statuses] : [];
+  const existing = findStatus(entity, status.type);
   if (existing) {
     existing.percent = Math.max(existing.percent ?? 0, status.percent ?? 0);
     const incomingRemaining = status.remaining ?? status.duration ?? 0;
@@ -1358,7 +1372,7 @@ function addStatusEffect(player, status) {
 
   const remaining = status.remaining ?? status.duration ?? 0;
   const newStatus = { ...status, remaining: remaining === undefined ? null : remaining };
-  player.statuses.push(newStatus);
+  entity.statuses.push(newStatus);
   return newStatus;
 }
 
@@ -1643,12 +1657,17 @@ function performCreatureAction(state, creature, action, target) {
 
   const isPlayerTarget = target.type === 'player';
   const isPlayerPoisoned = isPlayerTarget && Boolean(findStatus(state.player, POISON_STATUS.type));
-  const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
-  const defensePercent = getDefensePercent(target.entity);
-  const percentMitigated = applyDefensePercent(rawDamage, defensePercent);
-  const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
-  const mitigated = Math.max(1, percentMitigated - defenseMitigation);
-  target.entity.health = Math.max(0, target.entity.health - mitigated);
+  const noDamage = Boolean(action?.noDamage);
+  let mitigated = 0;
+
+  if (!noDamage) {
+    const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
+    const defensePercent = getDefensePercent(target.entity);
+    const percentMitigated = applyDefensePercent(rawDamage, defensePercent);
+    const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
+    mitigated = Math.max(1, percentMitigated - defenseMitigation);
+    target.entity.health = Math.max(0, target.entity.health - mitigated);
+  }
 
   if (action) {
     const actionMessage = formatCreatureActionMessage(
@@ -1676,6 +1695,15 @@ function performCreatureAction(state, creature, action, target) {
         amount: action.actionPenalty,
         remaining: 1,
       });
+    }
+    if (action.petStun) {
+      const duration = action.petStun.duration ?? 1;
+      for (const pet of state.pets ?? []) {
+        if (!pet || pet.health <= 0) {
+          continue;
+        }
+        addStatusEffect(pet, { ...PET_STUN_STATUS, remaining: duration });
+      }
     }
 
     return messages;
