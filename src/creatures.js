@@ -519,7 +519,6 @@ const TOTEM_GUARDIAN = {
     { itemId: 'ITTotemStoneChip', chance: 0.4 },
     { itemId: 'ITWorldrootFragment', chance: 0.25 },
     { itemId: 'ITGuardianCore', chance: 0.18 },
-    { itemId: 'ITAncientTotemRelic', chance: 0.05 },
     { itemId: 'ITAncientJungleTablet', chance: 0.04 },
   ],
 };
@@ -564,7 +563,6 @@ const ANCIENT_HORNED_GORILLA = {
     { itemId: 'ITHeavyHornFragment', chance: 0.3 },
     { itemId: 'ITTotemStoneChip', chance: 0.35 },
     { itemId: 'ITGuardianCore', chance: 0.2 },
-    { itemId: 'ITAncientTotemRelic', chance: 0.06 },
     { itemId: 'ITAncientJungleTablet', chance: 0.05 },
   ],
 };
@@ -689,13 +687,11 @@ const SOLAR_JAGUAR = {
     },
   ],
   drops: [
-    { itemId: 'ITBeastMeat', chance: 0.65 },
-    { itemId: 'ITSharpFang', chance: 0.45 },
-    { itemId: 'ITJaguarSoulFang', chance: 0.18 },
-    { itemId: 'ITThundertraceClawband', chance: 0.15 },
-    { itemId: 'ITSunfirePelt', chance: 0.04 },
-    { itemId: 'ITSolarCore', chance: 0.002 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.06 },
+    { itemId: 'ITBloomPetalCluster', chance: 0.45 },
+    { itemId: 'ITSpiritMistEssence', chance: 0.3 },
+    { itemId: 'ITPhantomOrchidPetal', chance: 0.04 },
+    { itemId: 'ITWardenVeilShard', chance: 0.01 },
+    { itemId: 'ITAncientJungleTablet', chance: 0.07 },
   ],
 };
 
