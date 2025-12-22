@@ -1,5 +1,11 @@
 const { RARITY_EMOJIS } = require('./pets');
 
+const DUNGEON_TOKEN_DROPS = [
+  { itemId: 'ITDungeonToken', chance: 0.01 },
+  { itemId: 'ITDungeonToken', chance: 0.002, amount: 2 },
+  { itemId: 'ITDungeonToken', chance: 0.0006, amount: 3 },
+];
+
 const MOSSBACK_MONKEY = {
   name: 'Mossback Monkey',
   emoji: '<:MCMossbackMonkey:1450727551940038818>',
@@ -28,6 +34,7 @@ const MOSSBACK_MONKEY = {
   drops: [
     { itemId: 'ITBeastMeat', chance: 0.55 },
     { itemId: 'ITMossyShavings', chance: 0.4 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -65,6 +72,7 @@ const VINE_SNAKE = {
     { itemId: 'ITVineFiber', chance: 0.5 },
     { itemId: 'ITWeakVenomGland', chance: 0.45 },
     { itemId: 'ITSharpFang', chance: 0.1 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -91,6 +99,7 @@ const THORNBACK_BOAR = {
     { itemId: 'ITBeastMeat', chance: 0.6 },
     { itemId: 'ITToughHideScrap', chance: 0.5 },
     { itemId: 'ITHeavyHornFragment', chance: 0.08 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -117,6 +126,7 @@ const JUNGLE_BETTLE = {
     { itemId: 'ITBeastMeat', chance: 0.4 },
     { itemId: 'ITMossyShavings', chance: 0.25 },
     { itemId: 'ITBeetleCarapaceShard', chance: 0.55 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -151,6 +161,7 @@ const LEAF_FROG = {
   drops: [
     { itemId: 'ITBeastMeat', chance: 0.45 },
     { itemId: 'ITWeakVenomGland', chance: 0.4 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -182,6 +193,7 @@ const CLAWFOOT_BIRD = {
   drops: [
     { itemId: 'ITJungleFeather', chance: 0.5 },
     { itemId: 'ITRazorTalon', chance: 0.35 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -218,6 +230,7 @@ const BRISTLE_JAGUAR = {
     { itemId: 'ITSharpFang', chance: 0.35 },
     { itemId: 'ITHunterPeltStrip', chance: 0.18 },
     { itemId: 'ITJaguarSoulFang', chance: 0.05 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -256,6 +269,7 @@ const SPOREBACK_TORTOISE = {
     { itemId: 'ITPoisonSporeCluster', chance: 0.35 },
     { itemId: 'ITShellguardPlate', chance: 0.18 },
     { itemId: 'ITBeetleCarapaceShard', chance: 0.6 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -295,6 +309,7 @@ const RAZORWING_PARROT = {
     { itemId: 'ITJungleFeather', chance: 0.65 },
     { itemId: 'ITRazorTalon', chance: 0.45 },
     { itemId: 'ITRazorfeatherQuill', chance: 0.2 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -325,6 +340,7 @@ const MUDSCALE_LIZARD = {
     { itemId: 'ITWeakVenomGland', chance: 0.45 },
     { itemId: 'ITResinLump', chance: 0.4 },
     { itemId: 'ITBurrowerScale', chance: 0.18 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -369,6 +385,7 @@ const ROOTED_APE = {
     { itemId: 'ITVineFiber', chance: 0.45 },
     { itemId: 'ITRootbindingSplinter', chance: 0.15 },
     { itemId: 'ITWorldrootFragment', chance: 0.03 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -413,6 +430,7 @@ const THUNDERFANG_PANTHER = {
     { itemId: 'ITHunterPeltStrip', chance: 0.25 },
     { itemId: 'ITStormCoreShard', chance: 0.18 },
     { itemId: 'ITThundertraceClawband', chance: 0.07 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -447,6 +465,7 @@ const BLOOM_SERPENT = {
     { itemId: 'ITPoisonSporeCluster', chance: 0.45 },
     { itemId: 'ITSharpFang', chance: 0.25 },
     { itemId: 'ITBloomPetalCluster', chance: 0.22 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -482,6 +501,7 @@ const EMERALD_STALKER = {
     { itemId: 'ITBurrowerScale', chance: 0.2 },
     { itemId: 'ITSpiritMistEssence', chance: 0.2 },
     { itemId: 'ITWardenVeilShard', chance: 0.005 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -516,6 +536,7 @@ const TOTEM_GUARDIAN = {
     { itemId: 'ITTotemStoneChip', chance: 0.4 },
     { itemId: 'ITWorldrootFragment', chance: 0.25 },
     { itemId: 'ITGuardianCore', chance: 0.18 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -559,6 +580,7 @@ const ANCIENT_HORNED_GORILLA = {
     { itemId: 'ITHeavyHornFragment', chance: 0.3 },
     { itemId: 'ITTotemStoneChip', chance: 0.35 },
     { itemId: 'ITGuardianCore', chance: 0.2 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -602,6 +624,7 @@ const STORM_CANOPY_EAGLE = {
     { itemId: 'ITRazorfeatherQuill', chance: 0.28 },
     { itemId: 'ITStormCoreShard', chance: 0.22 },
     { itemId: 'ITThundertraceClawband', chance: 0.1 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -650,6 +673,7 @@ const VINE_TITAN = {
     { itemId: 'ITShellguardPlate', chance: 0.25 },
     { itemId: 'ITTotemStoneChip', chance: 0.22 },
     { itemId: 'ITWorldrootFragment', chance: 0.15 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -684,6 +708,7 @@ const SOLAR_JAGUAR = {
     { itemId: 'ITSpiritMistEssence', chance: 0.3 },
     { itemId: 'ITPhantomOrchidPetal', chance: 0.04 },
     { itemId: 'ITWardenVeilShard', chance: 0.01 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -730,6 +755,7 @@ const PHANTOM_ORCHID_WARDEN = {
     { itemId: 'ITThundertraceClawband', chance: 0.15 },
     { itemId: 'ITSunfirePelt', chance: 0.04 },
     { itemId: 'ITSolarCore', chance: 0.002 },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
@@ -770,6 +796,7 @@ const CORRUPTED_CUBE = {
   ],
   drops: [
     { itemId: 'ITBeastMeat', chance: 1, amount: { min: 15, max: 30 } },
+    ...DUNGEON_TOKEN_DROPS,
   ],
 };
 
