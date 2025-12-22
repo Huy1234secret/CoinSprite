@@ -177,6 +177,18 @@ const ITEMS = [
     info: 'A rare fragment pulsing with primal root energy.',
   },
   {
+    id: 'ITAncientJungleTablet',
+    name: 'Ancient Jungle Tablet',
+    emoji: null,
+    rarity: 'Epic',
+    type: 'Material',
+    value: 900,
+    sellPrice: 900,
+    tradable: true,
+    durability: null,
+    info: 'A moss-laced tablet etched with ancient jungle runes.',
+  },
+  {
     id: 'ITResinLump',
     name: 'Resin Lump',
     emoji: '<:ITResinLump:1451534945939099789>',
