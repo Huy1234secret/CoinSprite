@@ -2,7 +2,12 @@ const fs = require('fs');
 const path = require('path');
 
 const USER_STATS_FILE = path.join(__dirname, '..', 'data', 'user_stats.json');
-const { addItemToInventory, getUserProfile, updateUserProfile, UPGRADE_TOKEN_ITEM } = require('./huntProfile');
+const {
+  CHAT_UPGRADE_TOKEN_ITEM,
+  setInventoryItemAmount,
+  getUserProfile,
+  updateUserProfile,
+} = require('./huntProfile');
 
 const DEFAULT_STATS = {
   level: 0,
@@ -10,6 +15,7 @@ const DEFAULT_STATS = {
   coins: 0,
   diamonds: 0,
   prismatic: 0,
+  chat_upgrade_tokens_used: 0,
 };
 
 function loadStats() {
@@ -51,6 +57,10 @@ function ensureStatsShape(stats = {}) {
     coins: Math.max(0, stats.coins ?? DEFAULT_STATS.coins),
     diamonds: Math.max(0, stats.diamonds ?? DEFAULT_STATS.diamonds),
     prismatic: Math.max(0, stats.prismatic ?? DEFAULT_STATS.prismatic),
+    chat_upgrade_tokens_used:
+      typeof stats.chat_upgrade_tokens_used === 'number'
+        ? stats.chat_upgrade_tokens_used
+        : DEFAULT_STATS.chat_upgrade_tokens_used,
   };
 }
 
@@ -61,14 +71,15 @@ function setUserStats(userId, stats) {
   return allStats[String(userId)];
 }
 
-function grantUpgradeTokens(userId, amount) {
-  const safeAmount = Math.max(0, amount);
-  if (safeAmount === 0 || !UPGRADE_TOKEN_ITEM) {
+function ensureChatUpgradeTokens(userId, stats) {
+  if (!CHAT_UPGRADE_TOKEN_ITEM) {
     return;
   }
 
+  const used = Number.isFinite(stats.chat_upgrade_tokens_used) ? stats.chat_upgrade_tokens_used : 0;
+  const expected = Math.max(0, Math.floor(Number(stats.level) || 0) * 5 - used);
   const profile = getUserProfile(userId);
-  addItemToInventory(profile, UPGRADE_TOKEN_ITEM, safeAmount);
+  setInventoryItemAmount(profile, CHAT_UPGRADE_TOKEN_ITEM, expected);
   updateUserProfile(userId, profile);
 }
 
@@ -78,6 +89,7 @@ function getUserStats(userId) {
   const existing = ensureStatsShape(allStats[userKey]);
   allStats[userKey] = existing;
   saveStats(allStats);
+  ensureChatUpgradeTokens(userId, existing);
   return existing;
 }
 
@@ -115,9 +127,7 @@ function addXpToUser(userId, amount) {
   const leveledUp = Math.max(0, withXp.level - current.level);
   const saved = setUserStats(userId, withXp);
 
-  if (leveledUp > 0) {
-    grantUpgradeTokens(userId, leveledUp * 5);
-  }
+  ensureChatUpgradeTokens(userId, saved);
 
   return saved;
 }

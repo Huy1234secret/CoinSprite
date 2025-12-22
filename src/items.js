@@ -45,6 +45,30 @@ const ITEMS = [
     info: 'Coming soon',
   },
   {
+    id: 'ITHuntUpgradeToken',
+    name: 'Hunt Upgrade Token',
+    emoji: '<:ITHuntUpgradeToken:1452674049984430141>',
+    rarity: 'Rare',
+    type: 'Material',
+    value: 0,
+    sellPrice: null,
+    tradable: false,
+    durability: null,
+    info: 'Earned from hunt leveling.',
+  },
+  {
+    id: 'ITChatUpgradeToken',
+    name: 'Chat Upgrade Token',
+    emoji: '<:ITChatUpgradeToken:1452674047304532102>',
+    rarity: 'Rare',
+    type: 'Material',
+    value: 0,
+    sellPrice: null,
+    tradable: false,
+    durability: null,
+    info: 'Earned from chat leveling.',
+  },
+  {
     id: 'ITDungeonToken',
     name: 'Dungeon Token',
     emoji: '<:ITDungeonToken:1451523217511677963>',
@@ -432,6 +456,8 @@ const ITEMS_BY_ID = Object.fromEntries(ITEMS.map((item) => [item.id, item]));
 const FIST_GEAR = KNOWN_GEAR['Fist'];
 const WOODEN_SWORD_GEAR = KNOWN_GEAR['Wooden Sword'];
 const UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITUpgradeToken');
+const HUNT_UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITHuntUpgradeToken');
+const CHAT_UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITChatUpgradeToken');
 
 module.exports = {
   ITEMS,
@@ -441,4 +467,6 @@ module.exports = {
   FIST_GEAR,
   WOODEN_SWORD_GEAR,
   UPGRADE_TOKEN_ITEM,
+  HUNT_UPGRADE_TOKEN_ITEM,
+  CHAT_UPGRADE_TOKEN_ITEM,
 };

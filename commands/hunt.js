@@ -5,11 +5,11 @@ const {
   DEFAULT_PROFILE,
   FIST_GEAR,
   KNOWN_GEAR,
-  UPGRADE_TOKEN_ITEM,
   ITEMS_BY_ID,
   calculatePlayerMaxHealth,
   calculateNextLevelXp,
   addItemToInventory,
+  ensureHuntUpgradeTokenBalance,
   getUserProfile,
   normalizeGearItem,
   updateUserProfile,
@@ -67,7 +67,7 @@ const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
 const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
 const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
-const UPGRADE_TOKEN_EMOJI = '<:ITUpgradeToken:1447502158059540481>';
+const HUNT_UPGRADE_TOKEN_EMOJI = '<:ITHuntUpgradeToken:1452674049984430141>';
 
 const CREATURE_HEALTH_GROWTH = 0.5;
 const CREATURE_DAMAGE_GROWTH = 0.35;
@@ -1461,7 +1461,6 @@ function applyRewards(userId, profile, rewards) {
     profile.xp -= nextLevelRequirement;
     profile.level += 1;
     leveledUp += 1;
-    profile.upgrade_tokens += 5;
     nextLevelRequirement = calculateNextLevelXp(profile.level);
   }
 
@@ -1473,9 +1472,7 @@ function applyRewards(userId, profile, rewards) {
 
   profile.next_level_xp = nextLevelRequirement;
 
-  if (leveledUp > 0) {
-    profile = addItemToInventory(profile, UPGRADE_TOKEN_ITEM, leveledUp * 5);
-  }
+  ensureHuntUpgradeTokenBalance(profile);
 
   const scaledHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
   profile.max_health = scaledHealth;
@@ -1511,7 +1508,7 @@ function rewardLines(rewards, leveledUp, drops = []) {
     lines.push(`-# * ${rewards.prismatic} prismatic coins ${PRISMATIC_EMOJI}`);
   }
   if (leveledUp > 0) {
-    lines.push(`-# * ${leveledUp * 5} Upgrade Tokens ${UPGRADE_TOKEN_EMOJI}`);
+    lines.push(`-# * ${leveledUp * 5} Hunt Upgrade Tokens ${HUNT_UPGRADE_TOKEN_EMOJI}`);
   }
   if (drops.length) {
     for (const drop of drops) {

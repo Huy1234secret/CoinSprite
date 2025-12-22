@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const {
   SlashCommandBuilder,
   ActionRowBuilder,
@@ -12,6 +14,7 @@ const {
 const { safeErrorReply } = require('../src/utils/interactions');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
+const GIVEAWAY_STATE_FILE = path.join(__dirname, '..', 'data', 'giveaways.json');
 const CONFIG_PREFIX = 'giveaway-config:';
 const EDIT_TEMPLATE_ID = 'giveaway-edit-template:';
 const EDIT_SETTINGS_ID = 'giveaway-edit-settings:';
@@ -35,6 +38,86 @@ const DEFAULT_STATE = {
 };
 
 const giveawayStates = new Map();
+
+function loadGiveawayStates() {
+  if (!fs.existsSync(GIVEAWAY_STATE_FILE)) {
+    return [];
+  }
+
+  try {
+    const raw = fs.readFileSync(GIVEAWAY_STATE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('Failed to read giveaway state file:', error);
+    return [];
+  }
+}
+
+function saveGiveawayStates(states) {
+  fs.mkdirSync(path.dirname(GIVEAWAY_STATE_FILE), { recursive: true });
+  fs.writeFileSync(GIVEAWAY_STATE_FILE, JSON.stringify(states));
+}
+
+function serializeGiveawayState(state) {
+  return {
+    id: state.id,
+    title: state.title,
+    description: state.description,
+    thumbnail: state.thumbnail,
+    endTime: state.endTime ? state.endTime.toISOString() : null,
+    endTimeInput: state.endTimeInput,
+    endTimeDisplay: state.endTimeDisplay,
+    claimTimeMs: state.claimTimeMs,
+    claimTimeDisplay: state.claimTimeDisplay,
+    winnerCount: state.winnerCount,
+    requirements: state.requirements,
+    templateComplete: state.templateComplete,
+    settingsComplete: state.settingsComplete,
+    started: state.started,
+    channelId: state.channelId,
+    creatorId: state.creatorId,
+    configMessageId: state.configMessageId,
+    entryMessageId: state.entryMessageId,
+    entries: Array.from(state.entries ?? [])
+  };
+}
+
+function hydrateGiveawayState(raw) {
+  return {
+    ...DEFAULT_STATE,
+    ...raw,
+    endTime: raw.endTime ? new Date(raw.endTime) : null,
+    entries: new Set(raw.entries ?? []),
+    endTimer: null,
+    remainingWinners: null,
+    processedWinners: null,
+    pendingClaim: null
+  };
+}
+
+function persistActiveGiveaways() {
+  const now = Date.now();
+  const active = Array.from(giveawayStates.values())
+    .filter((state) => state.started && state.endTime && state.endTime.getTime() > now)
+    .map((state) => serializeGiveawayState(state));
+  saveGiveawayStates(active);
+}
+
+function generateGiveawayId(existingIds = new Set()) {
+  let id = '';
+  do {
+    const digits = Math.floor(Math.random() * 100000)
+      .toString()
+      .padStart(5, '0');
+    const letters = `${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(
+      65 + Math.floor(Math.random() * 26)
+    )}`;
+    id = `Giveaway-${digits}-${letters}`;
+  } while (existingIds.has(id));
+
+  return id;
+}
 
 function buildPreview(state) {
   const containerComponents = [
@@ -278,6 +361,7 @@ async function finalizeClaim(state, client) {
   const container = { type: 17, accent_color: 0x00aa5b, components: [{ type: 10, content }] };
   await claimMessage.edit({ components: [container], flags: COMPONENTS_V2_FLAG });
   giveawayStates.delete(state.id);
+  persistActiveGiveaways();
 }
 
 async function handleClaimTimeout(state, client) {
@@ -316,6 +400,7 @@ async function rollNextWinner(state, client) {
     const container = { type: 17, accent_color: 0x000000, components: [{ type: 10, content: messageContent }] };
     await channel.send({ components: [container], flags: COMPONENTS_V2_FLAG });
     giveawayStates.delete(state.id);
+    persistActiveGiveaways();
     return;
   }
 
@@ -347,6 +432,37 @@ async function rollNextWinner(state, client) {
   state.pendingClaim.timeout = setTimeout(() => handleClaimTimeout(state, client), state.claimTimeMs);
 }
 
+async function handleGiveawayEnd(state, client) {
+  if (state.entries.size === 0) {
+    const channel = await client.channels.fetch(state.channelId);
+    const messageContent = '### No one claimed the giveaway, giveaway ends.';
+    const container = { type: 17, accent_color: 0x000000, components: [{ type: 10, content: messageContent }] };
+    await channel.send({ components: [container], flags: COMPONENTS_V2_FLAG });
+    giveawayStates.delete(state.id);
+    persistActiveGiveaways();
+    return;
+  }
+
+  state.remainingWinners = pickWinners(state);
+  state.processedWinners = [];
+  persistActiveGiveaways();
+  await rollNextWinner(state, client);
+}
+
+function scheduleGiveawayEnd(state, client) {
+  if (!state.endTime) {
+    return;
+  }
+
+  if (state.endTimer) {
+    clearTimeout(state.endTimer);
+  }
+
+  const delay = Math.max(state.endTime.getTime() - Date.now(), 0);
+  state.endTimer = setTimeout(() => handleGiveawayEnd(state, client), delay);
+  persistActiveGiveaways();
+}
+
 async function startGiveaway(state, client) {
   const channel = await client.channels.fetch(state.channelId);
   const entryMessage = await channel.send({
@@ -354,21 +470,22 @@ async function startGiveaway(state, client) {
     flags: COMPONENTS_V2_FLAG
   });
   state.entryMessageId = entryMessage.id;
+  scheduleGiveawayEnd(state, client);
+}
 
-  const delay = Math.max(state.endTime.getTime() - Date.now(), 0);
-  state.endTimer = setTimeout(async () => {
-    if (state.entries.size === 0) {
-      const messageContent = '### No one claimed the giveaway, giveaway ends.';
-      const container = { type: 17, accent_color: 0x000000, components: [{ type: 10, content: messageContent }] };
-      await channel.send({ components: [container], flags: COMPONENTS_V2_FLAG });
-      giveawayStates.delete(state.id);
-      return;
+async function initializeGiveaways(client) {
+  const persisted = loadGiveawayStates();
+  const now = Date.now();
+
+  for (const raw of persisted) {
+    const state = hydrateGiveawayState(raw);
+    if (!state.started || !state.endTime || state.endTime.getTime() <= now) {
+      continue;
     }
 
-    state.remainingWinners = pickWinners(state);
-    state.processedWinners = [];
-    await rollNextWinner(state, client);
-  }, delay);
+    giveawayStates.set(state.id, state);
+    scheduleGiveawayEnd(state, client);
+  }
 }
 
 module.exports = {
@@ -392,7 +509,7 @@ module.exports = {
 
     const state = {
       ...DEFAULT_STATE,
-      id: `${Date.now()}-${interaction.id}`,
+      id: generateGiveawayId(new Set(giveawayStates.keys())),
       channelId: targetChannel.id,
       creatorId: interaction.user.id,
       entries: new Set()
@@ -551,6 +668,7 @@ module.exports = {
         }
 
         state.entries.add(interaction.user.id);
+        persistActiveGiveaways();
         try {
           await interaction.user.send('You have entered the giveaway.');
         } catch (error) {
@@ -656,5 +774,9 @@ module.exports = {
     }
 
     return false;
+  },
+
+  async init(client) {
+    await initializeGiveaways(client);
   }
 };
