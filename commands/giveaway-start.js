@@ -438,7 +438,7 @@ module.exports = {
               new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
                   .setCustomId('claim')
-                  .setLabel('Claim time (you can use s, m, h or d ; max 1d)')
+                  .setLabel('Claim time (s/m/h/d, max 1d)')
                   .setPlaceholder('Example: 5m')
                   .setStyle(TextInputStyle.Short)
                   .setRequired(false)
