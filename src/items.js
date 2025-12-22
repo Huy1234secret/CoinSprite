@@ -299,7 +299,7 @@ const ITEMS = [
   {
     id: 'ITStormCoreShard',
     name: 'Storm Core Shard',
-    emoji: '<:ITStormCoreShard:1452300317281616013>',
+    emoji: '<:ITStormCoreShard:1452566937904349304>',
     rarity: 'Epic',
     type: 'Material',
     value: 735,
@@ -311,7 +311,7 @@ const ITEMS = [
   {
     id: 'ITThundertraceClawband',
     name: 'Thundertrace Clawband',
-    emoji: '<:ITThundertraceClawband:1452294720104693811>',
+    emoji: '<:ITThundertraceClawband:1452566940005695638>',
     rarity: 'Rare',
     type: 'Material',
     value: 240,
@@ -323,7 +323,7 @@ const ITEMS = [
   {
     id: 'ITBloomPetalCluster',
     name: 'Bloom Petal Cluster',
-    emoji: '<:ITBloomPetalCluster:1452300135802605638>',
+    emoji: '<:ITBloomPetalCluster:1452566931046400024>',
     rarity: 'Epic',
     type: 'Material',
     value: 815,
@@ -335,7 +335,7 @@ const ITEMS = [
   {
     id: 'ITSpiritMistEssence',
     name: 'Spirit Mist Essence',
-    emoji: '<:ITSpiritMistEssence:1452299841232310284>',
+    emoji: '<:ITSpiritMistEssence:1452567913965027509>',
     rarity: 'Epic',
     type: 'Material',
     value: 894,
@@ -347,7 +347,7 @@ const ITEMS = [
   {
     id: 'ITWardenVeilShard',
     name: "Warden's Veil Shard",
-    emoji: '<:ITWardenVeilShard:1452299406467534889>',
+    emoji: '<:ITWardenVeilShard:1452567920520462460>',
     rarity: 'Legendary',
     type: 'Material',
     value: 1125,
@@ -359,7 +359,7 @@ const ITEMS = [
   {
     id: 'ITTotemStoneChip',
     name: 'Totem Stone Chip',
-    emoji: '<:ITTotemStoneChip:1452299152485777509>',
+    emoji: '<:ITTotemStoneChip:1452567916565369004>',
     rarity: 'Rare',
     type: 'Material',
     value: 415,
@@ -371,7 +371,7 @@ const ITEMS = [
   {
     id: 'ITGuardianCore',
     name: 'Guardian Core',
-    emoji: '<:ITGuardianCore:1452298696132657443>',
+    emoji: '<:ITGuardianCore:1452567911683326032>',
     rarity: 'Epic',
     type: 'Material',
     value: 535,
@@ -395,7 +395,7 @@ const ITEMS = [
   {
     id: 'ITSolarCore',
     name: 'Solar Core',
-    emoji: '<:ITSolarCore:1452297980068630589>',
+    emoji: '<:ITSolarCore:1452566935328784488>',
     rarity: 'Epic',
     type: 'Material',
     value: 600,
@@ -407,7 +407,7 @@ const ITEMS = [
   {
     id: 'ITPhantomOrchidPetal',
     name: 'Phantom Orchid Petal',
-    emoji: '<:ITPhantomOrchidPetal:1452532471114498069>',
+    emoji: '<:ITPhantomOrchidPetal:1452566933437419662>',
     rarity: 'Legendary',
     type: 'Material',
     value: 1300,
