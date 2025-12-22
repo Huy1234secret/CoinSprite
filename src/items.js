@@ -179,7 +179,7 @@ const ITEMS = [
   {
     id: 'ITAncientJungleTablet',
     name: 'Ancient Jungle Tablet',
-    emoji: null,
+    emoji: '<:ITAncientJungleTablet:1452295245098182336>',
     rarity: 'Epic',
     type: 'Material',
     value: 900,
