@@ -24,6 +24,7 @@ const DEFAULT_STATE = {
   description: 'No description provided.',
   thumbnail: '',
   endTime: null,
+  endTimeInput: '',
   endTimeDisplay: 'Not set',
   claimTimeMs: 5 * 60 * 1000,
   claimTimeDisplay: '5m',
@@ -91,24 +92,61 @@ function parseEndTime(input) {
     .trim()
     .match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})\s+UTC([+-]\d{1,2})$/i);
   if (!match) {
-    return null;
+    return { error: 'format' };
   }
 
   const [, day, month, year, hour, minute, offset] = match;
   const offsetHours = Number(offset);
+  const hourValue = Number(hour);
+  const minuteValue = Number(minute);
+  const dayValue = Number(day);
+  const monthValue = Number(month);
+  const yearValue = Number(year);
+
+  if (
+    !Number.isInteger(hourValue) ||
+    !Number.isInteger(minuteValue) ||
+    hourValue < 0 ||
+    hourValue > 23 ||
+    minuteValue < 0 ||
+    minuteValue > 59
+  ) {
+    return { error: 'time' };
+  }
+
+  if (!Number.isInteger(offsetHours) || offsetHours < -12 || offsetHours > 14) {
+    return { error: 'timezone' };
+  }
+
   const utcMillis = Date.UTC(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hour) - offsetHours,
-    Number(minute)
+    yearValue,
+    monthValue - 1,
+    dayValue,
+    hourValue - offsetHours,
+    minuteValue
   );
   const parsed = new Date(utcMillis);
   if (Number.isNaN(parsed.getTime())) {
-    return null;
+    return { error: 'format' };
   }
 
-  return parsed;
+  const localCheck = new Date(parsed.getTime() + offsetHours * 60 * 60 * 1000);
+  if (
+    localCheck.getUTCFullYear() !== yearValue ||
+    localCheck.getUTCMonth() + 1 !== monthValue ||
+    localCheck.getUTCDate() !== dayValue ||
+    localCheck.getUTCHours() !== hourValue ||
+    localCheck.getUTCMinutes() !== minuteValue
+  ) {
+    return { error: 'format' };
+  }
+
+  return { date: parsed };
+}
+
+function formatEndTimeDisplay(input, date) {
+  const unixSeconds = Math.floor(date.getTime() / 1000);
+  return `${input} • <t:${unixSeconds}:R>`;
 }
 
 function parseDuration(input) {
@@ -352,7 +390,13 @@ module.exports = {
       return;
     }
 
-    const state = { ...DEFAULT_STATE, id: `${Date.now()}-${interaction.id}`, channelId: targetChannel.id, creatorId: interaction.user.id };
+    const state = {
+      ...DEFAULT_STATE,
+      id: `${Date.now()}-${interaction.id}`,
+      channelId: targetChannel.id,
+      creatorId: interaction.user.id,
+      entries: new Set()
+    };
     const preview = buildPreview(state);
     const message = await targetChannel.send({ components: preview, flags: COMPONENTS_V2_FLAG });
 
@@ -433,7 +477,7 @@ module.exports = {
                   .setPlaceholder('Example: 05/11/2026 10:10 UTC+7')
                   .setStyle(TextInputStyle.Short)
                   .setRequired(true)
-                  .setValue(state.endTimeDisplay !== 'Not set' ? state.endTimeDisplay : '')
+                  .setValue(state.endTimeInput)
               ),
               new ActionRowBuilder().addComponents(
                 new TextInputBuilder()
@@ -571,7 +615,18 @@ module.exports = {
         const winnersInput = interaction.fields.getTextInputValue('winners');
         const requirementsInput = interaction.fields.getTextInputValue('requirements') || 'None';
 
-        const parsedEnd = parseEndTime(endInput);
+        const parsedEndResult = parseEndTime(endInput);
+        if (parsedEndResult.error === 'time') {
+          await safeErrorReply(interaction, 'Invalid time. Please use HH:MM between 00:00 and 23:59.');
+          return true;
+        }
+
+        if (parsedEndResult.error) {
+          await safeErrorReply(interaction, 'Please provide a future end time in the format DD/MM/YYYY HH:MM UTC+n.');
+          return true;
+        }
+
+        const parsedEnd = parsedEndResult.date;
         if (!parsedEnd || parsedEnd.getTime() <= Date.now()) {
           await safeErrorReply(interaction, 'Please provide a future end time in the format DD/MM/YYYY HH:MM UTC+n.');
           return true;
@@ -586,12 +641,13 @@ module.exports = {
         const parsedClaim = parseDuration(claimInput) ?? state.claimTimeMs;
 
         state.endTime = parsedEnd;
-        state.endTimeDisplay = endInput;
+        state.endTimeInput = endInput;
+        state.endTimeDisplay = formatEndTimeDisplay(endInput, parsedEnd);
         state.claimTimeMs = parsedClaim;
         state.claimTimeDisplay = claimInput;
         state.winnerCount = parsedWinners;
         state.requirements = requirementsInput.trim() || 'None';
-        state.settingsComplete = Boolean(state.endTime && state.winnerCount);
+        state.settingsComplete = Boolean(state.endTime && Number.isInteger(state.winnerCount));
 
         await updatePreviewMessage(interaction.client, state);
         await interaction.reply({ content: 'Settings updated.', ephemeral: true });
