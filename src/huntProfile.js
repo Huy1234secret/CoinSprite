@@ -6,6 +6,8 @@ const {
   FIST_GEAR,
   KNOWN_GEAR,
   UPGRADE_TOKEN_ITEM,
+  HUNT_UPGRADE_TOKEN_ITEM,
+  CHAT_UPGRADE_TOKEN_ITEM,
   WOODEN_SWORD_GEAR,
   ITEMS,
   ITEMS_BY_ID,
@@ -28,6 +30,7 @@ const DEFAULT_PROFILE = {
   defense: 0,
   coins: 0,
   upgrade_tokens: 0,
+  hunt_upgrade_tokens_used: 0,
   gear_equipped: null,
   misc_equipped: null,
   gear_inventory: [],
@@ -111,6 +114,10 @@ function ensureProfileShape(profile = {}) {
     coins: typeof profile.coins === 'number' ? profile.coins : DEFAULT_PROFILE.coins,
     upgrade_tokens:
       typeof profile.upgrade_tokens === 'number' ? profile.upgrade_tokens : DEFAULT_PROFILE.upgrade_tokens,
+    hunt_upgrade_tokens_used:
+      typeof profile.hunt_upgrade_tokens_used === 'number'
+        ? profile.hunt_upgrade_tokens_used
+        : DEFAULT_PROFILE.hunt_upgrade_tokens_used,
     inventory_capacity:
       typeof profile.inventory_capacity === 'number'
         ? profile.inventory_capacity
@@ -143,10 +150,48 @@ function addItemToInventory(profile, item, amount = 1) {
   return profile;
 }
 
+function setInventoryItemAmount(profile, item, amount) {
+  if (!item || typeof item !== 'object') {
+    return profile;
+  }
+
+  const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  const miscInventory = Array.isArray(profile.misc_inventory) ? [...profile.misc_inventory] : [];
+  const existingIndex = miscInventory.findIndex((entry) => entry?.name === item.name);
+
+  if (safeAmount === 0) {
+    if (existingIndex >= 0) {
+      miscInventory.splice(existingIndex, 1);
+    }
+    profile.misc_inventory = miscInventory;
+    return profile;
+  }
+
+  if (existingIndex >= 0) {
+    miscInventory[existingIndex] = { ...miscInventory[existingIndex], ...item, amount: safeAmount };
+  } else {
+    miscInventory.push({ ...item, amount: safeAmount });
+  }
+
+  profile.misc_inventory = miscInventory;
+  return profile;
+}
+
+function ensureHuntUpgradeTokenBalance(profile) {
+  if (!HUNT_UPGRADE_TOKEN_ITEM) {
+    return profile;
+  }
+
+  const used = Number.isFinite(profile.hunt_upgrade_tokens_used) ? profile.hunt_upgrade_tokens_used : 0;
+  const expected = Math.max(0, Math.floor(Number(profile.level) || 0) * 5 - used);
+  profile.upgrade_tokens = expected;
+  return setInventoryItemAmount(profile, HUNT_UPGRADE_TOKEN_ITEM, expected);
+}
+
 function getUserProfile(userId) {
   const profiles = loadProfiles();
   const userKey = String(userId);
-  const existing = ensureProfileShape(profiles[userKey]);
+  const existing = ensureHuntUpgradeTokenBalance(ensureProfileShape(profiles[userKey]));
   const scaledHealth = calculatePlayerMaxHealth(existing.level, DEFAULT_PROFILE.max_health);
   existing.health = scaledHealth;
   existing.max_health = scaledHealth;
@@ -157,7 +202,7 @@ function getUserProfile(userId) {
 
 function updateUserProfile(userId, profile) {
   const profiles = loadProfiles();
-  profiles[String(userId)] = ensureProfileShape(profile);
+  profiles[String(userId)] = ensureHuntUpgradeTokenBalance(ensureProfileShape(profile));
   saveProfiles(profiles);
 }
 
@@ -169,9 +214,12 @@ module.exports = {
   UPGRADE_TOKEN_ITEM,
   ITEMS_BY_ID,
   WOODEN_SWORD_GEAR,
+  CHAT_UPGRADE_TOKEN_ITEM,
   calculatePlayerMaxHealth,
   calculateNextLevelXp,
   addItemToInventory,
+  setInventoryItemAmount,
+  ensureHuntUpgradeTokenBalance,
   getUserProfile,
   normalizeGearInventory,
   normalizeGearItem,

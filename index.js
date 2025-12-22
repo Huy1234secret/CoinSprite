@@ -37,6 +37,11 @@ client.once(Events.ClientReady, async () => {
     const slashCommands = client.commands.map((command) => command.data.toJSON());
     await client.application.commands.set(slashCommands);
     console.info(`Ready! Logged in as ${client.user.tag}`);
+    for (const command of client.commands.values()) {
+      if (typeof command.init === 'function') {
+        await command.init(client);
+      }
+    }
   } catch (error) {
     console.error('Failed to register commands:', error);
   }
