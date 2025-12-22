@@ -1174,12 +1174,15 @@ function buildCreatureOptions(state) {
 
   return aliveCreatures
     .slice(0, 25)
-    .map((creature) => ({
-      label: truncateLabel(`${creature.name} ${formatCreatureLevel(creature.level)}`),
-      description: `HP ${creature.health}/${creature.maxHealth}`,
-      value: creature.id,
-      emoji: creature.emoji,
-    }));
+    .map((creature) => {
+      const attackTag = creature.attackType === 'Multi' ? 'Multi' : 'SG';
+      return {
+        label: truncateLabel(`${creature.name} ${formatCreatureLevel(creature.level)}`),
+        description: `HP ${creature.health}/${creature.maxHealth} • ${attackTag}`,
+        value: creature.id,
+        emoji: creature.emoji,
+      };
+    });
 }
 
 function pickCreatureTarget(creatures, targetType) {
@@ -1824,6 +1827,7 @@ function buildBattleContent(state, user, attachment) {
       ? '-# Dungeon ending...'
       : '-# Hunt ending...'
     : `-# You have \`${state.player.actionsLeft} action${state.player.actionsLeft === 1 ? '' : 's'}\` left`;
+  const attackTypeNote = '-# SG = singular creature attack (targets you or a random pet).';
   const selectDisabled =
     state.isEnding || state.isTransitioning || !creatures.length || state.player.actionsLeft <= 0;
   const attackSelectPrefix = state.attackSelectPrefix ?? HUNT_ATTACK_SELECT_PREFIX;
@@ -1868,6 +1872,10 @@ function buildBattleContent(state, user, attachment) {
           {
             type: 10,
             content: actionsLine,
+          },
+          {
+            type: 10,
+            content: attackTypeNote,
           },
           {
             type: 1,
