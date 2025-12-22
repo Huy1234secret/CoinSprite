@@ -309,18 +309,6 @@ const ITEMS = [
     info: 'A braided clawband that tingles with static power.',
   },
   {
-    id: 'ITAncientJungleTablet',
-    name: 'Ancient Jungle Tablet',
-    emoji: '<:ITAncientJungleTablet:1452295254098182336>',
-    rarity: 'Rare',
-    type: 'Material',
-    value: 300,
-    sellPrice: 300,
-    tradable: true,
-    durability: null,
-    info: 'A mossy tablet etched with ancient jungle glyphs.',
-  },
-  {
     id: 'ITBloomPetalCluster',
     name: 'Bloom Petal Cluster',
     emoji: '<:ITBloomPetalCluster:1452300135802605638>',

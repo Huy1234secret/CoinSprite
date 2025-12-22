@@ -413,7 +413,6 @@ const THUNDERFANG_PANTHER = {
     { itemId: 'ITHunterPeltStrip', chance: 0.25 },
     { itemId: 'ITStormCoreShard', chance: 0.18 },
     { itemId: 'ITThundertraceClawband', chance: 0.07 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.03 },
   ],
 };
 
@@ -448,7 +447,6 @@ const BLOOM_SERPENT = {
     { itemId: 'ITPoisonSporeCluster', chance: 0.45 },
     { itemId: 'ITSharpFang', chance: 0.25 },
     { itemId: 'ITBloomPetalCluster', chance: 0.22 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.03 },
   ],
 };
 
@@ -484,7 +482,6 @@ const EMERALD_STALKER = {
     { itemId: 'ITBurrowerScale', chance: 0.2 },
     { itemId: 'ITSpiritMistEssence', chance: 0.2 },
     { itemId: 'ITWardenVeilShard', chance: 0.005 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.04 },
   ],
 };
 
@@ -519,7 +516,6 @@ const TOTEM_GUARDIAN = {
     { itemId: 'ITTotemStoneChip', chance: 0.4 },
     { itemId: 'ITWorldrootFragment', chance: 0.25 },
     { itemId: 'ITGuardianCore', chance: 0.18 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.04 },
   ],
 };
 
@@ -563,7 +559,6 @@ const ANCIENT_HORNED_GORILLA = {
     { itemId: 'ITHeavyHornFragment', chance: 0.3 },
     { itemId: 'ITTotemStoneChip', chance: 0.35 },
     { itemId: 'ITGuardianCore', chance: 0.2 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.05 },
   ],
 };
 
@@ -607,7 +602,6 @@ const STORM_CANOPY_EAGLE = {
     { itemId: 'ITRazorfeatherQuill', chance: 0.28 },
     { itemId: 'ITStormCoreShard', chance: 0.22 },
     { itemId: 'ITThundertraceClawband', chance: 0.1 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.04 },
   ],
 };
 
@@ -656,7 +650,6 @@ const VINE_TITAN = {
     { itemId: 'ITShellguardPlate', chance: 0.25 },
     { itemId: 'ITTotemStoneChip', chance: 0.22 },
     { itemId: 'ITWorldrootFragment', chance: 0.15 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.05 },
   ],
 };
 
@@ -691,7 +684,6 @@ const SOLAR_JAGUAR = {
     { itemId: 'ITSpiritMistEssence', chance: 0.3 },
     { itemId: 'ITPhantomOrchidPetal', chance: 0.04 },
     { itemId: 'ITWardenVeilShard', chance: 0.01 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.07 },
   ],
 };
 
@@ -738,7 +730,6 @@ const PHANTOM_ORCHID_WARDEN = {
     { itemId: 'ITThundertraceClawband', chance: 0.15 },
     { itemId: 'ITSunfirePelt', chance: 0.04 },
     { itemId: 'ITSolarCore', chance: 0.002 },
-    { itemId: 'ITAncientJungleTablet', chance: 0.06 },
   ],
 };
 
