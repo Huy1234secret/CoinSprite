@@ -458,7 +458,7 @@ module.exports = {
                   .setCustomId('requirements')
                   .setLabel('Requirements?')
                   .setPlaceholder(
-                    'not required, if wanted you can add any of these: HuntLv - {reqlv} ; CoinReq/DiamondReq - {amount}. Any besides will be ignored.'
+                    'Optional. Use: HuntLv {reqlv}; CoinReq/DiamondReq {amount}. Others ignored.'
                   )
                   .setStyle(TextInputStyle.Paragraph)
                   .setRequired(false)
