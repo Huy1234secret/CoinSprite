@@ -43,7 +43,7 @@ function buildUpgradeButton({ key, userId, currentTier, maxTier, cost, canAfford
   const button = new ButtonBuilder()
     .setCustomId(`${UPGRADE_BUTTON_PREFIX}:${key}:${userId}`)
     .setEmoji(HUNT_UPGRADE_TOKEN_EMOJI)
-    .setLabel(`${cost} - ${currentTier} / ${maxTier}`);
+    .setLabel(`${cost}`);
 
   if (currentTier >= maxTier) {
     return button.setLabel('MAXED').setStyle(ButtonStyle.Secondary).setDisabled(true).toJSON();
