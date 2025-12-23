@@ -297,6 +297,31 @@ function drawEffectSlots(ctx, effects, x, centerY, size = 20) {
     }
 }
 
+function drawStatusBadge(ctx, status, x, y, size = 18) {
+    if (!status) return;
+
+    const radius = size / 2 + 3;
+    const centerX = x + size / 2;
+    const centerY = y + size / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fill();
+
+    if (status.icon) {
+        ctx.drawImage(status.icon, x, y, size, size);
+    } else if (status.emoji) {
+        ctx.font = `${Math.round(size * 0.8)}px Sans-Serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(status.emoji, centerX, centerY + 1);
+    }
+    ctx.restore();
+}
+
 // === CARD DRAWING FUNCTIONS ===
 
 // 1. MAIN PLAYER CARD
@@ -358,7 +383,10 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     // Background
     ctx.save();
     drawRoundedRect(ctx, x, y, w, h, 12);
-    ctx.fillStyle = PALETTE.cardBg;
+    const cardGradient = ctx.createLinearGradient(x, y, x + w, y + h);
+    cardGradient.addColorStop(0, '#243128');
+    cardGradient.addColorStop(1, PALETTE.cardBg);
+    ctx.fillStyle = cardGradient;
     ctx.fill();
     ctx.lineWidth = 2;
     ctx.strokeStyle = borderColor;
@@ -369,6 +397,13 @@ function drawSmallCard(ctx, unit, x, y, w, h, isEnemy = false) {
     const avatarX = x + 15;
     const avatarY = y + (h - avatarSize) / 2;
     drawAvatar(ctx, unit.image, avatarX, avatarY, avatarSize, borderColor, unit.hp <= 0);
+
+    if (unit.status) {
+        const badgeSize = Math.min(18, Math.max(12, Math.round(avatarSize * 0.22)));
+        const badgeX = avatarX + avatarSize - badgeSize - 4;
+        const badgeY = avatarY + 4;
+        drawStatusBadge(ctx, unit.status, badgeX, badgeY, badgeSize);
+    }
 
     // Info
     const infoX = avatarX + avatarSize + 20;
@@ -450,6 +485,20 @@ async function prepareEffectIcons(effects = []) {
   }));
 }
 
+async function prepareStatusIcon(statusEmoji) {
+    if (!statusEmoji) {
+        return null;
+    }
+
+    const url = resolveEmojiUrl(statusEmoji);
+    if (!url) {
+        return { emoji: statusEmoji };
+    }
+
+    const icon = await safeLoadImage(url);
+    return { emoji: statusEmoji, icon };
+}
+
 function computeCanvasHeight(player, enemies) {
     const TOP_MARGIN = 40;
     // Keep only a slim buffer beneath the lowest card to avoid the large empty area
@@ -469,7 +518,7 @@ function computeCanvasHeight(player, enemies) {
     // Enemy stack height, mirrors layout logic
     const enemyCount = Math.min((enemies || []).length, 5);
     const ENEMY_ZONE_Y_START = 40;
-    const cardH = 110;
+    const cardH = 120;
     let enemyHeight = ENEMY_ZONE_Y_START;
 
     if (enemyCount > 0) {
@@ -500,6 +549,9 @@ async function createHuntBattleImage({ player, enemies }) {
     const petImages = await Promise.all((player.pets || []).map(p => safeLoadImage(p.avatar)));
     const playerEffects = await prepareEffectIcons(player.effects || []);
     const petEffects = await Promise.all((player.pets || []).map((p) => prepareEffectIcons(p.effects || [])));
+    const petStatuses = await Promise.all(
+        (player.pets || []).map((p) => prepareStatusIcon(p?.rarityEmoji ?? p?.rarityIcon))
+    );
     // Preload enemy images
     const enemyImages = await Promise.all((enemies || []).map(e => safeLoadImage(e.avatar)));
     const enemyEffects = await Promise.all((enemies || []).map((e) => prepareEffectIcons(e.effects || [])));
@@ -531,7 +583,20 @@ async function createHuntBattleImage({ player, enemies }) {
         for (let i = 0; i < 3; i++) {
             const px = mainCardX + i * (petW + petGap);
             if (player.pets && player.pets[i]) {
-                 drawSmallCard(ctx, { ...player.pets[i], image: petImages[i], effects: petEffects[i] }, px, petY, petW, petH, false);
+                 drawSmallCard(
+                    ctx,
+                    {
+                        ...player.pets[i],
+                        image: petImages[i],
+                        effects: petEffects[i],
+                        status: petStatuses[i],
+                    },
+                    px,
+                    petY,
+                    petW,
+                    petH,
+                    false
+                );
             } else {
                  // Draw Empty Slot placeholder
                  ctx.save();
@@ -546,15 +611,15 @@ async function createHuntBattleImage({ player, enemies }) {
     }
 
     // === ENEMY ZONE (RIGHT) ===
-    const ENEMY_ZONE_X = CANVAS_WIDTH / 2 + 20;
-    const ENEMY_ZONE_W = (CANVAS_WIDTH / 2) - 60;
+    const ENEMY_ZONE_X = CANVAS_WIDTH / 2 + 10;
+    const ENEMY_ZONE_W = (CANVAS_WIDTH / 2) - 40;
     const ENEMY_ZONE_Y_START = 40;
     const ENEMY_ZONE_H = CANVAS_HEIGHT - 80;
 
     // Logic to center 1-5 enemies
     const enemyCount = Math.min(enemies.length, 5);
-    const cardH = 110;
-    const cardW = 280; // Fixed width for enemy cards looks cleaner
+    const cardH = 120;
+    const cardW = 300; // Fixed width for enemy cards looks cleaner
     
     // We calculate positions to center them in the right panel
     let enemyPositions = [];
@@ -570,9 +635,9 @@ async function createHuntBattleImage({ player, enemies }) {
     } else {
         // Two Columns (Zig-zag or grid)
         // 4 enemies: 2x2. 5 enemies: 2 top, 3 bot or 3 top, 2 bot? Let's do 2 columns.
-        const col1X = ENEMY_ZONE_X + 20;
-        const col2X = ENEMY_ZONE_X + ENEMY_ZONE_W - cardW - 20;
-        const rowGap = 30;
+        const col1X = ENEMY_ZONE_X + 10;
+        const col2X = ENEMY_ZONE_X + ENEMY_ZONE_W - cardW - 10;
+        const rowGap = 24;
 
         // Simple alternating layout with consistent top margin
         const startY = ENEMY_ZONE_Y_START;
