@@ -12,6 +12,7 @@ const {
   ITEMS,
   ITEMS_BY_ID,
 } = require('./items');
+const { DEFAULT_HUNT_UPGRADES, normalizeHuntUpgrades } = require('./huntUpgrades');
 
 function calculateNextLevelXp(level) {
   const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
@@ -29,6 +30,7 @@ const DEFAULT_PROFILE = {
   coins: 0,
   upgrade_tokens: 0,
   hunt_upgrade_tokens_used: 0,
+  hunt_upgrades: { ...DEFAULT_HUNT_UPGRADES },
   gear_equipped: null,
   misc_equipped: null,
   gear_inventory: [],
@@ -116,6 +118,7 @@ function ensureProfileShape(profile = {}) {
       typeof profile.hunt_upgrade_tokens_used === 'number'
         ? profile.hunt_upgrade_tokens_used
         : DEFAULT_PROFILE.hunt_upgrade_tokens_used,
+    hunt_upgrades: normalizeHuntUpgrades(profile.hunt_upgrades),
     inventory_capacity:
       typeof profile.inventory_capacity === 'number'
         ? profile.inventory_capacity
