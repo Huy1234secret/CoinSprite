@@ -10,7 +10,7 @@ const DUNGEONS = {
         stage: 1,
         totalFloors: 5,
         danger: 'None',
-        requirement: { itemId: 'ITDungeonToken', amount: 2 },
+        requirement: { itemId: 'ITDungeonToken', amount: 1 },
         difficultyEmojis: [DUNGEON_DIFFICULTY_EMOJI],
         floors: [
           [
