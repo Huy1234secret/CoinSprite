@@ -1703,6 +1703,15 @@ function getDefensePercent(entity) {
   return Math.max(0, status?.percent ?? 0);
 }
 
+function normalizeDefensePercent(value) {
+  const defenseValue = Number(value);
+  if (!Number.isFinite(defenseValue) || defenseValue <= 0) {
+    return 0;
+  }
+  const percent = defenseValue > 1 ? defenseValue / 100 : defenseValue;
+  return Math.min(1, Math.max(0, percent));
+}
+
 function applyDefensePercent(amount, percent) {
   return Math.max(1, Math.floor(amount * (1 - percent)));
 }
@@ -1721,9 +1730,8 @@ function performCreatureAction(state, creature, action, target) {
   if (!noDamage) {
     const rawDamage = calculateCreatureDamage(creature, action, isPlayerPoisoned);
     const defensePercent = getDefensePercent(target.entity);
-    const percentMitigated = applyDefensePercent(rawDamage, defensePercent);
-    const defenseMitigation = isPlayerTarget ? state.player.defense ?? 0 : 0;
-    mitigated = Math.max(1, percentMitigated - defenseMitigation);
+    const playerDefensePercent = isPlayerTarget ? normalizeDefensePercent(state.player.defense) : 0;
+    mitigated = applyDefensePercent(rawDamage, Math.min(1, defensePercent + playerDefensePercent));
     target.entity.health = Math.max(0, target.entity.health - mitigated);
   }
 
