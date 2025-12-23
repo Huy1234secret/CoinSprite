@@ -1291,10 +1291,14 @@ function performPetTurn(state) {
     const hits = Math.max(1, pet.hits ?? 1);
     for (let i = 0; i < hits; i++) {
       const { amount, crit } = calculatePetDamageAmount(pet, state.upgrades);
-      target.health = Math.max(0, target.health - amount);
+      const mitigated = applyDefensePercent(amount, getDefensePercent(target));
+      target.health = Math.max(0, target.health - mitigated);
+      const damageText = mitigated !== amount
+        ? `**${mitigated}** ~~${amount}~~`
+        : `**${mitigated}**`;
       const actionLine = crit
-        ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for **${amount}** on ${target.name}!`
-        : `${pet.emoji ?? '🐾'} ${pet.name} hits ${target.name} for **${amount}** damages.`;
+        ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for ${damageText} on ${target.name}!`
+        : `${pet.emoji ?? '🐾'} ${pet.name} hits ${target.name} for ${damageText} damages.`;
       messages.push(actionLine);
 
       if (target.health <= 0) {
@@ -1967,10 +1971,13 @@ function performPlayerAttack(state, creatureId, gear) {
   const mitigated = applyDefensePercent(amount, getDefensePercent(creature));
   creature.health = Math.max(0, creature.health - mitigated);
   state.player.actionsLeft = Math.max(0, state.player.actionsLeft - 1);
+  const damageText = mitigated !== amount
+    ? `**${mitigated}** ~~${amount}~~`
+    : `**${mitigated}**`;
 
   const actionText = crit
-    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of **${mitigated}**!`
-    : `You have used **${gear.name}** on ${creature.name} and deal **${mitigated} damages**.`;
+    ? `### You have used **${gear.name}** on ${creature.name} and deal a CRIT damage of ${damageText}!`
+    : `You have used **${gear.name}** on ${creature.name} and deal ${damageText} damages.`;
 
   state.actionMessages = [actionText];
   return creature;
