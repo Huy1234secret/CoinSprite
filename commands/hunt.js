@@ -2,6 +2,10 @@ const { AttachmentBuilder, SlashCommandBuilder, MessageFlags } = require('discor
 const { safeErrorReply } = require('../src/utils/interactions');
 const { createHuntBattleImage } = require('../src/huntImage');
 const {
+  HUNT_UPGRADE_TOKEN_EMOJI,
+  getHuntUpgradeStats,
+} = require('../src/huntUpgrades');
+const {
   DEFAULT_PROFILE,
   FIST_GEAR,
   KNOWN_GEAR,
@@ -67,7 +71,6 @@ const DEFENSE_EMOJI = '<:SBDefense:1447532983933472900>';
 const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
 const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
 const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
-const HUNT_UPGRADE_TOKEN_EMOJI = '<:ITHuntUpgradeToken:1452674049984430141>';
 
 const CREATURE_HEALTH_GROWTH = 0.5;
 const CREATURE_DAMAGE_GROWTH = 0.35;
@@ -182,6 +185,42 @@ function pickWeightedEntry(entries = []) {
   return entries[entries.length - 1];
 }
 
+function applyCreatureLuckWeights(entries, creatureLuckPercent) {
+  const luckFactor = Math.max(0, creatureLuckPercent) / 100;
+  if (!luckFactor) {
+    return entries;
+  }
+
+  const maxIndex = Math.max(1, CREATURE_RARITY_ORDER.length - 1);
+  return entries.map((entry) => {
+    const rarityIndex = CREATURE_RARITY_ORDER.indexOf(entry.rarity);
+    const scale = rarityIndex < 0 ? 0 : rarityIndex / maxIndex;
+    const multiplier = 1 + luckFactor * scale;
+    return { ...entry, weight: entry.weight * multiplier };
+  });
+}
+
+function applyLuckChance(baseChance, luckPercent) {
+  const chance = Math.max(0, baseChance ?? 0);
+  if (!chance) {
+    return 0;
+  }
+  const multiplier = 1 + Math.max(0, luckPercent) / 100;
+  return 1 - Math.pow(1 - Math.min(1, chance), multiplier);
+}
+
+function applyHuntRewardUpgrades(rewards, upgrades = {}) {
+  const xpBonus = Math.max(0, upgrades.huntXpPercent ?? 0);
+  if (!xpBonus) {
+    return rewards;
+  }
+  const multiplier = 1 + xpBonus / 100;
+  return {
+    ...rewards,
+    xp: Math.max(0, Math.round((rewards.xp ?? 0) * multiplier)),
+  };
+}
+
 function getMaxCreatureRarity(huntLevel) {
   const level = Math.max(0, Math.floor(Number(huntLevel) || 0));
   if (level >= 51) {
@@ -272,7 +311,7 @@ function prepareActionsForLevel(actions = [], level) {
   }));
 }
 
-function pickCreatureDefinition(huntLevel = 0) {
+function pickCreatureDefinition(huntLevel = 0, creatureLuckPercent = 0) {
   if (!Array.isArray(CREATURES) || CREATURES.length === 0) {
     return JUNGLE_BETTLE;
   }
@@ -289,7 +328,9 @@ function pickCreatureDefinition(huntLevel = 0) {
     }))
     .filter((entry) => entry.weight > 0 && entry.creatures.length);
 
-  const chosenRarity = pickWeightedEntry(rarityEntries)?.rarity ?? 'Common';
+  const chosenRarity = pickWeightedEntry(
+    applyCreatureLuckWeights(rarityEntries, creatureLuckPercent)
+  )?.rarity ?? 'Common';
   const creatureEntry = pickWeightedEntry(CREATURE_WEIGHT_BY_RARITY[chosenRarity] ?? []);
   return creatureEntry?.creature ?? CREATURES[0] ?? JUNGLE_BETTLE;
 }
@@ -1023,7 +1064,10 @@ function getEmojiUrl(emoji) {
 function createBattleState(profile, user, petProfile) {
   const gear = selectGear(profile);
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
-  const creatures = [createCreatureInstance(pickCreatureDefinition(profile.level), profile.level)];
+  const upgrades = getHuntUpgradeStats(profile);
+  const creatures = [
+    createCreatureInstance(pickCreatureDefinition(profile.level, upgrades.creatureLuckPercent), profile.level),
+  ];
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
 
   return {
@@ -1048,6 +1092,7 @@ function createBattleState(profile, user, petProfile) {
       drops: creature.drops ?? [],
       reward: creature.reward,
     })),
+    upgrades,
     pets,
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
@@ -1074,6 +1119,7 @@ function createDungeonBattleState(profile, user, petProfile, dungeonLevel, stage
   const maxHealth = calculatePlayerMaxHealth(profile.level, DEFAULT_PROFILE.max_health);
   const pets = buildBattlePets(petProfile ?? { team: [], inventory: [] });
   const creatures = buildDungeonCreatures(stageData, 1);
+  const upgrades = getHuntUpgradeStats(profile);
 
   return {
     mode: 'dungeon',
@@ -1097,6 +1143,7 @@ function createDungeonBattleState(profile, user, petProfile, dungeonLevel, stage
       pets,
     },
     creatures,
+    upgrades,
     pets,
     actionMessages: [],
     miscInventory: profile.misc_inventory ?? [],
@@ -1110,22 +1157,26 @@ function rollDamage(min, max) {
   return Math.max(1, Math.floor(Math.random() * (max - min + 1)) + min);
 }
 
-function calculateGearDamage(gear) {
+function calculateGearDamage(gear, upgrades = {}) {
   const min = gear?.damage?.min ?? 1;
   const max = gear?.damage?.max ?? min;
-  const crit = Math.random() < CRIT_CHANCE;
+  const critChance = CRIT_CHANCE + Math.max(0, upgrades.critChancePercent ?? 0) / 100;
+  const crit = Math.random() < critChance;
   if (crit) {
-    return { amount: Math.ceil(max * 1.25), crit };
+    const critMultiplier = 1.25 + Math.max(0, upgrades.critDamagePercent ?? 0) / 100;
+    return { amount: Math.ceil(max * critMultiplier), crit };
   }
   return { amount: rollDamage(min, max), crit };
 }
 
-function calculatePetDamageAmount(pet) {
+function calculatePetDamageAmount(pet, upgrades = {}) {
   const min = pet?.damage?.min ?? 1;
   const max = pet?.damage?.max ?? min;
-  const crit = Math.random() < CRIT_CHANCE;
+  const critChance = CRIT_CHANCE + Math.max(0, upgrades.critChancePercent ?? 0) / 100;
+  const crit = Math.random() < critChance;
   if (crit) {
-    return { amount: Math.ceil(max * 1.25), crit };
+    const critMultiplier = 1.25 + Math.max(0, upgrades.critDamagePercent ?? 0) / 100;
+    return { amount: Math.ceil(max * critMultiplier), crit };
   }
   return { amount: rollDamage(min, max), crit };
 }
@@ -1239,7 +1290,7 @@ function performPetTurn(state) {
 
     const hits = Math.max(1, pet.hits ?? 1);
     for (let i = 0; i < hits; i++) {
-      const { amount, crit } = calculatePetDamageAmount(pet);
+      const { amount, crit } = calculatePetDamageAmount(pet, state.upgrades);
       target.health = Math.max(0, target.health - amount);
       const actionLine = crit
         ? `${pet.emoji ?? '🐾'} ${pet.name} unleashes a CRIT for **${amount}** on ${target.name}!`
@@ -1329,13 +1380,19 @@ function rollDropAmount(drop) {
   return Number.isFinite(amount) ? Math.max(1, amount) : 1;
 }
 
-function rollCreatureDrops(creatures) {
+function rollCreatureDrops(creatures, upgrades = {}) {
   const drops = [];
+  const itemLuckPercent = Math.max(0, upgrades.itemLuckPercent ?? 0);
+  const dungeonTokenChancePercent = Math.max(0, upgrades.dungeonTokenChancePercent ?? 0);
 
   for (const creature of creatures) {
     for (const drop of creature.drops ?? []) {
       const chance = typeof drop.chance === 'number' ? drop.chance : 0;
-      if (Math.random() > chance) {
+      let adjustedChance = applyLuckChance(chance, itemLuckPercent);
+      if (drop.itemId === 'ITDungeonToken') {
+        adjustedChance = applyLuckChance(adjustedChance, dungeonTokenChancePercent);
+      }
+      if (Math.random() > adjustedChance) {
         continue;
       }
 
@@ -1898,7 +1955,7 @@ function performPlayerAttack(state, creatureId, gear) {
     return null;
   }
 
-  const { amount, crit } = calculateGearDamage(gear);
+  const { amount, crit } = calculateGearDamage(gear, state.upgrades);
   const mitigated = applyDefensePercent(amount, getDefensePercent(creature));
   creature.health = Math.max(0, creature.health - mitigated);
   state.player.actionsLeft = Math.max(0, state.player.actionsLeft - 1);
@@ -2601,7 +2658,10 @@ async function handleDungeonAttackSelection(interaction, userId, creatureId) {
 
     const dungeonProfile = getUserDungeonProfile(userId);
     const firstWin = isDungeonFirstWin(dungeonProfile, state.dungeon?.level ?? 1, state.dungeon?.stage ?? 1);
-    const rewards = calculateDungeonRewards(stageData, firstWin);
+    const rewards = applyHuntRewardUpgrades(
+      calculateDungeonRewards(stageData, firstWin),
+      state.upgrades
+    );
     const leveledUp = applyRewards(userId, profile, rewards);
     const petProfile = getUserPetProfile(userId);
     const { profile: updatedPetProfile } = addXpToEquippedPets(petProfile, rewards.xp);
@@ -2732,8 +2792,11 @@ async function handleAttackSelection(interaction, userId, creatureId) {
 
   const aliveCreatures = state.creatures.filter((creature) => creature.health > 0);
   if (!aliveCreatures.length) {
-    const rewards = calculateRewards(state.initialCreatures);
-    const drops = rollCreatureDrops(state.initialCreatures);
+    const rewards = applyHuntRewardUpgrades(
+      calculateRewards(state.initialCreatures),
+      state.upgrades
+    );
+    const drops = rollCreatureDrops(state.initialCreatures, state.upgrades);
     const grantedDrops = applyDrops(profile, drops);
     const leveledUp = applyRewards(userId, profile, rewards);
     const petProfile = getUserPetProfile(userId);
