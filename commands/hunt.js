@@ -2348,6 +2348,14 @@ async function handleNavigation(interaction, action, userId) {
   }
 
   if (action === 'start') {
+    if (activeHunts.has(interaction.user.id)) {
+      await safeErrorReply(
+        interaction,
+        'You already have an active hunt. Please finish it or wait for it to end before starting another.'
+      );
+      return true;
+    }
+
     await handleStartHunt(interaction);
     return true;
   }
