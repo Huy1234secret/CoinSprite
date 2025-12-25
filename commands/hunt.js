@@ -2196,22 +2196,32 @@ async function runDungeonFloorTransition(interaction, state) {
 
 async function handleStartHunt(interaction) {
   maybeGrantOwnerPet(interaction);
-  const profile = getUserProfile(interaction.user.id);
-  const petProfile = getUserPetProfile(interaction.user.id);
+  const userId = interaction.user.id;
+  const profile = getUserProfile(userId);
+  const petProfile = getUserPetProfile(userId);
   const battleState = createBattleState(profile, interaction.user, petProfile);
-  clearHuntInactivityTimeout(interaction.user.id);
-  activeHunts.set(interaction.user.id, battleState);
+  clearHuntInactivityTimeout(userId);
+  activeHunts.set(userId, battleState);
 
-  await interaction.update(buildHuntDelayContent());
+  try {
+    await interaction.update(buildHuntDelayContent());
+  } catch (error) {
+    console.error('Failed to send hunt start message:', error);
+    clearHuntInactivityTimeout(userId);
+    activeHunts.delete(userId);
+    return;
+  }
 
   setTimeout(async () => {
     try {
       const attachment = await buildBattleAttachment(battleState, interaction.user);
       const content = buildBattleContent(battleState, interaction.user, attachment);
       await interaction.editReply(content);
-      recordHuntActivity(interaction, interaction.user.id);
+      recordHuntActivity(interaction, userId);
     } catch (error) {
       console.error('Failed to start hunt:', error);
+      clearHuntInactivityTimeout(userId);
+      activeHunts.delete(userId);
     }
   }, HUNTING_DELAY_MS);
 }
