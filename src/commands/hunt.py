@@ -235,9 +235,7 @@ class HuntHomeView(BaseHuntView):
     def __init__(self, user: discord.abc.User):
         super().__init__(user)
 
-    @discord.ui.button(
-        label="HUNT", style=discord.ButtonStyle.danger, disabled=True, row=1
-    )
+    @discord.ui.button(label="HUNT", style=discord.ButtonStyle.danger, row=1)
     async def hunt_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
