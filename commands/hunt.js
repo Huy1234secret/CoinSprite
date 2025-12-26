@@ -73,8 +73,10 @@ const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
 const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
 
 const CREATURE_HEALTH_GROWTH = 0.5;
-const CREATURE_DAMAGE_GROWTH = 0.35;
-const CREATURE_REWARD_GROWTH = 0.25;
+const CREATURE_DAMAGE_GROWTH = 0.25;
+const CREATURE_COIN_GROWTH = 0.1;
+const CREATURE_XP_GROWTH = 0.15;
+const CREATURE_REWARD_GROWTH = CREATURE_COIN_GROWTH;
 
 const HUNTING_DELAY_MS = 3000;
 const HUNT_END_COUNTDOWN_SECONDS = 5;
@@ -151,7 +153,10 @@ function maybeGrantOwnerPet(interaction) {
 }
 
 function scaleStatForLevel(base, level, growth = 0.5) {
-  return Math.ceil(base * Math.pow(1 + growth, Math.max(0, level - 1)));
+  const safeBase = Math.max(0, Number(base) || 0);
+  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  const safeGrowth = Math.max(0, Number(growth) || 0);
+  return Math.ceil(safeBase * (1 + safeGrowth * (safeLevel - 1)));
 }
 
 function pickCreatureLevel(distribution) {
@@ -1338,32 +1343,36 @@ function calculateRewards(creatures) {
     const level = creature.level ?? 1;
     const reward = creature.reward ?? JUNGLE_BETTLE.reward;
 
-    rewards.coins += rollRewardAmount(reward.coins, level);
-    rewards.xp += rollRewardAmount(reward.xp, level);
+    rewards.coins += rollRewardAmount(reward.coins, level, CREATURE_COIN_GROWTH);
+    rewards.xp += rollRewardAmount(reward.xp, level, CREATURE_XP_GROWTH);
 
     if (reward.diamonds) {
-      rewards.diamonds += rollRewardAmount(reward.diamonds, level);
+      rewards.diamonds += rollRewardAmount(reward.diamonds, level, CREATURE_REWARD_GROWTH);
     }
 
     if (reward.prismatic) {
       const chance = typeof reward.prismatic.chance === 'number' ? reward.prismatic.chance : 1;
       if (Math.random() <= chance) {
-        rewards.prismatic += rollRewardAmount(reward.prismatic, level);
+        rewards.prismatic += rollRewardAmount(
+          reward.prismatic,
+          level,
+          CREATURE_REWARD_GROWTH
+        );
       }
     }
   }
   return rewards;
 }
 
-function rollRewardAmount(range, level) {
+function rollRewardAmount(range, level, growth = CREATURE_REWARD_GROWTH) {
   if (!range) {
     return 0;
   }
 
   const minBase = Number.isFinite(range.min) ? range.min : Number.isFinite(range.max) ? range.max : 0;
   const maxBase = Number.isFinite(range.max) ? range.max : Number.isFinite(range.min) ? range.min : 0;
-  const min = Math.max(0, scaleStatForLevel(minBase, level, CREATURE_REWARD_GROWTH));
-  const max = Math.max(min, scaleStatForLevel(maxBase, level, CREATURE_REWARD_GROWTH));
+  const min = Math.max(0, scaleStatForLevel(minBase, level, growth));
+  const max = Math.max(min, scaleStatForLevel(maxBase, level, growth));
 
   if (max <= 0 && min <= 0) {
     return 0;
