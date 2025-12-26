@@ -231,10 +231,13 @@ function getMaxCreatureRarity(huntLevel) {
   if (level >= 51) {
     return 'Secret';
   }
-  if (level >= 31) {
+  if (level >= 36) {
+    return 'Mythical';
+  }
+  if (level >= 21) {
     return 'Legendary';
   }
-  if (level >= 16) {
+  if (level >= 11) {
     return 'Epic';
   }
   return 'Rare';
