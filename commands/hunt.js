@@ -98,41 +98,30 @@ const CREATURE_RARITY_WEIGHTS = {
   Mythical: 0.7,
   Secret: 0.3,
 };
-const CREATURE_WEIGHT_BY_RARITY = {
-  Common: [
-    { creature: MOSSBACK_MONKEY, weight: 24 },
-    { creature: VINE_SNAKE, weight: 18 },
-    { creature: THORNBACK_BOAR, weight: 12 },
-    { creature: JUNGLE_BETTLE, weight: 10 },
-    { creature: LEAF_FROG, weight: 20 },
-    { creature: CLAWFOOT_BIRD, weight: 16 },
-  ],
-  Rare: [
-    { creature: BRISTLE_JAGUAR, weight: 22 },
-    { creature: SPOREBACK_TORTOISE, weight: 22 },
-    { creature: RAZORWING_PARROT, weight: 18 },
-    { creature: MUDSCALE_LIZARD, weight: 18 },
-    { creature: ROOTED_APE, weight: 20 },
-  ],
-  Epic: [
-    { creature: THUNDERFANG_PANTHER, weight: 28 },
-    { creature: BLOOM_SERPENT, weight: 20 },
-    { creature: EMERALD_STALKER, weight: 22 },
-    { creature: TOTEM_GUARDIAN, weight: 30 },
-  ],
-  Legendary: [
-    { creature: ANCIENT_HORNED_GORILLA, weight: 35 },
-    { creature: STORM_CANOPY_EAGLE, weight: 30 },
-    { creature: VINE_TITAN, weight: 35 },
-  ],
-  Mythical: [{ creature: SOLAR_JAGUAR, weight: 100 }],
-  Secret: [{ creature: PHANTOM_ORCHID_WARDEN, weight: 100 }],
-};
+const CREATURE_WEIGHT_BY_RARITY = buildCreatureWeightMap();
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const activeHunts = new Map();
 const activeDungeons = new Map();
 const teamEditState = new Map();
+
+function buildCreatureWeightMap(creatures = CREATURES) {
+  return (creatures ?? []).reduce((acc, creature) => {
+    if (!creature || typeof creature !== 'object') {
+      return acc;
+    }
+
+    const rarity = creature.rarity ?? 'Common';
+    const weight = Number(creature.counter_chance);
+    const safeWeight = Number.isFinite(weight) ? weight : 0;
+
+    if (!acc[rarity]) {
+      acc[rarity] = [];
+    }
+    acc[rarity].push({ creature, weight: safeWeight });
+    return acc;
+  }, {});
+}
 
 function findItemById(itemId) {
   return ITEMS_BY_ID[itemId] ?? null;
