@@ -18,6 +18,8 @@ const ITEMS = [
     maxDurability: Infinity,
     damage: { min: 1, max: 5 },
     info: 'Useable as a gear in Hunt, deal 1 - 5 damages per hit.',
+    obtainment: 'Obtainment: Starter gear that is always available when you have no weapon equipped.',
+    usage: 'Usage: Equip as basic hunt gear to strike for 1-5 damage without consuming durability.',
   },
   {
     id: 'ITWoodenSword',
@@ -33,6 +35,9 @@ const ITEMS = [
     maxDurability: 50,
     damage: { min: 3, max: 8 },
     info: 'Useable as a gear in Hunt, deal 3 - 8 damages per hit. Lose 1 durability per hit.',
+    obtainment: 'Obtainment: Unknown – no drop table, reward, or shop entry currently provides this gear.',
+    usage:
+      'Usage: Equip as hunt gear to hit for 3-8 damage per action while consuming 1 durability each swing.',
   },
   {
     id: 'ITUpgradeToken',
@@ -45,6 +50,8 @@ const ITEMS = [
     tradable: false,
     durability: null,
     info: 'Coming soon',
+    obtainment: 'Obtainment: Unknown – not granted by hunts, dungeons, or leveling yet.',
+    usage: 'Usage: Unknown – no implemented feature currently consumes this token.',
   },
   {
     id: 'ITHuntUpgradeToken',
@@ -58,6 +65,10 @@ const ITEMS = [
     tradable: false,
     durability: null,
     info: 'Earned from hunt leveling.',
+    obtainment:
+      'Obtainment: Earn 5 Hunt Upgrade Tokens automatically each time your Hunt level increases (granted when profiles are refreshed).',
+    usage:
+      'Usage: Spend in the /my-upgrades hunt menu to unlock Hunt XP, item luck, creature luck, dungeon token chance, crit chance, and crit damage tiers.',
   },
   {
     id: 'ITChatUpgradeToken',
@@ -71,6 +82,9 @@ const ITEMS = [
     tradable: false,
     durability: null,
     info: 'Earned from chat leveling.',
+    obtainment:
+      'Obtainment: Earn 5 Chat Upgrade Tokens automatically each time your Chat level increases (synced when user stats are refreshed).',
+    usage: 'Usage: Unknown – no chat upgrade sink is implemented yet.',
   },
   {
     id: 'ITDungeonToken',
@@ -84,6 +98,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A token required to enter a dungeon.',
+    obtainment:
+      'Obtainment: Drops from all hunt creatures with three rolls: 1 token at 1% chance, 2 tokens at 0.2% chance, and 3 tokens at 0.06% chance.',
+    usage: 'Usage: Spend 1 token to enter Dungeon Stage 1-1; consumed when starting the stage.',
   },
   {
     id: 'ITBeastMeat',
@@ -97,6 +114,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A chunk of raw beast meat dropped from jungle beetles.',
+    obtainment:
+      'Obtainment: Hunt drops—55% (Mossback Monkey), 60% (Thornback Boar, Bristle Jaguar, Sporeback Tortoise, Rooted Ape, Thunderfang Panther), 40% (Jungle Beetle), 45% (Leaf Frog), 60% (Ancient Horned Gorilla), 55% (Mudscale Lizard). First-clear dungeon reward grants 20 from Stage 1-1.',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Beast Meat.',
   },
   {
     id: 'ITMossyShavings',
@@ -110,6 +130,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Damp moss scraps collected from jungle beetles.',
+    obtainment:
+      'Obtainment: Hunt drops—40% (Mossback Monkey), 25% (Jungle Beetle), 50% (Sporeback Tortoise), 55% (Vine Titan). First-clear dungeon reward grants 10 from Stage 1-1.',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Mossy Shavings.',
   },
   {
     id: 'ITVineFiber',
@@ -123,6 +146,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A fibrous strand pulled from a vine snake.',
+    obtainment:
+      'Obtainment: Hunt drops—50% (Vine Snake), 45% (Rooted Ape), 60% (Bloom Serpent), 60% (Vine Titan). First-clear dungeon reward grants 8 from Stage 1-1.',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Vine Fiber.',
   },
   {
     id: 'ITSharpFang',
@@ -136,6 +162,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A razor-edged fang harvested from dangerous predators.',
+    obtainment:
+      'Obtainment: Hunt drops—10% (Vine Snake), 35% (Bristle Jaguar), 40% (Thunderfang Panther), 25% (Bloom Serpent), 40% (Emerald Stalker), 45% (Phantom Orchid Warden).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Sharp Fang.',
   },
   {
     id: 'ITWeakVenomGland',
@@ -149,6 +178,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A venom sac still brimming with diluted toxins.',
+    obtainment:
+      'Obtainment: Hunt drops—45% (Vine Snake), 40% (Leaf Frog), 45% (Mudscale Lizard).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Weak Venom Gland.',
   },
   {
     id: 'ITJungleFeather',
@@ -162,6 +194,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A glossy feather shed by birds in the jungle canopy.',
+    obtainment:
+      'Obtainment: Hunt drops—50% (Clawfoot Bird), 65% (Razorwing Parrot), 65% (Storm Canopy Eagle).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Jungle Feather.',
   },
   {
     id: 'ITRazorTalon',
@@ -175,6 +210,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A razor-sharp talon prized for crafting.',
+    obtainment:
+      'Obtainment: Hunt drops—35% (Clawfoot Bird), 45% (Razorwing Parrot), 45% (Storm Canopy Eagle).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Razor Talon.',
   },
   {
     id: 'ITHeavyHornFragment',
@@ -188,6 +226,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A heavy shard chipped from a thornback boar horn.',
+    obtainment:
+      'Obtainment: Hunt drops—8% (Thornback Boar), 30% (Ancient Horned Gorilla).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Heavy Horn Fragment.',
   },
   {
     id: 'ITToughHideScrap',
@@ -201,6 +242,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A tough hide scrap used for rugged gear.',
+    obtainment:
+      'Obtainment: Hunt drops—50% (Thornback Boar), 55% (Bristle Jaguar), 50% (Rooted Ape), 55% (Thunderfang Panther), 55% (Ancient Horned Gorilla).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Tough Hide Scrap.',
   },
   {
     id: 'ITWorldrootFragment',
@@ -214,6 +258,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A rare fragment pulsing with primal root energy.',
+    obtainment:
+      'Obtainment: Hunt drops—3% (Rooted Ape), 25% (Totem Guardian), 15% (Vine Titan).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Worldroot Fragment.',
   },
   {
     id: 'ITAncientJungleTablet',
@@ -227,6 +274,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A moss-laced tablet etched with ancient jungle runes.',
+    obtainment: 'Obtainment: Unknown – not currently listed in any drop table or dungeon reward.',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Ancient Jungle Tablet.',
   },
   {
     id: 'ITResinLump',
@@ -240,6 +289,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A sticky lump of hardened jungle resin.',
+    obtainment: 'Obtainment: Hunt drop—40% (Mudscale Lizard); 45% (Vine Titan).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Resin Lump.',
   },
   {
     id: 'ITBurrowerScale',
@@ -253,6 +304,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A rough scale shed by burrowing reptiles.',
+    obtainment: 'Obtainment: Hunt drops—18% (Mudscale Lizard), 20% (Emerald Stalker).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Burrower Scale.',
   },
   {
     id: 'ITRazorfeatherQuill',
@@ -266,6 +319,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A razor-edged quill prized by fletchers.',
+    obtainment:
+      'Obtainment: Hunt drops—20% (Razorwing Parrot), 28% (Storm Canopy Eagle).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Razorfeather Quill.',
   },
   {
     id: 'ITHunterPeltStrip',
@@ -279,6 +335,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A sturdy pelt strip used for field gear.',
+    obtainment:
+      'Obtainment: Hunt drops—18% (Bristle Jaguar), 25% (Thunderfang Panther), 25% (Emerald Stalker).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Hunter Pelt Strip.',
   },
   {
     id: 'ITJaguarSoulFang',
@@ -292,6 +351,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A spiritual fang humming with jaguar power.',
+    obtainment: 'Obtainment: Hunt drops—5% (Bristle Jaguar), 18% (Phantom Orchid Warden).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Jaguar Soul Fang.',
   },
   {
     id: 'ITBeetleCarapaceShard',
@@ -305,6 +366,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A glossy shard chipped from a beetle shell.',
+    obtainment:
+      'Obtainment: Hunt drops—55% (Jungle Beetle), 60% (Sporeback Tortoise).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Beetle Carapace Shard.',
   },
   {
     id: 'ITPoisonSporeCluster',
@@ -318,6 +382,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A toxic spore cluster harvested from fungus shells.',
+    obtainment:
+      'Obtainment: Hunt drops—35% (Sporeback Tortoise), 45% (Bloom Serpent).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Poison Spore Cluster.',
   },
   {
     id: 'ITShellguardPlate',
@@ -331,6 +398,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A dense plate taken from a hardened shell.',
+    obtainment: 'Obtainment: Hunt drops—18% (Sporeback Tortoise), 25% (Vine Titan).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Shellguard Plate.',
   },
   {
     id: 'ITRootbindingSplinter',
@@ -344,6 +413,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A splinter that still pulses with binding roots.',
+    obtainment: 'Obtainment: Hunt drops—15% (Rooted Ape), 50% (Totem Guardian), 35% (Vine Titan).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Rootbinding Splinter.',
   },
   {
     id: 'ITStormCoreShard',
@@ -357,6 +428,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A crackling shard humming with storm energy.',
+    obtainment:
+      'Obtainment: Hunt drops—18% (Thunderfang Panther), 22% (Storm Canopy Eagle).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Storm Core Shard.',
   },
   {
     id: 'ITThundertraceClawband',
@@ -370,6 +444,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A braided clawband that tingles with static power.',
+    obtainment:
+      'Obtainment: Hunt drops—7% (Thunderfang Panther), 10% (Storm Canopy Eagle), 15% (Phantom Orchid Warden).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Thundertrace Clawband.',
   },
   {
     id: 'ITBloomPetalCluster',
@@ -383,6 +460,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A fragrant bundle of petals that still drips with sap.',
+    obtainment: 'Obtainment: Hunt drops—22% (Bloom Serpent), 45% (Solar Jaguar).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Bloom Petal Cluster.',
   },
   {
     id: 'ITSpiritMistEssence',
@@ -396,6 +475,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A vial of misty essence gathered from spectral groves.',
+    obtainment: 'Obtainment: Hunt drops—20% (Emerald Stalker), 30% (Solar Jaguar).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Spirit Mist Essence.',
   },
   {
     id: 'ITWardenVeilShard',
@@ -409,6 +490,9 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A rare shard that still echoes with warding power.',
+    obtainment:
+      "Obtainment: Hunt drops—0.5% (Emerald Stalker), 1% (Solar Jaguar), 0.1% (Phantom Orchid Warden).",
+    usage: "Usage: Unknown – no current crafting or exchange consumes Warden's Veil Shard.",
   },
   {
     id: 'ITTotemStoneChip',
@@ -422,6 +506,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A chipped piece of totem stone, worn smooth by time.',
+    obtainment: 'Obtainment: Hunt drops—40% (Totem Guardian), 35% (Ancient Horned Gorilla), 22% (Vine Titan).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Totem Stone Chip.',
   },
   {
     id: 'ITGuardianCore',
@@ -435,6 +521,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A condensed core of guardian energy.',
+    obtainment: 'Obtainment: Hunt drops—18% (Totem Guardian), 20% (Ancient Horned Gorilla).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Guardian Core.',
   },
   {
     id: 'ITSunfirePelt',
@@ -448,6 +536,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A radiant pelt that still feels warm to the touch.',
+    obtainment: 'Obtainment: Hunt drop—4% (Phantom Orchid Warden).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Sunfire Pelt.',
   },
   {
     id: 'ITSolarCore',
@@ -461,6 +551,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A brilliant core pulsing with concentrated sunlight.',
+    obtainment: 'Obtainment: Hunt drop—0.2% (Phantom Orchid Warden).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Solar Core.',
   },
   {
     id: 'ITPhantomOrchidPetal',
@@ -474,6 +566,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A pale orchid petal that feels cool to the touch.',
+    obtainment: 'Obtainment: Hunt drop—4% (Solar Jaguar).',
+    usage: 'Usage: Unknown – no current crafting or exchange consumes Phantom Orchid Petal.',
   },
 ];
 
