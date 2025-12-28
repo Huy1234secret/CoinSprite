@@ -673,7 +673,7 @@ const VINE_TITAN = {
   counter_chance: 35,
   attackType: 'Singular',
   defense: 0.55,
-  reward: { coins: { min: 3600, max: 4000 }, xp: { min: 200, max: 350 } },
+  reward: { coins: { min: 3600, max: 4000 }, xp: { min: 100, max: 120 } },
   actions: [
     {
       key: 'vinePierce',
@@ -724,7 +724,7 @@ const SOLAR_JAGUAR = {
   counter_chance: 100,
   attackType: 'Singular',
   defense: 0.7,
-  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 300, max: 500 } },
+  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 150, max: 300 } },
   actions: [
     {
       key: 'solarBeam',
@@ -763,7 +763,7 @@ const PHANTOM_ORCHID_WARDEN = {
   counter_chance: 100,
   attackType: 'Multi',
   defense: 0.8,
-  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 150, max: 170 } },
+  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 350, max: 600 } },
   actions: [
     {
       key: 'petalDrain',
