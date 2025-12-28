@@ -9,6 +9,7 @@ const DUNGEON_TOKEN_DROPS = [
 const MOSSBACK_MONKEY = {
   name: 'Mossback Monkey',
   emoji: '<:MCMossbackMonkey:1450727551940038818>',
+  image: 'https://i.ibb.co/27wm83LG/MCMossback-Monkey.png',
   baseHealth: 65,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -41,6 +42,7 @@ const MOSSBACK_MONKEY = {
 const VINE_SNAKE = {
   name: 'Vine Snake',
   emoji: '<:CMVineSnake:1450727558604914799>',
+  image: 'https://i.ibb.co/CsPLyBCP/MCVine-Snake.png',
   baseHealth: 55,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -79,6 +81,7 @@ const VINE_SNAKE = {
 const THORNBACK_BOAR = {
   name: 'Thornback Boar',
   emoji: '<:MCThornbackBoar:1450727556449046569>',
+  image: 'https://i.ibb.co/v0qkpLj/MCThornback-Boar.png',
   baseHealth: 55,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -106,6 +109,7 @@ const THORNBACK_BOAR = {
 const JUNGLE_BETTLE = {
   name: 'Jungle Beetle',
   emoji: '<:MCJungleBettle:1448989040509452338>',
+  image: 'https://i.ibb.co/x8z2VRCr/MCJungle-Beetle.png',
   baseHealth: 90,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -133,6 +137,7 @@ const JUNGLE_BETTLE = {
 const LEAF_FROG = {
   name: 'Leaf Frog',
   emoji: '<:CMLeafFrog:1450727549977231453>',
+  image: 'https://i.ibb.co/tPC4bTKp/MCLeaf-Frog.png',
   baseHealth: 40,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -168,6 +173,7 @@ const LEAF_FROG = {
 const CLAWFOOT_BIRD = {
   name: 'Clawfoot Bird',
   emoji: '<:MCClawfootBird:1450727539415842856>',
+  image: 'https://i.ibb.co/JWGtnmLq/MCClawfoot-Bird.png',
   baseHealth: 60,
   rarity: 'Common',
   rarityEmoji: RARITY_EMOJIS.Common,
@@ -200,6 +206,7 @@ const CLAWFOOT_BIRD = {
 const BRISTLE_JAGUAR = {
   name: 'Bristle Jaguar',
   emoji: '<:MRBristleJaguar:1450727571179442186>',
+  image: 'https://i.ibb.co/d4R66wSL/MRBristle-Jaguar.png',
   baseHealth: 170,
   rarity: 'Rare',
   rarityEmoji: RARITY_EMOJIS.Rare,
@@ -237,6 +244,7 @@ const BRISTLE_JAGUAR = {
 const SPOREBACK_TORTOISE = {
   name: 'Sporeback Tortoise',
   emoji: '<:MRSporebackTortoise:1450727579492548718>',
+  image: 'https://i.ibb.co/LXrXSKJt/MRSporeback-Tortoise.png',
   baseHealth: 230,
   rarity: 'Rare',
   rarityEmoji: RARITY_EMOJIS.Rare,
@@ -276,6 +284,7 @@ const SPOREBACK_TORTOISE = {
 const RAZORWING_PARROT = {
   name: 'Razorwing Parrot',
   emoji: '<:MRRazorwingParrot:1450727575109238793>',
+  image: 'https://i.ibb.co/nNcgPNmW/MRRazorwing-Parrot.png',
   baseHealth: 130,
   rarity: 'Rare',
   rarityEmoji: RARITY_EMOJIS.Rare,
@@ -316,6 +325,7 @@ const RAZORWING_PARROT = {
 const MUDSCALE_LIZARD = {
   name: 'Mudscale Lizard',
   emoji: '<:MRMudscaleLizard:1450727572911689758>',
+  image: 'https://i.ibb.co/chVwcV2b/MRMudscale-Lizard.png',
   baseHealth: 190,
   rarity: 'Rare',
   rarityEmoji: RARITY_EMOJIS.Rare,
@@ -347,6 +357,7 @@ const MUDSCALE_LIZARD = {
 const ROOTED_APE = {
   name: 'Rooted Ape',
   emoji: '<:MRRootedApe:1450727577260920852>',
+  image: 'https://i.ibb.co/v68Xg3vh/MRRooted-Ape.png',
   baseHealth: 210,
   rarity: 'Rare',
   rarityEmoji: RARITY_EMOJIS.Rare,
@@ -392,6 +403,7 @@ const ROOTED_APE = {
 const THUNDERFANG_PANTHER = {
   name: 'Thunderfang Panther',
   emoji: '<:METhunderfangPanther:1450727565185515594>',
+  image: 'https://i.ibb.co/rfKSRfTc/METhunderfang-Panther.png',
   baseHealth: 420,
   rarity: 'Epic',
   rarityEmoji: RARITY_EMOJIS.Epic,
@@ -437,6 +449,7 @@ const THUNDERFANG_PANTHER = {
 const BLOOM_SERPENT = {
   name: 'Bloom Serpent',
   emoji: '<:MEBloomSerpent:1450727560525647893>',
+  image: 'https://i.ibb.co/mV2GgRmr/MEBloom-Serpent.png',
   baseHealth: 380,
   rarity: 'Epic',
   rarityEmoji: RARITY_EMOJIS.Epic,
@@ -472,6 +485,7 @@ const BLOOM_SERPENT = {
 const EMERALD_STALKER = {
   name: 'Emerald Stalker',
   emoji: '<:MEEmeraldStalker:1450727563105144944>',
+  image: 'https://i.ibb.co/PGWd5r85/MEEmerald-Stalker.png',
   baseHealth: 360,
   rarity: 'Epic',
   rarityEmoji: RARITY_EMOJIS.Epic,
@@ -508,6 +522,7 @@ const EMERALD_STALKER = {
 const TOTEM_GUARDIAN = {
   name: 'Totem Guardian',
   emoji: '<:METotemGuardian:1450727567081341102>',
+  image: 'https://i.ibb.co/cKKVcR9n/METotem-Guardian.png',
   baseHealth: 480,
   rarity: 'Epic',
   rarityEmoji: RARITY_EMOJIS.Epic,
@@ -543,6 +558,7 @@ const TOTEM_GUARDIAN = {
 const ANCIENT_HORNED_GORILLA = {
   name: 'Ancient Horned Gorilla',
   emoji: '<:MLAncientHornedGorilla:1452288493957943307>',
+  image: 'https://i.ibb.co/wFxLCZvf/MLAncient-Horned-Gorilla.png',
   baseHealth: 750,
   rarity: 'Legendary',
   rarityEmoji: RARITY_EMOJIS.Legendary,
@@ -587,6 +603,7 @@ const ANCIENT_HORNED_GORILLA = {
 const STORM_CANOPY_EAGLE = {
   name: 'Storm Canopy Eagle',
   emoji: '<:MLStormCanopyEagle:1452288496512270521>',
+  image: 'https://i.ibb.co/M5J96MBN/MLStorm-Canopy-Eagle.png',
   baseHealth: 600,
   rarity: 'Legendary',
   rarityEmoji: RARITY_EMOJIS.Legendary,
@@ -631,6 +648,7 @@ const STORM_CANOPY_EAGLE = {
 const VINE_TITAN = {
   name: 'Vine Titan',
   emoji: '<:MLVineTitan:1452288498873929729>',
+  image: 'https://i.ibb.co/dJDZGJ27/MLVine-Titan.png',
   baseHealth: 850,
   rarity: 'Legendary',
   rarityEmoji: RARITY_EMOJIS.Legendary,
@@ -680,6 +698,7 @@ const VINE_TITAN = {
 const SOLAR_JAGUAR = {
   name: 'Solar Jaguar',
   emoji: '<:MMSolarJaguar:1450727569203658936>',
+  image: 'https://i.ibb.co/wFLQDK7X/MMSolar-Jaguar.png',
   baseHealth: 1300,
   rarity: 'Mythical',
   rarityEmoji: RARITY_EMOJIS.Mythical,
@@ -715,6 +734,7 @@ const SOLAR_JAGUAR = {
 const PHANTOM_ORCHID_WARDEN = {
   name: 'Phantom Orchid Warden',
   emoji: '<:MSPhantomOrchidWarden:1450727585830015110>',
+  image: 'https://i.ibb.co/x8MFwkRC/MSPhantom-Orchid-Warden.png',
   baseHealth: 3000,
   rarity: 'Secret',
   rarityEmoji: RARITY_EMOJIS.Secret,
@@ -762,6 +782,7 @@ const PHANTOM_ORCHID_WARDEN = {
 const CORRUPTED_CUBE = {
   name: 'Corrupted Cube',
   emoji: '<:MSCorruptedCube:1450727554339311668>',
+  image: 'https://i.ibb.co/svhfTTPy/MCorrupted-Cube.png',
   baseHealth: 1111,
   rarity: 'Secret',
   rarityEmoji: RARITY_EMOJIS.Secret,
