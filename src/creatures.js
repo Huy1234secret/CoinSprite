@@ -673,7 +673,7 @@ const VINE_TITAN = {
   counter_chance: 35,
   attackType: 'Singular',
   defense: 0.55,
-  reward: { coins: { min: 3600, max: 4000 }, xp: { min: 100, max: 120 } },
+  reward: { coins: { min: 3600, max: 4000 }, xp: { min: 200, max: 350 } },
   actions: [
     {
       key: 'vinePierce',
@@ -724,7 +724,7 @@ const SOLAR_JAGUAR = {
   counter_chance: 100,
   attackType: 'Singular',
   defense: 0.7,
-  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 150, max: 170 } },
+  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 300, max: 500 } },
   actions: [
     {
       key: 'solarBeam',
@@ -742,10 +742,12 @@ const SOLAR_JAGUAR = {
     },
   ],
   drops: [
-    { itemId: 'ITBloomPetalCluster', chance: 0.45 },
-    { itemId: 'ITSpiritMistEssence', chance: 0.3 },
-    { itemId: 'ITPhantomOrchidPetal', chance: 0.04 },
-    { itemId: 'ITWardenVeilShard', chance: 0.01 },
+      { itemId: 'ITBeastMeat', chance: 0.65 },
+    { itemId: 'ITSharpFang', chance: 0.45 },
+    { itemId: 'ITJaguarSoulFang', chance: 0.18 },
+    { itemId: 'ITThundertraceClawband', chance: 0.15 },
+    { itemId: 'ITSunfirePelt', chance: 0.04 },
+    { itemId: 'ITSolarCore', chance: 0.002 },
     ...DUNGEON_TOKEN_DROPS,
   ],
 };
@@ -789,12 +791,10 @@ const PHANTOM_ORCHID_WARDEN = {
     },
   ],
   drops: [
-    { itemId: 'ITBeastMeat', chance: 0.65 },
-    { itemId: 'ITSharpFang', chance: 0.45 },
-    { itemId: 'ITJaguarSoulFang', chance: 0.18 },
-    { itemId: 'ITThundertraceClawband', chance: 0.15 },
-    { itemId: 'ITSunfirePelt', chance: 0.04 },
-    { itemId: 'ITSolarCore', chance: 0.002 },
+    { itemId: 'ITBloomPetalCluster', chance: 0.45 },
+    { itemId: 'ITSpiritMistEssence', chance: 0.3 },
+    { itemId: 'ITPhantomOrchidPetal', chance: 0.04 },
+    { itemId: 'ITWardenVeilShard', chance: 0.01 },
     ...DUNGEON_TOKEN_DROPS,
   ],
 };
