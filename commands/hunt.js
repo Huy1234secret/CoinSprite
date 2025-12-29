@@ -185,13 +185,33 @@ function applyCreatureLuckWeights(entries, creatureLuckPercent) {
     return entries;
   }
 
+  const baseTotalWeight = entries.reduce((sum, entry) => sum + (Number(entry.weight) || 0), 0);
+  if (baseTotalWeight <= 0) {
+    return entries;
+  }
+
   const maxIndex = Math.max(1, CREATURE_RARITY_ORDER.length - 1);
-  return entries.map((entry) => {
+  const adjustedEntries = entries.map((entry) => {
     const rarityIndex = CREATURE_RARITY_ORDER.indexOf(entry.rarity);
     const scale = rarityIndex < 0 ? 0 : rarityIndex / maxIndex;
     const multiplier = 1 + luckFactor * scale;
     return { ...entry, weight: entry.weight * multiplier };
   });
+
+  const adjustedTotalWeight = adjustedEntries.reduce(
+    (sum, entry) => sum + (Number(entry.weight) || 0),
+    0
+  );
+
+  if (!adjustedTotalWeight) {
+    return entries;
+  }
+
+  const normalizationFactor = baseTotalWeight / adjustedTotalWeight;
+  return adjustedEntries.map((entry) => ({
+    ...entry,
+    weight: entry.weight * normalizationFactor,
+  }));
 }
 
 function applyLuckChance(baseChance, luckPercent) {
