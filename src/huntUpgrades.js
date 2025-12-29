@@ -23,12 +23,12 @@ const HUNT_UPGRADE_TRACKS = {
   creature_luck: {
     label: 'Creature Luck',
     tiers: [
-      { cost: 1, value: 15 },
+      { cost: 1, value: 10 },
       { cost: 2, value: 30 },
-      { cost: 3, value: 45 },
-      { cost: 4, value: 60 },
-      { cost: 5, value: 75 },
-      { cost: 6, value: 90 },
+      { cost: 3, value: 50 },
+      { cost: 4, value: 75 },
+      { cost: 5, value: 100 },
+      { cost: 6, value: 130 },
     ],
   },
   dungeon_token_chance: {
