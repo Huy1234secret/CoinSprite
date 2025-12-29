@@ -115,7 +115,7 @@ const ITEMS = [
     durability: null,
     info: 'A chunk of raw beast meat dropped from jungle beetles.',
     obtainment:
-      'Obtainment: Hunt drops—55% (Mossback Monkey), 60% (Thornback Boar, Bristle Jaguar, Sporeback Tortoise, Rooted Ape, Thunderfang Panther), 40% (Jungle Beetle), 45% (Leaf Frog), 60% (Ancient Horned Gorilla), 55% (Mudscale Lizard). First-clear dungeon reward grants 20 from Stage 1-1.',
+      'Obtainment: Hunt drops—55% (Mossback Monkey, Mudscale Lizard), 60% (Thornback Boar, Bristle Jaguar, Sporeback Tortoise, Rooted Ape, Thunderfang Panther, Ancient Horned Gorilla), 40% (Jungle Beetle), 45% (Leaf Frog), 65% (Solar Jaguar), and 100% from Corrupted Cube (15-30 meat). First-clear dungeon reward grants 20 from Stage 1-1.',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Beast Meat.',
   },
   {
@@ -163,7 +163,7 @@ const ITEMS = [
     durability: null,
     info: 'A razor-edged fang harvested from dangerous predators.',
     obtainment:
-      'Obtainment: Hunt drops—10% (Vine Snake), 35% (Bristle Jaguar), 40% (Thunderfang Panther), 25% (Bloom Serpent), 40% (Emerald Stalker), 45% (Phantom Orchid Warden).',
+      'Obtainment: Hunt drops—10% (Vine Snake), 35% (Bristle Jaguar), 40% (Thunderfang Panther), 25% (Bloom Serpent), 40% (Emerald Stalker), 45% (Solar Jaguar).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Sharp Fang.',
   },
   {
@@ -351,7 +351,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A spiritual fang humming with jaguar power.',
-    obtainment: 'Obtainment: Hunt drops—5% (Bristle Jaguar), 18% (Phantom Orchid Warden).',
+    obtainment: 'Obtainment: Hunt drops—5% (Bristle Jaguar), 18% (Solar Jaguar).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Jaguar Soul Fang.',
   },
   {
@@ -445,7 +445,7 @@ const ITEMS = [
     durability: null,
     info: 'A braided clawband that tingles with static power.',
     obtainment:
-      'Obtainment: Hunt drops—7% (Thunderfang Panther), 10% (Storm Canopy Eagle), 15% (Phantom Orchid Warden).',
+      'Obtainment: Hunt drops—7% (Thunderfang Panther), 10% (Storm Canopy Eagle), 15% (Solar Jaguar).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Thundertrace Clawband.',
   },
   {
@@ -460,7 +460,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A fragrant bundle of petals that still drips with sap.',
-    obtainment: 'Obtainment: Hunt drops—22% (Bloom Serpent), 45% (Solar Jaguar).',
+    obtainment: 'Obtainment: Hunt drops—22% (Bloom Serpent), 45% (Phantom Orchid Warden).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Bloom Petal Cluster.',
   },
   {
@@ -475,7 +475,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A vial of misty essence gathered from spectral groves.',
-    obtainment: 'Obtainment: Hunt drops—20% (Emerald Stalker), 30% (Solar Jaguar).',
+    obtainment: 'Obtainment: Hunt drops—20% (Emerald Stalker), 30% (Phantom Orchid Warden).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Spirit Mist Essence.',
   },
   {
@@ -491,7 +491,7 @@ const ITEMS = [
     durability: null,
     info: 'A rare shard that still echoes with warding power.',
     obtainment:
-      "Obtainment: Hunt drops—0.5% (Emerald Stalker), 1% (Solar Jaguar), 0.1% (Phantom Orchid Warden).",
+      "Obtainment: Hunt drops—0.5% (Emerald Stalker), 1% (Phantom Orchid Warden).",
     usage: "Usage: Unknown – no current crafting or exchange consumes Warden's Veil Shard.",
   },
   {
@@ -536,7 +536,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A radiant pelt that still feels warm to the touch.',
-    obtainment: 'Obtainment: Hunt drop—4% (Phantom Orchid Warden).',
+    obtainment: 'Obtainment: Hunt drop—4% (Solar Jaguar).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Sunfire Pelt.',
   },
   {
@@ -551,7 +551,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A brilliant core pulsing with concentrated sunlight.',
-    obtainment: 'Obtainment: Hunt drop—0.2% (Phantom Orchid Warden).',
+    obtainment: 'Obtainment: Hunt drop—0.2% (Solar Jaguar).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Solar Core.',
   },
   {
@@ -566,7 +566,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A pale orchid petal that feels cool to the touch.',
-    obtainment: 'Obtainment: Hunt drop—4% (Solar Jaguar).',
+    obtainment: 'Obtainment: Hunt drop—4% (Phantom Orchid Warden).',
     usage: 'Usage: Unknown – no current crafting or exchange consumes Phantom Orchid Petal.',
   },
 ];
