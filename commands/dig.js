@@ -475,11 +475,7 @@ function buildStartingMessage() {
     components: [
       {
         type: 9,
-        components: [{ type: 10, content: 'Digging...' }],
-        accessory: {
-          type: 11,
-          media: { url: DIG_THUMBNAIL },
-        },
+        components: [{ type: 10, content: 'You are going for a dig...' }],
       },
     ],
   };
@@ -491,10 +487,10 @@ function buildStartingMessage() {
 }
 
 async function buildActiveMessage(session) {
-  const { layer, health, maxHealth, expiresAt, loot, pendingLoot } = session;
+  const { layer, health, maxHealth, expiresAt, loot } = session;
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
-  const lootForThumbnail = loot ?? pendingLoot;
+  const lootForThumbnail = loot;
   const thumbnailAttachment = await createDigThumbnail({
     layerImageUrl: DIG_LAYER_THUMBNAIL,
     items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
