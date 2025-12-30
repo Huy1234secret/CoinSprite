@@ -11,6 +11,7 @@ const { addDigXp, getUserDigProfile } = require('../src/digProfile');
 
 const DIG_BUTTON_PREFIX = 'dig:';
 const DIG_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
+const DIG_LAYER_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1453258150697500702.png?size=240&quality=lossless';
 const LAYER_EMOJI = '<:SBLayerDirt:1453258150697500702>';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 
@@ -58,10 +59,7 @@ function formatProgressBar(health, maxHealth) {
 }
 
 function formatCountdown(target) {
-  const remaining = Math.max(0, target - Date.now());
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `<t:${Math.floor(target / 1000)}:R>`;
 }
 
 function getTreasureRoll(layer) {
@@ -333,7 +331,7 @@ function buildActiveMessage(session) {
           {
             type: 9,
             components: [{ type: 10, content: messageLines.join('\n') }],
-            accessory: { type: 11, media: { url: DIG_THUMBNAIL }, description: thumbnail },
+            accessory: { type: 11, media: { url: DIG_LAYER_THUMBNAIL }, description: thumbnail },
           },
           { type: 14 },
           {
