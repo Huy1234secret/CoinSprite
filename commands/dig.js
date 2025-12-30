@@ -52,12 +52,14 @@ function normalizeEmojiForComponent(emoji) {
 
   const customMatch = emoji.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
-    const [, animatedFlag, name] = customMatch;
+    const [, animatedFlag, name, id] = customMatch;
     const safeName = name?.trim();
-    if (!safeName) {
+    const safeId = id?.trim();
+    const isSnowflake = /^\d{17,20}$/.test(safeId ?? '');
+    if (!safeName || !safeId || !isSnowflake) {
       return null;
     }
-    return { name: safeName, animated: Boolean(animatedFlag) };
+    return { id: safeId, name: safeName, animated: Boolean(animatedFlag) };
   }
 
   if (typeof emoji === 'string' && emoji.trim().length > 0) {
