@@ -17,6 +17,7 @@ const DIG_SELECT_PREFIX = 'dig-select:';
 const DIG_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
 const DIG_LAYER_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1453258150697500702.png?size=240&quality=lossless';
 const LAYER_EMOJI = '<:SBLayerDirt:1453258150697500702>';
+const DIG_ACCENT_COLOR = 0xff0000;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 
 function normalizeEmojiForComponent(emoji) {
@@ -193,9 +194,9 @@ function rollLoot(layer) {
 }
 
 function buildHomeMessage() {
-  return {
-    content: '',
-    flags: COMPONENTS_V2_FLAG,
+  const container = {
+    type: 17,
+    accent_color: DIG_ACCENT_COLOR,
     components: [
       {
         type: 9,
@@ -220,6 +221,12 @@ function buildHomeMessage() {
         ],
       },
     ],
+  };
+
+  return {
+    content: '',
+    flags: COMPONENTS_V2_FLAG,
+    components: [container],
   };
 }
 
@@ -249,9 +256,9 @@ function buildStatsMessage(digProfile) {
   const { level, xp, next_level_xp: nextLevel, upgrade_tokens: tokens } = digProfile;
   const progressBar = formatProgressBar(xp, nextLevel);
   const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
-  return {
-    content: '',
-    flags: COMPONENTS_V2_FLAG,
+  const container = {
+    type: 17,
+    accent_color: DIG_ACCENT_COLOR,
     components: [
       {
         type: 9,
@@ -269,6 +276,12 @@ function buildStatsMessage(digProfile) {
       { type: 14 },
       { type: 1, components: buildNavRow('stats') },
     ],
+  };
+
+  return {
+    content: '',
+    flags: COMPONENTS_V2_FLAG,
+    components: [container],
   };
 }
 
@@ -360,9 +373,9 @@ function buildMiscOptions(profile) {
 function buildEquipmentMessage(profile, userId) {
   const gear = getEquippedDigGear(profile) ?? { name: 'Bare Hand', emoji: FIST_GEAR.emoji };
   const misc = profile.misc_equipped ?? { name: 'None', emoji: '—' };
-  return {
-    content: '',
-    flags: COMPONENTS_V2_FLAG,
+  const container = {
+    type: 17,
+    accent_color: DIG_ACCENT_COLOR,
     components: [
       {
         type: 9,
@@ -421,12 +434,18 @@ function buildEquipmentMessage(profile, userId) {
       { type: 1, components: buildNavRow('equipment') },
     ],
   };
-}
 
-function buildStartingMessage() {
   return {
     content: '',
     flags: COMPONENTS_V2_FLAG,
+    components: [container],
+  };
+}
+
+function buildStartingMessage() {
+  const container = {
+    type: 17,
+    accent_color: DIG_ACCENT_COLOR,
     components: [
       {
         type: 9,
@@ -437,6 +456,12 @@ function buildStartingMessage() {
         },
       },
     ],
+  };
+
+  return {
+    content: '',
+    flags: COMPONENTS_V2_FLAG,
+    components: [container],
   };
 }
 
@@ -464,9 +489,9 @@ async function buildActiveMessage(session) {
     }
   }
 
-  return {
-    content: '',
-    flags: COMPONENTS_V2_FLAG,
+  const container = {
+    type: 17,
+    accent_color: DIG_ACCENT_COLOR,
     components: [
       {
         type: 9,
@@ -483,6 +508,12 @@ async function buildActiveMessage(session) {
         ],
       },
     ],
+  };
+
+  return {
+    content: '',
+    flags: COMPONENTS_V2_FLAG,
+    components: [container],
     files: thumbnailAttachment ? [thumbnailAttachment] : [],
   };
 }
