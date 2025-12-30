@@ -41,20 +41,6 @@ const ITEMS = [
     usage: 'Usage: Equip as hunt gear to hit for 3-8 damage per action while consuming 1 durability each swing.',
   },
   {
-    id: 'ITUpgradeToken',
-    name: 'Upgrade Token',
-    emoji: '<:ITUpgradeToken:1447502158059540481>',
-    rarity: 'Rare',
-    type: 'Material',
-    value: 300,
-    sellPrice: null,
-    tradable: false,
-    durability: null,
-    info: 'Coming soon',
-    obtainment: 'Obtainment: Unknown.',
-    usage: 'Usage: Unknown.',
-  },
-  {
     id: 'ITHuntUpgradeToken',
     name: 'Hunt Upgrade Token',
     emoji: '<:ITHuntUpgradeToken:1452674049984430141>',
@@ -67,7 +53,7 @@ const ITEMS = [
     durability: null,
     info: 'Earned from hunt leveling.',
     obtainment:
-      'Obtainment: Earn 5 Hunt Upgrade Tokens automatically each time your Hunt level increases (granted when profiles are refreshed).',
+      'Obtainment: Earn 1 Hunt Upgrade Token automatically each time your Hunt level increases (granted when profiles are refreshed).',
     usage:
       'Usage: Spend in the /my-upgrades hunt menu to unlock Hunt XP, item luck, creature luck, dungeon token chance, crit chance, and crit damage tiers.',
   },
@@ -84,7 +70,7 @@ const ITEMS = [
     durability: null,
     info: 'Earned from chat leveling.',
     obtainment:
-      'Obtainment: Earn 5 Chat Upgrade Tokens automatically each time your Chat level increases (synced when user stats are refreshed).',
+      'Obtainment: Earn 1 Chat Upgrade Token automatically each time your Chat level increases (synced when user stats are refreshed).',
     usage: 'Usage: Unknown.',
   },
   {
@@ -840,7 +826,6 @@ const ITEMS_BY_ID = Object.fromEntries(ITEMS.map((item) => [item.id, item]));
 
 const FIST_GEAR = KNOWN_GEAR['Fist'];
 const WOODEN_SWORD_GEAR = KNOWN_GEAR['Wooden Sword'];
-const UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITUpgradeToken');
 const HUNT_UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITHuntUpgradeToken');
 const CHAT_UPGRADE_TOKEN_ITEM = ITEMS.find((item) => item.id === 'ITChatUpgradeToken');
 
@@ -851,7 +836,6 @@ module.exports = {
   ITEMS_BY_ID,
   FIST_GEAR,
   WOODEN_SWORD_GEAR,
-  UPGRADE_TOKEN_ITEM,
   HUNT_UPGRADE_TOKEN_ITEM,
   CHAT_UPGRADE_TOKEN_ITEM,
 };

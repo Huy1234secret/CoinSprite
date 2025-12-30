@@ -5,7 +5,6 @@ const HUNT_DATA_FILE = path.join(__dirname, '..', 'data', 'hunt_profiles.json');
 const {
   FIST_GEAR,
   KNOWN_GEAR,
-  UPGRADE_TOKEN_ITEM,
   HUNT_UPGRADE_TOKEN_ITEM,
   CHAT_UPGRADE_TOKEN_ITEM,
   WOODEN_SWORD_GEAR,
@@ -31,6 +30,7 @@ const DEFAULT_PROFILE = {
   upgrade_tokens: 0,
   hunt_upgrade_tokens_used: 0,
   hunt_upgrades: { ...DEFAULT_HUNT_UPGRADES },
+  upgrade_reset_used: false,
   gear_equipped: null,
   misc_equipped: null,
   gear_inventory: [],
@@ -118,6 +118,7 @@ function ensureProfileShape(profile = {}) {
       typeof profile.hunt_upgrade_tokens_used === 'number'
         ? profile.hunt_upgrade_tokens_used
         : DEFAULT_PROFILE.hunt_upgrade_tokens_used,
+    upgrade_reset_used: Boolean(profile.upgrade_reset_used),
     hunt_upgrades: normalizeHuntUpgrades(profile.hunt_upgrades),
     inventory_capacity:
       typeof profile.inventory_capacity === 'number'
@@ -184,7 +185,7 @@ function ensureHuntUpgradeTokenBalance(profile) {
   }
 
   const used = Number.isFinite(profile.hunt_upgrade_tokens_used) ? profile.hunt_upgrade_tokens_used : 0;
-  const expected = Math.max(0, Math.floor(Number(profile.level) || 0) * 5 - used);
+  const expected = Math.max(0, Math.floor(Number(profile.level) || 0) - used);
   profile.upgrade_tokens = expected;
   return setInventoryItemAmount(profile, HUNT_UPGRADE_TOKEN_ITEM, expected);
 }
@@ -212,7 +213,6 @@ module.exports = {
   ITEMS,
   FIST_GEAR,
   KNOWN_GEAR,
-  UPGRADE_TOKEN_ITEM,
   ITEMS_BY_ID,
   WOODEN_SWORD_GEAR,
   CHAT_UPGRADE_TOKEN_ITEM,

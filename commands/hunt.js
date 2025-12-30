@@ -1585,7 +1585,7 @@ function rewardLines(rewards, leveledUp, drops = []) {
     lines.push(`-# * ${rewards.prismatic} prismatic coins ${PRISMATIC_EMOJI}`);
   }
   if (leveledUp > 0) {
-    lines.push(`-# * ${leveledUp * 5} Hunt Upgrade Tokens ${HUNT_UPGRADE_TOKEN_EMOJI}`);
+    lines.push(`-# * ${leveledUp} Hunt Upgrade Token${leveledUp === 1 ? '' : 's'} ${HUNT_UPGRADE_TOKEN_EMOJI}`);
   }
   if (drops.length) {
     for (const drop of drops) {
