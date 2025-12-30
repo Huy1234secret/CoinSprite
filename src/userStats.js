@@ -74,7 +74,7 @@ function ensureChatUpgradeTokens(userId, stats) {
   }
 
   const used = Number.isFinite(stats.chat_upgrade_tokens_used) ? stats.chat_upgrade_tokens_used : 0;
-  const expected = Math.max(0, Math.floor(Number(stats.level) || 0) * 5 - used);
+  const expected = Math.max(0, Math.floor(Number(stats.level) || 0) - used);
   const profile = getUserProfile(userId);
   setInventoryItemAmount(profile, CHAT_UPGRADE_TOKEN_ITEM, expected);
   updateUserProfile(userId, profile);

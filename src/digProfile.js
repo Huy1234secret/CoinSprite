@@ -54,7 +54,7 @@ function ensureProfileShape(profile = {}) {
 }
 
 function ensureUpgradeTokenBalance(profile) {
-  const tokensOwned = Math.max(0, Math.floor(Number(profile.level) || 0) * 5);
+  const tokensOwned = Math.max(0, Math.floor(Number(profile.level) || 0));
   return { ...profile, upgrade_tokens: Math.max(0, tokensOwned - profile.dig_upgrade_tokens_used) };
 }
 
