@@ -582,7 +582,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Loose soil scooped up while digging.',
-    obtainment: 'Obtainment: Common drop from digging through early layers.',
+    obtainment: 'Obtainment: Guaranteed base drop from every dig action.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -597,7 +597,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A weathered bone uncovered underground.',
-    obtainment: 'Obtainment: Uncovered as a dig drop from the soil.',
+    obtainment: 'Obtainment: Dig drop—10% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -612,7 +612,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Fresh leaf scraps gathered while digging.',
-    obtainment: 'Obtainment: Common drop while digging through topsoil layers.',
+    obtainment: 'Obtainment: Dig drop—55% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -626,7 +626,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Light feathers brushed up from the earth.',
-    obtainment: 'Obtainment: Chance drop from digging.',
+    obtainment: 'Obtainment: Dig drop—35% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -641,7 +641,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Dense clay packed tightly beneath the layers.',
-    obtainment: 'Obtainment: Rare drop while digging deeper layers.',
+    obtainment: 'Obtainment: Dig drop—8% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -656,7 +656,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Small, smooth stones uncovered while digging.',
-    obtainment: 'Obtainment: Occasional drop while digging through rocky layers.',
+    obtainment: 'Obtainment: Dig drop—25% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -671,7 +671,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Broken twigs tangled in the soil.',
-    obtainment: 'Obtainment: Chance drop when digging through root-filled layers.',
+    obtainment: 'Obtainment: Dig drop—25% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -686,7 +686,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A rough stone fragment pried from the dirt.',
-    obtainment: 'Obtainment: Common drop while digging rocky layers.',
+    obtainment: 'Obtainment: Dig drop—35% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -701,7 +701,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'Bits of bark shaken loose underground.',
-    obtainment: 'Obtainment: Chance drop while digging near root systems.',
+    obtainment: 'Obtainment: Dig drop—30% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -716,7 +716,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A lucky acorn found below the surface.',
-    obtainment: 'Obtainment: Dig drop from layers with buried roots.',
+    obtainment: 'Obtainment: Dig drop—28% chance per dig roll.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -731,7 +731,8 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A common chest uncovered while digging.',
-    obtainment: 'Obtainment: Found as treasure when digging; most frequent chest rarity.',
+    obtainment:
+      'Obtainment: Treasure chest from digging—5% chance on early layers, scaling up to 12% at 200+ layers.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -746,7 +747,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A rare chest brimming with surprises.',
-    obtainment: 'Obtainment: Uncommon treasure chest unearthed while digging deeper layers.',
+    obtainment: 'Obtainment: Treasure chest from digging—2.5% to 6% chance depending on depth (unlocks at layer 26+).',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -761,7 +762,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'An epic chest found deep beneath the layers.',
-    obtainment: 'Obtainment: Rare treasure chest discovered from deeper dig layers.',
+    obtainment: 'Obtainment: Treasure chest from digging—0.5% to 1.5% chance at higher layers (available from layer 71+).',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -776,7 +777,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A legendary trove hidden underground.',
-    obtainment: 'Obtainment: Very rare treasure chest unearthed from high dig layers.',
+    obtainment: 'Obtainment: Treasure chest from digging—0.24% to 0.45% chance on deep layers (available from layer 136+).',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -791,7 +792,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A mythical chest discovered in the depths.',
-    obtainment: 'Obtainment: Extremely rare treasure chest from very deep dig layers.',
+    obtainment: 'Obtainment: Treasure chest from digging—0.01% to 0.049% chance on the deepest layers (available from layer 136+).',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
@@ -806,7 +807,7 @@ const ITEMS = [
     tradable: true,
     durability: null,
     info: 'A secret chest containing unimaginable loot.',
-    obtainment: 'Obtainment: Nearly impossible treasure chest hidden in the deepest dig layers.',
+    obtainment: 'Obtainment: Treasure chest from digging—0.001% chance, only at 200+ layers.',
     usage: 'Usage: Currently no special function beyond collection and trading.',
   },
   {
