@@ -491,10 +491,10 @@ function buildStartingMessage() {
 }
 
 async function buildActiveMessage(session) {
-  const { layer, health, maxHealth, expiresAt, loot } = session;
+  const { layer, health, maxHealth, expiresAt, loot, pendingLoot } = session;
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
-  const lootForThumbnail = loot;
+  const lootForThumbnail = pendingLoot ?? loot;
   const thumbnailAttachment = await createDigThumbnail({
     layerImageUrl: DIG_LAYER_THUMBNAIL,
     items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
