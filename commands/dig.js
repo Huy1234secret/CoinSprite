@@ -6,10 +6,14 @@ const {
   addItemToInventory,
   setInventoryItemAmount,
   ITEMS_BY_ID,
+  FIST_GEAR,
+  normalizeGearItem,
 } = require('../src/huntProfile');
 const { addDigXp, getUserDigProfile } = require('../src/digProfile');
+const { createDigThumbnail } = require('../src/digThumbnail');
 
 const DIG_BUTTON_PREFIX = 'dig:';
+const DIG_SELECT_PREFIX = 'dig-select:';
 const DIG_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
 const DIG_LAYER_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1453258150697500702.png?size=240&quality=lossless';
 const LAYER_EMOJI = '<:SBLayerDirt:1453258150697500702>';
@@ -232,7 +236,6 @@ function buildStatsMessage(digProfile) {
             accessory: {
               type: 11,
               media: { url: DIG_THUMBNAIL },
-              description: 'Dig stats icon',
             },
           },
           { type: 14 },
@@ -243,8 +246,75 @@ function buildStatsMessage(digProfile) {
   };
 }
 
-function buildEquipmentMessage(profile) {
-  const gear = profile.gear_equipped ?? { name: 'Bare Hand', emoji: '<:ITFist:1449009707355476069>' };
+function gearSupportsDig(item) {
+  return (item?.activityTags ?? []).includes('dig');
+}
+
+function getEquippedDigGear(profile) {
+  const equipped = profile.gear_equipped;
+  if (gearSupportsDig(equipped)) {
+    return equipped;
+  }
+  return null;
+}
+
+function buildGearPlaceholder(profile) {
+  const gear = getEquippedDigGear(profile);
+  if (!gear) {
+    return `${FIST_GEAR.emoji} ${FIST_GEAR.name}`;
+  }
+  return `${gear.emoji ?? ''} ${gear.name ?? 'Gear'}`.trim();
+}
+
+function buildMiscPlaceholder(profile) {
+  if (!profile.misc_equipped) {
+    return 'No Misc equipped';
+  }
+  return `${profile.misc_equipped.name ?? 'Misc'} ${profile.misc_equipped.emoji ?? ''}`.trim();
+}
+
+function buildGearOptions(profile) {
+  const equippedName = getEquippedDigGear(profile)?.name ?? null;
+  const options = [
+    {
+      label: FIST_GEAR.name,
+      value: FIST_GEAR.name,
+      emoji: FIST_GEAR.emoji,
+      default: equippedName === null || equippedName === FIST_GEAR.name,
+    },
+  ];
+
+  const digGear = (profile.gear_inventory ?? []).filter(gearSupportsDig);
+  for (const item of digGear) {
+    const name = item?.name ?? 'Gear';
+    options.push({
+      label: name,
+      value: name,
+      emoji: item?.emoji,
+      default: equippedName === name,
+    });
+  }
+
+  return options;
+}
+
+function buildMiscOptions(profile) {
+  const miscItems = profile.misc_inventory ?? [];
+  if (!miscItems.length) {
+    return [{ label: 'No misc available', value: 'none', default: true }];
+  }
+
+  const equippedName = profile.misc_equipped?.name ?? null;
+  return miscItems.map((item) => ({
+    label: item?.name ?? 'Misc',
+    value: item?.name ?? 'Misc',
+    emoji: item?.emoji,
+    default: equippedName === item?.name,
+  }));
+}
+
+function buildEquipmentMessage(profile, userId) {
+  const gear = getEquippedDigGear(profile) ?? { name: 'Bare Hand', emoji: FIST_GEAR.emoji };
   const misc = profile.misc_equipped ?? { name: 'None', emoji: '—' };
   return {
     content: '',
@@ -265,8 +335,40 @@ function buildEquipmentMessage(profile) {
             accessory: {
               type: 11,
               media: { url: DIG_THUMBNAIL },
-              description: 'Equipment icon',
             },
+          },
+          { type: 14 },
+          {
+            type: 17,
+            accent_color: 0x000000,
+            components: [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 3,
+                    custom_id: `${DIG_SELECT_PREFIX}gear:${userId}`,
+                    placeholder: buildGearPlaceholder(profile),
+                    options: buildGearOptions(profile),
+                    min_values: 1,
+                    max_values: 1,
+                  },
+                ],
+              },
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 3,
+                    custom_id: `${DIG_SELECT_PREFIX}misc:${userId}`,
+                    placeholder: buildMiscPlaceholder(profile),
+                    options: buildMiscOptions(profile),
+                    min_values: 1,
+                    max_values: 1,
+                  },
+                ],
+              },
+            ],
           },
           { type: 14 },
           { type: 1, components: buildNavRow('equipment') },
@@ -291,7 +393,6 @@ function buildStartingMessage() {
             accessory: {
               type: 11,
               media: { url: DIG_THUMBNAIL },
-              description: 'Dig icon',
             },
           },
         ],
@@ -300,11 +401,15 @@ function buildStartingMessage() {
   };
 }
 
-function buildActiveMessage(session) {
+async function buildActiveMessage(session) {
   const { layer, health, maxHealth, expiresAt, loot } = session;
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
-  const thumbnail = loot?.thumbnailEmoji || LAYER_EMOJI;
+  const thumbnailAttachment = await createDigThumbnail({
+    layerImageUrl: DIG_LAYER_THUMBNAIL,
+    items: (loot?.items ?? []).map((entry) => entry.item).filter(Boolean),
+  });
+  const mediaUrl = thumbnailAttachment ? `attachment://${thumbnailAttachment.name}` : DIG_LAYER_THUMBNAIL;
 
   const messageLines = [
     `## You are digging - Layer ${layer}`,
@@ -331,7 +436,7 @@ function buildActiveMessage(session) {
           {
             type: 9,
             components: [{ type: 10, content: messageLines.join('\n') }],
-            accessory: { type: 11, media: { url: DIG_LAYER_THUMBNAIL }, description: thumbnail },
+            accessory: { type: 11, media: { url: mediaUrl } },
           },
           { type: 14 },
           {
@@ -345,6 +450,7 @@ function buildActiveMessage(session) {
         ],
       },
     ],
+    files: thumbnailAttachment ? [thumbnailAttachment] : [],
   };
 }
 
@@ -394,7 +500,7 @@ async function startDigging(interaction) {
     const current = activeDigs.get(userId);
     if (!current) return;
     try {
-      await interaction.message.edit(buildActiveMessage(current));
+      await interaction.message.edit(await buildActiveMessage(current));
     } catch (error) {
       // ignore
     }
@@ -446,7 +552,7 @@ async function handleSwing(interaction) {
     session.loot = null;
   }
 
-  await interaction.update(buildActiveMessage(session));
+  await interaction.update(await buildActiveMessage(session));
   resetInactivity(interaction, session);
   return true;
 }
@@ -466,10 +572,55 @@ async function handleNavigation(interaction, target) {
     return true;
   }
   if (target === 'equipment') {
-    await interaction.update(buildEquipmentMessage(huntProfile));
+    await interaction.update(buildEquipmentMessage(huntProfile, interaction.user.id));
     return true;
   }
   await interaction.update(buildHomeMessage());
+  return true;
+}
+
+function applySelection(profile, type, value) {
+  if (!value || value === 'none') {
+    return profile;
+  }
+
+  if (type === 'gear') {
+    if (value === FIST_GEAR.name) {
+      profile.gear_equipped = null;
+      return profile;
+    }
+
+    const selected = (profile.gear_inventory ?? []).find((item) => item?.name === value && gearSupportsDig(item));
+    if (selected) {
+      const normalized = normalizeGearItem(selected);
+      profile.gear_equipped = normalized;
+    }
+    return profile;
+  }
+
+  if (type === 'misc') {
+    const selected = (profile.misc_inventory ?? []).find((item) => item?.name === value);
+    if (selected) {
+      profile.misc_equipped = selected;
+    }
+    return profile;
+  }
+
+  return profile;
+}
+
+async function handleSelect(interaction, type, ownerId) {
+  if (interaction.user.id !== ownerId) {
+    await interaction.reply({ content: "This isn't your dig session.", ephemeral: true });
+    return true;
+  }
+
+  const selection = interaction.values?.[0];
+  const profile = getUserProfile(ownerId);
+  applySelection(profile, type, selection);
+  updateUserProfile(ownerId, profile);
+
+  await interaction.update(buildEquipmentMessage(profile, ownerId));
   return true;
 }
 
@@ -484,13 +635,24 @@ module.exports = {
     }
   },
   async handleComponent(interaction) {
-    if (!interaction.isButton() || !interaction.customId.startsWith(DIG_BUTTON_PREFIX)) {
+    const isDigButton = interaction.isButton() && interaction.customId.startsWith(DIG_BUTTON_PREFIX);
+    const isDigSelect = interaction.isStringSelectMenu() && interaction.customId.startsWith(DIG_SELECT_PREFIX);
+    if (!isDigButton && !isDigSelect) {
       return false;
     }
 
-    if (interaction.user.id !== interaction.message.interaction?.user?.id && interaction.user.id !== interaction.customId.split(':')[1]) {
+    const customParts = interaction.customId.split(':');
+    const ownerFromCustomId = customParts[customParts.length - 1];
+    const ownerId = interaction.message.interaction?.user?.id;
+
+    if (interaction.user.id !== ownerId && interaction.user.id !== ownerFromCustomId) {
       await interaction.reply({ content: "This isn't your dig session.", ephemeral: true });
       return true;
+    }
+
+    if (isDigSelect) {
+      const [, type, userId] = interaction.customId.split(':');
+      return handleSelect(interaction, type, userId);
     }
 
     const action = interaction.customId.slice(DIG_BUTTON_PREFIX.length);

@@ -524,7 +524,6 @@ function buildHomeContainer(profile, userId, options = {}) {
         accessory: {
           type: 11,
           media: { url: HUNT_THUMBNAIL },
-          description: 'Hunt icon',
         },
       },
       { type: 14 },
@@ -553,7 +552,6 @@ function buildStatsContainer(profile, userId) {
         accessory: {
           type: 11,
           media: { url: HUNT_THUMBNAIL },
-          description: 'Hunt stats icon',
         },
       },
       { type: 14 },
@@ -631,7 +629,6 @@ function buildEquipmentContainers(profile, userId) {
         accessory: {
           type: 11,
           media: { url: HUNT_THUMBNAIL },
-          description: 'Equipment icon',
         },
       },
       { type: 14 },
@@ -782,7 +779,6 @@ function buildDungeonHomeContainer(userId, dungeonProfile, dungeonLevel = 1) {
         accessory: {
           type: 11,
           media: { url: getDungeonThumbnail() },
-          description: 'Dungeon icon',
         },
       },
       { type: 14 },
@@ -877,12 +873,11 @@ function buildDungeonInfoContent(dungeonProfile, dungeonLevel, stage) {
                 }\n### Reward:\n${rewardLines}\n### Completed Difficulty: ${difficultyLine}`,
               },
             ],
-            accessory: {
-              type: 11,
-              media: { url: getDungeonThumbnail() },
-              description: 'Dungeon icon',
-            },
-          },
+        accessory: {
+          type: 11,
+          media: { url: getDungeonThumbnail() },
+        },
+      },
         ],
       },
     ],
@@ -1942,7 +1937,6 @@ function buildBattleContent(state, user, attachment) {
         accessory: {
           type: 11,
           media: { url: thumbnail },
-          description: 'Hunt target thumbnail',
         },
       },
       {
