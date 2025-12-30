@@ -160,31 +160,25 @@ function buildHomeMessage() {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 9,
         components: [
           {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: '## Digging\n-# Press DIG to start digging...',
-              },
-            ],
-            accessory: {
-              type: 11,
-              media: { url: DIG_THUMBNAIL },
-            },
+            type: 10,
+            content: '## Digging\n-# Press DIG to start digging...',
           },
-          { type: 14 },
-          {
-            type: 1,
-            components: [
-              { type: 2, style: 4, custom_id: `${DIG_BUTTON_PREFIX}start`, label: 'DIG' },
-              { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}stats`, label: 'Dig Stat' },
-              { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}equipment`, label: 'Equipment' },
-            ],
-          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: DIG_THUMBNAIL },
+        },
+      },
+      { type: 14 },
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 4, custom_id: `${DIG_BUTTON_PREFIX}start`, label: 'DIG' },
+          { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}stats`, label: 'Dig Stat' },
+          { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}equipment`, label: 'Equipment' },
         ],
       },
     ],
@@ -222,26 +216,20 @@ function buildStatsMessage(digProfile) {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 9,
         components: [
           {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: `## Dig Stat\n### Dig Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* Dig Upgrade Tokens: ${tokens}`,
-              },
-            ],
-            accessory: {
-              type: 11,
-              media: { url: DIG_THUMBNAIL },
-            },
+            type: 10,
+            content: `## Dig Stat\n### Dig Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* Dig Upgrade Tokens: ${tokens}`,
           },
-          { type: 14 },
-          { type: 1, components: buildNavRow('stats') },
         ],
+        accessory: {
+          type: 11,
+          media: { url: DIG_THUMBNAIL },
+        },
       },
+      { type: 14 },
+      { type: 1, components: buildNavRow('stats') },
     ],
   };
 }
@@ -321,59 +309,47 @@ function buildEquipmentMessage(profile, userId) {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 9,
         components: [
           {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: `## Dig Equipment\n### * Gear equipped: ${gear.name} ${gear.emoji ?? ''}\n### * Misc equipped: ${misc.name} ${misc.emoji ?? ''}`,
-              },
-            ],
-            accessory: {
-              type: 11,
-              media: { url: DIG_THUMBNAIL },
-            },
+            type: 10,
+            content: `## Dig Equipment\n### * Gear equipped: ${gear.name} ${gear.emoji ?? ''}\n### * Misc equipped: ${misc.name} ${misc.emoji ?? ''}`,
           },
-          { type: 14 },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: DIG_THUMBNAIL },
+        },
+      },
+      { type: 14 },
+      {
+        type: 1,
+        components: [
           {
-            type: 17,
-            accent_color: 0x000000,
-            components: [
-              {
-                type: 1,
-                components: [
-                  {
-                    type: 3,
-                    custom_id: `${DIG_SELECT_PREFIX}gear:${userId}`,
-                    placeholder: buildGearPlaceholder(profile),
-                    options: buildGearOptions(profile),
-                    min_values: 1,
-                    max_values: 1,
-                  },
-                ],
-              },
-              {
-                type: 1,
-                components: [
-                  {
-                    type: 3,
-                    custom_id: `${DIG_SELECT_PREFIX}misc:${userId}`,
-                    placeholder: buildMiscPlaceholder(profile),
-                    options: buildMiscOptions(profile),
-                    min_values: 1,
-                    max_values: 1,
-                  },
-                ],
-              },
-            ],
+            type: 3,
+            custom_id: `${DIG_SELECT_PREFIX}gear:${userId}`,
+            placeholder: buildGearPlaceholder(profile),
+            options: buildGearOptions(profile),
+            min_values: 1,
+            max_values: 1,
           },
-          { type: 14 },
-          { type: 1, components: buildNavRow('equipment') },
         ],
       },
+      {
+        type: 1,
+        components: [
+          {
+            type: 3,
+            custom_id: `${DIG_SELECT_PREFIX}misc:${userId}`,
+            placeholder: buildMiscPlaceholder(profile),
+            options: buildMiscOptions(profile),
+            min_values: 1,
+            max_values: 1,
+          },
+        ],
+      },
+      { type: 14 },
+      { type: 1, components: buildNavRow('equipment') },
     ],
   };
 }
@@ -384,18 +360,12 @@ function buildStartingMessage() {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0x808080,
-        components: [
-          {
-            type: 9,
-            components: [{ type: 10, content: 'Digging...' }],
-            accessory: {
-              type: 11,
-              media: { url: DIG_THUMBNAIL },
-            },
-          },
-        ],
+        type: 9,
+        components: [{ type: 10, content: 'Digging...' }],
+        accessory: {
+          type: 11,
+          media: { url: DIG_THUMBNAIL },
+        },
       },
     ],
   };
@@ -430,23 +400,17 @@ async function buildActiveMessage(session) {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 9,
+        components: [{ type: 10, content: messageLines.join('\n') }],
+        accessory: { type: 11, media: { url: mediaUrl } },
+      },
+      { type: 14 },
+      {
+        type: 1,
         components: [
-          {
-            type: 9,
-            components: [{ type: 10, content: messageLines.join('\n') }],
-            accessory: { type: 11, media: { url: mediaUrl } },
-          },
-          { type: 14 },
-          {
-            type: 1,
-            components: [
-              { type: 2, style: 3, custom_id: `${DIG_BUTTON_PREFIX}swing`, label: 'DIG' },
-              { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}stop`, label: 'Stop dig' },
-              { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}misc`, label: 'Use Misc', disabled: true },
-            ],
-          },
+          { type: 2, style: 3, custom_id: `${DIG_BUTTON_PREFIX}swing`, label: 'DIG' },
+          { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}stop`, label: 'Stop dig' },
+          { type: 2, style: 2, custom_id: `${DIG_BUTTON_PREFIX}misc`, label: 'Use Misc', disabled: true },
         ],
       },
     ],
