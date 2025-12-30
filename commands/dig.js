@@ -294,8 +294,12 @@ function buildStatsMessage(digProfile) {
   };
 }
 
+function itemSupportsDigActivity(item) {
+  return (item?.activityTags ?? []).some((tag) => typeof tag === 'string' && tag.toLowerCase() === 'dig');
+}
+
 function gearSupportsDig(item) {
-  return (item?.activityTags ?? []).includes('dig');
+  return itemSupportsDigActivity(item);
 }
 
 function getEquippedDigGear(profile) {
@@ -337,7 +341,7 @@ function buildGearOptions(profile) {
   }
 
   const digGear = (profile.gear_inventory ?? []).filter(
-    (item) => gearSupportsDig(item) && (item.amount === undefined || item.amount > 0)
+    (item) => itemSupportsDigActivity(item) && (item.amount === undefined || item.amount > 0)
   );
   for (const item of digGear) {
     const name = item?.name ?? 'Gear';
@@ -359,7 +363,9 @@ function buildGearOptions(profile) {
 }
 
 function buildMiscOptions(profile) {
-  const miscItems = profile.misc_inventory ?? [];
+  const miscItems = (profile.misc_inventory ?? []).filter(
+    (item) => itemSupportsDigActivity(item) && (item.amount === undefined || item.amount > 0)
+  );
   if (!miscItems.length) {
     return [{ label: 'No misc available', value: 'none', default: true }];
   }
@@ -381,10 +387,10 @@ function buildMiscOptions(profile) {
   });
 }
 
-function buildEquipmentMessage(profile, userId) {
-  const gear = getEquippedDigGear(profile) ?? { name: 'Bare Hand', emoji: FIST_GEAR.emoji };
+function buildEquipmentContainers(profile, userId) {
+  const gear = getEquippedDigGear(profile) ?? { name: FIST_GEAR.name, emoji: FIST_GEAR.emoji };
   const misc = profile.misc_equipped ?? { name: 'None', emoji: '—' };
-  const container = {
+  const infoContainer = {
     type: 17,
     accent_color: DIG_ACCENT_COLOR,
     components: [
@@ -401,6 +407,15 @@ function buildEquipmentMessage(profile, userId) {
           media: { url: DIG_THUMBNAIL },
         },
       },
+      { type: 14 },
+      { type: 1, components: buildNavRow('equipment') },
+    ],
+  };
+
+  const selectionContainer = {
+    type: 17,
+    accent_color: 0x000000,
+    components: [
       {
         type: 9,
         components: [
@@ -414,7 +429,6 @@ function buildEquipmentMessage(profile, userId) {
           media: { url: DIG_THUMBNAIL },
         },
       },
-      { type: 14 },
       {
         type: 1,
         components: [
@@ -441,14 +455,16 @@ function buildEquipmentMessage(profile, userId) {
           },
         ],
       },
-      { type: 14 },
-      { type: 1, components: buildNavRow('equipment') },
     ],
   };
 
+  return [infoContainer, selectionContainer];
+}
+
+function buildEquipmentMessage(profile, userId) {
   return {
     flags: COMPONENTS_V2_FLAG,
-    components: [container],
+    components: buildEquipmentContainers(profile, userId),
   };
 }
 
@@ -666,7 +682,8 @@ function applySelection(profile, type, value) {
     }
 
     const selected = (profile.gear_inventory ?? []).find(
-      (item) => item?.name === value && gearSupportsDig(item) && (item.amount === undefined || item.amount > 0)
+      (item) =>
+        item?.name === value && itemSupportsDigActivity(item) && (item.amount === undefined || item.amount > 0)
     );
     if (selected) {
       const normalized = normalizeGearItem(selected);
@@ -676,7 +693,9 @@ function applySelection(profile, type, value) {
   }
 
   if (type === 'misc') {
-    const selected = (profile.misc_inventory ?? []).find((item) => item?.name === value);
+    const selected = (profile.misc_inventory ?? []).find(
+      (item) => item?.name === value && itemSupportsDigActivity(item) && (item.amount === undefined || item.amount > 0)
+    );
     if (selected) {
       profile.misc_equipped = selected;
     }
