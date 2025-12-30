@@ -5,7 +5,6 @@ const HUNT_DATA_FILE = path.join(__dirname, '..', 'data', 'hunt_profiles.json');
 const {
   FIST_GEAR,
   KNOWN_GEAR,
-  UPGRADE_TOKEN_ITEM,
   HUNT_UPGRADE_TOKEN_ITEM,
   CHAT_UPGRADE_TOKEN_ITEM,
   WOODEN_SWORD_GEAR,
@@ -13,6 +12,8 @@ const {
   ITEMS_BY_ID,
 } = require('./items');
 const { DEFAULT_HUNT_UPGRADES, normalizeHuntUpgrades } = require('./huntUpgrades');
+
+const CURRENT_UPGRADE_RESET_VERSION = 1;
 
 function calculateNextLevelXp(level) {
   const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
@@ -31,6 +32,7 @@ const DEFAULT_PROFILE = {
   upgrade_tokens: 0,
   hunt_upgrade_tokens_used: 0,
   hunt_upgrades: { ...DEFAULT_HUNT_UPGRADES },
+  upgrade_reset_version: 0,
   gear_equipped: null,
   misc_equipped: null,
   gear_inventory: [],
@@ -87,6 +89,23 @@ function calculatePlayerMaxHealth(level, baseHealth = DEFAULT_PROFILE.max_health
   return Math.round(baseHealth + safeLevel * 25);
 }
 
+function applyUpgradeReset(profile) {
+  const resetVersion = Number.isFinite(profile.upgrade_reset_version)
+    ? profile.upgrade_reset_version
+    : 0;
+
+  if (resetVersion >= CURRENT_UPGRADE_RESET_VERSION) {
+    return profile;
+  }
+
+  return {
+    ...profile,
+    upgrade_reset_version: CURRENT_UPGRADE_RESET_VERSION,
+    hunt_upgrade_tokens_used: 0,
+    hunt_upgrades: { ...DEFAULT_HUNT_UPGRADES },
+  };
+}
+
 function ensureProfileShape(profile = {}) {
   const normalizedGearInventory = normalizeGearInventory(
     Array.isArray(profile.gear_inventory) ? profile.gear_inventory : []
@@ -100,7 +119,7 @@ function ensureProfileShape(profile = {}) {
   const scaledHealth = calculatePlayerMaxHealth(level, DEFAULT_PROFILE.max_health);
   const currentHealth = Number.isFinite(profile.health) ? profile.health : scaledHealth;
 
-  return {
+  let normalized = {
     ...DEFAULT_PROFILE,
     ...profile,
     level,
@@ -123,7 +142,15 @@ function ensureProfileShape(profile = {}) {
       typeof profile.inventory_capacity === 'number'
         ? profile.inventory_capacity
         : DEFAULT_PROFILE.inventory_capacity,
+    upgrade_reset_version:
+      typeof profile.upgrade_reset_version === 'number'
+        ? profile.upgrade_reset_version
+        : DEFAULT_PROFILE.upgrade_reset_version,
   };
+
+  normalized = applyUpgradeReset(normalized);
+
+  return normalized;
 }
 
 function addItemToInventory(profile, item, amount = 1) {
@@ -184,7 +211,7 @@ function ensureHuntUpgradeTokenBalance(profile) {
   }
 
   const used = Number.isFinite(profile.hunt_upgrade_tokens_used) ? profile.hunt_upgrade_tokens_used : 0;
-  const expected = Math.max(0, Math.floor(Number(profile.level) || 0) * 5 - used);
+  const expected = Math.max(0, Math.floor(Number(profile.level) || 0) - used);
   profile.upgrade_tokens = expected;
   return setInventoryItemAmount(profile, HUNT_UPGRADE_TOKEN_ITEM, expected);
 }
@@ -212,7 +239,6 @@ module.exports = {
   ITEMS,
   FIST_GEAR,
   KNOWN_GEAR,
-  UPGRADE_TOKEN_ITEM,
   ITEMS_BY_ID,
   WOODEN_SWORD_GEAR,
   CHAT_UPGRADE_TOKEN_ITEM,
