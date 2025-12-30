@@ -7,19 +7,29 @@ const {
   StringSelectMenuBuilder,
 } = require('discord.js');
 const { safeErrorReply } = require('../src/utils/interactions');
-const { getUserProfile, updateUserProfile } = require('../src/huntProfile');
+const {
+  CHAT_UPGRADE_TOKEN_ITEM,
+  ITEMS_BY_ID,
+  getUserProfile,
+  setInventoryItemAmount,
+  updateUserProfile,
+} = require('../src/huntProfile');
 const {
   HUNT_UPGRADE_TOKEN_EMOJI,
   HUNT_UPGRADE_TRACKS,
+  DEFAULT_HUNT_UPGRADES,
   getHuntUpgradeStats,
   getMaxTier,
   getTotalUpgradeTiers,
   getUpgradeNextCost,
 } = require('../src/huntUpgrades');
+const { getUserDigProfile, updateUserDigProfile } = require('../src/digProfile');
+const { getUserStats, setUserStats } = require('../src/userStats');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const UPGRADE_SELECT_ID = 'my-upgrades-select';
 const UPGRADE_BUTTON_PREFIX = 'my-upgrades-buy';
+const RESET_BUTTON_ID = 'my-upgrades-reset';
 
 function formatPercent(value) {
   if (!Number.isFinite(value)) {
@@ -56,6 +66,17 @@ function buildUpgradeButton({ key, userId, currentTier, maxTier, cost, canAfford
   return button.setStyle(ButtonStyle.Success).setDisabled(false).toJSON();
 }
 
+function buildResetRow(userId, resetUsed) {
+  const label = resetUsed ? 'Reset Used' : 'Reset Upgrades (one-time)';
+  const button = new ButtonBuilder()
+    .setCustomId(`${RESET_BUTTON_ID}:${userId}`)
+    .setStyle(ButtonStyle.Danger)
+    .setDisabled(resetUsed)
+    .setLabel(label);
+
+  return new ActionRowBuilder().addComponents(button).toJSON();
+}
+
 function buildUpgradeRow({ label, value, button }) {
   return {
     type: 9,
@@ -86,6 +107,7 @@ function buildHuntUpgradeView(user, profile) {
       content: `## ${user.username}'s Hunt Upgrades\n-# You have bought ${totalPurchased} / ${totalMax} Upgrades.`,
     },
     buildUpgradeSelect(user.id),
+    buildResetRow(user.id, profile?.upgrade_reset_used),
   ];
 
   for (const entry of upgradeEntries) {
@@ -117,7 +139,37 @@ function buildHuntUpgradeView(user, profile) {
   };
 }
 
-function buildUpgradeIntro(user) {
+function resetAllUpgrades(userId) {
+  const profile = getUserProfile(userId);
+  if (profile.upgrade_reset_used) {
+    return { success: false, profile };
+  }
+
+  updateUserProfile(userId, {
+    ...profile,
+    hunt_upgrades: { ...DEFAULT_HUNT_UPGRADES },
+    hunt_upgrade_tokens_used: 0,
+    upgrade_reset_used: true,
+  });
+
+  const digProfile = getUserDigProfile(userId);
+  updateUserDigProfile(userId, { ...digProfile, dig_upgrade_tokens_used: 0 });
+
+  setUserStats(userId, { ...getUserStats(userId), chat_upgrade_tokens_used: 0 });
+  const refreshedStats = getUserStats(userId);
+  const refreshedDig = getUserDigProfile(userId);
+  const digTokenItem = ITEMS_BY_ID.ITDigUpgradeToken;
+
+  if (digTokenItem) {
+    const inventoryProfile = getUserProfile(userId);
+    setInventoryItemAmount(inventoryProfile, digTokenItem, refreshedDig.upgrade_tokens);
+    updateUserProfile(userId, inventoryProfile);
+  }
+
+  return { success: true, profile: getUserProfile(userId), stats: refreshedStats, dig: refreshedDig };
+}
+
+function buildUpgradeIntro(user, profile) {
   return {
     flags: COMPONENTS_V2_FLAG,
     components: [
@@ -127,6 +179,7 @@ function buildUpgradeIntro(user) {
         components: [
           { type: 10, content: `## ${user.username}'s Upgrades\n-# Select a type of upgrade.` },
           buildUpgradeSelect(user.id),
+          buildResetRow(user.id, profile?.upgrade_reset_used),
         ],
       },
     ],
@@ -158,7 +211,29 @@ module.exports = {
         return true;
       }
 
-      await interaction.update(buildUpgradeIntro(interaction.user));
+      const profile = getUserProfile(userId);
+      await interaction.update(buildUpgradeIntro(interaction.user, profile));
+      return true;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(RESET_BUTTON_ID)) {
+      const [, userId] = interaction.customId.split(':');
+      if (interaction.user.id !== userId) {
+        await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+        return true;
+      }
+
+      const resetResult = resetAllUpgrades(userId);
+      if (!resetResult.success) {
+        await safeErrorReply(interaction, 'You have already used your one-time upgrade reset.');
+        return true;
+      }
+
+      await interaction.update(buildUpgradeIntro(interaction.user, resetResult.profile));
+      await interaction.followUp({
+        content: 'All upgrades have been reset and upgrade tokens were restored based on your current levels.',
+        ephemeral: true,
+      });
       return true;
     }
 
