@@ -213,6 +213,8 @@ function buildNavRow(view) {
 
 function buildStatsMessage(digProfile) {
   const { level, xp, next_level_xp: nextLevel, upgrade_tokens: tokens } = digProfile;
+  const progressBar = formatProgressBar(xp, nextLevel);
+  const percent = Math.min(100, Math.max(0, (xp / Math.max(nextLevel, 1)) * 100));
   return {
     content: '',
     flags: COMPONENTS_V2_FLAG,
@@ -226,10 +228,14 @@ function buildStatsMessage(digProfile) {
             components: [
               {
                 type: 10,
-                content: `## Dig Stat\n-# Dig Level: ${level}\n-# Dig XP: ${xp} / ${nextLevel}\n-# Dig Upgrade Tokens: ${tokens}`,
+                content: `## Dig Stat\n### Dig Level: ${level}\n-# ${progressBar} \`${xp} / ${nextLevel} - ${percent.toFixed(2)}%\`\n* Dig Upgrade Tokens: ${tokens}`,
               },
             ],
-            accessory: { type: 11, media: { url: DIG_THUMBNAIL } },
+            accessory: {
+              type: 11,
+              media: { url: DIG_THUMBNAIL },
+              description: 'Dig stats icon',
+            },
           },
           { type: 14 },
           { type: 1, components: buildNavRow('stats') },
@@ -255,10 +261,14 @@ function buildEquipmentMessage(profile) {
             components: [
               {
                 type: 10,
-                content: `## Dig Equipment\n-# Gear Equipped: ${gear.emoji ?? ''} ${gear.name}\n-# Misc Equipped: ${misc.emoji ?? ''} ${misc.name}`,
+                content: `## Dig Equipment\n### * Gear equipped: ${gear.name} ${gear.emoji ?? ''}\n### * Misc equipped: ${misc.name} ${misc.emoji ?? ''}`,
               },
             ],
-            accessory: { type: 11, media: { url: DIG_THUMBNAIL } },
+            accessory: {
+              type: 11,
+              media: { url: DIG_THUMBNAIL },
+              description: 'Equipment icon',
+            },
           },
           { type: 14 },
           { type: 1, components: buildNavRow('equipment') },
@@ -280,6 +290,11 @@ function buildStartingMessage() {
           {
             type: 9,
             components: [{ type: 10, content: 'Digging...' }],
+            accessory: {
+              type: 11,
+              media: { url: DIG_THUMBNAIL },
+              description: 'Dig icon',
+            },
           },
         ],
       },
