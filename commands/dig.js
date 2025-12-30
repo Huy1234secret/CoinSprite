@@ -19,6 +19,37 @@ const DIG_LAYER_THUMBNAIL = 'https://cdn.discordapp.com/emojis/14532581506975007
 const LAYER_EMOJI = '<:SBLayerDirt:1453258150697500702>';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 
+function normalizeEmojiForComponent(emoji) {
+  if (!emoji) {
+    return null;
+  }
+
+  if (typeof emoji === 'object' && (emoji.id || emoji.name)) {
+    const normalized = {};
+    if (emoji.id) {
+      normalized.id = String(emoji.id);
+    }
+    if (emoji.name) {
+      normalized.name = emoji.name;
+    }
+    if (typeof emoji.animated === 'boolean') {
+      normalized.animated = emoji.animated;
+    }
+    return normalized;
+  }
+
+  if (typeof emoji !== 'string') {
+    return null;
+  }
+
+  const customMatch = emoji.match(/^<a?:[^:>]+:(\d+)>$/);
+  if (customMatch) {
+    return { id: customMatch[1] };
+  }
+
+  return { name: emoji };
+}
+
 const DIG_DURATION_MS = 5 * 60 * 1000;
 const DIG_INACTIVITY_MS = 30 * 1000;
 
@@ -267,20 +298,30 @@ function buildGearOptions(profile) {
     {
       label: FIST_GEAR.name,
       value: FIST_GEAR.name,
-      emoji: FIST_GEAR.emoji,
       default: equippedName === null || equippedName === FIST_GEAR.name,
     },
   ];
 
+  const fistEmoji = normalizeEmojiForComponent(FIST_GEAR.emoji);
+  if (fistEmoji) {
+    options[0].emoji = fistEmoji;
+  }
+
   const digGear = (profile.gear_inventory ?? []).filter(gearSupportsDig);
   for (const item of digGear) {
     const name = item?.name ?? 'Gear';
-    options.push({
+    const option = {
       label: name,
       value: name,
-      emoji: item?.emoji,
       default: equippedName === name,
-    });
+    };
+
+    const emoji = normalizeEmojiForComponent(item?.emoji);
+    if (emoji) {
+      option.emoji = emoji;
+    }
+
+    options.push(option);
   }
 
   return options;
@@ -293,12 +334,20 @@ function buildMiscOptions(profile) {
   }
 
   const equippedName = profile.misc_equipped?.name ?? null;
-  return miscItems.map((item) => ({
-    label: item?.name ?? 'Misc',
-    value: item?.name ?? 'Misc',
-    emoji: item?.emoji,
-    default: equippedName === item?.name,
-  }));
+  return miscItems.map((item) => {
+    const option = {
+      label: item?.name ?? 'Misc',
+      value: item?.name ?? 'Misc',
+      default: equippedName === item?.name,
+    };
+
+    const emoji = normalizeEmojiForComponent(item?.emoji);
+    if (emoji) {
+      option.emoji = emoji;
+    }
+
+    return option;
+  });
 }
 
 function buildEquipmentMessage(profile, userId) {
@@ -320,6 +369,15 @@ function buildEquipmentMessage(profile, userId) {
           type: 11,
           media: { url: DIG_THUMBNAIL },
         },
+      },
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: '### Selection Panel\n- Choose gear and misc options below to update your digging loadout.',
+          },
+        ],
       },
       { type: 14 },
       {
