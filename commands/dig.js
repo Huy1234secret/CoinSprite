@@ -29,7 +29,8 @@ function normalizeEmojiForComponent(emoji) {
     const normalized = {};
     if (emoji.id) {
       const idString = String(emoji.id);
-      if (/^\d+$/.test(idString)) {
+      const isSnowflake = /^\d{17,20}$/.test(idString);
+      if (isSnowflake) {
         normalized.id = idString;
       } else if (emoji.name) {
         normalized.name = emoji.name;
