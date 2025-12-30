@@ -17,7 +17,7 @@ const DIG_SELECT_PREFIX = 'dig-select:';
 const DIG_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
 const DIG_LAYER_THUMBNAIL = 'https://cdn.discordapp.com/emojis/1453258150697500702.png?size=240&quality=lossless';
 const LAYER_EMOJI = '<:SBLayerDirt:1453258150697500702>';
-const DIG_ACCENT_COLOR = 0xff0000;
+const DIG_ACCENT_COLOR = 0xffffff;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 
 function normalizeEmojiForComponent(emoji) {
@@ -225,7 +225,6 @@ function buildHomeMessage() {
   };
 
   return {
-    content: '',
     flags: COMPONENTS_V2_FLAG,
     components: [container],
   };
@@ -280,7 +279,6 @@ function buildStatsMessage(digProfile) {
   };
 
   return {
-    content: '',
     flags: COMPONENTS_V2_FLAG,
     components: [container],
   };
@@ -437,7 +435,6 @@ function buildEquipmentMessage(profile, userId) {
   };
 
   return {
-    content: '',
     flags: COMPONENTS_V2_FLAG,
     components: [container],
   };
@@ -460,19 +457,19 @@ function buildStartingMessage() {
   };
 
   return {
-    content: '',
     flags: COMPONENTS_V2_FLAG,
     components: [container],
   };
 }
 
 async function buildActiveMessage(session) {
-  const { layer, health, maxHealth, expiresAt, loot } = session;
+  const { layer, health, maxHealth, expiresAt, loot, pendingLoot } = session;
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
+  const lootForThumbnail = loot ?? pendingLoot;
   const thumbnailAttachment = await createDigThumbnail({
     layerImageUrl: DIG_LAYER_THUMBNAIL,
-    items: (loot?.items ?? []).map((entry) => entry.item).filter(Boolean),
+    items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
   });
   const mediaUrl = thumbnailAttachment ? `attachment://${thumbnailAttachment.name}` : DIG_LAYER_THUMBNAIL;
 
@@ -512,7 +509,6 @@ async function buildActiveMessage(session) {
   };
 
   return {
-    content: '',
     flags: COMPONENTS_V2_FLAG,
     components: [container],
     files: thumbnailAttachment ? [thumbnailAttachment] : [],
@@ -555,6 +551,7 @@ async function startDigging(interaction) {
     startedAt: now,
     expiresAt: now + DIG_DURATION_MS,
     loot: null,
+    pendingLoot: rollLoot(0),
     inactivityTimer: null,
   };
 
@@ -592,11 +589,12 @@ async function handleSwing(interaction) {
   session.health = Math.max(0, session.health - damage);
 
   if (session.health <= 0) {
-    const loot = rollLoot(session.layer);
+    const loot = session.pendingLoot ?? rollLoot(session.layer);
     session.layer += 1;
     session.maxHealth = getLayerHealth(session.layer);
     session.health = session.maxHealth;
     session.loot = loot;
+    session.pendingLoot = rollLoot(session.layer);
 
     const profile = getUserProfile(userId);
     for (const entry of loot.items) {
