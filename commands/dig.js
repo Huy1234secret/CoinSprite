@@ -476,6 +476,10 @@ function buildStartingMessage() {
       {
         type: 9,
         components: [{ type: 10, content: 'You are going for a dig...' }],
+        accessory: {
+          type: 11,
+          media: { url: DIG_LAYER_THUMBNAIL },
+        },
       },
     ],
   };
