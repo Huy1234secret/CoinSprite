@@ -50,9 +50,10 @@ function normalizeEmojiForComponent(emoji) {
     return null;
   }
 
-  const customMatch = emoji.match(/^<a?:[^:>]+:(\d+)>$/);
+  const customMatch = emoji.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
-    return { id: customMatch[1] };
+    const [, animatedFlag, name, id] = customMatch;
+    return { id, name, animated: Boolean(animatedFlag) };
   }
 
   return { name: emoji };
