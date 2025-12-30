@@ -43,6 +43,9 @@ function normalizeEmojiForComponent(emoji) {
     if (typeof emoji.animated === 'boolean') {
       normalized.animated = emoji.animated;
     }
+    if (!normalized.id && !normalized.name) {
+      return null;
+    }
     return normalized;
   }
 
@@ -56,7 +59,11 @@ function normalizeEmojiForComponent(emoji) {
     return { id, name, animated: Boolean(animatedFlag) };
   }
 
-  return { name: emoji };
+  if (typeof emoji === 'string' && emoji.trim().length > 0) {
+    return { name: emoji.trim() };
+  }
+
+  return null;
 }
 
 const DIG_DURATION_MS = 5 * 60 * 1000;
@@ -326,7 +333,9 @@ function buildGearOptions(profile) {
     options[0].emoji = fistEmoji;
   }
 
-  const digGear = (profile.gear_inventory ?? []).filter(gearSupportsDig);
+  const digGear = (profile.gear_inventory ?? []).filter(
+    (item) => gearSupportsDig(item) && (item.amount === undefined || item.amount > 0)
+  );
   for (const item of digGear) {
     const name = item?.name ?? 'Gear';
     const option = {
@@ -653,7 +662,9 @@ function applySelection(profile, type, value) {
       return profile;
     }
 
-    const selected = (profile.gear_inventory ?? []).find((item) => item?.name === value && gearSupportsDig(item));
+    const selected = (profile.gear_inventory ?? []).find(
+      (item) => item?.name === value && gearSupportsDig(item) && (item.amount === undefined || item.amount > 0)
+    );
     if (selected) {
       const normalized = normalizeGearItem(selected);
       profile.gear_equipped = normalized;
