@@ -27,7 +27,14 @@ function normalizeEmojiForComponent(emoji) {
   if (typeof emoji === 'object' && (emoji.id || emoji.name)) {
     const normalized = {};
     if (emoji.id) {
-      normalized.id = String(emoji.id);
+      const idString = String(emoji.id);
+      if (/^\d+$/.test(idString)) {
+        normalized.id = idString;
+      } else if (emoji.name) {
+        normalized.name = emoji.name;
+      } else {
+        normalized.name = idString;
+      }
     }
     if (emoji.name) {
       normalized.name = emoji.name;
@@ -378,6 +385,10 @@ function buildEquipmentMessage(profile, userId) {
             content: '### Selection Panel\n- Choose gear and misc options below to update your digging loadout.',
           },
         ],
+        accessory: {
+          type: 11,
+          media: { url: DIG_THUMBNAIL },
+        },
       },
       { type: 14 },
       {
