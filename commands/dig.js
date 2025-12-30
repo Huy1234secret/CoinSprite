@@ -30,12 +30,8 @@ function normalizeEmojiForComponent(emoji) {
     if (emoji.id) {
       const idString = String(emoji.id);
       const isSnowflake = /^\d{17,20}$/.test(idString);
-      if (isSnowflake) {
+      if (isSnowflake && emoji.name) {
         normalized.id = idString;
-      } else if (emoji.name) {
-        normalized.name = emoji.name;
-      } else {
-        normalized.name = idString;
       }
     }
     if (emoji.name) {
@@ -56,8 +52,12 @@ function normalizeEmojiForComponent(emoji) {
 
   const customMatch = emoji.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
-    const [, animatedFlag, name, id] = customMatch;
-    return { id, name, animated: Boolean(animatedFlag) };
+    const [, animatedFlag, name] = customMatch;
+    const safeName = name?.trim();
+    if (!safeName) {
+      return null;
+    }
+    return { name: safeName, animated: Boolean(animatedFlag) };
   }
 
   if (typeof emoji === 'string' && emoji.trim().length > 0) {
