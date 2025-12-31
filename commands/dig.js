@@ -75,15 +75,15 @@ const DIG_INACTIVITY_MS = 30 * 1000;
 const activeDigs = new Map();
 
 const DROP_TABLE = [
-  { id: 'ITBone', chance: 0.1, xp: [35, 50] },
-  { id: 'ITLeaf', chance: 0.55, xp: [15, 25] },
-  { id: 'ITFeather', chance: 0.35, xp: [20, 30] },
-  { id: 'ITClay', chance: 0.08, xp: [50, 65] },
-  { id: 'ITPebbles', chance: 0.25, xp: [35, 50] },
-  { id: 'ITTwigs', chance: 0.25, xp: [20, 35] },
-  { id: 'ITStone', chance: 0.35, xp: [25, 35] },
-  { id: 'ITTreeBark', chance: 0.3, xp: [15, 25] },
-  { id: 'ITAcorn', chance: 0.28, xp: [20, 30] },
+  { id: 'ITBone', chance: 0.1, xp: [10, 20] },
+  { id: 'ITLeaf', chance: 0.55, xp: [5, 10] },
+  { id: 'ITFeather', chance: 0.35, xp: [6, 13] },
+  { id: 'ITClay', chance: 0.08, xp: [12, 24] },
+  { id: 'ITPebbles', chance: 0.25, xp: [8, 15] },
+  { id: 'ITTwigs', chance: 0.25, xp: [8, 15] },
+  { id: 'ITStone', chance: 0.35, xp: [7, 14] },
+  { id: 'ITTreeBark', chance: 0.3, xp: [7, 14] },
+  { id: 'ITAcorn', chance: 0.28, xp: [8, 14] },
 ];
 
 const CHEST_TYPES = [
@@ -190,7 +190,7 @@ function rollLoot(layer) {
   }
 
   const items = [{ item: ITEMS_BY_ID.ITDirt, amount: 1 }];
-  let xp = randomInRange([5, 10]);
+  let xp = randomInRange([1, 3]);
   for (const entry of DROP_TABLE) {
     if (Math.random() <= entry.chance) {
       const item = ITEMS_BY_ID[entry.id];
