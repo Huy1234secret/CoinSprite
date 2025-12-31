@@ -515,10 +515,10 @@ async function buildActiveMessage(session) {
   ];
 
   if (loot?.items?.length) {
-    messageLines.push(`-# You earned these item from layer ${layer - 1}`);
+    messageLines.push(`-# You earned these item from layer ${layer - 1}:`);
     for (const entry of loot.items) {
       const emoji = entry.item?.emoji ? `${entry.item.emoji} ` : '';
-      messageLines.push(`-# * ${emoji}${entry.item?.name ?? 'Unknown'} x${entry.amount}`);
+      messageLines.push(`-# ${emoji}${entry.item?.name ?? 'Unknown'} x${entry.amount}`);
     }
   }
 
@@ -661,8 +661,6 @@ async function handleSwing(interaction) {
       setInventoryItemAmount(refreshedProfile, digToken, digProfile.upgrade_tokens);
       updateUserProfile(userId, refreshedProfile);
     }
-  } else {
-    session.loot = null;
   }
 
   await interaction.update(await buildActiveMessage(session));
