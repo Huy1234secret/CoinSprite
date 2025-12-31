@@ -605,6 +605,7 @@ const ITEMS = [
     id: 'ITFeather',
     name: 'Feathers',
     emoji: '<:ITFeather:1453266401585266789>',
+    image: 'https://i.ibb.co/sdHM1Hf6/ITFeather.png',
     rarity: 'Common',
     type: 'Material',
     value: 10,
