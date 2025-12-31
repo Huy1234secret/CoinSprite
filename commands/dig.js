@@ -515,7 +515,7 @@ async function buildActiveMessage(session) {
   ];
 
   if (loot?.items?.length) {
-    messageLines.push('[separator]', `-# You earned these item from layer ${layer - 1}`);
+    messageLines.push(`-# You earned these item from layer ${layer - 1}`);
     for (const entry of loot.items) {
       const emoji = entry.item?.emoji ? `${entry.item.emoji} ` : '';
       messageLines.push(`-# * ${emoji}${entry.item?.name ?? 'Unknown'} x${entry.amount}`);
