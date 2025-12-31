@@ -568,6 +568,19 @@ function resetInactivity(interaction, session) {
 
 async function startDigging(interaction) {
   const userId = interaction.user.id;
+  const existingSession = activeDigs.get(userId);
+  if (existingSession && Date.now() < existingSession.expiresAt) {
+    await safeErrorReply(
+      interaction,
+      'You already have an active dig. Please finish it or wait for it to end before starting another.'
+    );
+    return;
+  }
+
+  if (existingSession && Date.now() >= existingSession.expiresAt) {
+    endSession(userId);
+  }
+
   const now = Date.now();
   const session = {
     userId,
