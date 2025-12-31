@@ -12,11 +12,42 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMembers,
   ],
 });
 client.commands = new Collection();
 
 const activeVoiceSessions = new Map();
+const sentNewYearDMs = new Set();
+
+const HAPPY_NEW_YEAR_MESSAGE =
+  '🎉 Happy New Year! 🎆\n\nThank you for being part of this community. May the coming year bring you fresh opportunities, meaningful connections, and moments of joy. Let\'s make it our best one yet! ✨';
+
+async function sendNewYearGreetings(botClient) {
+  for (const guild of botClient.guilds.cache.values()) {
+    let members;
+    try {
+      members = await guild.members.fetch();
+    } catch (error) {
+      console.error(`Failed to fetch members for guild ${guild.id}:`, error);
+      continue;
+    }
+
+    for (const member of members.values()) {
+      const userId = member.user.id;
+      if (member.user.bot || sentNewYearDMs.has(userId)) {
+        continue;
+      }
+
+      try {
+        await member.send(HAPPY_NEW_YEAR_MESSAGE);
+        sentNewYearDMs.add(userId);
+      } catch (error) {
+        console.error(`Failed to DM user ${userId}:`, error);
+      }
+    }
+  }
+}
 
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
@@ -37,6 +68,7 @@ client.once(Events.ClientReady, async () => {
     const slashCommands = client.commands.map((command) => command.data.toJSON());
     await client.application.commands.set(slashCommands);
     console.info(`Ready! Logged in as ${client.user.tag}`);
+    await sendNewYearGreetings(client);
     for (const command of client.commands.values()) {
       if (typeof command.init === 'function') {
         await command.init(client);
