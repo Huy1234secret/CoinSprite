@@ -495,10 +495,17 @@ async function buildActiveMessage(session) {
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
   const lootForThumbnail = pendingLoot ?? loot;
-  const thumbnailAttachment = await createDigThumbnail({
-    layerImageUrl: DIG_LAYER_THUMBNAIL,
-    items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
-  });
+  const shouldRefreshThumbnail =
+    !session.thumbnailAttachment || session.thumbnailAttachmentLayer !== session.layer;
+
+  if (shouldRefreshThumbnail) {
+    session.thumbnailAttachment = await createDigThumbnail({
+      layerImageUrl: DIG_LAYER_THUMBNAIL,
+      items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
+    });
+    session.thumbnailAttachmentLayer = session.layer;
+  }
+  const thumbnailAttachment = session.thumbnailAttachment;
   const mediaUrl = thumbnailAttachment ? `attachment://${thumbnailAttachment.name}` : DIG_LAYER_THUMBNAIL;
 
   const messageLines = [
@@ -593,6 +600,8 @@ async function startDigging(interaction) {
     expiresAt: now + DIG_DURATION_MS,
     loot: null,
     pendingLoot: rollLoot(0),
+    thumbnailAttachment: null,
+    thumbnailAttachmentLayer: null,
     inactivityTimer: null,
   };
 
