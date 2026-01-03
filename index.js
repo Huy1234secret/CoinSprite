@@ -4,6 +4,7 @@ const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { config } = require('dotenv');
 const { safeErrorReply } = require('./src/utils/interactions');
 const { addXpToUser } = require('./src/userStats');
+const { saveGuildData } = require('./src/serverData');
 
 config();
 
@@ -19,6 +20,10 @@ client.commands = new Collection();
 
 const activeVoiceSessions = new Map();
 
+const HOME_SERVER_ID = '1372572233930903592';
+const HOME_CHANNEL_ID = '1456942349765836936';
+const GUIDE_URL = 'https://sites.google.com/view/coinsprite/home';
+
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
   const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
@@ -30,6 +35,49 @@ if (fs.existsSync(commandsPath)) {
     } else {
       console.warn(`The command at ${filePath} is missing required "data" or "execute" properties.`);
     }
+  }
+}
+
+async function sendOwnerGreeting(guild) {
+  try {
+    const owner = await guild.fetchOwner();
+    if (!owner?.user || owner.user.bot) {
+      return;
+    }
+
+    const greeting = [
+      `Thanks for adding **${client.user.username}** to **${guild.name}**!`,
+      'Here are a few tips to get started:',
+      '- Explore the available slash commands to see what I can do.',
+      `- Check out the quick guide for more info: ${GUIDE_URL}`,
+    ].join('\n');
+
+    await owner.send(greeting);
+  } catch (error) {
+    console.warn(`Unable to DM guild owner for ${guild.id}:`, error);
+  }
+}
+
+async function notifyHomeServer(guild) {
+  try {
+    const homeChannel = await client.channels.fetch(HOME_CHANNEL_ID);
+    if (!homeChannel || homeChannel.guildId !== HOME_SERVER_ID) {
+      return;
+    }
+
+    const ownerTag = guild.members.cache.get(guild.ownerId)?.user?.tag;
+    const joinedAt = new Date();
+
+    const details = [
+      `🆕 Joined server: **${guild.name}** (${guild.id})`,
+      `👥 Members: ${guild.memberCount}`,
+      `👑 Owner: <@${guild.ownerId}>${ownerTag ? ` (${ownerTag})` : ''}`,
+      `📅 Date invited: ${joinedAt.toLocaleString()}`,
+    ].join('\n');
+
+    await homeChannel.send({ content: details });
+  } catch (error) {
+    console.warn('Failed to notify home channel about new guild:', error);
   }
 }
 
@@ -46,6 +94,17 @@ client.once(Events.ClientReady, async () => {
   } catch (error) {
     console.error('Failed to register commands:', error);
   }
+});
+
+client.on(Events.GuildCreate, async (guild) => {
+  try {
+    await saveGuildData(guild);
+  } catch (error) {
+    console.warn(`Failed to save data for guild ${guild.id}:`, error);
+  }
+
+  await sendOwnerGreeting(guild);
+  await notifyHomeServer(guild);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
