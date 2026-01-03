@@ -23,6 +23,7 @@ const activeVoiceSessions = new Map();
 const HOME_SERVER_ID = '1372572233930903592';
 const HOME_CHANNEL_ID = '1456942349765836936';
 const GUIDE_URL = 'https://sites.google.com/view/coinsprite/home';
+const KNOWN_GUILDS_FILE = path.join(__dirname, 'data', 'known-guilds.json');
 
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
@@ -37,6 +38,34 @@ if (fs.existsSync(commandsPath)) {
     }
   }
 }
+
+function loadKnownGuilds() {
+  try {
+    const raw = fs.readFileSync(KNOWN_GUILDS_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return new Set(parsed);
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn('Unable to load known guilds list:', error);
+    }
+  }
+
+  return new Set();
+}
+
+function persistKnownGuilds(guildIds) {
+  try {
+    const dir = path.dirname(KNOWN_GUILDS_FILE);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(KNOWN_GUILDS_FILE, JSON.stringify([...guildIds], null, 2));
+  } catch (error) {
+    console.warn('Unable to persist known guilds list:', error);
+  }
+}
+
+const knownGuildIds = loadKnownGuilds();
 
 async function sendOwnerGreeting(guild) {
   try {
@@ -103,8 +132,14 @@ client.on(Events.GuildCreate, async (guild) => {
     console.warn(`Failed to save data for guild ${guild.id}:`, error);
   }
 
-  await sendOwnerGreeting(guild);
-  await notifyHomeServer(guild);
+  const isNewGuild = !knownGuildIds.has(guild.id);
+  if (isNewGuild) {
+    knownGuildIds.add(guild.id);
+    persistKnownGuilds(knownGuildIds);
+
+    await sendOwnerGreeting(guild);
+    await notifyHomeServer(guild);
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
