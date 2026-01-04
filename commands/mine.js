@@ -6,6 +6,7 @@ const {
   addItemToInventory,
   setInventoryItemAmount,
   ITEMS_BY_ID,
+  FIST_GEAR,
   normalizeGearItem,
 } = require('../src/huntProfile');
 const { addMineXp, getUserMineProfile } = require('../src/mineProfile');
@@ -255,7 +256,7 @@ function itemSupportsMineActivity(item) {
 }
 
 function gearSupportsMine(item) {
-  return itemSupportsMineActivity(item) && (item?.name ?? '').toLowerCase() !== 'fist';
+  return itemSupportsMineActivity(item);
 }
 
 function getEquippedMineGear(profile) {
@@ -266,13 +267,13 @@ function getEquippedMineGear(profile) {
   const mineGear = (profile.gear_inventory ?? [])
     .map(normalizeGearItem)
     .filter((item) => gearSupportsMine(item) && (item.amount === undefined || item.amount > 0));
-  return mineGear[0] ?? null;
+  return mineGear[0] ?? { ...FIST_GEAR };
 }
 
 function buildGearPlaceholder(profile) {
   const gear = getEquippedMineGear(profile);
   if (!gear) {
-    return 'No mining gear equipped';
+    return `${FIST_GEAR.emoji} ${FIST_GEAR.name}`;
   }
   return `${gear.emoji ?? ''} ${gear.name ?? 'Gear'}`.trim();
 }
@@ -290,19 +291,30 @@ function buildGearOptions(profile) {
     .map(normalizeGearItem)
     .filter((item) => gearSupportsMine(item) && (item.amount === undefined || item.amount > 0));
 
-  if (!mineGear.length) {
-    return [{ label: 'No mining gear available', value: 'none', default: true }];
+  const options = [
+    {
+      label: FIST_GEAR.name,
+      value: FIST_GEAR.name,
+      default: equippedName === null || equippedName === FIST_GEAR.name,
+    },
+  ];
+
+  const fistEmoji = normalizeEmojiForComponent(FIST_GEAR.emoji);
+  if (fistEmoji) {
+    options[0].emoji = fistEmoji;
   }
 
-  return mineGear.map((item) => {
+  for (const item of mineGear) {
     const name = item?.name ?? 'Gear';
     const option = { label: name, value: name, default: equippedName === name };
     const emoji = normalizeEmojiForComponent(item?.emoji);
     if (emoji) {
       option.emoji = emoji;
     }
-    return option;
-  });
+    options.push(option);
+  }
+
+  return options;
 }
 
 function buildMiscOptions(profile) {
