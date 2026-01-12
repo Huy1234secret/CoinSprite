@@ -44,7 +44,7 @@ const ITEMS = [
     id: 'ITAdminPickaxe',
     name: 'Admin Pickaxe',
     emoji: '<:ITAdminPickaxe:1460122714328273082>',
-    image: 'https://cdn.discordapp.com/emojis/146012274332873082.png?size=240&quality=lossless',
+    image: 'https://i.ibb.co/20m6qF7m/ITAdmin-Pickaxe.png',
     rarity: 'Secret',
     type: 'Tool/Gear',
     activityTags: ['mine'],
