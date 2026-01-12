@@ -112,7 +112,7 @@ function calculateMineDamage(gear, mineLevel) {
     return fallback;
   }
 
-  const perLevel = Number(gear.powerPerMineLevel);
+  const perLevel = Number(gear.MinePow);
   const level = Math.max(0, Math.floor(Number(mineLevel) || 0));
   const scaling = Number.isFinite(perLevel) ? perLevel : 0;
   return Math.max(1, Math.floor(basePower + scaling * level));
