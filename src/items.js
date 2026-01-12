@@ -55,7 +55,7 @@ const ITEMS = [
     durability: Infinity,
     maxDurability: Infinity,
     power: 5,
-    powerPerMineLevel: 5,
+    MinePow: 5,
     info: 'An owner-only pickaxe that grows stronger with your mine level.',
     obtainment: 'Obtainment: Auto-granted to the owner only.',
     usage: 'Usage: Mine-only gear. Power increases by 5 for each mine level.',
