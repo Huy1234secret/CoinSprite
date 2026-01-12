@@ -101,6 +101,23 @@ function randomInRange([min, max]) {
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
 
+function calculateMineDamage(gear, mineLevel) {
+  const fallback = randomInRange([2, 5]);
+  if (!gear) {
+    return fallback;
+  }
+
+  const basePower = Number(gear.power);
+  if (!Number.isFinite(basePower)) {
+    return fallback;
+  }
+
+  const perLevel = Number(gear.powerPerMineLevel);
+  const level = Math.max(0, Math.floor(Number(mineLevel) || 0));
+  const scaling = Number.isFinite(perLevel) ? perLevel : 0;
+  return Math.max(1, Math.floor(basePower + scaling * level));
+}
+
 function getLayerHealth(layer) {
   return 10 + Math.max(0, layer) * 5;
 }
@@ -556,6 +573,7 @@ async function startMining(interaction) {
     pendingLoot: rollLoot(0),
     thumbnailAttachment: null,
     thumbnailAttachmentLayer: null,
+    gear: equippedGear,
     inactivityTimer: null,
   };
 
@@ -589,7 +607,8 @@ async function handleSwing(interaction) {
     return true;
   }
 
-  const damage = randomInRange([2, 5]);
+  const mineProfile = getUserMineProfile(userId);
+  const damage = calculateMineDamage(session.gear, mineProfile.level);
   session.health = Math.max(0, session.health - damage);
 
   if (session.health <= 0) {
@@ -612,11 +631,11 @@ async function handleSwing(interaction) {
     updateUserProfile(userId, profile);
     session.loot = { ...loot, items: awardedItems };
 
-    const mineProfile = addMineXp(userId, loot.xp);
+    const updatedMineProfile = addMineXp(userId, loot.xp);
     const mineToken = ITEMS_BY_ID.ITMineUpgradeToken;
     if (mineToken) {
       const refreshedProfile = getUserProfile(userId);
-      setInventoryItemAmount(refreshedProfile, mineToken, mineProfile.upgrade_tokens);
+      setInventoryItemAmount(refreshedProfile, mineToken, updatedMineProfile.upgrade_tokens);
       updateUserProfile(userId, refreshedProfile);
     }
   }

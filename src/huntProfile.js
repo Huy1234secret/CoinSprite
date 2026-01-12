@@ -14,6 +14,7 @@ const {
 const { DEFAULT_HUNT_UPGRADES, normalizeHuntUpgrades } = require('./huntUpgrades');
 
 const CURRENT_UPGRADE_RESET_VERSION = 1;
+const OWNER_USER_ID = '902736357766594611';
 
 function calculateNextLevelXp(level) {
   const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
@@ -226,6 +227,29 @@ function ensureHuntUpgradeTokenBalance(profile) {
   return setInventoryItemAmount(profile, HUNT_UPGRADE_TOKEN_ITEM, expected);
 }
 
+function ensureOwnerGear(profile, userId) {
+  if (String(userId) !== OWNER_USER_ID) {
+    return profile;
+  }
+
+  const adminPickaxe = ITEMS_BY_ID.ITAdminPickaxe;
+  if (!adminPickaxe) {
+    return profile;
+  }
+
+  const gearInventory = Array.isArray(profile.gear_inventory) ? [...profile.gear_inventory] : [];
+  const hasPickaxe = gearInventory.some(
+    (item) => item?.name === adminPickaxe.name || item?.id === adminPickaxe.id
+  );
+
+  if (!hasPickaxe) {
+    gearInventory.push({ ...adminPickaxe });
+    profile.gear_inventory = gearInventory;
+  }
+
+  return profile;
+}
+
 function getInventoryItemCount(profile) {
   const gearInventory = Array.isArray(profile.gear_inventory) ? profile.gear_inventory : [];
   const miscInventory = Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [];
@@ -253,7 +277,10 @@ function isInventoryFull(profile) {
 function getUserProfile(userId) {
   const profiles = loadProfiles();
   const userKey = String(userId);
-  const existing = ensureHuntUpgradeTokenBalance(ensureProfileShape(profiles[userKey]));
+  const existing = ensureOwnerGear(
+    ensureHuntUpgradeTokenBalance(ensureProfileShape(profiles[userKey])),
+    userId
+  );
   const scaledHealth = calculatePlayerMaxHealth(existing.level, DEFAULT_PROFILE.max_health);
   existing.health = scaledHealth;
   existing.max_health = scaledHealth;
@@ -264,7 +291,10 @@ function getUserProfile(userId) {
 
 function updateUserProfile(userId, profile) {
   const profiles = loadProfiles();
-  profiles[String(userId)] = ensureHuntUpgradeTokenBalance(ensureProfileShape(profile));
+  profiles[String(userId)] = ensureOwnerGear(
+    ensureHuntUpgradeTokenBalance(ensureProfileShape(profile)),
+    userId
+  );
   saveProfiles(profiles);
 }
 
