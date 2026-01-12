@@ -155,12 +155,22 @@ function ensureProfileShape(profile = {}) {
 
 function addItemToInventory(profile, item, amount = 1) {
   if (!item || typeof item !== 'object') {
-    return profile;
+    return 0;
   }
 
   const safeAmount = Math.max(0, amount);
   if (safeAmount === 0) {
-    return profile;
+    return 0;
+  }
+
+  const remainingCapacity = Math.max(0, getInventoryCapacity(profile) - getInventoryItemCount(profile));
+  if (remainingCapacity <= 0) {
+    return 0;
+  }
+
+  const amountToAdd = Math.min(safeAmount, remainingCapacity);
+  if (amountToAdd <= 0) {
+    return 0;
   }
 
   const miscInventory = Array.isArray(profile.misc_inventory) ? [...profile.misc_inventory] : [];
@@ -169,13 +179,13 @@ function addItemToInventory(profile, item, amount = 1) {
   if (existingIndex >= 0) {
     const existing = miscInventory[existingIndex];
     const currentAmount = Number.isFinite(existing.amount) ? existing.amount : 1;
-    miscInventory[existingIndex] = { ...existing, ...item, amount: currentAmount + safeAmount };
+    miscInventory[existingIndex] = { ...existing, ...item, amount: currentAmount + amountToAdd };
   } else {
-    miscInventory.push({ ...item, amount: safeAmount });
+    miscInventory.push({ ...item, amount: amountToAdd });
   }
 
   profile.misc_inventory = miscInventory;
-  return profile;
+  return amountToAdd;
 }
 
 function setInventoryItemAmount(profile, item, amount) {
@@ -216,6 +226,30 @@ function ensureHuntUpgradeTokenBalance(profile) {
   return setInventoryItemAmount(profile, HUNT_UPGRADE_TOKEN_ITEM, expected);
 }
 
+function getInventoryItemCount(profile) {
+  const gearInventory = Array.isArray(profile.gear_inventory) ? profile.gear_inventory : [];
+  const miscInventory = Array.isArray(profile.misc_inventory) ? profile.misc_inventory : [];
+  const gearCount = gearInventory.reduce(
+    (sum, item) => sum + (Number.isFinite(item?.amount) ? item.amount : 1),
+    0
+  );
+  const miscCount = miscInventory.reduce(
+    (sum, item) => sum + (Number.isFinite(item?.amount) ? item.amount : 1),
+    0
+  );
+  return gearCount + miscCount;
+}
+
+function getInventoryCapacity(profile) {
+  return typeof profile.inventory_capacity === 'number'
+    ? profile.inventory_capacity
+    : DEFAULT_PROFILE.inventory_capacity;
+}
+
+function isInventoryFull(profile) {
+  return getInventoryItemCount(profile) >= getInventoryCapacity(profile);
+}
+
 function getUserProfile(userId) {
   const profiles = loadProfiles();
   const userKey = String(userId);
@@ -245,6 +279,9 @@ module.exports = {
   calculatePlayerMaxHealth,
   calculateNextLevelXp,
   addItemToInventory,
+  getInventoryCapacity,
+  getInventoryItemCount,
+  isInventoryFull,
   setInventoryItemAmount,
   ensureHuntUpgradeTokenBalance,
   getUserProfile,

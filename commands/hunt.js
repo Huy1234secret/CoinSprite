@@ -1566,8 +1566,10 @@ function applyDrops(profile, drops) {
     }
 
     const amount = Number.isFinite(drop.amount) ? drop.amount : 1;
-    addItemToInventory(profile, drop.item, amount);
-    granted.push({ item: drop.item, amount });
+    const addedAmount = addItemToInventory(profile, drop.item, amount);
+    if (addedAmount > 0) {
+      granted.push({ item: drop.item, amount: addedAmount });
+    }
   }
 
   return granted;
@@ -2711,8 +2713,10 @@ async function handleDungeonAttackSelection(interaction, userId, creatureId) {
         if (!item) {
           continue;
         }
-        addItemToInventory(profile, item, itemReward.amount);
-        firstWinItems.push({ item, amount: itemReward.amount });
+        const addedAmount = addItemToInventory(profile, item, itemReward.amount);
+        if (addedAmount > 0) {
+          firstWinItems.push({ item, amount: addedAmount });
+        }
       }
     }
     updateUserProfile(userId, profile);
