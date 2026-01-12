@@ -495,13 +495,19 @@ async function buildActiveMessage(session) {
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
   const lootForThumbnail = pendingLoot ?? loot;
+  const isTreasureThumbnail =
+    lootForThumbnail?.thumbnailEmoji && lootForThumbnail.thumbnailEmoji !== LAYER_EMOJI;
+  const thumbnailBaseImage = isTreasureThumbnail ? lootForThumbnail.thumbnailEmoji : DIG_LAYER_THUMBNAIL;
+  const thumbnailItems = isTreasureThumbnail
+    ? []
+    : (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean);
   const shouldRefreshThumbnail =
     !session.thumbnailAttachment || session.thumbnailAttachmentLayer !== session.layer;
 
   if (shouldRefreshThumbnail) {
     session.thumbnailAttachment = await createDigThumbnail({
-      layerImageUrl: DIG_LAYER_THUMBNAIL,
-      items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
+      layerImageUrl: thumbnailBaseImage,
+      items: thumbnailItems,
     });
     session.thumbnailAttachmentLayer = session.layer;
   }
