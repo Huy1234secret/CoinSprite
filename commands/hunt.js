@@ -419,9 +419,21 @@ function formatCreatureLevel(level) {
   return `Lv${level}`;
 }
 
+function itemSupportsHuntActivity(item) {
+  const tags = item?.activityTags;
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return true;
+  }
+  return tags.some((tag) => typeof tag === 'string' && tag.toLowerCase() === 'hunt');
+}
+
+function gearSupportsHunt(item) {
+  return itemSupportsHuntActivity(item);
+}
+
 function selectGear(profile) {
   const equipped = profile.gear_equipped;
-  if (equipped && KNOWN_GEAR[equipped.name]) {
+  if (equipped && KNOWN_GEAR[equipped.name] && gearSupportsHunt(equipped)) {
     return normalizeGearItem(equipped);
   }
   return { ...FIST_GEAR };
@@ -561,7 +573,7 @@ function buildStatsContainer(profile, userId) {
 }
 
 function gearPlaceholder(profile) {
-  if (!profile.gear_equipped) {
+  if (!profile.gear_equipped || !gearSupportsHunt(profile.gear_equipped)) {
     return 'Select your gear';
   }
   const { name, emoji } = profile.gear_equipped;
@@ -611,9 +623,10 @@ function buildSelectOptions(items, equippedName, includeFist = false) {
 }
 
 function buildEquipmentContainers(profile, userId) {
-  const equippedGearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
-  const gearName = profile.gear_equipped?.name ?? FIST_GEAR.name;
-  const gearEmoji = profile.gear_equipped?.emoji ?? FIST_GEAR.emoji;
+  const selectedGear = selectGear(profile);
+  const equippedGearName = selectedGear?.name ?? FIST_GEAR.name;
+  const gearName = selectedGear?.name ?? FIST_GEAR.name;
+  const gearEmoji = selectedGear?.emoji ?? FIST_GEAR.emoji;
   const infoContainer = {
     type: 17,
     accent_color: 0xffffff,
@@ -648,7 +661,7 @@ function buildEquipmentContainers(profile, userId) {
             custom_id: `${HUNT_SELECT_PREFIX}gear:${userId}`,
             placeholder: gearPlaceholder(profile),
             options: buildSelectOptions(
-              profile.gear_inventory ?? [],
+              (profile.gear_inventory ?? []).filter((item) => gearSupportsHunt(item)),
               equippedGearName,
               true
             ),
@@ -2394,7 +2407,9 @@ function applySelection(profile, type, value) {
     return profile;
   }
 
-  const selectedItem = list.find((item) => item && item.name === value);
+  const selectedItem = list.find(
+    (item) => item && item.name === value && (type !== 'gear' || gearSupportsHunt(item))
+  );
 
   if (selectedItem) {
     const normalized = normalizeGearItem(selectedItem);
