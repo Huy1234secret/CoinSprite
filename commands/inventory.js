@@ -1,7 +1,8 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const {
-  DEFAULT_PROFILE,
   getUserProfile,
+  getInventoryCapacity,
+  getInventoryItemCount,
   normalizeGearItem,
 } = require('../src/huntProfile');
 const { safeErrorReply } = require('../src/utils/interactions');
@@ -9,7 +10,7 @@ const { safeErrorReply } = require('../src/utils/interactions');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const INVENTORY_TYPE_SELECT_PREFIX = 'inventory:type:';
 const INVENTORY_PAGE_SELECT_PREFIX = 'inventory:page:';
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 
 const RARITY_EMOJIS = {
   Common: '<:SBCommon:1447459423185272952>',
@@ -156,6 +157,7 @@ function buildInventoryContent(profile, user, state) {
   const listText = slice.length
     ? slice.map(formatItemLine).join('\n\n')
     : 'No items found for this page.';
+  const itemCount = getInventoryItemCount(profile);
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -166,9 +168,9 @@ function buildInventoryContent(profile, user, state) {
         components: [
           {
             type: 10,
-            content: `### ${user.username} inventory\n-# capacity: ${allItems.length} / ${
-              profile.inventory_capacity ?? DEFAULT_PROFILE.inventory_capacity
-            }\n-# T.Inventory Value: ${totalValue}`,
+            content: `### ${user.username} inventory\n-# capacity: ${itemCount} / ${getInventoryCapacity(
+              profile
+            )}\n-# T.Inventory Value: ${totalValue}`,
           },
           { type: 14 },
           { type: 10, content: listText },

@@ -597,16 +597,20 @@ async function handleSwing(interaction) {
     session.layer += 1;
     session.maxHealth = getLayerHealth(session.layer);
     session.health = session.maxHealth;
-    session.loot = loot;
     session.pendingLoot = rollLoot(session.layer);
 
     const profile = getUserProfile(userId);
+    const awardedItems = [];
     for (const entry of loot.items) {
       if (entry.item) {
-        addItemToInventory(profile, entry.item, entry.amount);
+        const addedAmount = addItemToInventory(profile, entry.item, entry.amount);
+        if (addedAmount > 0) {
+          awardedItems.push({ ...entry, amount: addedAmount });
+        }
       }
     }
     updateUserProfile(userId, profile);
+    session.loot = { ...loot, items: awardedItems };
 
     const mineProfile = addMineXp(userId, loot.xp);
     const mineToken = ITEMS_BY_ID.ITMineUpgradeToken;

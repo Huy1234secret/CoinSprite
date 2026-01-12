@@ -5,6 +5,7 @@ const { config } = require('dotenv');
 const { safeErrorReply } = require('./src/utils/interactions');
 const { addXpToUser } = require('./src/userStats');
 const { saveGuildData } = require('./src/serverData');
+const { getUserProfile, isInventoryFull } = require('./src/huntProfile');
 
 config();
 
@@ -81,6 +82,28 @@ async function notifyHomeServer(guild) {
   }
 }
 
+async function warnIfInventoryFull(interaction) {
+  try {
+    const profile = getUserProfile(interaction.user.id);
+    if (!isInventoryFull(profile)) {
+      return;
+    }
+
+    const payload = {
+      content: "Your inventory is full and can't hold any more items.",
+      ephemeral: true,
+    };
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(payload);
+    } else {
+      await interaction.reply(payload);
+    }
+  } catch (error) {
+    console.warn('Failed to send inventory full warning:', error);
+  }
+}
+
 client.once(Events.ClientReady, async () => {
   try {
     const slashCommands = client.commands.map((command) => command.data.toJSON());
@@ -116,6 +139,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     try {
       await command.execute(interaction, client);
+      await warnIfInventoryFull(interaction);
       await addXpToUser(interaction.user.id, 1);
     } catch (error) {
       console.error(`Failed to execute /${interaction.commandName}:`, error);
@@ -128,6 +152,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (typeof command.handleComponent === 'function') {
       const handled = await command.handleComponent(interaction);
       if (handled) {
+        await warnIfInventoryFull(interaction);
         await addXpToUser(interaction.user.id, 1);
         return;
       }
