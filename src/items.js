@@ -729,7 +729,7 @@ const ITEMS = [
   {
     id: 'ITCopperOre',
     name: 'Copper Ore',
-    emoji: '<:ITCopperOre:1456946823303278013>',
+    emoji: '<:ITCopperOre:1456946585651908648>',
     image: 'https://i.ibb.co/rWmPvzC/ITCopper-Ore.png',
     rarity: 'Common',
     type: 'Material',
@@ -744,7 +744,7 @@ const ITEMS = [
   {
     id: 'ITIronOre',
     name: 'Iron Ore',
-    emoji: '<:ITIronOre:145694695713079382>',
+    emoji: '<:ITIronOre:1456946595731079382>',
     image: 'https://i.ibb.co/tMgL6ftX/ITIron-Ore.png',
     rarity: 'Common',
     type: 'Material',
@@ -759,7 +759,7 @@ const ITEMS = [
   {
     id: 'ITGoldOre',
     name: 'Gold Ore',
-    emoji: '<:ITGoldOre:1456946937019709973>',
+    emoji: '<:ITGoldOre:1456946593470091371>',
     image: 'https://i.ibb.co/chGv7Ch9/ITGold-Ore.png',
     rarity: 'Rare',
     type: 'Material',
@@ -774,7 +774,7 @@ const ITEMS = [
   {
     id: 'ITAmethyst',
     name: 'Amethyst Ore',
-    emoji: '<:ITAmethyst:1456946881091878754>',
+    emoji: '<:ITAmethyst:1456946580119748754>',
     image: 'https://i.ibb.co/5hFjJpZg/ITAmethyst.png',
     rarity: 'Rare',
     type: 'Material',
@@ -864,7 +864,7 @@ const ITEMS = [
   {
     id: 'ITSapphire',
     name: 'Sapphire Ore',
-    emoji: '<:ITSapphire:1456946653562207787>',
+    emoji: '<:ITSapphire:1456946600516522077>',
     image: 'https://i.ibb.co/93djdBp3/ITSapphire.png',
     rarity: 'Rare',
     type: 'Material',
@@ -879,7 +879,7 @@ const ITEMS = [
   {
     id: 'ITEmerald',
     name: 'Emerald Ore',
-    emoji: '<:ITEmerald:1456946954599146555>',
+    emoji: '<:ITEmerald:1456946591045914655>',
     image: 'https://i.ibb.co/20TP3Qr9/ITEmerald.png',
     rarity: 'Epic',
     type: 'Material',
@@ -894,7 +894,7 @@ const ITEMS = [
   {
     id: 'ITRuby',
     name: 'Ruby Ore',
-    emoji: '<:ITRuby:1456946779497907333>',
+    emoji: '<:ITRuby:1456946597949739038>',
     image: 'https://i.ibb.co/ds7Nvcwd/ITRuby.png',
     rarity: 'Epic',
     type: 'Material',
@@ -909,7 +909,7 @@ const ITEMS = [
   {
     id: 'ITDiamond',
     name: 'Diamond Ore',
-    emoji: '<:ITDiamond:1456945887991669770>',
+    emoji: '<:ITDiamond:1456946587891666977>',
     image: 'https://i.ibb.co/sJ6bddRL/ITDiamond.png',
     rarity: 'Legendary',
     type: 'Material',
