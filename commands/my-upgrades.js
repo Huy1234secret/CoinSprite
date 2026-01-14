@@ -136,7 +136,7 @@ function buildUpgradeIntro(user) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('my-upgrades')
-    .setDescription('View and purchase your upgrades.'),
+    .setDescription('View your upgrades!'),
 
   async execute(interaction) {
     const profile = getUserProfile(interaction.user.id);

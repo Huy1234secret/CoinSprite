@@ -696,7 +696,7 @@ async function handleSelect(interaction, type, ownerId) {
 }
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('mine').setDescription('Start mining for treasure.'),
+  data: new SlashCommandBuilder().setName('mine').setDescription('Start mining for ores!'),
   async execute(interaction) {
     try {
       const response = buildHomeMessage();

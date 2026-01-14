@@ -97,7 +97,7 @@ function buildShopComponents(items) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('shop-view')
-    .setDescription('Generate a preview image of the current shop rotation.'),
+    .setDescription('View your shop, here u can buy some stuff!'),
 
   async execute(interaction) {
     await interaction.deferReply({ flags: COMPONENTS_V2_FLAG });

@@ -5,7 +5,7 @@ const { getUserDungeonProfile } = require('../src/dungeonProfile');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('dungeon')
-    .setDescription('Open the dungeon menu using Discord components v2.'),
+    .setDescription('Start a dungeon and collect loots!'),
 
   async execute(interaction) {
     const dungeonProfile = getUserDungeonProfile(interaction.user.id);
