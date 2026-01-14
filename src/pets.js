@@ -4,12 +4,12 @@ const path = require('path');
 const PET_DATA_FILE = path.join(__dirname, '..', 'data', 'pet_profiles.json');
 
 const RARITY_EMOJIS = {
-  Common: '⚪',
-  Rare: '🔵',
-  Epic: '🟣',
-  Legendary: '🟡',
-  Mythical: '🔴',
-  Secret: '⚫',
+  Common: '<:SBCommon:1460922405932498994>',
+  Rare: '<:SBRare:1460922389914189930>',
+  Epic: '<:SBEpic:1460922387137560699>',
+  Legendary: '<:SBLegendary:1460922396335669268>',
+  Mythical: '<:SBMythical:1460922392187633684>',
+  Secret: '<:SBSecret:1460922398693134368>',
 };
 
 const RARITY_MULTIPLIERS = {
