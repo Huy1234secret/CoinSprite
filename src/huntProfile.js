@@ -67,14 +67,24 @@ function normalizeGearItem(item) {
     return null;
   }
 
-  const lookupKey = item.name ?? item.id;
-  const known = lookupKey ? KNOWN_GEAR[lookupKey] : null;
+  const lookupId = item.id ?? item.name;
+  const knownById = lookupId ? ITEMS_BY_ID[lookupId] : null;
+  const knownByName = item.name ? KNOWN_GEAR[item.name] : null;
+  const known = knownById ?? knownByName;
   const base = known ? { ...known } : { ...item };
   const durability = Number.isFinite(item.durability) ? item.durability : base.durability;
-
-  return {
+  const merged = {
     ...base,
     ...item,
+  };
+  const normalizedName =
+    base.name && (!merged.name || merged.name === merged.id) ? base.name : merged.name;
+  const normalizedEmoji = base.emoji && !merged.emoji ? base.emoji : merged.emoji;
+
+  return {
+    ...merged,
+    name: normalizedName,
+    emoji: normalizedEmoji,
     durability,
     maxDurability:
       item.maxDurability ?? (Number.isFinite(base.maxDurability) ? base.maxDurability : durability),
