@@ -33,7 +33,7 @@ function buildWalletResponse(user, stats) {
 }
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('wallet').setDescription('Check your wallet.'),
+  data: new SlashCommandBuilder().setName('wallet').setDescription('View your balance! [currency]'),
 
   async execute(interaction) {
     const stats = getUserStats(interaction.user.id);

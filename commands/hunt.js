@@ -2951,7 +2951,7 @@ async function handleDungeonComponent(interaction) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('hunt')
-    .setDescription("Open the hunting menu using Discord's components v2."),
+    .setDescription('Start hunting for creature and find loots'),
 
   async execute(interaction) {
     maybeGrantOwnerPet(interaction);

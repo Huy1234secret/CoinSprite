@@ -491,7 +491,7 @@ async function initializeGiveaways(client) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('giveaway-start')
-    .setDescription('Start configuring a giveaway in a channel.')
+    .setDescription('Admin command')
     .addChannelOption((option) =>
       option
         .setName('channel')

@@ -41,7 +41,7 @@ function buildStatMessage(user, stats) {
 }
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('my-stat').setDescription('View your server stats.'),
+  data: new SlashCommandBuilder().setName('my-stat').setDescription('View your stat level in this group!'),
 
   async execute(interaction) {
     const stats = addXpToUser(interaction.user.id, 0);

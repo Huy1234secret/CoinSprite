@@ -192,7 +192,7 @@ function buildInventoryContent(profile, user, state) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('inventory')
-    .setDescription('View your inventory items.'),
+    .setDescription('View your inventory [items]'),
 
   async execute(interaction) {
     const profile = getUserProfile(interaction.user.id);

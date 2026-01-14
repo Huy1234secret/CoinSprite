@@ -226,7 +226,7 @@ function buildActionDetail(userId, action) {
 }
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('my-pet-army').setDescription("Check your pet/army collection."),
+  data: new SlashCommandBuilder().setName('my-pet-army').setDescription('View your pet inventory!'),
   async execute(interaction) {
     maybeGrantOwnerPet(interaction);
     const petProfile = getUserPetProfile(interaction.user.id);
