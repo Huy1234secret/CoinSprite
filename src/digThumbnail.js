@@ -31,7 +31,7 @@ async function loadCachedImage(url) {
   }
 }
 
-async function drawLayer(ctx, layerImageUrl) {
+async function drawLayer(ctx, layerImageUrl, brightness = 1) {
   const layerImage = await loadCachedImage(getEmojiUrl(layerImageUrl) || layerImageUrl);
   if (!layerImage) {
     ctx.fillStyle = '#3b2f2f';
@@ -39,7 +39,10 @@ async function drawLayer(ctx, layerImageUrl) {
     return;
   }
 
+  ctx.save();
+  ctx.filter = `brightness(${brightness})`;
   ctx.drawImage(layerImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.restore();
 }
 
 function getItemImageUrl(item) {
@@ -70,11 +73,11 @@ async function drawLoot(ctx, items = []) {
   }
 }
 
-async function createDigThumbnail({ layerImageUrl, items = [] } = {}) {
+async function createDigThumbnail({ layerImageUrl, items = [], brightness = 1 } = {}) {
   const canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
   const ctx = canvas.getContext('2d');
 
-  await drawLayer(ctx, layerImageUrl);
+  await drawLayer(ctx, layerImageUrl, brightness);
   await drawLoot(ctx, items);
 
   const buffer = await canvas.encode('png');
