@@ -26,24 +26,14 @@ function normalizeEmojiForComponent(emoji) {
   }
 
   if (typeof emoji === 'object' && (emoji.id || emoji.name)) {
-    const normalized = {};
     if (emoji.id) {
-      const idString = String(emoji.id);
-      const isSnowflake = /^\d{17,20}$/.test(idString);
-      if (isSnowflake && emoji.name) {
-        normalized.id = idString;
-      }
-    }
-    if (emoji.name) {
-      normalized.name = emoji.name;
-    }
-    if (typeof emoji.animated === 'boolean') {
-      normalized.animated = emoji.animated;
-    }
-    if (!normalized.id && !normalized.name) {
       return null;
     }
-    return normalized;
+    if (emoji.name) {
+      const trimmed = String(emoji.name).trim();
+      return trimmed.length > 0 ? { name: trimmed } : null;
+    }
+    return null;
   }
 
   if (typeof emoji !== 'string') {
@@ -52,14 +42,7 @@ function normalizeEmojiForComponent(emoji) {
 
   const customMatch = emoji.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
-    const [, animatedFlag, name, id] = customMatch;
-    const safeName = name?.trim();
-    const safeId = id?.trim();
-    const isSnowflake = /^\d{17,20}$/.test(safeId ?? '');
-    if (!safeName || !safeId || !isSnowflake) {
-      return null;
-    }
-    return { id: safeId, name: safeName, animated: Boolean(animatedFlag) };
+    return null;
   }
 
   if (typeof emoji === 'string' && emoji.trim().length > 0) {
