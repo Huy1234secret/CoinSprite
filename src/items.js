@@ -43,7 +43,7 @@ const ITEMS = [
   {
     id: 'ITAdminPickaxe',
     name: 'Admin Pickaxe',
-    emoji: '<:ITAdminPickaxe:1460122714328273082>',
+    emoji: '<:ITADP:1460896136490385550>',
     image: 'https://i.ibb.co/20m6qF7m/ITAdmin-Pickaxe.png',
     rarity: 'Secret',
     type: 'Tool/Gear',
