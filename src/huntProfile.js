@@ -15,6 +15,35 @@ const { DEFAULT_HUNT_UPGRADES, normalizeHuntUpgrades } = require('./huntUpgrades
 
 const CURRENT_UPGRADE_RESET_VERSION = 1;
 const OWNER_USER_ID = '902736357766594611';
+const CUSTOM_EMOJI_REGEX = /^<a?:[^:]+:\d+>$/;
+const CUSTOM_EMOJI_NAME_REGEX = /^<a?:([^:]+):\d+>$/;
+
+function resolveItemEmoji(emoji, fallbackEmoji) {
+  if (!emoji) {
+    return fallbackEmoji ?? emoji;
+  }
+
+  if (typeof emoji !== 'string' || typeof fallbackEmoji !== 'string') {
+    return emoji;
+  }
+
+  if (CUSTOM_EMOJI_REGEX.test(emoji)) {
+    return emoji;
+  }
+
+  const baseNameMatch = fallbackEmoji.match(CUSTOM_EMOJI_NAME_REGEX);
+  if (!baseNameMatch) {
+    return emoji;
+  }
+
+  const trimmed = emoji.trim();
+  const baseName = baseNameMatch[1];
+  if (trimmed === baseName || trimmed === `:${baseName}:`) {
+    return fallbackEmoji;
+  }
+
+  return emoji;
+}
 
 function calculateNextLevelXp(level) {
   const safeLevel = Math.max(0, Math.floor(Number(level) || 0));
@@ -79,7 +108,7 @@ function normalizeGearItem(item) {
   };
   const normalizedName =
     base.name && (!merged.name || merged.name === merged.id) ? base.name : merged.name;
-  const normalizedEmoji = base.emoji && !merged.emoji ? base.emoji : merged.emoji;
+  const normalizedEmoji = resolveItemEmoji(merged.emoji, base.emoji);
 
   return {
     ...merged,
