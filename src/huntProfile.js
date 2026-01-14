@@ -39,6 +39,10 @@ function resolveItemEmoji(emoji, fallbackEmoji) {
     return fallbackEmoji;
   }
 
+  if (CUSTOM_EMOJI_REGEX.test(emoji) && CUSTOM_EMOJI_REGEX.test(fallbackEmoji)) {
+    return fallbackEmoji;
+  }
+
   if (CUSTOM_EMOJI_REGEX.test(emoji)) {
     return emoji;
   }
