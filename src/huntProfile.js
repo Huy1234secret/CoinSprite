@@ -38,7 +38,7 @@ const DEFAULT_PROFILE = {
   misc_equipped: null,
   gear_inventory: [],
   misc_inventory: [],
-  inventory_capacity: 50
+  inventory_capacity: 500
 };
 
 function loadProfiles() {
