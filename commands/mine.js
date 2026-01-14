@@ -13,7 +13,7 @@ const { createDigThumbnail } = require('../src/digThumbnail');
 
 const MINE_BUTTON_PREFIX = 'mine:';
 const MINE_SELECT_PREFIX = 'mine-select:';
-const MINE_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
+const MINE_THUMBNAIL = 'https://i.ibb.co/mK16Yjj/SBMine.png';
 const MINE_LAYER_THUMBNAIL =
   'https://cdn.discordapp.com/emojis/1456946445818007657.png?size=240&quality=lossless';
 const MINE_LAYER_THUMBNAIL_DEEP = 'https://i.ibb.co/FkWZnFRh/unnamed.jpg';
