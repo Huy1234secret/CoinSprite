@@ -16,6 +16,7 @@ const MINE_SELECT_PREFIX = 'mine-select:';
 const MINE_THUMBNAIL = 'https://i.ibb.co/XkkgMzh5/SBDig.png';
 const MINE_LAYER_THUMBNAIL =
   'https://cdn.discordapp.com/emojis/1456946445818007657.png?size=240&quality=lossless';
+const MINE_LAYER_THUMBNAIL_DEEP = 'https://i.ibb.co/FkWZnFRh/unnamed.jpg';
 const LAYER_EMOJI = '<:SBStoneLayer:1456946445818007657>';
 const MINE_ACCENT_COLOR = 0xffffff;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
@@ -57,7 +58,7 @@ const MINE_INACTIVITY_MS = 30 * 1000;
 
 const activeMines = new Map();
 
-const EARLY_LAYER_ORES = [
+const SHALLOW_LAYER_ORES = [
   { id: 'ITCoal', chance: 15 },
   { id: 'ITFossil', chance: 20 },
   { id: 'ITCopperOre', chance: 9 },
@@ -65,8 +66,8 @@ const EARLY_LAYER_ORES = [
   { id: 'ITGoldOre', chance: 2.5 },
 ];
 
-const DEEP_LAYER_ORES = [
-  { id: 'ITCoal', chance: 25 },
+const MID_LAYER_ORES = [
+  { id: 'ITCoal', chance: 18 },
   { id: 'ITFossil', chance: 35 },
   { id: 'ITCopperOre', chance: 15 },
   { id: 'ITIronOre', chance: 10 },
@@ -76,6 +77,54 @@ const DEEP_LAYER_ORES = [
   { id: 'ITSapphire', chance: 0.1 },
   { id: 'ITRuby', chance: 0.065 },
   { id: 'ITAmethyst', chance: 0.5 },
+];
+
+const DEEP_LAYER_ORES = [
+  { id: 'ITCoal', chance: 25 },
+  { id: 'ITFossil', chance: 25 },
+  { id: 'ITCopperOre', chance: 25 },
+  { id: 'ITIronOre', chance: 20 },
+  { id: 'ITGoldOre', chance: 10 },
+  { id: 'ITDiamond', chance: 0.009 },
+  { id: 'ITEmerald', chance: 0.04 },
+  { id: 'ITSapphire', chance: 0.25 },
+  { id: 'ITRuby', chance: 0.095 },
+  { id: 'ITAmethyst', chance: 0.75 },
+  { id: 'ITBasaltIron', chance: 0.5 },
+  { id: 'ITObsidian', chance: 1 },
+];
+
+const VERY_DEEP_LAYER_ORES = [
+  { id: 'ITCoal', chance: 25 },
+  { id: 'ITFossil', chance: 5 },
+  { id: 'ITCopperOre', chance: 10 },
+  { id: 'ITIronOre', chance: 8 },
+  { id: 'ITGoldOre', chance: 13 },
+  { id: 'ITDiamond', chance: 0.02 },
+  { id: 'ITEmerald', chance: 0.09 },
+  { id: 'ITSapphire', chance: 0.4 },
+  { id: 'ITRuby', chance: 0.125 },
+  { id: 'ITAmethyst', chance: 0.9 },
+  { id: 'ITBasaltIron', chance: 2 },
+  { id: 'ITMagmaCore', chance: 0.05 },
+  { id: 'ITMagmaticOre', chance: 0.1 },
+  { id: 'ITSulfurClumps', chance: 0.8 },
+  { id: 'ITObsidian', chance: 5 },
+];
+
+const ABYSSAL_LAYER_ORES = [
+  { id: 'ITCoal', chance: 40 },
+  { id: 'ITGoldOre', chance: 18 },
+  { id: 'ITDiamond', chance: 0.05 },
+  { id: 'ITEmerald', chance: 0.125 },
+  { id: 'ITSapphire', chance: 0.75 },
+  { id: 'ITRuby', chance: 0.25 },
+  { id: 'ITAmethyst', chance: 1.25 },
+  { id: 'ITBasaltIron', chance: 5 },
+  { id: 'ITMagmaCore', chance: 0.5 },
+  { id: 'ITMagmaticOre', chance: 1 },
+  { id: 'ITSulfurClumps', chance: 2.6 },
+  { id: 'ITObsidian', chance: 10 },
 ];
 
 function randomInRange([min, max]) {
@@ -102,7 +151,31 @@ function calculateMineDamage(gear, mineLevel) {
 }
 
 function getLayerHealth(layer) {
-  return 10 + Math.max(0, layer) * 5;
+  const level = Math.max(0, Math.floor(Number(layer) || 0));
+  if (level <= 15) return 5;
+  if (level <= 40) return 20;
+  if (level <= 100) return 50;
+  if (level <= 200) return 100;
+  if (level <= 500) return 250;
+  if (level <= 1000) return 500;
+  return 1000;
+}
+
+function getLayerVisuals(layer) {
+  const level = Math.max(0, Math.floor(Number(layer) || 0));
+  if (level >= 1001) {
+    return { imageUrl: MINE_LAYER_THUMBNAIL_DEEP, brightness: 1 };
+  }
+  if (level <= 100) {
+    return { imageUrl: MINE_LAYER_THUMBNAIL, brightness: 1 };
+  }
+  if (level <= 250) {
+    return { imageUrl: MINE_LAYER_THUMBNAIL, brightness: 0.75 };
+  }
+  if (level <= 500) {
+    return { imageUrl: MINE_LAYER_THUMBNAIL, brightness: 0.6 };
+  }
+  return { imageUrl: MINE_LAYER_THUMBNAIL, brightness: 0.45 };
 }
 
 function formatProgressBar(health, maxHealth) {
@@ -118,19 +191,36 @@ function formatCountdown(target) {
 
 function getOreTableForLayer(layer) {
   if (layer <= 50) {
-    return EARLY_LAYER_ORES;
+    return SHALLOW_LAYER_ORES;
   }
-  if (layer <= 100) {
+  if (layer <= 150) {
+    return MID_LAYER_ORES;
+  }
+  if (layer <= 500) {
     return DEEP_LAYER_ORES;
   }
-  return DEEP_LAYER_ORES;
+  if (layer <= 1000) {
+    return VERY_DEEP_LAYER_ORES;
+  }
+  return ABYSSAL_LAYER_ORES;
 }
 
-const ORE_XP_BY_RARITY = {
-  Common: [6, 12],
-  Rare: [14, 20],
-  Epic: [20, 28],
-  Legendary: [30, 45],
+const ORE_XP_BY_ITEM = {
+  ITCoal: [10, 50],
+  ITFossil: [20, 80],
+  ITCopperOre: [35, 100],
+  ITIronOre: [75, 175],
+  ITGoldOre: [100, 250],
+  ITDiamond: [2000, 4000],
+  ITEmerald: [1000, 2000],
+  ITSapphire: [350, 600],
+  ITRuby: [750, 1500],
+  ITAmethyst: [200, 500],
+  ITBasaltIron: [200, 500],
+  ITMagmaCore: [2000, 4000],
+  ITMagmaticOre: [1000, 2000],
+  ITSulfurClumps: [200, 500],
+  ITObsidian: [150, 300],
 };
 
 function rollLoot(layer) {
@@ -147,7 +237,7 @@ function rollLoot(layer) {
       const item = ITEMS_BY_ID[entry.id];
       if (item) {
         items.push({ item, amount: 1 });
-        const xpRange = ORE_XP_BY_RARITY[item.rarity] ?? [10, 20];
+        const xpRange = ORE_XP_BY_ITEM[item.id] ?? [10, 20];
         xp += randomInRange(xpRange);
       }
     }
@@ -412,6 +502,7 @@ function buildEquipmentMessage(profile, userId) {
 }
 
 function buildStartingMessage() {
+  const layerVisuals = getLayerVisuals(0);
   const container = {
     type: 17,
     accent_color: MINE_ACCENT_COLOR,
@@ -421,7 +512,7 @@ function buildStartingMessage() {
         components: [{ type: 10, content: 'You are preparing to mine...' }],
         accessory: {
           type: 11,
-          media: { url: MINE_LAYER_THUMBNAIL },
+          media: { url: layerVisuals.imageUrl },
         },
       },
     ],
@@ -435,6 +526,7 @@ function buildStartingMessage() {
 
 async function buildActiveMessage(session) {
   const { layer, health, maxHealth, expiresAt, loot, pendingLoot } = session;
+  const layerVisuals = getLayerVisuals(layer);
   const progressBar = formatProgressBar(health, maxHealth);
   const countdown = formatCountdown(expiresAt);
   const lootForThumbnail = pendingLoot ?? loot;
@@ -443,13 +535,14 @@ async function buildActiveMessage(session) {
 
   if (shouldRefreshThumbnail) {
     session.thumbnailAttachment = await createDigThumbnail({
-      layerImageUrl: MINE_LAYER_THUMBNAIL,
+      layerImageUrl: layerVisuals.imageUrl,
+      brightness: layerVisuals.brightness,
       items: (lootForThumbnail?.items ?? []).map((entry) => entry.item).filter(Boolean),
     });
     session.thumbnailAttachmentLayer = session.layer;
   }
   const thumbnailAttachment = session.thumbnailAttachment;
-  const mediaUrl = thumbnailAttachment ? `attachment://${thumbnailAttachment.name}` : MINE_LAYER_THUMBNAIL;
+  const mediaUrl = thumbnailAttachment ? `attachment://${thumbnailAttachment.name}` : layerVisuals.imageUrl;
 
   const messageLines = [
     `## You are mining - Layer ${layer}`,
