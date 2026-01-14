@@ -28,7 +28,11 @@ function normalizeEmojiForComponent(emoji) {
 
   if (typeof emoji === 'object' && (emoji.id || emoji.name)) {
     if (emoji.id) {
-      return null;
+      return {
+        id: String(emoji.id),
+        name: emoji.name ? String(emoji.name) : undefined,
+        animated: Boolean(emoji.animated),
+      };
     }
     if (emoji.name) {
       const trimmed = String(emoji.name).trim();
@@ -43,7 +47,11 @@ function normalizeEmojiForComponent(emoji) {
 
   const customMatch = emoji.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
-    return null;
+    return {
+      id: customMatch[3],
+      name: customMatch[2],
+      animated: customMatch[1] === 'a',
+    };
   }
 
   if (typeof emoji === 'string' && emoji.trim().length > 0) {
