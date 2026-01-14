@@ -141,7 +141,7 @@ function ensureProfileShape(profile = {}) {
     hunt_upgrades: normalizeHuntUpgrades(profile.hunt_upgrades),
     inventory_capacity:
       typeof profile.inventory_capacity === 'number'
-        ? profile.inventory_capacity
+        ? Math.max(profile.inventory_capacity, DEFAULT_PROFILE.inventory_capacity)
         : DEFAULT_PROFILE.inventory_capacity,
     upgrade_reset_version:
       typeof profile.upgrade_reset_version === 'number'
@@ -266,7 +266,7 @@ function getInventoryItemCount(profile) {
 
 function getInventoryCapacity(profile) {
   return typeof profile.inventory_capacity === 'number'
-    ? profile.inventory_capacity
+    ? Math.max(profile.inventory_capacity, DEFAULT_PROFILE.inventory_capacity)
     : DEFAULT_PROFILE.inventory_capacity;
 }
 
