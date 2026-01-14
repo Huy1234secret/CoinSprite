@@ -1077,13 +1077,20 @@ const ITEMS = [
 for (const item of ITEMS) {
   const emojiName = extractEmojiName(item.emoji);
   if (emojiName) {
+    item.legacyId = item.id;
     item.id = emojiName;
   }
 }
 
 const GEAR_ITEMS = ITEMS.filter((item) => item.type === 'Tool/Gear');
 const KNOWN_GEAR = Object.fromEntries(GEAR_ITEMS.map((item) => [item.name, item]));
-const ITEMS_BY_ID = Object.fromEntries(ITEMS.map((item) => [item.id, item]));
+const ITEMS_BY_ID = ITEMS.reduce((map, item) => {
+  map[item.id] = item;
+  if (item.legacyId) {
+    map[item.legacyId] = item;
+  }
+  return map;
+}, {});
 
 const FIST_GEAR = KNOWN_GEAR['Fist'];
 const WOODEN_SWORD_GEAR = KNOWN_GEAR['Wooden Sword'];
