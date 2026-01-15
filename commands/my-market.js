@@ -418,7 +418,7 @@ module.exports = {
                 .setCustomId('items')
                 .setLabel('Which items?')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('List item wanna add like this:\n{item ID, or name (name with no spacing)} - {amount}\n\nset {amount} negative to remove the amount of that item.')
+                .setPlaceholder('Format: {item ID or name} - {amount}. Use negative amount to remove.')
                 .setRequired(true)
             )
           );
