@@ -449,24 +449,18 @@ module.exports = {
 
         await interaction.reply({
           ephemeral: true,
+          content: '### Are you sure you want to sell these items?',
           components: [
-            {
-              type: 17,
-              accent_color: 0x808080,
-              components: [
-                { type: 10, content: '### Are you sure you want to sell these items?' },
-                new ActionRowBuilder().addComponents(
-                  new ButtonBuilder()
-                    .setCustomId(`${MARKET_CONFIRM_PREFIX}${userId}`)
-                    .setLabel('YES')
-                    .setStyle(ButtonStyle.Success),
-                  new ButtonBuilder()
-                    .setCustomId(`${MARKET_DENY_PREFIX}${userId}`)
-                    .setLabel('NO')
-                    .setStyle(ButtonStyle.Danger)
-                ).toJSON(),
-              ],
-            },
+            new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`${MARKET_CONFIRM_PREFIX}${userId}`)
+                .setLabel('YES')
+                .setStyle(ButtonStyle.Success),
+              new ButtonBuilder()
+                .setCustomId(`${MARKET_DENY_PREFIX}${userId}`)
+                .setLabel('NO')
+                .setStyle(ButtonStyle.Danger)
+            ),
           ],
         });
         return true;
