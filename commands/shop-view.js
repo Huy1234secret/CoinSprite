@@ -22,6 +22,54 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const SHOP_THUMBNAIL_URL = 'https://i.ibb.co/sp8bcTq9/The-Collector.png';
 const ITEMS_PER_PAGE = 6;
 
+function normalizeEmojiForComponent(emoji) {
+  if (!emoji) {
+    return null;
+  }
+
+  if (typeof emoji === 'object' && (emoji.id || emoji.name)) {
+    if (emoji.id) {
+      const id = String(emoji.id);
+      if (!/^\d+$/.test(id)) {
+        return null;
+      }
+      return {
+        id,
+        name: emoji.name ? String(emoji.name) : undefined,
+        animated: Boolean(emoji.animated),
+      };
+    }
+    if (emoji.name) {
+      const trimmed = String(emoji.name).trim();
+      if (trimmed.length === 0) {
+        return null;
+      }
+      return /[^\x00-\x7F]/.test(trimmed) ? { name: trimmed } : null;
+    }
+    return null;
+  }
+
+  if (typeof emoji !== 'string') {
+    return null;
+  }
+
+  const trimmed = emoji.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const customMatch = trimmed.match(/^<(a?):([^:>]+):(\d+)>$/);
+  if (customMatch) {
+    return {
+      id: customMatch[3],
+      name: customMatch[2],
+      animated: customMatch[1] === 'a',
+    };
+  }
+
+  return /[^\x00-\x7F]/.test(trimmed) ? { name: trimmed } : null;
+}
+
 function paginateItems(items, page) {
   const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -109,7 +157,8 @@ function buildShopComponents({ items, userId, page, totalPages, summary }) {
     const row = new ActionRowBuilder();
 
     slice.forEach((item, index) => {
-      const buttonEmoji = item.emoji || (!item.image ? ITEM_PLACEHOLDER_EMOJI : null);
+      const rawEmoji = item.emoji ?? (!item.image ? ITEM_PLACEHOLDER_EMOJI : null);
+      const buttonEmoji = normalizeEmojiForComponent(rawEmoji);
 
       const button = new ButtonBuilder()
         .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${item.id}`)
