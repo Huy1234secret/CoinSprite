@@ -1,43 +1,67 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, AttachmentBuilder } = require('discord.js');
-const { ensureShopAssets, createShopImage, getPlaceholderItems, ITEM_PLACEHOLDER_EMOJI } = require('../src/shopImage');
+const {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  AttachmentBuilder,
+  MessageFlags,
+} = require('discord.js');
+const { ensureShopAssets, createShopImage, ITEM_PLACEHOLDER_EMOJI } = require('../src/shopImage');
+const {
+  ensureShopState,
+  formatOrdinal,
+  getShopItemsForUser,
+  getShopSummary,
+} = require('../src/shop');
 const { safeErrorReply } = require('../src/utils/interactions');
 
-const SHOP_RESTOCK_INTERVAL_HOURS = 1;
-const SHOP_PAGE_SELECT_ID = 'shop-page-select';
+const SHOP_PAGE_SELECT_PREFIX = 'shop-page-select:';
 const SHOP_ITEM_BUTTON_PREFIX = 'shop-item-';
-const COMPONENTS_V2_FLAG = 1 << 15;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
+const SHOP_THUMBNAIL_URL = 'https://i.ibb.co/sp8bcTq9/The-Collector.png';
+const ITEMS_PER_PAGE = 6;
 
-function getRestockTimestamp() {
-  const now = new Date();
-  const nextRestock = new Date(now);
-  nextRestock.setMinutes(0, 0, 0);
-
-  if (now >= nextRestock) {
-    nextRestock.setHours(nextRestock.getHours() + SHOP_RESTOCK_INTERVAL_HOURS);
-  }
-
-  return Math.floor(nextRestock.getTime() / 1000);
+function paginateItems(items, page) {
+  const totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * ITEMS_PER_PAGE;
+  return {
+    totalPages,
+    page: safePage,
+    slice: items.slice(start, start + ITEMS_PER_PAGE),
+  };
 }
 
-async function buildShopPreview() {
+async function buildShopPreview(interaction, page = 1) {
+  const shopState = await ensureShopState(interaction.client);
   const assetPaths = await ensureShopAssets();
-  const items = getPlaceholderItems(assetPaths);
-  const buffer = await createShopImage(items, assetPaths.currencyIcon);
+  const userItems = getShopItemsForUser(shopState, interaction.user.id);
+  const { totalPages, page: safePage, slice } = paginateItems(userItems, page);
+  const buffer = await createShopImage(slice, assetPaths.currencyIcon);
   const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
 
-  const components = buildShopComponents(items);
+  const summary = getShopSummary(shopState);
+  const components = buildShopComponents({
+    items: slice,
+    userId: interaction.user.id,
+    page: safePage,
+    totalPages,
+    summary,
+  });
 
-  return { attachment, components };
+  return { attachment, components, totalPages, page: safePage };
 }
 
-function buildShopComponents(items) {
+function buildShopComponents({ items, userId, page, totalPages, summary }) {
+  const restockLabel = formatOrdinal(summary.restockCount);
   const previewContainer = {
     type: 17,
     accent_color: 0xffffff,
     components: [
       {
         type: 10,
-        content: `## Jag's Shop\n-# Shop restock <t:${getRestockTimestamp()}:R>`
+        content: `## The Collector's Shop - ${restockLabel}\n-# Shop restock <t:${summary.nextRestockAt}:R>`
       },
       {
         type: 12,
@@ -52,12 +76,29 @@ function buildShopComponents(items) {
       new ActionRowBuilder()
         .addComponents(
           new StringSelectMenuBuilder()
-            .setCustomId(SHOP_PAGE_SELECT_ID)
-            .setPlaceholder('Page 1')
-            .addOptions({ label: 'Page 1', value: 'page-1', default: true })
+            .setCustomId(`${SHOP_PAGE_SELECT_PREFIX}${userId}`)
+            .setPlaceholder(`Page ${page}`)
+            .addOptions(
+              Array.from({ length: totalPages }, (_, index) => {
+                const value = index + 1;
+                return {
+                  label: `Page ${value}`,
+                  value: String(value),
+                  default: value === page,
+                };
+              })
+            )
+            .setMinValues(1)
+            .setMaxValues(1)
+            .setDisabled(totalPages <= 1)
         )
         .toJSON()
-    ]
+    ],
+    accessory: {
+      type: 11,
+      media: { url: SHOP_THUMBNAIL_URL },
+      description: "The Collector's shopkeeper thumbnail"
+    }
   };
 
   const BUTTONS_PER_ROW = 3;
@@ -71,7 +112,7 @@ function buildShopComponents(items) {
       const buttonEmoji = item.emoji || (!item.image ? ITEM_PLACEHOLDER_EMOJI : null);
 
       const button = new ButtonBuilder()
-        .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${i + index}`)
+        .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${item.id}`)
         .setLabel(item.name)
         .setStyle(ButtonStyle.Success);
 
@@ -102,7 +143,7 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply({ flags: COMPONENTS_V2_FLAG });
     try {
-      const { attachment, components } = await buildShopPreview();
+      const { attachment, components } = await buildShopPreview(interaction);
 
       await interaction.editReply({
         files: [attachment],
@@ -129,11 +170,30 @@ module.exports = {
       return true;
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === SHOP_PAGE_SELECT_ID) {
-      await safeErrorReply(interaction, 'Pagination will be available when multiple pages exist.');
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(SHOP_PAGE_SELECT_PREFIX)) {
+      const userId = interaction.customId.replace(SHOP_PAGE_SELECT_PREFIX, '');
+      if (interaction.user.id !== userId) {
+        await safeErrorReply(interaction, 'Only the user who opened this menu can interact with it.');
+        return true;
+      }
+
+      const selectedPage = Number.parseInt(interaction.values?.[0], 10) || 1;
+      const { attachment, components } = await buildShopPreview(interaction, selectedPage);
+      await interaction.update({
+        files: [attachment],
+        components,
+        flags: COMPONENTS_V2_FLAG
+      });
       return true;
     }
 
     return false;
-  }
+  },
+
+  async init(client) {
+    await ensureShopState(client);
+    setInterval(() => {
+      ensureShopState(client);
+    }, 60 * 1000);
+  },
 };
