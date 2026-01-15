@@ -788,7 +788,7 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
   ctx.fillText(item.name || 'Mystery Item', x + w / 2, y + imgSize + 70);
 
   const rarityEmojiId = DISCORD_EMOJIS.rarity[rarity] || DISCORD_EMOJIS.rarity.common;
-  const rarityIconSize = 32;
+  const rarityIconSize = 28;
   const rarityY = y + imgSize + 90;
   const rarityText = rarity.toUpperCase();
 
