@@ -1,4 +1,5 @@
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { RARITY_EMOJIS } = require('./shop');
 
 const SHOP_PREVIEW_WIDTH = 1200;
 const SHOP_PREVIEW_HEIGHT = 800;
@@ -35,14 +36,13 @@ const RARITY_COLORS = {
   secret: '#000000',
 };
 
-const RARITY_EMOJI_TEXT = {
-  common: '⚪',
-  uncommon: '🟢',
-  rare: '🔵',
-  epic: '🟣',
-  legendary: '🟡',
-  mythical: '🔴',
-  secret: '⚫',
+const RARITY_EMOJI_SOURCES = {
+  common: RARITY_EMOJIS.common,
+  rare: RARITY_EMOJIS.rare,
+  epic: RARITY_EMOJIS.epic,
+  legendary: RARITY_EMOJIS.legendary,
+  mythical: RARITY_EMOJIS.mythical,
+  secret: RARITY_EMOJIS.secret,
 };
 
 // === BASIC CONFIG ===
@@ -719,6 +719,16 @@ function getEmojiImageSource(emoji) {
   return null;
 }
 
+function getRarityEmojiSource(rarity) {
+  if (!rarity) {
+    return null;
+  }
+
+  const rarityKey = String(rarity).toLowerCase();
+  const emoji = RARITY_EMOJI_SOURCES[rarityKey];
+  return getEmojiImageSource(emoji);
+}
+
 function resolveEmojiSource(source) {
   if (!source) {
     return null;
@@ -825,11 +835,27 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
 
   const rarityY = y + imgSize + 90;
   const rarityText = rarity.toUpperCase();
-  const rarityEmoji = RARITY_EMOJI_TEXT[rarity] || RARITY_EMOJI_TEXT.common;
+  const rarityEmojiSource = getRarityEmojiSource(rarity);
   ctx.font = '18px Sans-Serif';
   ctx.textAlign = 'center';
   ctx.fillStyle = rarityColor;
-  ctx.fillText(`${rarityEmoji} ${rarityText}`, x + w / 2, rarityY + 22);
+  if (rarityEmojiSource) {
+    const rarityEmojiImage = await loadImageSafe(rarityEmojiSource);
+    if (rarityEmojiImage) {
+      const iconSize = 18;
+      const gap = 8;
+      const textWidth = ctx.measureText(rarityText).width;
+      const groupWidth = iconSize + gap + textWidth;
+      const startX = x + w / 2 - groupWidth / 2;
+      ctx.drawImage(rarityEmojiImage, startX, rarityY + 6, iconSize, iconSize);
+      ctx.textAlign = 'left';
+      ctx.fillText(rarityText, startX + iconSize + gap, rarityY + 22);
+    } else {
+      ctx.fillText(rarityText, x + w / 2, rarityY + 22);
+    }
+  } else {
+    ctx.fillText(rarityText, x + w / 2, rarityY + 22);
+  }
 
   const priceY = y + h - 70;
   const iconSize = 28;
