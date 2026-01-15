@@ -365,15 +365,10 @@ async function announceRestock(client, state) {
     const payload = getRestockMessagePayload(state);
 
     await channel.send({
-      components: [
+      embeds: [
         {
-          type: 17,
-          accent_color: payload.accentColor,
-          components: [
-            { type: 10, content: payload.content },
-            { type: 14 },
-            { type: 10, content: payload.itemLines.join('\n') },
-          ],
+          color: payload.accentColor,
+          description: [payload.content, payload.itemLines.join('\n')].join('\n\n'),
         },
       ],
     });
