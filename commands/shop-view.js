@@ -22,7 +22,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
 const SHOP_THUMBNAIL_URL = 'https://i.ibb.co/sp8bcTq9/The-Collector.png';
 const ITEMS_PER_PAGE = 6;
 
-function normalizeEmojiForComponent(emoji) {
+function normalizeEmojiForComponent(emoji, availableEmojiIds = null) {
   if (!emoji) {
     return null;
   }
@@ -31,6 +31,9 @@ function normalizeEmojiForComponent(emoji) {
     if (emoji.id) {
       const id = String(emoji.id);
       if (!/^\d+$/.test(id)) {
+        return null;
+      }
+      if (availableEmojiIds && !availableEmojiIds.has(id)) {
         return null;
       }
       return {
@@ -60,6 +63,9 @@ function normalizeEmojiForComponent(emoji) {
 
   const customMatch = trimmed.match(/^<(a?):([^:>]+):(\d+)>$/);
   if (customMatch) {
+    if (availableEmojiIds && !availableEmojiIds.has(customMatch[3])) {
+      return null;
+    }
     return {
       id: customMatch[3],
       name: customMatch[2],
@@ -90,18 +96,36 @@ async function buildShopPreview(interaction, page = 1) {
   const attachment = new AttachmentBuilder(buffer, { name: 'shop-view.png' });
 
   const summary = getShopSummary(shopState);
+  const availableEmojiIds = getAvailableEmojiIds(interaction);
   const components = buildShopComponents({
     items: slice,
     userId: interaction.user.id,
     page: safePage,
     totalPages,
     summary,
+    availableEmojiIds,
   });
 
   return { attachment, components, totalPages, page: safePage };
 }
 
-function buildShopComponents({ items, userId, page, totalPages, summary }) {
+function getAvailableEmojiIds(interaction) {
+  const ids = new Set();
+  const guildEmojis = interaction.guild?.emojis?.cache;
+  if (guildEmojis) {
+    guildEmojis.forEach((emoji) => ids.add(emoji.id));
+    return ids;
+  }
+
+  const clientEmojis = interaction.client?.emojis?.cache;
+  if (clientEmojis) {
+    clientEmojis.forEach((emoji) => ids.add(emoji.id));
+  }
+
+  return ids.size ? ids : null;
+}
+
+function buildShopComponents({ items, userId, page, totalPages, summary, availableEmojiIds }) {
   const restockLabel = formatOrdinal(summary.restockCount);
   const previewContainer = {
     type: 17,
@@ -158,7 +182,7 @@ function buildShopComponents({ items, userId, page, totalPages, summary }) {
 
     slice.forEach((item, index) => {
       const rawEmoji = item.emoji ?? (!item.image ? ITEM_PLACEHOLDER_EMOJI : null);
-      const buttonEmoji = normalizeEmojiForComponent(rawEmoji);
+      const buttonEmoji = normalizeEmojiForComponent(rawEmoji, availableEmojiIds);
 
       const button = new ButtonBuilder()
         .setCustomId(`${SHOP_ITEM_BUTTON_PREFIX}${item.id}`)
