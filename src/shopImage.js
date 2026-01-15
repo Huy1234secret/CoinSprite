@@ -7,6 +7,7 @@ const DEFAULT_CURRENCY_ICON = '🪙';
 
 const SHOP_PADDING = 20;
 const SHOP_COLS = 3;
+const SHOP_ROWS = 2;
 const SHOP_BACKGROUND_COLOR = '#2f3136';
 const SHOP_CARD_BG_COLOR = '#202225';
 const SHOP_TEXT_COLOR = '#ffffff';
@@ -32,6 +33,16 @@ const RARITY_COLORS = {
   legendary: '#f1c40f',
   mythical: '#e74c3c',
   secret: '#000000',
+};
+
+const RARITY_EMOJI_TEXT = {
+  common: '⚪',
+  uncommon: '🟢',
+  rare: '🔵',
+  epic: '🟣',
+  legendary: '🟡',
+  mythical: '🔴',
+  secret: '⚫',
 };
 
 // === BASIC CONFIG ===
@@ -691,6 +702,23 @@ function getEmojiUrl(id) {
   return `https://cdn.discordapp.com/emojis/${id}.png`;
 }
 
+function getEmojiImageSource(emoji) {
+  if (!emoji) {
+    return null;
+  }
+
+  if (/^\d+$/.test(emoji)) {
+    return getEmojiUrl(emoji);
+  }
+
+  const match = String(emoji).match(/<a?:[^:]+:(\d+)>/);
+  if (match) {
+    return getEmojiUrl(match[1]);
+  }
+
+  return null;
+}
+
 function resolveEmojiSource(source) {
   if (!source) {
     return null;
@@ -733,7 +761,7 @@ async function createShopImage(items = getPlaceholderItems(), currencyIconId = D
   ctx.fillRect(0, 0, SHOP_PREVIEW_WIDTH, SHOP_PREVIEW_HEIGHT);
 
   const cardWidth = (SHOP_PREVIEW_WIDTH - SHOP_PADDING * (SHOP_COLS + 1)) / SHOP_COLS;
-  const rows = Math.max(1, Math.ceil(items.length / SHOP_COLS));
+  const rows = Math.max(SHOP_ROWS, Math.ceil(items.length / SHOP_COLS));
   const cardHeight = (SHOP_PREVIEW_HEIGHT - SHOP_PADDING * (rows + 1)) / rows;
 
   const currencyIcon = await loadImageSafe(resolveEmojiSource(currencyIconId));
@@ -770,8 +798,10 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
   const imgX = x + w / 2 - imgSize / 2;
   const imgY = y + 25;
 
-  if (item.image) {
-    const img = await loadImageSafe(item.image);
+  const itemEmoji = item.emoji || ITEM_PLACEHOLDER_EMOJI;
+  const itemEmojiSource = getEmojiImageSource(itemEmoji);
+  if (itemEmojiSource) {
+    const img = await loadImageSafe(itemEmojiSource);
     if (img) {
       ctx.drawImage(img, imgX, imgY, imgSize, imgSize);
     } else {
@@ -779,36 +809,27 @@ async function drawCard(ctx, x, y, w, h, item, currencyIcon) {
     }
   } else {
     drawPlaceholderImage(ctx, imgX, imgY, imgSize, rarityColor);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `${Math.round(imgSize * 0.5)}px Sans-Serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(itemEmoji, imgX + imgSize / 2, imgY + imgSize / 2 + 2);
   }
 
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
 
   ctx.font = 'bold 26px Sans-Serif';
   ctx.fillStyle = SHOP_TEXT_COLOR;
   ctx.fillText(item.name || 'Mystery Item', x + w / 2, y + imgSize + 70);
 
-  const rarityEmojiId = DISCORD_EMOJIS.rarity[rarity] || DISCORD_EMOJIS.rarity.common;
-  const rarityIconSize = 28;
   const rarityY = y + imgSize + 90;
   const rarityText = rarity.toUpperCase();
-
-  const rarityImg = await loadImageSafe(resolveEmojiSource(rarityEmojiId));
-  if (rarityImg) {
-    ctx.font = 'italic 18px Sans-Serif';
-    const textWidth = ctx.measureText(rarityText).width;
-    const totalWidth = rarityIconSize + 5 + textWidth;
-    const startX = x + w / 2 - totalWidth / 2;
-
-    ctx.drawImage(rarityImg, startX, rarityY, rarityIconSize, rarityIconSize);
-
-    ctx.fillStyle = rarityColor;
-    ctx.textAlign = 'left';
-    ctx.fillText(rarityText, startX + rarityIconSize + 5, rarityY + 22);
-  } else {
-    ctx.textAlign = 'center';
-    ctx.fillStyle = rarityColor;
-    ctx.fillText(rarityText, x + w / 2, rarityY + 22);
-  }
+  const rarityEmoji = RARITY_EMOJI_TEXT[rarity] || RARITY_EMOJI_TEXT.common;
+  ctx.font = '18px Sans-Serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = rarityColor;
+  ctx.fillText(`${rarityEmoji} ${rarityText}`, x + w / 2, rarityY + 22);
 
   const priceY = y + h - 70;
   const iconSize = 28;
