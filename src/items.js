@@ -29,7 +29,7 @@ const ITEMS = [
     image: 'https://i.ibb.co/CpQxNy3t/ITWooden-Sword.png',
     rarity: 'Common',
     type: 'Tool/Gear',
-    activityTags: ['hunt', 'dig'],
+    activityTags: ['hunt'],
     value: 13,
     sellPrice: 100,
     tradable: true,
