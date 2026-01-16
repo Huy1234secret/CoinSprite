@@ -5,6 +5,7 @@ const { ITEMS, ITEMS_BY_ID } = require('./items');
 
 const SHOP_STATE_FILE = path.join(__dirname, '..', 'data', 'shop_state.json');
 const SHOP_RESTOCK_INTERVAL_MS = 60 * 60 * 1000;
+const SHOP_TIMEZONE_OFFSET_MS = 7 * 60 * 60 * 1000;
 const SHOP_RESTOCK_CHANNEL_ID = '1445637955631710261';
 
 const SHOP_RARITY_PRICE_MULTIPLIER = {
@@ -250,13 +251,25 @@ function getUserPurchaseState(state, userId) {
 
 function buildRestockState(previous, restockedAt) {
   const restockCount = (previous?.restockCount ?? 0) + 1;
+  const restockedAtMs = restockedAt * 1000;
   return {
     restockCount,
     restockedAt,
-    nextRestockAt: restockedAt * 1000 + SHOP_RESTOCK_INTERVAL_MS,
+    nextRestockAt: getNextRestockAtMs(restockedAtMs),
     items: rollRestockItems(),
     userPurchases: {},
   };
+}
+
+function getNextRestockAtMs(referenceMs) {
+  const baseMs = Number.isFinite(referenceMs) ? referenceMs : Date.now();
+  const localMs = baseMs + SHOP_TIMEZONE_OFFSET_MS;
+  const nextLocal = new Date(localMs);
+  nextLocal.setMinutes(0, 0, 0);
+  if (nextLocal.getTime() <= localMs) {
+    nextLocal.setHours(nextLocal.getHours() + 1);
+  }
+  return nextLocal.getTime() - SHOP_TIMEZONE_OFFSET_MS;
 }
 
 function getNextRestockTimestamp(state) {
@@ -264,7 +277,7 @@ function getNextRestockTimestamp(state) {
   if (Number.isFinite(nextRestockAt) && nextRestockAt > 0) {
     return Math.floor(nextRestockAt / 1000);
   }
-  return Math.floor((Date.now() + SHOP_RESTOCK_INTERVAL_MS) / 1000);
+  return Math.floor(getNextRestockAtMs(Date.now()) / 1000);
 }
 
 function shouldRestock(state) {
