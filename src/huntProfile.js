@@ -87,7 +87,9 @@ const DEFAULT_PROFILE = {
   misc_equipped: null,
   gear_inventory: [],
   misc_inventory: [],
-  inventory_capacity: 500
+  inventory_capacity: 500,
+  item_upgrades: {},
+  item_upgrade_slots: []
 };
 
 function loadProfiles() {
@@ -202,6 +204,8 @@ function ensureProfileShape(profile = {}) {
       typeof profile.inventory_capacity === 'number'
         ? Math.max(profile.inventory_capacity, DEFAULT_PROFILE.inventory_capacity)
         : DEFAULT_PROFILE.inventory_capacity,
+    item_upgrades: typeof profile.item_upgrades === 'object' && profile.item_upgrades !== null ? profile.item_upgrades : {},
+    item_upgrade_slots: Array.isArray(profile.item_upgrade_slots) ? profile.item_upgrade_slots : [],
     upgrade_reset_version:
       typeof profile.upgrade_reset_version === 'number'
         ? profile.upgrade_reset_version
