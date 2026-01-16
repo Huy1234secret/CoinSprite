@@ -360,6 +360,7 @@ async function sendReceipt(user, receiptPayload) {
 
 function buildReceiptPayload(totalItems, totalCoins, itemLines, timestamp) {
   return {
+    flags: COMPONENTS_V2_FLAG,
     components: [
       {
         type: 17,
