@@ -150,6 +150,91 @@ function findBestInventoryMatch(query, inventory) {
   return bestScore > 0 ? best : null;
 }
 
+function findInventoryMatches(query, inventory) {
+  const normalizedQuery = normalizeKey(query);
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return inventory.filter((entry) => {
+    const item = entry.item;
+    const nameKey = normalizeKey(item.name);
+    const idKey = normalizeKey(item.id);
+    return Math.max(scoreMatch(normalizedQuery, nameKey), scoreMatch(normalizedQuery, idKey)) > 0;
+  });
+}
+
+function findMarketItemMatch(query, currentState) {
+  const normalizedQuery = normalizeKey(query);
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  let best = null;
+  let bestScore = 0;
+  const entries = Object.entries(currentState.items ?? {});
+
+  for (const [itemId] of entries) {
+    const item = resolveItem(itemId);
+    if (!item) {
+      continue;
+    }
+
+    const nameKey = normalizeKey(item.name);
+    const idKey = normalizeKey(item.id);
+    const score = Math.max(scoreMatch(normalizedQuery, nameKey), scoreMatch(normalizedQuery, idKey));
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = item;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
+function parseValueCondition(line) {
+  const match = line.match(/^(.+?)\s*(?:as\s*)?["']?value\s*(<=|>=|<|>)\s*(\d+)\s*["']?$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    query: match[1].trim(),
+    operator: match[2],
+    value: Number.parseInt(match[3], 10),
+  };
+}
+
+function parseRarityCondition(line) {
+  const match = line.match(
+    /^(.+?)\s*(?:to\s+sell\s+as|as)?\s*#(common|rare|epic|legendary|mythical|secret)\s*$/i
+  );
+  if (!match) {
+    return null;
+  }
+
+  return {
+    query: match[1].trim(),
+    rarity: match[2],
+  };
+}
+
+function compareValue(operator, left, right) {
+  switch (operator) {
+    case '<':
+      return left < right;
+    case '>':
+      return left > right;
+    case '<=':
+      return left <= right;
+    case '>=':
+      return left >= right;
+    default:
+      return false;
+  }
+}
+
 function buildMarketItemLines(items) {
   if (!items.length) {
     return ['No items in your sell list.'];
@@ -248,38 +333,101 @@ function parseMarketInput(input, profile, currentState) {
   const lines = input.split('\n').map((line) => line.trim()).filter(Boolean);
 
   for (const line of lines) {
-    const match = line.match(/^(.+?)\s*-\s*([-+]?\d+)$/);
-    if (!match) {
-      errors.push('Invalid format detected.');
-      break;
-    }
+    const removeMatch = line.match(/^(.+?)\s*-\s*(r|remove)$/i);
+    if (removeMatch) {
+      const query = removeMatch[1].trim();
+      const item = findMarketItemMatch(query, currentState);
+      if (!item) {
+        errors.push('That item is not in your market list.');
+        break;
+      }
 
-    const query = match[1].trim();
-    const amount = Number.parseInt(match[2], 10);
-    if (!Number.isFinite(amount) || amount === 0) {
+      const existingAmount = currentState.items?.[item.id] ?? 0;
+      if (existingAmount > 0) {
+        updates.push({ itemId: item.id, amount: -existingAmount });
+      }
       continue;
     }
 
-    const inventoryMatch = findBestInventoryMatch(query, inventoryEntries);
-    if (!inventoryMatch) {
-      errors.push('You do not have that item in your inventory.');
-      break;
+    const amountMatch = line.match(/^(.+?)\s*-\s*([-+]?\d+)$/);
+    if (amountMatch) {
+      const query = amountMatch[1].trim();
+      const amount = Number.parseInt(amountMatch[2], 10);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+
+      const inventoryMatch = findBestInventoryMatch(query, inventoryEntries);
+      if (!inventoryMatch) {
+        errors.push('You do not have that item in your inventory.');
+        break;
+      }
+
+      const item = inventoryMatch.item;
+      const sellPrice = getSellablePrice(item);
+      if (sellPrice === null) {
+        errors.push('That item cannot be sold.');
+        break;
+      }
+
+      const existingAmount = currentState.items?.[item.id] ?? 0;
+      if (amount > 0 && existingAmount + amount > inventoryMatch.amount) {
+        errors.push('You do not have enough of that item.');
+        break;
+      }
+
+      updates.push({ itemId: item.id, amount });
+      continue;
     }
 
-    const item = inventoryMatch.item;
-    const sellPrice = getSellablePrice(item);
-    if (sellPrice === null) {
-      errors.push('That item cannot be sold.');
-      break;
+    const valueCondition = parseValueCondition(line);
+    if (valueCondition) {
+      const { query, operator, value } = valueCondition;
+      const matches = findInventoryMatches(query, inventoryEntries).filter((entry) => {
+        const sellPrice = getSellablePrice(entry.item);
+        return sellPrice !== null && compareValue(operator, sellPrice, value);
+      });
+
+      if (!matches.length) {
+        errors.push('No sellable items matched that value filter.');
+        break;
+      }
+
+      for (const entry of matches) {
+        const existingAmount = currentState.items?.[entry.item.id] ?? 0;
+        const amountToAdd = entry.amount - existingAmount;
+        if (amountToAdd > 0) {
+          updates.push({ itemId: entry.item.id, amount: amountToAdd });
+        }
+      }
+      continue;
     }
 
-    const existingAmount = currentState.items?.[item.id] ?? 0;
-    if (amount > 0 && existingAmount + amount > inventoryMatch.amount) {
-      errors.push('You do not have enough of that item.');
-      break;
+    const rarityCondition = parseRarityCondition(line);
+    if (rarityCondition) {
+      const { query, rarity } = rarityCondition;
+      const matches = findInventoryMatches(query, inventoryEntries).filter((entry) => {
+        const sellPrice = getSellablePrice(entry.item);
+        return sellPrice !== null && normalizeKey(entry.item.rarity) === normalizeKey(rarity);
+      });
+
+      if (!matches.length) {
+        errors.push('No sellable items matched that rarity filter.');
+        break;
+      }
+
+      for (const entry of matches) {
+        const existingAmount = currentState.items?.[entry.item.id] ?? 0;
+        const amountToAdd = entry.amount - existingAmount;
+        if (amountToAdd > 0) {
+          updates.push({ itemId: entry.item.id, amount: amountToAdd });
+        }
+      }
+      continue;
     }
 
-    updates.push({ itemId: item.id, amount });
+    errors.push('Invalid format detected.');
+    break;
   }
 
   return { errors, updates };
@@ -419,7 +567,9 @@ module.exports = {
                 .setCustomId('items')
                 .setLabel('Which items?')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Format: {item ID or name} - {amount}. Use negative amount to remove.')
+                .setPlaceholder(
+                  'Format: {item} - {amount}. Or {item} #Rarity / {item} Value<1000. Use "- R" to remove.'
+                )
                 .setRequired(true)
             )
           );
