@@ -246,19 +246,36 @@ function parseMarketInput(input, profile, currentState) {
   const errors = [];
   const updates = [];
   const lines = input.split('\n').map((line) => line.trim()).filter(Boolean);
+  const workingItems = { ...(currentState.items ?? {}) };
 
   for (const line of lines) {
-    const match = line.match(/^(.+?)\s*-\s*([-+]?\d+)$/);
+    if (normalizeKey(line) === 'all') {
+      const sellableEntries = inventoryEntries.filter((entry) => getSellablePrice(entry.item) !== null);
+      if (!sellableEntries.length) {
+        errors.push('You do not have any sellable items.');
+        break;
+      }
+
+      for (const entry of sellableEntries) {
+        const existingAmount = workingItems[entry.item.id] ?? 0;
+        const targetAmount = entry.amount;
+        const delta = targetAmount - existingAmount;
+        if (delta !== 0) {
+          updates.push({ itemId: entry.item.id, amount: delta });
+          workingItems[entry.item.id] = targetAmount;
+        }
+      }
+      continue;
+    }
+
+    const match = line.match(/^(.+?)\s*-\s*(all|[-+]?\d+)$/i);
     if (!match) {
       errors.push('Invalid format detected.');
       break;
     }
 
     const query = match[1].trim();
-    const amount = Number.parseInt(match[2], 10);
-    if (!Number.isFinite(amount) || amount === 0) {
-      continue;
-    }
+    const amountToken = match[2].trim();
 
     const inventoryMatch = findBestInventoryMatch(query, inventoryEntries);
     if (!inventoryMatch) {
@@ -273,13 +290,34 @@ function parseMarketInput(input, profile, currentState) {
       break;
     }
 
-    const existingAmount = currentState.items?.[item.id] ?? 0;
-    if (amount > 0 && existingAmount + amount > inventoryMatch.amount) {
-      errors.push('You do not have enough of that item.');
-      break;
+    const existingAmount = workingItems[item.id] ?? 0;
+    let amount = 0;
+
+    if (normalizeKey(amountToken) === 'all') {
+      const targetAmount = inventoryMatch.amount;
+      amount = targetAmount - existingAmount;
+      if (amount === 0) {
+        continue;
+      }
+    } else {
+      amount = Number.parseInt(amountToken, 10);
+      if (!Number.isFinite(amount) || amount === 0) {
+        continue;
+      }
+
+      if (amount > 0 && existingAmount + amount > inventoryMatch.amount) {
+        errors.push('You do not have enough of that item.');
+        break;
+      }
     }
 
     updates.push({ itemId: item.id, amount });
+    const nextAmount = existingAmount + amount;
+    if (nextAmount <= 0) {
+      delete workingItems[item.id];
+    } else {
+      workingItems[item.id] = nextAmount;
+    }
   }
 
   return { errors, updates };
@@ -419,7 +457,7 @@ module.exports = {
                 .setCustomId('items')
                 .setLabel('Which items?')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Format: {item ID or name} - {amount}. Use negative amount to remove.')
+                .setPlaceholder('Format: {item ID or name} - {amount/all}. Use "all" to sell all sellable items.')
                 .setRequired(true)
             )
           );
