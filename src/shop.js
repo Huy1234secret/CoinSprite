@@ -9,11 +9,11 @@ const SHOP_TIMEZONE_OFFSET_MS = 7 * 60 * 60 * 1000;
 const SHOP_RESTOCK_CHANNEL_ID = '1445637955631710261';
 
 const SHOP_RARITY_PRICE_MULTIPLIER = {
-  common: 250,
-  rare: 500,
-  epic: 1000,
-  legendary: 2500,
-  mythical: 5000,
+  common: 100,
+  rare: 200,
+  epic: 400,
+  legendary: 1200,
+  mythical: 2000,
 };
 
 const SHOP_RARITY_SELL_MULTIPLIER = {
