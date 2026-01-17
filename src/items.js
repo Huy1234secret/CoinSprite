@@ -699,7 +699,7 @@ const ITEMS = [
   {
     id: 'ITCoal',
     name: 'Coal',
-    emoji: '<:ITCoal:1456945823302787013>',
+    emoji: '<:ITCoal:1456946582330278013>',
     image: 'https://i.ibb.co/qYCh06W4/ITCoal.png',
     rarity: 'Common',
     type: 'Material',
@@ -714,7 +714,7 @@ const ITEMS = [
   {
     id: 'ITFossil',
     name: 'Fossil',
-    emoji: '<:ITFossil:1456946059495640202>',
+    emoji: '<:ITFossil:1462008547616231515>',
     image: 'https://i.ibb.co/k2rvZJgP/ITFossil.png',
     rarity: 'Common',
     type: 'Material',
