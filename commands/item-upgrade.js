@@ -330,6 +330,7 @@ function buildUpgradeDetailMessage(profile, upgrade, userId, slotNumber) {
     .setLabel(canUpgrade ? 'Upgrade?' : 'Requirement not met')
     .setStyle(canUpgrade ? ButtonStyle.Success : ButtonStyle.Danger)
     .setDisabled(!canUpgrade);
+  const rewardLine = buildUpgradeRewardLine(upgrade);
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -343,13 +344,20 @@ function buildUpgradeDetailMessage(profile, upgrade, userId, slotNumber) {
             type: 10,
             content: `## You are upgrading ${upgrade.name}\nUpgrading cost:\n${buildUpgradeCostLines(
               upgrade.cost
-            ).join('\n')}`,
+            ).join('\n')}${rewardLine ? `\n### Upgrading Give: ${rewardLine}` : ''}`,
           },
           new ActionRowBuilder().addComponents(button).toJSON(),
         ],
       },
     ],
   };
+}
+
+function buildUpgradeRewardLine(upgrade) {
+  if (Number.isFinite(upgrade.inventoryCapacity)) {
+    return `Increase inventory capacity to ${formatNumber(upgrade.inventoryCapacity)}`;
+  }
+  return '';
 }
 
 async function updateUpgradeMessage(client, userId) {
