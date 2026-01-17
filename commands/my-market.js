@@ -271,6 +271,7 @@ function buildMarketView(userId) {
         type: 17,
         accent_color: 0x808080,
         components: [
+          { type: 10, content: '-# Use **Add item** to list items.\n-# Press **Sell** when you are ready.' },
           new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(`${MARKET_SELL_BUTTON_PREFIX}${userId}`)
@@ -605,7 +606,6 @@ module.exports = {
                 .setCustomId('items')
                 .setLabel('Which items?')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Formats: {item} - {amount/all}, {item} #rarity, {item} value<1000, {item} - remove. Use "all" to sell all sellable items.')
                 .setRequired(true)
             )
           );
