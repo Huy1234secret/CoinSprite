@@ -150,6 +150,78 @@ function findBestInventoryMatch(query, inventory) {
   return bestScore > 0 ? best : null;
 }
 
+function findInventoryMatches(query, inventory) {
+  const normalizedQuery = normalizeKey(query);
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return inventory.filter((entry) => {
+    const nameKey = normalizeKey(entry.item.name);
+    const idKey = normalizeKey(entry.item.id);
+    return (
+      normalizedQuery === nameKey ||
+      normalizedQuery === idKey ||
+      nameKey.includes(normalizedQuery) ||
+      idKey.includes(normalizedQuery) ||
+      normalizedQuery.includes(nameKey) ||
+      normalizedQuery.includes(idKey)
+    );
+  });
+}
+
+function findMarketMatches(query, currentState) {
+  const normalizedQuery = normalizeKey(query);
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return Object.keys(currentState.items ?? {})
+    .map((itemId) => resolveItem(itemId))
+    .filter(Boolean)
+    .filter((item) => {
+      const nameKey = normalizeKey(item.name);
+      const idKey = normalizeKey(item.id);
+      return (
+        normalizedQuery === nameKey ||
+        normalizedQuery === idKey ||
+        nameKey.includes(normalizedQuery) ||
+        idKey.includes(normalizedQuery) ||
+        normalizedQuery.includes(nameKey) ||
+        normalizedQuery.includes(idKey)
+      );
+    });
+}
+
+function applyTargetAmount(updates, workingItems, itemId, targetAmount) {
+  const existingAmount = workingItems[itemId] ?? 0;
+  const delta = targetAmount - existingAmount;
+  if (delta === 0) {
+    return;
+  }
+  updates.push({ itemId, amount: delta });
+  if (targetAmount <= 0) {
+    delete workingItems[itemId];
+  } else {
+    workingItems[itemId] = targetAmount;
+  }
+}
+
+function compareValue(sellPrice, comparator, target) {
+  switch (comparator) {
+    case '<':
+      return sellPrice < target;
+    case '>':
+      return sellPrice > target;
+    case '<=':
+      return sellPrice <= target;
+    case '>=':
+      return sellPrice >= target;
+    default:
+      return false;
+  }
+}
+
 function buildMarketItemLines(items) {
   if (!items.length) {
     return ['No items in your sell list.'];
@@ -264,6 +336,82 @@ function parseMarketInput(input, profile, currentState) {
           updates.push({ itemId: entry.item.id, amount: delta });
           workingItems[entry.item.id] = targetAmount;
         }
+      }
+      continue;
+    }
+
+    const removeMatch = line.match(/^(.+?)\s*(?:-\s*)?(r|remove)$/i);
+    if (removeMatch) {
+      const query = removeMatch[1].trim();
+      const marketMatches = findMarketMatches(query, currentState);
+      if (!marketMatches.length) {
+        errors.push('That item is not in your market list.');
+        break;
+      }
+
+      for (const item of marketMatches) {
+        applyTargetAmount(updates, workingItems, item.id, 0);
+      }
+      continue;
+    }
+
+    const rarityMatch = line.match(/^(.+?)\s*#\s*(common|rare|epic|legendary|mythical|secret)$/i);
+    if (rarityMatch) {
+      const query = rarityMatch[1].trim();
+      const rarityKey = normalizeKey(rarityMatch[2]);
+      const matches = (normalizeKey(query) === 'all' ? inventoryEntries : findInventoryMatches(query, inventoryEntries))
+        .filter((entry) => normalizeKey(entry.item.rarity) === rarityKey);
+
+      if (!matches.length) {
+        errors.push('No matching items with that rarity were found.');
+        break;
+      }
+
+      let addedAny = false;
+      for (const entry of matches) {
+        const sellPrice = getSellablePrice(entry.item);
+        if (sellPrice === null) {
+          continue;
+        }
+        applyTargetAmount(updates, workingItems, entry.item.id, entry.amount);
+        addedAny = true;
+      }
+
+      if (!addedAny) {
+        errors.push('That rarity selection has no sellable items.');
+        break;
+      }
+      continue;
+    }
+
+    const valueMatch = line.match(/^(.+?)\s*value\s*(<=|>=|<|>)\s*(\d+)$/i);
+    if (valueMatch) {
+      const query = valueMatch[1].trim();
+      const comparator = valueMatch[2];
+      const targetValue = Number.parseInt(valueMatch[3], 10);
+      const matches = normalizeKey(query) === 'all' ? inventoryEntries : findInventoryMatches(query, inventoryEntries);
+
+      if (!matches.length) {
+        errors.push('No matching items were found for that value filter.');
+        break;
+      }
+
+      let addedAny = false;
+      for (const entry of matches) {
+        const sellPrice = getSellablePrice(entry.item);
+        if (sellPrice === null) {
+          continue;
+        }
+        if (!compareValue(sellPrice, comparator, targetValue)) {
+          continue;
+        }
+        applyTargetAmount(updates, workingItems, entry.item.id, entry.amount);
+        addedAny = true;
+      }
+
+      if (!addedAny) {
+        errors.push('No sellable items matched that value filter.');
+        break;
       }
       continue;
     }
@@ -457,7 +605,7 @@ module.exports = {
                 .setCustomId('items')
                 .setLabel('Which items?')
                 .setStyle(TextInputStyle.Paragraph)
-                .setPlaceholder('Format: {item ID or name} - {amount/all}. Use "all" to sell all sellable items.')
+                .setPlaceholder('Formats: {item} - {amount/all}, {item} #rarity, {item} value<1000, {item} - remove. Use "all" to sell all sellable items.')
                 .setRequired(true)
             )
           );
