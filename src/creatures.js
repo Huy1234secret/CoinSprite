@@ -16,7 +16,7 @@ const MOSSBACK_MONKEY = {
   rarityIcon: RARITY_EMOJIS.Common,
   counter_chance: 24,
   attackType: 'Singular',
-  reward: { coins: { min: 275, max: 450 }, xp: { min: 12, max: 24 } },
+  reward: { coins: { min: 240, max: 360 }, xp: { min: 12, max: 24 } },
   actions: [
     {
       key: 'rockThrow',
@@ -50,7 +50,7 @@ const VINE_SNAKE = {
   rarityIcon: RARITY_EMOJIS.Common,
   counter_chance: 18,
   attackType: 'Singular',
-  reward: { coins: { min: 300, max: 500 }, xp: { min: 25, max: 50 } },
+  reward: { coins: { min: 260, max: 390 }, xp: { min: 25, max: 50 } },
   actions: [
     {
       key: 'poisonousBite',
@@ -91,7 +91,7 @@ const THORNBACK_BOAR = {
   counter_chance: 12,
   attackType: 'Singular',
   defense: 0.15,
-  reward: { coins: { min: 250, max: 500 }, xp: { min: 15, max: 30 } },
+  reward: { coins: { min: 230, max: 360 }, xp: { min: 15, max: 30 } },
   actions: [
     {
       key: 'gored',
@@ -120,7 +120,7 @@ const JUNGLE_BETTLE = {
   counter_chance: 10,
   attackType: 'Singular',
   defense: 0.3,
-  reward: { coins: { min: 350, max: 600 }, xp: { min: 10, max: 40 } },
+  reward: { coins: { min: 280, max: 420 }, xp: { min: 10, max: 40 } },
   actions: [
     {
       key: 'bite',
@@ -148,7 +148,7 @@ const LEAF_FROG = {
   rarityIcon: RARITY_EMOJIS.Common,
   counter_chance: 20,
   attackType: 'Singular',
-  reward: { coins: { min: 200, max: 350 }, xp: { min: 10, max: 30 } },
+  reward: { coins: { min: 200, max: 320 }, xp: { min: 10, max: 30 } },
   actions: [
     {
       key: 'poisonousLiquid',
@@ -185,7 +185,7 @@ const CLAWFOOT_BIRD = {
   rarityIcon: RARITY_EMOJIS.Common,
   counter_chance: 16,
   attackType: 'Singular',
-  reward: { coins: { min: 300, max: 450 }, xp: { min: 25, max: 40 } },
+  reward: { coins: { min: 250, max: 380 }, xp: { min: 25, max: 40 } },
   actions: [
     {
       key: 'clawScratch',
@@ -219,7 +219,7 @@ const BRISTLE_JAGUAR = {
   rarityIcon: RARITY_EMOJIS.Rare,
   counter_chance: 22,
   attackType: 'Singular',
-  reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
+  reward: { coins: { min: 650, max: 900 }, xp: { min: 35, max: 50 } },
   actions: [
     {
       key: 'clawScratch',
@@ -259,7 +259,7 @@ const SPOREBACK_TORTOISE = {
   counter_chance: 22,
   attackType: 'Singular',
   defense: 0.35,
-  reward: { coins: { min: 700, max: 1000 }, xp: { min: 35, max: 50 } },
+  reward: { coins: { min: 650, max: 900 }, xp: { min: 35, max: 50 } },
   actions: [
     {
       key: 'poisonGas',
@@ -299,7 +299,7 @@ const RAZORWING_PARROT = {
   rarityIcon: RARITY_EMOJIS.Rare,
   counter_chance: 18,
   attackType: 'Singular',
-  reward: { coins: { min: 500, max: 800 }, xp: { min: 33, max: 48 } },
+  reward: { coins: { min: 600, max: 850 }, xp: { min: 33, max: 48 } },
   actions: [
     {
       key: 'throwSharpFeather',
@@ -342,7 +342,7 @@ const MUDSCALE_LIZARD = {
   counter_chance: 18,
   attackType: 'Singular',
   defense: 0.15,
-  reward: { coins: { min: 600, max: 850 }, xp: { min: 35, max: 49 } },
+  reward: { coins: { min: 625, max: 875 }, xp: { min: 35, max: 49 } },
   actions: [
     {
       key: 'bite',
@@ -375,7 +375,7 @@ const ROOTED_APE = {
   counter_chance: 20,
   attackType: 'Singular',
   defense: 0.5,
-  reward: { coins: { min: 800, max: 1200 }, xp: { min: 45, max: 55 } },
+  reward: { coins: { min: 800, max: 1100 }, xp: { min: 45, max: 55 } },
   actions: [
     {
       key: 'stomp',
@@ -421,7 +421,7 @@ const THUNDERFANG_PANTHER = {
   rarityIcon: RARITY_EMOJIS.Epic,
   counter_chance: 28,
   attackType: 'Singular',
-  reward: { coins: { min: 1700, max: 2000 }, xp: { min: 50, max: 70 } },
+  reward: { coins: { min: 1400, max: 1750 }, xp: { min: 50, max: 70 } },
   actions: [
     {
       key: 'bite',
@@ -468,7 +468,7 @@ const BLOOM_SERPENT = {
   rarityIcon: RARITY_EMOJIS.Epic,
   counter_chance: 20,
   attackType: 'Singular',
-  reward: { coins: { min: 1500, max: 1850 }, xp: { min: 45, max: 60 } },
+  reward: { coins: { min: 1300, max: 1650 }, xp: { min: 45, max: 60 } },
   actions: [
     {
       key: 'bloomPoison',
@@ -506,7 +506,7 @@ const EMERALD_STALKER = {
   counter_chance: 22,
   attackType: 'Singular',
   defense: 0.5,
-  reward: { coins: { min: 1800, max: 1950 }, xp: { min: 48, max: 65 } },
+  reward: { coins: { min: 1450, max: 1800 }, xp: { min: 48, max: 65 } },
   actions: [
     {
       key: 'cruelBites',
@@ -544,7 +544,7 @@ const TOTEM_GUARDIAN = {
   counter_chance: 30,
   attackType: 'Singular',
   defense: 0.75,
-  reward: { coins: { min: 2200, max: 2450 }, xp: { min: 65, max: 80 } },
+  reward: { coins: { min: 1650, max: 2100 }, xp: { min: 65, max: 80 } },
   actions: [
     {
       key: 'stomp',
@@ -581,7 +581,7 @@ const ANCIENT_HORNED_GORILLA = {
   counter_chance: 35,
   attackType: 'Singular',
   defense: 0.45,
-  reward: { coins: { min: 3600, max: 3800 }, xp: { min: 110, max: 120 } },
+  reward: { coins: { min: 2600, max: 3100 }, xp: { min: 110, max: 120 } },
   actions: [
     {
       key: 'stomp',
@@ -627,7 +627,7 @@ const STORM_CANOPY_EAGLE = {
   counter_chance: 30,
   attackType: 'Multi',
   defense: 0.25,
-  reward: { coins: { min: 3000, max: 3300 }, xp: { min: 100, max: 115 } },
+  reward: { coins: { min: 2400, max: 2900 }, xp: { min: 100, max: 115 } },
   actions: [
     {
       key: 'beakPierce',
@@ -673,7 +673,7 @@ const VINE_TITAN = {
   counter_chance: 35,
   attackType: 'Singular',
   defense: 0.55,
-  reward: { coins: { min: 3600, max: 4000 }, xp: { min: 100, max: 120 } },
+  reward: { coins: { min: 2700, max: 3200 }, xp: { min: 100, max: 120 } },
   actions: [
     {
       key: 'vinePierce',
@@ -724,7 +724,7 @@ const SOLAR_JAGUAR = {
   counter_chance: 100,
   attackType: 'Singular',
   defense: 0.7,
-  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 150, max: 300 } },
+  reward: { coins: { min: 4200, max: 4800 }, xp: { min: 150, max: 300 } },
   actions: [
     {
       key: 'solarBeam',
@@ -763,7 +763,7 @@ const PHANTOM_ORCHID_WARDEN = {
   counter_chance: 100,
   attackType: 'Multi',
   defense: 0.8,
-  reward: { coins: { min: 5500, max: 6000 }, xp: { min: 350, max: 600 } },
+  reward: { coins: { min: 4500, max: 5200 }, xp: { min: 350, max: 600 } },
   actions: [
     {
       key: 'petalDrain',
@@ -810,7 +810,7 @@ const CORRUPTED_CUBE = {
   counter_chance: 0,
   attackType: 'Multi',
   reward: {
-    coins: { min: 10000, max: 22222 },
+    coins: { min: 7500, max: 9500 },
     xp: { min: 1000, max: 2500 },
     diamonds: { min: 10, max: 250 },
     prismatic: { min: 1, max: 50, chance: 0.25 },
