@@ -74,9 +74,10 @@ const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
 
 const CREATURE_HEALTH_GROWTH = 0.5;
 const CREATURE_DAMAGE_GROWTH = 0.25;
-const CREATURE_COIN_GROWTH = 0.1;
+const CREATURE_COIN_GROWTH = 0.08;
 const CREATURE_XP_GROWTH = 0.15;
 const CREATURE_REWARD_GROWTH = CREATURE_COIN_GROWTH;
+const COIN_REWARD_MULTIPLIER = 0.7;
 
 const HUNTING_DELAY_MS = 3000;
 const HUNT_END_COUNTDOWN_SECONDS = 5;
@@ -1363,7 +1364,7 @@ function calculateRewards(creatures) {
     const level = creature.level ?? 1;
     const reward = creature.reward ?? JUNGLE_BETTLE.reward;
 
-    rewards.coins += rollRewardAmount(reward.coins, level, CREATURE_COIN_GROWTH);
+    rewards.coins += rollCoinRewardAmount(reward.coins, level);
     rewards.xp += rollRewardAmount(reward.xp, level, CREATURE_XP_GROWTH);
 
     if (reward.diamonds) {
@@ -1382,6 +1383,11 @@ function calculateRewards(creatures) {
     }
   }
   return rewards;
+}
+
+function rollCoinRewardAmount(range, level) {
+  const amount = rollRewardAmount(range, level, CREATURE_COIN_GROWTH);
+  return Math.max(0, Math.round(amount * COIN_REWARD_MULTIPLIER));
 }
 
 function rollRewardAmount(range, level, growth = CREATURE_REWARD_GROWTH) {
@@ -1653,7 +1659,10 @@ function rollDungeonRewardAmount(range) {
 
 function calculateDungeonRewards(stageData, isFirstWin) {
   const rewards = {
-    coins: rollDungeonRewardAmount(stageData.rewards.coins),
+    coins: Math.max(
+      0,
+      Math.round(rollDungeonRewardAmount(stageData.rewards.coins) * COIN_REWARD_MULTIPLIER)
+    ),
     xp: rollDungeonRewardAmount(stageData.rewards.xp),
     diamonds: 0,
   };
