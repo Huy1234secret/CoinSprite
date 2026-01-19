@@ -6,6 +6,7 @@ const { safeErrorReply } = require('./src/utils/interactions');
 const { addXpToUser } = require('./src/userStats');
 const { saveGuildData } = require('./src/serverData');
 const { getUserProfile, isInventoryFull } = require('./src/huntProfile');
+const { startLunarNewYearAnnouncement } = require('./scripts/announce-lunar-new-year');
 
 config();
 
@@ -114,6 +115,7 @@ client.once(Events.ClientReady, async () => {
         await command.init(client);
       }
     }
+    await startLunarNewYearAnnouncement(client);
   } catch (error) {
     console.error('Failed to register commands:', error);
   }
