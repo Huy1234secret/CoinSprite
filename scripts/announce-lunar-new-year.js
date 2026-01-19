@@ -151,6 +151,21 @@ async function editAnnouncementToEnded(message) {
   await message.edit({ content: endedContent, embeds: [embed] });
 }
 
+async function startLunarNewYearAnnouncement(client) {
+  try {
+    const message = await upsertAnnouncement(client);
+    scheduleEditAt(EVENT_END, async () => {
+      try {
+        await editAnnouncementToEnded(message);
+      } catch (error) {
+        console.error('Failed to edit announcement:', error);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to send announcement:', error);
+  }
+}
+
 async function run() {
   const token = process.env.DISCORD_TOKEN;
   if (!token) {
@@ -162,23 +177,17 @@ async function run() {
   });
 
   client.once('ready', async () => {
-    try {
-      const message = await upsertAnnouncement(client);
-      scheduleEditAt(EVENT_END, async () => {
-        try {
-          await editAnnouncementToEnded(message);
-        } finally {
-          client.destroy();
-        }
-      });
-    } catch (error) {
-      console.error('Failed to send announcement:', error);
-      client.destroy();
-      process.exitCode = 1;
-    }
+    await startLunarNewYearAnnouncement(client);
+    client.destroy();
   });
 
   await client.login(token);
 }
 
-run();
+if (require.main === module) {
+  run();
+}
+
+module.exports = {
+  startLunarNewYearAnnouncement,
+};
