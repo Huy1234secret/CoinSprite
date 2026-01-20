@@ -1,14 +1,16 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getUserStats } = require('../src/userStats');
+const { CURRENCIES } = require('../src/currencies');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
-const COIN_EMOJI = '<:CRCoin:1447459216574124074>';
-const DIAMOND_EMOJI = '<:CRDiamond:1449260848705962005>';
-const PRISMATIC_EMOJI = '<:CRPrismatic:1449260850945982606>';
 
 function buildWalletResponse(user, stats) {
   const avatarUrl = user.displayAvatarURL({ extension: 'png', size: 128 });
-  const content = `### ${user.username} Wallet\n## ${COIN_EMOJI} ${stats.coins}\n## ${DIAMOND_EMOJI} ${stats.diamonds}\n## ${PRISMATIC_EMOJI} ${stats.prismatic}`;
+  const balanceLines = CURRENCIES.map((currency) => {
+    const amount = stats[currency.key] ?? 0;
+    return `## ${currency.emoji} ${amount}`;
+  });
+  const content = [`### ${user.username} Wallet`, ...balanceLines].join('\n');
 
   return {
     flags: COMPONENTS_V2_FLAG,

@@ -15,6 +15,7 @@ const DEFAULT_STATS = {
   coins: 0,
   diamonds: 0,
   prismatic: 0,
+  jagmc: 0,
   chat_upgrade_tokens_used: 0,
 };
 
@@ -54,6 +55,7 @@ function ensureStatsShape(stats = {}) {
     coins: Math.max(0, stats.coins ?? DEFAULT_STATS.coins),
     diamonds: Math.max(0, stats.diamonds ?? DEFAULT_STATS.diamonds),
     prismatic: Math.max(0, stats.prismatic ?? DEFAULT_STATS.prismatic),
+    jagmc: Math.max(0, stats.jagmc ?? DEFAULT_STATS.jagmc),
     chat_upgrade_tokens_used:
       typeof stats.chat_upgrade_tokens_used === 'number'
         ? stats.chat_upgrade_tokens_used
@@ -147,6 +149,17 @@ function addPrismaticToUser(userId, amount) {
   return setUserStats(userId, { ...current, prismatic: updatedPrismatic });
 }
 
+function addCurrencyToUser(userId, currencyKey, amount) {
+  const current = getUserStats(userId);
+  const key = String(currencyKey ?? '');
+  if (!key || !(key in current)) {
+    return null;
+  }
+
+  const updatedValue = Math.max(0, (Number(current[key]) || 0) + amount);
+  return setUserStats(userId, { ...current, [key]: updatedValue });
+}
+
 function buildProgressBar(current, total, width = 20) {
   const safeTotal = Math.max(1, total);
   const ratio = Math.max(0, Math.min(1, current / safeTotal));
@@ -160,6 +173,7 @@ module.exports = {
   addXpToUser,
   addCoinsToUser,
   addDiamondsToUser,
+  addCurrencyToUser,
   addPrismaticToUser,
   buildProgressBar,
   getNextLevelRequirement,
