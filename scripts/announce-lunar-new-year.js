@@ -10,7 +10,7 @@ const RULES_CHANNEL_ID = '1462464917826179143';
 const STATE_PATH = path.join(__dirname, '..', 'data', 'lunar-new-year-announcement.json');
 
 const EVENT_START = Date.UTC(2026, 0, 15, 0, 0, 0);
-const EVENT_END = Date.UTC(2026, 1, 15, 23, 59, 59);
+const EVENT_END = Date.UTC(2026, 1, 15, 16, 59, 59);
 
 const MAX_TIMEOUT_MS = 2_000_000_000; // ~23 days
 
