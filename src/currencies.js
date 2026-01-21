@@ -17,7 +17,7 @@ const CURRENCIES = [
   {
     key: 'jagmc',
     name: 'JAGMC Token',
-    emoji: ':JAGMC:',
+    emoji: '<:JAGMC:1463373057795035186>',
     value: 499,
     rarity: 'epic',
     itemType: 'n/a',
