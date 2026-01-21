@@ -27,7 +27,7 @@ module.exports = {
     .addIntegerOption((option) =>
       option
         .setName('amount')
-        .setDescription('Amount of currency to add.')
+        .setDescription('Amount of currency to add (use a negative number to remove).')
         .setRequired(true)
     )
     .addUserOption((option) =>
@@ -50,8 +50,8 @@ module.exports = {
       return;
     }
 
-    if (!Number.isInteger(amount) || amount <= 0) {
-      await interaction.reply({ content: 'Amount must be a positive integer.', ephemeral: true });
+    if (!Number.isInteger(amount) || amount === 0) {
+      await interaction.reply({ content: 'Amount must be a non-zero integer.', ephemeral: true });
       return;
     }
 
@@ -64,8 +64,12 @@ module.exports = {
 
     const newBalance = updatedStats[currencyKey] ?? 0;
     const emoji = currency.emoji ? `${currency.emoji} ` : '';
+    const action = amount > 0 ? 'Added' : 'Removed';
+    const magnitude = Math.abs(amount);
     await interaction.reply({
-      content: `Added ${emoji}${amount} ${currency.name} to ${targetUser.username}. New balance: ${newBalance}.`,
+      content: `${action} ${emoji}${magnitude} ${currency.name} ${
+        amount > 0 ? 'to' : 'from'
+      } ${targetUser.username}. New balance: ${newBalance}.`,
       ephemeral: true,
     });
   },
