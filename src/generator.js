@@ -7,14 +7,15 @@ const MIN_GENERATE_MINUTES = 10;
 const MAX_GENERATE_MINUTES = 480;
 
 function sanitizeGeneratorState(state = {}) {
-  const run = state.run && typeof state.run === 'object' ? state.run : null;
+  const safeState = state && typeof state === 'object' ? state : {};
+  const run = safeState.run && typeof safeState.run === 'object' ? safeState.run : null;
   return {
     tier: GENERATOR_TIER,
-    cooldownEndsAt: Number.isFinite(state.cooldownEndsAt) ? state.cooldownEndsAt : 0,
-    pendingDurationMinutes: Number.isFinite(state.pendingDurationMinutes)
-      ? Math.max(MIN_GENERATE_MINUTES, Math.floor(state.pendingDurationMinutes))
+    cooldownEndsAt: Number.isFinite(safeState.cooldownEndsAt) ? safeState.cooldownEndsAt : 0,
+    pendingDurationMinutes: Number.isFinite(safeState.pendingDurationMinutes)
+      ? Math.max(MIN_GENERATE_MINUTES, Math.floor(safeState.pendingDurationMinutes))
       : null,
-    locationMultiplier: Number.isFinite(state.locationMultiplier) ? state.locationMultiplier : 1,
+    locationMultiplier: Number.isFinite(safeState.locationMultiplier) ? safeState.locationMultiplier : 1,
     run: run
       ? {
           startedAt: Number.isFinite(run.startedAt) ? run.startedAt : 0,
