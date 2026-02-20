@@ -2,7 +2,7 @@ const CURRENCIES = [
   {
     key: 'coins',
     name: 'Coins',
-    emoji: '<:CRCoin:1447459216574124074>',
+    emoji: '<:CRBronzeJAG:1474301520022470738>',
   },
   {
     key: 'diamonds',
