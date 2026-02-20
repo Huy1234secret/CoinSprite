@@ -293,7 +293,12 @@ module.exports = {
       const state = getGeneratorProfile(userId);
       state.pendingDurationMinutes = minutes;
       setGeneratorProfile(userId, state);
-      await interaction.update(buildHomeMessage(interaction.user, interaction.channelId, state));
+
+      if (interaction.message) {
+        await interaction.message.edit(buildHomeMessage(interaction.user, interaction.channelId, state));
+      }
+
+      await interaction.reply({ content: `Generation time set to ${minutes}m. Press **Start** when you're ready.`, ephemeral: true });
       return true;
     }
 
