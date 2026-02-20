@@ -89,7 +89,7 @@ function buildHomeMessage(user, channelId, state) {
         { type: 14 },
         buildSelection(user.id).toJSON(),
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`${SETUP_BUTTON}${user.id}`).setStyle(ButtonStyle.Success).setLabel(state.pendingDurationMinutes ? 'Start' : 'Set-up').setDisabled(setupDisabled),
+          new ButtonBuilder().setCustomId(`${SETUP_BUTTON}${user.id}`).setStyle(ButtonStyle.Success).setLabel('Set-up').setDisabled(setupDisabled),
           new ButtonBuilder().setCustomId(`generator-upgrade:${user.id}`).setStyle(ButtonStyle.Secondary).setLabel('Upgrades').setDisabled(true)
         ).toJSON(),
       ],
@@ -180,6 +180,19 @@ async function refreshMessageForState(userId) {
   }
 }
 
+async function refreshHomeMessage(userId, channelId, messageId, stateOverride = null) {
+  if (!cachedClient || !channelId || !messageId) return;
+  try {
+    const channel = await cachedClient.channels.fetch(channelId);
+    const message = await channel.messages.fetch(messageId);
+    const user = await cachedClient.users.fetch(userId);
+    const state = stateOverride ?? getGeneratorProfile(userId);
+    await message.edit(buildHomeMessage(user, channelId, state));
+  } catch (error) {
+    console.warn('Failed to refresh generator home message:', error);
+  }
+}
+
 function scheduleCompletion(userId) {
   const state = getGeneratorProfile(userId);
   if (!state.run || state.run.status !== 'running') return;
@@ -191,10 +204,13 @@ function scheduleCompletion(userId) {
     setTimeout(async () => {
       const next = getGeneratorProfile(userId);
       if (!next.run || next.run.status !== 'running') return;
-      next.run.status = 'ready_claim';
-      next.run.generatedAmount = Math.floor(next.run.durationMinutes * getRateForTier(next.tier) * next.run.totalMultiplier);
+      const { channelId, messageId } = next.run;
+      const generatedAmount = Math.floor(next.run.durationMinutes * getRateForTier(next.tier) * next.run.totalMultiplier);
+      addCoinsToUser(userId, generatedAmount);
+      next.run = null;
+      next.pendingDurationMinutes = null;
       setGeneratorProfile(userId, next);
-      await refreshMessageForState(userId);
+      await refreshHomeMessage(userId, channelId, messageId, next);
 
       if (getNotificationSetting(userId) && cachedClient) {
         try {
@@ -210,10 +226,6 @@ function scheduleCompletion(userId) {
 
 async function openMain(interaction) {
   const state = getGeneratorProfile(interaction.user.id);
-  if (state.run && state.run.status !== 'running') {
-    await interaction.reply(buildDoneMessage(interaction.user, state));
-    return;
-  }
   if (state.run?.status === 'running') {
     await interaction.reply(buildRunningMessage(interaction.user, state));
     return;
@@ -247,29 +259,6 @@ module.exports = {
         return true;
       }
 
-      const state = getGeneratorProfile(userId);
-      if (state.pendingDurationMinutes) {
-        const now = Date.now();
-        const locationMultiplier = getLocationMultiplier(interaction.channelId);
-        state.locationMultiplier = locationMultiplier;
-        state.run = {
-          startedAt: now,
-          endsAt: now + state.pendingDurationMinutes * 60000,
-          durationMinutes: state.pendingDurationMinutes,
-          channelId: interaction.channelId,
-          guildId: interaction.guildId,
-          messageId: interaction.message.id,
-          status: 'running',
-          generatedAmount: 0,
-          totalMultiplier: locationMultiplier,
-        };
-        state.pendingDurationMinutes = null;
-        setGeneratorProfile(userId, state);
-        scheduleCompletion(userId);
-        await interaction.update(buildRunningMessage(interaction.user, state));
-        return true;
-      }
-
       await interaction.showModal(buildSetupModal(userId));
       return true;
     }
@@ -291,14 +280,29 @@ module.exports = {
       }
 
       const state = getGeneratorProfile(userId);
-      state.pendingDurationMinutes = minutes;
+      const now = Date.now();
+      const locationMultiplier = getLocationMultiplier(interaction.channelId);
+      state.locationMultiplier = locationMultiplier;
+      state.run = {
+        startedAt: now,
+        endsAt: now + minutes * 60000,
+        durationMinutes: minutes,
+        channelId: interaction.channelId,
+        guildId: interaction.guildId,
+        messageId: interaction.message.id,
+        status: 'running',
+        generatedAmount: 0,
+        totalMultiplier: locationMultiplier,
+      };
+      state.pendingDurationMinutes = null;
       setGeneratorProfile(userId, state);
+      scheduleCompletion(userId);
 
       if (interaction.message) {
-        await interaction.message.edit(buildHomeMessage(interaction.user, interaction.channelId, state));
+        await interaction.message.edit(buildRunningMessage(interaction.user, state));
       }
 
-      await interaction.reply({ content: `Generation time set to ${minutes}m. Press **Start** when you're ready.`, ephemeral: true });
+      await interaction.reply({ content: `Generation started for ${minutes}m.`, ephemeral: true });
       return true;
     }
 
@@ -338,13 +342,16 @@ module.exports = {
       }
 
       const elapsedMinutes = Math.max(0, Math.floor((Date.now() - state.run.startedAt) / 60000));
-      state.run.status = 'stopped';
-      state.run.generatedAmount = elapsedMinutes * getRateForTier(state.tier);
+      const { channelId, messageId } = state.run;
+      const generatedAmount = elapsedMinutes * getRateForTier(state.tier);
+      addCoinsToUser(userId, generatedAmount);
+      state.run = null;
+      state.pendingDurationMinutes = null;
       state.cooldownEndsAt = Date.now() + GENERATOR_COOLDOWN_MS;
       clearTimeout(timers.get(userId));
       setGeneratorProfile(userId, state);
-      await refreshMessageForState(userId);
-      await interaction.update({ content: 'Generator stopped.', components: [] });
+      await refreshHomeMessage(userId, channelId, messageId, state);
+      await interaction.update({ content: `Generator stopped. ${generatedAmount} ${COIN_EMOJI} has been added to your balance.`, components: [] });
       return true;
     }
 
