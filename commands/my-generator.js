@@ -65,17 +65,23 @@ function buildHeader(user, lines) {
 function buildHomeMessage(user, channelId, state) {
   const locationMulti = getLocationMultiplier(channelId);
   const rate = getRateForTier(state.tier);
+  const onCooldown = Date.now() < state.cooldownEndsAt;
+  const cooldownLabel = onCooldown ? formatCountdown(state.cooldownEndsAt) : '1h';
   const lines = [
     `## ${user.username}'s Generators`,
     `### Tier ${state.tier} - ${COIN_EMOJI} Bronze Coin Generation:`,
     `* Generating ${rate} / m`,
-    '* Cooldown: 1h',
+    `* Cooldown: ${cooldownLabel}`,
     `* Time: ${state.run ? formatSpecificTime(state.run.endsAt) : '?'}`,
     `* Location: <#${channelId}> - ×${locationMulti}`,
   ];
 
-  const onCooldown = Date.now() < state.cooldownEndsAt;
   const setupDisabled = Boolean(state.run) || onCooldown;
+  const startButton = new ButtonBuilder()
+    .setCustomId(`${SETUP_BUTTON}${user.id}`)
+    .setStyle(onCooldown ? ButtonStyle.Danger : ButtonStyle.Success)
+    .setLabel(onCooldown ? 'On CD' : 'Start')
+    .setDisabled(setupDisabled);
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -89,7 +95,7 @@ function buildHomeMessage(user, channelId, state) {
         { type: 14 },
         buildSelection(user.id).toJSON(),
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`${SETUP_BUTTON}${user.id}`).setStyle(ButtonStyle.Success).setLabel('Start').setDisabled(setupDisabled),
+          startButton,
           new ButtonBuilder().setCustomId(`generator-upgrade:${user.id}`).setStyle(ButtonStyle.Secondary).setLabel('Upgrades').setDisabled(true)
         ).toJSON(),
       ],
@@ -210,6 +216,7 @@ function scheduleCompletion(userId) {
       addCoinsToUser(userId, generatedAmount);
       next.run = null;
       next.pendingDurationMinutes = null;
+      next.cooldownEndsAt = Date.now() + GENERATOR_COOLDOWN_MS;
       setGeneratorProfile(userId, next);
       await refreshHomeMessage(userId, channelId, messageId, next);
 
@@ -300,6 +307,13 @@ module.exports = {
       const state = getGeneratorProfile(userId);
       if (state.run?.status === 'running') {
         await interaction.reply({ content: 'You already have a generator running. Stop it first before starting a new one.', ephemeral: true });
+        return true;
+      }
+      if (Date.now() < state.cooldownEndsAt) {
+        await interaction.reply({
+          content: `Your generator is on cooldown. You can start again ${formatCountdown(state.cooldownEndsAt)}.`,
+          ephemeral: true,
+        });
         return true;
       }
       const now = Date.now();
