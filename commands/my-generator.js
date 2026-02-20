@@ -23,7 +23,7 @@ const {
 const { CURRENCIES_BY_KEY } = require('../src/currencies');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
-const THUMBNAIL_URL = 'https://cdn.discordapp.com/emojis/1474301520022470738.png';
+const THUMBNAIL_URL = 'https://cdn.discordapp.com/emojis/1474305835474747515.png';
 const COIN_EMOJI = CURRENCIES_BY_KEY.coins.emoji;
 
 const SETUP_BUTTON = 'generator-setup:';
