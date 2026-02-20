@@ -16,6 +16,8 @@ function sanitizeGeneratorState(state = {}) {
       ? Math.max(MIN_GENERATE_MINUTES, Math.floor(safeState.pendingDurationMinutes))
       : null,
     locationMultiplier: Number.isFinite(safeState.locationMultiplier) ? safeState.locationMultiplier : 1,
+    homeChannelId: typeof safeState.homeChannelId === 'string' ? safeState.homeChannelId : null,
+    homeMessageId: typeof safeState.homeMessageId === 'string' ? safeState.homeMessageId : null,
     run: run
       ? {
           startedAt: Number.isFinite(run.startedAt) ? run.startedAt : 0,

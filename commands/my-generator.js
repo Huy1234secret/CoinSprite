@@ -41,11 +41,11 @@ function formatHoursFromMinutes(minutes) {
 }
 
 function formatCountdown(endTs) {
-  const sec = Math.max(0, Math.ceil((endTs - Date.now()) / 1000));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+  return `<t:${Math.ceil(endTs / 1000)}:R>`;
+}
+
+function formatSpecificTime(endTs) {
+  return `<t:${Math.ceil(endTs / 1000)}:t>`;
 }
 
 function buildSelection(userId) {
@@ -67,10 +67,10 @@ function buildHomeMessage(user, channelId, state) {
   const rate = getRateForTier(state.tier);
   const lines = [
     `## ${user.username}'s Generators`,
-    `### Tier ${state.tier} - Bronze Coin Generation:`,
+    `### Tier ${state.tier} - ${COIN_EMOJI} Bronze Coin Generation:`,
     `* Generating ${rate} / m`,
     '* Cooldown: 1h',
-    `* Time: ${state.pendingDurationMinutes ? `${formatHoursFromMinutes(state.pendingDurationMinutes)}h` : '?'}`,
+    `* Time: ${state.run ? formatSpecificTime(state.run.endsAt) : '?'}`,
     `* Location: <#${channelId}> - ×${locationMulti}`,
   ];
 
@@ -89,7 +89,7 @@ function buildHomeMessage(user, channelId, state) {
         { type: 14 },
         buildSelection(user.id).toJSON(),
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId(`${SETUP_BUTTON}${user.id}`).setStyle(ButtonStyle.Success).setLabel('Set-up').setDisabled(setupDisabled),
+          new ButtonBuilder().setCustomId(`${SETUP_BUTTON}${user.id}`).setStyle(ButtonStyle.Success).setLabel('Start').setDisabled(setupDisabled),
           new ButtonBuilder().setCustomId(`generator-upgrade:${user.id}`).setStyle(ButtonStyle.Secondary).setLabel('Upgrades').setDisabled(true)
         ).toJSON(),
       ],
@@ -101,10 +101,11 @@ function buildRunningMessage(user, state) {
   const run = state.run;
   const lines = [
     `## ${user.username}'s Generators`,
-    `### Tier ${state.tier} - Bronze Coin Generation:`,
+    `### Tier ${state.tier} - ${COIN_EMOJI} Bronze Coin Generation:`,
     `* Generating ${getRateForTier(state.tier)} ${COIN_EMOJI} / m [×${run.totalMultiplier}]`,
     `* Location: <#${run.channelId}> - ×${state.locationMultiplier}`,
     `* Time left: ${formatCountdown(run.endsAt)}`,
+    `* Ends at: ${formatSpecificTime(run.endsAt)}`,
   ];
 
   return {
@@ -129,7 +130,7 @@ function buildDoneMessage(user, state) {
   const run = state.run;
   const lines = [
     `## ${user.username}'s Generators`,
-    `### Tier ${state.tier} - Bronze Coin Generation:`,
+    `### Tier ${state.tier} - ${COIN_EMOJI} Bronze Coin Generation:`,
     `* Your generators has generated ${run.generatedAmount} ${COIN_EMOJI} after ${formatHoursFromMinutes(run.durationMinutes)}h.`,
   ];
 
@@ -230,7 +231,18 @@ async function openMain(interaction) {
     await interaction.reply(buildRunningMessage(interaction.user, state));
     return;
   }
+
+  const previousChannelId = state.homeChannelId;
+  const previousMessageId = state.homeMessageId;
+  if (previousChannelId && previousMessageId) {
+    await refreshHomeMessage(interaction.user.id, previousChannelId, previousMessageId);
+  }
+
   await interaction.reply(buildHomeMessage(interaction.user, interaction.channelId, state));
+  const reply = await interaction.fetchReply();
+  state.homeChannelId = interaction.channelId;
+  state.homeMessageId = reply.id;
+  setGeneratorProfile(interaction.user.id, state);
 }
 
 module.exports = {
@@ -259,6 +271,12 @@ module.exports = {
         return true;
       }
 
+      const state = getGeneratorProfile(userId);
+      if (state.homeMessageId && interaction.message?.id !== state.homeMessageId) {
+        await interaction.reply({ content: 'This panel is no longer active. Run /my-generator again.', ephemeral: true });
+        return true;
+      }
+
       await interaction.showModal(buildSetupModal(userId));
       return true;
     }
@@ -280,6 +298,10 @@ module.exports = {
       }
 
       const state = getGeneratorProfile(userId);
+      if (state.run?.status === 'running') {
+        await interaction.reply({ content: 'You already have a generator running. Stop it first before starting a new one.', ephemeral: true });
+        return true;
+      }
       const now = Date.now();
       const locationMultiplier = getLocationMultiplier(interaction.channelId);
       state.locationMultiplier = locationMultiplier;
@@ -295,6 +317,8 @@ module.exports = {
         totalMultiplier: locationMultiplier,
       };
       state.pendingDurationMinutes = null;
+      state.homeChannelId = interaction.channelId;
+      state.homeMessageId = interaction.message?.id ?? state.homeMessageId;
       setGeneratorProfile(userId, state);
       scheduleCompletion(userId);
 
@@ -302,7 +326,7 @@ module.exports = {
         await interaction.message.edit(buildRunningMessage(interaction.user, state));
       }
 
-      await interaction.reply({ content: `Generation started for ${minutes}m.`, ephemeral: true });
+      await interaction.reply({ content: `Generation started and will finish ${formatCountdown(state.run.endsAt)} (${formatSpecificTime(state.run.endsAt)}).`, ephemeral: true });
       return true;
     }
 
@@ -370,6 +394,8 @@ module.exports = {
       addCoinsToUser(userId, state.run.generatedAmount);
       state.run = null;
       state.pendingDurationMinutes = null;
+      state.homeChannelId = interaction.channelId;
+      state.homeMessageId = interaction.message?.id ?? state.homeMessageId;
       setGeneratorProfile(userId, state);
       await interaction.update(buildHomeMessage(interaction.user, interaction.channelId, state));
       return true;
