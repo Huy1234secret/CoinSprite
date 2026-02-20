@@ -17,6 +17,8 @@ const DEFAULT_STATS = {
   prismatic: 0,
   jagmc: 0,
   chat_upgrade_tokens_used: 0,
+  generator_notify_dm: true,
+  generator: null,
 };
 
 function loadStats() {
@@ -60,6 +62,12 @@ function ensureStatsShape(stats = {}) {
       typeof stats.chat_upgrade_tokens_used === 'number'
         ? stats.chat_upgrade_tokens_used
         : DEFAULT_STATS.chat_upgrade_tokens_used,
+    generator_notify_dm:
+      typeof stats.generator_notify_dm === 'boolean'
+        ? stats.generator_notify_dm
+        : DEFAULT_STATS.generator_notify_dm,
+    generator:
+      typeof stats.generator === 'object' && stats.generator !== null ? stats.generator : DEFAULT_STATS.generator,
   };
 }
 
@@ -168,6 +176,15 @@ function buildProgressBar(current, total, width = 20) {
   return `${'█'.repeat(filled)}${'░'.repeat(empty)}`;
 }
 
+function getAllUserStats() {
+  const allStats = loadStats();
+  for (const userId of Object.keys(allStats)) {
+    allStats[userId] = ensureStatsShape(allStats[userId]);
+  }
+  saveStats(allStats);
+  return allStats;
+}
+
 module.exports = {
   DEFAULT_STATS,
   addXpToUser,
@@ -178,5 +195,6 @@ module.exports = {
   buildProgressBar,
   getNextLevelRequirement,
   getUserStats,
+  getAllUserStats,
   setUserStats,
 };
