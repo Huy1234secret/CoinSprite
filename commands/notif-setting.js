@@ -10,9 +10,9 @@ function buildMessage(user, enabled) {
     .setStyle(enabled ? ButtonStyle.Success : ButtonStyle.Secondary)
     .setLabel(enabled ? 'YES' : 'NO');
 
-  const lines = [`## ${user.username}'s Settings.`, '* Send DM when generator done'];
+  const bodyLines = ['* Send DM when generator done'];
   if (enabled) {
-    lines.push('-# This may interrupt your work. Use with caution.');
+    bodyLines.push('-# This may interrupt your work. Use with caution.');
   }
 
   return {
@@ -22,7 +22,8 @@ function buildMessage(user, enabled) {
         type: 17,
         accent_color: 0xffffff,
         components: [
-          { type: 9, components: [{ type: 10, content: lines.join('\n') }], accessory: button.toJSON() },
+          { type: 10, content: `## ${user.username}'s Settings.` },
+          { type: 9, components: [{ type: 10, content: bodyLines.join('\n') }], accessory: button.toJSON() },
         ],
       },
     ],
