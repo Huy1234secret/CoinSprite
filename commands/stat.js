@@ -17,7 +17,6 @@ module.exports = {
     const content = [
       `## ${interaction.user.username}'s Balance`,
       `* ${stats.coins ?? 0} ${coinEmoji}`,
-      `-# You are earning ${rate} ${coinEmoji}/m`,
     ].join('\n');
 
     await interaction.reply({
