@@ -14,7 +14,7 @@ const SHOP_CARD_BG_COLOR = '#202225';
 const SHOP_TEXT_COLOR = '#ffffff';
 
 const DISCORD_EMOJIS = {
-  currency: '1447459216574124074',
+  currency: '1474301520022470738',
   rarity: {
     common: '1447459423185272952',
     uncommon: '1447459432165408789',
