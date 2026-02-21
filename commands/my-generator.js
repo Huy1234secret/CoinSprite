@@ -137,14 +137,14 @@ function buildDoneMessage(user, state) {
   const lines = [
     `## ${user.username}'s Generators`,
     `### Tier ${state.tier} - ${COIN_EMOJI} Bronze Coin Generation:`,
-    `* Your generators has generated ${run.generatedAmount} ${COIN_EMOJI} after ${formatHoursFromMinutes(run.durationMinutes)}h.`,
+    `* Your generator has generated a total of ${run.generatedAmount} ${COIN_EMOJI} for ${formatHoursFromMinutes(run.durationMinutes)}h.`,
   ];
 
   return {
     flags: COMPONENTS_V2_FLAG,
     components: [{
       type: 17,
-      accent_color: 0xcd7f32,
+      accent_color: 0x57f287,
       components: [
         buildHeader(user, lines),
         { type: 14 },
@@ -211,14 +211,16 @@ function scheduleCompletion(userId) {
     setTimeout(async () => {
       const next = getGeneratorProfile(userId);
       if (!next.run || next.run.status !== 'running') return;
-      const { channelId, messageId } = next.run;
       const generatedAmount = Math.floor(next.run.durationMinutes * getRateForTier(next.tier) * next.run.totalMultiplier);
-      addCoinsToUser(userId, generatedAmount);
-      next.run = null;
+      next.run = {
+        ...next.run,
+        status: 'ready_claim',
+        generatedAmount,
+      };
       next.pendingDurationMinutes = null;
       next.cooldownEndsAt = Date.now() + GENERATOR_COOLDOWN_MS;
       setGeneratorProfile(userId, next);
-      await refreshHomeMessage(userId, channelId, messageId, next);
+      await refreshMessageForState(userId);
 
       if (getNotificationSetting(userId) && cachedClient) {
         try {
@@ -236,6 +238,10 @@ async function openMain(interaction) {
   const state = getGeneratorProfile(interaction.user.id);
   if (state.run?.status === 'running') {
     await interaction.reply(buildRunningMessage(interaction.user, state));
+    return;
+  }
+  if (state.run?.status === 'ready_claim') {
+    await interaction.reply(buildDoneMessage(interaction.user, state));
     return;
   }
 
@@ -400,7 +406,7 @@ module.exports = {
         return true;
       }
       const state = getGeneratorProfile(userId);
-      if (!state.run || (state.run.status !== 'ready_claim' && state.run.status !== 'stopped')) {
+      if (!state.run || state.run.status !== 'ready_claim') {
         await interaction.reply({ content: 'Nothing to claim right now.', ephemeral: true });
         return true;
       }
