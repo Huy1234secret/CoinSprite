@@ -43,6 +43,7 @@ function buildMilestonePayload(state, userCount, reached = false) {
   const rewardLines = state.rewardLines.length
     ? state.rewardLines.map((line) => `• ${line}`).join('\n')
     : '• Surprise reward';
+  const winnerLine = `(Winner: ${state.winnerCount ?? 1})`;
 
   const progressText = progressBar(userCount, state.milestoneUsers);
   const summary = `${userCount} / ${state.milestoneUsers} (${pct}%)`;
@@ -52,8 +53,8 @@ function buildMilestonePayload(state, userCount, reached = false) {
     : '## 🎯 MILESTONE\nA giveaway will begin when we reached the milestone!';
 
   const giveawaySection = reached
-    ? `🎁Giveaway prize:\n${rewardLines}`
-    : `🎁Giveaway prize:\n${rewardLines}\n-# Refresh <t:${nextRefresh}:R>`;
+    ? `🎁Giveaway prize:\n${rewardLines}\n${winnerLine}`
+    : `🎁Giveaway prize:\n${rewardLines}\n${winnerLine}\n-# Refresh <t:${nextRefresh}:R>`;
 
   const cardComponents = [];
 
