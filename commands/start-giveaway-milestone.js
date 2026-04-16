@@ -133,6 +133,13 @@ function upsertMilestoneState(nextState) {
   saveState({ milestones: filtered });
 }
 
+function removeMilestoneState(entry) {
+  const state = loadState();
+  const entryKey = entry.id ?? entry.messageId;
+  const filtered = state.milestones.filter((m) => (m.id ?? m.messageId) !== entryKey);
+  saveState({ milestones: filtered });
+}
+
 async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
   if (!clientRef) {
     return;
@@ -164,21 +171,12 @@ async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
   if (!entry.reached) {
     await channel.messages.delete(entry.messageId).catch(() => null);
     const reachedPayload = buildMilestonePayload(entry, humanCount, true);
-    const reachedMessage = await channel.send(reachedPayload);
-
-    upsertMilestoneState({
-      ...entry,
-      messageId: reachedMessage.id,
-      lastKnownUsers: humanCount,
-      reached: true,
-      updatedAt: Date.now(),
-    });
+    await channel.send(reachedPayload);
+    removeMilestoneState(entry);
     return;
   }
 
-  const reachedPayload = buildMilestonePayload(entry, humanCount, true);
-  await channel.messages.edit(entry.messageId, reachedPayload).catch(() => null);
-  upsertMilestoneState({ ...entry, lastKnownUsers: humanCount, reached: true, updatedAt: Date.now() });
+  removeMilestoneState(entry);
 }
 
 async function refreshAllMilestones() {
