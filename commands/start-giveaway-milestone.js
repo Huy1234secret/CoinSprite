@@ -28,13 +28,6 @@ function progressBar(current, target, size = 18) {
   return `\`${'█'.repeat(filled)}${'░'.repeat(Math.max(0, size - filled))}\` ${pct}%`;
 }
 
-function scaledColor(current, target) {
-  const ratio = Math.max(0, Math.min(1, current / Math.max(1, target)));
-  const r = Math.round(255 * (1 - ratio));
-  const g = Math.round(255 * ratio);
-  return (r << 16) + (g << 8);
-}
-
 function normalizeRewards(text) {
   return text
     .split('\n')
@@ -57,9 +50,9 @@ function buildMilestonePayload(state, userCount, reached = false) {
     ? '## 🎯 MILESTONE REACHED! 🏆\nA giveaway will begin soon!'
     : '## 🎯 MILESTONE\nA giveaway will begin when we reached the milestone!';
 
-  const body = reached
-    ? `${baseTitle}\n\n${progressText}\n\nGiveaway prize:\n${rewardLines}`
-    : `${baseTitle}\n\n${progressText}\n\nGiveaway prize:\n${rewardLines}\n-# Refresh <t:${nextRefresh}:R>`;
+  const giveawaySection = reached
+    ? `Giveaway prize:\n${rewardLines}`
+    : `Giveaway prize:\n${rewardLines}\n-# Refresh <t:${nextRefresh}:R>`;
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -67,11 +60,11 @@ function buildMilestonePayload(state, userCount, reached = false) {
     components: [
       {
         type: 17,
-        accent_color: reached ? 0x00ff00 : scaledColor(userCount, state.milestoneUsers),
+        accent_color: 0x00ff00,
         components: [
           {
             type: 10,
-            content: body,
+            content: baseTitle,
           },
           {
             type: 14,
@@ -83,7 +76,7 @@ function buildMilestonePayload(state, userCount, reached = false) {
             components: [
               {
                 type: 10,
-                content: `Progress: ${progressText}`,
+                content: progressText,
               },
             ],
             accessory: {
@@ -93,6 +86,15 @@ function buildMilestonePayload(state, userCount, reached = false) {
               label: summary,
               disabled: true,
             },
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: giveawaySection,
           },
         ],
       },
