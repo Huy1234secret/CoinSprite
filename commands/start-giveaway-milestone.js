@@ -6,6 +6,7 @@ const {
   ActionRowBuilder,
   MessageFlags,
 } = require('discord.js');
+const { randomUUID } = require('crypto');
 const { loadState, saveState } = require('../src/milestoneStore');
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
@@ -109,12 +110,13 @@ async function getHumanMemberCount(guild) {
 
 function upsertMilestoneState(nextState) {
   const state = loadState();
-  const filtered = state.milestones.filter((m) => m.guildId !== nextState.guildId);
+  const nextKey = nextState.id ?? nextState.messageId;
+  const filtered = state.milestones.filter((m) => (m.id ?? m.messageId) !== nextKey);
   filtered.push(nextState);
   saveState({ milestones: filtered });
 }
 
-async function refreshMilestoneEntry(entry) {
+async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
   if (!clientRef) {
     return;
   }
@@ -129,7 +131,10 @@ async function refreshMilestoneEntry(entry) {
     return;
   }
 
-  const humanCount = await getHumanMemberCount(guild);
+  const humanCount =
+    preloadedHumanCount !== null && preloadedHumanCount !== undefined
+      ? preloadedHumanCount
+      : await getHumanMemberCount(guild);
   const reached = humanCount >= entry.milestoneUsers;
 
   if (!reached) {
@@ -161,9 +166,16 @@ async function refreshMilestoneEntry(entry) {
 
 async function refreshAllMilestones() {
   const state = loadState();
+  const guildCountCache = new Map();
   for (const entry of state.milestones) {
     try {
-      await refreshMilestoneEntry(entry);
+      if (!guildCountCache.has(entry.guildId)) {
+        const guild = await clientRef?.guilds.fetch(entry.guildId).catch(() => null);
+        const humanCount = guild ? await getHumanMemberCount(guild).catch(() => null) : null;
+        guildCountCache.set(entry.guildId, humanCount);
+      }
+
+      await refreshMilestoneEntry(entry, guildCountCache.get(entry.guildId));
     } catch (error) {
       console.error(`Failed to refresh milestone for guild ${entry.guildId}:`, error);
     }
@@ -260,12 +272,8 @@ module.exports = {
     const humanCount = await getHumanMemberCount(interaction.guild);
     const rewardLines = normalizeRewards(rewardText);
 
-    const existing = loadState().milestones.find((m) => m.guildId === interaction.guildId);
-    if (existing) {
-      await interaction.channel.messages.delete(existing.messageId).catch(() => null);
-    }
-
     const stateEntry = {
+      id: randomUUID(),
       guildId: interaction.guildId,
       channelId: interaction.channelId,
       messageId: '',
