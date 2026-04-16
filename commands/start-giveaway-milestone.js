@@ -8,7 +8,7 @@ const {
 } = require('discord.js');
 const { loadState, saveState } = require('../src/milestoneStore');
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 60 * 1000;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PING_ROLE_ID = '1493901068688429207';
 
