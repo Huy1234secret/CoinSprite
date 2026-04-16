@@ -55,49 +55,65 @@ function buildMilestonePayload(state, userCount, reached = false) {
     ? `🎁Giveaway prize:\n${rewardLines}`
     : `🎁Giveaway prize:\n${rewardLines}\n-# Refresh <t:${nextRefresh}:R>`;
 
+  const cardComponents = [];
+
+  if (reached) {
+    cardComponents.push({
+      type: 10,
+      content: `<@&${PING_ROLE_ID}>`,
+    });
+    cardComponents.push({
+      type: 14,
+      divider: true,
+      spacing: 1,
+    });
+  }
+
+  cardComponents.push(
+    {
+      type: 10,
+      content: baseTitle,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content: progressText,
+        },
+      ],
+      accessory: {
+        type: 2,
+        style: 2,
+        custom_id: `milestone_status_${state.guildId}`,
+        label: summary,
+        disabled: true,
+      },
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: giveawaySection,
+    },
+  );
+
   return {
     flags: COMPONENTS_V2_FLAG,
-    content: reached ? `<@&${PING_ROLE_ID}>` : '',
+    allowed_mentions: reached ? { parse: ['roles'], roles: [PING_ROLE_ID] } : undefined,
     components: [
       {
         type: 17,
         accent_color: 0x00ff00,
-        components: [
-          {
-            type: 10,
-            content: baseTitle,
-          },
-          {
-            type: 14,
-            divider: true,
-            spacing: 1,
-          },
-          {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: progressText,
-              },
-            ],
-            accessory: {
-              type: 2,
-              style: 2,
-              custom_id: `milestone_status_${state.guildId}`,
-              label: summary,
-              disabled: true,
-            },
-          },
-          {
-            type: 14,
-            divider: true,
-            spacing: 1,
-          },
-          {
-            type: 10,
-            content: giveawaySection,
-          },
-        ],
+        components: cardComponents,
       },
     ],
   };
