@@ -25,7 +25,7 @@ function percent(current, target) {
 function progressBar(current, target, size = 18) {
   const pct = percent(current, target);
   const filled = Math.round((pct / 100) * size);
-  return `${'█'.repeat(filled)}${'░'.repeat(Math.max(0, size - filled))} ${pct}%`;
+  return `## ${'█'.repeat(filled)}${'░'.repeat(Math.max(0, size - filled))} ${pct}%`;
 }
 
 function normalizeRewards(text) {
