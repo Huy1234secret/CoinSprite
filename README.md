@@ -1,20 +1,31 @@
-# CoinSprite Discord Bot
+# CoinSprite Milestone Giveaway Bot
 
-A simple Discord bot written in JavaScript that serves as a starting point for building out slash commands with Discord.js.
+A Discord bot focused on milestone-based giveaway tracking.
 
-## Features
-- Discord.js client with automatic command registration from the `commands/` directory.
-- Safe error handling helper for user interactions.
+## Command
+- `/start-giveaway-milestone`
+  - Opens a modal form with:
+    - Giveaway Reward (long paragraph)
+    - Winner (number only)
+    - User milestone (number only)
+  - Posts a Components V2 giveaway panel.
+  - Automatically refreshes every 10 minutes.
+  - Counts only real users (bots ignored).
+  - When milestone is reached, the old panel is deleted and replaced with a reached panel that pings `<@&1493901068688429207>`.
+
+## Persistence
+Active giveaway panel data is stored in `data/milestone-state.json` so progress survives bot restarts/crashes.
 
 ## Setup
-1. **Install dependencies**
+1. Install dependencies:
    ```bash
    npm install
    ```
-2. **Configure environment**
-   - Copy `.env.example` to `.env` and set `DISCORD_TOKEN` to your bot token.
-
-3. **Run the bot**
+2. Configure `.env`:
+   ```env
+   DISCORD_TOKEN=your_token_here
+   ```
+3. Run bot:
    ```bash
    npm start
    ```
