@@ -1,20 +1,46 @@
-# CoinSprite Milestone Giveaway Bot
+# CoinSprite Reward + Milestone Bot
 
-A Discord bot focused on milestone-based giveaway tracking.
+A Discord bot for milestone giveaway tracking and invite-based rewards.
 
-## Command
+## Slash Commands
 - `/start-giveaway-milestone`
-  - Opens a modal form with:
-    - Giveaway Reward (long paragraph)
-    - Winner (number only)
-    - User milestone (number only)
-  - Posts a Components V2 giveaway panel.
-  - Automatically refreshes every 10 minutes.
+  - Opens a modal for giveaway reward, winner count, and milestone user count.
+  - Posts a Components V2 milestone panel.
+  - Refreshes automatically.
   - Counts only real users (bots ignored).
-  - When milestone is reached, the old panel is deleted and replaced with a reached panel that pings `<@&1493901068688429207>`.
+- `/invite-points`
+  - Shows the user's current Invite Points.
+- `/reward-inventory`
+  - Shows the user's current reward inventory.
+
+## Invite Reward System
+- Tracks invite usage and awards rewards only when:
+  - Invited account age is at least 4 days.
+  - Reward tier is active based on current member count.
+- Per eligible invite:
+  - +1 Invite Point.
+  - Tier-based Clan / Race / Trait Rerolls.
+- A green invitation-rules message is maintained in channel `1494329296670425279` and auto-updated when member tiers change.
+
+### Reward tiers
+- 15–30 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
+- 31–49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
+- 50–100 members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
+
+## Console-style PR Commands (Discord message commands)
+Use in a guild channel with Administrator permission:
+- `PR add/remove {userID} {item} {amount}`
+- `PR blacklist add/remove {userID} {reason}`
+
+Supported item aliases (case-insensitive):
+- Clan Reroll, Clan Rerolls, CRR
+- Trait Reroll, Trait Rerolls, TRR
+- Race Reroll, Race Rerolls, RRR
+- Invite Point, Invite Points, IP
 
 ## Persistence
-Active giveaway panel data is stored in `data/milestone-state.json` so progress survives bot restarts/crashes.
+- Milestone state: `data/milestone-state.json`
+- Invite reward state: `data/invite-rewards-state.json`
 
 ## Setup
 1. Install dependencies:

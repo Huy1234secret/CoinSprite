@@ -10,6 +10,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildInvites,
+    GatewayIntentBits.MessageContent,
   ],
 });
 
@@ -33,6 +35,39 @@ client.once(Events.ClientReady, async () => {
   for (const command of client.commands.values()) {
     if (typeof command.init === 'function') {
       await command.init(client);
+    }
+  }
+});
+
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleGuildMemberAdd === 'function') {
+      await command.handleGuildMemberAdd(member, client);
+    }
+  }
+});
+
+client.on(Events.InviteCreate, async (invite) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleInviteCreate === 'function') {
+      await command.handleInviteCreate(invite, client);
+    }
+  }
+});
+
+client.on(Events.InviteDelete, async (invite) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleInviteDelete === 'function') {
+      await command.handleInviteDelete(invite, client);
+    }
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleMessageCreate === 'function') {
+      await command.handleMessageCreate(message, client);
     }
   }
 });
