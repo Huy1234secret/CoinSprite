@@ -13,14 +13,11 @@ module.exports = {
   async execute(interaction) {
     const userState = manager.loadGuildUserState(interaction.guildId, interaction.user.id);
     if (userState.blacklisted) {
-      await interaction.reply({ ...manager.createBlacklistedPayload(), ephemeral: true });
+      await interaction.reply(manager.createBlacklistedPayload());
       return;
     }
 
     const rewardLines = manager.getRewardLines(userState);
-    await interaction.reply({
-      ...manager.createRewardInventoryPayload(interaction.user.username, rewardLines),
-      ephemeral: true,
-    });
+    await interaction.reply(manager.createRewardInventoryPayload(interaction.user.username, rewardLines));
   },
 };
