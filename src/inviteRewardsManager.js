@@ -53,9 +53,22 @@ function formatPrizeLine(rewardData) {
   return `${rewardData.clanRerolls} Clan Rerolls, ${rewardData.raceRerolls} Race Rerolls, and ${rewardData.traitRerolls} Trait Rerolls`;
 }
 
+function getTierThreshold(tier) {
+  const numbers = String(tier.label ?? '')
+    .match(/\d+/g)
+    ?.map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+
+  if (numbers?.length) {
+    return Math.max(...numbers);
+  }
+
+  return tier.maxMembers ?? tier.minMembers;
+}
+
 function buildRulesCard(guild, tier) {
   const prizeText = tier ? formatPrizeLine(tier.rewards) : 'No active prize tier yet. Keep inviting members!';
-  const tierLabel = tier ? tier.label : '15';
+  const tierThreshold = tier ? getTierThreshold(tier) : 15;
 
   const content = [
     '## INVITATION RULES',
@@ -64,7 +77,7 @@ function buildRulesCard(guild, tier) {
     '* Account must be at least 4 days old.',
     '### Prizes:',
     `* Each eligible invite gives: ${prizeText}. (Stackable)`,
-    `-# The prize increases once we reach at least ${tierLabel} members!`,
+    `-# The prize increases once we reach at least ${tierThreshold} members!`,
     '### How to Claim Your Prize',
     `Create a ticket in <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
   ].join('\n');
