@@ -24,6 +24,10 @@ module.exports = {
     await manager.onGuildMemberAdd(member);
   },
 
+  async handleGuildMemberUpdate(oldMember, newMember) {
+    await manager.onGuildMemberUpdate(oldMember, newMember);
+  },
+
   async handleInviteCreate(invite) {
     await manager.onInviteCreateOrDelete(invite);
   },
