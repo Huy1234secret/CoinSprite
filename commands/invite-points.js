@@ -13,14 +13,11 @@ module.exports = {
   async execute(interaction) {
     const userState = manager.loadGuildUserState(interaction.guildId, interaction.user.id);
     if (userState.blacklisted) {
-      await interaction.reply({ ...manager.createBlacklistedPayload(), ephemeral: true });
+      await interaction.reply(manager.createBlacklistedPayload());
       return;
     }
 
-    await interaction.reply({
-      ...manager.createInvitePointsPayload(interaction.user.username, userState.invitePoints),
-      ephemeral: true,
-    });
+    await interaction.reply(manager.createInvitePointsPayload(interaction.user.username, userState.invitePoints));
   },
 
   async handleGuildMemberAdd(member) {

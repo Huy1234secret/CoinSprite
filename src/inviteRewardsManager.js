@@ -4,6 +4,7 @@ const { loadState, saveState, ensureGuildState, ensureUserState } = require('./i
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const RULES_CHANNEL_ID = '1494329296670425279';
 const CLAIM_CHANNEL_ID = '1493971939545583836';
+const LOG_CHANNEL_ID = '1493915942047059999';
 
 const EMOJIS = {
   invitePoint: '<:InvitePoint:1494571122186915922>',
@@ -38,7 +39,23 @@ let clientRef = null;
 const inviteCache = new Map();
 
 function logReward(message) {
-  console.info(`[InviteRewards] ${message}`);
+  const logLine = `[InviteRewards] ${message}`;
+  console.info(logLine);
+
+  if (!clientRef) {
+    return;
+  }
+
+  clientRef.channels
+    .fetch(LOG_CHANNEL_ID)
+    .then((channel) => {
+      if (!channel?.isTextBased()) {
+        return null;
+      }
+
+      return channel.send(logLine);
+    })
+    .catch(() => null);
 }
 
 function sanitizeAmount(value) {
