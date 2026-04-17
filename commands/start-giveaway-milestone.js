@@ -9,7 +9,8 @@ const {
 const { randomUUID } = require('crypto');
 const { loadState, saveState } = require('../src/milestoneStore');
 
-const REFRESH_INTERVAL_MS = 60 * 1000;
+// Refresh every 5 minutes to avoid aggressive member chunk requests/rate limits.
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PING_ROLE_ID = '1493901068688429207';
 
