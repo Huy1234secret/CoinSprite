@@ -5,6 +5,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const RULES_CHANNEL_ID = '1494329296670425279';
 const CLAIM_CHANNEL_ID = '1493971939545583836';
 const LOG_CHANNEL_ID = '1493915942047059999';
+const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
 const ONBOARDING_ROLE_ID = '1494397171045503129';
 
 const EMOJIS = {
@@ -348,6 +349,15 @@ function isInvitedUserBlacklisted(guildState, userId) {
   return Boolean(guildState.invitedBlacklist[userId]?.active);
 }
 
+async function sendInviteAnnouncement(guild, invitedUserId, inviterUserId, totalInvitePoints) {
+  const channel = await guild.channels.fetch(INVITE_ANNOUNCE_CHANNEL_ID).catch(() => null);
+  if (!channel?.isTextBased()) {
+    return;
+  }
+
+  await channel.send(`<@${invitedUserId}> has been invited by <@${inviterUserId}> and has now ${totalInvitePoints} invites.`).catch(() => null);
+}
+
 async function onGuildMemberAdd(member) {
   if (member.user.bot) {
     return;
@@ -453,7 +463,8 @@ async function onGuildMemberAdd(member) {
   guildState.updatedAt = Date.now();
   saveState(state);
 
-  addRewardsToUser(guild.id, usedInvite.inviter.id, rewardPack, 'system', `eligible invite (${member.user.id})`);
+  const updatedInviterState = addRewardsToUser(guild.id, usedInvite.inviter.id, rewardPack, 'system', `eligible invite (${member.user.id})`);
+  await sendInviteAnnouncement(guild, member.user.id, usedInvite.inviter.id, updatedInviterState.invitePoints);
 
   if (hasSailorPiece(member) && !inviteRecord.bonusAwardedAt) {
     const bonusPack = getBonusRewardPack(tier);
