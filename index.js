@@ -48,6 +48,14 @@ client.on(Events.GuildMemberAdd, async (member) => {
   }
 });
 
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleGuildMemberUpdate === 'function') {
+      await command.handleGuildMemberUpdate(oldMember, newMember, client);
+    }
+  }
+});
+
 client.on(Events.InviteCreate, async (invite) => {
   for (const command of client.commands.values()) {
     if (typeof command.handleInviteCreate === 'function') {

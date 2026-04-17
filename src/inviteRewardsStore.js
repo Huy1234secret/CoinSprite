@@ -37,12 +37,20 @@ function ensureGuildState(state, guildId) {
   if (!state.guilds[guildId]) {
     state.guilds[guildId] = {
       users: {},
+      invitedUsers: {},
+      invitedBlacklist: {},
       rulesMessageId: null,
       updatedAt: Date.now(),
     };
   }
   if (!state.guilds[guildId].users || typeof state.guilds[guildId].users !== 'object') {
     state.guilds[guildId].users = {};
+  }
+  if (!state.guilds[guildId].invitedUsers || typeof state.guilds[guildId].invitedUsers !== 'object') {
+    state.guilds[guildId].invitedUsers = {};
+  }
+  if (!state.guilds[guildId].invitedBlacklist || typeof state.guilds[guildId].invitedBlacklist !== 'object') {
+    state.guilds[guildId].invitedBlacklist = {};
   }
   return state.guilds[guildId];
 }

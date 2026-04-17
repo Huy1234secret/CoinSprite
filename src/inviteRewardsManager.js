@@ -5,6 +5,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const RULES_CHANNEL_ID = '1494329296670425279';
 const CLAIM_CHANNEL_ID = '1493971939545583836';
 const LOG_CHANNEL_ID = '1493915942047059999';
+const ONBOARDING_ROLE_ID = '1494397171045503129';
 
 const EMOJIS = {
   invitePoint: '<:InvitePoint:1494571122186915922>',
@@ -21,15 +22,15 @@ const TIERS = [
     rewards: { clanRerolls: 1000, raceRerolls: 150, traitRerolls: 150 },
   },
   {
-    minMembers: 31,
+    minMembers: 30,
     maxMembers: 49,
-    label: '31 - 50',
+    label: '30 - 49',
     rewards: { clanRerolls: 500, raceRerolls: 135, traitRerolls: 135 },
   },
   {
-    minMembers: 15,
-    maxMembers: 30,
-    label: '15 - 30',
+    minMembers: 0,
+    maxMembers: 29,
+    label: '0 - 29',
     rewards: { clanRerolls: 250, raceRerolls: 120, traitRerolls: 120 },
   },
 ];
@@ -85,7 +86,7 @@ function getTierThreshold(tier) {
 
 function buildRulesCard(guild, tier) {
   const prizeText = tier ? formatPrizeLine(tier.rewards) : 'No active prize tier yet. Keep inviting members!';
-  const tierThreshold = tier ? getTierThreshold(tier) : 15;
+  const tierThreshold = tier ? getTierThreshold(tier) : 30;
 
   const content = [
     '## INVITATION RULES',
@@ -305,7 +306,46 @@ function addRewardsToUser(guildId, userId, rewardDelta, inviterId, reason) {
 }
 
 function hasSailorPiece(member) {
-  return member.roles.cache.some((role) => role.name.toLowerCase() === 'sailor piece');
+  return member.roles.cache.has(ONBOARDING_ROLE_ID);
+}
+
+function getTierRewardPack(tier, bonusMultiplier = 1) {
+  return {
+    clanRerolls: sanitizeAmount(tier.rewards.clanRerolls * bonusMultiplier),
+    traitRerolls: sanitizeAmount(tier.rewards.traitRerolls * bonusMultiplier),
+    raceRerolls: sanitizeAmount(tier.rewards.raceRerolls * bonusMultiplier),
+    invitePoints: 1,
+  };
+}
+
+function getBonusRewardPack(tier) {
+  return {
+    clanRerolls: sanitizeAmount(tier.rewards.clanRerolls * 0.1),
+    traitRerolls: sanitizeAmount(tier.rewards.traitRerolls * 0.1),
+    raceRerolls: sanitizeAmount(tier.rewards.raceRerolls * 0.1),
+    invitePoints: 0,
+  };
+}
+
+function upsertInvitedUserRecord(guildState, invitedUserId, patch) {
+  const current = guildState.invitedUsers[invitedUserId] || {
+    inviterId: null,
+    rewardedAt: null,
+    bonusAwardedAt: null,
+    joinedAt: Date.now(),
+    ignoredReason: '',
+    updatedAt: Date.now(),
+  };
+  guildState.invitedUsers[invitedUserId] = {
+    ...current,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+  return guildState.invitedUsers[invitedUserId];
+}
+
+function isInvitedUserBlacklisted(guildState, userId) {
+  return Boolean(guildState.invitedBlacklist[userId]?.active);
 }
 
 async function onGuildMemberAdd(member) {
@@ -354,29 +394,77 @@ async function onGuildMemberAdd(member) {
   const state = loadState();
   const guildState = ensureGuildState(state, guild.id);
   const inviterState = ensureUserState(guildState, usedInvite.inviter.id);
+  if (isInvitedUserBlacklisted(guildState, member.user.id)) {
+    const blacklistEntry = guildState.invitedBlacklist[member.user.id];
+    upsertInvitedUserRecord(guildState, member.user.id, {
+      inviterId: usedInvite.inviter.id,
+      joinedAt: Date.now(),
+      ignoredReason: `Invited user blacklisted: ${blacklistEntry.reason || 'No reason provided'}`,
+    });
+    guildState.updatedAt = Date.now();
+    saveState(state);
+    logReward(`Invite ignored for ${usedInvite.inviter.id}; invited user ${member.user.id} is blacklisted.`);
+    return;
+  }
+
+  const invitedHistory = guildState.invitedUsers[member.user.id];
+  if (invitedHistory?.rewardedAt) {
+    saveState(state);
+    logReward(
+      `Invite ignored for ${usedInvite.inviter.id}; invited user ${member.user.id} already rewarded (inviter ${invitedHistory.inviterId}).`,
+    );
+    return;
+  }
+
   if (inviterState.blacklisted) {
+    upsertInvitedUserRecord(guildState, member.user.id, {
+      inviterId: usedInvite.inviter.id,
+      joinedAt: Date.now(),
+      ignoredReason: 'Inviter is blacklisted.',
+    });
+    guildState.updatedAt = Date.now();
     saveState(state);
     logReward(`Invite ignored for blacklisted user ${usedInvite.inviter.id}.`);
     return;
   }
-  saveState(state);
 
   const humanCount = await countHumanMembers(guild).catch(() => 0);
   const tier = getTierForMembers(humanCount);
   if (!tier) {
+    upsertInvitedUserRecord(guildState, member.user.id, {
+      inviterId: usedInvite.inviter.id,
+      joinedAt: Date.now(),
+      ignoredReason: `No eligible tier at ${humanCount} members.`,
+    });
+    guildState.updatedAt = Date.now();
+    saveState(state);
     logReward(`No eligible reward tier for inviter ${usedInvite.inviter.id} at ${humanCount} members.`);
     return;
   }
 
-  const bonusMultiplier = hasSailorPiece(member) ? 1.1 : 1;
-  const rewardPack = {
-    clanRerolls: sanitizeAmount(tier.rewards.clanRerolls * bonusMultiplier),
-    traitRerolls: sanitizeAmount(tier.rewards.traitRerolls * bonusMultiplier),
-    raceRerolls: sanitizeAmount(tier.rewards.raceRerolls * bonusMultiplier),
-    invitePoints: 1,
-  };
+  const rewardPack = getTierRewardPack(tier, 1);
+
+  const inviteRecord = upsertInvitedUserRecord(guildState, member.user.id, {
+    inviterId: usedInvite.inviter.id,
+    rewardedAt: Date.now(),
+    joinedAt: Date.now(),
+    ignoredReason: '',
+  });
+  guildState.updatedAt = Date.now();
+  saveState(state);
 
   addRewardsToUser(guild.id, usedInvite.inviter.id, rewardPack, 'system', `eligible invite (${member.user.id})`);
+
+  if (hasSailorPiece(member) && !inviteRecord.bonusAwardedAt) {
+    const bonusPack = getBonusRewardPack(tier);
+    addRewardsToUser(guild.id, usedInvite.inviter.id, bonusPack, 'system', `onboarding bonus (${member.user.id})`);
+
+    const bonusState = loadState();
+    const bonusGuildState = ensureGuildState(bonusState, guild.id);
+    upsertInvitedUserRecord(bonusGuildState, member.user.id, { bonusAwardedAt: Date.now() });
+    bonusGuildState.updatedAt = Date.now();
+    saveState(bonusState);
+  }
 
   const inviter = await guild.members.fetch(usedInvite.inviter.id).catch(() => null);
   if (inviter) {
@@ -385,6 +473,51 @@ async function onGuildMemberAdd(member) {
       .send(`Hey ${inviter.user.username}, thanks for inviting ${member.user.username} to our guild! As a reward, you earned ${rewardText} 🎁.`)
       .catch(() => null);
   }
+}
+
+async function onGuildMemberUpdate(oldMember, newMember) {
+  if (newMember.user.bot) {
+    return;
+  }
+
+  const gainedOnboardingRole = !oldMember.roles.cache.has(ONBOARDING_ROLE_ID) && newMember.roles.cache.has(ONBOARDING_ROLE_ID);
+  if (!gainedOnboardingRole) {
+    return;
+  }
+
+  const state = loadState();
+  const guildState = ensureGuildState(state, newMember.guild.id);
+  const inviteRecord = guildState.invitedUsers[newMember.user.id];
+  if (!inviteRecord?.inviterId || !inviteRecord.rewardedAt || inviteRecord.bonusAwardedAt) {
+    saveState(state);
+    return;
+  }
+
+  const inviterState = ensureUserState(guildState, inviteRecord.inviterId);
+  if (inviterState.blacklisted) {
+    inviteRecord.ignoredReason = 'Bonus skipped: inviter is blacklisted.';
+    inviteRecord.updatedAt = Date.now();
+    guildState.updatedAt = Date.now();
+    saveState(state);
+    return;
+  }
+  saveState(state);
+
+  const humanCount = await countHumanMembers(newMember.guild).catch(() => 0);
+  const tier = getTierForMembers(humanCount);
+  if (!tier) {
+    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; no eligible tier at ${humanCount} members.`);
+    return;
+  }
+
+  const bonusPack = getBonusRewardPack(tier);
+  addRewardsToUser(newMember.guild.id, inviteRecord.inviterId, bonusPack, 'system', `onboarding bonus (${newMember.user.id})`);
+
+  const bonusState = loadState();
+  const bonusGuildState = ensureGuildState(bonusState, newMember.guild.id);
+  upsertInvitedUserRecord(bonusGuildState, newMember.user.id, { bonusAwardedAt: Date.now(), ignoredReason: '' });
+  bonusGuildState.updatedAt = Date.now();
+  saveState(bonusState);
 }
 
 async function onInviteCreateOrDelete(invite) {
@@ -440,9 +573,49 @@ async function onMessageCreate(message) {
     return;
   }
 
+  const inviteeBlacklistAdd = content.match(/^PR\s+invitee-blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
+  if (inviteeBlacklistAdd) {
+    const [, userId, reason] = inviteeBlacklistAdd;
+    const state = loadState();
+    const guildState = ensureGuildState(state, message.guild.id);
+    guildState.invitedBlacklist[userId] = {
+      active: true,
+      reason: reason.trim(),
+      updatedBy: message.author.id,
+      updatedAt: Date.now(),
+    };
+    guildState.updatedAt = Date.now();
+    saveState(state);
+
+    logReward(`Invitee blacklist added for ${userId} by ${message.author.id}. Reason: ${reason.trim()}`);
+    await message.reply(`Invitee blacklist added for <@${userId}>. Reason: ${reason.trim()}`);
+    return;
+  }
+
+  const inviteeBlacklistRemove = content.match(/^PR\s+invitee-blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
+  if (inviteeBlacklistRemove) {
+    const [, userId, reason] = inviteeBlacklistRemove;
+    const state = loadState();
+    const guildState = ensureGuildState(state, message.guild.id);
+    guildState.invitedBlacklist[userId] = {
+      active: false,
+      reason: reason.trim(),
+      updatedBy: message.author.id,
+      updatedAt: Date.now(),
+    };
+    guildState.updatedAt = Date.now();
+    saveState(state);
+
+    logReward(`Invitee blacklist removed for ${userId} by ${message.author.id}. Note: ${reason.trim()}`);
+    await message.reply(`Invitee blacklist removed for <@${userId}>. Note: ${reason.trim()}`);
+    return;
+  }
+
   const updateCmd = content.match(/^PR\s+(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
-    await message.reply('Invalid PR command. Use `PR add/remove {userID} {item} {amount}` or `PR blacklist add/remove {userID} {reason}`.');
+    await message.reply(
+      'Invalid PR command. Use `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
+    );
     return;
   }
 
@@ -491,6 +664,7 @@ module.exports = {
   init,
   onGuildMemberAdd,
   onInviteCreateOrDelete,
+  onGuildMemberUpdate,
   onMessageCreate,
   ensureRulesMessage,
   createBlacklistedPayload,
