@@ -16,6 +16,7 @@ const PING_ROLE_ID = '1493901068688429207';
 
 let clientRef = null;
 let refreshTimer = null;
+const memberFetchCooldownUntil = new Map();
 
 function percent(current, target) {
   if (!target || target <= 0) {
@@ -121,9 +122,31 @@ function buildMilestonePayload(state, userCount, reached = false) {
   };
 }
 
-async function getHumanMemberCount(guild) {
-  const members = await guild.members.fetch();
-  return members.filter((member) => !member.user.bot).size;
+function getRetryAfterMs(error) {
+  const retryAfterSeconds = Number(error?.data?.retry_after);
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) {
+    return null;
+  }
+  return Math.ceil(retryAfterSeconds * 1000);
+}
+
+async function getHumanMemberCount(guild, fallbackCount = null) {
+  const cooldownUntil = memberFetchCooldownUntil.get(guild.id) ?? 0;
+  if (cooldownUntil > Date.now()) {
+    return fallbackCount ?? guild.memberCount ?? 0;
+  }
+
+  try {
+    const members = await guild.members.fetch();
+    return members.filter((member) => !member.user.bot).size;
+  } catch (error) {
+    const retryAfterMs = getRetryAfterMs(error);
+    if (retryAfterMs) {
+      memberFetchCooldownUntil.set(guild.id, Date.now() + retryAfterMs);
+      return fallbackCount ?? guild.memberCount ?? 0;
+    }
+    throw error;
+  }
 }
 
 function upsertMilestoneState(nextState) {
@@ -159,7 +182,7 @@ async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
   const humanCount =
     preloadedHumanCount !== null && preloadedHumanCount !== undefined
       ? preloadedHumanCount
-      : await getHumanMemberCount(guild);
+      : await getHumanMemberCount(guild, entry.lastKnownUsers);
   const reached = humanCount >= entry.milestoneUsers;
 
   if (!reached) {
@@ -187,7 +210,7 @@ async function refreshAllMilestones() {
     try {
       if (!guildCountCache.has(entry.guildId)) {
         const guild = await clientRef?.guilds.fetch(entry.guildId).catch(() => null);
-        const humanCount = guild ? await getHumanMemberCount(guild).catch(() => null) : null;
+        const humanCount = guild ? await getHumanMemberCount(guild, entry.lastKnownUsers).catch(() => null) : null;
         guildCountCache.set(entry.guildId, humanCount);
       }
 
