@@ -92,14 +92,14 @@ function buildRulesCard(guild, tier) {
   const tierThreshold = tier ? getTierThreshold(tier) : 30;
 
   const content = [
-    '## INVITATION RULES',
+    '**INVITATION RULES**',
     '* To claim your invitation prize, make sure the invited member meets these requirements:',
-    '### Requirements:',
+    '**Requirements:**',
     '* Account must be at least 4 days old.',
-    '### Prizes:',
+    '**Prizes:**',
     `* Each eligible invite gives: ${prizeText}. (Stackable)`,
     `-# The prize increases once we reach at least ${tierThreshold} members!`,
-    '### How to Claim Your Prize',
+    '**How to Claim Your Prize**',
     `Create a ticket in <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
   ].join('\n');
 

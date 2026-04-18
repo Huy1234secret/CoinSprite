@@ -411,7 +411,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
           {
             type: 10,
             content:
-              `<@${userId}> Welcome!\n## ${ticketType.label}'s ticket\n* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!`,
+              `<@${userId}> Welcome!\n**${ticketType.label} Ticket**\n* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!`,
           },
           { type: 14, divider: true, spacing: 0 },
           {
