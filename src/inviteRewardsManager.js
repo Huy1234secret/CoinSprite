@@ -19,8 +19,8 @@ const EMOJIS = {
 const TIERS = [
   {
     minMembers: 50,
-    maxMembers: 100,
-    label: '50 - 100',
+    maxMembers: null,
+    label: '50+',
     rewards: { clanRerolls: 1000, raceRerolls: 150, traitRerolls: 150 },
   },
   {
@@ -67,29 +67,36 @@ function sanitizeAmount(value) {
 }
 
 function getTierForMembers(memberCount) {
-  return TIERS.find((tier) => memberCount >= tier.minMembers && memberCount <= tier.maxMembers) ?? null;
+  return (
+    TIERS.find((tier) => {
+      const maxMembers = Number.isFinite(tier.maxMembers) ? tier.maxMembers : Number.POSITIVE_INFINITY;
+      return memberCount >= tier.minMembers && memberCount <= maxMembers;
+    }) ?? null
+  );
 }
 
 function formatPrizeLine(rewardData) {
   return `${rewardData.clanRerolls} Clan Rerolls, ${rewardData.raceRerolls} Race Rerolls, and ${rewardData.traitRerolls} Trait Rerolls`;
 }
 
-function getTierThreshold(tier) {
-  const numbers = String(tier.label ?? '')
-    .match(/\d+/g)
-    ?.map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
-
-  if (numbers?.length) {
-    return Math.max(...numbers);
+function getNextTierThreshold(tier) {
+  if (!tier) {
+    return TIERS[TIERS.length - 1]?.minMembers ?? 30;
   }
 
-  return tier.maxMembers ?? tier.minMembers;
+  const sorted = [...TIERS].sort((a, b) => a.minMembers - b.minMembers);
+  const currentIndex = sorted.findIndex((candidate) => candidate.minMembers === tier.minMembers && candidate.label === tier.label);
+  if (currentIndex === -1) {
+    return tier.minMembers;
+  }
+
+  const nextTier = sorted[currentIndex + 1];
+  return nextTier?.minMembers ?? null;
 }
 
 function buildRulesCard(guild, tier) {
   const prizeText = tier ? formatPrizeLine(tier.rewards) : 'No active prize tier yet. Keep inviting members!';
-  const tierThreshold = tier ? getTierThreshold(tier) : 30;
+  const nextTierThreshold = getNextTierThreshold(tier);
   const thumbnail = guild.iconURL();
 
   const content = [
@@ -99,7 +106,9 @@ function buildRulesCard(guild, tier) {
     '* Account must be at least 4 days old.',
     '**Prizes:**',
     `* Each eligible invite gives: ${prizeText}. (Stackable)`,
-    `-# The prize increases once we reach at least ${tierThreshold} members!`,
+    nextTierThreshold
+      ? `-# The prize increases once we reach at least ${nextTierThreshold} members!`
+      : '-# You are currently in the highest reward tier.',
     '**How to Claim Your Prize**',
     `Create a ticket in <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
   ].join('\n');
