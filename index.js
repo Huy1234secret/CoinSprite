@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { config } = require('dotenv');
+const { logCommandUse, logCommandSystem } = require('./src/commandLogger');
 
 config();
 
@@ -31,6 +32,7 @@ client.once(Events.ClientReady, async () => {
   const slashCommands = client.commands.map((command) => command.data.toJSON());
   await client.application.commands.set(slashCommands);
   console.info(`Ready as ${client.user.tag}`);
+  logCommandSystem(`Bot ready as ${client.user.tag}`);
 
   for (const command of client.commands.values()) {
     if (typeof command.init === 'function') {
@@ -85,6 +87,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
+        logCommandUse({
+          userId: interaction.user.id,
+          command: `/${interaction.commandName}`,
+          channelId: interaction.channelId ?? 'unknown',
+        });
         await command.execute(interaction, client);
       }
       return;
@@ -94,12 +101,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (typeof command.handleInteraction === 'function') {
         const handled = await command.handleInteraction(interaction, client);
         if (handled) {
+          if (interaction.user) {
+            logCommandUse({
+              userId: interaction.user.id,
+              command: interaction.customId ?? interaction.type,
+              channelId: interaction.channelId ?? 'unknown',
+            });
+          }
           return;
         }
       }
     }
   } catch (error) {
     console.error('Interaction error:', error);
+    logCommandSystem(`Interaction error: ${error?.message ?? 'unknown error'}`);
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction.reply({
         content: 'An error happened while handling this interaction.',
@@ -111,6 +126,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
+  logCommandSystem('Startup failed: DISCORD_TOKEN environment variable is not set.');
   throw new Error('DISCORD_TOKEN environment variable is not set.');
 }
 
