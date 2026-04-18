@@ -90,6 +90,7 @@ function getTierThreshold(tier) {
 function buildRulesCard(guild, tier) {
   const prizeText = tier ? formatPrizeLine(tier.rewards) : 'No active prize tier yet. Keep inviting members!';
   const tierThreshold = tier ? getTierThreshold(tier) : 30;
+  const thumbnail = guild.iconURL();
 
   const content = [
     '## INVITATION RULES',
@@ -112,12 +113,9 @@ function buildRulesCard(guild, tier) {
         components: [
           {
             type: 9,
-            components: [
-              { type: 10, content: guild.name },
-            ],
-            accessory: guild.iconURL() ? { type: 11, media: { url: guild.iconURL() } } : undefined,
+            components: [{ type: 10, content }],
+            accessory: thumbnail ? { type: 11, media: { url: thumbnail } } : undefined,
           },
-          { type: 10, content },
         ],
       },
     ],
