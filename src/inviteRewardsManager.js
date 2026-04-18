@@ -44,6 +44,7 @@ const inviteCache = new Map();
 function logReward(message) {
   const logLine = `[InviteRewards] ${message}`;
   console.info(logLine);
+  logCommandSystem(logLine);
 
   if (!clientRef) {
     return;
