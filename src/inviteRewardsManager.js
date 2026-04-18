@@ -622,10 +622,26 @@ async function onMessageCreate(message) {
     return;
   }
 
+  const rewardInventoryLookup = content.match(/^PR\s+RI\s+(\d{16,20})$/i);
+  if (rewardInventoryLookup) {
+    const [, userId] = rewardInventoryLookup;
+    const userState = loadGuildUserState(message.guild.id, userId);
+    if (userState.blacklisted) {
+      await message.reply(`User <@${userId}> is blacklisted from rewards.`);
+      return;
+    }
+
+    const rewardLines = getRewardLines(userState);
+    const member = await message.guild.members.fetch(userId).catch(() => null);
+    const username = member?.user?.username ?? userId;
+    await message.reply(createRewardInventoryPayload(username, rewardLines));
+    return;
+  }
+
   const updateCmd = content.match(/^PR\s+(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
     await message.reply(
-      'Invalid PR command. Use `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
+      'Invalid PR command. Use `PR RI {userID}`, `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
     );
     return;
   }

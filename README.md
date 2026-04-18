@@ -29,6 +29,7 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 
 ## Console-style PR Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
+- `PR RI {userID}`
 - `PR add/remove {userID} {item} {amount}`
 - `PR blacklist add/remove {userID} {reason}`
 
