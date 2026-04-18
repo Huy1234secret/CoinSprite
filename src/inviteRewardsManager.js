@@ -1,5 +1,6 @@
 const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./inviteRewardsStore');
+const { logCommandUse, logCommandSystem } = require('./commandLogger');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const RULES_CHANNEL_ID = '1494329296670425279';
@@ -545,7 +546,14 @@ async function onMessageCreate(message) {
     return;
   }
 
+  logCommandUse({
+    userId: message.author.id,
+    command: content,
+    channelId: message.channel.id,
+  });
+
   if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    logCommandSystem(`Unauthorized PR command attempt by ${message.author.id} in channel ${message.channel.id}`);
     await message.reply('You need Administrator permission to use PR console commands.');
     return;
   }
@@ -640,6 +648,7 @@ async function onMessageCreate(message) {
 
   const updateCmd = content.match(/^PR\s+(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
+    logCommandSystem(`Invalid PR command syntax by ${message.author.id}: ${content}`);
     await message.reply(
       'Invalid PR command. Use `PR RI {userID}`, `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
     );
