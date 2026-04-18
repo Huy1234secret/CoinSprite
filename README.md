@@ -23,9 +23,9 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - A green invitation-rules message is maintained in channel `1494329296670425279` and auto-updated when member tiers change.
 
 ### Reward tiers
-- 15–30 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
-- 31–49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
-- 50–100 members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
+- 0–29 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
+- 30–49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
+- 50+ members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
 
 ## Console-style PR Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
