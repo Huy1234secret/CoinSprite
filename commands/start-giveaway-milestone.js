@@ -12,6 +12,7 @@ const { loadState, saveState } = require('../src/milestoneStore');
 // Refresh every 5 minutes to avoid aggressive member chunk requests/rate limits.
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const PING_ROLE_ID = '1493901068688429207';
 
 let clientRef = null;
@@ -291,7 +292,7 @@ module.exports = {
     if (!/^\d+$/.test(winnerRaw) || !/^\d+$/.test(milestoneRaw)) {
       await interaction.reply({
         content: 'Winner and User milestone must be numbers only.',
-        ephemeral: true,
+        flags: EPHEMERAL_FLAG,
       });
       return true;
     }
@@ -301,12 +302,12 @@ module.exports = {
     if (winnerCount <= 0 || milestoneUsers <= 0) {
       await interaction.reply({
         content: 'Winner and User milestone must be greater than 0.',
-        ephemeral: true,
+        flags: EPHEMERAL_FLAG,
       });
       return true;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: EPHEMERAL_FLAG });
 
     const humanCount = await getHumanMemberCount(interaction.guild);
     const rewardLines = normalizeRewards(rewardText);

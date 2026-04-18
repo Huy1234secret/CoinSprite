@@ -13,6 +13,7 @@ const {
 const { logCommandSystem } = require('./commandLogger');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 
 const PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
@@ -181,7 +182,7 @@ function buildGuildSupportModal() {
   const modal = new ModalBuilder().setCustomId('ticket:modal:guild_support').setTitle('Guild Support Form');
   const supportType = new TextInputBuilder()
     .setCustomId('support_kind')
-    .setLabel('What type of support do you need? (Report a Member / Other support)')
+    .setLabel('Support type (Report Member / Other)')
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setPlaceholder('Report a Member');
@@ -273,7 +274,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   if (state.blacklistedUsers[userId]?.active) {
     await interaction.reply({
       content: 'You are blacklisted from the ticket system.',
-      ephemeral: true,
+      flags: EPHEMERAL_FLAG,
     });
     return true;
   }
@@ -322,7 +323,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   if (!channel) {
     await interaction.reply({
       content: 'Failed to create the ticket channel. Please contact staff.',
-      ephemeral: true,
+      flags: EPHEMERAL_FLAG,
     });
     return true;
   }
@@ -371,7 +372,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
 
   await interaction.reply({
     content: `Ticket created: ${channel}`,
-    ephemeral: true,
+    flags: EPHEMERAL_FLAG,
   });
 
   return true;
@@ -428,13 +429,13 @@ async function closeTicket(interaction, action) {
   const state = loadState();
   const ticket = state.tickets[interaction.channelId];
   if (!ticket) {
-    await interaction.reply({ content: 'This channel is not registered as a ticket.', ephemeral: true });
+    await interaction.reply({ content: 'This channel is not registered as a ticket.', flags: EPHEMERAL_FLAG });
     return true;
   }
 
   const channel = interaction.channel;
   if (!channel || !channel.isTextBased()) {
-    await interaction.reply({ content: 'Ticket channel unavailable.', ephemeral: true });
+    await interaction.reply({ content: 'Ticket channel unavailable.', flags: EPHEMERAL_FLAG });
     return true;
   }
 
@@ -459,7 +460,7 @@ async function closeTicket(interaction, action) {
       ],
     });
   } else {
-    await interaction.reply({ content: 'Starting ticket close process...', ephemeral: true });
+    await interaction.reply({ content: 'Starting ticket close process...', flags: EPHEMERAL_FLAG });
   }
 
   await channel.send({
@@ -568,14 +569,14 @@ async function init(client) {
 
 async function forceRefreshPanel(interaction) {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: 'Administrator permission required.', ephemeral: true });
+    await interaction.reply({ content: 'Administrator permission required.', flags: EPHEMERAL_FLAG });
     return;
   }
 
   const ok = await ensurePanelMessage(interaction.guild, true);
   await interaction.reply({
     content: ok ? 'Ticket panel refreshed.' : 'Ticket panel refresh failed.',
-    ephemeral: true,
+    flags: EPHEMERAL_FLAG,
   });
 }
 

@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const { config } = require('dotenv');
 const { logCommandUse, logCommandSystem } = require('./src/commandLogger');
+const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 
 config();
 
@@ -118,7 +119,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction.reply({
         content: 'An error happened while handling this interaction.',
-        ephemeral: true,
+        flags: EPHEMERAL_FLAG,
       });
     }
   }
