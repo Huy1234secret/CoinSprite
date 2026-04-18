@@ -264,6 +264,19 @@ function formatGuildSupportAnswer(value) {
   return null;
 }
 
+function canUseTicketActions(interaction) {
+  const member = interaction.member;
+  if (!member) {
+    return false;
+  }
+
+  if (member.permissions?.has(PermissionFlagsBits.Administrator)) {
+    return true;
+  }
+
+  return member.roles?.cache?.has(ADMIN_ROLE_ID) ?? false;
+}
+
 async function ensurePanelMessage(guild, force = false) {
   const state = loadState();
   const channel = await guild.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
@@ -618,6 +631,14 @@ async function handleInteraction(interaction) {
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:actions') {
+    if (!canUseTicketActions(interaction)) {
+      await interaction.reply({
+        content: 'Only administrators or members with the admin role can use ticket actions.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
     const action = interaction.values[0];
     if (action === 'close' || action === 'blacklist') {
       return closeTicket(interaction, action);
