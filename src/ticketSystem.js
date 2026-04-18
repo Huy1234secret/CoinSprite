@@ -600,7 +600,7 @@ async function handleInteraction(interaction) {
       interaction,
       TICKET_TYPES.guild_support,
       'What type of support do you need?',
-      '-# Answer hidden. Please explain your issue in this ticket.',
+      answer,
     );
   }
 
