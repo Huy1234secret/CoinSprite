@@ -121,13 +121,13 @@ function buildPanelPayload(guild) {
             accessory: guild.iconURL() ? { type: 11, media: { url: guild.iconURL() } } : undefined,
           },
           { type: 10, content: 'Need help? Please open the correct ticket type below.' },
-          { type: 14, divider: true, spacing: 1 },
+          { type: 14, divider: true, spacing: 0 },
           {
             type: 10,
             content:
               '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
           },
-          { type: 14, divider: true, spacing: 1 },
+          { type: 14, divider: true, spacing: 0 },
           {
             type: 1,
             components: [
@@ -353,12 +353,12 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
             content:
               `<@${userId}> Welcome!\n## ${ticketType.label}'s ticket\n* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!`,
           },
-          { type: 14, divider: true, spacing: 1 },
+          { type: 14, divider: true, spacing: 0 },
           {
             type: 10,
             content: `${formQuestion}\n${formAnswer}`,
           },
-          { type: 14, divider: true, spacing: 1 },
+          { type: 14, divider: true, spacing: 0 },
         ],
       },
     ],
