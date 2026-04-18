@@ -572,6 +572,9 @@ async function closeTicket(interaction, action) {
 
 async function handleInteraction(interaction) {
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:type-select') {
+    const panelPayload = buildPanelPayload(interaction.guild);
+    await interaction.message?.edit(panelPayload).catch(() => null);
+
     const selected = interaction.values[0];
     if (selected === 'guild_support') {
       await interaction.showModal(buildGuildSupportModal());
