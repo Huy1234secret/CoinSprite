@@ -4,10 +4,7 @@ const {
   ActionRowBuilder,
   ChannelType,
   MessageFlags,
-  ModalBuilder,
   StringSelectMenuBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   PermissionFlagsBits,
 } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
@@ -179,29 +176,92 @@ function buildTicketActionSelect() {
 }
 
 function buildGuildSupportModal() {
-  const modal = new ModalBuilder().setCustomId('ticket:modal:guild_support').setTitle('Guild Support Form');
-  const supportType = new TextInputBuilder()
-    .setCustomId('support_kind')
-    .setLabel('Support type (Report Member / Other)')
-    .setStyle(TextInputStyle.Short)
-    .setRequired(true)
-    .setPlaceholder('Report a Member');
-
-  modal.addComponents(new ActionRowBuilder().addComponents(supportType));
-  return modal;
+  return {
+    custom_id: 'ticket:modal:guild_support',
+    title: 'Guild Support Form',
+    components: [
+      {
+        type: 18,
+        label: 'Support type',
+        description: 'Choose the type of guild support you need.',
+        component: {
+          type: 21,
+          custom_id: 'support_kind',
+          required: true,
+          options: [
+            {
+              value: 'report_member',
+              label: 'Report Member',
+              description: 'Report a guild member issue',
+            },
+            {
+              value: 'other',
+              label: 'Other',
+              description: 'Any other guild support request',
+            },
+          ],
+        },
+      },
+    ],
+  };
 }
 
 function buildClaimRewardModal() {
-  const modal = new ModalBuilder().setCustomId('ticket:modal:claim_reward').setTitle('Claim Reward Form');
-  const username = new TextInputBuilder()
-    .setCustomId('roblox_username')
-    .setLabel('What is your Roblox username?')
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(200);
+  return {
+    custom_id: 'ticket:modal:claim_reward',
+    title: 'Claim Reward Form',
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 4,
+            custom_id: 'roblox_username',
+            style: 2,
+            label: 'What is your Roblox username?',
+            required: true,
+            max_length: 200,
+          },
+        ],
+      },
+    ],
+  };
+}
 
-  modal.addComponents(new ActionRowBuilder().addComponents(username));
-  return modal;
+function getGuildSupportSelection(interaction) {
+  const modalComponents = Array.isArray(interaction.components) ? interaction.components : [];
+
+  for (const container of modalComponents) {
+    const radio = container?.component;
+    if (radio?.type === 21 && radio.customId === 'support_kind') {
+      return radio.value ?? null;
+    }
+  }
+
+  const rawInteraction = interaction.toJSON?.() ?? null;
+  const rawComponents = rawInteraction?.data?.components;
+  if (Array.isArray(rawComponents)) {
+    for (const container of rawComponents) {
+      const radio = container?.component;
+      if (radio?.type === 21 && radio.custom_id === 'support_kind') {
+        return radio.value ?? null;
+      }
+    }
+  }
+
+  return null;
+}
+
+function formatGuildSupportAnswer(value) {
+  if (value === 'report_member') {
+    return 'Report Member';
+  }
+
+  if (value === 'other') {
+    return 'Other';
+  }
+
+  return null;
 }
 
 async function ensurePanelMessage(guild, force = false) {
@@ -525,7 +585,17 @@ async function handleInteraction(interaction) {
   }
 
   if (interaction.isModalSubmit() && interaction.customId === 'ticket:modal:guild_support') {
-    const answer = interaction.fields.getTextInputValue('support_kind');
+    const selectedValue = getGuildSupportSelection(interaction);
+    const answer = formatGuildSupportAnswer(selectedValue);
+
+    if (!answer) {
+      await interaction.reply({
+        content: 'Please choose a support type before submitting the form.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
     return createTicketFromModal(
       interaction,
       TICKET_TYPES.guild_support,
