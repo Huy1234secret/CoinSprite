@@ -105,6 +105,12 @@ function formatTicketChannelName(typeLabel, ticketId) {
 }
 
 function buildPanelPayload(guild) {
+  const thumbnail = guild.iconURL();
+  const panelBody =
+    'Need help? Please open the correct ticket type below.\n' +
+    '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n' +
+    '-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.';
+
   return {
     flags: COMPONENTS_V2_FLAG,
     components: [
@@ -114,15 +120,8 @@ function buildPanelPayload(guild) {
         components: [
           {
             type: 9,
-            components: [{ type: 10, content: 'Support Ticket' }],
-            accessory: guild.iconURL() ? { type: 11, media: { url: guild.iconURL() } } : undefined,
-          },
-          { type: 10, content: 'Need help? Please open the correct ticket type below.' },
-          { type: 14, divider: true, spacing: 0 },
-          {
-            type: 10,
-            content:
-              '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
+            components: [{ type: 10, content: `## Support Ticket\n${panelBody}` }],
+            accessory: thumbnail ? { type: 11, media: { url: thumbnail } } : undefined,
           },
           { type: 14, divider: true, spacing: 0 },
           {
@@ -176,6 +175,7 @@ function buildTicketActionSelect() {
 }
 
 function buildGuildSupportModal() {
+  const optionSuffix = Date.now();
   return {
     custom_id: 'ticket:modal:guild_support',
     title: 'Guild Support Form',
@@ -186,7 +186,7 @@ function buildGuildSupportModal() {
         description: 'Choose the type of guild support you need.',
         component: {
           type: 21,
-          custom_id: 'support_kind',
+          custom_id: `support_kind_${optionSuffix}`,
           required: true,
           options: [
             {
@@ -233,7 +233,7 @@ function getGuildSupportSelection(interaction) {
 
   for (const container of modalComponents) {
     const radio = container?.component;
-    if (radio?.type === 21 && radio.customId === 'support_kind') {
+    if (radio?.type === 21 && typeof radio.customId === 'string' && radio.customId.startsWith('support_kind_')) {
       return radio.value ?? null;
     }
   }
@@ -243,7 +243,7 @@ function getGuildSupportSelection(interaction) {
   if (Array.isArray(rawComponents)) {
     for (const container of rawComponents) {
       const radio = container?.component;
-      if (radio?.type === 21 && radio.custom_id === 'support_kind') {
+      if (radio?.type === 21 && typeof radio.custom_id === 'string' && radio.custom_id.startsWith('support_kind_')) {
         return radio.value ?? null;
       }
     }
@@ -600,7 +600,7 @@ async function handleInteraction(interaction) {
       interaction,
       TICKET_TYPES.guild_support,
       'What type of support do you need?',
-      answer,
+      '-# Answer hidden. Please explain your issue in this ticket.',
     );
   }
 
