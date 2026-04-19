@@ -320,6 +320,7 @@ function getRoleRequestSubmission(interaction) {
   const resolvedAttachments = rawData.resolved?.attachments ?? {};
   const interactionAttachments = interaction.attachments;
   const fileIds = new Set();
+  const directFiles = [];
 
   function addFileId(value) {
     if (typeof value === 'string' && value.trim()) {
@@ -328,6 +329,14 @@ function getRoleRequestSubmission(interaction) {
     }
 
     if (value && typeof value === 'object') {
+      const hasFileData =
+        typeof value.url === 'string'
+        || typeof value.proxy_url === 'string'
+        || typeof value.proxyURL === 'string';
+      if (hasFileData) {
+        directFiles.push(value);
+      }
+
       if (typeof value.id === 'string' && value.id.trim()) {
         fileIds.add(value.id);
       }
@@ -397,7 +406,7 @@ function getRoleRequestSubmission(interaction) {
     }
   }
 
-  const files = Array.from(fileIds)
+  const filesFromIds = Array.from(fileIds)
     .map((id) => {
       const resolvedFile = resolvedAttachments[id];
       if (resolvedFile && typeof resolvedFile === 'object') {
@@ -408,14 +417,23 @@ function getRoleRequestSubmission(interaction) {
     })
     .filter((value) => value && typeof value === 'object');
 
-  if (!files.length && interactionAttachments?.size) {
-    return {
-      files: Array.from(interactionAttachments.values()),
-    };
+  const dedupedFiles = [];
+  const seenFileKeys = new Set();
+  for (const file of [...directFiles, ...filesFromIds]) {
+    const fileKey = file?.id ?? file?.url ?? file?.proxy_url ?? file?.proxyURL ?? file?.filename ?? null;
+    if (!fileKey || seenFileKeys.has(fileKey)) {
+      continue;
+    }
+    seenFileKeys.add(fileKey);
+    dedupedFiles.push(file);
+  }
+
+  if (!dedupedFiles.length && interactionAttachments?.size) {
+    dedupedFiles.push(...Array.from(interactionAttachments.values()));
   }
 
   return {
-    files,
+    files: dedupedFiles,
   };
 }
 
