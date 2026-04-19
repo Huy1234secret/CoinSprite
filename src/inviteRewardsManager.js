@@ -8,6 +8,7 @@ const CLAIM_CHANNEL_ID = '1493971939545583836';
 const LOG_CHANNEL_ID = '1493915942047059999';
 const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
 const ONBOARDING_ROLE_ID = '1494397171045503129';
+const INVITATION_REWARD_CAP_MEMBERS = 150;
 
 const EMOJIS = {
   invitePoint: '<:InvitePoint:1494571122186915922>',
@@ -94,9 +95,14 @@ function getNextTierThreshold(tier) {
   return nextTier?.minMembers ?? null;
 }
 
-function buildRulesCard(guild, tier) {
-  const prizeText = tier ? formatPrizeLine(tier.rewards) : 'No active prize tier yet. Keep inviting members!';
-  const nextTierThreshold = getNextTierThreshold(tier);
+function buildRulesCard(guild, tier, memberCount) {
+  const capped = isInvitationRewardCapped(memberCount);
+  const prizeText = capped
+    ? 'Invitation rewards have ended at 150 members. Eligible invites now grant Invite Points only.'
+    : tier
+      ? formatPrizeLine(tier.rewards)
+      : 'No active prize tier yet. Keep inviting members!';
+  const nextTierThreshold = capped ? null : getNextTierThreshold(tier);
   const thumbnail = guild.iconURL();
 
   const content = [
@@ -278,7 +284,7 @@ async function ensureRulesMessage(guild) {
     return;
   }
 
-  const payload = buildRulesCard(guild, tier);
+  const payload = buildRulesCard(guild, tier, memberCount);
   let sentMessage = null;
 
   if (guildState.rulesMessageId) {
@@ -348,6 +354,10 @@ function getBonusRewardPack(tier) {
     raceRerolls: sanitizeAmount(tier.rewards.raceRerolls * 0.1),
     invitePoints: 0,
   };
+}
+
+function isInvitationRewardCapped(memberCount) {
+  return Number(memberCount) >= INVITATION_REWARD_CAP_MEMBERS;
 }
 
 function upsertInvitedUserRecord(guildState, invitedUserId, patch) {
@@ -461,8 +471,9 @@ async function onGuildMemberAdd(member) {
   }
 
   const humanCount = await countHumanMembers(guild).catch(() => 0);
-  const tier = getTierForMembers(humanCount);
-  if (!tier) {
+  const rewardsCapped = isInvitationRewardCapped(humanCount);
+  const tier = rewardsCapped ? null : getTierForMembers(humanCount);
+  if (!rewardsCapped && !tier) {
     upsertInvitedUserRecord(guildState, member.user.id, {
       inviterId: usedInvite.inviter.id,
       joinedAt: Date.now(),
@@ -474,7 +485,9 @@ async function onGuildMemberAdd(member) {
     return;
   }
 
-  const rewardPack = getTierRewardPack(tier, 1);
+  const rewardPack = rewardsCapped
+    ? { invitePoints: 1, clanRerolls: 0, traitRerolls: 0, raceRerolls: 0 }
+    : getTierRewardPack(tier, 1);
 
   const inviteRecord = upsertInvitedUserRecord(guildState, member.user.id, {
     inviterId: usedInvite.inviter.id,
@@ -488,7 +501,7 @@ async function onGuildMemberAdd(member) {
   const updatedInviterState = addRewardsToUser(guild.id, usedInvite.inviter.id, rewardPack, 'system', `eligible invite (${member.user.id})`);
   await sendInviteAnnouncement(guild, member.user.id, usedInvite.inviter.id, updatedInviterState.invitePoints);
 
-  if (hasSailorPiece(member) && !inviteRecord.bonusAwardedAt) {
+  if (!rewardsCapped && hasSailorPiece(member) && !inviteRecord.bonusAwardedAt) {
     const bonusPack = getBonusRewardPack(tier);
     addRewardsToUser(guild.id, usedInvite.inviter.id, bonusPack, 'system', `onboarding bonus (${member.user.id})`);
 
@@ -501,10 +514,19 @@ async function onGuildMemberAdd(member) {
 
   const inviter = await guild.members.fetch(usedInvite.inviter.id).catch(() => null);
   if (inviter) {
-    const rewardText = `${rewardPack.clanRerolls} Clan Rerolls, ${rewardPack.raceRerolls} Race Rerolls, and ${rewardPack.traitRerolls} Trait Rerolls`;
-    await inviter
-      .send(`Hey ${inviter.user.username}, thanks for inviting ${member.user.username} to our guild! As a reward, you earned ${rewardText} 🎁.`)
-      .catch(() => null);
+    if (rewardsCapped) {
+      await inviter
+        .send(
+          `Hey ${inviter.user.username}, thanks for inviting ${member.user.username} to our guild! ` +
+            'The invitation reward event has ended at 150 members, but your Invite Point was still added.',
+        )
+        .catch(() => null);
+    } else {
+      const rewardText = `${rewardPack.clanRerolls} Clan Rerolls, ${rewardPack.raceRerolls} Race Rerolls, and ${rewardPack.traitRerolls} Trait Rerolls`;
+      await inviter
+        .send(`Hey ${inviter.user.username}, thanks for inviting ${member.user.username} to our guild! As a reward, you earned ${rewardText} 🎁.`)
+        .catch(() => null);
+    }
   }
 }
 
@@ -537,6 +559,10 @@ async function onGuildMemberUpdate(oldMember, newMember) {
   saveState(state);
 
   const humanCount = await countHumanMembers(newMember.guild).catch(() => 0);
+  if (isInvitationRewardCapped(humanCount)) {
+    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; reward cap reached at ${humanCount} members.`);
+    return;
+  }
   const tier = getTierForMembers(humanCount);
   if (!tier) {
     logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; no eligible tier at ${humanCount} members.`);

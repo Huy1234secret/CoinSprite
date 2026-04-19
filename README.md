@@ -20,6 +20,9 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - Per eligible invite:
   - +1 Invite Point.
   - Tier-based Clan / Race / Trait Rerolls.
+- Invitation reward cap:
+  - When the server reaches 150 members, reroll rewards end.
+  - Eligible invites still add Invite Points after the cap is reached.
 - A green invitation-rules message is maintained in channel `1494329296670425279` and auto-updated when member tiers change.
 
 ### Reward tiers
