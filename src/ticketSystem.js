@@ -316,29 +316,51 @@ function getRoleRequestSubmission(interaction) {
   const rawComponents = Array.isArray(rawData.components) ? rawData.components : [];
   const interactionComponents = Array.isArray(interaction.components) ? interaction.components : [];
   const resolvedAttachments = rawData.resolved?.attachments ?? {};
+  const interactionAttachments = interaction.attachments;
   let fileIds = [];
 
-  const componentSets = [interactionComponents, rawComponents];
-  for (const components of componentSets) {
-    for (const container of components) {
-      const component = container?.component;
-      if (!component || typeof component !== 'object') {
-        continue;
-      }
+  function collectFileIds(node) {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
 
-      const componentType = component.type;
-      const componentCustomId = component.customId ?? component.custom_id;
+    const componentType = node.type;
+    const componentCustomId = node.customId ?? node.custom_id;
 
-      if (componentType === 19 && componentCustomId === 'role_request_proof') {
-        if (Array.isArray(component.values)) {
-          fileIds = component.values;
-        }
+    if (componentType === 19 && componentCustomId === 'role_request_proof') {
+      if (Array.isArray(node.values)) {
+        fileIds = node.values;
+      } else if (Array.isArray(node.value)) {
+        fileIds = node.value;
       }
     }
+
+    if (Array.isArray(node.components)) {
+      for (const child of node.components) {
+        collectFileIds(child);
+      }
+    }
+
+    if (node.component && typeof node.component === 'object') {
+      collectFileIds(node.component);
+    }
   }
+
+  for (const components of [interactionComponents, rawComponents]) {
+    for (const rootNode of components) {
+      collectFileIds(rootNode);
+    }
+  }
+
   const files = fileIds
     .map((id) => resolvedAttachments[id])
     .filter((value) => value && typeof value === 'object');
+
+  if (!files.length && interactionAttachments?.size) {
+    return {
+      files: Array.from(interactionAttachments.values()),
+    };
+  }
 
   return {
     files,
