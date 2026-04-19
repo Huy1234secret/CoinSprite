@@ -333,11 +333,21 @@ function getRoleRequestSubmission(interaction) {
   }
 
   function addFileIds(values) {
-    if (!Array.isArray(values)) {
+    if (!values) {
       return;
     }
 
-    for (const value of values) {
+    const normalizedValues = Array.isArray(values)
+      ? values
+      : values instanceof Map
+        ? Array.from(values.values())
+        : typeof values.values === 'function'
+          ? Array.from(values.values())
+          : typeof values[Symbol.iterator] === 'function'
+            ? Array.from(values)
+            : [values];
+
+    for (const value of normalizedValues) {
       addFileId(value);
     }
   }
@@ -376,7 +386,11 @@ function getRoleRequestSubmission(interaction) {
 
   if (interaction.fields?.getUploadedFiles) {
     const uploadedFiles = interaction.fields.getUploadedFiles('role_request_proof');
-    if (uploadedFiles?.length) {
+    const hasUploadedFiles = Array.isArray(uploadedFiles)
+      ? uploadedFiles.length > 0
+      : Boolean(uploadedFiles?.size);
+
+    if (hasUploadedFiles) {
       addFileIds(uploadedFiles);
     }
   }
