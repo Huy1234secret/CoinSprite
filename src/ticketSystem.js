@@ -253,12 +253,16 @@ function buildRoleRequestModal() {
         label: 'Role Select',
         description: 'What role you wanna request?',
         component: {
-          type: 6,
+          type: 21,
           custom_id: 'role_request_role',
-          placeholder: 'Select a role to request',
-          min_values: 1,
-          max_values: 1,
           required: true,
+          options: [
+            {
+              value: ROLE_REQUEST_ROLE_ID,
+              label: 'Verified Stats Role',
+              description: `Only role <@&${ROLE_REQUEST_ROLE_ID}> can be requested.`,
+            },
+          ],
         },
       },
       {
@@ -314,27 +318,40 @@ function formatGuildSupportAnswer(value) {
 }
 
 function getRoleRequestSubmission(interaction) {
-  const rawInteraction = interaction.toJSON?.() ?? null;
-  const data = rawInteraction?.data ?? {};
-  const components = Array.isArray(data.components) ? data.components : [];
-  const resolvedRoles = data.resolved?.roles ?? {};
-  const resolvedAttachments = data.resolved?.attachments ?? {};
+  const resolvedInteraction = interaction.toJSON?.() ?? null;
+  const rawData = resolvedInteraction?.data ?? {};
+  const rawComponents = Array.isArray(rawData.components) ? rawData.components : [];
+  const interactionComponents = Array.isArray(interaction.components) ? interaction.components : [];
+  const resolvedRoles = rawData.resolved?.roles ?? {};
+  const resolvedAttachments = rawData.resolved?.attachments ?? {};
 
   let roleId = null;
   let fileIds = [];
 
-  for (const container of components) {
-    const component = container?.component;
-    if (!component || typeof component !== 'object') {
-      continue;
-    }
+  const componentSets = [interactionComponents, rawComponents];
+  for (const components of componentSets) {
+    for (const container of components) {
+      const component = container?.component;
+      if (!component || typeof component !== 'object') {
+        continue;
+      }
 
-    if (component.type === 6 && component.custom_id === 'role_request_role') {
-      roleId = Array.isArray(component.values) ? component.values[0] ?? null : null;
-    }
+      const componentType = component.type;
+      const componentCustomId = component.customId ?? component.custom_id;
 
-    if (component.type === 19 && component.custom_id === 'role_request_proof') {
-      fileIds = Array.isArray(component.values) ? component.values : [];
+      if ((componentType === 6 || componentType === 21 || componentType === 3) && componentCustomId === 'role_request_role') {
+        if (Array.isArray(component.values) && component.values.length > 0) {
+          roleId = component.values[0] ?? roleId;
+        } else if (typeof component.value === 'string' && component.value.trim().length > 0) {
+          roleId = component.value;
+        }
+      }
+
+      if (componentType === 19 && componentCustomId === 'role_request_proof') {
+        if (Array.isArray(component.values)) {
+          fileIds = component.values;
+        }
+      }
     }
   }
 
@@ -350,6 +367,7 @@ function getRoleRequestSubmission(interaction) {
     fileNames,
   };
 }
+
 
 function canUseTicketActions(interaction) {
   const member = interaction.member;
