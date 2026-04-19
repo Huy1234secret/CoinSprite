@@ -37,10 +37,10 @@ const TICKET_TYPES = {
   },
   role_request: {
     key: 'role_request',
-    label: 'Role Request',
+    label: 'Request role: Crew Member+',
     channelLabel: 'Role Request',
-    description: 'This ticket is used to submit a verify stat request for a role.',
-    emoji: '✅',
+    description: 'Submit a request to receive the role.',
+    emoji: '⭐',
   },
 };
 
@@ -246,34 +246,22 @@ function buildClaimRewardModal() {
 function buildRoleRequestModal() {
   return {
     custom_id: 'ticket:modal:role_request',
-    title: 'Role Request',
+    title: 'Crew Member+ role request',
     components: [
       {
-        type: 18,
-        label: 'Role Select',
-        description: 'What role you wanna request?',
-        component: {
-          type: 21,
-          custom_id: 'role_request_role',
-          required: true,
-          options: [
-            {
-              value: ROLE_REQUEST_ROLE_ID,
-              label: 'Verified Stats Role',
-              description: `Only role <@&${ROLE_REQUEST_ROLE_ID}> can be requested.`,
-            },
-            {
-              value: 'unavailable_other_role',
-              label: 'Other Role (Unavailable)',
-              description: 'Other roles are not requestable through this form.',
-            },
-          ],
-        },
+        type: 10,
+        content:
+          'Besure to meet the requirement:\n' +
+          '* Dmg: 1000%+\n' +
+          '* CritC: 70%+\n' +
+          '* CritD: 250%+\n' +
+          '* Level: 16000\n' +
+          '* ascension: 10',
       },
       {
         type: 18,
         label: 'File Upload',
-        description: "Provide evidence proven that you've met the role requirement.",
+        description: "Provide image/video evidence that you've met the role requirement.",
         component: {
           type: 19,
           custom_id: 'role_request_proof',
@@ -327,10 +315,7 @@ function getRoleRequestSubmission(interaction) {
   const rawData = resolvedInteraction?.data ?? {};
   const rawComponents = Array.isArray(rawData.components) ? rawData.components : [];
   const interactionComponents = Array.isArray(interaction.components) ? interaction.components : [];
-  const resolvedRoles = rawData.resolved?.roles ?? {};
   const resolvedAttachments = rawData.resolved?.attachments ?? {};
-
-  let roleId = null;
   let fileIds = [];
 
   const componentSets = [interactionComponents, rawComponents];
@@ -344,14 +329,6 @@ function getRoleRequestSubmission(interaction) {
       const componentType = component.type;
       const componentCustomId = component.customId ?? component.custom_id;
 
-      if ((componentType === 6 || componentType === 21 || componentType === 3) && componentCustomId === 'role_request_role') {
-        if (Array.isArray(component.values) && component.values.length > 0) {
-          roleId = component.values[0] ?? roleId;
-        } else if (typeof component.value === 'string' && component.value.trim().length > 0) {
-          roleId = component.value;
-        }
-      }
-
       if (componentType === 19 && componentCustomId === 'role_request_proof') {
         if (Array.isArray(component.values)) {
           fileIds = component.values;
@@ -359,17 +336,73 @@ function getRoleRequestSubmission(interaction) {
       }
     }
   }
-
-  const roleName = roleId ? resolvedRoles[roleId]?.name ?? null : null;
-  const fileNames = fileIds
-    .map((id) => resolvedAttachments[id]?.filename)
-    .filter((value) => typeof value === 'string' && value.trim().length > 0);
+  const files = fileIds
+    .map((id) => resolvedAttachments[id])
+    .filter((value) => value && typeof value === 'object');
 
   return {
-    roleId,
-    roleName,
-    fileIds,
-    fileNames,
+    files,
+  };
+}
+
+function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor, action, disableMenu }) {
+  const placeholder = action ? `This request has been ${action}` : 'Select an action';
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: accentColor,
+        components: [
+          {
+            type: 10,
+            content: `### <@${requesterId}>'s ⭐Crew Member+ role request.\n* userID: ${requesterId}`,
+          },
+          { type: 14, divider: true, spacing: 0 },
+          {
+            type: 10,
+            content: evidenceText,
+          },
+          { type: 14, divider: true, spacing: 0 },
+          {
+            type: 1,
+            components: [
+              {
+                type: 3,
+                custom_id: `ticket:role-review:${requesterId}`,
+                placeholder,
+                disabled: disableMenu,
+                options: [
+                  { label: 'Accept', value: 'accept', emoji: { name: '✅' } },
+                  { label: 'Deny', value: 'deny', emoji: { name: '❌' } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildRoleRequestResultDM(status, reason = null) {
+  const accepted = status === 'accepted';
+  const reasonText = reason ? `\n-# Reason: ${reason}` : '';
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: accepted ? 0x00ff00 : 0xff0000,
+        components: [
+          {
+            type: 10,
+            content:
+              `You ⭐Crew Member+ role request has been ${status}!.${reasonText}`,
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -748,23 +781,7 @@ async function handleInteraction(interaction) {
   if (interaction.isModalSubmit() && interaction.customId === 'ticket:modal:role_request') {
     const submission = getRoleRequestSubmission(interaction);
 
-    if (!submission.roleId) {
-      await interaction.reply({
-        content: 'Please select a role before submitting the form.',
-        flags: EPHEMERAL_FLAG,
-      });
-      return true;
-    }
-
-    if (submission.roleId !== ROLE_REQUEST_ROLE_ID) {
-      await interaction.reply({
-        content: `Only <@&${ROLE_REQUEST_ROLE_ID}> can be requested from this form.`,
-        flags: EPHEMERAL_FLAG,
-      });
-      return true;
-    }
-
-    if (!submission.fileIds.length) {
+    if (!submission.files.length) {
       await interaction.reply({
         content: 'Please upload at least one evidence file before submitting the form.',
         flags: EPHEMERAL_FLAG,
@@ -772,19 +789,131 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    const roleText = submission.roleName
-      ? `${submission.roleName} (${submission.roleId})`
-      : submission.roleId;
-    const filesText = submission.fileNames.length
-      ? submission.fileNames.join(', ')
-      : submission.fileIds.join(', ');
+    const logChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+    if (!logChannel?.isTextBased()) {
+      await interaction.reply({
+        content: 'Role request log channel is unavailable. Please contact staff.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
 
-    return createTicketFromModal(
-      interaction,
-      TICKET_TYPES.role_request,
-      "What role you wanna request?\nProvide evidence proven that you've met the role requirement.",
-      `Role: ${roleText}\nEvidence: ${filesText}`,
+    const evidenceText = submission.files
+      .map((file) => {
+        const fileUrl = file.url ?? file.proxy_url ?? null;
+        if (!fileUrl) {
+          return `• ${file.filename ?? 'Unknown file'}`;
+        }
+        return `• [${file.filename ?? 'evidence'}](${fileUrl})`;
+      })
+      .join('\n');
+
+    await logChannel.send(
+      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, {
+        accentColor: 0xffffff,
+        action: null,
+        disableMenu: false,
+      }),
     );
+
+    await interaction.reply({
+      content: 'Your ⭐Crew Member+ role request has been submitted for review.',
+      flags: EPHEMERAL_FLAG,
+    });
+
+    return true;
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('ticket:role-review:')) {
+    if (!canUseTicketActions(interaction)) {
+      await interaction.reply({
+        content: 'Only administrators or members with the admin role can review role requests.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
+    const requesterId = interaction.customId.split(':')[2];
+    const action = interaction.values[0];
+    const currentEvidenceText = interaction.message.components?.[0]?.components?.[2]?.content ?? '*No evidence provided*';
+
+    if (action === 'accept') {
+      const member = await interaction.guild.members.fetch(requesterId).catch(() => null);
+      await member?.roles.add(ROLE_REQUEST_ROLE_ID, `Role request accepted by ${interaction.user.tag}`).catch(() => null);
+
+      await interaction.update(
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+          accentColor: 0x00ff00,
+          action: 'accepted',
+          disableMenu: true,
+        }),
+      );
+
+      const user = await interaction.client.users.fetch(requesterId).catch(() => null);
+      await user?.send(buildRoleRequestResultDM('accepted')).catch(() => null);
+      return true;
+    }
+
+    if (action === 'deny') {
+      await interaction.showModal({
+        custom_id: `ticket:modal:role_request_deny:${requesterId}:${interaction.message.id}`,
+        title: 'Deny Crew Member+ request',
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 4,
+                custom_id: 'deny_reason',
+                style: 2,
+                label: 'Reason?',
+                required: true,
+                max_length: 500,
+              },
+            ],
+          },
+        ],
+      });
+      return true;
+    }
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket:modal:role_request_deny:')) {
+    if (!canUseTicketActions(interaction)) {
+      await interaction.reply({
+        content: 'Only administrators or members with the admin role can review role requests.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
+    const [, , , requesterId, messageId] = interaction.customId.split(':');
+    const reason = interaction.fields.getTextInputValue('deny_reason').trim();
+    const logChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+    const logMessage = logChannel?.isTextBased()
+      ? await logChannel.messages.fetch(messageId).catch(() => null)
+      : null;
+    const currentEvidenceText = logMessage?.components?.[0]?.components?.[2]?.content ?? '*No evidence provided*';
+
+    if (logMessage) {
+      await logMessage.edit(
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+          accentColor: 0xff0000,
+          action: 'denied',
+          disableMenu: true,
+        }),
+      );
+    }
+
+    const user = await interaction.client.users.fetch(requesterId).catch(() => null);
+    await user?.send(buildRoleRequestResultDM('denied', reason)).catch(() => null);
+
+    await interaction.reply({
+      content: 'Request denied and user notified.',
+      flags: EPHEMERAL_FLAG,
+    });
+
+    return true;
   }
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:actions') {
