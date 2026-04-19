@@ -317,7 +317,30 @@ function getRoleRequestSubmission(interaction) {
   const interactionComponents = Array.isArray(interaction.components) ? interaction.components : [];
   const resolvedAttachments = rawData.resolved?.attachments ?? {};
   const interactionAttachments = interaction.attachments;
-  let fileIds = [];
+  const fileIds = new Set();
+
+  function addFileId(value) {
+    if (typeof value === 'string' && value.trim()) {
+      fileIds.add(value);
+      return;
+    }
+
+    if (value && typeof value === 'object') {
+      if (typeof value.id === 'string' && value.id.trim()) {
+        fileIds.add(value.id);
+      }
+    }
+  }
+
+  function addFileIds(values) {
+    if (!Array.isArray(values)) {
+      return;
+    }
+
+    for (const value of values) {
+      addFileId(value);
+    }
+  }
 
   function collectFileIds(node) {
     if (!node || typeof node !== 'object') {
@@ -328,11 +351,10 @@ function getRoleRequestSubmission(interaction) {
     const componentCustomId = node.customId ?? node.custom_id;
 
     if (componentType === 19 && componentCustomId === 'role_request_proof') {
-      if (Array.isArray(node.values)) {
-        fileIds = node.values;
-      } else if (Array.isArray(node.value)) {
-        fileIds = node.value;
-      }
+      addFileIds(node.values);
+      addFileIds(node.value);
+      addFileIds(node.files);
+      addFileIds(node.attachments);
     }
 
     if (Array.isArray(node.components)) {
@@ -352,8 +374,15 @@ function getRoleRequestSubmission(interaction) {
     }
   }
 
-  const files = fileIds
-    .map((id) => resolvedAttachments[id])
+  if (interaction.fields?.getUploadedFiles) {
+    const uploadedFiles = interaction.fields.getUploadedFiles('role_request_proof');
+    if (uploadedFiles?.length) {
+      addFileIds(uploadedFiles);
+    }
+  }
+
+  const files = Array.from(fileIds)
+    .map((id) => resolvedAttachments[id] ?? id)
     .filter((value) => value && typeof value === 'object');
 
   if (!files.length && interactionAttachments?.size) {
