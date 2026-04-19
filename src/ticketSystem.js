@@ -262,6 +262,11 @@ function buildRoleRequestModal() {
               label: 'Verified Stats Role',
               description: `Only role <@&${ROLE_REQUEST_ROLE_ID}> can be requested.`,
             },
+            {
+              value: 'unavailable_other_role',
+              label: 'Other Role (Unavailable)',
+              description: 'Other roles are not requestable through this form.',
+            },
           ],
         },
       },
