@@ -265,9 +265,9 @@ function buildRoleRequestModal() {
         component: {
           type: 19,
           custom_id: 'role_request_proof',
-          min_values: 1,
+          min_values: 0,
           max_values: 10,
-          required: true,
+          required: false,
         },
       },
     ],
@@ -853,14 +853,6 @@ async function handleInteraction(interaction) {
   if (interaction.isModalSubmit() && interaction.customId === 'ticket:modal:role_request') {
     const submission = getRoleRequestSubmission(interaction);
 
-    if (!submission.files.length) {
-      await interaction.reply({
-        content: 'Please upload at least one evidence file before submitting the form.',
-        flags: EPHEMERAL_FLAG,
-      });
-      return true;
-    }
-
     const logChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
     if (!logChannel?.isTextBased()) {
       await interaction.reply({
@@ -870,15 +862,17 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    const evidenceText = submission.files
-      .map((file) => {
-        const fileUrl = file.url ?? file.proxy_url ?? null;
-        if (!fileUrl) {
-          return `• ${file.filename ?? 'Unknown file'}`;
-        }
-        return `• [${file.filename ?? 'evidence'}](${fileUrl})`;
-      })
-      .join('\n');
+    const evidenceText = submission.files.length
+      ? submission.files
+          .map((file) => {
+            const fileUrl = file.url ?? file.proxy_url ?? null;
+            if (!fileUrl) {
+              return `• ${file.filename ?? 'Unknown file'}`;
+            }
+            return `• [${file.filename ?? 'evidence'}](${fileUrl})`;
+          })
+          .join('\n')
+      : '*No evidence files uploaded.*';
 
     await logChannel.send(
       buildRoleRequestReviewPayload(interaction.user.id, evidenceText, {
