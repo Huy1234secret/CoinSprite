@@ -35,7 +35,16 @@ const TICKET_TYPES = {
     description: 'Use this ticket if you want to claim a reward. Please provide proof or details when needed.',
     emoji: '🎁',
   },
+  role_request: {
+    key: 'role_request',
+    label: 'Role Request',
+    channelLabel: 'Role Request',
+    description: 'This ticket is used to submit a verify stat request for a role.',
+    emoji: '✅',
+  },
 };
+
+const ROLE_REQUEST_ROLE_ID = '1495039173260873738';
 
 let initialized = false;
 
@@ -144,6 +153,12 @@ function buildPanelPayload(guild) {
                     value: TICKET_TYPES.claim_reward.key,
                     emoji: { name: TICKET_TYPES.claim_reward.emoji },
                   },
+                  {
+                    label: TICKET_TYPES.role_request.label,
+                    description: TICKET_TYPES.role_request.description,
+                    value: TICKET_TYPES.role_request.key,
+                    emoji: { name: TICKET_TYPES.role_request.emoji },
+                  },
                 ],
               },
             ],
@@ -228,6 +243,40 @@ function buildClaimRewardModal() {
   };
 }
 
+function buildRoleRequestModal() {
+  return {
+    custom_id: 'ticket:modal:role_request',
+    title: 'Role Request',
+    components: [
+      {
+        type: 18,
+        label: 'Role Select',
+        description: 'What role you wanna request?',
+        component: {
+          type: 6,
+          custom_id: 'role_request_role',
+          placeholder: 'Select a role to request',
+          min_values: 1,
+          max_values: 1,
+          required: true,
+        },
+      },
+      {
+        type: 18,
+        label: 'File Upload',
+        description: "Provide evidence proven that you've met the role requirement.",
+        component: {
+          type: 19,
+          custom_id: 'role_request_proof',
+          min_values: 1,
+          max_values: 10,
+          required: true,
+        },
+      },
+    ],
+  };
+}
+
 function getGuildSupportSelection(interaction) {
   const modalComponents = Array.isArray(interaction.components) ? interaction.components : [];
 
@@ -262,6 +311,44 @@ function formatGuildSupportAnswer(value) {
   }
 
   return null;
+}
+
+function getRoleRequestSubmission(interaction) {
+  const rawInteraction = interaction.toJSON?.() ?? null;
+  const data = rawInteraction?.data ?? {};
+  const components = Array.isArray(data.components) ? data.components : [];
+  const resolvedRoles = data.resolved?.roles ?? {};
+  const resolvedAttachments = data.resolved?.attachments ?? {};
+
+  let roleId = null;
+  let fileIds = [];
+
+  for (const container of components) {
+    const component = container?.component;
+    if (!component || typeof component !== 'object') {
+      continue;
+    }
+
+    if (component.type === 6 && component.custom_id === 'role_request_role') {
+      roleId = Array.isArray(component.values) ? component.values[0] ?? null : null;
+    }
+
+    if (component.type === 19 && component.custom_id === 'role_request_proof') {
+      fileIds = Array.isArray(component.values) ? component.values : [];
+    }
+  }
+
+  const roleName = roleId ? resolvedRoles[roleId]?.name ?? null : null;
+  const fileNames = fileIds
+    .map((id) => resolvedAttachments[id]?.filename)
+    .filter((value) => typeof value === 'string' && value.trim().length > 0);
+
+  return {
+    roleId,
+    roleName,
+    fileIds,
+    fileNames,
+  };
 }
 
 function canUseTicketActions(interaction) {
@@ -598,6 +685,11 @@ async function handleInteraction(interaction) {
       await interaction.showModal(buildClaimRewardModal());
       return true;
     }
+
+    if (selected === 'role_request') {
+      await interaction.showModal(buildRoleRequestModal());
+      return true;
+    }
   }
 
   if (interaction.isModalSubmit() && interaction.customId === 'ticket:modal:guild_support') {
@@ -627,6 +719,48 @@ async function handleInteraction(interaction) {
       TICKET_TYPES.claim_reward,
       'What is your Roblox username?',
       answer,
+    );
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId === 'ticket:modal:role_request') {
+    const submission = getRoleRequestSubmission(interaction);
+
+    if (!submission.roleId) {
+      await interaction.reply({
+        content: 'Please select a role before submitting the form.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
+    if (submission.roleId !== ROLE_REQUEST_ROLE_ID) {
+      await interaction.reply({
+        content: `Only <@&${ROLE_REQUEST_ROLE_ID}> can be requested from this form.`,
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
+    if (!submission.fileIds.length) {
+      await interaction.reply({
+        content: 'Please upload at least one evidence file before submitting the form.',
+        flags: EPHEMERAL_FLAG,
+      });
+      return true;
+    }
+
+    const roleText = submission.roleName
+      ? `${submission.roleName} (${submission.roleId})`
+      : submission.roleId;
+    const filesText = submission.fileNames.length
+      ? submission.fileNames.join(', ')
+      : submission.fileIds.join(', ');
+
+    return createTicketFromModal(
+      interaction,
+      TICKET_TYPES.role_request,
+      "What role you wanna request?\nProvide evidence proven that you've met the role requirement.",
+      `Role: ${roleText}\nEvidence: ${filesText}`,
     );
   }
 
