@@ -256,7 +256,7 @@ function buildRoleRequestModal() {
           'Besure to meet the requirement:\n' +
           '* Dmg: 1000%+\n' +
           '* CritC: 70%+\n' +
-          '* CritD: 250%+\n' +
+          '* CritD: 225%+\n' +
           '* Level: 16000\n' +
           '* ascension: 10',
       },
@@ -1001,8 +1001,40 @@ async function handleInteraction(interaction) {
     const currentEvidenceMediaGallery = messageComponents.filter((component) => component?.type === 12);
 
     if (action === 'accept') {
+      const role = await interaction.guild.roles.fetch(ROLE_REQUEST_ROLE_ID).catch(() => null);
+      if (!role) {
+        await interaction.reply({
+          content: `Unable to assign role: role \`${ROLE_REQUEST_ROLE_ID}\` was not found. Please check the role configuration.`,
+          flags: EPHEMERAL_FLAG,
+        });
+        return true;
+      }
+
       const member = await interaction.guild.members.fetch(requesterId).catch(() => null);
-      await member?.roles.add(ROLE_REQUEST_ROLE_ID, `Role request accepted by ${interaction.user.tag}`).catch(() => null);
+      if (!member) {
+        await interaction.reply({
+          content: 'Unable to assign role: requester is no longer in the server.',
+          flags: EPHEMERAL_FLAG,
+        });
+        return true;
+      }
+
+      const roleAddError = await member.roles
+        .add(role.id, `Role request accepted by ${interaction.user.tag}`)
+        .then(() => null)
+        .catch((error) => error);
+
+      if (roleAddError) {
+        logCommandSystem(
+          `Failed to assign Crew Member+ role (${role.id}) to ${requesterId}: ${roleAddError.message || roleAddError}`,
+          'Ticket System',
+        );
+        await interaction.reply({
+          content: 'Unable to assign the Crew Member+ role. Please verify role hierarchy and bot permissions, then try again.',
+          flags: EPHEMERAL_FLAG,
+        });
+        return true;
+      }
 
       await interaction.update(
         buildRoleRequestReviewPayload(requesterId, currentEvidenceText, currentEvidenceMediaGallery, {
