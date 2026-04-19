@@ -236,8 +236,21 @@ function parseItem(itemRaw) {
 }
 
 async function countHumanMembers(guild) {
-  const members = await guild.members.fetch();
-  return members.filter((member) => !member.user.bot).size;
+  try {
+    const members = await guild.members.fetch();
+    return members.filter((member) => !member.user.bot).size;
+  } catch (error) {
+    const cachedHumans = guild.members?.cache?.filter((member) => !member.user.bot).size;
+    if (Number.isFinite(cachedHumans) && cachedHumans > 0) {
+      logReward(`Falling back to cached human member count for guild ${guild.id}: ${cachedHumans}.`);
+      return cachedHumans;
+    }
+
+    const rawMemberCount = Number(guild.memberCount) || 0;
+    const fallbackCount = Math.max(0, rawMemberCount);
+    logReward(`Falling back to guild.memberCount for guild ${guild.id}: ${fallbackCount}.`);
+    return fallbackCount;
+  }
 }
 
 async function refreshInviteCacheForGuild(guild) {
