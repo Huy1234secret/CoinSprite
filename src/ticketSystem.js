@@ -261,7 +261,7 @@ function buildRoleRequestModal() {
       {
         type: 18,
         label: 'File Upload',
-        description: "Upload any evidence files (images, videos, documents, etc.) that show you've met the role requirement.",
+        description: 'Upload screenshots/videos proving you meet the role requirements.',
         component: {
           type: 19,
           custom_id: 'role_request_proof',
