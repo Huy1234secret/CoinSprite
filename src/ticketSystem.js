@@ -261,7 +261,7 @@ function buildRoleRequestModal() {
       {
         type: 18,
         label: 'File Upload',
-        description: "Provide image/video evidence that you've met the role requirement.",
+        description: "Upload any evidence files (images, videos, documents, etc.) that show you've met the role requirement.",
         component: {
           type: 19,
           custom_id: 'role_request_proof',
@@ -382,7 +382,14 @@ function getRoleRequestSubmission(interaction) {
   }
 
   const files = Array.from(fileIds)
-    .map((id) => resolvedAttachments[id] ?? id)
+    .map((id) => {
+      const resolvedFile = resolvedAttachments[id];
+      if (resolvedFile && typeof resolvedFile === 'object') {
+        return resolvedFile;
+      }
+
+      return interactionAttachments?.get?.(id) ?? null;
+    })
     .filter((value) => value && typeof value === 'object');
 
   if (!files.length && interactionAttachments?.size) {
