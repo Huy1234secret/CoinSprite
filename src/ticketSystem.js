@@ -45,6 +45,8 @@ const TICKET_TYPES = {
 };
 
 const ROLE_REQUEST_ROLE_ID = '1495039173260873738';
+const TRUSTED_EVIDENCE_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
+const IMAGE_FILE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 
 let initialized = false;
 
@@ -417,7 +419,76 @@ function getRoleRequestSubmission(interaction) {
   };
 }
 
-function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor, action, disableMenu }) {
+function sanitizeInlineMarkdown(value) {
+  return String(value ?? '').replace(/[[\]()]/g, '\\$&');
+}
+
+function isTrustedEvidenceUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(value);
+    return parsedUrl.protocol === 'https:' && TRUSTED_EVIDENCE_HOSTS.has(parsedUrl.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isImageEvidenceFile(file) {
+  const contentType = String(file?.contentType ?? file?.content_type ?? '').toLowerCase();
+  if (contentType.startsWith('image/')) {
+    return true;
+  }
+
+  const filename = String(file?.filename ?? '').toLowerCase();
+  return Array.from(IMAGE_FILE_EXTENSIONS).some((extension) => filename.endsWith(extension));
+}
+
+function buildRoleRequestEvidence(files) {
+  if (!Array.isArray(files) || files.length === 0) {
+    return {
+      evidenceText: '*No evidence files uploaded.*',
+      evidenceComponents: [],
+    };
+  }
+
+  const evidenceLines = [];
+  const galleryItems = [];
+
+  for (const file of files) {
+    const rawFilename = file?.filename ?? 'evidence-file';
+    const safeFilename = sanitizeInlineMarkdown(rawFilename);
+    const fileUrl = file?.url ?? file?.proxy_url ?? null;
+    const trustedUrl = isTrustedEvidenceUrl(fileUrl) ? fileUrl : null;
+
+    evidenceLines.push(trustedUrl ? `• [${safeFilename}](${trustedUrl})` : `• ${safeFilename}`);
+
+    if (trustedUrl && isImageEvidenceFile(file) && galleryItems.length < 10) {
+      galleryItems.push({
+        media: { url: trustedUrl },
+        description: `Evidence: ${rawFilename}`.slice(0, 1024),
+      });
+    }
+  }
+
+  const evidenceComponents = galleryItems.length
+    ? [
+        {
+          type: 12,
+          items: galleryItems,
+        },
+      ]
+    : [];
+
+  return {
+    evidenceText: evidenceLines.join('\n'),
+    evidenceComponents,
+  };
+}
+
+function buildRoleRequestReviewPayload(requesterId, evidenceText, evidenceComponents, { accentColor, action, disableMenu }) {
   const placeholder = action ? `This request has been ${action}` : 'Select an action';
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -435,6 +506,7 @@ function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor,
             type: 10,
             content: evidenceText,
           },
+          ...evidenceComponents,
           { type: 14, divider: true, spacing: 0 },
           {
             type: 1,
@@ -455,6 +527,21 @@ function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor,
       },
     ],
   };
+}
+
+function extractRoleRequestEvidenceText(components) {
+  if (!Array.isArray(components)) {
+    return '*No evidence provided*';
+  }
+
+  const evidenceComponent = components.find(
+    (component) =>
+      component?.type === 10
+      && typeof component.content === 'string'
+      && (component.content.startsWith('•') || component.content.includes('No evidence')),
+  );
+
+  return evidenceComponent?.content ?? '*No evidence provided*';
 }
 
 function buildRoleRequestResultDM(status, reason = null) {
@@ -862,20 +949,10 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    const evidenceText = submission.files.length
-      ? submission.files
-          .map((file) => {
-            const fileUrl = file.url ?? file.proxy_url ?? null;
-            if (!fileUrl) {
-              return `• ${file.filename ?? 'Unknown file'}`;
-            }
-            return `• [${file.filename ?? 'evidence'}](${fileUrl})`;
-          })
-          .join('\n')
-      : '*No evidence files uploaded.*';
+    const { evidenceText, evidenceComponents } = buildRoleRequestEvidence(submission.files);
 
     await logChannel.send(
-      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, {
+      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, evidenceComponents, {
         accentColor: 0xffffff,
         action: null,
         disableMenu: false,
@@ -901,14 +978,16 @@ async function handleInteraction(interaction) {
 
     const requesterId = interaction.customId.split(':')[2];
     const action = interaction.values[0];
-    const currentEvidenceText = interaction.message.components?.[0]?.components?.[2]?.content ?? '*No evidence provided*';
+    const messageComponents = interaction.message.components?.[0]?.components ?? [];
+    const currentEvidenceText = extractRoleRequestEvidenceText(messageComponents);
+    const currentEvidenceMediaGallery = messageComponents.filter((component) => component?.type === 12);
 
     if (action === 'accept') {
       const member = await interaction.guild.members.fetch(requesterId).catch(() => null);
       await member?.roles.add(ROLE_REQUEST_ROLE_ID, `Role request accepted by ${interaction.user.tag}`).catch(() => null);
 
       await interaction.update(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, currentEvidenceMediaGallery, {
           accentColor: 0x00ff00,
           action: 'accepted',
           disableMenu: true,
@@ -959,11 +1038,13 @@ async function handleInteraction(interaction) {
     const logMessage = logChannel?.isTextBased()
       ? await logChannel.messages.fetch(messageId).catch(() => null)
       : null;
-    const currentEvidenceText = logMessage?.components?.[0]?.components?.[2]?.content ?? '*No evidence provided*';
+    const logMessageComponents = logMessage?.components?.[0]?.components ?? [];
+    const currentEvidenceText = extractRoleRequestEvidenceText(logMessageComponents);
+    const currentEvidenceMediaGallery = logMessageComponents.filter((component) => component?.type === 12);
 
     if (logMessage) {
       await logMessage.edit(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, currentEvidenceMediaGallery, {
           accentColor: 0xff0000,
           action: 'denied',
           disableMenu: true,
