@@ -735,27 +735,16 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   saveState(state);
 
   const payload = {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
+    content: `<@${userId}> Welcome!`,
+    embeds: [
       {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
-            type: 10,
-            content:
-              `<@${userId}> Welcome!\n**${ticketType.label} Ticket**\n* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!`,
-          },
-          { type: 14, divider: true, spacing: 0 },
-          {
-            type: 10,
-            content: `${formQuestion}\n${formAnswer}`,
-          },
-          { type: 14, divider: true, spacing: 0 },
-        ],
+        color: 0xffffff,
+        description:
+          `**${ticketType.label} Ticket**\n` +
+          '* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!\n\n' +
+          `${formQuestion}\n${formAnswer}`,
       },
     ],
-    componentsV2: true,
   };
 
   await channel.send(payload).catch(() => null);
