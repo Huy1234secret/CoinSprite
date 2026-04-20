@@ -14,6 +14,7 @@ const {
 const { loadState, saveState } = require('../src/ticketSystemStore');
 
 const TICKET_PANEL_CHANNEL_ID = '1493971939545583836';
+const TICKET_CATEGORY_ID = '1493971752680947802';
 const ROLE_REQUEST_REVIEW_CHANNEL_ID = '1495714584437329940';
 const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
 const STAFF_ROLE_ID = '1494993523064443065';
@@ -366,6 +367,7 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
   const ticketChannel = await guild.channels.create({
     name: sanitizeChannelName(channelName),
     type: ChannelType.GuildText,
+    parent: TICKET_CATEGORY_ID,
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
