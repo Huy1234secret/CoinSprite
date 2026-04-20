@@ -1,8 +1,7 @@
-const { MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./inviteRewardsStore');
 const { logCommandUse, logCommandSystem } = require('./commandLogger');
 
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const RULES_CHANNEL_ID = '1494329296670425279';
 const CLAIM_CHANNEL_ID = '1493971939545583836';
 const LOG_CHANNEL_ID = '1493915942047059999';
@@ -120,18 +119,11 @@ function buildRulesCard(guild, tier, memberCount) {
   ].join('\n');
 
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
+    embeds: [
       {
-        type: 17,
-        accent_color: 0x00ff00,
-        components: [
-          {
-            type: 9,
-            components: [{ type: 10, content }],
-            accessory: thumbnail ? { type: 11, media: { url: thumbnail } } : undefined,
-          },
-        ],
+        color: 0x00ff00,
+        description: content,
+        thumbnail: thumbnail ? { url: thumbnail } : undefined,
       },
     ],
   };
@@ -139,18 +131,11 @@ function buildRulesCard(guild, tier, memberCount) {
 
 function createBlacklistedPayload() {
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
+    embeds: [
       {
-        type: 17,
-        accent_color: 0x000000,
-        components: [
-          {
-            type: 10,
-            content:
-              '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please appeal through a support ticket.',
-          },
-        ],
+        color: 0x000000,
+        description:
+          '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please appeal through a support ticket.',
       },
     ],
   };
@@ -158,17 +143,10 @@ function createBlacklistedPayload() {
 
 function createInvitePointsPayload(username, invitePoints) {
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
+    embeds: [
       {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
-            type: 10,
-            content: `### ${username}'s Stats\n* ${invitePoints} ${EMOJIS.invitePoint}`,
-          },
-        ],
+        color: 0xffffff,
+        description: `### ${username}'s Stats\n* ${invitePoints} ${EMOJIS.invitePoint}`,
       },
     ],
   };
@@ -177,26 +155,15 @@ function createInvitePointsPayload(username, invitePoints) {
 function createRewardInventoryPayload(username, lines) {
   const rewardsBlock = lines.length ? lines.join('\n') : "-# You don't have any rewards yet 😔";
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
+    embeds: [
       {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
-            type: 10,
-            content: `### ${username}'s Rewards\n${rewardsBlock}`,
-          },
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 10,
-            content:
-              `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}> and create a ticket. ` +
-              'Be sure to provide the necessary information so we can help you quickly.\n' +
-              '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
-              'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
-          },
-        ],
+        color: 0xffffff,
+        description:
+          `### ${username}'s Rewards\n${rewardsBlock}\n\n` +
+          `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}> and create a ticket. ` +
+          'Be sure to provide the necessary information so we can help you quickly.\n' +
+          '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
+          'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
       },
     ],
   };
