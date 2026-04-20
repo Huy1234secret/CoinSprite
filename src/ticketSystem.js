@@ -598,7 +598,7 @@ function getRoleRequestSubmission(interaction) {
     }
 
     if (node.component && typeof node.component === 'object') {
-      collectFileIds([node.component]);
+      collectFileIds(node.component);
     }
   }
 
