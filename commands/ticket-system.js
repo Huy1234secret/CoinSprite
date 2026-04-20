@@ -128,6 +128,71 @@ function getRoleReviewActionRow(customId, placeholder = 'Choose review action', 
   };
 }
 
+function formatUploadedFileList(uploadedEvidence) {
+  const list = uploadedEvidence
+    .slice(0, 10)
+    .map((item, index) => `- [${sanitizeAttachmentName(item.filename, index)}](${item.url})`)
+    .join('\n');
+
+  return list || '- No files were detected from the form submission.';
+}
+
+function getUploadedMediaGallery(uploadedEvidence) {
+  const items = uploadedEvidence
+    .slice(0, 10)
+    .map((item, index) => ({
+      media: { url: item.url },
+      description: sanitizeAttachmentName(item.filename, index),
+    }));
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return {
+    type: 12,
+    items,
+  };
+}
+
+function getRoleRequestReviewMessageComponents({
+  userId,
+  username,
+  uploadedEvidence,
+  statusText = null,
+  statusColor = 0xffffff,
+  statusNote = null,
+}) {
+  const uploadedFileList = formatUploadedFileList(uploadedEvidence);
+  const mediaGallery = getUploadedMediaGallery(uploadedEvidence);
+  const statusLine = statusText ? `\n\n**Status:** ${statusText}` : '';
+  const statusNoteLine = statusNote ? `\n-# ${statusNote}` : '';
+
+  return [
+    {
+      type: 17,
+      accent_color: statusColor,
+      components: [
+        {
+          type: 10,
+          content:
+            `### <@${userId}>'s ⭐Crew Member+ role request.\n` +
+            `* userID: ${userId}\n` +
+            `* Roblox username: ${username}` +
+            statusLine +
+            statusNoteLine,
+        },
+        { type: 14, divider: true, spacing: 1 },
+        {
+          type: 10,
+          content: `**Uploaded files / media**\n${uploadedFileList}`,
+        },
+        ...(mediaGallery ? [mediaGallery] : []),
+      ],
+    },
+  ];
+}
+
 function container(accent, content) {
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -489,10 +554,14 @@ async function handleRoleRequestReview(interaction) {
   await interaction.update({
     flags: COMPONENTS_V2_FLAG,
     components: [
-      {
-        type: 10,
-        content: `### <@${request.userId}>'s ⭐Crew Member+ role request.\n**Status:** ✅ Accepted`,
-      },
+      ...getRoleRequestReviewMessageComponents({
+        userId: request.userId,
+        username: request.username,
+        uploadedEvidence: request.uploadedEvidence || [],
+        statusText: '✅ Accepted',
+        statusColor: 0xd5f5e3,
+        statusNote: 'This request has been accepted.',
+      }),
       getRoleReviewActionRow(interaction.customId, 'This request has been accepted', true),
     ],
   });
@@ -647,11 +716,6 @@ module.exports = {
         name: sanitizeAttachmentName(item.filename, index),
       }));
 
-      const uploadedFileList = uploadedEvidence
-        .slice(0, 10)
-        .map((item, index) => `- [${sanitizeAttachmentName(item.filename, index)}](${item.url})`)
-        .join('\n');
-
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
         await interaction.reply({
@@ -665,14 +729,12 @@ module.exports = {
         flags: COMPONENTS_V2_FLAG,
         files,
         components: [
-          {
-            type: 10,
-            content:
-              `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n` +
-              `* userID: ${interaction.user.id}\n` +
-              `* Roblox username: ${username}\n\n` +
-              `**Uploaded files / media**\n${uploadedFileList || '- No files were detected from the form submission.'}`,
-          },
+          ...getRoleRequestReviewMessageComponents({
+            userId: interaction.user.id,
+            username,
+            uploadedEvidence,
+            statusColor: 0xf8f9f9,
+          }),
           getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
         ],
       });
@@ -728,10 +790,14 @@ module.exports = {
       await interaction.update({
         flags: COMPONENTS_V2_FLAG,
         components: [
-          {
-            type: 10,
-            content: `### <@${request.userId}>'s ⭐Crew Member+ role request.\n**Status:** ❌ Denied\n-# Reason: ${reason}`,
-          },
+          ...getRoleRequestReviewMessageComponents({
+            userId: request.userId,
+            username: request.username,
+            uploadedEvidence: request.uploadedEvidence || [],
+            statusText: '❌ Denied',
+            statusColor: 0xf5b7b1,
+            statusNote: `Reason: ${reason}\nThis request has been denied.`,
+          }),
           getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`, 'This request has been denied', true),
         ],
       });
