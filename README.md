@@ -70,4 +70,5 @@ Supported item aliases (case-insensitive):
   - Request role: Crew Member+
 - Guild Support and Claim Reward create private ticket channels with staff action controls.
 - Ticket actions include close + blacklist, transcript save, and delayed channel deletion.
+- Closed ticket transcripts are sent to channel `1495788766600757418`.
 - Crew Member+ role requests are sent to channel `1495714584437329940` with accept/deny review actions.
