@@ -179,20 +179,42 @@ function getGuildSupportTypeFromModal(interaction) {
   return radio?.value ?? radio?.values?.[0] ?? null;
 }
 
+function normalizeUploadedAttachment(attachment) {
+  if (!attachment) {
+    return null;
+  }
+
+  return {
+    id: attachment.id,
+    url: attachment.url,
+    contentType: attachment.contentType || attachment.content_type || '',
+    filename: attachment.name || attachment.filename || getFilenameFromUrl(attachment.url),
+  };
+}
+
 function getUploadedAttachmentDetails(interaction) {
+  const fromFieldAccessor = typeof interaction?.fields?.getUploadedFiles === 'function'
+    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+    : [];
+
+  if (fromFieldAccessor.length > 0) {
+    return fromFieldAccessor;
+  }
+
   const fileUploadComponent = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleEvidenceUpload);
   const attachmentIds = fileUploadComponent?.values ?? [];
   const resolvedAttachments = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? {};
+  const fromResolved = attachmentIds
+    .map((id) => normalizeUploadedAttachment(resolvedAttachments[id]))
+    .filter(Boolean);
 
-  return attachmentIds
-    .map((id) => resolvedAttachments[id] || null)
-    .filter(Boolean)
-    .map((attachment) => ({
-      id: attachment.id,
-      url: attachment.url,
-      contentType: attachment.content_type || '',
-      filename: attachment.filename || getFilenameFromUrl(attachment.url),
-    }));
+  if (fromResolved.length > 0) {
+    return fromResolved;
+  }
+
+  return Array.from(interaction?.attachments?.values?.() ?? [])
+    .map(normalizeUploadedAttachment)
+    .filter(Boolean);
 }
 
 
@@ -625,18 +647,10 @@ module.exports = {
         name: sanitizeAttachmentName(item.filename, index),
       }));
 
-      const mediaItems = uploadedEvidence
-        .filter((item) => item.contentType.startsWith('image/') || item.contentType.startsWith('video/'))
-        .map((item, index) => ({
-          media: { url: `attachment://${sanitizeAttachmentName(item.filename, index)}` },
-          description: item.filename,
-        }))
-        .slice(0, 10);
-
-      const uploadedFileComponents = uploadedEvidence.slice(0, 10).map((item, index) => ({
-        type: 13,
-        file: { url: `attachment://${sanitizeAttachmentName(item.filename, index)}` },
-      }));
+      const uploadedFileList = uploadedEvidence
+        .slice(0, 10)
+        .map((item, index) => `- [${sanitizeAttachmentName(item.filename, index)}](${item.url})`)
+        .join('\n');
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
@@ -645,23 +659,13 @@ module.exports = {
       }
 
       await reviewChannel.send({
-        flags: COMPONENTS_V2_FLAG,
-        components: [
-          {
-            type: 10,
-            content: `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n* userID: ${interaction.user.id}\n* Roblox username: ${username}`,
-          },
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 10,
-            content: '**Uploaded files / media**',
-          },
-          ...(mediaItems.length > 0 ? [{ type: 12, items: mediaItems }] : []),
-          ...uploadedFileComponents,
-          { type: 14, divider: true, spacing: 1 },
-          getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
-        ],
+        content:
+          `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n` +
+          `* userID: ${interaction.user.id}\n` +
+          `* Roblox username: ${username}\n\n` +
+          `**Uploaded files / media**\n${uploadedFileList || '- No files were detected from the form submission.'}`,
         files,
+        components: [getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`)],
       });
 
       await interaction.reply({ content: 'Your Crew Member+ role request has been submitted.', flags: MessageFlags.Ephemeral });
