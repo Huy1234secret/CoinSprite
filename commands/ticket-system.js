@@ -50,34 +50,35 @@ function getTicketPanelPayload() {
               '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
           },
           { type: 14, divider: true, spacing: 1 },
-        ],
-      },
-      {
-        type: 1,
-        components: [
           {
-            type: 3,
-            custom_id: CUSTOM_IDS.panelTypeSelect,
-            placeholder: 'Choose a ticket type',
-            options: [
+            type: 1,
+            components: [
               {
-                label: 'Guild Support',
-                value: 'guild_support',
-                description: 'Use this ticket for guild help, member issues, questions, or other guild-related support.',
-                emoji: { name: '🛡️' },
-              },
-              {
-                label: 'Claim Reward',
-                value: 'claim_reward',
-                description:
-                  'Use this ticket if you want to claim a reward. Please provide proof or details when needed.',
-                emoji: { name: '🎁' },
-              },
-              {
-                label: 'Request role: Crew Member+',
-                value: 'request_role_crew_member_plus',
-                description: 'Submit a request to receive the role',
-                emoji: { name: '⭐' },
+                type: 3,
+                custom_id: CUSTOM_IDS.panelTypeSelect,
+                placeholder: 'Choose a ticket type',
+                options: [
+                  {
+                    label: 'Guild Support',
+                    value: 'guild_support',
+                    description:
+                      'Use this ticket for guild help, member issues, questions, or other guild-related support.',
+                    emoji: { name: '🛡️' },
+                  },
+                  {
+                    label: 'Claim Reward',
+                    value: 'claim_reward',
+                    description:
+                      'Use this ticket if you want to claim a reward. Please provide proof or details when needed.',
+                    emoji: { name: '🎁' },
+                  },
+                  {
+                    label: 'Request role: Crew Member+',
+                    value: 'request_role_crew_member_plus',
+                    description: 'Submit a request to receive the role',
+                    emoji: { name: '⭐' },
+                  },
+                ],
               },
             ],
           },
@@ -545,7 +546,7 @@ module.exports = {
             },
             {
               type: 18,
-              label: 'Provide evidence proven that you met the role requirement.',
+              label: 'Upload proof you meet role requirements',
               description: 'Upload screenshots/videos/files. You can also include links below.',
               component: {
                 type: 19,
