@@ -612,11 +612,14 @@ function extractRoleRequestRobloxUsername(embeds) {
 function buildRoleRequestResultDM(status, reason = null) {
   const accepted = status === 'accepted';
   const reasonText = reason ? `\nReason: ${reason}` : '';
+  const privateServerLine = accepted
+    ? '\n-# Join our private server to enter the guild: https://www.roblox.com/share?code=15f940e07e326441b5aa511a0e5b608b&type=Server'
+    : '';
   return {
     embeds: [
       new EmbedBuilder()
         .setColor(accepted ? 0x00ff00 : 0xff0000)
-        .setDescription(`Your ⭐Crew Member+ role request has been **${status.toUpperCase()}**.${reasonText}`),
+        .setDescription(`Your ⭐Crew Member+ role request has been **${status.toUpperCase()}**.${reasonText}${privateServerLine}`),
     ],
   };
 }
