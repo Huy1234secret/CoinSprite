@@ -9,7 +9,8 @@ const {
 const { logCommandSystem } = require('./commandLogger');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
+const SUPPORTS_COMPONENTS_V2 = Number.isInteger(COMPONENTS_V2_FLAG);
 
 const PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
@@ -144,6 +145,45 @@ function buildPanelPayload(guild) {
     '-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
   ].join('\n');
   const panelImage = thumbnail ? [{ type: 11, media: { url: thumbnail } }] : [];
+  const panelOptions = [
+    {
+      label: TICKET_TYPES.guild_support.label,
+      description: TICKET_TYPES.guild_support.description,
+      value: TICKET_TYPES.guild_support.key,
+      emoji: { name: TICKET_TYPES.guild_support.emoji },
+    },
+    {
+      label: TICKET_TYPES.claim_reward.label,
+      description: TICKET_TYPES.claim_reward.description,
+      value: TICKET_TYPES.claim_reward.key,
+      emoji: { name: TICKET_TYPES.claim_reward.emoji },
+    },
+    {
+      label: TICKET_TYPES.role_request.label,
+      description: TICKET_TYPES.role_request.description,
+      value: TICKET_TYPES.role_request.key,
+      emoji: { name: TICKET_TYPES.role_request.emoji },
+    },
+  ];
+
+  if (!SUPPORTS_COMPONENTS_V2) {
+    return {
+      content: `${panelHeader}\n\n${panelWarnings.replace(/-# /g, '')}`,
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: 'ticket:type-select',
+              placeholder: 'Choose a ticket type',
+              options: panelOptions,
+            },
+          ],
+        },
+      ],
+    };
+  }
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -177,26 +217,7 @@ function buildPanelPayload(guild) {
                 type: 3,
                 custom_id: 'ticket:type-select',
                 placeholder: 'Choose a ticket type',
-                options: [
-                  {
-                    label: TICKET_TYPES.guild_support.label,
-                    description: TICKET_TYPES.guild_support.description,
-                    value: TICKET_TYPES.guild_support.key,
-                    emoji: { name: TICKET_TYPES.guild_support.emoji },
-                  },
-                  {
-                    label: TICKET_TYPES.claim_reward.label,
-                    description: TICKET_TYPES.claim_reward.description,
-                    value: TICKET_TYPES.claim_reward.key,
-                    emoji: { name: TICKET_TYPES.claim_reward.emoji },
-                  },
-                  {
-                    label: TICKET_TYPES.role_request.label,
-                    description: TICKET_TYPES.role_request.description,
-                    value: TICKET_TYPES.role_request.key,
-                    emoji: { name: TICKET_TYPES.role_request.emoji },
-                  },
-                ],
+                options: panelOptions,
               },
             ],
           },
@@ -240,6 +261,16 @@ function buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer)
     `${formQuestion}`,
     `${formAnswer}`,
   ].join('\n');
+
+  if (!SUPPORTS_COMPONENTS_V2) {
+    return {
+      content: ticketDetails,
+      components: [buildTicketActionSelect()],
+      allowedMentions: {
+        users: [userId],
+      },
+    };
+  }
 
   return {
     flags: COMPONENTS_V2_FLAG,
