@@ -15,6 +15,7 @@ const PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
 const TRANSCRIPT_CHANNEL_ID = '1493974187285418157';
 const ADMIN_ROLE_ID = '1494993523064443065';
+const PANEL_HEALTHCHECK_INTERVAL_MS = 60_000;
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'ticket-state.json');
 const TRANSCRIPT_DIR = path.join(__dirname, '..', 'transcripts');
@@ -67,6 +68,8 @@ const ALLOWED_EVIDENCE_MIME_TYPES = new Set([
 ]);
 
 let initialized = false;
+let panelHealthcheckTimer = null;
+const panelEnsureInFlight = new Map();
 
 function ensureStoreFile() {
   const dir = path.dirname(STORE_PATH);
@@ -707,44 +710,85 @@ function canUseTicketActions(interaction) {
 }
 
 async function ensurePanelMessage(guild, force = false) {
-  const state = loadState();
-  const channel = await guild.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
-  if (!channel?.isTextBased()) {
-    logCommandSystem(`[TicketSystem] Panel channel ${PANEL_CHANNEL_ID} not found or not text-based.`);
+  const inFlightKey = `${guild.id}:${force ? 'force' : 'normal'}`;
+  if (panelEnsureInFlight.has(inFlightKey)) {
+    return panelEnsureInFlight.get(inFlightKey);
+  }
+
+  const run = (async () => {
+    const state = loadState();
+    const channel = await guild.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
+    if (!channel?.isTextBased()) {
+      logCommandSystem(`[TicketSystem] Panel channel ${PANEL_CHANNEL_ID} not found or not text-based.`);
+      return false;
+    }
+
+    const payload = buildPanelPayload(guild);
+    let panelMessage = null;
+
+    if (!force && state.panelMessageId) {
+      panelMessage = await channel.messages.fetch(state.panelMessageId).catch(() => null);
+      if (panelMessage) {
+        await panelMessage.edit(payload).catch(() => null);
+      }
+    }
+
+    if (!panelMessage && !force) {
+      const recent = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+      panelMessage = recent?.find((message) => message.author.id === guild.client.user.id && message.components.length > 0) ?? null;
+      if (panelMessage) {
+        await panelMessage.edit(payload).catch(() => null);
+      }
+    }
+
+    if (!panelMessage) {
+      panelMessage = await channel.send(payload).catch(() => null);
+    }
+
+    if (!panelMessage) {
+      logCommandSystem('[TicketSystem] Failed to send or update panel message.');
+      return false;
+    }
+
+    state.panelMessageId = panelMessage.id;
+    saveState(state);
+    logCommandSystem(`[TicketSystem] Panel message ensured in channel ${PANEL_CHANNEL_ID} (${panelMessage.id}).`);
+    return true;
+  })();
+
+  panelEnsureInFlight.set(inFlightKey, run);
+  try {
+    return await run;
+  } finally {
+    panelEnsureInFlight.delete(inFlightKey);
+  }
+}
+
+async function ensurePanelForGuildById(client, guildId, force = false) {
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) {
     return false;
   }
 
-  const payload = buildPanelPayload(guild);
-  let panelMessage = null;
+  return ensurePanelMessage(guild, force);
+}
 
-  if (!force && state.panelMessageId) {
-    panelMessage = await channel.messages.fetch(state.panelMessageId).catch(() => null);
-    if (panelMessage) {
-      await panelMessage.edit(payload).catch(() => null);
-    }
-  }
-
-  if (!panelMessage && !force) {
-    const recent = await channel.messages.fetch({ limit: 50 }).catch(() => null);
-    panelMessage = recent?.find((message) => message.author.id === guild.client.user.id && message.components.length > 0) ?? null;
-    if (panelMessage) {
-      await panelMessage.edit(payload).catch(() => null);
-    }
-  }
-
-  if (!panelMessage) {
-    panelMessage = await channel.send(payload).catch(() => null);
-  }
-
-  if (!panelMessage) {
-    logCommandSystem('[TicketSystem] Failed to send or update panel message.');
+function isPanelMessage(message) {
+  if (!message || message.channelId !== PANEL_CHANNEL_ID) {
     return false;
   }
 
-  state.panelMessageId = panelMessage.id;
-  saveState(state);
-  logCommandSystem(`[TicketSystem] Panel message ensured in channel ${PANEL_CHANNEL_ID} (${panelMessage.id}).`);
-  return true;
+  const rootComponents = Array.isArray(message.components) ? message.components : [];
+  for (const rootComponent of rootComponents) {
+    const childComponents = Array.isArray(rootComponent?.components) ? rootComponent.components : [];
+    for (const childComponent of childComponents) {
+      if (childComponent?.customId === 'ticket:type-select') {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function getDateStamp(now = new Date()) {
@@ -1231,6 +1275,12 @@ async function init(client) {
   for (const guild of client.guilds.cache.values()) {
     await ensurePanelMessage(guild);
   }
+
+  panelHealthcheckTimer = setInterval(async () => {
+    for (const guild of client.guilds.cache.values()) {
+      await ensurePanelMessage(guild);
+    }
+  }, PANEL_HEALTHCHECK_INTERVAL_MS);
 }
 
 async function forceRefreshPanel(interaction) {
@@ -1246,8 +1296,32 @@ async function forceRefreshPanel(interaction) {
   });
 }
 
+async function handleMessageDelete(message) {
+  if (!isPanelMessage(message)) {
+    return false;
+  }
+
+  const state = loadState();
+  if (state.panelMessageId !== message.id) {
+    return false;
+  }
+
+  state.panelMessageId = null;
+  saveState(state);
+
+  const ensured = await ensurePanelForGuildById(message.client, message.guildId, false);
+  if (ensured) {
+    logCommandSystem(`[TicketSystem] Panel message was deleted (${message.id}) and has been re-sent.`);
+  } else {
+    logCommandSystem(`[TicketSystem] Panel message was deleted (${message.id}) but resend failed.`);
+  }
+
+  return ensured;
+}
+
 module.exports = {
   init,
   handleInteraction,
   forceRefreshPanel,
+  handleMessageDelete,
 };
