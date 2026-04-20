@@ -662,13 +662,19 @@ module.exports = {
       }
 
       await reviewChannel.send({
-        content:
-          `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n` +
-          `* userID: ${interaction.user.id}\n` +
-          `* Roblox username: ${username}\n\n` +
-          `**Uploaded files / media**\n${uploadedFileList || '- No files were detected from the form submission.'}`,
+        flags: COMPONENTS_V2_FLAG,
         files,
-        components: [getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`)],
+        components: [
+          {
+            type: 10,
+            content:
+              `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n` +
+              `* userID: ${interaction.user.id}\n` +
+              `* Roblox username: ${username}\n\n` +
+              `**Uploaded files / media**\n${uploadedFileList || '- No files were detected from the form submission.'}`,
+          },
+          getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
+        ],
       });
 
       await interaction.reply({
