@@ -1,16 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  ActionRowBuilder,
   ChannelType,
   EmbedBuilder,
   MessageFlags,
-  StringSelectMenuBuilder,
   PermissionFlagsBits,
 } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
@@ -137,45 +136,56 @@ function formatTicketChannelName(typeLabel, ticketId) {
 function buildPanelPayload(guild) {
   const thumbnail = guild.iconURL();
   const panelBody = [
+    '# Support Ticket',
     'Need help? Please open the correct ticket type below.',
     '⚠️ Please do not open joke, false, or duplicate tickets.',
     '📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
   ].join('\n');
+  const panelImage = thumbnail ? [{ type: 11, media: { url: thumbnail } }] : [];
 
   return {
-    embeds: [
-      new EmbedBuilder()
-        .setTitle('Support Ticket')
-        .setDescription(panelBody)
-        .setColor(0xffffff)
-        .setThumbnail(thumbnail ?? null),
-    ],
+    flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 1,
+        type: 17,
         components: [
           {
-            type: 3,
-            custom_id: 'ticket:type-select',
-            placeholder: 'Choose a ticket type',
-            options: [
+            type: 10,
+            content: panelBody,
+          },
+          ...panelImage,
+          {
+            type: 14,
+            divider: true,
+            spacing: 2,
+          },
+          {
+            type: 1,
+            components: [
               {
-                label: TICKET_TYPES.guild_support.label,
-                description: TICKET_TYPES.guild_support.description,
-                value: TICKET_TYPES.guild_support.key,
-                emoji: { name: TICKET_TYPES.guild_support.emoji },
-              },
-              {
-                label: TICKET_TYPES.claim_reward.label,
-                description: TICKET_TYPES.claim_reward.description,
-                value: TICKET_TYPES.claim_reward.key,
-                emoji: { name: TICKET_TYPES.claim_reward.emoji },
-              },
-              {
-                label: TICKET_TYPES.role_request.label,
-                description: TICKET_TYPES.role_request.description,
-                value: TICKET_TYPES.role_request.key,
-                emoji: { name: TICKET_TYPES.role_request.emoji },
+                type: 3,
+                custom_id: 'ticket:type-select',
+                placeholder: 'Choose a ticket type',
+                options: [
+                  {
+                    label: TICKET_TYPES.guild_support.label,
+                    description: TICKET_TYPES.guild_support.description,
+                    value: TICKET_TYPES.guild_support.key,
+                    emoji: { name: TICKET_TYPES.guild_support.emoji },
+                  },
+                  {
+                    label: TICKET_TYPES.claim_reward.label,
+                    description: TICKET_TYPES.claim_reward.description,
+                    value: TICKET_TYPES.claim_reward.key,
+                    emoji: { name: TICKET_TYPES.claim_reward.emoji },
+                  },
+                  {
+                    label: TICKET_TYPES.role_request.label,
+                    description: TICKET_TYPES.role_request.description,
+                    value: TICKET_TYPES.role_request.key,
+                    emoji: { name: TICKET_TYPES.role_request.emoji },
+                  },
+                ],
               },
             ],
           },
@@ -186,23 +196,60 @@ function buildPanelPayload(guild) {
 }
 
 function buildTicketActionSelect() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('ticket:actions')
-      .setPlaceholder('Ticket Actions')
-      .addOptions(
-        {
-          label: 'Close Ticket',
-          value: 'close',
-          emoji: '⛔',
-        },
-        {
-          label: 'Blacklist User',
-          value: 'blacklist',
-          emoji: '💀',
-        },
-      ),
-  );
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: 'ticket:actions',
+        placeholder: 'Ticket Actions',
+        options: [
+          {
+            label: 'Close Ticket',
+            value: 'close',
+            emoji: { name: '⛔' },
+          },
+          {
+            label: 'Blacklist User',
+            value: 'blacklist',
+            emoji: { name: '💀' },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer) {
+  const ticketDetails = [
+    `# ${ticketType.label} Ticket`,
+    `<@${userId}> Welcome!`,
+    '* Our staff will be with you soon, please be patient and provide necessary information so the help will be faster!',
+    '',
+    `${formQuestion}`,
+    `${formAnswer}`,
+  ].join('\n');
+
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: ticketDetails,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 2,
+          },
+          buildTicketActionSelect(),
+        ],
+      },
+    ],
+  };
 }
 
 function buildGuildSupportModal() {
@@ -775,21 +822,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   };
   saveState(state);
 
-  const payload = {
-    content: `<@${userId}> Welcome!`,
-    embeds: [
-      {
-        color: 0xffffff,
-        description:
-          `**${ticketType.label} Ticket**\n` +
-          '* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!\n\n' +
-          `${formQuestion}\n${formAnswer}`,
-      },
-    ],
-  };
-
-  await channel.send(payload).catch(() => null);
-  await channel.send({ components: [buildTicketActionSelect()] }).catch(() => null);
+  await channel.send(buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer)).catch(() => null);
 
   logCommandSystem(`[TicketSystem] Created ${ticketType.label} ticket ${ticketId} in channel ${channel.id} for user ${userId}.`);
 
