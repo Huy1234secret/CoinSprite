@@ -145,11 +145,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
   } catch (error) {
     console.error('Interaction error:', error);
     logCommandSystem(`Interaction error: ${error?.message ?? 'unknown error'}`);
+
+    if (error?.code === 10062) {
+      return;
+    }
+
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: 'An error happened while handling this interaction.',
-        flags: EPHEMERAL_FLAG,
-      });
+      await interaction
+        .reply({
+          content: 'An error happened while handling this interaction.',
+          flags: EPHEMERAL_FLAG,
+        })
+        .catch((replyError) => {
+          console.error('Interaction fallback reply failed:', replyError);
+          logCommandSystem(`Interaction fallback reply failed: ${replyError?.message ?? 'unknown error'}`);
+        });
     }
   }
 });

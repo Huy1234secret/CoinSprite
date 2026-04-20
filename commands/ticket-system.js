@@ -540,6 +540,8 @@ async function handleRoleRequestReview(interaction) {
     return true;
   }
 
+  await interaction.deferUpdate();
+
   const guild = interaction.guild;
   const member = await guild.members.fetch(request.userId).catch(() => null);
   if (member) {
@@ -551,8 +553,7 @@ async function handleRoleRequestReview(interaction) {
   state.roleRequests[requestId] = request;
   saveState(state);
 
-  await interaction.update({
-    flags: COMPONENTS_V2_FLAG,
+  await interaction.editReply({
     components: [
       ...getRoleRequestReviewMessageComponents({
         userId: request.userId,
