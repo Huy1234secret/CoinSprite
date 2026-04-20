@@ -1,4 +1,4 @@
-const { PermissionFlagsBits } = require('discord.js');
+const { PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./inviteRewardsStore');
 const { logCommandUse, logCommandSystem } = require('./commandLogger');
 
@@ -8,6 +8,7 @@ const LOG_CHANNEL_ID = '1493915942047059999';
 const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
 const ONBOARDING_ROLE_ID = '1494397171045503129';
 const INVITATION_REWARD_CAP_MEMBERS = 150;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const EMOJIS = {
   invitePoint: '<:InvitePoint:1494571122186915922>',
@@ -118,12 +119,27 @@ function buildRulesCard(guild, tier, memberCount) {
     `Create a ticket in <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
   ].join('\n');
 
+  const cardComponents = [
+    {
+      type: 10,
+      content,
+    },
+  ];
+
+  if (thumbnail) {
+    cardComponents.push({
+      type: 10,
+      content: thumbnail,
+    });
+  }
+
   return {
-    embeds: [
+    flags: COMPONENTS_V2_FLAG,
+    components: [
       {
-        color: 0x00ff00,
-        description: content,
-        thumbnail: thumbnail ? { url: thumbnail } : undefined,
+        type: 17,
+        accent_color: 0x00ff00,
+        components: cardComponents,
       },
     ],
   };
@@ -131,11 +147,18 @@ function buildRulesCard(guild, tier, memberCount) {
 
 function createBlacklistedPayload() {
   return {
-    embeds: [
+    flags: COMPONENTS_V2_FLAG,
+    components: [
       {
-        color: 0x000000,
-        description:
-          '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please appeal through a support ticket.',
+        type: 17,
+        accent_color: 0x000000,
+        components: [
+          {
+            type: 10,
+            content:
+              '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please appeal through a support ticket.',
+          },
+        ],
       },
     ],
   };
@@ -143,10 +166,17 @@ function createBlacklistedPayload() {
 
 function createInvitePointsPayload(username, invitePoints) {
   return {
-    embeds: [
+    flags: COMPONENTS_V2_FLAG,
+    components: [
       {
-        color: 0xffffff,
-        description: `### ${username}'s Stats\n* ${invitePoints} ${EMOJIS.invitePoint}`,
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content: `### ${username}'s Stats\n* ${invitePoints} ${EMOJIS.invitePoint}`,
+          },
+        ],
       },
     ],
   };
@@ -155,15 +185,22 @@ function createInvitePointsPayload(username, invitePoints) {
 function createRewardInventoryPayload(username, lines) {
   const rewardsBlock = lines.length ? lines.join('\n') : "-# You don't have any rewards yet 😔";
   return {
-    embeds: [
+    flags: COMPONENTS_V2_FLAG,
+    components: [
       {
-        color: 0xffffff,
-        description:
-          `### ${username}'s Rewards\n${rewardsBlock}\n\n` +
-          `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}> and create a ticket. ` +
-          'Be sure to provide the necessary information so we can help you quickly.\n' +
-          '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
-          'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content:
+              `### ${username}'s Rewards\n${rewardsBlock}\n\n` +
+              `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}> and create a ticket. ` +
+              'Be sure to provide the necessary information so we can help you quickly.\n' +
+              '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
+              'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
+          },
+        ],
       },
     ],
   };
