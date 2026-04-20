@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
+const LOG_THREAD_ID = '1495783372591730750';
+const DISCORD_MESSAGE_LIMIT = 2000;
+
+let loggingClient = null;
+let logThreadPromise = null;
 
 function padTwo(value) {
   return String(value).padStart(2, '0');
@@ -33,6 +38,7 @@ function appendLogLine(message, now = new Date()) {
 
   const line = `${getCurrentTime(now)} // ${message}\n`;
   fs.appendFileSync(getDailyLogPath(now), line, 'utf8');
+  void postLogToThread(line.trimEnd());
 }
 
 function logCommandUse({ userId, command, channelId }) {
@@ -43,7 +49,49 @@ function logCommandSystem(message) {
   appendLogLine(`SYSTEM // ${message}`);
 }
 
+function setLogClient(client) {
+  loggingClient = client;
+  logThreadPromise = null;
+}
+
+async function getLogThread() {
+  if (!loggingClient) {
+    return null;
+  }
+
+  if (!logThreadPromise) {
+    logThreadPromise = loggingClient.channels.fetch(LOG_THREAD_ID).catch((error) => {
+      console.error(`Failed to fetch log thread ${LOG_THREAD_ID}:`, error);
+      return null;
+    });
+  }
+
+  return logThreadPromise;
+}
+
+function formatThreadLogMessage(line) {
+  const prefix = '[BOT LOG] ';
+  const maxLineLength = DISCORD_MESSAGE_LIMIT - prefix.length;
+  if (line.length <= maxLineLength) {
+    return `${prefix}${line}`;
+  }
+
+  return `${prefix}${line.slice(0, maxLineLength - 3)}...`;
+}
+
+async function postLogToThread(line) {
+  const logThread = await getLogThread();
+  if (!logThread || typeof logThread.send !== 'function') {
+    return;
+  }
+
+  await logThread.send({ content: formatThreadLogMessage(line) }).catch((error) => {
+    console.error(`Failed to send log to thread ${LOG_THREAD_ID}:`, error);
+  });
+}
+
 module.exports = {
   logCommandUse,
   logCommandSystem,
+  setLogClient,
 };

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
 const { config } = require('dotenv');
-const { logCommandUse, logCommandSystem } = require('./src/commandLogger');
+const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 
 config();
@@ -18,6 +18,7 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+setLogClient(client);
 
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
