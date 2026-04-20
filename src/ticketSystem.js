@@ -275,6 +275,19 @@ function buildRoleRequestModal() {
           '* ascension: 10',
       },
       {
+        type: 1,
+        components: [
+          {
+            type: 4,
+            custom_id: 'role_request_roblox_username',
+            style: 2,
+            label: 'Roblox username',
+            required: true,
+            max_length: 200,
+          },
+        ],
+      },
+      {
         type: 18,
         label: 'File Upload',
         description: 'Upload screenshots/videos proving you meet the role requirements.',
@@ -335,6 +348,7 @@ function getRoleRequestSubmission(interaction) {
   const interactionAttachments = interaction.attachments;
   const fileIds = new Set();
   const directFiles = [];
+  const robloxUsername = interaction.fields?.getTextInputValue?.('role_request_roblox_username') ?? '';
 
   function addFileId(value) {
     if (typeof value === 'string' && value.trim()) {
@@ -447,6 +461,7 @@ function getRoleRequestSubmission(interaction) {
   }
 
   return {
+    robloxUsername,
     files: dedupedFiles,
   };
 }
@@ -536,9 +551,10 @@ function buildRoleRequestEvidence(files) {
   };
 }
 
-function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor, action, disableMenu }) {
+function buildRoleRequestReviewPayload(requesterId, robloxUsername, evidenceText, { accentColor, action, disableMenu }) {
   const placeholder = action ? `This request has been ${action}` : 'Select an action';
   const statusText = action ? `Status: **${action.toUpperCase()}**` : 'Status: **PENDING**';
+  const sanitizedRobloxUsername = sanitizeInlineMarkdown(robloxUsername || 'Not provided');
 
   return {
     embeds: [
@@ -546,6 +562,7 @@ function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor,
         .setColor(accentColor)
         .setTitle("⭐ Crew Member+ role request")
         .setDescription(`Requester: <@${requesterId}> \`(${requesterId})\`\n${statusText}`)
+        .addFields({ name: 'Roblox username', value: sanitizedRobloxUsername.slice(0, 1024) })
         .addFields({ name: 'Evidence', value: evidenceText.slice(0, 1024) || '*No evidence files uploaded.*' }),
     ],
     components: [
@@ -578,6 +595,18 @@ function extractRoleRequestEvidenceText(embeds) {
     .find((field) => field?.name === 'Evidence' && typeof field.value === 'string');
 
   return evidenceField?.value ?? '*No evidence provided*';
+}
+
+function extractRoleRequestRobloxUsername(embeds) {
+  if (!Array.isArray(embeds) || !embeds.length) {
+    return 'Not provided';
+  }
+
+  const usernameField = embeds
+    .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
+    .find((field) => field?.name === 'Roblox username' && typeof field.value === 'string');
+
+  return usernameField?.value ?? 'Not provided';
 }
 
 function buildRoleRequestResultDM(status, reason = null) {
@@ -959,7 +988,7 @@ async function handleInteraction(interaction) {
     const { evidenceText } = buildRoleRequestEvidence(submission.files);
 
     await logChannel.send(
-      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, {
+      buildRoleRequestReviewPayload(interaction.user.id, submission.robloxUsername, evidenceText, {
         accentColor: 0xffffff,
         action: null,
         disableMenu: false,
@@ -985,6 +1014,7 @@ async function handleInteraction(interaction) {
 
     const requesterId = interaction.customId.split(':')[2];
     const action = interaction.values[0];
+    const currentRobloxUsername = extractRoleRequestRobloxUsername(interaction.message.embeds ?? []);
     const currentEvidenceText = extractRoleRequestEvidenceText(interaction.message.embeds ?? []);
 
     if (action === 'accept') {
@@ -1024,7 +1054,7 @@ async function handleInteraction(interaction) {
       }
 
       await interaction.update(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+        buildRoleRequestReviewPayload(requesterId, currentRobloxUsername, currentEvidenceText, {
           accentColor: 0x00ff00,
           action: 'accepted',
           disableMenu: true,
@@ -1075,11 +1105,12 @@ async function handleInteraction(interaction) {
     const logMessage = logChannel?.isTextBased()
       ? await logChannel.messages.fetch(messageId).catch(() => null)
       : null;
+    const currentRobloxUsername = extractRoleRequestRobloxUsername(logMessage?.embeds ?? []);
     const currentEvidenceText = extractRoleRequestEvidenceText(logMessage?.embeds ?? []);
 
     if (logMessage) {
       await logMessage.edit(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
+        buildRoleRequestReviewPayload(requesterId, currentRobloxUsername, currentEvidenceText, {
           accentColor: 0xff0000,
           action: 'denied',
           disableMenu: true,
