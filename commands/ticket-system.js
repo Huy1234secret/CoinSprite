@@ -21,9 +21,16 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const CUSTOM_IDS = {
   panelTypeSelect: 'ticket:type-select',
-  guildSupportTypeSelect: 'ticket:guild-support-type-select',
+  guildSupportModal: 'ticket:guild-support-modal',
+  guildSupportRadio: 'guild_support_type',
   ticketActionSelectPrefix: 'ticket:actions:',
   roleReviewSelectPrefix: 'ticket:role-review:',
+  denyReasonPrefix: 'ticket:deny-reason:',
+  claimRewardModal: 'ticket:claim-reward-modal',
+  crewRoleRequestModal: 'ticket:crew-role-request-modal',
+  crewRoleUsername: 'roblox_username',
+  crewRoleEvidenceLinks: 'evidence_links',
+  crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
 };
 
 function getTicketPanelPayload() {
@@ -112,6 +119,73 @@ function sanitizeChannelName(value) {
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+function getFilenameFromUrl(url) {
+  if (!url) {
+    return 'file.unknown';
+  }
+
+  const clean = String(url).split('?')[0];
+  const name = clean.split('/').pop();
+  return name || 'file.unknown';
+}
+
+function getModalComponents(interaction) {
+  const rawComponents = interaction.components ?? interaction?.data?.components ?? [];
+  return Array.isArray(rawComponents) ? rawComponents : [];
+}
+
+function findSubmittedComponent(interaction, customId) {
+  for (const wrapper of getModalComponents(interaction)) {
+    const component = wrapper?.component ?? wrapper?.components?.[0] ?? null;
+    if (component?.custom_id === customId || component?.customId === customId) {
+      return component;
+    }
+  }
+  return null;
+}
+
+function getGuildSupportTypeFromModal(interaction) {
+  const radio = findSubmittedComponent(interaction, CUSTOM_IDS.guildSupportRadio);
+  return radio?.value ?? radio?.values?.[0] ?? null;
+}
+
+function getUploadedAttachmentDetails(interaction) {
+  const fileUploadComponent = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleEvidenceUpload);
+  const attachmentIds = fileUploadComponent?.values ?? [];
+  const resolvedAttachments = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? {};
+
+  return attachmentIds
+    .map((id) => resolvedAttachments[id] || null)
+    .filter(Boolean)
+    .map((attachment) => ({
+      id: attachment.id,
+      url: attachment.url,
+      contentType: attachment.content_type || '',
+      filename: attachment.filename || getFilenameFromUrl(attachment.url),
+    }));
+}
+
+function formatEvidenceLinkLines(evidenceLinks) {
+  const lines = String(evidenceLinks || '')
+    .split(/\s+/)
+    .map((link) => link.trim())
+    .filter(Boolean)
+    .map((link) => {
+      const filename = getFilenameFromUrl(link);
+      return `- ${filename} (${link})`;
+    });
+
+  return lines.length > 0 ? lines.join('\n') : '-';
+}
+
+function getTextInputValueSafely(interaction, customId, fallback = '') {
+  try {
+    return interaction.fields.getTextInputValue(customId);
+  } catch {
+    return fallback;
+  }
 }
 
 async function ensurePanelMessage(guild, clientUserId) {
@@ -329,7 +403,7 @@ async function handleRoleRequestReview(interaction) {
 
   const action = interaction.values[0];
   if (action === 'deny_request') {
-    const modal = new ModalBuilder().setCustomId(`ticket:deny-reason:${requestId}`).setTitle('Deny request');
+    const modal = new ModalBuilder().setCustomId(`${CUSTOM_IDS.denyReasonPrefix}${requestId}`).setTitle('Deny request');
     modal.addComponents(
       new ActionRowBuilder().addComponents(
         new TextInputBuilder()
@@ -410,26 +484,30 @@ module.exports = {
       const selected = interaction.values[0];
 
       if (selected === 'guild_support') {
-        const row = new ActionRowBuilder().addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(CUSTOM_IDS.guildSupportTypeSelect)
-            .setPlaceholder('What type of support do you need?')
-            .addOptions([
-              { label: 'Member Report', value: 'Member Report' },
-              { label: 'Other Support', value: 'Other Support' },
-            ]),
-        );
-
-        await interaction.reply({
-          content: 'Choose the support type:',
-          components: [row],
-          flags: MessageFlags.Ephemeral,
+        await interaction.showModal({
+          custom_id: CUSTOM_IDS.guildSupportModal,
+          title: 'Guild Support',
+          components: [
+            {
+              type: 18,
+              label: 'What type of support do you need?',
+              component: {
+                type: 21,
+                custom_id: CUSTOM_IDS.guildSupportRadio,
+                required: true,
+                options: [
+                  { value: 'Member Report', label: 'Member Report' },
+                  { value: 'Other Support', label: 'Other Support' },
+                ],
+              },
+            },
+          ],
         });
         return true;
       }
 
       if (selected === 'claim_reward') {
-        const modal = new ModalBuilder().setCustomId('ticket:claim-reward-modal').setTitle('Claim Reward');
+        const modal = new ModalBuilder().setCustomId(CUSTOM_IDS.claimRewardModal).setTitle('Claim Reward');
         modal.addComponents(
           new ActionRowBuilder().addComponents(
             new TextInputBuilder()
@@ -445,33 +523,57 @@ module.exports = {
       }
 
       if (selected === 'request_role_crew_member_plus') {
-        const modal = new ModalBuilder().setCustomId('ticket:crew-role-request-modal').setTitle('Crew Member+ request');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('roblox_username')
-              .setLabel('What is your Roblox username?')
-              .setRequired(true)
-              .setStyle(TextInputStyle.Paragraph)
-              .setMaxLength(300),
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('evidence_links')
-              .setLabel('Provide evidence links (images/videos/files).')
-              .setRequired(true)
-              .setStyle(TextInputStyle.Paragraph)
-              .setMaxLength(1000),
-          ),
-        );
-
-        await interaction.showModal(modal);
+        await interaction.showModal({
+          custom_id: CUSTOM_IDS.crewRoleRequestModal,
+          title: 'Crew Member+ request',
+          components: [
+            {
+              type: 10,
+              content:
+                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 250%+\n* Level: 16000\n* ascension: 10",
+            },
+            {
+              type: 18,
+              label: 'What is your Roblox username?',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.crewRoleUsername,
+                style: 2,
+                required: true,
+                max_length: 300,
+              },
+            },
+            {
+              type: 18,
+              label: 'Provide evidence proven that you met the role requirement.',
+              description: 'Upload screenshots/videos/files. You can also include links below.',
+              component: {
+                type: 19,
+                custom_id: CUSTOM_IDS.crewRoleEvidenceUpload,
+                min_values: 1,
+                max_values: 10,
+                required: true,
+              },
+            },
+            {
+              type: 18,
+              label: 'Optional evidence links (image/video URLs)',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.crewRoleEvidenceLinks,
+                style: 2,
+                required: false,
+                max_length: 1000,
+              },
+            },
+          ],
+        });
         return true;
       }
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === CUSTOM_IDS.guildSupportTypeSelect) {
-      const answer = interaction.values[0];
+    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.guildSupportModal) {
+      const answer = getGuildSupportTypeFromModal(interaction) || 'Other Support';
       await createTicketChannel({
         interaction,
         ticketTypeLabel: 'Guild Support',
@@ -481,21 +583,22 @@ module.exports = {
       return true;
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === 'ticket:claim-reward-modal') {
+    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.claimRewardModal) {
       await createTicketChannel({
         interaction,
         ticketTypeLabel: 'Claim Reward',
         channelBaseName: 'claim-reward',
         questionAnswerPairs: [
-          { question: 'What is your Roblox username?', answer: interaction.fields.getTextInputValue('roblox_username') },
+          { question: 'What is your Roblox username?', answer: getTextInputValueSafely(interaction, 'roblox_username', '-') },
         ],
       });
       return true;
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === 'ticket:crew-role-request-modal') {
-      const username = interaction.fields.getTextInputValue('roblox_username');
-      const evidenceLinks = interaction.fields.getTextInputValue('evidence_links');
+    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.crewRoleRequestModal) {
+      const username = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleUsername, '-');
+      const evidenceLinks = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleEvidenceLinks, '');
+      const uploadedEvidence = getUploadedAttachmentDetails(interaction);
 
       const state = loadState();
       const requestId = `${interaction.guildId}-${interaction.user.id}-${Date.now()}`;
@@ -503,6 +606,7 @@ module.exports = {
         guildId: interaction.guildId,
         userId: interaction.user.id,
         username,
+        uploadedEvidence,
         evidenceLinks,
         status: 'pending',
       };
@@ -529,15 +633,29 @@ module.exports = {
               { type: 14, divider: true, spacing: 1 },
               {
                 type: 10,
-                content:
-                  `**Evidence**\n${evidenceLinks
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .map((link) => {
-                      const name = link.split('/').pop()?.split('?')[0] || 'file-link';
-                      return `- ${name}`;
-                    })
-                    .join('\n')}`,
+                content: '**Uploaded files / media**',
+              },
+              {
+                type: 12,
+                items: uploadedEvidence
+                  .filter((item) => item.contentType.startsWith('image/') || item.contentType.startsWith('video/'))
+                  .map((item) => ({
+                    media: { url: item.url },
+                    description: item.filename,
+                  }))
+                  .slice(0, 10),
+              },
+              ...uploadedEvidence
+                .slice(0, 10)
+                .map((item) => ({
+                  type: 13,
+                  file: { url: item.url },
+                  name: item.filename,
+                })),
+              { type: 14, divider: true, spacing: 1 },
+              {
+                type: 10,
+                content: `**Evidence links**\n${formatEvidenceLinkLines(evidenceLinks)}`,
               },
               { type: 14, divider: true, spacing: 1 },
             ],
@@ -571,7 +689,7 @@ module.exports = {
       return handleRoleRequestReview(interaction);
     }
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket:deny-reason:')) {
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.denyReasonPrefix)) {
       const requestId = interaction.customId.split(':').pop();
       const reason = interaction.fields.getTextInputValue('deny_reason');
       const state = loadState();
