@@ -88,6 +88,14 @@ function getTicketPanelPayload() {
   };
 }
 
+async function resetPanelTypeSelection(interaction) {
+  if (!interaction?.message?.editable) {
+    return;
+  }
+
+  await interaction.message.edit(getTicketPanelPayload()).catch(() => null);
+}
+
 function getTicketActionRow(channelId, closed) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
@@ -99,6 +107,25 @@ function getTicketActionRow(channelId, closed) {
         { label: 'Blacklist User', value: 'blacklist_user', emoji: '💀' },
       ]),
   );
+}
+
+
+function getRoleReviewActionRow(customId, placeholder = 'Choose review action', disabled = false) {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: customId,
+        disabled,
+        placeholder,
+        options: [
+          { label: 'Accept', value: 'accept_request', emoji: { name: '✅' } },
+          { label: 'Deny', value: 'deny_request', emoji: { name: '❌' } },
+        ],
+      },
+    ],
+  };
 }
 
 function container(accent, content) {
@@ -166,6 +193,13 @@ function getUploadedAttachmentDetails(interaction) {
       contentType: attachment.content_type || '',
       filename: attachment.filename || getFilenameFromUrl(attachment.url),
     }));
+}
+
+
+function sanitizeAttachmentName(filename, fallbackIndex = 0) {
+  const base = String(filename || `upload-${fallbackIndex + 1}`).trim();
+  const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^_+|_+$/g, '');
+  return safe || `upload-${fallbackIndex + 1}`;
 }
 
 function getTextInputValueSafely(interaction, customId, fallback = '') {
@@ -434,25 +468,10 @@ async function handleRoleRequestReview(interaction) {
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
-        type: 17,
-        accent_color: 0x00ff00,
-        components: interaction.message.components?.[0]?.components ?? [{ type: 10, content: 'Request accepted.' }],
+        type: 10,
+        content: `### <@${request.userId}>'s ⭐Crew Member+ role request.\n**Status:** ✅ Accepted`,
       },
-      {
-        type: 1,
-        components: [
-          {
-            type: 3,
-            custom_id: interaction.customId,
-            disabled: true,
-            placeholder: 'This request has been accepted',
-            options: [
-              { label: 'Accept', value: 'accept_request', emoji: { name: '✅' } },
-              { label: 'Deny', value: 'deny_request', emoji: { name: '❌' } },
-            ],
-          },
-        ],
-      },
+      getRoleReviewActionRow(interaction.customId, 'This request has been accepted', true),
     ],
   });
 
@@ -483,6 +502,7 @@ module.exports = {
 
     if (interaction.isStringSelectMenu() && interaction.customId === CUSTOM_IDS.panelTypeSelect) {
       const selected = interaction.values[0];
+      await resetPanelTypeSelection(interaction);
 
       if (selected === 'guild_support') {
         await interaction.showModal({
@@ -600,18 +620,22 @@ module.exports = {
       };
       saveState(state);
 
+      const files = uploadedEvidence.slice(0, 10).map((item, index) => ({
+        attachment: item.url,
+        name: sanitizeAttachmentName(item.filename, index),
+      }));
+
       const mediaItems = uploadedEvidence
         .filter((item) => item.contentType.startsWith('image/') || item.contentType.startsWith('video/'))
-        .map((item) => ({
-          media: { url: item.url },
+        .map((item, index) => ({
+          media: { url: `attachment://${sanitizeAttachmentName(item.filename, index)}` },
           description: item.filename,
         }))
         .slice(0, 10);
 
-      const uploadedFileComponents = uploadedEvidence.slice(0, 10).map((item) => ({
+      const uploadedFileComponents = uploadedEvidence.slice(0, 10).map((item, index) => ({
         type: 13,
-        file: { url: item.url },
-        name: item.filename,
+        file: { url: `attachment://${sanitizeAttachmentName(item.filename, index)}` },
       }));
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
@@ -624,39 +648,20 @@ module.exports = {
         flags: COMPONENTS_V2_FLAG,
         components: [
           {
-            type: 17,
-            accent_color: 0xffffff,
-            components: [
-              {
-                type: 10,
-                content:
-                  `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n* userID: ${interaction.user.id}\n* Roblox username: ${username}`,
-              },
-              { type: 14, divider: true, spacing: 1 },
-              {
-                type: 10,
-                content: '**Uploaded files / media**',
-              },
-              ...(mediaItems.length > 0 ? [{ type: 12, items: mediaItems }] : []),
-              ...uploadedFileComponents,
-              { type: 14, divider: true, spacing: 1 },
-            ],
+            type: 10,
+            content: `### <@${interaction.user.id}>'s ⭐Crew Member+ role request.\n* userID: ${interaction.user.id}\n* Roblox username: ${username}`,
           },
+          { type: 14, divider: true, spacing: 1 },
           {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`,
-                placeholder: 'Choose review action',
-                options: [
-                  { label: 'Accept', value: 'accept_request', emoji: { name: '✅' } },
-                  { label: 'Deny', value: 'deny_request', emoji: { name: '❌' } },
-                ],
-              },
-            ],
+            type: 10,
+            content: '**Uploaded files / media**',
           },
+          ...(mediaItems.length > 0 ? [{ type: 12, items: mediaItems }] : []),
+          ...uploadedFileComponents,
+          { type: 14, divider: true, spacing: 1 },
+          getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
         ],
+        files,
       });
 
       await interaction.reply({ content: 'Your Crew Member+ role request has been submitted.', flags: MessageFlags.Ephemeral });
@@ -668,6 +673,17 @@ module.exports = {
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_IDS.roleReviewSelectPrefix)) {
+      if (interaction.values[0] === 'deny_request') {
+        await interaction.message
+          .edit({
+            components: [
+              ...interaction.message.components.slice(0, -1).map((component) => component.toJSON()),
+              getRoleReviewActionRow(interaction.customId),
+            ],
+          })
+          .catch(() => null);
+      }
+
       return handleRoleRequestReview(interaction);
     }
 
@@ -697,27 +713,10 @@ module.exports = {
         flags: COMPONENTS_V2_FLAG,
         components: [
           {
-            type: 17,
-            accent_color: 0xff0000,
-            components: [
-              { type: 10, content: `Request denied.\n-# Reason: ${reason}` },
-            ],
+            type: 10,
+            content: `### <@${request.userId}>'s ⭐Crew Member+ role request.\n**Status:** ❌ Denied\n-# Reason: ${reason}`,
           },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`,
-                disabled: true,
-                placeholder: 'This request has been denied',
-                options: [
-                  { label: 'Accept', value: 'accept_request', emoji: { name: '✅' } },
-                  { label: 'Deny', value: 'deny_request', emoji: { name: '❌' } },
-                ],
-              },
-            ],
-          },
+          getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`, 'This request has been denied', true),
         ],
       });
       return true;
