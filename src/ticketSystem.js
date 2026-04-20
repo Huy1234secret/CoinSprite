@@ -654,10 +654,61 @@ function buildRoleRequestEvidence(files) {
   };
 }
 
-function buildRoleRequestReviewPayload(requesterId, robloxUsername, evidenceText, { accentColor, action, disableMenu }) {
+function buildRoleRequestReviewPayload(requesterId, robloxUsername, evidenceText, {
+  accentColor,
+  action,
+  disableMenu,
+  forceComponentsV2 = false,
+}) {
   const placeholder = action ? `This request has been ${action}` : 'Select an action';
   const statusText = action ? `Status: **${action.toUpperCase()}**` : 'Status: **PENDING**';
   const sanitizedRobloxUsername = sanitizeInlineMarkdown(robloxUsername || 'Not provided');
+  const normalizedEvidenceText = evidenceText.slice(0, 1024) || '*No evidence files uploaded.*';
+  const selectMenu = {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: `ticket:role-review:${requesterId}`,
+        placeholder,
+        disabled: disableMenu,
+        options: [
+          { label: 'Accept', value: 'accept', emoji: { name: '✅' } },
+          { label: 'Deny', value: 'deny', emoji: { name: '❌' } },
+        ],
+      },
+    ],
+  };
+
+  if (forceComponentsV2) {
+    return {
+      flags: COMPONENTS_V2_FLAG,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: [
+                '# ⭐ Crew Member+ role request',
+                `Requester: <@${requesterId}> \`(${requesterId})\``,
+                statusText,
+                `Roblox username: ${sanitizedRobloxUsername}`,
+                'Evidence:',
+                normalizedEvidenceText,
+              ].join('\n'),
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2,
+            },
+            selectMenu,
+          ],
+        },
+      ],
+    };
+  }
 
   return {
     embeds: [
@@ -666,50 +717,48 @@ function buildRoleRequestReviewPayload(requesterId, robloxUsername, evidenceText
         .setTitle("⭐ Crew Member+ role request")
         .setDescription(`Requester: <@${requesterId}> \`(${requesterId})\`\n${statusText}`)
         .addFields({ name: 'Roblox username', value: sanitizedRobloxUsername.slice(0, 1024) })
-        .addFields({ name: 'Evidence', value: evidenceText.slice(0, 1024) || '*No evidence files uploaded.*' }),
+        .addFields({ name: 'Evidence', value: normalizedEvidenceText }),
     ],
-    components: [
-      {
-        type: 1,
-        components: [
-          {
-            type: 3,
-            custom_id: `ticket:role-review:${requesterId}`,
-            placeholder,
-            disabled: disableMenu,
-            options: [
-              { label: 'Accept', value: 'accept', emoji: { name: '✅' } },
-              { label: 'Deny', value: 'deny', emoji: { name: '❌' } },
-            ],
-          },
-        ],
-      },
-    ],
+    components: [selectMenu],
   };
 }
 
-function extractRoleRequestEvidenceText(embeds) {
-  if (!Array.isArray(embeds) || !embeds.length) {
-    return '*No evidence provided*';
+function extractRoleRequestEvidenceText(message) {
+  const embeds = message?.embeds ?? [];
+  if (Array.isArray(embeds) && embeds.length) {
+    const evidenceField = embeds
+      .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
+      .find((field) => field?.name === 'Evidence' && typeof field.value === 'string');
+
+    if (evidenceField?.value) {
+      return evidenceField.value;
+    }
   }
 
-  const evidenceField = embeds
-    .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
-    .find((field) => field?.name === 'Evidence' && typeof field.value === 'string');
-
-  return evidenceField?.value ?? '*No evidence provided*';
+  const firstContainer = Array.isArray(message?.components) ? message.components[0] : null;
+  const textBlock = firstContainer?.components?.find((component) => component?.type === 10);
+  const content = typeof textBlock?.content === 'string' ? textBlock.content : '';
+  const evidenceStart = content.indexOf('Evidence:\n');
+  return evidenceStart >= 0 ? content.slice(evidenceStart + 'Evidence:\n'.length).trim() : '*No evidence provided*';
 }
 
-function extractRoleRequestRobloxUsername(embeds) {
-  if (!Array.isArray(embeds) || !embeds.length) {
-    return 'Not provided';
+function extractRoleRequestRobloxUsername(message) {
+  const embeds = message?.embeds ?? [];
+  if (Array.isArray(embeds) && embeds.length) {
+    const usernameField = embeds
+      .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
+      .find((field) => field?.name === 'Roblox username' && typeof field.value === 'string');
+
+    if (usernameField?.value) {
+      return usernameField.value;
+    }
   }
 
-  const usernameField = embeds
-    .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
-    .find((field) => field?.name === 'Roblox username' && typeof field.value === 'string');
-
-  return usernameField?.value ?? 'Not provided';
+  const firstContainer = Array.isArray(message?.components) ? message.components[0] : null;
+  const textBlock = firstContainer?.components?.find((component) => component?.type === 10);
+  const content = typeof textBlock?.content === 'string' ? textBlock.content : '';
+  const match = content.match(/Roblox username:\s*([^\n]+)/);
+  return match?.[1] ?? 'Not provided';
 }
 
 function buildRoleRequestResultDM(status, reason = null) {
@@ -1163,8 +1212,8 @@ async function handleInteraction(interaction) {
 
     const requesterId = interaction.customId.split(':')[2];
     const action = interaction.values[0];
-    const currentRobloxUsername = extractRoleRequestRobloxUsername(interaction.message.embeds ?? []);
-    const currentEvidenceText = extractRoleRequestEvidenceText(interaction.message.embeds ?? []);
+    const currentRobloxUsername = extractRoleRequestRobloxUsername(interaction.message);
+    const currentEvidenceText = extractRoleRequestEvidenceText(interaction.message);
 
     if (action === 'accept') {
       const role = await interaction.guild.roles.fetch(ROLE_REQUEST_ROLE_ID).catch(() => null);
@@ -1202,11 +1251,15 @@ async function handleInteraction(interaction) {
         return true;
       }
 
+      const interactionMessageUsesComponentsV2 = Number.isInteger(COMPONENTS_V2_FLAG)
+        && interaction.message?.flags?.has?.(COMPONENTS_V2_FLAG);
+
       await interaction.update(
         buildRoleRequestReviewPayload(requesterId, currentRobloxUsername, currentEvidenceText, {
           accentColor: 0x00ff00,
           action: 'accepted',
           disableMenu: true,
+          forceComponentsV2: interactionMessageUsesComponentsV2,
         }),
       );
 
@@ -1254,15 +1307,19 @@ async function handleInteraction(interaction) {
     const logMessage = logChannel?.isTextBased()
       ? await logChannel.messages.fetch(messageId).catch(() => null)
       : null;
-    const currentRobloxUsername = extractRoleRequestRobloxUsername(logMessage?.embeds ?? []);
-    const currentEvidenceText = extractRoleRequestEvidenceText(logMessage?.embeds ?? []);
+    const currentRobloxUsername = extractRoleRequestRobloxUsername(logMessage);
+    const currentEvidenceText = extractRoleRequestEvidenceText(logMessage);
 
     if (logMessage) {
+      const logMessageUsesComponentsV2 = Number.isInteger(COMPONENTS_V2_FLAG)
+        && logMessage.flags?.has?.(COMPONENTS_V2_FLAG);
+
       await logMessage.edit(
         buildRoleRequestReviewPayload(requesterId, currentRobloxUsername, currentEvidenceText, {
           accentColor: 0xff0000,
           action: 'denied',
           disableMenu: true,
+          forceComponentsV2: logMessageUsesComponentsV2,
         }),
       );
     }
