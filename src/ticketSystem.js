@@ -3,13 +3,13 @@ const path = require('path');
 const {
   ActionRowBuilder,
   ChannelType,
+  EmbedBuilder,
   MessageFlags,
   StringSelectMenuBuilder,
   PermissionFlagsBits,
 } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 
 const PANEL_CHANNEL_ID = '1493971939545583836';
@@ -136,51 +136,46 @@ function formatTicketChannelName(typeLabel, ticketId) {
 
 function buildPanelPayload(guild) {
   const thumbnail = guild.iconURL();
-  const panelBody =
-    'Need help? Please open the correct ticket type below.\n' +
-    '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n' +
-    '-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.';
+  const panelBody = [
+    'Need help? Please open the correct ticket type below.',
+    '⚠️ Please do not open joke, false, or duplicate tickets.',
+    '📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
+  ].join('\n');
 
   return {
-    flags: COMPONENTS_V2_FLAG,
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('Support Ticket')
+        .setDescription(panelBody)
+        .setColor(0xffffff)
+        .setThumbnail(thumbnail ?? null),
+    ],
     components: [
       {
-        type: 17,
-        accent_color: 0xffffff,
+        type: 1,
         components: [
           {
-            type: 9,
-            components: [{ type: 10, content: `## Support Ticket\n${panelBody}` }],
-            accessory: thumbnail ? { type: 11, media: { url: thumbnail } } : undefined,
-          },
-          { type: 14, divider: true, spacing: 0 },
-          {
-            type: 1,
-            components: [
+            type: 3,
+            custom_id: 'ticket:type-select',
+            placeholder: 'Choose a ticket type',
+            options: [
               {
-                type: 3,
-                custom_id: 'ticket:type-select',
-                placeholder: 'Choose a ticket type',
-                options: [
-                  {
-                    label: TICKET_TYPES.guild_support.label,
-                    description: TICKET_TYPES.guild_support.description,
-                    value: TICKET_TYPES.guild_support.key,
-                    emoji: { name: TICKET_TYPES.guild_support.emoji },
-                  },
-                  {
-                    label: TICKET_TYPES.claim_reward.label,
-                    description: TICKET_TYPES.claim_reward.description,
-                    value: TICKET_TYPES.claim_reward.key,
-                    emoji: { name: TICKET_TYPES.claim_reward.emoji },
-                  },
-                  {
-                    label: TICKET_TYPES.role_request.label,
-                    description: TICKET_TYPES.role_request.description,
-                    value: TICKET_TYPES.role_request.key,
-                    emoji: { name: TICKET_TYPES.role_request.emoji },
-                  },
-                ],
+                label: TICKET_TYPES.guild_support.label,
+                description: TICKET_TYPES.guild_support.description,
+                value: TICKET_TYPES.guild_support.key,
+                emoji: { name: TICKET_TYPES.guild_support.emoji },
+              },
+              {
+                label: TICKET_TYPES.claim_reward.label,
+                description: TICKET_TYPES.claim_reward.description,
+                value: TICKET_TYPES.claim_reward.key,
+                emoji: { name: TICKET_TYPES.claim_reward.emoji },
+              },
+              {
+                label: TICKET_TYPES.role_request.label,
+                description: TICKET_TYPES.role_request.description,
+                value: TICKET_TYPES.role_request.key,
+                emoji: { name: TICKET_TYPES.role_request.emoji },
               },
             ],
           },
@@ -475,16 +470,6 @@ function isTrustedEvidenceUrl(value) {
   }
 }
 
-function isImageEvidenceFile(file) {
-  const contentType = String(file?.contentType ?? file?.content_type ?? '').toLowerCase();
-  if (contentType.startsWith('image/')) {
-    return true;
-  }
-
-  const filename = String(file?.filename ?? '').toLowerCase();
-  return Array.from(IMAGE_FILE_EXTENSIONS).some((extension) => filename.endsWith(extension));
-}
-
 function getFileExtension(filename) {
   const value = String(filename ?? '').toLowerCase().trim();
   if (!value) {
@@ -515,12 +500,10 @@ function buildRoleRequestEvidence(files) {
   if (!Array.isArray(files) || files.length === 0) {
     return {
       evidenceText: '*No evidence files uploaded.*',
-      evidenceComponents: [],
     };
   }
 
   const evidenceLines = [];
-  const galleryItems = [];
   let rejectedFilesCount = 0;
 
   for (const file of files) {
@@ -536,14 +519,10 @@ function buildRoleRequestEvidence(files) {
     const fileUrl = file?.url ?? file?.proxy_url ?? null;
     const trustedUrl = isTrustedEvidenceUrl(fileUrl) ? fileUrl : null;
 
-    evidenceLines.push(`• ${safeFilename} (type: ${sanitizeInlineMarkdown(fileType)})`);
-
-    if (trustedUrl && isImageEvidenceFile(file) && galleryItems.length < 10) {
-      galleryItems.push({
-        media: { url: trustedUrl },
-        description: `Evidence: ${rawFilename}`.slice(0, 1024),
-      });
-    }
+    const linkedFile = trustedUrl
+      ? `• [${safeFilename}](${trustedUrl}) (type: ${sanitizeInlineMarkdown(fileType)})`
+      : `• ${safeFilename} (type: ${sanitizeInlineMarkdown(fileType)})`;
+    evidenceLines.push(linkedFile);
   }
 
   if (!evidenceLines.length) {
@@ -554,54 +533,35 @@ function buildRoleRequestEvidence(files) {
     evidenceLines.push(`\nUnsupported files rejected: ${rejectedFilesCount}.`);
   }
 
-  const evidenceComponents = galleryItems.length
-    ? [
-        {
-          type: 12,
-          items: galleryItems,
-        },
-      ]
-    : [];
-
   return {
     evidenceText: evidenceLines.join('\n'),
-    evidenceComponents,
   };
 }
 
-function buildRoleRequestReviewPayload(requesterId, evidenceText, evidenceComponents, { accentColor, action, disableMenu }) {
+function buildRoleRequestReviewPayload(requesterId, evidenceText, { accentColor, action, disableMenu }) {
   const placeholder = action ? `This request has been ${action}` : 'Select an action';
+  const statusText = action ? `Status: **${action.toUpperCase()}**` : 'Status: **PENDING**';
+
   return {
-    flags: COMPONENTS_V2_FLAG,
+    embeds: [
+      new EmbedBuilder()
+        .setColor(accentColor)
+        .setTitle("⭐ Crew Member+ role request")
+        .setDescription(`Requester: <@${requesterId}> \`(${requesterId})\`\n${statusText}`)
+        .addFields({ name: 'Evidence', value: evidenceText.slice(0, 1024) || '*No evidence files uploaded.*' }),
+    ],
     components: [
       {
-        type: 17,
-        accent_color: accentColor,
+        type: 1,
         components: [
           {
-            type: 10,
-            content: `### <@${requesterId}>'s ⭐Crew Member+ role request.\n* userID: ${requesterId}`,
-          },
-          { type: 14, divider: true, spacing: 0 },
-          {
-            type: 10,
-            content: evidenceText,
-          },
-          ...evidenceComponents,
-          { type: 14, divider: true, spacing: 0 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: `ticket:role-review:${requesterId}`,
-                placeholder,
-                disabled: disableMenu,
-                options: [
-                  { label: 'Accept', value: 'accept', emoji: { name: '✅' } },
-                  { label: 'Deny', value: 'deny', emoji: { name: '❌' } },
-                ],
-              },
+            type: 3,
+            custom_id: `ticket:role-review:${requesterId}`,
+            placeholder,
+            disabled: disableMenu,
+            options: [
+              { label: 'Accept', value: 'accept', emoji: { name: '✅' } },
+              { label: 'Deny', value: 'deny', emoji: { name: '❌' } },
             ],
           },
         ],
@@ -610,38 +570,26 @@ function buildRoleRequestReviewPayload(requesterId, evidenceText, evidenceCompon
   };
 }
 
-function extractRoleRequestEvidenceText(components) {
-  if (!Array.isArray(components)) {
+function extractRoleRequestEvidenceText(embeds) {
+  if (!Array.isArray(embeds) || !embeds.length) {
     return '*No evidence provided*';
   }
 
-  const evidenceComponent = components.find(
-    (component) =>
-      component?.type === 10
-      && typeof component.content === 'string'
-      && (component.content.startsWith('•') || component.content.includes('No evidence')),
-  );
+  const evidenceField = embeds
+    .flatMap((embed) => (Array.isArray(embed?.fields) ? embed.fields : []))
+    .find((field) => field?.name === 'Evidence' && typeof field.value === 'string');
 
-  return evidenceComponent?.content ?? '*No evidence provided*';
+  return evidenceField?.value ?? '*No evidence provided*';
 }
 
 function buildRoleRequestResultDM(status, reason = null) {
   const accepted = status === 'accepted';
-  const reasonText = reason ? `\n-# Reason: ${reason}` : '';
+  const reasonText = reason ? `\nReason: ${reason}` : '';
   return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: accepted ? 0x00ff00 : 0xff0000,
-        components: [
-          {
-            type: 10,
-            content:
-              `You ⭐Crew Member+ role request has been ${status}!.${reasonText}`,
-          },
-        ],
-      },
+    embeds: [
+      new EmbedBuilder()
+        .setColor(accepted ? 0x00ff00 : 0xff0000)
+        .setDescription(`Your ⭐Crew Member+ role request has been **${status.toUpperCase()}**.${reasonText}`),
     ],
   };
 }
@@ -895,22 +843,15 @@ async function closeTicket(interaction, action) {
     saveState(state);
 
     await interaction.reply({
-      flags: COMPONENTS_V2_FLAG,
-      components: [
-        {
-          type: 17,
-          accent_color: 0x000000,
-          components: [{ type: 10, content: 'Blacklisted user from all ticket system.' }],
-        },
-      ],
+      content: 'Blacklisted user from all ticket system.',
+      flags: EPHEMERAL_FLAG,
     });
   } else {
     await interaction.reply({ content: 'Starting ticket close process...', flags: EPHEMERAL_FLAG });
   }
 
   await channel.send({
-    flags: COMPONENTS_V2_FLAG,
-    components: [{ type: 17, accent_color: 0xffff00, components: [{ type: 10, content: 'Transcript saving!...' }] }],
+    embeds: [new EmbedBuilder().setColor(0xffff00).setDescription('Transcript saving!...')],
   });
 
   const transcriptContent = await collectTranscript(channel, interaction.user.id, action);
@@ -932,13 +873,11 @@ async function closeTicket(interaction, action) {
   }
 
   await channel.send({
-    flags: COMPONENTS_V2_FLAG,
-    components: [{ type: 17, accent_color: 0x00ff00, components: [{ type: 10, content: 'Transcript saved!' }] }],
+    embeds: [new EmbedBuilder().setColor(0x00ff00).setDescription('Transcript saved!')],
   });
 
   await channel.send({
-    flags: COMPONENTS_V2_FLAG,
-    components: [{ type: 17, accent_color: 0xff0000, components: [{ type: 10, content: 'Deleting ticket...' }] }],
+    embeds: [new EmbedBuilder().setColor(0xff0000).setDescription('Deleting ticket...')],
   });
 
   ticket.closedAt = Date.now();
@@ -1019,10 +958,10 @@ async function handleInteraction(interaction) {
       return true;
     }
 
-    const { evidenceText, evidenceComponents } = buildRoleRequestEvidence(submission.files);
+    const { evidenceText } = buildRoleRequestEvidence(submission.files);
 
     await logChannel.send(
-      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, evidenceComponents, {
+      buildRoleRequestReviewPayload(interaction.user.id, evidenceText, {
         accentColor: 0xffffff,
         action: null,
         disableMenu: false,
@@ -1048,9 +987,7 @@ async function handleInteraction(interaction) {
 
     const requesterId = interaction.customId.split(':')[2];
     const action = interaction.values[0];
-    const messageComponents = interaction.message.components?.[0]?.components ?? [];
-    const currentEvidenceText = extractRoleRequestEvidenceText(messageComponents);
-    const currentEvidenceMediaGallery = messageComponents.filter((component) => component?.type === 12);
+    const currentEvidenceText = extractRoleRequestEvidenceText(interaction.message.embeds ?? []);
 
     if (action === 'accept') {
       const role = await interaction.guild.roles.fetch(ROLE_REQUEST_ROLE_ID).catch(() => null);
@@ -1089,7 +1026,7 @@ async function handleInteraction(interaction) {
       }
 
       await interaction.update(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, currentEvidenceMediaGallery, {
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
           accentColor: 0x00ff00,
           action: 'accepted',
           disableMenu: true,
@@ -1140,13 +1077,11 @@ async function handleInteraction(interaction) {
     const logMessage = logChannel?.isTextBased()
       ? await logChannel.messages.fetch(messageId).catch(() => null)
       : null;
-    const logMessageComponents = logMessage?.components?.[0]?.components ?? [];
-    const currentEvidenceText = extractRoleRequestEvidenceText(logMessageComponents);
-    const currentEvidenceMediaGallery = logMessageComponents.filter((component) => component?.type === 12);
+    const currentEvidenceText = extractRoleRequestEvidenceText(logMessage?.embeds ?? []);
 
     if (logMessage) {
       await logMessage.edit(
-        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, currentEvidenceMediaGallery, {
+        buildRoleRequestReviewPayload(requesterId, currentEvidenceText, {
           accentColor: 0xff0000,
           action: 'denied',
           disableMenu: true,
