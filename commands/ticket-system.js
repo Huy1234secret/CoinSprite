@@ -643,7 +643,7 @@ module.exports = {
             {
               type: 10,
               content:
-                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 250%+\n* Level: 16000\n* ascension: 10",
+                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 225%+\n* Level: 16000\n* ascension: 10",
             },
             {
               type: 18,
