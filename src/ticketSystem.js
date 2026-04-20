@@ -1188,7 +1188,7 @@ async function handleRoleRequestAction(interaction) {
   const roleRequest = state.roleRequests[interaction.message.id];
   if (!roleRequest || roleRequest.requesterId !== requesterId) {
     await interaction.reply({
-      content: 'Role request data could not be found.',a
+      content: 'Role request data could not be found.',
       flags: EPHEMERAL_FLAG,
     });
     return true;
