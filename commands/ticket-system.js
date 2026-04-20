@@ -35,7 +35,6 @@ function getTicketPanelPayload() {
         accent_color: 0xffffff,
         components: [
           { type: 10, content: '## Support Ticket' },
-          { type: 10, content: 'https://cdn.discordapp.com/embed/avatars/0.png' },
           { type: 10, content: 'Need help? Please open the correct ticket type below.' },
           { type: 14, divider: true, spacing: 1 },
           {
