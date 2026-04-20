@@ -10,7 +10,8 @@ const { logCommandSystem } = require('./commandLogger');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2;
-const SUPPORTS_COMPONENTS_V2 = Number.isInteger(COMPONENTS_V2_FLAG);
+const FORCE_LEGACY_COMPONENTS = process.env.TICKET_FORCE_LEGACY_COMPONENTS !== 'false';
+const SUPPORTS_COMPONENTS_V2 = !FORCE_LEGACY_COMPONENTS && Number.isInteger(COMPONENTS_V2_FLAG);
 
 const PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
@@ -1302,6 +1303,9 @@ async function init(client) {
 
   initialized = true;
   ensureStoreFile();
+  if (FORCE_LEGACY_COMPONENTS) {
+    logCommandSystem('[TicketSystem] Legacy message components mode is enabled (set TICKET_FORCE_LEGACY_COMPONENTS=false to re-enable Components V2).');
+  }
 
   for (const guild of client.guilds.cache.values()) {
     await ensurePanelMessage(guild);
