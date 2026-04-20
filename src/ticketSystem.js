@@ -252,6 +252,19 @@ function buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer)
   };
 }
 
+function buildTicketCreatedFallbackMessage(userId, ticketType, formQuestion, formAnswer) {
+  return [
+    `# ${ticketType.label} Ticket`,
+    `<@${userId}> Welcome!`,
+    'Our staff will be with you soon, please be patient and provide necessary information so help will be faster.',
+    '',
+    `${formQuestion}`,
+    `${formAnswer}`,
+    '',
+    'Use the **Ticket Actions** menu to close this ticket when your issue is resolved.',
+  ].join('\n');
+}
+
 function buildGuildSupportModal() {
   const optionSuffix = Date.now();
   return {
@@ -822,7 +835,23 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   };
   saveState(state);
 
-  await channel.send(buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer)).catch(() => null);
+  const ticketTemplateError = await channel.send(buildTicketCreatedPayload(userId, ticketType, formQuestion, formAnswer))
+    .then(() => null)
+    .catch((error) => error);
+
+  if (ticketTemplateError) {
+    logCommandSystem(
+      `[TicketSystem] Failed to send ticket template in ${channel.id}: ${ticketTemplateError.message || ticketTemplateError}`,
+    );
+
+    await channel.send({
+      content: buildTicketCreatedFallbackMessage(userId, ticketType, formQuestion, formAnswer),
+      components: [buildTicketActionSelect()],
+      allowedMentions: {
+        users: [userId],
+      },
+    }).catch(() => null);
+  }
 
   logCommandSystem(`[TicketSystem] Created ${ticketType.label} ticket ${ticketId} in channel ${channel.id} for user ${userId}.`);
 
