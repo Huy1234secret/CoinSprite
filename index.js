@@ -29,19 +29,40 @@ for (const file of commandFiles) {
   }
 }
 
-client.once(Events.ClientReady, async () => {
+async function initCommandModules() {
+  for (const command of client.commands.values()) {
+    if (typeof command.init !== 'function') {
+      continue;
+    }
+
+    try {
+      await command.init(client);
+    } catch (error) {
+      console.error(`Command init failed for ${command.data?.name ?? 'unknown'}:`, error);
+      logCommandSystem(`Command init failed for ${command.data?.name ?? 'unknown'}: ${error?.message ?? 'unknown error'}`);
+    }
+  }
+}
+
+async function registerSlashCommands() {
   const slashCommands = client.commands.map((command) => command.data.toJSON());
-  await client.application.commands.set(slashCommands);
+
+  try {
+    await client.application.commands.set(slashCommands);
+    logCommandSystem(`Registered ${slashCommands.length} slash commands.`);
+  } catch (error) {
+    console.error('Slash command registration failed:', error);
+    logCommandSystem(`Slash command registration failed: ${error?.message ?? 'unknown error'}`);
+  }
+}
+
+client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
 
-  for (const command of client.commands.values()) {
-    if (typeof command.init === 'function') {
-      await command.init(client);
-    }
-  }
+  await initCommandModules();
+  await registerSlashCommands();
 });
-
 
 client.on(Events.GuildMemberAdd, async (member) => {
   for (const command of client.commands.values()) {
