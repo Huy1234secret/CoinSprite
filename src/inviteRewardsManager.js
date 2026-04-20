@@ -116,7 +116,7 @@ function buildRulesCard(guild, tier, memberCount) {
       ? `-# The prize increases once we reach at least ${nextTierThreshold} members!`
       : '-# You are currently in the highest reward tier.',
     '**How to Claim Your Prize**',
-    `Create a ticket in <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
+    `Go to <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
   ].join('\n');
 
   const cardComponents = [
@@ -156,7 +156,7 @@ function createBlacklistedPayload() {
           {
             type: 10,
             content:
-              '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please appeal through a support ticket.',
+              '### You have been **BLACKLISTED** from our reward system.\n-# If you believe this is a mistake, please contact staff to appeal.',
           },
         ],
       },
@@ -195,7 +195,7 @@ function createRewardInventoryPayload(username, lines) {
             type: 10,
             content:
               `### ${username}'s Rewards\n${rewardsBlock}\n\n` +
-              `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}> and create a ticket. ` +
+              `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}>. ` +
               'Be sure to provide the necessary information so we can help you quickly.\n' +
               '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
               'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
