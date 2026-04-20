@@ -15,6 +15,7 @@ const { loadState, saveState } = require('../src/ticketSystemStore');
 
 const TICKET_PANEL_CHANNEL_ID = '1493971939545583836';
 const ROLE_REQUEST_REVIEW_CHANNEL_ID = '1495714584437329940';
+const TRANSCRIPT_CHANNEL_ID = '1493974187285418157';
 const STAFF_ROLE_ID = '1494993523064443065';
 const CREW_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
@@ -29,7 +30,6 @@ const CUSTOM_IDS = {
   claimRewardModal: 'ticket:claim-reward-modal',
   crewRoleRequestModal: 'ticket:crew-role-request-modal',
   crewRoleUsername: 'roblox_username',
-  crewRoleEvidenceLinks: 'evidence_links',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
 };
 
@@ -168,19 +168,6 @@ function getUploadedAttachmentDetails(interaction) {
     }));
 }
 
-function formatEvidenceLinkLines(evidenceLinks) {
-  const lines = String(evidenceLinks || '')
-    .split(/\s+/)
-    .map((link) => link.trim())
-    .filter(Boolean)
-    .map((link) => {
-      const filename = getFilenameFromUrl(link);
-      return `- ${filename} (${link})`;
-    });
-
-  return lines.length > 0 ? lines.join('\n') : '-';
-}
-
 function getTextInputValueSafely(interaction, customId, fallback = '') {
   try {
     return interaction.fields.getTextInputValue(customId);
@@ -313,15 +300,19 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
 }
 
 async function saveTranscript(channel) {
-  const transcriptDir = path.join(__dirname, '..', 'logs', 'transcripts');
+  const transcriptDir = path.join(__dirname, '..', 'transcripts');
   fs.mkdirSync(transcriptDir, { recursive: true });
 
   const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
   const sorted = messages ? [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp) : [];
   const lines = sorted.map((message) => {
-    const ts = new Date(message.createdTimestamp).toISOString();
+    const ts = new Date(message.createdTimestamp);
+    const hh = String(ts.getHours()).padStart(2, '0');
+    const mm = String(ts.getMinutes()).padStart(2, '0');
+    const time = `${hh}:${mm}`;
     const attachments = [...message.attachments.values()].map((a) => a.url).join(' ');
-    return `[${ts}] ${message.author.tag}: ${message.content || ''} ${attachments}`.trim();
+    const content = `${message.content || ''} ${attachments}`.trim() || '[no content]';
+    return `${time} // [${message.author.username}] - [${message.author.id}] : ${content}`;
   });
 
   const filePath = path.join(transcriptDir, `${channel.id}.txt`);
@@ -372,7 +363,16 @@ async function handleTicketAction(interaction) {
   saveState(state);
 
   await channel.send(container(0xfff200, 'Transcript saving!...'));
-  await saveTranscript(channel);
+  const transcriptPath = await saveTranscript(channel);
+  const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+  if (transcriptChannel?.isTextBased()) {
+    await transcriptChannel
+      .send({
+        content: `Transcript for #${channel.name} (${channel.id})`,
+        files: [transcriptPath],
+      })
+      .catch(() => null);
+  }
   await channel.send(container(0x00ff00, 'Transcript saved!'));
   await channel.send(container(0xff0000, 'Deleting ticket...'));
 
@@ -547,24 +547,13 @@ module.exports = {
             {
               type: 18,
               label: 'Upload proof you meet role requirements',
-              description: 'Upload screenshots/videos/files. You can also include links below.',
+              description: 'Upload screenshots/videos/files.',
               component: {
                 type: 19,
                 custom_id: CUSTOM_IDS.crewRoleEvidenceUpload,
                 min_values: 1,
                 max_values: 10,
                 required: true,
-              },
-            },
-            {
-              type: 18,
-              label: 'Optional evidence links (image/video URLs)',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.crewRoleEvidenceLinks,
-                style: 2,
-                required: false,
-                max_length: 1000,
               },
             },
           ],
@@ -598,7 +587,6 @@ module.exports = {
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.crewRoleRequestModal) {
       const username = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleUsername, '-');
-      const evidenceLinks = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleEvidenceLinks, '');
       const uploadedEvidence = getUploadedAttachmentDetails(interaction);
 
       const state = loadState();
@@ -608,10 +596,23 @@ module.exports = {
         userId: interaction.user.id,
         username,
         uploadedEvidence,
-        evidenceLinks,
         status: 'pending',
       };
       saveState(state);
+
+      const mediaItems = uploadedEvidence
+        .filter((item) => item.contentType.startsWith('image/') || item.contentType.startsWith('video/'))
+        .map((item) => ({
+          media: { url: item.url },
+          description: item.filename,
+        }))
+        .slice(0, 10);
+
+      const uploadedFileComponents = uploadedEvidence.slice(0, 10).map((item) => ({
+        type: 13,
+        file: { url: item.url },
+        name: item.filename,
+      }));
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
@@ -636,28 +637,8 @@ module.exports = {
                 type: 10,
                 content: '**Uploaded files / media**',
               },
-              {
-                type: 12,
-                items: uploadedEvidence
-                  .filter((item) => item.contentType.startsWith('image/') || item.contentType.startsWith('video/'))
-                  .map((item) => ({
-                    media: { url: item.url },
-                    description: item.filename,
-                  }))
-                  .slice(0, 10),
-              },
-              ...uploadedEvidence
-                .slice(0, 10)
-                .map((item) => ({
-                  type: 13,
-                  file: { url: item.url },
-                  name: item.filename,
-                })),
-              { type: 14, divider: true, spacing: 1 },
-              {
-                type: 10,
-                content: `**Evidence links**\n${formatEvidenceLinkLines(evidenceLinks)}`,
-              },
+              ...(mediaItems.length > 0 ? [{ type: 12, items: mediaItems }] : []),
+              ...uploadedFileComponents,
               { type: 14, divider: true, spacing: 1 },
             ],
           },
