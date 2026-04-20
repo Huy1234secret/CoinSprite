@@ -54,6 +54,8 @@ Supported item aliases (case-insensitive):
 2. Configure `.env`:
    ```env
    DISCORD_TOKEN=your_token_here
+   # Optional override for where the ticket panel message is posted.
+   TICKET_PANEL_CHANNEL_ID=1493971939545583836
    ```
 3. Run bot:
    ```bash
