@@ -123,6 +123,26 @@ function buildMilestonePayload(state, userCount, reached = false) {
   };
 }
 
+function buildMilestoneFallbackPayload(state, userCount, reached = false) {
+  const pct = percent(userCount, state.milestoneUsers);
+  const nextRefresh = Math.floor((Date.now() + REFRESH_INTERVAL_MS) / 1000);
+  const rewardLines = state.rewardLines.length
+    ? state.rewardLines.map((line) => `• ${line}`).join('\n')
+    : '• Surprise reward';
+  const winnerLine = `(Winner: ${state.winnerCount ?? 1})`;
+  const title = reached ? '🎯 MILESTONE REACHED! 🏆' : '🎯 MILESTONE';
+  const refreshLine = reached ? '' : `\nRefresh <t:${nextRefresh}:R>`;
+  const ping = reached ? `<@&${PING_ROLE_ID}>\n` : '';
+
+  return {
+    content:
+      `${ping}${title}\n` +
+      `Progress: ${userCount} / ${state.milestoneUsers} (${pct}%)\n` +
+      `Giveaway prize:\n${rewardLines}\n${winnerLine}${refreshLine}`,
+    allowedMentions: reached ? { parse: ['roles'], roles: [PING_ROLE_ID] } : undefined,
+  };
+}
+
 function getRetryAfterMs(error) {
   const retryAfterSeconds = Number(error?.data?.retry_after);
   if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) {
@@ -189,6 +209,10 @@ async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
   if (!reached) {
     const payload = buildMilestonePayload(entry, humanCount, false);
     await channel.messages.edit(entry.messageId, payload).catch(() => null);
+    if (entry.fallbackMessageId) {
+      const fallbackPayload = buildMilestoneFallbackPayload(entry, humanCount, false);
+      await channel.messages.edit(entry.fallbackMessageId, fallbackPayload).catch(() => null);
+    }
     upsertMilestoneState({ ...entry, lastKnownUsers: humanCount, reached: false, updatedAt: Date.now() });
     return;
   }
@@ -197,6 +221,10 @@ async function refreshMilestoneEntry(entry, preloadedHumanCount = null) {
     await channel.messages.delete(entry.messageId).catch(() => null);
     const reachedPayload = buildMilestonePayload(entry, humanCount, true);
     await channel.send(reachedPayload);
+    if (entry.fallbackMessageId) {
+      const reachedFallbackPayload = buildMilestoneFallbackPayload(entry, humanCount, true);
+      await channel.messages.edit(entry.fallbackMessageId, reachedFallbackPayload).catch(() => null);
+    }
     removeMilestoneState(entry);
     return;
   }
@@ -329,8 +357,12 @@ module.exports = {
     };
 
     const panel = await interaction.channel.send(buildMilestonePayload(stateEntry, humanCount, false));
+    const fallback = await interaction.channel
+      .send(buildMilestoneFallbackPayload(stateEntry, humanCount, false))
+      .catch(() => null);
 
     stateEntry.messageId = panel.id;
+    stateEntry.fallbackMessageId = fallback?.id ?? null;
     upsertMilestoneState(stateEntry);
 
     await interaction.editReply({

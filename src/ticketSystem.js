@@ -81,6 +81,7 @@ function ensureStoreFile() {
       JSON.stringify(
         {
           panelMessageId: null,
+          panelFallbackMessageId: null,
           nextTicketNumber: 0,
           blacklistedUsers: {},
           tickets: {},
@@ -104,6 +105,7 @@ function loadState() {
     }
 
     parsed.panelMessageId = parsed.panelMessageId ?? null;
+    parsed.panelFallbackMessageId = parsed.panelFallbackMessageId ?? null;
     parsed.nextTicketNumber = Number.isInteger(parsed.nextTicketNumber) ? parsed.nextTicketNumber : 0;
     parsed.blacklistedUsers = parsed.blacklistedUsers && typeof parsed.blacklistedUsers === 'object' ? parsed.blacklistedUsers : {};
     parsed.tickets = parsed.tickets && typeof parsed.tickets === 'object' ? parsed.tickets : {};
@@ -112,12 +114,25 @@ function loadState() {
   } catch {
     return {
       panelMessageId: null,
+      panelFallbackMessageId: null,
       nextTicketNumber: 0,
       blacklistedUsers: {},
       tickets: {},
       updatedAt: Date.now(),
     };
   }
+}
+
+function buildPanelFallbackPayload() {
+  const panelBody =
+    'Need help? Please open the correct ticket type below.\n' +
+    '⚠️ Please do not open joke, false, or duplicate tickets.\n' +
+    '📌 Please be patient after opening a ticket. Staff will respond as soon as possible.';
+
+  return {
+    content: `## Support Ticket\n${panelBody}`,
+    components: [buildTicketActionSelectRow('ticket:type-select')],
+  };
 }
 
 function saveState(state) {
@@ -190,22 +205,45 @@ function buildPanelPayload(guild) {
   };
 }
 
-function buildTicketActionSelect() {
+function buildTicketActionSelectRow(customId = 'ticket:actions') {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId('ticket:actions')
-      .setPlaceholder('Ticket Actions')
+      .setCustomId(customId)
+      .setPlaceholder(customId === 'ticket:type-select' ? 'Choose a ticket type' : 'Ticket Actions')
       .addOptions(
-        {
-          label: 'Close Ticket',
-          value: 'close',
-          emoji: '⛔',
-        },
-        {
-          label: 'Blacklist User',
-          value: 'blacklist',
-          emoji: '💀',
-        },
+        ...(customId === 'ticket:type-select'
+          ? [
+              {
+                label: TICKET_TYPES.guild_support.label,
+                description: TICKET_TYPES.guild_support.description,
+                value: TICKET_TYPES.guild_support.key,
+                emoji: { name: TICKET_TYPES.guild_support.emoji },
+              },
+              {
+                label: TICKET_TYPES.claim_reward.label,
+                description: TICKET_TYPES.claim_reward.description,
+                value: TICKET_TYPES.claim_reward.key,
+                emoji: { name: TICKET_TYPES.claim_reward.emoji },
+              },
+              {
+                label: TICKET_TYPES.role_request.label,
+                description: TICKET_TYPES.role_request.description,
+                value: TICKET_TYPES.role_request.key,
+                emoji: { name: TICKET_TYPES.role_request.emoji },
+              },
+            ]
+          : [
+              {
+                label: 'Close Ticket',
+                value: 'close',
+                emoji: '⛔',
+              },
+              {
+                label: 'Blacklist User',
+                value: 'blacklist',
+                emoji: '💀',
+              },
+            ]),
       ),
   );
 }
@@ -696,6 +734,24 @@ async function ensurePanelMessage(guild, force = false) {
   }
 
   state.panelMessageId = panelMessage.id;
+  const fallbackPayload = buildPanelFallbackPayload();
+  let fallbackMessage = null;
+
+  if (!force && state.panelFallbackMessageId) {
+    fallbackMessage = await channel.messages.fetch(state.panelFallbackMessageId).catch(() => null);
+    if (fallbackMessage) {
+      await fallbackMessage.edit(fallbackPayload).catch(() => null);
+    }
+  }
+
+  if (!fallbackMessage) {
+    fallbackMessage = await channel.send(fallbackPayload).catch(() => null);
+  }
+
+  if (fallbackMessage) {
+    state.panelFallbackMessageId = fallbackMessage.id;
+  }
+
   saveState(state);
   logCommandSystem(`[TicketSystem] Panel message ensured in channel ${PANEL_CHANNEL_ID} (${panelMessage.id}).`);
   return true;
@@ -811,7 +867,7 @@ async function createTicketFromModal(interaction, ticketType, formQuestion, form
   };
 
   await channel.send(payload).catch(() => null);
-  await channel.send({ components: [buildTicketActionSelect()] }).catch(() => null);
+  await channel.send({ components: [buildTicketActionSelectRow()] }).catch(() => null);
 
   logCommandSystem(`[TicketSystem] Created ${ticketType.label} ticket ${ticketId} in channel ${channel.id} for user ${userId}.`);
 
