@@ -260,8 +260,6 @@ function buildClaimRewardModal() {
 }
 
 function buildRoleRequestModal() {
-  const imageTypes = Array.from(IMAGE_FILE_EXTENSIONS).map((value) => value.slice(1).toUpperCase()).join(', ');
-  const videoTypes = Array.from(VIDEO_FILE_EXTENSIONS).map((value) => value.slice(1).toUpperCase()).join(', ');
   return {
     custom_id: 'ticket:modal:role_request',
     title: 'Crew Member+ role request',
@@ -279,7 +277,7 @@ function buildRoleRequestModal() {
       {
         type: 18,
         label: 'File Upload',
-        description: `Upload screenshots/videos proving you meet the role requirements. Allowed image types: ${imageTypes}. Allowed video types: ${videoTypes}.`,
+        description: 'Upload screenshots/videos proving you meet the role requirements.',
         component: {
           type: 19,
           custom_id: 'role_request_proof',
