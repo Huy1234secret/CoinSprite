@@ -135,11 +135,10 @@ function formatTicketChannelName(typeLabel, ticketId) {
 
 function buildPanelPayload(guild) {
   const thumbnail = guild.iconURL();
-  const panelBody = [
-    '# Support Ticket',
-    'Need help? Please open the correct ticket type below.',
-    '⚠️ Please do not open joke, false, or duplicate tickets.',
-    '📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
+  const panelHeader = '# Support Ticket\nNeed help? Please open the correct ticket type below.';
+  const panelWarnings = [
+    '-# ⚠️ Please do not open joke, false, or duplicate tickets.',
+    '-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
   ].join('\n');
   const panelImage = thumbnail ? [{ type: 11, media: { url: thumbnail } }] : [];
 
@@ -151,9 +150,18 @@ function buildPanelPayload(guild) {
         components: [
           {
             type: 10,
-            content: panelBody,
+            content: panelHeader,
           },
           ...panelImage,
+          {
+            type: 14,
+            divider: true,
+            spacing: 2,
+          },
+          {
+            type: 10,
+            content: panelWarnings,
+          },
           {
             type: 14,
             divider: true,
