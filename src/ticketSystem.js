@@ -47,6 +47,25 @@ const TICKET_TYPES = {
 const ROLE_REQUEST_ROLE_ID = '1495039173260873738';
 const TRUSTED_EVIDENCE_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
 const IMAGE_FILE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+const VIDEO_FILE_EXTENSIONS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v']);
+const ALLOWED_EVIDENCE_EXTENSIONS = new Set([...IMAGE_FILE_EXTENSIONS, ...VIDEO_FILE_EXTENSIONS]);
+const ALLOWED_EVIDENCE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/bmp',
+  'image/tiff',
+  'image/heic',
+  'image/heif',
+  'video/mp4',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/x-matroska',
+  'video/webm',
+  'video/x-m4v',
+  'video/mpeg',
+]);
 
 let initialized = false;
 
@@ -246,6 +265,8 @@ function buildClaimRewardModal() {
 }
 
 function buildRoleRequestModal() {
+  const imageTypes = Array.from(IMAGE_FILE_EXTENSIONS).map((value) => value.slice(1).toUpperCase()).join(', ');
+  const videoTypes = Array.from(VIDEO_FILE_EXTENSIONS).map((value) => value.slice(1).toUpperCase()).join(', ');
   return {
     custom_id: 'ticket:modal:role_request',
     title: 'Crew Member+ role request',
@@ -263,7 +284,7 @@ function buildRoleRequestModal() {
       {
         type: 18,
         label: 'File Upload',
-        description: 'Upload screenshots/videos proving you meet the role requirements.',
+        description: `Upload screenshots/videos proving you meet the role requirements. Allowed image types: ${imageTypes}. Allowed video types: ${videoTypes}.`,
         component: {
           type: 19,
           custom_id: 'role_request_proof',
@@ -464,6 +485,32 @@ function isImageEvidenceFile(file) {
   return Array.from(IMAGE_FILE_EXTENSIONS).some((extension) => filename.endsWith(extension));
 }
 
+function getFileExtension(filename) {
+  const value = String(filename ?? '').toLowerCase().trim();
+  if (!value) {
+    return '';
+  }
+
+  const extension = path.extname(value);
+  return extension || '';
+}
+
+function getEvidenceFileType(file) {
+  const mimeType = String(file?.contentType ?? file?.content_type ?? '').toLowerCase().trim();
+  const extension = getFileExtension(file?.filename);
+  return mimeType || extension || 'unknown';
+}
+
+function isAllowedEvidenceFile(file) {
+  const mimeType = String(file?.contentType ?? file?.content_type ?? '').toLowerCase().trim();
+  if (mimeType && ALLOWED_EVIDENCE_MIME_TYPES.has(mimeType)) {
+    return true;
+  }
+
+  const extension = getFileExtension(file?.filename);
+  return Boolean(extension) && ALLOWED_EVIDENCE_EXTENSIONS.has(extension);
+}
+
 function buildRoleRequestEvidence(files) {
   if (!Array.isArray(files) || files.length === 0) {
     return {
@@ -474,14 +521,22 @@ function buildRoleRequestEvidence(files) {
 
   const evidenceLines = [];
   const galleryItems = [];
+  let rejectedFilesCount = 0;
 
   for (const file of files) {
-    const rawFilename = file?.filename ?? 'evidence-file';
+    const rawFilename = file?.filename ?? 'unknown-file';
+    const fileType = getEvidenceFileType(file);
+    if (!isAllowedEvidenceFile(file)) {
+      rejectedFilesCount += 1;
+      evidenceLines.push(`• ${sanitizeInlineMarkdown(rawFilename)} (type: ${sanitizeInlineMarkdown(fileType)}) — rejected (unsupported type)`);
+      continue;
+    }
+
     const safeFilename = sanitizeInlineMarkdown(rawFilename);
     const fileUrl = file?.url ?? file?.proxy_url ?? null;
     const trustedUrl = isTrustedEvidenceUrl(fileUrl) ? fileUrl : null;
 
-    evidenceLines.push(trustedUrl ? `• [${safeFilename}](${trustedUrl})` : `• ${safeFilename}`);
+    evidenceLines.push(`• ${safeFilename} (type: ${sanitizeInlineMarkdown(fileType)})`);
 
     if (trustedUrl && isImageEvidenceFile(file) && galleryItems.length < 10) {
       galleryItems.push({
@@ -489,6 +544,14 @@ function buildRoleRequestEvidence(files) {
         description: `Evidence: ${rawFilename}`.slice(0, 1024),
       });
     }
+  }
+
+  if (!evidenceLines.length) {
+    evidenceLines.push('*No evidence files uploaded.*');
+  }
+
+  if (rejectedFilesCount > 0) {
+    evidenceLines.push(`\nUnsupported files rejected: ${rejectedFilesCount}.`);
   }
 
   const evidenceComponents = galleryItems.length
