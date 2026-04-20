@@ -17,4 +17,8 @@ module.exports = {
   async handleInteraction(interaction) {
     return ticketSystem.handleInteraction(interaction);
   },
+
+  async handleMessageDelete(message) {
+    return ticketSystem.handleMessageDelete(message);
+  },
 };

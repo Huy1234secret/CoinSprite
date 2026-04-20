@@ -83,6 +83,14 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+client.on(Events.MessageDelete, async (message) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleMessageDelete === 'function') {
+      await command.handleMessageDelete(message, client);
+    }
+  }
+});
+
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
