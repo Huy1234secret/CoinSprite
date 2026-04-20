@@ -61,3 +61,13 @@ Supported item aliases (case-insensitive):
    ```bash
    npm start
    ```
+
+## Ticket System
+- The bot maintains a Components V2 support ticket panel in channel `1493971939545583836` on startup (`/ticket-panel` can force-refresh).
+- Ticket types:
+  - Guild Support
+  - Claim Reward
+  - Request role: Crew Member+
+- Guild Support and Claim Reward create private ticket channels with staff action controls.
+- Ticket actions include close + blacklist, transcript save, and delayed channel deletion.
+- Crew Member+ role requests are sent to channel `1495714584437329940` with accept/deny review actions.
