@@ -56,6 +56,8 @@ Supported item aliases (case-insensitive):
    DISCORD_TOKEN=your_token_here
    # Optional override for where the ticket panel message is posted.
    TICKET_PANEL_CHANNEL_ID=1493971939545583836
+   # Optional override for where the invitation rules message is posted.
+   INVITATION_RULES_CHANNEL_ID=1494329296670425279
    ```
 3. Run bot:
    ```bash

@@ -2,7 +2,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./inviteRewardsStore');
 const { logCommandUse, logCommandSystem } = require('./commandLogger');
 
-const RULES_CHANNEL_ID = '1494329296670425279';
+const RULES_CHANNEL_ID = process.env.INVITATION_RULES_CHANNEL_ID || '1494329296670425279';
 const CLAIM_CHANNEL_ID = '1493971939545583836';
 const LOG_CHANNEL_ID = '1493915942047059999';
 const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
@@ -245,8 +245,14 @@ async function ensureRulesMessage(guild) {
   const memberCount = await countHumanMembers(guild).catch(() => 0);
   const tier = getTierForMembers(memberCount);
 
-  const channel = await guild.channels.fetch(RULES_CHANNEL_ID).catch(() => null);
+  const channel = await guild.channels.fetch(RULES_CHANNEL_ID).catch((error) => {
+    logReward(
+      `Failed to fetch rules channel ${RULES_CHANNEL_ID} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+    );
+    return null;
+  });
   if (!channel?.isTextBased()) {
+    logReward(`Rules channel ${RULES_CHANNEL_ID} in guild ${guild.id} is not text-based or is inaccessible.`);
     saveState(state);
     return;
   }
@@ -257,7 +263,12 @@ async function ensureRulesMessage(guild) {
   if (guildState.rulesMessageId) {
     sentMessage = await channel.messages.fetch(guildState.rulesMessageId).catch(() => null);
     if (sentMessage) {
-      await sentMessage.edit(payload).catch(() => null);
+      await sentMessage.edit(payload).catch((error) => {
+        logReward(
+          `Failed editing existing rules message ${guildState.rulesMessageId} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+        );
+        return null;
+      });
     }
   }
 
@@ -266,18 +277,31 @@ async function ensureRulesMessage(guild) {
     const botMessage = latest?.find((msg) => msg.author.id === clientRef.user.id);
     if (botMessage) {
       sentMessage = botMessage;
-      await botMessage.edit(payload).catch(() => null);
+      await botMessage.edit(payload).catch((error) => {
+        logReward(
+          `Failed editing discovered rules message ${botMessage.id} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+        );
+        return null;
+      });
     }
   }
 
   if (!sentMessage) {
-    sentMessage = await channel.send(payload).catch(() => null);
+    sentMessage = await channel.send(payload).catch((error) => {
+      logReward(
+        `Failed sending rules message to channel ${RULES_CHANNEL_ID} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+      );
+      return null;
+    });
   }
 
   if (sentMessage) {
     guildState.rulesMessageId = sentMessage.id;
     guildState.updatedAt = Date.now();
     saveState(state);
+    logReward(`Rules message ensured in guild ${guild.id} at message ${sentMessage.id}.`);
+  } else {
+    logReward(`Unable to ensure rules message in guild ${guild.id}; no message could be created or edited.`);
   }
 }
 
