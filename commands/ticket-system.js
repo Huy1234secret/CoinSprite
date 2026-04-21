@@ -437,7 +437,37 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
   }
 }
 
-async function saveTranscript(channel) {
+function toTitleCase(value) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function resolveTranscriptTicketType(channel, ticketRecord) {
+  if (ticketRecord?.ticketType?.trim()) return ticketRecord.ticketType.trim();
+  const base = channel.name.replace(/-\d+$/, '').replace(/-/g, ' ').trim();
+  return toTitleCase(base || 'Ticket');
+}
+
+function formatTranscriptTimestamp(dateInput) {
+  const dt = new Date(dateInput);
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  const year = dt.getFullYear();
+  const hours = String(dt.getHours()).padStart(2, '0');
+  const minutes = String(dt.getMinutes()).padStart(2, '0');
+  return `${month}-${day}-${year}_${hours}-${minutes}`;
+}
+
+function normalizeCloseAction(action) {
+  if (action === 'close_ticket') return 'close';
+  if (action === 'blacklist_user') return 'blacklist_user';
+  return action || 'close';
+}
+
+async function saveTranscript(channel, options = {}) {
   const transcriptDir = path.join(__dirname, '..', 'transcripts');
   fs.mkdirSync(transcriptDir, { recursive: true });
 
@@ -453,8 +483,17 @@ async function saveTranscript(channel) {
     return `${time} // [${message.author.username}] - [${message.author.id}] : ${content}`;
   });
 
-  const filePath = path.join(transcriptDir, `${channel.id}.txt`);
-  fs.writeFileSync(filePath, `${lines.join('\n')}\n`, 'utf8');
+  const ticketType = resolveTranscriptTicketType(channel, options.ticketRecord);
+  const timestamp = formatTranscriptTimestamp(new Date());
+  const fileName = `${ticketType} - ${timestamp}.txt`;
+  const filePath = path.join(transcriptDir, fileName);
+
+  const headerLines = [
+    `Ticket Channel: ${channel.name} (${channel.id})`,
+    `Closed By: ${options.closedBy || 'Unknown'}`,
+    `Close Action: ${normalizeCloseAction(options.closeAction)}`,
+  ];
+  fs.writeFileSync(filePath, `${headerLines.join('\n')}\n\n${lines.join('\n')}\n`, 'utf8');
   return filePath;
 }
 
@@ -501,7 +540,11 @@ async function handleTicketAction(interaction) {
   saveState(state);
 
   await channel.send(container(0xfff200, 'Transcript saving!...'));
-  const transcriptPath = await saveTranscript(channel);
+  const transcriptPath = await saveTranscript(channel, {
+    ticketRecord,
+    closedBy: interaction.user.id,
+    closeAction: action,
+  });
   const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
   if (transcriptChannel?.isTextBased()) {
     await transcriptChannel
