@@ -129,6 +129,21 @@ function getRoleReviewActionRow(customId, placeholder = 'Choose review action', 
   };
 }
 
+function getInviteConfirmationActionRow(customId, disabled = false) {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: customId,
+        disabled,
+        placeholder: 'Confirm invited to guild?',
+        options: [{ label: 'Confirm invited to guild?', value: 'confirm_invited_to_guild', emoji: { name: '📨' } }],
+      },
+    ],
+  };
+}
+
 function formatUploadedFileList(uploadedEvidence) {
   const list = uploadedEvidence
     .slice(0, 10)
@@ -526,6 +541,37 @@ async function handleRoleRequestReview(interaction) {
   }
 
   const action = interaction.values[0];
+  if (action === 'confirm_invited_to_guild') {
+    if (request.status !== 'accepted') {
+      await interaction.reply({
+        content: 'This action is only available after the request is accepted.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return true;
+    }
+
+    await interaction.deferUpdate();
+
+    request.status = 'accepted_invited';
+    state.roleRequests[requestId] = request;
+    saveState(state);
+
+    await interaction.editReply({
+      components: [
+        ...getRoleRequestReviewMessageComponents({
+          userId: request.userId,
+          username: request.username,
+          uploadedEvidence: request.uploadedEvidence || [],
+          statusText: '⭐ Accepted + INVITED',
+          statusColor: 0x00ff00,
+          statusNote: 'The author has been invited to guild',
+        }),
+        getInviteConfirmationActionRow(interaction.customId, true),
+      ],
+    });
+    return true;
+  }
+
   if (action === 'deny_request') {
     const modal = new ModalBuilder().setCustomId(`${CUSTOM_IDS.denyReasonPrefix}${requestId}`).setTitle('Deny request');
     modal.addComponents(
@@ -565,7 +611,7 @@ async function handleRoleRequestReview(interaction) {
         statusColor: 0xd5f5e3,
         statusNote: 'This request has been accepted.',
       }),
-      getRoleReviewActionRow(interaction.customId, 'This request has been accepted', true),
+      getInviteConfirmationActionRow(interaction.customId),
     ],
   });
 
@@ -645,7 +691,7 @@ module.exports = {
             {
               type: 10,
               content:
-                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 225%+\n* Level: 16000\n* ascension: 10",
+                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 225%+\n* Level: 16000\n* ascension: 10\n\nPlease only press SUBMIT once and wait for bot to response!",
             },
             {
               type: 18,
@@ -801,7 +847,7 @@ module.exports = {
             statusColor: 0xf5b7b1,
             statusNote: `Reason: ${reason}\nThis request has been denied.`,
           }),
-          getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`, 'This request has been denied', true),
+          getInviteConfirmationActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
         ],
       });
       return true;
