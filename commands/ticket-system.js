@@ -74,7 +74,7 @@ function getTicketPanelPayload() {
                     emoji: { name: '🎁' },
                   },
                   {
-                    label: 'Request to join guild',
+                    label: 'Guild Join Request',
                     value: 'request_role_crew_member_plus',
                     description: 'Verify your stat here to join the guild',
                     emoji: { name: '⭐' },
