@@ -369,10 +369,18 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
     return;
   }
 
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+  }
+
   const state = loadState();
   const blacklist = state.blacklistedUsersByGuild[guild.id] ?? [];
   if (blacklist.includes(interaction.user.id)) {
-    await interaction.reply({ content: 'You are blacklisted from the ticket system.', flags: MessageFlags.Ephemeral });
+    if (interaction.deferred) {
+      await interaction.editReply({ content: 'You are blacklisted from the ticket system.' });
+    } else {
+      await interaction.reply({ content: 'You are blacklisted from the ticket system.', flags: MessageFlags.Ephemeral });
+    }
     return;
   }
 
@@ -430,7 +438,9 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
     ],
   });
 
-  if (interaction.replied || interaction.deferred) {
+  if (interaction.deferred) {
+    await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
+  } else if (interaction.replied) {
     await interaction.followUp({ content: `Your ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
   } else {
     await interaction.reply({ content: `Your ticket has been created: ${ticketChannel}`, flags: MessageFlags.Ephemeral });
