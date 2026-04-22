@@ -33,8 +33,10 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 ## Console-style PR Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
 - `PR RI {userID}`
+- `PR DM {userID} {message} {yes/no}`
 - `PR add/remove {userID} {item} {amount}`
 - `PR blacklist add/remove {userID} {reason}`
+- `PR invitee-blacklist add/remove {userID} {reason}`
 
 Supported item aliases (case-insensitive):
 - Clan Reroll, Clan Rerolls, CRR
