@@ -721,11 +721,38 @@ async function onMessageCreate(message) {
     return;
   }
 
+  const dmCommand = content.match(/^PR\s+DM\s+(\d{16,20})\s+([\s\S]+)\s+(yes|no)$/i);
+  if (dmCommand) {
+    const [, userId, rawMessage, mentionRaw] = dmCommand;
+    const shouldMention = mentionRaw.toLowerCase() === 'yes';
+    const dmBody = rawMessage.trim();
+
+    if (!dmBody) {
+      await message.reply('Message cannot be empty. Use `PR DM {userID} {message} {yes/no}`.');
+      return;
+    }
+
+    try {
+      const targetUser = await message.client.users.fetch(userId);
+      const dmContent = shouldMention ? `<@${userId}>\n${dmBody}` : dmBody;
+      await targetUser.send({ content: dmContent });
+
+      logReward(`Manual DM sent to ${userId} by ${message.author.id}. mention=${shouldMention ? 'yes' : 'no'}`);
+      await message.reply(`DM sent to <@${userId}> successfully.`);
+    } catch (error) {
+      logCommandSystem(
+        `Failed PR DM command by ${message.author.id} to ${userId}: ${error?.message ?? 'unknown error'}`,
+      );
+      await message.reply(`Failed to send DM to <@${userId}>. The user may have DMs disabled.`);
+    }
+    return;
+  }
+
   const updateCmd = content.match(/^PR\s+(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
     logCommandSystem(`Invalid PR command syntax by ${message.author.id}: ${content}`);
     await message.reply(
-      'Invalid PR command. Use `PR RI {userID}`, `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
+      'Invalid PR command. Use `PR RI {userID}`, `PR DM {userID} {message} {yes/no}`, `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
     );
     return;
   }
