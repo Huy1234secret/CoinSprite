@@ -103,6 +103,23 @@ function setUserLevel(guildId, userId, targetLevel) {
   return { level: safeLevel, totalXp };
 }
 
+function setUserXp(guildId, userId, targetXp) {
+  const safeXp = Math.max(0, Math.floor(Number(targetXp) || 0));
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  user.totalXp = safeXp;
+  user.updatedAt = Date.now();
+  guild.updatedAt = Date.now();
+  saveState(state);
+
+  const progress = getProgress(user.totalXp);
+  return {
+    totalXp: user.totalXp,
+    level: progress.level,
+  };
+}
+
 function addUserXp(guildId, userId, amount) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
@@ -121,6 +138,13 @@ function addUserXp(guildId, userId, amount) {
     newLevel: after.level,
     totalXp: user.totalXp,
   };
+}
+
+function getUserProgress(guildId, userId) {
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  return getProgress(user.totalXp);
 }
 
 function findLevelCardBackground() {
@@ -314,7 +338,9 @@ module.exports = {
   awardMessageXp,
   awardReactionXp,
   setUserLevel,
+  setUserXp,
   addUserXp,
+  getUserProgress,
   buildLevelCard,
   buildLeaderboardImage,
 };
