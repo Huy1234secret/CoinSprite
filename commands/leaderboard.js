@@ -88,7 +88,11 @@ async function sendLeaderboard(target, guild, userId, type, page) {
   });
 
   const payload = {
-    content: `\`\`\`\n${guild.name}'s leaderboard\nYou placed ${place} on the ${getTypeLabel(type)} leaderboard\n\`\`\``,
+    content: [
+      `## ${guild.name}'s leaderboard.`,
+      `-# You placed ${place} on the ${getTypeLabel(type)} leaderboard.`,
+      '────────────',
+    ].join('\n'),
     files: [attachment],
     components: [leaderboardButton(type, finalPage, maxPage), leaderboardTypeSelector()],
   };
