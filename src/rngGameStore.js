@@ -102,4 +102,11 @@ module.exports = {
   spendBalance,
   getUpgrades,
   setUpgrades,
+  resetAllRngData,
 };
+
+function resetAllRngData() {
+  const emptyState = { balances: {}, upgrades: {} };
+  saveState(emptyState);
+  return emptyState;
+}
