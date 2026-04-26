@@ -3,7 +3,7 @@ const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./levelingStore');
-const { getUpgrades } = require('./rngGameStore');
+const { getUpgradesReadonly } = require('./rngGameStore');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
@@ -86,7 +86,7 @@ function getXpGainAfterPunishment(rawXp, punishment) {
 }
 
 function getXpWithBoost(rawXp, userId) {
-  const upgrades = getUpgrades(userId);
+  const upgrades = getUpgradesReadonly(userId);
   const expBoostPercent = Math.max(0, Number(upgrades.expLevel) || 0);
   return rawXp * ((100 + expBoostPercent) / 100);
 }
