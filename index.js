@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
 const { config } = require('dotenv');
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -14,7 +14,9 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildInvites,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions,
   ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 client.commands = new Collection();
@@ -109,6 +111,14 @@ client.on(Events.MessageDelete, async (message) => {
   for (const command of client.commands.values()) {
     if (typeof command.handleMessageDelete === 'function') {
       await command.handleMessageDelete(message, client);
+    }
+  }
+});
+
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
+  for (const command of client.commands.values()) {
+    if (typeof command.handleMessageReactionAdd === 'function') {
+      await command.handleMessageReactionAdd(reaction, user, client);
     }
   }
 });
