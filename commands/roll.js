@@ -21,10 +21,6 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function roundToSix(value) {
-  return Math.round(value * 1_000_000) / 1_000_000;
-}
-
 function roundToThree(value) {
   return Math.round(value * 1000) / 1000;
 }
@@ -53,7 +49,7 @@ const LETTER_REWARDS = buildLetterRewards();
 function buildBaseChances() {
   const raw = LETTER_REWARDS.map((_, index) => Math.pow(CHANCE_DECAY, index));
   const totalRaw = raw.reduce((sum, value) => sum + value, 0);
-  return raw.map((value) => roundToSix((value / totalRaw) * 100));
+  return raw.map((value) => (value / totalRaw) * 100);
 }
 
 const BASE_CHANCES = buildBaseChances();
@@ -82,17 +78,17 @@ function buildChances(luckLevel) {
 
   const boost = getLuckBoost(luckLevel);
   const transfer = Math.min(boost, chances[0] * (1 - SOFTCAP_FLOOR));
-  chances[0] = roundToSix(chances[0] - transfer);
+  chances[0] -= transfer;
 
   const weights = chances.slice(1).map((chance, idx) => Math.sqrt(chance) / Math.sqrt(idx + 1));
   const totalWeight = weights.reduce((sum, value) => sum + value, 0);
   for (let idx = 1; idx < chances.length; idx += 1) {
     const portion = totalWeight > 0 ? (transfer * (weights[idx - 1] / totalWeight)) : 0;
-    chances[idx] = roundToSix(chances[idx] + portion);
+    chances[idx] += portion;
   }
 
   const total = chances.reduce((sum, chance) => sum + chance, 0);
-  chances[0] = roundToSix(chances[0] + (100 - total));
+  chances[0] += (100 - total);
   return chances;
 }
 
