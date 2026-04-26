@@ -1,16 +1,9 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
+const { LEVEL_ROLE_REWARDS, syncMemberLevelRoles } = require('../src/levelRoleSync');
 
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const LEVEL_ROLE_REWARDS = new Map([
-  [5, '1493906016570572801'],
-  [10, '1493906102990147654'],
-  [15, '1493906169054625792'],
-  [20, '1493906220065619988'],
-  [30, '1493906329465655376'],
-  [40, '1496480275352391680'],
-]);
 const LEVEL_FUN_MESSAGES = new Map([
   [5, 'Bro discovered the chat button.'],
   [10, 'Double digits? Okay, yapper training complete.'],
@@ -58,8 +51,8 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
   let earnedRoleMessage = '';
   if (roleId) {
     const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
-    if (member && !member.roles.cache.has(roleId)) {
-      await member.roles.add(roleId).catch(() => null);
+    if (member) {
+      await syncMemberLevelRoles(guild, member, newLevel);
     }
     earnedRoleMessage = `-# You also got <@&${roleId}>`;
   }

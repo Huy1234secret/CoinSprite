@@ -799,6 +799,8 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.crewRoleRequestModal) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
       const username = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleUsername, '-');
       const uploadedEvidence = getUploadedAttachmentDetails(interaction);
 
@@ -820,9 +822,9 @@ module.exports = {
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
-        await interaction.reply({
+        await interaction.editReply({
           ...container(0xffffff, 'Request channel is not available right now.'),
-          flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG,
+          flags: COMPONENTS_V2_FLAG,
         });
         return true;
       }
@@ -841,9 +843,9 @@ module.exports = {
         ],
       });
 
-      await interaction.reply({
+      await interaction.editReply({
         ...container(0xffffff, 'Your Crew Member+ role request has been submitted.'),
-        flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG,
+        flags: COMPONENTS_V2_FLAG,
       });
       return true;
     }
