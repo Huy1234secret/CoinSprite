@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const manager = require('../src/levelingManager');
+const { syncMemberLevelRoles } = require('../src/levelRoleManager');
 const MAX_XP_OPERAND = 1_000_000_000;
 
 module.exports = {
@@ -41,6 +42,11 @@ module.exports = {
 
     if (operation === 's') {
       const result = manager.setUserXp(interaction.guildId, user.id, value);
+      const member = interaction.guild.members.cache.get(user.id)
+        || await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (member) {
+        await syncMemberLevelRoles(interaction.guild, member);
+      }
       await interaction.reply({
         content: `Set <@${user.id}> to **${result.totalXp} XP**. New level: **${result.level}**.`,
       });
@@ -51,6 +57,11 @@ module.exports = {
     const current = manager.getUserProgress(interaction.guildId, user.id);
     const targetXp = Math.max(0, current.totalXp + delta);
     const result = manager.setUserXp(interaction.guildId, user.id, targetXp);
+    const member = interaction.guild.members.cache.get(user.id)
+      || await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member) {
+      await syncMemberLevelRoles(interaction.guild, member);
+    }
 
     await interaction.reply({
       content: `${delta >= 0 ? 'Added' : 'Removed'} **${Math.abs(delta)} XP** ${delta >= 0 ? 'to' : 'from'} <@${user.id}>. New level: **${result.level}** (Total XP: **${result.totalXp}**).`,

@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'leveling-state.json');
+const LEVELING_SCHEMA_VERSION = 2;
+const XP_MIGRATION_MULTIPLIER = 0.4122;
+
+function floorOneDecimal(value) {
+  return Math.floor(Math.max(0, Number(value) || 0) * 10) / 10;
+}
 
 function ensureStoreFile() {
   const dir = path.dirname(STORE_PATH);
@@ -14,6 +20,35 @@ function ensureStoreFile() {
   }
 }
 
+function runMigrations(state) {
+  if (!state.meta || typeof state.meta !== 'object') {
+    state.meta = {};
+  }
+
+  const currentVersion = Number(state.meta.levelingSchemaVersion) || 1;
+  if (currentVersion >= LEVELING_SCHEMA_VERSION) {
+    return false;
+  }
+
+  if (currentVersion < 2) {
+    for (const guild of Object.values(state.guilds || {})) {
+      if (!guild?.users || typeof guild.users !== 'object') {
+        continue;
+      }
+
+      for (const user of Object.values(guild.users)) {
+        user.totalXp = floorOneDecimal((Number(user.totalXp) || 0) * XP_MIGRATION_MULTIPLIER);
+      }
+
+      guild.updatedAt = Date.now();
+    }
+  }
+
+  state.meta.levelingSchemaVersion = LEVELING_SCHEMA_VERSION;
+  state.meta.updatedAt = Date.now();
+  return true;
+}
+
 function loadState() {
   ensureStoreFile();
   try {
@@ -21,6 +56,11 @@ function loadState() {
     if (!parsed || typeof parsed !== 'object' || typeof parsed.guilds !== 'object') {
       return { guilds: {} };
     }
+
+    if (runMigrations(parsed)) {
+      saveState(parsed);
+    }
+
     return parsed;
   } catch {
     return { guilds: {} };

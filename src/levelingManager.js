@@ -27,7 +27,7 @@ function xpRequirement(level) {
     return 100;
   }
   const n = level - 1;
-  return Math.round(100 + (20 * n) + (5 * n * n));
+  return Math.round(100 + (20 * n) + (5 * (n ** 1.6)));
 }
 
 function getProgress(totalXp) {
