@@ -179,13 +179,13 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
 
 function getRankColors(rank) {
   if (rank === 1) {
-    return { fill: '#D4AF37', text: '#1b1400' };
+    return { fill: '#D4AF37', text: '#FFD84D' };
   }
   if (rank === 2) {
-    return { fill: '#C0C0C0', text: '#111111' };
+    return { fill: '#C0C0C0', text: '#AEEBFF' };
   }
   if (rank === 3) {
-    return { fill: '#CD7F32', text: '#130a00' };
+    return { fill: '#CD7F32', text: '#D9A56A' };
   }
   return { fill: null, text: '#f2f3f5' };
 }
@@ -227,10 +227,11 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   ctx.font = 'bold 44px sans-serif';
   ctx.fillText(username.slice(0, 28), 240, 120);
 
-  ctx.font = '28px sans-serif';
   const rankColors = getRankColors(rank);
+  ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = rankColors.text;
   ctx.fillText(`Rank #${rank}`, 240, 165);
+  ctx.font = '28px sans-serif';
   ctx.fillStyle = '#f2f3f5';
   ctx.fillText(`Level ${stats.level}`, 240, 205);
 
