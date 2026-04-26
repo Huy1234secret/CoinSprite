@@ -176,6 +176,20 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
   ctx.closePath();
 }
 
+
+function getRankColors(rank) {
+  if (rank === 1) {
+    return { fill: '#D4AF37', text: '#1b1400' };
+  }
+  if (rank === 2) {
+    return { fill: '#C0C0C0', text: '#111111' };
+  }
+  if (rank === 3) {
+    return { fill: '#CD7F32', text: '#130a00' };
+  }
+  return { fill: null, text: '#f2f3f5' };
+}
+
 async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stats }) {
   ensureCacheDirs();
   const width = 1000;
@@ -214,7 +228,10 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   ctx.fillText(username.slice(0, 28), 240, 120);
 
   ctx.font = '28px sans-serif';
+  const rankColors = getRankColors(rank);
+  ctx.fillStyle = rankColors.text;
   ctx.fillText(`Rank #${rank}`, 240, 165);
+  ctx.fillStyle = '#f2f3f5';
   ctx.fillText(`Level ${stats.level}`, 240, 205);
 
   const progressX = 240;
@@ -270,11 +287,12 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     const y = 144 + (i * 58);
-    ctx.fillStyle = i % 2 === 0 ? '#232428' : '#1e1f22';
+    const rankColors = getRankColors(row.rank);
+    ctx.fillStyle = rankColors.fill || (i % 2 === 0 ? '#232428' : '#1e1f22');
     ctx.fillRect(20, y, width - 40, 52);
 
     await drawAvatar(ctx, row.avatarUrl, 34, y + 6, 40);
-    ctx.fillStyle = '#f2f3f5';
+    ctx.fillStyle = rankColors.text;
     ctx.font = '20px sans-serif';
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
