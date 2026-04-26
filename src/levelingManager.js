@@ -6,6 +6,7 @@ const { loadState, saveState, ensureGuildState, ensureUserState } = require('./l
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
+const LEVEL_CARD_BG_FILENAME = 'Level card background.png';
 
 function xpRequirement(level) {
   if (level <= 1) {
@@ -43,29 +44,98 @@ function getSortedLeaderboard(guildId) {
 }
 
 function awardMessageXp(guildId, userId) {
-  const xp = Math.floor(Math.random() * 10) + 1;
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
+  const before = getProgress(user.totalXp);
+  const xp = Math.floor(Math.random() * 10) + 1;
   user.totalXp += xp;
   user.messages += 1;
+  const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
-  return xp;
+  return {
+    xp,
+    leveledUp: after.level > before.level,
+    oldLevel: before.level,
+    newLevel: after.level,
+    totalXp: user.totalXp,
+  };
 }
 
 function awardReactionXp(guildId, userId) {
-  const xp = Math.floor(Math.random() * 2) + 1;
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
+  const before = getProgress(user.totalXp);
+  const xp = Math.floor(Math.random() * 2) + 1;
   user.totalXp += xp;
   user.reactions += 1;
+  const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
-  return xp;
+  return {
+    xp,
+    leveledUp: after.level > before.level,
+    oldLevel: before.level,
+    newLevel: after.level,
+    totalXp: user.totalXp,
+  };
+}
+
+function setUserLevel(guildId, userId, targetLevel) {
+  const safeLevel = Math.max(1, Math.floor(Number(targetLevel) || 1));
+  let totalXp = 0;
+  for (let level = 1; level < safeLevel; level += 1) {
+    totalXp += xpRequirement(level);
+  }
+
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  user.totalXp = totalXp;
+  user.updatedAt = Date.now();
+  guild.updatedAt = Date.now();
+  saveState(state);
+
+  return { level: safeLevel, totalXp };
+}
+
+function addUserXp(guildId, userId, amount) {
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  const before = getProgress(user.totalXp);
+  const delta = Math.max(0, Math.floor(Number(amount) || 0));
+  user.totalXp += delta;
+  const after = getProgress(user.totalXp);
+  user.updatedAt = Date.now();
+  guild.updatedAt = Date.now();
+  saveState(state);
+
+  return {
+    addedXp: delta,
+    oldLevel: before.level,
+    newLevel: after.level,
+    totalXp: user.totalXp,
+  };
+}
+
+function findLevelCardBackground() {
+  const guessed = [
+    path.join(process.cwd(), LEVEL_CARD_BG_FILENAME),
+    path.join(__dirname, '..', LEVEL_CARD_BG_FILENAME),
+  ];
+
+  for (const candidate of guessed) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 function ensureCacheDirs() {
@@ -98,15 +168,32 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#5865F2');
-  gradient.addColorStop(1, '#1f2333');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  const bgPath = findLevelCardBackground();
+  if (bgPath) {
+    try {
+      const background = await loadImage(bgPath);
+      ctx.drawImage(background, 0, 0, width, height);
+    } catch {
+      ctx.fillStyle = '#1e1f22';
+      ctx.fillRect(0, 0, width, height);
+    }
+  } else {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#5865F2');
+    gradient.addColorStop(1, '#1f2333');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
+  ctx.fillRect(28, 28, width - 56, height - 56);
+  ctx.strokeStyle = '#5865F2';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(28, 28, width - 56, height - 56);
 
   await drawAvatar(ctx, avatarUrl, 48, 80, 160);
 
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#f2f3f5';
   ctx.font = 'bold 44px sans-serif';
   ctx.fillText(username.slice(0, 28), 240, 120);
 
@@ -120,16 +207,16 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   const progressH = 36;
   const percent = Math.min(1, stats.currentXp / Math.max(1, stats.requiredXp));
 
-  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillStyle = '#313338';
   ctx.fillRect(progressX, progressY, progressW, progressH);
 
   const bar = ctx.createLinearGradient(progressX, progressY, progressX + progressW, progressY);
-  bar.addColorStop(0, '#00d4ff');
-  bar.addColorStop(1, '#6a7bff');
+  bar.addColorStop(0, '#5865f2');
+  bar.addColorStop(1, '#7c8bff');
   ctx.fillStyle = bar;
   ctx.fillRect(progressX, progressY, progressW * percent, progressH);
 
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = '#dbdee1';
   ctx.font = '24px sans-serif';
   ctx.fillText(`${stats.currentXp} / ${stats.requiredXp}`, progressX + 12, progressY + 26);
 
@@ -146,17 +233,17 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#1e1f22';
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#1f2328';
+  ctx.fillStyle = '#f2f3f5';
   ctx.font = 'bold 36px sans-serif';
   ctx.fillText(`${guildName} • ${type}`, 30, 52);
   ctx.font = '24px sans-serif';
   ctx.fillText(`Page ${page} / ${maxPage}`, 900, 52);
 
-  ctx.fillStyle = '#f3f4f6';
+  ctx.fillStyle = '#2b2d31';
   ctx.fillRect(20, 80, width - 40, 52);
-  ctx.fillStyle = '#111827';
+  ctx.fillStyle = '#dbdee1';
   ctx.font = 'bold 22px sans-serif';
   ctx.fillText('Username', 130, 114);
   ctx.fillText(type === 'xp' ? 'XP' : type === 'messages' ? 'Message' : 'Reaction', 700, 114);
@@ -165,11 +252,11 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     const y = 144 + (i * 58);
-    ctx.fillStyle = i % 2 === 0 ? '#fafafa' : '#f0f2f5';
+    ctx.fillStyle = i % 2 === 0 ? '#232428' : '#1e1f22';
     ctx.fillRect(20, y, width - 40, 52);
 
     await drawAvatar(ctx, row.avatarUrl, 34, y + 6, 40);
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = '#f2f3f5';
     ctx.font = '20px sans-serif';
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
@@ -189,6 +276,8 @@ module.exports = {
   getSortedLeaderboard,
   awardMessageXp,
   awardReactionXp,
+  setUserLevel,
+  addUserXp,
   buildLevelCard,
   buildLeaderboardImage,
 };
