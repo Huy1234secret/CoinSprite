@@ -61,14 +61,16 @@ function normalizeUsername(value) {
 function buildUsernameMemberMap(guild) {
   const map = new Map();
   for (const member of guild.members.cache.values()) {
-    const keys = [
+    const keys = new Set(
+      [
       member.user.username,
       member.user.globalName,
       member.nickname,
       member.displayName,
-    ]
-      .filter(Boolean)
-      .map(normalizeUsername);
+      ]
+        .filter(Boolean)
+        .map(normalizeUsername),
+    );
 
     for (const key of keys) {
       if (!map.has(key)) {
