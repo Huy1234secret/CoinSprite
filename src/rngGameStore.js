@@ -88,6 +88,11 @@ function getUpgrades(userId) {
   return upgrades;
 }
 
+function getUpgradesReadonly(userId) {
+  const state = loadState();
+  return sanitizeUpgrades(state.upgrades[userId] || DEFAULT_UPGRADES);
+}
+
 function setUpgrades(userId, upgrades) {
   const state = loadState();
   state.upgrades[userId] = sanitizeUpgrades(upgrades);
@@ -101,5 +106,6 @@ module.exports = {
   addBalance,
   spendBalance,
   getUpgrades,
+  getUpgradesReadonly,
   setUpgrades,
 };
