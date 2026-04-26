@@ -31,7 +31,7 @@ function getLuckPercent(level) {
 
   const base = Math.min(level, 30);
   const overflow = Math.max(0, level - 30);
-  return roundToOne(base + (Math.log2(overflow + 1) * 2.8));
+  return roundToOne(base + (Math.log2(overflow + 1) * 2.5));
 }
 
 function getLuckPrice(nextLevel) {

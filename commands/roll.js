@@ -10,31 +10,68 @@ const GREEN_ACCENT = 0x57F287;
 const YELLOW_ACCENT = 0xFEE75C;
 const CYAN_ACCENT = 0x3BFFFF;
 
-const LETTER_REWARDS = [
-  { letter: 'A', min: 1, max: 4 },
-  { letter: 'B', min: 6, max: 13 },
-  { letter: 'C', min: 20, max: 42 },
-  { letter: 'D', min: 55, max: 105 },
-  { letter: 'E', min: 170, max: 320 },
-  { letter: 'F', min: 600, max: 1200 },
-  { letter: 'G', min: 2400, max: 4500 },
-];
-
-const BASE_CHANCES = [70, 20, 9, 0.99, 0.0095, 0.00049, 0.00001];
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const LETTER_POOL_SIZE = 130;
+const CHANCE_DECAY = 0.43;
 const SOFTCAP_START_LUCK = 30;
-const SOFTCAP_FLOOR = 0.18;
-const MAX_LUCK_TRANSFER = 45;
+const SOFTCAP_FLOOR = 0.16;
+const MAX_LUCK_TRANSFER = 55;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function roundToSix(value) {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function roundToThree(value) {
   return Math.round(value * 1000) / 1000;
 }
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function buildLetterName(index) {
+  const alphabetIndex = index % ALPHABET.length;
+  const cycle = Math.floor(index / ALPHABET.length);
+  const letter = ALPHABET[alphabetIndex];
+  return cycle === 0 ? letter : `${cycle}${letter}`;
+}
+
+function buildLetterRewards() {
+  return Array.from({ length: LETTER_POOL_SIZE }, (_, index) => {
+    const base = Math.floor(2 + (Math.pow(1.33, index) * 2));
+    const spread = Math.max(2, Math.floor(base * 0.82));
+    return {
+      letter: buildLetterName(index),
+      min: base,
+      max: base + spread,
+    };
+  });
+}
+
+const LETTER_REWARDS = buildLetterRewards();
+
+function buildBaseChances() {
+  const raw = LETTER_REWARDS.map((_, index) => Math.pow(CHANCE_DECAY, index));
+  const totalRaw = raw.reduce((sum, value) => sum + value, 0);
+  return raw.map((value) => roundToSix((value / totalRaw) * 100));
+}
+
+const BASE_CHANCES = buildBaseChances();
+
+function getLuckBoost(luckLevel) {
+  if (luckLevel <= 0) {
+    return 0;
+  }
+
+  const preSoftcapBoost = luckLevel <= SOFTCAP_START_LUCK
+    ? luckLevel
+    : SOFTCAP_START_LUCK;
+  const postSoftcapLevels = Math.max(0, luckLevel - SOFTCAP_START_LUCK);
+  const postSoftcapBoost = postSoftcapLevels > 0
+    ? (Math.log2(postSoftcapLevels + 1) * 2.5)
+    : 0;
+
+  return Math.min(MAX_LUCK_TRANSFER, preSoftcapBoost + postSoftcapBoost);
 }
 
 function buildChances(luckLevel) {
@@ -43,26 +80,30 @@ function buildChances(luckLevel) {
     return chances;
   }
 
-  const preSoftcapBoost = luckLevel <= SOFTCAP_START_LUCK
-    ? luckLevel
-    : SOFTCAP_START_LUCK;
-  const postSoftcapLevels = Math.max(0, luckLevel - SOFTCAP_START_LUCK);
-  const postSoftcapBoost = postSoftcapLevels > 0
-    ? (Math.log2(postSoftcapLevels + 1) * 2.8)
-    : 0;
-  const boost = Math.min(MAX_LUCK_TRANSFER, preSoftcapBoost + postSoftcapBoost);
-
+  const boost = getLuckBoost(luckLevel);
   const transfer = Math.min(boost, chances[0] * (1 - SOFTCAP_FLOOR));
-  chances[0] = roundToThree(chances[0] - transfer);
+  chances[0] = roundToSix(chances[0] - transfer);
 
-  const weights = [0.58, 0.3, 0.11, 0.009, 0.0009, 0.0001];
+  const weights = chances.slice(1).map((chance, idx) => Math.sqrt(chance) / Math.sqrt(idx + 1));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
   for (let idx = 1; idx < chances.length; idx += 1) {
-    chances[idx] = roundToThree(chances[idx] + (transfer * weights[idx - 1]));
+    const portion = totalWeight > 0 ? (transfer * (weights[idx - 1] / totalWeight)) : 0;
+    chances[idx] = roundToSix(chances[idx] + portion);
   }
 
   const total = chances.reduce((sum, chance) => sum + chance, 0);
-  chances[0] = roundToThree(chances[0] + (100 - total));
+  chances[0] = roundToSix(chances[0] + (100 - total));
   return chances;
+}
+
+function formatChance(chancePercent) {
+  if (chancePercent >= 1) {
+    return `${roundToThree(chancePercent)}%`;
+  }
+  if (chancePercent >= 0.01) {
+    return `${chancePercent.toFixed(4)}%`;
+  }
+  return `${chancePercent.toExponential(2)}%`;
 }
 
 function rollLetter(luckLevel) {
@@ -88,13 +129,13 @@ function rollLetter(luckLevel) {
 }
 
 function getRareRollAccent(chancePercent) {
-  if (chancePercent < 0.0001) {
+  if (chancePercent < 0.001) {
     return CYAN_ACCENT;
   }
-  if (chancePercent < 0.01) {
+  if (chancePercent < 0.05) {
     return YELLOW_ACCENT;
   }
-  if (chancePercent < 1) {
+  if (chancePercent < 0.5) {
     return GREEN_ACCENT;
   }
   return null;
@@ -127,7 +168,7 @@ async function sendRareRollLog(target, user, result) {
         components: [
           {
             type: 10,
-            content: `🎲 ${user} rolled **${result.letter}** \`(${result.chance}%)\``,
+            content: `🎲 ${user} rolled **${result.letter}** \`(${formatChance(result.chance)})\``,
           },
         ],
       },
@@ -169,7 +210,7 @@ async function executeRoll(target, user) {
         components: [
           {
             type: 10,
-            content: [...titleLines, `## ${result.letter} \`(${result.chance}%)\``].join('\n'),
+            content: [...titleLines, `## ${result.letter} \`(${formatChance(result.chance)})\``].join('\n'),
           },
           {
             type: 14,
