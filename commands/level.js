@@ -45,6 +45,14 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
 
   const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
   const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
+  const hasFunMessage = Boolean(LEVEL_FUN_MESSAGES.get(newLevel));
+  const additionalComponents = (hasFunMessage && earnedRoleMessage)
+    ? [
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: earnedRoleMessage },
+    ]
+    : [];
+
   await channel.send({
     allowedMentions: { parse: [] },
     flags: COMPONENTS_V2_FLAG,
@@ -54,8 +62,7 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
         accent_color: 0x57F287,
         components: [
           { type: 10, content: levelMessage },
-          { type: 14, divider: true, spacing: 1 },
-          { type: 10, content: earnedRoleMessage || '-# No role reward earned this level.' },
+          ...additionalComponents,
         ],
       },
     ],
