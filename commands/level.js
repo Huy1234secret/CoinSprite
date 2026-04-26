@@ -3,6 +3,8 @@ const manager = require('../src/levelingManager');
 const { LEVEL_ROLE_REWARDS } = require('../src/levelRoleRewards');
 
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
+const LOW_XP_CATEGORY_ID = '1498006922912202948';
+const LOW_XP_AMOUNT = 0.5;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const LEVEL_FUN_MESSAGES = new Map([
   [5, 'Bro discovered the chat button.'],
@@ -84,6 +86,22 @@ async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
   }
 }
 
+function isChannelInLowXpCategory(channel) {
+  if (!channel) {
+    return false;
+  }
+
+  if (channel.parentId === LOW_XP_CATEGORY_ID) {
+    return true;
+  }
+
+  if (channel.isThread?.()) {
+    return channel.parent?.parentId === LOW_XP_CATEGORY_ID;
+  }
+
+  return false;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('level')
@@ -141,7 +159,8 @@ module.exports = {
       return;
     }
 
-    const result = manager.awardMessageXp(message.guild.id, message.author.id);
+    const fixedXp = isChannelInLowXpCategory(message.channel) ? LOW_XP_AMOUNT : undefined;
+    const result = manager.awardMessageXp(message.guild.id, message.author.id, { fixedXp });
     await handleLevelUpRange(message.guild, message.author.id, result.oldLevel, result.newLevel);
   },
 
@@ -158,7 +177,8 @@ module.exports = {
       return;
     }
 
-    const result = manager.awardReactionXp(reaction.message.guild.id, user.id);
+    const fixedXp = isChannelInLowXpCategory(reaction.message.channel) ? LOW_XP_AMOUNT : undefined;
+    const result = manager.awardReactionXp(reaction.message.guild.id, user.id, { fixedXp });
     await handleLevelUpRange(reaction.message.guild, user.id, result.oldLevel, result.newLevel);
   },
 };
