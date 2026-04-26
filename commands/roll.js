@@ -23,7 +23,7 @@ const LETTER_REWARDS = [
 const BASE_CHANCES = [70, 20, 9, 0.99, 0.0095, 0.00049, 0.00001];
 const SOFTCAP_START_LUCK = 30;
 const SOFTCAP_FLOOR = 0.18;
-const MAX_LUCK_TRANSFER = 20;
+const MAX_LUCK_TRANSFER = 45;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;

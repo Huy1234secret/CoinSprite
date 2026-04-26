@@ -7,6 +7,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('rng-wipe')
     .setDescription('Wipe all RNG game data (balances + upgrades).')
+    .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) => option
       .setName('confirm')
@@ -14,6 +15,22 @@ module.exports = {
       .setRequired(true)),
 
   async execute(interaction) {
+    if (!interaction.guildId) {
+      await interaction.reply({
+        flags: COMPONENTS_V2_FLAG,
+        components: [
+          {
+            type: 17,
+            accent_color: 0xED4245,
+            components: [
+              { type: 10, content: '### Server-only command\n-# `/rng-wipe` can only be used inside a server.' },
+            ],
+          },
+        ],
+      });
+      return;
+    }
+
     const confirmation = interaction.options.getString('confirm', true).trim().toUpperCase();
     if (confirmation !== 'WIPE') {
       await interaction.reply({
