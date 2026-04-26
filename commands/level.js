@@ -1,7 +1,8 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
 
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const LEVEL_ROLE_REWARDS = new Map([
   [5, '1493906016570572801'],
   [10, '1493906102990147654'],
@@ -39,16 +40,25 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
     if (member && !member.roles.cache.has(roleId)) {
       await member.roles.add(roleId).catch(() => null);
     }
-    earnedRoleMessage = `\n-# You also got <@&${roleId}>`;
+    earnedRoleMessage = `-# You also got <@&${roleId}>`;
   }
 
   const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
+  const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
   await channel.send({
     allowedMentions: { parse: [] },
-    embeds: [{
-      color: 0x57F287,
-      description: `<@${userId}> has leveled up to level ${newLevel}!${funMessage}\n━━━━━━━━━━━━━━━━━━━━${earnedRoleMessage}`,
-    }],
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: 0x57F287,
+        components: [
+          { type: 10, content: levelMessage },
+          { type: 14, divider: true, spacing: 1 },
+          { type: 10, content: earnedRoleMessage || '-# No role reward earned this level.' },
+        ],
+      },
+    ],
   });
 }
 
