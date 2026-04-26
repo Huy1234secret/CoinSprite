@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const manager = require('../src/levelingManager');
+const { syncMemberLevelRoles } = require('../src/levelRoleManager');
 const MAX_LEVEL_OPERAND = 10_000;
 
 module.exports = {
@@ -51,6 +52,12 @@ module.exports = {
     }
 
     const result = manager.setUserLevel(interaction.guildId, user.id, targetLevel);
+
+    const member = interaction.guild.members.cache.get(user.id)
+      || await interaction.guild.members.fetch(user.id).catch(() => null);
+    if (member) {
+      await syncMemberLevelRoles(interaction.guild, member);
+    }
 
     await interaction.reply({
       content: `Updated <@${user.id}> to level **${result.level}** (Total XP: **${result.totalXp}**).`,
