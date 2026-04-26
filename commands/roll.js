@@ -34,7 +34,10 @@ function buildLetterName(index) {
 
 function buildLetterRewards() {
   return Array.from({ length: LETTER_POOL_SIZE }, (_, index) => {
-    const base = Math.floor(2 + (Math.pow(1.33, index) * 2));
+    const cycle = Math.floor(index / ALPHABET.length);
+    const cycleBoost = 1 + (cycle * 0.5);
+    const rarityBoost = 1 + ((index / (LETTER_POOL_SIZE - 1)) ** 2 * 3.2);
+    const base = Math.floor((2 + (Math.pow(1.33, index) * 2)) * cycleBoost * rarityBoost);
     const spread = Math.max(2, Math.floor(base * 0.82));
     return {
       letter: buildLetterName(index),
