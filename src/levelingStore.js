@@ -50,6 +50,8 @@ function ensureUserState(guildState, userId) {
       totalXp: 0,
       messages: 0,
       reactions: 0,
+      punishTier: 0,
+      activePunishment: null,
       updatedAt: Date.now(),
     };
   }
@@ -58,6 +60,14 @@ function ensureUserState(guildState, userId) {
   user.totalXp = Number(user.totalXp) || 0;
   user.messages = Number(user.messages) || 0;
   user.reactions = Number(user.reactions) || 0;
+  user.punishTier = Math.max(0, Math.floor(Number(user.punishTier) || 0));
+  if (!user.activePunishment || typeof user.activePunishment !== 'object') {
+    user.activePunishment = null;
+  } else {
+    const tier = Math.floor(Number(user.activePunishment.tier) || 0);
+    const endsAt = Number(user.activePunishment.endsAt) || null;
+    user.activePunishment = tier > 0 ? { tier, endsAt } : null;
+  }
   user.updatedAt = Number(user.updatedAt) || Date.now();
 
   return user;

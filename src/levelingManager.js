@@ -8,6 +8,20 @@ const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
 const LEVEL_CARD_BG_FILENAME = 'Level card background.png';
 
+const PUNISHMENT_DURATIONS_MS = {
+  1: 24 * 60 * 60 * 1000,
+  2: 3 * 24 * 60 * 60 * 1000,
+  3: 7 * 24 * 60 * 60 * 1000,
+};
+
+function floorOneDecimal(value) {
+  return Math.floor(Math.max(0, Number(value) || 0) * 10) / 10;
+}
+
+function formatOneDecimal(value) {
+  return floorOneDecimal(value).toFixed(1);
+}
+
 function xpRequirement(level) {
   if (level <= 1) {
     return 100;
@@ -18,7 +32,7 @@ function xpRequirement(level) {
 
 function getProgress(totalXp) {
   let level = 1;
-  let remaining = totalXp;
+  let remaining = Math.max(0, Number(totalXp) || 0);
   let req = xpRequirement(level);
 
   while (remaining >= req) {
@@ -29,9 +43,9 @@ function getProgress(totalXp) {
 
   return {
     level,
-    currentXp: remaining,
-    requiredXp: req,
-    totalXp,
+    currentXp: floorOneDecimal(remaining),
+    requiredXp: floorOneDecimal(req),
+    totalXp: floorOneDecimal(totalXp),
   };
 }
 
@@ -39,8 +53,35 @@ function getSortedLeaderboard(guildId) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   return Object.entries(guild.users)
-    .map(([userId, user]) => ({ userId, ...ensureUserState(guild, userId) }))
+    .map(([userId, user]) => ({ userId, ...ensureUserState(guild, userId), totalXp: floorOneDecimal(user.totalXp) }))
     .sort((a, b) => b.totalXp - a.totalXp);
+}
+
+function clearExpiredPunishment(user) {
+  if (!user.activePunishment?.tier || !user.activePunishment?.endsAt) {
+    return;
+  }
+
+  if (Date.now() >= user.activePunishment.endsAt) {
+    user.activePunishment = null;
+  }
+}
+
+function getCurrentPunishment(user) {
+  clearExpiredPunishment(user);
+  return user.activePunishment;
+}
+
+function getXpGainAfterPunishment(rawXp, punishment) {
+  if (!punishment?.tier) {
+    return rawXp;
+  }
+
+  if (punishment.tier >= 1 && punishment.tier <= 3) {
+    return 0;
+  }
+
+  return rawXp;
 }
 
 function awardMessageXp(guildId, userId) {
@@ -48,8 +89,10 @@ function awardMessageXp(guildId, userId) {
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
-  const xp = Math.floor(Math.random() * 10) + 1;
-  user.totalXp += xp;
+  const rawXp = Math.floor(Math.random() * 10) + 1;
+  const punishment = getCurrentPunishment(user);
+  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.messages += 1;
   const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
@@ -57,6 +100,7 @@ function awardMessageXp(guildId, userId) {
   saveState(state);
   return {
     xp,
+    rawXp,
     leveledUp: after.level > before.level,
     oldLevel: before.level,
     newLevel: after.level,
@@ -69,8 +113,10 @@ function awardReactionXp(guildId, userId) {
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
-  const xp = Math.floor(Math.random() * 2) + 1;
-  user.totalXp += xp;
+  const rawXp = Math.floor(Math.random() * 2) + 1;
+  const punishment = getCurrentPunishment(user);
+  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.reactions += 1;
   const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
@@ -78,6 +124,7 @@ function awardReactionXp(guildId, userId) {
   saveState(state);
   return {
     xp,
+    rawXp,
     leveledUp: after.level > before.level,
     oldLevel: before.level,
     newLevel: after.level,
@@ -95,16 +142,16 @@ function setUserLevel(guildId, userId, targetLevel) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
-  user.totalXp = totalXp;
+  user.totalXp = floorOneDecimal(totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
 
-  return { level: safeLevel, totalXp };
+  return { level: safeLevel, totalXp: user.totalXp };
 }
 
 function setUserXp(guildId, userId, targetXp) {
-  const safeXp = Math.max(0, Math.floor(Number(targetXp) || 0));
+  const safeXp = floorOneDecimal(Number(targetXp) || 0);
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
@@ -125,15 +172,15 @@ function addUserXp(guildId, userId, amount) {
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
-  const delta = Math.max(0, Math.floor(Number(amount) || 0));
-  user.totalXp += delta;
+  const delta = floorOneDecimal(Number(amount) || 0);
+  user.totalXp = floorOneDecimal(user.totalXp + Math.max(0, delta));
   const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
 
   return {
-    addedXp: delta,
+    addedXp: Math.max(0, delta),
     oldLevel: before.level,
     newLevel: after.level,
     totalXp: user.totalXp,
@@ -144,7 +191,67 @@ function getUserProgress(guildId, userId) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
-  return getProgress(user.totalXp);
+  clearExpiredPunishment(user);
+  return {
+    ...getProgress(user.totalXp),
+    punishTier: user.punishTier,
+    activePunishment: user.activePunishment,
+  };
+}
+
+function getPunishmentSummary(guildId, userId) {
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  clearExpiredPunishment(user);
+
+  return {
+    tier: user.activePunishment?.tier || 0,
+    endsAt: user.activePunishment?.endsAt || null,
+    userId,
+  };
+}
+
+function applyLevelPunishment(guildId, userId) {
+  const state = loadState();
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+
+  clearExpiredPunishment(user);
+
+  const currentTier = Math.max(0, Math.floor(user.punishTier || 0));
+  const nextTier = currentTier >= 5 ? 1 : currentTier + 1;
+  const now = Date.now();
+  let endsAt = null;
+
+  if (PUNISHMENT_DURATIONS_MS[nextTier]) {
+    endsAt = now + PUNISHMENT_DURATIONS_MS[nextTier];
+    user.activePunishment = { tier: nextTier, endsAt };
+  } else {
+    user.activePunishment = null;
+  }
+
+  if (nextTier === 4) {
+    user.totalXp = floorOneDecimal(user.totalXp * 0.5);
+  }
+
+  if (nextTier === 5) {
+    user.totalXp = 0;
+    user.messages = 0;
+    user.reactions = 0;
+  }
+
+  user.punishTier = nextTier === 5 ? 0 : nextTier;
+  user.updatedAt = now;
+  guild.updatedAt = now;
+  saveState(state);
+
+  return {
+    newTier: nextTier,
+    nextStoredTier: user.punishTier,
+    endsAt,
+    userId,
+  };
 }
 
 function findLevelCardBackground() {
@@ -278,7 +385,7 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
 
   ctx.fillStyle = '#dbdee1';
   ctx.font = 'bold 24px sans-serif';
-  ctx.fillText(`${stats.currentXp} / ${stats.requiredXp}`, progressX + 12, progressY + 26);
+  ctx.fillText(`${formatOneDecimal(stats.currentXp)} / ${formatOneDecimal(stats.requiredXp)}`, progressX + 12, progressY + 26);
 
   const filename = `${guildId}-${userId}-level.png`;
   const filePath = path.join(CARD_CACHE_DIR, filename);
@@ -322,7 +429,7 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
     const value = type === 'xp' ? row.totalXp : type === 'messages' ? row.messages : row.reactions;
-    ctx.fillText(String(value), 715, y + 34);
+    ctx.fillText(type === 'xp' ? formatOneDecimal(value) : String(value), 715, y + 34);
     ctx.fillText(`#${row.rank}`, 960, y + 34);
   }
 
@@ -341,6 +448,8 @@ module.exports = {
   setUserXp,
   addUserXp,
   getUserProgress,
+  getPunishmentSummary,
+  applyLevelPunishment,
   buildLevelCard,
   buildLeaderboardImage,
 };

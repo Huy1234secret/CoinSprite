@@ -26,6 +26,27 @@ const LEVEL_FUN_MESSAGES = new Map([
   [100, 'Someone give them grass… or a trophy.'],
 ]);
 
+function formatCountdown(endsAt) {
+  if (!endsAt) {
+    return null;
+  }
+  return `<t:${Math.floor(endsAt / 1000)}:R>`;
+}
+
+function punishmentNotice(summary) {
+  const countdown = formatCountdown(summary.endsAt);
+  if (summary.tier === 1) {
+    return `⚠️ You're earning 500% less XP, punishment ends ${countdown}.`;
+  }
+  if (summary.tier === 2) {
+    return `⚠️ You're earning 1000% less XP, punishment ends ${countdown}.`;
+  }
+  if (summary.tier === 3) {
+    return `⚠️ XP blacklisted, punishment ends ${countdown}.`;
+  }
+  return null;
+}
+
 async function sendLevelUpMessage(guild, userId, newLevel) {
   const channel = guild.channels.cache.get(LEVEL_UP_CHANNEL_ID)
     || await guild.channels.fetch(LEVEL_UP_CHANNEL_ID).catch(() => null);
@@ -89,6 +110,8 @@ module.exports = {
     const leaderboard = manager.getSortedLeaderboard(interaction.guildId);
     const rank = Math.max(1, leaderboard.findIndex((entry) => entry.userId === interaction.user.id) + 1);
     const stats = manager.getProgress((leaderboard.find((entry) => entry.userId === interaction.user.id)?.totalXp) || 0);
+    const summary = manager.getPunishmentSummary(interaction.guildId, interaction.user.id);
+    const notice = punishmentNotice(summary);
 
     const avatarUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 256 });
     const attachment = await manager.buildLevelCard({
@@ -101,6 +124,7 @@ module.exports = {
     });
 
     await interaction.reply({
+      content: notice || undefined,
       files: [attachment],
     });
   },
@@ -115,6 +139,8 @@ module.exports = {
       const leaderboard = manager.getSortedLeaderboard(message.guild.id);
       const rank = Math.max(1, leaderboard.findIndex((entry) => entry.userId === message.author.id) + 1);
       const stats = manager.getProgress((leaderboard.find((entry) => entry.userId === message.author.id)?.totalXp) || 0);
+      const summary = manager.getPunishmentSummary(message.guild.id, message.author.id);
+      const notice = punishmentNotice(summary);
       const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
       const attachment = await manager.buildLevelCard({
         guildId: message.guild.id,
@@ -126,6 +152,7 @@ module.exports = {
       });
 
       await message.reply({
+        content: notice || undefined,
         files: [attachment],
       });
       return;
