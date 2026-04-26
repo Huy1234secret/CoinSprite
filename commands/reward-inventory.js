@@ -11,6 +11,11 @@ module.exports = {
   },
 
   async execute(interaction) {
+    if (!manager.isEnabled()) {
+      await interaction.reply(manager.createRewardsDisabledPayload());
+      return;
+    }
+
     const userState = manager.loadGuildUserState(interaction.guildId, interaction.user.id);
     if (userState.blacklisted) {
       await interaction.reply(manager.createBlacklistedPayload());

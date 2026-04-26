@@ -8,6 +8,7 @@ const LOG_CHANNEL_ID = '1493915942047059999';
 const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
 const ONBOARDING_ROLE_ID = '1494397171045503129';
 const INVITATION_REWARD_CAP_MEMBERS = 150;
+const INVITATION_REWARDS_ENABLED = false;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const EMOJIS = {
@@ -164,6 +165,24 @@ function createBlacklistedPayload() {
   };
 }
 
+function createRewardsDisabledPayload() {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: 0xff0000,
+        components: [
+          {
+            type: 10,
+            content: '### Invitation rewards are currently disabled.\n-# Please contact staff for assistance.',
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function createInvitePointsPayload(username, invitePoints) {
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -276,6 +295,10 @@ async function refreshInviteCacheForGuild(guild) {
 }
 
 async function ensureRulesMessage(guild) {
+  if (!INVITATION_REWARDS_ENABLED) {
+    return;
+  }
+
   const state = loadState();
   const guildState = ensureGuildState(state, guild.id);
 
@@ -419,6 +442,10 @@ async function sendInviteAnnouncement(guild, invitedUserId, inviterUserId, total
 }
 
 async function onGuildMemberAdd(member) {
+  if (!INVITATION_REWARDS_ENABLED) {
+    return;
+  }
+
   if (member.user.bot) {
     return;
   }
@@ -559,6 +586,10 @@ async function onGuildMemberAdd(member) {
 }
 
 async function onGuildMemberUpdate(oldMember, newMember) {
+  if (!INVITATION_REWARDS_ENABLED) {
+    return;
+  }
+
   if (newMember.user.bot) {
     return;
   }
@@ -608,10 +639,18 @@ async function onGuildMemberUpdate(oldMember, newMember) {
 }
 
 async function onInviteCreateOrDelete(invite) {
+  if (!INVITATION_REWARDS_ENABLED) {
+    return;
+  }
+
   await refreshInviteCacheForGuild(invite.guild).catch(() => null);
 }
 
 async function onMessageCreate(message) {
+  if (!INVITATION_REWARDS_ENABLED) {
+    return;
+  }
+
   if (!message.guild || message.author.bot) {
     return;
   }
@@ -792,6 +831,11 @@ async function init(client) {
   initialized = true;
   clientRef = client;
 
+  if (!INVITATION_REWARDS_ENABLED) {
+    logReward('Invitation rewards system is disabled.');
+    return;
+  }
+
   for (const guild of client.guilds.cache.values()) {
     await refreshInviteCacheForGuild(guild).catch(() => null);
     await ensureRulesMessage(guild).catch(() => null);
@@ -800,12 +844,14 @@ async function init(client) {
 
 module.exports = {
   init,
+  isEnabled: () => INVITATION_REWARDS_ENABLED,
   onGuildMemberAdd,
   onInviteCreateOrDelete,
   onGuildMemberUpdate,
   onMessageCreate,
   ensureRulesMessage,
   createBlacklistedPayload,
+  createRewardsDisabledPayload,
   createInvitePointsPayload,
   createRewardInventoryPayload,
   getRewardLines,
