@@ -14,6 +14,7 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Shows the user's current reward inventory.
 
 ## Invite Reward System
+- Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).
 - Tracks invite usage and awards rewards only when:
   - Invited account age is at least 4 days.
   - Reward tier is active based on current member count.
