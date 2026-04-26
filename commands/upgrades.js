@@ -97,6 +97,10 @@ function buildPayload(user, snapshot) {
   const critChancePercent = getCritChancePercent(upgrades.critChanceLevel);
   const critPowerPercent = getCritPowerPercent(upgrades.critPowerLevel);
   const expPercent = getExpPercent(upgrades.expLevel);
+  const canAffordLuck = balance >= prices.luck;
+  const canAffordCritChance = balance >= prices.critChance;
+  const canAffordCritPower = balance >= prices.critPower;
+  const canAffordExp = balance >= prices.exp;
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -123,6 +127,7 @@ function buildPayload(user, snapshot) {
               label: `${formatNumber(prices.luck)}`,
               emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.luck),
+              disabled: !canAffordLuck,
             },
           },
           {
@@ -139,7 +144,7 @@ function buildPayload(user, snapshot) {
               label: limits.critChanceCanUpgrade ? `${formatNumber(prices.critChance)}` : 'MAX',
               ...(limits.critChanceCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.critChanceCanUpgrade ? getButtonStyle(balance, prices.critChance) : 2,
-              disabled: !limits.critChanceCanUpgrade,
+              disabled: !limits.critChanceCanUpgrade || !canAffordCritChance,
             },
           },
           {
@@ -156,6 +161,7 @@ function buildPayload(user, snapshot) {
               label: `${formatNumber(prices.critPower)}`,
               emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.critPower),
+              disabled: !canAffordCritPower,
             },
           },
           {
@@ -172,7 +178,7 @@ function buildPayload(user, snapshot) {
               label: limits.expCanUpgrade ? `${formatNumber(prices.exp)}` : 'MAX',
               ...(limits.expCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.expCanUpgrade ? getButtonStyle(balance, prices.exp) : 2,
-              disabled: !limits.expCanUpgrade,
+              disabled: !limits.expCanUpgrade || !canAffordExp,
             },
           },
         ],
