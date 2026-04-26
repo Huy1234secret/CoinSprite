@@ -2,8 +2,8 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getBalance, spendBalance, getUpgrades, setUpgrades } = require('../src/rngGameStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const PRCOIN = '<:PRcoin:1497972406030176356>';
 const RED_ACCENT = 0xED4245;
+const PRCOIN_EMOJI = { id: '1497972406030176356', name: 'PRcoin' };
 
 const CUSTOM_IDS = {
   luck: 'upgrades:luck',
@@ -110,13 +110,23 @@ function buildPayload(user, snapshot) {
             components: [
               {
                 type: 10,
-                content: `## ${user.username}'s Upgrades\n### Luck Upgrade: +${luckPercent}%`,
+                content: `## ${user.username}'s Upgrades`,
+              },
+            ],
+          },
+          {
+            type: 9,
+            components: [
+              {
+                type: 10,
+                content: `### Luck Upgrade: +${luckPercent}%`,
               },
             ],
             accessory: {
               type: 2,
               custom_id: CUSTOM_IDS.luck,
-              label: `${formatNumber(prices.luck)} ${PRCOIN}`,
+              label: `${formatNumber(prices.luck)}`,
+              emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.luck),
             },
           },
@@ -131,7 +141,8 @@ function buildPayload(user, snapshot) {
             accessory: {
               type: 2,
               custom_id: CUSTOM_IDS.critChance,
-              label: limits.critChanceCanUpgrade ? `${formatNumber(prices.critChance)} ${PRCOIN}` : 'MAX',
+              label: limits.critChanceCanUpgrade ? `${formatNumber(prices.critChance)}` : 'MAX',
+              ...(limits.critChanceCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.critChanceCanUpgrade ? getButtonStyle(balance, prices.critChance) : 2,
               disabled: !limits.critChanceCanUpgrade,
             },
@@ -147,7 +158,8 @@ function buildPayload(user, snapshot) {
             accessory: {
               type: 2,
               custom_id: CUSTOM_IDS.critPower,
-              label: `${formatNumber(prices.critPower)} ${PRCOIN}`,
+              label: `${formatNumber(prices.critPower)}`,
+              emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.critPower),
             },
           },
@@ -162,7 +174,8 @@ function buildPayload(user, snapshot) {
             accessory: {
               type: 2,
               custom_id: CUSTOM_IDS.exp,
-              label: limits.expCanUpgrade ? `${formatNumber(prices.exp)} ${PRCOIN}` : 'MAX',
+              label: limits.expCanUpgrade ? `${formatNumber(prices.exp)}` : 'MAX',
+              ...(limits.expCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.expCanUpgrade ? getButtonStyle(balance, prices.exp) : 2,
               disabled: !limits.expCanUpgrade,
             },
