@@ -6,6 +6,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  StringSelectMenuBuilder,
 } = require('discord.js');
 const manager = require('../src/levelingManager');
 
@@ -49,6 +50,19 @@ function leaderboardButton(type, page, maxPage) {
   );
 }
 
+function leaderboardTypeSelector() {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('leaderboard:type-select')
+      .setPlaceholder('Change leaderboard type')
+      .addOptions(
+        { label: 'Total XP', value: 'xp' },
+        { label: 'Messages', value: 'messages' },
+        { label: 'Reactions', value: 'reactions' },
+      ),
+  );
+}
+
 async function sendLeaderboard(target, guild, userId, type, page) {
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const { rows, finalPage, maxPage, sorted } = buildRows(leaderboard, type, page);
@@ -76,7 +90,7 @@ async function sendLeaderboard(target, guild, userId, type, page) {
   const payload = {
     content: `## ${guild.name}'s leaderboard.\n-# You placed ${place} on the ${getTypeLabel(type)} leaderboard`,
     files: [attachment],
-    components: [leaderboardButton(type, finalPage, maxPage)],
+    components: [leaderboardButton(type, finalPage, maxPage), leaderboardTypeSelector()],
   };
 
   if (typeof target.reply === 'function') {
@@ -131,6 +145,12 @@ module.exports = {
       const asked = Number(interaction.fields.getTextInputValue('page_input'));
       const page = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), maxPage) : 1;
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(type) ? type : 'xp', page);
+      return true;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId === 'leaderboard:type-select') {
+      const type = TYPES.includes(interaction.values[0]) ? interaction.values[0] : 'xp';
+      await sendLeaderboard(interaction, interaction.guild, interaction.user.id, type, 1);
       return true;
     }
 
