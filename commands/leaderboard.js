@@ -6,12 +6,13 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  StringSelectMenuBuilder,
+  MessageFlags,
 } = require('discord.js');
 const manager = require('../src/levelingManager');
 
 const TYPES = ['xp', 'messages', 'reactions'];
 const PAGE_SIZE = 10;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 function getTypeLabel(type) {
   if (type === 'messages') {
@@ -50,19 +51,6 @@ function leaderboardButton(type, page, maxPage) {
   );
 }
 
-function leaderboardTypeSelector() {
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId('leaderboard:type-select')
-      .setPlaceholder('Change leaderboard type')
-      .addOptions(
-        { label: 'Total XP', value: 'xp' },
-        { label: 'Messages', value: 'messages' },
-        { label: 'Reactions', value: 'reactions' },
-      ),
-  );
-}
-
 async function sendLeaderboard(target, guild, userId, type, page) {
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const { rows, finalPage, maxPage, sorted } = buildRows(leaderboard, type, page);
@@ -86,15 +74,32 @@ async function sendLeaderboard(target, guild, userId, type, page) {
     page: finalPage,
     maxPage,
   });
+  const attachmentName = attachment.name || 'leaderboard.png';
 
   const payload = {
-    content: [
-      `## ${guild.name}'s leaderboard.`,
-      `-# You placed ${place} on the ${getTypeLabel(type)} leaderboard.`,
-      '────────────',
-    ].join('\n'),
+    flags: COMPONENTS_V2_FLAG,
     files: [attachment],
-    components: [leaderboardButton(type, finalPage, maxPage), leaderboardTypeSelector()],
+    components: [
+      {
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content: [
+              `## ${guild.name}'s leaderboard.`,
+              `-# You placed ${place} on the ${getTypeLabel(type)} leaderboard.`,
+            ].join('\n'),
+          },
+          {
+            type: 12,
+            items: [{ media: { url: `attachment://${attachmentName}` } }],
+          },
+          { type: 14, divider: true, spacing: 1 },
+          leaderboardButton(type, finalPage, maxPage).toJSON(),
+        ],
+      },
+    ],
   };
 
   if (target.isStringSelectMenu?.() || target.isModalSubmit?.()) {
@@ -154,12 +159,6 @@ module.exports = {
       const asked = Number(interaction.fields.getTextInputValue('page_input'));
       const page = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), maxPage) : 1;
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(type) ? type : 'xp', page);
-      return true;
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId === 'leaderboard:type-select') {
-      const type = TYPES.includes(interaction.values[0]) ? interaction.values[0] : 'xp';
-      await sendLeaderboard(interaction, interaction.guild, interaction.user.id, type, 1);
       return true;
     }
 
