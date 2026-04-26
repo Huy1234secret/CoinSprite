@@ -36,12 +36,12 @@ const LETTER_REWARDS = [
 
 const STARTING_CHANCES = [70, 20, 9, 1];
 const FIRST_UNLOCK_INDEX = 4; // E
-const MIN_UNLOCK_CHANCE = 0.1;
 const FIRST_UNLOCK_LUCK = 8;
 const UNLOCK_SPACING = 12;
-const RISE_PHASE_STEPS = 1.5;
-const FALL_PHASE_STEPS = 1.5;
-const FADE_OUT_STEPS = 0.2;
+const BASE_SHARE_FLOOR = 30;
+const UNLOCKED_SHARE_PER_LUCK = 0.45;
+const FAST_TIER_MULTIPLIER = 1.2;
+const SLOW_TIER_MULTIPLIER = 0.8;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -63,71 +63,61 @@ function roundToThree(value) {
   return Math.round(value * 1000) / 1000;
 }
 
-function getLetterPeakChance(index) {
-  const offset = Math.max(0, index - FIRST_UNLOCK_INDEX);
-  return Math.max(50, 70 - (offset * 0.8));
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
-function buildUnlockedLetterChance(index, luckPercent) {
+function getUnlockProgress(index, luckPercent) {
   const unlockAt = FIRST_UNLOCK_LUCK + ((index - FIRST_UNLOCK_INDEX) * UNLOCK_SPACING);
-  if (luckPercent < unlockAt) {
-    return 0;
-  }
+  return clamp((luckPercent - unlockAt) / UNLOCK_SPACING, 0, 1);
+}
 
-  const peakChance = getLetterPeakChance(index);
-  const progress = (luckPercent - unlockAt) / UNLOCK_SPACING;
-  const activeSteps = RISE_PHASE_STEPS + FALL_PHASE_STEPS + FADE_OUT_STEPS;
-
-  if (progress > activeSteps) {
-    return 0;
-  }
-
-  if (progress <= RISE_PHASE_STEPS) {
-    const riseRatio = progress / RISE_PHASE_STEPS;
-    return roundToThree(MIN_UNLOCK_CHANCE + ((peakChance - MIN_UNLOCK_CHANCE) * riseRatio));
-  }
-
-  if (progress <= RISE_PHASE_STEPS + FALL_PHASE_STEPS) {
-    const fallRatio = (progress - RISE_PHASE_STEPS) / FALL_PHASE_STEPS;
-    return roundToThree(MIN_UNLOCK_CHANCE + ((peakChance - MIN_UNLOCK_CHANCE) * (1 - fallRatio)));
-  }
-
-  const fadeRatio = (progress - RISE_PHASE_STEPS - FALL_PHASE_STEPS) / FADE_OUT_STEPS;
-  return roundToThree(MIN_UNLOCK_CHANCE * Math.max(0, 1 - fadeRatio));
+function getTierWeight(index) {
+  const offset = index - FIRST_UNLOCK_INDEX;
+  return offset % 2 === 0 ? FAST_TIER_MULTIPLIER : SLOW_TIER_MULTIPLIER;
 }
 
 function buildChances(luckLevel) {
   const chances = Array.from({ length: LETTER_REWARDS.length }, () => 0);
-  for (let i = 0; i < STARTING_CHANCES.length; i += 1) {
-    chances[i] = STARTING_CHANCES[i];
-  }
-
   const luckPercent = getLuckBonusPercent(luckLevel);
-  let unlockedTotal = 0;
+  const baseTotal = STARTING_CHANCES.reduce((sum, value) => sum + value, 0);
+
+  const unlockedShareTarget = clamp(
+    luckPercent * UNLOCKED_SHARE_PER_LUCK,
+    0,
+    100 - BASE_SHARE_FLOOR,
+  );
+
+  const unlockedWeights = [];
+  let totalUnlockedWeight = 0;
 
   for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
-    const chance = buildUnlockedLetterChance(idx, luckPercent);
-    chances[idx] = chance;
-    unlockedTotal += chance;
+    const progress = getUnlockProgress(idx, luckPercent);
+    if (progress <= 0) {
+      unlockedWeights.push(0);
+      continue;
+    }
+
+    const weight = roundToThree(progress * getTierWeight(idx));
+    unlockedWeights.push(weight);
+    totalUnlockedWeight += weight;
   }
 
-  if (unlockedTotal >= 100) {
-    const scale = 100 / unlockedTotal;
-    for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
-      chances[idx] = roundToThree(chances[idx] * scale);
-    }
-    for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
-      chances[idx] = 0;
-    }
-    return chances;
-  }
-
-  const remainingForBase = 100 - unlockedTotal;
-  const baseTotal = STARTING_CHANCES.reduce((sum, value) => sum + value, 0);
+  const unlockedShare = totalUnlockedWeight > 0 ? unlockedShareTarget : 0;
+  const remainingForBase = 100 - unlockedShare;
 
   for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
     const ratio = STARTING_CHANCES[idx] / baseTotal;
     chances[idx] = roundToThree(remainingForBase * ratio);
+  }
+
+  for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
+    const weight = unlockedWeights[idx - FIRST_UNLOCK_INDEX];
+    if (!weight || totalUnlockedWeight <= 0) {
+      chances[idx] = 0;
+      continue;
+    }
+    chances[idx] = roundToThree(unlockedShare * (weight / totalUnlockedWeight));
   }
 
   return chances;
