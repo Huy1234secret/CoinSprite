@@ -4,6 +4,7 @@ const { addBalance, getUpgrades } = require('../src/rngGameStore');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PRCOIN = '<:PRcoin:1497972406030176356>';
 const RED_ACCENT = 0xED4245;
+const WHITE_ACCENT = 0xFFFFFF;
 
 const LETTER_REWARDS = [
   { letter: 'A', min: 1, max: 5 },
@@ -169,7 +170,7 @@ async function executeRoll(target, user) {
     components: [
       {
         type: 17,
-        accent_color: RED_ACCENT,
+        accent_color: didCrit ? RED_ACCENT : WHITE_ACCENT,
         components: [
           {
             type: 10,
