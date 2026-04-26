@@ -21,7 +21,11 @@ function formatNumber(value) {
 }
 
 function getLuckPercent(level) {
-  return roundToOne(100 * (1 - (0.9 ** level)));
+  if (level <= 0) {
+    return 0;
+  }
+
+  return roundToOne(10 * (level ** 1.1));
 }
 
 function getLuckPrice(nextLevel) {
