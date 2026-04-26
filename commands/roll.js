@@ -49,12 +49,16 @@ module.exports = {
           components: [
             {
               type: 10,
-              content: [
-                `${interaction.user} You have rolled`,
-                `## **${result.letter}**`,
-                '---',
-                `-# You've earned ${earned} ${PRCOIN}`,
-              ].join('\n'),
+              content: [`${interaction.user} You have rolled`, `## ${result.letter}`].join('\n'),
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 2,
+            },
+            {
+              type: 10,
+              content: `-# You've earned ${earned} ${PRCOIN}`,
             },
           ],
         },
