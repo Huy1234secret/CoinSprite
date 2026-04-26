@@ -3,6 +3,7 @@ const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./levelingStore');
+const { getUpgrades } = require('./rngGameStore');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
@@ -84,14 +85,21 @@ function getXpGainAfterPunishment(rawXp, punishment) {
   return rawXp;
 }
 
+function getXpWithBoost(rawXp, userId) {
+  const upgrades = getUpgrades(userId);
+  const expBoostPercent = Math.max(0, Number(upgrades.expLevel) || 0);
+  return rawXp * ((100 + expBoostPercent) / 100);
+}
+
 function awardMessageXp(guildId, userId) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
   const rawXp = Math.floor(Math.random() * 10) + 1;
+  const boostedXp = getXpWithBoost(rawXp, userId);
   const punishment = getCurrentPunishment(user);
-  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  const xp = floorOneDecimal(getXpGainAfterPunishment(boostedXp, punishment));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.messages += 1;
   const after = getProgress(user.totalXp);
@@ -114,8 +122,9 @@ function awardReactionXp(guildId, userId) {
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
   const rawXp = Math.floor(Math.random() * 2) + 1;
+  const boostedXp = getXpWithBoost(rawXp, userId);
   const punishment = getCurrentPunishment(user);
-  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  const xp = floorOneDecimal(getXpGainAfterPunishment(boostedXp, punishment));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.reactions += 1;
   const after = getProgress(user.totalXp);
