@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const manager = require('../src/levelingManager');
+const MAX_LEVEL_OPERAND = 10_000;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,6 +31,14 @@ module.exports = {
 
     const operation = match[1];
     const value = Number(match[2]);
+    if (!Number.isFinite(value) || !Number.isSafeInteger(value) || value > MAX_LEVEL_OPERAND) {
+      await interaction.reply({
+        content: `Invalid level value. Please use an integer between **0** and **${MAX_LEVEL_OPERAND.toLocaleString()}**.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
     const current = manager.getUserProgress(interaction.guildId, user.id);
     let targetLevel = current.level;
 

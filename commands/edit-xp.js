@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const manager = require('../src/levelingManager');
+const MAX_XP_OPERAND = 1_000_000_000;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -30,6 +31,13 @@ module.exports = {
 
     const operation = match[1];
     const value = Number(match[2]);
+    if (!Number.isFinite(value) || !Number.isSafeInteger(value) || value > MAX_XP_OPERAND) {
+      await interaction.reply({
+        content: `Invalid XP value. Please use an integer between **0** and **${MAX_XP_OPERAND.toLocaleString()}**.`,
+        ephemeral: true,
+      });
+      return;
+    }
 
     if (operation === 's') {
       const result = manager.setUserXp(interaction.guildId, user.id, value);
