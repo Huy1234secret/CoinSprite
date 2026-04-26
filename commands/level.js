@@ -83,7 +83,6 @@ module.exports = {
     });
 
     await interaction.reply({
-      content: `## ${interaction.user.username}'s level card`,
       files: [attachment],
     });
   },
@@ -109,7 +108,6 @@ module.exports = {
       });
 
       await message.reply({
-        content: `## ${message.author.username}'s level card`,
         files: [attachment],
       });
       return;

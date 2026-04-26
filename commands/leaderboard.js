@@ -88,10 +88,15 @@ async function sendLeaderboard(target, guild, userId, type, page) {
   });
 
   const payload = {
-    content: `## ${guild.name}'s leaderboard.\n-# You placed ${place} on the ${getTypeLabel(type)} leaderboard`,
+    content: `\`\`\`\n${guild.name}'s leaderboard\nYou placed ${place} on the ${getTypeLabel(type)} leaderboard\n\`\`\``,
     files: [attachment],
     components: [leaderboardButton(type, finalPage, maxPage), leaderboardTypeSelector()],
   };
+
+  if (target.isStringSelectMenu?.() || target.isModalSubmit?.()) {
+    await target.update(payload);
+    return;
+  }
 
   if (typeof target.reply === 'function') {
     await target.reply(payload);

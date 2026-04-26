@@ -161,6 +161,21 @@ async function drawAvatar(ctx, avatarUrl, x, y, size) {
   ctx.restore();
 }
 
+function roundedRectPath(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
 async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stats }) {
   ensureCacheDirs();
   const width = 1000;
@@ -185,11 +200,12 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
     ctx.fillRect(0, 0, width, height);
   }
 
+  roundedRectPath(ctx, 28, 28, width - 56, height - 56, 22);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
-  ctx.fillRect(28, 28, width - 56, height - 56);
+  ctx.fill();
   ctx.strokeStyle = '#5865F2';
   ctx.lineWidth = 3;
-  ctx.strokeRect(28, 28, width - 56, height - 56);
+  ctx.stroke();
 
   await drawAvatar(ctx, avatarUrl, 48, 80, 160);
 
@@ -207,17 +223,19 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   const progressH = 36;
   const percent = Math.min(1, stats.currentXp / Math.max(1, stats.requiredXp));
 
+  roundedRectPath(ctx, progressX, progressY, progressW, progressH, progressH / 2);
   ctx.fillStyle = '#313338';
-  ctx.fillRect(progressX, progressY, progressW, progressH);
+  ctx.fill();
 
   const bar = ctx.createLinearGradient(progressX, progressY, progressX + progressW, progressY);
   bar.addColorStop(0, '#5865f2');
   bar.addColorStop(1, '#7c8bff');
+  roundedRectPath(ctx, progressX, progressY, progressW * percent, progressH, progressH / 2);
   ctx.fillStyle = bar;
-  ctx.fillRect(progressX, progressY, progressW * percent, progressH);
+  ctx.fill();
 
   ctx.fillStyle = '#dbdee1';
-  ctx.font = '24px sans-serif';
+  ctx.font = 'bold 24px sans-serif';
   ctx.fillText(`${stats.currentXp} / ${stats.requiredXp}`, progressX + 12, progressY + 26);
 
   const filename = `${guildId}-${userId}-level.png`;
