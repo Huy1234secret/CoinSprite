@@ -2,7 +2,6 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { addBalance } = require('../src/rngGameStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const PRCOIN = '<:PRcoin:1497972406030176356>';
 
 const ROLL_TABLE = [
   { letter: 'A', chance: 70, min: 1, max: 5 },
@@ -53,7 +52,7 @@ module.exports = {
                 `${interaction.user} You have rolled`,
                 `## **${result.letter}**`,
                 '---',
-                `-# You've earned ${earned} ${PRCOIN}`,
+                `-# You've earned ${earned}`,
               ].join('\n'),
             },
           ],
