@@ -29,35 +29,37 @@ function getLuckPercent(level) {
     return 0;
   }
 
-  return roundToOne(10 * (level ** 1.1));
+  const base = Math.min(level, 30);
+  const overflow = Math.max(0, level - 30);
+  return roundToOne(base + (Math.log2(overflow + 1) * 2.8));
 }
 
 function getLuckPrice(nextLevel) {
-  return Math.round(30 * (nextLevel ** 2) * 0.7);
+  return Math.round((40 * (nextLevel ** 2.25)) + (25 * nextLevel));
 }
 
 function getCritChancePercent(level) {
-  return Math.min(50, level * 10);
+  return Math.min(25, level * 5);
 }
 
 function getCritChancePrice(level) {
-  return 1000000 + (450000 * level);
+  return Math.round(12000 * (1.85 ** level));
 }
 
 function getCritPowerPercent(level) {
-  return level * 5;
+  return level * 4;
 }
 
 function getCritPowerPrice(level) {
-  return 1000 + (67 * level);
+  return Math.round(2200 * (1.3 ** level));
 }
 
 function getExpPercent(level) {
-  return Math.min(100, level);
+  return Math.min(60, level);
 }
 
 function getExpPrice(level) {
-  return 1000 + (1000 * level);
+  return Math.round(1800 * (1.45 ** level));
 }
 
 function getButtonStyle(balance, price) {
@@ -76,7 +78,7 @@ function getUpgradeSnapshot(userId) {
 
   const critPowerPrice = getCritPowerPrice(upgrades.critPowerLevel);
 
-  const expCanUpgrade = upgrades.expLevel < 100;
+  const expCanUpgrade = upgrades.expLevel < 60;
   const expPrice = getExpPrice(upgrades.expLevel);
 
   return {
@@ -220,7 +222,7 @@ function applyUpgrade(userId, kind) {
   }
 
   if (kind === 'exp') {
-    if (upgrades.expLevel >= 100) return false;
+    if (upgrades.expLevel >= 60) return false;
     const price = getExpPrice(upgrades.expLevel);
     if (!spendBalance(userId, price)) return false;
     upgrades.expLevel += 1;

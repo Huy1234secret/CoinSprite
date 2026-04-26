@@ -12,6 +12,8 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Shows the user's current Invite Points.
 - `/reward-inventory`
   - Shows the user's current reward inventory.
+- `/rng-wipe confirm:WIPE`
+  - Administrator-only hard reset for RNG game data (`balances` + `upgrades`).
 
 ## Invite Reward System
 - Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).

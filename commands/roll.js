@@ -11,55 +11,22 @@ const YELLOW_ACCENT = 0xFEE75C;
 const CYAN_ACCENT = 0x3BFFFF;
 
 const LETTER_REWARDS = [
-  { letter: 'A', min: 1, max: 5 },
-  { letter: 'B', min: 10, max: 25 },
-  { letter: 'C', min: 40, max: 80 },
-  { letter: 'D', min: 100, max: 160 },
-  { letter: 'E', min: 185, max: 250 },
-  { letter: 'F', min: 300, max: 450 },
-  { letter: 'G', min: 550, max: 800 },
-  { letter: 'H', min: 1000, max: 1300 },
-  { letter: 'I', min: 1400, max: 1900 },
-  { letter: 'J', min: 2100, max: 3000 },
-  { letter: 'K', min: 3500, max: 5000 },
-  { letter: 'L', min: 6000, max: 9000 },
-  { letter: 'M', min: 10000, max: 14000 },
-  { letter: 'N', min: 15000, max: 20000 },
-  { letter: 'O', min: 21000, max: 28000 },
-  { letter: 'P', min: 31000, max: 42500 },
-  { letter: 'Q', min: 45000, max: 58000 },
-  { letter: 'R', min: 60000, max: 80000 },
-  { letter: 'S', min: 85000, max: 100000 },
-  { letter: 'T', min: 110000, max: 130000 },
-  { letter: 'U', min: 145000, max: 160000 },
-  { letter: 'V', min: 170000, max: 200000 },
-  { letter: 'W', min: 225000, max: 300000 },
-  { letter: 'X', min: 333333, max: 456000 },
-  { letter: 'Y', min: 500000, max: 700000 },
-  { letter: 'Z', min: 800000, max: 1000000 },
+  { letter: 'A', min: 1, max: 4 },
+  { letter: 'B', min: 6, max: 13 },
+  { letter: 'C', min: 20, max: 42 },
+  { letter: 'D', min: 55, max: 105 },
+  { letter: 'E', min: 170, max: 320 },
+  { letter: 'F', min: 600, max: 1200 },
+  { letter: 'G', min: 2400, max: 4500 },
 ];
 
-const STARTING_CHANCES = [70, 20, 9, 1];
-const FIRST_UNLOCK_INDEX = 4; // E
-const FIRST_UNLOCK_LUCK = 8;
-const HIGH_TIER_START_LUCK = 60;
-const HIGH_TIER_CAP = 8;
-const E_CAP = 1.5;
+const BASE_CHANCES = [70, 20, 9, 0.99, 0.0095, 0.00049, 0.00001];
+const SOFTCAP_START_LUCK = 30;
+const SOFTCAP_FLOOR = 0.18;
+const MAX_LUCK_TRANSFER = 20;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function roundToOne(value) {
-  return Math.round(value * 10) / 10;
-}
-
-function getLuckBonusPercent(luckLevel) {
-  if (luckLevel <= 0) {
-    return 0;
-  }
-
-  return roundToOne(10 * (luckLevel ** 1.1));
 }
 
 function roundToThree(value) {
@@ -71,54 +38,30 @@ function clamp(value, min, max) {
 }
 
 function buildChances(luckLevel) {
-  const chances = Array.from({ length: LETTER_REWARDS.length }, () => 0);
-  const luckPercent = getLuckBonusPercent(luckLevel);
+  const chances = [...BASE_CHANCES];
+  if (luckLevel <= 0) {
+    return chances;
+  }
 
-  // Move chance mostly from A into B/C/D first, then introduce a very small E chance.
-  const luckRatio = clamp(luckPercent / 100, 0, 1);
-  const movedFromA = clamp(luckPercent * 0.62, 0, 68);
-  const eChance = luckPercent >= FIRST_UNLOCK_LUCK
-    ? clamp((luckPercent - FIRST_UNLOCK_LUCK) * 0.05, 0, E_CAP)
+  const preSoftcapBoost = luckLevel <= SOFTCAP_START_LUCK
+    ? luckLevel
+    : SOFTCAP_START_LUCK;
+  const postSoftcapLevels = Math.max(0, luckLevel - SOFTCAP_START_LUCK);
+  const postSoftcapBoost = postSoftcapLevels > 0
+    ? (Math.log2(postSoftcapLevels + 1) * 2.8)
     : 0;
+  const boost = Math.min(MAX_LUCK_TRANSFER, preSoftcapBoost + postSoftcapBoost);
 
-  const distributable = Math.max(0, movedFromA - eChance);
-  const bWeight = 0.62 - (0.25 * luckRatio);
-  const cWeight = 0.24 + (0.07 * luckRatio);
-  const dWeight = 0.14 + (0.14 * luckRatio);
-  const weightTotal = bWeight + cWeight + dWeight;
+  const transfer = Math.min(boost, chances[0] * (1 - SOFTCAP_FLOOR));
+  chances[0] = roundToThree(chances[0] - transfer);
 
-  chances[0] = roundToThree(STARTING_CHANCES[0] - movedFromA);
-  chances[1] = roundToThree(STARTING_CHANCES[1] + (distributable * (bWeight / weightTotal)));
-  chances[2] = roundToThree(STARTING_CHANCES[2] + (distributable * (cWeight / weightTotal)));
-  chances[3] = roundToThree(STARTING_CHANCES[3] + (distributable * (dWeight / weightTotal)));
-  chances[4] = roundToThree(eChance);
-
-  // Keep higher tiers slow and late so progression stays balanced.
-  const highTierShare = clamp((luckPercent - HIGH_TIER_START_LUCK) * 0.06, 0, HIGH_TIER_CAP);
-  if (highTierShare > 0) {
-    const sourcePool = Math.min(chances[0], highTierShare);
-    chances[0] = roundToThree(chances[0] - sourcePool);
-
-    let totalWeight = 0;
-    const weights = [];
-    for (let idx = FIRST_UNLOCK_INDEX + 1; idx < LETTER_REWARDS.length; idx += 1) {
-      const distance = idx - FIRST_UNLOCK_INDEX;
-      const weight = 1 / (distance ** 1.35);
-      weights.push(weight);
-      totalWeight += weight;
-    }
-
-    for (let idx = FIRST_UNLOCK_INDEX + 1; idx < LETTER_REWARDS.length; idx += 1) {
-      const weight = weights[idx - (FIRST_UNLOCK_INDEX + 1)];
-      chances[idx] = roundToThree(sourcePool * (weight / totalWeight));
-    }
+  const weights = [0.58, 0.3, 0.11, 0.009, 0.0009, 0.0001];
+  for (let idx = 1; idx < chances.length; idx += 1) {
+    chances[idx] = roundToThree(chances[idx] + (transfer * weights[idx - 1]));
   }
 
   const total = chances.reduce((sum, chance) => sum + chance, 0);
-  if (total !== 100) {
-    chances[0] = roundToThree(chances[0] + (100 - total));
-  }
-
+  chances[0] = roundToThree(chances[0] + (100 - total));
   return chances;
 }
 
@@ -197,8 +140,8 @@ async function executeRoll(target, user) {
   const result = rollLetter(upgrades.luckLevel);
   const baseEarned = randomInt(result.min, result.max);
 
-  const critChance = Math.min(50, upgrades.critChanceLevel * 10);
-  const critPower = upgrades.critPowerLevel * 5;
+  const critChance = Math.min(25, upgrades.critChanceLevel * 5);
+  const critPower = upgrades.critPowerLevel * 4;
   const didCrit = Math.random() * 100 < critChance;
 
   const finalEarned = didCrit
