@@ -5,6 +5,10 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PRCOIN = '<:PRcoin:1497972406030176356>';
 const RED_ACCENT = 0xED4245;
 const WHITE_ACCENT = 0xFFFFFF;
+const RARE_ROLL_CHANNEL_ID = '1498006999726555197';
+const GREEN_ACCENT = 0x57F287;
+const YELLOW_ACCENT = 0xFEE75C;
+const CYAN_ACCENT = 0x3BFFFF;
 
 const LETTER_REWARDS = [
   { letter: 'A', min: 1, max: 5 },
@@ -140,6 +144,54 @@ function rollLetter(luckLevel) {
   };
 }
 
+function getRareRollAccent(chancePercent) {
+  if (chancePercent < 0.0001) {
+    return CYAN_ACCENT;
+  }
+  if (chancePercent < 0.01) {
+    return YELLOW_ACCENT;
+  }
+  if (chancePercent < 1) {
+    return GREEN_ACCENT;
+  }
+  return null;
+}
+
+async function sendRareRollLog(target, user, result) {
+  const accent = getRareRollAccent(result.chance);
+  if (!accent) {
+    return;
+  }
+
+  const guild = target.guild;
+  if (!guild) {
+    return;
+  }
+
+  const channel = guild.channels.cache.get(RARE_ROLL_CHANNEL_ID)
+    || await guild.channels.fetch(RARE_ROLL_CHANNEL_ID).catch(() => null);
+  if (!channel?.isTextBased()) {
+    return;
+  }
+
+  await channel.send({
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { users: [] },
+    components: [
+      {
+        type: 17,
+        accent_color: accent,
+        components: [
+          {
+            type: 10,
+            content: `🎲 ${user} rolled **${result.letter}** \`(${result.chance}%)\``,
+          },
+        ],
+      },
+    ],
+  });
+}
+
 async function executeRoll(target, user) {
   const upgrades = getUpgrades(user.id);
   const result = rollLetter(upgrades.luckLevel);
@@ -195,6 +247,8 @@ async function executeRoll(target, user) {
   } else {
     await target.channel.send(payload);
   }
+
+  await sendRareRollLog(target, user, result);
 }
 
 module.exports = {

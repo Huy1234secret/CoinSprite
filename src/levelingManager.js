@@ -84,12 +84,13 @@ function getXpGainAfterPunishment(rawXp, punishment) {
   return rawXp;
 }
 
-function awardMessageXp(guildId, userId) {
+function awardMessageXp(guildId, userId, options = {}) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
-  const rawXp = Math.floor(Math.random() * 10) + 1;
+  const hasFixedXp = Number.isFinite(options.fixedXp);
+  const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : (Math.floor(Math.random() * 10) + 1);
   const punishment = getCurrentPunishment(user);
   const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
@@ -108,12 +109,13 @@ function awardMessageXp(guildId, userId) {
   };
 }
 
-function awardReactionXp(guildId, userId) {
+function awardReactionXp(guildId, userId, options = {}) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
-  const rawXp = Math.floor(Math.random() * 2) + 1;
+  const hasFixedXp = Number.isFinite(options.fixedXp);
+  const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : (Math.floor(Math.random() * 2) + 1);
   const punishment = getCurrentPunishment(user);
   const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
