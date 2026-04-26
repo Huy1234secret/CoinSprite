@@ -4,33 +4,24 @@ const { syncMemberLevelRoles } = require('../src/levelRoleManager');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('level-role-sync')
-    .setDescription('Sync leveling reward roles for a user based on their current level.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addUserOption((option) => option
-      .setName('user')
-      .setDescription('User to sync (defaults to yourself)')
-      .setRequired(false)),
+    .setDescription('Sync leveling reward roles for all users based on their current level.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
   async execute(interaction) {
-    const targetUser = interaction.options.getUser('user') || interaction.user;
-    const member = interaction.guild.members.cache.get(targetUser.id)
-      || await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    await interaction.deferReply({ ephemeral: true });
 
-    if (!member) {
-      await interaction.reply({
-        content: 'Could not find that member in this server.',
-        ephemeral: true,
-      });
-      return;
+    const members = await interaction.guild.members.fetch();
+    const membersToSync = Array.from(members.values()).filter((member) => !member.user.bot);
+
+    let syncedCount = 0;
+    const totalUsers = membersToSync.length;
+
+    await interaction.editReply(`Syncing ${syncedCount} / ${totalUsers}`);
+
+    for (const member of membersToSync) {
+      await syncMemberLevelRoles(interaction.guild, member).catch(() => null);
+      syncedCount += 1;
+      await interaction.editReply(`Syncing ${syncedCount} / ${totalUsers}`);
     }
-
-    const result = await syncMemberLevelRoles(interaction.guild, member);
-
-    await interaction.reply({
-      content:
-        `Synced leveling roles for <@${member.id}> (level **${result.level}**). `
-        + `Added **${result.added}**, removed **${result.removed}**, expected total reward roles: **${result.desiredRoleCount}**.`,
-      ephemeral: true,
-    });
   },
 };
