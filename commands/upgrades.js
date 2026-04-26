@@ -231,12 +231,20 @@ async function render(target, user) {
   const snapshot = getUpgradeSnapshot(user.id);
   const payload = buildPayload(user, snapshot);
 
+  if (typeof target.update === 'function') {
+    await target.update(payload);
+    return;
+  }
+
+  if (typeof target.editReply === 'function' && (target.replied || target.deferred)) {
+    await target.editReply(payload);
+    return;
+  }
+
   if (typeof target.reply === 'function') {
     await target.reply(payload);
     return;
   }
-
-  await target.update(payload);
 }
 
 module.exports = {

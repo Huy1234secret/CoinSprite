@@ -36,9 +36,12 @@ const LETTER_REWARDS = [
 
 const STARTING_CHANCES = [70, 20, 9, 1];
 const FIRST_UNLOCK_INDEX = 4; // E
-const UNLOCK_SEED_CHANCE = 0.1;
-const LETTER_CAP_CHANCE = 3;
-const NEXT_UNLOCK_THRESHOLD = 1;
+const MIN_UNLOCK_CHANCE = 0.1;
+const FIRST_UNLOCK_LUCK = 8;
+const UNLOCK_SPACING = 12;
+const RISE_PHASE_STEPS = 1.5;
+const FALL_PHASE_STEPS = 1.5;
+const FADE_OUT_STEPS = 0.2;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -60,44 +63,71 @@ function roundToThree(value) {
   return Math.round(value * 1000) / 1000;
 }
 
+function getLetterPeakChance(index) {
+  const offset = Math.max(0, index - FIRST_UNLOCK_INDEX);
+  return Math.max(50, 70 - (offset * 0.8));
+}
+
+function buildUnlockedLetterChance(index, luckPercent) {
+  const unlockAt = FIRST_UNLOCK_LUCK + ((index - FIRST_UNLOCK_INDEX) * UNLOCK_SPACING);
+  if (luckPercent < unlockAt) {
+    return 0;
+  }
+
+  const peakChance = getLetterPeakChance(index);
+  const progress = (luckPercent - unlockAt) / UNLOCK_SPACING;
+  const activeSteps = RISE_PHASE_STEPS + FALL_PHASE_STEPS + FADE_OUT_STEPS;
+
+  if (progress > activeSteps) {
+    return 0;
+  }
+
+  if (progress <= RISE_PHASE_STEPS) {
+    const riseRatio = progress / RISE_PHASE_STEPS;
+    return roundToThree(MIN_UNLOCK_CHANCE + ((peakChance - MIN_UNLOCK_CHANCE) * riseRatio));
+  }
+
+  if (progress <= RISE_PHASE_STEPS + FALL_PHASE_STEPS) {
+    const fallRatio = (progress - RISE_PHASE_STEPS) / FALL_PHASE_STEPS;
+    return roundToThree(MIN_UNLOCK_CHANCE + ((peakChance - MIN_UNLOCK_CHANCE) * (1 - fallRatio)));
+  }
+
+  const fadeRatio = (progress - RISE_PHASE_STEPS - FALL_PHASE_STEPS) / FADE_OUT_STEPS;
+  return roundToThree(MIN_UNLOCK_CHANCE * Math.max(0, 1 - fadeRatio));
+}
+
 function buildChances(luckLevel) {
   const chances = Array.from({ length: LETTER_REWARDS.length }, () => 0);
   for (let i = 0; i < STARTING_CHANCES.length; i += 1) {
     chances[i] = STARTING_CHANCES[i];
   }
 
-  let remainingLuckChance = getLuckBonusPercent(luckLevel);
-  let highestUnlockedIndex = FIRST_UNLOCK_INDEX - 1;
+  const luckPercent = getLuckBonusPercent(luckLevel);
+  let unlockedTotal = 0;
 
   for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
-    if (remainingLuckChance < UNLOCK_SEED_CHANCE) {
-      break;
-    }
-
-    let added = UNLOCK_SEED_CHANCE;
-    remainingLuckChance -= UNLOCK_SEED_CHANCE;
-
-    const availableForCurrentLetter = Math.max(0, LETTER_CAP_CHANCE - added);
-    const extra = Math.min(availableForCurrentLetter, remainingLuckChance);
-    added += extra;
-    remainingLuckChance -= extra;
-
-    chances[idx] = roundToThree(added);
-    highestUnlockedIndex = idx;
-
-    if (chances[idx] < NEXT_UNLOCK_THRESHOLD) {
-      break;
-    }
+    const chance = buildUnlockedLetterChance(idx, luckPercent);
+    chances[idx] = chance;
+    unlockedTotal += chance;
   }
 
-  const totalAddedChance = chances.slice(FIRST_UNLOCK_INDEX, highestUnlockedIndex + 1).reduce((sum, chance) => sum + chance, 0);
-  const baseTotal = STARTING_CHANCES.reduce((sum, chance) => sum + chance, 0);
-
-  if (totalAddedChance > 0) {
-    for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
-      const ratio = STARTING_CHANCES[idx] / baseTotal;
-      chances[idx] = roundToThree(Math.max(0, chances[idx] - (totalAddedChance * ratio)));
+  if (unlockedTotal >= 100) {
+    const scale = 100 / unlockedTotal;
+    for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
+      chances[idx] = roundToThree(chances[idx] * scale);
     }
+    for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
+      chances[idx] = 0;
+    }
+    return chances;
+  }
+
+  const remainingForBase = 100 - unlockedTotal;
+  const baseTotal = STARTING_CHANCES.reduce((sum, value) => sum + value, 0);
+
+  for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
+    const ratio = STARTING_CHANCES[idx] / baseTotal;
+    chances[idx] = roundToThree(remainingForBase * ratio);
   }
 
   return chances;
