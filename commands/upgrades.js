@@ -106,13 +106,8 @@ function buildPayload(user, snapshot) {
         accent_color: RED_ACCENT,
         components: [
           {
-            type: 9,
-            components: [
-              {
-                type: 10,
-                content: `## ${user.username}'s Upgrades`,
-              },
-            ],
+            type: 10,
+            content: `## ${user.username}'s Upgrades`,
           },
           {
             type: 9,
