@@ -34,7 +34,11 @@ const LETTER_REWARDS = [
   { letter: 'Z', min: 250000000, max: 1000000000 },
 ];
 
-const BASE_WEIGHTS = [38, 24, 14, 8, 5, 3, 2, 1.4, 1, 0.7, 0.5, 0.35, 0.25, 0.2, 0.15, 0.12, 0.1, 0.08, 0.06, 0.05, 0.04, 0.03, 0.025, 0.02, 0.015, 0.01];
+const STARTING_CHANCES = [70, 20, 9, 1];
+const FIRST_UNLOCK_INDEX = 4; // E
+const UNLOCK_SEED_CHANCE = 0.1;
+const LETTER_CAP_CHANCE = 3;
+const NEXT_UNLOCK_THRESHOLD = 1;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -45,45 +49,68 @@ function roundToOne(value) {
 }
 
 function getLuckBonusPercent(luckLevel) {
-  return roundToOne(100 * (1 - (0.9 ** luckLevel)));
-}
-
-function getUnlockedLetterIndex(luckLevel) {
-  const luckPct = getLuckBonusPercent(luckLevel);
-  return Math.min(LETTER_REWARDS.length - 1, Math.floor(luckPct / 4));
-}
-
-function buildWeights(luckLevel) {
-  const unlockedIndex = getUnlockedLetterIndex(luckLevel);
-  const weights = BASE_WEIGHTS.map((weight, idx) => (idx <= unlockedIndex ? weight : 0));
-
-  for (let idx = 1; idx <= unlockedIndex; idx += 1) {
-    const shift = 0.35 + (idx * 0.05);
-    let remaining = shift;
-
-    for (let low = 0; low < idx && remaining > 0; low += 1) {
-      if (weights[low] <= 0) {
-        continue;
-      }
-      const take = Math.min(weights[low], remaining);
-      weights[low] -= take;
-      remaining -= take;
-    }
-
-    weights[idx] += shift - remaining;
+  if (luckLevel <= 0) {
+    return 0;
   }
 
-  return weights;
+  return roundToOne(10 * (luckLevel ** 1.1));
+}
+
+function roundToThree(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
+function buildChances(luckLevel) {
+  const chances = Array.from({ length: LETTER_REWARDS.length }, () => 0);
+  for (let i = 0; i < STARTING_CHANCES.length; i += 1) {
+    chances[i] = STARTING_CHANCES[i];
+  }
+
+  let remainingLuckChance = getLuckBonusPercent(luckLevel);
+  let highestUnlockedIndex = FIRST_UNLOCK_INDEX - 1;
+
+  for (let idx = FIRST_UNLOCK_INDEX; idx < LETTER_REWARDS.length; idx += 1) {
+    if (remainingLuckChance < UNLOCK_SEED_CHANCE) {
+      break;
+    }
+
+    let added = UNLOCK_SEED_CHANCE;
+    remainingLuckChance -= UNLOCK_SEED_CHANCE;
+
+    const availableForCurrentLetter = Math.max(0, LETTER_CAP_CHANCE - added);
+    const extra = Math.min(availableForCurrentLetter, remainingLuckChance);
+    added += extra;
+    remainingLuckChance -= extra;
+
+    chances[idx] = roundToThree(added);
+    highestUnlockedIndex = idx;
+
+    if (chances[idx] < NEXT_UNLOCK_THRESHOLD) {
+      break;
+    }
+  }
+
+  const totalAddedChance = chances.slice(FIRST_UNLOCK_INDEX, highestUnlockedIndex + 1).reduce((sum, chance) => sum + chance, 0);
+  const baseTotal = STARTING_CHANCES.reduce((sum, chance) => sum + chance, 0);
+
+  if (totalAddedChance > 0) {
+    for (let idx = 0; idx < STARTING_CHANCES.length; idx += 1) {
+      const ratio = STARTING_CHANCES[idx] / baseTotal;
+      chances[idx] = roundToThree(Math.max(0, chances[idx] - (totalAddedChance * ratio)));
+    }
+  }
+
+  return chances;
 }
 
 function rollLetter(luckLevel) {
-  const weights = buildWeights(luckLevel);
-  const totalChance = weights.reduce((sum, weight) => sum + weight, 0);
+  const chances = buildChances(luckLevel);
+  const totalChance = chances.reduce((sum, chance) => sum + chance, 0);
   const rolled = Math.random() * totalChance;
   let cursor = 0;
 
   for (let i = 0; i < LETTER_REWARDS.length; i += 1) {
-    cursor += weights[i];
+    cursor += chances[i];
     if (rolled < cursor) {
       return LETTER_REWARDS[i];
     }
