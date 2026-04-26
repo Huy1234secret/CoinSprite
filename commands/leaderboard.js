@@ -6,6 +6,7 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  StringSelectMenuBuilder,
   MessageFlags,
 } = require('discord.js');
 const manager = require('../src/levelingManager');
@@ -48,6 +49,31 @@ function leaderboardButton(type, page, maxPage) {
       .setCustomId(`leaderboard:jump:${type}:${maxPage}`)
       .setLabel(`Page ${page} / ${maxPage}`)
       .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+function leaderboardTypeSelect(selectedType) {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('leaderboard:type')
+      .setPlaceholder('Leaderboard type')
+      .addOptions(
+        {
+          label: 'Total XP',
+          value: 'xp',
+          default: selectedType === 'xp',
+        },
+        {
+          label: 'Messages',
+          value: 'messages',
+          default: selectedType === 'messages',
+        },
+        {
+          label: 'Reaction',
+          value: 'reactions',
+          default: selectedType === 'reactions',
+        },
+      ),
   );
 }
 
@@ -97,6 +123,7 @@ async function sendLeaderboard(target, guild, userId, type, page) {
           },
           { type: 14, divider: true, spacing: 1 },
           leaderboardButton(type, finalPage, maxPage).toJSON(),
+          leaderboardTypeSelect(type).toJSON(),
         ],
       },
     ],
@@ -159,6 +186,12 @@ module.exports = {
       const asked = Number(interaction.fields.getTextInputValue('page_input'));
       const page = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), maxPage) : 1;
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(type) ? type : 'xp', page);
+      return true;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId === 'leaderboard:type') {
+      const selectedType = interaction.values?.[0];
+      await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(selectedType) ? selectedType : 'xp', 1);
       return true;
     }
 
