@@ -799,6 +799,10 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.crewRoleRequestModal) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+
       const username = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleUsername, '-');
       const uploadedEvidence = getUploadedAttachmentDetails(interaction);
 
@@ -820,10 +824,15 @@ module.exports = {
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
-        await interaction.reply({
+        const payload = {
           ...container(0xffffff, 'Request channel is not available right now.'),
           flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG,
-        });
+        };
+        if (interaction.deferred) {
+          await interaction.editReply(payload);
+        } else {
+          await interaction.reply(payload);
+        }
         return true;
       }
 
@@ -841,10 +850,15 @@ module.exports = {
         ],
       });
 
-      await interaction.reply({
+      const payload = {
         ...container(0xffffff, 'Your Crew Member+ role request has been submitted.'),
         flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG,
-      });
+      };
+      if (interaction.deferred) {
+        await interaction.editReply(payload);
+      } else {
+        await interaction.reply(payload);
+      }
       return true;
     }
 
