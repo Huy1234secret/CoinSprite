@@ -268,7 +268,7 @@ module.exports = {
   },
 
   async handleInteraction(interaction) {
-    if (!interaction.isButton()) {
+    if (!interaction.isButton() || !interaction.customId.startsWith('upgrades:')) {
       return false;
     }
 
@@ -276,12 +276,6 @@ module.exports = {
     const baseCustomId = customIdParts.length >= 2
       ? `${customIdParts[0]}:${customIdParts[1]}`
       : interaction.customId;
-    const ownerId = customIdParts.length >= 3 ? customIdParts.slice(2).join(':') : null;
-
-    if (!ownerId || ownerId !== interaction.user.id) {
-      await interaction.reply({ content: 'You can only use buttons from your own upgrades command.', flags: MessageFlags.Ephemeral });
-      return true;
-    }
 
     const map = {
       [CUSTOM_IDS.luck]: 'luck',
@@ -293,6 +287,16 @@ module.exports = {
     const upgradeKind = map[baseCustomId];
     if (!upgradeKind) {
       return false;
+    }
+
+    const ownerId = customIdParts.length >= 3 ? customIdParts.slice(2).join(':') : null;
+    if (!ownerId) {
+      return false;
+    }
+
+    if (ownerId !== interaction.user.id) {
+      await interaction.reply({ content: 'You can only use buttons from your own upgrades command.', flags: MessageFlags.Ephemeral });
+      return true;
     }
 
     applyUpgrade(interaction.user.id, upgradeKind);
