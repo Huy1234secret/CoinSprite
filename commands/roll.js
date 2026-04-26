@@ -112,11 +112,17 @@ function rollLetter(luckLevel) {
   for (let i = 0; i < LETTER_REWARDS.length; i += 1) {
     cursor += chances[i];
     if (rolled < cursor) {
-      return LETTER_REWARDS[i];
+      return {
+        ...LETTER_REWARDS[i],
+        chance: chances[i],
+      };
     }
   }
 
-  return LETTER_REWARDS[0];
+  return {
+    ...LETTER_REWARDS[0],
+    chance: chances[0],
+  };
 }
 
 async function executeRoll(target, user) {
@@ -153,7 +159,7 @@ async function executeRoll(target, user) {
         components: [
           {
             type: 10,
-            content: [...titleLines, `## ${result.letter}`].join('\n'),
+            content: [...titleLines, `## ${result.letter} \`(${result.chance}%)\``].join('\n'),
           },
           {
             type: 14,
