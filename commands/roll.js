@@ -199,6 +199,7 @@ async function executeRoll(target, user) {
 
 module.exports = {
   data: new SlashCommandBuilder().setName('roll').setDescription('Roll a random letter and earn PRcoin'),
+  suppressCommandLog: true,
 
   async execute(interaction) {
     await executeRoll(interaction, interaction.user);

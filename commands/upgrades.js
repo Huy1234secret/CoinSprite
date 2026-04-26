@@ -249,9 +249,18 @@ async function render(target, user) {
 
 module.exports = {
   data: new SlashCommandBuilder().setName('upgrades').setDescription('View and buy roll upgrades'),
+  suppressCommandLog: true,
 
   async execute(interaction) {
     await render(interaction, interaction.user);
+  },
+
+  shouldLogInteraction(interaction) {
+    return !(
+      interaction?.isButton?.()
+      && typeof interaction.customId === 'string'
+      && interaction.customId.startsWith('upgrades:')
+    );
   },
 
   async handleInteraction(interaction) {

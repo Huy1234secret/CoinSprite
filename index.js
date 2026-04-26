@@ -128,11 +128,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
-        logCommandUse({
-          userId: interaction.user.id,
-          command: `/${interaction.commandName}`,
-          channelId: interaction.channelId ?? 'unknown',
-        });
+        if (!command.suppressCommandLog) {
+          logCommandUse({
+            userId: interaction.user.id,
+            command: `/${interaction.commandName}`,
+            channelId: interaction.channelId ?? 'unknown',
+          });
+        }
         await command.execute(interaction, client);
       }
       return;
@@ -142,7 +144,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (typeof command.handleInteraction === 'function') {
         const handled = await command.handleInteraction(interaction, client);
         if (handled) {
-          if (interaction.user) {
+          const shouldLogInteraction = typeof command.shouldLogInteraction === 'function'
+            ? command.shouldLogInteraction(interaction)
+            : true;
+          if (interaction.user && shouldLogInteraction) {
             logCommandUse({
               userId: interaction.user.id,
               command: interaction.customId ?? interaction.type,

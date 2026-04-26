@@ -29,6 +29,7 @@ function formatAbbreviated(amount) {
 
 module.exports = {
   data: new SlashCommandBuilder().setName('balance').setDescription('Show your PRcoin balance'),
+  suppressCommandLog: true,
 
   async execute(interaction) {
     const amount = getBalance(interaction.user.id);
