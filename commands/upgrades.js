@@ -29,7 +29,7 @@ function getLuckPercent(level) {
 }
 
 function getLuckPrice(nextLevel) {
-  return Math.round(25 * (nextLevel ** 2));
+  return Math.round(30 * (nextLevel ** 2));
 }
 
 function getCritChancePercent(level) {
