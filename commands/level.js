@@ -48,24 +48,15 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
   }
 
   const roleId = LEVEL_ROLE_REWARDS.get(newLevel);
-  let earnedRoleMessage = '';
   if (roleId) {
     const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
     if (member && !member.roles.cache.has(roleId)) {
       await member.roles.add(roleId).catch(() => null);
     }
-    earnedRoleMessage = `-# You also got <@&${roleId}>`;
   }
 
   const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
   const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
-  const hasFunMessage = Boolean(LEVEL_FUN_MESSAGES.get(newLevel));
-  const additionalComponents = (hasFunMessage && earnedRoleMessage)
-    ? [
-      { type: 14, divider: true, spacing: 1 },
-      { type: 10, content: earnedRoleMessage },
-    ]
-    : [];
 
   await channel.send({
     allowedMentions: { parse: [] },
@@ -76,7 +67,6 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
         accent_color: 0x57F287,
         components: [
           { type: 10, content: levelMessage },
-          ...additionalComponents,
         ],
       },
     ],
