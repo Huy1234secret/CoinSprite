@@ -44,6 +44,7 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
 
   const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
   await channel.send({
+    allowedMentions: { parse: [] },
     embeds: [{
       color: 0x57F287,
       description: `<@${userId}> has leveled up to level ${newLevel}!${funMessage}\n━━━━━━━━━━━━━━━━━━━━${earnedRoleMessage}`,
