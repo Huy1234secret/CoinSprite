@@ -12,6 +12,10 @@ const CUSTOM_IDS = {
   exp: 'upgrades:exp',
 };
 
+function toOwnedCustomId(baseId, ownerId) {
+  return `${baseId}:${ownerId}`;
+}
+
 function roundToOne(value) {
   return Math.round(value * 10) / 10;
 }
@@ -123,7 +127,7 @@ function buildPayload(user, snapshot) {
             ],
             accessory: {
               type: 2,
-              custom_id: CUSTOM_IDS.luck,
+              custom_id: toOwnedCustomId(CUSTOM_IDS.luck, user.id),
               label: `${formatNumber(prices.luck)}`,
               emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.luck),
@@ -140,7 +144,7 @@ function buildPayload(user, snapshot) {
             ],
             accessory: {
               type: 2,
-              custom_id: CUSTOM_IDS.critChance,
+              custom_id: toOwnedCustomId(CUSTOM_IDS.critChance, user.id),
               label: limits.critChanceCanUpgrade ? `${formatNumber(prices.critChance)}` : 'MAX',
               ...(limits.critChanceCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.critChanceCanUpgrade ? getButtonStyle(balance, prices.critChance) : 2,
@@ -157,7 +161,7 @@ function buildPayload(user, snapshot) {
             ],
             accessory: {
               type: 2,
-              custom_id: CUSTOM_IDS.critPower,
+              custom_id: toOwnedCustomId(CUSTOM_IDS.critPower, user.id),
               label: `${formatNumber(prices.critPower)}`,
               emoji: PRCOIN_EMOJI,
               style: getButtonStyle(balance, prices.critPower),
@@ -174,7 +178,7 @@ function buildPayload(user, snapshot) {
             ],
             accessory: {
               type: 2,
-              custom_id: CUSTOM_IDS.exp,
+              custom_id: toOwnedCustomId(CUSTOM_IDS.exp, user.id),
               label: limits.expCanUpgrade ? `${formatNumber(prices.exp)}` : 'MAX',
               ...(limits.expCanUpgrade ? { emoji: PRCOIN_EMOJI } : {}),
               style: limits.expCanUpgrade ? getButtonStyle(balance, prices.exp) : 2,
@@ -268,6 +272,17 @@ module.exports = {
       return false;
     }
 
+    const customIdParts = interaction.customId.split(':');
+    const baseCustomId = customIdParts.length >= 2
+      ? `${customIdParts[0]}:${customIdParts[1]}`
+      : interaction.customId;
+    const ownerId = customIdParts.length >= 3 ? customIdParts.slice(2).join(':') : null;
+
+    if (!ownerId || ownerId !== interaction.user.id) {
+      await interaction.reply({ content: 'You can only use buttons from your own upgrades command.', flags: MessageFlags.Ephemeral });
+      return true;
+    }
+
     const map = {
       [CUSTOM_IDS.luck]: 'luck',
       [CUSTOM_IDS.critChance]: 'critChance',
@@ -275,7 +290,7 @@ module.exports = {
       [CUSTOM_IDS.exp]: 'exp',
     };
 
-    const upgradeKind = map[interaction.customId];
+    const upgradeKind = map[baseCustomId];
     if (!upgradeKind) {
       return false;
     }

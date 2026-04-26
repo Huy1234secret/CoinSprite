@@ -43,19 +43,19 @@ function buildRows(leaderboard, type, page) {
   return { rows, finalPage, maxPage, sorted };
 }
 
-function leaderboardButton(type, page, maxPage) {
+function leaderboardButton(type, page, maxPage, ownerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`leaderboard:jump:${type}:${maxPage}`)
+      .setCustomId(`leaderboard:jump:${ownerId}:${type}:${maxPage}`)
       .setLabel(`Page ${page} / ${maxPage}`)
       .setStyle(ButtonStyle.Secondary),
   );
 }
 
-function leaderboardTypeSelect(selectedType) {
+function leaderboardTypeSelect(selectedType, ownerId) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId('leaderboard:type')
+      .setCustomId(`leaderboard:type:${ownerId}`)
       .setPlaceholder('Leaderboard type')
       .addOptions(
         {
@@ -122,8 +122,8 @@ async function sendLeaderboard(target, guild, userId, type, page) {
             items: [{ media: { url: `attachment://${attachmentName}` } }],
           },
           { type: 14, divider: true, spacing: 1 },
-          leaderboardButton(type, finalPage, maxPage).toJSON(),
-          leaderboardTypeSelect(type).toJSON(),
+          leaderboardButton(type, finalPage, maxPage, userId).toJSON(),
+          leaderboardTypeSelect(type, userId).toJSON(),
         ],
       },
     ],
@@ -162,11 +162,15 @@ module.exports = {
 
   async handleInteraction(interaction) {
     if (interaction.isButton() && interaction.customId.startsWith('leaderboard:jump:')) {
-      const [, , type, maxPageRaw] = interaction.customId.split(':');
+      const [, , ownerId, type, maxPageRaw] = interaction.customId.split(':');
+      if (ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'You can only use controls from your own leaderboard command.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
       const maxPage = Math.max(1, Number(maxPageRaw) || 1);
 
       const modal = new ModalBuilder()
-        .setCustomId(`leaderboard:modal:${type}:${maxPage}`)
+        .setCustomId(`leaderboard:modal:${ownerId}:${type}:${maxPage}`)
         .setTitle('Switch leaderboard page');
       const input = new TextInputBuilder()
         .setCustomId('page_input')
@@ -181,7 +185,11 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith('leaderboard:modal:')) {
-      const [, , type, maxPageRaw] = interaction.customId.split(':');
+      const [, , ownerId, type, maxPageRaw] = interaction.customId.split(':');
+      if (ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'You can only use controls from your own leaderboard command.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
       const maxPage = Math.max(1, Number(maxPageRaw) || 1);
       const asked = Number(interaction.fields.getTextInputValue('page_input'));
       const page = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), maxPage) : 1;
@@ -189,7 +197,12 @@ module.exports = {
       return true;
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === 'leaderboard:type') {
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('leaderboard:type:')) {
+      const [, , ownerId] = interaction.customId.split(':');
+      if (ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'You can only use controls from your own leaderboard command.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
       const selectedType = interaction.values?.[0];
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(selectedType) ? selectedType : 'xp', 1);
       return true;
