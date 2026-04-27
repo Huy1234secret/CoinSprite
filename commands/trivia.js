@@ -58,6 +58,15 @@ function getQuestionValue(game, difficulty) {
   return DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
 }
 
+function createShuffledOrder(length) {
+  const order = Array.from({ length }, (_, index) => index);
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
 function buildWelcomePayload(user) {
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -98,10 +107,13 @@ function buildWelcomePayload(user) {
 function buildAnswerRows(game, selectedIndex = null) {
   const question = game.currentQuestion;
   const final = selectedIndex !== null;
-  const buttons = question.answers.map((answer, index) => {
+  const displayOrder = question.displayOrder || createShuffledOrder(question.answers.length);
+  const correctDisplayIndex = displayOrder.indexOf(question.correctIndex);
+  const buttons = displayOrder.map((answerIndex, index) => {
+    const answer = question.answers[answerIndex];
     let style = 2;
-    if (final && index === question.correctIndex) style = 3;
-    if (final && index === selectedIndex && index !== question.correctIndex) style = 4;
+    if (final && index === correctDisplayIndex) style = 3;
+    if (final && index === selectedIndex && index !== correctDisplayIndex) style = 4;
 
     return {
       type: 2,
@@ -213,7 +225,10 @@ async function askNextQuestion(game) {
   const difficulty = pickDifficulty(game);
   const question = pickQuestion(game, difficulty);
   game.questionNumber += 1;
-  game.currentQuestion = question;
+  game.currentQuestion = {
+    ...question,
+    displayOrder: createShuffledOrder(question.answers.length),
+  };
   game.currentQuestionValue = getQuestionValue(game, difficulty);
   game.locked = false;
 
@@ -285,7 +300,11 @@ module.exports = {
       };
 
       game.questionNumber = 1;
-      game.currentQuestion = pickQuestion(game, 'easy');
+      const openingQuestion = pickQuestion(game, 'easy');
+      game.currentQuestion = {
+        ...openingQuestion,
+        displayOrder: createShuffledOrder(openingQuestion.answers.length),
+      };
       game.currentQuestionValue = 10;
 
       activeGames.set(interaction.user.id, game);
@@ -324,7 +343,9 @@ module.exports = {
     }
 
     game.locked = true;
-    const correct = selectedIndex === game.currentQuestion.correctIndex;
+    const displayOrder = game.currentQuestion.displayOrder || createShuffledOrder(game.currentQuestion.answers.length);
+    const selectedAnswerIndex = displayOrder[selectedIndex];
+    const correct = selectedAnswerIndex === game.currentQuestion.correctIndex;
 
     if (correct) {
       const difficulty = game.currentQuestion.difficulty;
