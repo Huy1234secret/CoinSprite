@@ -1,4 +1,11 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  MessageFlags,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+} = require('discord.js');
 const {
   getBalance,
   addBalance,
@@ -75,6 +82,61 @@ function removeGame(game) {
   activeGames.delete(game.id);
   activeUserGames.delete(game.userId);
   endUserSession(game.userId, 'minefield');
+}
+
+function normalizeDifficulty(raw) {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return null;
+
+  if (value.includes('easy')) return 'easy';
+  if (value.includes('medium')) return 'medium';
+  if (value.includes('hardcore')) return 'hardcore';
+  if (value.includes('hard')) return 'hard';
+  return null;
+}
+
+function buildWelcomePayload(user) {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: WHITE_ACCENT,
+        components: [
+          {
+            type: 10,
+            content: [
+              `## Welcome ${user} to Minefield game!`,
+              '### 💣 Minefield Rules',
+              '',
+              '-# * Pick a difficulty and place your bet. Each difficulty has a different amount of safe tiles and mines.',
+              '-# * Click safe tiles to increase your payout. The more safe tiles you find, the higher your reward becomes.',
+              '-# * You can cash out anytime after finding at least 1 safe tile. If you hit a mine, you lose your bet.',
+              '-# * Higher difficulty = fewer safe tiles, bigger rewards.',
+              '',
+              '### Difficulties:',
+              '-# * 🟢 Easy — 21 safe tiles',
+              '-# * 🟡 Medium — 17 safe tiles',
+              '-# * 🔴 Hard — 12 safe tiles',
+              '-# * 💀 Hardcore — 5 safe tiles',
+            ].join('\n'),
+          },
+          { type: 14, divider: true, spacing: 1 },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: `minefield:play:${user.id}:${createGameId()}`,
+                label: 'PLAY',
+                style: 2,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function buildHeaderContent(game, status) {
@@ -238,23 +300,7 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('minefield')
-    .setDescription('Risk PRcoin in the unlocked Minefield gambling game')
-    .addIntegerOption((option) => option
-      .setName('bet')
-      .setDescription('Amount of PRcoin to bet')
-      .setRequired(true)
-      .setMinValue(MIN_BET)
-      .setMaxValue(MAX_BET))
-    .addStringOption((option) => option
-      .setName('difficulty')
-      .setDescription('Minefield difficulty')
-      .setRequired(true)
-      .addChoices(
-        { name: '🟢 Easy', value: 'easy' },
-        { name: '🟡 Medium', value: 'medium' },
-        { name: '🔴 Hard', value: 'hard' },
-        { name: '💀 HARDCORE', value: 'hardcore' },
-      )),
+    .setDescription('Risk PRcoin in the unlocked Minefield gambling game'),
   suppressCommandLog: true,
 
   async execute(interaction) {
@@ -269,60 +315,7 @@ module.exports = {
       return;
     }
 
-    const bet = Math.floor(interaction.options.getInteger('bet') || 0);
-    const difficulty = interaction.options.getString('difficulty');
-    const config = MINEFIELD_DIFFICULTIES[difficulty];
-
-    if (!config || bet < MIN_BET || bet > MAX_BET) {
-      await interaction.reply({
-        content: `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}** ${PRCOIN}.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const balance = getBalance(interaction.user.id);
-    if (balance < bet) {
-      await interaction.reply({
-        content: `You need **${formatNumber(bet)}** ${PRCOIN} to place that bet. Your current balance is **${formatNumber(balance)}** ${PRCOIN}.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    if (!spendBalance(interaction.user.id, bet)) {
-      await interaction.reply({ content: 'You do not have enough PRcoin for that bet.', flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    const game = {
-      id: createGameId(),
-      userId: interaction.user.id,
-      username: interaction.user.username,
-      bet,
-      difficulty,
-      config,
-      cells: createMineCells(config.mines),
-      revealed: new Set(),
-      explodedIndex: null,
-      status: 'active',
-      message: null,
-      timer: null,
-    };
-
-    activeGames.set(game.id, game);
-    activeUserGames.set(game.userId, game.id);
-    startUserSession(game.userId, {
-      type: 'minefield',
-      label: 'Minefield',
-      lockedCommand: 'minefield',
-      lockToCommand: true,
-      lockMessage: 'You have an active Minefield game. You can only use /minefield until the current game ends.',
-    });
-
-    const message = await interaction.reply({ ...buildPayload(game, 'active'), fetchReply: true });
-    game.message = message;
-    resetGameTimer(game);
+    await interaction.reply(buildWelcomePayload(interaction.user));
   },
 
   shouldLogInteraction(interaction) {
@@ -330,54 +323,168 @@ module.exports = {
   },
 
   async handleInteraction(interaction) {
-    if (!interaction.isButton() || !interaction.customId.startsWith('minefield:')) {
-      return false;
-    }
+    const customId = interaction.customId;
+    const isMinefieldInteraction = typeof customId === 'string' && customId.startsWith('minefield:');
 
-    const [prefix, action, ownerId, gameId, indexRaw] = interaction.customId.split(':');
-    if (prefix !== 'minefield') return false;
+    if (interaction.isButton() && isMinefieldInteraction) {
+      const [prefix, action, ownerId] = customId.split(':');
+      if (prefix !== 'minefield') return false;
 
-    if (ownerId !== interaction.user.id) {
-      await interaction.reply({ content: 'You can only play your own Minefield game.', flags: MessageFlags.Ephemeral });
-      return true;
-    }
+      if (ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'You can only play your own Minefield game.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
 
-    const game = activeGames.get(gameId);
-    if (!game || game.status !== 'active') {
-      await interaction.reply({ content: 'This Minefield game is no longer active.', flags: MessageFlags.Ephemeral });
-      return true;
-    }
+      if (action === 'play') {
+        const modal = new ModalBuilder()
+          .setCustomId(`minefield:setup:${interaction.user.id}:${createGameId()}`)
+          .setTitle('Minefield Setup');
 
-    if (action === 'stop') {
-      await finishGame(gameId, 'stopped', interaction);
-      return true;
-    }
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('difficulty')
+              .setLabel('Difficulty (Easy, Medium, Hard, Hardcore)')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(25),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('bet')
+              .setLabel(`Bet amount (${formatNumber(MIN_BET)} - ${formatNumber(MAX_BET)})`)
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMinLength(1)
+              .setMaxLength(12),
+          ),
+        );
 
-    if (action !== 'pick') {
-      return true;
-    }
+        await interaction.showModal(modal);
+        return true;
+      }
 
-    const index = Number(indexRaw);
-    if (!Number.isInteger(index) || index < 0 || index >= BOARD_SIZE || game.revealed.has(index)) {
+      const [, stopAction, , gameId, indexRaw] = customId.split(':');
+      const game = activeGames.get(gameId);
+      if (!game || game.status !== 'active') {
+        await interaction.reply({ content: 'This Minefield game is no longer active.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      if (stopAction === 'stop') {
+        await finishGame(gameId, 'stopped', interaction);
+        return true;
+      }
+
+      if (stopAction !== 'pick') {
+        return true;
+      }
+
+      const index = Number(indexRaw);
+      if (!Number.isInteger(index) || index < 0 || index >= BOARD_SIZE || game.revealed.has(index)) {
+        await interaction.update(buildPayload(game, 'active'));
+        return true;
+      }
+
+      game.revealed.add(index);
+
+      if (game.cells[index]) {
+        game.explodedIndex = index;
+        await finishGame(gameId, 'exploded', interaction);
+        return true;
+      }
+
+      if (getSafeCount(game) >= getMaxSafe(game)) {
+        await finishGame(gameId, 'cleared', interaction);
+        return true;
+      }
+
+      resetGameTimer(game);
       await interaction.update(buildPayload(game, 'active'));
       return true;
     }
 
-    game.revealed.add(index);
+    if (interaction.isModalSubmit() && isMinefieldInteraction) {
+      const [prefix, action, ownerId] = customId.split(':');
+      if (prefix !== 'minefield' || action !== 'setup') return false;
 
-    if (game.cells[index]) {
-      game.explodedIndex = index;
-      await finishGame(gameId, 'exploded', interaction);
+      if (ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'You can only play your own Minefield game.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      if (activeUserGames.has(interaction.user.id)) {
+        await interaction.reply({ content: 'You already have an active Minefield game. Finish it first.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      const difficultyInput = interaction.fields.getTextInputValue('difficulty');
+      const betInput = interaction.fields.getTextInputValue('bet');
+      const difficulty = normalizeDifficulty(difficultyInput);
+      const bet = Math.floor(Number(String(betInput || '').replace(/,/g, '').trim()));
+      const config = difficulty ? MINEFIELD_DIFFICULTIES[difficulty] : null;
+
+      if (!config) {
+        await interaction.reply({
+          content: 'Invalid difficulty. Choose one: 🟢 Easy, 🟡 Medium, 🔴 Hard, 💀 Hardcore.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      if (!Number.isFinite(bet) || bet < MIN_BET || bet > MAX_BET) {
+        await interaction.reply({
+          content: `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}** ${PRCOIN}.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      const balance = getBalance(interaction.user.id);
+      if (balance < bet) {
+        await interaction.reply({
+          content: `You need **${formatNumber(bet)}** ${PRCOIN} to place that bet. Your current balance is **${formatNumber(balance)}** ${PRCOIN}.`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      if (!spendBalance(interaction.user.id, bet)) {
+        await interaction.reply({ content: 'You do not have enough PRcoin for that bet.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      const game = {
+        id: createGameId(),
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        bet,
+        difficulty,
+        config,
+        cells: createMineCells(config.mines),
+        revealed: new Set(),
+        explodedIndex: null,
+        status: 'active',
+        message: null,
+        timer: null,
+      };
+
+      activeGames.set(game.id, game);
+      activeUserGames.set(game.userId, game.id);
+      startUserSession(game.userId, {
+        type: 'minefield',
+        label: 'Minefield',
+        lockedCommand: 'minefield',
+        lockToCommand: true,
+        lockMessage: 'You have an active Minefield game. You can only use /minefield until the current game ends.',
+      });
+
+      const message = await interaction.reply({ ...buildPayload(game, 'active'), fetchReply: true });
+      game.message = message;
+      resetGameTimer(game);
       return true;
     }
 
-    if (getSafeCount(game) >= getMaxSafe(game)) {
-      await finishGame(gameId, 'cleared', interaction);
-      return true;
-    }
-
-    resetGameTimer(game);
-    await interaction.update(buildPayload(game, 'active'));
-    return true;
+    return false;
   },
 };

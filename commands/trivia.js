@@ -78,11 +78,10 @@ function buildWelcomePayload(user) {
             content: [
               `## Welcome ${user} to Trivia Game!`,
               '* Rules:',
-              '-# You have a total of **30 seconds** to answer as much trivia as you can.',
-              '-# Every correct answer increases your timer by **5s**. A wrong answer delays you by **5s**.',
-              '-# Once the timer is over, you earn PRcoin based on how many questions you answered correctly.',
-              '-# Reward per correct answer: Easy **10**, Medium **100**, Hard **1,000**.',
-              '-# Once you are ready, press the **PLAY** button below.',
+              '-# * You have a total of **30 seconds** to answer as much trivia as you can! Every correct answer increases the timer by **5s**, but wrong answers delay you by **5s**.',
+              '-# * Once time runs out, you earn PRcoin based on how many trivia questions you answered correctly.',
+              '-# * Reward per correct answer: Easy **10**, Medium **100**, Hard **1,000**.',
+              '-# * Once you are ready, just press the **PLAY** button below.',
             ].join('\n'),
           },
           {
