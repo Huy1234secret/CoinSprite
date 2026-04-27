@@ -30,45 +30,33 @@ const MINEFIELD_DIFFICULTIES = {
   },
 };
 
+const MINEFIELD_PAYOUT_CONFIG = {
+  easy: {
+    basePercent: 75,
+    stepPercents: [19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 55, 57.9],
+  },
+  medium: {
+    basePercent: 75,
+    stepPercents: [40, 43, 46, 49, 52, 55, 58, 61, 64, 67, 70, 74, 78, 82, 86, 96.2],
+  },
+  hard: {
+    basePercent: 80,
+    stepPercents: [80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 226.65],
+  },
+  hardcore: {
+    basePercent: 100,
+    stepPercents: [800, 1200, 1800, 2149.21],
+  },
+};
+
 function getMinefieldBasePercent(difficultyKey) {
-  if (difficultyKey === 'easy') return 70;
-  if (difficultyKey === 'medium') return 75;
-  if (difficultyKey === 'hard') return 80;
-  if (difficultyKey === 'hardcore') return 110;
-  return 0;
+  return MINEFIELD_PAYOUT_CONFIG[difficultyKey]?.basePercent ?? 0;
 }
 
 function getMinefieldStepIncreasePercent(difficultyKey, safeNumber) {
-  if (difficultyKey === 'easy') {
-    if (safeNumber >= 2 && safeNumber <= 7) return 14;
-    if (safeNumber <= 12) return 18;
-    if (safeNumber <= 18) return 24;
-    if (safeNumber <= 20) return 35;
-    if (safeNumber === 21) return 50;
-  }
-
-  if (difficultyKey === 'medium') {
-    if (safeNumber >= 2 && safeNumber <= 7) return 24;
-    if (safeNumber <= 13) return 37;
-    if (safeNumber <= 16) return 80;
-    if (safeNumber === 17) return 135;
-  }
-
-  if (difficultyKey === 'hard') {
-    if (safeNumber >= 2 && safeNumber <= 5) return 45;
-    if (safeNumber <= 9) return 100;
-    if (safeNumber <= 11) return 225;
-    if (safeNumber === 12) return 350;
-  }
-
-  if (difficultyKey === 'hardcore') {
-    if (safeNumber === 2) return 400;
-    if (safeNumber === 3) return 900;
-    if (safeNumber === 4) return 1400;
-    if (safeNumber === 5) return 1700;
-  }
-
-  return 0;
+  if (safeNumber < 2) return 0;
+  const stepPercents = MINEFIELD_PAYOUT_CONFIG[difficultyKey]?.stepPercents;
+  return stepPercents?.[safeNumber - 2] ?? 0;
 }
 
 function formatNumber(value) {
