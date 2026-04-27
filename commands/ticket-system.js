@@ -647,7 +647,16 @@ async function handleRoleRequestReview(interaction) {
   const member = await guild.members.fetch(request.userId).catch(() => null);
   if (member) {
     await member.roles.add(CREW_MEMBER_PLUS_ROLE_ID).catch(() => null);
-    await member.send(container(0x00ff00, 'You **⭐Crew Member+** role request has been accepted!.')).catch(() => null);
+    await member
+      .send(
+        container(
+          0x00ff00,
+          'Your **⭐Crew Member+** role request has been accepted!\n' +
+            '[separator]\n' +
+            'To join the guild, please send us a request in the in-game guild system. Guild ID: 225083223',
+        ),
+      )
+      .catch(() => null);
   }
 
   request.status = 'accepted';
