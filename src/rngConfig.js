@@ -14,12 +14,16 @@ const CYAN_ACCENT = 0x3BFFFF;
 const LIGHT_PURPLE_ACCENT = 0xC084FC;
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const LETTER_POOL_SIZE = 130;
+const LETTER_POOL_SIZE = 2_600;
 const BASE_CHANCE_DECAY = 0.74;
 const MAX_CHANCE_DECAY = 0.84;
 const MAX_LUCK_PERCENT = 75;
 const LUCK_GROWTH_RATE = 0.145;
-const REWARD_SPREAD_PERCENT = 0.35;
+const REWARD_SPREAD_PERCENT = 0.25;
+const LETTER_UNLOCK_LUCK_TARGET = 100;
+const LETTER_UNLOCK_POWER = 3.2;
+const MIN_CHANCE_POWER = 1.10;
+const MAX_CHANCE_POWER = 1.45;
 
 const BASE_CRIT_POWER_PERCENT = 25;
 const CRIT_CHANCE_PER_LEVEL = 5;
@@ -45,7 +49,7 @@ const REBIRTHS = [
     coinMultiplier: 4,
     luckMultiplier: 1.10,
     rewardRebirthCoins: 2,
-    requiredCoins: 250_000,
+    requiredCoins: 120_000,
     requiredLetter: '1C',
     unlocks: [],
   },
@@ -54,8 +58,8 @@ const REBIRTHS = [
     coinMultiplier: 8,
     luckMultiplier: 1.15,
     rewardRebirthCoins: 3,
-    requiredCoins: 1_000_000,
-    requiredLetter: '1H',
+    requiredCoins: 550_000,
+    requiredLetter: '1Z',
     unlocks: [],
   },
   {
@@ -63,8 +67,8 @@ const REBIRTHS = [
     coinMultiplier: 16,
     luckMultiplier: 1.20,
     rewardRebirthCoins: 5,
-    requiredCoins: 4_000_000,
-    requiredLetter: '1M',
+    requiredCoins: 2_500_000,
+    requiredLetter: '2Z',
     unlocks: [],
   },
   {
@@ -72,8 +76,8 @@ const REBIRTHS = [
     coinMultiplier: 32,
     luckMultiplier: 1.25,
     rewardRebirthCoins: 7,
-    requiredCoins: 15_000_000,
-    requiredLetter: '1R',
+    requiredCoins: 10_000_000,
+    requiredLetter: '4Z',
     unlocks: [],
   },
   {
@@ -81,8 +85,8 @@ const REBIRTHS = [
     coinMultiplier: 64,
     luckMultiplier: 1.30,
     rewardRebirthCoins: 9,
-    requiredCoins: 60_000_000,
-    requiredLetter: '1W',
+    requiredCoins: 40_000_000,
+    requiredLetter: '6Z',
     unlocks: [],
   },
   {
@@ -90,8 +94,8 @@ const REBIRTHS = [
     coinMultiplier: 128,
     luckMultiplier: 1.35,
     rewardRebirthCoins: 13,
-    requiredCoins: 250_000_000,
-    requiredLetter: '1Z',
+    requiredCoins: 150_000_000,
+    requiredLetter: '8Z',
     unlocks: [],
   },
 ];
@@ -227,10 +231,9 @@ function buildLetterName(index) {
 function buildLetterRewards() {
   return Array.from({ length: LETTER_POOL_SIZE }, (_, index) => {
     const base = Math.floor(
-      4
-      + (index * 1.2)
-      + (Math.pow(index, 1.38) * 0.35)
-      + (Math.pow(1.08, index) * 2.5),
+      8
+      + (index * 3.5)
+      + (Math.pow(index, 1.18) * 0.9),
     );
     const spread = Math.max(3, Math.floor(base * REWARD_SPREAD_PERCENT));
     return {
@@ -263,15 +266,35 @@ function getEffectiveLuckPercent(level, rebirthTier = 0, fortunePercent = 0) {
   return roundToOne(baseLuck * rebirthMultiplier * fortuneMultiplier);
 }
 
+function getUnlockedLetterCount(luckLevel, rebirthTier = 0) {
+  const permanentLuck = getEffectiveLuckPercent(luckLevel, rebirthTier, 0);
+  if (permanentLuck <= 0) {
+    return ALPHABET.length;
+  }
+
+  const unlockRatio = Math.min(1, permanentLuck / LETTER_UNLOCK_LUCK_TARGET);
+  const extraLetters = Math.floor((LETTER_POOL_SIZE - ALPHABET.length) * (unlockRatio ** LETTER_UNLOCK_POWER));
+  return Math.min(LETTER_POOL_SIZE, Math.max(ALPHABET.length, ALPHABET.length + extraLetters));
+}
+
 function getEffectiveChanceDecay(luckLevel, rebirthTier = 0, fortunePercent = 0) {
   const luckPercent = getEffectiveLuckPercent(luckLevel, rebirthTier, fortunePercent);
   const luckRatio = Math.min(1, luckPercent / MAX_LUCK_PERCENT);
   return BASE_CHANCE_DECAY + ((MAX_CHANCE_DECAY - BASE_CHANCE_DECAY) * luckRatio);
 }
 
+function getChancePower(luckLevel, rebirthTier = 0, fortunePercent = 0) {
+  const luckPercent = getEffectiveLuckPercent(luckLevel, rebirthTier, fortunePercent);
+  const luckRatio = Math.min(1, luckPercent / LETTER_UNLOCK_LUCK_TARGET);
+  return MAX_CHANCE_POWER - ((MAX_CHANCE_POWER - MIN_CHANCE_POWER) * luckRatio);
+}
+
 function buildChances(luckLevel, rebirthTier = 0, fortunePercent = 0) {
-  const chanceDecay = getEffectiveChanceDecay(luckLevel, rebirthTier, fortunePercent);
-  const raw = LETTER_REWARDS.map((_, index) => Math.pow(chanceDecay, index));
+  const unlockedCount = getUnlockedLetterCount(luckLevel, rebirthTier);
+  const chancePower = getChancePower(luckLevel, rebirthTier, fortunePercent);
+  const raw = LETTER_REWARDS.map((_, index) => (
+    index < unlockedCount ? 1 / Math.pow(index + 1, chancePower) : 0
+  ));
   const totalRaw = raw.reduce((sum, value) => sum + value, 0);
   return raw.map((value) => (value / totalRaw) * 100);
 }
