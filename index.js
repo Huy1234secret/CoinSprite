@@ -3,6 +3,7 @@ const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
 const { config } = require('dotenv');
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
+const { getCommandBlockReason } = require('./src/gameSessionLock');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 
 config();
@@ -128,6 +129,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
+        const blockReason = getCommandBlockReason(interaction.user.id, interaction.commandName);
+        if (blockReason) {
+          await interaction.reply({ content: blockReason, flags: EPHEMERAL_FLAG });
+          return;
+        }
         if (!command.suppressCommandLog) {
           logCommandUse({
             userId: interaction.user.id,

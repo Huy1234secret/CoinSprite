@@ -14,6 +14,7 @@ const {
   formatNumber,
   calculateMinefieldPayout,
 } = require('../src/gamblingConfig');
+const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const MIN_BET = 100;
@@ -72,6 +73,7 @@ function removeGame(game) {
   clearGameTimer(game);
   activeGames.delete(game.id);
   activeUserGames.delete(game.userId);
+  endUserSession(game.userId, 'minefield');
 }
 
 function buildHeaderContent(game, status) {
@@ -254,6 +256,12 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
+    const blockReason = getCommandBlockReason(interaction.user.id, 'minefield');
+    if (blockReason) {
+      await interaction.reply({ content: blockReason, flags: MessageFlags.Ephemeral });
+      return;
+    }
+
     if (activeUserGames.has(interaction.user.id)) {
       await interaction.reply({ content: 'You already have an active Minefield game. Finish it first.', flags: MessageFlags.Ephemeral });
       return;
@@ -299,6 +307,13 @@ module.exports = {
 
     activeGames.set(game.id, game);
     activeUserGames.set(game.userId, game.id);
+    startUserSession(game.userId, {
+      type: 'minefield',
+      label: 'Minefield',
+      lockedCommand: 'minefield',
+      lockToCommand: true,
+      lockMessage: 'You have an active Minefield game. You can only use /minefield until the current game ends.',
+    });
 
     const message = await interaction.reply({ ...buildPayload(game, 'active'), fetchReply: true });
     game.message = message;
