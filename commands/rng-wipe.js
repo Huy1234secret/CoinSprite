@@ -6,7 +6,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('rng-wipe')
-    .setDescription('Wipe all RNG game data (balances + upgrades).')
+    .setDescription('Wipe all RNG game data (balances, upgrades, rebirths, discoveries).')
     .setDMPermission(false)
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option) => option
@@ -56,7 +56,7 @@ module.exports = {
           type: 17,
           accent_color: 0xFEE75C,
           components: [
-            { type: 10, content: `### RNG game data wiped by ${interaction.user.username}\n-# All balances and upgrades were reset.` },
+            { type: 10, content: `### RNG game data wiped by ${interaction.user.username}\n-# All RNG balances, upgrades, rebirths, discoveries, and minefield unlocks were reset.` },
           ],
         },
       ],
