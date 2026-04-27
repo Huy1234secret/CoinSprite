@@ -1,10 +1,6 @@
 const {
   SlashCommandBuilder,
   MessageFlags,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
 } = require('discord.js');
 const {
   getBalance,
@@ -92,6 +88,21 @@ function normalizeDifficulty(raw) {
   if (value.includes('medium')) return 'medium';
   if (value.includes('hardcore')) return 'hardcore';
   if (value.includes('hard')) return 'hard';
+  return null;
+}
+
+function getModalComponents(interaction) {
+  const rawComponents = interaction.components ?? interaction?.data?.components ?? [];
+  return Array.isArray(rawComponents) ? rawComponents : [];
+}
+
+function findSubmittedComponent(interaction, customId) {
+  for (const wrapper of getModalComponents(interaction)) {
+    const component = wrapper?.component ?? wrapper?.components?.[0] ?? null;
+    if (component?.custom_id === customId || component?.customId === customId) {
+      return component;
+    }
+  }
   return null;
 }
 
@@ -336,31 +347,43 @@ module.exports = {
       }
 
       if (action === 'play') {
-        const modal = new ModalBuilder()
-          .setCustomId(`minefield:setup:${interaction.user.id}:${createGameId()}`)
-          .setTitle('Minefield Setup');
-
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('difficulty')
-              .setLabel('Difficulty (Easy, Medium, Hard, Hardcore)')
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-              .setMaxLength(25),
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('bet')
-              .setLabel(`Bet amount (${formatNumber(MIN_BET)} - ${formatNumber(MAX_BET)})`)
-              .setStyle(TextInputStyle.Short)
-              .setRequired(true)
-              .setMinLength(1)
-              .setMaxLength(12),
-          ),
-        );
-
-        await interaction.showModal(modal);
+        await interaction.showModal({
+          custom_id: `minefield:setup:${interaction.user.id}:${createGameId()}`,
+          title: 'Minefield Setup',
+          components: [
+            {
+              type: 18,
+              label: 'Question 1: Difficulty',
+              component: {
+                type: 3,
+                custom_id: 'difficulty',
+                placeholder: 'Select a difficulty',
+                min_values: 1,
+                max_values: 1,
+                required: true,
+                options: [
+                  { label: '🟢 Easy', value: 'easy' },
+                  { label: '🟡 Medium', value: 'medium' },
+                  { label: '🔴 Hard', value: 'hard' },
+                  { label: '💀 Hardcore', value: 'hardcore' },
+                ],
+              },
+            },
+            {
+              type: 18,
+              label: `Bet amount (${formatNumber(MIN_BET)} - ${formatNumber(MAX_BET)})`,
+              component: {
+                type: 4,
+                custom_id: 'bet',
+                style: 1,
+                required: true,
+                min_length: 1,
+                max_length: 12,
+                placeholder: 'Enter your bet',
+              },
+            },
+          ],
+        });
         return true;
       }
 
@@ -418,7 +441,11 @@ module.exports = {
         return true;
       }
 
-      const difficultyInput = interaction.fields.getTextInputValue('difficulty');
+      const difficultySelect = findSubmittedComponent(interaction, 'difficulty');
+      const difficultyInput =
+        difficultySelect?.values?.[0]
+        ?? difficultySelect?.value
+        ?? null;
       const betInput = interaction.fields.getTextInputValue('bet');
       const difficulty = normalizeDifficulty(difficultyInput);
       const bet = Math.floor(Number(String(betInput || '').replace(/,/g, '').trim()));
