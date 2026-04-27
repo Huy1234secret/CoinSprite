@@ -33,6 +33,11 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - 30–49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
 - 50+ members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
 
+## Prefix Commands
+Use these in a guild text channel:
+- `!ping` - Shows current bot latency and Discord API ping in milliseconds.
+- `!level` / `!rank` - Shows your level card.
+
 ## Console-style PR Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
 - `PR RI {userID}`
