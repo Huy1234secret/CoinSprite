@@ -674,6 +674,20 @@ async function onMessageCreate(message) {
     return;
   }
 
+  const isInviteConsoleCommand = [
+    /^blacklist\s+add\s+(\S+)\s+(.+)$/i,
+    /^blacklist\s+remove\s+(\S+)\s+(.+)$/i,
+    /^invitee-blacklist\s+add\s+(\S+)\s+(.+)$/i,
+    /^invitee-blacklist\s+remove\s+(\S+)\s+(.+)$/i,
+    /^(?:RI|IR)\s+(\S+)$/i,
+    /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
+    /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
+  ].some((pattern) => pattern.test(commandBody));
+
+  if (!isInviteConsoleCommand) {
+    return;
+  }
+
   logCommandUse({
     userId: message.author.id,
     command: content,
