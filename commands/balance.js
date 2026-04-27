@@ -1,8 +1,9 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { getBalance } = require('../src/rngGameStore');
+const { getBalance, getRebirthBalance, getRebirthTier } = require('../src/rngGameStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PRCOIN = '<:PRcoin:1497972406030176356>';
+const RBCOIN = '<:Rbcoin:1498172292511825950>';
 const SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No'];
 
 function formatAbbreviated(amount) {
@@ -33,6 +34,8 @@ module.exports = {
 
   async execute(interaction) {
     const amount = getBalance(interaction.user.id);
+    const rebirthCoins = getRebirthBalance(interaction.user.id);
+    const rebirthTier = getRebirthTier(interaction.user.id);
     const abbreviated = formatAbbreviated(amount);
 
     await interaction.reply({
@@ -47,6 +50,8 @@ module.exports = {
               content: [
                 `### ${interaction.user.username}'s Balance`,
                 `* ${abbreviated} ${PRCOIN}`,
+                `* ${formatAbbreviated(rebirthCoins)} ${RBCOIN}`,
+                `-# Rebirth: **#${rebirthTier}**`,
               ].join('\n'),
             },
           ],
