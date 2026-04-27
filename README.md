@@ -38,13 +38,13 @@ Use these in a guild text channel:
 - `!ping` - Shows current bot latency and Discord API ping in milliseconds.
 - `!level` / `!rank` - Shows your level card.
 
-## Console-style PR Commands (Discord message commands)
+## Console-style `!` Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
-- `PR RI {userID}`
-- `PR DM {userID} {message} {yes/no}`
-- `PR add/remove {userID} {item} {amount}`
-- `PR blacklist add/remove {userID} {reason}`
-- `PR invitee-blacklist add/remove {userID} {reason}`
+- `!RI {userID}` (or `!IR {userID}`)
+- `!DM {userID} {message} {yes/no}`
+- `!add/remove {userID} {item} {amount}`
+- `!blacklist add/remove {userID} {reason}`
+- `!invitee-blacklist add/remove {userID} {reason}`
 
 Supported item aliases (case-insensitive):
 - Clan Reroll, Clan Rerolls, CRR
