@@ -3,9 +3,7 @@ const {
   getBalance,
   addBalance,
   spendBalance,
-  setBalance,
-  getRebirthUpgrades,
-} = require('../src/rngGameStore');
+} = require('../src/gamblingStore');
 const {
   PRCOIN,
   WHITE_ACCENT,
@@ -15,11 +13,10 @@ const {
   MINEFIELD_DIFFICULTIES,
   formatNumber,
   calculateMinefieldPayout,
-  isMinefieldUnlocked,
-} = require('../src/rngConfig');
+} = require('../src/gamblingConfig');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const MIN_BET = 1000;
+const MIN_BET = 100;
 const BOARD_SIZE = 25;
 const TIMEOUT_MS = 20_000;
 const activeGames = new Map();
@@ -86,8 +83,8 @@ function buildHeaderContent(game, status) {
     return [
       `## ${game.username}'s Minefield Game`,
       '',
-      'You have exploded! You lose...',
-      `-# Lost: **${formatNumber(Math.floor(game.bet * game.config.lossMultiplier))}** ${PRCOIN}`,
+      '💥 You hit a mine and lost your bet.',
+      `-# Lost: **${formatNumber(game.bet)}** ${PRCOIN}`,
     ].join('\n');
   }
 
@@ -95,7 +92,7 @@ function buildHeaderContent(game, status) {
     return [
       `## ${game.username}'s Minefield Game`,
       '',
-      `You have found all safe slots. You won **${formatNumber(payout)}** ${PRCOIN}!!`,
+      `🎉 You cleared the board and won **${formatNumber(payout)}** ${PRCOIN}!`,
     ].join('\n');
   }
 
@@ -103,7 +100,8 @@ function buildHeaderContent(game, status) {
     return [
       `## ${game.username}'s Minefield Game`,
       '',
-      `You stopped and found **${safeFound}** safe slots. You won **${formatNumber(payout)}** ${PRCOIN}!`,
+      `You cashed out after finding **${safeFound}** safe slots.`,
+      `-# Won: **${formatNumber(payout)}** ${PRCOIN}`,
     ].join('\n');
   }
 
@@ -111,8 +109,9 @@ function buildHeaderContent(game, status) {
     `## ${game.username}'s Minefield Game`,
     '',
     `You have found **${safeFound} / ${maxSafe}** safe slots.`,
-    `-# Game will stop **20s after your last move**. Stop the game to take the current money.`,
-    `-# You earned **${formatNumber(payout)}** ${PRCOIN}`,
+    '-# The game will automatically cash out 20s after your last move.',
+    '-# Press **Stop Game** to lock in your current payout.',
+    `-# Current payout: **${formatNumber(payout)}** ${PRCOIN}`,
     `-# Difficulty: **${game.config.label}** | Bet: **${formatNumber(game.bet)}** ${PRCOIN}`,
   ].join('\n');
 }
@@ -213,12 +212,7 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
   game.status = status;
   removeGame(game);
 
-  if (status === 'exploded') {
-    const extraLoss = Math.max(0, Math.floor((game.bet * game.config.lossMultiplier) - game.bet));
-    if (extraLoss > 0 && !spendBalance(game.userId, extraLoss)) {
-      setBalance(game.userId, 0);
-    }
-  } else {
+  if (status !== 'exploded') {
     addBalance(game.userId, getCurrentPayout(game));
   }
 
@@ -238,20 +232,10 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
   return true;
 }
 
-function canStartGame(userId, bet, config) {
-  const balance = getBalance(userId);
-  const totalRisk = Math.floor(bet * config.lossMultiplier);
-  return {
-    balance,
-    totalRisk,
-    ok: balance >= totalRisk,
-  };
-}
-
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('minefield')
-    .setDescription('Risk PRcoin in the Minefield gambling game')
+    .setDescription('Risk PRcoin in the unlocked Minefield gambling game')
     .addIntegerOption((option) => option
       .setName('bet')
       .setDescription('Amount of PRcoin to bet')
@@ -270,12 +254,6 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
-    const rebirthUpgrades = getRebirthUpgrades(interaction.user.id);
-    if (!isMinefieldUnlocked(rebirthUpgrades)) {
-      await interaction.reply({ content: '💣 Minefield Fortune is locked. Buy it from Rebirth Upgrades first.', flags: MessageFlags.Ephemeral });
-      return;
-    }
-
     if (activeUserGames.has(interaction.user.id)) {
       await interaction.reply({ content: 'You already have an active Minefield game. Finish it first.', flags: MessageFlags.Ephemeral });
       return;
@@ -290,10 +268,10 @@ module.exports = {
       return;
     }
 
-    const risk = canStartGame(interaction.user.id, bet, config);
-    if (!risk.ok) {
+    const balance = getBalance(interaction.user.id);
+    if (balance < bet) {
       await interaction.reply({
-        content: `You need **${formatNumber(risk.totalRisk)}** ${PRCOIN} available for ${config.label}, because losing can cost up to **${formatNumber(Math.floor(config.lossMultiplier * 100))}%** of your bet.`,
+        content: `You need **${formatNumber(bet)}** ${PRCOIN} to place that bet. Your current balance is **${formatNumber(balance)}** ${PRCOIN}.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
