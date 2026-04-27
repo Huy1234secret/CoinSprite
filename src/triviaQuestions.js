@@ -313,8 +313,24 @@ const baseQuestions = Object.fromEntries(
   ]),
 );
 
+function isMathTrivia(question) {
+  const normalized = question.toLowerCase();
+  return (
+    /(^|\W)math(\W|$)/.test(normalized)
+    || /square root|prime|right angle|degrees|polygon|rectangle|decimal|roman numeral|triangle|factorial|hypotenuse|integral|derivative|log10|additive identity|sin\(|median|coordinate plane|probability|geometry/.test(normalized)
+    || /what is [\d\s+×x*\-^/%().=]+[\?]/.test(normalized)
+    || /\d+\s*[+×x*/%^-]\s*\d+/.test(normalized)
+    || /\d+%\s+of\s+\d+/.test(normalized)
+    || /solution to x/.test(normalized)
+  );
+}
+
+function removeMathTrivia(questions) {
+  return questions.filter(({ question }) => !isMathTrivia(question));
+}
+
 module.exports = {
-  easy: [...baseQuestions.easy, ...generatedTriviaQuestions.easy],
-  medium: [...baseQuestions.medium, ...generatedTriviaQuestions.medium],
-  hard: [...baseQuestions.hard, ...generatedTriviaQuestions.hard],
+  easy: removeMathTrivia([...baseQuestions.easy, ...generatedTriviaQuestions.easy]),
+  medium: removeMathTrivia([...baseQuestions.medium, ...generatedTriviaQuestions.medium]),
+  hard: removeMathTrivia([...baseQuestions.hard, ...generatedTriviaQuestions.hard]),
 };
