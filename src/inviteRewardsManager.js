@@ -68,6 +68,20 @@ function sanitizeAmount(value) {
   return Math.max(0, Math.floor(Number(value) || 0));
 }
 
+function parseUserIdToken(value) {
+  const token = String(value || '').trim();
+  const mentionMatch = token.match(/^<@!?(\d{16,20})>$/);
+  if (mentionMatch) {
+    return mentionMatch[1];
+  }
+
+  if (/^\d{16,20}$/.test(token)) {
+    return token;
+  }
+
+  return null;
+}
+
 function getTierForMembers(memberCount) {
   return (
     TIERS.find((tier) => {
@@ -676,9 +690,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const blacklistAdd = commandBody.match(/^blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
+  const blacklistAdd = commandBody.match(/^blacklist\s+add\s+(\S+)\s+(.+)$/i);
   if (blacklistAdd) {
-    const [, userId, reason] = blacklistAdd;
+    const [, userToken, reason] = blacklistAdd;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const state = loadState();
     const guildState = ensureGuildState(state, message.guild.id);
     const user = ensureUserState(guildState, userId);
@@ -693,9 +712,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const blacklistRemove = commandBody.match(/^blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
+  const blacklistRemove = commandBody.match(/^blacklist\s+remove\s+(\S+)\s+(.+)$/i);
   if (blacklistRemove) {
-    const [, userId, reason] = blacklistRemove;
+    const [, userToken, reason] = blacklistRemove;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const state = loadState();
     const guildState = ensureGuildState(state, message.guild.id);
     const user = ensureUserState(guildState, userId);
@@ -710,9 +734,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const inviteeBlacklistAdd = commandBody.match(/^invitee-blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
+  const inviteeBlacklistAdd = commandBody.match(/^invitee-blacklist\s+add\s+(\S+)\s+(.+)$/i);
   if (inviteeBlacklistAdd) {
-    const [, userId, reason] = inviteeBlacklistAdd;
+    const [, userToken, reason] = inviteeBlacklistAdd;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const state = loadState();
     const guildState = ensureGuildState(state, message.guild.id);
     guildState.invitedBlacklist[userId] = {
@@ -729,9 +758,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const inviteeBlacklistRemove = commandBody.match(/^invitee-blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
+  const inviteeBlacklistRemove = commandBody.match(/^invitee-blacklist\s+remove\s+(\S+)\s+(.+)$/i);
   if (inviteeBlacklistRemove) {
-    const [, userId, reason] = inviteeBlacklistRemove;
+    const [, userToken, reason] = inviteeBlacklistRemove;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const state = loadState();
     const guildState = ensureGuildState(state, message.guild.id);
     guildState.invitedBlacklist[userId] = {
@@ -748,9 +782,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const rewardInventoryLookup = commandBody.match(/^(?:RI|IR)\s+(\d{16,20})$/i);
+  const rewardInventoryLookup = commandBody.match(/^(?:RI|IR)\s+(\S+)$/i);
   if (rewardInventoryLookup) {
-    const [, userId] = rewardInventoryLookup;
+    const [, userToken] = rewardInventoryLookup;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const userState = loadGuildUserState(message.guild.id, userId);
     if (userState.blacklisted) {
       await message.reply(`User <@${userId}> is blacklisted from rewards.`);
@@ -764,9 +803,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const dmCommand = commandBody.match(/^DM\s+(\d{16,20})\s+([\s\S]+)\s+(yes|no)$/i);
+  const dmCommand = commandBody.match(/^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i);
   if (dmCommand) {
-    const [, userId, rawMessage, mentionRaw] = dmCommand;
+    const [, userToken, rawMessage, mentionRaw] = dmCommand;
+    const userId = parseUserIdToken(userToken);
+    if (!userId) {
+      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+      return;
+    }
     const shouldMention = mentionRaw.toLowerCase() === 'yes';
     const dmBody = rawMessage.trim();
 
@@ -791,7 +835,7 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const updateCmd = commandBody.match(/^(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
+  const updateCmd = commandBody.match(/^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
     logCommandSystem(`Invalid ! command syntax by ${message.author.id}: ${content}`);
     await message.reply(
@@ -800,7 +844,12 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const [, action, userId, itemRaw, amountRaw] = updateCmd;
+  const [, action, userToken, itemRaw, amountRaw] = updateCmd;
+  const userId = parseUserIdToken(userToken);
+  if (!userId) {
+    await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+    return;
+  }
   const amount = sanitizeAmount(amountRaw);
   const itemKey = parseItem(itemRaw);
 
