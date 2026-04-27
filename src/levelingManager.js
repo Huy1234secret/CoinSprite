@@ -312,13 +312,13 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
 
 function getRankColors(rank) {
   if (rank === 1) {
-    return { fill: '#D4AF37', text: '#000000' };
+    return { fill: '#FFD700', text: '#FFD700' };
   }
   if (rank === 2) {
-    return { fill: '#C0C0C0', text: '#000000' };
+    return { fill: '#00FFFF', text: '#00FFFF' };
   }
   if (rank === 3) {
-    return { fill: '#CD7F32', text: '#000000' };
+    return { fill: '#C4A484', text: '#C4A484' };
   }
   return { fill: null, text: '#f2f3f5' };
 }
