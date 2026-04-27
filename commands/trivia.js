@@ -9,10 +9,8 @@ const START_TIME_MS = 30_000;
 const CORRECT_BONUS_MS = 5_000;
 const WRONG_DELAY_MS = 5_000;
 const NEXT_DELAY_MS = 2_000;
-const COOLDOWN_MS = 10 * 60_000;
 
 const activeGames = new Map();
-const userCooldowns = new Map();
 
 const DIFFICULTY_CONFIG = {
   easy: { label: 'Easy', accent: GREEN_ACCENT, reward: 10 },
@@ -57,11 +55,6 @@ function pickQuestion(game, difficulty) {
 
 function getQuestionValue(game, difficulty) {
   return DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
-}
-
-function formatCooldownMessage(cooldownLeft) {
-  const unlockUnix = Math.floor((Date.now() + cooldownLeft) / 1000);
-  return `Trivia is on cooldown. You can play again <t:${unlockUnix}:R>.`;
 }
 
 function buildWelcomePayload(user) {
@@ -225,11 +218,6 @@ async function askNextQuestion(game) {
   resetFinishTimer(game);
 }
 
-function getCooldownLeft(userId) {
-  const expiresAt = userCooldowns.get(userId) || 0;
-  return Math.max(0, expiresAt - Date.now());
-}
-
 module.exports = {
   data: new SlashCommandBuilder().setName('trivia').setDescription('Play a timed trivia gambling game for PRcoin'),
   suppressCommandLog: true,
@@ -244,15 +232,6 @@ module.exports = {
     const active = activeGames.get(interaction.user.id);
     if (active && !active.finished) {
       await interaction.reply({ content: 'You already have an active Trivia game. Finish it first.', flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    const cooldownLeft = getCooldownLeft(interaction.user.id);
-    if (cooldownLeft > 0) {
-      await interaction.reply({
-        content: formatCooldownMessage(cooldownLeft),
-        flags: MessageFlags.Ephemeral,
-      });
       return;
     }
 
@@ -278,15 +257,6 @@ module.exports = {
     }
 
     if (action === 'play') {
-      const cooldownLeft = getCooldownLeft(interaction.user.id);
-      if (cooldownLeft > 0) {
-        await interaction.reply({
-          content: formatCooldownMessage(cooldownLeft),
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
       if (activeGames.has(interaction.user.id)) {
         await interaction.reply({ content: 'You already have an active Trivia game. Finish it first.', flags: MessageFlags.Ephemeral });
         return true;
@@ -319,9 +289,8 @@ module.exports = {
         type: 'trivia',
         label: 'Trivia',
         lockedCommand: 'trivia',
-        blockedCommands: ['minefield'],
+        lockToCommand: true,
       });
-      userCooldowns.set(interaction.user.id, Date.now() + COOLDOWN_MS);
       await interaction.update(buildGamePayload(game));
       resetFinishTimer(game);
       return true;
