@@ -1,3 +1,5 @@
+const generatedTriviaQuestions = require('./triviaGeneratedQuestions');
+
 const rawTriviaQuestions = {
   easy: [
     ["What color is a ripe banana usually?", ["Yellow", "Black", "Blue", "Purple"], 0],
@@ -304,9 +306,15 @@ const rawTriviaQuestions = {
   ]
 };
 
-module.exports = Object.fromEntries(
+const baseQuestions = Object.fromEntries(
   Object.entries(rawTriviaQuestions).map(([difficulty, questions]) => [
     difficulty,
     questions.map(([question, answers, correctIndex]) => ({ question, answers, correctIndex })),
   ]),
 );
+
+module.exports = {
+  easy: [...baseQuestions.easy, ...generatedTriviaQuestions.easy],
+  medium: [...baseQuestions.medium, ...generatedTriviaQuestions.medium],
+  hard: [...baseQuestions.hard, ...generatedTriviaQuestions.hard],
+};
