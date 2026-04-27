@@ -6,6 +6,8 @@ const {
   getBalance,
   addBalance,
   spendBalance,
+  recordGamblingEarnings,
+  incrementMinefieldCompleted,
 } = require('../src/gamblingStore');
 const {
   PRCOIN,
@@ -289,7 +291,12 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
   removeGame(game);
 
   if (status !== 'exploded') {
-    addBalance(game.userId, getCurrentPayout(game));
+    const payout = getCurrentPayout(game);
+    addBalance(game.userId, payout);
+    recordGamblingEarnings(game.userId, payout);
+    if (status === 'cleared') {
+      incrementMinefieldCompleted(game.userId, game.difficulty);
+    }
   }
 
   const payload = buildPayload(game, status);

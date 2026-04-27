@@ -312,13 +312,13 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
 
 function getRankColors(rank) {
   if (rank === 1) {
-    return { fill: '#D4AF37', text: '#FFD84D' };
+    return { fill: '#D4AF37', text: '#000000' };
   }
   if (rank === 2) {
-    return { fill: '#C0C0C0', text: '#AEEBFF' };
+    return { fill: '#C0C0C0', text: '#000000' };
   }
   if (rank === 3) {
-    return { fill: '#CD7F32', text: '#D9A56A' };
+    return { fill: '#CD7F32', text: '#000000' };
   }
   return { fill: null, text: '#f2f3f5' };
 }
@@ -427,7 +427,7 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
 
     await drawAvatar(ctx, row.avatarUrl, 34, y + 6, 40);
     ctx.fillStyle = rankColors.text;
-    ctx.font = '20px sans-serif';
+    ctx.font = row.rank <= 3 ? 'bold 20px sans-serif' : '20px sans-serif';
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
     const value = type === 'xp' ? row.totalXp : type === 'messages' ? row.messages : row.reactions;
