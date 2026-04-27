@@ -310,7 +310,7 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
 }
 
 
-function getRankColors(rank) {
+function getLevelCardRankColors(rank) {
   if (rank === 1) {
     return { fill: '#FFD700', text: '#FFD700' };
   }
@@ -319,6 +319,19 @@ function getRankColors(rank) {
   }
   if (rank === 3) {
     return { fill: '#C4A484', text: '#C4A484' };
+  }
+  return { fill: null, text: '#f2f3f5' };
+}
+
+function getLeaderboardRankColors(rank) {
+  if (rank === 1) {
+    return { fill: '#FFD700', text: '#000000' };
+  }
+  if (rank === 2) {
+    return { fill: '#00FFFF', text: '#000000' };
+  }
+  if (rank === 3) {
+    return { fill: '#C4A484', text: '#000000' };
   }
   return { fill: null, text: '#f2f3f5' };
 }
@@ -360,7 +373,7 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   ctx.font = 'bold 44px sans-serif';
   ctx.fillText(username.slice(0, 28), 240, 120);
 
-  const rankColors = getRankColors(rank);
+  const rankColors = getLevelCardRankColors(rank);
   ctx.font = 'bold 28px sans-serif';
   ctx.fillStyle = rankColors.text;
   ctx.fillText(`Rank #${rank}`, 240, 165);
@@ -421,7 +434,7 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i];
     const y = 144 + (i * 58);
-    const rankColors = getRankColors(row.rank);
+    const rankColors = getLeaderboardRankColors(row.rank);
     ctx.fillStyle = rankColors.fill || (i % 2 === 0 ? '#232428' : '#1e1f22');
     ctx.fillRect(20, y, width - 40, 52);
 
