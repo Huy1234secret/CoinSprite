@@ -35,36 +35,36 @@ function getMinefieldPayoutPercent(difficultyKey, safeFound) {
   if (safe <= 0) return 0;
 
   if (difficultyKey === 'easy') {
-    if (safe === 1) return 50;
-    if (safe <= 7) return 110;
-    if (safe <= 12) return 125;
-    if (safe <= 18) return 150;
-    if (safe <= 20) return 200;
-    return 300;
+    if (safe === 1) return 70;
+    if (safe <= 7) return 80;
+    if (safe <= 12) return 82;
+    if (safe <= 18) return 86;
+    if (safe <= 20) return 94;
+    return 105;
   }
 
   if (difficultyKey === 'medium') {
-    if (safe === 1) return 65;
-    if (safe <= 8) return 135;
-    if (safe <= 13) return 200;
-    if (safe <= 16) return 300;
-    return 500;
+    if (safe === 1) return 75;
+    if (safe <= 7) return 93;
+    if (safe <= 13) return 102;
+    if (safe <= 16) return 135;
+    return 176;
   }
 
   if (difficultyKey === 'hard') {
     if (safe === 1) return 80;
-    if (safe <= 5) return 160;
-    if (safe <= 9) return 400;
-    if (safe <= 11) return 850;
-    return 1300;
+    if (safe <= 5) return 116;
+    if (safe <= 9) return 160;
+    if (safe <= 11) return 260;
+    return 360;
   }
 
   if (difficultyKey === 'hardcore') {
-    if (safe === 1) return 125;
-    if (safe === 2) return 1100;
-    if (safe === 3) return 2100;
-    if (safe === 4) return 3100;
-    return 4100;
+    if (safe === 1) return 110;
+    if (safe === 2) return 550;
+    if (safe === 3) return 1100;
+    if (safe === 4) return 1650;
+    return 1870;
   }
 
   return 0;
