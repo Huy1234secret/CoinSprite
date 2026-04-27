@@ -661,10 +661,6 @@ async function onInviteCreateOrDelete(invite) {
 }
 
 async function onMessageCreate(message) {
-  if (!INVITATION_REWARDS_ENABLED) {
-    return;
-  }
-
   if (!message.guild || message.author.bot) {
     return;
   }
