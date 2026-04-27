@@ -1,16 +1,16 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { getBalance, getRebirthBalance } = require('../src/rngGameStore');
-const { PRCOIN, RBCOIN, formatAbbreviated, formatNumber } = require('../src/rngConfig');
+const { getBalance, getJackpotBalance } = require('../src/gamblingStore');
+const { PRCOIN, JBCOIN, formatAbbreviated, formatNumber } = require('../src/gamblingConfig');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('balance').setDescription('Show your PRcoin and Rebirth Coin balance'),
+  data: new SlashCommandBuilder().setName('balance').setDescription('Show your PRcoin and Jbcoin balance'),
   suppressCommandLog: true,
 
   async execute(interaction) {
     const prcoin = getBalance(interaction.user.id);
-    const rbcoin = getRebirthBalance(interaction.user.id);
+    const jbcoin = getJackpotBalance(interaction.user.id);
 
     await interaction.reply({
       flags: COMPONENTS_V2_FLAG,
@@ -24,7 +24,7 @@ module.exports = {
               content: [
                 `### ${interaction.user.username}'s Balance`,
                 `* ${formatAbbreviated(prcoin)} ${PRCOIN}`,
-                `* ${formatNumber(rbcoin)} ${RBCOIN}`,
+                `* ${formatNumber(jbcoin)} ${JBCOIN}`,
               ].join('\n'),
             },
           ],
