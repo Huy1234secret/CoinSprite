@@ -656,7 +656,11 @@ async function onMessageCreate(message) {
   }
 
   const content = message.content.trim();
-  if (!/^PR\s+/i.test(content)) {
+  if (!/^!\s*/.test(content)) {
+    return;
+  }
+  const commandBody = content.slice(1).trim();
+  if (!commandBody) {
     return;
   }
 
@@ -667,12 +671,12 @@ async function onMessageCreate(message) {
   });
 
   if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-    logCommandSystem(`Unauthorized PR command attempt by ${message.author.id} in channel ${message.channel.id}`);
-    await message.reply('You need Administrator permission to use PR console commands.');
+    logCommandSystem(`Unauthorized ! command attempt by ${message.author.id} in channel ${message.channel.id}`);
+    await message.reply('You need Administrator permission to use ! console commands.');
     return;
   }
 
-  const blacklistAdd = content.match(/^PR\s+blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
+  const blacklistAdd = commandBody.match(/^blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
   if (blacklistAdd) {
     const [, userId, reason] = blacklistAdd;
     const state = loadState();
@@ -689,7 +693,7 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const blacklistRemove = content.match(/^PR\s+blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
+  const blacklistRemove = commandBody.match(/^blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
   if (blacklistRemove) {
     const [, userId, reason] = blacklistRemove;
     const state = loadState();
@@ -706,7 +710,7 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const inviteeBlacklistAdd = content.match(/^PR\s+invitee-blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
+  const inviteeBlacklistAdd = commandBody.match(/^invitee-blacklist\s+add\s+(\d{16,20})\s+(.+)$/i);
   if (inviteeBlacklistAdd) {
     const [, userId, reason] = inviteeBlacklistAdd;
     const state = loadState();
@@ -725,7 +729,7 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const inviteeBlacklistRemove = content.match(/^PR\s+invitee-blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
+  const inviteeBlacklistRemove = commandBody.match(/^invitee-blacklist\s+remove\s+(\d{16,20})\s+(.+)$/i);
   if (inviteeBlacklistRemove) {
     const [, userId, reason] = inviteeBlacklistRemove;
     const state = loadState();
@@ -744,7 +748,7 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const rewardInventoryLookup = content.match(/^PR\s+RI\s+(\d{16,20})$/i);
+  const rewardInventoryLookup = commandBody.match(/^(?:RI|IR)\s+(\d{16,20})$/i);
   if (rewardInventoryLookup) {
     const [, userId] = rewardInventoryLookup;
     const userState = loadGuildUserState(message.guild.id, userId);
@@ -760,14 +764,14 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const dmCommand = content.match(/^PR\s+DM\s+(\d{16,20})\s+([\s\S]+)\s+(yes|no)$/i);
+  const dmCommand = commandBody.match(/^DM\s+(\d{16,20})\s+([\s\S]+)\s+(yes|no)$/i);
   if (dmCommand) {
     const [, userId, rawMessage, mentionRaw] = dmCommand;
     const shouldMention = mentionRaw.toLowerCase() === 'yes';
     const dmBody = rawMessage.trim();
 
     if (!dmBody) {
-      await message.reply('Message cannot be empty. Use `PR DM {userID} {message} {yes/no}`.');
+      await message.reply('Message cannot be empty. Use `!DM {userID} {message} {yes/no}`.');
       return;
     }
 
@@ -780,18 +784,18 @@ async function onMessageCreate(message) {
       await message.reply(`DM sent to <@${userId}> successfully.`);
     } catch (error) {
       logCommandSystem(
-        `Failed PR DM command by ${message.author.id} to ${userId}: ${error?.message ?? 'unknown error'}`,
+        `Failed !DM command by ${message.author.id} to ${userId}: ${error?.message ?? 'unknown error'}`,
       );
       await message.reply(`Failed to send DM to <@${userId}>. The user may have DMs disabled.`);
     }
     return;
   }
 
-  const updateCmd = content.match(/^PR\s+(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
+  const updateCmd = commandBody.match(/^(add|remove)\s+(\d{16,20})\s+(.+)\s+(\d+)$/i);
   if (!updateCmd) {
-    logCommandSystem(`Invalid PR command syntax by ${message.author.id}: ${content}`);
+    logCommandSystem(`Invalid ! command syntax by ${message.author.id}: ${content}`);
     await message.reply(
-      'Invalid PR command. Use `PR RI {userID}`, `PR DM {userID} {message} {yes/no}`, `PR add/remove {userID} {item} {amount}`, `PR blacklist add/remove {userID} {reason}`, or `PR invitee-blacklist add/remove {userID} {reason}`.',
+      'Invalid ! command. Use `!RI {userID}` (or `!IR {userID}`), `!DM {userID} {message} {yes/no}`, `!add/remove {userID} {item} {amount}`, `!blacklist add/remove {userID} {reason}`, or `!invitee-blacklist add/remove {userID} {reason}`.',
     );
     return;
   }
