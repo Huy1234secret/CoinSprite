@@ -14,37 +14,61 @@ const SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'D
 const MINEFIELD_DIFFICULTIES = {
   easy: {
     label: '🟢 Easy',
-    minSafeForBetBack: 3,
-    cashoutGrowth: 1.18,
     mines: 4,
-    lossMultiplier: 1,
-    houseEdge: 0.08,
   },
   medium: {
     label: '🟡 Medium',
-    minSafeForBetBack: 2,
-    cashoutGrowth: 1.32,
     mines: 8,
-    lossMultiplier: 1,
-    houseEdge: 0.10,
   },
   hard: {
     label: '🔴 Hard',
-    minSafeForBetBack: 1,
-    cashoutGrowth: 1.62,
     mines: 13,
-    lossMultiplier: 1,
-    houseEdge: 0.13,
   },
   hardcore: {
     label: '💀 HARDCORE',
-    minSafeForBetBack: 1,
-    cashoutGrowth: 2.35,
     mines: 20,
-    lossMultiplier: 1,
-    houseEdge: 0.18,
   },
 };
+
+function getMinefieldPayoutPercent(difficultyKey, safeFound) {
+  const safe = Math.max(0, Number(safeFound) || 0);
+  if (safe <= 0) return 0;
+
+  if (difficultyKey === 'easy') {
+    if (safe === 1) return 50;
+    if (safe <= 7) return 110;
+    if (safe <= 12) return 125;
+    if (safe <= 18) return 150;
+    if (safe <= 20) return 200;
+    return 300;
+  }
+
+  if (difficultyKey === 'medium') {
+    if (safe === 1) return 65;
+    if (safe <= 8) return 135;
+    if (safe <= 13) return 200;
+    if (safe <= 16) return 300;
+    return 500;
+  }
+
+  if (difficultyKey === 'hard') {
+    if (safe === 1) return 80;
+    if (safe <= 5) return 160;
+    if (safe <= 9) return 400;
+    if (safe <= 11) return 850;
+    return 1300;
+  }
+
+  if (difficultyKey === 'hardcore') {
+    if (safe === 1) return 125;
+    if (safe === 2) return 1100;
+    if (safe === 3) return 2100;
+    if (safe === 4) return 3100;
+    return 4100;
+  }
+
+  return 0;
+}
 
 function formatNumber(value) {
   return Number(Math.floor(Number(value) || 0)).toLocaleString('en-US');
@@ -75,27 +99,14 @@ function formatAbbreviated(amount) {
 function calculateMinefieldPayout(bet, difficultyConfig, safeFound) {
   const safe = Math.max(0, Number(safeFound) || 0);
   if (safe <= 0) return 0;
-
-  const totalCells = 25;
-  const mines = Math.max(1, Number(difficultyConfig.mines) || 1);
-  const maxSafe = totalCells - mines;
+  const mines = Math.max(1, Number(difficultyConfig?.mines) || 1);
+  const maxSafe = 25 - mines;
   const clampedSafe = Math.min(safe, maxSafe);
 
-  let survivalChance = 1;
-  for (let step = 0; step < clampedSafe; step += 1) {
-    survivalChance *= (maxSafe - step) / (totalCells - step);
-  }
-
-  const fairMultiplier = 1 / Math.max(0.0001, survivalChance);
-  const edgeMultiplier = 1 - Math.min(0.9, Math.max(0, difficultyConfig.houseEdge || 0));
-  const streakMultiplier = difficultyConfig.cashoutGrowth ** Math.max(0, clampedSafe - 1);
-  const raw = bet * fairMultiplier * edgeMultiplier * streakMultiplier;
-
-  if (clampedSafe < difficultyConfig.minSafeForBetBack) {
-    return Math.floor((bet / difficultyConfig.minSafeForBetBack) * clampedSafe);
-  }
-
-  return Math.max(1, Math.floor(raw));
+  const difficultyKey = Object.entries(MINEFIELD_DIFFICULTIES)
+    .find(([, config]) => config === difficultyConfig)?.[0];
+  const payoutPercent = getMinefieldPayoutPercent(difficultyKey, clampedSafe);
+  return Math.max(0, Math.floor((bet * payoutPercent) / 100));
 }
 
 module.exports = {
