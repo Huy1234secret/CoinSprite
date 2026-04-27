@@ -18,6 +18,7 @@ const { startUserSession, endUserSession, getCommandBlockReason } = require('../
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const MIN_BET = 100;
+const MAX_BET = 100_000;
 const BOARD_SIZE = 25;
 const TIMEOUT_MS = 20_000;
 const activeGames = new Map();
@@ -242,7 +243,8 @@ module.exports = {
       .setName('bet')
       .setDescription('Amount of PRcoin to bet')
       .setRequired(true)
-      .setMinValue(MIN_BET))
+      .setMinValue(MIN_BET)
+      .setMaxValue(MAX_BET))
     .addStringOption((option) => option
       .setName('difficulty')
       .setDescription('Minefield difficulty')
@@ -271,8 +273,11 @@ module.exports = {
     const difficulty = interaction.options.getString('difficulty');
     const config = MINEFIELD_DIFFICULTIES[difficulty];
 
-    if (!config || bet < MIN_BET) {
-      await interaction.reply({ content: `Minimum bet is ${formatNumber(MIN_BET)} ${PRCOIN}.`, flags: MessageFlags.Ephemeral });
+    if (!config || bet < MIN_BET || bet > MAX_BET) {
+      await interaction.reply({
+        content: `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}** ${PRCOIN}.`,
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 
