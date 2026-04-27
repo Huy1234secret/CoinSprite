@@ -1,12 +1,13 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { addBalance } = require('../src/gamblingStore');
+const { addBalance, recordGamblingEarnings, recordTriviaRun } = require('../src/gamblingStore');
 const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const START_TIME_MS = 30_000;
-const CORRECT_BONUS_MS = 5_000;
+const MAX_TIME_MS = 60_000;
+const CORRECT_BONUS_MS = 10_000;
 const WRONG_DELAY_MS = 5_000;
 const NEXT_DELAY_MS = 2_000;
 
@@ -71,7 +72,7 @@ function buildWelcomePayload(user) {
             content: [
               `## Welcome ${user} to Trivia Game!`,
               '* Rules:',
-              '-# * You have a total of **30 seconds** to answer as much trivia as you can! Every correct answer increases the timer by **5s**, but wrong answers delay you by **5s**.',
+              '-# * You have a total of **30 seconds** to answer as much trivia as you can! Every correct answer increases the timer by **10s** (up to **60s** max), but wrong answers delay you by **5s**.',
               '-# * Once time runs out, you earn PRcoin based on how many trivia questions you answered correctly.',
               '-# * Reward per correct answer: Easy **10**, Medium **100**, Hard **1,000**.',
               '-# * Once you are ready, just press the **PLAY** button below.',
@@ -181,7 +182,9 @@ async function finishGame(game, interaction = null) {
 
   if (game.prizePool > 0) {
     addBalance(game.userId, game.prizePool);
+    recordGamblingEarnings(game.userId, game.prizePool);
   }
+  recordTriviaRun(game.userId, game.correctByDifficulty);
 
   const payload = buildFinishedPayload(game);
   if (interaction) {
@@ -274,6 +277,7 @@ module.exports = {
         currentQuestionValue: 10,
         lastQuestionValue: 10,
         usedQuestions: { easy: new Set(), medium: new Set(), hard: new Set() },
+        correctByDifficulty: { easy: 0, medium: 0, hard: 0 },
         locked: false,
         finished: false,
         timeout: null,
@@ -323,11 +327,14 @@ module.exports = {
     const correct = selectedIndex === game.currentQuestion.correctIndex;
 
     if (correct) {
+      const difficulty = game.currentQuestion.difficulty;
       game.correctCount += 1;
+      game.correctByDifficulty[difficulty] += 1;
       game.prizePool += game.currentQuestionValue;
       game.lastQuestionValue = game.currentQuestionValue;
-      game.endsAt += CORRECT_BONUS_MS;
-      await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +5s added to your timer.'));
+      const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
+      game.endsAt = Math.min(boostedEnd, Date.now() + MAX_TIME_MS);
+      await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +10s added to your timer.'));
       resetFinishTimer(game);
       game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), NEXT_DELAY_MS);
       return true;

@@ -8,6 +8,7 @@ function getEmptyState() {
   return {
     balances: {},
     jackpotBalances: {},
+    stats: {},
   };
 }
 
@@ -129,6 +130,102 @@ function resetAllGamblingData() {
   return emptyState;
 }
 
+function getDefaultUserStats() {
+  return {
+    moneyEarned: 0,
+    triviaBestRun: {
+      all: 0,
+      easy: 0,
+      medium: 0,
+      hard: 0,
+    },
+    minefieldCompleted: {
+      all: 0,
+      easy: 0,
+      medium: 0,
+      hard: 0,
+      hardcore: 0,
+    },
+  };
+}
+
+function getUserStatsRecord(state, userId) {
+  if (!state.stats[userId] || typeof state.stats[userId] !== 'object') {
+    state.stats[userId] = getDefaultUserStats();
+  }
+
+  const base = getDefaultUserStats();
+  const current = state.stats[userId];
+  state.stats[userId] = {
+    ...base,
+    ...current,
+    triviaBestRun: {
+      ...base.triviaBestRun,
+      ...(current.triviaBestRun || {}),
+    },
+    minefieldCompleted: {
+      ...base.minefieldCompleted,
+      ...(current.minefieldCompleted || {}),
+    },
+  };
+
+  return state.stats[userId];
+}
+
+function recordGamblingEarnings(userId, amount) {
+  const delta = Math.max(0, Math.floor(Number(amount) || 0));
+  if (delta <= 0) return 0;
+
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  stats.moneyEarned = Math.max(0, Math.floor(Number(stats.moneyEarned) || 0) + delta);
+  saveState(state);
+  return stats.moneyEarned;
+}
+
+function recordTriviaRun(userId, perDifficultyCorrect = {}) {
+  const easy = Math.max(0, Math.floor(Number(perDifficultyCorrect.easy) || 0));
+  const medium = Math.max(0, Math.floor(Number(perDifficultyCorrect.medium) || 0));
+  const hard = Math.max(0, Math.floor(Number(perDifficultyCorrect.hard) || 0));
+  const all = easy + medium + hard;
+
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  stats.triviaBestRun.easy = Math.max(stats.triviaBestRun.easy, easy);
+  stats.triviaBestRun.medium = Math.max(stats.triviaBestRun.medium, medium);
+  stats.triviaBestRun.hard = Math.max(stats.triviaBestRun.hard, hard);
+  stats.triviaBestRun.all = Math.max(stats.triviaBestRun.all, all);
+  saveState(state);
+  return stats.triviaBestRun;
+}
+
+function incrementMinefieldCompleted(userId, difficulty) {
+  const safeDifficulty = ['easy', 'medium', 'hard', 'hardcore'].includes(difficulty) ? difficulty : null;
+  if (!safeDifficulty) return null;
+
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  stats.minefieldCompleted[safeDifficulty] += 1;
+  stats.minefieldCompleted.all += 1;
+  saveState(state);
+  return stats.minefieldCompleted;
+}
+
+function getGamblingStats(userId) {
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  return JSON.parse(JSON.stringify(stats));
+}
+
+function getAllGamblingStats() {
+  const state = loadState();
+  const result = {};
+  for (const userId of Object.keys(state.stats || {})) {
+    result[userId] = getUserStatsRecord(state, userId);
+  }
+  return JSON.parse(JSON.stringify(result));
+}
+
 module.exports = {
   STORE_PATH,
   getBalance,
@@ -139,4 +236,9 @@ module.exports = {
   addJackpotBalance,
   spendJackpotBalance,
   resetAllGamblingData,
+  recordGamblingEarnings,
+  recordTriviaRun,
+  incrementMinefieldCompleted,
+  getGamblingStats,
+  getAllGamblingStats,
 };

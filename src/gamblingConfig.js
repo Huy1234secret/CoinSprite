@@ -30,41 +30,42 @@ const MINEFIELD_DIFFICULTIES = {
   },
 };
 
-function getMinefieldPayoutPercent(difficultyKey, safeFound) {
-  const safe = Math.max(0, Number(safeFound) || 0);
-  if (safe <= 0) return 0;
+function getMinefieldBasePercent(difficultyKey) {
+  if (difficultyKey === 'easy') return 70;
+  if (difficultyKey === 'medium') return 75;
+  if (difficultyKey === 'hard') return 80;
+  if (difficultyKey === 'hardcore') return 110;
+  return 0;
+}
 
+function getMinefieldStepIncreasePercent(difficultyKey, safeNumber) {
   if (difficultyKey === 'easy') {
-    if (safe === 1) return 70;
-    if (safe <= 7) return 80;
-    if (safe <= 12) return 82;
-    if (safe <= 18) return 86;
-    if (safe <= 20) return 94;
-    return 105;
+    if (safeNumber >= 2 && safeNumber <= 7) return 14;
+    if (safeNumber <= 12) return 18;
+    if (safeNumber <= 18) return 24;
+    if (safeNumber <= 20) return 35;
+    if (safeNumber === 21) return 50;
   }
 
   if (difficultyKey === 'medium') {
-    if (safe === 1) return 75;
-    if (safe <= 7) return 93;
-    if (safe <= 13) return 102;
-    if (safe <= 16) return 135;
-    return 176;
+    if (safeNumber >= 2 && safeNumber <= 7) return 24;
+    if (safeNumber <= 13) return 37;
+    if (safeNumber <= 16) return 80;
+    if (safeNumber === 17) return 135;
   }
 
   if (difficultyKey === 'hard') {
-    if (safe === 1) return 80;
-    if (safe <= 5) return 116;
-    if (safe <= 9) return 160;
-    if (safe <= 11) return 260;
-    return 360;
+    if (safeNumber >= 2 && safeNumber <= 5) return 45;
+    if (safeNumber <= 9) return 100;
+    if (safeNumber <= 11) return 225;
+    if (safeNumber === 12) return 350;
   }
 
   if (difficultyKey === 'hardcore') {
-    if (safe === 1) return 110;
-    if (safe === 2) return 550;
-    if (safe === 3) return 1100;
-    if (safe === 4) return 1650;
-    return 1870;
+    if (safeNumber === 2) return 400;
+    if (safeNumber === 3) return 900;
+    if (safeNumber === 4) return 1400;
+    if (safeNumber === 5) return 1700;
   }
 
   return 0;
@@ -105,8 +106,16 @@ function calculateMinefieldPayout(bet, difficultyConfig, safeFound) {
 
   const difficultyKey = Object.entries(MINEFIELD_DIFFICULTIES)
     .find(([, config]) => config === difficultyConfig)?.[0];
-  const payoutPercent = getMinefieldPayoutPercent(difficultyKey, clampedSafe);
-  return Math.max(0, Math.floor((bet * payoutPercent) / 100));
+  const basePercent = getMinefieldBasePercent(difficultyKey);
+  if (basePercent <= 0) return 0;
+
+  let pool = Number(bet) * (basePercent / 100);
+  for (let safeNumber = 2; safeNumber <= clampedSafe; safeNumber += 1) {
+    const bonusPercent = getMinefieldStepIncreasePercent(difficultyKey, safeNumber);
+    pool *= 1 + (bonusPercent / 100);
+  }
+
+  return Math.max(0, Math.round(pool));
 }
 
 module.exports = {
