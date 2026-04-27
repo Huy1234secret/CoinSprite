@@ -78,6 +78,14 @@ function leaderboardTypeSelect(selectedType, ownerId) {
 }
 
 async function sendLeaderboard(target, guild, userId, type, page) {
+  const isComponentOrModal = target.isStringSelectMenu?.() || target.isModalSubmit?.();
+
+  if (isComponentOrModal && !target.deferred && !target.replied) {
+    await target.deferUpdate();
+  } else if (typeof target.deferReply === 'function' && !target.deferred && !target.replied) {
+    await target.deferReply();
+  }
+
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const { rows, finalPage, maxPage, sorted } = buildRows(leaderboard, type, page);
 
@@ -129,12 +137,14 @@ async function sendLeaderboard(target, guild, userId, type, page) {
     ],
   };
 
-  if (target.isStringSelectMenu?.() || target.isModalSubmit?.()) {
-    await target.update(payload);
+  if (isComponentOrModal) {
+    await target.editReply(payload);
     return;
   }
 
-  if (typeof target.reply === 'function') {
+  if (typeof target.editReply === 'function' && (target.deferred || target.replied)) {
+    await target.editReply(payload);
+  } else if (typeof target.reply === 'function') {
     await target.reply(payload);
   } else {
     await target.followUp(payload);
