@@ -652,8 +652,7 @@ async function handleRoleRequestReview(interaction) {
         container(
           0x00ff00,
           'Your **⭐Crew Member+** role request has been accepted!\n' +
-            '[separator]\n' +
-            'To join the guild, please send us a request in the in-game guild system. Guild ID: 225083223',
+            '-# To join the guild, please send us a request in the in-game guild system. Guild ID: 225083223',
         ),
       )
       .catch(() => null);
