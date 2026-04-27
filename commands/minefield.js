@@ -26,6 +26,7 @@ const MIN_BET = 100;
 const MAX_BET = 100_000;
 const BOARD_SIZE = 25;
 const TIMEOUT_MS = 20_000;
+const MINE_HIT_REFUND_RATE = 0.25;
 const activeGames = new Map();
 const activeUserGames = new Map();
 
@@ -61,6 +62,10 @@ function getMaxSafe(game) {
 
 function getCurrentPayout(game) {
   return calculateMinefieldPayout(game.bet, game.config, getSafeCount(game));
+}
+
+function getMineHitRefund(game) {
+  return Math.floor(game.bet * MINE_HIT_REFUND_RATE);
 }
 
 function clearGameTimer(game) {
@@ -124,7 +129,7 @@ function buildWelcomePayload(user) {
               '',
               '-# * Pick a difficulty and place your bet. Each difficulty has a different amount of safe tiles and mines.',
               '-# * Click safe tiles to increase your payout. The more safe tiles you find, the higher your reward becomes.',
-              '-# * You can cash out anytime after finding at least 1 safe tile. If you hit a mine, you lose your bet.',
+              '-# * You can cash out anytime after finding at least 1 safe tile. If you hit a mine, you get back 25% of your bet.',
               '-# * Higher difficulty = fewer safe tiles, bigger rewards.',
               '',
               '### Difficulties:',
@@ -158,11 +163,12 @@ function buildHeaderContent(game, status) {
   const payout = getCurrentPayout(game);
 
   if (status === 'exploded') {
+    const refund = getMineHitRefund(game);
     return [
       `## ${game.username}'s Minefield Game`,
       '',
-      '💥 You hit a mine and lost your bet.',
-      `-# Lost: **${formatNumber(game.bet)}** ${PRCOIN}`,
+      `💥 You hit a mine and recovered **${formatNumber(refund)}** ${PRCOIN} (25% refund).`,
+      `-# Lost: **${formatNumber(game.bet - refund)}** ${PRCOIN}`,
     ].join('\n');
   }
 
@@ -290,7 +296,10 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
   game.status = status;
   removeGame(game);
 
-  if (status !== 'exploded') {
+  if (status === 'exploded') {
+    const refund = getMineHitRefund(game);
+    addBalance(game.userId, refund);
+  } else {
     const payout = getCurrentPayout(game);
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
