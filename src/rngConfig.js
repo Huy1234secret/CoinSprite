@@ -44,37 +44,55 @@ const REBIRTHS = [
     tier: 2,
     coinMultiplier: 4,
     luckMultiplier: 1.10,
-    rewardRebirthCoins: 1,
-    requiredCoins: 475_000,
-    requiredLetter: '1Z',
+    rewardRebirthCoins: 2,
+    requiredCoins: 250_000,
+    requiredLetter: '1C',
     unlocks: [],
   },
   {
     tier: 3,
     coinMultiplier: 8,
     luckMultiplier: 1.15,
-    rewardRebirthCoins: 1,
-    requiredCoins: 2_000_000,
-    requiredLetter: '3H',
+    rewardRebirthCoins: 3,
+    requiredCoins: 1_000_000,
+    requiredLetter: '1H',
     unlocks: [],
   },
   {
     tier: 4,
     coinMultiplier: 16,
     luckMultiplier: 1.20,
-    rewardRebirthCoins: 1,
-    requiredCoins: 125_000_000,
-    requiredLetter: '5Z',
+    rewardRebirthCoins: 5,
+    requiredCoins: 4_000_000,
+    requiredLetter: '1M',
     unlocks: [],
   },
   {
     tier: 5,
     coinMultiplier: 32,
     luckMultiplier: 1.25,
-    rewardRebirthCoins: 1,
-    requiredCoins: 1_000_000_000,
-    requiredLetter: '7Z',
-    unlocks: ['Unlock Challenges'],
+    rewardRebirthCoins: 7,
+    requiredCoins: 15_000_000,
+    requiredLetter: '1R',
+    unlocks: [],
+  },
+  {
+    tier: 6,
+    coinMultiplier: 64,
+    luckMultiplier: 1.30,
+    rewardRebirthCoins: 9,
+    requiredCoins: 60_000_000,
+    requiredLetter: '1W',
+    unlocks: [],
+  },
+  {
+    tier: 7,
+    coinMultiplier: 128,
+    luckMultiplier: 1.35,
+    rewardRebirthCoins: 13,
+    requiredCoins: 250_000_000,
+    requiredLetter: '1Z',
+    unlocks: [],
   },
 ];
 
@@ -83,8 +101,8 @@ const REBIRTH_UPGRADES = {
     key: 'glyphGrowth',
     emoji: '✨',
     name: 'Glyph Growth',
-    prices: [1, 1, 2, 4],
-    values: [0.1, 0.25, 0.5, 1],
+    prices: [1, 2, 3, 5],
+    values: [0.1, 0.22, 0.4, 0.65],
     formatValue: (value) => `${value}%`,
     description: (value) => `Every unique alphabet discovered increases coin gain by **${value}%**.`,
   },
@@ -92,8 +110,8 @@ const REBIRTH_UPGRADES = {
     key: 'rarityJackpot',
     emoji: '💎',
     name: 'Rarity Jackpot',
-    prices: [1, 1, 2, 4],
-    values: [5, 10, 25, 250],
+    prices: [1, 2, 4, 7],
+    values: [2, 4, 8, 20],
     formatValue: (value) => `${value}x`,
     description: (value) => `Rolling an alphabet with chance lower than **0.1%** earns **${value}x** coins from that roll.`,
   },
@@ -101,8 +119,8 @@ const REBIRTH_UPGRADES = {
     key: 'luckDiscount',
     emoji: '💸',
     name: 'Luck Discount',
-    prices: [1, 2],
-    values: [5, 10],
+    prices: [1, 2, 3],
+    values: [5, 10, 15],
     formatValue: (value) => `${value}%`,
     description: (value) => `Reduces Luck upgrade prices by **${value}%**.`,
   },
@@ -110,8 +128,8 @@ const REBIRTH_UPGRADES = {
     key: 'fortuneCharge',
     emoji: '⚡',
     name: 'Fortune Charge',
-    prices: [1, 2, 3],
-    values: [100, 200, 300],
+    prices: [1, 2, 4],
+    values: [50, 100, 175],
     formatValue: (value) => `${value}%`,
     description: (value) => `Every 25th roll stores **+${value}% Luck** for your next roll once.`,
   },
@@ -119,7 +137,7 @@ const REBIRTH_UPGRADES = {
     key: 'minefieldFortune',
     emoji: '💣',
     name: 'Minefield Fortune',
-    prices: [1],
+    prices: [2],
     values: ['unlock'],
     formatValue: () => 'Unlock',
     description: () => 'Unlocks the Mines gambling game, where you can risk coins to uncover rewards while avoiding bombs.',
@@ -225,6 +243,11 @@ function buildLetterRewards() {
 
 const LETTER_REWARDS = buildLetterRewards();
 
+function getCurrentRebirthInfo(tier) {
+  const safeTier = Math.max(0, Math.min(Math.floor(Number(tier) || 0), REBIRTHS.length - 1));
+  return REBIRTHS[safeTier] || null;
+}
+
 function getLuckPercent(level) {
   if (level <= 0) {
     return 0;
@@ -235,7 +258,7 @@ function getLuckPercent(level) {
 
 function getEffectiveLuckPercent(level, rebirthTier = 0, fortunePercent = 0) {
   const baseLuck = getLuckPercent(level);
-  const rebirthMultiplier = 1 + (Math.max(0, rebirthTier) * 0.05);
+  const rebirthMultiplier = getRebirthLuckMultiplier(rebirthTier);
   const fortuneMultiplier = 1 + ((Math.max(0, fortunePercent) || 0) / 100);
   return roundToOne(baseLuck * rebirthMultiplier * fortuneMultiplier);
 }
@@ -289,11 +312,11 @@ function getRebirthInfo(nextTier) {
 }
 
 function getRebirthCoinMultiplier(tier) {
-  return tier <= 0 ? 1 : 2 ** Math.min(tier, 5);
+  return getCurrentRebirthInfo(tier)?.coinMultiplier || 1;
 }
 
 function getRebirthLuckMultiplier(tier) {
-  return 1 + (Math.max(0, Math.min(tier, 5)) * 0.05);
+  return getCurrentRebirthInfo(tier)?.luckMultiplier || 1;
 }
 
 function getRebirthUpgradeLevelValue(rebirthUpgrades, key) {
