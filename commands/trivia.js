@@ -3,6 +3,7 @@ const { addBalance, recordGamblingEarnings, recordTriviaRun } = require('../src/
 const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
+const leveling = require('../src/levelingManager');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const START_TIME_MS = 30_000;
@@ -14,9 +15,9 @@ const NEXT_DELAY_MS = 2_000;
 const activeGames = new Map();
 
 const DIFFICULTY_CONFIG = {
-  easy: { label: 'Easy', accent: GREEN_ACCENT, reward: 10 },
-  medium: { label: 'Medium', accent: YELLOW_ACCENT, reward: 100 },
-  hard: { label: 'Hard', accent: RED_ACCENT, reward: 1000 },
+  easy: { label: 'Easy', accent: GREEN_ACCENT, reward: 10, chatXp: 1 },
+  medium: { label: 'Medium', accent: YELLOW_ACCENT, reward: 100, chatXp: 5 },
+  hard: { label: 'Hard', accent: RED_ACCENT, reward: 1000, chatXp: 10 },
 };
 
 function createGameId() {
@@ -283,6 +284,7 @@ module.exports = {
       const game = {
         id: createGameId(),
         userId: interaction.user.id,
+        guildId: interaction.guildId || null,
         message: interaction.message,
         endsAt: Date.now() + START_TIME_MS,
         prizePool: 0,
@@ -349,10 +351,14 @@ module.exports = {
 
     if (correct) {
       const difficulty = game.currentQuestion.difficulty;
+      const difficultyConfig = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.easy;
       game.correctCount += 1;
       game.correctByDifficulty[difficulty] += 1;
       game.prizePool += game.currentQuestionValue;
       game.lastQuestionValue = game.currentQuestionValue;
+      if (game.guildId) {
+        leveling.addUserXp(game.guildId, game.userId, difficultyConfig.chatXp);
+      }
       const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
       game.endsAt = Math.min(boostedEnd, Date.now() + MAX_TIME_MS);
       await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +10s added to your timer.'));
