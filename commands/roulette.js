@@ -147,7 +147,7 @@ function getTableAssetPath() {
 }
 
 function getResultImagePath(resultNumber) {
-  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp']);
 }
 
 function getSpinStillPath(resultNumber) {
@@ -1017,14 +1017,14 @@ function buildExternalMediaAttachments(game, options = {}) {
   const components = [];
 
   if (options.spinResult) {
-    const spinPath = getSpinGifPath(options.spinResult) || getSpinStillPath(options.spinResult);
+    const spinPath = getSpinGifPath(options.spinResult);
     if (spinPath) {
-      const extension = path.extname(spinPath) || '.png';
+      const extension = path.extname(spinPath) || '.gif';
       const fileName = `RW${options.spinResult}${extension}`;
       attachments.push(new AttachmentBuilder(spinPath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
-      components.push(makeTextDisplay('-# 🎰 Spinning roulette...'));
+      components.push(makeTextDisplay(`-# 🎰 Roulette GIF missing while spinning. Result: **${options.spinResult}**`));
     }
   }
 
@@ -1036,7 +1036,7 @@ function buildExternalMediaAttachments(game, options = {}) {
       attachments.push(new AttachmentBuilder(imagePath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
-      components.push(makeTextDisplay(`-# 🎰 Roulette result image missing. Result: **${options.resultImage}**`));
+      components.push(makeTextDisplay(`-# 🎰 Roulette PNG result image missing. Result: **${options.resultImage}**`));
     }
   }
 
