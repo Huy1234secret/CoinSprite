@@ -4,6 +4,11 @@ const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNum
 const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 const leveling = require('../src/levelingManager');
+const {
+  unlockTriviaAchievements,
+  getTriviaMasterPerkMultiplier,
+  resetTriviaMasterPerkMultiplier,
+} = require('../src/achievementSystem');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const START_TIME_MS = 30_000;
@@ -56,7 +61,8 @@ function pickQuestion(game, difficulty) {
 }
 
 function getQuestionValue(game, difficulty) {
-  return DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
+  const base = DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
+  return Math.max(1, Math.floor(base * (game.currentRewardMultiplier || 1)));
 }
 
 function createShuffledOrder(length) {
@@ -198,6 +204,9 @@ async function finishGame(game, interaction = null) {
     recordGamblingEarnings(game.userId, game.prizePool);
   }
   recordTriviaRun(game.userId, game.correctByDifficulty);
+  if (game.channel) {
+    await unlockTriviaAchievements(game.channel, { id: game.userId });
+  }
 
   const payload = buildFinishedPayload(game);
   if (interaction) {
@@ -299,6 +308,9 @@ module.exports = {
         finished: false,
         timeout: null,
         nextTimeout: null,
+        channel: interaction.channel || null,
+        hasMasterPerk: getTriviaMasterPerkMultiplier(interaction.user.id) > 1,
+        currentRewardMultiplier: 1,
       };
 
       game.questionNumber = 1;
@@ -357,7 +369,11 @@ module.exports = {
       game.prizePool += game.currentQuestionValue;
       game.lastQuestionValue = game.currentQuestionValue;
       if (game.guildId) {
-        leveling.addUserXp(game.guildId, game.userId, difficultyConfig.chatXp);
+        const xpMultiplier = game.hasMasterPerk ? 1.2 : 1;
+        leveling.addUserXp(game.guildId, game.userId, Math.floor(difficultyConfig.chatXp * xpMultiplier));
+      }
+      if (game.hasMasterPerk) {
+        game.currentRewardMultiplier = Math.max(1, game.currentRewardMultiplier * getTriviaMasterPerkMultiplier(game.userId));
       }
       const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
       game.endsAt = Math.min(boostedEnd, Date.now() + MAX_TIME_MS);
@@ -368,6 +384,9 @@ module.exports = {
     }
 
     await interaction.update(buildGamePayload(game, selectedIndex, 'Wrong answer. Please wait 5s for the next question.'));
+    if (game.hasMasterPerk) {
+      game.currentRewardMultiplier = resetTriviaMasterPerkMultiplier(game.userId);
+    }
     game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), WRONG_DELAY_MS);
     return true;
   },
