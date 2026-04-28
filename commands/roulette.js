@@ -29,7 +29,7 @@ const BLACK_ACCENT = 0x111214;
 const RADIO_GROUP_COMPONENT_TYPE = 21;
 const WIN_EMOJI = '<:Y_:1498173245981986869>';
 const LOSE_EMOJI = '<:N_:1498173244031631400>';
-const NEUTRAL_EMOJI = '⚪';
+const NEUTRAL_EMOJI = '<:neutral:1498631195108446228>';
 
 const ROULETTE_DIR = path.join(__dirname, '..', 'roulette');
 const ROULETTE_GIFS_DIR = path.join(ROULETTE_DIR, 'gifs');
