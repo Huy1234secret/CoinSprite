@@ -158,6 +158,14 @@ function getSpinGifPath(resultNumber) {
   return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.gif']);
 }
 
+function getRollingGifPath() {
+  return findAssetFile(
+    path.join(ROULETTE_DIR, 'gifs'),
+    ['rolling', 'roulette-rolling', 'roulette_rolling', 'spin', 'roulette-spin', 'roulette_spin'],
+    ['.gif'],
+  ) || findAssetContaining(ROULETTE_IMAGES_DIR, 'rolling', ['.gif']);
+}
+
 function mediaGallery(fileName) {
   return {
     type: 12,
@@ -1016,11 +1024,11 @@ function buildExternalMediaAttachments(game, options = {}) {
   const attachments = [];
   const components = [];
 
-  if (options.spinResult) {
-    const spinPath = getSpinGifPath(options.spinResult) || getSpinStillPath(options.spinResult);
+  if (options.spinning) {
+    const spinPath = getRollingGifPath() || getSpinGifPath(options.spinResult) || getSpinStillPath(options.spinResult);
     if (spinPath) {
       const extension = path.extname(spinPath) || '.png';
-      const fileName = `RW${options.spinResult}${extension}`;
+      const fileName = `roulette-spin-${game.id}${extension}`;
       attachments.push(new AttachmentBuilder(spinPath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
@@ -1060,7 +1068,7 @@ async function buildGamePayload(game, mode = 'normal') {
   };
 
   if (mode === 'spinning') {
-    const media = buildExternalMediaAttachments(game, { spinResult: game.resultNumber });
+    const media = buildExternalMediaAttachments(game, { spinning: true, spinResult: game.resultNumber });
     files.push(...media.attachments);
     container.components.push(...media.components);
     container.components.push({ type: 14, divider: true, spacing: 1 });
