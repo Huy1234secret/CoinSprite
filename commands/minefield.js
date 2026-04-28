@@ -605,7 +605,8 @@ module.exports = {
         lockMessage: 'You have an active Minefield game. You can only use /minefield until the current game ends.',
       });
 
-      const message = await interaction.reply({ ...buildPayload(game, 'active'), fetchReply: true });
+      await interaction.reply(buildPayload(game, 'active'));
+      const message = await interaction.fetchReply().catch(() => null);
       game.message = message;
       resetGameTimer(game);
       return true;
