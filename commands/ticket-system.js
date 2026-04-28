@@ -29,7 +29,6 @@ const CUSTOM_IDS = {
   ticketActionSelectPrefix: 'ticket:actions:',
   roleReviewSelectPrefix: 'ticket:role-review:',
   denyReasonPrefix: 'ticket:deny-reason:',
-  claimRewardModal: 'ticket:claim-reward-modal',
   crewRoleRequestModal: 'ticket:crew-role-request-modal',
   crewRoleUsername: 'roblox_username',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
@@ -81,10 +80,9 @@ function getTicketPanelPayload() {
                     emoji: { name: '🛡️' },
                   },
                   {
-                    label: 'Claim Reward',
-                    value: 'claim_reward',
-                    description:
-                      'Use this ticket if you want to claim a reward. Please provide proof or details when needed.',
+                    label: 'Request Giveaway',
+                    value: 'request_giveaway',
+                    description: 'Use this ticket to request a giveaway ticket.',
                     emoji: { name: '🎁' },
                   },
                   {
@@ -555,6 +553,14 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
   saveState(state);
 
   const qnaLines = questionAnswerPairs.map((entry) => `**${entry.question}**\n${entry.answer || '-'}\n`).join('\n');
+  const ticketDetailsComponents = [];
+  if (qnaLines) {
+    ticketDetailsComponents.push(
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: qnaLines },
+      { type: 14, divider: true, spacing: 1 },
+    );
+  }
 
   await ticketChannel.send({
     flags: COMPONENTS_V2_FLAG,
@@ -569,9 +575,7 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
               `<@${interaction.user.id}> Welcome!\n## ${ticketTypeLabel}'s ticket\n` +
               '* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!',
           },
-          { type: 14, divider: true, spacing: 1 },
-          { type: 10, content: qnaLines || '-# No form answers provided.' },
-          { type: 14, divider: true, spacing: 1 },
+          ...ticketDetailsComponents,
         ],
       },
       getTicketActionRow(ticketChannel.id, false).toJSON(),
@@ -937,19 +941,13 @@ module.exports = {
         return true;
       }
 
-      if (selected === 'claim_reward') {
-        const modal = new ModalBuilder().setCustomId(CUSTOM_IDS.claimRewardModal).setTitle('Claim Reward');
-        modal.addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId('roblox_username')
-              .setLabel('What is your Roblox username?')
-              .setMaxLength(100)
-              .setRequired(true)
-              .setStyle(TextInputStyle.Short),
-          ),
-        );
-        await interaction.showModal(modal);
+      if (selected === 'request_giveaway') {
+        await createTicketChannel({
+          interaction,
+          ticketTypeLabel: 'Giveaway Request',
+          channelBaseName: 'Giveaway-Request',
+          questionAnswerPairs: [],
+        });
         return true;
       }
 
@@ -1043,18 +1041,6 @@ module.exports = {
         ticketTypeLabel: 'Guild Support',
         channelBaseName: 'guild-support',
         questionAnswerPairs: [{ question: 'What type of support do you need?', answer }],
-      });
-      return true;
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.claimRewardModal) {
-      await createTicketChannel({
-        interaction,
-        ticketTypeLabel: 'Claim Reward',
-        channelBaseName: 'claim-reward',
-        questionAnswerPairs: [
-          { question: 'What is your Roblox username?', answer: getTextInputValueSafely(interaction, 'roblox_username', '-') },
-        ],
       });
       return true;
     }
