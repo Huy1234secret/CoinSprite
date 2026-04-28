@@ -962,9 +962,27 @@ async function buildGamePayload(game, mode = 'normal') {
     container.components.push({ type: 14, divider: true, spacing: 1 });
     container.components.push(buildBetSelect(game, false, 're-place a Bet?'));
   } else if (game.betSelection) {
+    if (game.lastSpinNumber) {
+      const media = buildExternalMediaAttachments(game, {
+        spinResult: game.lastSpinNumber,
+        resultImage: game.lastSpinNumber,
+      });
+      files.push(...media.attachments);
+      container.components.push(...media.components);
+      container.components.push({ type: 14, divider: true, spacing: 1 });
+    }
     container.components.push(buildBetSelect(game, false, game.status === 'finished' ? 're-place a Bet?' : 're-place a Bet?'));
     container.components.push(buildStartButton(game, false));
   } else {
+    if (game.lastSpinNumber) {
+      const media = buildExternalMediaAttachments(game, {
+        spinResult: game.lastSpinNumber,
+        resultImage: game.lastSpinNumber,
+      });
+      files.push(...media.attachments);
+      container.components.push(...media.components);
+      container.components.push({ type: 14, divider: true, spacing: 1 });
+    }
     container.components.push(buildBetSelect(game, false, 'place a Bet'));
   }
 
@@ -1069,6 +1087,7 @@ async function settleSpin(gameId) {
   }
 
   game.status = 'finished';
+  game.lastSpinNumber = game.resultNumber;
   game.lastOutcome = { win: won, payout };
   const payload = await buildGamePayload(game, 'finished');
   if (game.message?.editable) {
@@ -1114,6 +1133,7 @@ module.exports = {
       betSelection: null,
       status: 'waiting',
       resultNumber: null,
+      lastSpinNumber: null,
       lastOutcome: null,
       message: null,
     };
