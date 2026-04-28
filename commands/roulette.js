@@ -39,7 +39,6 @@ const NEUTRAL_EMOJI = '<:neutral:1498631195108446228>';
 const ROULETTE_STRAIGHT_WIN_CHANNEL_ID = '1498300014114377860';
 
 const ROULETTE_DIR = path.join(__dirname, '..', 'roulette');
-const ROULETTE_GIFS_DIR = path.join(ROULETTE_DIR, 'gifs');
 const ROULETTE_IMAGES_DIR = path.join(ROULETTE_DIR, 'images');
 const ROULETTE_CACHE_DIR = path.join(__dirname, '..', 'data', 'roulette-cache');
 
@@ -147,12 +146,12 @@ function getTableAssetPath() {
   );
 }
 
-function getSpinGifPath(resultNumber) {
-  return findAssetContaining(ROULETTE_GIFS_DIR, `RW${resultNumber}`, ['.gif']);
-}
-
 function getResultImagePath(resultNumber) {
   return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+}
+
+function getSpinStillPath(resultNumber) {
+  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp']);
 }
 
 function mediaGallery(fileName) {
@@ -322,6 +321,10 @@ function getBetUnit(currency) {
   return currency === 'xp' ? 'XP' : PRCOIN;
 }
 
+function getBetUnitLabel(currency) {
+  return currency === 'xp' ? 'XP' : 'PRcoin';
+}
+
 function getBetRange(currency) {
   if (currency === 'xp') {
     return { min: XP_MIN_BET, max: XP_MAX_BET };
@@ -388,9 +391,9 @@ function buildBetText(game) {
   if (game.status === 'finished' && game.resultNumber) {
     const result = game.lastOutcome;
     if (result?.win) {
-      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Win: ${formatNumber(result.payout)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)})\` ${WIN_EMOJI}`);
+      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Win: ${formatNumber(result.payout)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnitLabel(game.betCurrency)})\` ${WIN_EMOJI}`);
     } else {
-      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Lose: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)})\` ${LOSE_EMOJI}`);
+      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Lose: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnitLabel(game.betCurrency)})\` ${LOSE_EMOJI}`);
     }
     base.push(`-# Result: **${game.resultNumber}** (${getNumberColor(game.resultNumber).toUpperCase()})`);
     return base.join('\n');
@@ -1010,10 +1013,11 @@ function buildExternalMediaAttachments(game, options = {}) {
   const components = [];
 
   if (options.spinResult) {
-    const gifPath = getSpinGifPath(options.spinResult);
-    if (gifPath) {
-      const fileName = `RW${options.spinResult}.gif`;
-      attachments.push(new AttachmentBuilder(gifPath, { name: fileName }));
+    const stillPath = getSpinStillPath(options.spinResult);
+    if (stillPath) {
+      const extension = path.extname(stillPath) || '.png';
+      const fileName = `RW${options.spinResult}${extension}`;
+      attachments.push(new AttachmentBuilder(stillPath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
       components.push(makeTextDisplay('-# 🎰 Spinning roulette...'));
