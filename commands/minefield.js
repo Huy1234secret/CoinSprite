@@ -24,8 +24,10 @@ const {
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const MIN_BET = 10;
-const MAX_BET = 1_000;
+const XP_MIN_BET = 10;
+const XP_MAX_BET = 1_000;
+const PRCOIN_MIN_BET = 100;
+const PRCOIN_MAX_BET = 100_000;
 const TIMEOUT_MS = 20_000;
 const activeGames = new Map();
 const activeUserGames = new Map();
@@ -70,6 +72,13 @@ function addUserXp(guildId, userId, amount) {
 
 function getBetUnit(currency) {
   return currency === 'xp' ? 'XP' : PRCOIN;
+}
+
+function getBetRange(currency) {
+  if (currency === 'xp') {
+    return { min: XP_MIN_BET, max: XP_MAX_BET };
+  }
+  return { min: PRCOIN_MIN_BET, max: PRCOIN_MAX_BET };
 }
 
 function createGameId() {
@@ -438,7 +447,7 @@ module.exports = {
             },
             {
               type: 18,
-              label: `Bet amount (${formatNumber(MIN_BET)} - ${formatNumber(MAX_BET)} / add XP to bet XP)`,
+              label: `Bet amount (PRcoin ${formatNumber(PRCOIN_MIN_BET)}-${formatNumber(PRCOIN_MAX_BET)} / XP ${formatNumber(XP_MIN_BET)}-${formatNumber(XP_MAX_BET)})`,
               component: {
                 type: 4,
                 custom_id: 'bet',
@@ -535,9 +544,10 @@ module.exports = {
         return true;
       }
 
-      if (!Number.isFinite(bet) || bet < MIN_BET || bet > MAX_BET) {
+      const range = getBetRange(betCurrency);
+      if (!Number.isFinite(bet) || bet < range.min || bet > range.max) {
         await interaction.reply({
-          content: `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}**.`,
+          content: `Bet must be between **${formatNumber(range.min)}** and **${formatNumber(range.max)}** for ${getBetUnit(betCurrency)}.`,
           flags: MessageFlags.Ephemeral,
         });
         return true;
