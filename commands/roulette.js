@@ -26,9 +26,9 @@ const {
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const XP_MIN_BET = 10;
-const XP_MAX_BET = 1_000;
-const PRCOIN_MIN_BET = 100;
+const XP_MIN_BET = 1;
+const XP_MAX_BET = 100;
+const PRCOIN_MIN_BET = 1;
 const PRCOIN_MAX_BET = 100_000;
 const SPIN_TIME_MS = 7_000;
 const BLACK_ACCENT = 0x111214;

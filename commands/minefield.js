@@ -24,9 +24,9 @@ const {
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const XP_MIN_BET = 10;
-const XP_MAX_BET = 1_000;
-const PRCOIN_MIN_BET = 100;
+const XP_MIN_BET = 1;
+const XP_MAX_BET = 5;
+const PRCOIN_MIN_BET = 1;
 const PRCOIN_MAX_BET = 100_000;
 const TIMEOUT_MS = 20_000;
 const activeGames = new Map();
