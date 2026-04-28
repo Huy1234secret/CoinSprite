@@ -1,6 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { addBalance, recordGamblingEarnings, recordTriviaRun } = require('../src/gamblingStore');
-const { hasAchievement, unlockTriviaMilestones } = require('../src/achievements');
 const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
@@ -57,9 +56,7 @@ function pickQuestion(game, difficulty) {
 }
 
 function getQuestionValue(game, difficulty) {
-  const baseReward = DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
-  const multiplier = game?.hasTriviaMasterPerk ? (game.currentMultiplier || 1) : 1;
-  return Math.max(1, Math.floor(baseReward * multiplier));
+  return DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
 }
 
 function createShuffledOrder(length) {
@@ -201,7 +198,6 @@ async function finishGame(game, interaction = null) {
     recordGamblingEarnings(game.userId, game.prizePool);
   }
   recordTriviaRun(game.userId, game.correctByDifficulty);
-  await unlockTriviaMilestones(game.message?.channel, game.userId, game.userMention, game.correctCount);
 
   const payload = buildFinishedPayload(game);
   if (interaction) {
@@ -288,7 +284,6 @@ module.exports = {
       const game = {
         id: createGameId(),
         userId: interaction.user.id,
-        userMention: `<@${interaction.user.id}>`,
         guildId: interaction.guildId || null,
         message: interaction.message,
         endsAt: Date.now() + START_TIME_MS,
@@ -304,8 +299,6 @@ module.exports = {
         finished: false,
         timeout: null,
         nextTimeout: null,
-        hasTriviaMasterPerk: hasAchievement(interaction.user.id, 'trivia_master'),
-        currentMultiplier: 1,
       };
 
       game.questionNumber = 1;
@@ -364,25 +357,16 @@ module.exports = {
       game.prizePool += game.currentQuestionValue;
       game.lastQuestionValue = game.currentQuestionValue;
       if (game.guildId) {
-        const xp = game.hasTriviaMasterPerk
-          ? Math.max(1, Math.floor(difficultyConfig.chatXp * 1.2))
-          : difficultyConfig.chatXp;
-        leveling.addUserXp(game.guildId, game.userId, xp);
+        leveling.addUserXp(game.guildId, game.userId, difficultyConfig.chatXp);
       }
       const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
       game.endsAt = Math.min(boostedEnd, Date.now() + MAX_TIME_MS);
       await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +10s added to your timer.'));
       resetFinishTimer(game);
-      if (game.hasTriviaMasterPerk) {
-        game.currentMultiplier *= 1.01;
-      }
       game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), NEXT_DELAY_MS);
       return true;
     }
 
-    if (game.hasTriviaMasterPerk) {
-      game.currentMultiplier = 1;
-    }
     await interaction.update(buildGamePayload(game, selectedIndex, 'Wrong answer. Please wait 5s for the next question.'));
     game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), WRONG_DELAY_MS);
     return true;
