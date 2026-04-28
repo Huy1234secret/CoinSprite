@@ -14,6 +14,10 @@ const manager = require('../src/levelingManager');
 const TYPES = ['xp', 'messages', 'reactions'];
 const PAGE_SIZE = 10;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const LEADERBOARD_REFRESH_TIMEZONE_OFFSET = 7;
+const activeLeaderboardMessages = new Map();
+let leaderboardScheduler = null;
+let schedulerClient = null;
 
 function getTypeLabel(type) {
   if (type === 'messages') {
@@ -78,16 +82,9 @@ function leaderboardTypeSelect(selectedType, ownerId) {
 }
 
 async function sendLeaderboard(target, guild, userId, type, page) {
-  const isComponentOrModal = target.isStringSelectMenu?.() || target.isModalSubmit?.();
-
-  if (isComponentOrModal && !target.deferred && !target.replied) {
-    await target.deferUpdate();
-  } else if (typeof target.deferReply === 'function' && !target.deferred && !target.replied) {
-    await target.deferReply();
-  }
-
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const { rows, finalPage, maxPage, sorted } = buildRows(leaderboard, type, page);
+  const nextUpdateUnix = Math.floor(getNextHourlyBoundaryUtcPlus7().getTime() / 1000);
 
   const rowsWithMeta = await Promise.all(rows.map(async (row) => {
     let member = guild.members.cache.get(row.userId);
@@ -123,6 +120,7 @@ async function sendLeaderboard(target, guild, userId, type, page) {
             content: [
               `## ${guild.name}'s leaderboard.`,
               `-# You placed ${place} on the ${getTypeLabel(type)} leaderboard.`,
+              `-# Refresh: <t:${nextUpdateUnix}:R> (<t:${nextUpdateUnix}:t> UTC+7)`,
             ].join('\n'),
           },
           {
@@ -137,17 +135,73 @@ async function sendLeaderboard(target, guild, userId, type, page) {
     ],
   };
 
-  if (isComponentOrModal) {
-    await target.editReply(payload);
+  if (typeof target.editReply === 'function' && (target.deferred || target.replied)) return target.editReply(payload);
+  if (typeof target.edit === 'function') return target.edit(payload);
+  if (typeof target.reply === 'function') return target.reply(payload);
+  if (typeof target.followUp === 'function') return target.followUp(payload);
+  return null;
+}
+
+function getNextHourlyBoundaryUtcPlus7(now = new Date()) {
+  const shifted = new Date(now.getTime() + (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
+  shifted.setUTCMinutes(0, 0, 0);
+  shifted.setUTCHours(shifted.getUTCHours() + 1);
+  return new Date(shifted.getTime() - (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
+}
+
+function rememberLeaderboardMessage(message, state) {
+  if (!message?.id || !message?.channelId || !message?.guildId) return;
+  activeLeaderboardMessages.set(message.id, {
+    ownerId: state.ownerId,
+    guildId: message.guildId,
+    channelId: message.channelId,
+    type: state.type,
+    page: state.page,
+  });
+}
+
+async function refreshTrackedLeaderboards() {
+  if (!schedulerClient) return;
+  for (const [messageId, state] of activeLeaderboardMessages.entries()) {
+    const guild = schedulerClient.guilds.cache.get(state.guildId)
+      || await schedulerClient.guilds.fetch(state.guildId).catch(() => null);
+    if (!guild) continue;
+    const channel = guild.channels.cache.get(state.channelId)
+      || await guild.channels.fetch(state.channelId).catch(() => null);
+    if (!channel || !channel.isTextBased?.()) continue;
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message) {
+      activeLeaderboardMessages.delete(messageId);
+      continue;
+    }
+    await sendLeaderboard(message, guild, state.ownerId, state.type, state.page).catch(() => null);
+  }
+}
+
+function scheduleLeaderboardRefresh() {
+  if (leaderboardScheduler) clearTimeout(leaderboardScheduler);
+  const next = getNextHourlyBoundaryUtcPlus7();
+  const delay = Math.max(1_000, next.getTime() - Date.now());
+  leaderboardScheduler = setTimeout(async () => {
+    await refreshTrackedLeaderboards().catch(() => null);
+    scheduleLeaderboardRefresh();
+  }, delay);
+}
+
+async function deferForLeaderboard(interaction) {
+  if (interaction.isChatInputCommand?.() && !interaction.deferred && !interaction.replied) {
+    await interaction.deferReply().catch(() => null);
     return;
   }
 
-  if (typeof target.editReply === 'function' && (target.deferred || target.replied)) {
-    await target.editReply(payload);
-  } else if (typeof target.reply === 'function') {
-    await target.reply(payload);
-  } else {
-    await target.followUp(payload);
+  if ((interaction.isButton?.() || interaction.isStringSelectMenu?.())
+    && !interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate().catch(() => null);
+    return;
+  }
+
+  if (interaction.isModalSubmit?.() && !interaction.deferred && !interaction.replied) {
+    await interaction.deferReply().catch(() => null);
   }
 }
 
@@ -165,9 +219,21 @@ module.exports = {
         { name: 'Reaction', value: 'reactions' },
       )),
 
+  async init(client) {
+    schedulerClient = client;
+    scheduleLeaderboardRefresh();
+  },
+
   async execute(interaction) {
     const type = interaction.options.getString('type') || 'xp';
+    await deferForLeaderboard(interaction);
     await sendLeaderboard(interaction, interaction.guild, interaction.user.id, type, 1);
+    const message = await interaction.fetchReply().catch(() => null);
+    rememberLeaderboardMessage(message, {
+      ownerId: interaction.user.id,
+      type,
+      page: 1,
+    });
   },
 
   async handleInteraction(interaction) {
@@ -203,7 +269,14 @@ module.exports = {
       const maxPage = Math.max(1, Number(maxPageRaw) || 1);
       const asked = Number(interaction.fields.getTextInputValue('page_input'));
       const page = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), maxPage) : 1;
+      await deferForLeaderboard(interaction);
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(type) ? type : 'xp', page);
+      const message = interaction.message || await interaction.fetchReply().catch(() => null);
+      rememberLeaderboardMessage(message, {
+        ownerId: interaction.user.id,
+        type: TYPES.includes(type) ? type : 'xp',
+        page,
+      });
       return true;
     }
 
@@ -214,7 +287,14 @@ module.exports = {
         return true;
       }
       const selectedType = interaction.values?.[0];
+      await deferForLeaderboard(interaction);
       await sendLeaderboard(interaction, interaction.guild, interaction.user.id, TYPES.includes(selectedType) ? selectedType : 'xp', 1);
+      const message = interaction.message || await interaction.fetchReply().catch(() => null);
+      rememberLeaderboardMessage(message, {
+        ownerId: interaction.user.id,
+        type: TYPES.includes(selectedType) ? selectedType : 'xp',
+        page: 1,
+      });
       return true;
     }
 

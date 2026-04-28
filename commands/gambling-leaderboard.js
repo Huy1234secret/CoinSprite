@@ -200,14 +200,17 @@ async function sendLeaderboard(target, guild, ownerId, type = 'money', difficult
   const payload = buildPayload(guild, ownerId, type, difficulty, moneyMode, attachment);
 
   if (mode === 'edit') {
-    return target.edit(payload);
+    if (typeof target.editReply === 'function') return target.editReply(payload);
+    if (typeof target.edit === 'function') return target.edit(payload);
   }
 
-  if (mode === 'update') {
+  if (mode === 'update' && typeof target.update === 'function') {
     return target.update(payload);
   }
 
-  return target.reply(payload);
+  if (typeof target.reply === 'function') return target.reply(payload);
+  if (typeof target.followUp === 'function') return target.followUp(payload);
+  return null;
 }
 
 async function refreshTrackedLeaderboards() {
