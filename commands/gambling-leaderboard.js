@@ -8,6 +8,7 @@ const {
 } = require('discord.js');
 const { getAllGamblingStats, getAllBalances } = require('../src/gamblingStore');
 const { buildGamblingLeaderboardImage } = require('../src/gamblingLeaderboardManager');
+const { formatCompactNumber } = require('../src/numberFormat');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
@@ -142,7 +143,7 @@ async function sendLeaderboard(target, guild, ownerId, type = 'money', difficult
       ...row,
       username: member?.user?.username || `Unknown (${row.userId})`,
       avatarUrl: member?.user?.displayAvatarURL({ extension: 'png', size: 128 }) || '',
-      displayValue: String(row.score),
+      displayValue: formatCompactNumber(row.score),
     };
   }));
 
