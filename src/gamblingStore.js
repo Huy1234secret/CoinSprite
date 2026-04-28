@@ -146,6 +146,7 @@ function getDefaultUserStats() {
       hard: 0,
       hardcore: 0,
     },
+    achievements: {},
   };
 }
 
@@ -167,6 +168,9 @@ function getUserStatsRecord(state, userId) {
       ...base.minefieldCompleted,
       ...(current.minefieldCompleted || {}),
     },
+    achievements: current.achievements && typeof current.achievements === 'object'
+      ? { ...current.achievements }
+      : {},
   };
 
   return state.stats[userId];
@@ -211,6 +215,35 @@ function incrementMinefieldCompleted(userId, difficulty) {
   return stats.minefieldCompleted;
 }
 
+
+function unlockAchievement(userId, achievementId) {
+  const key = String(achievementId || '').trim();
+  if (!key) return false;
+
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  if (stats.achievements[key]) return false;
+
+  stats.achievements[key] = true;
+  saveState(state);
+  return true;
+}
+
+function hasAchievement(userId, achievementId) {
+  const key = String(achievementId || '').trim();
+  if (!key) return false;
+
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  return Boolean(stats.achievements[key]);
+}
+
+function getUnlockedAchievements(userId) {
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  return Object.keys(stats.achievements).filter((key) => Boolean(stats.achievements[key]));
+}
+
 function getGamblingStats(userId) {
   const state = loadState();
   const stats = getUserStatsRecord(state, userId);
@@ -244,6 +277,9 @@ module.exports = {
   recordGamblingEarnings,
   recordTriviaRun,
   incrementMinefieldCompleted,
+  unlockAchievement,
+  hasAchievement,
+  getUnlockedAchievements,
   getGamblingStats,
   getAllGamblingStats,
   getAllBalances,

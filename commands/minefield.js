@@ -21,6 +21,7 @@ const {
   calculateMinefieldPayout,
 } = require('../src/gamblingConfig');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
+const { unlockMinefieldAchievement } = require('../src/achievements');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const MIN_BET = 100;
@@ -309,6 +310,7 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
     recordGamblingEarnings(game.userId, payout);
     if (status === 'cleared') {
       incrementMinefieldCompleted(game.userId, game.difficulty);
+      await unlockMinefieldAchievement(game.message?.channel, game.userId, `<@${game.userId}>`, game.difficulty);
       if (game.guildId && MINEFIELD_COMPLETION_XP[game.difficulty]) {
         leveling.addUserXp(game.guildId, game.userId, MINEFIELD_COMPLETION_XP[game.difficulty]);
       }
