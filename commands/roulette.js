@@ -12,6 +12,8 @@ const {
   spendBalance,
   recordGamblingEarnings,
 } = require('../src/gamblingStore');
+const leveling = require('../src/levelingManager');
+const { unlockBullseyeAchievement } = require('../src/achievementSystem');
 const {
   PRCOIN,
   WHITE_ACCENT,
@@ -22,8 +24,8 @@ const {
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const MIN_BET = 100;
-const MAX_BET = 100_000;
+const MIN_BET = 10;
+const MAX_BET = 1_000;
 const SPIN_TIME_MS = 5_200;
 const BLACK_ACCENT = 0x111214;
 const RADIO_GROUP_COMPONENT_TYPE = 21;
@@ -278,7 +280,41 @@ function getSubmittedValue(interaction, customId) {
 }
 
 function parseBetAmount(raw) {
-  return Math.floor(Number(String(raw || '').replace(/,/g, '').trim()));
+  const rawValue = String(raw || '');
+  const compact = rawValue.replace(/,/g, '').replace(/\s+/g, '');
+  const xpMode = /xp$/i.test(compact);
+  const numeric = xpMode ? compact.replace(/xp$/i, '') : compact;
+  return {
+    amount: Math.floor(Number(numeric)),
+    currency: xpMode ? 'xp' : 'prcoin',
+  };
+}
+
+function getUserXpBalance(guildId, userId) {
+  if (!guildId) return 0;
+  return Math.floor(Number(leveling.getUserProgress(guildId, userId)?.totalXp || 0));
+}
+
+function spendUserXp(guildId, userId, amount) {
+  if (!guildId) return false;
+  const spend = Math.floor(Number(amount) || 0);
+  const current = getUserXpBalance(guildId, userId);
+  if (spend <= 0 || current < spend) return false;
+  leveling.setUserXp(guildId, userId, current - spend);
+  return true;
+}
+
+function addUserXp(guildId, userId, amount) {
+  if (!guildId) return 0;
+  const delta = Math.max(0, Math.floor(Number(amount) || 0));
+  const current = getUserXpBalance(guildId, userId);
+  const next = current + delta;
+  leveling.setUserXp(guildId, userId, next);
+  return next;
+}
+
+function getBetUnit(currency) {
+  return currency === 'xp' ? 'XP' : PRCOIN;
 }
 
 function buildBetSelect(game, disabled = false, placeholder = 'place a Bet') {
@@ -340,15 +376,15 @@ function buildBetText(game) {
   if (game.status === 'finished' && game.resultNumber) {
     const result = game.lastOutcome;
     if (result?.win) {
-      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Win: ${formatNumber(result.payout)} ${PRCOIN} \`(Bet: ${formatNumber(game.bet)})\` ${WIN_EMOJI}`);
+      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Win: ${formatNumber(result.payout)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)})\` ${WIN_EMOJI}`);
     } else {
-      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Lose: ${formatNumber(game.bet)} ${PRCOIN} \`(Bet: ${formatNumber(game.bet)})\` ${LOSE_EMOJI}`);
+      base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Lose: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)} \`(Bet: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)})\` ${LOSE_EMOJI}`);
     }
     base.push(`-# Result: **${game.resultNumber}** (${getNumberColor(game.resultNumber).toUpperCase()})`);
     return base.join('\n');
   }
 
-  base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Bet: ${formatNumber(game.bet)} ${PRCOIN} ${NEUTRAL_EMOJI}`);
+  base.push(`-# * ${game.userMention} ➜ ${game.betSelection.display} - Bet: ${formatNumber(game.bet)} ${getBetUnit(game.betCurrency)} ${NEUTRAL_EMOJI}`);
   return base.join('\n');
 }
 
@@ -359,7 +395,7 @@ function makeTextDisplay(content) {
 function buildModalComponents(betType) {
   const betInput = {
     type: 18,
-    label: 'Question 2: Bet amount',
+    label: `Question 2: Bet amount (${formatNumber(MIN_BET)}-${formatNumber(MAX_BET)} / add XP to bet XP)`,
     component: {
       type: 4,
       custom_id: 'bet',
@@ -367,7 +403,7 @@ function buildModalComponents(betType) {
       required: true,
       min_length: 1,
       max_length: 12,
-      placeholder: 'Enter your bet amount',
+      placeholder: 'Example: 100 or 100XP',
     },
   };
 
@@ -611,7 +647,7 @@ function makeSelectionFromModal(betType, interaction) {
       type: 'street',
       display: `🔺 Street ${row.label}`,
       numbers: row.numbers,
-      tokenTargets: row.numbers,
+      tokenTargets: [],
     };
   }
 
@@ -1057,29 +1093,42 @@ async function applyBet(interaction, game, betType) {
     return true;
   }
 
-  const bet = parseBetAmount(getSubmittedValue(interaction, 'bet'));
+  const parsedBet = parseBetAmount(getSubmittedValue(interaction, 'bet'));
+  const bet = parsedBet.amount;
+  const currency = parsedBet.currency;
   if (!Number.isFinite(bet) || bet < MIN_BET || bet > MAX_BET) {
-    await replyError(interaction, `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}** ${PRCOIN}.`);
+    await replyError(interaction, `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}**.`);
+    return true;
+  }
+  if (currency === 'xp' && !game.guildId) {
+    await replyError(interaction, 'XP bets are only available inside a server.');
     return true;
   }
 
   const canRefundCurrentBet = game.status === 'bet_placed' && game.bet > 0;
-  const availableBalance = getBalance(game.userId) + (canRefundCurrentBet ? game.bet : 0);
+  const availableBalance = currency === 'xp'
+    ? getUserXpBalance(game.guildId, game.userId) + (canRefundCurrentBet && game.betCurrency === 'xp' ? game.bet : 0)
+    : getBalance(game.userId) + (canRefundCurrentBet && game.betCurrency !== 'xp' ? game.bet : 0);
   if (availableBalance < bet) {
-    await replyError(interaction, `You need **${formatNumber(bet)}** ${PRCOIN} to place that bet. Your available balance is **${formatNumber(availableBalance)}** ${PRCOIN}.`);
+    await replyError(interaction, `You need **${formatNumber(bet)}** ${getBetUnit(currency)} to place that bet. Your available balance is **${formatNumber(availableBalance)}** ${getBetUnit(currency)}.`);
     return true;
   }
 
   if (canRefundCurrentBet) {
-    addBalance(game.userId, game.bet);
+    if (game.betCurrency === 'xp') addUserXp(game.guildId, game.userId, game.bet);
+    else addBalance(game.userId, game.bet);
   }
 
-  if (!spendBalance(game.userId, bet)) {
-    await replyError(interaction, 'You do not have enough PRcoin for that bet.');
+  const spent = currency === 'xp'
+    ? spendUserXp(game.guildId, game.userId, bet)
+    : spendBalance(game.userId, bet);
+  if (!spent) {
+    await replyError(interaction, `You do not have enough ${getBetUnit(currency)} for that bet.`);
     return true;
   }
 
   game.bet = bet;
+  game.betCurrency = currency;
   game.betSelection = selection;
   game.status = 'bet_placed';
   game.resultNumber = null;
@@ -1099,8 +1148,14 @@ async function settleSpin(gameId) {
   const payout = won ? Math.max(0, Math.floor(game.bet * multiplier)) : 0;
 
   if (won && payout > 0) {
-    addBalance(game.userId, payout);
-    recordGamblingEarnings(game.userId, payout);
+    if (game.betCurrency === 'xp') addUserXp(game.guildId, game.userId, payout);
+    else {
+      addBalance(game.userId, payout);
+      recordGamblingEarnings(game.userId, payout);
+    }
+  }
+  if (won && game.betSelection?.type === 'straight' && game.message?.channel) {
+    await unlockBullseyeAchievement(game.message.channel, { id: game.userId });
   }
 
   game.status = 'finished';
@@ -1135,7 +1190,7 @@ async function startSpin(interaction, game) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('roulette')
-    .setDescription('Play American Roulette with PRcoin'),
+    .setDescription('Play American Roulette with PRcoin or XP'),
   suppressCommandLog: true,
 
   async execute(interaction) {
@@ -1147,6 +1202,8 @@ module.exports = {
       avatarUrl: interaction.user.displayAvatarURL({ extension: 'png', size: 128 }),
       tokenOutlineColor: randomOutlineColor(),
       bet: 0,
+      betCurrency: 'prcoin',
+      guildId: interaction.guildId || null,
       betSelection: null,
       status: 'waiting',
       resultNumber: null,

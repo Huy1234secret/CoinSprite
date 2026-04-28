@@ -9,6 +9,7 @@ function getEmptyState() {
     balances: {},
     jackpotBalances: {},
     stats: {},
+    achievements: {},
   };
 }
 
@@ -149,6 +150,19 @@ function getDefaultUserStats() {
   };
 }
 
+function getDefaultAchievementRecord() {
+  return {
+    unlockedAt: null,
+  };
+}
+
+function getUserAchievementsRecord(state, userId) {
+  if (!state.achievements[userId] || typeof state.achievements[userId] !== 'object') {
+    state.achievements[userId] = {};
+  }
+  return state.achievements[userId];
+}
+
 function getUserStatsRecord(state, userId) {
   if (!state.stats[userId] || typeof state.stats[userId] !== 'object') {
     state.stats[userId] = getDefaultUserStats();
@@ -231,6 +245,39 @@ function getAllBalances() {
   return JSON.parse(JSON.stringify(state.balances || {}));
 }
 
+function unlockAchievement(userId, achievementId) {
+  const id = String(achievementId || '').trim();
+  if (!id) return false;
+
+  const state = loadState();
+  const userAchievements = getUserAchievementsRecord(state, userId);
+  if (userAchievements[id]?.unlockedAt) {
+    return false;
+  }
+
+  userAchievements[id] = {
+    ...getDefaultAchievementRecord(),
+    unlockedAt: Date.now(),
+  };
+  saveState(state);
+  return true;
+}
+
+function hasAchievement(userId, achievementId) {
+  const id = String(achievementId || '').trim();
+  if (!id) return false;
+
+  const state = loadState();
+  const userAchievements = getUserAchievementsRecord(state, userId);
+  return Boolean(userAchievements[id]?.unlockedAt);
+}
+
+function getUserAchievements(userId) {
+  const state = loadState();
+  const userAchievements = getUserAchievementsRecord(state, userId);
+  return JSON.parse(JSON.stringify(userAchievements));
+}
+
 module.exports = {
   STORE_PATH,
   getBalance,
@@ -247,4 +294,7 @@ module.exports = {
   getGamblingStats,
   getAllGamblingStats,
   getAllBalances,
+  unlockAchievement,
+  hasAchievement,
+  getUserAchievements,
 };
