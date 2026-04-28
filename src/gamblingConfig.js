@@ -45,19 +45,19 @@ const MINEFIELD_DIFFICULTIES = {
 const MINEFIELD_PAYOUT_CONFIG = {
   easy: {
     basePercent: 80,
-    bonusPercents: [5, 15, 35, 60, 100, 200],
+    bonusPercents: [20, 30, 50, 75, 125, 250],
   },
   medium: {
     basePercent: 80,
-    bonusPercents: [10, 25, 50, 80, 125, 180, 300],
+    bonusPercents: [25, 40, 75, 125, 165, 225, 400],
   },
   hard: {
     basePercent: 80,
-    bonusPercents: [50, 135, 250, 400, 550],
+    bonusPercents: [50, 140, 290, 425, 650],
   },
   hardcore: {
     basePercent: 80,
-    bonusPercents: [100, 250, 500, 800, 1250],
+    bonusPercents: [100, 250, 500, 1000, 2000],
   },
 };
 
