@@ -11,6 +11,10 @@ const { buildGamblingLeaderboardImage } = require('../src/gamblingLeaderboardMan
 const { formatCompactNumber } = require('../src/numberFormat');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const LEADERBOARD_REFRESH_TIMEZONE_OFFSET = 7;
+const activeLeaderboardMessages = new Map();
+let leaderboardScheduler = null;
+let schedulerClient = null;
 
 const TYPE_OPTIONS = [
   { label: 'PRcoin leaderboard', value: 'money', description: 'Switch between all-time earnings and top balance.' },
@@ -120,7 +124,46 @@ function getMetricLabel(type, moneyMode) {
   return 'Completed';
 }
 
-async function sendLeaderboard(target, guild, ownerId, type = 'money', difficulty = 'all', moneyMode = MONEY_MODES.EARNED) {
+function getNextHourlyBoundaryUtcPlus7(now = new Date()) {
+  const shifted = new Date(now.getTime() + (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
+  shifted.setUTCMinutes(0, 0, 0);
+  shifted.setUTCHours(shifted.getUTCHours() + 1);
+  return new Date(shifted.getTime() - (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
+}
+
+function buildPayload(guild, ownerId, type, difficulty, moneyMode, attachment) {
+  const nextUpdate = getNextHourlyBoundaryUtcPlus7();
+  const nextUpdateUnix = Math.floor(nextUpdate.getTime() / 1000);
+
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    files: [attachment],
+    components: [
+      {
+        type: 17,
+        accent_color: 0xffffff,
+        components: [
+          {
+            type: 10,
+            content: [
+              `## ${guild.name}'s gambling leaderboard.`,
+              `-# Category: **${getTitle(type, difficulty, moneyMode)}**`,
+              `-# Refresh: <t:${nextUpdateUnix}:R> (<t:${nextUpdateUnix}:t> UTC+7)`,
+            ].join('\n'),
+          },
+          {
+            type: 12,
+            items: [{ media: { url: 'attachment://gambling-leaderboard.png' } }],
+          },
+          { type: 14, divider: true, spacing: 1 },
+          ...buildControls(ownerId, type, difficulty, moneyMode),
+        ],
+      },
+    ],
+  };
+}
+
+async function sendLeaderboard(target, guild, ownerId, type = 'money', difficulty = 'all', moneyMode = MONEY_MODES.EARNED, mode = 'reply') {
   const allStats = getAllGamblingStats();
   const allBalances = getAllBalances();
   const allUserIds = new Set([...Object.keys(allStats), ...Object.keys(allBalances)]);
@@ -154,47 +197,94 @@ async function sendLeaderboard(target, guild, ownerId, type = 'money', difficult
     rows: rowsWithMeta,
   });
 
-  const payload = {
-    flags: COMPONENTS_V2_FLAG,
-    files: [attachment],
-    components: [
-      {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
-            type: 10,
-            content: [
-              `## ${guild.name}'s gambling leaderboard.`,
-              `-# Category: **${getTitle(type, difficulty, moneyMode)}**`,
-            ].join('\n'),
-          },
-          {
-            type: 12,
-            items: [{ media: { url: 'attachment://gambling-leaderboard.png' } }],
-          },
-          { type: 14, divider: true, spacing: 1 },
-          ...buildControls(ownerId, type, difficulty, moneyMode),
-        ],
-      },
-    ],
-  };
+  const payload = buildPayload(guild, ownerId, type, difficulty, moneyMode, attachment);
 
-  if (target.isStringSelectMenu?.() || target.isButton?.()) {
-    await target.update(payload);
-    return;
+  if (mode === 'edit') {
+    return target.edit(payload);
   }
 
-  await target.reply(payload);
+  if (mode === 'update') {
+    return target.update(payload);
+  }
+
+  return target.reply(payload);
+}
+
+async function refreshTrackedLeaderboards() {
+  if (!schedulerClient) return;
+
+  for (const [messageId, state] of activeLeaderboardMessages.entries()) {
+    const guild = schedulerClient.guilds.cache.get(state.guildId)
+      || await schedulerClient.guilds.fetch(state.guildId).catch(() => null);
+    if (!guild) continue;
+    const channel = guild.channels.cache.get(state.channelId)
+      || await guild.channels.fetch(state.channelId).catch(() => null);
+    if (!channel || !channel.isTextBased?.()) continue;
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message) {
+      activeLeaderboardMessages.delete(messageId);
+      continue;
+    }
+    await sendLeaderboard(message, guild, state.ownerId, state.type, state.difficulty, state.moneyMode, 'edit').catch(() => null);
+  }
+}
+
+function scheduleLeaderboardRefresh() {
+  if (leaderboardScheduler) clearTimeout(leaderboardScheduler);
+  const next = getNextHourlyBoundaryUtcPlus7();
+  const delay = Math.max(1_000, next.getTime() - Date.now());
+  leaderboardScheduler = setTimeout(async () => {
+    await refreshTrackedLeaderboards().catch(() => null);
+    scheduleLeaderboardRefresh();
+  }, delay);
+}
+
+function rememberLeaderboardMessage(message, state) {
+  if (!message?.id || !message?.channelId || !message?.guildId) return;
+  activeLeaderboardMessages.set(message.id, {
+    ownerId: state.ownerId,
+    guildId: message.guildId,
+    channelId: message.channelId,
+    type: state.type,
+    difficulty: state.difficulty,
+    moneyMode: state.moneyMode,
+  });
+}
+
+async function deferForLeaderboard(interaction) {
+  if (interaction.isChatInputCommand?.() && !interaction.deferred && !interaction.replied) {
+    await interaction.deferReply().catch(() => null);
+    return 'edit';
+  }
+
+  if ((interaction.isButton?.() || interaction.isStringSelectMenu?.()) && !interaction.deferred && !interaction.replied) {
+    await interaction.deferUpdate().catch(() => null);
+    return 'edit';
+  }
+
+  if (interaction.isButton?.() || interaction.isStringSelectMenu?.()) return 'update';
+  return 'reply';
 }
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('gambling-leaderboard')
     .setDescription('Show gambling leaderboard'),
+  async init(client) {
+    schedulerClient = client;
+    scheduleLeaderboardRefresh();
+  },
 
   async execute(interaction) {
-    await sendLeaderboard(interaction, interaction.guild, interaction.user.id, 'money', 'all', MONEY_MODES.EARNED);
+    const mode = await deferForLeaderboard(interaction);
+    await sendLeaderboard(interaction, interaction.guild, interaction.user.id, 'money', 'all', MONEY_MODES.EARNED, mode);
+    const message = await interaction.fetchReply().catch(() => null);
+    rememberLeaderboardMessage(message, {
+      ownerId: interaction.user.id,
+      type: 'money',
+      difficulty: 'all',
+      moneyMode: MONEY_MODES.EARNED,
+    });
   },
 
   async handleInteraction(interaction) {
@@ -206,7 +296,10 @@ module.exports = {
       }
       const type = interaction.values?.[0] || 'money';
       const fallbackDifficulty = getDifficultyOptions(type).includes(difficulty) ? difficulty : 'all';
-      await sendLeaderboard(interaction, interaction.guild, ownerId, type, fallbackDifficulty, moneyMode);
+      const mode = await deferForLeaderboard(interaction);
+      await sendLeaderboard(interaction, interaction.guild, ownerId, type, fallbackDifficulty, moneyMode, mode);
+      const message = interaction.message || await interaction.fetchReply().catch(() => null);
+      rememberLeaderboardMessage(message, { ownerId, type, difficulty: fallbackDifficulty, moneyMode });
       return true;
     }
 
@@ -216,7 +309,10 @@ module.exports = {
         await interaction.reply({ content: 'You can only use controls from your own gambling leaderboard command.', flags: MessageFlags.Ephemeral });
         return true;
       }
-      await sendLeaderboard(interaction, interaction.guild, ownerId, type, difficulty, moneyMode);
+      const mode = await deferForLeaderboard(interaction);
+      await sendLeaderboard(interaction, interaction.guild, ownerId, type, difficulty, moneyMode, mode);
+      const message = interaction.message || await interaction.fetchReply().catch(() => null);
+      rememberLeaderboardMessage(message, { ownerId, type, difficulty, moneyMode });
       return true;
     }
 
@@ -226,7 +322,10 @@ module.exports = {
         await interaction.reply({ content: 'You can only use controls from your own gambling leaderboard command.', flags: MessageFlags.Ephemeral });
         return true;
       }
-      await sendLeaderboard(interaction, interaction.guild, ownerId, type, difficulty, moneyMode);
+      const mode = await deferForLeaderboard(interaction);
+      await sendLeaderboard(interaction, interaction.guild, ownerId, type, difficulty, moneyMode, mode);
+      const message = interaction.message || await interaction.fetchReply().catch(() => null);
+      rememberLeaderboardMessage(message, { ownerId, type, difficulty, moneyMode });
       return true;
     }
 
