@@ -16,6 +16,7 @@ const { loadState, saveState } = require('../src/ticketSystemStore');
 const TICKET_PANEL_CHANNEL_ID = '1493971939545583836';
 const TICKET_CATEGORY_ID = '1493971752680947802';
 const ROLE_REQUEST_REVIEW_CHANNEL_ID = '1495714584437329940';
+const GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID = '1498546607686291558';
 const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
 const STAFF_ROLE_ID = '1494993523064443065';
 const CREW_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
@@ -32,6 +33,18 @@ const CUSTOM_IDS = {
   crewRoleRequestModal: 'ticket:crew-role-request-modal',
   crewRoleUsername: 'roblox_username',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
+  giveawayHostRequestModal: 'ticket:giveaway-host-request-modal',
+  giveawayWinnerCount: 'giveaway_winner_count',
+  giveawayDuration: 'giveaway_duration',
+  giveawayClaimTime: 'giveaway_claim_time',
+  giveawayRequirement: 'giveaway_requirement',
+  giveawayPrize: 'giveaway_prize',
+  giveawayEvidenceUpload: 'giveaway_evidence_upload',
+  giveawayReviewSelectPrefix: 'ticket:giveaway-review:',
+  giveawayDenyReasonPrefix: 'ticket:giveaway-deny-reason:',
+  giveawayConfirmClaimPrefix: 'ticket:giveaway-confirm-claim:',
+  giveawayClaimEvidenceModalPrefix: 'ticket:giveaway-claim-evidence:',
+  giveawayClaimEvidenceUpload: 'giveaway_claim_evidence_upload',
 };
 
 function getTicketPanelPayload() {
@@ -78,6 +91,12 @@ function getTicketPanelPayload() {
                     value: 'request_role_crew_member_plus',
                     description: 'Verify your stat here to join the guild',
                     emoji: { name: '⭐' },
+                  },
+                  {
+                    label: 'Giveaway Host request',
+                    value: 'giveaway_host_request',
+                    description: 'Want to host a giveaway? Request it here.',
+                    emoji: { name: '🎁' },
                   },
                 ],
               },
@@ -139,6 +158,39 @@ function getInviteConfirmationActionRow(customId, disabled = false) {
         disabled,
         placeholder: 'Confirm invited to guild?',
         options: [{ label: 'Confirm invited to guild?', value: 'confirm_invited_to_guild', emoji: { name: '📨' } }],
+      },
+    ],
+  };
+}
+
+function getGiveawayReviewActionRow(customId, disabled = false) {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 3,
+        custom_id: customId,
+        disabled,
+        placeholder: disabled ? 'This giveaway request was reviewed' : 'Choose review action',
+        options: [
+          { label: 'Accept', value: 'accept_request', emoji: { id: '1498173245981986869', name: 'Y_' } },
+          { label: 'Deny', value: 'deny_request', emoji: { id: '1498173244031631400', name: 'N_' } },
+        ],
+      },
+    ],
+  };
+}
+
+function getGiveawayClaimButtonRow(customId, disabled = false) {
+  return {
+    type: 1,
+    components: [
+      {
+        type: 2,
+        style: 1,
+        custom_id: customId,
+        label: 'Confirm claimed',
+        disabled,
       },
     ],
   };
@@ -311,6 +363,88 @@ function getTextInputValueSafely(interaction, customId, fallback = '') {
   } catch {
     return fallback;
   }
+}
+
+function getDurationMinutesFromInput(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  const match = normalized.match(/^(\d+)\s*(m|h|d)$/);
+  if (!match) {
+    return null;
+  }
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  if (match[2] === 'm') return amount;
+  if (match[2] === 'h') return amount * 60;
+  return amount * 60 * 24;
+}
+
+function validateDurationRange(value, minMinutes, maxMinutes) {
+  const minutes = getDurationMinutesFromInput(value);
+  if (minutes === null) {
+    return {
+      valid: false,
+      message: 'Use format like `15m`, `2h`, or `3d`.',
+    };
+  }
+
+  if (minutes < minMinutes || minutes > maxMinutes) {
+    return {
+      valid: false,
+      message: `Value must be between ${minMinutes}m and ${maxMinutes >= 1440 ? `${Math.floor(maxMinutes / 1440)}d` : `${maxMinutes}m`}.`,
+    };
+  }
+
+  return { valid: true, minutes };
+}
+
+function getGiveawayRequestMessageComponents({
+  request,
+  statusText,
+  statusColor,
+  deniedReason = null,
+  claimedEvidence = [],
+}) {
+  const uploadedFileList = formatUploadedFileList(request.uploadedEvidence || []);
+  const mediaGallery = getUploadedMediaGallery(request.uploadedEvidence || []);
+  const claimedLinks = claimedEvidence.length > 0
+    ? claimedEvidence
+      .map((item, index) => `- [${sanitizeAttachmentName(item.filename, index)}](${item.url})`)
+      .join('\n')
+    : null;
+
+  const requirement = request.requirement?.trim() ? request.requirement.trim() : 'If needed';
+
+  return [
+    {
+      type: 17,
+      accent_color: statusColor,
+      components: [
+        {
+          type: 10,
+          content:
+            `## <@${request.userId}>'s Giveaway request.\n` +
+            `-# * UserID: ${request.userId}\n` +
+            `-# Winner: ${request.winnerCount}\n` +
+            `-# Giveaway time: ${request.giveawayTime}\n` +
+            `-# Claim time: ${request.claimTime}\n` +
+            `-# Requirement: ${requirement}\n` +
+            `-# Prize: ${request.prize}\n` +
+            `### Status: ${statusText}` +
+            (deniedReason ? `\n-# Reason: ${deniedReason}` : ''),
+        },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: `**Uploaded files / media**\n${uploadedFileList}` },
+        ...(mediaGallery ? [mediaGallery] : []),
+        ...(claimedLinks
+          ? [{ type: 14, divider: true, spacing: 1 }, { type: 10, content: `**Claim proof links**\n${claimedLinks}` }]
+          : []),
+      ],
+    },
+  ];
 }
 
 async function ensurePanelMessage(guild, clientUserId) {
@@ -679,6 +813,75 @@ async function handleRoleRequestReview(interaction) {
   return true;
 }
 
+async function handleGiveawayRequestReview(interaction) {
+  if (!canUseStaffActions(interaction.member)) {
+    await interaction.reply({ content: 'Only staff can review giveaway requests.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  const requestId = interaction.customId.split(':').pop();
+  const state = loadState();
+  const request = state.giveawayRequests[requestId];
+  if (!request) {
+    await interaction.reply({ content: 'Giveaway request not found.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  const action = interaction.values[0];
+  if (action === 'deny_request') {
+    const modal = new ModalBuilder()
+      .setCustomId(`${CUSTOM_IDS.giveawayDenyReasonPrefix}${requestId}`)
+      .setTitle('Deny giveaway request');
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('deny_reason')
+          .setStyle(TextInputStyle.Paragraph)
+          .setLabel('Reason for denial')
+          .setRequired(true)
+          .setMaxLength(500),
+      ),
+    );
+    await interaction.showModal(modal);
+    return true;
+  }
+
+  await interaction.deferUpdate();
+
+  request.status = 'accepted';
+  state.giveawayRequests[requestId] = request;
+  saveState(state);
+
+  const member = await interaction.guild.members.fetch(request.userId).catch(() => null);
+  if (member) {
+    await member
+      .send(
+        container(
+          0x00ff00,
+          `### <@${request.userId}> Your giveaway request has been accepted!\n` +
+            'Note:\n' +
+            '* If a winner DMs you to claim their prize, give it only if they claim within the allowed claim time.\n' +
+            '* Provide staff with image proof showing that you have given the prize to the winner.\n' +
+            '\n-# IF you break our giveaway rules, you may be banned / blacklisted.',
+        ),
+      )
+      .catch(() => null);
+  }
+
+  await interaction.editReply({
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      ...getGiveawayRequestMessageComponents({
+        request,
+        statusText: 'Accepted ✅',
+        statusColor: 0xd5f5e3,
+      }),
+      getGiveawayClaimButtonRow(`${CUSTOM_IDS.giveawayConfirmClaimPrefix}${requestId}`),
+    ],
+  });
+  return true;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('ticket-panel')
@@ -781,6 +984,86 @@ module.exports = {
         });
         return true;
       }
+
+      if (selected === 'giveaway_host_request') {
+        await interaction.showModal({
+          custom_id: CUSTOM_IDS.giveawayHostRequestModal,
+          title: 'Giveaway Host request',
+          components: [
+            {
+              type: 18,
+              label: 'How many winners?',
+              component: {
+                type: 3,
+                custom_id: CUSTOM_IDS.giveawayWinnerCount,
+                required: true,
+                placeholder: 'Select winner count',
+                options: Array.from({ length: 10 }, (_, index) => {
+                  const value = String(index + 1);
+                  return { label: value, value };
+                }),
+              },
+            },
+            {
+              type: 18,
+              label: 'Giveaway time (min: 15m, max: 7d)',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.giveawayDuration,
+                style: 1,
+                required: true,
+                max_length: 20,
+              },
+            },
+            {
+              type: 18,
+              label: 'Claim time (min: 5m, max: 24h)',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.giveawayClaimTime,
+                style: 1,
+                required: true,
+                max_length: 20,
+              },
+            },
+            {
+              type: 18,
+              label: 'Requirement?',
+              description: 'If needed',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.giveawayRequirement,
+                style: 1,
+                required: false,
+                max_length: 200,
+              },
+            },
+            {
+              type: 18,
+              label: 'Prize',
+              component: {
+                type: 4,
+                custom_id: CUSTOM_IDS.giveawayPrize,
+                style: 2,
+                required: true,
+                max_length: 700,
+              },
+            },
+            {
+              type: 18,
+              label: 'Provide evidence that your prizes are ready',
+              component: {
+                type: 19,
+                custom_id: CUSTOM_IDS.giveawayEvidenceUpload,
+                min_values: 1,
+                max_values: 10,
+                required: true,
+              },
+            },
+          ],
+        });
+        return true;
+      }
     }
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.guildSupportModal) {
@@ -870,6 +1153,104 @@ module.exports = {
       return true;
     }
 
+    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.giveawayHostRequestModal) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+      }
+
+      const winnerCount = findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.value
+        ?? findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.values?.[0]
+        ?? '1';
+      const giveawayTime = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayDuration, '');
+      const claimTime = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayClaimTime, '');
+      const requirement = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayRequirement, '');
+      const prize = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayPrize, '');
+      const uploadedEvidence = (
+        typeof interaction?.fields?.getUploadedFiles === 'function'
+          ? interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+          : []
+      );
+
+      const giveawayDurationValidation = validateDurationRange(giveawayTime, 15, 7 * 24 * 60);
+      if (!giveawayDurationValidation.valid) {
+        await interaction.editReply({
+          content: `Invalid giveaway time. ${giveawayDurationValidation.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      const claimDurationValidation = validateDurationRange(claimTime, 5, 24 * 60);
+      if (!claimDurationValidation.valid) {
+        await interaction.editReply({
+          content: `Invalid claim time. ${claimDurationValidation.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      if (uploadedEvidence.length === 0) {
+        await interaction.editReply({
+          content: 'Please upload at least one file for prize-ready evidence.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      const state = loadState();
+      const requestId = `${interaction.guildId}-${interaction.user.id}-${Date.now()}`;
+      state.giveawayRequests[requestId] = {
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        winnerCount,
+        giveawayTime,
+        claimTime,
+        requirement,
+        prize,
+        uploadedEvidence,
+        status: 'pending',
+        claimedEvidence: [],
+      };
+      saveState(state);
+
+      const reviewChannel = await interaction.guild.channels.fetch(GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
+      if (!reviewChannel?.isTextBased()) {
+        await interaction.editReply({
+          content: 'The giveaway review channel is currently unavailable. Please try again later.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
+      const files = uploadedEvidence.slice(0, 10).map((item, index) => ({
+        attachment: item.url,
+        name: sanitizeAttachmentName(item.filename, index),
+      }));
+
+      const reviewMessage = await reviewChannel.send({
+        flags: COMPONENTS_V2_FLAG,
+        files,
+        components: [
+          ...getGiveawayRequestMessageComponents({
+            request: state.giveawayRequests[requestId],
+            statusText: 'Pending ⏳',
+            statusColor: 0xffffff,
+          }),
+          getGiveawayReviewActionRow(`${CUSTOM_IDS.giveawayReviewSelectPrefix}${requestId}`),
+        ],
+      });
+
+      state.giveawayRequests[requestId].reviewChannelId = reviewChannel.id;
+      state.giveawayRequests[requestId].reviewMessageId = reviewMessage.id;
+      saveState(state);
+
+      await interaction.editReply({
+        content: 'Your giveaway host request has been sent to staff for review.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return true;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_IDS.ticketActionSelectPrefix)) {
       return handleTicketAction(interaction);
     }
@@ -887,6 +1268,10 @@ module.exports = {
       }
 
       return handleRoleRequestReview(interaction);
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_IDS.giveawayReviewSelectPrefix)) {
+      return handleGiveawayRequestReview(interaction);
     }
 
     if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.denyReasonPrefix)) {
@@ -923,6 +1308,129 @@ module.exports = {
             statusNote: `Reason: ${reason}\nThis request has been denied.`,
           }),
           getInviteConfirmationActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
+        ],
+      });
+      return true;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.giveawayDenyReasonPrefix)) {
+      const requestId = interaction.customId.split(':').pop();
+      const reason = interaction.fields.getTextInputValue('deny_reason');
+      const state = loadState();
+      const request = state.giveawayRequests[requestId];
+      if (!request) {
+        await interaction.reply({ content: 'Giveaway request not found.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      request.status = 'denied';
+      request.deniedReason = reason;
+      state.giveawayRequests[requestId] = request;
+      saveState(state);
+
+      const member = await interaction.guild.members.fetch(request.userId).catch(() => null);
+      if (member) {
+        await member
+          .send(container(0x00ff00, `### <@${request.userId}> Your giveaway request has been denied!\nReason: ${reason}`))
+          .catch(() => null);
+      }
+
+      await interaction.update({
+        flags: COMPONENTS_V2_FLAG,
+        components: [
+          ...getGiveawayRequestMessageComponents({
+            request,
+            statusText: 'Denied ❌',
+            statusColor: 0xf5b7b1,
+            deniedReason: reason,
+          }),
+          getGiveawayReviewActionRow(`${CUSTOM_IDS.giveawayReviewSelectPrefix}${requestId}`, true),
+        ],
+      });
+      return true;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_IDS.giveawayConfirmClaimPrefix)) {
+      if (!canUseStaffActions(interaction.member)) {
+        await interaction.reply({ content: 'Only staff can confirm giveaway claims.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      const requestId = interaction.customId.split(':').pop();
+      const state = loadState();
+      const request = state.giveawayRequests[requestId];
+      if (!request || request.status !== 'accepted') {
+        await interaction.reply({ content: 'This giveaway request is not ready for claim confirmation.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      await interaction.showModal({
+        custom_id: `${CUSTOM_IDS.giveawayClaimEvidenceModalPrefix}${requestId}`,
+        title: 'Confirm giveaway claim',
+        components: [
+          {
+            type: 18,
+            label: 'Provide evidence of the winner claimed prize',
+            component: {
+              type: 19,
+              custom_id: CUSTOM_IDS.giveawayClaimEvidenceUpload,
+              min_values: 1,
+              max_values: 10,
+              required: true,
+            },
+          },
+        ],
+      });
+      return true;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.giveawayClaimEvidenceModalPrefix)) {
+      const requestId = interaction.customId.split(':').pop();
+      const state = loadState();
+      const request = state.giveawayRequests[requestId];
+      if (!request) {
+        await interaction.reply({ content: 'Giveaway request not found.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      const claimEvidence = (
+        typeof interaction?.fields?.getUploadedFiles === 'function'
+          ? interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+          : []
+      );
+      if (claimEvidence.length === 0) {
+        await interaction.reply({ content: 'Please upload at least one proof file.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      request.status = 'claimed';
+      request.claimedEvidence = claimEvidence;
+      state.giveawayRequests[requestId] = request;
+      saveState(state);
+
+      const reviewChannel = await interaction.guild.channels.fetch(GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
+      if (reviewChannel?.isTextBased()) {
+        const files = claimEvidence.slice(0, 10).map((item, index) => ({
+          attachment: item.url,
+          name: sanitizeAttachmentName(item.filename, index),
+        }));
+
+        await reviewChannel.send({
+          content: `Claim proof for <@${request.userId}>'s giveaway request (${requestId})`,
+          files,
+        }).catch(() => null);
+      }
+
+      await interaction.update({
+        flags: COMPONENTS_V2_FLAG,
+        components: [
+          ...getGiveawayRequestMessageComponents({
+            request,
+            statusText: 'CLAIMED✅',
+            statusColor: 0x00ff00,
+            claimedEvidence: claimEvidence,
+          }),
+          getGiveawayClaimButtonRow(`${CUSTOM_IDS.giveawayConfirmClaimPrefix}${requestId}`, true),
         ],
       });
       return true;
