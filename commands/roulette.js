@@ -395,7 +395,7 @@ function makeTextDisplay(content) {
 function buildModalComponents(betType) {
   const betInput = {
     type: 18,
-    label: `Question 2: Bet amount (${formatNumber(MIN_BET)}-${formatNumber(MAX_BET)} / add XP to bet XP)`,
+    label: 'Question 2: Bet amount',
     component: {
       type: 4,
       custom_id: 'bet',
