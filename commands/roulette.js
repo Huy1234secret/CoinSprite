@@ -341,7 +341,7 @@ function makeTextDisplay(content) {
 function buildModalComponents(betType) {
   const betInput = {
     type: 18,
-    label: `Question 2: What's your bet amount? (${formatNumber(MIN_BET)} - ${formatNumber(MAX_BET)})`,
+    label: 'Question 2: Bet amount',
     component: {
       type: 4,
       custom_id: 'bet',
@@ -1141,8 +1141,8 @@ module.exports = {
     activeGames.set(game.id, game);
     const payload = await buildGamePayload(game, 'normal');
     delete payload.attachments;
-    const message = await interaction.reply({ ...payload, fetchReply: true });
-    game.message = message;
+    const response = await interaction.reply({ ...payload, withResponse: true });
+    game.message = response?.resource?.message ?? null;
   },
 
   shouldLogInteraction(interaction) {
