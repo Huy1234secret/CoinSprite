@@ -964,7 +964,6 @@ async function buildGamePayload(game, mode = 'normal') {
   } else if (game.betSelection) {
     if (game.lastSpinNumber) {
       const media = buildExternalMediaAttachments(game, {
-        spinResult: game.lastSpinNumber,
         resultImage: game.lastSpinNumber,
       });
       files.push(...media.attachments);
@@ -976,7 +975,6 @@ async function buildGamePayload(game, mode = 'normal') {
   } else {
     if (game.lastSpinNumber) {
       const media = buildExternalMediaAttachments(game, {
-        spinResult: game.lastSpinNumber,
         resultImage: game.lastSpinNumber,
       });
       files.push(...media.attachments);
