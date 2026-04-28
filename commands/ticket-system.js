@@ -1158,6 +1158,16 @@ module.exports = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
+      const state = loadState();
+      const giveawayBlacklist = state.blacklistedUsersByGuild[interaction.guildId] ?? [];
+      if (giveawayBlacklist.includes(interaction.user.id)) {
+        await interaction.editReply({
+          content: 'You are blacklisted from the ticket system.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return true;
+      }
+
       const winnerCount = findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.value
         ?? findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.values?.[0]
         ?? '1';
@@ -1197,7 +1207,6 @@ module.exports = {
         return true;
       }
 
-      const state = loadState();
       const requestId = `${interaction.guildId}-${interaction.user.id}-${Date.now()}`;
       state.giveawayRequests[requestId] = {
         guildId: interaction.guildId,
