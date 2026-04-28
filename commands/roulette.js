@@ -40,6 +40,7 @@ const ROULETTE_STRAIGHT_WIN_CHANNEL_ID = '1498300014114377860';
 
 const ROULETTE_DIR = path.join(__dirname, '..', 'roulette');
 const ROULETTE_IMAGES_DIR = path.join(ROULETTE_DIR, 'images');
+const ROULETTE_GIFS_DIR = path.join(ROULETTE_DIR, 'gifs');
 const ROULETTE_CACHE_DIR = path.join(__dirname, '..', 'data', 'roulette-cache');
 
 const RESULT_NUMBERS = ['00', '0', ...Array.from({ length: 36 }, (_, index) => String(index + 1))];
@@ -155,7 +156,10 @@ function getSpinStillPath(resultNumber) {
 }
 
 function getSpinGifPath(resultNumber) {
-  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.gif']);
+  return (
+    findAssetContaining(ROULETTE_GIFS_DIR, `RW${resultNumber}`, ['.gif'])
+    || findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.gif'])
+  );
 }
 
 function mediaGallery(fileName) {
