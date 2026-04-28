@@ -30,7 +30,7 @@ const XP_MIN_BET = 10;
 const XP_MAX_BET = 1_000;
 const PRCOIN_MIN_BET = 100;
 const PRCOIN_MAX_BET = 100_000;
-const SPIN_TIME_MS = 5_200;
+const SPIN_TIME_MS = 4_750;
 const BLACK_ACCENT = 0x111214;
 const RADIO_GROUP_COMPONENT_TYPE = 21;
 const WIN_EMOJI = '<:Y_:1498173245981986869>';
@@ -152,6 +152,10 @@ function getResultImagePath(resultNumber) {
 
 function getSpinStillPath(resultNumber) {
   return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp']);
+}
+
+function getSpinGifPath(resultNumber) {
+  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.gif']);
 }
 
 function mediaGallery(fileName) {
@@ -1013,11 +1017,11 @@ function buildExternalMediaAttachments(game, options = {}) {
   const components = [];
 
   if (options.spinResult) {
-    const stillPath = getSpinStillPath(options.spinResult);
-    if (stillPath) {
-      const extension = path.extname(stillPath) || '.png';
+    const spinPath = getSpinGifPath(options.spinResult) || getSpinStillPath(options.spinResult);
+    if (spinPath) {
+      const extension = path.extname(spinPath) || '.png';
       const fileName = `RW${options.spinResult}${extension}`;
-      attachments.push(new AttachmentBuilder(stillPath, { name: fileName }));
+      attachments.push(new AttachmentBuilder(spinPath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
       components.push(makeTextDisplay('-# 🎰 Spinning roulette...'));
