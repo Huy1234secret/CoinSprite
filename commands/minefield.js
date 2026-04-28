@@ -9,6 +9,7 @@ const {
   recordGamblingEarnings,
   incrementMinefieldCompleted,
 } = require('../src/gamblingStore');
+const leveling = require('../src/levelingManager');
 const {
   PRCOIN,
   WHITE_ACCENT,
@@ -24,11 +25,15 @@ const { startUserSession, endUserSession, getCommandBlockReason } = require('../
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const MIN_BET = 100;
 const MAX_BET = 100_000;
-const BOARD_SIZE = 25;
 const TIMEOUT_MS = 20_000;
-const MINE_HIT_REFUND_RATE = 0.25;
 const activeGames = new Map();
 const activeUserGames = new Map();
+const MINEFIELD_COMPLETION_XP = {
+  easy: 100,
+  medium: 200,
+  hard: 450,
+  hardcore: 1000,
+};
 
 function createGameId() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -43,9 +48,14 @@ function shuffle(array) {
   return copy;
 }
 
-function createMineCells(mineCount) {
-  const mines = new Set(shuffle(Array.from({ length: BOARD_SIZE }, (_, index) => index)).slice(0, mineCount));
-  return Array.from({ length: BOARD_SIZE }, (_, index) => mines.has(index));
+function getBoardSize(config) {
+  return Math.max(1, Number(config?.rows || 1) * Number(config?.columns || 1));
+}
+
+function createMineCells(config) {
+  const boardSize = getBoardSize(config);
+  const mines = new Set(shuffle(Array.from({ length: boardSize }, (_, index) => index)).slice(0, config.mines));
+  return Array.from({ length: boardSize }, (_, index) => mines.has(index));
 }
 
 function getSafeCount(game) {
@@ -57,15 +67,11 @@ function getSafeCount(game) {
 }
 
 function getMaxSafe(game) {
-  return BOARD_SIZE - game.config.mines;
+  return getBoardSize(game.config) - game.config.mines;
 }
 
 function getCurrentPayout(game) {
   return calculateMinefieldPayout(game.bet, game.config, getSafeCount(game));
-}
-
-function getMineHitRefund(game) {
-  return Math.floor(game.bet * MINE_HIT_REFUND_RATE);
 }
 
 function clearGameTimer(game) {
@@ -129,14 +135,14 @@ function buildWelcomePayload(user) {
               '',
               '-# * Pick a difficulty and place your bet. Each difficulty has a different amount of safe tiles and mines.',
               '-# * Click safe tiles to increase your payout. The more safe tiles you find, the higher your reward becomes.',
-              '-# * You can cash out anytime after finding at least 1 safe tile. If you hit a mine, you get back 25% of your bet.',
+              '-# * You can cash out anytime after finding at least 1 safe tile. If you hit a mine, your whole bet is lost.',
               '-# * Higher difficulty = fewer safe tiles, bigger rewards.',
               '',
               '### Difficulties:',
-              '-# * 🟢 Easy — 21 safe tiles',
-              '-# * 🟡 Medium — 17 safe tiles',
-              '-# * 🔴 Hard — 12 safe tiles',
-              '-# * 💀 Hardcore — 5 safe tiles',
+              '-# * 🟢 Easy — 3×3 grid, 2 mines, 7 safe tiles',
+              '-# * 🟡 Medium — 3×4 grid, 4 mines, 8 safe tiles',
+              '-# * 🔴 Hard — 4×4 grid, 10 mines, 6 safe tiles',
+              '-# * 💀 Hardcore — 5×5 grid, 19 mines, 6 safe tiles',
             ].join('\n'),
           },
           { type: 14, divider: true, spacing: 1 },
@@ -163,12 +169,10 @@ function buildHeaderContent(game, status) {
   const payout = getCurrentPayout(game);
 
   if (status === 'exploded') {
-    const refund = getMineHitRefund(game);
     return [
       `## ${game.username}'s Minefield Game`,
       '',
-      `💥 You hit a mine and recovered **${formatNumber(refund)}** ${PRCOIN} (25% refund).`,
-      `-# Lost: **${formatNumber(game.bet - refund)}** ${PRCOIN}`,
+      `💥 You hit a mine and lost **${formatNumber(game.bet)}** ${PRCOIN}.`,
     ].join('\n');
   }
 
@@ -243,10 +247,13 @@ function buildCellButton(game, index, status) {
 
 function buildBoardRows(game, status) {
   const rows = [];
-  for (let row = 0; row < 5; row += 1) {
+  for (let row = 0; row < game.config.rows; row += 1) {
     rows.push({
       type: 1,
-      components: Array.from({ length: 5 }, (_, column) => buildCellButton(game, (row * 5) + column, status)),
+      components: Array.from(
+        { length: game.config.columns },
+        (_, column) => buildCellButton(game, (row * game.config.columns) + column, status),
+      ),
     });
   }
   return rows;
@@ -296,15 +303,15 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
   game.status = status;
   removeGame(game);
 
-  if (status === 'exploded') {
-    const refund = getMineHitRefund(game);
-    addBalance(game.userId, refund);
-  } else {
+  if (status !== 'exploded') {
     const payout = getCurrentPayout(game);
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
     if (status === 'cleared') {
       incrementMinefieldCompleted(game.userId, game.difficulty);
+      if (game.guildId && MINEFIELD_COMPLETION_XP[game.difficulty]) {
+        leveling.addUserXp(game.guildId, game.userId, MINEFIELD_COMPLETION_XP[game.difficulty]);
+      }
     }
   }
 
@@ -420,7 +427,8 @@ module.exports = {
       }
 
       const index = Number(indexRaw);
-      if (!Number.isInteger(index) || index < 0 || index >= BOARD_SIZE || game.revealed.has(index)) {
+      const boardSize = getBoardSize(game.config);
+      if (!Number.isInteger(index) || index < 0 || index >= boardSize || game.revealed.has(index)) {
         await interaction.update(buildPayload(game, 'active'));
         return true;
       }
@@ -465,7 +473,13 @@ module.exports = {
       const betInput = interaction.fields.getTextInputValue('bet');
       const difficulty = normalizeDifficulty(difficultyInput);
       const bet = Math.floor(Number(String(betInput || '').replace(/,/g, '').trim()));
-      const config = difficulty ? MINEFIELD_DIFFICULTIES[difficulty] : null;
+      const baseConfig = difficulty ? MINEFIELD_DIFFICULTIES[difficulty] : null;
+      const config = baseConfig
+        ? {
+          ...baseConfig,
+          ...(difficulty === 'medium' && Math.random() >= 0.5 ? { rows: 4, columns: 3 } : {}),
+        }
+        : null;
 
       if (!config) {
         await interaction.reply({
@@ -504,10 +518,11 @@ module.exports = {
         bet,
         difficulty,
         config,
-        cells: createMineCells(config.mines),
+        cells: createMineCells(config),
         revealed: new Set(),
         explodedIndex: null,
         status: 'active',
+        guildId: interaction.guildId || null,
         message: null,
         timer: null,
       };
