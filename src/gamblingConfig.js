@@ -93,7 +93,7 @@ function formatAbbreviated(amount) {
   return `${formatted}${SUFFIXES[tier]}`;
 }
 
-function calculateMinefieldPayout(bet, difficultyConfig, safeFound) {
+function calculateMinefieldPayout(bet, difficultyConfig, safeFound, difficultyKeyOverride = null) {
   const safe = Math.max(0, Number(safeFound) || 0);
   if (safe <= 0) return 0;
   const mines = Math.max(1, Number(difficultyConfig?.mines) || 1);
@@ -102,7 +102,7 @@ function calculateMinefieldPayout(bet, difficultyConfig, safeFound) {
   const maxSafe = (rows * columns) - mines;
   const clampedSafe = Math.min(safe, maxSafe);
 
-  const difficultyKey = Object.entries(MINEFIELD_DIFFICULTIES)
+  const difficultyKey = difficultyKeyOverride || Object.entries(MINEFIELD_DIFFICULTIES)
     .find(([, config]) => config === difficultyConfig)?.[0];
   const basePercent = getMinefieldBasePercent(difficultyKey);
   if (basePercent <= 0) return 0;
