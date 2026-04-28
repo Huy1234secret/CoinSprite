@@ -34,6 +34,7 @@ const CUSTOM_IDS = {
   crewRoleUsername: 'roblox_username',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
   giveawayHostRequestModal: 'ticket:giveaway-host-request-modal',
+  giveawayCoreDetails: 'giveaway_core_details',
   giveawayWinnerCount: 'giveaway_winner_count',
   giveawayDuration: 'giveaway_duration',
   giveawayClaimTime: 'giveaway_claim_time',
@@ -416,7 +417,15 @@ function getGiveawayRequestMessageComponents({
       .join('\n')
     : null;
 
-  const requirement = request.requirement?.trim() ? request.requirement.trim() : 'If needed';
+  const legacyRequirement = request.requirement?.trim() ? request.requirement.trim() : 'If needed';
+  const giveawayDetails = request.giveawayDetails?.trim()
+    ? request.giveawayDetails.trim()
+    : [
+      `Winner amount: ${request.winnerCount || '-'}`,
+      `Giveaway time: ${request.giveawayTime || '-'}`,
+      `Claim time: ${request.claimTime || '-'}`,
+      `Requirement: ${legacyRequirement}`,
+    ].join('\n');
 
   return [
     {
@@ -428,10 +437,7 @@ function getGiveawayRequestMessageComponents({
           content:
             `## <@${request.userId}>'s Giveaway request.\n` +
             `-# * UserID: ${request.userId}\n` +
-            `-# Winner: ${request.winnerCount}\n` +
-            `-# Giveaway time: ${request.giveawayTime}\n` +
-            `-# Claim time: ${request.claimTime}\n` +
-            `-# Requirement: ${requirement}\n` +
+            `-# Details:\n${giveawayDetails}\n` +
             `-# Prize: ${request.prize}\n` +
             `### Status: ${statusText}` +
             (deniedReason ? `\n-# Reason: ${deniedReason}` : ''),
@@ -992,50 +998,14 @@ module.exports = {
           components: [
             {
               type: 18,
-              label: 'How many winners?',
-              component: {
-                type: 3,
-                custom_id: CUSTOM_IDS.giveawayWinnerCount,
-                required: true,
-                placeholder: 'Select winner count',
-                options: Array.from({ length: 10 }, (_, index) => {
-                  const value = String(index + 1);
-                  return { label: value, value };
-                }),
-              },
-            },
-            {
-              type: 18,
-              label: 'Giveaway time (min: 15m, max: 7d)',
+              label: 'Giveaway details',
+              description: 'Time, claim time, winners, requirement (if needed).',
               component: {
                 type: 4,
-                custom_id: CUSTOM_IDS.giveawayDuration,
-                style: 1,
+                custom_id: CUSTOM_IDS.giveawayCoreDetails,
+                style: 2,
                 required: true,
-                max_length: 20,
-              },
-            },
-            {
-              type: 18,
-              label: 'Claim time (min: 5m, max: 24h)',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.giveawayClaimTime,
-                style: 1,
-                required: true,
-                max_length: 20,
-              },
-            },
-            {
-              type: 18,
-              label: 'Requirement?',
-              description: 'If needed',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.giveawayRequirement,
-                style: 1,
-                required: false,
-                max_length: 200,
+                max_length: 900,
               },
             },
             {
@@ -1168,12 +1138,7 @@ module.exports = {
         return true;
       }
 
-      const winnerCount = findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.value
-        ?? findSubmittedComponent(interaction, CUSTOM_IDS.giveawayWinnerCount)?.values?.[0]
-        ?? '1';
-      const giveawayTime = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayDuration, '');
-      const claimTime = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayClaimTime, '');
-      const requirement = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayRequirement, '');
+      const giveawayDetails = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayCoreDetails, '').trim();
       const prize = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayPrize, '');
       const uploadedEvidence = (
         typeof interaction?.fields?.getUploadedFiles === 'function'
@@ -1181,19 +1146,9 @@ module.exports = {
           : []
       );
 
-      const giveawayDurationValidation = validateDurationRange(giveawayTime, 15, 7 * 24 * 60);
-      if (!giveawayDurationValidation.valid) {
+      if (!giveawayDetails) {
         await interaction.editReply({
-          content: `Invalid giveaway time. ${giveawayDurationValidation.message}`,
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
-      const claimDurationValidation = validateDurationRange(claimTime, 5, 24 * 60);
-      if (!claimDurationValidation.valid) {
-        await interaction.editReply({
-          content: `Invalid claim time. ${claimDurationValidation.message}`,
+          content: 'Please include your giveaway details (time, claim time, winners, and requirement if needed).',
           flags: MessageFlags.Ephemeral,
         });
         return true;
@@ -1211,10 +1166,7 @@ module.exports = {
       state.giveawayRequests[requestId] = {
         guildId: interaction.guildId,
         userId: interaction.user.id,
-        winnerCount,
-        giveawayTime,
-        claimTime,
-        requirement,
+        giveawayDetails,
         prize,
         uploadedEvidence,
         status: 'pending',
