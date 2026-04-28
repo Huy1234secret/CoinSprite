@@ -24,7 +24,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const MIN_BET = 100;
 const MAX_BET = 100_000;
-const SPIN_TIME_MS = 6_000;
+const SPIN_TIME_MS = 4_250;
 const BLACK_ACCENT = 0x111214;
 const RADIO_GROUP_COMPONENT_TYPE = 21;
 const WIN_EMOJI = '<:Y_:1498173245981986869>';
@@ -129,13 +129,12 @@ function getResultImagePath(resultNumber) {
   return findAssetFile(ROULETTE_IMAGES_DIR, [`RW${resultNumber}`], ['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 }
 
-function mediaGallery(fileName, description) {
+function mediaGallery(fileName) {
   return {
     type: 12,
     items: [
       {
         media: { url: `attachment://${fileName}` },
-        description,
       },
     ],
   };
@@ -911,7 +910,7 @@ function buildExternalMediaAttachments(game, options = {}) {
     if (gifPath) {
       const fileName = `roulette${options.spinResult}.gif`;
       attachments.push(new AttachmentBuilder(gifPath, { name: fileName }));
-      components.push(mediaGallery(fileName, `Roulette spinning to ${options.spinResult}`));
+      components.push(mediaGallery(fileName));
     } else {
       components.push(makeTextDisplay('-# 🎰 Spinning roulette...'));
     }
@@ -923,7 +922,7 @@ function buildExternalMediaAttachments(game, options = {}) {
       const extension = path.extname(imagePath) || '.png';
       const fileName = `RW${options.resultImage}${extension}`;
       attachments.push(new AttachmentBuilder(imagePath, { name: fileName }));
-      components.push(mediaGallery(fileName, `Roulette result ${options.resultImage}`));
+      components.push(mediaGallery(fileName));
     } else {
       components.push(makeTextDisplay(`-# 🎰 Roulette result image missing. Result: **${options.resultImage}**`));
     }
@@ -943,7 +942,7 @@ async function buildGamePayload(game, mode = 'normal') {
     accent_color: mode === 'finished' && game.resultNumber ? getResultAccent(game.resultNumber) : WHITE_ACCENT,
     components: [
       makeTextDisplay(buildBetText(game)),
-      mediaGallery(tableFileName, 'Roulette table'),
+      mediaGallery(tableFileName),
       { type: 14, divider: true, spacing: 1 },
     ],
   };
