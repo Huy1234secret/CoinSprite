@@ -113,6 +113,25 @@ function findAssetFile(dir, baseNames, extensions) {
   return null;
 }
 
+function findAssetContaining(dir, token, extensions) {
+  if (!token || !fs.existsSync(dir)) return null;
+
+  const normalizedToken = String(token).toLowerCase();
+  const extensionSet = new Set(extensions.map((extension) => extension.toLowerCase()));
+  const files = fs.readdirSync(dir);
+
+  for (const file of files) {
+    const extension = path.extname(file).toLowerCase();
+    if (!extensionSet.has(extension)) continue;
+    const basename = path.basename(file, extension).toLowerCase();
+    if (basename.includes(normalizedToken)) {
+      return path.join(dir, file);
+    }
+  }
+
+  return null;
+}
+
 function getTableAssetPath() {
   return findAssetFile(
     ROULETTE_DIR,
@@ -122,11 +141,11 @@ function getTableAssetPath() {
 }
 
 function getSpinGifPath(resultNumber) {
-  return findAssetFile(ROULETTE_GIFS_DIR, [`roulette${resultNumber}`], ['.gif']);
+  return findAssetContaining(ROULETTE_GIFS_DIR, `RW${resultNumber}`, ['.gif']);
 }
 
 function getResultImagePath(resultNumber) {
-  return findAssetFile(ROULETTE_IMAGES_DIR, [`RW${resultNumber}`], ['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+  return findAssetContaining(ROULETTE_IMAGES_DIR, `RW${resultNumber}`, ['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 }
 
 function mediaGallery(fileName) {
@@ -908,7 +927,7 @@ function buildExternalMediaAttachments(game, options = {}) {
   if (options.spinResult) {
     const gifPath = getSpinGifPath(options.spinResult);
     if (gifPath) {
-      const fileName = `roulette${options.spinResult}.gif`;
+      const fileName = `RW${options.spinResult}.gif`;
       attachments.push(new AttachmentBuilder(gifPath, { name: fileName }));
       components.push(mediaGallery(fileName));
     } else {
