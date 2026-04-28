@@ -226,6 +226,11 @@ function getAllGamblingStats() {
   return JSON.parse(JSON.stringify(result));
 }
 
+function getAllBalances() {
+  const state = loadState();
+  return JSON.parse(JSON.stringify(state.balances || {}));
+}
+
 module.exports = {
   STORE_PATH,
   getBalance,
@@ -241,4 +246,5 @@ module.exports = {
   incrementMinefieldCompleted,
   getGamblingStats,
   getAllGamblingStats,
+  getAllBalances,
 };
