@@ -71,7 +71,7 @@ function getMaxSafe(game) {
 }
 
 function getCurrentPayout(game) {
-  return calculateMinefieldPayout(game.bet, game.config, getSafeCount(game));
+  return calculateMinefieldPayout(game.bet, game.config, getSafeCount(game), game.difficulty);
 }
 
 function clearGameTimer(game) {
