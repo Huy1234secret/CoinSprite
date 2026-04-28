@@ -24,8 +24,10 @@ const {
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const MIN_BET = 10;
-const MAX_BET = 1_000;
+const XP_MIN_BET = 10;
+const XP_MAX_BET = 1_000;
+const PRCOIN_MIN_BET = 100;
+const PRCOIN_MAX_BET = 100_000;
 const SPIN_TIME_MS = 5_200;
 const BLACK_ACCENT = 0x111214;
 const RADIO_GROUP_COMPONENT_TYPE = 21;
@@ -316,6 +318,13 @@ function addUserXp(guildId, userId, amount) {
 
 function getBetUnit(currency) {
   return currency === 'xp' ? 'XP' : PRCOIN;
+}
+
+function getBetRange(currency) {
+  if (currency === 'xp') {
+    return { min: XP_MIN_BET, max: XP_MAX_BET };
+  }
+  return { min: PRCOIN_MIN_BET, max: PRCOIN_MAX_BET };
 }
 
 function buildBetSelect(game, disabled = false, placeholder = 'place a Bet') {
@@ -1133,8 +1142,9 @@ async function applyBet(interaction, game, betType) {
   const parsedBet = parseBetAmount(getSubmittedValue(interaction, 'bet'));
   const bet = parsedBet.amount;
   const currency = parsedBet.currency;
-  if (!Number.isFinite(bet) || bet < MIN_BET || bet > MAX_BET) {
-    await replyError(interaction, `Bet must be between **${formatNumber(MIN_BET)}** and **${formatNumber(MAX_BET)}**.`);
+  const range = getBetRange(currency);
+  if (!Number.isFinite(bet) || bet < range.min || bet > range.max) {
+    await replyError(interaction, `Bet must be between **${formatNumber(range.min)}** and **${formatNumber(range.max)}** for ${getBetUnit(currency)}.`);
     return true;
   }
   if (currency === 'xp' && !game.guildId) {
