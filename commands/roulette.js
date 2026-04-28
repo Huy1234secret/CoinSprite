@@ -647,7 +647,7 @@ function makeSelectionFromModal(betType, interaction) {
       type: 'street',
       display: `🔺 Street ${row.label}`,
       numbers: row.numbers,
-      tokenTargets: [],
+      tokenTargets: row.numbers,
     };
   }
 
