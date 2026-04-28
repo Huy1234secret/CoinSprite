@@ -10,6 +10,7 @@ function getEmptyState() {
     jackpotBalances: {},
     stats: {},
     achievements: {},
+    workCooldowns: {},
   };
 }
 
@@ -278,6 +279,18 @@ function getUserAchievements(userId) {
   return JSON.parse(JSON.stringify(userAchievements));
 }
 
+function getWorkCooldown(userId) {
+  const state = loadState();
+  return Number(state.workCooldowns[userId] || 0);
+}
+
+function setWorkCooldown(userId, nextAvailableAt) {
+  const state = loadState();
+  state.workCooldowns[userId] = Math.max(0, Math.floor(Number(nextAvailableAt) || 0));
+  saveState(state);
+  return state.workCooldowns[userId];
+}
+
 module.exports = {
   STORE_PATH,
   getBalance,
@@ -297,4 +310,6 @@ module.exports = {
   unlockAchievement,
   hasAchievement,
   getUserAchievements,
+  getWorkCooldown,
+  setWorkCooldown,
 };
