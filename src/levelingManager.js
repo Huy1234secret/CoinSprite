@@ -3,6 +3,7 @@ const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./levelingStore');
+const { formatCompactNumber } = require('./numberFormat');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
@@ -444,7 +445,7 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
     const value = type === 'xp' ? row.totalXp : type === 'messages' ? row.messages : row.reactions;
-    ctx.fillText(type === 'xp' ? formatOneDecimal(value) : String(value), 715, y + 34);
+    ctx.fillText(formatCompactNumber(value), 715, y + 34);
     ctx.fillText(`#${row.rank}`, 960, y + 34);
   }
 
