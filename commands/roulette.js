@@ -10,12 +10,14 @@ const {
   getBalance,
   addBalance,
   spendBalance,
+  addJackpotBalance,
   recordGamblingEarnings,
 } = require('../src/gamblingStore');
 const leveling = require('../src/levelingManager');
 const { unlockBullseyeAchievement } = require('../src/achievementSystem');
 const {
   PRCOIN,
+  JPCOIN,
   WHITE_ACCENT,
   RED_ACCENT,
   GREEN_ACCENT,
@@ -415,6 +417,7 @@ function buildStraightWinContainer(game, payout) {
             content: [
               `Congratulation ${game.userMention} has won a **Straight** bet in Roulette! 🏆`,
               `* Earned: ${formatNumber(payout)} ${getBetUnit(game.betCurrency)} \`(bet ${formatNumber(game.bet)})\``,
+              `* Bonus: 1 ${JPCOIN} for winning a Straight bet`,
             ].join('\n'),
           },
         ],
@@ -1200,6 +1203,9 @@ async function settleSpin(gameId) {
       addBalance(game.userId, payout);
       recordGamblingEarnings(game.userId, payout);
     }
+  }
+  if (won && game.betSelection?.type === 'straight') {
+    addJackpotBalance(game.userId, 1);
   }
   if (won && game.betSelection?.type === 'straight' && game.message?.channel) {
     await unlockBullseyeAchievement(game.message.channel, { id: game.userId });

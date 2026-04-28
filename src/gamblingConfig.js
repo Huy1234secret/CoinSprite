@@ -1,8 +1,12 @@
 const PRCOIN = '<:PRcoin:1497972406030176356>';
-const JBCOIN = '<:Jbcoin:1498172292511825950>';
+const JPCOIN = '<:JPcoin:1498172292511825950>';
 
 const PRCOIN_EMOJI = { id: '1497972406030176356', name: 'PRcoin' };
-const JBCOIN_EMOJI = { id: '1498172292511825950', name: 'Jbcoin' };
+const JPCOIN_EMOJI = { id: '1498172292511825950', name: 'JPcoin' };
+
+// Backward-compatible aliases
+const JBCOIN = JPCOIN;
+const JBCOIN_EMOJI = JPCOIN_EMOJI;
 
 const WHITE_ACCENT = 0xFFFFFF;
 const RED_ACCENT = 0xED4245;
@@ -115,8 +119,10 @@ function calculateMinefieldPayout(bet, difficultyConfig, safeFound, difficultyKe
 
 module.exports = {
   PRCOIN,
+  JPCOIN,
   JBCOIN,
   PRCOIN_EMOJI,
+  JPCOIN_EMOJI,
   JBCOIN_EMOJI,
   WHITE_ACCENT,
   RED_ACCENT,
