@@ -1,875 +1,14669 @@
 const rawTriviaQuestions = {
-  easy: [
-    ["What color is a ripe banana usually?", ["Yellow", "Black", "Blue", "Purple"], 0],
-    ["How many days are in one week?", ["5", "12", "7", "10"], 2],
-    ["Which animal says “meow”?", ["Cat", "Dog", "Duck", "Cow"], 0],
-    ["What do bees make?", ["Milk", "Rice", "Bread", "Honey"], 3],
-    ["Which planet do we live on?", ["Mars", "Jupiter", "Earth", "Venus"], 2],
-    ["How many wheels does a standard bicycle have?", ["4", "1", "2", "3"], 2],
-    ["What is H2O commonly called?", ["Sugar", "Water", "Salt", "Oxygen"], 1],
-    ["Which fruit is known for keeping doctors away in a saying?", ["Mango", "Apple", "Pear", "Lemon"], 1],
-    ["What do you use to write on paper?", ["Plate", "Spoon", "Pillow", "Pencil"], 3],
-    ["Which season is usually the coldest?", ["Winter", "Autumn", "Spring", "Summer"], 0],
-    ["How many months are in a year?", ["10", "12", "8", "14"], 1],
-    ["What shape has three sides?", ["Hexagon", "Square", "Triangle", "Circle"], 2],
-    ["Which animal is known as man's best friend?", ["Fish", "Dog", "Tiger", "Eagle"], 1],
-    ["What is the opposite of hot?", ["Bright", "Cold", "Fast", "Tall"], 1],
-    ["Which meal is usually eaten in the morning?", ["Supper", "Dessert", "Dinner", "Breakfast"], 3],
-    ["What do plants need from the sun?", ["Glass", "Sand", "Light", "Metal"], 2],
-    ["Which device is used to call people?", ["Bottle", "Toaster", "Chair", "Phone"], 3],
-    ["What color do you get by mixing red and white?", ["Pink", "Orange", "Green", "Brown"], 0],
-    ["How many legs does a spider have?", ["4", "10", "6", "8"], 3],
-    ["Which object tells time?", ["Clock", "Key", "Brush", "Cup"], 0],
-    ["What is frozen water called?", ["Ice", "Cloud", "Dust", "Steam"], 0],
-    ["Which bird is often associated with delivering babies in cartoons?", ["Peacock", "Penguin", "Stork", "Ostrich"], 2],
-    ["What is the main ingredient in bread?", ["Flour", "Stone", "Oil", "Cheese"], 0],
-    ["How many letters are in the English alphabet?", ["18", "20", "26", "30"], 2],
-    ["Which animal gives milk?", ["Frog", "Shark", "Cow", "Lion"], 2],
-    ["What is the color of grass in most places?", ["Red", "Pink", "White", "Green"], 3],
-    ["Which tool is used to cut paper?", ["Fork", "Scissors", "Hammer", "Sponge"], 1],
-    ["Where do fish usually live?", ["Tree", "Water", "Desert", "Sky"], 1],
-    ["What do you wear on your feet?", ["Gloves", "Hat", "Scarf", "Shoes"], 3],
-    ["Which food is made from milk?", ["Cheese", "Potato", "Popcorn", "Pasta"], 0],
-    ["What number comes after 9?", ["11", "8", "10", "7"], 2],
-    ["Which sport uses a soccer ball?", ["Football", "Golf", "Baseball", "Tennis"], 0],
-    ["What do you drink when you are thirsty?", ["Soap", "Sand", "Water", "Paper"], 2],
-    ["Which animal has a long trunk?", ["Bear", "Rabbit", "Horse", "Elephant"], 3],
-    ["What do you use to unlock a door?", ["Leaf", "Coin", "Key", "Pen"], 2],
-    ["Which day usually comes after Friday?", ["Thursday", "Saturday", "Wednesday", "Monday"], 1],
-    ["What is the opposite of up?", ["Down", "Wide", "Near", "Left"], 0],
-    ["Which fruit is long and yellow?", ["Plum", "Banana", "Grape", "Cherry"], 1],
-    ["What do you use to see in the dark?", ["Ruler", "Bowl", "Blanket", "Flashlight"], 3],
-    ["Which animal hops and has long ears?", ["Snake", "Chicken", "Whale", "Rabbit"], 3],
-    ["How many fingers are on one normal human hand?", ["8", "6", "4", "5"], 3],
-    ["What is the color of the sky on a clear day?", ["Black", "Green", "Blue", "Orange"], 2],
-    ["Which drink is made from oranges?", ["Coffee", "Tea", "Milkshake", "Orange juice"], 3],
-    ["What do you call a young cat?", ["Foal", "Kitten", "Puppy", "Calf"], 1],
-    ["Which room is used for cooking?", ["Garage", "Kitchen", "Bedroom", "Bathroom"], 1],
-    ["What is the opposite of fast?", ["Soft", "Loud", "Slow", "Round"], 2],
-    ["Which item keeps rain off your head?", ["Spoon", "Umbrella", "Sock", "Book"], 1],
-    ["What do chickens lay?", ["Coins", "Eggs", "Leaves", "Rocks"], 1],
-    ["Which animal is black and white and eats bamboo?", ["Panda", "Giraffe", "Fox", "Koala"], 0],
-    ["What do you use to brush your teeth?", ["Paintbrush", "Toothbrush", "Comb", "Fork"], 1],
-    ["Which food is commonly sliced and put on pizza?", ["Candy cane", "Rice", "Ice", "Cheese"], 3],
-    ["How many sides does a square have?", ["5", "6", "4", "3"], 2],
-    ["What animal is known for having stripes and looking like a horse?", ["Moose", "Camel", "Zebra", "Deer"], 2],
-    ["Which vehicle travels on rails?", ["Boat", "Plane", "Train", "Scooter"], 2],
-    ["What does a thermometer measure?", ["Weight", "Color", "Temperature", "Speed"], 2],
-    ["Which fruit is red and often used in ketchup?", ["Coconut", "Blueberry", "Tomato", "Lemon"], 2],
-    ["What do you use to eat soup?", ["Straw", "Knife", "Spoon", "Chopstick only"], 2],
-    ["Which place has many books you can borrow?", ["Stadium", "Bakery", "Library", "Airport"], 2],
-    ["What do you call water falling from clouds?", ["Steam", "Rain", "Smoke", "Snow only"], 1],
-    ["Which animal is famous for roaring?", ["Mouse", "Goat", "Duck", "Lion"], 3],
-    ["What is the first letter of the English alphabet?", ["Z", "Y", "B", "A"], 3],
-    ["Which object is used to take photos?", ["Blanket", "Keyboard", "Camera", "Cup"], 2],
-    ["What do you call a baby dog?", ["Puppy", "Kitten", "Chick", "Calf"], 0],
-    ["Which game piece is used in chess and can move like an L?", ["Bishop", "Pawn", "King", "Knight"], 3],
-    ["What do you sleep on?", ["Table", "Sink", "Bed", "Shelf"], 2],
-    ["Which fruit has a hard shell and white inside?", ["Peach", "Apple", "Coconut", "Strawberry"], 2],
-    ["What is the opposite of day?", ["Night", "Light", "Noon", "Morning"], 0],
-    ["Which animal is known for making webs?", ["Butterfly", "Bee", "Spider", "Ant"], 2],
-    ["What do you use to clean your hands?", ["Soap", "Glue", "Paint", "Salt"], 0],
-    ["Which food is made by popping corn kernels?", ["Cake", "Popcorn", "Bread", "Noodles"], 1],
-    ["What do you call the place where airplanes land?", ["Library", "Farm", "Airport", "Harbor"], 2],
-    ["Which animal swims and has fins?", ["Cat", "Horse", "Fish", "Dog"], 2],
-    ["How many cents are in one US dollar?", ["25", "10", "50", "100"], 3],
-    ["Which object is used to measure length?", ["Lamp", "Bowl", "Brush", "Ruler"], 3],
-    ["What do you call a group of stars forming a pattern?", ["Island", "Recipe", "Keyboard", "Constellation"], 3],
-    ["Which dessert is cold and creamy?", ["Ice cream", "Toast", "Soup", "Rice"], 0],
-    ["What do you wear on your head?", ["Belt", "Shoes", "Hat", "Gloves"], 2],
-    ["Which animal is known for carrying a shell?", ["Rabbit", "Fox", "Bear", "Turtle"], 3],
-    ["What is the opposite of big?", ["Tall", "Bright", "Small", "Heavy"], 2],
-    ["Which food is commonly made from potatoes?", ["Yogurt", "Sushi", "Fries", "Pancakes"], 2],
-    ["What do you use to open a can?", ["Can opener", "Pencil", "Pillow", "Mirror"], 0],
-    ["Which insect has colorful wings and starts as a caterpillar?", ["Ant", "Butterfly", "Mosquito", "Beetle"], 1],
-    ["What does a baker usually make?", ["Shoes", "Bread", "Jewelry", "Furniture"], 1],
-    ["How many sides does a hexagon have?", ["7", "5", "6", "8"], 2],
-    ["Which ocean animal is known for being very large?", ["Lizard", "Ant", "Whale", "Rabbit"], 2],
-    ["What do you call cooked rice wrapped with seaweed and fillings?", ["Sushi", "Curry", "Pizza", "Taco"], 0],
-    ["Which item is used to carry school supplies?", ["Plate", "Teacup", "Remote", "Backpack"], 3],
-    ["What color are most lemons?", ["Brown", "Purple", "Blue", "Yellow"], 3],
-    ["Which animal is known for climbing trees and liking bananas?", ["Shark", "Penguin", "Camel", "Monkey"], 3],
-    ["What does a keyboard help you do?", ["Paint walls", "Type", "Cook", "Swim"], 1],
-    ["Which month comes after January?", ["December", "April", "March", "February"], 3],
-    ["What do you call a person who teaches students?", ["Chef", "Pilot", "Teacher", "Artist"], 2],
-    ["Which sport uses a hoop and a ball?", ["Basketball", "Skiing", "Golf", "Cricket"], 0],
-    ["What is the opposite of left?", ["Under", "Thin", "Over", "Right"], 3],
-    ["Which vegetable is orange and loved by rabbits in cartoons?", ["Pea", "Onion", "Cabbage", "Carrot"], 3],
-    ["What do you use to cut wood?", ["Comb", "Spoon", "Saw", "Needle"], 2],
-    ["Which animal is known for its long neck?", ["Giraffe", "Panda", "Duck", "Pig"], 0],
-    ["What do you call the star at the center of our solar system?", ["Venus", "Earth", "Moon", "Sun"], 3],
-    ["Which snack is made from cocoa and sugar?", ["Cheese", "Chocolate", "Bread", "Pickle"], 1],
-    ["Which object do you use to erase pencil marks?", ["Eraser", "Spoon", "Rope", "Bottle"], 0],
-    ["Which movie series features a wizard named Harry Potter?", ["Star Wars", "Harry Potter", "Jurassic Park", "Toy Story"], 1],
-    ["Which animated movie has a cowboy toy named Woody?", ["Shrek", "Toy Story", "Frozen", "Cars"], 1],
-    ["Which movie features a blue alien species called the Na'vi?", ["Avatar", "Titanic", "Jumanji", "The Matrix"], 0],
-    ["In The Lion King, what kind of animal is Simba?", ["Tiger", "Lion", "Cheetah", "Bear"], 1],
-    ["Which superhero is also known as Peter Parker?", ["Batman", "Spider-Man", "Iron Man", "Aquaman"], 1],
-    ["Which superhero uses a shield with a star on it?", ["Thor", "Captain America", "Hulk", "Doctor Strange"], 1],
-    ["Which movie franchise includes lightsabers and Jedi?", ["Star Wars", "Fast & Furious", "Rocky", "Men in Black"], 0],
-    ["What is the name of the snowman in Frozen?", ["Olaf", "Sven", "Kristoff", "Hans"], 0],
-    ["Which film features a giant ship that hits an iceberg?", ["Titanic", "Jaws", "Speed", "Twister"], 0],
-    ["Which green ogre lives in a swamp?", ["Shrek", "Hulk", "Yoda", "Kermit"], 0],
-    ["Which sitcom is set around a group of friends in New York coffee shop Central Perk?", ["Friends", "The Office", "Modern Family", "Seinfeld"], 0],
-    ["Which TV show features the workplace Dunder Mifflin?", ["Parks and Recreation", "The Office", "Brooklyn Nine-Nine", "Cheers"], 1],
-    ["Which cartoon family lives in Springfield?", ["The Griffins", "The Simpsons", "The Flintstones", "The Jetsons"], 1],
-    ["Which character often says 'D'oh!'?", ["Homer Simpson", "SpongeBob", "Scooby-Doo", "Garfield"], 0],
-    ["Which sea sponge lives in a pineapple under the sea?", ["Patrick", "SpongeBob SquarePants", "Squidward", "Plankton"], 1],
-    ["Which singer is known as the King of Pop?", ["Elvis Presley", "Michael Jackson", "Bruno Mars", "Ed Sheeran"], 1],
-    ["Which band released the song 'Yellow Submarine'?", ["Queen", "The Beatles", "ABBA", "Coldplay"], 1],
-    ["Which instrument is most associated with rock guitar solos?", ["Flute", "Electric guitar", "Tuba", "Harp"], 1],
-    ["Which music award uses a gramophone trophy?", ["Oscar", "Grammy", "Emmy", "Tony"], 1],
-    ["Which award show is mainly for movies?", ["Oscars", "Grammys", "Tonys", "Emmys"], 0],
-    ["Which meme phrase is often paired with a distracted boyfriend stock photo?", ["Distracted boyfriend", "Keyboard cat", "Nyan cat", "Doge"], 0],
-    ["Which internet meme features a Shiba Inu dog and broken English captions?", ["Doge", "Grumpy Cat", "Pepe", "Bad Luck Brian"], 0],
-    ["Which platform made short looping dance trends especially popular in the 2020s?", ["TikTok", "Wikipedia", "LinkedIn", "Pinterest"], 0],
-    ["Which Pixar movie stars a rat who cooks in Paris?", ["Cars", "Ratatouille", "Brave", "Up"], 1],
-    ["Which Pixar movie features emotions named Joy and Sadness?", ["Inside Out", "Coco", "WALL-E", "Soul"], 0],
-    ["Which Broadway musical tells the story of Alexander Hamilton through hip-hop style songs?", ["Hamilton", "Cats", "Wicked", "Chicago"], 0],
-    ["Which musical features a green-skinned witch named Elphaba?", ["Wicked", "Annie", "Hairspray", "Rent"], 0],
-    ["Which comic book company created Spider-Man and the X-Men?", ["Marvel", "DC", "Archie", "Dark Horse"], 0],
-    ["Which comic book company is home to Batman and Superman?", ["Marvel", "DC", "Image", "VIZ"], 1],
-    ["Which manga series follows a ninja named Naruto Uzumaki?", ["One Piece", "Naruto", "Bleach", "Dragon Ball"], 1],
-    ["Which reality show is known for contestants being voted off an island?", ["Survivor", "The Voice", "Shark Tank", "Top Chef"], 0],
-    ["Which singing competition uses spinning red chairs?", ["The Voice", "Survivor", "Jeopardy!", "Project Runway"], 0],
-    ["What is the name of Mickey Mouse's pet dog?", ["Pluto", "Goofy", "Scooby", "Odie"], 0],
-    ["Which fictional dog solves mysteries with Shaggy?", ["Snoopy", "Scooby-Doo", "Clifford", "Blue"], 1],
-    ["In Monopoly, what do players collect when passing Go?", ["$200", "$50", "$500", "$10"], 0],
-    ["Which board game uses letter tiles to make words?", ["Risk", "Scrabble", "Clue", "Sorry!"], 1],
-    ["Which board game asks players to solve a murder in a mansion?", ["Clue", "Candy Land", "Chess", "Battleship"], 0],
-    ["Which video game character is a plumber who wears red?", ["Sonic", "Mario", "Link", "Kirby"], 1],
-    ["Which video game character is a blue hedgehog?", ["Mario", "Sonic", "Pikachu", "Donkey Kong"], 1],
-    ["Which Nintendo series includes Pikachu?", ["Zelda", "Pokémon", "Metroid", "Animal Crossing"], 1],
-    ["Which card game uses wild Draw Four cards?", ["Uno", "Poker", "Bridge", "Solitaire"], 0],
-    ["In a standard deck, how many suits are there?", ["2", "3", "4", "5"], 2],
-    ["Which puzzle toy has colored squares on a cube?", ["Yo-yo", "Rubik's Cube", "Slinky", "Frisbee"], 1],
-    ["Which tabletop game often uses a 20-sided die?", ["Dungeons & Dragons", "Monopoly", "Uno", "Jenga"], 0],
-    ["Which arcade game features a yellow character eating dots and ghosts?", ["Pac-Man", "Tetris", "Frogger", "Donkey Kong"], 0],
-    ["Which toy line became famous for small plush animals with heart-shaped tags?", ["Beanie Babies", "LEGO", "Hot Wheels", "Barbie"], 0],
-    ["Which cuisine is strongly associated with sushi?", ["Japanese", "French", "Mexican", "Greek"], 0],
-    ["Which country is strongly associated with tacos?", ["Mexico", "Italy", "India", "Germany"], 0],
-    ["Which spice is commonly used to make food taste sweet and warm, especially in cinnamon rolls?", ["Cinnamon", "Cumin", "Pepper", "Oregano"], 0],
-    ["Which drink is made by steeping leaves in hot water?", ["Tea", "Smoothie", "Soda", "Milk"], 0],
-    ["Which dessert is made with layers of pasta-like sheets, cream, and cocoa in Italy?", ["Tiramisu", "Brownie", "Mochi", "Churro"], 0],
-    ["Which fast food mascot is a clown?", ["Ronald McDonald", "Tony the Tiger", "Mr. Peanut", "Chester Cheetah"], 0],
-    ["Which kitchen tool is used to flip pancakes?", ["Spatula", "Whisk", "Colander", "Rolling pin"], 0],
-    ["Which cheese is commonly used on pizza?", ["Mozzarella", "Blue cheese", "Feta", "Brie"], 0],
-    ["Which pasta shape is long and thin?", ["Spaghetti", "Penne", "Farfalle", "Ravioli"], 0],
-    ["Which global sports event is held every four years and awards gold medals?", ["Olympics", "World Series", "NBA Finals", "Wimbledon"], 0],
-    ["Which sport is played in the Super Bowl?", ["American football", "Baseball", "Tennis", "Golf"], 0],
-    ["Which sport uses a broom on ice?", ["Curling", "Surfing", "Cricket", "Boxing"], 0],
-    ["Which athlete is famous for the nickname 'Air Jordan'?", ["Michael Jordan", "Tom Brady", "Lionel Messi", "Usain Bolt"], 0],
-    ["Which martial art is known for colored belts and originated in Japan?", ["Karate", "Curling", "Baseball", "Archery"], 0],
-    ["Which outdoor item is used for sleeping while camping?", ["Sleeping bag", "Skateboard", "Tennis racket", "Paintbrush"], 0],
-    ["Which judged sport includes routines on a balance beam?", ["Gymnastics", "Soccer", "Bowling", "Cycling"], 0],
-    ["Which artist painted the Mona Lisa?", ["Leonardo da Vinci", "Pablo Picasso", "Vincent van Gogh", "Claude Monet"], 0],
-    ["Which novel features a young wizard named Harry?", ["Harry Potter and the Sorcerer's Stone", "Moby-Dick", "The Hobbit", "Little Women"], 0],
-    ["Which language uses the Cyrillic alphabet in Russian writing?", ["Russian", "Spanish", "Arabic", "Korean"], 0],
-    ["What does the idiom 'break the ice' mean?", ["Start a conversation", "Freeze water", "Win a race", "Cook dinner"], 0],
-    ["In Greek mythology, who is the king of the gods?", ["Zeus", "Hades", "Ares", "Hermes"], 0],
-    ["Which building is famous for leaning in Italy?", ["Leaning Tower of Pisa", "Eiffel Tower", "Big Ben", "Colosseum"], 0],
-    ["Which clothing item is worn on your head for style or sun protection?", ["Hat", "Belt", "Sock", "Scarf only"], 0],
-    ["Which currency is used in Japan?", ["Yen", "Dollar", "Euro", "Peso"], 0],
-    ["Which company logo is a bitten apple?", ["Apple", "Google", "Nike", "Samsung"], 0],
-    ["Which product fastens clothes with interlocking teeth?", ["Zipper", "Stapler", "Compass", "Whisk"], 0],
-    ["Which vehicle flies passengers between airports?", ["Airplane", "Submarine", "Tractor", "Scooter"], 0],
-    ["Which holiday is associated with carving pumpkins?", ["Halloween", "Valentine's Day", "Easter", "New Year's Day"], 0],
-    ["Which city is the capital of France?", ["Paris", "Madrid", "Rome", "Berlin"], 0],
-    ["Which tool is used to hit nails?", ["Hammer", "Screwdriver", "Wrench", "Level"], 0],
-    ["Which plant is known for needing little water and having spines?", ["Cactus", "Rose", "Fern", "Tulip"], 0],
-    ["Which zodiac sign is represented by a lion?", ["Leo", "Cancer", "Virgo", "Libra"], 0],
-    ["Which fabric is made from the fiber of cotton plants?", ["Cotton", "Silk", "Wool", "Nylon"], 0],
-    ["Which Disney princess loses a glass slipper?", ["Ariel", "Cinderella", "Mulan", "Moana"], 1],
-    ["Which movie has a yellow family living in Springfield?", ["The Simpsons Movie", "Shrek", "Finding Nemo", "Cars"], 0],
-    ["What color is Mario's hat in most Super Mario games?", ["Green", "Blue", "Red", "Purple"], 2],
-    ["Which character is Mickey Mouse's girlfriend?", ["Minnie Mouse", "Daisy Duck", "Elsa", "Velma"], 0],
-    ["Which superhero is known for saying he is from Wakanda?", ["The Flash", "Black Panther", "Aquaman", "Ant-Man"], 1],
-    ["Which animated fish is searched for by his father Marlin?", ["Flounder", "Dory", "Bruce", "Nemo"], 3],
-    ["Which movie features a princess named Elsa?", ["Moana", "Frozen", "Brave", "Tangled"], 1],
-    ["Which franchise features a character named Darth Vader?", ["Harry Potter", "Star Trek", "Star Wars", "The Hunger Games"], 2],
-    ["Which superhero has a hammer called Mjolnir?", ["Hulk", "Batman", "Wolverine", "Thor"], 3],
-    ["Which singer is known for the song 'Shake It Off'?", ["Shakira", "Adele", "Rihanna", "Taylor Swift"], 3],
-    ["Which singer is known for the song 'Bad Guy'?", ["Selena Gomez", "Ariana Grande", "Katy Perry", "Billie Eilish"], 3],
-    ["Which group had members named John, Paul, George, and Ringo?", ["The Beatles", "Coldplay", "Queen", "ABBA"], 0],
-    ["Which movie has the song 'Let It Go'?", ["Encanto", "Frozen", "Coco", "Trolls"], 1],
-    ["Which Disney movie features a young lion named Simba?", ["Tarzan", "The Lion King", "Bambi", "Aladdin"], 1],
-    ["Which cartoon character loves Krabby Patties?", ["Scooby-Doo", "Tom Cat", "SpongeBob SquarePants", "Garfield"], 2],
-    ["Which character is SpongeBob's best friend?", ["Squidward", "Patrick Star", "Plankton", "Mr. Krabs"], 1],
-    ["Which green dinosaur is Mario's friend?", ["Yoshi", "Bowser", "Kirby", "Luigi"], 0],
-    ["Which Nintendo character wears green and is Mario's brother?", ["Toad", "Link", "Luigi", "Wario"], 2],
-    ["Which Pokémon is yellow and says its own name?", ["Mewtwo", "Pikachu", "Squirtle", "Charmander"], 1],
-    ["Which Pokémon game type involves catching creatures?", ["Minecraft", "Tetris", "FIFA", "Pokémon"], 3],
-    ["Which block-building video game has Creepers?", ["Among Us", "Minecraft", "Roblox", "Fortnite"], 1],
-    ["Which game has colorful falling blocks that form lines?", ["Doom", "Pong", "Tetris", "Pac-Man"], 2],
-    ["Which video game has a character named Link?", ["Sonic", "The Legend of Zelda", "Halo", "Animal Crossing"], 1],
-    ["Which blue character runs very fast in video games?", ["Sonic the Hedgehog", "Pac-Man", "Donkey Kong", "Kirby"], 0],
-    ["Which game asks players to find an impostor on a spaceship?", ["Candy Crush", "Stardew Valley", "Overwatch", "Among Us"], 3],
-    ["Which movie series features dinosaurs in a theme park?", ["Rocky", "Pirates of the Caribbean", "Jurassic Park", "Twilight"], 2],
-    ["Which movie features a giant shark attacking beachgoers?", ["Rocky", "Jaws", "Grease", "E.T."], 1],
-    ["Which movie has a robot named WALL-E?", ["WALL-E", "Up", "Coco", "Cars"], 0],
-    ["Which Pixar movie features an old man named Carl and many balloons?", ["Onward", "Up", "Brave", "Soul"], 1],
-    ["Which Pixar movie is about a skeleton-filled Land of the Dead?", ["Luca", "Ratatouille", "Coco", "Cars"], 2],
-    ["Which Disney movie has a demigod named Maui?", ["Hercules", "Moana", "Mulan", "Frozen"], 1],
-    ["Which Disney movie features a warrior named Mulan?", ["Beauty and the Beast", "Mulan", "Pocahontas", "Cinderella"], 1],
-    ["Which fairy tale character has very long magical hair in Tangled?", ["Belle", "Jasmine", "Aurora", "Rapunzel"], 3],
-    ["Which movie features a genie and a magic lamp?", ["Lilo & Stitch", "Tarzan", "Bambi", "Aladdin"], 3],
-    ["Which movie has a blue fish named Dory?", ["Raya and the Last Dragon", "Monsters, Inc.", "Toy Story", "Finding Nemo"], 3],
-    ["Which Pixar movie has monsters named Mike and Sulley?", ["Monsters, Inc.", "A Bug's Life", "Inside Out", "Cars"], 0],
-    ["Which movie has race car Lightning McQueen?", ["Cars", "Toy Story", "Turbo", "Planes"], 0],
-    ["Which movie stars a panda who learns kung fu?", ["Madagascar", "Kung Fu Panda", "Shrek", "Rio"], 1],
-    ["Which movie has an ogre and a talking donkey?", ["Ice Age", "Shrek", "Sing", "Happy Feet"], 1],
-    ["Which movie features a mammoth named Manny?", ["Rio", "Ice Age", "Bolt", "Madagascar"], 1],
-    ["Which movie has a penguin named Skipper?", ["Rio", "Finding Nemo", "Madagascar", "Happy Feet"], 2],
-    ["Which movie features a singing koala named Buster Moon?", ["Zootopia", "Trolls", "Sing", "The Secret Life of Pets"], 2],
-    ["Which movie city has animals like Judy Hopps and Nick Wilde?", ["Arendelle", "Zootopia", "Atlantis", "Metroville"], 1],
-    ["Which movie has a family of superheroes called the Parr family?", ["Megamind", "Bolt", "Big Hero 6", "The Incredibles"], 3],
-    ["Which Disney movie has a robot named Baymax?", ["Frozen", "Encanto", "Wreck-It Ralph", "Big Hero 6"], 3],
-    ["Which movie has a video game villain who wants to be a hero?", ["Ratatouille", "Soul", "Wreck-It Ralph", "Brave"], 2],
-    ["Which sitcom features a coffee shop called Central Perk?", ["Frasier", "Friends", "Scrubs", "Cheers"], 1],
-    ["Which sitcom is about employees at Dunder Mifflin?", ["Community", "The Office", "Parks and Recreation", "30 Rock"], 1],
-    ["Which sitcom has the catchphrase 'Bazinga'?", ["The Big Bang Theory", "Friends", "Seinfeld", "Modern Family"], 0],
-    ["Which TV show follows a chemistry teacher named Walter White?", ["Lost", "The Walking Dead", "Breaking Bad", "Dexter"], 2],
-    ["Which fantasy TV series has dragons and the Iron Throne?", ["Game of Thrones", "Westworld", "The Crown", "Stranger Things"], 0],
-    ["Which Netflix series features kids in Hawkins and the Upside Down?", ["Stranger Things", "Squid Game", "Wednesday", "The Witcher"], 0],
-    ["Which TV show features a character named Wednesday Addams?", ["Riverdale", "Gossip Girl", "Wednesday", "Glee"], 2],
-    ["Which game show asks contestants to answer in the form of a question?", ["Family Feud", "Wheel of Fortune", "Jeopardy!", "The Price Is Right"], 2],
-    ["Which game show spins a big letter wheel?", ["Big Brother", "Jeopardy!", "Wheel of Fortune", "Survivor"], 2],
-    ["Which reality show has contestants compete on an island?", ["Survivor", "The Bachelor", "Shark Tank", "Top Chef"], 0],
-    ["Which talent show uses golden buzzers?", ["America's Got Talent", "Shark Tank", "MasterChef", "The Amazing Race"], 0],
-    ["Which singing show has masked celebrity performers?", ["The Masked Singer", "American Idol", "Survivor", "The Voice"], 0],
-    ["Which award is shaped like a little gold man and honors movies?", ["Tony", "Oscar", "Grammy", "Emmy"], 1],
-    ["Which award is associated with music recordings?", ["Emmy", "Grammy", "Tony", "Oscar"], 1],
-    ["Which award honors television shows?", ["Oscar", "Grammy", "Tony", "Emmy"], 3],
-    ["Which award honors Broadway theater?", ["Grammy", "Tony", "Emmy", "Oscar"], 1],
-    ["Which movie quote says, 'May the Force be with you'?", ["Star Wars", "Rocky", "Avatar", "The Matrix"], 0],
-    ["Which movie quote says, 'There's no place like home'?", ["Home Alone", "The Wizard of Oz", "Jaws", "Grease"], 1],
-    ["Which Christmas movie features Kevin McCallister?", ["The Grinch", "Elf", "The Polar Express", "Home Alone"], 3],
-    ["Which green character tried to steal Christmas?", ["Hulk", "Yoda", "The Grinch", "Shrek"], 2],
-    ["Which movie features a boy who boards the Polar Express train?", ["The Polar Express", "Frozen", "Elf", "Home Alone"], 0],
-    ["Which singer is nicknamed Queen Bey?", ["Adele", "Beyoncé", "Madonna", "Lady Gaga"], 1],
-    ["Which singer is famous for the song 'Hello'?", ["Miley Cyrus", "Adele", "Lorde", "Dua Lipa"], 1],
-    ["Which artist released the hit 'Uptown Funk' with Mark Ronson?", ["Bruno Mars", "Justin Bieber", "Harry Styles", "Drake"], 0],
-    ["Which singer released 'Hips Don't Lie'?", ["Rihanna", "Beyoncé", "Alicia Keys", "Shakira"], 3],
-    ["Which band is known for 'We Will Rock You'?", ["Nirvana", "The Beatles", "Queen", "Coldplay"], 2],
-    ["Which band is known for 'Viva la Vida'?", ["Imagine Dragons", "Maroon 5", "Coldplay", "Oasis"], 2],
-    ["Which music genre often features rapping?", ["Opera", "Hip-hop", "Country", "Classical"], 1],
-    ["Which music genre is linked to cowboy hats and Nashville?", ["Punk", "Disco", "Country", "Reggae"], 2],
-    ["Which music genre uses heavy guitars and drums?", ["Opera", "Ambient", "Rock", "Jazz"], 2],
-    ["Which music genre is famous for offbeat Jamaican rhythms?", ["Bluegrass", "Baroque", "Reggae", "Techno"], 2],
-    ["Which meme features a Shiba Inu dog with funny captions?", ["Doge", "Rickroll", "Keyboard Cat", "Nyan Cat"], 0],
-    ["Which meme trick links people to Rick Astley's 'Never Gonna Give You Up'?", ["Planking", "Ice Bucket Challenge", "Rickroll", "Doge"], 2],
-    ["Which viral challenge involved pouring cold water over someone for charity awareness?", ["Mannequin Challenge", "Ice Bucket Challenge", "Harlem Shake", "Bottle Flip"], 1],
-    ["Which viral trend froze people in place like statues?", ["Mannequin Challenge", "Doge", "Rickroll", "Ice Bucket Challenge"], 0],
-    ["Which platform is famous for short vertical videos and dance trends?", ["PayPal", "LinkedIn", "Wikipedia", "TikTok"], 3],
-    ["Which website is known for videos and creators with channels?", ["YouTube", "Shopify", "Wikipedia", "Pinterest"], 0],
-    ["Which app is known for disappearing photo and video snaps?", ["Reddit", "Twitch", "Spotify", "Snapchat"], 3],
-    ["Which platform is known for livestreaming game content?", ["Twitch", "Duolingo", "Etsy", "IMDb"], 0],
-    ["Which comic strip dog sleeps on top of his doghouse?", ["Scooby-Doo", "Snoopy", "Pluto", "Odie"], 1],
-    ["Which cartoon cat chases Jerry the mouse?", ["Tom", "Felix", "Sylvester", "Garfield"], 0],
-    ["Which cartoon dog travels in the Mystery Machine?", ["Snoopy", "Scooby-Doo", "Blue", "Clifford"], 1],
-    ["Which red dog is known for being very large?", ["Clifford", "Snoopy", "Odie", "Pluto"], 0],
-    ["Which board game has a banker and properties?", ["Scrabble", "Jenga", "Battleship", "Monopoly"], 3],
-    ["Which board game uses a tower of wooden blocks?", ["Risk", "Sorry!", "Clue", "Jenga"], 3],
-    ["Which board game uses a grid and ships to call out hits and misses?", ["Candy Land", "Trouble", "Battleship", "Scrabble"], 2],
-    ["Which party game asks players to draw clues?", ["Risk", "Chess", "Pictionary", "Monopoly"], 2],
-    ["Which card game makes players shout 'Uno'?", ["Go Fish", "Bridge", "Poker", "Uno"], 3],
-    ["Which toy is a doll known as Barbie's long-time companion?", ["Buzz", "Woody", "Ken", "Mario"], 2],
-    ["Which toy brand is famous for interlocking bricks?", ["Nerf", "Hot Wheels", "LEGO", "Play-Doh"], 2],
-    ["Which toy is a spring that can walk down stairs?", ["Yo-yo", "Frisbee", "Slinky", "Rubik's Cube"], 2],
-    ["Which toy is a cube puzzle with colored sides?", ["Etch A Sketch", "Pogo stick", "Slinky", "Rubik's Cube"], 3],
-    ["Which toy lets you draw by turning two white knobs?", ["Play-Doh", "Nerf", "Etch A Sketch", "Tamagotchi"], 2],
-    ["Which food is the main topping in classic margherita pizza along with tomato and basil?", ["Mozzarella", "Feta", "Cheddar", "Brie"], 0],
-    ["Which food is a Japanese rice roll often wrapped in seaweed?", ["Sushi", "Pasta", "Taco", "Curry"], 0]
+  "easy": [
+    [
+      "What color is a ripe banana usually?",
+      [
+        "Yellow",
+        "Black",
+        "Blue",
+        "Purple"
+      ],
+      0
+    ],
+    [
+      "How many days are in one week?",
+      [
+        "5",
+        "12",
+        "7",
+        "10"
+      ],
+      2
+    ],
+    [
+      "Which animal says “meow”?",
+      [
+        "Cat",
+        "Dog",
+        "Duck",
+        "Cow"
+      ],
+      0
+    ],
+    [
+      "What do bees make?",
+      [
+        "Milk",
+        "Rice",
+        "Bread",
+        "Honey"
+      ],
+      3
+    ],
+    [
+      "Which planet do we live on?",
+      [
+        "Mars",
+        "Jupiter",
+        "Earth",
+        "Venus"
+      ],
+      2
+    ],
+    [
+      "How many wheels does a standard bicycle have?",
+      [
+        "4",
+        "1",
+        "2",
+        "3"
+      ],
+      2
+    ],
+    [
+      "What is H2O commonly called?",
+      [
+        "Sugar",
+        "Water",
+        "Salt",
+        "Oxygen"
+      ],
+      1
+    ],
+    [
+      "Which fruit is known for keeping doctors away in a saying?",
+      [
+        "Mango",
+        "Apple",
+        "Pear",
+        "Lemon"
+      ],
+      1
+    ],
+    [
+      "What do you use to write on paper?",
+      [
+        "Plate",
+        "Spoon",
+        "Pillow",
+        "Pencil"
+      ],
+      3
+    ],
+    [
+      "Which season is usually the coldest?",
+      [
+        "Winter",
+        "Autumn",
+        "Spring",
+        "Summer"
+      ],
+      0
+    ],
+    [
+      "How many months are in a year?",
+      [
+        "10",
+        "12",
+        "8",
+        "14"
+      ],
+      1
+    ],
+    [
+      "What shape has three sides?",
+      [
+        "Hexagon",
+        "Square",
+        "Triangle",
+        "Circle"
+      ],
+      2
+    ],
+    [
+      "Which animal is known as man's best friend?",
+      [
+        "Fish",
+        "Dog",
+        "Tiger",
+        "Eagle"
+      ],
+      1
+    ],
+    [
+      "What is the opposite of hot?",
+      [
+        "Bright",
+        "Cold",
+        "Fast",
+        "Tall"
+      ],
+      1
+    ],
+    [
+      "Which meal is usually eaten in the morning?",
+      [
+        "Supper",
+        "Dessert",
+        "Dinner",
+        "Breakfast"
+      ],
+      3
+    ],
+    [
+      "What do plants need from the sun?",
+      [
+        "Glass",
+        "Sand",
+        "Light",
+        "Metal"
+      ],
+      2
+    ],
+    [
+      "Which device is used to call people?",
+      [
+        "Bottle",
+        "Toaster",
+        "Chair",
+        "Phone"
+      ],
+      3
+    ],
+    [
+      "What color do you get by mixing red and white?",
+      [
+        "Pink",
+        "Orange",
+        "Green",
+        "Brown"
+      ],
+      0
+    ],
+    [
+      "How many legs does a spider have?",
+      [
+        "4",
+        "10",
+        "6",
+        "8"
+      ],
+      3
+    ],
+    [
+      "Which object tells time?",
+      [
+        "Clock",
+        "Key",
+        "Brush",
+        "Cup"
+      ],
+      0
+    ],
+    [
+      "What is frozen water called?",
+      [
+        "Ice",
+        "Cloud",
+        "Dust",
+        "Steam"
+      ],
+      0
+    ],
+    [
+      "Which bird is often associated with delivering babies in cartoons?",
+      [
+        "Peacock",
+        "Penguin",
+        "Stork",
+        "Ostrich"
+      ],
+      2
+    ],
+    [
+      "What is the main ingredient in bread?",
+      [
+        "Flour",
+        "Stone",
+        "Oil",
+        "Cheese"
+      ],
+      0
+    ],
+    [
+      "How many letters are in the English alphabet?",
+      [
+        "18",
+        "20",
+        "26",
+        "30"
+      ],
+      2
+    ],
+    [
+      "Which animal gives milk?",
+      [
+        "Frog",
+        "Shark",
+        "Cow",
+        "Lion"
+      ],
+      2
+    ],
+    [
+      "What is the color of grass in most places?",
+      [
+        "Red",
+        "Pink",
+        "White",
+        "Green"
+      ],
+      3
+    ],
+    [
+      "Which tool is used to cut paper?",
+      [
+        "Fork",
+        "Scissors",
+        "Hammer",
+        "Sponge"
+      ],
+      1
+    ],
+    [
+      "Where do fish usually live?",
+      [
+        "Tree",
+        "Water",
+        "Desert",
+        "Sky"
+      ],
+      1
+    ],
+    [
+      "What do you wear on your feet?",
+      [
+        "Gloves",
+        "Hat",
+        "Scarf",
+        "Shoes"
+      ],
+      3
+    ],
+    [
+      "Which food is made from milk?",
+      [
+        "Cheese",
+        "Potato",
+        "Popcorn",
+        "Pasta"
+      ],
+      0
+    ],
+    [
+      "What number comes after 9?",
+      [
+        "11",
+        "8",
+        "10",
+        "7"
+      ],
+      2
+    ],
+    [
+      "Which sport uses a soccer ball?",
+      [
+        "Football",
+        "Golf",
+        "Baseball",
+        "Tennis"
+      ],
+      0
+    ],
+    [
+      "What do you drink when you are thirsty?",
+      [
+        "Soap",
+        "Sand",
+        "Water",
+        "Paper"
+      ],
+      2
+    ],
+    [
+      "Which animal has a long trunk?",
+      [
+        "Bear",
+        "Rabbit",
+        "Horse",
+        "Elephant"
+      ],
+      3
+    ],
+    [
+      "What do you use to unlock a door?",
+      [
+        "Leaf",
+        "Coin",
+        "Key",
+        "Pen"
+      ],
+      2
+    ],
+    [
+      "Which day usually comes after Friday?",
+      [
+        "Thursday",
+        "Saturday",
+        "Wednesday",
+        "Monday"
+      ],
+      1
+    ],
+    [
+      "What is the opposite of up?",
+      [
+        "Down",
+        "Wide",
+        "Near",
+        "Left"
+      ],
+      0
+    ],
+    [
+      "Which fruit is long and yellow?",
+      [
+        "Plum",
+        "Banana",
+        "Grape",
+        "Cherry"
+      ],
+      1
+    ],
+    [
+      "What do you use to see in the dark?",
+      [
+        "Ruler",
+        "Bowl",
+        "Blanket",
+        "Flashlight"
+      ],
+      3
+    ],
+    [
+      "Which animal hops and has long ears?",
+      [
+        "Snake",
+        "Chicken",
+        "Whale",
+        "Rabbit"
+      ],
+      3
+    ],
+    [
+      "How many fingers are on one normal human hand?",
+      [
+        "8",
+        "6",
+        "4",
+        "5"
+      ],
+      3
+    ],
+    [
+      "What is the color of the sky on a clear day?",
+      [
+        "Black",
+        "Green",
+        "Blue",
+        "Orange"
+      ],
+      2
+    ],
+    [
+      "Which drink is made from oranges?",
+      [
+        "Coffee",
+        "Tea",
+        "Milkshake",
+        "Orange juice"
+      ],
+      3
+    ],
+    [
+      "What do you call a young cat?",
+      [
+        "Foal",
+        "Kitten",
+        "Puppy",
+        "Calf"
+      ],
+      1
+    ],
+    [
+      "Which room is used for cooking?",
+      [
+        "Garage",
+        "Kitchen",
+        "Bedroom",
+        "Bathroom"
+      ],
+      1
+    ],
+    [
+      "What is the opposite of fast?",
+      [
+        "Soft",
+        "Loud",
+        "Slow",
+        "Round"
+      ],
+      2
+    ],
+    [
+      "Which item keeps rain off your head?",
+      [
+        "Spoon",
+        "Umbrella",
+        "Sock",
+        "Book"
+      ],
+      1
+    ],
+    [
+      "What do chickens lay?",
+      [
+        "Coins",
+        "Eggs",
+        "Leaves",
+        "Rocks"
+      ],
+      1
+    ],
+    [
+      "Which animal is black and white and eats bamboo?",
+      [
+        "Panda",
+        "Giraffe",
+        "Fox",
+        "Koala"
+      ],
+      0
+    ],
+    [
+      "What do you use to brush your teeth?",
+      [
+        "Paintbrush",
+        "Toothbrush",
+        "Comb",
+        "Fork"
+      ],
+      1
+    ],
+    [
+      "Which food is commonly sliced and put on pizza?",
+      [
+        "Candy cane",
+        "Rice",
+        "Ice",
+        "Cheese"
+      ],
+      3
+    ],
+    [
+      "How many sides does a square have?",
+      [
+        "5",
+        "6",
+        "4",
+        "3"
+      ],
+      2
+    ],
+    [
+      "What animal is known for having stripes and looking like a horse?",
+      [
+        "Moose",
+        "Camel",
+        "Zebra",
+        "Deer"
+      ],
+      2
+    ],
+    [
+      "Which vehicle travels on rails?",
+      [
+        "Boat",
+        "Plane",
+        "Train",
+        "Scooter"
+      ],
+      2
+    ],
+    [
+      "What does a thermometer measure?",
+      [
+        "Weight",
+        "Color",
+        "Temperature",
+        "Speed"
+      ],
+      2
+    ],
+    [
+      "Which fruit is red and often used in ketchup?",
+      [
+        "Coconut",
+        "Blueberry",
+        "Tomato",
+        "Lemon"
+      ],
+      2
+    ],
+    [
+      "What do you use to eat soup?",
+      [
+        "Straw",
+        "Knife",
+        "Spoon",
+        "Chopstick only"
+      ],
+      2
+    ],
+    [
+      "Which place has many books you can borrow?",
+      [
+        "Stadium",
+        "Bakery",
+        "Library",
+        "Airport"
+      ],
+      2
+    ],
+    [
+      "What do you call water falling from clouds?",
+      [
+        "Steam",
+        "Rain",
+        "Smoke",
+        "Snow only"
+      ],
+      1
+    ],
+    [
+      "Which animal is famous for roaring?",
+      [
+        "Mouse",
+        "Goat",
+        "Duck",
+        "Lion"
+      ],
+      3
+    ],
+    [
+      "What is the first letter of the English alphabet?",
+      [
+        "Z",
+        "Y",
+        "B",
+        "A"
+      ],
+      3
+    ],
+    [
+      "Which object is used to take photos?",
+      [
+        "Blanket",
+        "Keyboard",
+        "Camera",
+        "Cup"
+      ],
+      2
+    ],
+    [
+      "What do you call a baby dog?",
+      [
+        "Puppy",
+        "Kitten",
+        "Chick",
+        "Calf"
+      ],
+      0
+    ],
+    [
+      "Which game piece is used in chess and can move like an L?",
+      [
+        "Bishop",
+        "Pawn",
+        "King",
+        "Knight"
+      ],
+      3
+    ],
+    [
+      "What do you sleep on?",
+      [
+        "Table",
+        "Sink",
+        "Bed",
+        "Shelf"
+      ],
+      2
+    ],
+    [
+      "Which fruit has a hard shell and white inside?",
+      [
+        "Peach",
+        "Apple",
+        "Coconut",
+        "Strawberry"
+      ],
+      2
+    ],
+    [
+      "What is the opposite of day?",
+      [
+        "Night",
+        "Light",
+        "Noon",
+        "Morning"
+      ],
+      0
+    ],
+    [
+      "Which animal is known for making webs?",
+      [
+        "Butterfly",
+        "Bee",
+        "Spider",
+        "Ant"
+      ],
+      2
+    ],
+    [
+      "What do you use to clean your hands?",
+      [
+        "Soap",
+        "Glue",
+        "Paint",
+        "Salt"
+      ],
+      0
+    ],
+    [
+      "Which food is made by popping corn kernels?",
+      [
+        "Cake",
+        "Popcorn",
+        "Bread",
+        "Noodles"
+      ],
+      1
+    ],
+    [
+      "What do you call the place where airplanes land?",
+      [
+        "Library",
+        "Farm",
+        "Airport",
+        "Harbor"
+      ],
+      2
+    ],
+    [
+      "Which animal swims and has fins?",
+      [
+        "Cat",
+        "Horse",
+        "Fish",
+        "Dog"
+      ],
+      2
+    ],
+    [
+      "How many cents are in one US dollar?",
+      [
+        "25",
+        "10",
+        "50",
+        "100"
+      ],
+      3
+    ],
+    [
+      "Which object is used to measure length?",
+      [
+        "Lamp",
+        "Bowl",
+        "Brush",
+        "Ruler"
+      ],
+      3
+    ],
+    [
+      "What do you call a group of stars forming a pattern?",
+      [
+        "Island",
+        "Recipe",
+        "Keyboard",
+        "Constellation"
+      ],
+      3
+    ],
+    [
+      "Which dessert is cold and creamy?",
+      [
+        "Ice cream",
+        "Toast",
+        "Soup",
+        "Rice"
+      ],
+      0
+    ],
+    [
+      "What do you wear on your head?",
+      [
+        "Belt",
+        "Shoes",
+        "Hat",
+        "Gloves"
+      ],
+      2
+    ],
+    [
+      "Which animal is known for carrying a shell?",
+      [
+        "Rabbit",
+        "Fox",
+        "Bear",
+        "Turtle"
+      ],
+      3
+    ],
+    [
+      "What is the opposite of big?",
+      [
+        "Tall",
+        "Bright",
+        "Small",
+        "Heavy"
+      ],
+      2
+    ],
+    [
+      "Which food is commonly made from potatoes?",
+      [
+        "Yogurt",
+        "Sushi",
+        "Fries",
+        "Pancakes"
+      ],
+      2
+    ],
+    [
+      "What do you use to open a can?",
+      [
+        "Can opener",
+        "Pencil",
+        "Pillow",
+        "Mirror"
+      ],
+      0
+    ],
+    [
+      "Which insect has colorful wings and starts as a caterpillar?",
+      [
+        "Ant",
+        "Butterfly",
+        "Mosquito",
+        "Beetle"
+      ],
+      1
+    ],
+    [
+      "What does a baker usually make?",
+      [
+        "Shoes",
+        "Bread",
+        "Jewelry",
+        "Furniture"
+      ],
+      1
+    ],
+    [
+      "How many sides does a hexagon have?",
+      [
+        "7",
+        "5",
+        "6",
+        "8"
+      ],
+      2
+    ],
+    [
+      "Which ocean animal is known for being very large?",
+      [
+        "Lizard",
+        "Ant",
+        "Whale",
+        "Rabbit"
+      ],
+      2
+    ],
+    [
+      "What do you call cooked rice wrapped with seaweed and fillings?",
+      [
+        "Sushi",
+        "Curry",
+        "Pizza",
+        "Taco"
+      ],
+      0
+    ],
+    [
+      "Which item is used to carry school supplies?",
+      [
+        "Plate",
+        "Teacup",
+        "Remote",
+        "Backpack"
+      ],
+      3
+    ],
+    [
+      "What color are most lemons?",
+      [
+        "Brown",
+        "Purple",
+        "Blue",
+        "Yellow"
+      ],
+      3
+    ],
+    [
+      "Which animal is known for climbing trees and liking bananas?",
+      [
+        "Shark",
+        "Penguin",
+        "Camel",
+        "Monkey"
+      ],
+      3
+    ],
+    [
+      "What does a keyboard help you do?",
+      [
+        "Paint walls",
+        "Type",
+        "Cook",
+        "Swim"
+      ],
+      1
+    ],
+    [
+      "Which month comes after January?",
+      [
+        "December",
+        "April",
+        "March",
+        "February"
+      ],
+      3
+    ],
+    [
+      "What do you call a person who teaches students?",
+      [
+        "Chef",
+        "Pilot",
+        "Teacher",
+        "Artist"
+      ],
+      2
+    ],
+    [
+      "Which sport uses a hoop and a ball?",
+      [
+        "Basketball",
+        "Skiing",
+        "Golf",
+        "Cricket"
+      ],
+      0
+    ],
+    [
+      "What is the opposite of left?",
+      [
+        "Under",
+        "Thin",
+        "Over",
+        "Right"
+      ],
+      3
+    ],
+    [
+      "Which vegetable is orange and loved by rabbits in cartoons?",
+      [
+        "Pea",
+        "Onion",
+        "Cabbage",
+        "Carrot"
+      ],
+      3
+    ],
+    [
+      "What do you use to cut wood?",
+      [
+        "Comb",
+        "Spoon",
+        "Saw",
+        "Needle"
+      ],
+      2
+    ],
+    [
+      "Which animal is known for its long neck?",
+      [
+        "Giraffe",
+        "Panda",
+        "Duck",
+        "Pig"
+      ],
+      0
+    ],
+    [
+      "What do you call the star at the center of our solar system?",
+      [
+        "Venus",
+        "Earth",
+        "Moon",
+        "Sun"
+      ],
+      3
+    ],
+    [
+      "Which snack is made from cocoa and sugar?",
+      [
+        "Cheese",
+        "Chocolate",
+        "Bread",
+        "Pickle"
+      ],
+      1
+    ],
+    [
+      "Which object do you use to erase pencil marks?",
+      [
+        "Eraser",
+        "Spoon",
+        "Rope",
+        "Bottle"
+      ],
+      0
+    ],
+    [
+      "Which movie series features a wizard named Harry Potter?",
+      [
+        "Star Wars",
+        "Harry Potter",
+        "Jurassic Park",
+        "Toy Story"
+      ],
+      1
+    ],
+    [
+      "Which animated movie has a cowboy toy named Woody?",
+      [
+        "Shrek",
+        "Toy Story",
+        "Frozen",
+        "Cars"
+      ],
+      1
+    ],
+    [
+      "Which movie features a blue alien species called the Na'vi?",
+      [
+        "Avatar",
+        "Titanic",
+        "Jumanji",
+        "The Matrix"
+      ],
+      0
+    ],
+    [
+      "In The Lion King, what kind of animal is Simba?",
+      [
+        "Tiger",
+        "Lion",
+        "Cheetah",
+        "Bear"
+      ],
+      1
+    ],
+    [
+      "Which superhero is also known as Peter Parker?",
+      [
+        "Batman",
+        "Spider-Man",
+        "Iron Man",
+        "Aquaman"
+      ],
+      1
+    ],
+    [
+      "Which superhero uses a shield with a star on it?",
+      [
+        "Thor",
+        "Captain America",
+        "Hulk",
+        "Doctor Strange"
+      ],
+      1
+    ],
+    [
+      "Which movie franchise includes lightsabers and Jedi?",
+      [
+        "Star Wars",
+        "Fast & Furious",
+        "Rocky",
+        "Men in Black"
+      ],
+      0
+    ],
+    [
+      "What is the name of the snowman in Frozen?",
+      [
+        "Olaf",
+        "Sven",
+        "Kristoff",
+        "Hans"
+      ],
+      0
+    ],
+    [
+      "Which film features a giant ship that hits an iceberg?",
+      [
+        "Titanic",
+        "Jaws",
+        "Speed",
+        "Twister"
+      ],
+      0
+    ],
+    [
+      "Which green ogre lives in a swamp?",
+      [
+        "Shrek",
+        "Hulk",
+        "Yoda",
+        "Kermit"
+      ],
+      0
+    ],
+    [
+      "Which sitcom is set around a group of friends in New York coffee shop Central Perk?",
+      [
+        "Friends",
+        "The Office",
+        "Modern Family",
+        "Seinfeld"
+      ],
+      0
+    ],
+    [
+      "Which TV show features the workplace Dunder Mifflin?",
+      [
+        "Parks and Recreation",
+        "The Office",
+        "Brooklyn Nine-Nine",
+        "Cheers"
+      ],
+      1
+    ],
+    [
+      "Which cartoon family lives in Springfield?",
+      [
+        "The Griffins",
+        "The Simpsons",
+        "The Flintstones",
+        "The Jetsons"
+      ],
+      1
+    ],
+    [
+      "Which character often says 'D'oh!'?",
+      [
+        "Homer Simpson",
+        "SpongeBob",
+        "Scooby-Doo",
+        "Garfield"
+      ],
+      0
+    ],
+    [
+      "Which sea sponge lives in a pineapple under the sea?",
+      [
+        "Patrick",
+        "SpongeBob SquarePants",
+        "Squidward",
+        "Plankton"
+      ],
+      1
+    ],
+    [
+      "Which singer is known as the King of Pop?",
+      [
+        "Elvis Presley",
+        "Michael Jackson",
+        "Bruno Mars",
+        "Ed Sheeran"
+      ],
+      1
+    ],
+    [
+      "Which band released the song 'Yellow Submarine'?",
+      [
+        "Queen",
+        "The Beatles",
+        "ABBA",
+        "Coldplay"
+      ],
+      1
+    ],
+    [
+      "Which instrument is most associated with rock guitar solos?",
+      [
+        "Flute",
+        "Electric guitar",
+        "Tuba",
+        "Harp"
+      ],
+      1
+    ],
+    [
+      "Which music award uses a gramophone trophy?",
+      [
+        "Oscar",
+        "Grammy",
+        "Emmy",
+        "Tony"
+      ],
+      1
+    ],
+    [
+      "Which award show is mainly for movies?",
+      [
+        "Oscars",
+        "Grammys",
+        "Tonys",
+        "Emmys"
+      ],
+      0
+    ],
+    [
+      "Which meme phrase is often paired with a distracted boyfriend stock photo?",
+      [
+        "Distracted boyfriend",
+        "Keyboard cat",
+        "Nyan cat",
+        "Doge"
+      ],
+      0
+    ],
+    [
+      "Which internet meme features a Shiba Inu dog and broken English captions?",
+      [
+        "Doge",
+        "Grumpy Cat",
+        "Pepe",
+        "Bad Luck Brian"
+      ],
+      0
+    ],
+    [
+      "Which platform made short looping dance trends especially popular in the 2020s?",
+      [
+        "TikTok",
+        "Wikipedia",
+        "LinkedIn",
+        "Pinterest"
+      ],
+      0
+    ],
+    [
+      "Which Pixar movie stars a rat who cooks in Paris?",
+      [
+        "Cars",
+        "Ratatouille",
+        "Brave",
+        "Up"
+      ],
+      1
+    ],
+    [
+      "Which Pixar movie features emotions named Joy and Sadness?",
+      [
+        "Inside Out",
+        "Coco",
+        "WALL-E",
+        "Soul"
+      ],
+      0
+    ],
+    [
+      "Which Broadway musical tells the story of Alexander Hamilton through hip-hop style songs?",
+      [
+        "Hamilton",
+        "Cats",
+        "Wicked",
+        "Chicago"
+      ],
+      0
+    ],
+    [
+      "Which musical features a green-skinned witch named Elphaba?",
+      [
+        "Wicked",
+        "Annie",
+        "Hairspray",
+        "Rent"
+      ],
+      0
+    ],
+    [
+      "Which comic book company created Spider-Man and the X-Men?",
+      [
+        "Marvel",
+        "DC",
+        "Archie",
+        "Dark Horse"
+      ],
+      0
+    ],
+    [
+      "Which comic book company is home to Batman and Superman?",
+      [
+        "Marvel",
+        "DC",
+        "Image",
+        "VIZ"
+      ],
+      1
+    ],
+    [
+      "Which manga series follows a ninja named Naruto Uzumaki?",
+      [
+        "One Piece",
+        "Naruto",
+        "Bleach",
+        "Dragon Ball"
+      ],
+      1
+    ],
+    [
+      "Which reality show is known for contestants being voted off an island?",
+      [
+        "Survivor",
+        "The Voice",
+        "Shark Tank",
+        "Top Chef"
+      ],
+      0
+    ],
+    [
+      "Which singing competition uses spinning red chairs?",
+      [
+        "The Voice",
+        "Survivor",
+        "Jeopardy!",
+        "Project Runway"
+      ],
+      0
+    ],
+    [
+      "What is the name of Mickey Mouse's pet dog?",
+      [
+        "Pluto",
+        "Goofy",
+        "Scooby",
+        "Odie"
+      ],
+      0
+    ],
+    [
+      "Which fictional dog solves mysteries with Shaggy?",
+      [
+        "Snoopy",
+        "Scooby-Doo",
+        "Clifford",
+        "Blue"
+      ],
+      1
+    ],
+    [
+      "In Monopoly, what do players collect when passing Go?",
+      [
+        "$200",
+        "$50",
+        "$500",
+        "$10"
+      ],
+      0
+    ],
+    [
+      "Which board game uses letter tiles to make words?",
+      [
+        "Risk",
+        "Scrabble",
+        "Clue",
+        "Sorry!"
+      ],
+      1
+    ],
+    [
+      "Which board game asks players to solve a murder in a mansion?",
+      [
+        "Clue",
+        "Candy Land",
+        "Chess",
+        "Battleship"
+      ],
+      0
+    ],
+    [
+      "Which video game character is a plumber who wears red?",
+      [
+        "Sonic",
+        "Mario",
+        "Link",
+        "Kirby"
+      ],
+      1
+    ],
+    [
+      "Which video game character is a blue hedgehog?",
+      [
+        "Mario",
+        "Sonic",
+        "Pikachu",
+        "Donkey Kong"
+      ],
+      1
+    ],
+    [
+      "Which Nintendo series includes Pikachu?",
+      [
+        "Zelda",
+        "Pokémon",
+        "Metroid",
+        "Animal Crossing"
+      ],
+      1
+    ],
+    [
+      "Which card game uses wild Draw Four cards?",
+      [
+        "Uno",
+        "Poker",
+        "Bridge",
+        "Solitaire"
+      ],
+      0
+    ],
+    [
+      "In a standard deck, how many suits are there?",
+      [
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      2
+    ],
+    [
+      "Which puzzle toy has colored squares on a cube?",
+      [
+        "Yo-yo",
+        "Rubik's Cube",
+        "Slinky",
+        "Frisbee"
+      ],
+      1
+    ],
+    [
+      "Which tabletop game often uses a 20-sided die?",
+      [
+        "Dungeons & Dragons",
+        "Monopoly",
+        "Uno",
+        "Jenga"
+      ],
+      0
+    ],
+    [
+      "Which arcade game features a yellow character eating dots and ghosts?",
+      [
+        "Pac-Man",
+        "Tetris",
+        "Frogger",
+        "Donkey Kong"
+      ],
+      0
+    ],
+    [
+      "Which toy line became famous for small plush animals with heart-shaped tags?",
+      [
+        "Beanie Babies",
+        "LEGO",
+        "Hot Wheels",
+        "Barbie"
+      ],
+      0
+    ],
+    [
+      "Which cuisine is strongly associated with sushi?",
+      [
+        "Japanese",
+        "French",
+        "Mexican",
+        "Greek"
+      ],
+      0
+    ],
+    [
+      "Which country is strongly associated with tacos?",
+      [
+        "Mexico",
+        "Italy",
+        "India",
+        "Germany"
+      ],
+      0
+    ],
+    [
+      "Which spice is commonly used to make food taste sweet and warm, especially in cinnamon rolls?",
+      [
+        "Cinnamon",
+        "Cumin",
+        "Pepper",
+        "Oregano"
+      ],
+      0
+    ],
+    [
+      "Which drink is made by steeping leaves in hot water?",
+      [
+        "Tea",
+        "Smoothie",
+        "Soda",
+        "Milk"
+      ],
+      0
+    ],
+    [
+      "Which dessert is made with layers of pasta-like sheets, cream, and cocoa in Italy?",
+      [
+        "Tiramisu",
+        "Brownie",
+        "Mochi",
+        "Churro"
+      ],
+      0
+    ],
+    [
+      "Which fast food mascot is a clown?",
+      [
+        "Ronald McDonald",
+        "Tony the Tiger",
+        "Mr. Peanut",
+        "Chester Cheetah"
+      ],
+      0
+    ],
+    [
+      "Which kitchen tool is used to flip pancakes?",
+      [
+        "Spatula",
+        "Whisk",
+        "Colander",
+        "Rolling pin"
+      ],
+      0
+    ],
+    [
+      "Which cheese is commonly used on pizza?",
+      [
+        "Mozzarella",
+        "Blue cheese",
+        "Feta",
+        "Brie"
+      ],
+      0
+    ],
+    [
+      "Which pasta shape is long and thin?",
+      [
+        "Spaghetti",
+        "Penne",
+        "Farfalle",
+        "Ravioli"
+      ],
+      0
+    ],
+    [
+      "Which global sports event is held every four years and awards gold medals?",
+      [
+        "Olympics",
+        "World Series",
+        "NBA Finals",
+        "Wimbledon"
+      ],
+      0
+    ],
+    [
+      "Which sport is played in the Super Bowl?",
+      [
+        "American football",
+        "Baseball",
+        "Tennis",
+        "Golf"
+      ],
+      0
+    ],
+    [
+      "Which sport uses a broom on ice?",
+      [
+        "Curling",
+        "Surfing",
+        "Cricket",
+        "Boxing"
+      ],
+      0
+    ],
+    [
+      "Which athlete is famous for the nickname 'Air Jordan'?",
+      [
+        "Michael Jordan",
+        "Tom Brady",
+        "Lionel Messi",
+        "Usain Bolt"
+      ],
+      0
+    ],
+    [
+      "Which martial art is known for colored belts and originated in Japan?",
+      [
+        "Karate",
+        "Curling",
+        "Baseball",
+        "Archery"
+      ],
+      0
+    ],
+    [
+      "Which outdoor item is used for sleeping while camping?",
+      [
+        "Sleeping bag",
+        "Skateboard",
+        "Tennis racket",
+        "Paintbrush"
+      ],
+      0
+    ],
+    [
+      "Which judged sport includes routines on a balance beam?",
+      [
+        "Gymnastics",
+        "Soccer",
+        "Bowling",
+        "Cycling"
+      ],
+      0
+    ],
+    [
+      "Which artist painted the Mona Lisa?",
+      [
+        "Leonardo da Vinci",
+        "Pablo Picasso",
+        "Vincent van Gogh",
+        "Claude Monet"
+      ],
+      0
+    ],
+    [
+      "Which novel features a young wizard named Harry?",
+      [
+        "Harry Potter and the Sorcerer's Stone",
+        "Moby-Dick",
+        "The Hobbit",
+        "Little Women"
+      ],
+      0
+    ],
+    [
+      "Which language uses the Cyrillic alphabet in Russian writing?",
+      [
+        "Russian",
+        "Spanish",
+        "Arabic",
+        "Korean"
+      ],
+      0
+    ],
+    [
+      "What does the idiom 'break the ice' mean?",
+      [
+        "Start a conversation",
+        "Freeze water",
+        "Win a race",
+        "Cook dinner"
+      ],
+      0
+    ],
+    [
+      "In Greek mythology, who is the king of the gods?",
+      [
+        "Zeus",
+        "Hades",
+        "Ares",
+        "Hermes"
+      ],
+      0
+    ],
+    [
+      "Which building is famous for leaning in Italy?",
+      [
+        "Leaning Tower of Pisa",
+        "Eiffel Tower",
+        "Big Ben",
+        "Colosseum"
+      ],
+      0
+    ],
+    [
+      "Which clothing item is worn on your head for style or sun protection?",
+      [
+        "Hat",
+        "Belt",
+        "Sock",
+        "Scarf only"
+      ],
+      0
+    ],
+    [
+      "Which currency is used in Japan?",
+      [
+        "Yen",
+        "Dollar",
+        "Euro",
+        "Peso"
+      ],
+      0
+    ],
+    [
+      "Which company logo is a bitten apple?",
+      [
+        "Apple",
+        "Google",
+        "Nike",
+        "Samsung"
+      ],
+      0
+    ],
+    [
+      "Which product fastens clothes with interlocking teeth?",
+      [
+        "Zipper",
+        "Stapler",
+        "Compass",
+        "Whisk"
+      ],
+      0
+    ],
+    [
+      "Which vehicle flies passengers between airports?",
+      [
+        "Airplane",
+        "Submarine",
+        "Tractor",
+        "Scooter"
+      ],
+      0
+    ],
+    [
+      "Which holiday is associated with carving pumpkins?",
+      [
+        "Halloween",
+        "Valentine's Day",
+        "Easter",
+        "New Year's Day"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of France?",
+      [
+        "Paris",
+        "Madrid",
+        "Rome",
+        "Berlin"
+      ],
+      0
+    ],
+    [
+      "Which tool is used to hit nails?",
+      [
+        "Hammer",
+        "Screwdriver",
+        "Wrench",
+        "Level"
+      ],
+      0
+    ],
+    [
+      "Which plant is known for needing little water and having spines?",
+      [
+        "Cactus",
+        "Rose",
+        "Fern",
+        "Tulip"
+      ],
+      0
+    ],
+    [
+      "Which zodiac sign is represented by a lion?",
+      [
+        "Leo",
+        "Cancer",
+        "Virgo",
+        "Libra"
+      ],
+      0
+    ],
+    [
+      "Which fabric is made from the fiber of cotton plants?",
+      [
+        "Cotton",
+        "Silk",
+        "Wool",
+        "Nylon"
+      ],
+      0
+    ],
+    [
+      "Which Disney princess loses a glass slipper?",
+      [
+        "Ariel",
+        "Cinderella",
+        "Mulan",
+        "Moana"
+      ],
+      1
+    ],
+    [
+      "Which movie has a yellow family living in Springfield?",
+      [
+        "The Simpsons Movie",
+        "Shrek",
+        "Finding Nemo",
+        "Cars"
+      ],
+      0
+    ],
+    [
+      "What color is Mario's hat in most Super Mario games?",
+      [
+        "Green",
+        "Blue",
+        "Red",
+        "Purple"
+      ],
+      2
+    ],
+    [
+      "Which character is Mickey Mouse's girlfriend?",
+      [
+        "Minnie Mouse",
+        "Daisy Duck",
+        "Elsa",
+        "Velma"
+      ],
+      0
+    ],
+    [
+      "Which superhero is known for saying he is from Wakanda?",
+      [
+        "The Flash",
+        "Black Panther",
+        "Aquaman",
+        "Ant-Man"
+      ],
+      1
+    ],
+    [
+      "Which animated fish is searched for by his father Marlin?",
+      [
+        "Flounder",
+        "Dory",
+        "Bruce",
+        "Nemo"
+      ],
+      3
+    ],
+    [
+      "Which movie features a princess named Elsa?",
+      [
+        "Moana",
+        "Frozen",
+        "Brave",
+        "Tangled"
+      ],
+      1
+    ],
+    [
+      "Which franchise features a character named Darth Vader?",
+      [
+        "Harry Potter",
+        "Star Trek",
+        "Star Wars",
+        "The Hunger Games"
+      ],
+      2
+    ],
+    [
+      "Which superhero has a hammer called Mjolnir?",
+      [
+        "Hulk",
+        "Batman",
+        "Wolverine",
+        "Thor"
+      ],
+      3
+    ],
+    [
+      "Which singer is known for the song 'Shake It Off'?",
+      [
+        "Shakira",
+        "Adele",
+        "Rihanna",
+        "Taylor Swift"
+      ],
+      3
+    ],
+    [
+      "Which singer is known for the song 'Bad Guy'?",
+      [
+        "Selena Gomez",
+        "Ariana Grande",
+        "Katy Perry",
+        "Billie Eilish"
+      ],
+      3
+    ],
+    [
+      "Which group had members named John, Paul, George, and Ringo?",
+      [
+        "The Beatles",
+        "Coldplay",
+        "Queen",
+        "ABBA"
+      ],
+      0
+    ],
+    [
+      "Which movie has the song 'Let It Go'?",
+      [
+        "Encanto",
+        "Frozen",
+        "Coco",
+        "Trolls"
+      ],
+      1
+    ],
+    [
+      "Which Disney movie features a young lion named Simba?",
+      [
+        "Tarzan",
+        "The Lion King",
+        "Bambi",
+        "Aladdin"
+      ],
+      1
+    ],
+    [
+      "Which cartoon character loves Krabby Patties?",
+      [
+        "Scooby-Doo",
+        "Tom Cat",
+        "SpongeBob SquarePants",
+        "Garfield"
+      ],
+      2
+    ],
+    [
+      "Which character is SpongeBob's best friend?",
+      [
+        "Squidward",
+        "Patrick Star",
+        "Plankton",
+        "Mr. Krabs"
+      ],
+      1
+    ],
+    [
+      "Which green dinosaur is Mario's friend?",
+      [
+        "Yoshi",
+        "Bowser",
+        "Kirby",
+        "Luigi"
+      ],
+      0
+    ],
+    [
+      "Which Nintendo character wears green and is Mario's brother?",
+      [
+        "Toad",
+        "Link",
+        "Luigi",
+        "Wario"
+      ],
+      2
+    ],
+    [
+      "Which Pokémon is yellow and says its own name?",
+      [
+        "Mewtwo",
+        "Pikachu",
+        "Squirtle",
+        "Charmander"
+      ],
+      1
+    ],
+    [
+      "Which Pokémon game type involves catching creatures?",
+      [
+        "Minecraft",
+        "Tetris",
+        "FIFA",
+        "Pokémon"
+      ],
+      3
+    ],
+    [
+      "Which block-building video game has Creepers?",
+      [
+        "Among Us",
+        "Minecraft",
+        "Roblox",
+        "Fortnite"
+      ],
+      1
+    ],
+    [
+      "Which game has colorful falling blocks that form lines?",
+      [
+        "Doom",
+        "Pong",
+        "Tetris",
+        "Pac-Man"
+      ],
+      2
+    ],
+    [
+      "Which video game has a character named Link?",
+      [
+        "Sonic",
+        "The Legend of Zelda",
+        "Halo",
+        "Animal Crossing"
+      ],
+      1
+    ],
+    [
+      "Which blue character runs very fast in video games?",
+      [
+        "Sonic the Hedgehog",
+        "Pac-Man",
+        "Donkey Kong",
+        "Kirby"
+      ],
+      0
+    ],
+    [
+      "Which game asks players to find an impostor on a spaceship?",
+      [
+        "Candy Crush",
+        "Stardew Valley",
+        "Overwatch",
+        "Among Us"
+      ],
+      3
+    ],
+    [
+      "Which movie series features dinosaurs in a theme park?",
+      [
+        "Rocky",
+        "Pirates of the Caribbean",
+        "Jurassic Park",
+        "Twilight"
+      ],
+      2
+    ],
+    [
+      "Which movie features a giant shark attacking beachgoers?",
+      [
+        "Rocky",
+        "Jaws",
+        "Grease",
+        "E.T."
+      ],
+      1
+    ],
+    [
+      "Which movie has a robot named WALL-E?",
+      [
+        "WALL-E",
+        "Up",
+        "Coco",
+        "Cars"
+      ],
+      0
+    ],
+    [
+      "Which Pixar movie features an old man named Carl and many balloons?",
+      [
+        "Onward",
+        "Up",
+        "Brave",
+        "Soul"
+      ],
+      1
+    ],
+    [
+      "Which Pixar movie is about a skeleton-filled Land of the Dead?",
+      [
+        "Luca",
+        "Ratatouille",
+        "Coco",
+        "Cars"
+      ],
+      2
+    ],
+    [
+      "Which Disney movie has a demigod named Maui?",
+      [
+        "Hercules",
+        "Moana",
+        "Mulan",
+        "Frozen"
+      ],
+      1
+    ],
+    [
+      "Which Disney movie features a warrior named Mulan?",
+      [
+        "Beauty and the Beast",
+        "Mulan",
+        "Pocahontas",
+        "Cinderella"
+      ],
+      1
+    ],
+    [
+      "Which fairy tale character has very long magical hair in Tangled?",
+      [
+        "Belle",
+        "Jasmine",
+        "Aurora",
+        "Rapunzel"
+      ],
+      3
+    ],
+    [
+      "Which movie features a genie and a magic lamp?",
+      [
+        "Lilo & Stitch",
+        "Tarzan",
+        "Bambi",
+        "Aladdin"
+      ],
+      3
+    ],
+    [
+      "Which movie has a blue fish named Dory?",
+      [
+        "Raya and the Last Dragon",
+        "Monsters, Inc.",
+        "Toy Story",
+        "Finding Nemo"
+      ],
+      3
+    ],
+    [
+      "Which Pixar movie has monsters named Mike and Sulley?",
+      [
+        "Monsters, Inc.",
+        "A Bug's Life",
+        "Inside Out",
+        "Cars"
+      ],
+      0
+    ],
+    [
+      "Which movie has race car Lightning McQueen?",
+      [
+        "Cars",
+        "Toy Story",
+        "Turbo",
+        "Planes"
+      ],
+      0
+    ],
+    [
+      "Which movie stars a panda who learns kung fu?",
+      [
+        "Madagascar",
+        "Kung Fu Panda",
+        "Shrek",
+        "Rio"
+      ],
+      1
+    ],
+    [
+      "Which movie has an ogre and a talking donkey?",
+      [
+        "Ice Age",
+        "Shrek",
+        "Sing",
+        "Happy Feet"
+      ],
+      1
+    ],
+    [
+      "Which movie features a mammoth named Manny?",
+      [
+        "Rio",
+        "Ice Age",
+        "Bolt",
+        "Madagascar"
+      ],
+      1
+    ],
+    [
+      "Which movie has a penguin named Skipper?",
+      [
+        "Rio",
+        "Finding Nemo",
+        "Madagascar",
+        "Happy Feet"
+      ],
+      2
+    ],
+    [
+      "Which movie features a singing koala named Buster Moon?",
+      [
+        "Zootopia",
+        "Trolls",
+        "Sing",
+        "The Secret Life of Pets"
+      ],
+      2
+    ],
+    [
+      "Which movie city has animals like Judy Hopps and Nick Wilde?",
+      [
+        "Arendelle",
+        "Zootopia",
+        "Atlantis",
+        "Metroville"
+      ],
+      1
+    ],
+    [
+      "Which movie has a family of superheroes called the Parr family?",
+      [
+        "Megamind",
+        "Bolt",
+        "Big Hero 6",
+        "The Incredibles"
+      ],
+      3
+    ],
+    [
+      "Which Disney movie has a robot named Baymax?",
+      [
+        "Frozen",
+        "Encanto",
+        "Wreck-It Ralph",
+        "Big Hero 6"
+      ],
+      3
+    ],
+    [
+      "Which movie has a video game villain who wants to be a hero?",
+      [
+        "Ratatouille",
+        "Soul",
+        "Wreck-It Ralph",
+        "Brave"
+      ],
+      2
+    ],
+    [
+      "Which sitcom features a coffee shop called Central Perk?",
+      [
+        "Frasier",
+        "Friends",
+        "Scrubs",
+        "Cheers"
+      ],
+      1
+    ],
+    [
+      "Which sitcom is about employees at Dunder Mifflin?",
+      [
+        "Community",
+        "The Office",
+        "Parks and Recreation",
+        "30 Rock"
+      ],
+      1
+    ],
+    [
+      "Which sitcom has the catchphrase 'Bazinga'?",
+      [
+        "The Big Bang Theory",
+        "Friends",
+        "Seinfeld",
+        "Modern Family"
+      ],
+      0
+    ],
+    [
+      "Which TV show follows a chemistry teacher named Walter White?",
+      [
+        "Lost",
+        "The Walking Dead",
+        "Breaking Bad",
+        "Dexter"
+      ],
+      2
+    ],
+    [
+      "Which fantasy TV series has dragons and the Iron Throne?",
+      [
+        "Game of Thrones",
+        "Westworld",
+        "The Crown",
+        "Stranger Things"
+      ],
+      0
+    ],
+    [
+      "Which Netflix series features kids in Hawkins and the Upside Down?",
+      [
+        "Stranger Things",
+        "Squid Game",
+        "Wednesday",
+        "The Witcher"
+      ],
+      0
+    ],
+    [
+      "Which TV show features a character named Wednesday Addams?",
+      [
+        "Riverdale",
+        "Gossip Girl",
+        "Wednesday",
+        "Glee"
+      ],
+      2
+    ],
+    [
+      "Which game show asks contestants to answer in the form of a question?",
+      [
+        "Family Feud",
+        "Wheel of Fortune",
+        "Jeopardy!",
+        "The Price Is Right"
+      ],
+      2
+    ],
+    [
+      "Which game show spins a big letter wheel?",
+      [
+        "Big Brother",
+        "Jeopardy!",
+        "Wheel of Fortune",
+        "Survivor"
+      ],
+      2
+    ],
+    [
+      "Which reality show has contestants compete on an island?",
+      [
+        "Survivor",
+        "The Bachelor",
+        "Shark Tank",
+        "Top Chef"
+      ],
+      0
+    ],
+    [
+      "Which talent show uses golden buzzers?",
+      [
+        "America's Got Talent",
+        "Shark Tank",
+        "MasterChef",
+        "The Amazing Race"
+      ],
+      0
+    ],
+    [
+      "Which singing show has masked celebrity performers?",
+      [
+        "The Masked Singer",
+        "American Idol",
+        "Survivor",
+        "The Voice"
+      ],
+      0
+    ],
+    [
+      "Which award is shaped like a little gold man and honors movies?",
+      [
+        "Tony",
+        "Oscar",
+        "Grammy",
+        "Emmy"
+      ],
+      1
+    ],
+    [
+      "Which award is associated with music recordings?",
+      [
+        "Emmy",
+        "Grammy",
+        "Tony",
+        "Oscar"
+      ],
+      1
+    ],
+    [
+      "Which award honors television shows?",
+      [
+        "Oscar",
+        "Grammy",
+        "Tony",
+        "Emmy"
+      ],
+      3
+    ],
+    [
+      "Which award honors Broadway theater?",
+      [
+        "Grammy",
+        "Tony",
+        "Emmy",
+        "Oscar"
+      ],
+      1
+    ],
+    [
+      "Which movie quote says, 'May the Force be with you'?",
+      [
+        "Star Wars",
+        "Rocky",
+        "Avatar",
+        "The Matrix"
+      ],
+      0
+    ],
+    [
+      "Which movie quote says, 'There's no place like home'?",
+      [
+        "Home Alone",
+        "The Wizard of Oz",
+        "Jaws",
+        "Grease"
+      ],
+      1
+    ],
+    [
+      "Which Christmas movie features Kevin McCallister?",
+      [
+        "The Grinch",
+        "Elf",
+        "The Polar Express",
+        "Home Alone"
+      ],
+      3
+    ],
+    [
+      "Which green character tried to steal Christmas?",
+      [
+        "Hulk",
+        "Yoda",
+        "The Grinch",
+        "Shrek"
+      ],
+      2
+    ],
+    [
+      "Which movie features a boy who boards the Polar Express train?",
+      [
+        "The Polar Express",
+        "Frozen",
+        "Elf",
+        "Home Alone"
+      ],
+      0
+    ],
+    [
+      "Which singer is nicknamed Queen Bey?",
+      [
+        "Adele",
+        "Beyoncé",
+        "Madonna",
+        "Lady Gaga"
+      ],
+      1
+    ],
+    [
+      "Which singer is famous for the song 'Hello'?",
+      [
+        "Miley Cyrus",
+        "Adele",
+        "Lorde",
+        "Dua Lipa"
+      ],
+      1
+    ],
+    [
+      "Which artist released the hit 'Uptown Funk' with Mark Ronson?",
+      [
+        "Bruno Mars",
+        "Justin Bieber",
+        "Harry Styles",
+        "Drake"
+      ],
+      0
+    ],
+    [
+      "Which singer released 'Hips Don't Lie'?",
+      [
+        "Rihanna",
+        "Beyoncé",
+        "Alicia Keys",
+        "Shakira"
+      ],
+      3
+    ],
+    [
+      "Which band is known for 'We Will Rock You'?",
+      [
+        "Nirvana",
+        "The Beatles",
+        "Queen",
+        "Coldplay"
+      ],
+      2
+    ],
+    [
+      "Which band is known for 'Viva la Vida'?",
+      [
+        "Imagine Dragons",
+        "Maroon 5",
+        "Coldplay",
+        "Oasis"
+      ],
+      2
+    ],
+    [
+      "Which music genre often features rapping?",
+      [
+        "Opera",
+        "Hip-hop",
+        "Country",
+        "Classical"
+      ],
+      1
+    ],
+    [
+      "Which music genre is linked to cowboy hats and Nashville?",
+      [
+        "Punk",
+        "Disco",
+        "Country",
+        "Reggae"
+      ],
+      2
+    ],
+    [
+      "Which music genre uses heavy guitars and drums?",
+      [
+        "Opera",
+        "Ambient",
+        "Rock",
+        "Jazz"
+      ],
+      2
+    ],
+    [
+      "Which music genre is famous for offbeat Jamaican rhythms?",
+      [
+        "Bluegrass",
+        "Baroque",
+        "Reggae",
+        "Techno"
+      ],
+      2
+    ],
+    [
+      "Which meme features a Shiba Inu dog with funny captions?",
+      [
+        "Doge",
+        "Rickroll",
+        "Keyboard Cat",
+        "Nyan Cat"
+      ],
+      0
+    ],
+    [
+      "Which meme trick links people to Rick Astley's 'Never Gonna Give You Up'?",
+      [
+        "Planking",
+        "Ice Bucket Challenge",
+        "Rickroll",
+        "Doge"
+      ],
+      2
+    ],
+    [
+      "Which viral challenge involved pouring cold water over someone for charity awareness?",
+      [
+        "Mannequin Challenge",
+        "Ice Bucket Challenge",
+        "Harlem Shake",
+        "Bottle Flip"
+      ],
+      1
+    ],
+    [
+      "Which viral trend froze people in place like statues?",
+      [
+        "Mannequin Challenge",
+        "Doge",
+        "Rickroll",
+        "Ice Bucket Challenge"
+      ],
+      0
+    ],
+    [
+      "Which platform is famous for short vertical videos and dance trends?",
+      [
+        "PayPal",
+        "LinkedIn",
+        "Wikipedia",
+        "TikTok"
+      ],
+      3
+    ],
+    [
+      "Which website is known for videos and creators with channels?",
+      [
+        "YouTube",
+        "Shopify",
+        "Wikipedia",
+        "Pinterest"
+      ],
+      0
+    ],
+    [
+      "Which app is known for disappearing photo and video snaps?",
+      [
+        "Reddit",
+        "Twitch",
+        "Spotify",
+        "Snapchat"
+      ],
+      3
+    ],
+    [
+      "Which platform is known for livestreaming game content?",
+      [
+        "Twitch",
+        "Duolingo",
+        "Etsy",
+        "IMDb"
+      ],
+      0
+    ],
+    [
+      "Which comic strip dog sleeps on top of his doghouse?",
+      [
+        "Scooby-Doo",
+        "Snoopy",
+        "Pluto",
+        "Odie"
+      ],
+      1
+    ],
+    [
+      "Which cartoon cat chases Jerry the mouse?",
+      [
+        "Tom",
+        "Felix",
+        "Sylvester",
+        "Garfield"
+      ],
+      0
+    ],
+    [
+      "Which cartoon dog travels in the Mystery Machine?",
+      [
+        "Snoopy",
+        "Scooby-Doo",
+        "Blue",
+        "Clifford"
+      ],
+      1
+    ],
+    [
+      "Which red dog is known for being very large?",
+      [
+        "Clifford",
+        "Snoopy",
+        "Odie",
+        "Pluto"
+      ],
+      0
+    ],
+    [
+      "Which board game has a banker and properties?",
+      [
+        "Scrabble",
+        "Jenga",
+        "Battleship",
+        "Monopoly"
+      ],
+      3
+    ],
+    [
+      "Which board game uses a tower of wooden blocks?",
+      [
+        "Risk",
+        "Sorry!",
+        "Clue",
+        "Jenga"
+      ],
+      3
+    ],
+    [
+      "Which board game uses a grid and ships to call out hits and misses?",
+      [
+        "Candy Land",
+        "Trouble",
+        "Battleship",
+        "Scrabble"
+      ],
+      2
+    ],
+    [
+      "Which party game asks players to draw clues?",
+      [
+        "Risk",
+        "Chess",
+        "Pictionary",
+        "Monopoly"
+      ],
+      2
+    ],
+    [
+      "Which card game makes players shout 'Uno'?",
+      [
+        "Go Fish",
+        "Bridge",
+        "Poker",
+        "Uno"
+      ],
+      3
+    ],
+    [
+      "Which toy is a doll known as Barbie's long-time companion?",
+      [
+        "Buzz",
+        "Woody",
+        "Ken",
+        "Mario"
+      ],
+      2
+    ],
+    [
+      "Which toy brand is famous for interlocking bricks?",
+      [
+        "Nerf",
+        "Hot Wheels",
+        "LEGO",
+        "Play-Doh"
+      ],
+      2
+    ],
+    [
+      "Which toy is a spring that can walk down stairs?",
+      [
+        "Yo-yo",
+        "Frisbee",
+        "Slinky",
+        "Rubik's Cube"
+      ],
+      2
+    ],
+    [
+      "Which toy is a cube puzzle with colored sides?",
+      [
+        "Etch A Sketch",
+        "Pogo stick",
+        "Slinky",
+        "Rubik's Cube"
+      ],
+      3
+    ],
+    [
+      "Which toy lets you draw by turning two white knobs?",
+      [
+        "Play-Doh",
+        "Nerf",
+        "Etch A Sketch",
+        "Tamagotchi"
+      ],
+      2
+    ],
+    [
+      "Which food is the main topping in classic margherita pizza along with tomato and basil?",
+      [
+        "Mozzarella",
+        "Feta",
+        "Cheddar",
+        "Brie"
+      ],
+      0
+    ],
+    [
+      "Which food is a Japanese rice roll often wrapped in seaweed?",
+      [
+        "Sushi",
+        "Pasta",
+        "Taco",
+        "Curry"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Italy?",
+      [
+        "Berlin",
+        "Rome",
+        "Paris",
+        "Madrid"
+      ],
+      1
+    ],
+    [
+      "Which city is the capital of Japan?",
+      [
+        "Tokyo",
+        "Seoul",
+        "Beijing",
+        "Bangkok"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Spain?",
+      [
+        "Rome",
+        "Lisbon",
+        "Paris",
+        "Madrid"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Germany?",
+      [
+        "Zurich",
+        "Vienna",
+        "Munich",
+        "Berlin"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Canada?",
+      [
+        "Montreal",
+        "Toronto",
+        "Vancouver",
+        "Ottawa"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Australia?",
+      [
+        "Sydney",
+        "Canberra",
+        "Perth",
+        "Melbourne"
+      ],
+      1
+    ],
+    [
+      "Which city is the capital of Egypt?",
+      [
+        "Cairo",
+        "Giza",
+        "Luxor",
+        "Alexandria"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Brazil?",
+      [
+        "Salvador",
+        "Brasília",
+        "São Paulo",
+        "Rio de Janeiro"
+      ],
+      1
+    ],
+    [
+      "Which city is the capital of Thailand?",
+      [
+        "Bangkok",
+        "Phuket",
+        "Hanoi",
+        "Chiang Mai"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of South Korea?",
+      [
+        "Busan",
+        "Taipei",
+        "Tokyo",
+        "Seoul"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Greece?",
+      [
+        "Rome",
+        "Istanbul",
+        "Lisbon",
+        "Athens"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Portugal?",
+      [
+        "Paris",
+        "Lisbon",
+        "Madrid",
+        "Porto"
+      ],
+      1
+    ],
+    [
+      "Which city is the capital of Norway?",
+      [
+        "Helsinki",
+        "Stockholm",
+        "Copenhagen",
+        "Oslo"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Sweden?",
+      [
+        "Stockholm",
+        "Gothenburg",
+        "Helsinki",
+        "Oslo"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Denmark?",
+      [
+        "Aarhus",
+        "Stockholm",
+        "Oslo",
+        "Copenhagen"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Finland?",
+      [
+        "Helsinki",
+        "Oslo",
+        "Reykjavik",
+        "Turku"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Ireland?",
+      [
+        "Belfast",
+        "London",
+        "Dublin",
+        "Cork"
+      ],
+      2
+    ],
+    [
+      "Which city is the capital of New Zealand?",
+      [
+        "Wellington",
+        "Auckland",
+        "Sydney",
+        "Christchurch"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of India?",
+      [
+        "New Delhi",
+        "Mumbai",
+        "Jaipur",
+        "Kolkata"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of China?",
+      [
+        "Tokyo",
+        "Shanghai",
+        "Hong Kong",
+        "Beijing"
+      ],
+      3
+    ],
+    [
+      "Which city is the capital of Mexico?",
+      [
+        "Mexico City",
+        "Guadalajara",
+        "Cancún",
+        "Monterrey"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Argentina?",
+      [
+        "Buenos Aires",
+        "Lima",
+        "Montevideo",
+        "Santiago"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Chile?",
+      [
+        "Buenos Aires",
+        "Lima",
+        "Santiago",
+        "Quito"
+      ],
+      2
+    ],
+    [
+      "Which city is the capital of Peru?",
+      [
+        "Lima",
+        "Bogotá",
+        "Cusco",
+        "Santiago"
+      ],
+      0
+    ],
+    [
+      "Which city is the capital of Colombia?",
+      [
+        "Medellín",
+        "Quito",
+        "Bogotá",
+        "Lima"
+      ],
+      2
+    ],
+    [
+      "Which large animal has a long neck and spots?",
+      [
+        "Zebra",
+        "Giraffe",
+        "Hippo",
+        "Panda"
+      ],
+      1
+    ],
+    [
+      "Which animal is known for its black-and-white stripes?",
+      [
+        "Tiger",
+        "Horse",
+        "Cow",
+        "Zebra"
+      ],
+      3
+    ],
+    [
+      "Which animal builds dams in rivers?",
+      [
+        "Koala",
+        "Beaver",
+        "Rabbit",
+        "Penguin"
+      ],
+      1
+    ],
+    [
+      "Which animal is famous for changing color to blend in?",
+      [
+        "Chameleon",
+        "Dolphin",
+        "Eagle",
+        "Hamster"
+      ],
+      0
+    ],
+    [
+      "Which animal is known for carrying its baby in a pouch?",
+      [
+        "Giraffe",
+        "Frog",
+        "Chicken",
+        "Kangaroo"
+      ],
+      3
+    ],
+    [
+      "Which farm animal says 'oink'?",
+      [
+        "Cow",
+        "Duck",
+        "Goat",
+        "Pig"
+      ],
+      3
+    ],
+    [
+      "Which animal is usually kept in an aquarium?",
+      [
+        "Cat",
+        "Chicken",
+        "Fish",
+        "Horse"
+      ],
+      2
+    ],
+    [
+      "Which bird is famous for colorful tail feathers?",
+      [
+        "Penguin",
+        "Crow",
+        "Peacock",
+        "Sparrow"
+      ],
+      2
+    ],
+    [
+      "Which bird cannot fly and lives in cold places?",
+      [
+        "Eagle",
+        "Penguin",
+        "Parrot",
+        "Swan"
+      ],
+      1
+    ],
+    [
+      "Which animal has a shell and moves slowly?",
+      [
+        "Wolf",
+        "Bat",
+        "Snail",
+        "Cheetah"
+      ],
+      2
+    ],
+    [
+      "Which ocean animal has eight arms?",
+      [
+        "Tuna",
+        "Shark",
+        "Octopus",
+        "Seal"
+      ],
+      2
+    ],
+    [
+      "Which animal is known for making honey?",
+      [
+        "Bee",
+        "Moth",
+        "Fly",
+        "Ant"
+      ],
+      0
+    ],
+    [
+      "Which animal is often called the king of the jungle?",
+      [
+        "Gorilla",
+        "Lion",
+        "Zebra",
+        "Elephant"
+      ],
+      1
+    ],
+    [
+      "Which pet animal often wags its tail when happy?",
+      [
+        "Goldfish",
+        "Spider",
+        "Turtle",
+        "Dog"
+      ],
+      3
+    ],
+    [
+      "Which animal has a hump and can live in deserts?",
+      [
+        "Otter",
+        "Camel",
+        "Moose",
+        "Koala"
+      ],
+      1
+    ],
+    [
+      "Which animal is known for its black mask and ringed tail?",
+      [
+        "Skunk",
+        "Raccoon",
+        "Panda",
+        "Lemur"
+      ],
+      1
+    ],
+    [
+      "Which animal is famous for being very slow and hanging from trees?",
+      [
+        "Rabbit",
+        "Cheetah",
+        "Horse",
+        "Sloth"
+      ],
+      3
+    ],
+    [
+      "Which bird can often copy human speech?",
+      [
+        "Ostrich",
+        "Parrot",
+        "Penguin",
+        "Flamingo"
+      ],
+      1
+    ],
+    [
+      "Which animal is a black-and-white bird that waddles?",
+      [
+        "Penguin",
+        "Peacock",
+        "Eagle",
+        "Duck"
+      ],
+      0
+    ],
+    [
+      "Which small animal stores nuts for winter?",
+      [
+        "Frog",
+        "Cow",
+        "Squirrel",
+        "Shark"
+      ],
+      2
+    ],
+    [
+      "Which insect glows at night?",
+      [
+        "Ant",
+        "Ladybug",
+        "Firefly",
+        "Bee"
+      ],
+      2
+    ],
+    [
+      "Which animal has antlers?",
+      [
+        "Chicken",
+        "Lion",
+        "Deer",
+        "Seal"
+      ],
+      2
+    ],
+    [
+      "Which animal is known for spraying a strong smell?",
+      [
+        "Skunk",
+        "Rabbit",
+        "Turtle",
+        "Goat"
+      ],
+      0
+    ],
+    [
+      "Which animal has a mane and can roar?",
+      [
+        "Lion",
+        "Sheep",
+        "Mouse",
+        "Cow"
+      ],
+      0
+    ],
+    [
+      "Which sea animal has a hard shell and two claws?",
+      [
+        "Jellyfish",
+        "Dolphin",
+        "Whale",
+        "Crab"
+      ],
+      3
+    ],
+    [
+      "Which animal is a baby sheep called?",
+      [
+        "Foal",
+        "Kitten",
+        "Calf",
+        "Lamb"
+      ],
+      3
+    ],
+    [
+      "Which animal is a baby horse called?",
+      [
+        "Foal",
+        "Cub",
+        "Chick",
+        "Puppy"
+      ],
+      0
+    ],
+    [
+      "Which animal is a baby cow called?",
+      [
+        "Lamb",
+        "Calf",
+        "Kitten",
+        "Duckling"
+      ],
+      1
+    ],
+    [
+      "Which animal is famous for chewing bamboo?",
+      [
+        "Giraffe",
+        "Panda",
+        "Wolf",
+        "Otter"
+      ],
+      1
+    ],
+    [
+      "Which insect is often red with black spots?",
+      [
+        "Mosquito",
+        "Cricket",
+        "Dragonfly",
+        "Ladybug"
+      ],
+      3
+    ],
+    [
+      "Which body part do you use to hear?",
+      [
+        "Nose",
+        "Elbows",
+        "Knees",
+        "Ears"
+      ],
+      3
+    ],
+    [
+      "Which body part do you use to smell?",
+      [
+        "Ears",
+        "Toes",
+        "Fingers",
+        "Nose"
+      ],
+      3
+    ],
+    [
+      "Which body part helps you chew food?",
+      [
+        "Hair",
+        "Elbow",
+        "Eyebrow",
+        "Teeth"
+      ],
+      3
+    ],
+    [
+      "Which body part bends in the middle of your arm?",
+      [
+        "Knee",
+        "Wrist only",
+        "Ankle",
+        "Elbow"
+      ],
+      3
+    ],
+    [
+      "Which body part bends in the middle of your leg?",
+      [
+        "Neck",
+        "Shoulder",
+        "Elbow",
+        "Knee"
+      ],
+      3
+    ],
+    [
+      "What do you call the hard parts inside your body that support you?",
+      [
+        "Clouds",
+        "Bones",
+        "Strings",
+        "Leaves"
+      ],
+      1
+    ],
+    [
+      "Which sense lets you see colors?",
+      [
+        "Sight",
+        "Taste",
+        "Smell",
+        "Touch"
+      ],
+      0
+    ],
+    [
+      "Which sense lets you hear music?",
+      [
+        "Sight",
+        "Taste",
+        "Smell",
+        "Hearing"
+      ],
+      3
+    ],
+    [
+      "Which sense lets you feel if something is soft?",
+      [
+        "Smell",
+        "Sight",
+        "Hearing",
+        "Touch"
+      ],
+      3
+    ],
+    [
+      "Which body part pumps blood?",
+      [
+        "Tooth",
+        "Stomach",
+        "Lung",
+        "Heart"
+      ],
+      3
+    ],
+    [
+      "Which color is made by mixing blue and yellow?",
+      [
+        "Pink",
+        "Purple",
+        "Green",
+        "Orange"
+      ],
+      2
+    ],
+    [
+      "Which color is made by mixing red and yellow?",
+      [
+        "Purple",
+        "White",
+        "Green",
+        "Orange"
+      ],
+      3
+    ],
+    [
+      "Which color is made by mixing red and blue?",
+      [
+        "Purple",
+        "Orange",
+        "Green",
+        "Yellow"
+      ],
+      0
+    ],
+    [
+      "Which color are most school buses in the United States?",
+      [
+        "Yellow",
+        "Black",
+        "Pink",
+        "Purple"
+      ],
+      0
+    ],
+    [
+      "Which color is often used on stop signs?",
+      [
+        "Brown",
+        "Blue",
+        "Green",
+        "Red"
+      ],
+      3
+    ],
+    [
+      "Which shape has no corners?",
+      [
+        "Circle",
+        "Triangle",
+        "Square",
+        "Rectangle"
+      ],
+      0
+    ],
+    [
+      "Which shape has four equal sides?",
+      [
+        "Circle",
+        "Oval",
+        "Triangle",
+        "Square"
+      ],
+      3
+    ],
+    [
+      "Which shape looks like an egg?",
+      [
+        "Cube",
+        "Square",
+        "Oval",
+        "Star"
+      ],
+      2
+    ],
+    [
+      "How many sides does a pentagon have?",
+      [
+        "5",
+        "4",
+        "6",
+        "3"
+      ],
+      0
+    ],
+    [
+      "How many sides does an octagon have?",
+      [
+        "5",
+        "7",
+        "8",
+        "6"
+      ],
+      2
+    ],
+    [
+      "What number comes before 20?",
+      [
+        "22",
+        "18",
+        "21",
+        "19"
+      ],
+      3
+    ],
+    [
+      "What number comes after 49?",
+      [
+        "50",
+        "51",
+        "59",
+        "48"
+      ],
+      0
+    ],
+    [
+      "How many minutes are in one hour?",
+      [
+        "60",
+        "100",
+        "30",
+        "45"
+      ],
+      0
+    ],
+    [
+      "How many hours are in one day?",
+      [
+        "24",
+        "30",
+        "60",
+        "12"
+      ],
+      0
+    ],
+    [
+      "How many seconds are in one minute?",
+      [
+        "60",
+        "30",
+        "100",
+        "90"
+      ],
+      0
+    ],
+    [
+      "Which month comes after March?",
+      [
+        "April",
+        "February",
+        "January",
+        "June"
+      ],
+      0
+    ],
+    [
+      "Which month comes before December?",
+      [
+        "September",
+        "January",
+        "November",
+        "October"
+      ],
+      2
+    ],
+    [
+      "Which day comes before Sunday?",
+      [
+        "Saturday",
+        "Monday",
+        "Friday",
+        "Wednesday"
+      ],
+      0
+    ],
+    [
+      "Which day comes after Monday?",
+      [
+        "Sunday",
+        "Tuesday",
+        "Thursday",
+        "Friday"
+      ],
+      1
+    ],
+    [
+      "What is the first month of the year?",
+      [
+        "June",
+        "March",
+        "January",
+        "December"
+      ],
+      2
+    ],
+    [
+      "Which tool is used to paint a wall?",
+      [
+        "Paintbrush",
+        "Ruler",
+        "Fork",
+        "Shoe"
+      ],
+      0
+    ],
+    [
+      "Which kitchen item keeps food cold?",
+      [
+        "Toaster",
+        "Kettle",
+        "Oven",
+        "Refrigerator"
+      ],
+      3
+    ],
+    [
+      "Which kitchen appliance is used to bake cakes?",
+      [
+        "Freezer",
+        "Oven",
+        "Fan",
+        "Sink"
+      ],
+      1
+    ],
+    [
+      "Which item is used to boil water quickly?",
+      [
+        "Plate",
+        "Kettle",
+        "Pillow",
+        "Ruler"
+      ],
+      1
+    ],
+    [
+      "Which item is used to sweep the floor?",
+      [
+        "Spoon",
+        "Wallet",
+        "Camera",
+        "Broom"
+      ],
+      3
+    ],
+    [
+      "Which item is used to dry wet hands?",
+      [
+        "Towel",
+        "Key",
+        "Fork",
+        "Book"
+      ],
+      0
+    ],
+    [
+      "Which item helps you see your reflection?",
+      [
+        "Blanket",
+        "Chair",
+        "Clock",
+        "Mirror"
+      ],
+      3
+    ],
+    [
+      "Which item protects your eyes from bright sunlight?",
+      [
+        "Sunglasses",
+        "Gloves",
+        "Socks",
+        "Helmet"
+      ],
+      0
+    ],
+    [
+      "Which object is used to carry water while hiking?",
+      [
+        "Brush",
+        "Pencil",
+        "Bottle",
+        "Plate"
+      ],
+      2
+    ],
+    [
+      "Which object helps you find directions?",
+      [
+        "Mug",
+        "Toaster",
+        "Compass",
+        "Pillow"
+      ],
+      2
+    ],
+    [
+      "Which item is used to cover a bed?",
+      [
+        "Blanket",
+        "Hammer",
+        "Backpack",
+        "Plate"
+      ],
+      0
+    ],
+    [
+      "Which item is used to keep your pants up?",
+      [
+        "Sock",
+        "Hat",
+        "Scarf",
+        "Belt"
+      ],
+      3
+    ],
+    [
+      "Which item protects your head while riding a bike?",
+      [
+        "Glove",
+        "Sandal",
+        "Towel",
+        "Helmet"
+      ],
+      3
+    ],
+    [
+      "Which tool turns screws?",
+      [
+        "Screwdriver",
+        "Spoon",
+        "Mop",
+        "Comb"
+      ],
+      0
+    ],
+    [
+      "Which tool is used to tighten bolts?",
+      [
+        "Pencil",
+        "Wrench",
+        "Cup",
+        "Brush"
+      ],
+      1
+    ],
+    [
+      "Which weather is made of tiny ice crystals falling from clouds?",
+      [
+        "Snow",
+        "Fog",
+        "Wind",
+        "Rain"
+      ],
+      0
+    ],
+    [
+      "Which weather condition makes it hard to see because of low clouds?",
+      [
+        "Fog",
+        "Rainbow",
+        "Sunshine",
+        "Thunder"
+      ],
+      0
+    ],
+    [
+      "Which weather event has flashes of light in the sky?",
+      [
+        "Drizzle",
+        "Mist",
+        "Dew",
+        "Lightning"
+      ],
+      3
+    ],
+    [
+      "Which natural light appears in the sky after rain and sunshine?",
+      [
+        "Shadow",
+        "Dust",
+        "Smoke",
+        "Rainbow"
+      ],
+      3
+    ],
+    [
+      "Which season usually comes after spring?",
+      [
+        "Summer",
+        "Spring again",
+        "Autumn",
+        "Winter"
+      ],
+      0
+    ],
+    [
+      "Which season usually comes after summer?",
+      [
+        "Winter",
+        "Spring",
+        "Autumn",
+        "Summer again"
+      ],
+      2
+    ],
+    [
+      "Which season usually comes after autumn?",
+      [
+        "Summer",
+        "Spring",
+        "Winter",
+        "Autumn again"
+      ],
+      2
+    ],
+    [
+      "Which part of a plant is usually underground?",
+      [
+        "Fruit",
+        "Petals",
+        "Leaves",
+        "Roots"
+      ],
+      3
+    ],
+    [
+      "Which part of a plant can be colorful and attract bees?",
+      [
+        "Bark",
+        "Stem",
+        "Root",
+        "Flower"
+      ],
+      3
+    ],
+    [
+      "Which part of a tree is covered in bark?",
+      [
+        "Seed",
+        "Trunk",
+        "Cloud",
+        "Petal"
+      ],
+      1
+    ],
+    [
+      "Which tiny plant part can grow into a new plant?",
+      [
+        "Shell",
+        "Feather",
+        "Seed",
+        "Stone"
+      ],
+      2
+    ],
+    [
+      "Which natural object gives Earth daylight?",
+      [
+        "Moon",
+        "Mars",
+        "Cloud",
+        "Sun"
+      ],
+      3
+    ],
+    [
+      "Which natural object orbits Earth?",
+      [
+        "Moon",
+        "Jupiter",
+        "Sun",
+        "Comet only"
+      ],
+      0
+    ],
+    [
+      "Which planet is famous for having rings?",
+      [
+        "Mars",
+        "Mercury",
+        "Earth",
+        "Saturn"
+      ],
+      3
+    ],
+    [
+      "Which planet is known as the Red Planet?",
+      [
+        "Mars",
+        "Jupiter",
+        "Venus",
+        "Uranus"
+      ],
+      0
+    ],
+    [
+      "Which food is made from cocoa beans?",
+      [
+        "Chocolate",
+        "Bread",
+        "Cheese",
+        "Rice"
+      ],
+      0
+    ],
+    [
+      "Which fruit is usually red or green and grows on trees?",
+      [
+        "Potato",
+        "Onion",
+        "Carrot",
+        "Apple"
+      ],
+      3
+    ],
+    [
+      "Which fruit is small, round, and often purple or green?",
+      [
+        "Pumpkin",
+        "Grape",
+        "Coconut",
+        "Banana"
+      ],
+      1
+    ],
+    [
+      "Which fruit is green outside and red inside with black seeds?",
+      [
+        "Peach",
+        "Lemon",
+        "Pear",
+        "Watermelon"
+      ],
+      3
+    ],
+    [
+      "Which vegetable is often used to make fries?",
+      [
+        "Potato",
+        "Lettuce",
+        "Cabbage",
+        "Pepper"
+      ],
+      0
+    ],
+    [
+      "Which vegetable is leafy and often used in salads?",
+      [
+        "Garlic",
+        "Lettuce",
+        "Ginger",
+        "Corn"
+      ],
+      1
+    ],
+    [
+      "Which food is made from flour, water, and yeast?",
+      [
+        "Candy",
+        "Soup",
+        "Yogurt",
+        "Bread"
+      ],
+      3
+    ],
+    [
+      "Which food is a round flat bread often topped with cheese?",
+      [
+        "Sushi",
+        "Pizza",
+        "Cereal",
+        "Pudding"
+      ],
+      1
+    ],
+    [
+      "Which food is usually eaten with milk for breakfast?",
+      [
+        "Garlic",
+        "Cereal",
+        "Steak",
+        "Pickles"
+      ],
+      1
+    ],
+    [
+      "Which sweet food is often served on birthdays with candles?",
+      [
+        "Rice",
+        "Cake",
+        "Salad",
+        "Soup"
+      ],
+      1
+    ],
+    [
+      "Which frozen dessert is often on a stick?",
+      [
+        "Toast",
+        "Noodles",
+        "Egg",
+        "Popsicle"
+      ],
+      3
+    ],
+    [
+      "Which drink comes from cows and is often white?",
+      [
+        "Coffee",
+        "Tea",
+        "Juice",
+        "Milk"
+      ],
+      3
+    ],
+    [
+      "Which drink is made from lemons and sugar?",
+      [
+        "Coffee",
+        "Tomato soup",
+        "Lemonade",
+        "Milk"
+      ],
+      2
+    ],
+    [
+      "Which food comes from chickens and has a shell?",
+      [
+        "Egg",
+        "Cheese",
+        "Bread",
+        "Apple"
+      ],
+      0
+    ],
+    [
+      "Which food is often yellow and grows on a cob?",
+      [
+        "Tomato",
+        "Pea",
+        "Mushroom",
+        "Corn"
+      ],
+      3
+    ],
+    [
+      "Which fruit is fuzzy outside and has a pit inside?",
+      [
+        "Grape",
+        "Orange",
+        "Banana",
+        "Peach"
+      ],
+      3
+    ],
+    [
+      "Which fruit has a crown-like top and spiky skin?",
+      [
+        "Apple",
+        "Cherry",
+        "Pineapple",
+        "Plum"
+      ],
+      2
+    ],
+    [
+      "Which food is made by freezing flavored water?",
+      [
+        "Ice pop",
+        "Toast",
+        "Pasta",
+        "Omelet"
+      ],
+      0
+    ],
+    [
+      "Which movie features a clownfish named Nemo?",
+      [
+        "Shrek",
+        "Cars",
+        "Finding Nemo",
+        "Frozen"
+      ],
+      2
+    ],
+    [
+      "Which animated movie has a princess named Moana?",
+      [
+        "Moana",
+        "Frozen",
+        "Mulan",
+        "Coco"
+      ],
+      0
+    ],
+    [
+      "Which movie has toys named Woody and Buzz?",
+      [
+        "Up",
+        "Toy Story",
+        "Cars",
+        "Ratatouille"
+      ],
+      1
+    ],
+    [
+      "Which movie features a robot named Baymax?",
+      [
+        "WALL-E",
+        "Frozen",
+        "Big Hero 6",
+        "Brave"
+      ],
+      2
+    ],
+    [
+      "Which movie features a race car named Lightning McQueen?",
+      [
+        "Cars",
+        "Sing",
+        "Toy Story",
+        "Rio"
+      ],
+      0
+    ],
+    [
+      "Which Disney movie has a girl named Mirabel?",
+      [
+        "Mulan",
+        "Encanto",
+        "Moana",
+        "Frozen"
+      ],
+      1
+    ],
+    [
+      "Which cartoon has a character named Patrick Star?",
+      [
+        "Tom and Jerry",
+        "Peppa Pig",
+        "Scooby-Doo",
+        "SpongeBob SquarePants"
+      ],
+      3
+    ],
+    [
+      "Which cartoon dog says 'Scooby-Dooby-Doo'?",
+      [
+        "Pluto",
+        "Odie",
+        "Scooby-Doo",
+        "Snoopy"
+      ],
+      2
+    ],
+    [
+      "Which video game character wears green and often saves Zelda?",
+      [
+        "Kirby",
+        "Sonic",
+        "Mario",
+        "Link"
+      ],
+      3
+    ],
+    [
+      "Which video game character is a pink round hero?",
+      [
+        "Sonic",
+        "Kirby",
+        "Bowser",
+        "Pikachu"
+      ],
+      1
+    ],
+    [
+      "Which game has blocks you can mine and craft?",
+      [
+        "Minecraft",
+        "Pac-Man",
+        "Tetris",
+        "Among Us"
+      ],
+      0
+    ],
+    [
+      "Which game uses colorful cards and a Draw Two card?",
+      [
+        "Chess",
+        "Jenga",
+        "Uno",
+        "Monopoly"
+      ],
+      2
+    ],
+    [
+      "Which board game uses black-and-white squares and kings?",
+      [
+        "Uno",
+        "Jenga",
+        "Chess",
+        "Risk"
+      ],
+      2
+    ],
+    [
+      "Which board game uses small houses and hotels?",
+      [
+        "Clue",
+        "Scrabble",
+        "Monopoly",
+        "Battleship"
+      ],
+      2
+    ],
+    [
+      "Which toy brand is known for colorful bricks?",
+      [
+        "Barbie",
+        "Hot Wheels",
+        "Nerf",
+        "LEGO"
+      ],
+      3
+    ],
+    [
+      "Which toy is a small car brand often raced on tracks?",
+      [
+        "Hot Wheels",
+        "Play-Doh",
+        "Slinky",
+        "LEGO"
+      ],
+      0
+    ],
+    [
+      "Which toy is soft clay-like material for shaping?",
+      [
+        "Rubik's Cube",
+        "Play-Doh",
+        "Frisbee",
+        "Yo-yo"
+      ],
+      1
+    ],
+    [
+      "Which puzzle has colored stickers on a rotating cube?",
+      [
+        "Rubik's Cube",
+        "Kite",
+        "Slinky",
+        "Doll"
+      ],
+      0
+    ],
+    [
+      "Which superhero is also called the Man of Steel?",
+      [
+        "Ant-Man",
+        "Spider-Man",
+        "Superman",
+        "Batman"
+      ],
+      2
+    ],
+    [
+      "Which superhero is known for a bat symbol?",
+      [
+        "Thor",
+        "Hulk",
+        "Iron Man",
+        "Batman"
+      ],
+      3
+    ],
+    [
+      "Which superhero is green and very strong when angry?",
+      [
+        "Flash",
+        "Aquaman",
+        "Hawkeye",
+        "Hulk"
+      ],
+      3
+    ],
+    [
+      "Which hero wears red and blue and shoots webs?",
+      [
+        "Spider-Man",
+        "Batman",
+        "Hulk",
+        "Thor"
+      ],
+      0
+    ],
+    [
+      "Which princess has a mermaid tail in her story?",
+      [
+        "Cinderella",
+        "Belle",
+        "Mulan",
+        "Ariel"
+      ],
+      3
+    ],
+    [
+      "Which Disney character has big round ears and red shorts?",
+      [
+        "Mickey Mouse",
+        "Goofy",
+        "Pluto",
+        "Donald Duck"
+      ],
+      0
+    ],
+    [
+      "Which book series is about a boy wizard at Hogwarts?",
+      [
+        "Diary of a Wimpy Kid",
+        "Harry Potter",
+        "Narnia",
+        "Percy Jackson"
+      ],
+      1
+    ],
+    [
+      "Which fairy tale has a girl in a red hood visiting her grandmother?",
+      [
+        "Snow White",
+        "Little Red Riding Hood",
+        "Rapunzel",
+        "Cinderella"
+      ],
+      1
+    ],
+    [
+      "Which fairy tale has three bears and a girl named Goldilocks?",
+      [
+        "Goldilocks and the Three Bears",
+        "Sleeping Beauty",
+        "Jack and the Beanstalk",
+        "The Little Mermaid"
+      ],
+      0
+    ],
+    [
+      "Which fairy tale has a boy climbing a giant beanstalk?",
+      [
+        "Pinocchio",
+        "Hansel and Gretel",
+        "Cinderella",
+        "Jack and the Beanstalk"
+      ],
+      3
+    ],
+    [
+      "Which sport uses a bat, a ball, and bases?",
+      [
+        "Tennis",
+        "Curling",
+        "Swimming",
+        "Baseball"
+      ],
+      3
+    ],
+    [
+      "Which sport is played with rackets and a net?",
+      [
+        "Bowling",
+        "Tennis",
+        "Baseball",
+        "Boxing"
+      ],
+      1
+    ],
+    [
+      "Which sport uses a ball and a goal but players cannot use hands except the goalkeeper?",
+      [
+        "Soccer",
+        "Golf",
+        "Baseball",
+        "Cricket"
+      ],
+      0
+    ],
+    [
+      "Which sport is played in a pool?",
+      [
+        "Basketball",
+        "Skiing",
+        "Swimming",
+        "Bowling"
+      ],
+      2
+    ],
+    [
+      "Which sport uses clubs to hit a ball into holes?",
+      [
+        "Volleyball",
+        "Hockey",
+        "Golf",
+        "Soccer"
+      ],
+      2
+    ],
+    [
+      "Which sport is played on ice with sticks and a puck?",
+      [
+        "Ice hockey",
+        "Cricket",
+        "Rugby",
+        "Tennis"
+      ],
+      0
+    ],
+    [
+      "Which sport uses pins and a heavy ball?",
+      [
+        "Soccer",
+        "Bowling",
+        "Hockey",
+        "Tennis"
+      ],
+      1
+    ],
+    [
+      "Which global event gives gold, silver, and bronze medals?",
+      [
+        "Super Bowl",
+        "Olympics",
+        "World Cup only",
+        "Comic-Con"
+      ],
+      1
+    ],
+    [
+      "Which sport has players shoot a ball through a hoop?",
+      [
+        "Baseball",
+        "Golf",
+        "Skiing",
+        "Basketball"
+      ],
+      3
+    ],
+    [
+      "Which instrument has black and white keys?",
+      [
+        "Drum",
+        "Piano",
+        "Flute",
+        "Trumpet"
+      ],
+      1
+    ],
+    [
+      "Which instrument is played by blowing across a mouthpiece and has keys?",
+      [
+        "Piano",
+        "Drum",
+        "Guitar",
+        "Flute"
+      ],
+      3
+    ],
+    [
+      "Which instrument is usually hit with sticks?",
+      [
+        "Flute",
+        "Harp",
+        "Violin",
+        "Drums"
+      ],
+      3
+    ],
+    [
+      "Which instrument has strings and is often strummed?",
+      [
+        "Trumpet",
+        "Guitar",
+        "Drum",
+        "Clarinet"
+      ],
+      1
+    ],
+    [
+      "Which instrument has a bow and four strings?",
+      [
+        "Violin",
+        "Trombone",
+        "Piano",
+        "Drum"
+      ],
+      0
+    ],
+    [
+      "Which word means the same as 'happy'?",
+      [
+        "Angry",
+        "Glad",
+        "Sad",
+        "Sleepy"
+      ],
+      1
+    ],
+    [
+      "Which word means the opposite of 'near'?",
+      [
+        "Close",
+        "Here",
+        "Beside",
+        "Far"
+      ],
+      3
+    ],
+    [
+      "Which word means the opposite of 'open'?",
+      [
+        "Wide",
+        "Bright",
+        "Closed",
+        "Round"
+      ],
+      2
+    ],
+    [
+      "Which punctuation mark ends most questions?",
+      [
+        "Apostrophe",
+        "Comma",
+        "Question mark",
+        "Period"
+      ],
+      2
+    ],
+    [
+      "Which punctuation mark often ends a regular sentence?",
+      [
+        "Comma",
+        "Period",
+        "Colon",
+        "Question mark"
+      ],
+      1
+    ],
+    [
+      "Which letter comes after C in the English alphabet?",
+      [
+        "F",
+        "D",
+        "B",
+        "E"
+      ],
+      1
+    ],
+    [
+      "Which letter comes before M in the English alphabet?",
+      [
+        "K",
+        "N",
+        "L",
+        "O"
+      ],
+      2
+    ],
+    [
+      "Which word is a noun?",
+      [
+        "Apple",
+        "Quickly",
+        "Blue",
+        "Run"
+      ],
+      0
+    ],
+    [
+      "Which word is a verb?",
+      [
+        "Quiet",
+        "Jump",
+        "Table",
+        "Green"
+      ],
+      1
+    ],
+    [
+      "Which word is an adjective?",
+      [
+        "Swim",
+        "Chair",
+        "Under",
+        "Tall"
+      ],
+      3
+    ],
+    [
+      "Which word is an adverb?",
+      [
+        "Table",
+        "Quickly",
+        "Chair",
+        "Blue"
+      ],
+      1
+    ],
+    [
+      "Which word means the opposite of 'early'?",
+      [
+        "Quick",
+        "Soon",
+        "First",
+        "Late"
+      ],
+      3
+    ],
+    [
+      "Which word means the opposite of 'empty'?",
+      [
+        "Small",
+        "Open",
+        "Full",
+        "Light"
+      ],
+      2
+    ],
+    [
+      "Which word means the same as 'large'?",
+      [
+        "Tiny",
+        "Cold",
+        "Quiet",
+        "Big"
+      ],
+      3
+    ],
+    [
+      "Which word means the same as 'small'?",
+      [
+        "Bright",
+        "Huge",
+        "Loud",
+        "Tiny"
+      ],
+      3
+    ],
+    [
+      "Which punctuation mark separates items in a list?",
+      [
+        "Slash",
+        "Question mark",
+        "Period",
+        "Comma"
+      ],
+      3
+    ],
+    [
+      "Which symbol is used in many email addresses?",
+      [
+        "#",
+        "$",
+        "%",
+        "@"
+      ],
+      3
+    ],
+    [
+      "Which key is often used to make a space while typing?",
+      [
+        "Backspace",
+        "Shift",
+        "Spacebar",
+        "Enter"
+      ],
+      2
+    ],
+    [
+      "Which key is often used to delete letters to the left?",
+      [
+        "Caps Lock",
+        "Backspace",
+        "Tab",
+        "Escape"
+      ],
+      1
+    ],
+    [
+      "Which school subject studies numbers?",
+      [
+        "History",
+        "Art",
+        "Music",
+        "Math"
+      ],
+      3
+    ],
+    [
+      "Which school subject studies living things and nature?",
+      [
+        "Music",
+        "Spelling",
+        "Drama",
+        "Science"
+      ],
+      3
+    ],
+    [
+      "Which school subject often teaches maps and countries?",
+      [
+        "Cooking",
+        "Algebra",
+        "Geography",
+        "Painting"
+      ],
+      2
+    ],
+    [
+      "Which school subject studies events from the past?",
+      [
+        "History",
+        "Chemistry",
+        "Music",
+        "Gym"
+      ],
+      0
+    ],
+    [
+      "Which person helps sick animals?",
+      [
+        "Pilot",
+        "Veterinarian",
+        "Carpenter",
+        "Chef"
+      ],
+      1
+    ],
+    [
+      "Which person designs buildings?",
+      [
+        "Dentist",
+        "Architect",
+        "Baker",
+        "Actor"
+      ],
+      1
+    ]
   ],
-  medium: [
-    ["Which gas do plants absorb during photosynthesis?", ["Oxygen", "Neon", "Carbon dioxide", "Helium"], 2],
-    ["What is the largest planet in our solar system?", ["Jupiter", "Earth", "Mars", "Saturn"], 0],
-    ["Which instrument has keys, pedals, and strings inside?", ["Flute", "Trumpet", "Piano", "Drum"], 2],
-    ["What is the process of liquid water becoming vapor called?", ["Condensation", "Melting", "Evaporation", "Freezing"], 2],
-    ["Which country is famous for sushi as a traditional food?", ["Italy", "Egypt", "Japan", "Mexico"], 2],
-    ["What is the square root of 144?", ["16", "10", "12", "14"], 2],
-    ["Which organ pumps blood through the body?", ["Liver", "Heart", "Lung", "Kidney"], 1],
-    ["Which metal is commonly used in electric wires?", ["Silver only", "Copper", "Tin", "Lead"], 1],
-    ["What is the main language used to style web pages?", ["SQL", "CSS", "HTML", "Python"], 1],
-    ["In chess, which piece can move diagonally any distance?", ["Pawn", "Bishop", "Knight", "Rook"], 1],
-    ["Which layer of Earth is liquid outer metal?", ["Outer core", "Mantle", "Inner core", "Crust"], 0],
-    ["What is the freezing point of water in Celsius?", ["32°C", "10°C", "100°C", "0°C"], 3],
-    ["Which vitamin is commonly produced by skin in sunlight?", ["Vitamin D", "Vitamin A", "Vitamin B12", "Vitamin K"], 0],
-    ["What is the hardest natural substance?", ["Iron", "Quartz", "Gold", "Diamond"], 3],
-    ["Which sport is played at Wimbledon?", ["Table tennis", "Basketball", "Rugby", "Tennis"], 3],
-    ["What is the chemical symbol for gold?", ["Au", "Gd", "Go", "Ag"], 0],
-    ["Which planet is known for its rings?", ["Mars", "Venus", "Saturn", "Mercury"], 2],
-    ["What do you call animals that eat both plants and meat?", ["Omnivores", "Carnivores", "Insectivores", "Herbivores"], 0],
-    ["Which data structure uses first-in, first-out behavior?", ["Queue", "Graph", "Stack", "Tree"], 0],
-    ["Which famous scientist proposed the laws of motion?", ["Nikola Tesla", "Albert Einstein", "Isaac Newton", "Marie Curie"], 2],
-    ["What is the largest ocean on Earth?", ["Indian Ocean", "Atlantic Ocean", "Arctic Ocean", "Pacific Ocean"], 3],
-    ["Which part of a plant absorbs water from soil?", ["Fruit", "Petals", "Roots", "Stem only"], 2],
-    ["What is the smallest prime number?", ["1", "5", "3", "2"], 3],
-    ["Which programming language is often used with Node.js?", ["C", "Swift", "Ruby", "JavaScript"], 3],
-    ["What is the main ingredient in guacamole?", ["Cucumber", "Potato", "Avocado", "Tomato"], 2],
-    ["Which type of energy is stored in a stretched spring?", ["Potential energy", "Thermal energy", "Kinetic energy", "Light energy"], 0],
-    ["What is the capital city of France?", ["Lyon", "Nice", "Paris", "Marseille"], 2],
-    ["Which animal is a marsupial?", ["Tiger", "Penguin", "Elephant", "Kangaroo"], 3],
-    ["How many degrees are in a right angle?", ["45", "360", "180", "90"], 3],
-    ["Which blood cells help carry oxygen?", ["Platelets", "Red blood cells", "White blood cells", "Plasma"], 1],
-    ["What does CPU stand for?", ["Central Processing Unit", "Core Program Unit", "Computer Power Utility", "Central Pixel Unit"], 0],
-    ["Which continent is the Sahara Desert located in?", ["South America", "Europe", "Asia", "Africa"], 3],
-    ["Which food is made by fermenting milk?", ["Bread crumbs", "Pasta", "Yogurt", "Jam"], 2],
-    ["What is the chemical symbol for sodium?", ["So", "N", "Sd", "Na"], 3],
-    ["Which unit measures electrical resistance?", ["Ampere", "Volt", "Ohm", "Watt"], 2],
-    ["What is the study of weather called?", ["Botany", "Geology", "Meteorology", "Astronomy"], 2],
-    ["Which polygon has eight sides?", ["Heptagon", "Octagon", "Pentagon", "Hexagon"], 1],
-    ["Which bone protects the brain?", ["Tibia", "Skull", "Rib", "Femur"], 1],
-    ["What is the main gas in Earth's atmosphere?", ["Hydrogen", "Oxygen", "Nitrogen", "Carbon dioxide"], 2],
-    ["Which musical term means to play softly?", ["Piano", "Allegro", "Forte", "Presto"], 0],
-    ["What is the largest land animal alive today?", ["Hippopotamus", "Rhino", "African elephant", "Giraffe"], 2],
-    ["Which web protocol is used for secure websites?", ["FTP", "SMTP", "HTTPS", "DNS"], 2],
-    ["Which part of speech describes an action?", ["Preposition", "Adjective", "Noun", "Verb"], 3],
-    ["What is the formula for the area of a rectangle?", ["π × radius", "base + height", "side × side × side", "length × width"], 3],
-    ["Which planet is closest to the Sun?", ["Mars", "Mercury", "Venus", "Earth"], 1],
-    ["What is the name of the galaxy that contains Earth?", ["Triangulum", "Sombrero", "Andromeda", "Milky Way"], 3],
-    ["Which cooking method uses hot oil?", ["Steaming", "Freezing", "Drying", "Frying"], 3],
-    ["What is the main function of leaves?", ["Protect bark", "Make food", "Store seeds", "Anchor roots"], 1],
-    ["Which SI unit measures force?", ["Pascal", "Newton", "Joule", "Tesla"], 1],
-    ["Which animal is known for echolocation?", ["Horse", "Bat", "Panda", "Rabbit"], 1],
-    ["What is the decimal form of 1/4?", ["0.25", "0.2", "0.75", "0.5"], 0],
-    ["Which element has the chemical symbol O?", ["Oxygen", "Osmium", "Opal", "Gold"], 0],
-    ["Which game genre focuses on building and managing resources?", ["Rhythm", "Fighting", "Simulation", "Platformer"], 2],
-    ["What is the common name for NaCl?", ["Sugar", "Baking soda", "Salt", "Vinegar"], 2],
-    ["Which planet is called the Red Planet?", ["Neptune", "Venus", "Mars", "Jupiter"], 2],
-    ["What do you call the force that pulls objects toward Earth?", ["Gravity", "Friction", "Buoyancy", "Magnetism"], 0],
-    ["Which device stores electrical energy chemically?", ["Router", "Speaker", "Monitor", "Battery"], 3],
-    ["What is a group of wolves called?", ["Pack", "School", "Flock", "Herd"], 0],
-    ["Which famous board game uses properties and rent?", ["Monopoly", "Clue", "Risk", "Scrabble"], 0],
-    ["Which number is represented by the Roman numeral X?", ["100", "5", "10", "50"], 2],
-    ["Which part of a computer displays images?", ["Printer", "Mouse", "Monitor", "Keyboard"], 2],
-    ["What is the pH of pure water at room temperature?", ["14", "1", "10", "7"], 3],
-    ["Which animal is the fastest land animal?", ["Horse", "Cheetah", "Lion", "Deer"], 1],
-    ["What is the main ingredient of tofu?", ["Rice", "Soybeans", "Wheat", "Corn"], 1],
-    ["Which branch of science studies living things?", ["Biology", "Geology", "Astronomy", "Physics"], 0],
-    ["What is the value of 9 × 8?", ["68", "81", "72", "64"], 2],
-    ["Which cloud type is fluffy and often seen in fair weather?", ["Nimbus", "Cirrus", "Cumulus", "Stratus"], 2],
-    ["Which country is known for inventing pizza in its modern form?", ["Italy", "Brazil", "India", "Canada"], 0],
-    ["What is the name of the fictional wizard school in Harry Potter?", ["Hogwarts", "Narnia", "Mordor", "Gotham"], 0],
-    ["Which organ helps humans breathe?", ["Stomach", "Spleen", "Lungs", "Pancreas"], 2],
-    ["What is the term for animals active at night?", ["Migratory", "Domestic", "Nocturnal", "Aquatic"], 2],
-    ["Which mathematical constant is approximately 3.14159?", ["Phi", "Pi", "Euler's number", "Tau only"], 1],
-    ["Which programming concept repeats code while a condition is true?", ["Array", "Class", "Comment", "Loop"], 3],
-    ["What is the largest mammal?", ["Blue whale", "Orca", "Giraffe", "Elephant"], 0],
-    ["Which material is made by heating sand and other minerals?", ["Rubber", "Cotton", "Glass", "Plastic"], 2],
-    ["What is a baby frog called?", ["Foal", "Cub", "Larva only", "Tadpole"], 3],
-    ["Which gas do humans breathe in to survive?", ["Argon", "Nitrogen only", "Methane", "Oxygen"], 3],
-    ["What is the center of an atom called?", ["Molecule", "Electron cloud", "Shell", "Nucleus"], 3],
-    ["Which country is associated with tacos as a traditional food?", ["Greece", "Norway", "Thailand", "Mexico"], 3],
-    ["What is 15% of 200?", ["25", "30", "35", "20"], 1],
-    ["Which star is closest to Earth?", ["The Sun", "Sirius", "Polaris", "Vega"], 0],
-    ["What is the name of the force opposing motion between surfaces?", ["Gravity", "Friction", "Tension", "Lift"], 1],
-    ["Which sea creature has eight arms?", ["Octopus", "Seal", "Crab", "Dolphin"], 0],
-    ["Which kind of triangle has all sides equal?", ["Right", "Equilateral", "Scalene", "Isosceles only"], 1],
-    ["Which file extension is commonly used for JavaScript files?", [".html", ".css", ".py", ".js"], 3],
-    ["What is the edible part of broccoli called?", ["Roots", "Seeds", "Bark", "Flower buds"], 3],
-    ["Which instrument measures air pressure?", ["Thermometer", "Barometer", "Hygrometer", "Compass"], 1],
-    ["What is the main function of the skeleton?", ["Pump blood", "Filter air", "Digest food", "Support the body"], 3],
-    ["Which planet has the Great Red Spot?", ["Saturn", "Neptune", "Jupiter", "Mars"], 2],
-    ["Which HTML tag is commonly used for a paragraph?", ["<table>", "<script>", "<p>", "<img>"], 2],
-    ["What is the process of a caterpillar becoming a butterfly called?", ["Metamorphosis", "Fermentation", "Photosynthesis", "Evaporation"], 0],
-    ["Which sport uses a shuttlecock?", ["Badminton", "Volleyball", "Squash", "Tennis"], 0],
-    ["What is the main ingredient in hummus?", ["Potatoes", "Chickpeas", "Eggs", "Apples"], 1],
-    ["Which machine is used to print documents?", ["Scanner", "Printer", "Projector", "Router"], 1],
-    ["What is the name for a word that has the opposite meaning?", ["Suffix", "Prefix", "Synonym", "Antonym"], 3],
-    ["Which part of Earth do tectonic plates belong to?", ["Biosphere", "Hydrosphere", "Atmosphere", "Lithosphere"], 3],
-    ["How many players are on a standard soccer team on the field?", ["9", "10", "11", "12"], 2],
-    ["Which sense uses the tongue?", ["Sight", "Taste", "Touch", "Hearing"], 1],
-    ["Which shape is the base of most traffic stop signs?", ["Triangle", "Octagon", "Circle", "Pentagon"], 1],
-    ["What type of animal is a salmon?", ["Reptile", "Mammal", "Fish", "Bird"], 2],
-    ["Which actor voiced Woody in the Toy Story films?", ["Tom Hanks", "Tim Allen", "Robin Williams", "Billy Crystal"], 0],
-    ["Which actor voiced Buzz Lightyear in the original Toy Story films?", ["Tom Hanks", "Tim Allen", "John Goodman", "Mike Myers"], 1],
-    ["Which film won the first Academy Award for Best Animated Feature?", ["Toy Story", "Shrek", "Finding Nemo", "Spirited Away"], 1],
-    ["Which movie features the fictional metal vibranium?", ["Black Panther", "The Matrix", "Jaws", "Top Gun"], 0],
-    ["Which director is closely associated with the movie Jaws?", ["Steven Spielberg", "James Cameron", "George Lucas", "Ridley Scott"], 0],
-    ["Which movie franchise features the character Dominic Toretto?", ["Fast & Furious", "Mission: Impossible", "Indiana Jones", "The Hunger Games"], 0],
-    ["Which film popularized the quote 'I'll be back'?", ["The Terminator", "Rocky", "Ghostbusters", "Die Hard"], 0],
-    ["Which movie features a DeLorean time machine?", ["Back to the Future", "Blade Runner", "E.T.", "Tron"], 0],
-    ["Which fictional country is ruled by King T'Challa?", ["Wakanda", "Narnia", "Genovia", "Latveria"], 0],
-    ["Which monster movie features a giant ape on Skull Island?", ["King Kong", "Godzilla", "Cloverfield", "Pacific Rim"], 0],
-    ["Which sitcom catchphrase is associated with Joey Tribbiani?", ["How you doin'?", "Bazinga!", "D'oh!", "Did I do that?"], 0],
-    ["Which sitcom character often says 'Bazinga!'?", ["Sheldon Cooper", "Michael Scott", "Ross Geller", "Frasier Crane"], 0],
-    ["Which TV bar is the main setting of Cheers?", ["Cheers", "Moe's Tavern", "Central Perk", "The Max"], 0],
-    ["Which sitcom follows the Pritchett-Dunphy-Tucker family?", ["Modern Family", "Friends", "Seinfeld", "Community"], 0],
-    ["Which mockumentary sitcom is set in Pawnee, Indiana?", ["Parks and Recreation", "The Office", "30 Rock", "Arrested Development"], 0],
-    ["Which artist is known as the Queen of Pop?", ["Madonna", "Adele", "Billie Eilish", "Dua Lipa"], 0],
-    ["Which British band released the album Abbey Road?", ["The Beatles", "The Rolling Stones", "Oasis", "Queen"], 0],
-    ["Which genre is most associated with DJs, turntables, and MCs?", ["Hip-hop", "Opera", "Bluegrass", "Baroque"], 0],
-    ["Which singer released the album 1989?", ["Taylor Swift", "Ariana Grande", "Beyoncé", "Lady Gaga"], 0],
-    ["Which band performed the song 'Bohemian Rhapsody'?", ["Queen", "ABBA", "Nirvana", "The Police"], 0],
-    ["Which award is given for excellence in television?", ["Emmy", "Oscar", "Grammy", "Tony"], 0],
-    ["Which award is given for excellence in Broadway theater?", ["Tony", "Oscar", "Grammy", "Pulitzer only"], 0],
-    ["Which organization presents the Academy Awards?", ["Academy of Motion Picture Arts and Sciences", "Recording Academy", "Hollywood Foreign Press only", "Tony Committee"], 0],
-    ["Which internet meme features a rainbow cat flying through space?", ["Nyan Cat", "Doge", "Keyboard Cat", "Success Kid"], 0],
-    ["Which meme is based on a cat with a famously unhappy expression?", ["Grumpy Cat", "Ceiling Cat", "Longcat", "Pusheen"], 0],
-    ["Which term describes a video or post spreading quickly online?", ["Viral", "Analog", "Offline", "Private"], 0],
-    ["Which actor voiced Genie in Disney's Aladdin?", ["Robin Williams", "Eddie Murphy", "Will Ferrell", "Steve Carell"], 0],
-    ["Which actor voiced Donkey in Shrek?", ["Eddie Murphy", "Mike Myers", "Antonio Banderas", "Chris Rock"], 0],
-    ["Which Broadway musical is based on songs by ABBA?", ["Mamma Mia!", "Wicked", "Rent", "Cats"], 0],
-    ["Which stage musical features the Phantom and Christine Daaé?", ["The Phantom of the Opera", "Hamilton", "Chicago", "Annie"], 0],
-    ["Which manga series follows Monkey D. Luffy?", ["One Piece", "Naruto", "Death Note", "Sailor Moon"], 0],
-    ["Which graphic novel by Art Spiegelman uses mice and cats to depict history?", ["Maus", "Watchmen", "Persepolis", "Blankets"], 0],
-    ["Which superhero is known as the Dark Knight?", ["Batman", "Superman", "Green Lantern", "Flash"], 0],
-    ["Which reality competition features designers making outfits under time limits?", ["Project Runway", "Survivor", "The Amazing Race", "The Bachelor"], 0],
-    ["Which reality show features entrepreneurs pitching to investors?", ["Shark Tank", "Big Brother", "Top Chef", "American Idol"], 0],
-    ["Which fictional pet belongs to Charlie Brown?", ["Snoopy", "Garfield", "Odie", "Pluto"], 0],
-    ["Which fictional orange cat loves lasagna?", ["Garfield", "Heathcliff", "Salem", "Tom"], 0],
-    ["In chess, which piece can move any number of squares diagonally?", ["Bishop", "Rook", "Knight", "Pawn"], 0],
-    ["In Risk, what is the main goal?", ["World domination", "Build words", "Solve a murder", "Buy properties"], 0],
-    ["Which board game uses a pop-o-matic dice bubble?", ["Trouble", "Scrabble", "Risk", "Clue"], 0],
-    ["Which console introduced Wii motion controls?", ["Nintendo Wii", "PlayStation 2", "Xbox 360", "Sega Dreamcast"], 0],
-    ["Which video game series features Master Chief?", ["Halo", "Metroid", "Doom", "Mass Effect"], 0],
-    ["Which Zelda game popularized the phrase 'It's dangerous to go alone!'?", ["The Legend of Zelda", "Ocarina of Time", "Breath of the Wild", "Majora's Mask"], 0],
-    ["Which card hand beats a flush in standard poker?", ["Full house", "Straight", "Three of a kind", "Two pair"], 0],
-    ["In Uno, what does a Reverse card do?", ["Changes play direction", "Skips everyone", "Draws four cards", "Ends the game instantly"], 0],
-    ["Which solitaire game is also commonly called Patience?", ["Klondike", "Bridge", "Hearts", "Rummy"], 0],
-    ["What is the minimum number of moves needed to solve a standard 3x3 Rubik's Cube from any position, known informally as God's number?", ["20", "10", "30", "50"], 0],
-    ["In Dungeons & Dragons, what does AC usually stand for?", ["Armor Class", "Action Charge", "Arcane Chance", "Attack Count"], 0],
-    ["Which arcade classic has a frog crossing roads and rivers?", ["Frogger", "Galaga", "Centipede", "Asteroids"], 0],
-    ["Which toy uses interlocking plastic bricks?", ["LEGO", "Slinky", "Etch A Sketch", "Nerf"], 0],
-    ["Which cuisine is strongly associated with kimchi?", ["Korean", "Italian", "Brazilian", "Moroccan"], 0],
-    ["Which cuisine is strongly associated with pad thai?", ["Thai", "Greek", "German", "Peruvian"], 0],
-    ["Which herb is a key ingredient in traditional pesto?", ["Basil", "Dill", "Sage", "Mint"], 0],
-    ["Which spice is made from dried flower buds and has a strong warm flavor?", ["Clove", "Coriander", "Paprika", "Parsley"], 0],
-    ["Which coffee drink is espresso with steamed milk and foam?", ["Cappuccino", "Lemonade", "Matcha", "Kombucha"], 0],
-    ["Which tea is traditionally used in a Japanese tea ceremony?", ["Matcha", "Earl Grey", "Chai", "Iced tea"], 0],
-    ["Which dessert is made by baking a custard in a caramel-lined mold?", ["Flan", "Baklava", "Macaron", "Gelato"], 0],
-    ["Which baking technique gently folds beaten egg whites into batter to keep air?", ["Folding", "Deep-frying", "Searing", "Pickling"], 0],
-    ["Which fast food chain is known for the slogan 'Have it your way'?", ["Burger King", "KFC", "Subway", "Taco Bell"], 0],
-    ["Which regional American sandwich is associated with Philadelphia?", ["Cheesesteak", "Po' boy", "Lobster roll", "Cuban sandwich"], 0],
-    ["Which knife is commonly used as an all-purpose kitchen knife?", ["Chef's knife", "Butter knife", "Palette knife", "Letter opener"], 0],
-    ["Which cheese is traditionally used in Greek salad?", ["Feta", "Cheddar", "Gouda", "Camembert"], 0],
-    ["Which pasta shape is shaped like little butterflies or bow ties?", ["Farfalle", "Rigatoni", "Linguine", "Orzo"], 0],
-    ["Which country has won the FIFA World Cup multiple times and wears a famous yellow jersey?", ["Brazil", "Canada", "Japan", "Egypt"], 0],
-    ["Which sport uses the term 'love' for zero?", ["Tennis", "Baseball", "Basketball", "Curling"], 0],
-    ["In curling, what is the target area called?", ["House", "Goal", "Nest", "Diamond"], 0],
-    ["Which Southeast Asian sport uses a rattan ball and feet over a net?", ["Sepak takraw", "Cricket", "Lacrosse", "Polo"], 0],
-    ["Which athlete is known as 'The Great One' in ice hockey?", ["Wayne Gretzky", "Michael Phelps", "Babe Ruth", "Pelé"], 0],
-    ["Which jersey number is famously associated with Michael Jordan on the Chicago Bulls?", ["23", "7", "99", "10"], 0],
-    ["Which stadium is known as 'The Theatre of Dreams'?", ["Old Trafford", "Wembley Stadium", "Madison Square Garden", "Camp Nou"], 0],
-    ["Which martial art emphasizes throws and pins and originated in Japan?", ["Judo", "Taekwondo", "Capoeira", "Muay Thai"], 0],
-    ["Which camping item is used to start a fire by striking sparks?", ["Flint and steel", "Compass", "Tarp", "Carabiner"], 0],
-    ["Which figure skating jump takes off from the forward outside edge?", ["Axel", "Loop", "Lutz", "Salchow"], 0],
-    ["Which art movement is associated with Pablo Picasso and fragmented geometric forms?", ["Cubism", "Impressionism", "Romanticism", "Baroque"], 0],
-    ["Which artist painted Starry Night?", ["Vincent van Gogh", "Claude Monet", "Frida Kahlo", "Salvador Dalí"], 0],
-    ["Which novel begins with the line 'Call me Ishmael'?", ["Moby-Dick", "Pride and Prejudice", "1984", "Dracula"], 0],
-    ["Which fictional land is reached through a wardrobe in a C. S. Lewis novel?", ["Narnia", "Oz", "Middle-earth", "Neverland"], 0],
-    ["Which alphabet is used for modern Greek?", ["Greek alphabet", "Latin alphabet only", "Hangul", "Cyrillic only"], 0],
-    ["What does the idiom 'spill the beans' mean?", ["Reveal a secret", "Cook soup", "Drop groceries", "Win easily"], 0],
-    ["In Norse mythology, what is Thor's hammer called?", ["Mjölnir", "Excalibur", "Aegis", "Gungnir"], 0],
-    ["Which architectural style is known for pointed arches and flying buttresses?", ["Gothic", "Brutalist", "Bauhaus", "Art Deco"], 0],
-    ["Which fashion designer is strongly associated with the little black dress?", ["Coco Chanel", "Ralph Lauren", "Virgil Abloh", "Giorgio Armani"], 0],
-    ["What does supply and demand mainly help explain?", ["Prices", "Weather", "Blood types", "Planet orbits"], 0],
-    ["Which company uses the swoosh logo?", ["Nike", "Adidas", "Puma", "Reebok"], 0],
-    ["Which currency is used by many countries in the European Union?", ["Euro", "Yen", "Rupee", "Peso"], 0],
-    ["What does IPO stand for in the stock market?", ["Initial Public Offering", "Internal Price Order", "Instant Profit Option", "International Product Office"], 0],
-    ["Which invention lets clothes open and close with sliding interlocking teeth?", ["Zipper", "Ballpoint pen", "Toaster", "Thermos"], 0],
-    ["Which car company makes the Mustang model?", ["Ford", "Toyota", "Honda", "BMW"], 0],
-    ["Which advertising mascot says 'They're grrreat!'?", ["Tony the Tiger", "Mr. Clean", "Michelin Man", "Pillsbury Doughboy"], 0],
-    ["Which crop is commonly used to make tofu and soy sauce?", ["Soybean", "Barley", "Cassava", "Oat"], 0],
-    ["Which festival is known as the Festival of Lights in India?", ["Diwali", "Oktoberfest", "Carnival", "Hanami"], 0],
-    ["Which country has a red maple leaf on its flag?", ["Canada", "Switzerland", "Denmark", "Vietnam"], 0],
-    ["Which time zone term means Coordinated Universal Time?", ["UTC", "CPU", "GPS", "HTML"], 0],
-    ["Which DIY tool checks whether a surface is horizontal?", ["Level", "Wrench", "Drill bit", "Pliers"], 0],
-    ["Which houseplant is known for heart-shaped leaves and trailing vines?", ["Pothos", "Cactus", "Bonsai pine", "Venus flytrap"], 0],
-    ["In many cultures, what is a polite thing to say after receiving help?", ["Thank you", "Move aside", "Hurry up", "Give me more"], 0],
-    ["Which zodiac sign is represented by scales?", ["Libra", "Aries", "Scorpio", "Pisces"], 0],
-    ["Which birthstone is commonly associated with April?", ["Diamond", "Ruby", "Emerald", "Opal"], 0],
-    ["Which fabric is made from silkworm cocoons?", ["Silk", "Denim", "Linen", "Fleece"], 0],
-    ["Which 2001 film won the first Academy Award for Best Animated Feature?", ["Ice Age", "Monsters, Inc.", "Shrek", "Finding Nemo"], 2],
-    ["Which actor plays Jack Sparrow in the Pirates of the Caribbean films?", ["Orlando Bloom", "Johnny Depp", "Hugh Jackman", "Robert Downey Jr."], 1],
-    ["Which actor played Iron Man in the Marvel Cinematic Universe?", ["Robert Downey Jr.", "Chris Evans", "Mark Ruffalo", "Chris Hemsworth"], 0],
-    ["Which actor played Captain America in the Marvel Cinematic Universe?", ["Chris Evans", "Tom Holland", "Chris Pratt", "Jeremy Renner"], 0],
-    ["Which actor played Wolverine in many X-Men films?", ["Tobey Maguire", "Ben Affleck", "Hugh Jackman", "Ryan Reynolds"], 2],
-    ["Which actor played Katniss Everdeen in The Hunger Games films?", ["Kristen Stewart", "Emma Watson", "Jennifer Lawrence", "Brie Larson"], 2],
-    ["Which actor played Hermione Granger in the Harry Potter films?", ["Emma Watson", "Natalie Portman", "Emma Stone", "Anne Hathaway"], 0],
-    ["Which actor played Gandalf in The Lord of the Rings films?", ["Patrick Stewart", "Christopher Lee", "Ian McKellen", "Michael Gambon"], 2],
-    ["Which director helmed Titanic and Avatar?", ["James Cameron", "Steven Spielberg", "Peter Jackson", "Christopher Nolan"], 0],
-    ["Which director is known for Pulp Fiction and Kill Bill?", ["Tim Burton", "Quentin Tarantino", "Martin Scorsese", "Ridley Scott"], 1],
-    ["Which director made The Dark Knight trilogy?", ["Zack Snyder", "J. J. Abrams", "Christopher Nolan", "Sam Raimi"], 2],
-    ["Which director made the Lord of the Rings film trilogy?", ["Peter Jackson", "Ang Lee", "James Cameron", "George Lucas"], 0],
-    ["Which director created the Star Wars franchise?", ["Francis Ford Coppola", "Ridley Scott", "George Lucas", "Steven Spielberg"], 2],
-    ["Which movie features a red pill and a blue pill?", ["Inception", "Blade Runner", "The Matrix", "Minority Report"], 2],
-    ["Which movie features dream-sharing technology and a spinning top?", ["Inception", "Interstellar", "Memento", "Tenet"], 0],
-    ["Which Nolan film is about a team traveling through a wormhole to find a new home for humanity?", ["Tenet", "Interstellar", "The Prestige", "Dunkirk"], 1],
-    ["Which movie features the fictional language Na'vi?", ["Avatar", "The Fifth Element", "Guardians of the Galaxy", "Dune"], 0],
-    ["Which movie is set mostly on the desert planet Arrakis?", ["Avatar", "Mad Max", "The Martian", "Dune"], 3],
-    ["Which film series includes the character John Wick?", ["John Wick", "The Equalizer", "Taken", "Mission: Impossible"], 0],
-    ["Which film series stars Ethan Hunt?", ["James Bond", "Fast & Furious", "Bourne", "Mission: Impossible"], 3],
-    ["Which spy franchise features a character with code number 007?", ["Jason Bourne", "Mission: Impossible", "James Bond", "Kingsman"], 2],
-    ["Which movie features the quote 'You can't handle the truth!'?", ["Rain Man", "Top Gun", "A Few Good Men", "The Firm"], 2],
-    ["Which movie features the quote 'I'm the king of the world!'?", ["Gladiator", "Titanic", "Braveheart", "Avatar"], 1],
-    ["Which movie features the quote 'To infinity and beyond!'?", ["WALL-E", "Cars", "Toy Story", "Finding Nemo"], 2],
-    ["Which sitcom character says 'How you doin'?'", ["Chandler Bing", "Ted Mosby", "Joey Tribbiani", "Ross Geller"], 2],
-    ["Which sitcom features a character named Dwight Schrute?", ["Frasier", "The Office", "Friends", "Parks and Recreation"], 1],
-    ["Which sitcom is set mostly in apartment 4A and 4B with scientists and neighbors?", ["How I Met Your Mother", "Scrubs", "The Big Bang Theory", "Community"], 2],
-    ["Which sitcom follows Ted Mosby telling his children a long story?", ["Friends", "Modern Family", "How I Met Your Mother", "Seinfeld"], 2],
-    ["Which sitcom features the character Leslie Knope?", ["New Girl", "The Office", "Parks and Recreation", "30 Rock"], 2],
-    ["Which sitcom features Liz Lemon producing a sketch comedy show?", ["Cheers", "Brooklyn Nine-Nine", "30 Rock", "Frasier"], 2],
-    ["Which sitcom takes place at the 99th precinct?", ["Scrubs", "Brooklyn Nine-Nine", "Community", "Arrested Development"], 1],
-    ["Which sitcom features a study group at Greendale Community College?", ["The Goldbergs", "New Girl", "Community", "Glee"], 2],
-    ["Which drama features the advertising agency Sterling Cooper?", ["Mad Men", "The Sopranos", "Succession", "The Wire"], 0],
-    ["Which HBO series centers on the Roy family and Waystar Royco?", ["Billions", "Mad Men", "Succession", "The Newsroom"], 2],
-    ["Which TV series follows a high school glee club called New Directions?", ["Victorious", "Fame", "Riverdale", "Glee"], 3],
-    ["Which streaming series features a deadly contest for a large cash prize in South Korea?", ["Dark", "Squid Game", "Alice in Borderland", "Money Heist"], 1],
-    ["Which Spanish series is also known as La Casa de Papel?", ["Money Heist", "Dark", "Elite", "Lupin"], 0],
-    ["Which show follows Geralt of Rivia?", ["Shadow and Bone", "The Witcher", "The Mandalorian", "Vikings"], 1],
-    ["Which Star Wars series features a bounty hunter caring for Grogu?", ["The Mandalorian", "Andor", "Obi-Wan Kenobi", "Ahsoka"], 0],
-    ["What is Grogu often nicknamed by fans?", ["Baby Yoda", "Little Jedi", "Tiny Vader", "Mini Chewie"], 0],
-    ["Which artist released the album Lemonade?", ["Beyoncé", "Rihanna", "Adele", "Lady Gaga"], 0],
-    ["Which artist released the album 21?", ["Adele", "Taylor Swift", "Billie Eilish", "Lana Del Rey"], 0],
-    ["Which Taylor Swift album includes 'Blank Space' and 'Style'?", ["Reputation", "1989", "Red", "Fearless"], 1],
-    ["Which Nirvana album features the song 'Smells Like Teen Spirit'?", ["Nevermind", "In Utero", "Bleach", "MTV Unplugged"], 0],
-    ["Which band released the album The Dark Side of the Moon?", ["The Who", "Led Zeppelin", "Pink Floyd", "The Rolling Stones"], 2],
-    ["Which band released the album Rumours?", ["Queen", "Fleetwood Mac", "ABBA", "The Eagles"], 1],
-    ["Which singer released the album Thriller?", ["Lionel Richie", "Michael Jackson", "Stevie Wonder", "Prince"], 1],
-    ["Which artist released the album Purple Rain?", ["Elton John", "David Bowie", "Prince", "Michael Jackson"], 2],
-    ["Which rapper released the album The College Dropout?", ["Drake", "Jay-Z", "Kendrick Lamar", "Kanye West"], 3],
-    ["Which rapper released the album good kid, m.A.A.d city?", ["J. Cole", "Nas", "Kendrick Lamar", "Travis Scott"], 2],
-    ["Which band released the song 'Wonderwall'?", ["Radiohead", "Oasis", "Blur", "Coldplay"], 1],
-    ["Which band released 'Sweet Child o' Mine'?", ["Nirvana", "Guns N' Roses", "Aerosmith", "Bon Jovi"], 1],
-    ["Which artist is closely associated with the Ziggy Stardust persona?", ["David Bowie", "Mick Jagger", "Freddie Mercury", "Elton John"], 0],
-    ["Which music genre emerged from the Bronx in the 1970s?", ["Grunge", "Hip-hop", "Country", "Disco"], 1],
-    ["Which genre is strongly linked to New Orleans improvisation and swing?", ["Jazz", "Reggae", "Techno", "Punk"], 0],
-    ["Which music genre is associated with distorted guitars and 1990s Seattle bands?", ["EDM", "Ska", "Disco", "Grunge"], 3],
-    ["Which award category recognizes songwriters rather than the recording itself?", ["Best New Artist", "Album of the Year", "Song of the Year", "Record of the Year"], 2],
-    ["Which Grammy category recognizes the performers and production team of a single recording?", ["Best New Artist", "Record of the Year", "Song of the Year", "Best Music Video"], 1],
-    ["Which Grammy category recognizes a full collection of tracks?", ["Best New Artist", "Song of the Year", "Album of the Year", "Record of the Year"], 2],
-    ["What does EGOT stand for?", ["Emmy, Globe, Oscar, Tony", "Emmy, Grammy, Obie, Tony", "ESPY, Grammy, Olivier, Tony", "Emmy, Grammy, Oscar, Tony"], 3],
-    ["Which awards are named after Antoinette Perry?", ["Tony Awards", "Academy Awards", "Grammy Awards", "Emmy Awards"], 0],
-    ["Which award show is presented by the Recording Academy?", ["Grammy Awards", "Tonys", "Emmys", "Oscars"], 0],
-    ["Which award show is presented by the Academy of Motion Picture Arts and Sciences?", ["Emmys", "Grammys", "Tonys", "Academy Awards"], 3],
-    ["Which award is associated with a winged woman holding an atom?", ["Tony", "Emmy", "Oscar", "Grammy"], 1],
-    ["Which internet meme phrase comes from The Lord of the Rings line 'One does not simply walk into Mordor'?", ["I can has cheezburger", "One does not simply", "Such wow", "This is fine"], 1],
-    ["Which meme shows a dog calmly sitting in a burning room?", ["This is fine", "Success Kid", "Distracted Boyfriend", "Doge"], 0],
-    ["Which meme shows a baby clenching a fist on a beach?", ["Keyboard Cat", "Success Kid", "Bad Luck Brian", "Nyan Cat"], 1],
-    ["Which meme features a rainbow Pop-Tart cat flying through space?", ["Nyan Cat", "Grumpy Cat", "Longcat", "Doge"], 0],
-    ["Which early viral video featured Gary Brolsma lip-syncing to 'Dragostea Din Tei'?", ["Evolution of Dance", "Dancing Baby", "Numa Numa", "Chocolate Rain"], 2],
-    ["Which viral song by Tay Zonday became famous for its deep vocal delivery?", ["Friday", "Chocolate Rain", "Badger Badger Badger", "Gangnam Style"], 1],
-    ["Which music video by Psy became a massive global viral hit in 2012?", ["Baby Shark", "Despacito", "Gangnam Style", "Harlem Shake"], 2],
-    ["Which viral dance trend uses the song 'Harlem Shake' by Baauer?", ["Bottle Cap Challenge", "Harlem Shake", "Planking", "Mannequin Challenge"], 1],
-    ["Which app popularized six-second looping videos before shutting down?", ["Twitch", "TikTok", "Snapchat", "Vine"], 3],
-    ["Which platform uses subreddits for communities?", ["Reddit", "Tumblr", "Discord", "Instagram"], 0],
-    ["Which chat platform is popular for servers and channels among gamers?", ["Etsy", "Pinterest", "Spotify", "Discord"], 3],
-    ["Which web encyclopedia is collaboratively edited by volunteers?", ["Reddit", "IMDb", "Quora", "Wikipedia"], 3],
-    ["Which movie database website is commonly abbreviated IMDb?", ["Internet Movie Database", "Internet Meme Database", "Interactive Media Directory Base", "International Music Data Bank"], 0],
-    ["Which manga magazine is famous for publishing One Piece, Naruto, and Dragon Ball?", ["Vogue", "Time", "Weekly Shonen Jump", "Rolling Stone"], 2],
-    ["Who created One Piece?", ["Masashi Kishimoto", "Akira Toriyama", "Eiichiro Oda", "Tite Kubo"], 2],
-    ["Who created Naruto?", ["Rumiko Takahashi", "Eiichiro Oda", "Masashi Kishimoto", "Naoko Takeuchi"], 2],
-    ["Who created Sailor Moon?", ["Hiromu Arakawa", "CLAMP", "Akira Toriyama", "Naoko Takeuchi"], 3],
-    ["Which anime features the notebook called a Death Note?", ["One Piece", "Attack on Titan", "Death Note", "Bleach"], 2],
-    ["Which anime features giant humanoid enemies called Titans?", ["Jujutsu Kaisen", "Demon Slayer", "Dragon Ball Z", "Attack on Titan"], 3],
-    ["Which anime follows Tanjiro Kamado?", ["Bleach", "My Hero Academia", "Naruto", "Demon Slayer"], 3],
-    ["Which anime school is U.A. High School from?", ["Jujutsu Kaisen", "One Piece", "Blue Lock", "My Hero Academia"], 3],
-    ["Which board game uses clue cards for suspects, rooms, and weapons?", ["Catan", "Clue", "Monopoly", "Risk"], 1],
-    ["Which strategy board game involves armies conquering territories?", ["Pictionary", "Candy Land", "Risk", "Scrabble"], 2],
-    ["Which board game uses resources like brick, lumber, and ore?", ["Jenga", "Trouble", "Catan", "Battleship"], 2],
-    ["Which word game gives bonus points for double and triple word scores?", ["Taboo", "Boggle", "Scrabble", "Uno"], 2],
-    ["Which party game uses cards with words players cannot say?", ["Chess", "Risk", "Taboo", "Twister"], 2],
-    ["Which physical party game uses a mat with colored circles?", ["Jenga", "Pictionary", "Twister", "Uno"], 2],
-    ["Which video game series features the Master Sword?", ["The Legend of Zelda", "Halo", "Final Fantasy", "Metroid"], 0],
-    ["Which video game series features Samus Aran?", ["Doom", "Halo", "Mass Effect", "Metroid"], 3],
-    ["Which video game series has a Vault Boy mascot?", ["Fallout", "Half-Life", "Portal", "BioShock"], 0],
-    ["Which video game series features the Aperture Science Handheld Portal Device?", ["Half-Life", "Portal", "Overwatch", "Doom"], 1],
-    ["Which game series features the phrase 'Finish Him!'?", ["Street Fighter", "Tekken", "Super Smash Bros.", "Mortal Kombat"], 3],
-    ["Which fighting game series features Ryu and Chun-Li?", ["King of Fighters", "Street Fighter", "Tekken", "Mortal Kombat"], 1],
-    ["Which game series features Scorpion and Sub-Zero?", ["Street Fighter", "Tekken", "Soulcalibur", "Mortal Kombat"], 3],
-    ["Which game series features a silent scientist named Gordon Freeman?", ["Wolfenstein", "Half-Life", "Doom", "Halo"], 1],
-    ["Which game franchise features the Master Chief?", ["Doom", "Gears of War", "Halo", "Destiny"], 2]
+  "medium": [
+    [
+      "Which gas do plants absorb during photosynthesis?",
+      [
+        "Oxygen",
+        "Neon",
+        "Carbon dioxide",
+        "Helium"
+      ],
+      2
+    ],
+    [
+      "What is the largest planet in our solar system?",
+      [
+        "Jupiter",
+        "Earth",
+        "Mars",
+        "Saturn"
+      ],
+      0
+    ],
+    [
+      "Which instrument has keys, pedals, and strings inside?",
+      [
+        "Flute",
+        "Trumpet",
+        "Piano",
+        "Drum"
+      ],
+      2
+    ],
+    [
+      "What is the process of liquid water becoming vapor called?",
+      [
+        "Condensation",
+        "Melting",
+        "Evaporation",
+        "Freezing"
+      ],
+      2
+    ],
+    [
+      "Which country is famous for sushi as a traditional food?",
+      [
+        "Italy",
+        "Egypt",
+        "Japan",
+        "Mexico"
+      ],
+      2
+    ],
+    [
+      "What is the square root of 144?",
+      [
+        "16",
+        "10",
+        "12",
+        "14"
+      ],
+      2
+    ],
+    [
+      "Which organ pumps blood through the body?",
+      [
+        "Liver",
+        "Heart",
+        "Lung",
+        "Kidney"
+      ],
+      1
+    ],
+    [
+      "Which metal is commonly used in electric wires?",
+      [
+        "Silver only",
+        "Copper",
+        "Tin",
+        "Lead"
+      ],
+      1
+    ],
+    [
+      "What is the main language used to style web pages?",
+      [
+        "SQL",
+        "CSS",
+        "HTML",
+        "Python"
+      ],
+      1
+    ],
+    [
+      "In chess, which piece can move diagonally any distance?",
+      [
+        "Pawn",
+        "Bishop",
+        "Knight",
+        "Rook"
+      ],
+      1
+    ],
+    [
+      "Which layer of Earth is liquid outer metal?",
+      [
+        "Outer core",
+        "Mantle",
+        "Inner core",
+        "Crust"
+      ],
+      0
+    ],
+    [
+      "What is the freezing point of water in Celsius?",
+      [
+        "32°C",
+        "10°C",
+        "100°C",
+        "0°C"
+      ],
+      3
+    ],
+    [
+      "Which vitamin is commonly produced by skin in sunlight?",
+      [
+        "Vitamin D",
+        "Vitamin A",
+        "Vitamin B12",
+        "Vitamin K"
+      ],
+      0
+    ],
+    [
+      "What is the hardest natural substance?",
+      [
+        "Iron",
+        "Quartz",
+        "Gold",
+        "Diamond"
+      ],
+      3
+    ],
+    [
+      "Which sport is played at Wimbledon?",
+      [
+        "Table tennis",
+        "Basketball",
+        "Rugby",
+        "Tennis"
+      ],
+      3
+    ],
+    [
+      "What is the chemical symbol for gold?",
+      [
+        "Au",
+        "Gd",
+        "Go",
+        "Ag"
+      ],
+      0
+    ],
+    [
+      "Which planet is known for its rings?",
+      [
+        "Mars",
+        "Venus",
+        "Saturn",
+        "Mercury"
+      ],
+      2
+    ],
+    [
+      "What do you call animals that eat both plants and meat?",
+      [
+        "Omnivores",
+        "Carnivores",
+        "Insectivores",
+        "Herbivores"
+      ],
+      0
+    ],
+    [
+      "Which data structure uses first-in, first-out behavior?",
+      [
+        "Queue",
+        "Graph",
+        "Stack",
+        "Tree"
+      ],
+      0
+    ],
+    [
+      "Which famous scientist proposed the laws of motion?",
+      [
+        "Nikola Tesla",
+        "Albert Einstein",
+        "Isaac Newton",
+        "Marie Curie"
+      ],
+      2
+    ],
+    [
+      "What is the largest ocean on Earth?",
+      [
+        "Indian Ocean",
+        "Atlantic Ocean",
+        "Arctic Ocean",
+        "Pacific Ocean"
+      ],
+      3
+    ],
+    [
+      "Which part of a plant absorbs water from soil?",
+      [
+        "Fruit",
+        "Petals",
+        "Roots",
+        "Stem only"
+      ],
+      2
+    ],
+    [
+      "What is the smallest prime number?",
+      [
+        "1",
+        "5",
+        "3",
+        "2"
+      ],
+      3
+    ],
+    [
+      "Which programming language is often used with Node.js?",
+      [
+        "C",
+        "Swift",
+        "Ruby",
+        "JavaScript"
+      ],
+      3
+    ],
+    [
+      "What is the main ingredient in guacamole?",
+      [
+        "Cucumber",
+        "Potato",
+        "Avocado",
+        "Tomato"
+      ],
+      2
+    ],
+    [
+      "Which type of energy is stored in a stretched spring?",
+      [
+        "Potential energy",
+        "Thermal energy",
+        "Kinetic energy",
+        "Light energy"
+      ],
+      0
+    ],
+    [
+      "What is the capital city of France?",
+      [
+        "Lyon",
+        "Nice",
+        "Paris",
+        "Marseille"
+      ],
+      2
+    ],
+    [
+      "Which animal is a marsupial?",
+      [
+        "Tiger",
+        "Penguin",
+        "Elephant",
+        "Kangaroo"
+      ],
+      3
+    ],
+    [
+      "How many degrees are in a right angle?",
+      [
+        "45",
+        "360",
+        "180",
+        "90"
+      ],
+      3
+    ],
+    [
+      "Which blood cells help carry oxygen?",
+      [
+        "Platelets",
+        "Red blood cells",
+        "White blood cells",
+        "Plasma"
+      ],
+      1
+    ],
+    [
+      "What does CPU stand for?",
+      [
+        "Central Processing Unit",
+        "Core Program Unit",
+        "Computer Power Utility",
+        "Central Pixel Unit"
+      ],
+      0
+    ],
+    [
+      "Which continent is the Sahara Desert located in?",
+      [
+        "South America",
+        "Europe",
+        "Asia",
+        "Africa"
+      ],
+      3
+    ],
+    [
+      "Which food is made by fermenting milk?",
+      [
+        "Bread crumbs",
+        "Pasta",
+        "Yogurt",
+        "Jam"
+      ],
+      2
+    ],
+    [
+      "What is the chemical symbol for sodium?",
+      [
+        "So",
+        "N",
+        "Sd",
+        "Na"
+      ],
+      3
+    ],
+    [
+      "Which unit measures electrical resistance?",
+      [
+        "Ampere",
+        "Volt",
+        "Ohm",
+        "Watt"
+      ],
+      2
+    ],
+    [
+      "What is the study of weather called?",
+      [
+        "Botany",
+        "Geology",
+        "Meteorology",
+        "Astronomy"
+      ],
+      2
+    ],
+    [
+      "Which polygon has eight sides?",
+      [
+        "Heptagon",
+        "Octagon",
+        "Pentagon",
+        "Hexagon"
+      ],
+      1
+    ],
+    [
+      "Which bone protects the brain?",
+      [
+        "Tibia",
+        "Skull",
+        "Rib",
+        "Femur"
+      ],
+      1
+    ],
+    [
+      "What is the main gas in Earth's atmosphere?",
+      [
+        "Hydrogen",
+        "Oxygen",
+        "Nitrogen",
+        "Carbon dioxide"
+      ],
+      2
+    ],
+    [
+      "Which musical term means to play softly?",
+      [
+        "Piano",
+        "Allegro",
+        "Forte",
+        "Presto"
+      ],
+      0
+    ],
+    [
+      "What is the largest land animal alive today?",
+      [
+        "Hippopotamus",
+        "Rhino",
+        "African elephant",
+        "Giraffe"
+      ],
+      2
+    ],
+    [
+      "Which web protocol is used for secure websites?",
+      [
+        "FTP",
+        "SMTP",
+        "HTTPS",
+        "DNS"
+      ],
+      2
+    ],
+    [
+      "Which part of speech describes an action?",
+      [
+        "Preposition",
+        "Adjective",
+        "Noun",
+        "Verb"
+      ],
+      3
+    ],
+    [
+      "What is the formula for the area of a rectangle?",
+      [
+        "π × radius",
+        "base + height",
+        "side × side × side",
+        "length × width"
+      ],
+      3
+    ],
+    [
+      "Which planet is closest to the Sun?",
+      [
+        "Mars",
+        "Mercury",
+        "Venus",
+        "Earth"
+      ],
+      1
+    ],
+    [
+      "What is the name of the galaxy that contains Earth?",
+      [
+        "Triangulum",
+        "Sombrero",
+        "Andromeda",
+        "Milky Way"
+      ],
+      3
+    ],
+    [
+      "Which cooking method uses hot oil?",
+      [
+        "Steaming",
+        "Freezing",
+        "Drying",
+        "Frying"
+      ],
+      3
+    ],
+    [
+      "What is the main function of leaves?",
+      [
+        "Protect bark",
+        "Make food",
+        "Store seeds",
+        "Anchor roots"
+      ],
+      1
+    ],
+    [
+      "Which SI unit measures force?",
+      [
+        "Pascal",
+        "Newton",
+        "Joule",
+        "Tesla"
+      ],
+      1
+    ],
+    [
+      "Which animal is known for echolocation?",
+      [
+        "Horse",
+        "Bat",
+        "Panda",
+        "Rabbit"
+      ],
+      1
+    ],
+    [
+      "What is the decimal form of 1/4?",
+      [
+        "0.25",
+        "0.2",
+        "0.75",
+        "0.5"
+      ],
+      0
+    ],
+    [
+      "Which element has the chemical symbol O?",
+      [
+        "Oxygen",
+        "Osmium",
+        "Opal",
+        "Gold"
+      ],
+      0
+    ],
+    [
+      "Which game genre focuses on building and managing resources?",
+      [
+        "Rhythm",
+        "Fighting",
+        "Simulation",
+        "Platformer"
+      ],
+      2
+    ],
+    [
+      "What is the common name for NaCl?",
+      [
+        "Sugar",
+        "Baking soda",
+        "Salt",
+        "Vinegar"
+      ],
+      2
+    ],
+    [
+      "Which planet is called the Red Planet?",
+      [
+        "Neptune",
+        "Venus",
+        "Mars",
+        "Jupiter"
+      ],
+      2
+    ],
+    [
+      "What do you call the force that pulls objects toward Earth?",
+      [
+        "Gravity",
+        "Friction",
+        "Buoyancy",
+        "Magnetism"
+      ],
+      0
+    ],
+    [
+      "Which device stores electrical energy chemically?",
+      [
+        "Router",
+        "Speaker",
+        "Monitor",
+        "Battery"
+      ],
+      3
+    ],
+    [
+      "What is a group of wolves called?",
+      [
+        "Pack",
+        "School",
+        "Flock",
+        "Herd"
+      ],
+      0
+    ],
+    [
+      "Which famous board game uses properties and rent?",
+      [
+        "Monopoly",
+        "Clue",
+        "Risk",
+        "Scrabble"
+      ],
+      0
+    ],
+    [
+      "Which number is represented by the Roman numeral X?",
+      [
+        "100",
+        "5",
+        "10",
+        "50"
+      ],
+      2
+    ],
+    [
+      "Which part of a computer displays images?",
+      [
+        "Printer",
+        "Mouse",
+        "Monitor",
+        "Keyboard"
+      ],
+      2
+    ],
+    [
+      "What is the pH of pure water at room temperature?",
+      [
+        "14",
+        "1",
+        "10",
+        "7"
+      ],
+      3
+    ],
+    [
+      "Which animal is the fastest land animal?",
+      [
+        "Horse",
+        "Cheetah",
+        "Lion",
+        "Deer"
+      ],
+      1
+    ],
+    [
+      "What is the main ingredient of tofu?",
+      [
+        "Rice",
+        "Soybeans",
+        "Wheat",
+        "Corn"
+      ],
+      1
+    ],
+    [
+      "Which branch of science studies living things?",
+      [
+        "Biology",
+        "Geology",
+        "Astronomy",
+        "Physics"
+      ],
+      0
+    ],
+    [
+      "What is the value of 9 × 8?",
+      [
+        "68",
+        "81",
+        "72",
+        "64"
+      ],
+      2
+    ],
+    [
+      "Which cloud type is fluffy and often seen in fair weather?",
+      [
+        "Nimbus",
+        "Cirrus",
+        "Cumulus",
+        "Stratus"
+      ],
+      2
+    ],
+    [
+      "Which country is known for inventing pizza in its modern form?",
+      [
+        "Italy",
+        "Brazil",
+        "India",
+        "Canada"
+      ],
+      0
+    ],
+    [
+      "What is the name of the fictional wizard school in Harry Potter?",
+      [
+        "Hogwarts",
+        "Narnia",
+        "Mordor",
+        "Gotham"
+      ],
+      0
+    ],
+    [
+      "Which organ helps humans breathe?",
+      [
+        "Stomach",
+        "Spleen",
+        "Lungs",
+        "Pancreas"
+      ],
+      2
+    ],
+    [
+      "What is the term for animals active at night?",
+      [
+        "Migratory",
+        "Domestic",
+        "Nocturnal",
+        "Aquatic"
+      ],
+      2
+    ],
+    [
+      "Which mathematical constant is approximately 3.14159?",
+      [
+        "Phi",
+        "Pi",
+        "Euler's number",
+        "Tau only"
+      ],
+      1
+    ],
+    [
+      "Which programming concept repeats code while a condition is true?",
+      [
+        "Array",
+        "Class",
+        "Comment",
+        "Loop"
+      ],
+      3
+    ],
+    [
+      "What is the largest mammal?",
+      [
+        "Blue whale",
+        "Orca",
+        "Giraffe",
+        "Elephant"
+      ],
+      0
+    ],
+    [
+      "Which material is made by heating sand and other minerals?",
+      [
+        "Rubber",
+        "Cotton",
+        "Glass",
+        "Plastic"
+      ],
+      2
+    ],
+    [
+      "What is a baby frog called?",
+      [
+        "Foal",
+        "Cub",
+        "Larva only",
+        "Tadpole"
+      ],
+      3
+    ],
+    [
+      "Which gas do humans breathe in to survive?",
+      [
+        "Argon",
+        "Nitrogen only",
+        "Methane",
+        "Oxygen"
+      ],
+      3
+    ],
+    [
+      "What is the center of an atom called?",
+      [
+        "Molecule",
+        "Electron cloud",
+        "Shell",
+        "Nucleus"
+      ],
+      3
+    ],
+    [
+      "Which country is associated with tacos as a traditional food?",
+      [
+        "Greece",
+        "Norway",
+        "Thailand",
+        "Mexico"
+      ],
+      3
+    ],
+    [
+      "What is 15% of 200?",
+      [
+        "25",
+        "30",
+        "35",
+        "20"
+      ],
+      1
+    ],
+    [
+      "Which star is closest to Earth?",
+      [
+        "The Sun",
+        "Sirius",
+        "Polaris",
+        "Vega"
+      ],
+      0
+    ],
+    [
+      "What is the name of the force opposing motion between surfaces?",
+      [
+        "Gravity",
+        "Friction",
+        "Tension",
+        "Lift"
+      ],
+      1
+    ],
+    [
+      "Which sea creature has eight arms?",
+      [
+        "Octopus",
+        "Seal",
+        "Crab",
+        "Dolphin"
+      ],
+      0
+    ],
+    [
+      "Which kind of triangle has all sides equal?",
+      [
+        "Right",
+        "Equilateral",
+        "Scalene",
+        "Isosceles only"
+      ],
+      1
+    ],
+    [
+      "Which file extension is commonly used for JavaScript files?",
+      [
+        ".html",
+        ".css",
+        ".py",
+        ".js"
+      ],
+      3
+    ],
+    [
+      "What is the edible part of broccoli called?",
+      [
+        "Roots",
+        "Seeds",
+        "Bark",
+        "Flower buds"
+      ],
+      3
+    ],
+    [
+      "Which instrument measures air pressure?",
+      [
+        "Thermometer",
+        "Barometer",
+        "Hygrometer",
+        "Compass"
+      ],
+      1
+    ],
+    [
+      "What is the main function of the skeleton?",
+      [
+        "Pump blood",
+        "Filter air",
+        "Digest food",
+        "Support the body"
+      ],
+      3
+    ],
+    [
+      "Which planet has the Great Red Spot?",
+      [
+        "Saturn",
+        "Neptune",
+        "Jupiter",
+        "Mars"
+      ],
+      2
+    ],
+    [
+      "Which HTML tag is commonly used for a paragraph?",
+      [
+        "<table>",
+        "<script>",
+        "<p>",
+        "<img>"
+      ],
+      2
+    ],
+    [
+      "What is the process of a caterpillar becoming a butterfly called?",
+      [
+        "Metamorphosis",
+        "Fermentation",
+        "Photosynthesis",
+        "Evaporation"
+      ],
+      0
+    ],
+    [
+      "Which sport uses a shuttlecock?",
+      [
+        "Badminton",
+        "Volleyball",
+        "Squash",
+        "Tennis"
+      ],
+      0
+    ],
+    [
+      "What is the main ingredient in hummus?",
+      [
+        "Potatoes",
+        "Chickpeas",
+        "Eggs",
+        "Apples"
+      ],
+      1
+    ],
+    [
+      "Which machine is used to print documents?",
+      [
+        "Scanner",
+        "Printer",
+        "Projector",
+        "Router"
+      ],
+      1
+    ],
+    [
+      "What is the name for a word that has the opposite meaning?",
+      [
+        "Suffix",
+        "Prefix",
+        "Synonym",
+        "Antonym"
+      ],
+      3
+    ],
+    [
+      "Which part of Earth do tectonic plates belong to?",
+      [
+        "Biosphere",
+        "Hydrosphere",
+        "Atmosphere",
+        "Lithosphere"
+      ],
+      3
+    ],
+    [
+      "How many players are on a standard soccer team on the field?",
+      [
+        "9",
+        "10",
+        "11",
+        "12"
+      ],
+      2
+    ],
+    [
+      "Which sense uses the tongue?",
+      [
+        "Sight",
+        "Taste",
+        "Touch",
+        "Hearing"
+      ],
+      1
+    ],
+    [
+      "Which shape is the base of most traffic stop signs?",
+      [
+        "Triangle",
+        "Octagon",
+        "Circle",
+        "Pentagon"
+      ],
+      1
+    ],
+    [
+      "What type of animal is a salmon?",
+      [
+        "Reptile",
+        "Mammal",
+        "Fish",
+        "Bird"
+      ],
+      2
+    ],
+    [
+      "Which actor voiced Woody in the Toy Story films?",
+      [
+        "Tom Hanks",
+        "Tim Allen",
+        "Robin Williams",
+        "Billy Crystal"
+      ],
+      0
+    ],
+    [
+      "Which actor voiced Buzz Lightyear in the original Toy Story films?",
+      [
+        "Tom Hanks",
+        "Tim Allen",
+        "John Goodman",
+        "Mike Myers"
+      ],
+      1
+    ],
+    [
+      "Which film won the first Academy Award for Best Animated Feature?",
+      [
+        "Toy Story",
+        "Shrek",
+        "Finding Nemo",
+        "Spirited Away"
+      ],
+      1
+    ],
+    [
+      "Which movie features the fictional metal vibranium?",
+      [
+        "Black Panther",
+        "The Matrix",
+        "Jaws",
+        "Top Gun"
+      ],
+      0
+    ],
+    [
+      "Which director is closely associated with the movie Jaws?",
+      [
+        "Steven Spielberg",
+        "James Cameron",
+        "George Lucas",
+        "Ridley Scott"
+      ],
+      0
+    ],
+    [
+      "Which movie franchise features the character Dominic Toretto?",
+      [
+        "Fast & Furious",
+        "Mission: Impossible",
+        "Indiana Jones",
+        "The Hunger Games"
+      ],
+      0
+    ],
+    [
+      "Which film popularized the quote 'I'll be back'?",
+      [
+        "The Terminator",
+        "Rocky",
+        "Ghostbusters",
+        "Die Hard"
+      ],
+      0
+    ],
+    [
+      "Which movie features a DeLorean time machine?",
+      [
+        "Back to the Future",
+        "Blade Runner",
+        "E.T.",
+        "Tron"
+      ],
+      0
+    ],
+    [
+      "Which fictional country is ruled by King T'Challa?",
+      [
+        "Wakanda",
+        "Narnia",
+        "Genovia",
+        "Latveria"
+      ],
+      0
+    ],
+    [
+      "Which monster movie features a giant ape on Skull Island?",
+      [
+        "King Kong",
+        "Godzilla",
+        "Cloverfield",
+        "Pacific Rim"
+      ],
+      0
+    ],
+    [
+      "Which sitcom catchphrase is associated with Joey Tribbiani?",
+      [
+        "How you doin'?",
+        "Bazinga!",
+        "D'oh!",
+        "Did I do that?"
+      ],
+      0
+    ],
+    [
+      "Which sitcom character often says 'Bazinga!'?",
+      [
+        "Sheldon Cooper",
+        "Michael Scott",
+        "Ross Geller",
+        "Frasier Crane"
+      ],
+      0
+    ],
+    [
+      "Which TV bar is the main setting of Cheers?",
+      [
+        "Cheers",
+        "Moe's Tavern",
+        "Central Perk",
+        "The Max"
+      ],
+      0
+    ],
+    [
+      "Which sitcom follows the Pritchett-Dunphy-Tucker family?",
+      [
+        "Modern Family",
+        "Friends",
+        "Seinfeld",
+        "Community"
+      ],
+      0
+    ],
+    [
+      "Which mockumentary sitcom is set in Pawnee, Indiana?",
+      [
+        "Parks and Recreation",
+        "The Office",
+        "30 Rock",
+        "Arrested Development"
+      ],
+      0
+    ],
+    [
+      "Which artist is known as the Queen of Pop?",
+      [
+        "Madonna",
+        "Adele",
+        "Billie Eilish",
+        "Dua Lipa"
+      ],
+      0
+    ],
+    [
+      "Which British band released the album Abbey Road?",
+      [
+        "The Beatles",
+        "The Rolling Stones",
+        "Oasis",
+        "Queen"
+      ],
+      0
+    ],
+    [
+      "Which genre is most associated with DJs, turntables, and MCs?",
+      [
+        "Hip-hop",
+        "Opera",
+        "Bluegrass",
+        "Baroque"
+      ],
+      0
+    ],
+    [
+      "Which singer released the album 1989?",
+      [
+        "Taylor Swift",
+        "Ariana Grande",
+        "Beyoncé",
+        "Lady Gaga"
+      ],
+      0
+    ],
+    [
+      "Which band performed the song 'Bohemian Rhapsody'?",
+      [
+        "Queen",
+        "ABBA",
+        "Nirvana",
+        "The Police"
+      ],
+      0
+    ],
+    [
+      "Which award is given for excellence in television?",
+      [
+        "Emmy",
+        "Oscar",
+        "Grammy",
+        "Tony"
+      ],
+      0
+    ],
+    [
+      "Which award is given for excellence in Broadway theater?",
+      [
+        "Tony",
+        "Oscar",
+        "Grammy",
+        "Pulitzer only"
+      ],
+      0
+    ],
+    [
+      "Which organization presents the Academy Awards?",
+      [
+        "Academy of Motion Picture Arts and Sciences",
+        "Recording Academy",
+        "Hollywood Foreign Press only",
+        "Tony Committee"
+      ],
+      0
+    ],
+    [
+      "Which internet meme features a rainbow cat flying through space?",
+      [
+        "Nyan Cat",
+        "Doge",
+        "Keyboard Cat",
+        "Success Kid"
+      ],
+      0
+    ],
+    [
+      "Which meme is based on a cat with a famously unhappy expression?",
+      [
+        "Grumpy Cat",
+        "Ceiling Cat",
+        "Longcat",
+        "Pusheen"
+      ],
+      0
+    ],
+    [
+      "Which term describes a video or post spreading quickly online?",
+      [
+        "Viral",
+        "Analog",
+        "Offline",
+        "Private"
+      ],
+      0
+    ],
+    [
+      "Which actor voiced Genie in Disney's Aladdin?",
+      [
+        "Robin Williams",
+        "Eddie Murphy",
+        "Will Ferrell",
+        "Steve Carell"
+      ],
+      0
+    ],
+    [
+      "Which actor voiced Donkey in Shrek?",
+      [
+        "Eddie Murphy",
+        "Mike Myers",
+        "Antonio Banderas",
+        "Chris Rock"
+      ],
+      0
+    ],
+    [
+      "Which Broadway musical is based on songs by ABBA?",
+      [
+        "Mamma Mia!",
+        "Wicked",
+        "Rent",
+        "Cats"
+      ],
+      0
+    ],
+    [
+      "Which stage musical features the Phantom and Christine Daaé?",
+      [
+        "The Phantom of the Opera",
+        "Hamilton",
+        "Chicago",
+        "Annie"
+      ],
+      0
+    ],
+    [
+      "Which manga series follows Monkey D. Luffy?",
+      [
+        "One Piece",
+        "Naruto",
+        "Death Note",
+        "Sailor Moon"
+      ],
+      0
+    ],
+    [
+      "Which graphic novel by Art Spiegelman uses mice and cats to depict history?",
+      [
+        "Maus",
+        "Watchmen",
+        "Persepolis",
+        "Blankets"
+      ],
+      0
+    ],
+    [
+      "Which superhero is known as the Dark Knight?",
+      [
+        "Batman",
+        "Superman",
+        "Green Lantern",
+        "Flash"
+      ],
+      0
+    ],
+    [
+      "Which reality competition features designers making outfits under time limits?",
+      [
+        "Project Runway",
+        "Survivor",
+        "The Amazing Race",
+        "The Bachelor"
+      ],
+      0
+    ],
+    [
+      "Which reality show features entrepreneurs pitching to investors?",
+      [
+        "Shark Tank",
+        "Big Brother",
+        "Top Chef",
+        "American Idol"
+      ],
+      0
+    ],
+    [
+      "Which fictional pet belongs to Charlie Brown?",
+      [
+        "Snoopy",
+        "Garfield",
+        "Odie",
+        "Pluto"
+      ],
+      0
+    ],
+    [
+      "Which fictional orange cat loves lasagna?",
+      [
+        "Garfield",
+        "Heathcliff",
+        "Salem",
+        "Tom"
+      ],
+      0
+    ],
+    [
+      "In chess, which piece can move any number of squares diagonally?",
+      [
+        "Bishop",
+        "Rook",
+        "Knight",
+        "Pawn"
+      ],
+      0
+    ],
+    [
+      "In Risk, what is the main goal?",
+      [
+        "World domination",
+        "Build words",
+        "Solve a murder",
+        "Buy properties"
+      ],
+      0
+    ],
+    [
+      "Which board game uses a pop-o-matic dice bubble?",
+      [
+        "Trouble",
+        "Scrabble",
+        "Risk",
+        "Clue"
+      ],
+      0
+    ],
+    [
+      "Which console introduced Wii motion controls?",
+      [
+        "Nintendo Wii",
+        "PlayStation 2",
+        "Xbox 360",
+        "Sega Dreamcast"
+      ],
+      0
+    ],
+    [
+      "Which video game series features Master Chief?",
+      [
+        "Halo",
+        "Metroid",
+        "Doom",
+        "Mass Effect"
+      ],
+      0
+    ],
+    [
+      "Which Zelda game popularized the phrase 'It's dangerous to go alone!'?",
+      [
+        "The Legend of Zelda",
+        "Ocarina of Time",
+        "Breath of the Wild",
+        "Majora's Mask"
+      ],
+      0
+    ],
+    [
+      "Which card hand beats a flush in standard poker?",
+      [
+        "Full house",
+        "Straight",
+        "Three of a kind",
+        "Two pair"
+      ],
+      0
+    ],
+    [
+      "In Uno, what does a Reverse card do?",
+      [
+        "Changes play direction",
+        "Skips everyone",
+        "Draws four cards",
+        "Ends the game instantly"
+      ],
+      0
+    ],
+    [
+      "Which solitaire game is also commonly called Patience?",
+      [
+        "Klondike",
+        "Bridge",
+        "Hearts",
+        "Rummy"
+      ],
+      0
+    ],
+    [
+      "What is the minimum number of moves needed to solve a standard 3x3 Rubik's Cube from any position, known informally as God's number?",
+      [
+        "20",
+        "10",
+        "30",
+        "50"
+      ],
+      0
+    ],
+    [
+      "In Dungeons & Dragons, what does AC usually stand for?",
+      [
+        "Armor Class",
+        "Action Charge",
+        "Arcane Chance",
+        "Attack Count"
+      ],
+      0
+    ],
+    [
+      "Which arcade classic has a frog crossing roads and rivers?",
+      [
+        "Frogger",
+        "Galaga",
+        "Centipede",
+        "Asteroids"
+      ],
+      0
+    ],
+    [
+      "Which toy uses interlocking plastic bricks?",
+      [
+        "LEGO",
+        "Slinky",
+        "Etch A Sketch",
+        "Nerf"
+      ],
+      0
+    ],
+    [
+      "Which cuisine is strongly associated with kimchi?",
+      [
+        "Korean",
+        "Italian",
+        "Brazilian",
+        "Moroccan"
+      ],
+      0
+    ],
+    [
+      "Which cuisine is strongly associated with pad thai?",
+      [
+        "Thai",
+        "Greek",
+        "German",
+        "Peruvian"
+      ],
+      0
+    ],
+    [
+      "Which herb is a key ingredient in traditional pesto?",
+      [
+        "Basil",
+        "Dill",
+        "Sage",
+        "Mint"
+      ],
+      0
+    ],
+    [
+      "Which spice is made from dried flower buds and has a strong warm flavor?",
+      [
+        "Clove",
+        "Coriander",
+        "Paprika",
+        "Parsley"
+      ],
+      0
+    ],
+    [
+      "Which coffee drink is espresso with steamed milk and foam?",
+      [
+        "Cappuccino",
+        "Lemonade",
+        "Matcha",
+        "Kombucha"
+      ],
+      0
+    ],
+    [
+      "Which tea is traditionally used in a Japanese tea ceremony?",
+      [
+        "Matcha",
+        "Earl Grey",
+        "Chai",
+        "Iced tea"
+      ],
+      0
+    ],
+    [
+      "Which dessert is made by baking a custard in a caramel-lined mold?",
+      [
+        "Flan",
+        "Baklava",
+        "Macaron",
+        "Gelato"
+      ],
+      0
+    ],
+    [
+      "Which baking technique gently folds beaten egg whites into batter to keep air?",
+      [
+        "Folding",
+        "Deep-frying",
+        "Searing",
+        "Pickling"
+      ],
+      0
+    ],
+    [
+      "Which fast food chain is known for the slogan 'Have it your way'?",
+      [
+        "Burger King",
+        "KFC",
+        "Subway",
+        "Taco Bell"
+      ],
+      0
+    ],
+    [
+      "Which regional American sandwich is associated with Philadelphia?",
+      [
+        "Cheesesteak",
+        "Po' boy",
+        "Lobster roll",
+        "Cuban sandwich"
+      ],
+      0
+    ],
+    [
+      "Which knife is commonly used as an all-purpose kitchen knife?",
+      [
+        "Chef's knife",
+        "Butter knife",
+        "Palette knife",
+        "Letter opener"
+      ],
+      0
+    ],
+    [
+      "Which cheese is traditionally used in Greek salad?",
+      [
+        "Feta",
+        "Cheddar",
+        "Gouda",
+        "Camembert"
+      ],
+      0
+    ],
+    [
+      "Which pasta shape is shaped like little butterflies or bow ties?",
+      [
+        "Farfalle",
+        "Rigatoni",
+        "Linguine",
+        "Orzo"
+      ],
+      0
+    ],
+    [
+      "Which country has won the FIFA World Cup multiple times and wears a famous yellow jersey?",
+      [
+        "Brazil",
+        "Canada",
+        "Japan",
+        "Egypt"
+      ],
+      0
+    ],
+    [
+      "Which sport uses the term 'love' for zero?",
+      [
+        "Tennis",
+        "Baseball",
+        "Basketball",
+        "Curling"
+      ],
+      0
+    ],
+    [
+      "In curling, what is the target area called?",
+      [
+        "House",
+        "Goal",
+        "Nest",
+        "Diamond"
+      ],
+      0
+    ],
+    [
+      "Which Southeast Asian sport uses a rattan ball and feet over a net?",
+      [
+        "Sepak takraw",
+        "Cricket",
+        "Lacrosse",
+        "Polo"
+      ],
+      0
+    ],
+    [
+      "Which athlete is known as 'The Great One' in ice hockey?",
+      [
+        "Wayne Gretzky",
+        "Michael Phelps",
+        "Babe Ruth",
+        "Pelé"
+      ],
+      0
+    ],
+    [
+      "Which jersey number is famously associated with Michael Jordan on the Chicago Bulls?",
+      [
+        "23",
+        "7",
+        "99",
+        "10"
+      ],
+      0
+    ],
+    [
+      "Which stadium is known as 'The Theatre of Dreams'?",
+      [
+        "Old Trafford",
+        "Wembley Stadium",
+        "Madison Square Garden",
+        "Camp Nou"
+      ],
+      0
+    ],
+    [
+      "Which martial art emphasizes throws and pins and originated in Japan?",
+      [
+        "Judo",
+        "Taekwondo",
+        "Capoeira",
+        "Muay Thai"
+      ],
+      0
+    ],
+    [
+      "Which camping item is used to start a fire by striking sparks?",
+      [
+        "Flint and steel",
+        "Compass",
+        "Tarp",
+        "Carabiner"
+      ],
+      0
+    ],
+    [
+      "Which figure skating jump takes off from the forward outside edge?",
+      [
+        "Axel",
+        "Loop",
+        "Lutz",
+        "Salchow"
+      ],
+      0
+    ],
+    [
+      "Which art movement is associated with Pablo Picasso and fragmented geometric forms?",
+      [
+        "Cubism",
+        "Impressionism",
+        "Romanticism",
+        "Baroque"
+      ],
+      0
+    ],
+    [
+      "Which artist painted Starry Night?",
+      [
+        "Vincent van Gogh",
+        "Claude Monet",
+        "Frida Kahlo",
+        "Salvador Dalí"
+      ],
+      0
+    ],
+    [
+      "Which novel begins with the line 'Call me Ishmael'?",
+      [
+        "Moby-Dick",
+        "Pride and Prejudice",
+        "1984",
+        "Dracula"
+      ],
+      0
+    ],
+    [
+      "Which fictional land is reached through a wardrobe in a C. S. Lewis novel?",
+      [
+        "Narnia",
+        "Oz",
+        "Middle-earth",
+        "Neverland"
+      ],
+      0
+    ],
+    [
+      "Which alphabet is used for modern Greek?",
+      [
+        "Greek alphabet",
+        "Latin alphabet only",
+        "Hangul",
+        "Cyrillic only"
+      ],
+      0
+    ],
+    [
+      "What does the idiom 'spill the beans' mean?",
+      [
+        "Reveal a secret",
+        "Cook soup",
+        "Drop groceries",
+        "Win easily"
+      ],
+      0
+    ],
+    [
+      "In Norse mythology, what is Thor's hammer called?",
+      [
+        "Mjölnir",
+        "Excalibur",
+        "Aegis",
+        "Gungnir"
+      ],
+      0
+    ],
+    [
+      "Which architectural style is known for pointed arches and flying buttresses?",
+      [
+        "Gothic",
+        "Brutalist",
+        "Bauhaus",
+        "Art Deco"
+      ],
+      0
+    ],
+    [
+      "Which fashion designer is strongly associated with the little black dress?",
+      [
+        "Coco Chanel",
+        "Ralph Lauren",
+        "Virgil Abloh",
+        "Giorgio Armani"
+      ],
+      0
+    ],
+    [
+      "What does supply and demand mainly help explain?",
+      [
+        "Prices",
+        "Weather",
+        "Blood types",
+        "Planet orbits"
+      ],
+      0
+    ],
+    [
+      "Which company uses the swoosh logo?",
+      [
+        "Nike",
+        "Adidas",
+        "Puma",
+        "Reebok"
+      ],
+      0
+    ],
+    [
+      "Which currency is used by many countries in the European Union?",
+      [
+        "Euro",
+        "Yen",
+        "Rupee",
+        "Peso"
+      ],
+      0
+    ],
+    [
+      "What does IPO stand for in the stock market?",
+      [
+        "Initial Public Offering",
+        "Internal Price Order",
+        "Instant Profit Option",
+        "International Product Office"
+      ],
+      0
+    ],
+    [
+      "Which invention lets clothes open and close with sliding interlocking teeth?",
+      [
+        "Zipper",
+        "Ballpoint pen",
+        "Toaster",
+        "Thermos"
+      ],
+      0
+    ],
+    [
+      "Which car company makes the Mustang model?",
+      [
+        "Ford",
+        "Toyota",
+        "Honda",
+        "BMW"
+      ],
+      0
+    ],
+    [
+      "Which advertising mascot says 'They're grrreat!'?",
+      [
+        "Tony the Tiger",
+        "Mr. Clean",
+        "Michelin Man",
+        "Pillsbury Doughboy"
+      ],
+      0
+    ],
+    [
+      "Which crop is commonly used to make tofu and soy sauce?",
+      [
+        "Soybean",
+        "Barley",
+        "Cassava",
+        "Oat"
+      ],
+      0
+    ],
+    [
+      "Which festival is known as the Festival of Lights in India?",
+      [
+        "Diwali",
+        "Oktoberfest",
+        "Carnival",
+        "Hanami"
+      ],
+      0
+    ],
+    [
+      "Which country has a red maple leaf on its flag?",
+      [
+        "Canada",
+        "Switzerland",
+        "Denmark",
+        "Vietnam"
+      ],
+      0
+    ],
+    [
+      "Which time zone term means Coordinated Universal Time?",
+      [
+        "UTC",
+        "CPU",
+        "GPS",
+        "HTML"
+      ],
+      0
+    ],
+    [
+      "Which DIY tool checks whether a surface is horizontal?",
+      [
+        "Level",
+        "Wrench",
+        "Drill bit",
+        "Pliers"
+      ],
+      0
+    ],
+    [
+      "Which houseplant is known for heart-shaped leaves and trailing vines?",
+      [
+        "Pothos",
+        "Cactus",
+        "Bonsai pine",
+        "Venus flytrap"
+      ],
+      0
+    ],
+    [
+      "In many cultures, what is a polite thing to say after receiving help?",
+      [
+        "Thank you",
+        "Move aside",
+        "Hurry up",
+        "Give me more"
+      ],
+      0
+    ],
+    [
+      "Which zodiac sign is represented by scales?",
+      [
+        "Libra",
+        "Aries",
+        "Scorpio",
+        "Pisces"
+      ],
+      0
+    ],
+    [
+      "Which birthstone is commonly associated with April?",
+      [
+        "Diamond",
+        "Ruby",
+        "Emerald",
+        "Opal"
+      ],
+      0
+    ],
+    [
+      "Which fabric is made from silkworm cocoons?",
+      [
+        "Silk",
+        "Denim",
+        "Linen",
+        "Fleece"
+      ],
+      0
+    ],
+    [
+      "Which 2001 film won the first Academy Award for Best Animated Feature?",
+      [
+        "Ice Age",
+        "Monsters, Inc.",
+        "Shrek",
+        "Finding Nemo"
+      ],
+      2
+    ],
+    [
+      "Which actor plays Jack Sparrow in the Pirates of the Caribbean films?",
+      [
+        "Orlando Bloom",
+        "Johnny Depp",
+        "Hugh Jackman",
+        "Robert Downey Jr."
+      ],
+      1
+    ],
+    [
+      "Which actor played Iron Man in the Marvel Cinematic Universe?",
+      [
+        "Robert Downey Jr.",
+        "Chris Evans",
+        "Mark Ruffalo",
+        "Chris Hemsworth"
+      ],
+      0
+    ],
+    [
+      "Which actor played Captain America in the Marvel Cinematic Universe?",
+      [
+        "Chris Evans",
+        "Tom Holland",
+        "Chris Pratt",
+        "Jeremy Renner"
+      ],
+      0
+    ],
+    [
+      "Which actor played Wolverine in many X-Men films?",
+      [
+        "Tobey Maguire",
+        "Ben Affleck",
+        "Hugh Jackman",
+        "Ryan Reynolds"
+      ],
+      2
+    ],
+    [
+      "Which actor played Katniss Everdeen in The Hunger Games films?",
+      [
+        "Kristen Stewart",
+        "Emma Watson",
+        "Jennifer Lawrence",
+        "Brie Larson"
+      ],
+      2
+    ],
+    [
+      "Which actor played Hermione Granger in the Harry Potter films?",
+      [
+        "Emma Watson",
+        "Natalie Portman",
+        "Emma Stone",
+        "Anne Hathaway"
+      ],
+      0
+    ],
+    [
+      "Which actor played Gandalf in The Lord of the Rings films?",
+      [
+        "Patrick Stewart",
+        "Christopher Lee",
+        "Ian McKellen",
+        "Michael Gambon"
+      ],
+      2
+    ],
+    [
+      "Which director helmed Titanic and Avatar?",
+      [
+        "James Cameron",
+        "Steven Spielberg",
+        "Peter Jackson",
+        "Christopher Nolan"
+      ],
+      0
+    ],
+    [
+      "Which director is known for Pulp Fiction and Kill Bill?",
+      [
+        "Tim Burton",
+        "Quentin Tarantino",
+        "Martin Scorsese",
+        "Ridley Scott"
+      ],
+      1
+    ],
+    [
+      "Which director made The Dark Knight trilogy?",
+      [
+        "Zack Snyder",
+        "J. J. Abrams",
+        "Christopher Nolan",
+        "Sam Raimi"
+      ],
+      2
+    ],
+    [
+      "Which director made the Lord of the Rings film trilogy?",
+      [
+        "Peter Jackson",
+        "Ang Lee",
+        "James Cameron",
+        "George Lucas"
+      ],
+      0
+    ],
+    [
+      "Which director created the Star Wars franchise?",
+      [
+        "Francis Ford Coppola",
+        "Ridley Scott",
+        "George Lucas",
+        "Steven Spielberg"
+      ],
+      2
+    ],
+    [
+      "Which movie features a red pill and a blue pill?",
+      [
+        "Inception",
+        "Blade Runner",
+        "The Matrix",
+        "Minority Report"
+      ],
+      2
+    ],
+    [
+      "Which movie features dream-sharing technology and a spinning top?",
+      [
+        "Inception",
+        "Interstellar",
+        "Memento",
+        "Tenet"
+      ],
+      0
+    ],
+    [
+      "Which Nolan film is about a team traveling through a wormhole to find a new home for humanity?",
+      [
+        "Tenet",
+        "Interstellar",
+        "The Prestige",
+        "Dunkirk"
+      ],
+      1
+    ],
+    [
+      "Which movie features the fictional language Na'vi?",
+      [
+        "Avatar",
+        "The Fifth Element",
+        "Guardians of the Galaxy",
+        "Dune"
+      ],
+      0
+    ],
+    [
+      "Which movie is set mostly on the desert planet Arrakis?",
+      [
+        "Avatar",
+        "Mad Max",
+        "The Martian",
+        "Dune"
+      ],
+      3
+    ],
+    [
+      "Which film series includes the character John Wick?",
+      [
+        "John Wick",
+        "The Equalizer",
+        "Taken",
+        "Mission: Impossible"
+      ],
+      0
+    ],
+    [
+      "Which film series stars Ethan Hunt?",
+      [
+        "James Bond",
+        "Fast & Furious",
+        "Bourne",
+        "Mission: Impossible"
+      ],
+      3
+    ],
+    [
+      "Which spy franchise features a character with code number 007?",
+      [
+        "Jason Bourne",
+        "Mission: Impossible",
+        "James Bond",
+        "Kingsman"
+      ],
+      2
+    ],
+    [
+      "Which movie features the quote 'You can't handle the truth!'?",
+      [
+        "Rain Man",
+        "Top Gun",
+        "A Few Good Men",
+        "The Firm"
+      ],
+      2
+    ],
+    [
+      "Which movie features the quote 'I'm the king of the world!'?",
+      [
+        "Gladiator",
+        "Titanic",
+        "Braveheart",
+        "Avatar"
+      ],
+      1
+    ],
+    [
+      "Which movie features the quote 'To infinity and beyond!'?",
+      [
+        "WALL-E",
+        "Cars",
+        "Toy Story",
+        "Finding Nemo"
+      ],
+      2
+    ],
+    [
+      "Which sitcom character says 'How you doin'?'",
+      [
+        "Chandler Bing",
+        "Ted Mosby",
+        "Joey Tribbiani",
+        "Ross Geller"
+      ],
+      2
+    ],
+    [
+      "Which sitcom features a character named Dwight Schrute?",
+      [
+        "Frasier",
+        "The Office",
+        "Friends",
+        "Parks and Recreation"
+      ],
+      1
+    ],
+    [
+      "Which sitcom is set mostly in apartment 4A and 4B with scientists and neighbors?",
+      [
+        "How I Met Your Mother",
+        "Scrubs",
+        "The Big Bang Theory",
+        "Community"
+      ],
+      2
+    ],
+    [
+      "Which sitcom follows Ted Mosby telling his children a long story?",
+      [
+        "Friends",
+        "Modern Family",
+        "How I Met Your Mother",
+        "Seinfeld"
+      ],
+      2
+    ],
+    [
+      "Which sitcom features the character Leslie Knope?",
+      [
+        "New Girl",
+        "The Office",
+        "Parks and Recreation",
+        "30 Rock"
+      ],
+      2
+    ],
+    [
+      "Which sitcom features Liz Lemon producing a sketch comedy show?",
+      [
+        "Cheers",
+        "Brooklyn Nine-Nine",
+        "30 Rock",
+        "Frasier"
+      ],
+      2
+    ],
+    [
+      "Which sitcom takes place at the 99th precinct?",
+      [
+        "Scrubs",
+        "Brooklyn Nine-Nine",
+        "Community",
+        "Arrested Development"
+      ],
+      1
+    ],
+    [
+      "Which sitcom features a study group at Greendale Community College?",
+      [
+        "The Goldbergs",
+        "New Girl",
+        "Community",
+        "Glee"
+      ],
+      2
+    ],
+    [
+      "Which drama features the advertising agency Sterling Cooper?",
+      [
+        "Mad Men",
+        "The Sopranos",
+        "Succession",
+        "The Wire"
+      ],
+      0
+    ],
+    [
+      "Which HBO series centers on the Roy family and Waystar Royco?",
+      [
+        "Billions",
+        "Mad Men",
+        "Succession",
+        "The Newsroom"
+      ],
+      2
+    ],
+    [
+      "Which TV series follows a high school glee club called New Directions?",
+      [
+        "Victorious",
+        "Fame",
+        "Riverdale",
+        "Glee"
+      ],
+      3
+    ],
+    [
+      "Which streaming series features a deadly contest for a large cash prize in South Korea?",
+      [
+        "Dark",
+        "Squid Game",
+        "Alice in Borderland",
+        "Money Heist"
+      ],
+      1
+    ],
+    [
+      "Which Spanish series is also known as La Casa de Papel?",
+      [
+        "Money Heist",
+        "Dark",
+        "Elite",
+        "Lupin"
+      ],
+      0
+    ],
+    [
+      "Which show follows Geralt of Rivia?",
+      [
+        "Shadow and Bone",
+        "The Witcher",
+        "The Mandalorian",
+        "Vikings"
+      ],
+      1
+    ],
+    [
+      "Which Star Wars series features a bounty hunter caring for Grogu?",
+      [
+        "The Mandalorian",
+        "Andor",
+        "Obi-Wan Kenobi",
+        "Ahsoka"
+      ],
+      0
+    ],
+    [
+      "What is Grogu often nicknamed by fans?",
+      [
+        "Baby Yoda",
+        "Little Jedi",
+        "Tiny Vader",
+        "Mini Chewie"
+      ],
+      0
+    ],
+    [
+      "Which artist released the album Lemonade?",
+      [
+        "Beyoncé",
+        "Rihanna",
+        "Adele",
+        "Lady Gaga"
+      ],
+      0
+    ],
+    [
+      "Which artist released the album 21?",
+      [
+        "Adele",
+        "Taylor Swift",
+        "Billie Eilish",
+        "Lana Del Rey"
+      ],
+      0
+    ],
+    [
+      "Which Taylor Swift album includes 'Blank Space' and 'Style'?",
+      [
+        "Reputation",
+        "1989",
+        "Red",
+        "Fearless"
+      ],
+      1
+    ],
+    [
+      "Which Nirvana album features the song 'Smells Like Teen Spirit'?",
+      [
+        "Nevermind",
+        "In Utero",
+        "Bleach",
+        "MTV Unplugged"
+      ],
+      0
+    ],
+    [
+      "Which band released the album The Dark Side of the Moon?",
+      [
+        "The Who",
+        "Led Zeppelin",
+        "Pink Floyd",
+        "The Rolling Stones"
+      ],
+      2
+    ],
+    [
+      "Which band released the album Rumours?",
+      [
+        "Queen",
+        "Fleetwood Mac",
+        "ABBA",
+        "The Eagles"
+      ],
+      1
+    ],
+    [
+      "Which singer released the album Thriller?",
+      [
+        "Lionel Richie",
+        "Michael Jackson",
+        "Stevie Wonder",
+        "Prince"
+      ],
+      1
+    ],
+    [
+      "Which artist released the album Purple Rain?",
+      [
+        "Elton John",
+        "David Bowie",
+        "Prince",
+        "Michael Jackson"
+      ],
+      2
+    ],
+    [
+      "Which rapper released the album The College Dropout?",
+      [
+        "Drake",
+        "Jay-Z",
+        "Kendrick Lamar",
+        "Kanye West"
+      ],
+      3
+    ],
+    [
+      "Which rapper released the album good kid, m.A.A.d city?",
+      [
+        "J. Cole",
+        "Nas",
+        "Kendrick Lamar",
+        "Travis Scott"
+      ],
+      2
+    ],
+    [
+      "Which band released the song 'Wonderwall'?",
+      [
+        "Radiohead",
+        "Oasis",
+        "Blur",
+        "Coldplay"
+      ],
+      1
+    ],
+    [
+      "Which band released 'Sweet Child o' Mine'?",
+      [
+        "Nirvana",
+        "Guns N' Roses",
+        "Aerosmith",
+        "Bon Jovi"
+      ],
+      1
+    ],
+    [
+      "Which artist is closely associated with the Ziggy Stardust persona?",
+      [
+        "David Bowie",
+        "Mick Jagger",
+        "Freddie Mercury",
+        "Elton John"
+      ],
+      0
+    ],
+    [
+      "Which music genre emerged from the Bronx in the 1970s?",
+      [
+        "Grunge",
+        "Hip-hop",
+        "Country",
+        "Disco"
+      ],
+      1
+    ],
+    [
+      "Which genre is strongly linked to New Orleans improvisation and swing?",
+      [
+        "Jazz",
+        "Reggae",
+        "Techno",
+        "Punk"
+      ],
+      0
+    ],
+    [
+      "Which music genre is associated with distorted guitars and 1990s Seattle bands?",
+      [
+        "EDM",
+        "Ska",
+        "Disco",
+        "Grunge"
+      ],
+      3
+    ],
+    [
+      "Which award category recognizes songwriters rather than the recording itself?",
+      [
+        "Best New Artist",
+        "Album of the Year",
+        "Song of the Year",
+        "Record of the Year"
+      ],
+      2
+    ],
+    [
+      "Which Grammy category recognizes the performers and production team of a single recording?",
+      [
+        "Best New Artist",
+        "Record of the Year",
+        "Song of the Year",
+        "Best Music Video"
+      ],
+      1
+    ],
+    [
+      "Which Grammy category recognizes a full collection of tracks?",
+      [
+        "Best New Artist",
+        "Song of the Year",
+        "Album of the Year",
+        "Record of the Year"
+      ],
+      2
+    ],
+    [
+      "What does EGOT stand for?",
+      [
+        "Emmy, Globe, Oscar, Tony",
+        "Emmy, Grammy, Obie, Tony",
+        "ESPY, Grammy, Olivier, Tony",
+        "Emmy, Grammy, Oscar, Tony"
+      ],
+      3
+    ],
+    [
+      "Which awards are named after Antoinette Perry?",
+      [
+        "Tony Awards",
+        "Academy Awards",
+        "Grammy Awards",
+        "Emmy Awards"
+      ],
+      0
+    ],
+    [
+      "Which award show is presented by the Recording Academy?",
+      [
+        "Grammy Awards",
+        "Tonys",
+        "Emmys",
+        "Oscars"
+      ],
+      0
+    ],
+    [
+      "Which award show is presented by the Academy of Motion Picture Arts and Sciences?",
+      [
+        "Emmys",
+        "Grammys",
+        "Tonys",
+        "Academy Awards"
+      ],
+      3
+    ],
+    [
+      "Which award is associated with a winged woman holding an atom?",
+      [
+        "Tony",
+        "Emmy",
+        "Oscar",
+        "Grammy"
+      ],
+      1
+    ],
+    [
+      "Which internet meme phrase comes from The Lord of the Rings line 'One does not simply walk into Mordor'?",
+      [
+        "I can has cheezburger",
+        "One does not simply",
+        "Such wow",
+        "This is fine"
+      ],
+      1
+    ],
+    [
+      "Which meme shows a dog calmly sitting in a burning room?",
+      [
+        "This is fine",
+        "Success Kid",
+        "Distracted Boyfriend",
+        "Doge"
+      ],
+      0
+    ],
+    [
+      "Which meme shows a baby clenching a fist on a beach?",
+      [
+        "Keyboard Cat",
+        "Success Kid",
+        "Bad Luck Brian",
+        "Nyan Cat"
+      ],
+      1
+    ],
+    [
+      "Which meme features a rainbow Pop-Tart cat flying through space?",
+      [
+        "Nyan Cat",
+        "Grumpy Cat",
+        "Longcat",
+        "Doge"
+      ],
+      0
+    ],
+    [
+      "Which early viral video featured Gary Brolsma lip-syncing to 'Dragostea Din Tei'?",
+      [
+        "Evolution of Dance",
+        "Dancing Baby",
+        "Numa Numa",
+        "Chocolate Rain"
+      ],
+      2
+    ],
+    [
+      "Which viral song by Tay Zonday became famous for its deep vocal delivery?",
+      [
+        "Friday",
+        "Chocolate Rain",
+        "Badger Badger Badger",
+        "Gangnam Style"
+      ],
+      1
+    ],
+    [
+      "Which music video by Psy became a massive global viral hit in 2012?",
+      [
+        "Baby Shark",
+        "Despacito",
+        "Gangnam Style",
+        "Harlem Shake"
+      ],
+      2
+    ],
+    [
+      "Which viral dance trend uses the song 'Harlem Shake' by Baauer?",
+      [
+        "Bottle Cap Challenge",
+        "Harlem Shake",
+        "Planking",
+        "Mannequin Challenge"
+      ],
+      1
+    ],
+    [
+      "Which app popularized six-second looping videos before shutting down?",
+      [
+        "Twitch",
+        "TikTok",
+        "Snapchat",
+        "Vine"
+      ],
+      3
+    ],
+    [
+      "Which platform uses subreddits for communities?",
+      [
+        "Reddit",
+        "Tumblr",
+        "Discord",
+        "Instagram"
+      ],
+      0
+    ],
+    [
+      "Which chat platform is popular for servers and channels among gamers?",
+      [
+        "Etsy",
+        "Pinterest",
+        "Spotify",
+        "Discord"
+      ],
+      3
+    ],
+    [
+      "Which web encyclopedia is collaboratively edited by volunteers?",
+      [
+        "Reddit",
+        "IMDb",
+        "Quora",
+        "Wikipedia"
+      ],
+      3
+    ],
+    [
+      "Which movie database website is commonly abbreviated IMDb?",
+      [
+        "Internet Movie Database",
+        "Internet Meme Database",
+        "Interactive Media Directory Base",
+        "International Music Data Bank"
+      ],
+      0
+    ],
+    [
+      "Which manga magazine is famous for publishing One Piece, Naruto, and Dragon Ball?",
+      [
+        "Vogue",
+        "Time",
+        "Weekly Shonen Jump",
+        "Rolling Stone"
+      ],
+      2
+    ],
+    [
+      "Who created One Piece?",
+      [
+        "Masashi Kishimoto",
+        "Akira Toriyama",
+        "Eiichiro Oda",
+        "Tite Kubo"
+      ],
+      2
+    ],
+    [
+      "Who created Naruto?",
+      [
+        "Rumiko Takahashi",
+        "Eiichiro Oda",
+        "Masashi Kishimoto",
+        "Naoko Takeuchi"
+      ],
+      2
+    ],
+    [
+      "Who created Sailor Moon?",
+      [
+        "Hiromu Arakawa",
+        "CLAMP",
+        "Akira Toriyama",
+        "Naoko Takeuchi"
+      ],
+      3
+    ],
+    [
+      "Which anime features the notebook called a Death Note?",
+      [
+        "One Piece",
+        "Attack on Titan",
+        "Death Note",
+        "Bleach"
+      ],
+      2
+    ],
+    [
+      "Which anime features giant humanoid enemies called Titans?",
+      [
+        "Jujutsu Kaisen",
+        "Demon Slayer",
+        "Dragon Ball Z",
+        "Attack on Titan"
+      ],
+      3
+    ],
+    [
+      "Which anime follows Tanjiro Kamado?",
+      [
+        "Bleach",
+        "My Hero Academia",
+        "Naruto",
+        "Demon Slayer"
+      ],
+      3
+    ],
+    [
+      "Which anime school is U.A. High School from?",
+      [
+        "Jujutsu Kaisen",
+        "One Piece",
+        "Blue Lock",
+        "My Hero Academia"
+      ],
+      3
+    ],
+    [
+      "Which board game uses clue cards for suspects, rooms, and weapons?",
+      [
+        "Catan",
+        "Clue",
+        "Monopoly",
+        "Risk"
+      ],
+      1
+    ],
+    [
+      "Which strategy board game involves armies conquering territories?",
+      [
+        "Pictionary",
+        "Candy Land",
+        "Risk",
+        "Scrabble"
+      ],
+      2
+    ],
+    [
+      "Which board game uses resources like brick, lumber, and ore?",
+      [
+        "Jenga",
+        "Trouble",
+        "Catan",
+        "Battleship"
+      ],
+      2
+    ],
+    [
+      "Which word game gives bonus points for double and triple word scores?",
+      [
+        "Taboo",
+        "Boggle",
+        "Scrabble",
+        "Uno"
+      ],
+      2
+    ],
+    [
+      "Which party game uses cards with words players cannot say?",
+      [
+        "Chess",
+        "Risk",
+        "Taboo",
+        "Twister"
+      ],
+      2
+    ],
+    [
+      "Which physical party game uses a mat with colored circles?",
+      [
+        "Jenga",
+        "Pictionary",
+        "Twister",
+        "Uno"
+      ],
+      2
+    ],
+    [
+      "Which video game series features the Master Sword?",
+      [
+        "The Legend of Zelda",
+        "Halo",
+        "Final Fantasy",
+        "Metroid"
+      ],
+      0
+    ],
+    [
+      "Which video game series features Samus Aran?",
+      [
+        "Doom",
+        "Halo",
+        "Mass Effect",
+        "Metroid"
+      ],
+      3
+    ],
+    [
+      "Which video game series has a Vault Boy mascot?",
+      [
+        "Fallout",
+        "Half-Life",
+        "Portal",
+        "BioShock"
+      ],
+      0
+    ],
+    [
+      "Which video game series features the Aperture Science Handheld Portal Device?",
+      [
+        "Half-Life",
+        "Portal",
+        "Overwatch",
+        "Doom"
+      ],
+      1
+    ],
+    [
+      "Which game series features the phrase 'Finish Him!'?",
+      [
+        "Street Fighter",
+        "Tekken",
+        "Super Smash Bros.",
+        "Mortal Kombat"
+      ],
+      3
+    ],
+    [
+      "Which fighting game series features Ryu and Chun-Li?",
+      [
+        "King of Fighters",
+        "Street Fighter",
+        "Tekken",
+        "Mortal Kombat"
+      ],
+      1
+    ],
+    [
+      "Which game series features Scorpion and Sub-Zero?",
+      [
+        "Street Fighter",
+        "Tekken",
+        "Soulcalibur",
+        "Mortal Kombat"
+      ],
+      3
+    ],
+    [
+      "Which game series features a silent scientist named Gordon Freeman?",
+      [
+        "Wolfenstein",
+        "Half-Life",
+        "Doom",
+        "Halo"
+      ],
+      1
+    ],
+    [
+      "Which game franchise features the Master Chief?",
+      [
+        "Doom",
+        "Gears of War",
+        "Halo",
+        "Destiny"
+      ],
+      2
+    ],
+    [
+      "Which layer of the atmosphere contains the ozone layer?",
+      [
+        "Stratosphere",
+        "Troposphere",
+        "Mesosphere",
+        "Exosphere"
+      ],
+      0
+    ],
+    [
+      "Which organelle is often called the powerhouse of the cell?",
+      [
+        "Golgi apparatus",
+        "Ribosome",
+        "Nucleus",
+        "Mitochondrion"
+      ],
+      3
+    ],
+    [
+      "What is the chemical symbol for iron?",
+      [
+        "In",
+        "Ir",
+        "I",
+        "Fe"
+      ],
+      3
+    ],
+    [
+      "What is the chemical symbol for silver?",
+      [
+        "Si",
+        "Sv",
+        "Ag",
+        "Au"
+      ],
+      2
+    ],
+    [
+      "Which element has the chemical symbol K?",
+      [
+        "Calcium",
+        "Carbon",
+        "Krypton",
+        "Potassium"
+      ],
+      3
+    ],
+    [
+      "Which element has the chemical symbol Ca?",
+      [
+        "Carbon",
+        "Cadmium",
+        "Copper",
+        "Calcium"
+      ],
+      3
+    ],
+    [
+      "Which element is the main gas in the Sun?",
+      [
+        "Argon",
+        "Hydrogen",
+        "Nitrogen",
+        "Oxygen"
+      ],
+      1
+    ],
+    [
+      "Which planet has the most prominent ring system?",
+      [
+        "Venus",
+        "Mars",
+        "Mercury",
+        "Saturn"
+      ],
+      3
+    ],
+    [
+      "Which planet has the shortest year in our solar system?",
+      [
+        "Mars",
+        "Neptune",
+        "Earth",
+        "Mercury"
+      ],
+      3
+    ],
+    [
+      "Which planet has the longest day among the major planets because of slow rotation?",
+      [
+        "Venus",
+        "Jupiter",
+        "Mercury",
+        "Mars"
+      ],
+      0
+    ],
+    [
+      "Which moon is the largest moon in the solar system?",
+      [
+        "Callisto",
+        "Europa",
+        "Ganymede",
+        "Titan"
+      ],
+      2
+    ],
+    [
+      "Which force keeps planets in orbit around the Sun?",
+      [
+        "Magnetism",
+        "Friction",
+        "Gravity",
+        "Buoyancy"
+      ],
+      2
+    ],
+    [
+      "Which type of rock forms from cooled lava or magma?",
+      [
+        "Igneous",
+        "Sedimentary",
+        "Metamorphic",
+        "Fossil"
+      ],
+      0
+    ],
+    [
+      "Which type of rock forms from layers of sediment?",
+      [
+        "Metamorphic",
+        "Volcanic glass",
+        "Igneous",
+        "Sedimentary"
+      ],
+      3
+    ],
+    [
+      "Which scale measures earthquake magnitude?",
+      [
+        "Richter scale",
+        "Kelvin scale",
+        "pH scale",
+        "Beaufort scale"
+      ],
+      0
+    ],
+    [
+      "Which instrument measures humidity?",
+      [
+        "Hygrometer",
+        "Seismometer",
+        "Thermometer",
+        "Barometer"
+      ],
+      0
+    ],
+    [
+      "Which instrument measures wind speed?",
+      [
+        "Altimeter",
+        "Compass",
+        "Hygrometer",
+        "Anemometer"
+      ],
+      3
+    ],
+    [
+      "Which process turns water vapor into liquid water?",
+      [
+        "Condensation",
+        "Sublimation",
+        "Evaporation",
+        "Melting"
+      ],
+      0
+    ],
+    [
+      "Which process turns a solid directly into a gas?",
+      [
+        "Freezing",
+        "Deposition",
+        "Condensation",
+        "Sublimation"
+      ],
+      3
+    ],
+    [
+      "Which blood type is commonly called the universal red-cell donor?",
+      [
+        "AB positive",
+        "B negative",
+        "A positive",
+        "O negative"
+      ],
+      3
+    ],
+    [
+      "Which part of the eye controls how much light enters?",
+      [
+        "Lens",
+        "Cornea",
+        "Retina",
+        "Iris"
+      ],
+      3
+    ],
+    [
+      "Which part of the eye detects light and sends signals to the brain?",
+      [
+        "Cornea",
+        "Iris",
+        "Retina",
+        "Pupil"
+      ],
+      2
+    ],
+    [
+      "Which organ produces bile?",
+      [
+        "Pancreas",
+        "Liver",
+        "Kidney",
+        "Lung"
+      ],
+      1
+    ],
+    [
+      "Which organ filters blood and makes urine?",
+      [
+        "Heart",
+        "Spleen",
+        "Stomach",
+        "Kidney"
+      ],
+      3
+    ],
+    [
+      "Which molecule carries genetic instructions in living things?",
+      [
+        "Chlorophyll",
+        "ATP",
+        "DNA",
+        "Glucose"
+      ],
+      2
+    ],
+    [
+      "Which base pairs with adenine in DNA?",
+      [
+        "Thymine",
+        "Cytosine",
+        "Guanine",
+        "Uracil"
+      ],
+      0
+    ],
+    [
+      "Which green pigment helps plants absorb light?",
+      [
+        "Keratin",
+        "Hemoglobin",
+        "Melanin",
+        "Chlorophyll"
+      ],
+      3
+    ],
+    [
+      "What is the basic unit of life?",
+      [
+        "Organ",
+        "Cell",
+        "Atom",
+        "Tissue only"
+      ],
+      1
+    ],
+    [
+      "Which biome is characterized by permafrost and very cold conditions?",
+      [
+        "Savanna",
+        "Tundra",
+        "Rainforest",
+        "Desert"
+      ],
+      1
+    ],
+    [
+      "Which biome is known for tall grasses and scattered trees?",
+      [
+        "Tundra",
+        "Savanna",
+        "Coral reef",
+        "Taiga"
+      ],
+      1
+    ],
+    [
+      "Which animal group includes frogs and salamanders?",
+      [
+        "Birds",
+        "Reptiles",
+        "Mammals",
+        "Amphibians"
+      ],
+      3
+    ],
+    [
+      "Which animal group includes snakes and lizards?",
+      [
+        "Amphibians",
+        "Insects",
+        "Reptiles",
+        "Fish"
+      ],
+      2
+    ],
+    [
+      "Which type of animal has a backbone?",
+      [
+        "Mollusk only",
+        "Vertebrate",
+        "Arthropod only",
+        "Invertebrate"
+      ],
+      1
+    ],
+    [
+      "Which number is the atomic number of hydrogen?",
+      [
+        "6",
+        "2",
+        "8",
+        "1"
+      ],
+      3
+    ],
+    [
+      "Which unit is used for frequency?",
+      [
+        "Newton",
+        "Pascal",
+        "Hertz",
+        "Joule"
+      ],
+      2
+    ],
+    [
+      "Which unit is used for energy?",
+      [
+        "Ampere",
+        "Joule",
+        "Newton",
+        "Volt"
+      ],
+      1
+    ],
+    [
+      "Which unit is used for power?",
+      [
+        "Tesla",
+        "Watt",
+        "Pascal",
+        "Ohm"
+      ],
+      1
+    ],
+    [
+      "Which unit is used for electric current?",
+      [
+        "Ampere",
+        "Ohm",
+        "Watt",
+        "Volt"
+      ],
+      0
+    ],
+    [
+      "Which unit is used for pressure?",
+      [
+        "Hertz",
+        "Newton",
+        "Pascal",
+        "Joule"
+      ],
+      2
+    ],
+    [
+      "Which acid is found in citrus fruits like lemons?",
+      [
+        "Acetic acid",
+        "Citric acid",
+        "Sulfuric acid",
+        "Lactic acid"
+      ],
+      1
+    ],
+    [
+      "Which acid is found in vinegar?",
+      [
+        "Acetic acid",
+        "Citric acid",
+        "Malic acid",
+        "Carbonic acid"
+      ],
+      0
+    ],
+    [
+      "Which sugar is commonly known as table sugar?",
+      [
+        "Fructose",
+        "Lactose",
+        "Sucrose",
+        "Glucose"
+      ],
+      2
+    ],
+    [
+      "Which gas is used by plants to make food during photosynthesis?",
+      [
+        "Argon",
+        "Carbon dioxide",
+        "Neon",
+        "Helium"
+      ],
+      1
+    ],
+    [
+      "Which gas makes up about 21% of Earth's atmosphere?",
+      [
+        "Hydrogen",
+        "Carbon dioxide",
+        "Oxygen",
+        "Neon"
+      ],
+      2
+    ],
+    [
+      "Which natural satellite causes most ocean tides on Earth?",
+      [
+        "Venus",
+        "Mars",
+        "Jupiter",
+        "The Moon"
+      ],
+      3
+    ],
+    [
+      "Which ocean is the largest by area?",
+      [
+        "Arctic Ocean",
+        "Pacific Ocean",
+        "Indian Ocean",
+        "Atlantic Ocean"
+      ],
+      1
+    ],
+    [
+      "Which continent has the most countries?",
+      [
+        "Australia",
+        "Europe",
+        "South America",
+        "Africa"
+      ],
+      3
+    ],
+    [
+      "Which continent is the driest overall?",
+      [
+        "Europe",
+        "Antarctica",
+        "Asia",
+        "South America"
+      ],
+      1
+    ],
+    [
+      "Which river is commonly considered the longest in the world?",
+      [
+        "Mississippi River",
+        "Nile River",
+        "Amazon River",
+        "Yangtze River"
+      ],
+      1
+    ],
+    [
+      "Which mountain is the tallest above sea level?",
+      [
+        "Denali",
+        "K2",
+        "Kilimanjaro",
+        "Mount Everest"
+      ],
+      3
+    ],
+    [
+      "Which desert is the largest hot desert on Earth?",
+      [
+        "Kalahari Desert",
+        "Atacama Desert",
+        "Gobi Desert",
+        "Sahara Desert"
+      ],
+      3
+    ],
+    [
+      "Which country has the city of Barcelona?",
+      [
+        "France",
+        "Spain",
+        "Portugal",
+        "Italy"
+      ],
+      1
+    ],
+    [
+      "Which country has the city of Kyoto?",
+      [
+        "South Korea",
+        "China",
+        "Thailand",
+        "Japan"
+      ],
+      3
+    ],
+    [
+      "Which country has the city of Vancouver?",
+      [
+        "New Zealand",
+        "Canada",
+        "Australia",
+        "United States"
+      ],
+      1
+    ],
+    [
+      "Which country has the city of Munich?",
+      [
+        "Austria",
+        "Poland",
+        "Germany",
+        "Switzerland"
+      ],
+      2
+    ],
+    [
+      "Which country has the city of Florence?",
+      [
+        "Greece",
+        "Italy",
+        "France",
+        "Spain"
+      ],
+      1
+    ],
+    [
+      "Which country has the city of Casablanca?",
+      [
+        "Tunisia",
+        "Egypt",
+        "Morocco",
+        "Turkey"
+      ],
+      2
+    ],
+    [
+      "Which country has the city of Mumbai?",
+      [
+        "Sri Lanka",
+        "Pakistan",
+        "Nepal",
+        "India"
+      ],
+      3
+    ],
+    [
+      "Which country has the city of Auckland?",
+      [
+        "Ireland",
+        "New Zealand",
+        "Australia",
+        "Canada"
+      ],
+      1
+    ],
+    [
+      "Which country has the city of Rio de Janeiro?",
+      [
+        "Brazil",
+        "Peru",
+        "Chile",
+        "Argentina"
+      ],
+      0
+    ],
+    [
+      "Which country has the city of Edinburgh?",
+      [
+        "United Kingdom",
+        "Canada",
+        "Australia",
+        "Ireland"
+      ],
+      0
+    ],
+    [
+      "Which famous landmark is in Agra, India?",
+      [
+        "Eiffel Tower",
+        "Taj Mahal",
+        "Colosseum",
+        "Machu Picchu"
+      ],
+      1
+    ],
+    [
+      "Which famous landmark is in Rome, Italy?",
+      [
+        "Colosseum",
+        "Petra",
+        "Taj Mahal",
+        "Sydney Opera House"
+      ],
+      0
+    ],
+    [
+      "Which famous landmark is in Paris, France?",
+      [
+        "Big Ben",
+        "Acropolis",
+        "Eiffel Tower",
+        "Sagrada Família"
+      ],
+      2
+    ],
+    [
+      "Which famous landmark is in Sydney, Australia?",
+      [
+        "Sydney Opera House",
+        "Burj Khalifa",
+        "Stonehenge",
+        "Mount Rushmore"
+      ],
+      0
+    ],
+    [
+      "Which famous landmark is in Peru?",
+      [
+        "Petra",
+        "Machu Picchu",
+        "Chichen Itza",
+        "Angkor Wat"
+      ],
+      1
+    ],
+    [
+      "Which famous landmark is in Cambodia?",
+      [
+        "Machu Picchu",
+        "Stonehenge",
+        "Angkor Wat",
+        "Petra"
+      ],
+      2
+    ],
+    [
+      "Which famous landmark is in Jordan?",
+      [
+        "Petra",
+        "Taj Mahal",
+        "Chichen Itza",
+        "Colosseum"
+      ],
+      0
+    ],
+    [
+      "Which famous landmark is in the United Arab Emirates?",
+      [
+        "Burj Khalifa",
+        "Space Needle",
+        "Eiffel Tower",
+        "CN Tower"
+      ],
+      0
+    ],
+    [
+      "Which city is known as the Big Apple?",
+      [
+        "Miami",
+        "Los Angeles",
+        "New York City",
+        "Chicago"
+      ],
+      2
+    ],
+    [
+      "Which city is known for the Golden Gate Bridge?",
+      [
+        "Denver",
+        "San Francisco",
+        "Seattle",
+        "Boston"
+      ],
+      1
+    ],
+    [
+      "Which U.S. state is known as the Sunshine State?",
+      [
+        "Texas",
+        "California",
+        "Nevada",
+        "Florida"
+      ],
+      3
+    ],
+    [
+      "Which U.S. state is known as the Aloha State?",
+      [
+        "Arizona",
+        "Maine",
+        "Hawaii",
+        "Alaska"
+      ],
+      2
+    ],
+    [
+      "Which Canadian province has the city of Toronto?",
+      [
+        "Ontario",
+        "Manitoba",
+        "Quebec",
+        "Alberta"
+      ],
+      0
+    ],
+    [
+      "Which country uses the yen as its currency?",
+      [
+        "South Korea",
+        "China",
+        "Japan",
+        "Thailand"
+      ],
+      2
+    ],
+    [
+      "Which country uses the pound sterling?",
+      [
+        "United Kingdom",
+        "Australia",
+        "India",
+        "Canada"
+      ],
+      0
+    ],
+    [
+      "Which currency is used in Mexico?",
+      [
+        "Peso",
+        "Yen",
+        "Rupee",
+        "Euro"
+      ],
+      0
+    ],
+    [
+      "Which currency is used in South Korea?",
+      [
+        "Baht",
+        "Yen",
+        "Yuan",
+        "Won"
+      ],
+      3
+    ],
+    [
+      "Which currency is used in India?",
+      [
+        "Dollar",
+        "Peso",
+        "Euro",
+        "Rupee"
+      ],
+      3
+    ],
+    [
+      "Which inventor is best known for improving the practical telephone?",
+      [
+        "James Watt",
+        "Thomas Edison",
+        "Nikola Tesla",
+        "Alexander Graham Bell"
+      ],
+      3
+    ],
+    [
+      "Which inventor is associated with the light bulb and phonograph?",
+      [
+        "Galileo Galilei",
+        "Isaac Newton",
+        "Thomas Edison",
+        "Charles Darwin"
+      ],
+      2
+    ],
+    [
+      "Which scientist developed the theory of general relativity?",
+      [
+        "Albert Einstein",
+        "Marie Curie",
+        "Isaac Newton",
+        "Gregor Mendel"
+      ],
+      0
+    ],
+    [
+      "Which scientist is known for research on radioactivity and winning two Nobel Prizes?",
+      [
+        "Ada Lovelace",
+        "Marie Curie",
+        "Jane Goodall",
+        "Rosalind Franklin"
+      ],
+      1
+    ],
+    [
+      "Which scientist is known as the father of genetics for pea plant experiments?",
+      [
+        "Charles Darwin",
+        "Gregor Mendel",
+        "Carl Linnaeus",
+        "Louis Pasteur"
+      ],
+      1
+    ],
+    [
+      "Which scientist proposed natural selection as a mechanism of evolution?",
+      [
+        "Niels Bohr",
+        "Charles Darwin",
+        "Isaac Newton",
+        "Euclid"
+      ],
+      1
+    ],
+    [
+      "Which scientist is associated with three laws of motion?",
+      [
+        "Isaac Newton",
+        "Louis Pasteur",
+        "Dmitri Mendeleev",
+        "Albert Einstein"
+      ],
+      0
+    ],
+    [
+      "Which scientist created a periodic table of elements?",
+      [
+        "Dmitri Mendeleev",
+        "Galileo Galilei",
+        "Michael Faraday",
+        "Robert Hooke"
+      ],
+      0
+    ],
+    [
+      "Which pioneer is credited with writing the first computer algorithm for an early mechanical computer?",
+      [
+        "Hedy Lamarr",
+        "Katherine Johnson",
+        "Grace Hopper",
+        "Ada Lovelace"
+      ],
+      3
+    ],
+    [
+      "Which computer scientist is linked to the concept of the Turing machine?",
+      [
+        "John von Neumann",
+        "Tim Berners-Lee",
+        "Donald Knuth",
+        "Alan Turing"
+      ],
+      3
+    ],
+    [
+      "Who invented the World Wide Web?",
+      [
+        "Alan Turing",
+        "Tim Berners-Lee",
+        "Steve Jobs",
+        "Bill Gates"
+      ],
+      1
+    ],
+    [
+      "Which engineer popularized alternating current power systems?",
+      [
+        "Eli Whitney",
+        "Samuel Morse",
+        "Henry Ford",
+        "Nikola Tesla"
+      ],
+      3
+    ],
+    [
+      "Which inventor is associated with the Morse code telegraph system?",
+      [
+        "James Watt",
+        "Guglielmo Marconi",
+        "Samuel Morse",
+        "Alexander Fleming"
+      ],
+      2
+    ],
+    [
+      "Which scientist discovered penicillin?",
+      [
+        "Edward Jenner",
+        "Joseph Lister",
+        "Louis Pasteur",
+        "Alexander Fleming"
+      ],
+      3
+    ],
+    [
+      "Which scientist helped develop pasteurization?",
+      [
+        "Gregor Mendel",
+        "Antoine Lavoisier",
+        "Robert Boyle",
+        "Louis Pasteur"
+      ],
+      3
+    ],
+    [
+      "Which inventor is associated with the first successful practical airplane flight with his brother?",
+      [
+        "James Watt",
+        "Henry Ford",
+        "Samuel Morse",
+        "Orville Wright"
+      ],
+      3
+    ],
+    [
+      "Which writer created Sherlock Holmes?",
+      [
+        "Jules Verne",
+        "Agatha Christie",
+        "Arthur Conan Doyle",
+        "Mark Twain"
+      ],
+      2
+    ],
+    [
+      "Which writer created Hercule Poirot?",
+      [
+        "Agatha Christie",
+        "Jane Austen",
+        "Mary Shelley",
+        "Arthur Conan Doyle"
+      ],
+      0
+    ],
+    [
+      "Which author wrote Pride and Prejudice?",
+      [
+        "Jane Austen",
+        "Charlotte Brontë",
+        "Virginia Woolf",
+        "Emily Dickinson"
+      ],
+      0
+    ],
+    [
+      "Which author wrote Frankenstein?",
+      [
+        "Jane Austen",
+        "Mary Shelley",
+        "Louisa May Alcott",
+        "Agatha Christie"
+      ],
+      1
+    ],
+    [
+      "Which author wrote The Hobbit?",
+      [
+        "George Orwell",
+        "J. R. R. Tolkien",
+        "C. S. Lewis",
+        "Roald Dahl"
+      ],
+      1
+    ],
+    [
+      "Which author wrote Charlie and the Chocolate Factory?",
+      [
+        "J. K. Rowling",
+        "E. B. White",
+        "Dr. Seuss",
+        "Roald Dahl"
+      ],
+      3
+    ],
+    [
+      "Which author wrote The Cat in the Hat?",
+      [
+        "Shel Silverstein",
+        "Beverly Cleary",
+        "Roald Dahl",
+        "Dr. Seuss"
+      ],
+      3
+    ],
+    [
+      "Which artist painted The Persistence of Memory?",
+      [
+        "Salvador Dalí",
+        "Georgia O'Keeffe",
+        "Claude Monet",
+        "Vincent van Gogh"
+      ],
+      0
+    ],
+    [
+      "Which artist is famous for water lily paintings?",
+      [
+        "Andy Warhol",
+        "Frida Kahlo",
+        "Pablo Picasso",
+        "Claude Monet"
+      ],
+      3
+    ],
+    [
+      "Which artist painted Girl with a Pearl Earring?",
+      [
+        "Edgar Degas",
+        "Johannes Vermeer",
+        "Rembrandt",
+        "Leonardo da Vinci"
+      ],
+      1
+    ],
+    [
+      "Which artist painted The Scream?",
+      [
+        "Paul Cézanne",
+        "Edvard Munch",
+        "Gustav Klimt",
+        "Henri Matisse"
+      ],
+      1
+    ],
+    [
+      "Which composer wrote The Four Seasons?",
+      [
+        "Johann Sebastian Bach",
+        "Wolfgang Amadeus Mozart",
+        "Antonio Vivaldi",
+        "Ludwig van Beethoven"
+      ],
+      2
+    ],
+    [
+      "Which composer wrote the Moonlight Sonata?",
+      [
+        "Ludwig van Beethoven",
+        "Antonio Vivaldi",
+        "George Gershwin",
+        "Frédéric Chopin"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote The Magic Flute?",
+      [
+        "Wolfgang Amadeus Mozart",
+        "Pyotr Ilyich Tchaikovsky",
+        "Claude Debussy",
+        "Johann Strauss II"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote The Nutcracker ballet?",
+      [
+        "Vivaldi",
+        "Pyotr Ilyich Tchaikovsky",
+        "Mozart",
+        "Bach"
+      ],
+      1
+    ],
+    [
+      "Which band released the album Sgt. Pepper's Lonely Hearts Club Band?",
+      [
+        "Pink Floyd",
+        "ABBA",
+        "The Beatles",
+        "Queen"
+      ],
+      2
+    ],
+    [
+      "Which singer is known for the album Thriller?",
+      [
+        "Stevie Wonder",
+        "Michael Jackson",
+        "Prince",
+        "Elvis Presley"
+      ],
+      1
+    ],
+    [
+      "Which singer is known for the album Purple Rain?",
+      [
+        "Prince",
+        "Elton John",
+        "David Bowie",
+        "Michael Jackson"
+      ],
+      0
+    ],
+    [
+      "Which film features a fedora-wearing archaeologist named Indiana Jones?",
+      [
+        "National Treasure",
+        "Raiders of the Lost Ark",
+        "Jurassic Park",
+        "The Mummy"
+      ],
+      1
+    ],
+    [
+      "Which film features a park filled with cloned dinosaurs?",
+      [
+        "Jurassic Park",
+        "Jumanji",
+        "Avatar",
+        "King Kong"
+      ],
+      0
+    ],
+    [
+      "Which animated film features the bathhouse worker Chihiro?",
+      [
+        "Princess Mononoke",
+        "My Neighbor Totoro",
+        "Spirited Away",
+        "Ponyo"
+      ],
+      2
+    ],
+    [
+      "Which animated film features two sisters named Satsuki and Mei?",
+      [
+        "My Neighbor Totoro",
+        "Howl's Moving Castle",
+        "Spirited Away",
+        "Kiki's Delivery Service"
+      ],
+      0
+    ],
+    [
+      "Which film series features a hobbit named Frodo Baggins?",
+      [
+        "The Lord of the Rings",
+        "Harry Potter",
+        "Narnia",
+        "Star Wars"
+      ],
+      0
+    ],
+    [
+      "Which TV series features a paper company branch in Scranton?",
+      [
+        "Seinfeld",
+        "The Office",
+        "30 Rock",
+        "Friends"
+      ],
+      1
+    ],
+    [
+      "Which TV series features the Central Perk coffeehouse?",
+      [
+        "Frasier",
+        "Community",
+        "Friends",
+        "Cheers"
+      ],
+      2
+    ],
+    [
+      "Which TV series is set in the fictional town of Hawkins, Indiana?",
+      [
+        "Stranger Things",
+        "Dark",
+        "Wednesday",
+        "Lost"
+      ],
+      0
+    ],
+    [
+      "Which TV series is about a football coach named Ted Lasso?",
+      [
+        "Succession",
+        "The Bear",
+        "Ted Lasso",
+        "The Crown"
+      ],
+      2
+    ],
+    [
+      "Which game series features a hero named Samus Aran?",
+      [
+        "Mega Man",
+        "Halo",
+        "Metroid",
+        "Zelda"
+      ],
+      2
+    ],
+    [
+      "Which game series features a princess named Zelda?",
+      [
+        "Metroid",
+        "Dragon Quest",
+        "Final Fantasy",
+        "The Legend of Zelda"
+      ],
+      3
+    ],
+    [
+      "Which game series features creatures called Chocobos?",
+      [
+        "Halo",
+        "Final Fantasy",
+        "Minecraft",
+        "Pokémon"
+      ],
+      1
+    ],
+    [
+      "Which game series features Master Chief?",
+      [
+        "Halo",
+        "Doom",
+        "Mass Effect",
+        "Metroid"
+      ],
+      0
+    ],
+    [
+      "Which game series features vaults and a mascot named Vault Boy?",
+      [
+        "Fallout",
+        "Portal",
+        "The Sims",
+        "Civilization"
+      ],
+      0
+    ],
+    [
+      "Which video game has a companion cube and portals?",
+      [
+        "Stardew Valley",
+        "Half-Life",
+        "Minecraft",
+        "Portal"
+      ],
+      3
+    ],
+    [
+      "Which video game series includes the region of Hyrule?",
+      [
+        "The Legend of Zelda",
+        "Pokémon",
+        "Sonic",
+        "Halo"
+      ],
+      0
+    ],
+    [
+      "Which video game series has a character named Lara Croft?",
+      [
+        "Assassin's Creed",
+        "Mass Effect",
+        "Tomb Raider",
+        "Uncharted"
+      ],
+      2
+    ],
+    [
+      "Which strategy game series lets players build civilizations through history?",
+      [
+        "Animal Crossing",
+        "Street Fighter",
+        "Civilization",
+        "Gran Turismo"
+      ],
+      2
+    ],
+    [
+      "Which life simulation game series features Sims characters?",
+      [
+        "Stardew Valley",
+        "Terraria",
+        "SimCity",
+        "The Sims"
+      ],
+      3
+    ],
+    [
+      "Which programming language is used to add interactivity to many web pages?",
+      [
+        "HTML",
+        "CSS",
+        "JavaScript",
+        "SQL"
+      ],
+      2
+    ],
+    [
+      "Which markup language structures web page content?",
+      [
+        "SQL",
+        "HTML",
+        "C++",
+        "Python"
+      ],
+      1
+    ],
+    [
+      "Which style sheet language controls many web page layouts and colors?",
+      [
+        "Java",
+        "Ruby",
+        "HTML",
+        "CSS"
+      ],
+      3
+    ],
+    [
+      "Which database language is used for queries like SELECT?",
+      [
+        "Swift",
+        "Bash",
+        "CSS",
+        "SQL"
+      ],
+      3
+    ],
+    [
+      "Which data structure follows last-in, first-out behavior?",
+      [
+        "Graph",
+        "Stack",
+        "Queue",
+        "Tree"
+      ],
+      1
+    ],
+    [
+      "Which data structure stores key-value pairs?",
+      [
+        "Queue",
+        "Stack",
+        "Hash map",
+        "Array only"
+      ],
+      2
+    ],
+    [
+      "Which algorithmic method repeatedly divides a search range in half?",
+      [
+        "Random walk",
+        "Binary search",
+        "Linear search",
+        "Bubble sort"
+      ],
+      1
+    ],
+    [
+      "Which sorting algorithm repeatedly selects the smallest remaining item?",
+      [
+        "Binary search",
+        "Dijkstra's algorithm",
+        "Selection sort",
+        "Merge search"
+      ],
+      2
+    ],
+    [
+      "Which network device forwards data between computer networks?",
+      [
+        "Printer",
+        "Monitor",
+        "Scanner",
+        "Router"
+      ],
+      3
+    ],
+    [
+      "Which protocol is commonly used to send email?",
+      [
+        "DNS",
+        "FTP",
+        "HTTP",
+        "SMTP"
+      ],
+      3
+    ],
+    [
+      "Which protocol is commonly used to look up domain names?",
+      [
+        "SMTP",
+        "SSH",
+        "DNS",
+        "USB"
+      ],
+      2
+    ],
+    [
+      "Which file type is commonly used for plain text data interchange?",
+      [
+        "PNG",
+        "WAV",
+        "JSON",
+        "MP3"
+      ],
+      2
+    ],
+    [
+      "Which file type is commonly used for web page icons and simple animations?",
+      [
+        "EXE",
+        "CSV",
+        "GIF",
+        "DOCX"
+      ],
+      2
+    ],
+    [
+      "Which file format is commonly used for compressed archives?",
+      [
+        "ZIP",
+        "MP4",
+        "PNG",
+        "HTML"
+      ],
+      0
+    ],
+    [
+      "Which number system uses only 0 and 1?",
+      [
+        "Binary",
+        "Decimal",
+        "Roman",
+        "Hexadecimal"
+      ],
+      0
+    ],
+    [
+      "Which base is hexadecimal?",
+      [
+        "8",
+        "10",
+        "16",
+        "2"
+      ],
+      2
+    ],
+    [
+      "What is 2 to the power of 10?",
+      [
+        "512",
+        "1024",
+        "2048",
+        "100"
+      ],
+      1
+    ],
+    [
+      "What is 12 squared?",
+      [
+        "144",
+        "124",
+        "169",
+        "132"
+      ],
+      0
+    ],
+    [
+      "What is the next prime number after 7?",
+      [
+        "11",
+        "12",
+        "9",
+        "10"
+      ],
+      0
+    ],
+    [
+      "How many degrees are in a full circle?",
+      [
+        "270",
+        "180",
+        "90",
+        "360"
+      ],
+      3
+    ],
+    [
+      "What is the sum of angles in a triangle?",
+      [
+        "180 degrees",
+        "270 degrees",
+        "360 degrees",
+        "90 degrees"
+      ],
+      0
+    ],
+    [
+      "What is the sum of angles in a quadrilateral?",
+      [
+        "720 degrees",
+        "180 degrees",
+        "90 degrees",
+        "360 degrees"
+      ],
+      3
+    ],
+    [
+      "Which Greek letter is commonly used to represent wavelength?",
+      [
+        "Sigma",
+        "Omega",
+        "Lambda",
+        "Delta"
+      ],
+      2
+    ],
+    [
+      "Which Greek letter is commonly used for summation notation?",
+      [
+        "Lambda",
+        "Theta",
+        "Sigma",
+        "Gamma"
+      ],
+      2
+    ],
+    [
+      "Which chess piece can move any number of squares horizontally or vertically?",
+      [
+        "Rook",
+        "Bishop",
+        "Pawn",
+        "Knight"
+      ],
+      0
+    ],
+    [
+      "Which chess piece can move one square in any direction?",
+      [
+        "Rook",
+        "Knight",
+        "King",
+        "Pawn"
+      ],
+      2
+    ],
+    [
+      "In chess, what is it called when the king is under attack?",
+      [
+        "Promotion",
+        "Fork",
+        "Castle",
+        "Check"
+      ],
+      3
+    ],
+    [
+      "In soccer, what is a hat trick?",
+      [
+        "Getting three yellow cards",
+        "Winning a coin toss",
+        "Saving a penalty",
+        "Scoring three goals"
+      ],
+      3
+    ],
+    [
+      "Which sport uses wickets and overs?",
+      [
+        "Tennis",
+        "Cricket",
+        "Baseball",
+        "Curling"
+      ],
+      1
+    ],
+    [
+      "Which sport has a pommel horse event?",
+      [
+        "Swimming",
+        "Rugby",
+        "Gymnastics",
+        "Archery"
+      ],
+      2
+    ],
+    [
+      "Which sport has a butterfly stroke?",
+      [
+        "Fencing",
+        "Cycling",
+        "Swimming",
+        "Basketball"
+      ],
+      2
+    ],
+    [
+      "Which sport uses sabres, épées, and foils?",
+      [
+        "Fencing",
+        "Archery",
+        "Boxing",
+        "Curling"
+      ],
+      0
+    ],
+    [
+      "Which sport uses a velodrome?",
+      [
+        "Rowing",
+        "Sailing",
+        "Judo",
+        "Cycling"
+      ],
+      3
+    ],
+    [
+      "Which martial art originated in Korea and is known for high kicks?",
+      [
+        "Taekwondo",
+        "Karate",
+        "Aikido",
+        "Judo"
+      ],
+      0
+    ],
+    [
+      "Which martial art from Thailand is known as the art of eight limbs?",
+      [
+        "Taekwondo",
+        "Judo",
+        "Muay Thai",
+        "Kendo"
+      ],
+      2
+    ],
+    [
+      "Which board game uses hexagonal resource tiles and settlements?",
+      [
+        "Scrabble",
+        "Catan",
+        "Clue",
+        "Battleship"
+      ],
+      1
+    ],
+    [
+      "Which board game has rooms like the Conservatory and Library?",
+      [
+        "Risk",
+        "Catan",
+        "Clue",
+        "Checkers"
+      ],
+      2
+    ],
+    [
+      "Which word means a word that sounds the same as another but has a different meaning?",
+      [
+        "Synonym",
+        "Acronym",
+        "Homophone",
+        "Antonym"
+      ],
+      2
+    ],
+    [
+      "Which word means a shortened form made from initial letters?",
+      [
+        "Acronym",
+        "Idiom",
+        "Suffix",
+        "Homonym"
+      ],
+      0
+    ],
+    [
+      "Which sentence part usually names who or what the sentence is about?",
+      [
+        "Object",
+        "Predicate",
+        "Adverb",
+        "Subject"
+      ],
+      3
+    ],
+    [
+      "Which literary device compares using 'like' or 'as'?",
+      [
+        "Hyperbole",
+        "Simile",
+        "Alliteration",
+        "Metaphor"
+      ],
+      1
+    ],
+    [
+      "Which literary device repeats beginning sounds in nearby words?",
+      [
+        "Foreshadowing",
+        "Irony",
+        "Alliteration",
+        "Onomatopoeia"
+      ],
+      2
+    ],
+    [
+      "Which literary device gives human traits to non-human things?",
+      [
+        "Oxymoron",
+        "Personification",
+        "Alliteration",
+        "Pun"
+      ],
+      1
+    ],
+    [
+      "Which literary device gives a hint about future events?",
+      [
+        "Foreshadowing",
+        "Onomatopoeia",
+        "Alliteration",
+        "Simile"
+      ],
+      0
+    ],
+    [
+      "Which literary device is an extreme exaggeration?",
+      [
+        "Alliteration",
+        "Metaphor",
+        "Hyperbole",
+        "Personification"
+      ],
+      2
+    ],
+    [
+      "Which literary device uses words that imitate sounds?",
+      [
+        "Onomatopoeia",
+        "Irony",
+        "Simile",
+        "Foreshadowing"
+      ],
+      0
+    ],
+    [
+      "Which language family includes Spanish, French, and Italian?",
+      [
+        "Romance languages",
+        "Germanic languages",
+        "Celtic languages",
+        "Slavic languages"
+      ],
+      0
+    ],
+    [
+      "Which language family includes English, German, and Dutch?",
+      [
+        "Uralic languages",
+        "Germanic languages",
+        "Romance languages",
+        "Sino-Tibetan languages"
+      ],
+      1
+    ],
+    [
+      "Which writing system is used for Hindi?",
+      [
+        "Latin alphabet only",
+        "Devanagari",
+        "Hiragana",
+        "Hangul"
+      ],
+      1
+    ],
+    [
+      "Which Japanese script is often used for native Japanese words?",
+      [
+        "Greek alphabet",
+        "Hiragana",
+        "Cyrillic",
+        "Hangul"
+      ],
+      1
+    ],
+    [
+      "Which Japanese script is often used for foreign loanwords?",
+      [
+        "Arabic script",
+        "Devanagari",
+        "Hiragana",
+        "Katakana"
+      ],
+      3
+    ],
+    [
+      "Which scale is used to measure wind force at sea?",
+      [
+        "pH scale",
+        "Beaufort scale",
+        "Mohs scale",
+        "Richter scale"
+      ],
+      1
+    ],
+    [
+      "Which scale measures mineral hardness?",
+      [
+        "Mohs scale",
+        "Beaufort scale",
+        "Kelvin scale",
+        "Richter scale"
+      ],
+      0
+    ],
+    [
+      "Which temperature scale has absolute zero at 0?",
+      [
+        "Celsius",
+        "Fahrenheit",
+        "Kelvin",
+        "Rankine only"
+      ],
+      2
+    ],
+    [
+      "Which type of lens is thicker in the middle and can converge light?",
+      [
+        "Prism only",
+        "Flat mirror",
+        "Concave lens",
+        "Convex lens"
+      ],
+      3
+    ],
+    [
+      "Which type of lens is thinner in the middle and can diverge light?",
+      [
+        "Convex lens",
+        "Cylinder only",
+        "Plane mirror",
+        "Concave lens"
+      ],
+      3
+    ],
+    [
+      "Which mirror is flat and gives an upright virtual image?",
+      [
+        "Plane mirror",
+        "Parabolic dish",
+        "Concave mirror",
+        "Convex mirror"
+      ],
+      0
+    ],
+    [
+      "Which simple machine is a ramp?",
+      [
+        "Inclined plane",
+        "Wheel and axle",
+        "Lever",
+        "Pulley"
+      ],
+      0
+    ],
+    [
+      "Which simple machine uses a wheel with a rope to lift things?",
+      [
+        "Pulley",
+        "Screw",
+        "Wedge",
+        "Inclined plane"
+      ],
+      0
+    ],
+    [
+      "Which simple machine is used in a seesaw?",
+      [
+        "Pulley",
+        "Lever",
+        "Screw",
+        "Wedge"
+      ],
+      1
+    ],
+    [
+      "Which simple machine is a sharp edge used to split material?",
+      [
+        "Wheel and axle",
+        "Wedge",
+        "Pulley",
+        "Lever"
+      ],
+      1
+    ],
+    [
+      "Which simple machine wraps an inclined plane around a cylinder?",
+      [
+        "Lever",
+        "Wedge",
+        "Screw",
+        "Pulley"
+      ],
+      2
+    ],
+    [
+      "Which food process uses yeast to make bread rise?",
+      [
+        "Freezing",
+        "Pasteurization",
+        "Caramelization",
+        "Fermentation"
+      ],
+      3
+    ],
+    [
+      "Which cooking reaction browns bread and roasted foods?",
+      [
+        "Sublimation",
+        "Maillard reaction",
+        "Evaporation",
+        "Condensation"
+      ],
+      1
+    ],
+    [
+      "Which cuisine is strongly associated with paella?",
+      [
+        "Japanese",
+        "Spanish",
+        "Indian",
+        "Mexican"
+      ],
+      1
+    ],
+    [
+      "Which cuisine is strongly associated with pho?",
+      [
+        "Italian",
+        "Vietnamese",
+        "Greek",
+        "Moroccan"
+      ],
+      1
+    ],
+    [
+      "Which cuisine is strongly associated with falafel?",
+      [
+        "Brazilian",
+        "Middle Eastern",
+        "Japanese",
+        "Scandinavian"
+      ],
+      1
+    ],
+    [
+      "Which cuisine is strongly associated with pierogi?",
+      [
+        "Thai",
+        "Mexican",
+        "Polish",
+        "Moroccan"
+      ],
+      2
+    ]
   ],
-  hard: [
-    ["Which sorting algorithm has average-case time complexity O(n log n) and commonly uses partitioning?", ["Bubble sort", "Insertion sort", "Quicksort", "Linear search"], 2],
-    ["What is the approximate speed of light in vacuum?", ["300,000 km/s", "3,000,000 km/s", "3,000 km/s", "30,000 km/s"], 0],
-    ["Which element has atomic number 6?", ["Carbon", "Silicon", "Oxygen", "Nitrogen"], 0],
-    ["In music theory, how many semitones are in an octave?", ["8", "7", "10", "12"], 3],
-    ["Which mathematical sequence begins 0, 1, 1, 2, 3, 5?", ["Fibonacci", "Prime", "Geometric", "Triangular"], 0],
-    ["What is the powerhouse organelle of the cell?", ["Mitochondrion", "Ribosome", "Golgi apparatus", "Nucleus"], 0],
-    ["Which database language is commonly used for querying relational databases?", ["CSS", "Bash", "HTML", "SQL"], 3],
-    ["What is the derivative of x²?", ["2x", "x³", "2", "x"], 0],
-    ["Which planet has the shortest day among the planets?", ["Mercury", "Jupiter", "Earth", "Neptune"], 1],
-    ["What is the main structural protein found in hair and nails?", ["Collagen", "Keratin", "Elastin", "Casein"], 1],
-    ["Which algorithm finds shortest paths from one source in a weighted graph with nonnegative edges?", ["K-means", "Merge sort", "A* without heuristic", "Dijkstra's algorithm"], 3],
-    ["What is the SI unit of electric capacitance?", ["Weber", "Farad", "Henry", "Ohm"], 1],
-    ["Which number system uses base 16?", ["Octal", "Binary", "Decimal", "Hexadecimal"], 3],
-    ["What is the term for the fear of long words?", ["Hippopotomonstrosesquipedaliophobia", "Claustrophobia", "Arachnophobia", "Acrophobia"], 0],
-    ["Which amino acid is often represented by the one-letter code W?", ["Tryptophan", "Threonine", "Tyrosine", "Valine"], 0],
-    ["Which protocol translates domain names into IP addresses?", ["HTTP", "DNS", "SMTP", "SSH"], 1],
-    ["What is the value of 2⁸?", ["128", "256", "64", "512"], 1],
-    ["Which moon is the largest moon of Saturn?", ["Europa", "Io", "Ganymede", "Titan"], 3],
-    ["What is the term for a word spelled the same backward and forward?", ["Anagram", "Acronym", "Palindrome", "Homonym"], 2],
-    ["Which type of bond involves shared electron pairs?", ["Metallic bond", "Hydrogen bond only", "Covalent bond", "Ionic bond"], 2],
-    ["What is the normal form targeted by eliminating transitive dependency in relational design?", ["Boyce-Codd only", "Zero normal form", "Third normal form", "First normal form"], 2],
-    ["Which lens type is thicker in the center and converges light?", ["Concave lens", "Flat lens", "Convex lens", "Cylindrical lens"], 2],
-    ["What is the term for animals that maintain constant internal body temperature?", ["Autotrophs", "Decomposers", "Endotherms", "Ectotherms"], 2],
-    ["Which compression format is commonly lossless for images?", ["JPEG", "PNG", "MP4", "AAC"], 1],
-    ["What is the result of 7 factorial?", ["720", "5040", "40320", "840"], 1],
-    ["Which compound is commonly known as baking soda?", ["Sodium bicarbonate", "Sodium chloride", "Calcium carbonate", "Acetic acid"], 0],
-    ["Which programming paradigm treats computation as evaluating functions?", ["Object storage", "Functional programming", "Procedural programming", "Markup programming"], 1],
-    ["What is the longest side of a right triangle called?", ["Base only", "Hypotenuse", "Median", "Altitude"], 1],
-    ["Which biological molecule stores genetic information?", ["Cellulose", "Lipid", "DNA", "Starch"], 2],
-    ["What is the name for molten rock beneath Earth's surface?", ["Lava", "Pumice", "Basalt", "Magma"], 3],
-    ["Which HTTP status code means Not Found?", ["500", "301", "200", "404"], 3],
-    ["What is the integral of 1/x with respect to x?", ["1/x² + C", "x² + C", "eˣ + C", "ln|x| + C"], 3],
-    ["Which constellation contains the star Betelgeuse?", ["Scorpius", "Cygnus", "Orion", "Ursa Major"], 2],
-    ["What is the chemical formula of glucose?", ["H2SO4", "NaOH", "C6H12O6", "CO2"], 2],
-    ["Which term describes light bending as it passes between media?", ["Absorption", "Refraction", "Diffusion", "Reflection"], 1],
-    ["What is the base unit of luminous intensity in SI?", ["Watt", "Lumen", "Candela", "Lux"], 2],
-    ["Which software design principle says classes should have one reason to change?", ["Factory Rule", "Single Responsibility Principle", "Singleton Rule", "Open Loop Principle"], 1],
-    ["Which enzyme starts starch digestion in the mouth?", ["Pepsin", "Amylase", "Lactase", "Lipase"], 1],
-    ["What is the approximate value of Euler's number e?", ["3.142", "2.718", "1.618", "0.577"], 1],
-    ["Which data structure is typically used for recursion call management?", ["Queue", "Hash table", "Stack", "Heap"], 2],
-    ["Which planet has the most confirmed moons as of recent astronomy counts?", ["Saturn", "Venus", "Earth", "Mars"], 0],
-    ["What is the term for a triangle with two equal sides?", ["Equilateral only", "Isosceles", "Scalene", "Obtuse"], 1],
-    ["Which mineral scale measures scratch hardness?", ["Mohs scale", "pH scale", "Richter scale", "Beaufort scale"], 0],
-    ["What is the smallest unit of sound in a spoken language?", ["Morpheme", "Clause", "Phoneme", "Syllable"], 2],
-    ["Which computer memory is volatile?", ["SSD", "Blu-ray", "RAM", "ROM"], 2],
-    ["What is the common name for ascorbic acid?", ["Vitamin D", "Vitamin C", "Vitamin B1", "Vitamin K"], 1],
-    ["Which law states pressure and volume are inversely related at constant temperature?", ["Charles's law", "Boyle's law", "Ohm's law", "Hooke's law"], 1],
-    ["What is the center of mass of a triangle called?", ["Incenter", "Orthocenter", "Centroid", "Circumcenter"], 2],
-    ["Which language is primarily used with the Unity game engine for scripting?", ["C#", "Perl", "R", "PHP"], 0],
-    ["What is the process of converting sugar into acids or alcohol by microorganisms?", ["Fermentation", "Pasteurization", "Caramelization", "Crystallization"], 0],
-    ["Which star type is the Sun classified as?", ["G-type main-sequence star", "White dwarf", "Neutron star", "Red giant"], 0],
-    ["What does API stand for?", ["Advanced Packet Input", "Applied Program Internet", "Application Programming Interface", "Automated Page Index"], 2],
-    ["Which equation relates voltage, current, and resistance?", ["Ohm's law", "Bernoulli's principle", "Newton's second law", "Snell's law"], 0],
-    ["What is the term for a market with one dominant seller?", ["Perfect competition", "Duopoly only", "Oligopsony", "Monopoly"], 3],
-    ["Which molecule is the primary energy currency of cells?", ["Chlorophyll", "DNA", "ATP", "RNA"], 2],
-    ["Which graph traversal uses a queue?", ["Depth-first search", "Breadth-first search", "Heap sort", "Binary search"], 1],
-    ["What is the value of log10(1000)?", ["3", "10", "100", "2"], 0],
-    ["Which spice gives curry its bright yellow color?", ["Nutmeg", "Paprika", "Turmeric", "Cinnamon"], 2],
-    ["Which number is the additive identity?", ["1", "0", "-1", "10"], 1],
-    ["What is the term for the boundary where two air masses meet?", ["Isobar", "Cyclone", "Jet stream", "Front"], 3],
-    ["Which HTML attribute provides alternative text for images?", ["alt", "href", "class", "src"], 0],
-    ["What is the primary pigment involved in photosynthesis?", ["Keratin", "Hemoglobin", "Chlorophyll", "Melanin"], 2],
-    ["Which regular polygon has internal angles of 120 degrees?", ["Octagon", "Hexagon", "Square", "Pentagon"], 1],
-    ["What is the name of the statistical value in the middle of ordered data?", ["Range", "Mode", "Median", "Mean"], 2],
-    ["Which concept describes resistance to changes in motion?", ["Inertia", "Impulse", "Momentum only", "Torque"], 0],
-    ["Which food science process browns sugars and proteins together?", ["Caramelization", "Sublimation", "Osmosis", "Maillard reaction"], 3],
-    ["What is the unit of frequency?", ["Pascal", "Newton", "Joule", "Hertz"], 3],
-    ["Which command-line system is commonly used to track code versions?", ["Docker", "Node", "Git", "NPM"], 2],
-    ["What is the name of a 3D shape with six square faces?", ["Cylinder", "Sphere", "Cone", "Cube"], 3],
-    ["Which gas is commonly used by balloons to float?", ["Nitrogen", "Helium", "Carbon dioxide", "Oxygen"], 1],
-    ["What is the term for the study of fungi?", ["Ichthyology", "Ornithology", "Mycology", "Entomology"], 2],
-    ["Which part of the eye controls the amount of light entering?", ["Retina", "Cornea", "Iris", "Lens only"], 2],
-    ["What is the value of sin(90°)?", ["-1", "0", "0.5", "1"], 3],
-    ["Which CSS layout system is one-dimensional?", ["SVG", "Grid", "Canvas", "Flexbox"], 3],
-    ["What is the hardest part of the human tooth?", ["Cementum", "Pulp", "Dentin", "Enamel"], 3],
-    ["Which state of matter has a fixed volume but no fixed shape?", ["Gas", "Solid", "Liquid", "Plasma"], 2],
-    ["Which cloud service model provides virtualized computing resources?", ["DNS", "PaaS only", "SaaS", "IaaS"], 3],
-    ["What is the term for a sentence that asks a question?", ["Exclamatory", "Imperative", "Declarative", "Interrogative"], 3],
-    ["Which molecule carries amino acids to ribosomes?", ["DNA", "mRNA", "tRNA", "ATP"], 2],
-    ["What is the binary representation of decimal 10?", ["1001", "1010", "1110", "1100"], 1],
-    ["Which statistical chart is best for showing parts of a whole?", ["Pie chart", "Line chart", "Box plot", "Scatter plot"], 0],
-    ["What is the name of the point where two axes meet on a coordinate plane?", ["Vertex", "Origin", "Focus", "Centroid"], 1],
-    ["Which ecosystem is dominated by grasses and few trees?", ["Tundra", "Coral reef", "Grassland", "Rainforest"], 2],
-    ["Which term means a word formed from the first letters of a phrase?", ["Synonym", "Acronym", "Prefix", "Homophone"], 1],
-    ["What is the common unit for measuring computer file size?", ["Meter", "Byte", "Gram", "Volt"], 1],
-    ["Which geometry term describes lines that never meet?", ["Parallel", "Skew only", "Perpendicular", "Intersecting"], 0],
-    ["What is the name for heat transfer through fluid motion?", ["Convection", "Radiation", "Reflection", "Conduction"], 0],
-    ["Which nutrient is the body's main quick energy source?", ["Water", "Mineral", "Vitamin", "Carbohydrate"], 3],
-    ["Which JavaScript method converts JSON text into an object?", ["Object.keys", "Array.map", "JSON.parse", "JSON.stringify"], 2],
-    ["What is the solution to x in 3x = 21?", ["9", "6", "7", "8"], 2],
-    ["Which ocean zone receives enough sunlight for photosynthesis?", ["Hadal zone", "Photic zone", "Benthic zone only", "Abyssal zone"], 1],
-    ["Which term describes a reusable block of code?", ["Variable", "Literal", "Function", "Operator"], 2],
-    ["What is the name of the imaginary line around Earth's middle?", ["Axis", "Meridian", "Tropic", "Equator"], 3],
-    ["Which probability value is impossible?", ["1.5", "0", "0.5", "1"], 0],
-    ["Which astronomical object is made mostly of ice, dust, and rock and can show a tail near the Sun?", ["Planet", "Comet", "Meteorite", "Asteroid only"], 1],
-    ["What is the unit of work and energy?", ["Watt", "Ampere", "Joule", "Volt"], 2],
-    ["Which cooking term means to briefly cook food in boiling water?", ["Grill", "Bake", "Blanch", "Roast"], 2],
-    ["Which 1972 film became the first movie in The Godfather trilogy?", ["The Godfather", "Goodfellas", "Scarface", "Casino"], 0],
-    ["Which movie won all five major Oscars: Picture, Director, Actor, Actress, and Screenplay?", ["The Silence of the Lambs", "Titanic", "La La Land", "Avatar"], 0],
-    ["Which film introduced the line 'May the Force be with you' to mainstream cinema?", ["Star Wars: A New Hope", "The Empire Strikes Back", "Return of the Jedi", "The Phantom Menace"], 0],
-    ["Which director made Spirited Away?", ["Hayao Miyazaki", "Akira Kurosawa", "Makoto Shinkai", "Satoshi Kon"], 0],
-    ["Which film features the character Keyser Söze?", ["The Usual Suspects", "Se7en", "Heat", "Memento"], 0],
-    ["Which sitcom's finale was watched by over 100 million viewers in the United States in 1983?", ["M*A*S*H", "Friends", "Cheers", "Seinfeld"], 0],
-    ["Which sitcom character was known for the dance called 'The Carlton'?", ["Carlton Banks", "Joey Tribbiani", "George Costanza", "Niles Crane"], 0],
-    ["Which sitcom created by Larry David and Jerry Seinfeld is famously described as a show about nothing?", ["Seinfeld", "Frasier", "Friends", "Scrubs"], 0],
-    ["Which music genre originated in Jamaica and is associated with offbeat rhythms?", ["Reggae", "Disco", "Grunge", "Bluegrass"], 0],
-    ["Which artist's album Thriller became one of the best-selling albums of all time?", ["Michael Jackson", "Prince", "Elton John", "Stevie Wonder"], 0],
-    ["Which group released the disco hit 'Dancing Queen'?", ["ABBA", "Bee Gees", "Fleetwood Mac", "The Supremes"], 0],
-    ["Which composer wrote the musical The Phantom of the Opera?", ["Andrew Lloyd Webber", "Stephen Sondheim", "Lin-Manuel Miranda", "Leonard Bernstein"], 0],
-    ["Which awards are represented by the EGOT acronym?", ["Emmy, Grammy, Oscar, Tony", "Emmy, Globe, Oscar, Tony", "ESPY, Grammy, Olivier, Tony", "Emmy, Grammy, Obie, Tony"], 0],
-    ["Which Grammy category honors a full album rather than a single song?", ["Album of the Year", "Song of the Year", "Record of the Year", "Best New Artist"], 0],
-    ["Which internet term originally described intentionally inflammatory online posts meant to provoke reactions?", ["Trolling", "Streaming", "Bookmarking", "Buffering"], 0],
-    ["Which early viral video featured a baby dancing to 'Hooked on a Feeling'?", ["Dancing Baby", "Charlie Bit My Finger", "Evolution of Dance", "Numa Numa"], 0],
-    ["Which actor voiced Marlin in Finding Nemo?", ["Albert Brooks", "John Ratzenberger", "Billy Crystal", "Craig T. Nelson"], 0],
-    ["Which actor voiced Elastigirl in The Incredibles?", ["Holly Hunter", "Amy Poehler", "Ellen DeGeneres", "Ming-Na Wen"], 0],
-    ["Which musical is inspired by Puccini's opera La Bohème?", ["Rent", "Cats", "A Chorus Line", "Hadestown"], 0],
-    ["Which musical retells Greek mythology with Orpheus and Eurydice in a folk-jazz style?", ["Hadestown", "Les Misérables", "The Producers", "Sweeney Todd"], 0],
-    ["Which graphic novel deconstructs superheroes and features Rorschach?", ["Watchmen", "Maus", "V for Vendetta", "Sandman"], 0],
-    ["Which manga artist created Dragon Ball?", ["Akira Toriyama", "Eiichiro Oda", "Masashi Kishimoto", "Naoko Takeuchi"], 0],
-    ["Which reality show format traps contestants in a house under constant camera surveillance?", ["Big Brother", "The Amazing Race", "Top Chef", "The Masked Singer"], 0],
-    ["Which competition show uses the phrase 'sashay away'?", ["RuPaul's Drag Race", "Project Runway", "Survivor", "The Voice"], 0],
-    ["Which fictional dragon is Hiccup's companion in How to Train Your Dragon?", ["Toothless", "Falkor", "Smaug", "Mushu"], 0],
-    ["Which board game was originally patented as The Landlord's Game?", ["Monopoly", "Risk", "Clue", "Sorry!"], 0],
-    ["In Settlers of Catan, which resource is represented by sheep?", ["Wool", "Ore", "Brick", "Grain"], 0],
-    ["Which ancient strategy board game uses black and white stones on a grid?", ["Go", "Mancala", "Backgammon", "Parcheesi"], 0],
-    ["Which video game contains the hidden 'Konami Code' in many Konami titles?", ["Contra", "Minecraft", "Portal", "The Sims"], 0],
-    ["Which console was Sega's final home video game console?", ["Dreamcast", "Saturn", "Genesis", "Master System"], 0],
-    ["Which game series features the fictional city of Rapture?", ["BioShock", "Half-Life", "Fallout", "Resident Evil"], 0],
-    ["In poker, which hand ranks highest?", ["Royal flush", "Straight flush", "Four of a kind", "Full house"], 0],
-    ["In contract bridge, how many players are at the table?", ["4", "2", "3", "5"], 0],
-    ["Which solitaire variant uses seven tableau columns in its classic layout?", ["Klondike", "Spider", "FreeCell", "Pyramid"], 0],
-    ["What is the classic riddle answer to 'What has keys but can't open locks?'", ["Piano", "Map", "Clock", "Book"], 0],
-    ["In Dungeons & Dragons 5e, what die is commonly rolled for ability checks?", ["d20", "d4", "d8", "d12"], 0],
-    ["In Dungeons & Dragons, what does NPC stand for?", ["Non-player character", "New power class", "Neutral party caster", "Night patrol captain"], 0],
-    ["Which arcade game was the first major hit created by Nintendo's Shigeru Miyamoto?", ["Donkey Kong", "Pac-Man", "Space Invaders", "Street Fighter II"], 0],
-    ["Which pinball component launches the ball onto the playfield?", ["Plunger", "Flipper", "Bumper", "Tilt bob"], 0],
-    ["Which 1990s toy fad involved digital pets on keychains?", ["Tamagotchi", "Pogs", "Furby", "Skip-It"], 0],
-    ["Which cuisine uses injera as a staple flatbread?", ["Ethiopian", "Vietnamese", "French", "Polish"], 0],
-    ["Which dish is traditionally made with raw fish cured in citrus juice?", ["Ceviche", "Fondue", "Paella", "Goulash"], 0],
-    ["Which spice is derived from the dried stigmas of Crocus sativus?", ["Saffron", "Turmeric", "Cardamom", "Star anise"], 0],
-    ["Which herb is traditionally used in béarnaise sauce?", ["Tarragon", "Rosemary", "Cilantro", "Bay leaf"], 0],
-    ["Which drink is made from fermented tea and often contains live cultures?", ["Kombucha", "Espresso", "Horchata", "Ayran"], 0],
-    ["Which dessert is made from layers of filo pastry, nuts, and syrup?", ["Baklava", "Pavlova", "Cannoli", "Flan"], 0],
-    ["Which baking method uses steam trapped inside dough to make layers rise in croissants?", ["Lamination", "Tempering", "Fermentation only", "Blanching"], 0],
-    ["Which mascot represents Michelin tires?", ["Bibendum", "Tony", "Julius Pringles", "Chester"], 0],
-    ["Which ingredient gives Worcestershire sauce much of its savory depth?", ["Anchovies", "Chocolate", "Vanilla", "Cucumber"], 0],
-    ["Which cheese is traditionally used for authentic Parmigiano-Reggiano?", ["Cow's milk", "Goat's milk only", "Sheep's milk only", "Buffalo milk only"], 0],
-    ["Which pasta name means 'little ears' in Italian?", ["Orecchiette", "Fusilli", "Pappardelle", "Bucatini"], 0],
-    ["Which city hosted the first modern Olympic Games in 1896?", ["Athens", "Paris", "London", "Rome"], 0],
-    ["Which country won the first FIFA World Cup in 1930?", ["Uruguay", "Brazil", "Argentina", "Italy"], 0],
-    ["In baseball, what is a 'cycle'?", ["Single, double, triple, and home run in one game", "Four strikeouts in a row", "A no-hit inning", "Stealing every base"], 0],
-    ["In sepak takraw, which body part is generally not used to hit the ball?", ["Hands", "Feet", "Head", "Knees"], 0],
-    ["Which boxer was nicknamed 'The Greatest'?", ["Muhammad Ali", "Mike Tyson", "Floyd Mayweather Jr.", "Joe Frazier"], 0],
-    ["Which NBA arena is nicknamed 'The Garden'?", ["Madison Square Garden", "Crypto.com Arena", "United Center", "TD Garden only"], 0],
-    ["In taekwondo, what color belt commonly represents a beginner in many schools?", ["White", "Black", "Red", "Blue"], 0],
-    ["Which hiking trail runs from Georgia to Maine in the United States?", ["Appalachian Trail", "Pacific Crest Trail", "Camino de Santiago", "Inca Trail"], 0],
-    ["In gymnastics, which apparatus is used only in men's artistic gymnastics?", ["Pommel horse", "Balance beam", "Uneven bars", "Ribbon"], 0],
-    ["Which surrealist painter created The Persistence of Memory?", ["Salvador Dalí", "Henri Matisse", "Jackson Pollock", "Georgia O'Keeffe"], 0],
-    ["Which sculpture by Michelangelo depicts a biblical hero before battle?", ["David", "The Thinker", "Venus de Milo", "Pietà only"], 0],
-    ["Which novel is set in the fictional county of Yoknapatawpha?", ["The Sound and the Fury", "Jane Eyre", "The Great Gatsby", "Dune"], 0],
-    ["Which protagonist narrates The Catcher in the Rye?", ["Holden Caulfield", "Jay Gatsby", "Scout Finch", "Winston Smith"], 0],
-    ["Which writing system is used for Korean?", ["Hangul", "Hiragana", "Cyrillic", "Devanagari"], 0],
-    ["Which word is often cited as a German term for taking pleasure in another's misfortune?", ["Schadenfreude", "Déjà vu", "Saudade", "Hygge"], 0],
-    ["Which creature in Greek mythology has a lion's body, eagle's head, and wings?", ["Griffin", "Minotaur", "Cyclops", "Hydra"], 0],
-    ["Which architectural style is associated with raw concrete and massive forms?", ["Brutalism", "Rococo", "Gothic", "Neoclassical"], 0],
-    ["Which designer founded a fashion house famous for the 'New Look' of 1947?", ["Christian Dior", "Yves Saint Laurent", "Coco Chanel", "Alexander McQueen"], 0],
-    ["Which economist is associated with The General Theory of Employment, Interest and Money?", ["John Maynard Keynes", "Adam Smith", "Milton Friedman", "Karl Marx"], 0],
-    ["In microeconomics, what is the price elasticity of demand concerned with?", ["Quantity demanded response to price changes", "Weather response to crops", "Interest paid on bonds", "Currency exchange dates"], 0],
-    ["Which company changed its corporate name to Alphabet in a 2015 restructuring?", ["Google", "Facebook", "Microsoft", "Amazon"], 0],
-    ["Which stock market index tracks 30 large U.S. companies?", ["Dow Jones Industrial Average", "NASDAQ Composite", "FTSE 100", "Nikkei 225"], 0],
-    ["Which currency's symbol is ¥?", ["Japanese yen", "British pound", "Indian rupee", "Russian ruble"], 0],
-    ["Who is commonly credited with inventing the modern ballpoint pen?", ["László Bíró", "Thomas Edison", "Alexander Graham Bell", "Eli Whitney"], 0],
-    ["Which city is served by the public transit system known as the Tube?", ["London", "New York", "Tokyo", "Paris"], 0],
-    ["Which advertising campaign used the line 'Got Milk?'", ["California Milk Processor Board", "Coca-Cola", "Nike", "Apple"], 0],
-    ["Which part of a supply chain moves goods from producers to consumers?", ["Distribution", "Photosynthesis", "Refraction", "Fermentation"], 0],
-    ["Which holiday tradition involves hiding painted eggs?", ["Easter", "Diwali", "Hanukkah", "Thanksgiving"], 0],
-    ["Which country's flag is red with a large yellow star?", ["Vietnam", "Japan", "Canada", "Greece"], 0],
-    ["Which country has the capital city Canberra?", ["Australia", "New Zealand", "Canada", "South Africa"], 0],
-    ["Which DIY tool is used to make holes with rotating bits?", ["Drill", "Level", "Clamp", "Trowel"], 0],
-    ["Which gardening term means trimming plants to shape or improve growth?", ["Pruning", "Soldering", "Grouting", "Priming"], 0],
-    ["In Japanese etiquette, what gesture commonly accompanies a formal greeting?", ["Bowing", "Snapping fingers", "Winking", "Whistling"], 0],
-    ["Which zodiac sign is represented by a water bearer?", ["Aquarius", "Capricorn", "Sagittarius", "Taurus"], 0],
-    ["Which birthstone is traditionally associated with July?", ["Ruby", "Sapphire", "Pearl", "Topaz"], 0],
-    ["Which textile weave creates denim's diagonal rib pattern?", ["Twill", "Satin", "Plain weave", "Jacquard only"], 0],
-    ["Which 1939 film was the first to use the phrase 'There's no place like home' in its famous ending?", ["Mr. Smith Goes to Washington", "The Wizard of Oz", "Gone with the Wind", "Stagecoach"], 1],
-    ["Which film won Best Picture at the 1977 Academy Awards over Star Wars?", ["Rocky", "Network", "Annie Hall", "The Goodbye Girl"], 2],
-    ["Which 1997 film tied Ben-Hur and Titanic's record of 11 Oscar wins?", ["Chicago", "Gladiator", "Shakespeare in Love", "The Lord of the Rings: The Return of the King"], 3],
-    ["Which movie was the first non-English-language film to win the Oscar for Best Picture?", ["Amour", "Parasite", "Crouching Tiger, Hidden Dragon", "Roma"], 1],
-    ["Which film won Best Picture after the famous 2017 envelope mix-up?", ["Arrival", "La La Land", "Moonlight", "Manchester by the Sea"], 2],
-    ["Which silent film won Best Picture at the first Academy Awards ceremony?", ["Metropolis", "The Jazz Singer", "Sunrise", "Wings"], 3],
-    ["Which film earned Heath Ledger a posthumous Oscar for playing the Joker?", ["Batman Begins", "Brokeback Mountain", "Joker", "The Dark Knight"], 3],
-    ["Which actor won an Oscar for playing Vito Corleone in The Godfather?", ["Al Pacino", "Marlon Brando", "Robert De Niro", "James Caan"], 1],
-    ["Which actor won an Oscar for playing young Vito Corleone in The Godfather Part II?", ["Al Pacino", "Joe Pesci", "Robert De Niro", "Marlon Brando"], 2],
-    ["Which director won Best Director for Schindler's List?", ["Robert Zemeckis", "Martin Scorsese", "James Cameron", "Steven Spielberg"], 3],
-    ["Which director won Best Director for The Departed?", ["Ang Lee", "Martin Scorsese", "Clint Eastwood", "Quentin Tarantino"], 1],
-    ["Which director won Best Director twice in the 2010s for Birdman and The Revenant?", ["Guillermo del Toro", "Bong Joon Ho", "Alfonso Cuarón", "Alejandro G. Iñárritu"], 3],
-    ["Which filmmaker directed Seven Samurai and Rashomon?", ["Kenji Mizoguchi", "Akira Kurosawa", "Yasujiro Ozu", "Hayao Miyazaki"], 1],
-    ["Which filmmaker directed Persona and The Seventh Seal?", ["Luis Buñuel", "Andrei Tarkovsky", "Federico Fellini", "Ingmar Bergman"], 3],
-    ["Which filmmaker directed 8½ and La Dolce Vita?", ["Ingmar Bergman", "Michelangelo Antonioni", "Vittorio De Sica", "Federico Fellini"], 3],
-    ["Which filmmaker directed Stalker and Solaris?", ["Andrei Tarkovsky", "Akira Kurosawa", "Jean-Luc Godard", "François Truffaut"], 0],
-    ["Which French New Wave film stars Jean-Paul Belmondo as Michel Poiccard?", ["Hiroshima mon amour", "The 400 Blows", "Breathless", "Jules and Jim"], 2],
-    ["Which 1958 Hitchcock film is famous for the dolly zoom effect and fear of heights?", ["North by Northwest", "Psycho", "Vertigo", "Rear Window"], 2],
-    ["Which Hitchcock film features the Bates Motel?", ["Rope", "The Birds", "Vertigo", "Psycho"], 3],
-    ["Which film is often associated with the line 'Rosebud'?", ["Citizen Kane", "Sunset Boulevard", "Casablanca", "The Maltese Falcon"], 0],
-    ["Which film noir stars Humphrey Bogart as Sam Spade?", ["Double Indemnity", "The Maltese Falcon", "The Big Sleep", "Out of the Past"], 1],
-    ["Which 1979 sci-fi horror film introduced the Nostromo crew?", ["The Thing", "Blade Runner", "Alien", "Event Horizon"], 2],
-    ["Which 1982 sci-fi film asks whether Deckard is a replicant?", ["Brazil", "Tron", "Blade Runner", "Dune"], 2],
-    ["Which 1982 John Carpenter film features an Antarctic research team and a shapeshifting alien?", ["Alien", "Predator", "The Thing", "They Live"], 2],
-    ["Which 1922 German Expressionist vampire film was an unauthorized Dracula adaptation?", ["The Cabinet of Dr. Caligari", "Nosferatu", "Metropolis", "Faust"], 1],
-    ["Which 1927 Fritz Lang film depicts a futuristic city divided by class?", ["The Last Laugh", "M", "Metropolis", "Nosferatu"], 2],
-    ["Which sitcom's final episode 'Goodbye, Farewell and Amen' aired in 1983?", ["M*A*S*H", "Cheers", "Seinfeld", "Friends"], 0],
-    ["Which Seinfeld episode introduced the anti-holiday Festivus?", ["The Strike", "The Soup Nazi", "The Contest", "The Chinese Restaurant"], 0],
-    ["Which Seinfeld episode centers on a competition about self-control?", ["The Contest", "The Puffy Shirt", "The Parking Garage", "The Marine Biologist"], 0],
-    ["Which Friends episode title format commonly begins with what phrase?", ["The One with", "My Dinner with", "A Tale of", "The Day of"], 0],
-    ["Which Cheers character was played by Ted Danson?", ["Norm Peterson", "Cliff Clavin", "Frasier Crane", "Sam Malone"], 3],
-    ["Which Frasier character is Frasier Crane's brother?", ["Martin Crane", "Eddie Crane", "Roz Doyle", "Niles Crane"], 3],
-    ["Which sitcom actor played Michael Bluth in Arrested Development?", ["Will Arnett", "Jason Bateman", "David Cross", "Tony Hale"], 1],
-    ["Which sitcom features the Bluth family's frozen banana stand?", ["30 Rock", "Arrested Development", "Community", "Parks and Recreation"], 1],
-    ["Which 30 Rock character is played by Alec Baldwin?", ["Kenneth Parcell", "Tracy Jordan", "Pete Hornberger", "Jack Donaghy"], 3],
-    ["Which Community character is obsessed with pop culture and meta references?", ["Britta Perry", "Jeff Winger", "Abed Nadir", "Troy Barnes"], 2],
-    ["Which The Office episode features the employees playing a warehouse basketball game?", ["The Dundies", "Diversity Day", "Basketball", "Casino Night"], 2],
-    ["Which The Office episode introduced the Dundie Awards on-screen?", ["Booze Cruise", "The Injury", "Dinner Party", "The Dundies"], 3],
-    ["Which Sopranos character owns the Bada Bing strip club?", ["Paulie Walnuts", "Bobby Baccalieri", "Silvio Dante", "Christopher Moltisanti"], 2],
-    ["Which HBO series used the fictional newspaper The Baltimore Sun in its final season?", ["The Wire", "Boardwalk Empire", "The Sopranos", "Deadwood"], 0],
-    ["Which Mad Men character created the Kodak Carousel pitch?", ["Don Draper", "Pete Campbell", "Roger Sterling", "Peggy Olson"], 0],
-    ["Which album by The Beatles includes the medley on side two and the cover at a zebra crossing?", ["Revolver", "Abbey Road", "Let It Be", "Sgt. Pepper's Lonely Hearts Club Band"], 1],
-    ["Which Beatles album cover places the band in colorful military-style outfits?", ["Abbey Road", "Sgt. Pepper's Lonely Hearts Club Band", "Help!", "Rubber Soul"], 1],
-    ["Which Pink Floyd album begins with the track 'Speak to Me'?", ["Animals", "The Wall", "Wish You Were Here", "The Dark Side of the Moon"], 3],
-    ["Which Pink Floyd album includes 'Another Brick in the Wall, Part 2'?", ["The Wall", "Meddle", "The Division Bell", "Animals"], 0],
-    ["Which David Bowie album features the character Ziggy Stardust?", ["The Rise and Fall of Ziggy Stardust and the Spiders from Mars", "Low", "Heroes", "Young Americans"], 0],
-    ["Which Prince album and film share the title Purple Rain?", ["Purple Rain", "1999", "Parade", "Sign o' the Times"], 0],
-    ["Which Madonna album includes 'Like a Prayer'?", ["Ray of Light", "Erotica", "True Blue", "Like a Prayer"], 3],
-    ["Which Nirvana drummer later founded Foo Fighters?", ["Krist Novoselic", "Dave Grohl", "Kurt Cobain", "Pat Smear"], 1],
-    ["Which Radiohead album includes 'Paranoid Android'?", ["The Bends", "In Rainbows", "Kid A", "OK Computer"], 3],
-    ["Which Radiohead album opens with 'Everything in Its Right Place'?", ["OK Computer", "Hail to the Thief", "Kid A", "Amnesiac"], 2],
-    ["Which hip-hop group released the album Enter the Wu-Tang (36 Chambers)?", ["Public Enemy", "Wu-Tang Clan", "A Tribe Called Quest", "N.W.A"], 1],
-    ["Which 1994 Nas album is considered a landmark East Coast hip-hop debut?", ["The Chronic", "Reasonable Doubt", "Ready to Die", "Illmatic"], 3],
-    ["Which Dr. Dre album popularized G-funk in the early 1990s?", ["Straight Outta Compton", "All Eyez on Me", "The Chronic", "Doggystyle"], 2],
-    ["Which Lauryn Hill album won Album of the Year at the Grammys?", ["The Score", "The Miseducation of Lauryn Hill", "Share My World", "Baduizm"], 1],
-    ["Which OutKast album won the Grammy for Album of the Year?", ["Speakerboxxx/The Love Below", "Stankonia", "ATLiens", "Aquemini"], 0],
-    ["Which jazz musician released the landmark album Kind of Blue?", ["Miles Davis", "Duke Ellington", "Thelonious Monk", "John Coltrane"], 0],
-    ["Which John Coltrane album includes the suite 'Acknowledgement'?", ["Giant Steps", "My Favorite Things", "Blue Train", "A Love Supreme"], 3],
-    ["Which reggae album by Bob Marley and the Wailers includes 'Three Little Birds'?", ["Exodus", "Catch a Fire", "Uprising", "Legend"], 0],
-    ["Which musical by Stephen Sondheim reimagines fairy tales with songs like 'Agony'?", ["Follies", "Sweeney Todd", "Company", "Into the Woods"], 3],
-    ["Which Sondheim musical centers on a murderous barber?", ["Merrily We Roll Along", "Sunday in the Park with George", "Sweeney Todd", "Assassins"], 2],
-    ["Which musical is based on the trials of Leo Frank?", ["Parade", "Fun Home", "Ragtime", "Caroline, or Change"], 0],
-    ["Which musical centers on the Schuyler sisters and the American Revolution?", ["Assassins", "Ragtime", "Hamilton", "1776"], 2],
-    ["Which musical uses songs by Green Day?", ["Moulin Rouge!", "American Idiot", "Movin' Out", "Jagged Little Pill"], 1],
-    ["Which jukebox musical uses songs by Queen?", ["Jersey Boys", "Mamma Mia!", "Rock of Ages", "We Will Rock You"], 3],
-    ["Which jukebox musical tells the story of The Four Seasons?", ["Ain't Too Proud", "Million Dollar Quartet", "Jersey Boys", "Beautiful"], 2],
-    ["Which Tony-winning musical is based on Alison Bechdel's graphic memoir?", ["Dear Evan Hansen", "Next to Normal", "Fun Home", "Spring Awakening"], 2],
-    ["Which Tony-winning musical includes the song 'You Will Be Found'?", ["The Band's Visit", "Hamilton", "Dear Evan Hansen", "Hadestown"], 2],
-    ["Which Tony-winning musical features the song 'Wait for Me'?", ["Wicked", "In the Heights", "Hadestown", "Rent"], 2],
-    ["Which Tony-winning musical by Lin-Manuel Miranda is set in Washington Heights?", ["Hamilton", "Vivo", "In the Heights", "Bring It On"], 2],
-    ["Which artist became the youngest person to win the four major general-field Grammys in the same year?", ["Olivia Rodrigo", "Adele", "Taylor Swift", "Billie Eilish"], 3],
-    ["Which Grammy term honors a song's composition and lyrics?", ["Album of the Year", "Best New Artist", "Record of the Year", "Song of the Year"], 3],
-    ["Which Grammy term honors the finished recording of a single track?", ["Song of the Year", "Record of the Year", "Album of the Year", "Producer of the Year"], 1],
-    ["Which person is often described as the first artist to complete an EGOT?", ["Audrey Hepburn", "Richard Rodgers", "Mel Brooks", "Whoopi Goldberg"], 1],
-    ["Which performer won an EGOT after receiving a daytime Emmy for Jesus Christ Superstar Live in Concert?", ["Tim Rice", "Lin-Manuel Miranda", "John Legend", "Andrew Lloyd Webber"], 2],
-    ["Which internet meme originated from a 2007 stock photo of a man looking at another woman while with his partner?", ["Success Kid", "Disaster Girl", "Bad Luck Brian", "Distracted Boyfriend"], 3],
-    ["Which meme features a girl smiling in front of a burning house?", ["Ermahgerd", "Success Kid", "Scumbag Steve", "Disaster Girl"], 3],
-    ["Which meme features a school photo of Kyle Craven?", ["Success Kid", "Doge", "Bad Luck Brian", "Nyan Cat"], 2],
-    ["Which early web meme used the phrase 'All your base are belong to us'?", ["Street Fighter II", "Doom", "Zero Wing", "Mortal Kombat"], 2],
-    ["Which viral meme came from a 2011 livestream clip involving a nyan cat animation and music?", ["Nyan Cat", "Peanut Butter Jelly Time", "Keyboard Cat", "Dramatic Chipmunk"], 0],
-    ["Which meme cat became famous for an unhappy facial expression and was named Tardar Sauce?", ["Keyboard Cat", "Grumpy Cat", "Lil Bub", "Maru"], 1],
-    ["Which Japanese cat became famous online for jumping into boxes?", ["Grumpy Cat", "Nyan Cat", "Longcat", "Maru"], 3],
-    ["Which 2006 viral video series included the repeated line 'Charlie bit me'?", ["Charlie Bit My Finger", "Evolution of Dance", "Chocolate Rain", "Numa Numa"], 0],
-    ["Which YouTube video became famous for Judson Laipply performing many dance styles?", ["Harlem Shake", "Dancing Baby", "Evolution of Dance", "Numa Numa"], 2],
-    ["Which browser game popularized incremental gameplay with cookies?", ["FarmVille", "Cookie Clicker", "Club Penguin", "Minesweeper"], 1],
-    ["Which Flash game platform was known for user-submitted animations and games before becoming a broader indie hub?", ["Newgrounds", "Miniclip", "Neopets", "Kongregate"], 0],
-    ["Which virtual pet website launched in 1999 with creatures called Neopets?", ["Club Penguin", "Second Life", "Neopets", "Gaia Online"], 2],
-    ["Which online world featured penguin avatars and igloos before its original closure?", ["Roblox", "Poptropica", "Club Penguin", "Habbo Hotel"], 2],
-    ["Which MMORPG is set in Azeroth?", ["World of Warcraft", "Final Fantasy XIV", "Guild Wars 2", "RuneScape"], 0],
-    ["Which MMORPG has a city called Lumbridge?", ["RuneScape", "MapleStory", "EVE Online", "World of Warcraft"], 0],
-    ["Which video game company created the Dreamcast console?", ["Microsoft", "Nintendo", "Sega", "Sony"], 2],
-    ["Which Nintendo console used cartridges and introduced Super Mario 64?", ["GameCube", "Nintendo 64", "Wii", "Super Nintendo"], 1],
-    ["Which Sony console popularized the DualShock controller line?", ["PlayStation", "Xbox", "GameCube", "Dreamcast"], 0],
-    ["Which Microsoft console launched with Halo: Combat Evolved?", ["Xbox", "Dreamcast", "PlayStation 2", "Xbox 360"], 0],
-    ["Which game is often credited with popularizing the battle royale genre after releasing its Battle Royale mode in 2017?", ["Fortnite", "Minecraft", "Apex Legends", "Overwatch"], 0],
-    ["Which battle royale game is set in the Titanfall universe?", ["Warzone", "Apex Legends", "PUBG", "Fortnite"], 1],
-    ["Which game popularized the phrase 'The cake is a lie'?", ["BioShock", "Half-Life 2", "Mass Effect", "Portal"], 3],
-    ["Which BioShock city is located underwater?", ["Rapture", "Midgar", "City 17", "Columbia"], 0],
-    ["Which Final Fantasy VII city is controlled by the Shinra Electric Power Company?", ["Midgar", "Balamb", "Zanarkand", "Lindblum"], 0],
-    ["Which role-playing game series features the Vault-Tec mascot Vault Boy?", ["The Elder Scrolls", "Fallout", "Mass Effect", "Dragon Age"], 1],
-    ["Which RPG series is set on the continent of Tamriel?", ["Final Fantasy", "Dragon Age", "The Witcher", "The Elder Scrolls"], 3],
-    ["Which game studio developed The Witcher 3: Wild Hunt?", ["BioWare", "CD Projekt Red", "FromSoftware", "Bethesda Game Studios"], 1],
-    ["Which studio developed Dark Souls and Elden Ring?", ["FromSoftware", "Valve", "Capcom", "Square Enix"], 0]
+  "hard": [
+    [
+      "Which sorting algorithm has average-case time complexity O(n log n) and commonly uses partitioning?",
+      [
+        "Bubble sort",
+        "Insertion sort",
+        "Quicksort",
+        "Linear search"
+      ],
+      2
+    ],
+    [
+      "What is the approximate speed of light in vacuum?",
+      [
+        "300,000 km/s",
+        "3,000,000 km/s",
+        "3,000 km/s",
+        "30,000 km/s"
+      ],
+      0
+    ],
+    [
+      "Which element has atomic number 6?",
+      [
+        "Carbon",
+        "Silicon",
+        "Oxygen",
+        "Nitrogen"
+      ],
+      0
+    ],
+    [
+      "In music theory, how many semitones are in an octave?",
+      [
+        "8",
+        "7",
+        "10",
+        "12"
+      ],
+      3
+    ],
+    [
+      "Which mathematical sequence begins 0, 1, 1, 2, 3, 5?",
+      [
+        "Fibonacci",
+        "Prime",
+        "Geometric",
+        "Triangular"
+      ],
+      0
+    ],
+    [
+      "What is the powerhouse organelle of the cell?",
+      [
+        "Mitochondrion",
+        "Ribosome",
+        "Golgi apparatus",
+        "Nucleus"
+      ],
+      0
+    ],
+    [
+      "Which database language is commonly used for querying relational databases?",
+      [
+        "CSS",
+        "Bash",
+        "HTML",
+        "SQL"
+      ],
+      3
+    ],
+    [
+      "What is the derivative of x²?",
+      [
+        "2x",
+        "x³",
+        "2",
+        "x"
+      ],
+      0
+    ],
+    [
+      "Which planet has the shortest day among the planets?",
+      [
+        "Mercury",
+        "Jupiter",
+        "Earth",
+        "Neptune"
+      ],
+      1
+    ],
+    [
+      "What is the main structural protein found in hair and nails?",
+      [
+        "Collagen",
+        "Keratin",
+        "Elastin",
+        "Casein"
+      ],
+      1
+    ],
+    [
+      "Which algorithm finds shortest paths from one source in a weighted graph with nonnegative edges?",
+      [
+        "K-means",
+        "Merge sort",
+        "A* without heuristic",
+        "Dijkstra's algorithm"
+      ],
+      3
+    ],
+    [
+      "What is the SI unit of electric capacitance?",
+      [
+        "Weber",
+        "Farad",
+        "Henry",
+        "Ohm"
+      ],
+      1
+    ],
+    [
+      "Which number system uses base 16?",
+      [
+        "Octal",
+        "Binary",
+        "Decimal",
+        "Hexadecimal"
+      ],
+      3
+    ],
+    [
+      "What is the term for the fear of long words?",
+      [
+        "Hippopotomonstrosesquipedaliophobia",
+        "Claustrophobia",
+        "Arachnophobia",
+        "Acrophobia"
+      ],
+      0
+    ],
+    [
+      "Which amino acid is often represented by the one-letter code W?",
+      [
+        "Tryptophan",
+        "Threonine",
+        "Tyrosine",
+        "Valine"
+      ],
+      0
+    ],
+    [
+      "Which protocol translates domain names into IP addresses?",
+      [
+        "HTTP",
+        "DNS",
+        "SMTP",
+        "SSH"
+      ],
+      1
+    ],
+    [
+      "What is the value of 2⁸?",
+      [
+        "128",
+        "256",
+        "64",
+        "512"
+      ],
+      1
+    ],
+    [
+      "Which moon is the largest moon of Saturn?",
+      [
+        "Europa",
+        "Io",
+        "Ganymede",
+        "Titan"
+      ],
+      3
+    ],
+    [
+      "What is the term for a word spelled the same backward and forward?",
+      [
+        "Anagram",
+        "Acronym",
+        "Palindrome",
+        "Homonym"
+      ],
+      2
+    ],
+    [
+      "Which type of bond involves shared electron pairs?",
+      [
+        "Metallic bond",
+        "Hydrogen bond only",
+        "Covalent bond",
+        "Ionic bond"
+      ],
+      2
+    ],
+    [
+      "What is the normal form targeted by eliminating transitive dependency in relational design?",
+      [
+        "Boyce-Codd only",
+        "Zero normal form",
+        "Third normal form",
+        "First normal form"
+      ],
+      2
+    ],
+    [
+      "Which lens type is thicker in the center and converges light?",
+      [
+        "Concave lens",
+        "Flat lens",
+        "Convex lens",
+        "Cylindrical lens"
+      ],
+      2
+    ],
+    [
+      "What is the term for animals that maintain constant internal body temperature?",
+      [
+        "Autotrophs",
+        "Decomposers",
+        "Endotherms",
+        "Ectotherms"
+      ],
+      2
+    ],
+    [
+      "Which compression format is commonly lossless for images?",
+      [
+        "JPEG",
+        "PNG",
+        "MP4",
+        "AAC"
+      ],
+      1
+    ],
+    [
+      "What is the result of 7 factorial?",
+      [
+        "720",
+        "5040",
+        "40320",
+        "840"
+      ],
+      1
+    ],
+    [
+      "Which compound is commonly known as baking soda?",
+      [
+        "Sodium bicarbonate",
+        "Sodium chloride",
+        "Calcium carbonate",
+        "Acetic acid"
+      ],
+      0
+    ],
+    [
+      "Which programming paradigm treats computation as evaluating functions?",
+      [
+        "Object storage",
+        "Functional programming",
+        "Procedural programming",
+        "Markup programming"
+      ],
+      1
+    ],
+    [
+      "What is the longest side of a right triangle called?",
+      [
+        "Base only",
+        "Hypotenuse",
+        "Median",
+        "Altitude"
+      ],
+      1
+    ],
+    [
+      "Which biological molecule stores genetic information?",
+      [
+        "Cellulose",
+        "Lipid",
+        "DNA",
+        "Starch"
+      ],
+      2
+    ],
+    [
+      "What is the name for molten rock beneath Earth's surface?",
+      [
+        "Lava",
+        "Pumice",
+        "Basalt",
+        "Magma"
+      ],
+      3
+    ],
+    [
+      "Which HTTP status code means Not Found?",
+      [
+        "500",
+        "301",
+        "200",
+        "404"
+      ],
+      3
+    ],
+    [
+      "What is the integral of 1/x with respect to x?",
+      [
+        "1/x² + C",
+        "x² + C",
+        "eˣ + C",
+        "ln|x| + C"
+      ],
+      3
+    ],
+    [
+      "Which constellation contains the star Betelgeuse?",
+      [
+        "Scorpius",
+        "Cygnus",
+        "Orion",
+        "Ursa Major"
+      ],
+      2
+    ],
+    [
+      "What is the chemical formula of glucose?",
+      [
+        "H2SO4",
+        "NaOH",
+        "C6H12O6",
+        "CO2"
+      ],
+      2
+    ],
+    [
+      "Which term describes light bending as it passes between media?",
+      [
+        "Absorption",
+        "Refraction",
+        "Diffusion",
+        "Reflection"
+      ],
+      1
+    ],
+    [
+      "What is the base unit of luminous intensity in SI?",
+      [
+        "Watt",
+        "Lumen",
+        "Candela",
+        "Lux"
+      ],
+      2
+    ],
+    [
+      "Which software design principle says classes should have one reason to change?",
+      [
+        "Factory Rule",
+        "Single Responsibility Principle",
+        "Singleton Rule",
+        "Open Loop Principle"
+      ],
+      1
+    ],
+    [
+      "Which enzyme starts starch digestion in the mouth?",
+      [
+        "Pepsin",
+        "Amylase",
+        "Lactase",
+        "Lipase"
+      ],
+      1
+    ],
+    [
+      "What is the approximate value of Euler's number e?",
+      [
+        "3.142",
+        "2.718",
+        "1.618",
+        "0.577"
+      ],
+      1
+    ],
+    [
+      "Which data structure is typically used for recursion call management?",
+      [
+        "Queue",
+        "Hash table",
+        "Stack",
+        "Heap"
+      ],
+      2
+    ],
+    [
+      "Which planet has the most confirmed moons as of recent astronomy counts?",
+      [
+        "Saturn",
+        "Venus",
+        "Earth",
+        "Mars"
+      ],
+      0
+    ],
+    [
+      "What is the term for a triangle with two equal sides?",
+      [
+        "Equilateral only",
+        "Isosceles",
+        "Scalene",
+        "Obtuse"
+      ],
+      1
+    ],
+    [
+      "Which mineral scale measures scratch hardness?",
+      [
+        "Mohs scale",
+        "pH scale",
+        "Richter scale",
+        "Beaufort scale"
+      ],
+      0
+    ],
+    [
+      "What is the smallest unit of sound in a spoken language?",
+      [
+        "Morpheme",
+        "Clause",
+        "Phoneme",
+        "Syllable"
+      ],
+      2
+    ],
+    [
+      "Which computer memory is volatile?",
+      [
+        "SSD",
+        "Blu-ray",
+        "RAM",
+        "ROM"
+      ],
+      2
+    ],
+    [
+      "What is the common name for ascorbic acid?",
+      [
+        "Vitamin D",
+        "Vitamin C",
+        "Vitamin B1",
+        "Vitamin K"
+      ],
+      1
+    ],
+    [
+      "Which law states pressure and volume are inversely related at constant temperature?",
+      [
+        "Charles's law",
+        "Boyle's law",
+        "Ohm's law",
+        "Hooke's law"
+      ],
+      1
+    ],
+    [
+      "What is the center of mass of a triangle called?",
+      [
+        "Incenter",
+        "Orthocenter",
+        "Centroid",
+        "Circumcenter"
+      ],
+      2
+    ],
+    [
+      "Which language is primarily used with the Unity game engine for scripting?",
+      [
+        "C#",
+        "Perl",
+        "R",
+        "PHP"
+      ],
+      0
+    ],
+    [
+      "What is the process of converting sugar into acids or alcohol by microorganisms?",
+      [
+        "Fermentation",
+        "Pasteurization",
+        "Caramelization",
+        "Crystallization"
+      ],
+      0
+    ],
+    [
+      "Which star type is the Sun classified as?",
+      [
+        "G-type main-sequence star",
+        "White dwarf",
+        "Neutron star",
+        "Red giant"
+      ],
+      0
+    ],
+    [
+      "What does API stand for?",
+      [
+        "Advanced Packet Input",
+        "Applied Program Internet",
+        "Application Programming Interface",
+        "Automated Page Index"
+      ],
+      2
+    ],
+    [
+      "Which equation relates voltage, current, and resistance?",
+      [
+        "Ohm's law",
+        "Bernoulli's principle",
+        "Newton's second law",
+        "Snell's law"
+      ],
+      0
+    ],
+    [
+      "What is the term for a market with one dominant seller?",
+      [
+        "Perfect competition",
+        "Duopoly only",
+        "Oligopsony",
+        "Monopoly"
+      ],
+      3
+    ],
+    [
+      "Which molecule is the primary energy currency of cells?",
+      [
+        "Chlorophyll",
+        "DNA",
+        "ATP",
+        "RNA"
+      ],
+      2
+    ],
+    [
+      "Which graph traversal uses a queue?",
+      [
+        "Depth-first search",
+        "Breadth-first search",
+        "Heap sort",
+        "Binary search"
+      ],
+      1
+    ],
+    [
+      "What is the value of log10(1000)?",
+      [
+        "3",
+        "10",
+        "100",
+        "2"
+      ],
+      0
+    ],
+    [
+      "Which spice gives curry its bright yellow color?",
+      [
+        "Nutmeg",
+        "Paprika",
+        "Turmeric",
+        "Cinnamon"
+      ],
+      2
+    ],
+    [
+      "Which number is the additive identity?",
+      [
+        "1",
+        "0",
+        "-1",
+        "10"
+      ],
+      1
+    ],
+    [
+      "What is the term for the boundary where two air masses meet?",
+      [
+        "Isobar",
+        "Cyclone",
+        "Jet stream",
+        "Front"
+      ],
+      3
+    ],
+    [
+      "Which HTML attribute provides alternative text for images?",
+      [
+        "alt",
+        "href",
+        "class",
+        "src"
+      ],
+      0
+    ],
+    [
+      "What is the primary pigment involved in photosynthesis?",
+      [
+        "Keratin",
+        "Hemoglobin",
+        "Chlorophyll",
+        "Melanin"
+      ],
+      2
+    ],
+    [
+      "Which regular polygon has internal angles of 120 degrees?",
+      [
+        "Octagon",
+        "Hexagon",
+        "Square",
+        "Pentagon"
+      ],
+      1
+    ],
+    [
+      "What is the name of the statistical value in the middle of ordered data?",
+      [
+        "Range",
+        "Mode",
+        "Median",
+        "Mean"
+      ],
+      2
+    ],
+    [
+      "Which concept describes resistance to changes in motion?",
+      [
+        "Inertia",
+        "Impulse",
+        "Momentum only",
+        "Torque"
+      ],
+      0
+    ],
+    [
+      "Which food science process browns sugars and proteins together?",
+      [
+        "Caramelization",
+        "Sublimation",
+        "Osmosis",
+        "Maillard reaction"
+      ],
+      3
+    ],
+    [
+      "What is the unit of frequency?",
+      [
+        "Pascal",
+        "Newton",
+        "Joule",
+        "Hertz"
+      ],
+      3
+    ],
+    [
+      "Which command-line system is commonly used to track code versions?",
+      [
+        "Docker",
+        "Node",
+        "Git",
+        "NPM"
+      ],
+      2
+    ],
+    [
+      "What is the name of a 3D shape with six square faces?",
+      [
+        "Cylinder",
+        "Sphere",
+        "Cone",
+        "Cube"
+      ],
+      3
+    ],
+    [
+      "Which gas is commonly used by balloons to float?",
+      [
+        "Nitrogen",
+        "Helium",
+        "Carbon dioxide",
+        "Oxygen"
+      ],
+      1
+    ],
+    [
+      "What is the term for the study of fungi?",
+      [
+        "Ichthyology",
+        "Ornithology",
+        "Mycology",
+        "Entomology"
+      ],
+      2
+    ],
+    [
+      "Which part of the eye controls the amount of light entering?",
+      [
+        "Retina",
+        "Cornea",
+        "Iris",
+        "Lens only"
+      ],
+      2
+    ],
+    [
+      "What is the value of sin(90°)?",
+      [
+        "-1",
+        "0",
+        "0.5",
+        "1"
+      ],
+      3
+    ],
+    [
+      "Which CSS layout system is one-dimensional?",
+      [
+        "SVG",
+        "Grid",
+        "Canvas",
+        "Flexbox"
+      ],
+      3
+    ],
+    [
+      "What is the hardest part of the human tooth?",
+      [
+        "Cementum",
+        "Pulp",
+        "Dentin",
+        "Enamel"
+      ],
+      3
+    ],
+    [
+      "Which state of matter has a fixed volume but no fixed shape?",
+      [
+        "Gas",
+        "Solid",
+        "Liquid",
+        "Plasma"
+      ],
+      2
+    ],
+    [
+      "Which cloud service model provides virtualized computing resources?",
+      [
+        "DNS",
+        "PaaS only",
+        "SaaS",
+        "IaaS"
+      ],
+      3
+    ],
+    [
+      "What is the term for a sentence that asks a question?",
+      [
+        "Exclamatory",
+        "Imperative",
+        "Declarative",
+        "Interrogative"
+      ],
+      3
+    ],
+    [
+      "Which molecule carries amino acids to ribosomes?",
+      [
+        "DNA",
+        "mRNA",
+        "tRNA",
+        "ATP"
+      ],
+      2
+    ],
+    [
+      "What is the binary representation of decimal 10?",
+      [
+        "1001",
+        "1010",
+        "1110",
+        "1100"
+      ],
+      1
+    ],
+    [
+      "Which statistical chart is best for showing parts of a whole?",
+      [
+        "Pie chart",
+        "Line chart",
+        "Box plot",
+        "Scatter plot"
+      ],
+      0
+    ],
+    [
+      "What is the name of the point where two axes meet on a coordinate plane?",
+      [
+        "Vertex",
+        "Origin",
+        "Focus",
+        "Centroid"
+      ],
+      1
+    ],
+    [
+      "Which ecosystem is dominated by grasses and few trees?",
+      [
+        "Tundra",
+        "Coral reef",
+        "Grassland",
+        "Rainforest"
+      ],
+      2
+    ],
+    [
+      "Which term means a word formed from the first letters of a phrase?",
+      [
+        "Synonym",
+        "Acronym",
+        "Prefix",
+        "Homophone"
+      ],
+      1
+    ],
+    [
+      "What is the common unit for measuring computer file size?",
+      [
+        "Meter",
+        "Byte",
+        "Gram",
+        "Volt"
+      ],
+      1
+    ],
+    [
+      "Which geometry term describes lines that never meet?",
+      [
+        "Parallel",
+        "Skew only",
+        "Perpendicular",
+        "Intersecting"
+      ],
+      0
+    ],
+    [
+      "What is the name for heat transfer through fluid motion?",
+      [
+        "Convection",
+        "Radiation",
+        "Reflection",
+        "Conduction"
+      ],
+      0
+    ],
+    [
+      "Which nutrient is the body's main quick energy source?",
+      [
+        "Water",
+        "Mineral",
+        "Vitamin",
+        "Carbohydrate"
+      ],
+      3
+    ],
+    [
+      "Which JavaScript method converts JSON text into an object?",
+      [
+        "Object.keys",
+        "Array.map",
+        "JSON.parse",
+        "JSON.stringify"
+      ],
+      2
+    ],
+    [
+      "What is the solution to x in 3x = 21?",
+      [
+        "9",
+        "6",
+        "7",
+        "8"
+      ],
+      2
+    ],
+    [
+      "Which ocean zone receives enough sunlight for photosynthesis?",
+      [
+        "Hadal zone",
+        "Photic zone",
+        "Benthic zone only",
+        "Abyssal zone"
+      ],
+      1
+    ],
+    [
+      "Which term describes a reusable block of code?",
+      [
+        "Variable",
+        "Literal",
+        "Function",
+        "Operator"
+      ],
+      2
+    ],
+    [
+      "What is the name of the imaginary line around Earth's middle?",
+      [
+        "Axis",
+        "Meridian",
+        "Tropic",
+        "Equator"
+      ],
+      3
+    ],
+    [
+      "Which probability value is impossible?",
+      [
+        "1.5",
+        "0",
+        "0.5",
+        "1"
+      ],
+      0
+    ],
+    [
+      "Which astronomical object is made mostly of ice, dust, and rock and can show a tail near the Sun?",
+      [
+        "Planet",
+        "Comet",
+        "Meteorite",
+        "Asteroid only"
+      ],
+      1
+    ],
+    [
+      "What is the unit of work and energy?",
+      [
+        "Watt",
+        "Ampere",
+        "Joule",
+        "Volt"
+      ],
+      2
+    ],
+    [
+      "Which cooking term means to briefly cook food in boiling water?",
+      [
+        "Grill",
+        "Bake",
+        "Blanch",
+        "Roast"
+      ],
+      2
+    ],
+    [
+      "Which 1972 film became the first movie in The Godfather trilogy?",
+      [
+        "The Godfather",
+        "Goodfellas",
+        "Scarface",
+        "Casino"
+      ],
+      0
+    ],
+    [
+      "Which movie won all five major Oscars: Picture, Director, Actor, Actress, and Screenplay?",
+      [
+        "The Silence of the Lambs",
+        "Titanic",
+        "La La Land",
+        "Avatar"
+      ],
+      0
+    ],
+    [
+      "Which film introduced the line 'May the Force be with you' to mainstream cinema?",
+      [
+        "Star Wars: A New Hope",
+        "The Empire Strikes Back",
+        "Return of the Jedi",
+        "The Phantom Menace"
+      ],
+      0
+    ],
+    [
+      "Which director made Spirited Away?",
+      [
+        "Hayao Miyazaki",
+        "Akira Kurosawa",
+        "Makoto Shinkai",
+        "Satoshi Kon"
+      ],
+      0
+    ],
+    [
+      "Which film features the character Keyser Söze?",
+      [
+        "The Usual Suspects",
+        "Se7en",
+        "Heat",
+        "Memento"
+      ],
+      0
+    ],
+    [
+      "Which sitcom's finale was watched by over 100 million viewers in the United States in 1983?",
+      [
+        "M*A*S*H",
+        "Friends",
+        "Cheers",
+        "Seinfeld"
+      ],
+      0
+    ],
+    [
+      "Which sitcom character was known for the dance called 'The Carlton'?",
+      [
+        "Carlton Banks",
+        "Joey Tribbiani",
+        "George Costanza",
+        "Niles Crane"
+      ],
+      0
+    ],
+    [
+      "Which sitcom created by Larry David and Jerry Seinfeld is famously described as a show about nothing?",
+      [
+        "Seinfeld",
+        "Frasier",
+        "Friends",
+        "Scrubs"
+      ],
+      0
+    ],
+    [
+      "Which music genre originated in Jamaica and is associated with offbeat rhythms?",
+      [
+        "Reggae",
+        "Disco",
+        "Grunge",
+        "Bluegrass"
+      ],
+      0
+    ],
+    [
+      "Which artist's album Thriller became one of the best-selling albums of all time?",
+      [
+        "Michael Jackson",
+        "Prince",
+        "Elton John",
+        "Stevie Wonder"
+      ],
+      0
+    ],
+    [
+      "Which group released the disco hit 'Dancing Queen'?",
+      [
+        "ABBA",
+        "Bee Gees",
+        "Fleetwood Mac",
+        "The Supremes"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote the musical The Phantom of the Opera?",
+      [
+        "Andrew Lloyd Webber",
+        "Stephen Sondheim",
+        "Lin-Manuel Miranda",
+        "Leonard Bernstein"
+      ],
+      0
+    ],
+    [
+      "Which awards are represented by the EGOT acronym?",
+      [
+        "Emmy, Grammy, Oscar, Tony",
+        "Emmy, Globe, Oscar, Tony",
+        "ESPY, Grammy, Olivier, Tony",
+        "Emmy, Grammy, Obie, Tony"
+      ],
+      0
+    ],
+    [
+      "Which Grammy category honors a full album rather than a single song?",
+      [
+        "Album of the Year",
+        "Song of the Year",
+        "Record of the Year",
+        "Best New Artist"
+      ],
+      0
+    ],
+    [
+      "Which internet term originally described intentionally inflammatory online posts meant to provoke reactions?",
+      [
+        "Trolling",
+        "Streaming",
+        "Bookmarking",
+        "Buffering"
+      ],
+      0
+    ],
+    [
+      "Which early viral video featured a baby dancing to 'Hooked on a Feeling'?",
+      [
+        "Dancing Baby",
+        "Charlie Bit My Finger",
+        "Evolution of Dance",
+        "Numa Numa"
+      ],
+      0
+    ],
+    [
+      "Which actor voiced Marlin in Finding Nemo?",
+      [
+        "Albert Brooks",
+        "John Ratzenberger",
+        "Billy Crystal",
+        "Craig T. Nelson"
+      ],
+      0
+    ],
+    [
+      "Which actor voiced Elastigirl in The Incredibles?",
+      [
+        "Holly Hunter",
+        "Amy Poehler",
+        "Ellen DeGeneres",
+        "Ming-Na Wen"
+      ],
+      0
+    ],
+    [
+      "Which musical is inspired by Puccini's opera La Bohème?",
+      [
+        "Rent",
+        "Cats",
+        "A Chorus Line",
+        "Hadestown"
+      ],
+      0
+    ],
+    [
+      "Which musical retells Greek mythology with Orpheus and Eurydice in a folk-jazz style?",
+      [
+        "Hadestown",
+        "Les Misérables",
+        "The Producers",
+        "Sweeney Todd"
+      ],
+      0
+    ],
+    [
+      "Which graphic novel deconstructs superheroes and features Rorschach?",
+      [
+        "Watchmen",
+        "Maus",
+        "V for Vendetta",
+        "Sandman"
+      ],
+      0
+    ],
+    [
+      "Which manga artist created Dragon Ball?",
+      [
+        "Akira Toriyama",
+        "Eiichiro Oda",
+        "Masashi Kishimoto",
+        "Naoko Takeuchi"
+      ],
+      0
+    ],
+    [
+      "Which reality show format traps contestants in a house under constant camera surveillance?",
+      [
+        "Big Brother",
+        "The Amazing Race",
+        "Top Chef",
+        "The Masked Singer"
+      ],
+      0
+    ],
+    [
+      "Which competition show uses the phrase 'sashay away'?",
+      [
+        "RuPaul's Drag Race",
+        "Project Runway",
+        "Survivor",
+        "The Voice"
+      ],
+      0
+    ],
+    [
+      "Which fictional dragon is Hiccup's companion in How to Train Your Dragon?",
+      [
+        "Toothless",
+        "Falkor",
+        "Smaug",
+        "Mushu"
+      ],
+      0
+    ],
+    [
+      "Which board game was originally patented as The Landlord's Game?",
+      [
+        "Monopoly",
+        "Risk",
+        "Clue",
+        "Sorry!"
+      ],
+      0
+    ],
+    [
+      "In Settlers of Catan, which resource is represented by sheep?",
+      [
+        "Wool",
+        "Ore",
+        "Brick",
+        "Grain"
+      ],
+      0
+    ],
+    [
+      "Which ancient strategy board game uses black and white stones on a grid?",
+      [
+        "Go",
+        "Mancala",
+        "Backgammon",
+        "Parcheesi"
+      ],
+      0
+    ],
+    [
+      "Which video game contains the hidden 'Konami Code' in many Konami titles?",
+      [
+        "Contra",
+        "Minecraft",
+        "Portal",
+        "The Sims"
+      ],
+      0
+    ],
+    [
+      "Which console was Sega's final home video game console?",
+      [
+        "Dreamcast",
+        "Saturn",
+        "Genesis",
+        "Master System"
+      ],
+      0
+    ],
+    [
+      "Which game series features the fictional city of Rapture?",
+      [
+        "BioShock",
+        "Half-Life",
+        "Fallout",
+        "Resident Evil"
+      ],
+      0
+    ],
+    [
+      "In poker, which hand ranks highest?",
+      [
+        "Royal flush",
+        "Straight flush",
+        "Four of a kind",
+        "Full house"
+      ],
+      0
+    ],
+    [
+      "In contract bridge, how many players are at the table?",
+      [
+        "4",
+        "2",
+        "3",
+        "5"
+      ],
+      0
+    ],
+    [
+      "Which solitaire variant uses seven tableau columns in its classic layout?",
+      [
+        "Klondike",
+        "Spider",
+        "FreeCell",
+        "Pyramid"
+      ],
+      0
+    ],
+    [
+      "What is the classic riddle answer to 'What has keys but can't open locks?'",
+      [
+        "Piano",
+        "Map",
+        "Clock",
+        "Book"
+      ],
+      0
+    ],
+    [
+      "In Dungeons & Dragons 5e, what die is commonly rolled for ability checks?",
+      [
+        "d20",
+        "d4",
+        "d8",
+        "d12"
+      ],
+      0
+    ],
+    [
+      "In Dungeons & Dragons, what does NPC stand for?",
+      [
+        "Non-player character",
+        "New power class",
+        "Neutral party caster",
+        "Night patrol captain"
+      ],
+      0
+    ],
+    [
+      "Which arcade game was the first major hit created by Nintendo's Shigeru Miyamoto?",
+      [
+        "Donkey Kong",
+        "Pac-Man",
+        "Space Invaders",
+        "Street Fighter II"
+      ],
+      0
+    ],
+    [
+      "Which pinball component launches the ball onto the playfield?",
+      [
+        "Plunger",
+        "Flipper",
+        "Bumper",
+        "Tilt bob"
+      ],
+      0
+    ],
+    [
+      "Which 1990s toy fad involved digital pets on keychains?",
+      [
+        "Tamagotchi",
+        "Pogs",
+        "Furby",
+        "Skip-It"
+      ],
+      0
+    ],
+    [
+      "Which cuisine uses injera as a staple flatbread?",
+      [
+        "Ethiopian",
+        "Vietnamese",
+        "French",
+        "Polish"
+      ],
+      0
+    ],
+    [
+      "Which dish is traditionally made with raw fish cured in citrus juice?",
+      [
+        "Ceviche",
+        "Fondue",
+        "Paella",
+        "Goulash"
+      ],
+      0
+    ],
+    [
+      "Which spice is derived from the dried stigmas of Crocus sativus?",
+      [
+        "Saffron",
+        "Turmeric",
+        "Cardamom",
+        "Star anise"
+      ],
+      0
+    ],
+    [
+      "Which herb is traditionally used in béarnaise sauce?",
+      [
+        "Tarragon",
+        "Rosemary",
+        "Cilantro",
+        "Bay leaf"
+      ],
+      0
+    ],
+    [
+      "Which drink is made from fermented tea and often contains live cultures?",
+      [
+        "Kombucha",
+        "Espresso",
+        "Horchata",
+        "Ayran"
+      ],
+      0
+    ],
+    [
+      "Which dessert is made from layers of filo pastry, nuts, and syrup?",
+      [
+        "Baklava",
+        "Pavlova",
+        "Cannoli",
+        "Flan"
+      ],
+      0
+    ],
+    [
+      "Which baking method uses steam trapped inside dough to make layers rise in croissants?",
+      [
+        "Lamination",
+        "Tempering",
+        "Fermentation only",
+        "Blanching"
+      ],
+      0
+    ],
+    [
+      "Which mascot represents Michelin tires?",
+      [
+        "Bibendum",
+        "Tony",
+        "Julius Pringles",
+        "Chester"
+      ],
+      0
+    ],
+    [
+      "Which ingredient gives Worcestershire sauce much of its savory depth?",
+      [
+        "Anchovies",
+        "Chocolate",
+        "Vanilla",
+        "Cucumber"
+      ],
+      0
+    ],
+    [
+      "Which cheese is traditionally used for authentic Parmigiano-Reggiano?",
+      [
+        "Cow's milk",
+        "Goat's milk only",
+        "Sheep's milk only",
+        "Buffalo milk only"
+      ],
+      0
+    ],
+    [
+      "Which pasta name means 'little ears' in Italian?",
+      [
+        "Orecchiette",
+        "Fusilli",
+        "Pappardelle",
+        "Bucatini"
+      ],
+      0
+    ],
+    [
+      "Which city hosted the first modern Olympic Games in 1896?",
+      [
+        "Athens",
+        "Paris",
+        "London",
+        "Rome"
+      ],
+      0
+    ],
+    [
+      "Which country won the first FIFA World Cup in 1930?",
+      [
+        "Uruguay",
+        "Brazil",
+        "Argentina",
+        "Italy"
+      ],
+      0
+    ],
+    [
+      "In baseball, what is a 'cycle'?",
+      [
+        "Single, double, triple, and home run in one game",
+        "Four strikeouts in a row",
+        "A no-hit inning",
+        "Stealing every base"
+      ],
+      0
+    ],
+    [
+      "In sepak takraw, which body part is generally not used to hit the ball?",
+      [
+        "Hands",
+        "Feet",
+        "Head",
+        "Knees"
+      ],
+      0
+    ],
+    [
+      "Which boxer was nicknamed 'The Greatest'?",
+      [
+        "Muhammad Ali",
+        "Mike Tyson",
+        "Floyd Mayweather Jr.",
+        "Joe Frazier"
+      ],
+      0
+    ],
+    [
+      "Which NBA arena is nicknamed 'The Garden'?",
+      [
+        "Madison Square Garden",
+        "Crypto.com Arena",
+        "United Center",
+        "TD Garden only"
+      ],
+      0
+    ],
+    [
+      "In taekwondo, what color belt commonly represents a beginner in many schools?",
+      [
+        "White",
+        "Black",
+        "Red",
+        "Blue"
+      ],
+      0
+    ],
+    [
+      "Which hiking trail runs from Georgia to Maine in the United States?",
+      [
+        "Appalachian Trail",
+        "Pacific Crest Trail",
+        "Camino de Santiago",
+        "Inca Trail"
+      ],
+      0
+    ],
+    [
+      "In gymnastics, which apparatus is used only in men's artistic gymnastics?",
+      [
+        "Pommel horse",
+        "Balance beam",
+        "Uneven bars",
+        "Ribbon"
+      ],
+      0
+    ],
+    [
+      "Which surrealist painter created The Persistence of Memory?",
+      [
+        "Salvador Dalí",
+        "Henri Matisse",
+        "Jackson Pollock",
+        "Georgia O'Keeffe"
+      ],
+      0
+    ],
+    [
+      "Which sculpture by Michelangelo depicts a biblical hero before battle?",
+      [
+        "David",
+        "The Thinker",
+        "Venus de Milo",
+        "Pietà only"
+      ],
+      0
+    ],
+    [
+      "Which novel is set in the fictional county of Yoknapatawpha?",
+      [
+        "The Sound and the Fury",
+        "Jane Eyre",
+        "The Great Gatsby",
+        "Dune"
+      ],
+      0
+    ],
+    [
+      "Which protagonist narrates The Catcher in the Rye?",
+      [
+        "Holden Caulfield",
+        "Jay Gatsby",
+        "Scout Finch",
+        "Winston Smith"
+      ],
+      0
+    ],
+    [
+      "Which writing system is used for Korean?",
+      [
+        "Hangul",
+        "Hiragana",
+        "Cyrillic",
+        "Devanagari"
+      ],
+      0
+    ],
+    [
+      "Which word is often cited as a German term for taking pleasure in another's misfortune?",
+      [
+        "Schadenfreude",
+        "Déjà vu",
+        "Saudade",
+        "Hygge"
+      ],
+      0
+    ],
+    [
+      "Which creature in Greek mythology has a lion's body, eagle's head, and wings?",
+      [
+        "Griffin",
+        "Minotaur",
+        "Cyclops",
+        "Hydra"
+      ],
+      0
+    ],
+    [
+      "Which architectural style is associated with raw concrete and massive forms?",
+      [
+        "Brutalism",
+        "Rococo",
+        "Gothic",
+        "Neoclassical"
+      ],
+      0
+    ],
+    [
+      "Which designer founded a fashion house famous for the 'New Look' of 1947?",
+      [
+        "Christian Dior",
+        "Yves Saint Laurent",
+        "Coco Chanel",
+        "Alexander McQueen"
+      ],
+      0
+    ],
+    [
+      "Which economist is associated with The General Theory of Employment, Interest and Money?",
+      [
+        "John Maynard Keynes",
+        "Adam Smith",
+        "Milton Friedman",
+        "Karl Marx"
+      ],
+      0
+    ],
+    [
+      "In microeconomics, what is the price elasticity of demand concerned with?",
+      [
+        "Quantity demanded response to price changes",
+        "Weather response to crops",
+        "Interest paid on bonds",
+        "Currency exchange dates"
+      ],
+      0
+    ],
+    [
+      "Which company changed its corporate name to Alphabet in a 2015 restructuring?",
+      [
+        "Google",
+        "Facebook",
+        "Microsoft",
+        "Amazon"
+      ],
+      0
+    ],
+    [
+      "Which stock market index tracks 30 large U.S. companies?",
+      [
+        "Dow Jones Industrial Average",
+        "NASDAQ Composite",
+        "FTSE 100",
+        "Nikkei 225"
+      ],
+      0
+    ],
+    [
+      "Which currency's symbol is ¥?",
+      [
+        "Japanese yen",
+        "British pound",
+        "Indian rupee",
+        "Russian ruble"
+      ],
+      0
+    ],
+    [
+      "Who is commonly credited with inventing the modern ballpoint pen?",
+      [
+        "László Bíró",
+        "Thomas Edison",
+        "Alexander Graham Bell",
+        "Eli Whitney"
+      ],
+      0
+    ],
+    [
+      "Which city is served by the public transit system known as the Tube?",
+      [
+        "London",
+        "New York",
+        "Tokyo",
+        "Paris"
+      ],
+      0
+    ],
+    [
+      "Which advertising campaign used the line 'Got Milk?'",
+      [
+        "California Milk Processor Board",
+        "Coca-Cola",
+        "Nike",
+        "Apple"
+      ],
+      0
+    ],
+    [
+      "Which part of a supply chain moves goods from producers to consumers?",
+      [
+        "Distribution",
+        "Photosynthesis",
+        "Refraction",
+        "Fermentation"
+      ],
+      0
+    ],
+    [
+      "Which holiday tradition involves hiding painted eggs?",
+      [
+        "Easter",
+        "Diwali",
+        "Hanukkah",
+        "Thanksgiving"
+      ],
+      0
+    ],
+    [
+      "Which country's flag is red with a large yellow star?",
+      [
+        "Vietnam",
+        "Japan",
+        "Canada",
+        "Greece"
+      ],
+      0
+    ],
+    [
+      "Which country has the capital city Canberra?",
+      [
+        "Australia",
+        "New Zealand",
+        "Canada",
+        "South Africa"
+      ],
+      0
+    ],
+    [
+      "Which DIY tool is used to make holes with rotating bits?",
+      [
+        "Drill",
+        "Level",
+        "Clamp",
+        "Trowel"
+      ],
+      0
+    ],
+    [
+      "Which gardening term means trimming plants to shape or improve growth?",
+      [
+        "Pruning",
+        "Soldering",
+        "Grouting",
+        "Priming"
+      ],
+      0
+    ],
+    [
+      "In Japanese etiquette, what gesture commonly accompanies a formal greeting?",
+      [
+        "Bowing",
+        "Snapping fingers",
+        "Winking",
+        "Whistling"
+      ],
+      0
+    ],
+    [
+      "Which zodiac sign is represented by a water bearer?",
+      [
+        "Aquarius",
+        "Capricorn",
+        "Sagittarius",
+        "Taurus"
+      ],
+      0
+    ],
+    [
+      "Which birthstone is traditionally associated with July?",
+      [
+        "Ruby",
+        "Sapphire",
+        "Pearl",
+        "Topaz"
+      ],
+      0
+    ],
+    [
+      "Which textile weave creates denim's diagonal rib pattern?",
+      [
+        "Twill",
+        "Satin",
+        "Plain weave",
+        "Jacquard only"
+      ],
+      0
+    ],
+    [
+      "Which 1939 film was the first to use the phrase 'There's no place like home' in its famous ending?",
+      [
+        "Mr. Smith Goes to Washington",
+        "The Wizard of Oz",
+        "Gone with the Wind",
+        "Stagecoach"
+      ],
+      1
+    ],
+    [
+      "Which film won Best Picture at the 1977 Academy Awards over Star Wars?",
+      [
+        "Rocky",
+        "Network",
+        "Annie Hall",
+        "The Goodbye Girl"
+      ],
+      2
+    ],
+    [
+      "Which 1997 film tied Ben-Hur and Titanic's record of 11 Oscar wins?",
+      [
+        "Chicago",
+        "Gladiator",
+        "Shakespeare in Love",
+        "The Lord of the Rings: The Return of the King"
+      ],
+      3
+    ],
+    [
+      "Which movie was the first non-English-language film to win the Oscar for Best Picture?",
+      [
+        "Amour",
+        "Parasite",
+        "Crouching Tiger, Hidden Dragon",
+        "Roma"
+      ],
+      1
+    ],
+    [
+      "Which film won Best Picture after the famous 2017 envelope mix-up?",
+      [
+        "Arrival",
+        "La La Land",
+        "Moonlight",
+        "Manchester by the Sea"
+      ],
+      2
+    ],
+    [
+      "Which silent film won Best Picture at the first Academy Awards ceremony?",
+      [
+        "Metropolis",
+        "The Jazz Singer",
+        "Sunrise",
+        "Wings"
+      ],
+      3
+    ],
+    [
+      "Which film earned Heath Ledger a posthumous Oscar for playing the Joker?",
+      [
+        "Batman Begins",
+        "Brokeback Mountain",
+        "Joker",
+        "The Dark Knight"
+      ],
+      3
+    ],
+    [
+      "Which actor won an Oscar for playing Vito Corleone in The Godfather?",
+      [
+        "Al Pacino",
+        "Marlon Brando",
+        "Robert De Niro",
+        "James Caan"
+      ],
+      1
+    ],
+    [
+      "Which actor won an Oscar for playing young Vito Corleone in The Godfather Part II?",
+      [
+        "Al Pacino",
+        "Joe Pesci",
+        "Robert De Niro",
+        "Marlon Brando"
+      ],
+      2
+    ],
+    [
+      "Which director won Best Director for Schindler's List?",
+      [
+        "Robert Zemeckis",
+        "Martin Scorsese",
+        "James Cameron",
+        "Steven Spielberg"
+      ],
+      3
+    ],
+    [
+      "Which director won Best Director for The Departed?",
+      [
+        "Ang Lee",
+        "Martin Scorsese",
+        "Clint Eastwood",
+        "Quentin Tarantino"
+      ],
+      1
+    ],
+    [
+      "Which director won Best Director twice in the 2010s for Birdman and The Revenant?",
+      [
+        "Guillermo del Toro",
+        "Bong Joon Ho",
+        "Alfonso Cuarón",
+        "Alejandro G. Iñárritu"
+      ],
+      3
+    ],
+    [
+      "Which filmmaker directed Seven Samurai and Rashomon?",
+      [
+        "Kenji Mizoguchi",
+        "Akira Kurosawa",
+        "Yasujiro Ozu",
+        "Hayao Miyazaki"
+      ],
+      1
+    ],
+    [
+      "Which filmmaker directed Persona and The Seventh Seal?",
+      [
+        "Luis Buñuel",
+        "Andrei Tarkovsky",
+        "Federico Fellini",
+        "Ingmar Bergman"
+      ],
+      3
+    ],
+    [
+      "Which filmmaker directed 8½ and La Dolce Vita?",
+      [
+        "Ingmar Bergman",
+        "Michelangelo Antonioni",
+        "Vittorio De Sica",
+        "Federico Fellini"
+      ],
+      3
+    ],
+    [
+      "Which filmmaker directed Stalker and Solaris?",
+      [
+        "Andrei Tarkovsky",
+        "Akira Kurosawa",
+        "Jean-Luc Godard",
+        "François Truffaut"
+      ],
+      0
+    ],
+    [
+      "Which French New Wave film stars Jean-Paul Belmondo as Michel Poiccard?",
+      [
+        "Hiroshima mon amour",
+        "The 400 Blows",
+        "Breathless",
+        "Jules and Jim"
+      ],
+      2
+    ],
+    [
+      "Which 1958 Hitchcock film is famous for the dolly zoom effect and fear of heights?",
+      [
+        "North by Northwest",
+        "Psycho",
+        "Vertigo",
+        "Rear Window"
+      ],
+      2
+    ],
+    [
+      "Which Hitchcock film features the Bates Motel?",
+      [
+        "Rope",
+        "The Birds",
+        "Vertigo",
+        "Psycho"
+      ],
+      3
+    ],
+    [
+      "Which film is often associated with the line 'Rosebud'?",
+      [
+        "Citizen Kane",
+        "Sunset Boulevard",
+        "Casablanca",
+        "The Maltese Falcon"
+      ],
+      0
+    ],
+    [
+      "Which film noir stars Humphrey Bogart as Sam Spade?",
+      [
+        "Double Indemnity",
+        "The Maltese Falcon",
+        "The Big Sleep",
+        "Out of the Past"
+      ],
+      1
+    ],
+    [
+      "Which 1979 sci-fi horror film introduced the Nostromo crew?",
+      [
+        "The Thing",
+        "Blade Runner",
+        "Alien",
+        "Event Horizon"
+      ],
+      2
+    ],
+    [
+      "Which 1982 sci-fi film asks whether Deckard is a replicant?",
+      [
+        "Brazil",
+        "Tron",
+        "Blade Runner",
+        "Dune"
+      ],
+      2
+    ],
+    [
+      "Which 1982 John Carpenter film features an Antarctic research team and a shapeshifting alien?",
+      [
+        "Alien",
+        "Predator",
+        "The Thing",
+        "They Live"
+      ],
+      2
+    ],
+    [
+      "Which 1922 German Expressionist vampire film was an unauthorized Dracula adaptation?",
+      [
+        "The Cabinet of Dr. Caligari",
+        "Nosferatu",
+        "Metropolis",
+        "Faust"
+      ],
+      1
+    ],
+    [
+      "Which 1927 Fritz Lang film depicts a futuristic city divided by class?",
+      [
+        "The Last Laugh",
+        "M",
+        "Metropolis",
+        "Nosferatu"
+      ],
+      2
+    ],
+    [
+      "Which sitcom's final episode 'Goodbye, Farewell and Amen' aired in 1983?",
+      [
+        "M*A*S*H",
+        "Cheers",
+        "Seinfeld",
+        "Friends"
+      ],
+      0
+    ],
+    [
+      "Which Seinfeld episode introduced the anti-holiday Festivus?",
+      [
+        "The Strike",
+        "The Soup Nazi",
+        "The Contest",
+        "The Chinese Restaurant"
+      ],
+      0
+    ],
+    [
+      "Which Seinfeld episode centers on a competition about self-control?",
+      [
+        "The Contest",
+        "The Puffy Shirt",
+        "The Parking Garage",
+        "The Marine Biologist"
+      ],
+      0
+    ],
+    [
+      "Which Friends episode title format commonly begins with what phrase?",
+      [
+        "The One with",
+        "My Dinner with",
+        "A Tale of",
+        "The Day of"
+      ],
+      0
+    ],
+    [
+      "Which Cheers character was played by Ted Danson?",
+      [
+        "Norm Peterson",
+        "Cliff Clavin",
+        "Frasier Crane",
+        "Sam Malone"
+      ],
+      3
+    ],
+    [
+      "Which Frasier character is Frasier Crane's brother?",
+      [
+        "Martin Crane",
+        "Eddie Crane",
+        "Roz Doyle",
+        "Niles Crane"
+      ],
+      3
+    ],
+    [
+      "Which sitcom actor played Michael Bluth in Arrested Development?",
+      [
+        "Will Arnett",
+        "Jason Bateman",
+        "David Cross",
+        "Tony Hale"
+      ],
+      1
+    ],
+    [
+      "Which sitcom features the Bluth family's frozen banana stand?",
+      [
+        "30 Rock",
+        "Arrested Development",
+        "Community",
+        "Parks and Recreation"
+      ],
+      1
+    ],
+    [
+      "Which 30 Rock character is played by Alec Baldwin?",
+      [
+        "Kenneth Parcell",
+        "Tracy Jordan",
+        "Pete Hornberger",
+        "Jack Donaghy"
+      ],
+      3
+    ],
+    [
+      "Which Community character is obsessed with pop culture and meta references?",
+      [
+        "Britta Perry",
+        "Jeff Winger",
+        "Abed Nadir",
+        "Troy Barnes"
+      ],
+      2
+    ],
+    [
+      "Which The Office episode features the employees playing a warehouse basketball game?",
+      [
+        "The Dundies",
+        "Diversity Day",
+        "Basketball",
+        "Casino Night"
+      ],
+      2
+    ],
+    [
+      "Which The Office episode introduced the Dundie Awards on-screen?",
+      [
+        "Booze Cruise",
+        "The Injury",
+        "Dinner Party",
+        "The Dundies"
+      ],
+      3
+    ],
+    [
+      "Which Sopranos character owns the Bada Bing strip club?",
+      [
+        "Paulie Walnuts",
+        "Bobby Baccalieri",
+        "Silvio Dante",
+        "Christopher Moltisanti"
+      ],
+      2
+    ],
+    [
+      "Which HBO series used the fictional newspaper The Baltimore Sun in its final season?",
+      [
+        "The Wire",
+        "Boardwalk Empire",
+        "The Sopranos",
+        "Deadwood"
+      ],
+      0
+    ],
+    [
+      "Which Mad Men character created the Kodak Carousel pitch?",
+      [
+        "Don Draper",
+        "Pete Campbell",
+        "Roger Sterling",
+        "Peggy Olson"
+      ],
+      0
+    ],
+    [
+      "Which album by The Beatles includes the medley on side two and the cover at a zebra crossing?",
+      [
+        "Revolver",
+        "Abbey Road",
+        "Let It Be",
+        "Sgt. Pepper's Lonely Hearts Club Band"
+      ],
+      1
+    ],
+    [
+      "Which Beatles album cover places the band in colorful military-style outfits?",
+      [
+        "Abbey Road",
+        "Sgt. Pepper's Lonely Hearts Club Band",
+        "Help!",
+        "Rubber Soul"
+      ],
+      1
+    ],
+    [
+      "Which Pink Floyd album begins with the track 'Speak to Me'?",
+      [
+        "Animals",
+        "The Wall",
+        "Wish You Were Here",
+        "The Dark Side of the Moon"
+      ],
+      3
+    ],
+    [
+      "Which Pink Floyd album includes 'Another Brick in the Wall, Part 2'?",
+      [
+        "The Wall",
+        "Meddle",
+        "The Division Bell",
+        "Animals"
+      ],
+      0
+    ],
+    [
+      "Which David Bowie album features the character Ziggy Stardust?",
+      [
+        "The Rise and Fall of Ziggy Stardust and the Spiders from Mars",
+        "Low",
+        "Heroes",
+        "Young Americans"
+      ],
+      0
+    ],
+    [
+      "Which Prince album and film share the title Purple Rain?",
+      [
+        "Purple Rain",
+        "1999",
+        "Parade",
+        "Sign o' the Times"
+      ],
+      0
+    ],
+    [
+      "Which Madonna album includes 'Like a Prayer'?",
+      [
+        "Ray of Light",
+        "Erotica",
+        "True Blue",
+        "Like a Prayer"
+      ],
+      3
+    ],
+    [
+      "Which Nirvana drummer later founded Foo Fighters?",
+      [
+        "Krist Novoselic",
+        "Dave Grohl",
+        "Kurt Cobain",
+        "Pat Smear"
+      ],
+      1
+    ],
+    [
+      "Which Radiohead album includes 'Paranoid Android'?",
+      [
+        "The Bends",
+        "In Rainbows",
+        "Kid A",
+        "OK Computer"
+      ],
+      3
+    ],
+    [
+      "Which Radiohead album opens with 'Everything in Its Right Place'?",
+      [
+        "OK Computer",
+        "Hail to the Thief",
+        "Kid A",
+        "Amnesiac"
+      ],
+      2
+    ],
+    [
+      "Which hip-hop group released the album Enter the Wu-Tang (36 Chambers)?",
+      [
+        "Public Enemy",
+        "Wu-Tang Clan",
+        "A Tribe Called Quest",
+        "N.W.A"
+      ],
+      1
+    ],
+    [
+      "Which 1994 Nas album is considered a landmark East Coast hip-hop debut?",
+      [
+        "The Chronic",
+        "Reasonable Doubt",
+        "Ready to Die",
+        "Illmatic"
+      ],
+      3
+    ],
+    [
+      "Which Dr. Dre album popularized G-funk in the early 1990s?",
+      [
+        "Straight Outta Compton",
+        "All Eyez on Me",
+        "The Chronic",
+        "Doggystyle"
+      ],
+      2
+    ],
+    [
+      "Which Lauryn Hill album won Album of the Year at the Grammys?",
+      [
+        "The Score",
+        "The Miseducation of Lauryn Hill",
+        "Share My World",
+        "Baduizm"
+      ],
+      1
+    ],
+    [
+      "Which OutKast album won the Grammy for Album of the Year?",
+      [
+        "Speakerboxxx/The Love Below",
+        "Stankonia",
+        "ATLiens",
+        "Aquemini"
+      ],
+      0
+    ],
+    [
+      "Which jazz musician released the landmark album Kind of Blue?",
+      [
+        "Miles Davis",
+        "Duke Ellington",
+        "Thelonious Monk",
+        "John Coltrane"
+      ],
+      0
+    ],
+    [
+      "Which John Coltrane album includes the suite 'Acknowledgement'?",
+      [
+        "Giant Steps",
+        "My Favorite Things",
+        "Blue Train",
+        "A Love Supreme"
+      ],
+      3
+    ],
+    [
+      "Which reggae album by Bob Marley and the Wailers includes 'Three Little Birds'?",
+      [
+        "Exodus",
+        "Catch a Fire",
+        "Uprising",
+        "Legend"
+      ],
+      0
+    ],
+    [
+      "Which musical by Stephen Sondheim reimagines fairy tales with songs like 'Agony'?",
+      [
+        "Follies",
+        "Sweeney Todd",
+        "Company",
+        "Into the Woods"
+      ],
+      3
+    ],
+    [
+      "Which Sondheim musical centers on a murderous barber?",
+      [
+        "Merrily We Roll Along",
+        "Sunday in the Park with George",
+        "Sweeney Todd",
+        "Assassins"
+      ],
+      2
+    ],
+    [
+      "Which musical is based on the trials of Leo Frank?",
+      [
+        "Parade",
+        "Fun Home",
+        "Ragtime",
+        "Caroline, or Change"
+      ],
+      0
+    ],
+    [
+      "Which musical centers on the Schuyler sisters and the American Revolution?",
+      [
+        "Assassins",
+        "Ragtime",
+        "Hamilton",
+        "1776"
+      ],
+      2
+    ],
+    [
+      "Which musical uses songs by Green Day?",
+      [
+        "Moulin Rouge!",
+        "American Idiot",
+        "Movin' Out",
+        "Jagged Little Pill"
+      ],
+      1
+    ],
+    [
+      "Which jukebox musical uses songs by Queen?",
+      [
+        "Jersey Boys",
+        "Mamma Mia!",
+        "Rock of Ages",
+        "We Will Rock You"
+      ],
+      3
+    ],
+    [
+      "Which jukebox musical tells the story of The Four Seasons?",
+      [
+        "Ain't Too Proud",
+        "Million Dollar Quartet",
+        "Jersey Boys",
+        "Beautiful"
+      ],
+      2
+    ],
+    [
+      "Which Tony-winning musical is based on Alison Bechdel's graphic memoir?",
+      [
+        "Dear Evan Hansen",
+        "Next to Normal",
+        "Fun Home",
+        "Spring Awakening"
+      ],
+      2
+    ],
+    [
+      "Which Tony-winning musical includes the song 'You Will Be Found'?",
+      [
+        "The Band's Visit",
+        "Hamilton",
+        "Dear Evan Hansen",
+        "Hadestown"
+      ],
+      2
+    ],
+    [
+      "Which Tony-winning musical features the song 'Wait for Me'?",
+      [
+        "Wicked",
+        "In the Heights",
+        "Hadestown",
+        "Rent"
+      ],
+      2
+    ],
+    [
+      "Which Tony-winning musical by Lin-Manuel Miranda is set in Washington Heights?",
+      [
+        "Hamilton",
+        "Vivo",
+        "In the Heights",
+        "Bring It On"
+      ],
+      2
+    ],
+    [
+      "Which artist became the youngest person to win the four major general-field Grammys in the same year?",
+      [
+        "Olivia Rodrigo",
+        "Adele",
+        "Taylor Swift",
+        "Billie Eilish"
+      ],
+      3
+    ],
+    [
+      "Which Grammy term honors a song's composition and lyrics?",
+      [
+        "Album of the Year",
+        "Best New Artist",
+        "Record of the Year",
+        "Song of the Year"
+      ],
+      3
+    ],
+    [
+      "Which Grammy term honors the finished recording of a single track?",
+      [
+        "Song of the Year",
+        "Record of the Year",
+        "Album of the Year",
+        "Producer of the Year"
+      ],
+      1
+    ],
+    [
+      "Which person is often described as the first artist to complete an EGOT?",
+      [
+        "Audrey Hepburn",
+        "Richard Rodgers",
+        "Mel Brooks",
+        "Whoopi Goldberg"
+      ],
+      1
+    ],
+    [
+      "Which performer won an EGOT after receiving a daytime Emmy for Jesus Christ Superstar Live in Concert?",
+      [
+        "Tim Rice",
+        "Lin-Manuel Miranda",
+        "John Legend",
+        "Andrew Lloyd Webber"
+      ],
+      2
+    ],
+    [
+      "Which internet meme originated from a 2007 stock photo of a man looking at another woman while with his partner?",
+      [
+        "Success Kid",
+        "Disaster Girl",
+        "Bad Luck Brian",
+        "Distracted Boyfriend"
+      ],
+      3
+    ],
+    [
+      "Which meme features a girl smiling in front of a burning house?",
+      [
+        "Ermahgerd",
+        "Success Kid",
+        "Scumbag Steve",
+        "Disaster Girl"
+      ],
+      3
+    ],
+    [
+      "Which meme features a school photo of Kyle Craven?",
+      [
+        "Success Kid",
+        "Doge",
+        "Bad Luck Brian",
+        "Nyan Cat"
+      ],
+      2
+    ],
+    [
+      "Which early web meme used the phrase 'All your base are belong to us'?",
+      [
+        "Street Fighter II",
+        "Doom",
+        "Zero Wing",
+        "Mortal Kombat"
+      ],
+      2
+    ],
+    [
+      "Which viral meme came from a 2011 livestream clip involving a nyan cat animation and music?",
+      [
+        "Nyan Cat",
+        "Peanut Butter Jelly Time",
+        "Keyboard Cat",
+        "Dramatic Chipmunk"
+      ],
+      0
+    ],
+    [
+      "Which meme cat became famous for an unhappy facial expression and was named Tardar Sauce?",
+      [
+        "Keyboard Cat",
+        "Grumpy Cat",
+        "Lil Bub",
+        "Maru"
+      ],
+      1
+    ],
+    [
+      "Which Japanese cat became famous online for jumping into boxes?",
+      [
+        "Grumpy Cat",
+        "Nyan Cat",
+        "Longcat",
+        "Maru"
+      ],
+      3
+    ],
+    [
+      "Which 2006 viral video series included the repeated line 'Charlie bit me'?",
+      [
+        "Charlie Bit My Finger",
+        "Evolution of Dance",
+        "Chocolate Rain",
+        "Numa Numa"
+      ],
+      0
+    ],
+    [
+      "Which YouTube video became famous for Judson Laipply performing many dance styles?",
+      [
+        "Harlem Shake",
+        "Dancing Baby",
+        "Evolution of Dance",
+        "Numa Numa"
+      ],
+      2
+    ],
+    [
+      "Which browser game popularized incremental gameplay with cookies?",
+      [
+        "FarmVille",
+        "Cookie Clicker",
+        "Club Penguin",
+        "Minesweeper"
+      ],
+      1
+    ],
+    [
+      "Which Flash game platform was known for user-submitted animations and games before becoming a broader indie hub?",
+      [
+        "Newgrounds",
+        "Miniclip",
+        "Neopets",
+        "Kongregate"
+      ],
+      0
+    ],
+    [
+      "Which virtual pet website launched in 1999 with creatures called Neopets?",
+      [
+        "Club Penguin",
+        "Second Life",
+        "Neopets",
+        "Gaia Online"
+      ],
+      2
+    ],
+    [
+      "Which online world featured penguin avatars and igloos before its original closure?",
+      [
+        "Roblox",
+        "Poptropica",
+        "Club Penguin",
+        "Habbo Hotel"
+      ],
+      2
+    ],
+    [
+      "Which MMORPG is set in Azeroth?",
+      [
+        "World of Warcraft",
+        "Final Fantasy XIV",
+        "Guild Wars 2",
+        "RuneScape"
+      ],
+      0
+    ],
+    [
+      "Which MMORPG has a city called Lumbridge?",
+      [
+        "RuneScape",
+        "MapleStory",
+        "EVE Online",
+        "World of Warcraft"
+      ],
+      0
+    ],
+    [
+      "Which video game company created the Dreamcast console?",
+      [
+        "Microsoft",
+        "Nintendo",
+        "Sega",
+        "Sony"
+      ],
+      2
+    ],
+    [
+      "Which Nintendo console used cartridges and introduced Super Mario 64?",
+      [
+        "GameCube",
+        "Nintendo 64",
+        "Wii",
+        "Super Nintendo"
+      ],
+      1
+    ],
+    [
+      "Which Sony console popularized the DualShock controller line?",
+      [
+        "PlayStation",
+        "Xbox",
+        "GameCube",
+        "Dreamcast"
+      ],
+      0
+    ],
+    [
+      "Which Microsoft console launched with Halo: Combat Evolved?",
+      [
+        "Xbox",
+        "Dreamcast",
+        "PlayStation 2",
+        "Xbox 360"
+      ],
+      0
+    ],
+    [
+      "Which game is often credited with popularizing the battle royale genre after releasing its Battle Royale mode in 2017?",
+      [
+        "Fortnite",
+        "Minecraft",
+        "Apex Legends",
+        "Overwatch"
+      ],
+      0
+    ],
+    [
+      "Which battle royale game is set in the Titanfall universe?",
+      [
+        "Warzone",
+        "Apex Legends",
+        "PUBG",
+        "Fortnite"
+      ],
+      1
+    ],
+    [
+      "Which game popularized the phrase 'The cake is a lie'?",
+      [
+        "BioShock",
+        "Half-Life 2",
+        "Mass Effect",
+        "Portal"
+      ],
+      3
+    ],
+    [
+      "Which BioShock city is located underwater?",
+      [
+        "Rapture",
+        "Midgar",
+        "City 17",
+        "Columbia"
+      ],
+      0
+    ],
+    [
+      "Which Final Fantasy VII city is controlled by the Shinra Electric Power Company?",
+      [
+        "Midgar",
+        "Balamb",
+        "Zanarkand",
+        "Lindblum"
+      ],
+      0
+    ],
+    [
+      "Which role-playing game series features the Vault-Tec mascot Vault Boy?",
+      [
+        "The Elder Scrolls",
+        "Fallout",
+        "Mass Effect",
+        "Dragon Age"
+      ],
+      1
+    ],
+    [
+      "Which RPG series is set on the continent of Tamriel?",
+      [
+        "Final Fantasy",
+        "Dragon Age",
+        "The Witcher",
+        "The Elder Scrolls"
+      ],
+      3
+    ],
+    [
+      "Which game studio developed The Witcher 3: Wild Hunt?",
+      [
+        "BioWare",
+        "CD Projekt Red",
+        "FromSoftware",
+        "Bethesda Game Studios"
+      ],
+      1
+    ],
+    [
+      "Which studio developed Dark Souls and Elden Ring?",
+      [
+        "FromSoftware",
+        "Valve",
+        "Capcom",
+        "Square Enix"
+      ],
+      0
+    ],
+    [
+      "Which law states that pressure and volume of a gas are inversely related at constant temperature?",
+      [
+        "Ohm's law",
+        "Boyle's law",
+        "Charles's law",
+        "Hooke's law"
+      ],
+      1
+    ],
+    [
+      "Which law states that voltage equals current times resistance?",
+      [
+        "Boyle's law",
+        "Newton's third law",
+        "Faraday's law",
+        "Ohm's law"
+      ],
+      3
+    ],
+    [
+      "Which law describes the force needed to stretch a spring as proportional to extension?",
+      [
+        "Avogadro's law",
+        "Coulomb's law",
+        "Kepler's law",
+        "Hooke's law"
+      ],
+      3
+    ],
+    [
+      "Which law states that every action has an equal and opposite reaction?",
+      [
+        "Newton's third law",
+        "Snell's law",
+        "Boyle's law",
+        "Newton's first law"
+      ],
+      0
+    ],
+    [
+      "Which physicist formulated the uncertainty principle?",
+      [
+        "Max Planck",
+        "Erwin Schrödinger",
+        "Niels Bohr",
+        "Werner Heisenberg"
+      ],
+      3
+    ],
+    [
+      "Which physicist is associated with the exclusion principle?",
+      [
+        "James Clerk Maxwell",
+        "Paul Dirac",
+        "Richard Feynman",
+        "Wolfgang Pauli"
+      ],
+      3
+    ],
+    [
+      "Which scientist proposed the quantum hypothesis in 1900?",
+      [
+        "Albert Einstein",
+        "Niels Bohr",
+        "Max Planck",
+        "Enrico Fermi"
+      ],
+      2
+    ],
+    [
+      "Which scientist is known for equations unifying electricity and magnetism?",
+      [
+        "Isaac Newton",
+        "James Clerk Maxwell",
+        "Michael Faraday",
+        "Max Planck"
+      ],
+      1
+    ],
+    [
+      "Which scientist discovered electromagnetic induction?",
+      [
+        "Dmitri Mendeleev",
+        "Michael Faraday",
+        "Antoine Lavoisier",
+        "Robert Boyle"
+      ],
+      1
+    ],
+    [
+      "Which scientist measured the electron's charge in the oil-drop experiment?",
+      [
+        "Ernest Rutherford",
+        "Robert Millikan",
+        "J. J. Thomson",
+        "Niels Bohr"
+      ],
+      1
+    ],
+    [
+      "Which scientist discovered the electron?",
+      [
+        "Ernest Rutherford",
+        "James Chadwick",
+        "J. J. Thomson",
+        "Marie Curie"
+      ],
+      2
+    ],
+    [
+      "Which scientist discovered the neutron?",
+      [
+        "J. J. Thomson",
+        "Niels Bohr",
+        "James Chadwick",
+        "Max Planck"
+      ],
+      2
+    ],
+    [
+      "Which scientist proposed the nuclear model of the atom after the gold foil experiment?",
+      [
+        "Niels Bohr",
+        "J. J. Thomson",
+        "Dmitri Mendeleev",
+        "Ernest Rutherford"
+      ],
+      3
+    ],
+    [
+      "Which scientist proposed the planetary model of the atom with quantized orbits?",
+      [
+        "Robert Hooke",
+        "James Chadwick",
+        "Maxwell",
+        "Niels Bohr"
+      ],
+      3
+    ],
+    [
+      "Which SI base unit measures luminous intensity?",
+      [
+        "Mole",
+        "Candela",
+        "Ampere",
+        "Kelvin"
+      ],
+      1
+    ],
+    [
+      "Which SI base unit measures amount of substance?",
+      [
+        "Joule",
+        "Candela",
+        "Mole",
+        "Watt"
+      ],
+      2
+    ],
+    [
+      "Which SI derived unit is equivalent to one joule per second?",
+      [
+        "Watt",
+        "Newton",
+        "Volt",
+        "Pascal"
+      ],
+      0
+    ],
+    [
+      "Which SI derived unit is equivalent to one coulomb per volt?",
+      [
+        "Tesla",
+        "Farad",
+        "Henry",
+        "Ohm"
+      ],
+      1
+    ],
+    [
+      "Which SI derived unit measures magnetic flux?",
+      [
+        "Tesla",
+        "Weber",
+        "Siemens",
+        "Henry"
+      ],
+      1
+    ],
+    [
+      "Which SI derived unit measures magnetic flux density?",
+      [
+        "Pascal",
+        "Farad",
+        "Weber",
+        "Tesla"
+      ],
+      3
+    ],
+    [
+      "Which SI derived unit measures inductance?",
+      [
+        "Coulomb",
+        "Henry",
+        "Ohm",
+        "Farad"
+      ],
+      1
+    ],
+    [
+      "Which SI derived unit measures conductance?",
+      [
+        "Ohm",
+        "Joule",
+        "Siemens",
+        "Volt"
+      ],
+      2
+    ],
+    [
+      "Which element has atomic number 26?",
+      [
+        "Cobalt",
+        "Iron",
+        "Manganese",
+        "Nickel"
+      ],
+      1
+    ],
+    [
+      "Which element has atomic number 79?",
+      [
+        "Gold",
+        "Platinum",
+        "Mercury",
+        "Silver"
+      ],
+      0
+    ],
+    [
+      "Which element has atomic number 92?",
+      [
+        "Radium",
+        "Uranium",
+        "Thorium",
+        "Plutonium"
+      ],
+      1
+    ],
+    [
+      "Which element has atomic number 82?",
+      [
+        "Bismuth",
+        "Mercury",
+        "Gold",
+        "Lead"
+      ],
+      3
+    ],
+    [
+      "Which element has atomic number 29?",
+      [
+        "Nickel",
+        "Copper",
+        "Zinc",
+        "Silver"
+      ],
+      1
+    ],
+    [
+      "Which element has atomic number 47?",
+      [
+        "Silver",
+        "Tin",
+        "Copper",
+        "Gold"
+      ],
+      0
+    ],
+    [
+      "Which element has the chemical symbol W?",
+      [
+        "Titanium",
+        "Tin",
+        "Tungsten",
+        "Tantalum"
+      ],
+      2
+    ],
+    [
+      "Which element has the chemical symbol Pb?",
+      [
+        "Lead",
+        "Potassium",
+        "Palladium",
+        "Phosphorus"
+      ],
+      0
+    ],
+    [
+      "Which element has the chemical symbol Hg?",
+      [
+        "Mercury",
+        "Hydrogen",
+        "Hafnium",
+        "Holmium"
+      ],
+      0
+    ],
+    [
+      "Which element has the chemical symbol Sn?",
+      [
+        "Sodium",
+        "Samarium",
+        "Tin",
+        "Silicon"
+      ],
+      2
+    ],
+    [
+      "Which element has the chemical symbol Sb?",
+      [
+        "Bismuth",
+        "Arsenic",
+        "Antimony",
+        "Strontium"
+      ],
+      2
+    ],
+    [
+      "Which element has the chemical symbol Cu?",
+      [
+        "Calcium",
+        "Curium",
+        "Copper",
+        "Carbon"
+      ],
+      2
+    ],
+    [
+      "Which amino acid is represented by the one-letter code W?",
+      [
+        "Threonine",
+        "Tyrosine",
+        "Tryptophan",
+        "Valine"
+      ],
+      2
+    ],
+    [
+      "Which amino acid is represented by the one-letter code M?",
+      [
+        "Lysine",
+        "Leucine",
+        "Phenylalanine",
+        "Methionine"
+      ],
+      3
+    ],
+    [
+      "Which RNA base pairs with adenine?",
+      [
+        "Uracil",
+        "Guanine",
+        "Thymine",
+        "Cytosine"
+      ],
+      0
+    ],
+    [
+      "Which enzyme is commonly used to copy DNA in PCR?",
+      [
+        "Ligase",
+        "DNA polymerase",
+        "Pepsin",
+        "Amylase"
+      ],
+      1
+    ],
+    [
+      "Which scientist helped discover the structure of DNA with X-ray diffraction data?",
+      [
+        "Rosalind Franklin",
+        "Marie Curie",
+        "Ada Lovelace",
+        "Jane Goodall"
+      ],
+      0
+    ],
+    [
+      "Which pair is credited with proposing the double-helix model of DNA?",
+      [
+        "Watson and Crick",
+        "Curie and Rutherford",
+        "Bohr and Planck",
+        "Darwin and Wallace"
+      ],
+      0
+    ],
+    [
+      "Which cellular process divides one cell into two genetically identical daughter cells?",
+      [
+        "Meiosis",
+        "Transcription",
+        "Mitosis",
+        "Osmosis"
+      ],
+      2
+    ],
+    [
+      "Which cellular process produces gametes with half the chromosome number?",
+      [
+        "Translation",
+        "Diffusion",
+        "Meiosis",
+        "Mitosis"
+      ],
+      2
+    ],
+    [
+      "Which process copies DNA into RNA?",
+      [
+        "Transcription",
+        "Fermentation",
+        "Replication",
+        "Translation"
+      ],
+      0
+    ],
+    [
+      "Which process builds proteins from mRNA instructions?",
+      [
+        "Transcription",
+        "Translation",
+        "Replication",
+        "Osmosis"
+      ],
+      1
+    ],
+    [
+      "Which organelle modifies and packages proteins for transport?",
+      [
+        "Ribosome",
+        "Lysosome",
+        "Golgi apparatus",
+        "Mitochondrion"
+      ],
+      2
+    ],
+    [
+      "Which organelle contains digestive enzymes to break down waste?",
+      [
+        "Chloroplast",
+        "Golgi apparatus",
+        "Nucleus",
+        "Lysosome"
+      ],
+      3
+    ],
+    [
+      "Which plant tissue transports water upward from roots?",
+      [
+        "Cambium",
+        "Epidermis",
+        "Phloem",
+        "Xylem"
+      ],
+      3
+    ],
+    [
+      "Which plant tissue transports sugars from leaves?",
+      [
+        "Phloem",
+        "Cuticle",
+        "Cortex",
+        "Xylem"
+      ],
+      0
+    ],
+    [
+      "Which vitamin is fat-soluble?",
+      [
+        "Vitamin B12",
+        "Vitamin K",
+        "Vitamin C",
+        "Folate"
+      ],
+      1
+    ],
+    [
+      "Which vitamin is water-soluble?",
+      [
+        "Vitamin D",
+        "Vitamin E",
+        "Vitamin C",
+        "Vitamin A"
+      ],
+      2
+    ],
+    [
+      "Which human bone is the longest?",
+      [
+        "Humerus",
+        "Radius",
+        "Femur",
+        "Tibia"
+      ],
+      2
+    ],
+    [
+      "Which cranial nerve is mainly responsible for smell?",
+      [
+        "Olfactory nerve",
+        "Optic nerve",
+        "Vagus nerve",
+        "Trigeminal nerve"
+      ],
+      0
+    ],
+    [
+      "Which cranial nerve is mainly responsible for vision?",
+      [
+        "Facial nerve",
+        "Olfactory nerve",
+        "Vagus nerve",
+        "Optic nerve"
+      ],
+      3
+    ],
+    [
+      "Which blood vessel carries oxygenated blood from the lungs to the heart?",
+      [
+        "Vena cava",
+        "Aorta",
+        "Pulmonary vein",
+        "Pulmonary artery"
+      ],
+      2
+    ],
+    [
+      "Which blood vessel carries blood from the heart to the lungs?",
+      [
+        "Pulmonary vein",
+        "Jugular vein",
+        "Pulmonary artery",
+        "Coronary vein"
+      ],
+      2
+    ],
+    [
+      "Which hormone helps regulate blood sugar by lowering it?",
+      [
+        "Adrenaline",
+        "Glucagon",
+        "Melatonin",
+        "Insulin"
+      ],
+      3
+    ],
+    [
+      "Which hormone helps regulate sleep-wake cycles?",
+      [
+        "Thyroxine",
+        "Melatonin",
+        "Cortisol",
+        "Insulin"
+      ],
+      1
+    ],
+    [
+      "Which galaxy is nearest large spiral galaxy to the Milky Way?",
+      [
+        "Sombrero Galaxy",
+        "Whirlpool Galaxy",
+        "Triangulum Galaxy",
+        "Andromeda Galaxy"
+      ],
+      3
+    ],
+    [
+      "Which dwarf planet lies in the asteroid belt?",
+      [
+        "Pluto",
+        "Haumea",
+        "Eris",
+        "Ceres"
+      ],
+      3
+    ],
+    [
+      "Which dwarf planet was reclassified from planet status in 2006?",
+      [
+        "Makemake",
+        "Eris",
+        "Pluto",
+        "Ceres"
+      ],
+      2
+    ],
+    [
+      "Which spacecraft was the first to visit all four outer giant planets?",
+      [
+        "Pioneer 10",
+        "Voyager 1",
+        "Voyager 2",
+        "Cassini"
+      ],
+      2
+    ],
+    [
+      "Which mission orbited Saturn from 2004 to 2017?",
+      [
+        "Juno",
+        "New Horizons",
+        "Galileo",
+        "Cassini"
+      ],
+      3
+    ],
+    [
+      "Which spacecraft flew by Pluto in 2015?",
+      [
+        "Cassini",
+        "New Horizons",
+        "Voyager 2",
+        "Dawn"
+      ],
+      1
+    ],
+    [
+      "Which NASA rover landed in Mars's Jezero Crater in 2021?",
+      [
+        "Perseverance",
+        "Opportunity",
+        "Spirit",
+        "Curiosity"
+      ],
+      0
+    ],
+    [
+      "Which Mars rover landed in Gale Crater in 2012?",
+      [
+        "Opportunity",
+        "Perseverance",
+        "Sojourner",
+        "Curiosity"
+      ],
+      3
+    ],
+    [
+      "Which telescope was launched in 1990 and orbits Earth?",
+      [
+        "Hubble Space Telescope",
+        "Spitzer Space Telescope",
+        "Kepler Space Telescope",
+        "James Webb Space Telescope"
+      ],
+      0
+    ],
+    [
+      "Which space telescope launched in 2021 and observes mainly in infrared?",
+      [
+        "Chandra X-ray Observatory",
+        "Kepler Space Telescope",
+        "Hubble Space Telescope",
+        "James Webb Space Telescope"
+      ],
+      3
+    ],
+    [
+      "Which exoplanet detection method looks for a star's small brightness dip?",
+      [
+        "Carbon dating",
+        "Transit method",
+        "Seismology method",
+        "Parallax method"
+      ],
+      1
+    ],
+    [
+      "Which exoplanet detection method measures a star's wobble through Doppler shifts?",
+      [
+        "Radial velocity method",
+        "Transit method",
+        "Direct sampling",
+        "Microlensing only"
+      ],
+      0
+    ],
+    [
+      "Which country contains the ancient city of Petra?",
+      [
+        "Egypt",
+        "Jordan",
+        "Turkey",
+        "Greece"
+      ],
+      1
+    ],
+    [
+      "Which country contains the ruins of Chichén Itzá?",
+      [
+        "Brazil",
+        "Mexico",
+        "Chile",
+        "Peru"
+      ],
+      1
+    ],
+    [
+      "Which country contains the ancient site of Machu Picchu?",
+      [
+        "Bolivia",
+        "Ecuador",
+        "Mexico",
+        "Peru"
+      ],
+      3
+    ],
+    [
+      "Which country contains the temples of Angkor Wat?",
+      [
+        "Thailand",
+        "Vietnam",
+        "Laos",
+        "Cambodia"
+      ],
+      3
+    ],
+    [
+      "Which country contains Mount Fuji?",
+      [
+        "Nepal",
+        "Japan",
+        "China",
+        "South Korea"
+      ],
+      1
+    ],
+    [
+      "Which country contains Table Mountain near Cape Town?",
+      [
+        "Australia",
+        "South Africa",
+        "Morocco",
+        "Kenya"
+      ],
+      1
+    ],
+    [
+      "Which country contains the city of Dubrovnik?",
+      [
+        "Serbia",
+        "Greece",
+        "Slovenia",
+        "Croatia"
+      ],
+      3
+    ],
+    [
+      "Which country contains the city of Bruges?",
+      [
+        "Germany",
+        "Belgium",
+        "Netherlands",
+        "France"
+      ],
+      1
+    ],
+    [
+      "Which country contains the city of Bergen?",
+      [
+        "Finland",
+        "Norway",
+        "Sweden",
+        "Denmark"
+      ],
+      1
+    ],
+    [
+      "Which country contains the city of Kraków?",
+      [
+        "Slovakia",
+        "Czechia",
+        "Poland",
+        "Hungary"
+      ],
+      2
+    ],
+    [
+      "Which country contains the city of Seville?",
+      [
+        "Portugal",
+        "Italy",
+        "France",
+        "Spain"
+      ],
+      3
+    ],
+    [
+      "Which country contains the city of Porto?",
+      [
+        "Brazil",
+        "Spain",
+        "Portugal",
+        "Italy"
+      ],
+      2
+    ],
+    [
+      "Which country contains the city of Chiang Mai?",
+      [
+        "Vietnam",
+        "Thailand",
+        "Malaysia",
+        "Cambodia"
+      ],
+      1
+    ],
+    [
+      "Which country contains the city of Da Nang?",
+      [
+        "Vietnam",
+        "Singapore",
+        "Thailand",
+        "Laos"
+      ],
+      0
+    ],
+    [
+      "Which country contains the city of Busan?",
+      [
+        "China",
+        "South Korea",
+        "Taiwan",
+        "Japan"
+      ],
+      1
+    ],
+    [
+      "Which country contains the city of Osaka?",
+      [
+        "Japan",
+        "China",
+        "South Korea",
+        "Vietnam"
+      ],
+      0
+    ],
+    [
+      "Which country contains the city of Fez?",
+      [
+        "Algeria",
+        "Turkey",
+        "Egypt",
+        "Morocco"
+      ],
+      3
+    ],
+    [
+      "Which sea separates Europe and Africa?",
+      [
+        "Bering Sea",
+        "Baltic Sea",
+        "Caribbean Sea",
+        "Mediterranean Sea"
+      ],
+      3
+    ],
+    [
+      "Which strait separates Spain and Morocco?",
+      [
+        "Strait of Malacca",
+        "Strait of Gibraltar",
+        "Bering Strait",
+        "Dover Strait"
+      ],
+      1
+    ],
+    [
+      "Which strait separates Asia and North America?",
+      [
+        "Bering Strait",
+        "Dover Strait",
+        "Gibraltar Strait",
+        "Hormuz Strait"
+      ],
+      0
+    ],
+    [
+      "Which canal connects the Mediterranean Sea and the Red Sea?",
+      [
+        "Panama Canal",
+        "Erie Canal",
+        "Suez Canal",
+        "Kiel Canal"
+      ],
+      2
+    ],
+    [
+      "Which canal connects the Atlantic and Pacific Oceans through Central America?",
+      [
+        "Kiel Canal",
+        "Panama Canal",
+        "Suez Canal",
+        "Grand Canal"
+      ],
+      1
+    ],
+    [
+      "Which mountain range contains Mount Everest?",
+      [
+        "Alps",
+        "Rockies",
+        "Andes",
+        "Himalayas"
+      ],
+      3
+    ],
+    [
+      "Which mountain range runs along western South America?",
+      [
+        "Alps",
+        "Andes",
+        "Himalayas",
+        "Urals"
+      ],
+      1
+    ],
+    [
+      "Which mountain range separates Europe and Asia in Russia?",
+      [
+        "Ural Mountains",
+        "Atlas Mountains",
+        "Pyrenees",
+        "Alps"
+      ],
+      0
+    ],
+    [
+      "Which desert is known as one of the driest places on Earth?",
+      [
+        "Mojave Desert",
+        "Sahara Desert",
+        "Atacama Desert",
+        "Gobi Desert"
+      ],
+      2
+    ],
+    [
+      "Which lake is the largest freshwater lake by surface area?",
+      [
+        "Lake Tanganyika",
+        "Lake Victoria",
+        "Lake Baikal",
+        "Lake Superior"
+      ],
+      3
+    ],
+    [
+      "Which lake is the deepest in the world?",
+      [
+        "Lake Superior",
+        "Caspian Sea",
+        "Lake Baikal",
+        "Lake Victoria"
+      ],
+      2
+    ],
+    [
+      "Which river flows through Egypt to the Mediterranean Sea?",
+      [
+        "Nile River",
+        "Danube River",
+        "Mekong River",
+        "Amazon River"
+      ],
+      0
+    ],
+    [
+      "Which river flows through London?",
+      [
+        "River Rhine",
+        "River Tiber",
+        "River Seine",
+        "River Thames"
+      ],
+      3
+    ],
+    [
+      "Which river flows through Paris?",
+      [
+        "River Seine",
+        "River Danube",
+        "River Thames",
+        "River Po"
+      ],
+      0
+    ],
+    [
+      "Which river flows through Rome?",
+      [
+        "River Seine",
+        "River Rhine",
+        "River Tiber",
+        "River Thames"
+      ],
+      2
+    ],
+    [
+      "Which river is strongly associated with the city of Vienna?",
+      [
+        "Danube River",
+        "Tiber River",
+        "Nile River",
+        "Mekong River"
+      ],
+      0
+    ],
+    [
+      "Which architect designed Fallingwater?",
+      [
+        "Frank Lloyd Wright",
+        "Le Corbusier",
+        "I. M. Pei",
+        "Antoni Gaudí"
+      ],
+      0
+    ],
+    [
+      "Which architect designed the Guggenheim Museum in Bilbao?",
+      [
+        "Norman Foster",
+        "Frank Gehry",
+        "Renzo Piano",
+        "Zaha Hadid"
+      ],
+      1
+    ],
+    [
+      "Which architect is famous for Barcelona's Sagrada Família?",
+      [
+        "I. M. Pei",
+        "Antoni Gaudí",
+        "Frank Lloyd Wright",
+        "Mies van der Rohe"
+      ],
+      1
+    ],
+    [
+      "Which artist painted Guernica?",
+      [
+        "Pablo Picasso",
+        "Henri Matisse",
+        "Joan Miró",
+        "Salvador Dalí"
+      ],
+      0
+    ],
+    [
+      "Which artist painted The Birth of Venus?",
+      [
+        "Caravaggio",
+        "Titian",
+        "Sandro Botticelli",
+        "Raphael"
+      ],
+      2
+    ],
+    [
+      "Which artist painted The Kiss in 1907-1908?",
+      [
+        "Gustav Klimt",
+        "Egon Schiele",
+        "Edvard Munch",
+        "Paul Klee"
+      ],
+      0
+    ],
+    [
+      "Which artist is associated with Campbell's Soup Cans?",
+      [
+        "Jackson Pollock",
+        "Andy Warhol",
+        "Mark Rothko",
+        "Roy Lichtenstein"
+      ],
+      1
+    ],
+    [
+      "Which artist is known for drip paintings such as No. 5, 1948?",
+      [
+        "Henri Rousseau",
+        "Andy Warhol",
+        "Georgia O'Keeffe",
+        "Jackson Pollock"
+      ],
+      3
+    ],
+    [
+      "Which artist painted American Gothic?",
+      [
+        "Norman Rockwell",
+        "Andrew Wyeth",
+        "Edward Hopper",
+        "Grant Wood"
+      ],
+      3
+    ],
+    [
+      "Which artist painted Nighthawks?",
+      [
+        "Edward Hopper",
+        "Grant Wood",
+        "Winslow Homer",
+        "Mary Cassatt"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote Clair de Lune?",
+      [
+        "Erik Satie",
+        "Frédéric Chopin",
+        "Claude Debussy",
+        "Maurice Ravel"
+      ],
+      2
+    ],
+    [
+      "Which composer wrote Boléro?",
+      [
+        "Maurice Ravel",
+        "Gustav Holst",
+        "Claude Debussy",
+        "Camille Saint-Saëns"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote The Planets suite?",
+      [
+        "Benjamin Britten",
+        "Edward Elgar",
+        "Gustav Holst",
+        "Ralph Vaughan Williams"
+      ],
+      2
+    ],
+    [
+      "Which composer wrote Rhapsody in Blue?",
+      [
+        "George Gershwin",
+        "Leonard Bernstein",
+        "Aaron Copland",
+        "Scott Joplin"
+      ],
+      0
+    ],
+    [
+      "Which composer wrote Appalachian Spring?",
+      [
+        "George Gershwin",
+        "Leonard Bernstein",
+        "Aaron Copland",
+        "Samuel Barber"
+      ],
+      2
+    ],
+    [
+      "Which composer wrote West Side Story's music?",
+      [
+        "Andrew Lloyd Webber",
+        "Cole Porter",
+        "Stephen Sondheim",
+        "Leonard Bernstein"
+      ],
+      3
+    ],
+    [
+      "Which novelist wrote One Hundred Years of Solitude?",
+      [
+        "Mario Vargas Llosa",
+        "Jorge Luis Borges",
+        "Isabel Allende",
+        "Gabriel García Márquez"
+      ],
+      3
+    ],
+    [
+      "Which novelist wrote Things Fall Apart?",
+      [
+        "Chinua Achebe",
+        "Ngũgĩ wa Thiong'o",
+        "Ben Okri",
+        "Wole Soyinka"
+      ],
+      0
+    ],
+    [
+      "Which novelist wrote The Old Man and the Sea?",
+      [
+        "F. Scott Fitzgerald",
+        "Ernest Hemingway",
+        "John Steinbeck",
+        "William Faulkner"
+      ],
+      1
+    ],
+    [
+      "Which novelist wrote The Great Gatsby?",
+      [
+        "Mark Twain",
+        "John Steinbeck",
+        "F. Scott Fitzgerald",
+        "Ernest Hemingway"
+      ],
+      2
+    ],
+    [
+      "Which novelist wrote East of Eden?",
+      [
+        "John Steinbeck",
+        "Jack London",
+        "William Faulkner",
+        "Ernest Hemingway"
+      ],
+      0
+    ],
+    [
+      "Which author wrote The Left Hand of Darkness?",
+      [
+        "Anne McCaffrey",
+        "Ursula K. Le Guin",
+        "Octavia Butler",
+        "Margaret Atwood"
+      ],
+      1
+    ],
+    [
+      "Which author wrote Kindred?",
+      [
+        "Ursula K. Le Guin",
+        "Toni Morrison",
+        "N. K. Jemisin",
+        "Octavia Butler"
+      ],
+      3
+    ],
+    [
+      "Which author wrote The Handmaid's Tale?",
+      [
+        "Toni Morrison",
+        "Virginia Woolf",
+        "Alice Munro",
+        "Margaret Atwood"
+      ],
+      3
+    ],
+    [
+      "Which author wrote Beloved?",
+      [
+        "Alice Walker",
+        "Maya Angelou",
+        "Zora Neale Hurston",
+        "Toni Morrison"
+      ],
+      3
+    ],
+    [
+      "Which author wrote The Name of the Rose?",
+      [
+        "Umberto Eco",
+        "Dante Alighieri",
+        "Italo Calvino",
+        "Primo Levi"
+      ],
+      0
+    ],
+    [
+      "Which author wrote Invisible Cities?",
+      [
+        "Umberto Eco",
+        "Italo Calvino",
+        "Jorge Luis Borges",
+        "Gabriel García Márquez"
+      ],
+      1
+    ],
+    [
+      "Which poet wrote Leaves of Grass?",
+      [
+        "T. S. Eliot",
+        "Emily Dickinson",
+        "Robert Frost",
+        "Walt Whitman"
+      ],
+      3
+    ],
+    [
+      "Which poet wrote The Waste Land?",
+      [
+        "Langston Hughes",
+        "T. S. Eliot",
+        "Walt Whitman",
+        "William Wordsworth"
+      ],
+      1
+    ],
+    [
+      "Which poet wrote The Road Not Taken?",
+      [
+        "T. S. Eliot",
+        "Robert Frost",
+        "Pablo Neruda",
+        "Walt Whitman"
+      ],
+      1
+    ],
+    [
+      "Which poet wrote many poems beginning 'Because I could not stop for Death'?",
+      [
+        "Sylvia Plath",
+        "Christina Rossetti",
+        "Emily Dickinson",
+        "Maya Angelou"
+      ],
+      2
+    ],
+    [
+      "Which literary movement is associated with magical realism in Latin American fiction?",
+      [
+        "Latin American Boom",
+        "Harlem Renaissance",
+        "Beat Generation",
+        "Lost Generation"
+      ],
+      0
+    ],
+    [
+      "Which data structure is typically used for breadth-first search?",
+      [
+        "Heap",
+        "Queue",
+        "Stack",
+        "Hash set only"
+      ],
+      1
+    ],
+    [
+      "Which data structure is typically used for depth-first search?",
+      [
+        "Bloom filter",
+        "Stack",
+        "Queue",
+        "Trie"
+      ],
+      1
+    ],
+    [
+      "Which algorithm finds shortest paths from one source with nonnegative edge weights?",
+      [
+        "Kruskal's algorithm",
+        "Bellman-Ford only",
+        "Dijkstra's algorithm",
+        "Quickselect"
+      ],
+      2
+    ],
+    [
+      "Which algorithm finds a minimum spanning tree by adding the lightest safe edge?",
+      [
+        "Dijkstra's algorithm",
+        "Kruskal's algorithm",
+        "Merge sort",
+        "A* search"
+      ],
+      1
+    ],
+    [
+      "Which algorithm finds a minimum spanning tree by growing from a starting vertex?",
+      [
+        "Prim's algorithm",
+        "Binary search",
+        "Quick sort",
+        "Floyd-Warshall"
+      ],
+      0
+    ],
+    [
+      "Which algorithm computes all-pairs shortest paths using dynamic programming?",
+      [
+        "Floyd-Warshall algorithm",
+        "Boyer-Moore vote",
+        "Kruskal's algorithm",
+        "Topological sort"
+      ],
+      0
+    ],
+    [
+      "Which algorithm uses a heuristic to guide shortest-path search?",
+      [
+        "Bubble sort",
+        "A* search",
+        "Linear search",
+        "Insertion sort"
+      ],
+      1
+    ],
+    [
+      "Which sort has worst-case time complexity O(n^2) but is simple and stable?",
+      [
+        "Heap sort",
+        "Counting sort",
+        "Merge sort",
+        "Bubble sort"
+      ],
+      3
+    ],
+    [
+      "Which sort is a stable divide-and-conquer algorithm with O(n log n) time?",
+      [
+        "Bogosort",
+        "Heap sort",
+        "Merge sort",
+        "Selection sort"
+      ],
+      2
+    ],
+    [
+      "Which sort uses a binary heap and has O(n log n) worst-case time?",
+      [
+        "Counting sort",
+        "Insertion sort",
+        "Radix sort",
+        "Heap sort"
+      ],
+      3
+    ],
+    [
+      "Which algorithm selects the kth smallest element efficiently on average?",
+      [
+        "Dijkstra's algorithm",
+        "Quicksort",
+        "Quickselect",
+        "Prim's algorithm"
+      ],
+      2
+    ],
+    [
+      "Which tree keeps keys ordered and has at most two children per node?",
+      [
+        "Binary search tree",
+        "Graph matrix",
+        "Queue",
+        "Hash table"
+      ],
+      0
+    ],
+    [
+      "Which tree is commonly used for prefix searches in strings?",
+      [
+        "AVL tree",
+        "Heap",
+        "Segment tree",
+        "Trie"
+      ],
+      3
+    ],
+    [
+      "Which probabilistic data structure can test set membership with possible false positives?",
+      [
+        "Linked list",
+        "Queue",
+        "Stack",
+        "Bloom filter"
+      ],
+      3
+    ],
+    [
+      "Which data structure is used to implement priority queues efficiently?",
+      [
+        "Array only",
+        "Heap",
+        "Trie",
+        "Stack"
+      ],
+      1
+    ],
+    [
+      "Which traversal visits a binary tree's left subtree, node, then right subtree?",
+      [
+        "Pre-order traversal",
+        "Post-order traversal",
+        "Level-order traversal",
+        "In-order traversal"
+      ],
+      3
+    ],
+    [
+      "Which traversal visits a tree level by level?",
+      [
+        "Reverse traversal",
+        "Post-order traversal",
+        "In-order traversal",
+        "Breadth-first traversal"
+      ],
+      3
+    ],
+    [
+      "Which normal form removes transitive dependencies in database design?",
+      [
+        "Third normal form",
+        "First normal form",
+        "Boyce-Codd only",
+        "Second normal form"
+      ],
+      0
+    ],
+    [
+      "Which SQL clause filters groups after aggregation?",
+      [
+        "JOIN",
+        "ORDER BY",
+        "WHERE",
+        "HAVING"
+      ],
+      3
+    ],
+    [
+      "Which SQL keyword combines rows from two queries and removes duplicates?",
+      [
+        "GROUP BY",
+        "JOIN",
+        "INDEX",
+        "UNION"
+      ],
+      3
+    ],
+    [
+      "Which HTTP status code means 'Not Found'?",
+      [
+        "500",
+        "200",
+        "301",
+        "404"
+      ],
+      3
+    ],
+    [
+      "Which HTTP status code means 'OK'?",
+      [
+        "502",
+        "403",
+        "404",
+        "200"
+      ],
+      3
+    ],
+    [
+      "Which HTTP status code means 'Moved Permanently'?",
+      [
+        "401",
+        "200",
+        "503",
+        "301"
+      ],
+      3
+    ],
+    [
+      "Which cryptographic hash function produces a 256-bit digest?",
+      [
+        "CRC32",
+        "Base64",
+        "SHA-256",
+        "MD5"
+      ],
+      2
+    ],
+    [
+      "Which public-key algorithm is named after Rivest, Shamir, and Adleman?",
+      [
+        "RSA",
+        "SHA",
+        "DES",
+        "AES"
+      ],
+      0
+    ],
+    [
+      "Which encryption standard is a symmetric block cipher widely used today?",
+      [
+        "RSA",
+        "AES",
+        "SHA-1",
+        "MD5"
+      ],
+      1
+    ],
+    [
+      "Which command-line tool is commonly used to track source code versions?",
+      [
+        "Git",
+        "SQLite",
+        "Nginx",
+        "Docker"
+      ],
+      0
+    ],
+    [
+      "Which Git command creates a copy of a remote repository locally?",
+      [
+        "git clone",
+        "git init",
+        "git merge",
+        "git blame"
+      ],
+      0
+    ],
+    [
+      "Which Git command shows changes between commits or files?",
+      [
+        "git stash",
+        "git push",
+        "git diff",
+        "git tag"
+      ],
+      2
+    ],
+    [
+      "Which Git command combines branches by creating a new merge commit when needed?",
+      [
+        "git clone",
+        "git log",
+        "git rm",
+        "git merge"
+      ],
+      3
+    ],
+    [
+      "Which container platform popularized Dockerfiles?",
+      [
+        "SQLite",
+        "React",
+        "Git",
+        "Docker"
+      ],
+      3
+    ],
+    [
+      "Which JavaScript library is commonly used for building user interfaces with components?",
+      [
+        "Flask",
+        "Django",
+        "React",
+        "Laravel"
+      ],
+      2
+    ],
+    [
+      "Which Python web framework uses models, views, and templates?",
+      [
+        "Django",
+        "React",
+        "Svelte",
+        "Vue"
+      ],
+      0
+    ],
+    [
+      "Which command installs packages from the Python Package Index?",
+      [
+        "gem",
+        "pip",
+        "cargo",
+        "npm"
+      ],
+      1
+    ],
+    [
+      "Which package manager is commonly used with Node.js?",
+      [
+        "npm",
+        "pip",
+        "apt",
+        "brew"
+      ],
+      0
+    ],
+    [
+      "Which language is known for ownership and borrowing rules?",
+      [
+        "Ruby",
+        "PHP",
+        "Python",
+        "Rust"
+      ],
+      3
+    ],
+    [
+      "Which language is often used for iOS app development?",
+      [
+        "PHP",
+        "Swift",
+        "Kotlin",
+        "Lua"
+      ],
+      1
+    ],
+    [
+      "Which language is often used for Android app development?",
+      [
+        "Ruby",
+        "R",
+        "Swift",
+        "Kotlin"
+      ],
+      3
+    ],
+    [
+      "Which theorem states that a planar graph can be colored with at most four colors?",
+      [
+        "Pythagorean theorem",
+        "Four color theorem",
+        "Noether's theorem",
+        "Bayes' theorem"
+      ],
+      1
+    ],
+    [
+      "Which theorem relates a right triangle's side lengths as a squared plus b squared equals c squared?",
+      [
+        "Euler's formula",
+        "Bayes' theorem",
+        "Fermat's little theorem",
+        "Pythagorean theorem"
+      ],
+      3
+    ],
+    [
+      "Which formula gives probabilities using prior probability and likelihood?",
+      [
+        "Euler's formula",
+        "Cauchy's theorem",
+        "Bayes' theorem",
+        "Green's theorem"
+      ],
+      2
+    ],
+    [
+      "Which number is the multiplicative identity?",
+      [
+        "2",
+        "-1",
+        "1",
+        "0"
+      ],
+      2
+    ],
+    [
+      "Which set includes numbers that can be written as a ratio of integers?",
+      [
+        "Complex numbers only",
+        "Rational numbers",
+        "Irrational numbers",
+        "Prime numbers only"
+      ],
+      1
+    ],
+    [
+      "Which number is irrational?",
+      [
+        "0.75",
+        "4",
+        "1/2",
+        "Square root of 2"
+      ],
+      3
+    ],
+    [
+      "Which function is its own derivative?",
+      [
+        "x^2",
+        "e^x",
+        "sin x",
+        "ln x"
+      ],
+      1
+    ],
+    [
+      "Which trigonometric function equals opposite over hypotenuse?",
+      [
+        "Tangent",
+        "Secant",
+        "Sine",
+        "Cosine"
+      ],
+      2
+    ],
+    [
+      "Which trigonometric function equals adjacent over hypotenuse?",
+      [
+        "Sine",
+        "Cotangent",
+        "Tangent",
+        "Cosine"
+      ],
+      3
+    ],
+    [
+      "Which trigonometric function equals opposite over adjacent?",
+      [
+        "Sine",
+        "Cosecant",
+        "Cosine",
+        "Tangent"
+      ],
+      3
+    ],
+    [
+      "Which chess opening begins with 1.e4 c5?",
+      [
+        "French Defense",
+        "Sicilian Defense",
+        "Caro-Kann Defense",
+        "Queen's Gambit"
+      ],
+      1
+    ],
+    [
+      "Which chess opening begins with 1.d4 d5 2.c4?",
+      [
+        "Sicilian Defense",
+        "Queen's Gambit",
+        "Ruy Lopez",
+        "King's Indian Defense"
+      ],
+      1
+    ],
+    [
+      "Which board game was designed by Klaus Teuber and originally published as The Settlers of Catan?",
+      [
+        "Pandemic",
+        "Ticket to Ride",
+        "Carcassonne",
+        "Catan"
+      ],
+      3
+    ],
+    [
+      "Which cooperative board game has players fighting global disease outbreaks?",
+      [
+        "Pandemic",
+        "Risk",
+        "Clue",
+        "Catan"
+      ],
+      0
+    ],
+    [
+      "Which board game has players building train routes across a map?",
+      [
+        "Catan",
+        "Pandemic",
+        "Ticket to Ride",
+        "Azul"
+      ],
+      2
+    ],
+    [
+      "Which video game composer is known for music in The Legend of Zelda and Super Mario series?",
+      [
+        "Nobuo Uematsu",
+        "Marty O'Donnell",
+        "Koji Kondo",
+        "Yoko Shimomura"
+      ],
+      2
+    ],
+    [
+      "Which composer is known for music in many Final Fantasy games?",
+      [
+        "Yoko Shimomura",
+        "Grant Kirkhope",
+        "Koji Kondo",
+        "Nobuo Uematsu"
+      ],
+      3
+    ],
+    [
+      "Which game studio created the Portal series?",
+      [
+        "Capcom",
+        "Valve",
+        "Nintendo",
+        "Bungie"
+      ],
+      1
+    ],
+    [
+      "Which game studio created the Dark Souls series?",
+      [
+        "FromSoftware",
+        "Ubisoft",
+        "BioWare",
+        "Valve"
+      ],
+      0
+    ],
+    [
+      "Which game studio developed The Elder Scrolls V: Skyrim?",
+      [
+        "Obsidian Entertainment",
+        "BioWare",
+        "CD Projekt Red",
+        "Bethesda Game Studios"
+      ],
+      3
+    ],
+    [
+      "Which studio developed The Witcher 3: Wild Hunt?",
+      [
+        "Larian Studios",
+        "CD Projekt Red",
+        "BioWare",
+        "Bethesda Game Studios"
+      ],
+      1
+    ],
+    [
+      "Which studio developed Baldur's Gate 3?",
+      [
+        "Valve",
+        "BioWare",
+        "Square Enix",
+        "Larian Studios"
+      ],
+      3
+    ],
+    [
+      "Which Nintendo series features the planet Zebes?",
+      [
+        "Kirby",
+        "Metroid",
+        "Pokémon",
+        "Star Fox"
+      ],
+      1
+    ],
+    [
+      "Which Pokémon type is super effective against Dragon in many mainline games?",
+      [
+        "Electric",
+        "Fire",
+        "Fairy",
+        "Normal"
+      ],
+      2
+    ],
+    [
+      "Which Pokémon is number 001 in the National Pokédex?",
+      [
+        "Mew",
+        "Charmander",
+        "Pikachu",
+        "Bulbasaur"
+      ],
+      3
+    ],
+    [
+      "Which Final Fantasy game introduced Cloud Strife as its main protagonist?",
+      [
+        "Final Fantasy VII",
+        "Final Fantasy IX",
+        "Final Fantasy X",
+        "Final Fantasy VI"
+      ],
+      0
+    ],
+    [
+      "Which RPG series features the continent of Thedas?",
+      [
+        "Mass Effect",
+        "Dragon Age",
+        "Fallout",
+        "The Elder Scrolls"
+      ],
+      1
+    ],
+    [
+      "Which sci-fi game series features Commander Shepard?",
+      [
+        "Halo",
+        "StarCraft",
+        "Mass Effect",
+        "Destiny"
+      ],
+      2
+    ]
   ]
 };
 
