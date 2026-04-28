@@ -429,7 +429,10 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
   ctx.fillStyle = '#dbdee1';
   ctx.font = 'bold 22px sans-serif';
   ctx.fillText('Username', 130, 114);
-  ctx.fillText(type === 'xp' ? 'XP' : type === 'messages' ? 'Message' : 'Reaction', 700, 114);
+  ctx.fillText(type === 'xp' ? 'XP' : type === 'messages' ? 'Message' : 'Reaction', 630, 114);
+  if (type === 'xp') {
+    ctx.fillText('Level', 810, 114);
+  }
   ctx.fillText('Rank', 950, 114);
 
   for (let i = 0; i < rows.length; i += 1) {
@@ -445,7 +448,11 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
     ctx.fillText(row.username.slice(0, 28), 90, y + 34);
 
     const value = type === 'xp' ? row.totalXp : type === 'messages' ? row.messages : row.reactions;
-    ctx.fillText(formatCompactNumber(value), 715, y + 34);
+    ctx.fillText(formatCompactNumber(value), 645, y + 34);
+    if (type === 'xp') {
+      const level = getProgress(row.totalXp).level;
+      ctx.fillText(`${level}`, 830, y + 34);
+    }
     ctx.fillText(`#${row.rank}`, 960, y + 34);
   }
 
