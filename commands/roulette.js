@@ -32,6 +32,7 @@ const RADIO_GROUP_COMPONENT_TYPE = 21;
 const WIN_EMOJI = '<:Y_:1498173245981986869>';
 const LOSE_EMOJI = '<:N_:1498173244031631400>';
 const NEUTRAL_EMOJI = '<:neutral:1498631195108446228>';
+const ROULETTE_STRAIGHT_WIN_CHANNEL_ID = '1498300014114377860';
 
 const ROULETTE_DIR = path.join(__dirname, '..', 'roulette');
 const ROULETTE_GIFS_DIR = path.join(ROULETTE_DIR, 'gifs');
@@ -390,6 +391,42 @@ function buildBetText(game) {
 
 function makeTextDisplay(content) {
   return { type: 10, content };
+}
+
+function buildStraightWinContainer(game, payout) {
+  return {
+    type: 17,
+    accent_color: 0xffd84d,
+    components: [
+      {
+        type: 9,
+        components: [
+          {
+            type: 10,
+            content: [
+              `Congratulation ${game.userMention} has won a **Straight** bet in Roulette! 🏆`,
+              `* Earned: ${formatNumber(payout)} ${getBetUnit(game.betCurrency)} \`(bet ${formatNumber(game.bet)})\``,
+            ].join('\n'),
+          },
+        ],
+        accessory: {
+          type: 11,
+          media: { url: game.avatarUrl },
+        },
+      },
+    ],
+  };
+}
+
+async function announceStraightWin(game, payout) {
+  const channel = game.message?.guild?.channels?.cache?.get(ROULETTE_STRAIGHT_WIN_CHANNEL_ID)
+    || await game.message?.guild?.channels?.fetch(ROULETTE_STRAIGHT_WIN_CHANNEL_ID).catch(() => null);
+  if (!channel || !channel.isTextBased?.()) return;
+
+  await channel.send({
+    flags: COMPONENTS_V2_FLAG,
+    components: [buildStraightWinContainer(game, payout)],
+  }).catch(() => null);
 }
 
 function buildModalComponents(betType) {
@@ -1156,6 +1193,7 @@ async function settleSpin(gameId) {
   }
   if (won && game.betSelection?.type === 'straight' && game.message?.channel) {
     await unlockBullseyeAchievement(game.message.channel, { id: game.userId });
+    await announceStraightWin(game, payout);
   }
 
   game.status = 'finished';
