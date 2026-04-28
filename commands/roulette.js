@@ -1064,6 +1064,7 @@ async function applyBet(interaction, game, betType) {
   game.betSelection = selection;
   game.status = 'bet_placed';
   game.resultNumber = null;
+  game.lastSpinNumber = null;
   game.lastOutcome = null;
   const payload = await buildGamePayload(game, 'normal');
   await updateGameMessage(interaction, game, payload);
