@@ -19,6 +19,7 @@ const {
   GREEN_ACCENT,
   formatNumber,
 } = require('../src/gamblingConfig');
+const { unlockRouletteStraightAchievement } = require('../src/achievements');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -611,7 +612,7 @@ function makeSelectionFromModal(betType, interaction) {
       type: 'street',
       display: `🔺 Street ${row.label}`,
       numbers: row.numbers,
-      tokenTargets: row.numbers,
+      tokenTargets: [],
     };
   }
 
@@ -1102,6 +1103,13 @@ async function settleSpin(gameId) {
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
   }
+
+  await unlockRouletteStraightAchievement(
+    game.message?.channel,
+    game.userId,
+    game.userMention || `<@${game.userId}>`,
+    won && game.betSelection?.type === 'straight',
+  );
 
   game.status = 'finished';
   game.lastSpinNumber = game.resultNumber;
