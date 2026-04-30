@@ -200,11 +200,11 @@ function recordGamblingEarnings(userId, amount) {
   return stats.moneyEarned;
 }
 
-function recordTriviaRun(userId, perDifficultyCorrect = {}) {
+function recordTriviaRun(userId, perDifficultyCorrect = {}, isRandomRun = false) {
   const easy = Math.max(0, Math.floor(Number(perDifficultyCorrect.easy) || 0));
   const medium = Math.max(0, Math.floor(Number(perDifficultyCorrect.medium) || 0));
   const hard = Math.max(0, Math.floor(Number(perDifficultyCorrect.hard) || 0));
-  const all = easy + medium + hard;
+  const all = isRandomRun ? (easy + medium + hard) : 0;
 
   const state = loadState();
   const stats = getUserStatsRecord(state, userId);
