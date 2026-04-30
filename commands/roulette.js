@@ -28,8 +28,6 @@ const {
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const XP_MIN_BET = 1;
-const XP_MAX_BET = 100;
 const PRCOIN_MIN_BET = 1;
 const PRCOIN_MAX_BET = 100_000;
 const SPIN_TIME_MS = 7_000;
@@ -296,49 +294,21 @@ function getSubmittedValue(interaction, customId) {
 function parseBetAmount(raw) {
   const rawValue = String(raw || '');
   const compact = rawValue.replace(/,/g, '').replace(/\s+/g, '');
-  const xpMode = /xp$/i.test(compact);
-  const numeric = xpMode ? compact.replace(/xp$/i, '') : compact;
   return {
-    amount: Math.floor(Number(numeric)),
-    currency: xpMode ? 'xp' : 'prcoin',
+    amount: Math.floor(Number(compact)),
+    currency: 'prcoin',
   };
 }
 
-function getUserXpBalance(guildId, userId) {
-  if (!guildId) return 0;
-  return Math.floor(Number(leveling.getUserProgress(guildId, userId)?.totalXp || 0));
-}
-
-function spendUserXp(guildId, userId, amount) {
-  if (!guildId) return false;
-  const spend = Math.floor(Number(amount) || 0);
-  const current = getUserXpBalance(guildId, userId);
-  if (spend <= 0 || current < spend) return false;
-  leveling.setUserXp(guildId, userId, current - spend);
-  return true;
-}
-
-function addUserXp(guildId, userId, amount) {
-  if (!guildId) return 0;
-  const delta = Math.max(0, Math.floor(Number(amount) || 0));
-  const current = getUserXpBalance(guildId, userId);
-  const next = current + delta;
-  leveling.setUserXp(guildId, userId, next);
-  return next;
-}
-
 function getBetUnit(currency) {
-  return currency === 'xp' ? 'XP' : PRCOIN;
+  return PRCOIN;
 }
 
 function getBetUnitLabel(currency) {
-  return currency === 'xp' ? 'XP' : 'PRcoin';
+  return 'PRcoin';
 }
 
 function getBetRange(currency) {
-  if (currency === 'xp') {
-    return { min: XP_MIN_BET, max: XP_MAX_BET };
-  }
   return { min: PRCOIN_MIN_BET, max: PRCOIN_MAX_BET };
 }
 
@@ -465,7 +435,7 @@ function buildModalComponents(betType, defaultBetInput = '') {
       required: true,
       min_length: 1,
       max_length: 12,
-      placeholder: 'Example: 100 or 100XP',
+      placeholder: 'Example: 100',
       ...(defaultBetInput ? { value: defaultBetInput } : {}),
     },
   };
@@ -1165,28 +1135,18 @@ async function applyBet(interaction, game, betType) {
     await replyError(interaction, `Bet must be between **${formatNumber(range.min)}** and **${formatNumber(range.max)}** for ${getBetUnit(currency)}.`);
     return true;
   }
-  if (currency === 'xp' && !game.guildId) {
-    await replyError(interaction, 'XP bets are only available inside a server.');
-    return true;
-  }
-
   const canRefundCurrentBet = game.status === 'bet_placed' && game.bet > 0;
-  const availableBalance = currency === 'xp'
-    ? getUserXpBalance(game.guildId, game.userId) + (canRefundCurrentBet && game.betCurrency === 'xp' ? game.bet : 0)
-    : getBalance(game.userId) + (canRefundCurrentBet && game.betCurrency !== 'xp' ? game.bet : 0);
+  const availableBalance = getBalance(game.userId) + (canRefundCurrentBet ? game.bet : 0);
   if (availableBalance < bet) {
     await replyError(interaction, `You need **${formatNumber(bet)}** ${getBetUnit(currency)} to place that bet. Your available balance is **${formatNumber(availableBalance)}** ${getBetUnit(currency)}.`);
     return true;
   }
 
   if (canRefundCurrentBet) {
-    if (game.betCurrency === 'xp') addUserXp(game.guildId, game.userId, game.bet);
-    else addBalance(game.userId, game.bet);
+    addBalance(game.userId, game.bet);
   }
 
-  const spent = currency === 'xp'
-    ? spendUserXp(game.guildId, game.userId, bet)
-    : spendBalance(game.userId, bet);
+  const spent = spendBalance(game.userId, bet);
   if (!spent) {
     await replyError(interaction, `You do not have enough ${getBetUnit(currency)} for that bet.`);
     return true;
@@ -1214,11 +1174,9 @@ async function settleSpin(gameId) {
   const payout = won ? Math.max(0, Math.floor(game.bet * multiplier)) : 0;
 
   if (won && payout > 0) {
-    if (game.betCurrency === 'xp') addUserXp(game.guildId, game.userId, payout);
-    else {
-      addBalance(game.userId, payout);
-      recordGamblingEarnings(game.userId, payout);
-    }
+    addBalance(game.userId, payout);
+    recordGamblingEarnings(game.userId, payout);
+    if (game.guildId) leveling.addUserXp(game.guildId, game.userId, 10 * multiplier);
   }
   if (won && game.betSelection?.type === 'straight') {
     addJackpotBalance(game.userId, 1);
@@ -1260,7 +1218,7 @@ async function startSpin(interaction, game) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('roulette')
-    .setDescription('Play American Roulette with PRcoin or XP'),
+    .setDescription('Play American Roulette with PRcoin'),
   suppressCommandLog: true,
 
   async execute(interaction) {

@@ -136,6 +136,7 @@ function resetAllGamblingData() {
 function getDefaultUserStats() {
   return {
     moneyEarned: 0,
+    triviaCorrectTotal: 0,
     triviaBestRun: {
       all: 0,
       easy: 0,
@@ -207,12 +208,21 @@ function recordTriviaRun(userId, perDifficultyCorrect = {}) {
 
   const state = loadState();
   const stats = getUserStatsRecord(state, userId);
+  stats.triviaCorrectTotal = Math.max(0, Math.floor(Number(stats.triviaCorrectTotal) || 0)) + all;
   stats.triviaBestRun.easy = Math.max(stats.triviaBestRun.easy, easy);
   stats.triviaBestRun.medium = Math.max(stats.triviaBestRun.medium, medium);
   stats.triviaBestRun.hard = Math.max(stats.triviaBestRun.hard, hard);
   stats.triviaBestRun.all = Math.max(stats.triviaBestRun.all, all);
   saveState(state);
   return stats.triviaBestRun;
+}
+
+function getTriviaXpMultiplier(userId) {
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  const totalCorrect = Math.max(0, Math.floor(Number(stats.triviaCorrectTotal) || 0));
+  const tiers = Math.floor(totalCorrect / 50);
+  return Number((1.1 ** tiers).toFixed(6));
 }
 
 function incrementMinefieldCompleted(userId, difficulty) {
@@ -330,6 +340,7 @@ module.exports = {
   resetAllGamblingData,
   recordGamblingEarnings,
   recordTriviaRun,
+  getTriviaXpMultiplier,
   incrementMinefieldCompleted,
   getGamblingStats,
   getAllGamblingStats,
