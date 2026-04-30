@@ -49,15 +49,15 @@ const MINEFIELD_PAYOUT_CONFIG = {
   },
   medium: {
     basePercent: 80,
-    bonusPercents: [25, 50, 70, 90, 130, 200, 300],
+    bonusPercents: [30, 50, 70, 90, 130, 200, 300],
   },
   hard: {
     basePercent: 80,
-    bonusPercents: [30, 100, 250, 500, 1000],
+    bonusPercents: [50, 100, 250, 500, 1000],
   },
   hardcore: {
     basePercent: 80,
-    bonusPercents: [50, 150, 400, 750, 1500],
+    bonusPercents: [100, 200, 500, 1000, 2000],
   },
 };
 
