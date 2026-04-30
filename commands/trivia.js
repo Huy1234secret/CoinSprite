@@ -24,19 +24,24 @@ const DIFFICULTY_CONFIG = {
   medium: { label: 'Medium', accent: YELLOW_ACCENT, reward: 100, chatXp: 1 },
   hard: { label: 'Hard', accent: RED_ACCENT, reward: 1000, chatXp: 10 },
 };
+const START_DIFFICULTY_OPTIONS = [
+  { value: 'random', label: 'Random', emoji: '🎲', footer: 'Trivia difficulty is randomized.' },
+  { value: 'easy', label: 'Easy', emoji: '🟢', footer: 'Trivia difficulty is set to Easy.' },
+  { value: 'medium', label: 'Medium', emoji: '🟡', footer: 'Trivia difficulty is set to Medium.' },
+  { value: 'hard', label: 'Hard', emoji: '🔴', footer: 'Trivia difficulty is set to Hard.' },
+];
 
 function createGameId() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function pickDifficulty(game) {
-  if (game.questionNumber === 0) {
-    return 'easy';
+  if (game.selectedDifficulty && game.selectedDifficulty !== 'random') {
+    return game.selectedDifficulty;
   }
-
   const roll = Math.random();
-  if (roll < 0.50) return 'easy';
-  if (roll < 0.85) return 'medium';
+  if (roll < (1 / 3)) return 'easy';
+  if (roll < (2 / 3)) return 'medium';
   return 'hard';
 }
 
@@ -74,7 +79,12 @@ function createShuffledOrder(length) {
   return order;
 }
 
-function buildWelcomePayload(user) {
+function getStartDifficultyOption(value) {
+  return START_DIFFICULTY_OPTIONS.find((entry) => entry.value === value) || START_DIFFICULTY_OPTIONS[0];
+}
+
+function buildWelcomePayload(user, selectedDifficulty = 'random') {
+  const selected = getStartDifficultyOption(selectedDifficulty);
   return {
     flags: COMPONENTS_V2_FLAG,
     allowedMentions: { users: [] },
@@ -91,15 +101,35 @@ function buildWelcomePayload(user) {
               '-# * You have a total of **30 seconds** to answer as much trivia as you can! Every correct answer increases the timer by **10s** (up to **60s** max), but wrong answers delay you by **5s**.',
               '-# * Once time runs out, you earn PRcoin based on how many trivia questions you answered correctly.',
               '-# * Reward per correct answer: Easy **10**, Medium **100**, Hard **1,000**.',
-              '-# * Once you are ready, just press the **PLAY** button below.',
+              `-# * ${selected.footer}`,
+              '-# * Press **PLAY** to start with your selected difficulty.',
             ].join('\n'),
           },
           {
             type: 1,
             components: [
               {
+                type: 3,
+                custom_id: `trivia:config:${user.id}`,
+                placeholder: 'Choose a difficulty',
+                min_values: 1,
+                max_values: 1,
+                options: START_DIFFICULTY_OPTIONS.map((option) => ({
+                  label: option.label,
+                  value: option.value,
+                  emoji: { name: option.emoji },
+                  description: option.footer.slice(0, 100),
+                  default: option.value === selected.value,
+                })),
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
                 type: 2,
-                custom_id: `trivia:play:${user.id}:${createGameId()}`,
+                custom_id: `trivia:play:${user.id}:${selected.value}`,
                 label: 'PLAY',
                 style: 2,
               },
@@ -203,7 +233,7 @@ async function finishGame(game, interaction = null) {
     addBalance(game.userId, game.prizePool);
     recordGamblingEarnings(game.userId, game.prizePool);
   }
-  recordTriviaRun(game.userId, game.correctByDifficulty);
+  recordTriviaRun(game.userId, game.correctByDifficulty, game.selectedDifficulty === 'random');
   if (game.channel) {
     await unlockTriviaAchievements(game.channel, { id: game.userId });
   }
@@ -271,7 +301,7 @@ module.exports = {
   },
 
   async handleInteraction(interaction) {
-    if (!interaction.isButton() || !interaction.customId.startsWith('trivia:')) {
+    if (!(interaction.isButton() || interaction.isStringSelectMenu()) || !interaction.customId.startsWith('trivia:')) {
       return false;
     }
 
@@ -283,6 +313,14 @@ module.exports = {
       await interaction.reply({ content: 'You can only use your own Trivia game buttons.', flags: MessageFlags.Ephemeral });
       return true;
     }
+
+    if (interaction.isStringSelectMenu() && action === 'config') {
+      const selectedDifficulty = interaction.values?.[0] || 'random';
+      await interaction.update(buildWelcomePayload(interaction.user, selectedDifficulty));
+      return true;
+    }
+
+    if (!interaction.isButton()) return true;
 
     if (action === 'play') {
       if (activeGames.has(interaction.user.id)) {
@@ -311,15 +349,17 @@ module.exports = {
         channel: interaction.channel || null,
         hasMasterPerk: getTriviaMasterPerkMultiplier(interaction.user.id) > 1,
         currentRewardMultiplier: 1,
+        selectedDifficulty: ['random', 'easy', 'medium', 'hard'].includes(parts[3]) ? parts[3] : 'random',
       };
 
       game.questionNumber = 1;
-      const openingQuestion = pickQuestion(game, 'easy');
+      const openingDifficulty = pickDifficulty(game);
+      const openingQuestion = pickQuestion(game, openingDifficulty);
       game.currentQuestion = {
         ...openingQuestion,
         displayOrder: createShuffledOrder(openingQuestion.answers.length),
       };
-      game.currentQuestionValue = 10;
+      game.currentQuestionValue = getQuestionValue(game, openingDifficulty);
 
       activeGames.set(interaction.user.id, game);
       startUserSession(interaction.user.id, {

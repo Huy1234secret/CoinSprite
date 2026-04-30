@@ -38,6 +38,7 @@ function getDifficultyOptions(type) {
 }
 
 function difficultyLabel(type, difficulty) {
+  if (type === 'trivia' && difficulty === 'all') return '🎲 Random Diff';
   if (difficulty === 'all') return 'All';
   if (type === 'minefield' && difficulty === 'hardcore') return '💀 HARDCORE';
   if (difficulty === 'easy') return '🟢 Easy';
