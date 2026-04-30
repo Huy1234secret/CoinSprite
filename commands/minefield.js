@@ -26,60 +26,31 @@ const {
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const XP_MIN_BET = 1;
-const XP_MAX_BET = 5;
 const PRCOIN_MIN_BET = 1;
 const PRCOIN_MAX_BET = 100_000;
 const TIMEOUT_MS = 20_000;
 const activeGames = new Map();
 const activeUserGames = new Map();
-const MINEFIELD_COMPLETION_XP = {
-  easy: 100,
-  medium: 200,
-  hard: 450,
-  hardcore: 1000,
+const MINEFIELD_XP_BY_SAFE_SLOT = {
+  easy: [10, 15, 20, 25, 35, 50],
+  medium: [10, 20, 35, 55, 80, 100, 200],
+  hard: [25, 50, 100, 200, 400],
+  hardcore: [25, 75, 225, 675, 2025],
 };
 
 function parseBetInput(raw) {
   const compact = String(raw || '').replace(/,/g, '').replace(/\s+/g, '');
-  const xpMode = /xp$/i.test(compact);
-  const numeric = xpMode ? compact.replace(/xp$/i, '') : compact;
   return {
-    amount: Math.floor(Number(numeric)),
-    currency: xpMode ? 'xp' : 'prcoin',
+    amount: Math.floor(Number(compact)),
+    currency: 'prcoin',
   };
 }
 
-function getUserXpBalance(guildId, userId) {
-  if (!guildId) return 0;
-  return Math.floor(Number(leveling.getUserProgress(guildId, userId)?.totalXp || 0));
-}
-
-function spendUserXp(guildId, userId, amount) {
-  if (!guildId) return false;
-  const spend = Math.floor(Number(amount) || 0);
-  const current = getUserXpBalance(guildId, userId);
-  if (spend <= 0 || current < spend) return false;
-  leveling.setUserXp(guildId, userId, current - spend);
-  return true;
-}
-
-function addUserXp(guildId, userId, amount) {
-  if (!guildId) return 0;
-  const delta = Math.max(0, Math.floor(Number(amount) || 0));
-  const current = getUserXpBalance(guildId, userId);
-  leveling.setUserXp(guildId, userId, current + delta);
-  return current + delta;
-}
-
 function getBetUnit(currency) {
-  return currency === 'xp' ? 'XP' : PRCOIN;
+  return PRCOIN;
 }
 
 function getBetRange(currency) {
-  if (currency === 'xp') {
-    return { min: XP_MIN_BET, max: XP_MAX_BET };
-  }
   return { min: PRCOIN_MIN_BET, max: PRCOIN_MAX_BET };
 }
 
@@ -353,17 +324,14 @@ async function finishGame(gameId, status, interaction = null, fromTimeout = fals
 
   if (status !== 'exploded') {
     const payout = getCurrentPayout(game);
-    if (game.betCurrency === 'xp') {
-      addUserXp(game.guildId, game.userId, payout);
-    } else {
-      addBalance(game.userId, payout);
-      recordGamblingEarnings(game.userId, payout);
-    }
+    addBalance(game.userId, payout);
+    recordGamblingEarnings(game.userId, payout);
+    const safeFound = getSafeCount(game);
+    const xpTrack = MINEFIELD_XP_BY_SAFE_SLOT[game.difficulty] || [];
+    const xpAward = safeFound > 0 ? (xpTrack[Math.min(safeFound, xpTrack.length) - 1] || 0) : 0;
+    if (game.guildId && xpAward > 0) leveling.addUserXp(game.guildId, game.userId, xpAward);
     if (status === 'cleared') {
       incrementMinefieldCompleted(game.userId, game.difficulty);
-      if (game.guildId && MINEFIELD_COMPLETION_XP[game.difficulty]) {
-        leveling.addUserXp(game.guildId, game.userId, MINEFIELD_COMPLETION_XP[game.difficulty]);
-      }
       if (game.channel) {
         await unlockMinefieldAchievements(game.channel, { id: game.userId });
       }
@@ -449,7 +417,7 @@ module.exports = {
             },
             {
               type: 18,
-              label: `Bet amount (PRcoin ${formatNumber(PRCOIN_MIN_BET)}-${formatNumber(PRCOIN_MAX_BET)} / XP ${formatNumber(XP_MIN_BET)}-${formatNumber(XP_MAX_BET)})`,
+              label: `Bet amount (PRcoin ${formatNumber(PRCOIN_MIN_BET)}-${formatNumber(PRCOIN_MAX_BET)})`,
               component: {
                 type: 4,
                 custom_id: 'bet',
@@ -457,7 +425,7 @@ module.exports = {
                 required: true,
                 min_length: 1,
                 max_length: 12,
-                placeholder: 'Example: 100 or 100XP',
+                placeholder: 'Example: 100',
                 ...(getLastBetInput(interaction.user.id, 'minefield') ? { value: getLastBetInput(interaction.user.id, 'minefield') } : {}),
               },
             },
@@ -556,14 +524,7 @@ module.exports = {
         return true;
       }
 
-      if (betCurrency === 'xp' && !interaction.guildId) {
-        await interaction.reply({ content: 'XP bets are only available in a server.', flags: MessageFlags.Ephemeral });
-        return true;
-      }
-
-      const balance = betCurrency === 'xp'
-        ? getUserXpBalance(interaction.guildId, interaction.user.id)
-        : getBalance(interaction.user.id);
+      const balance = getBalance(interaction.user.id);
       if (balance < bet) {
         await interaction.reply({
           content: `You need **${formatNumber(bet)}** ${getBetUnit(betCurrency)} to place that bet. Your current balance is **${formatNumber(balance)}** ${getBetUnit(betCurrency)}.`,
@@ -572,9 +533,7 @@ module.exports = {
         return true;
       }
 
-      const spent = betCurrency === 'xp'
-        ? spendUserXp(interaction.guildId, interaction.user.id, bet)
-        : spendBalance(interaction.user.id, bet);
+      const spent = spendBalance(interaction.user.id, bet);
       if (!spent) {
         await interaction.reply({ content: `You do not have enough ${getBetUnit(betCurrency)} for that bet.`, flags: MessageFlags.Ephemeral });
         return true;

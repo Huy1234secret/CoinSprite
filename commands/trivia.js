@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { addBalance, recordGamblingEarnings, recordTriviaRun } = require('../src/gamblingStore');
+const { addBalance, recordGamblingEarnings, recordTriviaRun, getTriviaXpMultiplier } = require('../src/gamblingStore');
 const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
@@ -20,8 +20,8 @@ const NEXT_DELAY_MS = 2_000;
 const activeGames = new Map();
 
 const DIFFICULTY_CONFIG = {
-  easy: { label: 'Easy', accent: GREEN_ACCENT, reward: 10, chatXp: 1 },
-  medium: { label: 'Medium', accent: YELLOW_ACCENT, reward: 100, chatXp: 5 },
+  easy: { label: 'Easy', accent: GREEN_ACCENT, reward: 10, chatXp: 0.1 },
+  medium: { label: 'Medium', accent: YELLOW_ACCENT, reward: 100, chatXp: 1 },
   hard: { label: 'Hard', accent: RED_ACCENT, reward: 1000, chatXp: 10 },
 };
 
@@ -369,8 +369,8 @@ module.exports = {
       game.prizePool += game.currentQuestionValue;
       game.lastQuestionValue = game.currentQuestionValue;
       if (game.guildId) {
-        const xpMultiplier = game.hasMasterPerk ? 1.2 : 1;
-        leveling.addUserXp(game.guildId, game.userId, Math.floor(difficultyConfig.chatXp * xpMultiplier));
+        const triviaXpMultiplier = getTriviaXpMultiplier(game.userId);
+        leveling.addUserXp(game.guildId, game.userId, difficultyConfig.chatXp * triviaXpMultiplier);
       }
       if (game.hasMasterPerk) {
         game.currentRewardMultiplier = Math.max(1, game.currentRewardMultiplier * getTriviaMasterPerkMultiplier(game.userId));
