@@ -11,6 +11,7 @@ function getEmptyState() {
     stats: {},
     achievements: {},
     workCooldowns: {},
+    lastBetInputs: {},
   };
 }
 
@@ -291,6 +292,32 @@ function setWorkCooldown(userId, nextAvailableAt) {
   return state.workCooldowns[userId];
 }
 
+function getLastBetInput(userId, gameKey = 'default') {
+  const state = loadState();
+  const key = String(gameKey || 'default').trim().toLowerCase() || 'default';
+  const userInputs = state.lastBetInputs[userId] && typeof state.lastBetInputs[userId] === 'object'
+    ? state.lastBetInputs[userId]
+    : {};
+  const value = userInputs[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function setLastBetInput(userId, value, gameKey = 'default') {
+  const state = loadState();
+  const key = String(gameKey || 'default').trim().toLowerCase() || 'default';
+  const inputValue = String(value || '').trim();
+  if (!state.lastBetInputs[userId] || typeof state.lastBetInputs[userId] !== 'object') {
+    state.lastBetInputs[userId] = {};
+  }
+  if (inputValue) {
+    state.lastBetInputs[userId][key] = inputValue;
+  } else {
+    delete state.lastBetInputs[userId][key];
+  }
+  saveState(state);
+  return state.lastBetInputs[userId][key] || '';
+}
+
 module.exports = {
   STORE_PATH,
   getBalance,
@@ -312,4 +339,6 @@ module.exports = {
   getUserAchievements,
   getWorkCooldown,
   setWorkCooldown,
+  getLastBetInput,
+  setLastBetInput,
 };

@@ -8,6 +8,8 @@ const {
   spendBalance,
   recordGamblingEarnings,
   incrementMinefieldCompleted,
+  getLastBetInput,
+  setLastBetInput,
 } = require('../src/gamblingStore');
 const leveling = require('../src/levelingManager');
 const { unlockMinefieldAchievements } = require('../src/achievementSystem');
@@ -456,6 +458,7 @@ module.exports = {
                 min_length: 1,
                 max_length: 12,
                 placeholder: 'Example: 100 or 100XP',
+                ...(getLastBetInput(interaction.user.id, 'minefield') ? { value: getLastBetInput(interaction.user.id, 'minefield') } : {}),
               },
             },
           ],
@@ -596,6 +599,7 @@ module.exports = {
       };
 
       activeGames.set(game.id, game);
+      setLastBetInput(interaction.user.id, betInput, 'minefield');
       activeUserGames.set(game.userId, game.id);
       startUserSession(game.userId, {
         type: 'minefield',

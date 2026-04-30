@@ -12,6 +12,8 @@ const {
   spendBalance,
   addJackpotBalance,
   recordGamblingEarnings,
+  getLastBetInput,
+  setLastBetInput,
 } = require('../src/gamblingStore');
 const leveling = require('../src/levelingManager');
 const { unlockBullseyeAchievement } = require('../src/achievementSystem');
@@ -452,7 +454,7 @@ async function announceStraightWin(game, payout) {
   }).catch(() => null);
 }
 
-function buildModalComponents(betType) {
+function buildModalComponents(betType, defaultBetInput = '') {
   const betInput = {
     type: 18,
     label: 'Question 2: Bet amount',
@@ -464,6 +466,7 @@ function buildModalComponents(betType) {
       min_length: 1,
       max_length: 12,
       placeholder: 'Example: 100 or 100XP',
+      ...(defaultBetInput ? { value: defaultBetInput } : {}),
     },
   };
 
@@ -1191,6 +1194,7 @@ async function applyBet(interaction, game, betType) {
 
   game.bet = bet;
   game.betCurrency = currency;
+  setLastBetInput(game.userId, getSubmittedValue(interaction, 'bet'), 'roulette');
   game.betSelection = selection;
   game.status = 'bet_placed';
   game.resultNumber = null;
@@ -1325,7 +1329,7 @@ module.exports = {
       await interaction.showModal({
         custom_id: `roulette:modal:${interaction.user.id}:${game.id}:${betType}`,
         title: getModalTitle(betType),
-        components: buildModalComponents(betType),
+        components: buildModalComponents(betType, getLastBetInput(interaction.user.id, 'roulette')),
       });
       return true;
     }
