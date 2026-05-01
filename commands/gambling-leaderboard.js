@@ -20,6 +20,7 @@ const TYPE_OPTIONS = [
   { label: 'PRcoin leaderboard', value: 'money', description: 'Switch between all-time earnings and top balance.' },
   { label: 'Trivia best run', value: 'trivia', description: 'Best trivia score reached in one run.' },
   { label: 'Minefield completed', value: 'minefield', description: 'Total completed minefield games.' },
+  { label: 'Roulette Win', value: 'roulette', description: 'Total roulette wins and straight bet wins.' },
 ];
 
 const MONEY_MODES = {
@@ -34,6 +35,9 @@ function getDifficultyOptions(type) {
   if (type === 'minefield') {
     return ['all', 'easy', 'medium', 'hard', 'hardcore'];
   }
+  if (type === 'roulette') {
+    return ['all', 'straight'];
+  }
   return [];
 }
 
@@ -41,6 +45,7 @@ function difficultyLabel(type, difficulty) {
   if (type === 'trivia' && difficulty === 'all') return '🎲 Random Diff';
   if (difficulty === 'all') return 'All';
   if (type === 'minefield' && difficulty === 'hardcore') return '💀 HARDCORE';
+  if (type === 'roulette' && difficulty === 'straight') return 'Straight bet';
   if (difficulty === 'easy') return '🟢 Easy';
   if (difficulty === 'medium') return '🟡 Medium';
   if (difficulty === 'hard') return '🔴 Hard';
@@ -107,6 +112,7 @@ function getScore(type, difficulty, stats, balance, moneyMode) {
   if (type === 'money') return Math.max(0, Math.floor(Number(stats.moneyEarned) || 0));
   if (type === 'trivia') return Math.max(0, Math.floor(Number(stats.triviaBestRun?.[difficulty]) || 0));
   if (type === 'minefield') return Math.max(0, Math.floor(Number(stats.minefieldCompleted?.[difficulty]) || 0));
+  if (type === 'roulette') return Math.max(0, Math.floor(Number(stats.rouletteWins?.[difficulty]) || 0));
   return 0;
 }
 
@@ -115,6 +121,7 @@ function getTitle(type, difficulty, moneyMode) {
   if (type === 'money') return 'Total Earn (All Time)';
   if (type === 'trivia') return `Trivia best run • ${difficultyLabel(type, difficulty)}`;
   if (type === 'minefield') return `Minefield completed • ${difficultyLabel(type, difficulty)}`;
+  if (type === 'roulette') return `Roulette Win • ${difficultyLabel(type, difficulty)}`;
   return 'Gambling leaderboard';
 }
 

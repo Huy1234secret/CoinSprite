@@ -1,0 +1,6 @@
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { ITEMS, updateShopAndMarket, buyItem, PR } = require('../src/fishingMarketStore');
+const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
+module.exports={data:new SlashCommandBuilder().setName('shop').setDescription('Open shop').addStringOption(o=>o.setName('buy_item').setDescription('item id').addChoices({name:'Fishing rod',value:'fishing_rod'},{name:'Bucket of Worms',value:'bucket_worms'})).addIntegerOption(o=>o.setName('amount').setDescription('amount').setMinValue(1)),async execute(interaction){const state=updateShopAndMarket();const id=interaction.options.getString('buy_item');const amt=interaction.options.getInteger('amount')||1;if(id){const res=buyItem(interaction.user.id,id,amt);return interaction.reply({flags:EPHEMERAL,content:res.ok?`Bought ×${amt} ${ITEMS[id].name} for ${res.total} ${PR}.`:res.msg});}
+const lines=Object.values(ITEMS).filter(i=>i.buyable).map(i=>`### ${i.name} ${i.emoji} - ${i.price} ${PR}\n-# Usage: ${i.id==='fishing_rod'?'an item use for fishing':'upon use gain 3-10 worms'}\n-# 📦Stock: ${state.market.shopStock[i.id]||0}`);
+await interaction.reply({flags:EPHEMERAL,content:`## Welcome ${interaction.user} to Shop\n-# Restock at next hour\n${lines.join('\n')}`});}};

@@ -1,0 +1,4 @@
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { getInventory, ITEMS, getUser, PR } = require('../src/fishingMarketStore');
+const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
+module.exports={data:new SlashCommandBuilder().setName('inventory').setDescription('View inventory'),async execute(interaction){const inv=getInventory(interaction.user.id);const u=getUser(interaction.user.id);const lines=Object.entries(inv).map(([id,amt])=>{const it=ITEMS[id];if(id==='fishing_rod'&&u.equippedRodDurability>0){return `### ×${amt} ${it.name} ${it.emoji}\n-# **Using ×1 ${it.name} - Dur: ${u.equippedRodDurability}\n-# Value: ${Math.floor(it.price*0.1)} ${PR}`;} return `### ${it?.emoji||''} ×${amt} ${it?.name||id}\n-# Value: ${Math.floor((it?.price||0)*0.1)} ${PR}`;});await interaction.reply({flags:EPHEMERAL,content:`## ${interaction.user.username}'s Inventory\n${lines.join('\n')||'-# Empty'}`});}};
