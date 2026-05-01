@@ -27,19 +27,13 @@ setLogClient(client);
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
 for (const file of commandFiles) {
-  const filePath = path.join(commandsPath, file);
-  const command = require(filePath);
-  if (command.data && command.execute) {
-    client.commands.set(command.data.name, command);
-  }
+  const command = require(path.join(commandsPath, file));
+  if (command.data && command.execute) client.commands.set(command.data.name, command);
 }
 
 async function initCommandModules() {
   for (const command of client.commands.values()) {
-    if (typeof command.init !== 'function') {
-      continue;
-    }
-
+    if (typeof command.init !== 'function') continue;
     try {
       await command.init(client);
     } catch (error) {
@@ -51,12 +45,9 @@ async function initCommandModules() {
 
 async function registerSlashCommands() {
   const slashCommands = client.commands.map((command) => command.data.toJSON());
-
   try {
     const guild = await client.guilds.fetch(ALLOWED_GUILD_ID);
     await guild.commands.set(slashCommands);
-
-    // Ensure commands are not exposed globally.
     await client.application.commands.set([]);
     logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${ALLOWED_GUILD_ID}.`);
   } catch (error) {
@@ -68,83 +59,49 @@ async function registerSlashCommands() {
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
-
   await initCommandModules();
   await registerSlashCommands();
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
   if (member.guild?.id !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleGuildMemberAdd === 'function') {
-      await command.handleGuildMemberAdd(member, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
-
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (newMember.guild?.id !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleGuildMemberUpdate === 'function') {
-      await command.handleGuildMemberUpdate(oldMember, newMember, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
-
 client.on(Events.InviteCreate, async (invite) => {
   if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleInviteCreate === 'function') {
-      await command.handleInviteCreate(invite, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
-
 client.on(Events.InviteDelete, async (invite) => {
   if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleInviteDelete === 'function') {
-      await command.handleInviteDelete(invite, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
-
 client.on(Events.MessageCreate, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleMessageCreate === 'function') {
-      await command.handleMessageCreate(message, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
 });
-
 client.on(Events.MessageDelete, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleMessageDelete === 'function') {
-      await command.handleMessageDelete(message, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleMessageDelete === 'function') await command.handleMessageDelete(message, client);
 });
-
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (reaction.message?.guildId !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) {
-    if (typeof command.handleMessageReactionAdd === 'function') {
-      await command.handleMessageReactionAdd(reaction, user, client);
-    }
-  }
+  for (const command of client.commands.values()) if (typeof command.handleMessageReactionAdd === 'function') await command.handleMessageReactionAdd(reaction, user, client);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.guildId !== ALLOWED_GUILD_ID) {
-      if (interaction.isRepliable()) {
-        await interaction.reply({
-          content: 'This bot only works in the configured server.',
-          flags: EPHEMERAL_FLAG,
-        }).catch(() => null);
-      }
+      if (interaction.isRepliable()) await interaction.reply({ content: 'This bot only works in the configured server.', flags: EPHEMERAL_FLAG }).catch(() => null);
+      return;
+    }
+
+    if (interaction.isAutocomplete?.()) {
+      const command = client.commands.get(interaction.commandName);
+      if (command && typeof command.handleInteraction === 'function') await command.handleInteraction(interaction, client);
       return;
     }
 
@@ -157,11 +114,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           return;
         }
         if (!command.suppressCommandLog) {
-          logCommandUse({
-            userId: interaction.user.id,
-            command: `/${interaction.commandName}`,
-            channelId: interaction.channelId ?? 'unknown',
-          });
+          logCommandUse({ userId: interaction.user.id, command: `/${interaction.commandName}`, channelId: interaction.channelId ?? 'unknown' });
         }
         await command.execute(interaction, client);
       }
@@ -169,41 +122,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     for (const command of client.commands.values()) {
-      if (typeof command.handleInteraction === 'function') {
-        const handled = await command.handleInteraction(interaction, client);
-        if (handled) {
-          const shouldLogInteraction = typeof command.shouldLogInteraction === 'function'
-            ? command.shouldLogInteraction(interaction)
-            : true;
-          if (interaction.user && shouldLogInteraction) {
-            logCommandUse({
-              userId: interaction.user.id,
-              command: interaction.customId ?? interaction.type,
-              channelId: interaction.channelId ?? 'unknown',
-            });
-          }
-          return;
-        }
+      if (typeof command.handleInteraction !== 'function') continue;
+      const handled = await command.handleInteraction(interaction, client);
+      if (handled) {
+        const shouldLogInteraction = typeof command.shouldLogInteraction === 'function' ? command.shouldLogInteraction(interaction) : true;
+        if (interaction.user && shouldLogInteraction) logCommandUse({ userId: interaction.user.id, command: interaction.customId ?? interaction.type, channelId: interaction.channelId ?? 'unknown' });
+        return;
       }
     }
   } catch (error) {
     console.error('Interaction error:', error);
     logCommandSystem(`Interaction error: ${error?.message ?? 'unknown error'}`);
-
-    if (error?.code === 10062) {
-      return;
-    }
-
+    if (error?.code === 10062) return;
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
-      await interaction
-        .reply({
-          content: 'An error happened while handling this interaction.',
-          flags: EPHEMERAL_FLAG,
-        })
-        .catch((replyError) => {
-          console.error('Interaction fallback reply failed:', replyError);
-          logCommandSystem(`Interaction fallback reply failed: ${replyError?.message ?? 'unknown error'}`);
-        });
+      await interaction.reply({ content: 'An error happened while handling this interaction.', flags: EPHEMERAL_FLAG }).catch((replyError) => {
+        console.error('Interaction fallback reply failed:', replyError);
+        logCommandSystem(`Interaction fallback reply failed: ${replyError?.message ?? 'unknown error'}`);
+      });
     }
   }
 });
