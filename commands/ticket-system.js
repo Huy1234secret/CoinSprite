@@ -32,7 +32,6 @@ const CUSTOM_IDS = {
   crewRoleRequestModal: 'ticket:crew-role-request-modal',
   crewRoleUsername: 'roblox_username',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
-  giveawayHostRequestModal: 'ticket:giveaway-host-request-modal',
   giveawayCoreDetails: 'giveaway_core_details',
   giveawayWinnerCount: 'giveaway_winner_count',
   giveawayDuration: 'giveaway_duration',
@@ -90,12 +89,6 @@ function getTicketPanelPayload() {
                     value: 'request_role_crew_member_plus',
                     description: 'Verify your stat here to join the guild',
                     emoji: { name: '⭐' },
-                  },
-                  {
-                    label: 'Giveaway Host request',
-                    value: 'giveaway_host_request',
-                    description: 'Want to host a giveaway? Request it here.',
-                    emoji: { name: '🎁' },
                   },
                 ],
               },
@@ -989,49 +982,6 @@ module.exports = {
         return true;
       }
 
-      if (selected === 'giveaway_host_request') {
-        await interaction.showModal({
-          custom_id: CUSTOM_IDS.giveawayHostRequestModal,
-          title: 'Giveaway Host request',
-          components: [
-            {
-              type: 18,
-              label: 'Giveaway details',
-              description: 'Time, claim time, winners, requirement (if needed).',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.giveawayCoreDetails,
-                style: 2,
-                required: true,
-                max_length: 900,
-              },
-            },
-            {
-              type: 18,
-              label: 'Prize',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.giveawayPrize,
-                style: 2,
-                required: true,
-                max_length: 700,
-              },
-            },
-            {
-              type: 18,
-              label: 'Provide evidence that your prizes are ready',
-              component: {
-                type: 19,
-                custom_id: CUSTOM_IDS.giveawayEvidenceUpload,
-                min_values: 1,
-                max_values: 10,
-                required: true,
-              },
-            },
-          ],
-        });
-        return true;
-      }
     }
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.guildSupportModal) {
@@ -1106,95 +1056,6 @@ module.exports = {
       } else {
         await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral | COMPONENTS_V2_FLAG });
       }
-      return true;
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.giveawayHostRequestModal) {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
-      }
-
-      const state = loadState();
-      const giveawayBlacklist = state.blacklistedUsersByGuild[interaction.guildId] ?? [];
-      if (giveawayBlacklist.includes(interaction.user.id)) {
-        await interaction.editReply({
-          content: 'You are blacklisted from the ticket system.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
-      const giveawayDetails = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayCoreDetails, '').trim();
-      const prize = getTextInputValueSafely(interaction, CUSTOM_IDS.giveawayPrize, '');
-      const uploadedEvidence = (
-        typeof interaction?.fields?.getUploadedFiles === 'function'
-          ? interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
-          : []
-      );
-
-      if (!giveawayDetails) {
-        await interaction.editReply({
-          content: 'Please include your giveaway details (time, claim time, winners, and requirement if needed).',
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
-      if (uploadedEvidence.length === 0) {
-        await interaction.editReply({
-          content: 'Please upload at least one file for prize-ready evidence.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
-      const requestId = `${interaction.guildId}-${interaction.user.id}-${Date.now()}`;
-      state.giveawayRequests[requestId] = {
-        guildId: interaction.guildId,
-        userId: interaction.user.id,
-        giveawayDetails,
-        prize,
-        uploadedEvidence,
-        status: 'pending',
-        claimedEvidence: [],
-      };
-      saveState(state);
-
-      const reviewChannel = await interaction.guild.channels.fetch(GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
-      if (!reviewChannel?.isTextBased()) {
-        await interaction.editReply({
-          content: 'The giveaway review channel is currently unavailable. Please try again later.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return true;
-      }
-
-      const files = uploadedEvidence.slice(0, 10).map((item, index) => ({
-        attachment: item.url,
-        name: sanitizeAttachmentName(item.filename, index),
-      }));
-
-      const reviewMessage = await reviewChannel.send({
-        flags: COMPONENTS_V2_FLAG,
-        files,
-        components: [
-          ...getGiveawayRequestMessageComponents({
-            request: state.giveawayRequests[requestId],
-            statusText: 'Pending ⏳',
-            statusColor: 0xffffff,
-          }),
-          getGiveawayReviewActionRow(`${CUSTOM_IDS.giveawayReviewSelectPrefix}${requestId}`),
-        ],
-      });
-
-      state.giveawayRequests[requestId].reviewChannelId = reviewChannel.id;
-      state.giveawayRequests[requestId].reviewMessageId = reviewMessage.id;
-      saveState(state);
-
-      await interaction.editReply({
-        content: 'Your giveaway host request has been sent to staff for review.',
-        flags: MessageFlags.Ephemeral,
-      });
       return true;
     }
 
