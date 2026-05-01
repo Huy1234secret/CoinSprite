@@ -70,27 +70,8 @@ function getTicketPanelPayload() {
               {
                 type: 3,
                 custom_id: CUSTOM_IDS.panelTypeSelect,
-                placeholder: 'Choose a ticket type',
+                placeholder: 'Choose a request type',
                 options: [
-                  {
-                    label: 'Guild Support',
-                    value: 'guild_support',
-                    description:
-                      'Use this ticket for guild help, member issues, questions, or other guild-related support.',
-                    emoji: { name: '🛡️' },
-                  },
-                  {
-                    label: 'Request Giveaway',
-                    value: 'request_giveaway',
-                    description: 'Use this ticket to request a giveaway ticket.',
-                    emoji: { name: '🎁' },
-                  },
-                  {
-                    label: 'Guild Join Request',
-                    value: 'request_role_crew_member_plus',
-                    description: 'Verify your stat here to join the guild',
-                    emoji: { name: '⭐' },
-                  },
                   {
                     label: 'Giveaway Host request',
                     value: 'giveaway_host_request',
