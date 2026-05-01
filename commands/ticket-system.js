@@ -614,6 +614,21 @@ function normalizeCloseAction(action) {
   return action || 'close';
 }
 
+function getAttachmentTranscriptValue(attachment) {
+  if (!attachment?.url) return '';
+
+  const contentType = String(attachment.contentType || '').toLowerCase();
+  const fileName = String(attachment.name || attachment.filename || '').toLowerCase();
+  const isGif = contentType.includes('gif') || fileName.endsWith('.gif');
+  const isImage = contentType.startsWith('image/');
+  const isVideo = contentType.startsWith('video/');
+
+  if (isGif) return `GIF: ${attachment.url}`;
+  if (isImage) return `Image attachment: ${attachment.url}`;
+  if (isVideo) return `Video attachment: ${attachment.url}`;
+  return attachment.url;
+}
+
 async function saveTranscript(channel, options = {}) {
   const transcriptDir = path.join(__dirname, '..', 'transcripts');
   fs.mkdirSync(transcriptDir, { recursive: true });
@@ -625,7 +640,10 @@ async function saveTranscript(channel, options = {}) {
     const hh = String(ts.getHours()).padStart(2, '0');
     const mm = String(ts.getMinutes()).padStart(2, '0');
     const time = `${hh}:${mm}`;
-    const attachments = [...message.attachments.values()].map((a) => a.url).join(' ');
+    const attachments = [...message.attachments.values()]
+      .map((attachment) => getAttachmentTranscriptValue(attachment))
+      .filter(Boolean)
+      .join(' ');
     const content = `${message.content || ''} ${attachments}`.trim() || '[no content]';
     return `${time} // [${message.author.username}] - [${message.author.id}] : ${content}`;
   });
