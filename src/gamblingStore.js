@@ -150,6 +150,10 @@ function getDefaultUserStats() {
       hard: 0,
       hardcore: 0,
     },
+    rouletteWins: {
+      all: 0,
+      straight: 0,
+    },
   };
 }
 
@@ -183,6 +187,10 @@ function getUserStatsRecord(state, userId) {
     minefieldCompleted: {
       ...base.minefieldCompleted,
       ...(current.minefieldCompleted || {}),
+    },
+    rouletteWins: {
+      ...base.rouletteWins,
+      ...(current.rouletteWins || {}),
     },
   };
 
@@ -223,6 +231,17 @@ function getTriviaXpMultiplier(userId) {
   const totalCorrect = Math.max(0, Math.floor(Number(stats.triviaCorrectTotal) || 0));
   const tiers = Math.floor(totalCorrect / 50);
   return Number((1.1 ** tiers).toFixed(6));
+}
+
+
+function incrementRouletteWin(userId, betType = 'all') {
+  const safe = ['all','straight'].includes(betType) ? betType : 'all';
+  const state = loadState();
+  const stats = getUserStatsRecord(state, userId);
+  stats.rouletteWins.all += 1;
+  if (safe !== 'all') stats.rouletteWins[safe] += 1;
+  saveState(state);
+  return stats.rouletteWins;
 }
 
 function incrementMinefieldCompleted(userId, difficulty) {
@@ -342,6 +361,7 @@ module.exports = {
   recordTriviaRun,
   getTriviaXpMultiplier,
   incrementMinefieldCompleted,
+  incrementRouletteWin,
   getGamblingStats,
   getAllGamblingStats,
   getAllBalances,

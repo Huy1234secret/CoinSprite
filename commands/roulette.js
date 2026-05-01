@@ -12,6 +12,7 @@ const {
   spendBalance,
   addJackpotBalance,
   recordGamblingEarnings,
+  incrementRouletteWin,
   getLastBetInput,
   setLastBetInput,
 } = require('../src/gamblingStore');
@@ -1174,6 +1175,7 @@ async function settleSpin(gameId) {
   const payout = won ? Math.max(0, Math.floor(game.bet * multiplier)) : 0;
 
   if (won && payout > 0) {
+    incrementRouletteWin(game.userId, game.betSelection?.type === 'straight' ? 'straight' : 'all');
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
     if (game.guildId) leveling.addUserXp(game.guildId, game.userId, 10 * multiplier);
