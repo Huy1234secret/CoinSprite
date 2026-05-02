@@ -18,6 +18,7 @@ const {
 const STORE_PATH = path.join(__dirname, '..', 'data', 'fishing-economy.json');
 const HOUR_MS = 60 * 60 * 1000;
 const MARKET_HISTORY_LIMIT = 168;
+const FISH_IDS = new Set(FISHES.map((fish) => fish.id));
 
 function getEmptyState() {
   return {
@@ -46,14 +47,19 @@ function normalizeUser(user) {
   record.inventory = record.inventory && typeof record.inventory === 'object' ? record.inventory : {};
   record.gear = record.gear && typeof record.gear === 'object' ? record.gear : {};
   record.fishingUpgrades = record.fishingUpgrades && typeof record.fishingUpgrades === 'object' ? record.fishingUpgrades : {};
+  record.discoveredFish = Array.isArray(record.discoveredFish) ? record.discoveredFish.filter((id) => FISH_IDS.has(id)) : [];
+  const discovered = new Set(record.discoveredFish);
   for (const key of Object.keys(FISHING_UPGRADES)) {
     record.fishingUpgrades[key] = Math.max(0, Math.floor(Number(record.fishingUpgrades[key]) || 0));
   }
   for (const itemId of Object.keys(record.inventory)) {
     const amount = Math.max(0, Math.floor(Number(record.inventory[itemId]) || 0));
-    if (amount > 0) record.inventory[itemId] = amount;
-    else delete record.inventory[itemId];
+    if (amount > 0) {
+      record.inventory[itemId] = amount;
+      if (FISH_IDS.has(itemId)) discovered.add(itemId);
+    } else delete record.inventory[itemId];
   }
+  record.discoveredFish = [...discovered];
   return record;
 }
 
@@ -134,8 +140,14 @@ function addInventoryItem(userId, itemId, amount = 1) {
   return mutateState((state) => {
     const user = getUserRecord(state, userId);
     user.inventory[itemId] = Math.max(0, Math.floor(Number(user.inventory[itemId]) || 0)) + delta;
+    if (FISH_IDS.has(itemId) && !user.discoveredFish.includes(itemId)) user.discoveredFish.push(itemId);
     return user.inventory[itemId];
   });
+}
+
+function getDiscoveredFish(userId) {
+  const state = loadState();
+  return [...new Set(getUserRecord(state, userId).discoveredFish || [])].filter((id) => FISH_IDS.has(id));
 }
 
 function removeInventoryItem(userId, itemId, amount = 1) {
@@ -416,6 +428,7 @@ module.exports = {
   getInventory,
   getInventoryAmount,
   getInventoryEntries,
+  getDiscoveredFish,
   addInventoryItem,
   removeInventoryItem,
   getFishingUpgrades,
