@@ -10,6 +10,7 @@ const ITEMS_PER_PAGE = 5;
 function text(content) { return { type: 10, content }; }
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
 function row(...components) { return { type: 1, components }; }
+function section(content, accessory) { return { type: 9, components: [text(content)], accessory }; }
 function button(customId, label, style = 2, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
 function ownerFromId(customId) { return String(customId || '').split(':')[2]; }
 function userName(interaction) { return interaction.member?.displayName || interaction.user?.username || 'Player'; }
@@ -45,8 +46,7 @@ function buildInventoryPayload(interaction, page = 0) {
 
   if (equippedRod) {
     const rod = ITEM_BY_ID[FISHING_ROD_ID];
-    components.push(text(`### ×1 ${rod.name} ${rod.emoji}\n-# **Using ×1 ${rod.name} - Dur: ${Math.max(0, Math.floor(equippedRod.durability))}\n-# Value: ${formatNumber(getCollectableBaseValue(FISHING_ROD_ID))} ${PRCOIN}`));
-    components.push(row(button(`inventory:destroy:${userId}:${safePage}`, 'Destroy', 4, false)));
+    components.push(section(`### ×1 ${rod.name} ${rod.emoji}\n-# * **Using ×1 ${rod.name} - Dur: ${Math.max(0, Math.floor(equippedRod.durability))} **\n-# Value: ${formatNumber(getCollectableBaseValue(FISHING_ROD_ID))} ${PRCOIN}`, button(`inventory:destroy:${userId}:${safePage}`, 'Destroy', 4, false)));
   }
 
   if (!shown.length && !equippedRod) components.push(text('-# Your inventory is empty.'));

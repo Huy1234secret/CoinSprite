@@ -17,7 +17,7 @@ const JOBS = Buffer.from(WORK_JOBS_B64, 'base64').toString('utf8').trim().split(
     id: makeJobId(name),
     rank: index,
     name,
-    requiredWorks: Math.max(0, Math.floor(Number(workNeeded) || 0)),
+    requiredWorks: Math.max(0, Math.floor((Number(workNeeded) || 0) * 0.4)),
     requiredLevel: Math.max(1, Math.floor(Number(levelNeeded) || 1)),
     minXp: Math.max(0, Math.floor(Number(minXp) || 0)),
     maxXp: Math.max(0, Math.floor(Number(maxXp) || 0)),
