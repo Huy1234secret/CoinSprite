@@ -4,7 +4,6 @@ const { ALL_COLLECTABLES, BUCKET_OF_WORMS_ID, WORM_ID } = require('../src/fishin
 const { getInventoryAmount, useBucketOfWorms } = require('../src/fishingStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const USABLE_ITEMS = ALL_COLLECTABLES.filter((item) => item.usable);
 
 function panel(content, ok = true) {
@@ -28,7 +27,7 @@ module.exports = {
     const itemId = normalizeItemId(interaction.options.getString('item', true));
     const amount = Math.max(1, interaction.options.getInteger('amount') || 1);
     if (itemId !== BUCKET_OF_WORMS_ID) {
-      await interaction.reply({ content: 'That item cannot be used.', flags: EPHEMERAL_FLAG });
+      await interaction.reply({ content: 'That item cannot be used.' });
       return;
     }
     const result = useBucketOfWorms(interaction.user.id, amount);
