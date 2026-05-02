@@ -1,249 +1,47 @@
 const { MessageFlags } = require('discord.js');
-const {
-  getGamblingStats,
-  unlockAchievement,
-  hasAchievement,
-  getUserAchievements,
-} = require('./gamblingStore');
+const { getGamblingStats, unlockAchievement, hasAchievement, getUserAchievements } = require('./gamblingStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const ACHIEVEMENTS = [
-  {
-    id: 'trivia_learner',
-    name: 'Trivia Learner',
-    emoji: '<:ACTriviaLearner:1498695440118579260>',
-    footer: 'Answer correctly 100 trivia in Random difficulty in one run!',
-    funMessage: 'Your brain has officially warmed up. Keep cooking! 🧠',
-  },
-  {
-    id: 'trivia_thinker',
-    name: 'Trivia Thinker',
-    emoji: '<:ACTriviaThinker:1498695445487030333>',
-    footer: 'Answer correctly 250 trivia in Random difficulty in one run!',
-    funMessage: 'You are no longer guessing… probably. 🤔',
-  },
-  {
-    id: 'trivia_expert',
-    name: 'Trivia Expert',
-    emoji: '<:ACTriviaExpert:1498695438197461072>',
-    footer: 'Answer correctly 500 trivia in Random difficulty in one run!',
-    funMessage: 'At this point, the questions are scared of you. 📚',
-  },
-  {
-    id: 'trivia_master',
-    name: 'Trivia Master',
-    emoji: '<:ACTriviaMaster:1498695442794283028>',
-    footer: 'Answer correctly 1000 trivia in Random difficulty in one run!',
-    funMessage: '1,000 correct answers in one run?... please go touch grass respectfully 🌱',
-    perk: 'Every 1 trivia answered correctly the prize pool get multiplied by 1.01x, answering wrong once reset prize pool to normal. Also x1.2 XP from correct answer.',
-  },
-  {
-    id: 'easy_field_farmer',
-    name: 'Easy Field Farmer',
-    emoji: '<:ACEasyFieldFarmer:1498695424419303524>',
-    footer: 'Complete minefield game on Easy once!',
-    funMessage: 'You survived the tutorial field. The mines were being nice today. 🌱',
-  },
-  {
-    id: 'danger_walker',
-    name: 'Danger Walker',
-    emoji: '<:ACDangerWalker:1498695428223533157>',
-    footer: 'Complete minefield game on Medium once!',
-    funMessage: 'Every step was a bad idea… but somehow it worked. 💣',
-  },
-  {
-    id: 'risk_taker',
-    name: 'Risk Taker',
-    emoji: '<:ACRiskTaker:1498695419843317933>',
-    footer: 'Complete minefield game on Hard once!',
-    funMessage: 'You walked through danger like you had plot armor. 😎',
-  },
-  {
-    id: 'no_fear_gambler',
-    name: 'No-Fear Gambler',
-    emoji: '<:ACNoFearGambler:1498695422305374471>',
-    footer: 'Complete minefield game on **Hardcore** once!',
-    funMessage: 'At this point, the mines are filing a complaint. 🧨',
-  },
-  {
-    id: 'bullseye_bet',
-    name: 'Bullseye Bet',
-    emoji: '<:ACBullseyeBet:1498695415313469600>',
-    footer: 'Win a **Straight** bet in roulette once.',
-    funMessage: 'One number. One bet. One clean win. 🔥',
-  },
-  {
-    id: 'are_we_serious',
-    name: 'Are we SERIOUS',
-    emoji: '<:AC67:1498695412738031727>',
-    footer: '6......7.......?',
-    perk: '`discover the SECRET achievement first`',
-  },
-  {
-    id: 'one_step_forward',
-    name: 'One step forward',
-    emoji: '<:ACFinalStep:1498695416944787626>',
-    footer: '...and BOOOOOOOOOOOOM!!!!',
-    perk: '`discover the SECRET achievement first`',
-  },
+  { id: 'trivia_learner', name: 'Trivia Learner', emoji: '<:ACTriviaLearner:1498695440118579260>', footer: 'Answer correctly 100 trivia in Random difficulty in one run!', funMessage: 'Your brain has officially warmed up. Keep cooking! 🧠' },
+  { id: 'trivia_thinker', name: 'Trivia Thinker', emoji: '<:ACTriviaThinker:1498695445487030333>', footer: 'Answer correctly 250 trivia in Random difficulty in one run!', funMessage: 'You are no longer guessing… probably. 🤔' },
+  { id: 'trivia_expert', name: 'Trivia Expert', emoji: '<:ACTriviaExpert:1498695438197461072>', footer: 'Answer correctly 500 trivia in Random difficulty in one run!', funMessage: 'At this point, the questions are scared of you. 📚' },
+  { id: 'trivia_master', name: 'Trivia Master', emoji: '<:ACTriviaMaster:1498695442794283028>', footer: 'Answer correctly 1000 trivia in Random difficulty in one run!', funMessage: '1,000 correct answers in one run?... please go touch grass respectfully 🌱', perk: 'Every 1 trivia answered correctly the prize pool get multiplied by 1.01x, answering wrong once reset prize pool to normal. Also x1.2 XP from correct answer.' },
+  { id: 'easy_field_farmer', name: 'Easy Field Farmer', emoji: '<:ACEasyFieldFarmer:1498695424419303524>', footer: 'Complete minefield game on Easy once!', funMessage: 'You survived the tutorial field. The mines were being nice today. 🌱' },
+  { id: 'danger_walker', name: 'Danger Walker', emoji: '<:ACDangerWalker:1498695428223533157>', footer: 'Complete minefield game on Medium once!', funMessage: 'Every step was a bad idea… but somehow it worked. 💣' },
+  { id: 'risk_taker', name: 'Risk Taker', emoji: '<:ACRiskTaker:1498695419843317933>', footer: 'Complete minefield game on Hard once!', funMessage: 'You walked through danger like you had plot armor. 😎' },
+  { id: 'no_fear_gambler', name: 'No-Fear Gambler', emoji: '<:ACNoFearGambler:1498695422305374471>', footer: 'Complete minefield game on **Hardcore** once!', funMessage: 'At this point, the mines are filing a complaint. 🧨' },
+  { id: 'bullseye_bet', name: 'Bullseye Bet', emoji: '<:ACBullseyeBet:1498695415313469600>', footer: 'Win a **Straight** bet in roulette once.', funMessage: 'One number. One bet. One clean win. 🔥' },
+  { id: 'work_once', name: 'Applied a Job', emoji: '<:ACWO:1500152049751560353>', footer: 'Work once. Complete or fail, it still counts.', funMessage: 'You are no longer unemployed, congrats!' },
+  { id: 'work_10', name: 'Work 10 times!', emoji: '<:ACW10T:1500152044198035496>', footer: 'Work 10 times. Complete or fail, it still counts.', funMessage: 'You started loving your job!' },
+  { id: 'work_100', name: 'Work 100 times!', emoji: '<:ACW100T:1500152045972226160>', footer: 'Work 100 times. Complete or fail, it still counts.', funMessage: 'Your boss must be proud of you' },
+  { id: 'work_1000', name: 'Work 1000 times', emoji: '<:ACW1KT:1500152047889158284>', footer: 'Work 1000 times. Complete or fail, it still counts.', funMessage: 'Ok this is kinda too much, you should rest.' },
+  { id: 'jobless', name: 'Jobless', emoji: '<:ACJF:1500152031606997062>', footer: 'Get fired from a job.', funMessage: "I'm upset about you." },
+  { id: 'true_work', name: 'TRUE WORK', emoji: '<:ACAJ:1500152027295125524>', footer: 'Work on each job at least once, get fired from each job at least once and get pay raise on each job at least once.', funMessage: 'Why would you do this?... Please go outside, touch some grass, breath some air.' },
+  { id: 'bone_fish', name: '🐟', emoji: '<:ACBF:1500152029396336720>', footer: 'Currently unobtainable, just show in achievement page c:', funMessage: 'Just a fish... just bones....' },
+  { id: 'fish_once', name: 'First Catch', emoji: '<:ACFF:1500152032840122429>', footer: 'Fish once.', funMessage: 'The water has accepted you.' },
+  { id: 'fish_10', name: 'Fish 10 times!', emoji: '<:ACF10:1500152021171568680>', footer: 'Fish 10 times.', funMessage: 'Your fishing rod is getting busy.' },
+  { id: 'fish_100', name: 'Fish 100 times!', emoji: '<:ACF100:1500152023180513280>', footer: 'Fish 100 times.', funMessage: 'The fish are starting to recognize you.' },
+  { id: 'fish_1000', name: 'Fish 1000 times', emoji: '<:ACF1K:1500152025667735603>', footer: 'Fish 1000 times.', funMessage: 'You might be part fish now.' },
+  { id: 'secret_fish', name: 'The Ancient Fish', emoji: '<:ACSF:1500152042507780944>', footer: 'Fish any secret fish at least once.', funMessage: 'Do you believe it?' },
+  { id: 'mythic_fish', name: 'The Mythic Fish', emoji: '<:ACMF:1500152040611909633>', footer: 'Fish any mythic fish at least once.', funMessage: 'so Mythical' },
+  { id: 'legendary_fish', name: 'The Legendary Fish', emoji: '<:ACLF:1500152038154043422>', footer: 'Fish any legendary fish at least once.', funMessage: 'so shiny!' },
+  { id: 'fish_collector', name: 'The Fish Collector', emoji: '<:ACCFI:1500152035256041584>', footer: 'Complete fish index.', funMessage: 'Your fishing journey ends here.... or maybe not' },
+  { id: 'are_we_serious', name: 'Are we SERIOUS', emoji: '<:AC67:1498695412738031727>', footer: '6......7.......?', perk: '`discover the SECRET achievement first`' },
+  { id: 'one_step_forward', name: 'One step forward', emoji: '<:ACFinalStep:1498695416944787626>', footer: '...and BOOOOOOOOOOOOM!!!!', perk: '`discover the SECRET achievement first`' },
 ];
 
 const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((item) => [item.id, item]));
-
-function buildAchievementLines(achievement, obtained) {
-  const lines = [
-    `### ${achievement.emoji} ${achievement.name}`,
-    `-# ${achievement.footer}`,
-  ];
-
-  if (achievement.perk) {
-    lines.push(`-# * Perk: ${achievement.perk}`);
-  }
-
-  const status = obtained ? 'Obtained' : 'Not obtained';
-  const statusEmoji = obtained ? '✅' : '❌';
-  lines.push(`* Obtained: ${status} ${statusEmoji}`);
-  return lines.join('\n');
-}
-
-function buildAchievementsPage(user, page = 1, pageSize = 5) {
-  const unlocked = getUserAchievements(user.id);
-  const maxPage = Math.max(1, Math.ceil(ACHIEVEMENTS.length / pageSize));
-  const safePage = Math.max(1, Math.min(maxPage, Math.floor(Number(page) || 1)));
-  const start = (safePage - 1) * pageSize;
-  const items = ACHIEVEMENTS.slice(start, start + pageSize);
-
-  const content = [
-    `## ${user.username}'s Achievements`,
-    ...items.map((achievement) => buildAchievementLines(achievement, Boolean(unlocked[achievement.id]?.unlockedAt))),
-  ].join('\n\n');
-
-  const payload = {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          { type: 10, content },
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                custom_id: `achievements:switch:${user.id}:${safePage}:${maxPage}`,
-                label: 'Switch page',
-                style: 2,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  };
-
-  return { payload, page: safePage, maxPage };
-}
-
-async function sendAchievementUnlockMessage(channel, user, achievement) {
-  if (!channel || !user || !achievement) return;
-
-  const content = [
-    `${user} You have unlocked an achievement!`,
-    `## ${achievement.name}`,
-    `-# ${achievement.funMessage || 'Achievement unlocked!'}`,
-  ].join('\n');
-
-  const emojiIdMatch = achievement.emoji.match(/:(\d+)>$/);
-  const thumbnailUrl = emojiIdMatch ? `https://cdn.discordapp.com/emojis/${emojiIdMatch[1]}.png?size=128&quality=lossless` : null;
-
-  await channel.send({
-    flags: COMPONENTS_V2_FLAG,
-    allowedMentions: { users: [typeof user === 'string' ? user.replace(/[<@!>]/g, '') : user.id] },
-    components: [
-      {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          thumbnailUrl
-            ? {
-              type: 9,
-              components: [{ type: 10, content }],
-              accessory: {
-                type: 11,
-                media: { url: thumbnailUrl },
-              },
-            }
-            : { type: 10, content },
-        ],
-      },
-    ],
-  }).catch(() => null);
-}
-
-async function unlockAndAnnounce(channel, user, achievementId) {
-  const achievement = ACHIEVEMENT_BY_ID[achievementId];
-  if (!achievement) return false;
-
-  const unlocked = unlockAchievement(user.id, achievementId);
-  if (!unlocked) return false;
-
-  await sendAchievementUnlockMessage(channel, `<@${user.id}>`, achievement);
-  return true;
-}
-
-async function unlockTriviaAchievements(channel, user) {
-  const stats = getGamblingStats(user.id);
-  const best = Number(stats?.triviaBestRun?.all || 0);
-  const ids = [];
-
-  if (best >= 100) ids.push('trivia_learner');
-  if (best >= 250) ids.push('trivia_thinker');
-  if (best >= 500) ids.push('trivia_expert');
-  if (best >= 1000) ids.push('trivia_master');
-
-  for (const id of ids) {
-    // eslint-disable-next-line no-await-in-loop
-    await unlockAndAnnounce(channel, user, id);
-  }
-}
-
-async function unlockMinefieldAchievements(channel, user) {
-  const stats = getGamblingStats(user.id);
-  const completed = stats?.minefieldCompleted || {};
-  const ids = [];
-
-  if ((completed.easy || 0) >= 1) ids.push('easy_field_farmer');
-  if ((completed.medium || 0) >= 1) ids.push('danger_walker');
-  if ((completed.hard || 0) >= 1) ids.push('risk_taker');
-  if ((completed.hardcore || 0) >= 1) ids.push('no_fear_gambler');
-
-  for (const id of ids) {
-    // eslint-disable-next-line no-await-in-loop
-    await unlockAndAnnounce(channel, user, id);
-  }
-}
-
-async function unlockBullseyeAchievement(channel, user) {
-  await unlockAndAnnounce(channel, user, 'bullseye_bet');
-}
-
-function getTriviaMasterPerkMultiplier(userId) {
-  return hasAchievement(userId, 'trivia_master') ? 1.01 : 1;
-}
-
-function resetTriviaMasterPerkMultiplier(userId) {
-  return hasAchievement(userId, 'trivia_master') ? 1 : 1;
-}
-
-module.exports = {
-  ACHIEVEMENTS,
-  buildAchievementsPage,
-  unlockTriviaAchievements,
-  unlockMinefieldAchievements,
-  unlockBullseyeAchievement,
-  getTriviaMasterPerkMultiplier,
-  resetTriviaMasterPerkMultiplier,
-};
+function buildAchievementLines(achievement, obtained) { const lines = [`### ${achievement.emoji} ${achievement.name}`, `-# ${achievement.footer}`]; if (achievement.perk) lines.push(`-# * Perk: ${achievement.perk}`); lines.push(`* Obtained: ${obtained ? 'Obtained ✅' : 'Not obtained ❌'}`); return lines.join('\n'); }
+function buildAchievementsPage(user, page = 1, pageSize = 5) { const unlocked = getUserAchievements(user.id); const maxPage = Math.max(1, Math.ceil(ACHIEVEMENTS.length / pageSize)); const safePage = Math.max(1, Math.min(maxPage, Math.floor(Number(page) || 1))); const items = ACHIEVEMENTS.slice((safePage - 1) * pageSize, ((safePage - 1) * pageSize) + pageSize); const content = [`## ${user.username}'s Achievements`, ...items.map((a) => buildAchievementLines(a, Boolean(unlocked[a.id]?.unlockedAt)))].join('\n\n'); return { payload: { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: 0xffffff, components: [{ type: 10, content }, { type: 14, divider: true, spacing: 1 }, { type: 1, components: [{ type: 2, custom_id: `achievements:switch:${user.id}:${safePage}:${maxPage}`, label: 'Switch page', style: 2 }] }] }] }, page: safePage, maxPage }; }
+async function sendAchievementUnlockMessage(channel, user, achievement) { if (!channel || !user || !achievement) return; const content = [`${user} You have unlocked an achievement!`, `## ${achievement.name}`, `-# ${achievement.funMessage || 'Achievement unlocked!'}`].join('\n'); const emojiIdMatch = achievement.emoji.match(/:(\d+)>$/); const thumbnailUrl = emojiIdMatch ? `https://cdn.discordapp.com/emojis/${emojiIdMatch[1]}.png?size=128&quality=lossless` : null; await channel.send({ flags: COMPONENTS_V2_FLAG, allowedMentions: { users: [typeof user === 'string' ? user.replace(/[<@!>]/g, '') : user.id] }, components: [{ type: 17, accent_color: 0xffffff, components: [thumbnailUrl ? { type: 9, components: [{ type: 10, content }], accessory: { type: 11, media: { url: thumbnailUrl } } } : { type: 10, content }] }] }).catch(() => null); }
+async function unlockAndAnnounce(channel, user, achievementId) { const achievement = ACHIEVEMENT_BY_ID[achievementId]; if (!achievement) return false; if (!unlockAchievement(user.id, achievementId)) return false; await sendAchievementUnlockMessage(channel, `<@${user.id}>`, achievement); return true; }
+async function unlockTriviaAchievements(channel, user) { const best = Number(getGamblingStats(user.id)?.triviaBestRun?.all || 0); for (const [score, id] of [[100, 'trivia_learner'], [250, 'trivia_thinker'], [500, 'trivia_expert'], [1000, 'trivia_master']]) if (best >= score) await unlockAndAnnounce(channel, user, id); }
+async function unlockMinefieldAchievements(channel, user) { const completed = getGamblingStats(user.id)?.minefieldCompleted || {}; for (const [key, id] of [['easy', 'easy_field_farmer'], ['medium', 'danger_walker'], ['hard', 'risk_taker'], ['hardcore', 'no_fear_gambler']]) if ((completed[key] || 0) >= 1) await unlockAndAnnounce(channel, user, id); }
+async function unlockBullseyeAchievement(channel, user) { await unlockAndAnnounce(channel, user, 'bullseye_bet'); }
+async function unlockWorkAchievements(channel, user, workStats = {}) { const total = Math.max(0, Math.floor(Number(workStats.totalWorks) || 0)); for (const [count, id] of [[1, 'work_once'], [10, 'work_10'], [100, 'work_100'], [1000, 'work_1000']]) if (total >= count) await unlockAndAnnounce(channel, user, id); if ((workStats.totalFired || 0) > 0) await unlockAndAnnounce(channel, user, 'jobless'); if (workStats.trueWorkComplete) await unlockAndAnnounce(channel, user, 'true_work'); }
+async function unlockFishAchievements(channel, user, fishStats = {}, fish = null, totalFishCount = 0) { const total = Math.max(0, Math.floor(Number(fishStats.total) || 0)); for (const [count, id] of [[1, 'fish_once'], [10, 'fish_10'], [100, 'fish_100'], [1000, 'fish_1000']]) if (total >= count) await unlockAndAnnounce(channel, user, id); if (fish?.rarity === 'secret') await unlockAndAnnounce(channel, user, 'secret_fish'); if (fish?.rarity === 'mythical') await unlockAndAnnounce(channel, user, 'mythic_fish'); if (fish?.rarity === 'legendary') await unlockAndAnnounce(channel, user, 'legendary_fish'); if (totalFishCount > 0 && Object.keys(fishStats.byFish || {}).length >= totalFishCount) await unlockAndAnnounce(channel, user, 'fish_collector'); }
+function getTriviaMasterPerkMultiplier(userId) { return hasAchievement(userId, 'trivia_master') ? 1.01 : 1; }
+function resetTriviaMasterPerkMultiplier(userId) { return hasAchievement(userId, 'trivia_master') ? 1 : 1; }
+module.exports = { ACHIEVEMENTS, buildAchievementsPage, unlockAndAnnounce, unlockTriviaAchievements, unlockMinefieldAchievements, unlockBullseyeAchievement, unlockWorkAchievements, unlockFishAchievements, getTriviaMasterPerkMultiplier, resetTriviaMasterPerkMultiplier };
