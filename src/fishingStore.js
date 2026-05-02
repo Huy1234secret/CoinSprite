@@ -19,7 +19,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MARKET_HISTORY_LIMIT = 168;
 const FISH_IDS = new Set(FISHES.map((fish) => fish.id));
 
-function getEmptyState() { return { users: {}, shop: { stockHour: null, stock: {} }, market: { lastUpdateHour: null, items: {} } }; }
+function getEmptyState() { return { users: {}, shop: { stockHour: null, stocksByUser: {} }, market: { lastUpdateHour: null, items: {} } }; }
 function ensureStoreFile() { const dir = path.dirname(STORE_PATH); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE_PATH)) fs.writeFileSync(STORE_PATH, JSON.stringify(getEmptyState(), null, 2), 'utf8'); }
 function normalizeUser(user) {
   const record = user && typeof user === 'object' ? { ...user } : {};
@@ -39,7 +39,13 @@ function normalizeUser(user) {
 function getMarketBaseBuyPrice(itemId) { const item = ITEM_BY_ID[itemId]; if (!item) return 1; if (Number.isFinite(item.price) && item.price > 0) return Math.max(1, Math.round(item.price)); return Math.max(1, Math.round(Number(item.baseValue) || getCollectableBaseValue(itemId) || 1)); }
 function getDefaultSellPrice(buyPrice) { return Math.max(1, Math.floor((Number(buyPrice) || 1) * 0.70)); }
 function normalizeMarketItem(itemId, entry) { const baseBuy = getMarketBaseBuyPrice(itemId); const buyPrice = Math.max(Math.floor(baseBuy * 0.25), Math.round(Number(entry?.buyPrice) || baseBuy)); const sellPrice = Math.min(buyPrice - 1, Math.max(1, Math.round(Number(entry?.sellPrice) || getDefaultSellPrice(buyPrice)))); const history = Array.isArray(entry?.history) ? entry.history.slice(-MARKET_HISTORY_LIMIT) : []; if (!history.length) history.push({ t: Date.now(), buy: buyPrice, sell: sellPrice }); return { buyPrice, sellPrice, buyVolume: Math.max(0, Math.floor(Number(entry?.buyVolume) || 0)), sellVolume: Math.max(0, Math.floor(Number(entry?.sellVolume) || 0)), history }; }
-function normalizeState(state) { const empty = getEmptyState(); const next = state && typeof state === 'object' ? { ...state } : empty; next.users = next.users && typeof next.users === 'object' ? next.users : {}; next.shop = next.shop && typeof next.shop === 'object' ? next.shop : empty.shop; next.shop.stock = next.shop.stock && typeof next.shop.stock === 'object' ? next.shop.stock : {}; next.market = next.market && typeof next.market === 'object' ? next.market : empty.market; next.market.items = next.market.items && typeof next.market.items === 'object' ? next.market.items : {}; for (const userId of Object.keys(next.users)) next.users[userId] = normalizeUser(next.users[userId]); for (const itemId of [...ITEMS.map((item) => item.id), ...FISHES.map((fish) => fish.id)]) next.market.items[itemId] = normalizeMarketItem(itemId, next.market.items[itemId]); return next; }
+function normalizeState(state) { const empty = getEmptyState(); const next = state && typeof state === 'object' ? { ...state } : empty; next.users = next.users && typeof next.users === 'object' ? next.users : {}; next.shop = next.shop && typeof next.shop === 'object' ? next.shop : empty.shop; next.shop.stocksByUser = next.shop.stocksByUser && typeof next.shop.stocksByUser === 'object' ? next.shop.stocksByUser : {};
+  if (next.shop.stock && typeof next.shop.stock === 'object') {
+    for (const userId of Object.keys(next.users)) {
+      if (!next.shop.stocksByUser[userId]) next.shop.stocksByUser[userId] = JSON.parse(JSON.stringify(next.shop.stock));
+    }
+    delete next.shop.stock;
+  } next.market = next.market && typeof next.market === 'object' ? next.market : empty.market; next.market.items = next.market.items && typeof next.market.items === 'object' ? next.market.items : {}; for (const userId of Object.keys(next.users)) next.users[userId] = normalizeUser(next.users[userId]); for (const itemId of [...ITEMS.map((item) => item.id), ...FISHES.map((fish) => fish.id)]) next.market.items[itemId] = normalizeMarketItem(itemId, next.market.items[itemId]); return next; }
 function loadState() { ensureStoreFile(); try { return normalizeState(JSON.parse(fs.readFileSync(STORE_PATH, 'utf8'))); } catch { return getEmptyState(); } }
 function saveState(state) { ensureStoreFile(); fs.writeFileSync(STORE_PATH, JSON.stringify(normalizeState(state), null, 2), 'utf8'); }
 function mutateState(mutator) { const state = loadState(); const result = mutator(state); saveState(state); return result; }
@@ -61,9 +67,11 @@ function hasFishingRequirements(userId) { const state = loadState(); const user 
 function useBucketOfWorms(userId, amount = 1) { const count = Math.max(1, Math.floor(Number(amount) || 1)); const owned = getInventoryAmount(userId, BUCKET_OF_WORMS_ID); if (owned < count) return { ok: false, gained: 0, used: 0, missing: count - owned }; let gained = 0; for (let i = 0; i < count; i += 1) gained += randomInt(5, 10); return mutateState((state) => { const user = getUserRecord(state, userId); user.inventory[BUCKET_OF_WORMS_ID] -= count; if (user.inventory[BUCKET_OF_WORMS_ID] <= 0) delete user.inventory[BUCKET_OF_WORMS_ID]; user.inventory[WORM_ID] = Math.max(0, Number(user.inventory[WORM_ID]) || 0) + gained; return { ok: true, gained, used: count }; }); }
 function getCurrentShopHour(now = new Date()) { const shifted = new Date(now.getTime() + (7 * HOUR_MS)); shifted.setUTCMinutes(0, 0, 0); return shifted.toISOString(); }
 function generateShopStock() { const stock = {}; for (const shopKey of Object.keys(SHOP_TYPES)) stock[shopKey] = {}; for (const item of ITEMS) if (item.shop && item.stockMin != null && item.stockMax != null) stock[item.shop][item.id] = randomInt(item.stockMin, item.stockMax); return stock; }
-function refreshShopStockIfNeeded(state) { const currentHour = getCurrentShopHour(); if (state.shop.stockHour !== currentHour) { state.shop.stockHour = currentHour; state.shop.stock = generateShopStock(); } }
-function getShopState() { const state = loadState(); refreshShopStockIfNeeded(state); saveState(state); return JSON.parse(JSON.stringify(state.shop)); }
-function decrementShopStock(shopKey, itemId, amount) { const count = Math.max(1, Math.floor(Number(amount) || 1)); return mutateState((state) => { refreshShopStockIfNeeded(state); const stock = Math.max(0, Math.floor(Number(state.shop.stock?.[shopKey]?.[itemId]) || 0)); if (stock < count) return false; state.shop.stock[shopKey][itemId] = stock - count; return true; }); }
+function refreshShopStockIfNeeded(state, userId) { const currentHour = getCurrentShopHour(); if (state.shop.stockHour !== currentHour) { state.shop.stockHour = currentHour; state.shop.stocksByUser = {}; }
+  if (!state.shop.stocksByUser[userId]) state.shop.stocksByUser[userId] = generateShopStock();
+}
+function getShopState(userId) { const state = loadState(); refreshShopStockIfNeeded(state, userId); saveState(state); return JSON.parse(JSON.stringify(state.shop.stocksByUser[userId] || {})); }
+function decrementShopStock(userId, shopKey, itemId, amount) { const count = Math.max(1, Math.floor(Number(amount) || 1)); return mutateState((state) => { refreshShopStockIfNeeded(state, userId); const stock = Math.max(0, Math.floor(Number(state.shop.stocksByUser?.[userId]?.[shopKey]?.[itemId]) || 0)); if (stock < count) return false; state.shop.stocksByUser[userId][shopKey][itemId] = stock - count; return true; }); }
 function getMarketFloor(itemId) { return Math.max(1, Math.floor(getMarketBaseBuyPrice(itemId) * 0.35)); }
 function getMarketSoftCap(itemId) { return Math.max(2, Math.floor(getMarketBaseBuyPrice(itemId) * 6)); }
 function getMarketItem(state, itemId) { if (!state.market.items[itemId]) state.market.items[itemId] = normalizeMarketItem(itemId, null); state.market.items[itemId] = normalizeMarketItem(itemId, state.market.items[itemId]); return state.market.items[itemId]; }

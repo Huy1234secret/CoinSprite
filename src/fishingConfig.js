@@ -3,12 +3,12 @@ const WORM_ID = 'worm';
 const BUCKET_OF_WORMS_ID = 'bucket_of_worms';
 
 const RARITY_EMOJIS = {
-  common: '⚪',
-  rare: '🔵',
-  epic: '🟣',
-  legendary: '🟡',
-  mythical: '🔮',
-  secret: '🌌',
+  common: '<:SBCommon:1500170919614873720>',
+  rare: '<:SBRare:1500170929794449642>',
+  epic: '<:SBEpic:1500170921623945356>',
+  legendary: '<:SBLegendary:1500170923398008882>',
+  mythical: '<:SBMythical:1500170927378534621>',
+  secret: '<:SBSecret:1500170932235276398>',
 };
 
 const RARITY_LABELS = {

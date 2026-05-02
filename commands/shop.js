@@ -19,7 +19,7 @@ function getShopItems(shopKey) { return ITEMS.filter((item) => item.shop === sho
 
 function buildShopPayload(interaction, shopKey = 'general', page = 0) {
   const userId = interaction.user.id;
-  const shop = getShopState();
+  const shopStock = getShopState(interaction.user.id);
   const items = getShopItems(shopKey);
   const pages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
   const safePage = ((Number(page) || 0) % pages + pages) % pages;
@@ -27,7 +27,7 @@ function buildShopPayload(interaction, shopKey = 'general', page = 0) {
   const components = [text(`## Welcome ${interaction.user} to Shop\n${countdown()}`)];
   if (!shown.length) components.push(text('-# This shop has no stocked items yet.'));
   for (const item of shown) {
-    const stock = Math.max(0, Math.floor(Number(shop.stock?.[shopKey]?.[item.id]) || 0));
+    const stock = Math.max(0, Math.floor(Number(shopStock?.[shopKey]?.[item.id]) || 0));
     components.push(text(`### ${item.name} ${item.emoji} - ${formatNumber(item.price)} ${coinForShop(shopKey)}\n-# ${item.description}\n-# 📦Stock: ${stock}`));
     components.push(row(button(`shop:buy:${userId}:${shopKey}:${item.id}`, 'BUY', stock > 0 ? 3 : 4, stock <= 0)));
   }
@@ -47,7 +47,7 @@ async function showPageModal(interaction, shopKey, currentPage, maxPage) {
 }
 
 async function showBuyModal(interaction, shopKey, itemId) {
-  const stock = Math.max(0, Math.floor(Number(getShopState().stock?.[shopKey]?.[itemId]) || 0));
+  const stock = Math.max(0, Math.floor(Number(getShopState(interaction.user.id)?.[shopKey]?.[itemId]) || 0));
   const item = ITEM_BY_ID[itemId];
   if (!item || stock <= 0) { await interaction.reply({ content: 'That item is out of stock.', flags: EPHEMERAL_FLAG }); return; }
   const modal = new ModalBuilder().setCustomId(`shopmodal:${interaction.user.id}:${shopKey}:${itemId}`).setTitle(`Buy ${item.name}`).addComponents(
@@ -70,7 +70,7 @@ module.exports = {
         const item = ITEM_BY_ID[itemId];
         const amount = Math.max(1, parseAmount(rawAmount));
         const total = item.price * amount;
-        if (!decrementShopStock(shopKey, itemId, amount)) { await interaction.update({ content: 'That shop stock changed and there is not enough left.', components: [] }); return true; }
+        if (!decrementShopStock(interaction.user.id, shopKey, itemId, amount)) { await interaction.update({ content: 'That shop stock changed and there is not enough left.', components: [] }); return true; }
         if (!spendBalance(interaction.user.id, total)) { await interaction.update({ content: `You no longer have enough ${coinForShop(shopKey)} for this purchase.`, components: [] }); return true; }
         addInventoryItem(interaction.user.id, itemId, amount); recordMarketBuy(itemId, amount);
         await interaction.update({ content: `Purchased ×${amount} ${item.name} ${item.emoji} for ${formatNumber(total)} ${coinForShop(shopKey)}.`, components: [] });
@@ -94,7 +94,7 @@ module.exports = {
       const item = ITEM_BY_ID[itemId];
       const amount = parseAmount(interaction.fields.getTextInputValue('amount'));
       if (!item || amount <= 0) { await interaction.reply({ content: 'Please enter a valid amount.', flags: EPHEMERAL_FLAG }); return true; }
-      const stock = Math.max(0, Math.floor(Number(getShopState().stock?.[shopKey]?.[itemId]) || 0));
+      const stock = Math.max(0, Math.floor(Number(getShopState(interaction.user.id)?.[shopKey]?.[itemId]) || 0));
       if (amount > stock) { await interaction.reply({ content: `Only ${stock} ${item.name} ${item.emoji} are in stock.`, flags: EPHEMERAL_FLAG }); return true; }
       const total = item.price * amount;
       const balance = getBalance(interaction.user.id);
