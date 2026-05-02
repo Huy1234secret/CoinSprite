@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { PRCOIN, WHITE_ACCENT, RED_ACCENT, GREEN_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const { getBalance, spendBalance } = require('../src/gamblingStore');
 const {
@@ -90,10 +90,18 @@ function buildUpgradesPayload(interaction) {
     components.push(row(button(`fish:buyupgrade:${interaction.user.id}:${key}`, maxed ? 'MAX' : 'BUY', canBuy ? 3 : 4, !canBuy)));
   }
   components.push(separator());
-  components.push(row(button(`fish:upgradepage:${interaction.user.id}:0`, 'Switch page', 2, true), button(`fish:back:${interaction.user.id}`, 'Back', 2, false)));
+  components.push(row(button(`fish:upgradepage:${interaction.user.id}:0:1`, 'Switch page', 2, false), button(`fish:back:${interaction.user.id}`, 'Back', 2, false)));
   return { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: WHITE_ACCENT, components }] };
 }
 
+
+
+function showUpgradePageModal(interaction, currentPage, maxPage) {
+  const modal = new ModalBuilder().setCustomId(`fish:upgradepageform:${interaction.user.id}:${currentPage}:${maxPage}`).setTitle('Switch upgrade page').addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('page_input').setLabel('Which page u wanna switch to').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(6).setPlaceholder(`1-${maxPage}`)),
+  );
+  return interaction.showModal(modal);
+}
 function cleanupSession(sessionId) { const session = activeFishingSessions.get(sessionId); if (session?.timer) clearTimeout(session.timer); activeFishingSessions.delete(sessionId); }
 function scheduleFishMove(sessionId) {
   const session = activeFishingSessions.get(sessionId);
@@ -154,7 +162,12 @@ module.exports = {
     if (ownerId && ownerId !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own fishing controls.', flags: EPHEMERAL_FLAG }); return true; }
     if (interaction.customId.startsWith('fish:start:')) { await startFishing(interaction); return true; }
     if (interaction.customId.startsWith('fish:reel:')) { await reel(interaction); return true; }
-    if (interaction.customId.startsWith('fish:upgrades:') || interaction.customId.startsWith('fish:upgradepage:')) { await interaction.update(buildUpgradesPayload(interaction)); return true; }
+    if (interaction.customId.startsWith('fish:upgrades:')) { await interaction.update(buildUpgradesPayload(interaction)); return true; }
+    if (interaction.customId.startsWith('fish:upgradepage:')) {
+      const parts = interaction.customId.split(':');
+      await showUpgradePageModal(interaction, Number(parts[3]) || 0, Math.max(1, Number(parts[4]) || 1));
+      return true;
+    }
     if (interaction.customId.startsWith('fish:back:')) { await interaction.update(buildFishHomePayload(interaction)); return true; }
     if (interaction.customId.startsWith('fish:buyupgrade:')) {
       const key = interaction.customId.split(':')[3];
@@ -167,5 +180,12 @@ module.exports = {
       return true;
     }
     return false;
+  },
+  async handleModalSubmit(interaction) {
+    if (!interaction.isModalSubmit?.() || !interaction.customId?.startsWith('fish:upgradepageform:')) return false;
+    const [, , ownerId] = interaction.customId.split(':');
+    if (ownerId !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own fishing controls.', flags: EPHEMERAL_FLAG }); return true; }
+    await interaction.reply(buildUpgradesPayload(interaction));
+    return true;
   },
 };

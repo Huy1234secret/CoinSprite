@@ -32,9 +32,18 @@ function buildShopPayload(interaction, shopKey = 'general', page = 0) {
     components.push(row(button(`shop:buy:${userId}:${shopKey}:${item.id}`, 'BUY', stock > 0 ? 3 : 4, stock <= 0)));
   }
   components.push(separator());
-  components.push(row(button(`shop:page:${userId}:${shopKey}:${safePage + 1}`, 'Switch page', 2, pages <= 1)));
+  components.push(row(button(`shop:page:${userId}:${shopKey}:${safePage}:${pages}`, 'Switch page', 2, pages <= 1)));
   components.push({ type: 1, components: [{ type: 3, custom_id: `shop:switch:${userId}:${shopKey}:${safePage}`, placeholder: 'Switch shop', min_values: 1, max_values: 1, options: Object.entries(SHOP_TYPES).map(([key, config]) => ({ label: config.label, value: key, emoji: config.emoji, default: key === shopKey })) }] });
   return { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: WHITE_ACCENT, components }] };
+}
+
+
+
+async function showPageModal(interaction, shopKey, currentPage, maxPage) {
+  const modal = new ModalBuilder().setCustomId(`shop:pageform:${interaction.user.id}:${shopKey}:${currentPage}:${maxPage}`).setTitle('Switch shop page').addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('page_input').setLabel('Which page u wanna switch to').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(6).setPlaceholder(`1-${maxPage}`)),
+  );
+  await interaction.showModal(modal);
 }
 
 async function showBuyModal(interaction, shopKey, itemId) {
@@ -54,7 +63,7 @@ module.exports = {
     if (interaction.isButton?.() && interaction.customId?.startsWith('shop:')) {
       const parts = interaction.customId.split(':');
       if (getOwner(interaction.customId) !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own shop controls.', flags: EPHEMERAL_FLAG }); return true; }
-      if (parts[1] === 'page') { await interaction.update(buildShopPayload(interaction, parts[3], Number(parts[4]) || 0)); return true; }
+      if (parts[1] === 'page') { await showPageModal(interaction, parts[3], Number(parts[4]) || 0, Math.max(1, Number(parts[5]) || 1)); return true; }
       if (parts[1] === 'buy') { await showBuyModal(interaction, parts[3], parts[4]); return true; }
       if (parts[1] === 'confirm') {
         const [, , , shopKey, itemId, rawAmount] = parts;
@@ -71,6 +80,13 @@ module.exports = {
     if (interaction.isStringSelectMenu?.() && interaction.customId?.startsWith('shop:switch:')) {
       if (getOwner(interaction.customId) !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own shop controls.', flags: EPHEMERAL_FLAG }); return true; }
       await interaction.update(buildShopPayload(interaction, interaction.values?.[0] || 'general', 0)); return true;
+    }
+    if (interaction.isModalSubmit?.() && interaction.customId?.startsWith('shop:pageform:')) {
+      const [, , , ownerId, shopKey, currentPage, maxPage] = interaction.customId.split(':');
+      if (ownerId !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own shop controls.', flags: EPHEMERAL_FLAG }); return true; }
+      const asked = Number(interaction.fields.getTextInputValue('page_input'));
+      const finalPage = Number.isFinite(asked) ? Math.min(Math.max(1, Math.floor(asked)), Math.max(1, Number(maxPage) || 1)) : (Number(currentPage) || 0) + 1;
+      await interaction.reply(buildShopPayload(interaction, shopKey, finalPage - 1)); return true;
     }
     if (interaction.isModalSubmit?.() && interaction.customId?.startsWith('shopmodal:')) {
       const [, ownerId, shopKey, itemId] = interaction.customId.split(':');
