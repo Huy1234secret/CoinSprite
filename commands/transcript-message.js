@@ -36,10 +36,10 @@ module.exports = {
     .addIntegerOption((option) =>
       option
         .setName('amount')
-        .setDescription('How many recent messages to include (1-100).')
+        .setDescription('How many recent messages to include (1-200).')
         .setRequired(true)
         .setMinValue(1)
-        .setMaxValue(100),
+        .setMaxValue(200),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
 
@@ -54,13 +54,25 @@ module.exports = {
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const fetched = await channel.messages.fetch({ limit: amount }).catch(() => null);
-    if (!fetched || fetched.size === 0) {
+    const collected = [];
+    let before;
+
+    while (collected.length < amount) {
+      const remaining = amount - collected.length;
+      const batchSize = Math.min(100, remaining);
+      const fetched = await channel.messages.fetch({ limit: batchSize, ...(before ? { before } : {}) }).catch(() => null);
+      if (!fetched || fetched.size === 0) break;
+      collected.push(...fetched.values());
+      before = fetched.last()?.id;
+      if (!before || fetched.size < batchSize) break;
+    }
+
+    if (collected.length === 0) {
       await interaction.editReply('No messages found to include in transcript.');
       return;
     }
 
-    const sorted = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const sorted = collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
     const transcriptLines = sorted.map((message) => {
       const ts = new Date(message.createdTimestamp);
       const hh = String(ts.getHours()).padStart(2, '0');
