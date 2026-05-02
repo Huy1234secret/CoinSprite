@@ -1,0 +1,98 @@
+const fs = require('fs');
+const path = require('path');
+const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+
+const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
+
+function formatTimestamp(dateInput) {
+  const dt = new Date(dateInput);
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  const year = dt.getFullYear();
+  const hours = String(dt.getHours()).padStart(2, '0');
+  const minutes = String(dt.getMinutes()).padStart(2, '0');
+  return `${month}-${day}-${year}_${hours}-${minutes}`;
+}
+
+function attachmentToText(attachment) {
+  if (!attachment?.url) return '';
+
+  const contentType = String(attachment.contentType || '').toLowerCase();
+  const fileName = String(attachment.name || attachment.filename || '').toLowerCase();
+  const isGif = contentType.includes('gif') || fileName.endsWith('.gif');
+  const isImage = contentType.startsWith('image/');
+  const isVideo = contentType.startsWith('video/');
+
+  if (isGif) return `GIF: ${attachment.url}`;
+  if (isImage) return `Image attachment: ${attachment.url}`;
+  if (isVideo) return `Video attachment: ${attachment.url}`;
+  return attachment.url;
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('transcript-message')
+    .setDescription('Save a transcript of recent messages from this channel.')
+    .addIntegerOption((option) =>
+      option
+        .setName('amount')
+        .setDescription('How many recent messages to include (1-100).')
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(100),
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+
+  async execute(interaction) {
+    const amount = interaction.options.getInteger('amount', true);
+    const channel = interaction.channel;
+
+    if (!channel?.isTextBased()) {
+      await interaction.reply({ content: 'This command can only be used in a text channel.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const fetched = await channel.messages.fetch({ limit: amount }).catch(() => null);
+    if (!fetched || fetched.size === 0) {
+      await interaction.editReply('No messages found to include in transcript.');
+      return;
+    }
+
+    const sorted = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+    const transcriptLines = sorted.map((message) => {
+      const ts = new Date(message.createdTimestamp);
+      const hh = String(ts.getHours()).padStart(2, '0');
+      const mm = String(ts.getMinutes()).padStart(2, '0');
+      const time = `${hh}:${mm}`;
+      const attachments = [...message.attachments.values()]
+        .map((attachment) => attachmentToText(attachment))
+        .filter(Boolean)
+        .join(' ');
+      const content = `${message.content || ''} ${attachments}`.trim() || '[no content]';
+      return `${time} // [${message.author.username}] - [${message.author.id}] : ${content}`;
+    });
+
+    const headerLine = `Channel: ${channel.id} - ${channel.name}`;
+    const transcriptDir = path.join(__dirname, '..', 'transcripts');
+    fs.mkdirSync(transcriptDir, { recursive: true });
+
+    const fileName = `message-transcript-${channel.id}-${formatTimestamp(new Date())}.txt`;
+    const filePath = path.join(transcriptDir, fileName);
+    fs.writeFileSync(filePath, `${headerLine}\n\n${transcriptLines.join('\n')}\n`, 'utf8');
+
+    const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+    if (!transcriptChannel?.isTextBased()) {
+      await interaction.editReply(`Transcript generated, but I could not find transcript channel (${TRANSCRIPT_CHANNEL_ID}).`);
+      return;
+    }
+
+    await transcriptChannel.send({
+      content: `Message transcript from #${channel.name} (${channel.id}) requested by <@${interaction.user.id}>.`,
+      files: [filePath],
+    });
+
+    await interaction.editReply(`Transcript saved and sent to <#${TRANSCRIPT_CHANNEL_ID}>.`);
+  },
+};
