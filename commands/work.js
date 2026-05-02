@@ -54,7 +54,7 @@ function payload(components) { return { flags: COMPONENTS_V2_FLAG, components: [
 function home(interaction, notice = '') {
   const p = profile(interaction.user.id); const job = getJob(p.jobId); const cd = getWorkCooldown(interaction.user.id);
   const cdMessage = !job ? 'GET a **Job** first' : cd > Date.now() ? `You can work again <t:${Math.floor(cd / 1000)}:R>` : 'Press **Work** to work';
-  const jobLine = job ? `${job.name} // ${range(job)}` : 'No job // 0 PRcoin';
+  const jobLine = job ? `${job.name} // ${range(job)}` : `No job // 0 ${PRCOIN}`;
   const lines = [`## ${interaction.user} are you ready to work?`, `-# ${cdMessage}`, `-# Job: ${jobLine}`];
   if (notice) lines.push(notice);
   return payload([text(lines.join('\n')), sep(), row(button(`work:start:${interaction.user.id}`, 'Work', job && cd <= Date.now() ? 3 : 2, !job || cd > Date.now()), button(`work:jobs:${interaction.user.id}:0`, 'Change Job', 2))]);
