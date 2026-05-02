@@ -15,6 +15,7 @@ const {
   randomInt,
   rollFish,
   romanize,
+  getLuckAdjustedFishWeights,
 } = require('../src/fishingConfig');
 const {
   addInventoryItem,
@@ -34,6 +35,65 @@ const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const LOADING_FISH = '<:SBLoadingfish:1499381238656667728>';
 const YES = '<:Y_:1498173245981986869>';
 const NO = '<:N_:1498173244031631400>';
+
+const RARE_FISH_ANNOUNCE_CHANNEL_ID = '1498300014114377860';
+const LEGENDARY_ACCENT = 0xF1C40F;
+const MYTHICAL_ACCENT = 0xE67E22;
+const SECRET_ACCENT = 0xC8A2FF;
+
+function formatChance(value) {
+  const numeric = Number(value) || 0;
+  if (numeric >= 1) return numeric.toFixed(2);
+  if (numeric >= 0.01) return numeric.toFixed(4);
+  return numeric.toFixed(8);
+}
+
+function getSessionFishChancePercent(fish, luckTier = 0) {
+  const weights = getLuckAdjustedFishWeights(luckTier);
+  const totalWeight = weights.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) return 0;
+  const match = weights.find((entry) => entry.fish.id === fish.id);
+  if (!match) return 0;
+  return (match.weight / totalWeight) * 100;
+}
+
+function getRareSuccessAccent(rarity) {
+  if (rarity === 'legendary') return LEGENDARY_ACCENT;
+  if (rarity === 'mythical') return MYTHICAL_ACCENT;
+  if (rarity === 'secret') return SECRET_ACCENT;
+  return GREEN_ACCENT;
+}
+
+async function announceRareCatch(interaction, session, succeeded) {
+  if (!session || Number(session.personalChance) >= 1) return;
+  const channel = await interaction.client.channels.fetch(RARE_FISH_ANNOUNCE_CHANNEL_ID).catch(() => null);
+  if (!channel || !channel.isTextBased?.()) return;
+  const fish = session.fish;
+  const chance = formatChance(session.personalChance);
+  const baseChance = formatChance(fish.chance);
+  const thumbnail = emojiUrl(fish.emoji);
+
+  const failText = `${interaction.user} has found ${fish.name}\n-# But failed to fish it, better luck next time`;
+  const successText = `${interaction.user} has found ${fish.name} ${fish.emoji}\n-# And successfully fish it! 🎉`;
+  const message = succeeded ? successText : failText;
+
+  const contentBlock = thumbnail && !succeeded
+    ? { type: 9, components: [text(message)], accessory: { type: 11, media: { url: thumbnail } } }
+    : text(message);
+
+  await channel.send({
+    flags: COMPONENTS_V2_FLAG,
+    components: [{
+      type: 17,
+      accent_color: succeeded ? getRareSuccessAccent(fish.rarity) : RED_ACCENT,
+      components: [
+        contentBlock,
+        separator(),
+        text(`-# The fish chance: ${chance}% \`(${baseChance}%)\``),
+      ],
+    }],
+  }).catch(() => null);
+}
 const activeFishingSessions = new Map();
 
 function makeSessionId() { return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`; }
@@ -53,6 +113,12 @@ function buildUpgradesPayload(interaction) { const upgrades = getFishingUpgrades
 function showUpgradePageModal(interaction, currentPage, maxPage) { const modal = new ModalBuilder().setCustomId(`fish:upgradepageform:${interaction.user.id}:${currentPage}:${maxPage}`).setTitle('Switch upgrade page').addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('page_input').setLabel('Which page u wanna switch to').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(6).setPlaceholder(`1-${maxPage}`))); return interaction.showModal(modal); }
 function cleanupSession(sessionId) { const session = activeFishingSessions.get(sessionId); if (session?.timer) clearTimeout(session.timer); activeFishingSessions.delete(sessionId); }
 function scheduleFishMove(sessionId) { const session = activeFishingSessions.get(sessionId); if (!session || session.done) return; const delay = session.fishPosition === session.greenPosition ? 4_000 : 2_000; session.timer = setTimeout(async () => { const current = activeFishingSessions.get(sessionId); if (!current || current.done) return; let nextPosition = randomInt(0, 4); if (nextPosition === current.fishPosition) nextPosition = (nextPosition + randomInt(1, 4)) % 5; current.fishPosition = nextPosition; await current.message?.edit(buildFishingPayload(current)).catch(() => null); scheduleFishMove(sessionId); }, delay); }
-async function startFishing(interaction) { const req = hasFishingRequirements(interaction.user.id); if (!req.ready) { await interaction.reply({ content: `You need at least ${req.missing.join(' and ')} to start fishing.`, flags: EPHEMERAL_FLAG }); return; } if (!removeInventoryItem(interaction.user.id, WORM_ID, 1)) { await interaction.reply({ content: 'You need at least 1 Worm to start fishing.', flags: EPHEMERAL_FLAG }); return; } const rod = equipNextFishingRod(interaction.user.id); if (!rod) { await interaction.reply({ content: 'You need at least 1 Fishing rod to start fishing.', flags: EPHEMERAL_FLAG }); return; } const upgrades = getFishingUpgrades(interaction.user.id); const fish = rollFish(upgrades.luck); const session = { id: makeSessionId(), userId: interaction.user.id, fish, progress: 20, greenPosition: randomInt(0, 4), fishPosition: randomInt(0, 4), rodDurability: rod.durability, strength: getTotalRodStrength(upgrades.strength), finalValue: getFishFinalValue(fish, upgrades.value), message: interaction.message, done: false, timer: null }; activeFishingSessions.set(session.id, session); await interaction.update(buildFishingPayload(session)); session.message = interaction.message; scheduleFishMove(session.id); }
-async function reel(interaction) { const sessionId = interaction.customId.split(':')[3]; const session = activeFishingSessions.get(sessionId); if (!session || session.done) { await interaction.reply({ content: 'This fishing session is no longer active.', flags: EPHEMERAL_FLAG }); return; } if (session.userId !== interaction.user.id) { await interaction.reply({ content: 'You can only reel your own fish.', flags: EPHEMERAL_FLAG }); return; } if (session.fishPosition === session.greenPosition) { session.progress = clamp(session.progress + calculateFishingProgressGain(session.strength, session.fish.rodStrengthRequirement), 0, 100); } else { session.progress = clamp(session.progress - randomInt(20, 30), 0, 100); const damage = Math.max(1, Math.ceil(session.fish.durabilityDamage * 0.10)); const rodResult = damageEquippedRod(interaction.user.id, damage); session.rodDurability = rodResult.rod?.durability ?? Math.max(0, session.rodDurability - damage); if (rodResult.broke) { session.done = true; cleanupSession(session.id); await interaction.update(buildResultPayload(interaction, session, false, `Your fishing rod broke and ${session.fish.emoji} ${session.fish.name} has escaped`)); return; } } if (session.progress >= 100) { session.done = true; cleanupSession(session.id); addInventoryItem(interaction.user.id, session.fish.id, 1); const fishStats = recordFishCaught(interaction.user.id, session.fish.id, 1); await unlockFishAchievements(interaction.channel, interaction.user, fishStats, session.fish, FISHES.length); damageEquippedRod(interaction.user.id, session.fish.durabilityDamage); await interaction.update(buildResultPayload(interaction, session, true)); return; } if (session.progress <= 0) { session.done = true; cleanupSession(session.id); damageEquippedRod(interaction.user.id, session.fish.durabilityDamage); await interaction.update(buildResultPayload(interaction, session, false, `You have failed to reel ${session.fish.emoji} ${session.fish.name} and it escaped`)); return; } session.rodDurability = getEquippedRod(interaction.user.id)?.durability ?? session.rodDurability; await interaction.update(buildFishingPayload(session)); }
+async function startFishing(interaction) { const req = hasFishingRequirements(interaction.user.id); if (!req.ready) { await interaction.reply({ content: `You need at least ${req.missing.join(' and ')} to start fishing.`, flags: EPHEMERAL_FLAG }); return; } if (!removeInventoryItem(interaction.user.id, WORM_ID, 1)) { await interaction.reply({ content: 'You need at least 1 Worm to start fishing.', flags: EPHEMERAL_FLAG }); return; } const rod = equipNextFishingRod(interaction.user.id); if (!rod) { await interaction.reply({ content: 'You need at least 1 Fishing rod to start fishing.', flags: EPHEMERAL_FLAG }); return; } const upgrades = getFishingUpgrades(interaction.user.id); const fish = rollFish(upgrades.luck); const session = { id: makeSessionId(), userId: interaction.user.id, fish, progress: 20, greenPosition: randomInt(0, 4), fishPosition: randomInt(0, 4), rodDurability: rod.durability, strength: getTotalRodStrength(upgrades.strength), finalValue: getFishFinalValue(fish, upgrades.value), personalChance: getSessionFishChancePercent(fish, upgrades.luck), message: interaction.message, done: false, timer: null }; activeFishingSessions.set(session.id, session); await interaction.update(buildFishingPayload(session)); session.message = interaction.message; scheduleFishMove(session.id); }
+async function reel(interaction) { const sessionId = interaction.customId.split(':')[3]; const session = activeFishingSessions.get(sessionId); if (!session || session.done) { await interaction.reply({ content: 'This fishing session is no longer active.', flags: EPHEMERAL_FLAG }); return; } if (session.userId !== interaction.user.id) { await interaction.reply({ content: 'You can only reel your own fish.', flags: EPHEMERAL_FLAG }); return; } if (session.fishPosition === session.greenPosition) { session.progress = clamp(session.progress + calculateFishingProgressGain(session.strength, session.fish.rodStrengthRequirement), 0, 100); } else { session.progress = clamp(session.progress - randomInt(20, 30), 0, 100); const damage = Math.max(1, Math.ceil(session.fish.durabilityDamage * 0.10)); const rodResult = damageEquippedRod(interaction.user.id, damage); session.rodDurability = rodResult.rod?.durability ?? Math.max(0, session.rodDurability - damage); if (rodResult.broke) { session.done = true; cleanupSession(session.id); await interaction.update(buildResultPayload(interaction, session, false, `Your fishing rod broke and ${session.fish.emoji} ${session.fish.name} has escaped`));
+      await announceRareCatch(interaction, session, false);
+      return; } } if (session.progress >= 100) { session.done = true; cleanupSession(session.id); addInventoryItem(interaction.user.id, session.fish.id, 1); const fishStats = recordFishCaught(interaction.user.id, session.fish.id, 1); await unlockFishAchievements(interaction.channel, interaction.user, fishStats, session.fish, FISHES.length); damageEquippedRod(interaction.user.id, session.fish.durabilityDamage); await interaction.update(buildResultPayload(interaction, session, true));
+    await announceRareCatch(interaction, session, true);
+    return; } if (session.progress <= 0) { session.done = true; cleanupSession(session.id); damageEquippedRod(interaction.user.id, session.fish.durabilityDamage); await interaction.update(buildResultPayload(interaction, session, false, `You have failed to reel ${session.fish.emoji} ${session.fish.name} and it escaped`));
+    await announceRareCatch(interaction, session, false);
+    return; } session.rodDurability = getEquippedRod(interaction.user.id)?.durability ?? session.rodDurability; await interaction.update(buildFishingPayload(session)); }
 module.exports = { data: new SlashCommandBuilder().setName('fish').setDescription('Go fishing for collectible fish'), async execute(interaction) { await interaction.reply(buildFishHomePayload(interaction)); }, async handleInteraction(interaction) { if (!interaction.isButton?.() || !interaction.customId?.startsWith('fish:')) return false; const ownerId = ownerFromId(interaction.customId); if (ownerId && ownerId !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own fishing controls.', flags: EPHEMERAL_FLAG }); return true; } if (interaction.customId.startsWith('fish:start:')) { await startFishing(interaction); return true; } if (interaction.customId.startsWith('fish:reel:')) { await reel(interaction); return true; } if (interaction.customId.startsWith('fish:upgrades:')) { await interaction.update(buildUpgradesPayload(interaction)); return true; } if (interaction.customId.startsWith('fish:upgradepage:')) { const parts = interaction.customId.split(':'); await showUpgradePageModal(interaction, Number(parts[3]) || 0, Math.max(1, Number(parts[4]) || 1)); return true; } if (interaction.customId.startsWith('fish:back:')) { await interaction.update(buildFishHomePayload(interaction)); return true; } if (interaction.customId.startsWith('fish:buyupgrade:')) { const key = interaction.customId.split(':')[3]; const upgrades = getFishingUpgrades(interaction.user.id); const price = getFishingUpgradePrice(key, upgrades[key]); if (!price) { await interaction.reply({ content: 'That upgrade is already maxed.', flags: EPHEMERAL_FLAG }); return true; } if (!spendBalance(interaction.user.id, price)) { await interaction.reply({ content: `You need ${formatNumber(price - getBalance(interaction.user.id))} ${PRCOIN} more.`, flags: EPHEMERAL_FLAG }); return true; } increaseFishingUpgrade(interaction.user.id, key); await interaction.update(buildUpgradesPayload(interaction)); return true; } return false; }, async handleModalSubmit(interaction) { if (!interaction.isModalSubmit?.() || !interaction.customId?.startsWith('fish:upgradepageform:')) return false; const [, , ownerId] = interaction.customId.split(':'); if (ownerId !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own fishing controls.', flags: EPHEMERAL_FLAG }); return true; } await interaction.reply(buildUpgradesPayload(interaction)); return true; } };
