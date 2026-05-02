@@ -17,7 +17,7 @@ const TYPE_OPTIONS = [
   { label: 'Minefield completed', value: 'minefield', description: 'Total completed minefield games.' },
   { label: 'Roulette Win', value: 'roulette', description: 'Straight bet roulette wins.' },
   { label: 'Most worked', value: 'work', description: 'Total work attempts completed or failed.' },
-  { label: 'Most Fish Fished', value: 'fish', description: 'Total fish caught, with rarity filters.' },
+  { label: 'Most Fish Fished', value: 'fish', description: 'Total fish caught, with rarity ✨ filters.' },
 ];
 const MONEY_MODES = { EARNED: 'earned', BALANCE: 'balance' };
 const FISH_FILTERS = ['all', 'common', 'rare', 'epic', 'legendary', 'mythical', 'secret'];
