@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const crypto = require('crypto');
 const { SlashCommandBuilder, MessageFlags, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { FISHES, RARITY_LABELS, emojiUrl } = require('../src/fishingConfig');
@@ -8,6 +10,7 @@ const { getInventory } = require('../src/fishingStore');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const INDEX_CACHE_DIR = path.join(__dirname, '..', 'data', 'index-gallery');
+const EMOJI_CACHE_DIR = path.join(INDEX_CACHE_DIR, 'emoji-cache');
 const RARITIES = ['common', 'rare', 'epic', 'legendary', 'mythical', 'secret'];
 const RARITY_COLORS = {
   common: '#d7dce2',
@@ -21,6 +24,7 @@ const FISH_IDS = new Set(FISHES.map((fish) => fish.id));
 
 function ensureCacheDir() {
   fs.mkdirSync(INDEX_CACHE_DIR, { recursive: true });
+  fs.mkdirSync(EMOJI_CACHE_DIR, { recursive: true });
 }
 
 function getDiscoveredFish(userId) {
@@ -64,9 +68,8 @@ function buildHomePayload(interaction) {
 
 function formatChance(value) {
   const n = Number(value) || 0;
-  if (n >= 1) return `${n.toFixed(2).replace(/\.00$/, '')}%`;
-  if (n >= 0.01) return `${n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')}%`;
-  return `${n.toFixed(8).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  if (n < 1) return '???';
+  return `${n.toFixed(2).replace(/\.00$/, '')}%`;
 }
 
 function fitText(ctx, textValue, maxWidth, fontSize, minSize = 14) {
@@ -94,28 +97,76 @@ function roundedRect(ctx, x, y, width, height, radius) {
   ctx.closePath();
 }
 
-async function drawFishIcon(ctx, fish, x, y, size, discovered) {
+function getEmojiId(emoji) {
+  return String(emoji || '').match(/<a?:\w+:(\d+)>/)?.[1] || null;
+}
+
+function downloadFile(url, filePath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filePath);
+    https.get(url, (response) => {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        file.close(() => fs.unlink(filePath, () => reject(new Error(`HTTP ${response.statusCode}`))));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => file.close(resolve));
+    }).on('error', (error) => {
+      file.close(() => fs.unlink(filePath, () => reject(error)));
+    });
+  });
+}
+
+async function loadFishImage(fish) {
   const url = emojiUrl(fish.emoji);
-  ctx.save();
-  ctx.globalAlpha = discovered ? 1 : 0.34;
-  if (url) {
-    try {
-      const image = await loadImage(url);
-      ctx.drawImage(image, x, y, size, size);
-      ctx.restore();
-      return;
-    } catch {}
+  const id = getEmojiId(fish.emoji);
+  if (!url || !id) return null;
+  const filePath = path.join(EMOJI_CACHE_DIR, `${id}.png`);
+  if (!fs.existsSync(filePath)) await downloadFile(url, filePath).catch(() => null);
+  if (fs.existsSync(filePath)) {
+    try { return await loadImage(filePath); } catch {}
   }
+  try { return await loadImage(url); } catch { return null; }
+}
+
+function drawBlackSilhouette(ctx, image, x, y, size) {
+  const tmp = createCanvas(size, size);
+  const tmpCtx = tmp.getContext('2d');
+  tmpCtx.drawImage(image, 0, 0, size, size);
+  tmpCtx.globalCompositeOperation = 'source-in';
+  tmpCtx.fillStyle = '#000000';
+  tmpCtx.fillRect(0, 0, size, size);
+  ctx.drawImage(tmp, x, y, size, size);
+}
+
+async function drawFishIcon(ctx, fish, x, y, size, discovered) {
+  const image = await loadFishImage(fish);
+  if (image) {
+    if (discovered) ctx.drawImage(image, x, y, size, size);
+    else drawBlackSilhouette(ctx, image, x, y, size);
+    return;
+  }
+  ctx.save();
   ctx.font = `${Math.floor(size * 0.78)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.fillStyle = discovered ? '#ffffff' : '#000000';
   ctx.fillText('🐟', x + size / 2, y + size / 2);
   ctx.restore();
+}
+
+function galleryCachePath(userId, rarity, discoveredSet) {
+  const discoveredKey = FISHES.filter((fish) => discoveredSet.has(fish.id)).map((fish) => fish.id).join('|');
+  const hash = crypto.createHash('sha1').update(`${rarity}:${discoveredKey}`).digest('hex').slice(0, 12);
+  return path.join(INDEX_CACHE_DIR, `fish-index-${userId}-${rarity}-${hash}.png`);
 }
 
 async function buildFishGalleryImage(userId, rarity) {
   ensureCacheDir();
   const discoveredSet = new Set(getDiscoveredFish(userId));
+  const filePath = galleryCachePath(userId, rarity, discoveredSet);
+  if (fs.existsSync(filePath)) return new AttachmentBuilder(filePath, { name: 'fish-index.png' });
+
   const fishes = FISHES.filter((fish) => fish.rarity === rarity);
   const cols = 3;
   const cardW = 250;
@@ -185,7 +236,6 @@ async function buildFishGalleryImage(userId, rarity) {
     ctx.fillText(chance, chanceX + 9, chanceY + 19);
   }
 
-  const filePath = path.join(INDEX_CACHE_DIR, `fish-index-${userId}-${rarity}-${Date.now()}.png`);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
   return new AttachmentBuilder(filePath, { name: 'fish-index.png' });
 }
