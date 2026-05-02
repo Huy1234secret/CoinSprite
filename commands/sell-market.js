@@ -10,7 +10,8 @@ const { getInventoryEntries, getMarketSnapshot, recordMarketSell, removeInventor
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const MARKET_CACHE_DIR = path.join(__dirname, '..', 'data', 'market-charts');
-const CHART_POINT_COUNT = 10;
+const CHART_HISTORY_POINT_COUNT = 10;
+const CHART_VISIBLE_POINT_COUNT = 8;
 
 function text(content) { return { type: 10, content }; }
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
@@ -33,13 +34,20 @@ function getCurrentChartHourKey(now = new Date()) {
   return shifted.toISOString().replace(/[:.]/g, '-');
 }
 
-function getTenChartPoints(history, fallbackPoint) {
-  const source = Array.isArray(history) && history.length ? history.slice(-CHART_POINT_COUNT) : [fallbackPoint];
+function getPaddedChartHistory(history, fallbackPoint) {
+  const source = Array.isArray(history) && history.length ? history.slice(-CHART_HISTORY_POINT_COUNT) : [fallbackPoint];
   const firstPoint = source[0] || fallbackPoint;
-  while (source.length < CHART_POINT_COUNT) {
-    source.unshift({ ...firstPoint });
-  }
-  return source.slice(-CHART_POINT_COUNT);
+  while (source.length < CHART_HISTORY_POINT_COUNT) source.unshift({ ...firstPoint });
+  return source.slice(-CHART_HISTORY_POINT_COUNT);
+}
+
+function getVisibleChartPoints(historyPoints) {
+  const trimmed = historyPoints.slice(1, -1);
+  if (trimmed.length === CHART_VISIBLE_POINT_COUNT) return trimmed;
+  const fallback = historyPoints[historyPoints.length - 1] || { t: Date.now(), buy: 1, sell: 1 };
+  const next = trimmed.length ? [...trimmed] : [{ ...fallback }];
+  while (next.length < CHART_VISIBLE_POINT_COUNT) next.unshift({ ...next[0] });
+  return next.slice(-CHART_VISIBLE_POINT_COUNT);
 }
 
 function drawLegendItem(ctx, x, y, label, stroke) {
@@ -58,12 +66,14 @@ function drawLegendItem(ctx, x, y, label, stroke) {
   ctx.fillText(label, x + 70, y + 5);
 }
 
-function drawValueLabel(ctx, value, x, y, stroke, preferAbove) {
+function drawValueLabel(ctx, value, x, y, stroke, preferAbove, bounds) {
   const label = formatNumber(value);
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = 'bold 11px sans-serif';
   const width = ctx.measureText(label).width + 10;
-  const labelX = Math.max(8, Math.min(x - (width / 2), 900 - width - 8));
-  const labelY = preferAbove ? Math.max(78, y - 20) : Math.min(356, y + 12);
+  const labelX = Math.max(8, Math.min(x - (width / 2), bounds.width - width - 8));
+  let labelY = preferAbove ? y - 18 : y + 18;
+  if (labelY < bounds.plotTop + 18) labelY = y + 18;
+  if (labelY > bounds.plotBottom - 4) labelY = y - 18;
   ctx.fillStyle = 'rgba(17, 18, 20, 0.82)';
   ctx.fillRect(labelX, labelY - 12, width, 17);
   ctx.strokeStyle = stroke;
@@ -71,6 +81,13 @@ function drawValueLabel(ctx, value, x, y, stroke, preferAbove) {
   ctx.strokeRect(labelX, labelY - 12, width, 17);
   ctx.fillStyle = '#ffffff';
   ctx.fillText(label, labelX + 5, labelY + 1);
+}
+
+function drawTimeLabel(ctx, label, x, y) {
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = '#b5bac1';
+  const width = ctx.measureText(label).width;
+  ctx.fillText(label, x - (width / 2), y);
 }
 
 function drawMarketChart(itemId) {
@@ -81,15 +98,19 @@ function drawMarketChart(itemId) {
 
   const item = ITEM_BY_ID[itemId];
   const market = getMarketSnapshot(itemId);
-  const points = getTenChartPoints(market.history, { t: Date.now(), buy: market.buyPrice, sell: market.sellPrice });
-  const canvas = createCanvas(900, 420);
+  const historyPoints = getPaddedChartHistory(market.history, { t: Date.now(), buy: market.buyPrice, sell: market.sellPrice });
+  const points = getVisibleChartPoints(historyPoints);
+  const canvas = createCanvas(900, 440);
   const ctx = canvas.getContext('2d');
   const width = 900;
-  const height = 420;
-  const padding = 66;
-  const plotTop = 104;
-  const plotHeight = 252;
+  const height = 440;
+  const padding = 70;
+  const plotTop = 136;
+  const plotHeight = 232;
+  const plotBottom = plotTop + plotHeight;
   const plotWidth = width - (padding * 2);
+  const edgeGap = 48;
+  const innerPlotWidth = plotWidth - (edgeGap * 2);
   const buyColor = '#57f287';
   const sellColor = '#fee75c';
 
@@ -98,21 +119,31 @@ function drawMarketChart(itemId) {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 30px sans-serif';
   ctx.fillText(`${item?.name || itemId} Market Value`, padding, 42);
-  drawLegendItem(ctx, padding, 74, 'Buy Price Line', buyColor);
-  drawLegendItem(ctx, padding + 255, 74, 'Sell Price Line', sellColor);
+  drawLegendItem(ctx, padding, 78, 'Buy Price Line', buyColor);
+  drawLegendItem(ctx, padding + 255, 78, 'Sell Price Line', sellColor);
 
   const values = points.flatMap((point) => [point.buy, point.sell]);
   const rawMin = Math.min(...values, 1);
   const rawMax = Math.max(...values, rawMin + 1);
-  const pad = Math.max(1, (rawMax - rawMin) * 0.12);
-  const min = Math.max(1, rawMin - pad);
-  const max = rawMax + pad;
+  const valueRange = Math.max(1, rawMax - rawMin);
+  const topPad = Math.max(valueRange * 0.28, rawMax * 0.035, 1);
+  const bottomPad = Math.max(valueRange * 0.14, rawMax * 0.012, 1);
+  const min = Math.max(1, rawMin - bottomPad);
+  const max = rawMax + topPad;
   const span = Math.max(1, max - min);
+
+  function xy(point, index, key) {
+    return {
+      x: padding + edgeGap + ((innerPlotWidth * index) / (CHART_VISIBLE_POINT_COUNT - 1)),
+      y: plotTop + plotHeight - (((point[key] - min) / span) * plotHeight),
+    };
+  }
 
   ctx.strokeStyle = '#34373d';
   ctx.lineWidth = 1;
   ctx.fillStyle = '#b5bac1';
   ctx.font = '13px sans-serif';
+  ctx.setLineDash([]);
   for (let i = 0; i <= 4; i += 1) {
     const y = plotTop + ((plotHeight / 4) * i);
     ctx.beginPath();
@@ -122,16 +153,23 @@ function drawMarketChart(itemId) {
     ctx.fillText(formatNumber(max - ((span / 4) * i)), 10, y + 4);
   }
 
-  function xy(point, index, key) {
-    return {
-      x: padding + ((plotWidth * index) / (CHART_POINT_COUNT - 1)),
-      y: plotTop + plotHeight - (((point[key] - min) / span) * plotHeight),
-    };
+  ctx.save();
+  ctx.setLineDash([4, 7]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 1;
+  for (let index = 0; index < CHART_VISIBLE_POINT_COUNT; index += 1) {
+    const x = padding + edgeGap + ((innerPlotWidth * index) / (CHART_VISIBLE_POINT_COUNT - 1));
+    ctx.beginPath();
+    ctx.moveTo(x, plotTop);
+    ctx.lineTo(x, plotBottom);
+    ctx.stroke();
   }
+  ctx.restore();
 
   function drawLine(key, stroke, preferAbove) {
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
     ctx.beginPath();
     points.forEach((point, index) => {
       const pos = xy(point, index, key);
@@ -146,15 +184,24 @@ function drawMarketChart(itemId) {
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
       ctx.fill();
-      drawValueLabel(ctx, point[key], pos.x, pos.y, stroke, preferAbove);
+      drawValueLabel(ctx, point[key], pos.x, pos.y, stroke, preferAbove, { width, plotTop, plotBottom });
     });
   }
 
   drawLine('buy', buyColor, true);
   drawLine('sell', sellColor, false);
+
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2;
+  ctx.setLineDash([]);
   ctx.strokeRect(padding, plotTop, plotWidth, plotHeight);
+
+  const timeY = plotBottom + 26;
+  for (let index = 0; index < CHART_VISIBLE_POINT_COUNT; index += 1) {
+    const x = padding + edgeGap + ((innerPlotWidth * index) / (CHART_VISIBLE_POINT_COUNT - 1));
+    const hoursAgo = CHART_VISIBLE_POINT_COUNT - index - 1;
+    drawTimeLabel(ctx, hoursAgo <= 0 ? 'now' : `${hoursAgo}h`, x, timeY);
+  }
 
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
   return new AttachmentBuilder(filePath, { name: 'market-chart.png' });
