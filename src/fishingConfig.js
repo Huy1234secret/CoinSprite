@@ -57,7 +57,7 @@ const ITEMS = [
     stockMin: null,
     stockMax: null,
     price: 10_000,
-    baseValue: 1_000,
+    baseValue: 100,
     description: 'an item use for fishing',
     shop: null,
     type: 'Ingredient',
@@ -278,8 +278,8 @@ function calculateFishingProgressGain(strength, requirement) {
   const s = Math.max(0.001, Number(strength) || 0.001);
   const r = Math.max(0.001, Number(requirement) || 0.001);
   const ratio = s / r;
-  if (s < r) return clamp(0.001 + (9.999 * ratio), 0.001, 10);
-  return clamp(10.001 + (9.999 * (1 - (r / s))), 10.001, 20);
+  if (s < r) return clamp(5 * ratio, 0, 5);
+  return clamp(5.1 + (9.9 * (1 - (r / s))), 5.1, 15);
 }
 
 function emojiUrl(emoji) {
