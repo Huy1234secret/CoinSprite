@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { SlashCommandBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require('discord.js');
 const { addBalance, recordGamblingEarnings, getWorkCooldown, setWorkCooldown } = require('../src/gamblingStore');
-const { getUserProgress } = require('../src/levelingManager');
+const { getUserProgress, addUserXp } = require('../src/levelingManager');
 const { PRCOIN, formatNumber, formatAbbreviated } = require('../src/gamblingConfig');
+const { JOBS } = require('../src/workJobs');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -14,15 +15,6 @@ const YES = '<:Y_:1498173245981986869>';
 const NO = '<:N_:1498173244031631400>';
 const MEMORY_EMOJIS = ['🍎', '🍋', '🍇', '🍓', '🍒', '🥝', '🥥', '🍔'];
 const activeSessions = new Map();
-
-const JOBS = [
-  { id: 'dishwasher', name: 'Dishwasher', min: 100, max: 1000, quota: 6, requiredWorks: 0, requiredLevel: 1, games: ['typing', 'memory', 'math'] },
-  { id: 'cashier', name: 'Cashier', min: 450, max: 1800, quota: 8, requiredWorks: 5, requiredLevel: 3, games: ['typing', 'math'] },
-  { id: 'barista', name: 'Barista', min: 900, max: 3200, quota: 10, requiredWorks: 15, requiredLevel: 6, games: ['memory', 'typing'] },
-  { id: 'mechanic', name: 'Mechanic', min: 1750, max: 6200, quota: 12, requiredWorks: 35, requiredLevel: 12, games: ['math', 'memory'] },
-  { id: 'developer', name: 'Developer', min: 3500, max: 12500, quota: 14, requiredWorks: 80, requiredLevel: 22, games: ['typing', 'math', 'memory'] },
-  { id: 'executive', name: 'Executive', min: 7500, max: 25000, quota: 16, requiredWorks: 160, requiredLevel: 35, games: ['math', 'typing'] },
-];
 
 function ensureStore() { const dir = path.dirname(STORE_PATH); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE_PATH)) fs.writeFileSync(STORE_PATH, JSON.stringify({ users: {} }, null, 2), 'utf8'); }
 function loadState() { ensureStore(); try { const state = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')); state.users = state.users && typeof state.users === 'object' ? state.users : {}; return state; } catch { return { users: {} }; } }
@@ -37,6 +29,7 @@ function userLevel(interaction) { return interaction.guildId ? getUserProgress(i
 function eligibility(interaction, job) { const p = profile(interaction.user.id); return { missingWorks: Math.max(0, job.requiredWorks - p.totalWorks), missingLevel: Math.max(0, job.requiredLevel - userLevel(interaction)) }; }
 function canApply(interaction, job) { const e = eligibility(interaction, job); return e.missingWorks <= 0 && e.missingLevel <= 0; }
 function range(job) { return `${formatNumber(job.min)}-${formatNumber(job.max)} ${PRCOIN}`; }
+function xpRange(job) { return `${formatNumber(job.minXp)}-${formatNumber(job.maxXp)} XP`; }
 function avg(job) { return Math.round((job.min + job.max) / 2); }
 function ri(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 function pick(items) { return items[Math.floor(Math.random() * items.length)]; }
@@ -61,13 +54,20 @@ function home(interaction, notice = '') {
   return payload([text(lines.join('\n')), sep(), row(button(`work:start:${interaction.user.id}`, 'Work', job && cd <= Date.now() ? 3 : 2, !job || cd > Date.now()), button(`work:jobs:${interaction.user.id}:0`, 'Change Job', 2))]);
 }
 
-function requirementText(interaction, job) { const e = eligibility(interaction, job); const parts = []; if (e.missingWorks > 0) parts.push(`work ${e.missingWorks} more`); if (e.missingLevel > 0) parts.push(`reach level ${job.requiredLevel}`); return `-# You need to ${parts.join(' and ')} to apply!`; }
+function requirementText(interaction, job) {
+  const e = eligibility(interaction, job); const parts = [];
+  if (e.missingWorks > 0) parts.push(`work ${e.missingWorks} more`);
+  if (e.missingLevel > 0) parts.push(`reach level ${job.requiredLevel}`);
+  return `-# You need to ${parts.join(' and ')} to apply!`;
+}
 function jobsPage(interaction, page = 0) {
   const p = profile(interaction.user.id); const maxPage = Math.max(1, Math.ceil(JOBS.length / JOBS_PER_PAGE)); const safePage = ((Math.floor(Number(page) || 0) % maxPage) + maxPage) % maxPage;
-  const components = [text(`## ${interaction.user} Choose a job!`)];
+  const components = [text(`## ${interaction.user} Choose a job!\n-# Page ${safePage + 1}/${maxPage}`)];
   for (const job of JOBS.slice(safePage * JOBS_PER_PAGE, (safePage * JOBS_PER_PAGE) + JOBS_PER_PAGE)) {
     const applied = p.jobId === job.id; const ok = canApply(interaction, job);
-    const jobContent = ok ? [`### ${job.name}`, `-# * Wage: ${formatNumber(avg(job))} ${PRCOIN} / work`, `-# * Daily quota: work ${job.quota} times / day`].join('\n') : `### ${job.name}\n${requirementText(interaction, job)}`;
+    const jobContent = ok
+      ? [`### #${job.rank} ${job.name}`, `-# * Wage: ${formatNumber(avg(job))} ${PRCOIN} / work`, `-# * XP: ${xpRange(job)} / work`].join('\n')
+      : `### #${job.rank} ${job.name}\n${requirementText(interaction, job)}`;
     components.push(section(jobContent, button(`work:apply:${interaction.user.id}:${job.id}:${safePage}`, applied ? 'Applied' : ok ? 'Apply' : 'Not Eligible', applied ? 2 : ok ? 3 : 4, applied || !ok)));
   }
   components.push(sep(), row(button(`work:jobpage:${interaction.user.id}:${safePage + 1}`, 'Switch page', 2, maxPage <= 1), button(`work:back:${interaction.user.id}`, 'Back', 2)));
@@ -81,16 +81,27 @@ function memoryRevealPayload(interaction, session) { return payload([text(header
 function memoryGuessPayload(interaction, session) { const done = new Set(session.doneOptions || []); return payload([text(header(interaction, session, 'What was the pattern in order?')), sep(), row(...session.options.map((emoji, i) => button(`work:memory:${interaction.user.id}:${session.id}:${i}`, emoji, done.has(i) ? 3 : 2, done.has(i))))]); }
 
 function cleanup(id) { const s = activeSessions.get(id); if (!s) return; if (s.timer) clearTimeout(s.timer); if (s.revealTimer) clearTimeout(s.revealTimer); activeSessions.delete(id); }
+function awardWork(interaction, session, ok) {
+  const base = ri(session.job.min, session.job.max);
+  const fullXp = ri(session.job.minXp, session.job.maxXp);
+  const earned = ok ? base : Math.max(1, Math.floor(base * 0.10));
+  const xp = ok ? fullXp : Math.max(1, Math.floor(fullXp * 0.10));
+  addBalance(interaction.user.id, earned);
+  recordGamblingEarnings(interaction.user.id, earned);
+  if (interaction.guildId) addUserXp(interaction.guildId, interaction.user.id, xp);
+  recordWork(interaction.user.id);
+  setWorkCooldown(interaction.user.id, Date.now() + WORK_COOLDOWN_MS);
+  return { earned, xp };
+}
 async function showFinished(interaction, session, ok) {
-  cleanup(session.id); const base = ri(session.job.min, session.job.max); const earned = ok ? base : Math.max(1, Math.floor(base * 0.10));
-  addBalance(interaction.user.id, earned); recordGamblingEarnings(interaction.user.id, earned); recordWork(interaction.user.id); setWorkCooldown(interaction.user.id, Date.now() + WORK_COOLDOWN_MS);
-  const line = ok ? `* ${YES} You have completed your work and earned ${formatAbbreviated(earned)} ${PRCOIN}` : `* ${NO} You have failed your work and only earned ${formatAbbreviated(earned)} ${PRCOIN}`;
+  cleanup(session.id); const reward = awardWork(interaction, session, ok);
+  const line = ok ? `* ${YES} You have completed your work and earned ${formatAbbreviated(reward.earned)} ${PRCOIN} and ${formatNumber(reward.xp)} XP` : `* ${NO} You have failed your work and only earned ${formatAbbreviated(reward.earned)} ${PRCOIN} and ${formatNumber(reward.xp)} XP`;
   const h = home(interaction, line);
   if (typeof interaction.update === 'function') return interaction.update(h).catch(() => null);
   if (typeof interaction.deferUpdate === 'function') { await interaction.deferUpdate().catch(() => null); return session.message?.edit(h).catch(() => null); }
   await session.message?.edit(h).catch(() => null); if (!interaction.replied && !interaction.deferred && interaction.isRepliable?.()) await interaction.reply({ content: 'Work submitted.', flags: EPHEMERAL_FLAG }).catch(() => null);
 }
-function timeoutFail(interaction, session, ms) { session.timer = setTimeout(async () => { const current = activeSessions.get(session.id); if (!current || current.finished) return; current.finished = true; const base = ri(current.job.min, current.job.max); const earned = Math.max(1, Math.floor(base * 0.10)); addBalance(interaction.user.id, earned); recordGamblingEarnings(interaction.user.id, earned); recordWork(interaction.user.id); setWorkCooldown(interaction.user.id, Date.now() + WORK_COOLDOWN_MS); cleanup(current.id); await current.message?.edit(home(interaction, `* ${NO} You have failed your work and only earned ${formatAbbreviated(earned)} ${PRCOIN}`)).catch(() => null); }, ms); }
+function timeoutFail(interaction, session, ms) { session.timer = setTimeout(async () => { const current = activeSessions.get(session.id); if (!current || current.finished) return; current.finished = true; const reward = awardWork(interaction, current, false); cleanup(current.id); await current.message?.edit(home(interaction, `* ${NO} You have failed your work and only earned ${formatAbbreviated(reward.earned)} ${PRCOIN} and ${formatNumber(reward.xp)} XP`)).catch(() => null); }, ms); }
 async function startTyping(interaction, job) { const s = { id: sid(), userId: interaction.user.id, job, code: code(), expiresAt: Date.now() + 15000, message: interaction.message }; activeSessions.set(s.id, s); timeoutFail(interaction, s, 15000); await interaction.update(typingPayload(interaction, s)); }
 async function startMath(interaction, job) { const p = mathProblem(); const s = { id: sid(), userId: interaction.user.id, job, question: p.q, answer: p.a, expiresAt: Date.now() + 10000, message: interaction.message }; activeSessions.set(s.id, s); timeoutFail(interaction, s, 10000); await interaction.update(mathPayload(interaction, s)); }
 async function startMemory(interaction, job) { const pattern = Array.from({ length: 4 }, () => pick(MEMORY_EMOJIS)); const s = { id: sid(), userId: interaction.user.id, job, pattern, options: shuffle(pattern), doneOptions: [], next: 0, expiresAt: Date.now() + 20000, message: interaction.message }; activeSessions.set(s.id, s); await interaction.update(memoryRevealPayload(interaction, s)); s.revealTimer = setTimeout(async () => { const current = activeSessions.get(s.id); if (!current || current.finished) return; current.expiresAt = Date.now() + 15000; timeoutFail(interaction, current, 15000); await interaction.message?.edit(memoryGuessPayload(interaction, current)).catch(() => null); }, ri(3000, 5000)); }
