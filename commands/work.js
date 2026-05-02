@@ -9,7 +9,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const WORK_COOLDOWN_MS = 5 * 60 * 1000;
 const STORE_PATH = path.join(__dirname, '..', 'data', 'work-jobs.json');
-const JOBS_PER_PAGE = 3;
+const JOBS_PER_PAGE = 5;
 const YES = '<:Y_:1498173245981986869>';
 const NO = '<:N_:1498173244031631400>';
 const MEMORY_EMOJIS = ['🍎', '🍋', '🍇', '🍓', '🍒', '🥝', '🥥', '🍔'];
@@ -46,6 +46,7 @@ function mathProblem() { const a = ri(8, 49); const b = ri(3, 28); const op = pi
 function shuffle(items) { const out = [...items]; for (let i = out.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; } return out; }
 
 function text(content) { return { type: 10, content }; }
+function section(content, accessory) { return { type: 9, components: [text(content)], accessory }; }
 function sep() { return { type: 14, divider: true, spacing: 1 }; }
 function row(...components) { return { type: 1, components }; }
 function button(customId, label, style = 2, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
@@ -66,8 +67,8 @@ function jobsPage(interaction, page = 0) {
   const components = [text(`## ${interaction.user} Choose a job!`)];
   for (const job of JOBS.slice(safePage * JOBS_PER_PAGE, (safePage * JOBS_PER_PAGE) + JOBS_PER_PAGE)) {
     const applied = p.jobId === job.id; const ok = canApply(interaction, job);
-    components.push(text(ok ? [`### ${job.name}`, `-# * Wage: ${formatNumber(avg(job))} ${PRCOIN} / work`, `-# * Daily quota: work ${job.quota} times / day`].join('\n') : `### ${job.name}\n${requirementText(interaction, job)}`));
-    components.push(row(button(`work:apply:${interaction.user.id}:${job.id}:${safePage}`, applied ? 'Applied' : ok ? 'Apply' : 'Not Eligible', applied ? 2 : ok ? 3 : 4, applied || !ok)));
+    const jobContent = ok ? [`### ${job.name}`, `-# * Wage: ${formatNumber(avg(job))} ${PRCOIN} / work`, `-# * Daily quota: work ${job.quota} times / day`].join('\n') : `### ${job.name}\n${requirementText(interaction, job)}`;
+    components.push(section(jobContent, button(`work:apply:${interaction.user.id}:${job.id}:${safePage}`, applied ? 'Applied' : ok ? 'Apply' : 'Not Eligible', applied ? 2 : ok ? 3 : 4, applied || !ok)));
   }
   components.push(sep(), row(button(`work:jobpage:${interaction.user.id}:${safePage + 1}`, 'Switch page', 2, maxPage <= 1), button(`work:back:${interaction.user.id}`, 'Back', 2)));
   return payload(components);
