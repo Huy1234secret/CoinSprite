@@ -60,6 +60,13 @@ function requirementText(interaction, job) {
   if (e.missingLevel > 0) parts.push(`reach level ${job.requiredLevel}`);
   return `-# You need to ${parts.join(' and ')} to apply!`;
 }
+function showJobPageModal(interaction, currentPage, maxPage) {
+  const modal = new ModalBuilder().setCustomId(`work:jobpageform:${interaction.user.id}:${currentPage}:${maxPage}`).setTitle('Switch job page').addComponents(
+    new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('page_input').setLabel('Which page u wanna switch to').setStyle(TextInputStyle.Short).setRequired(true).setMinLength(1).setMaxLength(6).setPlaceholder(`1-${maxPage}`)),
+  );
+  return interaction.showModal(modal);
+}
+
 function jobsPage(interaction, page = 0) {
   const p = profile(interaction.user.id); const maxPage = Math.max(1, Math.ceil(JOBS.length / JOBS_PER_PAGE)); const safePage = ((Math.floor(Number(page) || 0) % maxPage) + maxPage) % maxPage;
   const components = [text(`## ${interaction.user} Choose a job!\n-# Page ${safePage + 1}/${maxPage}`)];
@@ -70,7 +77,7 @@ function jobsPage(interaction, page = 0) {
       : `### #${job.rank} ${job.name}\n${requirementText(interaction, job)}`;
     components.push(section(jobContent, button(`work:apply:${interaction.user.id}:${job.id}:${safePage}`, applied ? 'Applied' : ok ? 'Apply' : 'Not Eligible', applied ? 2 : ok ? 3 : 4, applied || !ok)));
   }
-  components.push(sep(), row(button(`work:jobpage:${interaction.user.id}:${safePage + 1}`, 'Switch page', 2, maxPage <= 1), button(`work:back:${interaction.user.id}`, 'Back', 2)));
+  components.push(sep(), row(button(`work:jobpage:${interaction.user.id}:${safePage}:${maxPage}`, 'Switch page', 2, maxPage <= 1), button(`work:back:${interaction.user.id}`, 'Back', 2)));
   return payload(components);
 }
 
@@ -117,7 +124,7 @@ module.exports = {
       if (parts[2] !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own work controls.', flags: EPHEMERAL_FLAG }); return true; }
       if (action === 'start') { await startWork(interaction); return true; }
       if (action === 'jobs') { await interaction.update(jobsPage(interaction, Number(parts[3]) || 0)); return true; }
-      if (action === 'jobpage') { await interaction.update(jobsPage(interaction, Number(parts[3]) || 0)); return true; }
+      if (action === 'jobpage') { await showJobPageModal(interaction, Number(parts[3]) || 0, Math.max(1, Number(parts[4]) || 1)); return true; }
       if (action === 'back') { await interaction.update(home(interaction)); return true; }
       if (action === 'apply') { const job = getJob(parts[3]); if (job && canApply(interaction, job)) setJob(interaction.user.id, job.id); await interaction.update(jobsPage(interaction, Number(parts[4]) || 0)); return true; }
       if (action === 'type' || action === 'answer') { const s = activeSessions.get(parts[3]); if (!s || s.userId !== interaction.user.id) { await interaction.reply({ content: 'This work challenge is no longer active.', flags: EPHEMERAL_FLAG }); return true; } await showModal(interaction, `workmodal:${action === 'type' ? 'typing' : 'math'}:${interaction.user.id}:${s.id}`, action === 'type' ? 'Typing Challenge' : 'Math Problem', action === 'type' ? 'Type the code exactly' : 'Enter the answer', action === 'type' ? s.code : s.question); return true; }

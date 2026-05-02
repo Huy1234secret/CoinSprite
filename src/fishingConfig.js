@@ -131,28 +131,28 @@ const FISH_BY_ID = Object.fromEntries(FISHES.map((fish) => [fish.id, fish]));
 
 const FISHING_UPGRADES = {
   luck: {
-    name: 'Luck Upgrade',
+    name: '<:SBLU:1499716437931982991> Luck Upgrade',
     perk: '+10% luck per tier',
     basePrice: 1_000,
     scaling: 1.25,
     maxTier: 50,
   },
   value: {
-    name: 'Fish Value',
+    name: '<:SBFV:1499716435562467409> Fish value',
     perk: '+15% fish value per tier',
     basePrice: 10_000,
     scaling: 1.65,
     maxTier: 25,
   },
   strength: {
-    name: 'Fishing Rod Strength',
+    name: '<:SBFRS:1499716433473441912> Fishing rod strenght',
     perk: '+20 strength per tier',
     basePrice: 2_500,
     scaling: 1.275,
     maxTier: 45,
   },
   durability: {
-    name: 'Durability',
+    name: '<:SBFRD:1499716429568671775> Fishing rod durability',
     perk: 'Fixed durability tiers',
     maxTier: 5,
     fixedTiers: [
