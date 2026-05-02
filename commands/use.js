@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { GREEN_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
-const { ALL_COLLECTABLES, BUCKET_OF_WORMS_ID, WORM_ID } = require('../src/fishingConfig');
+const { ALL_COLLECTABLES, BUCKET_OF_WORMS_ID, WORM_ID, ITEM_BY_ID } = require('../src/fishingConfig');
 const { getInventoryAmount, useBucketOfWorms } = require('../src/fishingStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
@@ -35,7 +35,9 @@ module.exports = {
       await interaction.reply(panel(`You do not have enough Bucket of Worms. Missing ×${formatNumber(result.missing)}.`, false));
       return;
     }
-    await interaction.reply(panel(`Used ×${result.used} Bucket of Worms and gained ×${formatNumber(result.gained)} Worms.\n-# You now have ×${formatNumber(getInventoryAmount(interaction.user.id, WORM_ID))} Worms.`));
+    const bucketLabel = `${ITEM_BY_ID[BUCKET_OF_WORMS_ID]?.emoji || ''} Bucket of Worms`.trim();
+    const wormLabel = `${ITEM_BY_ID[WORM_ID]?.emoji || ''} Worms`.trim();
+    await interaction.reply(panel(`Used ×${result.used} ${bucketLabel} and gained ×${formatNumber(result.gained)} ${wormLabel}.\n-# You now have ×${formatNumber(getInventoryAmount(interaction.user.id, WORM_ID))} ${wormLabel}.`));
   },
 
   async handleInteraction(interaction) {
