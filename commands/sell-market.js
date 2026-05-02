@@ -10,6 +10,8 @@ const { getInventoryEntries, getMarketSnapshot, recordMarketSell, removeInventor
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const MARKET_CACHE_DIR = path.join(__dirname, '..', 'data', 'market-charts');
+const CHART_POINT_COUNT = 10;
+
 function text(content) { return { type: 10, content }; }
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
 function row(...components) { return { type: 1, components }; }
@@ -24,28 +26,136 @@ function buildHomePayload(interaction) {
 }
 
 function ensureChartDir() { fs.mkdirSync(MARKET_CACHE_DIR, { recursive: true }); }
+
+function getCurrentChartHourKey(now = new Date()) {
+  const shifted = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+  shifted.setUTCMinutes(0, 0, 0);
+  return shifted.toISOString().replace(/[:.]/g, '-');
+}
+
+function getTenChartPoints(history, fallbackPoint) {
+  const source = Array.isArray(history) && history.length ? history.slice(-CHART_POINT_COUNT) : [fallbackPoint];
+  const firstPoint = source[0] || fallbackPoint;
+  while (source.length < CHART_POINT_COUNT) {
+    source.unshift({ ...firstPoint });
+  }
+  return source.slice(-CHART_POINT_COUNT);
+}
+
+function drawLegendItem(ctx, x, y, label, stroke) {
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + 58, y);
+  ctx.stroke();
+  ctx.fillStyle = stroke;
+  ctx.beginPath();
+  ctx.arc(x + 29, y, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(label, x + 70, y + 5);
+}
+
+function drawValueLabel(ctx, value, x, y, stroke, preferAbove) {
+  const label = formatNumber(value);
+  ctx.font = 'bold 12px sans-serif';
+  const width = ctx.measureText(label).width + 10;
+  const labelX = Math.max(8, Math.min(x - (width / 2), 900 - width - 8));
+  const labelY = preferAbove ? Math.max(78, y - 20) : Math.min(356, y + 12);
+  ctx.fillStyle = 'rgba(17, 18, 20, 0.82)';
+  ctx.fillRect(labelX, labelY - 12, width, 17);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(labelX, labelY - 12, width, 17);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(label, labelX + 5, labelY + 1);
+}
+
 function drawMarketChart(itemId) {
   ensureChartDir();
+  const hourKey = getCurrentChartHourKey();
+  const filePath = path.join(MARKET_CACHE_DIR, `market-${itemId}-${hourKey}.png`);
+  if (fs.existsSync(filePath)) return new AttachmentBuilder(filePath, { name: 'market-chart.png' });
+
   const item = ITEM_BY_ID[itemId];
   const market = getMarketSnapshot(itemId);
-  const points = ((market.history || []).slice(-24));
-  if (!points.length) points.push({ t: Date.now(), buy: market.buyPrice, sell: market.sellPrice });
+  const points = getTenChartPoints(market.history, { t: Date.now(), buy: market.buyPrice, sell: market.sellPrice });
   const canvas = createCanvas(900, 420);
   const ctx = canvas.getContext('2d');
-  const width = 900, height = 420, padding = 60, plotTop = 100, plotHeight = height - 155, plotWidth = width - (padding * 2);
-  ctx.fillStyle = '#111214'; ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 28px sans-serif'; ctx.fillText(`${item?.name || itemId} Market Value`, padding, 44);
-  ctx.font = '16px sans-serif'; ctx.fillText('Buy Price Line', padding, 75); ctx.fillText('Sell Price Line', padding + 170, 75);
+  const width = 900;
+  const height = 420;
+  const padding = 66;
+  const plotTop = 104;
+  const plotHeight = 252;
+  const plotWidth = width - (padding * 2);
+  const buyColor = '#57f287';
+  const sellColor = '#fee75c';
+
+  ctx.fillStyle = '#111214';
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillText(`${item?.name || itemId} Market Value`, padding, 42);
+  drawLegendItem(ctx, padding, 74, 'Buy Price Line', buyColor);
+  drawLegendItem(ctx, padding + 255, 74, 'Sell Price Line', sellColor);
+
   const values = points.flatMap((point) => [point.buy, point.sell]);
-  const min = Math.min(...values, 1), max = Math.max(...values, min + 1), span = Math.max(1, max - min);
-  ctx.strokeStyle = '#3a3c42'; ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i += 1) { const y = plotTop + ((plotHeight / 4) * i); ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(padding + plotWidth, y); ctx.stroke(); ctx.fillStyle = '#b5bac1'; ctx.fillText(formatNumber(max - ((span / 4) * i)), 8, y + 5); }
-  function xy(point, index, key) { return { x: padding + (points.length <= 1 ? plotWidth : (plotWidth * index) / (points.length - 1)), y: plotTop + plotHeight - (((point[key] - min) / span) * plotHeight) }; }
-  function drawLine(key, stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 4; ctx.beginPath(); points.forEach((point, index) => { const pos = xy(point, index, key); if (index === 0) ctx.moveTo(pos.x, pos.y); else ctx.lineTo(pos.x, pos.y); }); ctx.stroke(); ctx.fillStyle = stroke; points.forEach((point, index) => { const pos = xy(point, index, key); ctx.beginPath(); ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2); ctx.fill(); }); }
-  drawLine('buy', '#57f287'); drawLine('sell', '#fee75c');
-  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(padding, plotTop, plotWidth, plotHeight);
-  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(`Current Buy: ${formatNumber(market.buyPrice)} ${PRCOIN}`, padding, height - 38); ctx.fillText(`Current Sell: ${formatNumber(market.sellPrice)} ${PRCOIN}`, padding + 360, height - 38);
-  const filePath = path.join(MARKET_CACHE_DIR, `market-${itemId}-${Date.now()}.png`);
+  const rawMin = Math.min(...values, 1);
+  const rawMax = Math.max(...values, rawMin + 1);
+  const pad = Math.max(1, (rawMax - rawMin) * 0.12);
+  const min = Math.max(1, rawMin - pad);
+  const max = rawMax + pad;
+  const span = Math.max(1, max - min);
+
+  ctx.strokeStyle = '#34373d';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#b5bac1';
+  ctx.font = '13px sans-serif';
+  for (let i = 0; i <= 4; i += 1) {
+    const y = plotTop + ((plotHeight / 4) * i);
+    ctx.beginPath();
+    ctx.moveTo(padding, y);
+    ctx.lineTo(padding + plotWidth, y);
+    ctx.stroke();
+    ctx.fillText(formatNumber(max - ((span / 4) * i)), 10, y + 4);
+  }
+
+  function xy(point, index, key) {
+    return {
+      x: padding + ((plotWidth * index) / (CHART_POINT_COUNT - 1)),
+      y: plotTop + plotHeight - (((point[key] - min) / span) * plotHeight),
+    };
+  }
+
+  function drawLine(key, stroke, preferAbove) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      const pos = xy(point, index, key);
+      if (index === 0) ctx.moveTo(pos.x, pos.y);
+      else ctx.lineTo(pos.x, pos.y);
+    });
+    ctx.stroke();
+
+    points.forEach((point, index) => {
+      const pos = xy(point, index, key);
+      ctx.fillStyle = stroke;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      drawValueLabel(ctx, point[key], pos.x, pos.y, stroke, preferAbove);
+    });
+  }
+
+  drawLine('buy', buyColor, true);
+  drawLine('sell', sellColor, false);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(padding, plotTop, plotWidth, plotHeight);
+
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
   return new AttachmentBuilder(filePath, { name: 'market-chart.png' });
 }
