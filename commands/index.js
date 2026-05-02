@@ -190,7 +190,7 @@ async function buildFishGalleryImage(userId, rarity) {
   ctx.fillText(`${RARITY_LABELS[rarity] || rarity} Fish Index`, padding, 42);
   ctx.fillStyle = '#b5bac1';
   ctx.font = '16px sans-serif';
-  ctx.fillText(`${fishes.length} fish in this rarity`, padding, 66);
+  ctx.fillText(`${fishes.length} fish in this rarity ✨`, padding, 66);
 
   for (let i = 0; i < fishes.length; i += 1) {
     const fish = fishes[i];

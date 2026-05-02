@@ -119,7 +119,7 @@ const ALL_COLLECTABLES = [
   ...ITEMS,
   ...FISHES.map((fish) => ({
     ...fish,
-    description: `${RARITY_LABELS[fish.rarity]} fish`,
+    description: `${RARITY_LABELS[fish.rarity]} rarity ✨ fish`,
     type: 'Fish',
     baseValue: fish.baseValue,
     price: null,
