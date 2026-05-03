@@ -16,7 +16,7 @@ const MAX_TIME_MS = 60_000;
 const CORRECT_BONUS_MS = 10_000;
 const WRONG_DELAY_MS = 5_000;
 const NEXT_DELAY_MS = 2_000;
-const TRIVIA_COOLDOWN_MS = 30_000;
+const TRIVIA_COOLDOWN_MS = 10_000;
 const triviaCooldowns = new Map();
 
 const activeGames = new Map();

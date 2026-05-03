@@ -41,7 +41,7 @@ const RARE_FISH_ANNOUNCE_CHANNEL_ID = '1498300014114377860';
 const LEGENDARY_ACCENT = 0xF1C40F;
 const MYTHICAL_ACCENT = 0xE67E22;
 const SECRET_ACCENT = 0xC8A2FF;
-const FISH_COOLDOWN_MS = 30_000;
+const FISH_COOLDOWN_MS = 10_000;
 const fishCooldowns = new Map();
 
 function formatChance(value) {
