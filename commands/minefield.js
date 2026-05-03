@@ -29,7 +29,9 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const PRCOIN_MIN_BET = 1;
 const PRCOIN_MAX_BET = 100_000;
 const TIMEOUT_MS = 20_000;
+const MINEFIELD_COOLDOWN_MS = 10_000;
 const activeGames = new Map();
+const minefieldCooldowns = new Map();
 const activeUserGames = new Map();
 const MINEFIELD_XP_BY_SAFE_SLOT = {
   easy: [10, 15, 20, 25, 35, 50],
