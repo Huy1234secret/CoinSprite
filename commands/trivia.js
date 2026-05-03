@@ -73,6 +73,17 @@ function pickQuestion(game, difficulty) {
   return { ...questions[index], difficulty };
 }
 
+function normalizeQuestion(question) {
+  if (!question || !Array.isArray(question.answers) || question.answers.length === 0) return null;
+  const correctIndex = Number(question.correctIndex);
+  if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= question.answers.length) return null;
+  return {
+    ...question,
+    correctIndex,
+    displayOrder: createShuffledOrder(question.answers.length),
+  };
+}
+
 function getQuestionValue(game, difficulty) {
   const base = DIFFICULTY_CONFIG[difficulty]?.reward ?? 10;
   return Math.max(1, Math.floor(base * (game.currentRewardMultiplier || 1)));
@@ -284,12 +295,13 @@ async function askNextQuestion(game) {
   }
 
   const difficulty = pickDifficulty(game);
-  const question = pickQuestion(game, difficulty);
+  const question = normalizeQuestion(pickQuestion(game, difficulty));
+  if (!question) {
+    await finishGame(game, null, 'missing-question');
+    return;
+  }
   game.questionNumber += 1;
-  game.currentQuestion = {
-    ...question,
-    displayOrder: createShuffledOrder(question.answers.length),
-  };
+  game.currentQuestion = question;
   game.currentQuestionValue = getQuestionValue(game, difficulty);
   game.locked = false;
 
@@ -380,11 +392,12 @@ module.exports = {
 
       game.questionNumber = 1;
       const openingDifficulty = pickDifficulty(game);
-      const openingQuestion = pickQuestion(game, openingDifficulty);
-      game.currentQuestion = {
-        ...openingQuestion,
-        displayOrder: createShuffledOrder(openingQuestion.answers.length),
-      };
+      const openingQuestion = normalizeQuestion(pickQuestion(game, openingDifficulty));
+      if (!openingQuestion) {
+        await interaction.reply({ content: 'Trivia questions are temporarily unavailable. Please try again shortly.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+      game.currentQuestion = openingQuestion;
       game.currentQuestionValue = getQuestionValue(game, openingDifficulty);
 
       activeGames.set(interaction.user.id, game);
