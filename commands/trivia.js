@@ -16,6 +16,8 @@ const MAX_TIME_MS = 60_000;
 const CORRECT_BONUS_MS = 10_000;
 const WRONG_DELAY_MS = 5_000;
 const NEXT_DELAY_MS = 2_000;
+const TRIVIA_COOLDOWN_MS = 30_000;
+const triviaCooldowns = new Map();
 
 const activeGames = new Map();
 
@@ -225,6 +227,7 @@ async function finishGame(game, interaction = null) {
   game.finished = true;
   activeGames.delete(game.userId);
   endUserSession(game.userId, 'trivia');
+  triviaCooldowns.set(game.userId, Date.now() + TRIVIA_COOLDOWN_MS);
 
   if (game.timeout) clearTimeout(game.timeout);
   if (game.nextTimeout) clearTimeout(game.nextTimeout);
@@ -323,6 +326,11 @@ module.exports = {
     if (!interaction.isButton()) return true;
 
     if (action === 'play') {
+      const cooldownUntil = triviaCooldowns.get(interaction.user.id) || 0;
+      if (cooldownUntil > Date.now()) {
+        await interaction.reply({ content: `You can play Trivia again <t:${Math.floor(cooldownUntil / 1000)}:R>.`, flags: MessageFlags.Ephemeral });
+        return true;
+      }
       if (activeGames.has(interaction.user.id)) {
         await interaction.reply({ content: 'You already have an active Trivia game. Finish it first.', flags: MessageFlags.Ephemeral });
         return true;

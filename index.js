@@ -6,7 +6,7 @@ const { logCommandUse, logCommandSystem, setLogClient } = require('./src/command
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ALLOWED_GUILD_ID = '1493901002519347290';
-const GLOBAL_COMMAND_COOLDOWN_MS = 30_000;
+const GLOBAL_COMMAND_COOLDOWN_MS = 5_000;
 const userGlobalCooldowns = new Map();
 
 config();

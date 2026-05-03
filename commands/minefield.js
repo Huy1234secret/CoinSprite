@@ -110,6 +110,7 @@ function removeGame(game) {
   activeGames.delete(game.id);
   activeUserGames.delete(game.userId);
   endUserSession(game.userId, 'minefield');
+  minefieldCooldowns.set(game.userId, Date.now() + MINEFIELD_COOLDOWN_MS);
 }
 
 function normalizeDifficulty(raw) {
@@ -393,6 +394,11 @@ module.exports = {
       }
 
       if (action === 'play') {
+        const cooldownUntil = minefieldCooldowns.get(interaction.user.id) || 0;
+        if (cooldownUntil > Date.now()) {
+          await interaction.reply({ content: `You can play Minefield again <t:${Math.floor(cooldownUntil / 1000)}:R>.`, flags: MessageFlags.Ephemeral });
+          return true;
+        }
         await interaction.showModal({
           custom_id: `minefield:setup:${interaction.user.id}:${createGameId()}`,
           title: 'Minefield Setup',
