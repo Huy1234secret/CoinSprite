@@ -371,6 +371,7 @@ module.exports = {
         userId: interaction.user.id,
         guildId: interaction.guildId || null,
         message: interaction.message,
+        startedAt: Date.now(),
         endsAt: Date.now() + START_TIME_MS,
         prizePool: 0,
         correctCount: 0,
@@ -468,7 +469,8 @@ module.exports = {
         game.currentRewardMultiplier = Math.max(1, game.currentRewardMultiplier * getTriviaMasterPerkMultiplier(game.userId));
       }
       const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
-      game.endsAt = Math.min(boostedEnd, Date.now() + MAX_TIME_MS);
+      const absoluteMaxEnd = game.startedAt + MAX_TIME_MS;
+      game.endsAt = Math.min(boostedEnd, absoluteMaxEnd);
       await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +10s added to your timer.'));
       resetFinishTimer(game);
       game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), NEXT_DELAY_MS);
