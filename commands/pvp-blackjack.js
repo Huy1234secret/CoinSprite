@@ -1,9 +1,9 @@
 const { SlashCommandBuilder } = require('discord.js');
 const {
   startPvpChallenge,
-  handlePvpBlackjackInteraction,
-  shouldLogBlackjackInteraction,
-} = require('../src/blackjackCore');
+  handlePvpInteraction,
+  shouldLogPvpBlackjackInteraction,
+} = require('../src/pvpBlackjackPlus');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,7 +15,7 @@ module.exports = {
       .setRequired(true))
     .addStringOption((option) => option
       .setName('amount')
-      .setDescription('PRcoin bet amount, like 1000, 5k, or all')
+      .setDescription('PRcoin bet amount, max 100k')
       .setRequired(true)),
   suppressCommandLog: true,
 
@@ -23,9 +23,9 @@ module.exports = {
     await startPvpChallenge(interaction);
   },
 
-  shouldLogInteraction: shouldLogBlackjackInteraction,
+  shouldLogInteraction: shouldLogPvpBlackjackInteraction,
 
   async handleInteraction(interaction) {
-    return handlePvpBlackjackInteraction(interaction);
+    return handlePvpInteraction(interaction);
   },
 };
