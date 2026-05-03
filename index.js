@@ -80,8 +80,13 @@ client.on(Events.InviteDelete, async (invite) => {
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
+  if (message.author?.bot) return;
   if (message.guildId !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
+  for (const command of client.commands.values()) {
+    if (typeof command.handleMessageCreate !== 'function') continue;
+    const handled = await command.handleMessageCreate(message, client);
+    if (handled) return;
+  }
 });
 client.on(Events.MessageDelete, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
