@@ -6,6 +6,8 @@ const { logCommandUse, logCommandSystem, setLogClient } = require('./src/command
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ALLOWED_GUILD_ID = '1493901002519347290';
+const GLOBAL_COMMAND_COOLDOWN_MS = 30_000;
+const userGlobalCooldowns = new Map();
 
 config();
 
@@ -108,6 +110,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
+        const now = Date.now();
+        const bypassCooldown = command.bypassGlobalCooldown === true;
+        const cooldownUntil = userGlobalCooldowns.get(interaction.user.id) || 0;
+        if (!bypassCooldown && cooldownUntil > now) {
+          await interaction.reply({ content: `Please wait <t:${Math.floor(cooldownUntil / 1000)}:R> before using another command.`, flags: EPHEMERAL_FLAG });
+          return;
+        }
+
         const blockReason = getCommandBlockReason(interaction.user.id, interaction.commandName);
         if (blockReason) {
           await interaction.reply({ content: blockReason, flags: EPHEMERAL_FLAG });
@@ -117,6 +127,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           logCommandUse({ userId: interaction.user.id, command: `/${interaction.commandName}`, channelId: interaction.channelId ?? 'unknown' });
         }
         await command.execute(interaction, client);
+        if (!bypassCooldown) userGlobalCooldowns.set(interaction.user.id, Date.now() + GLOBAL_COMMAND_COOLDOWN_MS);
       }
       return;
     }
