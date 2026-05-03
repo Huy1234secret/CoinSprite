@@ -1187,6 +1187,7 @@ async function settleSpin(gameId) {
   }
 
   game.status = 'finished';
+  rouletteCooldowns.set(game.userId, Date.now() + ROULETTE_COOLDOWN_MS);
   game.lastSpinNumber = game.resultNumber;
   game.lastOutcome = { win: won, payout };
   const payload = await buildGamePayload(game, 'finished');
@@ -1222,6 +1223,11 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
+    const cooldownUntil = rouletteCooldowns.get(interaction.user.id) || 0;
+    if (cooldownUntil > Date.now()) {
+      await interaction.reply({ content: `You can start Roulette again <t:${Math.floor(cooldownUntil / 1000)}:R>.`, flags: MessageFlags.Ephemeral });
+      return;
+    }
     const game = {
       id: createGameId(),
       userId: interaction.user.id,
