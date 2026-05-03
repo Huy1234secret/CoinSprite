@@ -468,10 +468,15 @@ module.exports = {
       if (game.hasMasterPerk) {
         game.currentRewardMultiplier = Math.max(1, game.currentRewardMultiplier * getTriviaMasterPerkMultiplier(game.userId));
       }
-      const boostedEnd = game.endsAt + CORRECT_BONUS_MS;
+      const previousEnd = game.endsAt;
+      const boostedEnd = previousEnd + CORRECT_BONUS_MS;
       const absoluteMaxEnd = game.startedAt + MAX_TIME_MS;
       game.endsAt = Math.min(boostedEnd, absoluteMaxEnd);
-      await interaction.update(buildGamePayload(game, selectedIndex, 'Correct! +10s added to your timer.'));
+      const addedMs = Math.max(0, game.endsAt - previousEnd);
+      const bonusNotice = addedMs > 0
+        ? `Correct! +${Math.round(addedMs / 1000)}s added to your timer.`
+        : 'Correct! Timer is already at the 60s cap.';
+      await interaction.update(buildGamePayload(game, selectedIndex, bonusNotice));
       resetFinishTimer(game);
       game.nextTimeout = setTimeout(() => askNextQuestion(game).catch(() => null), NEXT_DELAY_MS);
       return true;
