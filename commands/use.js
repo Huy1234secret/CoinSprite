@@ -46,7 +46,7 @@ module.exports = {
     await interaction.respond(USABLE_ITEMS
       .filter((item) => item.name.toLowerCase().includes(focused) || item.id.includes(focused))
       .slice(0, 25)
-      .map((item) => ({ name: `${item.name}`, value: item.id }))).catch(() => null);
+      .map((item) => ({ name: `${item.emoji || ''} ${item.name}`.trim(), value: item.id }))).catch(() => null);
     return true;
   },
 };
