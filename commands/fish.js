@@ -76,8 +76,12 @@ async function announceRareCatch(interaction, session, succeeded) {
   const baseChance = formatChance(fish.chance);
   const thumbnail = emojiUrl(fish.emoji);
 
-  const failText = `${interaction.user} has found ${fish.name}\n-# But failed to fish it, better luck next time`;
-  const successText = `${interaction.user} has found ${fish.name} ${fish.emoji}\n-# And successfully fish it! 🎉`;
+  const rarityLabel = RARITY_LABELS[fish.rarity] || fish.rarity;
+  const rarityEmoji = RARITY_EMOJIS[fish.rarity] || '';
+  const rarityText = `**${rarityLabel} ${rarityEmoji}**`.trim();
+
+  const failText = `${interaction.user} has found ${rarityText} ${fish.name} ${fish.emoji}\n-# But failed to fish it, better luck next time`;
+  const successText = `${interaction.user} has found ${rarityText} ${fish.name} ${fish.emoji}\n-# And successfully fish it! 🎉`;
   const message = succeeded ? successText : failText;
 
   const contentBlock = thumbnail && !succeeded

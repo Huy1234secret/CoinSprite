@@ -7,7 +7,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const COOLDOWN_MS = 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 const MAX_STACK_MINUTES = 24 * 60;
-const MAX_INCOME = 5000;
+const MAX_INCOME_PER_MINUTE = 1000;
 const BASE_INCOME = 10;
 const GROWTH = 1.05;
 
@@ -42,8 +42,9 @@ module.exports = {
     const startedAt = Math.max(0, Math.floor(Number(claim.startedAt) || 0)) || now;
     const elapsedMinutes = Math.max(0, Math.floor((now - startedAt) / MINUTE_MS));
     const stackedMinutes = Math.min(MAX_STACK_MINUTES, elapsedMinutes);
-    const perMinute = levelIncome(level);
-    const total = Math.max(0, Math.min(MAX_INCOME, Math.floor(perMinute * stackedMinutes)));
+    const rawPerMinute = levelIncome(level);
+    const perMinute = Math.min(MAX_INCOME_PER_MINUTE, rawPerMinute);
+    const total = Math.max(0, Math.floor(perMinute * stackedMinutes));
 
     if (total > 0) {
       addBalance(interaction.user.id, total);
@@ -60,7 +61,8 @@ module.exports = {
         components: [
           text(`${interaction.user} You have collected ${formatNumber(total)} ${PRCOIN}!`),
           separator(),
-          text(`-# ${formatNumber(stackedMinutes)}m income`),
+          text(`-# ${formatNumber(stackedMinutes)}m income (max ${formatNumber(MAX_STACK_MINUTES)}m / 24h)`),
+          text(`-# Rate: ${formatNumber(Math.floor(perMinute))} ${PRCOIN}/min (cap ${formatNumber(MAX_INCOME_PER_MINUTE)}/min)`),
         ],
       }],
     });
