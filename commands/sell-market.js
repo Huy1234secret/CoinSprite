@@ -20,7 +20,7 @@ function button(customId, label, style = 2, disabled = false) { return { type: 2
 function ownerFromId(customId) { return String(customId || '').split(':')[2]; }
 function nextUpdateLine() { const unix = Math.floor(getNextHourlyBoundaryUtcPlus7().getTime() / 1000); return `-# Value update <t:${unix}:R> (<t:${unix}:t> UTC+7)`; }
 function parseAmount(raw) { const n = Math.floor(Number(String(raw || '').replace(/,/g, '').trim())); return Number.isFinite(n) ? n : 0; }
-function userItemOptions(userId) { return getInventoryEntries(userId).filter((entry) => entry.amount > 0).slice(0, 25).map((entry) => ({ label: entry.item.name.slice(0, 100), value: entry.item.id, description: `Owned: ${entry.amount}`.slice(0, 100) })); }
+function userItemOptions(userId) { return getInventoryEntries(userId).filter((entry) => entry.amount > 0).slice(0, 25).map((entry) => ({ label: entry.item.name.slice(0, 100), value: entry.item.id, description: `Owned: ${entry.amount}`.slice(0, 100), emoji: entry.item.emojiObject || undefined })); }
 
 function buildHomePayload(interaction) {
   return { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: WHITE_ACCENT, components: [text(`## Welcome ${interaction.user} to Market!\n* Select an action`), separator(), { type: 1, components: [{ type: 3, custom_id: `market:action:${interaction.user.id}`, placeholder: 'Actions', min_values: 1, max_values: 1, options: [{ label: 'Check value', value: 'check', emoji: { name: '📊' }, description: 'Check the current market value of an item' }, { label: 'Sell items', value: 'sell', emoji: { name: '💲' }, description: 'sell your items' }] }] }] }] };
@@ -213,7 +213,7 @@ async function buildCheckPayload(interaction, itemId = null) {
   const selectedId = itemId || options[0]?.value || 'fishing_rod';
   const item = ITEM_BY_ID[selectedId];
   const market = getMarketSnapshot(selectedId);
-  const selectOptions = options.length ? options.map((option) => ({ ...option, default: option.value === selectedId })) : [{ label: item?.name || 'Fishing rod', value: selectedId, description: 'No owned items found', default: true }];
+  const selectOptions = options.length ? options.map((option) => ({ ...option, default: option.value === selectedId })) : [{ label: item?.name || 'Fishing rod', value: selectedId, description: 'No owned items found', default: true, emoji: item?.emojiObject || undefined }];
   return { flags: COMPONENTS_V2_FLAG, files: [drawMarketChart(selectedId)], components: [{ type: 17, accent_color: WHITE_ACCENT, components: [text(`## Welcome ${interaction.user} to Market's Value Checker\n-# Select an item to check it value\n${nextUpdateLine()}\n-# Buy: ${formatNumber(market.buyPrice)} ${PRCOIN} • Sell: ${formatNumber(market.sellPrice)} ${PRCOIN}`), { type: 12, items: [{ media: { url: 'attachment://market-chart.png' } }] }, separator(), { type: 1, components: [{ type: 3, custom_id: `market:item:${interaction.user.id}`, placeholder: 'Select item', min_values: 1, max_values: 1, options: selectOptions }] }, row(button(`market:back:${interaction.user.id}`, 'Back', 2, false))] }] };
 }
 

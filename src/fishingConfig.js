@@ -56,7 +56,7 @@ const ITEMS = [
     emojiObject: { id: '1499589444590768188', name: 'ICWorm' },
     stockMin: null,
     stockMax: null,
-    price: 10_000,
+    price: 100,
     baseValue: 100,
     description: 'an item use for fishing',
     shop: null,
