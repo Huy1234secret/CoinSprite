@@ -13,7 +13,7 @@ module.exports = {
     .setDescription('Play Blackjack against the dealer with PRcoin')
     .addStringOption((option) => option
       .setName('amount')
-      .setDescription('Bet amount, like 1000, 5k, or all')
+      .setDescription('Enter your PRcoin bet amount')
       .setRequired(true)),
   suppressCommandLog: true,
 
