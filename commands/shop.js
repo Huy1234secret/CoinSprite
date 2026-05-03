@@ -2,7 +2,7 @@ const { SlashCommandBuilder, MessageFlags, ModalBuilder, TextInputBuilder, TextI
 const { PRCOIN, JPCOIN, WHITE_ACCENT, formatNumber } = require('../src/gamblingConfig');
 const { getBalance, spendBalance } = require('../src/gamblingStore');
 const { ITEMS, ITEM_BY_ID, SHOP_TYPES, getNextHourlyBoundaryUtcPlus7 } = require('../src/fishingConfig');
-const { addInventoryItem, decrementShopStock, getShopState, recordMarketBuy } = require('../src/fishingStore');
+const { addInventoryItem, decrementShopStock, getMarketSnapshot, getShopState, recordMarketBuy } = require('../src/fishingStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -16,6 +16,7 @@ function coinForShop(shopKey) { return shopKey === 'exclusive' ? JPCOIN : PRCOIN
 function parseAmount(raw) { const n = Math.floor(Number(String(raw || '').replace(/,/g, '').trim())); return Number.isFinite(n) ? n : 0; }
 function countdown() { const unix = Math.floor(getNextHourlyBoundaryUtcPlus7().getTime() / 1000); return `-# Restock <t:${unix}:R> (<t:${unix}:t> UTC+7)`; }
 function getShopItems(shopKey) { return ITEMS.filter((item) => item.shop === shopKey && item.stockMin != null && item.stockMax != null); }
+function getShopUnitPrice(item) { return Math.max(1, Math.floor(Number(getMarketSnapshot(item.id)?.buyPrice) || Number(item.price) || 1)); }
 
 function buildShopPayload(interaction, shopKey = 'general', page = 0) {
   const userId = interaction.user.id;
@@ -28,7 +29,7 @@ function buildShopPayload(interaction, shopKey = 'general', page = 0) {
   if (!shown.length) components.push(text('-# This shop has no stocked items yet.'));
   for (const item of shown) {
     const stock = Math.max(0, Math.floor(Number(shopStock?.[shopKey]?.[item.id]) || 0));
-    components.push(text(`### ${item.name} ${item.emoji} - ${formatNumber(item.price)} ${coinForShop(shopKey)}\n-# ${item.description}\n-# 📦Stock: ${stock}`));
+    components.push(text(`### ${item.name} ${item.emoji} - ${formatNumber(getShopUnitPrice(item))} ${coinForShop(shopKey)}\n-# ${item.description}\n-# 📦Stock: ${stock}`));
     components.push(row(button(`shop:buy:${userId}:${shopKey}:${item.id}`, 'BUY', stock > 0 ? 3 : 4, stock <= 0)));
   }
   components.push(separator());
@@ -69,7 +70,8 @@ module.exports = {
         const [, , , shopKey, itemId, rawAmount] = parts;
         const item = ITEM_BY_ID[itemId];
         const amount = Math.max(1, parseAmount(rawAmount));
-        const total = item.price * amount;
+        const unitPrice = getShopUnitPrice(item);
+        const total = unitPrice * amount;
         if (!decrementShopStock(interaction.user.id, shopKey, itemId, amount)) { await interaction.update({ content: 'That shop stock changed and there is not enough left.', components: [] }); return true; }
         if (!spendBalance(interaction.user.id, total)) { await interaction.update({ content: `You no longer have enough ${coinForShop(shopKey)} for this purchase.`, components: [] }); return true; }
         addInventoryItem(interaction.user.id, itemId, amount); recordMarketBuy(itemId, amount);
@@ -96,7 +98,8 @@ module.exports = {
       if (!item || amount <= 0) { await interaction.reply({ content: 'Please enter a valid amount.', flags: EPHEMERAL_FLAG }); return true; }
       const stock = Math.max(0, Math.floor(Number(getShopState(interaction.user.id)?.[shopKey]?.[itemId]) || 0));
       if (amount > stock) { await interaction.reply({ content: `Only ${stock} ${item.name} ${item.emoji} are in stock.`, flags: EPHEMERAL_FLAG }); return true; }
-      const total = item.price * amount;
+      const unitPrice = getShopUnitPrice(item);
+        const total = unitPrice * amount;
       const balance = getBalance(interaction.user.id);
       if (balance < total) { await interaction.reply({ content: `You don't have enough to buy ×${amount} ${item.name} ${item.emoji}, you need ${formatNumber(total - balance)} ${coinForShop(shopKey)} more!`, flags: EPHEMERAL_FLAG }); return true; }
       await interaction.reply({ content: `Are you sure you wanna buy ×${amount} ${item.name} ${item.emoji} for ${formatNumber(total)} ${coinForShop(shopKey)}`, flags: EPHEMERAL_FLAG, components: [row(button(`shop:confirm:${interaction.user.id}:${shopKey}:${itemId}:${amount}`, 'Yes', 3, false))] });

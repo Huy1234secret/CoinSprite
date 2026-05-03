@@ -20,6 +20,7 @@ function levelIncome(level) {
 }
 
 module.exports = {
+  bypassGlobalCooldown: true,
   data: new SlashCommandBuilder().setName('collect-incomes').setDescription('Collect your stacked passive income (1 min cooldown).'),
 
   async execute(interaction) {
