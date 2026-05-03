@@ -1,3 +1,5 @@
+require('../src/blackjackCanvasStyle');
+
 const { SlashCommandBuilder } = require('discord.js');
 const {
   startPvpChallenge,
