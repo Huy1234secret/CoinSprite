@@ -1,7 +1,13 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { addBalance, recordGamblingEarnings, recordTriviaRun, getTriviaXpMultiplier } = require('../src/gamblingStore');
 const { PRCOIN, WHITE_ACCENT, GREEN_ACCENT, YELLOW_ACCENT, RED_ACCENT, formatNumber } = require('../src/gamblingConfig');
-const TRIVIA_QUESTIONS = require('../src/triviaQuestions');
+const BASE_TRIVIA_QUESTIONS = require('../src/triviaQuestions');
+const EXTRA_TRIVIA_QUESTIONS = require('../src/triviaExtraQuestions');
+const TRIVIA_QUESTIONS = {
+  easy: [...BASE_TRIVIA_QUESTIONS.easy, ...EXTRA_TRIVIA_QUESTIONS.easy],
+  medium: [...BASE_TRIVIA_QUESTIONS.medium, ...EXTRA_TRIVIA_QUESTIONS.medium],
+  hard: [...BASE_TRIVIA_QUESTIONS.hard, ...EXTRA_TRIVIA_QUESTIONS.hard],
+};
 const { startUserSession, endUserSession, getCommandBlockReason } = require('../src/gameSessionLock');
 const leveling = require('../src/levelingManager');
 const {
