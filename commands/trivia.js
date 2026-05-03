@@ -22,7 +22,7 @@ const MAX_TIME_MS = 60_000;
 const CORRECT_BONUS_MS = 10_000;
 const WRONG_DELAY_MS = 5_000;
 const NEXT_DELAY_MS = 2_000;
-const TRIVIA_COOLDOWN_MS = 10_000;
+const TRIVIA_COOLDOWN_MS = 5 * 60_000;
 const triviaCooldowns = new Map();
 
 const activeGames = new Map();
@@ -199,13 +199,25 @@ function buildGamePayload(game, selectedIndex = null, notice = null) {
           { type: 10, content },
           { type: 14, divider: true, spacing: 1 },
           ...buildAnswerRows(game, selectedIndex),
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: `trivia:stop:${game.userId}:${game.id}`,
+                label: 'Stop',
+                style: 4,
+                disabled: Boolean(selectedIndex !== null || game.locked),
+              },
+            ],
+          },
         ],
       },
     ],
   };
 }
 
-function buildFinishedPayload(game) {
+function buildFinishedPayload(game, reason = null) {
   return {
     flags: COMPONENTS_V2_FLAG,
     allowedMentions: { users: [] },
@@ -217,7 +229,7 @@ function buildFinishedPayload(game) {
           {
             type: 10,
             content: [
-              '### Time is up!',
+              reason === 'stopped' ? '### Trivia stopped.' : '### Time is up!',
               `* You earned **${formatNumber(game.prizePool)}** ${PRCOIN}!`,
               `-# You answered **${formatNumber(game.correctCount)}** trivia questions correctly.`,
             ].join('\n'),
@@ -228,7 +240,7 @@ function buildFinishedPayload(game) {
   };
 }
 
-async function finishGame(game, interaction = null) {
+async function finishGame(game, interaction = null, reason = null) {
   if (!game || game.finished) return;
   game.finished = true;
   activeGames.delete(game.userId);
@@ -247,7 +259,7 @@ async function finishGame(game, interaction = null) {
     await unlockTriviaAchievements(game.channel, { id: game.userId });
   }
 
-  const payload = buildFinishedPayload(game);
+  const payload = buildFinishedPayload(game, reason);
   if (interaction) {
     await interaction.update(payload).catch(() => null);
     return;
@@ -384,6 +396,19 @@ module.exports = {
       });
       await interaction.update(buildGamePayload(game));
       resetFinishTimer(game);
+      return true;
+    }
+
+    if (action === 'stop') {
+      const gameId = parts[3];
+      const game = activeGames.get(interaction.user.id);
+
+      if (!game || game.id !== gameId || game.finished) {
+        await interaction.reply({ content: 'This Trivia game is no longer active.', flags: MessageFlags.Ephemeral });
+        return true;
+      }
+
+      await finishGame(game, interaction, 'stopped');
       return true;
     }
 
