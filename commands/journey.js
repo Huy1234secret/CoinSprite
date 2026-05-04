@@ -81,17 +81,6 @@ function findBannerPath() {
   return exact ? path.join(IMAGES_DIR, exact) : null;
 }
 
-function roundedRect(ctx, x, y, width, height, radius) {
-  const r = Math.min(radius, width / 2, height / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + width, y, x + width, y + height, r);
-  ctx.arcTo(x + width, y + height, x, y + height, r);
-  ctx.arcTo(x, y + height, x, y, r);
-  ctx.arcTo(x, y, x + width, y, r);
-  ctx.closePath();
-}
-
 function drawStar(ctx, cx, cy, outerRadius, innerRadius) {
   ctx.beginPath();
   for (let i = 0; i < 10; i += 1) {
@@ -116,94 +105,152 @@ function normalizeEnemies(enemies) {
   return [...byId.values()];
 }
 
-async function createJourneyStageImage(stage) {
-  const width = 1024;
-  const height = 320;
+function setTextShadow(ctx, blur = 8) {
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 3;
+}
+
+function clearTextShadow(ctx) {
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+}
+
+function strokedText(ctx, value, x, y, fillStyle, strokeStyle, strokeWidth = 6) {
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = strokeStyle;
+  ctx.lineWidth = strokeWidth;
+  ctx.strokeText(value, x, y);
+  ctx.fillStyle = fillStyle;
+  ctx.fillText(value, x, y);
+}
+
+function createFallbackBanner() {
+  const width = 2048;
+  const height = 330;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
-  const bannerPath = findBannerPath();
-
-  if (bannerPath) {
-    const banner = await loadImage(bannerPath);
-    ctx.drawImage(banner, 0, 0, width, height);
-  } else {
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#163d1d');
-    gradient.addColorStop(1, '#70b54d');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#163d1d');
+  gradient.addColorStop(0.5, '#3f8d42');
+  gradient.addColorStop(1, '#0b2a16');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
+  return canvas;
+}
 
-  roundedRect(ctx, 34, 38, 390, 244, 28);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-  ctx.lineWidth = 4;
-  ctx.stroke();
+async function loadBannerCanvas() {
+  const bannerPath = findBannerPath();
+  if (!bannerPath) return createFallbackBanner();
+  const banner = await loadImage(bannerPath);
+  const canvas = createCanvas(banner.width, banner.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(banner, 0, 0);
+  return canvas;
+}
 
-  ctx.fillStyle = '#111111';
-  ctx.font = '700 28px Arial';
-  ctx.fillText('Map', 70, 95);
-  ctx.font = '800 38px Arial';
-  ctx.fillText(stage.name, 70, 150);
-  ctx.font = '600 20px Arial';
-  ctx.fillText(stage.chapter || 'Chapter 1', 72, 184);
+function drawMapInfo(ctx, stage, width, height) {
+  const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
+  const left = Math.round(width * 0.045);
+  const top = Math.round(height * 0.24);
+
+  ctx.textBaseline = 'alphabetic';
+  setTextShadow(ctx, 10);
+  ctx.font = `800 ${Math.round(28 * scale)}px Arial`;
+  strokedText(ctx, 'MAP', left, top, '#f8fff0', 'rgba(0, 0, 0, 0.72)', Math.round(7 * scale));
+
+  ctx.font = `900 ${Math.round(58 * scale)}px Arial`;
+  strokedText(ctx, stage.name, left, top + Math.round(62 * scale), '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(9 * scale));
+
+  ctx.font = `800 ${Math.round(24 * scale)}px Arial`;
+  strokedText(ctx, stage.chapter || 'Chapter 1', left + Math.round(2 * scale), top + Math.round(100 * scale), '#f4ffe0', 'rgba(0, 0, 0, 0.72)', Math.round(6 * scale));
+  clearTextShadow(ctx);
 
   for (let i = 0; i < 3; i += 1) {
-    drawStar(ctx, 94 + (i * 62), 232, 24, 11);
+    const starX = left + Math.round((31 + (i * 68)) * scale);
+    const starY = top + Math.round(153 * scale);
+    drawStar(ctx, starX, starY, Math.round(27 * scale), Math.round(12 * scale));
     ctx.fillStyle = i < Math.max(0, Math.min(3, stage.stars || 0)) ? '#f5c542' : '#000000';
     ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = Math.max(2, Math.round(3 * scale));
+    ctx.stroke();
   }
+}
 
+function drawEnemyList(ctx, stage, width, height) {
   const enemies = normalizeEnemies(stage.enemies).slice(0, 5);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.80)';
-  roundedRect(ctx, 598, 38, 392, 244, 28);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-  ctx.stroke();
+  const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
+  const right = Math.round(width * 0.96);
+  const titleY = Math.round(height * 0.28);
+  const circleY = Math.round(height * 0.52);
+  const radius = Math.round(36 * scale);
+  const gap = Math.round(92 * scale);
+  const totalWidth = enemies.length > 0 ? ((enemies.length - 1) * gap) : 0;
+  const startX = right - totalWidth - radius;
 
-  ctx.fillStyle = '#111111';
-  ctx.font = '800 27px Arial';
-  ctx.fillText('Enemies', 638, 86);
+  ctx.textAlign = 'right';
+  setTextShadow(ctx, 10);
+  ctx.font = `900 ${Math.round(36 * scale)}px Arial`;
+  strokedText(ctx, 'Enemies', right, titleY, '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(8 * scale));
+  clearTextShadow(ctx);
 
-  const startX = 658;
-  const startY = 154;
-  const gap = 72;
+  ctx.textAlign = 'center';
   enemies.forEach((enemy, index) => {
     const x = startX + (index * gap);
-    const y = startY;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+    ctx.shadowBlur = Math.round(12 * scale);
+    ctx.shadowOffsetY = Math.round(4 * scale);
     ctx.beginPath();
-    ctx.arc(x, y, 30, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+    ctx.arc(x, circleY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(18, 18, 18, 0.88)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
-    ctx.lineWidth = 4;
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(x, circleY, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = Math.max(3, Math.round(4 * scale));
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 18px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('?', x, y + 7);
+    ctx.font = `900 ${Math.round(24 * scale)}px Arial`;
+    ctx.fillText('?', x, circleY + Math.round(9 * scale));
 
-    ctx.fillStyle = '#111111';
-    ctx.font = '600 14px Arial';
-    ctx.fillText(enemy.name, x, y + 55);
+    setTextShadow(ctx, 7);
+    ctx.font = `800 ${Math.round(18 * scale)}px Arial`;
+    strokedText(ctx, enemy.name, x, circleY + Math.round(58 * scale), '#ffffff', 'rgba(0, 0, 0, 0.9)', Math.round(5 * scale));
+    clearTextShadow(ctx);
 
     if (enemy.count > 1) {
+      const badgeX = x + Math.round(26 * scale);
+      const badgeY = circleY + Math.round(24 * scale);
       ctx.beginPath();
-      ctx.arc(x + 24, y + 24, 15, 0, Math.PI * 2);
-      ctx.fillStyle = '#111111';
+      ctx.arc(badgeX, badgeY, Math.round(18 * scale), 0, Math.PI * 2);
+      ctx.fillStyle = '#000000';
       ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(2, Math.round(3 * scale));
+      ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.font = '700 13px Arial';
-      ctx.fillText(`x${enemy.count}`, x + 24, y + 29);
+      ctx.font = `900 ${Math.round(14 * scale)}px Arial`;
+      ctx.fillText(`x${enemy.count}`, badgeX, badgeY + Math.round(5 * scale));
     }
   });
-  ctx.textAlign = 'left';
 
+  ctx.textAlign = 'left';
+}
+
+async function createJourneyStageImage(stage) {
+  const canvas = await loadBannerCanvas();
+  const ctx = canvas.getContext('2d');
+  drawMapInfo(ctx, stage, canvas.width, canvas.height);
+  drawEnemyList(ctx, stage, canvas.width, canvas.height);
   return canvas.encode('png');
 }
 
