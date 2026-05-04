@@ -1,6 +1,6 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
-const { LEVEL_ROLE_REWARDS } = require('../src/levelRoleRewards');
+const { LEVEL_ROLE_REWARDS, getEligibleRoleIds } = require('../src/levelRoleRewards');
 
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
 const LOW_XP_CATEGORY_ID = '1498006922912202948';
@@ -22,40 +22,37 @@ const LEVEL_FUN_MESSAGES = new Map([
 ]);
 
 function formatCountdown(endsAt) {
-  if (!endsAt) {
-    return null;
-  }
+  if (!endsAt) return null;
   return `<t:${Math.floor(endsAt / 1000)}:R>`;
 }
 
 function punishmentNotice(summary) {
   const countdown = formatCountdown(summary.endsAt);
-  if (summary.tier === 1) {
-    return `⚠️ You're earning 500% less XP, punishment ends ${countdown}.`;
-  }
-  if (summary.tier === 2) {
-    return `⚠️ You're earning 1000% less XP, punishment ends ${countdown}.`;
-  }
-  if (summary.tier === 3) {
-    return `⚠️ XP blacklisted, punishment ends ${countdown}.`;
-  }
+  if (summary.tier === 1) return `⚠️ You're earning 500% less XP, punishment ends ${countdown}.`;
+  if (summary.tier === 2) return `⚠️ You're earning 1000% less XP, punishment ends ${countdown}.`;
+  if (summary.tier === 3) return `⚠️ XP blacklisted, punishment ends ${countdown}.`;
   return null;
 }
 
-async function sendLevelUpMessage(guild, userId, newLevel) {
-  const channel = guild.channels.cache.get(LEVEL_UP_CHANNEL_ID)
-    || await guild.channels.fetch(LEVEL_UP_CHANNEL_ID).catch(() => null);
-  if (!channel?.isTextBased()) {
-    return;
-  }
+async function syncLevelRoles(guild, userId, level) {
+  const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+  if (!member) return;
 
-  const roleId = LEVEL_ROLE_REWARDS.get(newLevel);
-  if (roleId) {
-    const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
-    if (member && !member.roles.cache.has(roleId)) {
+  const eligibleRoleIds = getEligibleRoleIds(level);
+  for (const roleId of eligibleRoleIds) {
+    if (!member.roles.cache.has(roleId)) {
+      // eslint-disable-next-line no-await-in-loop
       await member.roles.add(roleId).catch(() => null);
     }
   }
+}
+
+async function sendLevelUpMessage(guild, userId, newLevel) {
+  await syncLevelRoles(guild, userId, newLevel);
+
+  const channel = guild.channels.cache.get(LEVEL_UP_CHANNEL_ID)
+    || await guild.channels.fetch(LEVEL_UP_CHANNEL_ID).catch(() => null);
+  if (!channel?.isTextBased()) return;
 
   const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
   const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
@@ -67,19 +64,18 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
       {
         type: 17,
         accent_color: 0x57F287,
-        components: [
-          { type: 10, content: levelMessage },
-        ],
+        components: [{ type: 10, content: levelMessage }],
       },
     ],
   });
 }
 
 async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
-  if (!Number.isFinite(oldLevel) || !Number.isFinite(newLevel) || newLevel <= oldLevel) {
-    return;
-  }
+  if (!Number.isFinite(oldLevel) || !Number.isFinite(newLevel)) return;
 
+  await syncLevelRoles(guild, userId, newLevel);
+
+  if (newLevel <= oldLevel) return;
   for (let level = oldLevel + 1; level <= newLevel; level += 1) {
     // eslint-disable-next-line no-await-in-loop
     await sendLevelUpMessage(guild, userId, level);
@@ -87,18 +83,9 @@ async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
 }
 
 function isChannelInLowXpCategory(channel) {
-  if (!channel) {
-    return false;
-  }
-
-  if (channel.parentId === LOW_XP_CATEGORY_ID) {
-    return true;
-  }
-
-  if (channel.isThread?.()) {
-    return channel.parent?.parentId === LOW_XP_CATEGORY_ID;
-  }
-
+  if (!channel) return false;
+  if (channel.parentId === LOW_XP_CATEGORY_ID) return true;
+  if (channel.isThread?.()) return channel.parent?.parentId === LOW_XP_CATEGORY_ID;
   return false;
 }
 
@@ -113,6 +100,7 @@ module.exports = {
     const stats = manager.getProgress((leaderboard.find((entry) => entry.userId === interaction.user.id)?.totalXp) || 0);
     const summary = manager.getPunishmentSummary(interaction.guildId, interaction.user.id);
     const notice = punishmentNotice(summary);
+    await syncLevelRoles(interaction.guild, interaction.user.id, stats.level);
 
     const avatarUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 256 });
     const attachment = await manager.buildLevelCard({
@@ -131,9 +119,7 @@ module.exports = {
   },
 
   async handleMessageCreate(message) {
-    if (!message.guild || message.author.bot) {
-      return;
-    }
+    if (!message.guild || message.author.bot) return;
 
     const trimmed = message.content.trim().toLowerCase();
     if (trimmed === '!level' || trimmed === '!rank') {
@@ -142,6 +128,7 @@ module.exports = {
       const stats = manager.getProgress((leaderboard.find((entry) => entry.userId === message.author.id)?.totalXp) || 0);
       const summary = manager.getPunishmentSummary(message.guild.id, message.author.id);
       const notice = punishmentNotice(summary);
+      await syncLevelRoles(message.guild, message.author.id, stats.level);
       const avatarUrl = message.author.displayAvatarURL({ extension: 'png', size: 256 });
       const attachment = await manager.buildLevelCard({
         guildId: message.guild.id,
@@ -165,17 +152,10 @@ module.exports = {
   },
 
   async handleMessageReactionAdd(reaction, user) {
-    if (user.bot) {
-      return;
-    }
+    if (user.bot) return;
 
-    if (reaction.partial) {
-      await reaction.fetch().catch(() => null);
-    }
-
-    if (!reaction.message.guild) {
-      return;
-    }
+    if (reaction.partial) await reaction.fetch().catch(() => null);
+    if (!reaction.message.guild) return;
 
     const fixedXp = isChannelInLowXpCategory(reaction.message.channel) ? LOW_XP_AMOUNT : undefined;
     const result = manager.awardReactionXp(reaction.message.guild.id, user.id, { fixedXp });
