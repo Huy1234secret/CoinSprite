@@ -154,29 +154,29 @@ async function loadBannerCanvas() {
 
 function drawMapInfo(ctx, stage, width, height) {
   const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
-  const left = Math.round(width * 0.045);
+  const left = Math.round(width * 0.04);
   const top = Math.round(height * 0.235);
 
   ctx.textBaseline = 'alphabetic';
-  setTextShadow(ctx, 11);
-  ctx.font = `800 ${Math.round(32 * scale)}px Arial`;
-  strokedText(ctx, 'MAP', left, top, '#f8fff0', 'rgba(0, 0, 0, 0.72)', Math.round(8 * scale));
+  setTextShadow(ctx, 12);
+  ctx.font = `800 ${Math.round(40 * scale)}px Arial`;
+  strokedText(ctx, 'MAP', left, top, '#f8fff0', 'rgba(0, 0, 0, 0.72)', Math.round(9 * scale));
 
-  ctx.font = `900 ${Math.round(66 * scale)}px Arial`;
-  strokedText(ctx, stage.name, left, top + Math.round(69 * scale), '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(10 * scale));
+  ctx.font = `900 ${Math.round(86 * scale)}px Arial`;
+  strokedText(ctx, stage.name, left, top + Math.round(86 * scale), '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(12 * scale));
 
-  ctx.font = `800 ${Math.round(28 * scale)}px Arial`;
-  strokedText(ctx, stage.chapter || 'Chapter 1', left + Math.round(2 * scale), top + Math.round(112 * scale), '#f4ffe0', 'rgba(0, 0, 0, 0.72)', Math.round(7 * scale));
+  ctx.font = `800 ${Math.round(34 * scale)}px Arial`;
+  strokedText(ctx, stage.chapter || 'Chapter 1', left + Math.round(2 * scale), top + Math.round(139 * scale), '#f4ffe0', 'rgba(0, 0, 0, 0.72)', Math.round(8 * scale));
   clearTextShadow(ctx);
 
   for (let i = 0; i < 3; i += 1) {
-    const starX = left + Math.round((36 + (i * 80)) * scale);
-    const starY = top + Math.round(172 * scale);
-    drawStar(ctx, starX, starY, Math.round(33 * scale), Math.round(15 * scale));
+    const starX = left + Math.round((44 + (i * 98)) * scale);
+    const starY = top + Math.round(194 * scale);
+    drawStar(ctx, starX, starY, Math.round(42 * scale), Math.round(19 * scale));
     ctx.fillStyle = i < Math.max(0, Math.min(3, stage.stars || 0)) ? '#f5c542' : '#000000';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = Math.max(2, Math.round(4 * scale));
+    ctx.lineWidth = Math.max(3, Math.round(5 * scale));
     ctx.stroke();
   }
 }
@@ -184,18 +184,18 @@ function drawMapInfo(ctx, stage, width, height) {
 function drawEnemyList(ctx, stage, width, height) {
   const enemies = normalizeEnemies(stage.enemies).slice(0, 5);
   const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
-  const right = Math.round(width * 0.965);
+  const right = Math.round(width * 0.955);
   const titleY = Math.round(height * 0.30);
-  const circleY = Math.round(height * 0.56);
-  const radius = Math.round(48 * scale);
-  const gap = Math.round(118 * scale);
+  const circleY = Math.round(height * 0.57);
+  const radius = Math.round(62 * scale);
+  const gap = Math.round(145 * scale);
   const totalWidth = enemies.length > 0 ? ((enemies.length - 1) * gap) : 0;
   const startX = right - totalWidth - radius;
 
   ctx.textAlign = 'right';
-  setTextShadow(ctx, 11);
-  ctx.font = `900 ${Math.round(42 * scale)}px Arial`;
-  strokedText(ctx, 'Enemies', right, titleY, '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(9 * scale));
+  setTextShadow(ctx, 12);
+  ctx.font = `900 ${Math.round(50 * scale)}px Arial`;
+  strokedText(ctx, 'Enemies', right, titleY, '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(10 * scale));
   clearTextShadow(ctx);
 
   ctx.textAlign = 'center';
@@ -204,8 +204,8 @@ function drawEnemyList(ctx, stage, width, height) {
 
     ctx.save();
     ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-    ctx.shadowBlur = Math.round(14 * scale);
-    ctx.shadowOffsetY = Math.round(5 * scale);
+    ctx.shadowBlur = Math.round(16 * scale);
+    ctx.shadowOffsetY = Math.round(6 * scale);
     ctx.beginPath();
     ctx.arc(x, circleY, radius, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(18, 18, 18, 0.88)';
@@ -215,31 +215,31 @@ function drawEnemyList(ctx, stage, width, height) {
     ctx.beginPath();
     ctx.arc(x, circleY, radius, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
-    ctx.lineWidth = Math.max(4, Math.round(5 * scale));
+    ctx.lineWidth = Math.max(5, Math.round(6 * scale));
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${Math.round(31 * scale)}px Arial`;
-    ctx.fillText('?', x, circleY + Math.round(11 * scale));
+    ctx.font = `900 ${Math.round(42 * scale)}px Arial`;
+    ctx.fillText('?', x, circleY + Math.round(14 * scale));
 
-    setTextShadow(ctx, 8);
-    ctx.font = `800 ${Math.round(22 * scale)}px Arial`;
-    strokedText(ctx, enemy.name, x, circleY + Math.round(73 * scale), '#ffffff', 'rgba(0, 0, 0, 0.9)', Math.round(6 * scale));
+    setTextShadow(ctx, 9);
+    ctx.font = `800 ${Math.round(28 * scale)}px Arial`;
+    strokedText(ctx, enemy.name, x, circleY + Math.round(94 * scale), '#ffffff', 'rgba(0, 0, 0, 0.9)', Math.round(7 * scale));
     clearTextShadow(ctx);
 
     if (enemy.count > 1) {
-      const badgeX = x + Math.round(34 * scale);
-      const badgeY = circleY + Math.round(33 * scale);
+      const badgeX = x + Math.round(44 * scale);
+      const badgeY = circleY + Math.round(42 * scale);
       ctx.beginPath();
-      ctx.arc(badgeX, badgeY, Math.round(22 * scale), 0, Math.PI * 2);
+      ctx.arc(badgeX, badgeY, Math.round(28 * scale), 0, Math.PI * 2);
       ctx.fillStyle = '#000000';
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = Math.max(2, Math.round(3 * scale));
+      ctx.lineWidth = Math.max(3, Math.round(4 * scale));
       ctx.stroke();
       ctx.fillStyle = '#ffffff';
-      ctx.font = `900 ${Math.round(17 * scale)}px Arial`;
-      ctx.fillText(`x${enemy.count}`, badgeX, badgeY + Math.round(6 * scale));
+      ctx.font = `900 ${Math.round(21 * scale)}px Arial`;
+      ctx.fillText(`x${enemy.count}`, badgeX, badgeY + Math.round(7 * scale));
     }
   });
 
