@@ -13,7 +13,8 @@ const STAGES = [
   {
     id: 'jungle_entrance',
     name: 'Jungle Entrance',
-    chapter: 'Chapter 1',
+    chapter: 1,
+    stage: 1,
     stars: 0,
     completed: false,
     enemies: [
@@ -25,7 +26,8 @@ const STAGES = [
   {
     id: 'mossy_ruins',
     name: 'Mossy Ruins',
-    chapter: 'Chapter 1',
+    chapter: 1,
+    stage: 2,
     stars: 0,
     completed: false,
     enemies: [
@@ -36,7 +38,8 @@ const STAGES = [
   {
     id: 'ancient_canopy',
     name: 'Ancient Canopy',
-    chapter: 'Chapter 1',
+    chapter: 1,
+    stage: 3,
     stars: 0,
     completed: false,
     enemies: [
@@ -51,7 +54,7 @@ function separator() { return { type: 14, divider: true, spacing: 1 }; }
 function actionRow(...components) { return { type: 1, components }; }
 function button(customId, label, style = 2, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
 function selectMenu(customId, placeholder, options, disabled = false) { return { type: 3, custom_id: customId, placeholder, disabled, options }; }
-function mediaGallery(url, description) { return { type: 12, items: [{ media: { url }, description }] }; }
+function mediaGallery(url) { return { type: 12, items: [{ media: { url } }] }; }
 function payload(interaction, stage, imageAttachment) {
   const completed = STAGES.filter((item) => item.completed).length;
   return {
@@ -63,7 +66,7 @@ function payload(interaction, stage, imageAttachment) {
         accent_color: WHITE_ACCENT,
         components: [
           text(`## ${interaction.user.username}'s Journey`),
-          mediaGallery(`attachment://${STAGE_IMAGE_NAME}`, `${stage.name} stage preview`),
+          mediaGallery(`attachment://${STAGE_IMAGE_NAME}`),
           text(`-# You have completed ${completed} / ${STAGES.length} stages so far`),
           separator(),
           actionRow(button(`journey:change:${interaction.user.id}`, 'Change Stages', 2, true)),
@@ -103,6 +106,17 @@ function normalizeEnemies(enemies) {
     byId.set(key, current);
   }
   return [...byId.values()];
+}
+
+function stageNumberLabel(value, fallback) {
+  const number = Number(value);
+  if (Number.isFinite(number) && number > 0) return Math.floor(number);
+  const match = String(value || '').match(/\d+/);
+  return match ? Number(match[0]) : fallback;
+}
+
+function stageSubtitle(stage) {
+  return `Chapter ${stageNumberLabel(stage.chapter, 1)} - ${stageNumberLabel(stage.stage, 1)}`;
 }
 
 function setTextShadow(ctx, blur = 8) {
@@ -162,16 +176,16 @@ function drawMapInfo(ctx, stage, width, height) {
   ctx.font = `800 ${Math.round(50 * scale)}px Arial`;
   strokedText(ctx, 'MAP', left, top, '#f8fff0', 'rgba(0, 0, 0, 0.72)', Math.round(10 * scale));
 
-  ctx.font = `900 ${Math.round(108 * scale)}px Arial`;
-  strokedText(ctx, stage.name, left, top + Math.round(105 * scale), '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(14 * scale));
+  ctx.font = `900 ${Math.round(96 * scale)}px Arial`;
+  strokedText(ctx, stage.name, left, top + Math.round(98 * scale), '#ffffff', 'rgba(0, 0, 0, 0.82)', Math.round(13 * scale));
 
   ctx.font = `800 ${Math.round(42 * scale)}px Arial`;
-  strokedText(ctx, stage.chapter || 'Chapter 1', left + Math.round(3 * scale), top + Math.round(168 * scale), '#f4ffe0', 'rgba(0, 0, 0, 0.72)', Math.round(10 * scale));
+  strokedText(ctx, stageSubtitle(stage), left + Math.round(3 * scale), top + Math.round(160 * scale), '#f4ffe0', 'rgba(0, 0, 0, 0.72)', Math.round(10 * scale));
   clearTextShadow(ctx);
 
   for (let i = 0; i < 3; i += 1) {
     const starX = left + Math.round((55 + (i * 122)) * scale);
-    const starY = top + Math.round(234 * scale);
+    const starY = top + Math.round(226 * scale);
     drawStar(ctx, starX, starY, Math.round(52 * scale), Math.round(23 * scale));
     ctx.fillStyle = i < Math.max(0, Math.min(3, stage.stars || 0)) ? '#f5c542' : '#000000';
     ctx.fill();
