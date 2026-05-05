@@ -1,10 +1,10 @@
 const RARITY_EMOJIS = {
-  common: '<:SBCommon:1500170919614873720>',
-  rare: '<:SBRare:1500170929794449642>',
-  epic: '<:SBEpic:1500170921623945356>',
-  legendary: '<:SBLegendary:1500170923398008882>',
-  mythical: '<:SBMythical:1500170927378534621>',
-  secret: '<:SBSecret:1500170932235276398>',
+  common: '<:SBCommon:1501152350189125662>',
+  rare: '<:SBRare:1501152357403201537>',
+  epic: '<:SBEpic:1501152351862394890>',
+  legendary: '<:SBLegendary:1501152353896632411>',
+  mythical: '<:SBMythical:1501152359164940419>',
+  secret: '<:SBSecret:1501152355624947853>',
 };
 
 const RARITY_LABELS = {
