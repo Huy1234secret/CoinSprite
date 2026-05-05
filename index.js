@@ -150,7 +150,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     for (const command of client.commands.values()) {
       if (typeof command.handleInteraction !== 'function') continue;
       const handled = await command.handleInteraction(interaction, client);
-      if (handled) {
+      if (handled || interaction.replied || interaction.deferred) {
         await refreshMessageAfterAction(interaction);
         return;
       }
@@ -159,6 +159,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     console.error('Interaction error:', error);
     logCommandSystem(`Interaction error: ${error?.message ?? 'unknown error'}`);
     if (error?.code === 10062) return;
+    if (error?.code === 'InteractionAlreadyReplied') return;
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: 'An error happened while handling this interaction.', flags: EPHEMERAL_FLAG }).catch((replyError) => {
         console.error('Interaction fallback reply failed:', replyError);
