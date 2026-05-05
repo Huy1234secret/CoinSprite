@@ -1,5 +1,9 @@
 const { PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./inviteRewardsStore');
+const {
+  loadState: loadTicketSystemState,
+  saveState: saveTicketSystemState,
+} = require('./ticketSystemStore');
 const { logCommandUse, logCommandSystem } = require('./commandLogger');
 
 const RULES_CHANNEL_ID = process.env.INVITATION_RULES_CHANNEL_ID || '1494329296670425279';
@@ -741,8 +745,19 @@ async function onMessageCreate(message) {
     guildState.updatedAt = Date.now();
     saveState(state);
 
+    const ticketSystemState = loadTicketSystemState();
+    const ticketBlacklist = ticketSystemState.blacklistedUsersByGuild[message.guild.id] ?? [];
+    const nextTicketBlacklist = ticketBlacklist.filter((id) => id !== userId);
+    if (nextTicketBlacklist.length !== ticketBlacklist.length) {
+      ticketSystemState.blacklistedUsersByGuild[message.guild.id] = nextTicketBlacklist;
+      saveTicketSystemState(ticketSystemState);
+    }
+
     logReward(`Blacklist removed for ${userId} by ${message.author.id}. Note: ${user.blacklistReason}`);
-    await message.reply(`Removed blacklist for <@${userId}>. Note: ${user.blacklistReason}`);
+    await message.reply(
+      `Removed blacklist for <@${userId}>. Note: ${user.blacklistReason}\n` +
+        '-# Also removed from the support ticket blacklist (if present).',
+    );
     return;
   }
 
