@@ -118,7 +118,8 @@ function getGiveawayCloseProofModal(channelId) {
     components: [
       {
         type: 18,
-        label: 'Provide evidences that the WINNERS have claimed their prizes',
+        label: 'Upload winner claim proof',
+        description: 'Upload screenshots or receipts confirming winners claimed their prizes.',
         component: {
           type: 19,
           custom_id: GIVEAWAY_CLOSE_PROOF_UPLOAD,
