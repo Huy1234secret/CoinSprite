@@ -11,11 +11,7 @@ const SIMPLE_PREFIX_COMMANDS = new Set(['!ping', '!level', '!rank']);
 const CONSOLE_PREFIX_COMMAND_PATTERNS = [
   /^blacklist\s+add\s+(\S+)\s+(.+)$/i,
   /^blacklist\s+remove\s+(\S+)\s+(.+)$/i,
-  /^invitee-blacklist\s+add\s+(\S+)\s+(.+)$/i,
-  /^invitee-blacklist\s+remove\s+(\S+)\s+(.+)$/i,
-  /^(?:RI|IR)\s+(\S+)$/i,
   /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
-  /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
 ];
 
 function getPrefixCommandLabel(message) {
