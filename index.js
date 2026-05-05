@@ -8,10 +8,21 @@ const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageA
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ALLOWED_GUILD_ID = '1493901002519347290';
 const SIMPLE_PREFIX_COMMANDS = new Set(['!ping', '!level', '!rank']);
+const CONSOLE_PREFIX_COMMAND_PATTERNS = [
+  /^blacklist\s+add\s+(\S+)\s+(.+)$/i,
+  /^blacklist\s+remove\s+(\S+)\s+(.+)$/i,
+  /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
+];
 
-function getSimplePrefixCommandLabel(message) {
-  const content = message.content?.trim().toLowerCase();
-  return SIMPLE_PREFIX_COMMANDS.has(content) ? content : null;
+function getPrefixCommandLabel(message) {
+  const content = message.content?.trim();
+  if (!content) return null;
+  if (SIMPLE_PREFIX_COMMANDS.has(content.toLowerCase())) return content;
+  if (!content.startsWith('!')) return null;
+
+  const commandBody = content.slice(1).trim();
+  if (!commandBody) return null;
+  return CONSOLE_PREFIX_COMMAND_PATTERNS.some((pattern) => pattern.test(commandBody)) ? content : null;
 }
 
 config();
@@ -88,7 +99,7 @@ client.on(Events.InviteDelete, async (invite) => {
 });
 client.on(Events.MessageCreate, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
-  const prefixCommand = message.author?.bot ? null : getSimplePrefixCommandLabel(message);
+  const prefixCommand = message.author?.bot ? null : getPrefixCommandLabel(message);
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
