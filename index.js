@@ -4,6 +4,7 @@ const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } 
 const { config } = require('dotenv');
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
 const { getCommandBlockReason } = require('./src/gameSessionLock');
+const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ALLOWED_GUILD_ID = '1493901002519347290';
 
@@ -105,6 +106,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (!interaction.isChatInputCommand?.() && await rejectIfExpired(interaction)) return;
+    if (!interaction.isChatInputCommand?.()) await resetActionTimer(interaction);
+
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
@@ -117,6 +121,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           logCommandUse({ userId: interaction.user.id, command: `/${interaction.commandName}`, channelId: interaction.channelId ?? 'unknown' });
         }
         await command.execute(interaction, client);
+        if (!command.disableActionTimeout) await rememberCommandReply(interaction);
       }
       return;
     }
@@ -125,6 +130,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (typeof command.handleInteraction !== 'function') continue;
       const handled = await command.handleInteraction(interaction, client);
       if (handled) {
+        await refreshMessageAfterAction(interaction);
         const shouldLogInteraction = typeof command.shouldLogInteraction === 'function' ? command.shouldLogInteraction(interaction) : true;
         if (interaction.user && shouldLogInteraction) logCommandUse({ userId: interaction.user.id, command: interaction.customId ?? interaction.type, channelId: interaction.channelId ?? 'unknown' });
         return;
