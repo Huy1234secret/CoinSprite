@@ -7,6 +7,12 @@ const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ALLOWED_GUILD_ID = '1493901002519347290';
+const SIMPLE_PREFIX_COMMANDS = new Set(['!ping', '!level', '!rank']);
+
+function getSimplePrefixCommandLabel(message) {
+  const content = message.content?.trim().toLowerCase();
+  return SIMPLE_PREFIX_COMMANDS.has(content) ? content : null;
+}
 
 config();
 
@@ -82,6 +88,10 @@ client.on(Events.InviteDelete, async (invite) => {
 });
 client.on(Events.MessageCreate, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
+  const prefixCommand = message.author?.bot ? null : getSimplePrefixCommandLabel(message);
+  if (prefixCommand) {
+    logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
+  }
   for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
 });
 client.on(Events.MessageDelete, async (message) => {
@@ -131,8 +141,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const handled = await command.handleInteraction(interaction, client);
       if (handled) {
         await refreshMessageAfterAction(interaction);
-        const shouldLogInteraction = typeof command.shouldLogInteraction === 'function' ? command.shouldLogInteraction(interaction) : true;
-        if (interaction.user && shouldLogInteraction) logCommandUse({ userId: interaction.user.id, command: interaction.customId ?? interaction.type, channelId: interaction.channelId ?? 'unknown' });
         return;
       }
     }
