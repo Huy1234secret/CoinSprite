@@ -1,16 +1,16 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
-const { getBalance, getSkillPoints } = require('../src/gamblingStore');
-const { COIN, SKILL_POINT, formatAbbreviated, formatNumber } = require('../src/gamblingConfig');
+const { getBalance, getJackpotBalance } = require('../src/gamblingStore');
+const { PRCOIN, JPCOIN, formatAbbreviated, formatNumber } = require('../src/gamblingConfig');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('balance').setDescription('Show your coin and skill point balance'),
+  data: new SlashCommandBuilder().setName('balance').setDescription('Show your PRcoin and JPcoin balance'),
   suppressCommandLog: true,
 
   async execute(interaction) {
-    const coins = getBalance(interaction.user.id);
-    const skillPoints = getSkillPoints(interaction.user.id);
+    const prcoin = getBalance(interaction.user.id);
+    const jpcoin = getJackpotBalance(interaction.user.id);
 
     await interaction.reply({
       flags: COMPONENTS_V2_FLAG,
@@ -23,8 +23,8 @@ module.exports = {
               type: 10,
               content: [
                 `### ${interaction.user.username}'s Balance`,
-                `* ${formatAbbreviated(coins)} ${COIN}`,
-                `* ${formatNumber(skillPoints)} ${SKILL_POINT}`,
+                `* ${formatAbbreviated(prcoin)} ${PRCOIN}`,
+                `* ${formatNumber(jpcoin)} ${JPCOIN}`,
               ].join('\n'),
             },
           ],
