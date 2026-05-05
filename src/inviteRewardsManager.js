@@ -675,10 +675,10 @@ async function onMessageCreate(message) {
   }
 
   const isInviteConsoleCommand = [
-    /^blacklist\s+add\s+(\S+)\s+(.+)$/i,
-    /^blacklist\s+remove\s+(\S+)\s+(.+)$/i,
-    /^invitee-blacklist\s+add\s+(\S+)\s+(.+)$/i,
-    /^invitee-blacklist\s+remove\s+(\S+)\s+(.+)$/i,
+    /^blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i,
+    /^blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
+    /^invitee-blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i,
+    /^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^(?:RI|IR)\s+(\S+)$/i,
     /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
     /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
@@ -700,9 +700,9 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const blacklistAdd = commandBody.match(/^blacklist\s+add\s+(\S+)\s+(.+)$/i);
+  const blacklistAdd = commandBody.match(/^blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i);
   if (blacklistAdd) {
-    const [, userToken, reason] = blacklistAdd;
+    const [, userToken, reasonRaw] = blacklistAdd;
     const userId = parseUserIdToken(userToken);
     if (!userId) {
       await message.reply('Invalid user ID. Use a numeric ID or @mention.');
@@ -712,7 +712,8 @@ async function onMessageCreate(message) {
     const guildState = ensureGuildState(state, message.guild.id);
     const user = ensureUserState(guildState, userId);
     user.blacklisted = true;
-    user.blacklistReason = reason.trim();
+    const reason = reasonRaw?.trim() || 'No reason provided.';
+    user.blacklistReason = reason;
     user.updatedAt = Date.now();
     guildState.updatedAt = Date.now();
     saveState(state);
@@ -722,9 +723,9 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const blacklistRemove = commandBody.match(/^blacklist\s+remove\s+(\S+)\s+(.+)$/i);
+  const blacklistRemove = commandBody.match(/^blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i);
   if (blacklistRemove) {
-    const [, userToken, reason] = blacklistRemove;
+    const [, userToken, reasonRaw] = blacklistRemove;
     const userId = parseUserIdToken(userToken);
     if (!userId) {
       await message.reply('Invalid user ID. Use a numeric ID or @mention.');
@@ -734,7 +735,8 @@ async function onMessageCreate(message) {
     const guildState = ensureGuildState(state, message.guild.id);
     const user = ensureUserState(guildState, userId);
     user.blacklisted = false;
-    user.blacklistReason = reason.trim();
+    const reason = reasonRaw?.trim() || 'No reason provided.';
+    user.blacklistReason = reason;
     user.updatedAt = Date.now();
     guildState.updatedAt = Date.now();
     saveState(state);
@@ -744,9 +746,9 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const inviteeBlacklistAdd = commandBody.match(/^invitee-blacklist\s+add\s+(\S+)\s+(.+)$/i);
+  const inviteeBlacklistAdd = commandBody.match(/^invitee-blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i);
   if (inviteeBlacklistAdd) {
-    const [, userToken, reason] = inviteeBlacklistAdd;
+    const [, userToken, reasonRaw] = inviteeBlacklistAdd;
     const userId = parseUserIdToken(userToken);
     if (!userId) {
       await message.reply('Invalid user ID. Use a numeric ID or @mention.');
@@ -756,21 +758,21 @@ async function onMessageCreate(message) {
     const guildState = ensureGuildState(state, message.guild.id);
     guildState.invitedBlacklist[userId] = {
       active: true,
-      reason: reason.trim(),
+      reason: (reasonRaw?.trim() || 'No reason provided.'),
       updatedBy: message.author.id,
       updatedAt: Date.now(),
     };
     guildState.updatedAt = Date.now();
     saveState(state);
 
-    logReward(`Invitee blacklist added for ${userId} by ${message.author.id}. Reason: ${reason.trim()}`);
-    await message.reply(`Invitee blacklist added for <@${userId}>. Reason: ${reason.trim()}`);
+    logReward(`Invitee blacklist added for ${userId} by ${message.author.id}. Reason: ${reasonRaw?.trim() || 'No reason provided.'}`);
+    await message.reply(`Invitee blacklist added for <@${userId}>. Reason: ${reasonRaw?.trim() || 'No reason provided.'}`);
     return;
   }
 
-  const inviteeBlacklistRemove = commandBody.match(/^invitee-blacklist\s+remove\s+(\S+)\s+(.+)$/i);
+  const inviteeBlacklistRemove = commandBody.match(/^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i);
   if (inviteeBlacklistRemove) {
-    const [, userToken, reason] = inviteeBlacklistRemove;
+    const [, userToken, reasonRaw] = inviteeBlacklistRemove;
     const userId = parseUserIdToken(userToken);
     if (!userId) {
       await message.reply('Invalid user ID. Use a numeric ID or @mention.');
@@ -780,15 +782,15 @@ async function onMessageCreate(message) {
     const guildState = ensureGuildState(state, message.guild.id);
     guildState.invitedBlacklist[userId] = {
       active: false,
-      reason: reason.trim(),
+      reason: (reasonRaw?.trim() || 'No reason provided.'),
       updatedBy: message.author.id,
       updatedAt: Date.now(),
     };
     guildState.updatedAt = Date.now();
     saveState(state);
 
-    logReward(`Invitee blacklist removed for ${userId} by ${message.author.id}. Note: ${reason.trim()}`);
-    await message.reply(`Invitee blacklist removed for <@${userId}>. Note: ${reason.trim()}`);
+    logReward(`Invitee blacklist removed for ${userId} by ${message.author.id}. Note: ${reasonRaw?.trim() || 'Removed by admin without note.'}`);
+    await message.reply(`Invitee blacklist removed for <@${userId}>. Note: ${reasonRaw?.trim() || 'Removed by admin without note.'}`);
     return;
   }
 
