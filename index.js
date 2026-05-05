@@ -20,7 +20,8 @@ function getPrefixCommandLabel(message) {
   const content = message.content?.trim();
   if (!content) return null;
   const normalized = content.toLowerCase();
-  if (SIMPLE_PREFIX_COMMANDS.has(normalized)) return normalized;
+  const [firstToken = ''] = normalized.split(/\s+/);
+  if (SIMPLE_PREFIX_COMMANDS.has(firstToken)) return firstToken;
   if (!content.startsWith('!')) return null;
 
   const commandBody = content.slice(1).trim().toLowerCase();
@@ -28,6 +29,14 @@ function getPrefixCommandLabel(message) {
   if (commandBody.startsWith('dm ')) return content;
   if (commandBody.startsWith('blacklist add ') || commandBody.startsWith('blacklist remove ')) return content;
   return null;
+}
+
+function shouldSkipActionTimeout(interaction) {
+  const customId = interaction?.customId || '';
+  if (!customId) return false;
+  return customId.startsWith('ticket:type-select')
+    || customId.startsWith(TICKET_ACTION_SELECT_PREFIX)
+    || customId.startsWith(GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX);
 }
 
 function canUseStaffActions(member) {
@@ -372,8 +381,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (!interaction.isChatInputCommand?.() && await rejectIfExpired(interaction)) return;
-    if (!interaction.isChatInputCommand?.()) await resetActionTimer(interaction);
+    const skipActionTimeout = shouldSkipActionTimeout(interaction);
+    if (!interaction.isChatInputCommand?.() && !skipActionTimeout && await rejectIfExpired(interaction)) return;
+    if (!interaction.isChatInputCommand?.() && !skipActionTimeout) await resetActionTimer(interaction);
 
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
