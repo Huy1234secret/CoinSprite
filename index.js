@@ -6,6 +6,7 @@ const { logCommandUse, logCommandSystem, setLogClient } = require('./src/command
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const { loadState, saveState } = require('./src/ticketSystemStore');
+const inviteRewardsManager = require('./src/inviteRewardsManager');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const ALLOWED_GUILD_ID = '1493901002519347290';
@@ -329,23 +330,31 @@ client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
   await initCommandModules();
+  await inviteRewardsManager.init(client).catch((error) => {
+    console.error('Invite rewards init failed:', error);
+    logCommandSystem(`Invite rewards init failed: ${error?.message ?? 'unknown error'}`);
+  });
   await registerSlashCommands();
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
   if (member.guild?.id !== ALLOWED_GUILD_ID) return;
+  await inviteRewardsManager.onGuildMemberAdd(member).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (newMember.guild?.id !== ALLOWED_GUILD_ID) return;
+  await inviteRewardsManager.onGuildMemberUpdate(oldMember, newMember).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
 client.on(Events.InviteCreate, async (invite) => {
   if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
+  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
 client.on(Events.InviteDelete, async (invite) => {
   if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
+  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
@@ -354,6 +363,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
+  await inviteRewardsManager.onMessageCreate(message).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
 });
 client.on(Events.MessageDelete, async (message) => {
