@@ -1,17 +1,270 @@
 const fs = require('fs');
 const path = require('path');
-const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials } = require('discord.js');
+const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials, PermissionFlagsBits } = require('discord.js');
 const { config } = require('dotenv');
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
+const { loadState, saveState } = require('./src/ticketSystemStore');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const ALLOWED_GUILD_ID = '1493901002519347290';
+const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
+const STAFF_ROLE_ID = '1494993523064443065';
+const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
+const GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX = 'ticket:giveaway-close-proof:';
+const GIVEAWAY_CLOSE_PROOF_UPLOAD = 'giveaway_winners_claimed_prize_evidence';
 const SIMPLE_PREFIX_COMMANDS = new Set(['!ping', '!level', '!rank']);
 
-function getSimplePrefixCommandLabel(message) {
-  const content = message.content?.trim().toLowerCase();
-  return SIMPLE_PREFIX_COMMANDS.has(content) ? content : null;
+function getPrefixCommandLabel(message) {
+  const content = message.content?.trim();
+  if (!content) return null;
+  const normalized = content.toLowerCase();
+  if (SIMPLE_PREFIX_COMMANDS.has(normalized)) return normalized;
+  if (!content.startsWith('!')) return null;
+
+  const commandBody = content.slice(1).trim().toLowerCase();
+  if (!commandBody) return null;
+  if (commandBody.startsWith('dm ')) return content;
+  if (commandBody.startsWith('blacklist add ') || commandBody.startsWith('blacklist remove ')) return content;
+  return null;
+}
+
+function canUseStaffActions(member) {
+  return Boolean(member?.permissions?.has(PermissionFlagsBits.Administrator) || member?.roles?.cache?.has(STAFF_ROLE_ID));
+}
+
+function sanitizeAttachmentName(filename, fallbackIndex = 0) {
+  const base = String(filename || `upload-${fallbackIndex + 1}`).trim();
+  const safe = base.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^_+|_+$/g, '');
+  return safe || `upload-${fallbackIndex + 1}`;
+}
+
+function getFilenameFromUrl(url) {
+  if (!url) return 'file.unknown';
+  const clean = String(url).split('?')[0];
+  return clean.split('/').pop() || 'file.unknown';
+}
+
+function normalizeUploadedAttachment(attachment) {
+  if (!attachment) return null;
+  return {
+    id: attachment.id,
+    url: attachment.url,
+    contentType: attachment.contentType || attachment.content_type || '',
+    filename: attachment.name || attachment.filename || getFilenameFromUrl(attachment.url),
+  };
+}
+
+function getModalComponents(interaction) {
+  const rawComponents = interaction.components ?? interaction?.data?.components ?? [];
+  return Array.isArray(rawComponents) ? rawComponents : [];
+}
+
+function findSubmittedComponent(interaction, customId) {
+  const stack = [...getModalComponents(interaction)];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item) continue;
+    const component = item.component ?? item;
+    if (component?.custom_id === customId || component?.customId === customId) return component;
+    if (Array.isArray(item.components)) stack.push(...item.components);
+    if (Array.isArray(component.components)) stack.push(...component.components);
+  }
+  return null;
+}
+
+function getResolvedAttachment(interaction, id) {
+  const resolved = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? null;
+  if (!resolved) return null;
+  if (typeof resolved.get === 'function') return resolved.get(id) ?? null;
+  return resolved[id] ?? null;
+}
+
+function getUploadedProofFiles(interaction) {
+  const fromFields = typeof interaction?.fields?.getUploadedFiles === 'function'
+    ? interaction.fields.getUploadedFiles(GIVEAWAY_CLOSE_PROOF_UPLOAD).map(normalizeUploadedAttachment).filter(Boolean)
+    : [];
+  if (fromFields.length > 0) return fromFields;
+
+  const component = findSubmittedComponent(interaction, GIVEAWAY_CLOSE_PROOF_UPLOAD);
+  const ids = component?.values ?? component?.value ?? [];
+  const attachmentIds = Array.isArray(ids) ? ids : [ids];
+  const fromResolved = attachmentIds.map((id) => normalizeUploadedAttachment(getResolvedAttachment(interaction, id))).filter(Boolean);
+  if (fromResolved.length > 0) return fromResolved;
+
+  return Array.from(interaction?.attachments?.values?.() ?? []).map(normalizeUploadedAttachment).filter(Boolean);
+}
+
+function isGiveawayTicket(ticketRecord, channel) {
+  const text = `${ticketRecord?.ticketType || ''} ${channel?.name || ''}`.toLowerCase();
+  return text.includes('giveaway');
+}
+
+function getGiveawayCloseProofModal(channelId) {
+  return {
+    custom_id: `${GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX}${channelId}`,
+    title: 'Close giveaway request ticket',
+    components: [
+      {
+        type: 18,
+        label: 'Provide evidences that the WINNERS have claimed their prizes',
+        component: {
+          type: 19,
+          custom_id: GIVEAWAY_CLOSE_PROOF_UPLOAD,
+          min_values: 1,
+          max_values: 10,
+          required: true,
+        },
+      },
+    ],
+  };
+}
+
+function container(accent, content) {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: accent,
+        components: [{ type: 10, content }],
+      },
+    ],
+  };
+}
+
+function formatTranscriptTimestamp(dateInput) {
+  const dt = new Date(dateInput);
+  const month = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  const year = dt.getFullYear();
+  const hours = String(dt.getHours()).padStart(2, '0');
+  const minutes = String(dt.getMinutes()).padStart(2, '0');
+  return `${month}-${day}-${year}_${hours}-${minutes}`;
+}
+
+function getAttachmentTranscriptValue(attachment) {
+  if (!attachment?.url) return '';
+  const contentType = String(attachment.contentType || '').toLowerCase();
+  const fileName = String(attachment.name || attachment.filename || '').toLowerCase();
+  if (contentType.includes('gif') || fileName.endsWith('.gif')) return `GIF: ${attachment.url}`;
+  if (contentType.startsWith('image/')) return `Image attachment: ${attachment.url}`;
+  if (contentType.startsWith('video/')) return `Video attachment: ${attachment.url}`;
+  return attachment.url;
+}
+
+async function saveTicketTranscript(channel, options = {}) {
+  const transcriptDir = path.join(__dirname, 'transcripts');
+  fs.mkdirSync(transcriptDir, { recursive: true });
+
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  const sorted = messages ? [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp) : [];
+  const lines = sorted.map((message) => {
+    const ts = new Date(message.createdTimestamp);
+    const hh = String(ts.getHours()).padStart(2, '0');
+    const mm = String(ts.getMinutes()).padStart(2, '0');
+    const time = `${hh}:${mm}`;
+    const attachments = [...message.attachments.values()].map(getAttachmentTranscriptValue).filter(Boolean).join(' ');
+    const content = `${message.content || ''} ${attachments}`.trim() || '[no content]';
+    return `${time} // [${message.author.username}] - [${message.author.id}] : ${content}`;
+  });
+
+  const ticketType = options.ticketType || 'Giveaway Request Ticket';
+  const timestamp = formatTranscriptTimestamp(new Date());
+  const fileName = `${ticketType} - ${timestamp}.txt`;
+  const filePath = path.join(__dirname, 'transcripts', fileName);
+  const headerLines = [
+    `Ticket Channel: ${channel.name} (${channel.id})`,
+    `Closed By: ${options.closedBy || 'Unknown'}`,
+    'Close Action: close',
+  ];
+  fs.writeFileSync(filePath, `${headerLines.join('\n')}\n\n${lines.join('\n')}\n`, 'utf8');
+  return filePath;
+}
+
+async function maybeShowGiveawayCloseProofModal(interaction) {
+  if (!interaction?.isStringSelectMenu?.()) return false;
+  if (!interaction.customId?.startsWith(TICKET_ACTION_SELECT_PREFIX)) return false;
+  if (interaction.values?.[0] !== 'close_ticket') return false;
+
+  const state = loadState();
+  const ticketRecord = state.tickets?.[interaction.channelId];
+  if (!ticketRecord || !isGiveawayTicket(ticketRecord, interaction.channel)) return false;
+  if (!canUseStaffActions(interaction.member)) {
+    await interaction.reply({ content: 'Only staff can use ticket actions.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  await interaction.showModal(getGiveawayCloseProofModal(interaction.channelId));
+  return true;
+}
+
+async function handleGiveawayCloseProofSubmit(interaction) {
+  if (!interaction?.isModalSubmit?.()) return false;
+  if (!interaction.customId?.startsWith(GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX)) return false;
+
+  const channelId = interaction.customId.slice(GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX.length);
+  const state = loadState();
+  const ticketRecord = state.tickets?.[channelId];
+  if (!ticketRecord) {
+    await interaction.reply({ content: 'This ticket record is missing.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+  if (!canUseStaffActions(interaction.member)) {
+    await interaction.reply({ content: 'Only staff can close giveaway request tickets.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  const proofFiles = getUploadedProofFiles(interaction);
+  if (proofFiles.length === 0) {
+    await interaction.reply({ content: 'Please upload at least one evidence file before closing this giveaway request ticket.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  await interaction.deferReply({ flags: EPHEMERAL_FLAG }).catch(() => null);
+
+  const channel = interaction.guild.channels.cache.get(channelId) || await interaction.guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased()) {
+    await interaction.editReply({ content: 'Invalid ticket channel.' }).catch(() => null);
+    return true;
+  }
+
+  const ticketOwner = await interaction.guild.members.fetch(ticketRecord.userId).catch(() => null);
+  if (ticketOwner) await channel.permissionOverwrites.edit(ticketOwner.id, { SendMessages: false }).catch(() => null);
+
+  ticketRecord.closed = true;
+  state.tickets[channelId] = ticketRecord;
+  saveState(state);
+
+  await interaction.editReply({ content: 'Closing giveaway request ticket...' }).catch(() => null);
+  await channel.send(container(0xfff200, 'Transcript saving!...'));
+  const transcriptPath = await saveTicketTranscript(channel, {
+    ticketType: ticketRecord.ticketType || 'Giveaway Request Ticket',
+    closedBy: interaction.user.id,
+  });
+
+  const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+  if (transcriptChannel?.isTextBased()) {
+    const proofList = proofFiles.map((item, index) => `- ${sanitizeAttachmentName(item.filename, index)}`).join('\n');
+    await transcriptChannel.send({
+      content:
+        `Transcript for #${channel.name} (${channel.id})\n` +
+        `**Winner claim evidence attached:**\n${proofList}`,
+      files: [
+        transcriptPath,
+        ...proofFiles.map((item, index) => ({ attachment: item.url, name: sanitizeAttachmentName(item.filename, index) })),
+      ],
+    }).catch(() => null);
+  }
+
+  await channel.send(container(0x00ff00, 'Transcript saved with winner claim evidence attached to the transcript message!'));
+  await channel.send(container(0xff0000, 'Deleting ticket...'));
+  setTimeout(() => {
+    channel.delete('Giveaway request ticket closed').catch(() => null);
+  }, 3000);
+
+  return true;
 }
 
 config();
@@ -88,7 +341,7 @@ client.on(Events.InviteDelete, async (invite) => {
 });
 client.on(Events.MessageCreate, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
-  const prefixCommand = message.author?.bot ? null : getSimplePrefixCommandLabel(message);
+  const prefixCommand = message.author?.bot ? null : getPrefixCommandLabel(message);
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
@@ -109,6 +362,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.isRepliable()) await interaction.reply({ content: 'This bot only works in the configured server.', flags: EPHEMERAL_FLAG }).catch(() => null);
       return;
     }
+
+    if (await handleGiveawayCloseProofSubmit(interaction)) return;
+    if (await maybeShowGiveawayCloseProofModal(interaction)) return;
 
     if (interaction.isAutocomplete?.()) {
       const command = client.commands.get(interaction.commandName);
@@ -139,7 +395,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     for (const command of client.commands.values()) {
       if (typeof command.handleInteraction !== 'function') continue;
       const handled = await command.handleInteraction(interaction, client);
-      if (handled) {
+      if (handled || interaction.replied || interaction.deferred) {
         await refreshMessageAfterAction(interaction);
         return;
       }
@@ -148,6 +404,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     console.error('Interaction error:', error);
     logCommandSystem(`Interaction error: ${error?.message ?? 'unknown error'}`);
     if (error?.code === 10062) return;
+    if (error?.code === 'InteractionAlreadyReplied') return;
     if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: 'An error happened while handling this interaction.', flags: EPHEMERAL_FLAG }).catch((replyError) => {
         console.error('Interaction fallback reply failed:', replyError);
