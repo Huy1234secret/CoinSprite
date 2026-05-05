@@ -31,6 +31,12 @@ function messageKey(message) {
   return message?.id ? String(message.id) : null;
 }
 
+function getTrackedSessionForInteraction(interaction) {
+  const messageId = interaction?.message?.id || (interaction?.token ? messagesByInteractionToken.get(interaction.token) : null);
+  if (!messageId) return null;
+  return sessionsByMessageId.get(String(messageId)) ?? null;
+}
+
 async function expireSession(messageId) {
   const session = sessionsByMessageId.get(messageId);
   if (!session || session.expired) return;
@@ -84,10 +90,20 @@ async function trackInteractionReply(interaction) {
 }
 
 async function trackMessageFromInteraction(interaction) {
-  if (interaction?.message) return trackMessage(interaction.message, interaction.user?.id);
+  const session = getTrackedSessionForInteraction(interaction);
+  if (!session || session.expired) return null;
+  if (interaction?.message) {
+    session.message = interaction.message;
+    scheduleSession(session);
+    return session;
+  }
   if (interaction?.token && messagesByInteractionToken.has(interaction.token)) {
     const message = await interaction.fetchReply?.().catch(() => null);
-    if (message) return trackMessage(message, interaction.user?.id);
+    if (message) {
+      session.message = message;
+      scheduleSession(session);
+      return session;
+    }
   }
   return null;
 }
@@ -97,9 +113,7 @@ async function rememberCommandReply(interaction) {
 }
 
 async function resetActionTimer(interaction) {
-  const messageId = interaction?.message?.id || (interaction?.token ? messagesByInteractionToken.get(interaction.token) : null);
-  if (!messageId) return;
-  const session = sessionsByMessageId.get(String(messageId));
+  const session = getTrackedSessionForInteraction(interaction);
   if (!session || session.expired) return;
   if (interaction.message) session.message = interaction.message;
   scheduleSession(session);
@@ -123,7 +137,9 @@ async function refreshMessageAfterAction(interaction) {
     await trackMessageFromInteraction(interaction);
     return;
   }
-  await trackInteractionReply(interaction);
+  if (getTrackedSessionForInteraction(interaction)) {
+    await trackInteractionReply(interaction);
+  }
 }
 
 module.exports = {
