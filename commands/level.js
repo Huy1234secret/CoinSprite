@@ -58,7 +58,7 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
   const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
 
   await channel.send({
-    allowedMentions: { parse: [] },
+    allowedMentions: { users: [userId] },
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
