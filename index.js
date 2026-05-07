@@ -33,11 +33,14 @@ function getPrefixCommandLabel(message) {
 }
 
 function shouldSkipActionTimeout(interaction) {
+  if (interaction?.commandName === 'ticket-panel') return true;
+
   const customId = interaction?.customId || '';
   if (!customId) return false;
-  return customId.startsWith('ticket:type-select')
-    || customId.startsWith(TICKET_ACTION_SELECT_PREFIX)
-    || customId.startsWith(GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX);
+
+  // Ticket controls must remain usable indefinitely: the main panel, all three
+  // ticket type flows, staff ticket actions, review controls, and ticket modals.
+  return customId.startsWith('ticket:');
 }
 
 function canUseStaffActions(member) {
