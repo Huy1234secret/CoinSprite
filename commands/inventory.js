@@ -12,6 +12,25 @@ function text(content) { return { type: 10, content }; }
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
 function row(...components) { return { type: 1, components }; }
 function button(customId, label, style = 2, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
+async function updateInventoryMessage(interaction, page = 0) {
+  const payload = inventoryPayload(interaction, page);
+  if (typeof interaction.update === 'function' && !interaction.replied && !interaction.deferred) {
+    await interaction.update(payload);
+    return;
+  }
+  if (typeof interaction.editReply === 'function' && (interaction.replied || interaction.deferred)) {
+    await interaction.editReply(payload);
+    return;
+  }
+  if (interaction.message?.edit) {
+    await interaction.message.edit(payload);
+    if (typeof interaction.deferUpdate === 'function' && !interaction.replied && !interaction.deferred) {
+      await interaction.deferUpdate().catch(() => null);
+    }
+    return;
+  }
+  await interaction.reply(payload);
+}
 function key(userId) { return String(userId); }
 function getFilter(userId) { return filters.get(key(userId)) || { types: [], letters: '' }; }
 function setFilter(userId, value) { filters.set(key(userId), value); }
@@ -97,13 +116,19 @@ module.exports = {
     const parts = interaction.customId.split(':');
     const action = parts[1];
     if (parts[2] && parts[2] !== interaction.user.id) { await interaction.reply({ content: 'You can only use your own inventory controls.', flags: EPHEMERAL_FLAG }); return true; }
-    if (action === 'page') { await interaction.reply({ content: 'Page switching will be expanded once more inventory pages are added.', flags: EPHEMERAL_FLAG }); return true; }
+    if (action === 'page') {
+      const currentPage = Math.max(0, Number(parts[3]) || 0);
+      const maxPage = Math.max(1, Number(parts[4]) || 1);
+      const nextPage = (currentPage + 1) % maxPage;
+      await updateInventoryMessage(interaction, nextPage);
+      return true;
+    }
     if (action === 'sort') { await showSortModal(interaction); return true; }
     if (action === 'sortmodal') {
       const typesComponent = readModalComponent(interaction, 'item_types');
       const lettersComponent = readModalComponent(interaction, 'letters');
       setFilter(interaction.user.id, { types: typesComponent?.values || [], letters: lettersComponent?.value || '' });
-      await interaction.reply(inventoryPayload(interaction));
+      await updateInventoryMessage(interaction);
       return true;
     }
     return false;

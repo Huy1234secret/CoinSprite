@@ -135,6 +135,7 @@ async function sendLeaderboard(target, guild, userId, type, page) {
     ],
   };
 
+  if (typeof target.update === 'function' && !target.deferred && !target.replied) return target.update(payload);
   if (typeof target.editReply === 'function' && (target.deferred || target.replied)) return target.editReply(payload);
   if (typeof target.edit === 'function') return target.edit(payload);
   if (typeof target.reply === 'function') return target.reply(payload);
@@ -201,6 +202,10 @@ async function deferForLeaderboard(interaction) {
   }
 
   if (interaction.isModalSubmit?.() && !interaction.deferred && !interaction.replied) {
+    if (typeof interaction.deferUpdate === 'function') {
+      await interaction.deferUpdate().catch(() => null);
+      return;
+    }
     await interaction.deferReply().catch(() => null);
   }
 }
