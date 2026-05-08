@@ -211,20 +211,37 @@ function getSubmittedComponent(interaction, customId) {
   return null;
 }
 
+function collectionToArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.values === 'function') return Array.from(value.values());
+  return [value];
+}
+
+function getCollectionItem(collection, id) {
+  if (!collection || !id) return null;
+  if (typeof collection.get === 'function') return collection.get(id) ?? null;
+  return collection[id] ?? null;
+}
+
 function getResolvedAttachment(interaction, id) {
-  const resolved = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? null;
-  if (!resolved) return null;
-  if (typeof resolved.get === 'function') return resolved.get(id) ?? null;
-  return resolved[id] ?? null;
+  const resolved = interaction?.data?.resolved?.attachments
+    ?? interaction?.resolved?.attachments
+    ?? interaction?.fields?.resolved?.attachments
+    ?? null;
+  return getCollectionItem(resolved, id);
 }
 
 function getBackgroundUpload(interaction) {
-  const fromFields = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? interaction.fields.getUploadedFiles(BACKGROUND_UPLOAD_ID)
-    : [];
-  if (fromFields?.length) return fromFields[0];
+  if (typeof interaction?.fields?.getUploadedFiles === 'function') {
+    const fromFields = collectionToArray(interaction.fields.getUploadedFiles(BACKGROUND_UPLOAD_ID));
+    if (fromFields.length > 0) return fromFields[0];
+  }
 
   const component = getSubmittedComponent(interaction, BACKGROUND_UPLOAD_ID);
+  const fromComponent = collectionToArray(component?.attachments);
+  if (fromComponent.length > 0) return fromComponent[0];
+
   const values = component?.values ?? component?.value ?? [];
   const ids = Array.isArray(values) ? values : [values];
   for (const id of ids) {

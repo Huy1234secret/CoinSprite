@@ -61,12 +61,26 @@ function getFilenameFromUrl(url) {
 
 function normalizeUploadedAttachment(attachment) {
   if (!attachment) return null;
+  const url = attachment.url || attachment.attachment || '';
   return {
     id: attachment.id,
-    url: attachment.url,
+    url,
     contentType: attachment.contentType || attachment.content_type || '',
-    filename: attachment.name || attachment.filename || getFilenameFromUrl(attachment.url),
+    filename: attachment.name || attachment.filename || getFilenameFromUrl(url),
   };
+}
+
+function collectionToArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.values === 'function') return Array.from(value.values());
+  return [value];
+}
+
+function getCollectionItem(collection, id) {
+  if (!collection || !id) return null;
+  if (typeof collection.get === 'function') return collection.get(id) ?? null;
+  return collection[id] ?? null;
 }
 
 function getModalComponents(interaction) {
@@ -88,25 +102,35 @@ function findSubmittedComponent(interaction, customId) {
 }
 
 function getResolvedAttachment(interaction, id) {
-  const resolved = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? null;
-  if (!resolved) return null;
-  if (typeof resolved.get === 'function') return resolved.get(id) ?? null;
-  return resolved[id] ?? null;
+  const resolved = interaction?.data?.resolved?.attachments
+    ?? interaction?.resolved?.attachments
+    ?? interaction?.fields?.resolved?.attachments
+    ?? null;
+  return getCollectionItem(resolved, id);
 }
 
 function getUploadedProofFiles(interaction) {
-  const fromFields = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? interaction.fields.getUploadedFiles(GIVEAWAY_CLOSE_PROOF_UPLOAD).map(normalizeUploadedAttachment).filter(Boolean)
-    : [];
-  if (fromFields.length > 0) return fromFields;
+  if (typeof interaction?.fields?.getUploadedFiles === 'function') {
+    const fromFields = collectionToArray(interaction.fields.getUploadedFiles(GIVEAWAY_CLOSE_PROOF_UPLOAD))
+      .map(normalizeUploadedAttachment)
+      .filter((attachment) => attachment?.url);
+    if (fromFields.length > 0) return fromFields;
+  }
 
   const component = findSubmittedComponent(interaction, GIVEAWAY_CLOSE_PROOF_UPLOAD);
+  const fromComponent = collectionToArray(component?.attachments)
+    .map(normalizeUploadedAttachment)
+    .filter((attachment) => attachment?.url);
+  if (fromComponent.length > 0) return fromComponent;
+
   const ids = component?.values ?? component?.value ?? [];
   const attachmentIds = Array.isArray(ids) ? ids : [ids];
-  const fromResolved = attachmentIds.map((id) => normalizeUploadedAttachment(getResolvedAttachment(interaction, id))).filter(Boolean);
+  const fromResolved = attachmentIds
+    .map((id) => normalizeUploadedAttachment(getResolvedAttachment(interaction, id)))
+    .filter((attachment) => attachment?.url);
   if (fromResolved.length > 0) return fromResolved;
 
-  return Array.from(interaction?.attachments?.values?.() ?? []).map(normalizeUploadedAttachment).filter(Boolean);
+  return Array.from(interaction?.attachments?.values?.() ?? []).map(normalizeUploadedAttachment).filter((attachment) => attachment?.url);
 }
 
 function isGiveawayTicket(ticketRecord, channel) {
