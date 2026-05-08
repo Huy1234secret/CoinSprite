@@ -3,9 +3,10 @@
 A Discord bot for milestone giveaway tracking and invite-based rewards.
 
 ## Slash Commands
-- `/giveaway-start duration:{30m|6h|1d}`
+- `/giveaway-start`
   - Opens a Components V2 giveaway setup panel with edit-message and edit-requirement controls.
   - Uses a modal for prize, notes, claim time, winner count, and hoster selection.
+  - Asks for giveaway duration only after Start is pressed, then deletes the setup panel.
   - Starts a persistent giveaway with join checks, winner draws, claim windows, rerolls, and hoster claim DMs.
 - `/delete giveaway giveaway_message_id:{message_id}`
   - Deletes a giveaway or giveaway setup by its main message id.
