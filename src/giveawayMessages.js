@@ -380,7 +380,7 @@ function buildClaimRoundAllClaimedPayload(giveaway, round) {
 function buildClaimRoundClosedPayload(giveaway, round, unclaimedCount) {
   return toV2Payload([
     container(ORANGE_ACCENT, [
-      text(`### ${giveaway.prize}\n-# Winners: ${joinMentions(round.winnerIds)}`),
+      text(`### ${giveaway.prize}\n${getRoundWinnerLine(round)}`),
       separator(),
       text(`Claimed: ${joinMentions(round.claimedIds)}\nUnclaimed: ${unclaimedCount}`),
     ]),
