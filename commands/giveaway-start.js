@@ -5,12 +5,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('giveaway-start')
     .setDescription('Create a giveaway setup panel.')
-    .addStringOption((option) =>
-      option
-        .setName('duration')
-        .setDescription('Giveaway duration, for example 30m, 6h, or 1d.')
-        .setRequired(true),
-    )
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   disableActionTimeout: true,
 
@@ -19,8 +13,7 @@ module.exports = {
   },
 
   async execute(interaction) {
-    const duration = interaction.options.getString('duration', true);
-    await giveawayManager.handleStartCommand(interaction, duration);
+    await giveawayManager.handleStartCommand(interaction);
   },
 
   async handleInteraction(interaction) {
