@@ -40,7 +40,7 @@ function shouldSkipActionTimeout(interaction) {
 
   // Ticket controls must remain usable indefinitely: the main panel, all three
   // ticket type flows, staff ticket actions, review controls, and ticket modals.
-  return customId.startsWith('ticket:') || customId.startsWith('giveaway:');
+  return customId.startsWith('ticket:') || customId.startsWith('giveaway:') || customId.startsWith('level:');
 }
 
 function canUseStaffActions(member) {
