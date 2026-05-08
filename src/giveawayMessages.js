@@ -1,3 +1,7 @@
+const fs = require('fs');
+const path = require('path');
+const { AttachmentBuilder } = require('discord.js');
+
 const {
   ANNOUNCEMENT_TARGET_ID,
   BLACK_ACCENT,
@@ -25,6 +29,47 @@ const {
   text,
   toV2Payload,
 } = require('./giveawayUtils');
+
+const GIVEAWAY_IMAGE_FILE_NAME = 'GiveawayImage.png';
+const GIVEAWAY_IMAGE_ATTACHMENT_URL = `attachment://${GIVEAWAY_IMAGE_FILE_NAME}`;
+let cachedGiveawayImagePath;
+
+function findGiveawayImagePath() {
+  if (cachedGiveawayImagePath !== undefined) return cachedGiveawayImagePath;
+
+  const rootDir = process.cwd();
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '.git') continue;
+        stack.push(path.join(dir, entry.name));
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.toLowerCase() === GIVEAWAY_IMAGE_FILE_NAME.toLowerCase()) {
+        cachedGiveawayImagePath = path.join(dir, entry.name);
+        return cachedGiveawayImagePath;
+      }
+    }
+  }
+
+  cachedGiveawayImagePath = null;
+  return cachedGiveawayImagePath;
+}
+
+function getGiveawayImageAttachment() {
+  const imagePath = findGiveawayImagePath();
+  return imagePath ? new AttachmentBuilder(imagePath, { name: GIVEAWAY_IMAGE_FILE_NAME }) : null;
+}
 
 function buildGiveawayInfoLines({
   prize,
@@ -247,25 +292,40 @@ function disableTopLevelButtons(payload) {
   };
 }
 
+function giveawayInfoComponent(content, includeThumbnail) {
+  if (!includeThumbnail) return text(content);
+  return {
+    type: 9,
+    components: [text(content)],
+    accessory: {
+      type: 11,
+      media: { url: GIVEAWAY_IMAGE_ATTACHMENT_URL },
+    },
+  };
+}
+
 function buildLiveGiveawayPayload(giveaway, options = {}) {
+  const imageAttachment = getGiveawayImageAttachment();
+  const infoContent = buildGiveawayInfoLines({
+    prize: giveaway.prize,
+    headerLine: options.headerLine ?? `-# **Ends ${formatDiscordRelative(giveaway.endsAt)}**`,
+    hostId: giveaway.hostId,
+    description: giveaway.description,
+    claimDurationLabel: giveaway.claimDurationLabel,
+    winnerCount: giveaway.winnerCount,
+    requirement: giveaway.requirement,
+  });
+
   return toV2Payload([
     text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(options.accent ?? WHITE_ACCENT, [
-      text(buildGiveawayInfoLines({
-        prize: giveaway.prize,
-        headerLine: options.headerLine ?? `-# **Ends ${formatDiscordRelative(giveaway.endsAt)}**`,
-        hostId: giveaway.hostId,
-        description: giveaway.description,
-        claimDurationLabel: giveaway.claimDurationLabel,
-        winnerCount: giveaway.winnerCount,
-        requirement: giveaway.requirement,
-      })),
+      giveawayInfoComponent(infoContent, Boolean(imageAttachment)),
       separator(),
       actionRow([
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, options.buttonStyle ?? 3, Boolean(options.buttonDisabled)),
       ]),
     ]),
-  ]);
+  ], imageAttachment ? { files: [imageAttachment] } : {});
 }
 
 function getRoundWinnerLine(round) {
@@ -275,11 +335,13 @@ function getRoundWinnerLine(round) {
 }
 
 function buildClaimRoundPayload(giveaway, round) {
+  const claimLine = `Claimed: ${round.claimedIds.length} / ${round.winnerIds.length} - ${joinMentions(round.claimedIds)}`;
+  const rerollLine = round.expiresAt ? `Reroll ${formatDiscordRelative(round.expiresAt)}` : null;
   return toV2Payload([
     container(YELLOW_ACCENT, [
       text(`### ${giveaway.prize}\n${getRoundWinnerLine(round)}`),
       separator(),
-      text(`Claimed: ${round.claimedIds.length} / ${round.winnerIds.length} - ${joinMentions(round.claimedIds)}`),
+      text([claimLine, rerollLine].filter(Boolean).join('\n')),
       actionRow([button(`${CUSTOM_IDS.claimPrefix}${giveaway.id}:${round.roundNumber}`, 'Claim', 3)]),
     ]),
   ]);
@@ -316,24 +378,27 @@ function buildNoMoreUsersPayload(giveaway) {
 }
 
 function buildFinalGiveawayPayload(giveaway) {
+  const imageAttachment = getGiveawayImageAttachment();
+  const infoContent = buildGiveawayInfoLines({
+    prize: giveaway.prize,
+    headerLine: `-# Final winner: ${joinMentions(giveaway.claimedUserIds)}`,
+    hostId: giveaway.hostId,
+    description: giveaway.description,
+    claimDurationLabel: giveaway.claimDurationLabel,
+    winnerCount: giveaway.winnerCount,
+    requirement: giveaway.requirement,
+  });
+
   return toV2Payload([
     text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(GREEN_ACCENT, [
-      text(buildGiveawayInfoLines({
-        prize: giveaway.prize,
-        headerLine: `-# Final winner: ${joinMentions(giveaway.claimedUserIds)}`,
-        hostId: giveaway.hostId,
-        description: giveaway.description,
-        claimDurationLabel: giveaway.claimDurationLabel,
-        winnerCount: giveaway.winnerCount,
-        requirement: giveaway.requirement,
-      })),
+      giveawayInfoComponent(infoContent, Boolean(imageAttachment)),
       separator(),
       actionRow([
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, 3, true),
       ]),
     ]),
-  ]);
+  ], imageAttachment ? { files: [imageAttachment] } : {});
 }
 
 function buildHosterDmPayload(giveaway, userId) {
