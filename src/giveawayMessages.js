@@ -21,7 +21,6 @@ const {
   getRequirementLabel,
   isSetupComplete,
   joinMentions,
-  now,
   separator,
   text,
   toV2Payload,
@@ -53,10 +52,9 @@ function buildGiveawayInfoLines({
 }
 
 function buildSetupPayload(draft, disabled = false) {
-  const previewEndsAt = now() + draft.durationMs;
   const lines = [
     `## ${draftPrizeText(draft)}`,
-    `-# **Ends ${formatDiscordRelative(previewEndsAt)}**`,
+    '-# **Ends after Start is pressed**',
     `-# **Hoster: ${draftHostText(draft)}**`,
     draftDescriptionText(draft),
     '---',
@@ -74,6 +72,26 @@ function buildSetupPayload(draft, disabled = false) {
       button(`${CUSTOM_IDS.startPrefix}${draft.id}`, 'Start', 3, disabled || !isSetupComplete(draft)),
     ]),
   ]);
+}
+
+function buildStartDurationModal(draft) {
+  return {
+    custom_id: `${CUSTOM_IDS.startDurationModalPrefix}${draft.id}`,
+    title: 'Start giveaway',
+    components: [{
+      type: 18,
+      label: 'Giveaway duration',
+      component: {
+        type: 4,
+        custom_id: FIELD_IDS.duration,
+        style: 1,
+        required: true,
+        max_length: 30,
+        placeholder: 'Example: 30m, 6h, 1d',
+        value: draft.durationLabel || '',
+      },
+    }],
+  };
 }
 
 function buildSetupModal(draft) {
@@ -231,7 +249,7 @@ function disableTopLevelButtons(payload) {
 
 function buildLiveGiveawayPayload(giveaway, options = {}) {
   return toV2Payload([
-    text(`<@${ANNOUNCEMENT_TARGET_ID}>`),
+    text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(options.accent ?? WHITE_ACCENT, [
       text(buildGiveawayInfoLines({
         prize: giveaway.prize,
@@ -299,7 +317,7 @@ function buildNoMoreUsersPayload(giveaway) {
 
 function buildFinalGiveawayPayload(giveaway) {
   return toV2Payload([
-    text(`<@${ANNOUNCEMENT_TARGET_ID}>`),
+    text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(GREEN_ACCENT, [
       text(buildGiveawayInfoLines({
         prize: giveaway.prize,
@@ -338,5 +356,6 @@ module.exports = {
   buildRequirementModal,
   buildSetupModal,
   buildSetupPayload,
+  buildStartDurationModal,
   disableTopLevelButtons,
 };
