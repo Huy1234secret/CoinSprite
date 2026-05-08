@@ -345,9 +345,13 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
 }
 
 function getRoundWinnerLine(round) {
+  const winnerMentions = round.winnerIds.length
+    ? round.winnerIds.map((userId) => `<@${userId}> [${round.claimedIds.includes(userId) ? 'claimed' : 'unclaimed'}]`).join(', ')
+    : 'None';
+
   return round.roundNumber > 0
-    ? `-# ${round.roundNumber}# Winners: ${joinMentions(round.winnerIds)}`
-    : `-# Winners: ${joinMentions(round.winnerIds)}`;
+    ? `-# ${round.roundNumber}# Winners: ${winnerMentions}`
+    : `-# Winners: ${winnerMentions}`;
 }
 
 function buildClaimRoundPayload(giveaway, round) {
