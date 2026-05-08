@@ -23,6 +23,25 @@ const BACKGROUND_PREFIX = 'level:background:';
 const COLOR_MODAL_PREFIX = 'level:color-modal:';
 const BACKGROUND_MODAL_PREFIX = 'level:background-modal:';
 const BACKGROUND_UPLOAD_ID = 'level_card_background_upload';
+const ACCEPTED_BACKGROUND_IMAGE_EXTENSIONS = new Set([
+  '.apng',
+  '.avif',
+  '.bmp',
+  '.gif',
+  '.heic',
+  '.heif',
+  '.ico',
+  '.jfif',
+  '.jpeg',
+  '.jpg',
+  '.pjp',
+  '.pjpeg',
+  '.png',
+  '.svg',
+  '.tif',
+  '.tiff',
+  '.webp',
+]);
 const COLOR_FIELD_IDS = {
   usernameFillColor: 'level_card_username_fill_color',
   lineFillColor: 'level_card_line_fill_color',
@@ -168,7 +187,7 @@ function getBackgroundModal(userId) {
     components: [{
       type: 18,
       label: 'Upload an image file',
-      description: 'The bot will normalize it to 740x278 and optimize the PNG.',
+      description: 'Upload any image type (JPG, PNG, GIF, WebP, etc.); the bot saves it as 740x278 PNG.',
       component: {
         type: 19,
         custom_id: BACKGROUND_UPLOAD_ID,
@@ -224,6 +243,32 @@ function getAttachmentFilename(attachment) {
   return attachment?.name || attachment?.filename || 'rank-card-background.png';
 }
 
+function getAttachmentContentType(attachment) {
+  return String(attachment?.contentType || attachment?.content_type || '').toLowerCase();
+}
+
+function getAttachmentExtension(attachment) {
+  const filename = getAttachmentFilename(attachment);
+  const fromName = path.extname(filename.split('?')[0]).toLowerCase();
+  if (fromName) return fromName;
+
+  const url = getAttachmentUrl(attachment);
+  if (!url) return '';
+  try {
+    return path.extname(new URL(url).pathname).toLowerCase();
+  } catch {
+    return path.extname(String(url).split('?')[0]).toLowerCase();
+  }
+}
+
+function isImageUpload(attachment) {
+  const contentType = getAttachmentContentType(attachment);
+  if (contentType.startsWith('image/')) return true;
+
+  const extension = getAttachmentExtension(attachment);
+  return ACCEPTED_BACKGROUND_IMAGE_EXTENSIONS.has(extension);
+}
+
 async function getRankCardPayload(guild, user) {
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const entry = leaderboard.find((row) => row.userId === user.id);
@@ -266,11 +311,25 @@ async function saveUploadedBackground(interaction, upload) {
 
   const response = await fetch(url);
   if (!response.ok) throw new Error('The uploaded image could not be downloaded.');
+  const responseType = String(response.headers.get('content-type') || '').toLowerCase();
+  if (responseType && !responseType.startsWith('image/') && responseType !== 'application/octet-stream' && !isImageUpload(upload)) {
+    throw new Error('Please upload an image file, not a document or archive.');
+  }
+
   const inputBuffer = Buffer.from(await response.arrayBuffer());
-  const image = await loadImage(inputBuffer);
+  let image;
+  try {
+    image = await loadImage(inputBuffer);
+  } catch {
+    throw new Error('That image file type could not be decoded. Please try JPG, PNG, GIF, WebP, SVG, BMP, TIFF, AVIF, or HEIC/HEIF.');
+  }
+
+  if (!image.width || !image.height) throw new Error('The uploaded image has invalid dimensions.');
 
   const canvas = createCanvas(CARD_BACKGROUND_WIDTH, CARD_BACKGROUND_HEIGHT);
   const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#1e1f22';
+  ctx.fillRect(0, 0, CARD_BACKGROUND_WIDTH, CARD_BACKGROUND_HEIGHT);
   const scale = Math.max(CARD_BACKGROUND_WIDTH / image.width, CARD_BACKGROUND_HEIGHT / image.height);
   const drawW = image.width * scale;
   const drawH = image.height * scale;
