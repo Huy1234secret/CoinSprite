@@ -6,6 +6,9 @@ const { WHITE_ACCENT, GREEN_ACCENT, RED_ACCENT, COIN, formatNumber } = require('
 const { addBalance } = require('../src/gamblingStore');
 const { addInventoryItem } = require('../src/playerInventoryStore');
 const { addPlayerXp } = require('../src/playerLevelStore');
+const ENEMIES = require('../data/enemies.json');
+
+const ENEMY_BY_ID = Object.fromEntries(ENEMIES.map((enemy) => [enemy.id, enemy]));
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -15,13 +18,18 @@ const BANNER_BASENAME = 'JungleBanner';
 const IMAGES_DIR = path.join(__dirname, '..', 'Images');
 const PROGRESS_PATH = path.join(__dirname, '..', 'data', 'journey-stage-progress.json');
 const FIST_EMOJI = { id: '1500805602576826368', name: 'WPFist' };
-const SLIME_EMOJI_OBJECT = { id: '1501095601432170506', name: 'ENJungleSlime' };
-const SLIME_EMOJI = '<:ENJungleSlime:1501095601432170506>';
-const SLIME_URL = 'https://cdn.discordapp.com/emojis/1501095601432170506.png?size=256&quality=lossless';
+const JUNGLE_SLIME = ENEMY_BY_ID.jungle_slime;
+const SLIME_EMOJI_OBJECT = JUNGLE_SLIME.emojiObject;
+const SLIME_URL = JUNGLE_SLIME.imageUrl;
 const DEFENSE_EMOJI = '<:SBDefense:1501156914665488486>';
 const DEFENSE_URL = 'https://cdn.discordapp.com/emojis/1501156914665488486.png?size=128&quality=lossless';
-const GOO_EMOJI = '<:ITJungleGoo:1501156916737609798>';
 const activeBattles = new Map();
+
+function stageEnemy(enemyId, count = 1) {
+  const enemy = ENEMY_BY_ID[enemyId];
+  if (!enemy) throw new Error(`Unknown journey enemy: ${enemyId}`);
+  return { id: enemy.id, count };
+}
 
 const STAGES = [
   {
@@ -30,10 +38,10 @@ const STAGES = [
     chapter: 1,
     stage: 1,
     reward: { coins: 100, exp: 25 },
-    enemies: [{ id: 'jungle_slime', name: 'Jungle Slime', emoji: SLIME_EMOJI, count: 2, hp: 10, maxPower: 10, rarity: 'Common', imageUrl: SLIME_URL }],
+    enemies: [stageEnemy('jungle_slime', 2)],
   },
-  { id: 'mossy_ruins', name: 'Mossy Ruins', chapter: 1, stage: 2, reward: { coins: 100, exp: 25 }, enemies: [{ id: 'jungle_slime', name: 'Jungle Slime', emoji: SLIME_EMOJI, count: 2, hp: 10, maxPower: 10, rarity: 'Common', imageUrl: SLIME_URL }] },
-  { id: 'ancient_canopy', name: 'Ancient Canopy', chapter: 1, stage: 3, reward: { coins: 100, exp: 25 }, enemies: [{ id: 'jungle_slime', name: 'Jungle Slime', emoji: SLIME_EMOJI, count: 2, hp: 10, maxPower: 10, rarity: 'Common', imageUrl: SLIME_URL }] },
+  { id: 'mossy_ruins', name: 'Mossy Ruins', chapter: 1, stage: 2, reward: { coins: 100, exp: 25 }, enemies: [stageEnemy('jungle_slime', 2)] },
+  { id: 'ancient_canopy', name: 'Ancient Canopy', chapter: 1, stage: 3, reward: { coins: 100, exp: 25 }, enemies: [stageEnemy('jungle_slime', 2)] },
 ];
 
 function text(content) { return { type: 10, content }; }
@@ -320,7 +328,13 @@ function drawMapInfo(ctx, stage, progress, width, height) {
 }
 async function drawEnemyList(ctx, stage, width, height) {
   const enemies = stage.enemies.slice(0, 5);
-  const image = await loadRemoteImage(SLIME_URL);
+  const imageCache = new Map();
+  async function getEnemyImage(enemy) {
+    const definition = ENEMY_BY_ID[enemy.id] || enemy;
+    const url = definition.imageUrl || SLIME_URL;
+    if (!imageCache.has(url)) imageCache.set(url, await loadRemoteImage(url));
+    return imageCache.get(url);
+  }
   const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
   const right = Math.round(width * 0.955);
   const circleY = Math.round(height * 0.58);
@@ -332,11 +346,12 @@ async function drawEnemyList(ctx, stage, width, height) {
   ctx.font = `900 ${Math.round(50 * scale)}px Arial`;
   strokedText(ctx, 'Enemies', right, Math.round(height * 0.30), '#fff', 'rgba(0,0,0,.82)', Math.round(10 * scale));
   clearTextShadow(ctx);
-  enemies.forEach((enemy, index) => {
+  for (const [index, enemy] of enemies.entries()) {
+    const definition = ENEMY_BY_ID[enemy.id] || enemy;
     const x = startX + (index * gap);
-    drawSimpleProfileCircle(ctx, x, circleY, radius, image);
+    drawSimpleProfileCircle(ctx, x, circleY, radius, await getEnemyImage(enemy));
     setTextShadow(ctx, 10);
-    strokeFitText(ctx, enemy.name, x, circleY + Math.round(radius * 1.44), Math.round(radius * 2.4), Math.round(radius * 0.38), '#fff', 'rgba(0,0,0,.9)', 800, 'center');
+    strokeFitText(ctx, definition.name, x, circleY + Math.round(radius * 1.44), Math.round(radius * 2.4), Math.round(radius * 0.38), '#fff', 'rgba(0,0,0,.9)', 800, 'center');
     clearTextShadow(ctx);
     if (enemy.count > 1) {
       const badgeX = x + Math.round(48 * scale);
@@ -353,7 +368,7 @@ async function drawEnemyList(ctx, stage, width, height) {
       ctx.textAlign = 'center';
       ctx.fillText(`x${enemy.count}`, badgeX, badgeY + Math.round(8 * scale));
     }
-  });
+  }
 }
 async function createJourneyStageImage(stage, userId) {
   const canvas = await loadBannerCanvas();
@@ -368,10 +383,10 @@ function drawNameAndLevel(ctx, name, level, x, y, scale, align = 'left', maxWidt
   strokeFitText(ctx, `Level ${level}`, x, y + Math.round(42 * scale), maxWidth, Math.round(30 * scale), '#fff', 'rgba(0,0,0,.82)', 900, align);
   clearTextShadow(ctx);
 }
-function drawEnemyBattleSlot(ctx, enemy, centerX, centerY, radius, scale, slimeImage, defenseImage, maxTextWidth) {
+function drawEnemyBattleSlot(ctx, enemy, centerX, centerY, radius, scale, enemyImage, defenseImage, maxTextWidth) {
   centerX = Math.round(centerX);
   centerY = Math.round(centerY);
-  drawEnemyProfileCircle(ctx, { x: centerX, y: centerY, radius, image: slimeImage, defenseImage, hp: enemy.hp, maxHp: enemy.maxHp, power: enemy.power, maxPower: enemy.maxPower, defense: enemy.defense });
+  drawEnemyProfileCircle(ctx, { x: centerX, y: centerY, radius, image: enemyImage, defenseImage, hp: enemy.hp, maxHp: enemy.maxHp, power: enemy.power, maxPower: enemy.maxPower, defense: enemy.defense });
   const textY = centerY + radius + Math.round(34 * scale);
   drawNameAndLevel(ctx, enemy.name, enemy.level || 1, centerX, textY, Math.max(0.56, scale * 0.68), 'center', Math.round(maxTextWidth));
   if (enemy.status) {
@@ -387,7 +402,12 @@ async function createBattleImage(session) {
   const height = canvas.height;
   const scale = Math.max(0.7, Math.min(width / 2048, height / 330));
   const avatar = await loadRemoteImage(session.avatarUrl);
-  const slimeImage = await loadRemoteImage(SLIME_URL);
+  const enemyImageCache = new Map();
+  async function getEnemyImage(enemy) {
+    const url = enemy.imageUrl || SLIME_URL;
+    if (!enemyImageCache.has(url)) enemyImageCache.set(url, await loadRemoteImage(url));
+    return enemyImageCache.get(url);
+  }
   const defenseImage = await loadRemoteImage(DEFENSE_URL);
 
   const playerRadius = Math.round(118 * scale);
@@ -403,18 +423,18 @@ async function createBattleImage(session) {
   const alive = session.enemies.filter((enemy) => enemy.hp > 0);
   const radius = Math.round(112 * scale);
   if (alive.length === 1) {
-    drawEnemyBattleSlot(ctx, alive[0], width * 0.72, height * 0.40, radius, scale, slimeImage, defenseImage, width * 0.17);
+    drawEnemyBattleSlot(ctx, alive[0], width * 0.72, height * 0.40, radius, scale, await getEnemyImage(alive[0]), defenseImage, width * 0.17);
   } else if (alive.length === 2) {
     const spacing = Math.round(radius * 2.45);
     const baseX = Math.round(width * 0.72);
-    drawEnemyBattleSlot(ctx, alive[0], baseX - spacing / 2, height * 0.40, radius, scale, slimeImage, defenseImage, spacing * 0.95);
-    drawEnemyBattleSlot(ctx, alive[1], baseX + spacing / 2, height * 0.40, radius, scale, slimeImage, defenseImage, spacing * 0.95);
+    drawEnemyBattleSlot(ctx, alive[0], baseX - spacing / 2, height * 0.40, radius, scale, await getEnemyImage(alive[0]), defenseImage, spacing * 0.95);
+    drawEnemyBattleSlot(ctx, alive[1], baseX + spacing / 2, height * 0.40, radius, scale, await getEnemyImage(alive[1]), defenseImage, spacing * 0.95);
   } else {
     const cols = Math.min(3, Math.max(1, alive.length));
     const areaX = Math.round(width * 0.55);
     const areaW = Math.round(width * 0.34);
     const cellW = areaW / cols;
-    alive.forEach((enemy, index) => drawEnemyBattleSlot(ctx, enemy, areaX + (index % cols) * cellW + cellW / 2, height * (0.35 + Math.floor(index / cols) * 0.34), Math.min(radius, cellW * 0.36), scale, slimeImage, defenseImage, cellW * 0.94));
+    for (const [index, enemy] of alive.entries()) drawEnemyBattleSlot(ctx, enemy, areaX + (index % cols) * cellW + cellW / 2, height * (0.35 + Math.floor(index / cols) * 0.34), Math.min(radius, cellW * 0.36), scale, await getEnemyImage(enemy), defenseImage, cellW * 0.94);
   }
   return await canvas.encode('png');
 }
@@ -449,7 +469,7 @@ function battleSelectRows(session, disabled = false) {
 }
 function targetRows(session) {
   const alive = session.enemies.filter((enemy) => enemy.hp > 0);
-  const options = alive.map((enemy, index) => ({ label: `${enemy.name} ${index + 1}`, value: enemy.id, description: `HP ${enemy.hp}/${enemy.maxHp}`, emoji: SLIME_EMOJI_OBJECT }));
+  const options = alive.map((enemy, index) => ({ label: `${enemy.name} ${index + 1}`, value: enemy.id, description: `HP ${enemy.hp}/${enemy.maxHp}`, emoji: enemy.emojiObject || SLIME_EMOJI_OBJECT }));
   return [
     row(selectMenu(`journey:target:${session.userId}:${session.id}`, 'Select enemy', options.length ? options : [{ label: 'No enemies left', value: 'none' }], options.length === 0)),
     row(button(`journey:back:${session.userId}:${session.id}`, 'Back', 2)),
@@ -490,12 +510,19 @@ function addDrop(session, itemId, name, emoji, amount) {
   if (existing) existing.amount += amount;
   else session.pendingDrops.push({ itemId, name, emoji, amount });
 }
+function percentChance(percent) { return chance(Math.max(0, Number(percent) || 0) / 100); }
+function rollXp(xpGiven) {
+  if (!xpGiven) return 0;
+  if (typeof xpGiven === 'number') return Math.max(0, Math.floor(xpGiven));
+  return rand(Math.max(0, Math.floor(Number(xpGiven.min) || 0)), Math.max(0, Math.floor(Number(xpGiven.max) || 0)));
+}
 function rollEnemyDrops(session, enemy) {
   if (enemy.dropsRolled) return;
   enemy.dropsRolled = true;
-  addDrop(session, 'jungle_goo', 'Jungle Goo', GOO_EMOJI, 1);
-  if (chance(0.1)) addDrop(session, 'jungle_goo', 'Jungle Goo', GOO_EMOJI, 2);
-  session.enemyExp += 5;
+  for (const drop of enemy.loot || []) {
+    if (percentChance(drop.chance)) addDrop(session, drop.itemId, drop.name, drop.emoji || '', drop.amount || 1);
+  }
+  session.enemyExp += rollXp(enemy.xpGiven);
 }
 function defenseReducedDamage(rawDamage, target) {
   const defense = Math.max(0, Math.min(10, Math.floor(Number(target.defense) || 0)));
@@ -542,10 +569,32 @@ async function finishPayload(interaction, session, win) {
 }
 function expandEnemies(enemies) {
   const out = [];
-  for (const enemy of enemies || []) {
-    const count = Math.max(1, Number(enemy.count) || 1);
+  for (const stageEntry of enemies || []) {
+    const definition = ENEMY_BY_ID[stageEntry.id] || stageEntry;
+    const count = Math.max(1, Number(stageEntry.count) || 1);
+    const baseHealth = Math.max(1, Math.floor(Number(stageEntry.hp ?? definition.baseHealth) || 10));
+    const baseShield = Math.max(0, Math.floor(Number(stageEntry.shield ?? definition.baseShield) || 0));
     for (let i = 1; i <= count; i += 1) {
-      out.push({ id: `${enemy.id || enemy.name}_${i}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, baseId: enemy.id, name: enemy.name || 'Enemy', emoji: enemy.emoji || '', imageUrl: enemy.imageUrl || SLIME_URL, rarity: enemy.rarity || 'Common', level: 1, hp: enemy.hp || 10, maxHp: enemy.hp || 10, power: 0, maxPower: enemy.maxPower || 10, defense: 0, defenseTurns: 0, status: '' });
+      out.push({
+        id: `${definition.id || definition.name}_${i}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+        baseId: definition.id,
+        name: definition.name || 'Enemy',
+        emoji: definition.emoji || '',
+        emojiObject: definition.emojiObject || null,
+        imageUrl: definition.imageUrl || SLIME_URL,
+        rarity: definition.rarity || 'Common',
+        level: 1,
+        hp: baseHealth,
+        maxHp: baseHealth,
+        power: 0,
+        maxPower: definition.maxPower || 10,
+        defense: baseShield,
+        defenseTurns: 0,
+        status: baseShield > 0 ? `${DEFENSE_EMOJI} ${baseShield}` : '',
+        attacks: definition.attacks || [],
+        loot: definition.loot || [],
+        xpGiven: definition.xpGiven || null,
+      });
     }
   }
   return out;
@@ -575,18 +624,46 @@ function createSession(interaction, stage) {
 function cleanupSession(session) { activeBattles.delete(session.id); for (const timer of session.timers || []) clearTimeout(timer); }
 async function editBattleMessage(message, session, accent = WHITE_ACCENT, disabled = false) { await message.edit(await battlePayload(session, accent, disabled)).catch(() => null); }
 function queueTimer(session, fn, delay) { const timer = setTimeout(fn, delay); session.timers.push(timer); }
-function useJungleSlimeMove(enemy, session) {
-  if (enemy.power >= 10) {
-    enemy.defense = Math.min(10, Math.max(enemy.defense || 0, 1));
+function formatEnemyAction(template, values) {
+  return String(template || '{enemy} attacks {target}!').replace(/\{(enemy|target|damage|shield)\}/g, (_, key) => values[key] ?? '');
+}
+function getAttackDamage(attack) {
+  if (!attack?.damage) return 0;
+  return rand(Math.floor(Number(attack.damage.min) || 0), Math.floor(Number(attack.damage.max) || 0));
+}
+function chooseEnemyAttack(enemy) {
+  const attacks = Array.isArray(enemy.attacks) ? enemy.attacks : [];
+  const usable = attacks.filter((attack) => Math.max(0, Number(attack.powerRequired) || 0) <= enemy.power);
+  if (!usable.length) return attacks.find((attack) => !attack.powerRequired) || attacks[0] || null;
+  usable.sort((a, b) => (Number(b.powerRequired) || 0) - (Number(a.powerRequired) || 0));
+  const highestCost = Number(usable[0].powerRequired) || 0;
+  const best = usable.filter((attack) => (Number(attack.powerRequired) || 0) === highestCost);
+  return best[rand(0, best.length - 1)];
+}
+function useEnemyMove(enemy, session) {
+  const attack = chooseEnemyAttack(enemy);
+  if (!attack) return `-# ${enemy.name} waits.`;
+  const powerRequired = Math.max(0, Number(attack.powerRequired) || 0);
+  if (powerRequired > 0) enemy.power = Math.max(0, enemy.power - powerRequired);
+  else enemy.power = Math.min(enemy.maxPower, enemy.power + rand(1, 3));
+
+  const damage = getAttackDamage(attack);
+  if (damage > 0) session.player.hp = Math.max(0, session.player.hp - damage);
+
+  const shield = Math.max(0, Math.floor(Number(attack.shield) || 0));
+  if (shield > 0) {
+    enemy.defense = Math.max(0, (enemy.defense || 0) + shield);
     enemy.defenseTurns = 2;
-    enemy.power = Math.max(0, enemy.power - 10);
     enemy.status = `${DEFENSE_EMOJI} ${enemy.defense}`;
-    return '-# Jungle Slime absorbs jungle leaves, gaining a protective shield last 2 turns.';
   }
-  const damage = rand(2, 3);
-  session.player.hp = Math.max(0, session.player.hp - damage);
-  enemy.power = Math.min(enemy.maxPower, enemy.power + rand(1, 3));
-  return `-# The Jungle Slime jumped toward ${session.username} and dealt ${damage} damage.`;
+
+  const heal = Math.max(0, Math.floor(Number(attack.heal) || 0));
+  if (heal > 0) enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+
+  const selfShieldLoss = Math.max(0, Math.floor(Number(attack.selfShieldLoss) || 0));
+  if (selfShieldLoss > 0) enemy.defense = Math.max(0, (enemy.defense || 0) - selfShieldLoss);
+
+  return `-# ${formatEnemyAction(attack.action, { enemy: enemy.name, target: session.username, damage, shield })}`;
 }
 async function startEnemyTurn(interaction, session) {
   session.turn = 'enemy';
@@ -600,7 +677,7 @@ async function startEnemyTurn(interaction, session) {
   alive.forEach((enemy, index) => {
     queueTimer(session, async () => {
       if (!activeBattles.has(session.id) || session.turn !== 'enemy' || enemy.hp <= 0) return;
-      session.actionLog.push(useJungleSlimeMove(enemy, session));
+      session.actionLog.push(useEnemyMove(enemy, session));
       if (session.player.hp <= 0) {
         cleanupSession(session);
         await interaction.message.edit(await finishPayload(interaction, session, false)).catch(() => null);
