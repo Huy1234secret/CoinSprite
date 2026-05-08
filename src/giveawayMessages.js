@@ -409,11 +409,28 @@ function buildHosterDmPayload(giveaway, userId) {
   ]);
 }
 
+function buildGiveawayListPayload(giveaways) {
+  const lines = ['Giveaway list:'];
+  if (giveaways.length === 0) {
+    lines.push('No current giveaways.');
+  } else {
+    for (const giveaway of giveaways) {
+      const url = `https://discord.com/channels/${giveaway.guildId}/${giveaway.channelId}/${giveaway.messageId}`;
+      lines.push(`[${giveaway.prize}](${url})`);
+    }
+  }
+
+  return toV2Payload([
+    container(WHITE_ACCENT, [text(lines.join('\n'))]),
+  ]);
+}
+
 module.exports = {
   buildClaimRoundAllClaimedPayload,
   buildClaimRoundClosedPayload,
   buildClaimRoundPayload,
   buildFinalGiveawayPayload,
+  buildGiveawayListPayload,
   buildHosterDmPayload,
   buildLiveGiveawayPayload,
   buildNoMoreUsersPayload,
