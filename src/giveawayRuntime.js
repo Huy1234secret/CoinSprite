@@ -293,22 +293,6 @@ async function handleClaimWindowExpiry(giveawayId, roundNumber) {
   await startNextReroll(giveawayId, roundNumber);
 }
 
-async function forceRerollGiveaway(giveawayId) {
-  const giveaway = getGiveaway(getState(), giveawayId);
-  if (!giveaway || giveaway.status !== 'claiming') return { ok: false, reason: 'not_claiming' };
-
-  const round = getCurrentRound(giveaway);
-  if (!round) return { ok: false, reason: 'no_active_round' };
-
-  if (round.winnerIds.length <= round.claimedIds.length) {
-    await handleClaimWindowExpiry(giveawayId, round.roundNumber);
-    return { ok: true };
-  }
-
-  await startNextReroll(giveawayId, round.roundNumber);
-  return { ok: true };
-}
-
 function scheduleRoundExpiry(giveaway, round) {
   scheduleAt(claimTimerKey(giveaway.id, round.roundNumber), round.expiresAt, async () => handleClaimWindowExpiry(giveaway.id, round.roundNumber));
 }
@@ -401,7 +385,6 @@ module.exports = {
   fetchMessageById,
   findDraftByMessageId,
   findGiveawayByMessageId,
-  forceRerollGiveaway,
   getCurrentRound,
   getDraft,
   getGiveaway,
