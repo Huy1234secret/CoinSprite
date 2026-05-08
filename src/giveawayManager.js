@@ -21,7 +21,6 @@ const {
 } = require('./giveawayUtils');
 const {
   buildHosterDmPayload,
-  buildGiveawayListPayload,
   buildLiveGiveawayPayload,
   buildRequirementButtonsPayload,
   buildRequirementModal,
@@ -157,15 +156,6 @@ async function handleRerollCommand(interaction, messageId) {
   }
 
   await interaction.reply({ content: 'Giveaway reroll forced.', flags: EPHEMERAL_FLAG });
-}
-
-async function handleListCommand(interaction) {
-  const state = runtime.getState();
-  const giveaways = Object.values(state.giveaways)
-    .filter((giveaway) => giveaway.messageId && giveaway.status !== 'completed')
-    .sort((left, right) => Number(left.endsAt || left.createdAt || 0) - Number(right.endsAt || right.createdAt || 0));
-
-  await interaction.reply(buildGiveawayListPayload(giveaways));
 }
 
 async function handleSetupMessageButton(interaction, draftId) {
@@ -501,7 +491,6 @@ module.exports = {
   handleDeleteCommand,
   handleInteraction,
   handleJoinButton,
-  handleListCommand,
   handleMessageCreate,
   handleMessageDelete,
   handleRerollCommand,
