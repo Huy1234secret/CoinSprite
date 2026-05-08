@@ -3,6 +3,12 @@
 A Discord bot for milestone giveaway tracking and invite-based rewards.
 
 ## Slash Commands
+- `/giveaway-start duration:{30m|6h|1d}`
+  - Opens a Components V2 giveaway setup panel with edit-message and edit-requirement controls.
+  - Uses a modal for prize, notes, claim time, winner count, and hoster selection.
+  - Starts a persistent giveaway with join checks, winner draws, claim windows, rerolls, and hoster claim DMs.
+- `/delete giveaway giveaway_message_id:{message_id}`
+  - Deletes a giveaway or giveaway setup by its main message id.
 - `/start-giveaway-milestone`
   - Opens a modal for giveaway reward, winner count, and milestone user count.
   - Posts a Components V2 milestone panel.
@@ -31,8 +37,8 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - A green invitation-rules message is maintained in channel `1494329296670425279` and auto-updated when member tiers change.
 
 ### Reward tiers
-- 0–29 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
-- 30–49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
+- 0â€“29 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
+- 30â€“49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
 - 50+ members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
 
 ## Prefix Commands
@@ -55,6 +61,7 @@ Supported item aliases (case-insensitive):
 - Invite Point, Invite Points, IP
 
 ## Persistence
+- Giveaway state: `data/giveaway-state.json`
 - Milestone state: `data/milestone-state.json`
 - Invite reward state: `data/invite-rewards-state.json`
 
