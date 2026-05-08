@@ -71,7 +71,7 @@ function getGiveawayImageAttachment() {
   return imagePath ? new AttachmentBuilder(imagePath, { name: GIVEAWAY_IMAGE_FILE_NAME }) : null;
 }
 
-function buildGiveawayInfoLines({
+function buildGiveawayInfoSections({
   prize,
   headerLine,
   hostId,
@@ -80,37 +80,48 @@ function buildGiveawayInfoLines({
   winnerCount,
   requirement,
 }) {
-  const lines = [
+  const headerLines = [
     `## ${prize}`,
     headerLine,
     `-# **Hoster: <@${hostId}>**`,
   ];
 
-  if (description) lines.push(description);
-  lines.push('---');
-  lines.push(`-# * Claim time: ${claimDurationLabel}`);
-  lines.push(`-# * Winners: ${winnerCount}`);
+  if (description) headerLines.push(description);
+
+  const detailLines = [
+    `-# * Claim time: ${claimDurationLabel}`,
+    `-# * Winners: ${winnerCount}`,
+  ];
 
   const requirementLabel = getRequirementLabel(requirement);
-  if (requirementLabel) lines.push(`-# * Requirements: ${requirementLabel}`);
-  return lines.join('\n');
+  if (requirementLabel) detailLines.push(`-# * Requirements: ${requirementLabel}`);
+
+  return {
+    header: headerLines.join('\n'),
+    details: detailLines.join('\n'),
+  };
 }
 
 function buildSetupPayload(draft, disabled = false) {
-  const lines = [
+  const headerLines = [
     `## ${draftPrizeText(draft)}`,
     '-# **Ends after Start is pressed**',
     `-# **Hoster: ${draftHostText(draft)}**`,
     draftDescriptionText(draft),
-    '---',
+  ];
+  const detailLines = [
     `-# * Claim time: ${draftClaimTimeText(draft)}`,
     `-# * Winners: ${draftWinnerCountText(draft)}`,
   ];
   const requirementLabel = getRequirementLabel(draft.requirement);
-  if (requirementLabel) lines.push(`-# * Requirements: ${requirementLabel}`);
+  if (requirementLabel) detailLines.push(`-# * Requirements: ${requirementLabel}`);
 
   return toV2Payload([
-    container(WHITE_ACCENT, [text(lines.join('\n'))]),
+    container(WHITE_ACCENT, [
+      text(headerLines.join('\n')),
+      separator(),
+      text(detailLines.join('\n')),
+    ]),
     actionRow([
       button(`${CUSTOM_IDS.editMessagePrefix}${draft.id}`, 'Edit message', 2, disabled),
       button(`${CUSTOM_IDS.editRequirementPrefix}${draft.id}`, 'Edit requirement', 2, disabled),
@@ -213,7 +224,10 @@ function buildSetupModal(draft) {
 
 function buildRequirementButtonsPayload(draftId) {
   return toV2Payload([
-    container(WHITE_ACCENT, [text('What type of requirement you wanna add?\n---')]),
+    container(WHITE_ACCENT, [
+      text('What type of requirement you wanna add?'),
+      separator(),
+    ]),
     actionRow([
       button(`${CUSTOM_IDS.requirementTypePrefix}level:${draftId}`, 'Level', 2),
       button(`${CUSTOM_IDS.requirementTypePrefix}message:${draftId}`, 'Message', 2),
@@ -306,7 +320,7 @@ function giveawayInfoComponent(content, includeThumbnail) {
 
 function buildLiveGiveawayPayload(giveaway, options = {}) {
   const imageAttachment = getGiveawayImageAttachment();
-  const infoContent = buildGiveawayInfoLines({
+  const info = buildGiveawayInfoSections({
     prize: giveaway.prize,
     headerLine: options.headerLine ?? `-# **Ends ${formatDiscordRelative(giveaway.endsAt)}**`,
     hostId: giveaway.hostId,
@@ -319,7 +333,9 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
   return toV2Payload([
     text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(options.accent ?? WHITE_ACCENT, [
-      giveawayInfoComponent(infoContent, Boolean(imageAttachment)),
+      giveawayInfoComponent(info.header, Boolean(imageAttachment)),
+      separator(),
+      text(info.details),
       separator(),
       actionRow([
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, options.buttonStyle ?? 3, Boolean(options.buttonDisabled)),
@@ -379,7 +395,7 @@ function buildNoMoreUsersPayload(giveaway) {
 
 function buildFinalGiveawayPayload(giveaway) {
   const imageAttachment = getGiveawayImageAttachment();
-  const infoContent = buildGiveawayInfoLines({
+  const info = buildGiveawayInfoSections({
     prize: giveaway.prize,
     headerLine: `-# Final winner: ${joinMentions(giveaway.claimedUserIds)}`,
     hostId: giveaway.hostId,
@@ -392,7 +408,9 @@ function buildFinalGiveawayPayload(giveaway) {
   return toV2Payload([
     text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
     container(GREEN_ACCENT, [
-      giveawayInfoComponent(infoContent, Boolean(imageAttachment)),
+      giveawayInfoComponent(info.header, Boolean(imageAttachment)),
+      separator(),
+      text(info.details),
       separator(),
       actionRow([
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, 3, true),
