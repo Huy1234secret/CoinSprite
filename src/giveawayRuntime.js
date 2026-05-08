@@ -136,6 +136,11 @@ async function disableSetupMessage(draft) {
   await editMessageSafely(draft.guildId, draft.channelId, draft.messageId, disableTopLevelButtons(buildSetupPayload(draft, true)));
 }
 
+async function deleteSetupMessage(draft) {
+  const message = await fetchMessageById(draft.guildId, draft.channelId, draft.messageId);
+  await message?.delete().catch(() => null);
+}
+
 function createLiveGiveawayFromDraft(draft) {
   return {
     id: draft.id,
@@ -373,6 +378,7 @@ module.exports = {
   clearGiveawayTimers,
   createClaimRound,
   createLiveGiveawayFromDraft,
+  deleteSetupMessage,
   disableSetupMessage,
   editMessageSafely,
   fetchMemberFromInteraction,
