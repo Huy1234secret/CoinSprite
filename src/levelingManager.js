@@ -7,6 +7,8 @@ const { formatCompactNumber } = require('./numberFormat');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
+const LEVEL_CARD_CUSTOMIZATION_PATH = path.join(__dirname, '..', 'data', 'level-card-customizations.json');
+const USER_CARD_BACKGROUND_DIR = path.join(__dirname, '..', 'User card background');
 const LEVEL_CARD_BG_FILENAME = 'Level card background.png';
 
 const PUNISHMENT_DURATIONS_MS = {
@@ -14,6 +16,102 @@ const PUNISHMENT_DURATIONS_MS = {
   2: 3 * 24 * 60 * 60 * 1000,
   3: 7 * 24 * 60 * 60 * 1000,
 };
+
+function loadCardCustomizations() {
+  try {
+    if (!fs.existsSync(LEVEL_CARD_CUSTOMIZATION_PATH)) return { users: {} };
+    const parsed = JSON.parse(fs.readFileSync(LEVEL_CARD_CUSTOMIZATION_PATH, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return { users: {} };
+    if (!parsed.users || typeof parsed.users !== 'object') parsed.users = {};
+    return parsed;
+  } catch {
+    return { users: {} };
+  }
+}
+
+function saveCardCustomizations(state) {
+  fs.mkdirSync(path.dirname(LEVEL_CARD_CUSTOMIZATION_PATH), { recursive: true });
+  fs.writeFileSync(LEVEL_CARD_CUSTOMIZATION_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function getLevelCardCustomization(userId) {
+  const state = loadCardCustomizations();
+  const user = state.users?.[userId];
+  return user && typeof user === 'object' ? { ...user } : {};
+}
+
+function updateLevelCardCustomization(userId, changes = {}) {
+  const state = loadCardCustomizations();
+  const existing = state.users[userId] && typeof state.users[userId] === 'object' ? state.users[userId] : {};
+  state.users[userId] = { ...existing, ...changes, updatedAt: Date.now() };
+  saveCardCustomizations(state);
+  return { ...state.users[userId] };
+}
+
+function getUserCardBackgroundPath(userId) {
+  return path.join(USER_CARD_BACKGROUND_DIR, String(userId), 'card.png');
+}
+
+function findUserCardBackground(userId) {
+  const candidate = getUserCardBackgroundPath(userId);
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function normalizeColorValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(raw)) return raw;
+  if (/^[0-9a-f]{6}$/i.test(raw)) return `#${raw}`;
+  const rgb = raw.match(/^(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})$/);
+  if (!rgb) return null;
+  const channels = rgb.slice(1).map((part) => Math.max(0, Math.min(255, Number(part) || 0)));
+  return `rgb(${channels.join(', ')})`;
+}
+
+function parseGradientStop(input, fallbackOffset) {
+  const raw = String(input || '').trim();
+  const splitIndex = raw.lastIndexOf('-');
+  let colorRaw = raw;
+  let offset = fallbackOffset;
+  if (splitIndex > -1) {
+    const possibleOffset = raw.slice(splitIndex + 1).trim();
+    if (/^\d{1,3}(\.\d+)?%?$/.test(possibleOffset)) {
+      colorRaw = raw.slice(0, splitIndex).trim();
+      const numeric = Number(possibleOffset.replace('%', ''));
+      offset = possibleOffset.endsWith('%') ? numeric / 100 : numeric;
+    }
+  }
+  const color = normalizeColorValue(colorRaw);
+  if (!color) return null;
+  return { color, offset: Math.max(0, Math.min(1, Number.isFinite(offset) ? offset : fallbackOffset)) };
+}
+
+function createFillStyle(ctx, value, x1, y1, x2, y2, fallback) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  const parts = raw.split(';').map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return normalizeColorValue(raw) || fallback;
+
+  const stops = parts.map((part, index) => parseGradientStop(part, parts.length === 1 ? 0 : index / (parts.length - 1))).filter(Boolean);
+  if (stops.length === 0) return fallback;
+  if (stops.length === 1) return stops[0].color;
+
+  const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+  stops.sort((a, b) => a.offset - b.offset).forEach((stop) => gradient.addColorStop(stop.offset, stop.color));
+  return gradient;
+}
+
+function drawOutlinedText(ctx, text, x, y, fillStyle, outlineStyle = 'rgba(0, 0, 0, 0.95)', outlineWidth = 0.5) {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.strokeStyle = outlineStyle;
+  ctx.lineWidth = outlineWidth;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fillStyle;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
 
 function floorOneDecimal(value) {
   return Math.floor(Math.max(0, Number(value) || 0) * 10) / 10;
@@ -310,7 +408,6 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
   ctx.closePath();
 }
 
-
 function getLevelCardRankColors(rank) {
   if (rank === 1) {
     return { fill: '#FFD700', text: '#FFD700' };
@@ -339,12 +436,13 @@ function getLeaderboardRankColors(rank) {
 
 async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stats }) {
   ensureCacheDirs();
-  const width = 1000;
-  const height = 320;
+  const width = 740;
+  const height = 278;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
+  const customization = getLevelCardCustomization(userId);
 
-  const bgPath = findLevelCardBackground();
+  const bgPath = findUserCardBackground(userId) || findLevelCardBackground();
   if (bgPath) {
     try {
       const background = await loadImage(bgPath);
@@ -361,47 +459,50 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
     ctx.fillRect(0, 0, width, height);
   }
 
-  roundedRectPath(ctx, 28, 28, width - 56, height - 56, 22);
+  roundedRectPath(ctx, 20, 20, width - 40, height - 40, 20);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.30)';
   ctx.fill();
-  ctx.strokeStyle = '#5865F2';
+  ctx.strokeStyle = createFillStyle(ctx, customization.lineFillColor, 20, 20, width - 20, height - 20, '#5865F2');
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  await drawAvatar(ctx, avatarUrl, 48, 80, 160);
+  await drawAvatar(ctx, avatarUrl, 38, 72, 135);
 
-  ctx.fillStyle = '#f2f3f5';
-  ctx.font = 'bold 44px sans-serif';
-  ctx.fillText(username.slice(0, 28), 240, 120);
+  const usernameX = 190;
+  const usernameY = 98;
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillStyle = createFillStyle(ctx, customization.usernameFillColor, usernameX, usernameY - 36, 650, usernameY, '#f2f3f5');
+  ctx.fillText(username.slice(0, 28), usernameX, usernameY);
 
   const rankColors = getLevelCardRankColors(rank);
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillStyle = rankColors.text;
-  ctx.fillText(`Rank #${rank}`, 240, 165);
-  ctx.font = '28px sans-serif';
-  ctx.fillStyle = '#f2f3f5';
-  ctx.fillText(`Level ${stats.level}`, 240, 205);
+  ctx.font = 'bold 24px sans-serif';
+  drawOutlinedText(ctx, `Rank #${rank}`, usernameX, 136, rankColors.text, '#000000', 0.5);
+  ctx.font = '24px sans-serif';
+  drawOutlinedText(ctx, `Level ${stats.level}`, usernameX, 174, '#f2f3f5', '#000000', 0.5);
 
-  const progressX = 240;
-  const progressY = 235;
-  const progressW = 700;
-  const progressH = 36;
+  const progressX = 190;
+  const progressY = 203;
+  const progressW = 510;
+  const progressH = 32;
   const percent = Math.min(1, stats.currentXp / Math.max(1, stats.requiredXp));
 
   roundedRectPath(ctx, progressX, progressY, progressW, progressH, progressH / 2);
   ctx.fillStyle = '#313338';
   ctx.fill();
 
-  const bar = ctx.createLinearGradient(progressX, progressY, progressX + progressW, progressY);
-  bar.addColorStop(0, '#5865f2');
-  bar.addColorStop(1, '#7c8bff');
   roundedRectPath(ctx, progressX, progressY, progressW * percent, progressH, progressH / 2);
-  ctx.fillStyle = bar;
+  let progressFill = createFillStyle(ctx, customization.progressBarFillColor, progressX, progressY, progressX + progressW, progressY, null);
+  if (!progressFill) {
+    progressFill = ctx.createLinearGradient(progressX, progressY, progressX + progressW, progressY);
+    progressFill.addColorStop(0, '#5865f2');
+    progressFill.addColorStop(1, '#7c8bff');
+  }
+  ctx.fillStyle = progressFill;
   ctx.fill();
 
-  ctx.fillStyle = '#dbdee1';
-  ctx.font = 'bold 24px sans-serif';
-  ctx.fillText(`${formatOneDecimal(stats.currentXp)} / ${formatOneDecimal(stats.requiredXp)}`, progressX + 12, progressY + 26);
+  ctx.fillStyle = createFillStyle(ctx, customization.numberFillColor, progressX, progressY, progressX + 230, progressY, '#dbdee1');
+  ctx.font = 'bold 20px sans-serif';
+  ctx.fillText(`${formatOneDecimal(stats.currentXp)} / ${formatOneDecimal(stats.requiredXp)}`, progressX + 12, progressY + 23);
 
   const filename = `${guildId}-${userId}-level.png`;
   const filePath = path.join(CARD_CACHE_DIR, filename);
@@ -475,4 +576,7 @@ module.exports = {
   applyLevelPunishment,
   buildLevelCard,
   buildLeaderboardImage,
+  getLevelCardCustomization,
+  updateLevelCardCustomization,
+  getUserCardBackgroundPath,
 };
