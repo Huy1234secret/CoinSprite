@@ -125,6 +125,39 @@ async function handleDeleteCommand(interaction, messageId) {
   await interaction.reply({ content: 'Giveaway deleted.', flags: EPHEMERAL_FLAG });
 }
 
+async function handleRerollCommand(interaction, messageId) {
+  const normalizedId = normalizeWhitespace(messageId);
+  if (!/^\d{17,20}$/.test(normalizedId)) {
+    await interaction.reply({ content: 'Giveaway message id is invalid.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  const state = runtime.getState();
+  const giveaway = runtime.findGiveawayByMessageId(state, normalizedId);
+  if (!giveaway) {
+    await interaction.reply({ content: 'No giveaway was found for that message id.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  if (giveaway.status === 'live') {
+    await interaction.reply({ content: 'This giveaway has not drawn winners yet.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  if (giveaway.status !== 'claiming') {
+    await interaction.reply({ content: 'This giveaway has no active reroll timer to skip.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  const result = await runtime.forceRerollGiveaway(giveaway.id);
+  if (!result.ok) {
+    await interaction.reply({ content: 'This giveaway has no active claim round to reroll.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  await interaction.reply({ content: 'Giveaway reroll forced.', flags: EPHEMERAL_FLAG });
+}
+
 async function handleSetupMessageButton(interaction, draftId) {
   const draft = runtime.getDraft(runtime.getState(), draftId);
   if (!draft) {
@@ -460,5 +493,6 @@ module.exports = {
   handleJoinButton,
   handleMessageCreate,
   handleMessageDelete,
+  handleRerollCommand,
   handleStartCommand,
 };
