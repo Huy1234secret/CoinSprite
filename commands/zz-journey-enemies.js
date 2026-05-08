@@ -53,7 +53,7 @@ function expandStageEnemies(stage) {
       const battle = enemy.battle || {};
       const hp = Math.max(1, Math.floor(Number(battle.hp) || 10));
       result.push({
-        id: `${enemy.id}_${index}_${uid()}`,
+        id: `${enemy.id}:${index}:${uid()}`,
         enemyId: enemy.enemyId || enemy.id,
         name: enemy.name,
         emoji: enemy.emoji || '',
