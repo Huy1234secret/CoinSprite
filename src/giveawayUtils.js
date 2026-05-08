@@ -22,6 +22,7 @@ const CUSTOM_IDS = {
   startPrefix: 'giveaway:setup:start:',
   requirementTypePrefix: 'giveaway:setup:reqtype:',
   setupModalPrefix: 'giveaway:modal:setup:',
+  startDurationModalPrefix: 'giveaway:modal:start-duration:',
   requirementModalPrefix: 'giveaway:modal:req:',
   joinPrefix: 'giveaway:join:',
   claimPrefix: 'giveaway:claim:',
@@ -30,6 +31,7 @@ const CUSTOM_IDS = {
 const FIELD_IDS = {
   prize: 'giveaway_setup_prize',
   description: 'giveaway_setup_description',
+  duration: 'giveaway_start_duration',
   claimTime: 'giveaway_setup_claim_time',
   winnerAmount: 'giveaway_setup_winner_amount',
   hoster: 'giveaway_setup_hoster',
@@ -150,7 +152,7 @@ function getRequirementLabel(requirement) {
   return null;
 }
 
-function createDraft(draftId, interaction, durationMs, durationLabel) {
+function createDraft(draftId, interaction) {
   return {
     id: draftId,
     ownerId: interaction.user.id,
@@ -163,8 +165,8 @@ function createDraft(draftId, interaction, durationMs, durationLabel) {
     claimDurationLabel: '',
     winnerCount: null,
     hostId: '',
-    durationMs,
-    durationLabel,
+    durationMs: null,
+    durationLabel: '',
     requirement: { type: 'none' },
     createdAt: now(),
     updatedAt: now(),
