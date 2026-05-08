@@ -26,6 +26,7 @@ const {
   buildRequirementModal,
   buildSetupModal,
   buildSetupPayload,
+  buildStartDurationModal,
   disableTopLevelButtons,
 } = require('./giveawayMessages');
 const runtime = require('./giveawayRuntime');
@@ -43,16 +44,10 @@ async function init(client) {
   await runtime.init(client);
 }
 
-async function handleStartCommand(interaction, durationInput) {
-  const durationMs = parseDurationInput(durationInput);
-  if (!durationMs || durationMs < MIN_DURATION_MS || durationMs > MAX_DURATION_MS) {
-    await interaction.reply({ content: 'Giveaway duration is invalid. Use a value like 30m, 6h, or 1d.', flags: EPHEMERAL_FLAG });
-    return;
-  }
-
+async function handleStartCommand(interaction) {
   const draftId = interaction.id;
   const state = runtime.getState();
-  const draft = createDraft(draftId, interaction, durationMs, formatDurationCompact(durationMs));
+  const draft = createDraft(draftId, interaction);
   state.drafts[draftId] = draft;
   runtime.persistState(state);
 
@@ -64,6 +59,25 @@ async function handleStartCommand(interaction, durationInput) {
   draft.updatedAt = now();
   state.drafts[draftId] = draft;
   runtime.persistState(state);
+}
+
+async function startGiveawayFromDraft(interaction, draft, state, draftId) {
+  const giveaway = runtime.createLiveGiveawayFromDraft(draft);
+  const liveMessage = await interaction.channel.send(buildLiveGiveawayPayload(giveaway)).catch(() => null);
+  if (!liveMessage) {
+    await interaction.reply({ content: 'I could not send the giveaway message.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  giveaway.messageId = liveMessage.id;
+  state.giveaways[giveaway.id] = giveaway;
+  delete state.drafts[draftId];
+  runtime.persistState(state);
+
+  await runtime.deleteSetupMessage(draft);
+  runtime.scheduleGiveawayEnd(giveaway);
+  await interaction.reply({ content: `Giveaway started: ${liveMessage.url}`, flags: EPHEMERAL_FLAG });
+  return true;
 }
 
 async function handleDeleteCommand(interaction, messageId) {
@@ -157,22 +171,36 @@ async function handleSetupStartButton(interaction, draftId) {
     return true;
   }
 
-  const giveaway = runtime.createLiveGiveawayFromDraft(draft);
-  const liveMessage = await interaction.channel.send(buildLiveGiveawayPayload(giveaway)).catch(() => null);
-  if (!liveMessage) {
-    await interaction.reply({ content: 'I could not send the giveaway message.', flags: EPHEMERAL_FLAG });
+  await interaction.showModal(buildStartDurationModal(draft));
+  return true;
+}
+
+async function handleStartDurationModalSubmit(interaction, draftId) {
+  const state = runtime.getState();
+  const draft = runtime.getDraft(state, draftId);
+  if (!draft) {
+    await interaction.reply({ content: 'This giveaway setup no longer exists.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+  if (!requireSetupOwner(interaction, draft.ownerId)) return true;
+  if (!isSetupComplete(draft)) {
+    await interaction.reply({ content: 'Finish the giveaway form before starting it.', flags: EPHEMERAL_FLAG });
     return true;
   }
 
-  giveaway.messageId = liveMessage.id;
-  state.giveaways[giveaway.id] = giveaway;
-  delete state.drafts[draftId];
-  runtime.persistState(state);
+  const durationInput = normalizeWhitespace(interaction.fields.getTextInputValue(FIELD_IDS.duration));
+  const durationMs = parseDurationInput(durationInput);
+  if (!durationMs || durationMs < MIN_DURATION_MS || durationMs > MAX_DURATION_MS) {
+    await interaction.reply({ content: 'Giveaway duration is invalid. Use a value like 30m, 6h, or 1d.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
 
-  await runtime.disableSetupMessage(draft);
-  runtime.scheduleGiveawayEnd(giveaway);
-  await interaction.reply({ content: `Giveaway started: ${liveMessage.url}`, flags: EPHEMERAL_FLAG });
-  return true;
+  draft.durationMs = durationMs;
+  draft.durationLabel = formatDurationCompact(durationMs);
+  draft.updatedAt = now();
+  state.drafts[draftId] = draft;
+
+  return startGiveawayFromDraft(interaction, draft, state, draftId);
 }
 
 async function handleSetupModalSubmit(interaction, draftId) {
@@ -415,6 +443,7 @@ async function handleInteraction(interaction) {
 
   if (interaction.isModalSubmit()) {
     if (customId.startsWith(CUSTOM_IDS.setupModalPrefix)) return handleSetupModalSubmit(interaction, customId.slice(CUSTOM_IDS.setupModalPrefix.length));
+    if (customId.startsWith(CUSTOM_IDS.startDurationModalPrefix)) return handleStartDurationModalSubmit(interaction, customId.slice(CUSTOM_IDS.startDurationModalPrefix.length));
     if (customId.startsWith(CUSTOM_IDS.requirementModalPrefix)) {
       const [type, draftId] = customId.slice(CUSTOM_IDS.requirementModalPrefix.length).split(':');
       return handleRequirementModalSubmit(interaction, type, draftId);
