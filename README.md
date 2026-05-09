@@ -21,8 +21,6 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Counts only real users (bots ignored).
 - `/invite-points`
   - Shows the user's current Invite Points.
-- `/reward-inventory`
-  - Shows the user's current reward inventory.
 - `/rng-wipe confirm:WIPE`
   - Administrator-only hard reset for RNG game data (`balances` + `upgrades`).
 - `/transcript-message amount:{1-100}`
@@ -42,8 +40,8 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - A green invitation-rules message is maintained in channel `1494329296670425279` and auto-updated when member tiers change.
 
 ### Reward tiers
-- 0â€“29 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
-- 30â€“49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
+- 0Ã¢â‚¬â€œ29 members: 250 Clan Rerolls, 120 Race Rerolls, 120 Trait Rerolls
+- 30Ã¢â‚¬â€œ49 members: 500 Clan Rerolls, 135 Race Rerolls, 135 Trait Rerolls
 - 50+ members: 1000 Clan Rerolls, 150 Race Rerolls, 150 Trait Rerolls
 
 ## Prefix Commands
