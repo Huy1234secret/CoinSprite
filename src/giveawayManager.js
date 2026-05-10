@@ -66,7 +66,7 @@ async function startGiveawayFromDraft(interaction, draft, state, draftId) {
   const giveaway = runtime.createLiveGiveawayFromDraft(draft);
   const liveMessage = await interaction.channel.send(buildLiveGiveawayPayload(giveaway)).catch(() => null);
   if (!liveMessage) {
-    await interaction.reply({ content: 'I could not send the giveaway message.', flags: EPHEMERAL_FLAG });
+    await interaction.editReply({ content: 'I could not send the giveaway message.' }).catch(() => null);
     return true;
   }
 
@@ -77,7 +77,7 @@ async function startGiveawayFromDraft(interaction, draft, state, draftId) {
 
   await runtime.deleteSetupMessage(draft);
   runtime.scheduleGiveawayEnd(giveaway);
-  await interaction.reply({ content: `Giveaway started: ${liveMessage.url}`, flags: EPHEMERAL_FLAG });
+  await interaction.editReply({ content: `Giveaway started: ${liveMessage.url}` }).catch(() => null);
   return true;
 }
 
@@ -237,6 +237,9 @@ async function handleStartDurationModalSubmit(interaction, draftId) {
     await interaction.reply({ content: 'Giveaway duration is invalid. Use a value like 30m, 6h, or 1d.', flags: EPHEMERAL_FLAG });
     return true;
   }
+
+  const acknowledged = await interaction.deferReply({ flags: EPHEMERAL_FLAG }).then(() => true).catch(() => false);
+  if (!acknowledged) return true;
 
   draft.durationMs = durationMs;
   draft.durationLabel = formatDurationCompact(durationMs);
