@@ -2,8 +2,10 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getBalance, spendBalance, addBalance, recordGamblingEarnings } = require('../src/gamblingStore');
 const { COIN, formatNumber } = require('../src/gamblingConfig');
 const { validateBet, containerPayload } = require('../src/simpleGambling');
+const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
+const COMMAND_COOLDOWN_MS = 30_000;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -17,11 +19,13 @@ module.exports = {
       .setRequired(true))
     .addStringOption((option) => option
       .setName('bet')
-      .setDescription('Bet amount, max 10k.')
+      .setDescription('Bet amount, min 100 and max 10k.')
       .setRequired(true)),
   suppressCommandLog: true,
 
   async execute(interaction) {
+    if (await replyIfOnCooldown(interaction, 'dice', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
+
     const guess = interaction.options.getInteger('number', true);
     const validation = validateBet(interaction.options.getString('bet', true), getBalance(interaction.user.id));
     if (!validation.ok) {
@@ -40,6 +44,7 @@ module.exports = {
       addBalance(interaction.user.id, payout);
       recordGamblingEarnings(interaction.user.id, payout);
     }
+    setCommandCooldown(interaction.user.id, 'dice', COMMAND_COOLDOWN_MS);
 
     await interaction.reply(containerPayload([
       `### Dice ${won ? 'Win' : 'Loss'}`,
