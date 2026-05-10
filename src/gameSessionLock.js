@@ -1,4 +1,11 @@
 const userSessions = new Map();
+const DEFAULT_SESSION_MAX_AGE_MS = 120_000;
+
+function isSessionExpired(session) {
+  if (!session?.startedAt) return false;
+  const maxAgeMs = Number(session.maxAgeMs) || DEFAULT_SESSION_MAX_AGE_MS;
+  return Date.now() - session.startedAt > maxAgeMs;
+}
 
 function startUserSession(userId, session) {
   if (!userId || !session?.type) return;
@@ -19,7 +26,12 @@ function endUserSession(userId, type = null) {
 }
 
 function getUserSession(userId) {
-  return userSessions.get(userId) || null;
+  const session = userSessions.get(userId) || null;
+  if (session && isSessionExpired(session)) {
+    userSessions.delete(userId);
+    return null;
+  }
+  return session;
 }
 
 function getCommandBlockReason(userId, commandName) {
