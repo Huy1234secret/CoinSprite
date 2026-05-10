@@ -13,6 +13,7 @@ const {
   button,
   row,
 } = require('../src/simpleGambling');
+const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -20,6 +21,8 @@ const RED_ACCENT = 0xed4245;
 const GREEN_ACCENT = 0x57f287;
 const WHITE_ACCENT = 0xffffff;
 const RISK_PREFIX = 'riskortake';
+const COMMAND_COOLDOWN_MS = 10 * 60_000;
+const INACTIVE_TIMEOUT_MS = 30_000;
 
 const ROUNDS = [
   { failChance: 10, multiplier: 1.05 },
@@ -88,6 +91,34 @@ function finalPayload(game, content, accent) {
   };
 }
 
+function clearGameTimer(game) {
+  if (game?.timer) {
+    clearTimeout(game.timer);
+    game.timer = null;
+  }
+}
+
+async function autoTakeGame(game) {
+  if (!activeGames.has(game.id)) return;
+  clearGameTimer(game);
+  activeGames.delete(game.id);
+  addBalance(game.userId, game.pool);
+  recordGamblingEarnings(game.userId, game.pool);
+  await game.message?.edit(finalPayload(game, [
+    '### Prize Auto-Taken',
+    `* <@${game.userId}> was inactive for 30 seconds, so **${formatNumber(game.pool)}** ${COIN} was added to their balance.`,
+    `-# Starting bet: ${formatNumber(game.bet)} ${COIN}`,
+  ].join('\n'), GREEN_ACCENT)).catch(() => null);
+}
+
+function resetGameTimer(game) {
+  clearGameTimer(game);
+  game.timer = setTimeout(() => {
+    autoTakeGame(game).catch((error) => console.error('Risk-or-take auto-take failed:', error));
+  }, INACTIVE_TIMEOUT_MS);
+  if (typeof game.timer.unref === 'function') game.timer.unref();
+}
+
 function getGameFromInteraction(interaction) {
   const [, action, ownerId, gameId] = String(interaction.customId || '').split(':');
   if (!action || !ownerId || !gameId) return { error: 'This risk game is no longer valid.' };
@@ -103,11 +134,13 @@ module.exports = {
     .setDescription('Build a prize pool by risking each round, or take the current pool.')
     .addStringOption((option) => option
       .setName('bet')
-      .setDescription('Starting bet amount, max 10k.')
+      .setDescription('Starting bet amount, min 100 and max 10k.')
       .setRequired(true)),
   suppressCommandLog: true,
 
   async execute(interaction) {
+    if (await replyIfOnCooldown(interaction, 'risk-or-take', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
+
     const validation = validateBet(interaction.options.getString('bet', true), getBalance(interaction.user.id));
     if (!validation.ok) {
       await interaction.reply({ content: validation.message, flags: EPHEMERAL_FLAG });
@@ -125,9 +158,14 @@ module.exports = {
       pool: validation.amount,
       round: 1,
       createdAt: Date.now(),
+      timer: null,
+      message: null,
     };
     activeGames.set(game.id, game);
+    setCommandCooldown(interaction.user.id, 'risk-or-take', COMMAND_COOLDOWN_MS);
     await interaction.reply(gamePayload(game));
+    game.message = await interaction.fetchReply().catch(() => null);
+    resetGameTimer(game);
   },
 
   async handleInteraction(interaction) {
@@ -139,7 +177,9 @@ module.exports = {
     }
 
     const { action, game } = result;
+    resetGameTimer(game);
     if (action === 'take') {
+      clearGameTimer(game);
       activeGames.delete(game.id);
       addBalance(game.userId, game.pool);
       recordGamblingEarnings(game.userId, game.pool);
@@ -155,6 +195,7 @@ module.exports = {
     const round = ROUNDS[game.round - 1];
     const failed = (Math.random() * 100) < round.failChance;
     if (failed) {
+      clearGameTimer(game);
       activeGames.delete(game.id);
       await interaction.update(finalPayload(game, [
         `### Round ${game.round} Failed`,
@@ -168,6 +209,7 @@ module.exports = {
     game.pool = Math.max(1, Math.floor(game.pool * round.multiplier));
     game.round += 1;
     if (game.round > ROUNDS.length) {
+      clearGameTimer(game);
       activeGames.delete(game.id);
       addBalance(game.userId, game.pool);
       recordGamblingEarnings(game.userId, game.pool);
@@ -179,7 +221,10 @@ module.exports = {
       return true;
     }
 
-    await interaction.update(gamePayload(game, `* <@${game.userId}> survived. Risk again or take the pool now.`));
+    const nextRound = ROUNDS[game.round - 1];
+    await interaction.update(gamePayload(game, `* Survived. Risk again for **${formatMultiplier(nextRound.multiplier)}x** or take the pool now.`));
+    game.message = interaction.message || game.message;
+    resetGameTimer(game);
     return true;
   },
 };
