@@ -1,9 +1,13 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const {
   startPvpChallenge,
   handlePvpInteraction,
   shouldLogPvpBlackjackInteraction,
 } = require('../src/pvpBlackjackPlus');
+const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
+
+const EPHEMERAL_FLAG = MessageFlags?.Ephemeral ?? 64;
+const COMMAND_COOLDOWN_MS = 120_000;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,6 +24,8 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
+    if (await replyIfOnCooldown(interaction, 'pvp-blackjack', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
+    setCommandCooldown(interaction.user.id, 'pvp-blackjack', COMMAND_COOLDOWN_MS);
     await startPvpChallenge(interaction);
   },
 
