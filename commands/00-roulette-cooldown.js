@@ -6,8 +6,6 @@ if (!(globalThis.rouletteCooldowns instanceof Map)) {
   globalThis.rouletteCooldowns = new Map();
 }
 
-if (!Number.isFinite(globalThis.ROULETTE_COOLDOWN_MS)) {
-  globalThis.ROULETTE_COOLDOWN_MS = 10_000;
-}
+globalThis.ROULETTE_COOLDOWN_MS = 30_000;
 
 module.exports = {};
