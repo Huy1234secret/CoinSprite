@@ -179,7 +179,8 @@ module.exports = {
       return true;
     }
 
-    await interaction.update(gamePayload(game, `* <@${game.userId}> survived. Risk again or take the pool now.`));
+    const nextRound = ROUNDS[game.round - 1];
+    await interaction.update(gamePayload(game, `* <@${game.userId}> Survived. Risk again for **${formatMultiplier(nextRound.multiplier)}x** or take the pool now.`));
     return true;
   },
 };
