@@ -25,6 +25,8 @@ const MAX_BET = 100_000;
 const BOARD_SIZE = 25;
 const SAFE_TILES = BOARD_SIZE - 1;
 const PREFIX = 'pvpmine';
+const EMPTY_TILE_LABEL = '\u200B';
+const MINE_EMOJI = { name: '💥' };
 const SUFFIX_MULTIPLIERS = { k: 1_000, m: 1_000_000, b: 1_000_000_000, t: 1_000_000_000_000 };
 
 const activeChallenges = new Map();
@@ -69,8 +71,10 @@ function validateBet(userId, rawAmount) {
 function text(content) { return { type: 10, content }; }
 function separator() { return { type: 14, divider: true, spacing: 1 }; }
 function row(...components) { return { type: 1, components }; }
-function button(customId, label, style = 2, disabled = false) {
-  return { type: 2, custom_id: customId, label, style, disabled };
+function button(customId, label, style = 2, disabled = false, emoji = null) {
+  const component = { type: 2, custom_id: customId, label, style, disabled };
+  if (emoji) component.emoji = emoji;
+  return component;
 }
 function payload(accent, components) {
   return { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: accent, components }] };
@@ -164,21 +168,21 @@ function buildMinefieldRows(game) {
       const picked = game.pickedSafe.has(index);
       const exploded = game.explodedIndex === index;
       const revealMine = game.status === 'finished' && game.mineIndex === index;
-      let label = String(index + 1);
+      const label = EMPTY_TILE_LABEL;
       let style = 2;
       let disabled = game.status !== 'active';
+      let emoji = null;
 
       if (picked) {
-        label = 'Safe';
         style = 3;
         disabled = true;
       } else if (exploded || revealMine) {
-        label = 'Mine';
         style = 4;
         disabled = true;
+        emoji = MINE_EMOJI;
       }
 
-      buttons.push(button(`${PREFIX}:pick:${game.id}:${index}`, label, style, disabled));
+      buttons.push(button(`${PREFIX}:pick:${game.id}:${index}`, label, style, disabled, emoji));
     }
     components.push(row(...buttons));
   }
