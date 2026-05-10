@@ -1,11 +1,15 @@
 require('../src/blackjackCanvasStyle');
 
-const { SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const {
   startBlackjack,
   handleBlackjackInteraction,
   shouldLogBlackjackInteraction,
 } = require('../src/blackjackCore');
+const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
+
+const EPHEMERAL_FLAG = MessageFlags?.Ephemeral ?? 64;
+const COMMAND_COOLDOWN_MS = 30_000;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -18,6 +22,8 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
+    if (await replyIfOnCooldown(interaction, 'blackjack', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
+    setCommandCooldown(interaction.user.id, 'blackjack', COMMAND_COOLDOWN_MS);
     await startBlackjack(interaction);
   },
 
