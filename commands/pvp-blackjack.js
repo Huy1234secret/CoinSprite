@@ -1,9 +1,9 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const {
   startPvpChallenge,
-  handlePvpBlackjackInteraction,
-  shouldLogBlackjackInteraction,
-} = require('../src/blackjackCore');
+  handlePvpInteraction,
+  shouldLogPvpBlackjackInteraction,
+} = require('../src/pvpBlackjackPlus');
 const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
 
 const EPHEMERAL_FLAG = MessageFlags?.Ephemeral ?? 64;
@@ -29,9 +29,9 @@ module.exports = {
     await startPvpChallenge(interaction);
   },
 
-  shouldLogInteraction: shouldLogBlackjackInteraction,
+  shouldLogInteraction: shouldLogPvpBlackjackInteraction,
 
   async handleInteraction(interaction) {
-    return handlePvpBlackjackInteraction(interaction);
+    return handlePvpInteraction(interaction);
   },
 };
