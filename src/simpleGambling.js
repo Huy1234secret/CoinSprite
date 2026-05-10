@@ -1,4 +1,5 @@
 const MAX_SIMPLE_BET = 10_000;
+const MIN_SIMPLE_BET = 100;
 
 function parseBetInput(raw) {
   const compact = String(raw || '').trim().toLowerCase().replace(/,/g, '');
@@ -10,8 +11,8 @@ function parseBetInput(raw) {
 
 function validateBet(raw, balance) {
   const amount = parseBetInput(raw);
-  if (!Number.isFinite(amount) || amount < 1 || amount > MAX_SIMPLE_BET) {
-    return { ok: false, amount, message: `Bet must be between 1 and ${MAX_SIMPLE_BET.toLocaleString('en-US')} coins.` };
+  if (!Number.isFinite(amount) || amount < MIN_SIMPLE_BET || amount > MAX_SIMPLE_BET) {
+    return { ok: false, amount, message: `Bet must be between ${MIN_SIMPLE_BET.toLocaleString('en-US')} and ${MAX_SIMPLE_BET.toLocaleString('en-US')} coins.` };
   }
   if (balance < amount) {
     return { ok: false, amount, message: `You need ${amount.toLocaleString('en-US')} coins, but you only have ${Math.max(0, Math.floor(balance)).toLocaleString('en-US')}.` };
@@ -48,6 +49,7 @@ function containerPayload(content, accent = 0xffffff, extraComponents = []) {
 
 module.exports = {
   MAX_SIMPLE_BET,
+  MIN_SIMPLE_BET,
   parseBetInput,
   validateBet,
   text,
