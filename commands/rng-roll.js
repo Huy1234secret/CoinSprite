@@ -363,6 +363,10 @@ function rarityLabel(roll) {
   return roll ? `${roll.emoji} ${roll.name}` : 'None';
 }
 
+function rarityLabelWithPercent(roll) {
+  return roll ? `${rarityLabel(roll)} \`(${formatPercent(roll.denominator)}%)\`` : rarityLabel(roll);
+}
+
 function accentForDenominator(denominator) {
   const threshold = [...ROLE_THRESHOLDS].reverse().find((item) => denominator >= item.denominator);
   if (threshold) return threshold.color;
@@ -422,9 +426,9 @@ function buildMyRarestPayload(userId) {
   const [first, second, third] = record.topRolls;
   const rank = getRankedUsers(state).findIndex((entry) => entry.userId === userId) + 1;
   return container(0xFFFFFF, [
-    `### Rarest rarity rolled: ${rarityLabel(first)}`,
-    `-# * 2nd rarest: ${rarityLabel(second)}`,
-    `-# * 3rd rarest: ${rarityLabel(third)}`,
+    `### Rarest rarity rolled: ${rarityLabelWithPercent(first)}`,
+    `-# * 2nd rarest: ${rarityLabelWithPercent(second)}`,
+    `-# * 3rd rarest: ${rarityLabelWithPercent(third)}`,
     '',
     '-# ━━━━━━━━━━━━━━━━━━',
     `-# Leaderboard rank: ${rank > 0 ? `${rank}#` : 'Unranked'}`,
@@ -552,7 +556,7 @@ async function announceRareRoll(client, userId, rarity) {
   const color = await getRoleColor(channel.guild, threshold);
   await channel.send(container(color, [
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
-    `with a chance of 1 in ${formatNumber(rarity.denominator)}!`,
+    `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
   ].join('\n'))).catch(() => null);
 }
 
