@@ -25,8 +25,10 @@ module.exports = {
 
   async execute(interaction) {
     if (await replyIfOnCooldown(interaction, 'pvp-blackjack', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
-    setCommandCooldown(interaction.user.id, 'pvp-blackjack', COMMAND_COOLDOWN_MS);
     await startPvpChallenge(interaction);
+    if (interaction.replied && !interaction.ephemeral) {
+      setCommandCooldown(interaction.user.id, 'pvp-blackjack', COMMAND_COOLDOWN_MS);
+    }
   },
 
   shouldLogInteraction: shouldLogPvpBlackjackInteraction,
