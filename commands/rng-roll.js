@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const levelingManager = require('../src/levelingManager');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -12,6 +13,7 @@ const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 const ROLL_COOLDOWN_MS = 10_000;
+const MIN_ROLL_LEVEL = 9;
 
 const rollCooldowns = new Map();
 
@@ -569,6 +571,13 @@ async function handleRollMessage(message, client) {
     await message.reply(container(0xED4245, `Use !roll in <#${ROLL_CHANNEL_ID}>.`)).catch(() => null);
     return true;
   }
+  const progress = levelingManager.getUserProgress(message.guild.id, message.author.id);
+  if (progress.level < MIN_ROLL_LEVEL) {
+    await message.reply(container(0xED4245, `### You need chat level ${MIN_ROLL_LEVEL} to use !roll.
+-# Your current level is ${progress.level}.`)).catch(() => null);
+    return true;
+  }
+
   const status = getEventStatus();
   if (status === 'before') {
     await message.reply(container(0xFFFFFF, `### RNG event has not started yet.\n-# Starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`)).catch(() => null);
