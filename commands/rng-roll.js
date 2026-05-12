@@ -11,6 +11,9 @@ const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
 const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
+const ROLL_COOLDOWN_MS = 10_000;
+
+const rollCooldowns = new Map();
 
 const FIRST_ROLL_ROLE_ID = '1503735931574812762';
 const ROLE_THRESHOLDS = [
@@ -399,6 +402,20 @@ async function announceRareRoll(client, userId, rarity) {
   ].join('\n'))).catch(() => null);
 }
 
+function getRollCooldownUntil(userId) {
+  const until = rollCooldowns.get(userId) || 0;
+  if (until <= Date.now()) {
+    rollCooldowns.delete(userId);
+    return 0;
+  }
+  return until;
+}
+
+function setRollCooldown(userId) {
+  if (!userId) return;
+  rollCooldowns.set(userId, Date.now() + ROLL_COOLDOWN_MS);
+}
+
 async function handleRollMessage(message, client) {
   if (message.author?.bot || message.content.trim().toLowerCase() !== '!roll') return false;
   if (message.channelId !== ROLL_CHANNEL_ID) {
@@ -414,6 +431,9 @@ async function handleRollMessage(message, client) {
     await message.reply(container(0xED4245, '### RNG event has ended.\n-# !roll is now disabled.')).catch(() => null);
     return true;
   }
+
+  if (getRollCooldownUntil(message.author.id) > Date.now()) return true;
+  setRollCooldown(message.author.id);
 
   const rarity = rollRarity();
   const state = loadState();
