@@ -23,8 +23,10 @@ module.exports = {
 
   async execute(interaction) {
     if (await replyIfOnCooldown(interaction, 'blackjack', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
-    setCommandCooldown(interaction.user.id, 'blackjack', COMMAND_COOLDOWN_MS);
     await startBlackjack(interaction);
+    if (interaction.replied && !interaction.ephemeral) {
+      setCommandCooldown(interaction.user.id, 'blackjack', COMMAND_COOLDOWN_MS);
+    }
   },
 
   shouldLogInteraction: shouldLogBlackjackInteraction,
