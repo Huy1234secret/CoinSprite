@@ -253,38 +253,38 @@ async function startPvpMinefield(interaction) {
   const blockReason = getCommandBlockReason(challenger.id, 'pvp-minefield');
   if (blockReason) {
     await interaction.reply({ content: blockReason, flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   if (target.id === challenger.id) {
     await interaction.reply({ content: 'You cannot challenge yourself to PVP Minefield.', flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   if (target.bot) {
     await interaction.reply({ content: 'Challenge a real player, not a bot.', flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   if (getCommandBlockReason(target.id, 'pvp-minefield')) {
     await interaction.reply({ content: `${target} is currently locked in another game.`, flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   if (isBusy(challenger.id)) {
     await interaction.reply({ content: 'You already have an active PVP Minefield game or challenge.', flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   if (isBusy(target.id)) {
     await interaction.reply({ content: `${target} already has an active PVP Minefield game or challenge.`, flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
 
   const validation = validateBet(challenger.id, rawAmount);
   if (!validation.ok) {
     await interaction.reply({ content: validation.message, flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
   const targetBalance = getBalance(target.id);
   if (targetBalance < validation.amount) {
     await interaction.reply({ content: `${target} needs **${formatNumber(validation.amount)}** ${PRCOIN}, but only has **${formatNumber(targetBalance)}** ${PRCOIN}.`, flags: EPHEMERAL_FLAG });
-    return;
+    return false;
   }
 
   const challenge = {
@@ -307,6 +307,7 @@ async function startPvpMinefield(interaction) {
   await interaction.reply(buildChallengePayload(challenge));
   challenge.message = await interaction.fetchReply().catch(() => null);
   resetChallengeTimer(challenge);
+  return true;
 }
 
 async function beginGame(challenge, interaction) {
@@ -550,8 +551,8 @@ module.exports = {
 
   async execute(interaction) {
     if (await replyIfOnCooldown(interaction, 'pvp-minefield', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
-    setCommandCooldown(interaction.user.id, 'pvp-minefield', COMMAND_COOLDOWN_MS);
-    await startPvpMinefield(interaction);
+    const started = await startPvpMinefield(interaction);
+    if (started) setCommandCooldown(interaction.user.id, 'pvp-minefield', COMMAND_COOLDOWN_MS);
   },
 
   shouldLogInteraction: shouldLogMinefieldInteraction,
