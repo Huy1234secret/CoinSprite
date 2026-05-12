@@ -400,10 +400,10 @@ function getEventStatus(now = Date.now()) {
   return 'active';
 }
 
-function nextHourlyBoundaryUtcPlus7(now = new Date()) {
+function nextFiveMinuteBoundaryUtcPlus7(now = new Date()) {
   const shifted = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-  shifted.setUTCMinutes(0, 0, 0);
-  shifted.setUTCHours(shifted.getUTCHours() + 1);
+  const nextMinutes = (Math.floor(shifted.getUTCMinutes() / 5) + 1) * 5;
+  shifted.setUTCMinutes(nextMinutes, 0, 0);
   return new Date(shifted.getTime() - (7 * 60 * 60 * 1000));
 }
 
@@ -451,6 +451,7 @@ function buildLeaderboardPayload(guild) {
 
   if (status === 'active') {
     lines.push('');
+    lines.push(`-# Refresh: <t:${Math.floor(nextFiveMinuteBoundaryUtcPlus7().getTime() / 1000)}:R>`);
     lines.push(`-# Event ends: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
   } else if (status === 'ended') {
     lines.push('');
@@ -503,10 +504,10 @@ function scheduleNextRefresh() {
   if (!schedulerClient) return;
   const status = getEventStatus();
   if (status === 'ended') return;
-  const nextHourly = nextHourlyBoundaryUtcPlus7();
+  const nextRefresh = nextFiveMinuteBoundaryUtcPlus7();
   const nextTime = status === 'before'
-    ? Math.min(EVENT_START_AT, nextHourly.getTime())
-    : Math.min(EVENT_END_AT, nextHourly.getTime());
+    ? Math.min(EVENT_START_AT, nextRefresh.getTime())
+    : Math.min(EVENT_END_AT, nextRefresh.getTime());
   const delay = Math.max(1_000, nextTime - Date.now());
   scheduler = setTimeout(async () => {
     await maybeSendStartAnnouncement(schedulerClient);
@@ -610,7 +611,6 @@ async function handleRollMessage(message, client) {
   await message.reply(buildRollPayload(rarity, isNewRecord)).catch(() => null);
   await assignRollRoles(message.member, rarity.denominator, isFirstRoll);
   await announceRareRoll(client, message.author.id, rarity);
-  await upsertLeaderboardMessage(client);
   return true;
 }
 
