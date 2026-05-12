@@ -79,15 +79,39 @@ function formatThreadLogMessage(line) {
   return `${prefix}${line.slice(0, maxLineLength - 3)}...`;
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isRetryableDiscordError(error) {
+  const status = Number(error?.status || error?.rawError?.status || 0);
+  return status >= 500 && status < 600;
+}
+
 async function postLogToThread(line) {
   const logThread = await getLogThread();
   if (!logThread || typeof logThread.send !== 'function') {
     return;
   }
 
-  await logThread.send({ content: formatThreadLogMessage(line) }).catch((error) => {
+  const payload = { content: formatThreadLogMessage(line) };
+  try {
+    await logThread.send(payload);
+  } catch (error) {
+    if (isRetryableDiscordError(error)) {
+      await wait(1000);
+      try {
+        await logThread.send(payload);
+        return;
+      } catch (retryError) {
+        console.error(`Failed to send log to thread ${LOG_THREAD_ID}:`, retryError);
+        return;
+      }
+    }
     console.error(`Failed to send log to thread ${LOG_THREAD_ID}:`, error);
-  });
+  }
 }
 
 module.exports = {
