@@ -22,6 +22,7 @@ module.exports = {
       .setDescription('PRcoin bet amount, max 100k')
       .setRequired(true)),
   suppressCommandLog: true,
+  disableActionTimeout: true,
 
   async execute(interaction) {
     if (await replyIfOnCooldown(interaction, 'pvp-blackjack', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;

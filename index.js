@@ -38,6 +38,8 @@ function shouldSkipActionTimeout(interaction) {
   const customId = interaction?.customId || '';
   if (!customId) return false;
 
+  if (customId.startsWith('pvpbjp:') || customId.startsWith('pvpmine:')) return true;
+
   // Ticket controls must remain usable indefinitely: the main panel, all three
   // ticket type flows, staff ticket actions, review controls, and ticket modals.
   return customId.startsWith('ticket:') || customId.startsWith('giveaway:') || customId.startsWith('level:');
@@ -443,10 +445,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     for (const command of client.commands.values()) {
       if (typeof command.handleInteraction !== 'function') continue;
       const handled = await command.handleInteraction(interaction, client);
-      if (handled || interaction.replied || interaction.deferred) {
-        await refreshMessageAfterAction(interaction);
-        return;
-      }
+        if (handled || interaction.replied || interaction.deferred) {
+          if (!skipActionTimeout) await refreshMessageAfterAction(interaction);
+          return;
+        }
     }
   } catch (error) {
     console.error('Interaction error:', error);

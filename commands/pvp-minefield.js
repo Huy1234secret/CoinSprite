@@ -167,7 +167,7 @@ function buildMinefieldRows(game) {
       const index = (rowIndex * 5) + columnIndex;
       const picked = game.pickedSafe.has(index);
       const exploded = game.explodedIndex === index;
-      const revealMine = game.status === 'finished' && game.mineIndex === index;
+      const revealMine = game.status === 'finished' && game.outcome !== 'timeout' && game.mineIndex === index;
       const label = EMPTY_TILE_LABEL;
       let style = 2;
       let disabled = game.status !== 'active';
@@ -208,6 +208,7 @@ function buildGamePayload(game) {
   const components = [text(lines.join('\n')), separator(), ...buildMinefieldRows(game)];
   let accent = BLUE_ACCENT;
   if (game.outcome === 'win') accent = GREEN_ACCENT;
+  if (game.outcome === 'timeout') accent = GREEN_ACCENT;
   if (game.outcome === 'mine') accent = RED_ACCENT;
   if (game.outcome === 'clear') accent = YELLOW_ACCENT;
   return payload(accent, components);
@@ -231,12 +232,12 @@ function resetGameTimer(game) {
     const winner = otherGamePlayer(game, inactive.id);
     const payout = game.bet * 2;
     game.status = 'finished';
-    game.outcome = 'mine';
-    game.explodedIndex = game.mineIndex;
+    game.outcome = 'timeout';
+    game.explodedIndex = null;
     if (winner) {
       addBalance(winner.id, payout);
       recordGamblingEarnings(winner.id, payout);
-      game.summary = `${inactive.mention} was inactive. ${winner.mention} wins **${formatNumber(payout)}** ${PRCOIN}.`;
+      game.summary = `${inactive.mention} was inactive. ${winner.mention} wins **${formatNumber(payout)}** ${PRCOIN} by inactivity.`;
     } else {
       game.summary = 'The Minefield game ended by inactivity.';
     }
@@ -548,6 +549,7 @@ module.exports = {
       .setDescription('PRcoin bet amount, max 100k')
       .setRequired(true)),
   suppressCommandLog: true,
+  disableActionTimeout: true,
 
   async execute(interaction) {
     if (await replyIfOnCooldown(interaction, 'pvp-minefield', COMMAND_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
