@@ -434,7 +434,9 @@ function buildMyRarestPayload(userId) {
 function buildLeaderboardPayload(guild) {
   const state = loadState();
   const status = getEventStatus();
-  const ranked = getRankedUsers(state).slice(0, 10);
+  const rankedUsers = getRankedUsers(state);
+  const totalParticipations = rankedUsers.length;
+  const ranked = rankedUsers.slice(0, 10);
   const lines = ['## RNG Event Leaderboard'];
 
   if (status === 'before') {
@@ -451,6 +453,7 @@ function buildLeaderboardPayload(guild) {
 
   if (status === 'active') {
     lines.push('');
+    lines.push(`-# * Total participations: ${formatNumber(totalParticipations)}`);
     lines.push(`-# Refresh: <t:${Math.floor(nextFiveMinuteBoundaryUtcPlus7().getTime() / 1000)}:R>`);
     lines.push(`-# Event ends: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
   } else if (status === 'ended') {
