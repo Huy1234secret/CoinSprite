@@ -14,7 +14,7 @@ const manager = require('../src/levelingManager');
 const TYPES = ['xp', 'messages', 'reactions'];
 const PAGE_SIZE = 10;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const LEADERBOARD_REFRESH_TIMEZONE_OFFSET = 7;
+const LEADERBOARD_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const activeLeaderboardMessages = new Map();
 let leaderboardScheduler = null;
 let schedulerClient = null;
@@ -84,7 +84,7 @@ function leaderboardTypeSelect(selectedType, ownerId) {
 async function sendLeaderboard(target, guild, userId, type, page) {
   const leaderboard = manager.getSortedLeaderboard(guild.id);
   const { rows, finalPage, maxPage, sorted } = buildRows(leaderboard, type, page);
-  const nextUpdateUnix = Math.floor(getNextHourlyBoundaryUtcPlus7().getTime() / 1000);
+  const nextUpdateUnix = Math.floor(getNextFiveMinuteRefresh().getTime() / 1000);
 
   const rowsWithMeta = await Promise.all(rows.map(async (row) => {
     let member = guild.members.cache.get(row.userId);
@@ -120,7 +120,7 @@ async function sendLeaderboard(target, guild, userId, type, page) {
             content: [
               `## ${guild.name}'s leaderboard.`,
               `-# You placed ${place} on the ${getTypeLabel(type)} leaderboard.`,
-              `-# Refresh: <t:${nextUpdateUnix}:R> (<t:${nextUpdateUnix}:t> UTC+7)`,
+              `-# Auto-refresh timer: <t:${nextUpdateUnix}:R> (<t:${nextUpdateUnix}:T>)`,
             ].join('\n'),
           },
           {
@@ -143,11 +143,12 @@ async function sendLeaderboard(target, guild, userId, type, page) {
   return null;
 }
 
-function getNextHourlyBoundaryUtcPlus7(now = new Date()) {
-  const shifted = new Date(now.getTime() + (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
-  shifted.setUTCMinutes(0, 0, 0);
-  shifted.setUTCHours(shifted.getUTCHours() + 1);
-  return new Date(shifted.getTime() - (LEADERBOARD_REFRESH_TIMEZONE_OFFSET * 60 * 60 * 1000));
+function getNextFiveMinuteRefresh(now = new Date()) {
+  const next = new Date(now.getTime());
+  const minutes = next.getUTCMinutes();
+  const nextMinutes = (Math.floor(minutes / 5) + 1) * 5;
+  next.setUTCMinutes(nextMinutes, 0, 0);
+  return next;
 }
 
 function rememberLeaderboardMessage(message, state) {
@@ -181,8 +182,7 @@ async function refreshTrackedLeaderboards() {
 
 function scheduleLeaderboardRefresh() {
   if (leaderboardScheduler) clearTimeout(leaderboardScheduler);
-  const next = getNextHourlyBoundaryUtcPlus7();
-  const delay = Math.max(1_000, next.getTime() - Date.now());
+  const delay = Math.max(1_000, Math.min(LEADERBOARD_REFRESH_INTERVAL_MS, getNextFiveMinuteRefresh().getTime() - Date.now()));
   leaderboardScheduler = setTimeout(async () => {
     await refreshTrackedLeaderboards().catch(() => null);
     scheduleLeaderboardRefresh();
