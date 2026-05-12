@@ -6,7 +6,8 @@ const levelingManager = require('../src/levelingManager');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-rolls.json');
-const ROLL_CHANNEL_ID = '1503708687569522778';
+const ROLL_CHANNEL_IDS = new Set(['1503708687569522778', '1503763965497315458']);
+const PRIMARY_ROLL_CHANNEL_ID = '1503708687569522778';
 const ANNOUNCE_CHANNEL_ID = '1498300014114377860';
 const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
 const START_PING_ROLE_ID = '1493930583137718272';
@@ -567,8 +568,8 @@ function setRollCooldown(userId) {
 
 async function handleRollMessage(message, client) {
   if (message.author?.bot || message.content.trim().toLowerCase() !== '!roll') return false;
-  if (message.channelId !== ROLL_CHANNEL_ID) {
-    await message.reply(container(0xED4245, `Use !roll in <#${ROLL_CHANNEL_ID}>.`)).catch(() => null);
+  if (!ROLL_CHANNEL_IDS.has(message.channelId)) {
+    await message.reply(container(0xED4245, `Use !roll in <#${PRIMARY_ROLL_CHANNEL_ID}>.`)).catch(() => null);
     return true;
   }
   const progress = levelingManager.getUserProgress(message.guild.id, message.author.id);
