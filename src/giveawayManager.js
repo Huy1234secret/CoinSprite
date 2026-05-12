@@ -41,6 +41,19 @@ function requireSetupOwner(interaction, ownerId) {
   return false;
 }
 
+async function deferEphemeral(interaction) {
+  if (interaction.deferred || interaction.replied) return true;
+  return interaction.deferReply({ flags: EPHEMERAL_FLAG }).then(() => true).catch(() => false);
+}
+
+async function respondEphemeral(interaction, content) {
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({ content }).catch(() => null);
+    return;
+  }
+  await interaction.reply({ content, flags: EPHEMERAL_FLAG }).catch(() => null);
+}
+
 async function init(client) {
   await runtime.init(client);
 }
@@ -349,24 +362,26 @@ async function handleJoinButton(interaction, giveawayId) {
     return true;
   }
 
+  if (!(await deferEphemeral(interaction))) return true;
+
   const member = await runtime.fetchMemberFromInteraction(interaction);
   if (!member) {
-    await interaction.reply({ content: 'I could not verify your member data.', flags: EPHEMERAL_FLAG });
+    await respondEphemeral(interaction, 'I could not verify your member data.');
     return true;
   }
   if (runtime.isBlacklistedMember(member)) {
-    await interaction.reply({ content: 'You are blacklisted from joining giveaways.', flags: EPHEMERAL_FLAG });
+    await respondEphemeral(interaction, 'You are blacklisted from joining giveaways.');
     return true;
   }
   if (giveaway.entrantIds.includes(interaction.user.id)) {
-    await interaction.reply({ content: 'You have already joined this giveaway.', flags: EPHEMERAL_FLAG });
+    await respondEphemeral(interaction, 'You have already joined this giveaway.');
     return true;
   }
 
   if (giveaway.requirement.type === 'level') {
     const progress = levelingManager.getUserProgress(giveaway.guildId, interaction.user.id);
     if ((progress.level || 0) < giveaway.requirement.level) {
-      await interaction.reply({ content: `You need chat level ${giveaway.requirement.level} or higher to join this giveaway.`, flags: EPHEMERAL_FLAG });
+      await respondEphemeral(interaction, `You need chat level ${giveaway.requirement.level} or higher to join this giveaway.`);
       return true;
     }
   }
@@ -374,7 +389,7 @@ async function handleJoinButton(interaction, giveawayId) {
   if (giveaway.requirement.type === 'message') {
     const currentCount = Number(giveaway.messageCounts[interaction.user.id] || 0);
     if (currentCount < giveaway.requirement.messageCount) {
-      await interaction.reply({ content: `You need ${giveaway.requirement.messageCount} messages after giveaway start to join. Current count: ${currentCount}.`, flags: EPHEMERAL_FLAG });
+      await respondEphemeral(interaction, `You need ${giveaway.requirement.messageCount} messages after giveaway start to join. Current count: ${currentCount}.`);
       return true;
     }
   }
@@ -385,7 +400,7 @@ async function handleJoinButton(interaction, giveawayId) {
   runtime.persistState(state);
 
   await runtime.updateGiveawayMessage(giveaway, buildLiveGiveawayPayload(giveaway));
-  await interaction.reply({ content: 'You joined the giveaway.', flags: EPHEMERAL_FLAG });
+  await respondEphemeral(interaction, 'You joined the giveaway.');
   return true;
 }
 
@@ -423,6 +438,8 @@ async function handleClaimButton(interaction, giveawayId, roundNumberText) {
     return true;
   }
 
+  if (!(await deferEphemeral(interaction))) return true;
+
   storedRound.claimedIds.push(interaction.user.id);
   storedGiveaway.claimedUserIds.push(interaction.user.id);
   storedGiveaway.updatedAt = now();
@@ -430,7 +447,7 @@ async function handleClaimButton(interaction, giveawayId, roundNumberText) {
 
   const { buildClaimRoundPayload } = require('./giveawayMessages');
   await runtime.editMessageSafely(storedGiveaway.guildId, storedGiveaway.channelId, storedRound.messageId, buildClaimRoundPayload(storedGiveaway, storedRound));
-  await interaction.reply({ content: 'Claim recorded.', flags: EPHEMERAL_FLAG });
+  await respondEphemeral(interaction, 'Claim recorded.');
 
   const hostUser = await runtime.schedulerClient()?.users.fetch(storedGiveaway.hostId).catch(() => null);
   await hostUser?.send(buildHosterDmPayload(storedGiveaway, interaction.user.id)).catch(() => null);
