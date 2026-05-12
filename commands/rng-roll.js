@@ -6,14 +6,14 @@ const levelingManager = require('../src/levelingManager');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-rolls.json');
-const ROLL_CHANNEL_IDS = new Set(['1503708687569522778', '1503763965497315458']);
+const ROLL_CHANNEL_IDS = new Set(['1503708687569522778', '1503763965497315458', '1503773311547478196']);
 const PRIMARY_ROLL_CHANNEL_ID = '1503708687569522778';
 const ANNOUNCE_CHANNEL_ID = '1498300014114377860';
 const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
 const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
-const ROLL_COOLDOWN_MS = 3_000;
+const ROLL_COOLDOWN_MS = 5_000;
 const MIN_ROLL_LEVEL = 5;
 
 const rollCooldowns = new Map();
