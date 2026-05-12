@@ -10,6 +10,7 @@ const { LEVEL_ROLE_REWARDS, getEligibleRoleIds } = require('../src/levelRoleRewa
 const execFileAsync = promisify(execFile);
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
 const LOW_XP_CATEGORY_ID = '1498006922912202948';
+const NO_XP_CHANNEL_IDS = new Set(['1503708687569522778']);
 const BACKGROUND_LOG_THREAD_ID = '1502296881395536033';
 const LOW_XP_AMOUNT = 0.5;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
@@ -122,6 +123,13 @@ async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
     // eslint-disable-next-line no-await-in-loop
     await sendLevelUpMessage(guild, userId, level);
   }
+}
+
+function isXpDisabledChannel(channel) {
+  if (!channel) return false;
+  if (NO_XP_CHANNEL_IDS.has(channel.id)) return true;
+  if (channel.isThread?.()) return NO_XP_CHANNEL_IDS.has(channel.parentId);
+  return false;
 }
 
 function isChannelInLowXpCategory(channel) {
@@ -429,6 +437,8 @@ module.exports = {
       return;
     }
 
+    if (isXpDisabledChannel(message.channel)) return;
+
     const fixedXp = isChannelInLowXpCategory(message.channel) ? LOW_XP_AMOUNT : undefined;
     const result = manager.awardMessageXp(message.guild.id, message.author.id, { fixedXp });
     await handleLevelUpRange(message.guild, message.author.id, result.oldLevel, result.newLevel);
@@ -502,6 +512,8 @@ module.exports = {
 
     if (reaction.partial) await reaction.fetch().catch(() => null);
     if (!reaction.message.guild) return;
+
+    if (isXpDisabledChannel(reaction.message.channel)) return;
 
     const fixedXp = isChannelInLowXpCategory(reaction.message.channel) ? LOW_XP_AMOUNT : undefined;
     const result = manager.awardReactionXp(reaction.message.guild.id, user.id, { fixedXp });
