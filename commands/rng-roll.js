@@ -369,6 +369,16 @@ function updateTopRolls(record, roll) {
   record.topRolls = record.topRolls.slice(0, 3);
 }
 
+function getRollThreshold(denominator) {
+  return [...ROLE_THRESHOLDS].reverse().find((item) => denominator >= item.denominator) ?? null;
+}
+
+async function getRoleColor(guild, threshold) {
+  if (!guild || !threshold?.roleId) return threshold?.color ?? 0xFFFFFF;
+  const role = guild.roles.cache.get(threshold.roleId) || await guild.roles.fetch(threshold.roleId).catch(() => null);
+  return role?.color || threshold.color || 0xFFFFFF;
+}
+
 async function assignRollRoles(member, denominator, isFirstRoll) {
   if (!member?.roles?.add) return;
   if (isFirstRoll) await member.roles.add(FIRST_ROLL_ROLE_ID).catch(() => null);
@@ -378,11 +388,12 @@ async function assignRollRoles(member, denominator, isFirstRoll) {
 }
 
 async function announceRareRoll(client, userId, rarity) {
-  const threshold = [...ROLE_THRESHOLDS].reverse().find((item) => rarity.denominator >= item.denominator);
+  const threshold = getRollThreshold(rarity.denominator);
   if (!threshold) return;
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
   if (!channel) return;
-  await channel.send(container(threshold.color, [
+  const color = await getRoleColor(channel.guild, threshold);
+  await channel.send(container(color, [
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
     `with a chance of 1 in ${formatNumber(rarity.denominator)}!`,
   ].join('\n'))).catch(() => null);
