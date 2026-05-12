@@ -371,6 +371,11 @@ async function logBackgroundUpload(interaction, filePath, optimized) {
 }
 
 async function editRankCardMessage(interaction, mode = 'open') {
+  if (typeof interaction.deferUpdate === 'function' && !interaction.replied && !interaction.deferred) {
+    const acknowledged = await interaction.deferUpdate().then(() => true).catch(() => false);
+    if (!acknowledged) return;
+  }
+
   const { attachment } = await getRankCardPayload(interaction.guild, interaction.user);
   const payload = {
     content: '',
@@ -379,12 +384,14 @@ async function editRankCardMessage(interaction, mode = 'open') {
     components: buildDecorationButtonRow(interaction.user.id, mode),
   };
 
-  if (typeof interaction.update === 'function' && !interaction.replied && !interaction.deferred) {
-    await interaction.update(payload);
+  if (interaction.message?.editable) {
+    await interaction.message.edit(payload).catch(() => null);
     return;
   }
 
-  if (interaction.message?.editable) await interaction.message.edit(payload);
+  if (typeof interaction.editReply === 'function' && (interaction.replied || interaction.deferred)) {
+    await interaction.editReply(payload).catch(() => null);
+  }
 }
 
 module.exports = {
