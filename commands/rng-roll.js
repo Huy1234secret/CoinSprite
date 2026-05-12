@@ -122,7 +122,7 @@ const RARITIES = [
   ['🧿', 'Anomaly', 337_000_000],
   ['🔴', 'Absolute', 442_000_000_000],
   ['🔺', 'Apex', 580_000_000_000],
-  ['🔢", 'Transfinite', 762_000_000_000],
+  ['🔢', 'Transfinite', 762_000_000_000],
   ['👑', 'One Trillion', 1_000_000_000_000],
 ].map(([emoji, name, denominator]) => ({ emoji, name, denominator }));
 
