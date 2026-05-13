@@ -13,9 +13,9 @@ const { formatMultiplier, getActiveBoost } = require('../src/luckBoosts');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-rolls.json');
-const ROLL_CHANNEL_IDS = new Set(['1503708687569522778', '1503763965497315458', '1503773311547478196', '1503779472329936988']);
-const PRIMARY_ROLL_CHANNEL_ID = '1503708687569522778';
-const ANNOUNCE_CHANNEL_ID = '1498300014114377860';
+const ROLL_CHANNEL_ID_LIST = ['1503708687569522778', '1503763965497315458', '1503773311547478196', '1503779472329936988'];
+const ROLL_CHANNEL_IDS = new Set(ROLL_CHANNEL_ID_LIST);
+const PRIMARY_ROLL_CHANNEL_ID = ROLL_CHANNEL_ID_LIST[0];
 const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
 const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
@@ -490,8 +490,14 @@ function buildLeaderboardPayload(guild) {
   return container(0xFFFFFF, lines.join('\n'));
 }
 
-async function getTextChannel(client, channelId) {
-  const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
+async function getTextChannel(client, channelId, context = 'channel') {
+  const cached = client.channels.cache.get(channelId);
+  if (cached) return cached?.isTextBased?.() ? cached : null;
+
+  const channel = await client.channels.fetch(channelId).catch((error) => {
+    console.error(`[rng-roll] Failed to fetch ${context} ${channelId}:`, error);
+    return null;
+  });
   return channel?.isTextBased?.() ? channel : null;
 }
 
@@ -593,16 +599,33 @@ async function assignRollRoles(member, roll, isFirstRoll) {
   });
 }
 
-async function announceRareRoll(client, userId, rarity) {
+async function announceRareRoll(client, userId, rarity, rollChannelId) {
   // Rare-roll announcements use the rarity's base listed odds only. Luck may
   // help produce the roll, but it must not lower the displayed chance or affect
   // which threshold color/notification rules are used.
   const baseDenominator = getBaseRollDenominator(rarity);
-  if (!shouldAnnounceRareRoll(baseDenominator, MIN_RARE_ANNOUNCE_DENOMINATOR)) return;
+  if (!shouldAnnounceRareRoll(baseDenominator, MIN_RARE_ANNOUNCE_DENOMINATOR)) {
+    console.info(`[rng-roll] Not announcing ${rarity?.name || 'unknown'} for ${userId}: base denominator ${baseDenominator} is below ${MIN_RARE_ANNOUNCE_DENOMINATOR}.`);
+    return false;
+  }
+
   const threshold = getRollThreshold(baseDenominator);
-  if (!threshold) return;
-  const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
-  if (!channel) return;
+  if (!threshold) {
+    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: no role threshold matched denominator ${baseDenominator}.`);
+    return false;
+  }
+
+  if (!ROLL_CHANNEL_IDS.has(rollChannelId)) {
+    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: roll channel ${rollChannelId || 'unknown'} is not in configured roll channels (${ROLL_CHANNEL_ID_LIST.join(', ')}).`);
+    return false;
+  }
+
+  const channel = await getTextChannel(client, rollChannelId, 'RNG roll announcement channel');
+  if (!channel) {
+    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: channel ${rollChannelId} was not found or is not text-based.`);
+    return false;
+  }
+
   const color = await getRoleColor(channel.guild, threshold);
   // Always announce rolls at 1/1k or rarer, but only mention the roller when
   // their base rarity odds meet their personal notification threshold.
@@ -611,11 +634,20 @@ async function announceRareRoll(client, userId, rarity) {
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
     `with a chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
-  await channel.send({
-    content: pingContent,
-    allowedMentions: pingContent ? { users: [userId] } : { users: [] },
-    ...container(color, lines.join('\n')),
-  }).catch(() => null);
+
+  console.info(`[rng-roll] Sending rare-roll announcement for ${userId} in channel ${rollChannelId}: ${rarity?.name || 'unknown'} 1/${baseDenominator}.`);
+  try {
+    const announcement = await channel.send({
+      content: pingContent,
+      allowedMentions: pingContent ? { users: [userId] } : { users: [] },
+      ...container(color, lines.join('\n')),
+    });
+    console.info(`[rng-roll] Rare-roll announcement sent in channel ${rollChannelId}${announcement?.id ? ` as message ${announcement.id}` : ''}.`);
+    return true;
+  } catch (error) {
+    console.error(`[rng-roll] Failed to send rare-roll announcement for ${userId} in channel ${rollChannelId}:`, error);
+    return false;
+  }
 }
 
 function getRollCooldownUntil(userId) {
@@ -700,7 +732,7 @@ async function handleRollMessage(message, client) {
     earnedNextMultiplier,
   }))).catch(() => null);
   await assignRollRoles(message.member, rarity, isFirstRoll);
-  await announceRareRoll(client, message.author.id, rarity);
+  await announceRareRoll(client, message.author.id, rarity, message.channelId);
   return true;
 }
 
