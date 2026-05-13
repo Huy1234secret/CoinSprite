@@ -683,11 +683,11 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
   }
 
   const color = await getRoleColor(channel.guild, threshold);
-  // Always announce rolls at 1/1k or rarer, but only mention the roller when
-  // their base rarity odds meet their personal notification threshold.
+  // Always announce rolls at 1/1k or rarer. The announcement text includes
+  // the roller once, while allowedMentions controls whether that mention pings
+  // based on their personal notification threshold.
   const shouldMentionUser = rngNotificationStore.shouldMention(userId, baseDenominator);
   const lines = [
-    ...(shouldMentionUser ? [`<@${userId}>`] : []),
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
     `with a base chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
