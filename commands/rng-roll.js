@@ -373,6 +373,11 @@ function formatPercent(denominator) {
   return text.replace(/\.?0+$/, '');
 }
 
+function formatLuckBoostPercent(multiplier) {
+  const boostPercent = (Math.max(1, Number(multiplier) || 1) - 1) * 100;
+  return Number(boostPercent.toFixed(2)).toLocaleString('en-US');
+}
+
 function rarityLabel(roll) {
   return roll ? `${roll.emoji} ${roll.name}` : 'None';
 }
@@ -565,20 +570,22 @@ async function assignRollRoles(member, denominator, isFirstRoll) {
   }
 }
 
-async function announceRareRoll(client, userId, rarity) {
+async function announceRareRoll(client, userId, rarity, totalLuckMultiplier = 1) {
   const threshold = getRollThreshold(rarity.denominator);
   if (!threshold) return;
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
   if (!channel) return;
   const color = await getRoleColor(channel.guild, threshold);
   const pingContent = rngNotificationStore.shouldNotify(userId, rarity.denominator) ? `<@${userId}>` : undefined;
+  const lines = [
+    `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
+    `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
+  ];
+  if (totalLuckMultiplier > 1) lines.push(`With ${formatLuckBoostPercent(totalLuckMultiplier)}% boost`);
   await channel.send({
     content: pingContent,
     allowedMentions: pingContent ? { users: [userId] } : { users: [] },
-    ...container(color, [
-      `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
-      `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
-    ].join('\n')),
+    ...container(color, lines.join('\n')),
   }).catch(() => null);
 }
 
@@ -664,7 +671,7 @@ async function handleRollMessage(message, client) {
     earnedNextMultiplier,
   }))).catch(() => null);
   await assignRollRoles(message.member, rarity.denominator, isFirstRoll);
-  await announceRareRoll(client, message.author.id, rarity);
+  await announceRareRoll(client, message.author.id, rarity, totalLuckMultiplier);
   return true;
 }
 
