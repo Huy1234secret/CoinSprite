@@ -373,10 +373,6 @@ function formatPercent(denominator) {
   return text.replace(/\.?0+$/, '');
 }
 
-function formatLuckBoostPercent(multiplier) {
-  const boostPercent = (Math.max(1, Number(multiplier) || 1) - 1) * 100;
-  return Number(boostPercent.toFixed(2)).toLocaleString('en-US');
-}
 
 function rarityLabel(roll) {
   return roll ? `${roll.emoji} ${roll.name}` : 'None';
@@ -600,18 +596,21 @@ async function assignRollRoles(member, roll, isFirstRoll) {
   });
 }
 
-async function announceRareRoll(client, userId, rarity, totalLuckMultiplier = 1) {
-  const threshold = getRollThreshold(rarity.denominator);
+async function announceRareRoll(client, userId, rarity) {
+  // Rare-roll announcements use the rarity's base listed odds only. Luck may
+  // help produce the roll, but it must not lower the displayed chance or affect
+  // which threshold color/notification rules are used.
+  const baseDenominator = getBaseRollDenominator(rarity);
+  const threshold = getRollThreshold(baseDenominator);
   if (!threshold) return;
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
   if (!channel) return;
   const color = await getRoleColor(channel.guild, threshold);
-  const pingContent = rngNotificationStore.shouldNotify(userId, rarity.denominator) ? `<@${userId}>` : undefined;
+  const pingContent = rngNotificationStore.shouldNotify(userId, baseDenominator) ? `<@${userId}>` : undefined;
   const lines = [
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
-    `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
+    `with a chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
-  if (totalLuckMultiplier > 1) lines.push(`With ${formatLuckBoostPercent(totalLuckMultiplier)}% boost`);
   await channel.send({
     content: pingContent,
     allowedMentions: pingContent ? { users: [userId] } : { users: [] },
@@ -701,7 +700,7 @@ async function handleRollMessage(message, client) {
     earnedNextMultiplier,
   }))).catch(() => null);
   await assignRollRoles(message.member, rarity, isFirstRoll);
-  await announceRareRoll(client, message.author.id, rarity, totalLuckMultiplier);
+  await announceRareRoll(client, message.author.id, rarity);
   return true;
 }
 
