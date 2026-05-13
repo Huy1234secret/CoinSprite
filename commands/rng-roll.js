@@ -332,6 +332,17 @@ function container(accent, content) {
   };
 }
 
+function replyWithoutPing(message, payload) {
+  const options = typeof payload === 'string' ? { content: payload } : payload;
+  return message.reply({
+    ...options,
+    allowedMentions: {
+      ...options.allowedMentions,
+      repliedUser: false,
+    },
+  });
+}
+
 function formatNumber(value) {
   return Math.floor(Number(value) || 0).toLocaleString('en-US');
 }
@@ -583,23 +594,23 @@ function setRollCooldown(userId) {
 async function handleRollMessage(message, client) {
   if (message.author?.bot || message.content.trim().toLowerCase() !== '!roll') return false;
   if (!ROLL_CHANNEL_IDS.has(message.channelId)) {
-    await message.reply(container(0xED4245, `Use !roll in <#${PRIMARY_ROLL_CHANNEL_ID}>.`)).catch(() => null);
+    await replyWithoutPing(message, container(0xED4245, `Use !roll in <#${PRIMARY_ROLL_CHANNEL_ID}>.`)).catch(() => null);
     return true;
   }
   const progress = levelingManager.getUserProgress(message.guild.id, message.author.id);
   if (progress.level < MIN_ROLL_LEVEL) {
-    await message.reply(container(0xED4245, `### You need chat level ${MIN_ROLL_LEVEL} to use !roll.
+    await replyWithoutPing(message, container(0xED4245, `### You need chat level ${MIN_ROLL_LEVEL} to use !roll.
 -# Your current level is ${progress.level}.`)).catch(() => null);
     return true;
   }
 
   const status = getEventStatus();
   if (status === 'before') {
-    await message.reply(container(0xFFFFFF, `### RNG event has not started yet.\n-# Starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`)).catch(() => null);
+    await replyWithoutPing(message, container(0xFFFFFF, `### RNG event has not started yet.\n-# Starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`)).catch(() => null);
     return true;
   }
   if (status === 'ended') {
-    await message.reply(container(0xED4245, '### RNG event has ended.\n-# !roll is now disabled.')).catch(() => null);
+    await replyWithoutPing(message, container(0xED4245, '### RNG event has ended.\n-# !roll is now disabled.')).catch(() => null);
     return true;
   }
 
@@ -621,7 +632,7 @@ async function handleRollMessage(message, client) {
   updateTopRolls(record, rollRecord);
   saveState(state);
 
-  await message.reply(buildRollPayload(rarity, isNewRecord)).catch(() => null);
+  await replyWithoutPing(message, buildRollPayload(rarity, isNewRecord)).catch(() => null);
   await assignRollRoles(message.member, rarity.denominator, isFirstRoll);
   await announceRareRoll(client, message.author.id, rarity);
   return true;
