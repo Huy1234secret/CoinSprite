@@ -529,8 +529,8 @@ async function maybeSendStartAnnouncement(client) {
   const channel = await getTextChannel(client, LEADERBOARD_CHANNEL_ID);
   if (!channel) return;
   await channel.send({
-    content: `<@&${START_PING_ROLE_ID}>`,
-    ...container(0xFFFFFF, '### RNG event has started! Goodluck and wish your luck.'),
+    ...container(0xFFFFFF, `<@&${START_PING_ROLE_ID}>\n### RNG event has started! Goodluck and wish your luck.`),
+    allowedMentions: { roles: [START_PING_ROLE_ID] },
   }).catch(() => null);
   state.startAnnouncementSent = true;
   saveState(state);
@@ -685,8 +685,9 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
   const color = await getRoleColor(channel.guild, threshold);
   // Always announce rolls at 1/1k or rarer, but only mention the roller when
   // their base rarity odds meet their personal notification threshold.
-  const pingContent = rngNotificationStore.shouldMention(userId, baseDenominator) ? `<@${userId}>` : undefined;
+  const shouldMentionUser = rngNotificationStore.shouldMention(userId, baseDenominator);
   const lines = [
+    ...(shouldMentionUser ? [`<@${userId}>`] : []),
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
     `with a base chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
@@ -694,9 +695,8 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
   console.info(`[rng-roll] Sending rare-roll announcement for ${userId} in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}: ${rarity?.name || 'unknown'} 1/${baseDenominator}.`);
   try {
     const announcement = await channel.send({
-      content: pingContent,
-      allowedMentions: pingContent ? { users: [userId] } : { users: [] },
       ...container(color, lines.join('\n')),
+      allowedMentions: shouldMentionUser ? { users: [userId] } : { users: [] },
     });
     if (!announcement?.id) {
       return logRareRollNotSent(client, {
