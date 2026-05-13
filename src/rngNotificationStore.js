@@ -55,7 +55,7 @@ function setThreshold(userId, threshold) {
   return state.users[userId].threshold;
 }
 
-function shouldNotify(userId, denominator) {
+function shouldMention(userId, denominator) {
   const threshold = getThreshold(userId);
   if (threshold === null) return true;
   return Math.floor(Number(denominator) || 0) >= threshold;
@@ -106,7 +106,8 @@ function parseThresholdInput(input) {
 module.exports = {
   getThreshold,
   setThreshold,
-  shouldNotify,
+  shouldMention,
+  shouldNotify: shouldMention,
   formatThresholdLabel,
   parseThresholdInput,
 };

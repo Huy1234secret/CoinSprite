@@ -28,7 +28,7 @@ function button(customId, label) {
 
 function buildNotificationPayload(userId, threshold = notificationStore.getThreshold(userId)) {
   return container(0xFFFFFF, [
-    text('### Chance notification:\n-# Bot will ping you when you rolled a rarity has chance lower or equal!'),
+    text('### Chance notification:\n-# Rolls that are 1/1k or rarer are always announced. The bot only mentions you when the base chance is as rare as your setting.'),
     actionRow(button(`${BUTTON_PREFIX}${userId}`, notificationStore.formatThresholdLabel(threshold))),
   ]);
 }
@@ -64,7 +64,7 @@ function assertOwner(interaction, ownerId) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('rng-notification')
-    .setDescription('Choose when RNG rare-roll announcements should ping you'),
+    .setDescription('Choose when RNG rare-roll announcements should mention you'),
 
   async execute(interaction) {
     await interaction.reply(buildNotificationPayload(interaction.user.id));
