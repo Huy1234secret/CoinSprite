@@ -609,17 +609,16 @@ function formatErrorForLog(error) {
   return `${message}${code}${status}`;
 }
 
-function buildRareRollLogContent({ userId, rarity, baseDenominator, rollChannelId, sent, reason, error, announcementId }) {
+function buildRareRollLogContent({ userId, rarity, baseDenominator, rollChannelId, reason, error }) {
   const lines = [
-    `${sent ? '✅' : '⚠️'} RNG rare roll announcement ${sent ? 'sent' : 'not sent'}`,
+    '⚠️ RNG rare roll announcement not sent',
     `User: <@${userId}> (${userId})`,
     `Rarity: ${rarityLabel(rarity)}`,
     `Base chance: 1/${formatNumber(baseDenominator)} (${formatPercent(baseDenominator)}%)`,
     `Roll source channel: ${rollChannelId ? `<#${rollChannelId}> (${rollChannelId})` : 'unknown'}`,
     `Announcement channel: <#${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}> (${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID})`,
-    `Announcement sent: ${sent ? 'yes' : 'no'}`,
+    'Announcement sent: no',
   ];
-  if (announcementId) lines.push(`Announcement message: ${announcementId}`);
   if (reason) lines.push(`Reason: ${reason}`);
   if (error) lines.push(`Error: ${formatErrorForLog(error)}`);
   return lines.join('\n').slice(0, 2000);
@@ -644,7 +643,7 @@ async function sendRareRollLog(client, details) {
 
 async function logRareRollNotSent(client, details) {
   console.error(`[rng-roll] Rare-roll announcement not sent for ${details.userId}: ${details.reason || formatErrorForLog(details.error)}.`);
-  await sendRareRollLog(client, { ...details, sent: false });
+  await sendRareRollLog(client, details);
   return false;
 }
 
@@ -692,7 +691,6 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
     `with a base chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
 
-  console.info(`[rng-roll] Sending rare-roll announcement for ${userId} in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}: ${rarity?.name || 'unknown'} 1/${baseDenominator}.`);
   try {
     const announcement = await channel.send({
       ...container(color, lines.join('\n')),
@@ -708,15 +706,6 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
       });
     }
 
-    console.info(`[rng-roll] Rare-roll announcement sent in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID} as message ${announcement.id}.`);
-    await sendRareRollLog(client, {
-      userId,
-      rarity,
-      baseDenominator,
-      rollChannelId,
-      sent: true,
-      announcementId: announcement.id,
-    });
     return true;
   } catch (error) {
     console.error(`[rng-roll] Failed to send rare-roll announcement for ${userId} in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}:`, error);
