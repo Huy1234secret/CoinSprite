@@ -175,7 +175,7 @@ async function announceMineLocation(game, interaction) {
     content: [
       '## PVP Minefield Bomb Location',
       `Game: **${game.id}**`,
-      `Players: ${game.players.map((player) => player.mention).join(' vs ')}`,
+      `Players: ${game.players.map((player) => player.username).join(' vs ')}`,
       `Bomb: ${formatTileLocation(game.mineIndex)}`,
     ].join('\n'),
     allowedMentions: { parse: [] },
