@@ -40,7 +40,7 @@ function buildNotificationModal(userId) {
     components: [
       {
         type: 18,
-        label: 'Notify me only when I roll a rarity of 1 in ___ or rarer.',
+        label: 'Notify for 1 in ___ or rarer rolls',
         component: {
           type: 4,
           custom_id: INPUT_ID,
