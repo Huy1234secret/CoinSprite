@@ -6,6 +6,8 @@ const DEFAULT_STATE = { activeBoost: null };
 const MIN_DURATION_MS = 60_000;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_PERCENT = 10_000;
+const MIN_AMOUNT_ROLLS = 1;
+const MAX_AMOUNT_ROLLS = 1_000_000;
 
 function ensureStore() {
   const dir = path.dirname(STORE_PATH);
@@ -68,6 +70,12 @@ function parseLuckPercent(input) {
   return percent;
 }
 
+function parseAmountRolls(input) {
+  const amount = Number(input);
+  if (!Number.isInteger(amount) || amount < MIN_AMOUNT_ROLLS || amount > MAX_AMOUNT_ROLLS) return null;
+  return amount;
+}
+
 function getMultiplierFromPercent(percent) {
   return 1 + (Math.max(0, Number(percent) || 0) / 100);
 }
@@ -81,6 +89,11 @@ function formatMoreLuckPercent(percent) {
   return `${Number((Math.max(0, Number(percent) || 0)).toFixed(2)).toLocaleString('en-US').replace(/\.00$/, '')}%`;
 }
 
+function formatRollCount(rolls) {
+  const safeRolls = Math.max(0, Math.floor(Number(rolls) || 0));
+  return `${safeRolls.toLocaleString('en-US')} ${safeRolls === 1 ? 'roll' : 'rolls'}`;
+}
+
 function colorForMultiplier(multiplier) {
   const safe = Math.max(1, Number(multiplier) || 1);
   if (safe >= 10) return 0x9B59B6;
@@ -90,44 +103,89 @@ function colorForMultiplier(multiplier) {
   return 0x57F287;
 }
 
-function startBoost({ durationMs, percent, startedById, now = Date.now() }) {
+function normalizeBoost(boost, now = Date.now()) {
+  if (!boost || typeof boost !== 'object') return null;
+
+  const hasTimedLimit = Number.isFinite(Number(boost.endsAt));
+  const hasRollLimit = Number.isFinite(Number(boost.remainingRolls));
+  if (!hasTimedLimit && !hasRollLimit) return null;
+  if (hasTimedLimit && Number(boost.endsAt) <= now) return null;
+  if (hasRollLimit && Math.floor(Number(boost.remainingRolls)) <= 0) return null;
+
+  const percent = Math.max(0, Number(boost.percent) || 0);
+  const multiplier = Math.max(1, Number(boost.multiplier) || getMultiplierFromPercent(percent));
+  const normalized = {
+    ...boost,
+    percent,
+    multiplier,
+  };
+
+  if (hasRollLimit) normalized.remainingRolls = Math.floor(Number(boost.remainingRolls));
+  return normalized;
+}
+
+function startBoost({ durationMs, amountRolls, percent, startedById, now = Date.now() }) {
   const multiplier = getMultiplierFromPercent(percent);
   const boost = {
+    id: `${now}-${Math.random().toString(36).slice(2, 10)}`,
     percent,
     multiplier,
     startedById,
     startedAt: now,
-    endsAt: now + durationMs,
   };
+
+  if (durationMs) boost.endsAt = now + durationMs;
+  if (amountRolls) boost.remainingRolls = amountRolls;
+
   saveState({ activeBoost: boost });
   return boost;
 }
 
 function getActiveBoost(now = Date.now()) {
   const state = loadState();
-  const boost = state.activeBoost;
-  if (!boost || Number(boost.endsAt) <= now) {
-    if (boost) saveState({ activeBoost: null });
+  const boost = normalizeBoost(state.activeBoost, now);
+  if (!boost) {
+    if (state.activeBoost) saveState({ activeBoost: null });
     return null;
   }
-  const percent = Math.max(0, Number(boost.percent) || 0);
-  const multiplier = Math.max(1, Number(boost.multiplier) || getMultiplierFromPercent(percent));
-  return {
-    ...boost,
-    percent,
-    multiplier,
-  };
+  return boost;
+}
+
+function consumeActiveBoostRoll(boostId, now = Date.now()) {
+  const state = loadState();
+  const boost = normalizeBoost(state.activeBoost, now);
+  if (!boost) {
+    if (state.activeBoost) saveState({ activeBoost: null });
+    return null;
+  }
+  if (!Number.isFinite(Number(boost.remainingRolls))) return boost;
+  if (boostId && boost.id && boost.id !== boostId) return boost;
+
+  const remainingRolls = Math.floor(Number(boost.remainingRolls)) - 1;
+  if (remainingRolls <= 0) {
+    saveState({ activeBoost: null });
+    return null;
+  }
+
+  const updatedBoost = { ...boost, remainingRolls };
+  saveState({ activeBoost: updatedBoost });
+  return updatedBoost;
 }
 
 module.exports = {
+  MAX_AMOUNT_ROLLS,
   MAX_DURATION_MS,
   MAX_PERCENT,
+  MIN_AMOUNT_ROLLS,
   MIN_DURATION_MS,
   colorForMultiplier,
+  consumeActiveBoostRoll,
   formatMoreLuckPercent,
   formatMultiplier,
+  formatRollCount,
   getActiveBoost,
   getMultiplierFromPercent,
+  parseAmountRolls,
   parseDuration,
   parseLuckPercent,
   startBoost,

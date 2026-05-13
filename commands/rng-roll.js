@@ -8,7 +8,7 @@ const {
   getBaseRollDenominator,
   shouldAnnounceRareRoll,
 } = require('../src/rngAnnouncementRules');
-const { formatMultiplier, getActiveBoost } = require('../src/luckBoosts');
+const { consumeActiveBoostRoll, formatMultiplier, formatRollCount, getActiveBoost } = require('../src/luckBoosts');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -743,7 +743,12 @@ function getMilestoneLuckMultiplier(totalRolls) {
 function getLuckBoostLines({ personalMultiplier, globalBoost, earnedNextMultiplier }) {
   const lines = [];
   if (personalMultiplier > 1) lines.push(`-# Personal next-roll luck boost used: ${formatMultiplier(personalMultiplier)}`);
-  if (globalBoost?.multiplier > 1) lines.push(`-# Server luck boost active: ${formatMultiplier(globalBoost.multiplier)} until <t:${Math.floor(globalBoost.endsAt / 1000)}:R>`);
+  if (globalBoost?.multiplier > 1) {
+    const limitText = Number.isFinite(Number(globalBoost.endsAt))
+      ? `until <t:${Math.floor(globalBoost.endsAt / 1000)}:R>`
+      : `for this roll (${formatRollCount(globalBoost.remainingRolls)} available before this roll)`;
+    lines.push(`-# Server luck boost active: ${formatMultiplier(globalBoost.multiplier)} ${limitText}`);
+  }
   if (earnedNextMultiplier > 1) lines.push(`-# You earned ${formatMultiplier(earnedNextMultiplier)} luck for your next roll!`);
   return lines;
 }
@@ -781,6 +786,7 @@ async function handleRollMessage(message, client) {
   const globalBoost = getActiveBoost();
   const totalLuckMultiplier = personalLuckMultiplier * (globalBoost?.multiplier || 1);
   const rarity = rollRarity(totalLuckMultiplier);
+  if (globalBoost?.remainingRolls) consumeActiveBoostRoll(globalBoost.id);
   const isFirstRoll = !record.firstRolledAt;
   const achievedAt = Date.now();
   const previousBest = record.best?.denominator || 0;
