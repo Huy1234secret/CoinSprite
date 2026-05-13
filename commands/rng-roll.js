@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const levelingManager = require('../src/levelingManager');
+const rngNotificationStore = require('../src/rngNotificationStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -554,10 +555,15 @@ async function announceRareRoll(client, userId, rarity) {
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
   if (!channel) return;
   const color = await getRoleColor(channel.guild, threshold);
-  await channel.send(container(color, [
-    `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
-    `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
-  ].join('\n'))).catch(() => null);
+  const pingContent = rngNotificationStore.shouldNotify(userId, rarity.denominator) ? `<@${userId}>` : undefined;
+  await channel.send({
+    content: pingContent,
+    allowedMentions: pingContent ? { users: [userId] } : { users: [] },
+    ...container(color, [
+      `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
+      `with a chance of 1 in ${formatNumber(rarity.denominator)}! \`(${formatPercent(rarity.denominator)}%)\``,
+    ].join('\n')),
+  }).catch(() => null);
 }
 
 function getRollCooldownUntil(userId) {
