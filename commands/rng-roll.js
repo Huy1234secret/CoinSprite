@@ -17,6 +17,7 @@ const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 const ROLL_COOLDOWN_MS = 5_000;
 const MIN_ROLL_LEVEL = 5;
+const MIN_RARE_ANNOUNCE_DENOMINATOR = 1_000;
 
 const rollCooldowns = new Map();
 
@@ -601,12 +602,15 @@ async function announceRareRoll(client, userId, rarity) {
   // help produce the roll, but it must not lower the displayed chance or affect
   // which threshold color/notification rules are used.
   const baseDenominator = getBaseRollDenominator(rarity);
+  if (baseDenominator < MIN_RARE_ANNOUNCE_DENOMINATOR) return;
   const threshold = getRollThreshold(baseDenominator);
   if (!threshold) return;
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
   if (!channel) return;
   const color = await getRoleColor(channel.guild, threshold);
-  const pingContent = rngNotificationStore.shouldNotify(userId, baseDenominator) ? `<@${userId}>` : undefined;
+  // Always announce rolls at 1/1k or rarer, but only mention the roller when
+  // their base rarity odds meet their personal notification threshold.
+  const pingContent = rngNotificationStore.shouldMention(userId, baseDenominator) ? `<@${userId}>` : undefined;
   const lines = [
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
     `with a chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
