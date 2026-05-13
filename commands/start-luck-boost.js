@@ -67,9 +67,9 @@ module.exports = {
 
     const endsUnix = Math.floor(boost.endsAt / 1000);
     await channel.send({
-      content: `<@&${LUCK_BOOST_ROLE_ID}>`,
       allowedMentions: { roles: [LUCK_BOOST_ROLE_ID] },
       ...container(colorForMultiplier(boost.multiplier), [
+        `<@&${LUCK_BOOST_ROLE_ID}>`,
         `### <@${interaction.user.id}> has started LUCK BOOST🍀 for ${durationInput}!`,
         `-# All users earn ${formatMoreLuckPercent(percent)} more luck (${formatMultiplier(boost.multiplier)} total), ends <t:${endsUnix}:R>`,
       ].join('\n')),
