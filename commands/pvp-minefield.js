@@ -25,6 +25,7 @@ const MAX_BET = 100_000;
 const BOARD_SIZE = 25;
 const SAFE_TILES = BOARD_SIZE - 1;
 const PREFIX = 'pvpmine';
+const MINE_LOCATION_THREAD_ID = '1495783372591730750';
 const EMPTY_TILE_LABEL = '\u200B';
 const MINE_EMOJI = { name: '💥' };
 const SUFFIX_MULTIPLIERS = { k: 1_000, m: 1_000_000, b: 1_000_000_000, t: 1_000_000_000_000 };
@@ -157,6 +158,28 @@ function buildChallengePayload(challenge, state = 'pending') {
   if (state === 'declined' || state === 'expired') accent = RED_ACCENT;
   if (state === 'accepted') accent = GREEN_ACCENT;
   return payload(accent, components);
+}
+
+function formatTileLocation(tileIndex) {
+  const rowIndex = Math.floor(tileIndex / 5);
+  const columnIndex = tileIndex % 5;
+  return `tile **${tileIndex + 1}** (row **${rowIndex + 1}**, column **${columnIndex + 1}**)`;
+}
+
+async function announceMineLocation(game, interaction) {
+  const thread = interaction.client.channels.cache.get(MINE_LOCATION_THREAD_ID)
+    || await interaction.client.channels.fetch(MINE_LOCATION_THREAD_ID).catch(() => null);
+  if (!thread?.isTextBased?.()) return;
+
+  await thread.send({
+    content: [
+      '## PVP Minefield Bomb Location',
+      `Game: **${game.id}**`,
+      `Players: ${game.players.map((player) => player.mention).join(' vs ')}`,
+      `Bomb: ${formatTileLocation(game.mineIndex)}`,
+    ].join('\n'),
+    allowedMentions: { parse: [] },
+  }).catch(() => null);
 }
 
 function buildMinefieldRows(game) {
@@ -362,6 +385,7 @@ async function beginGame(challenge, interaction) {
 
   await interaction.deferUpdate().catch(() => null);
   await game.message?.edit(buildGamePayload(game)).catch(() => null);
+  await announceMineLocation(game, interaction);
   resetGameTimer(game);
 }
 
