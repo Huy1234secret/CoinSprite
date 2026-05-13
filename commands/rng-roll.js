@@ -3,6 +3,7 @@ const path = require('path');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const levelingManager = require('../src/levelingManager');
 const rngNotificationStore = require('../src/rngNotificationStore');
+const { formatMultiplier, getActiveBoost } = require('../src/luckBoosts');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -322,6 +323,7 @@ function getUserRecord(state, userId) {
   const record = state.users[userId];
   record.totalRolls = Math.max(0, Math.floor(Number(record.totalRolls) || 0));
   record.topRolls = Array.isArray(record.topRolls) ? record.topRolls : [];
+  record.pendingLuckMultiplier = Math.max(1, Number(record.pendingLuckMultiplier) || 1);
   return record;
 }
 
@@ -388,10 +390,12 @@ function accentForDenominator(denominator) {
   return 0xFFFFFF;
 }
 
-function rollRarity() {
+function rollRarity(luckMultiplier = 1) {
+  const safeLuckMultiplier = Math.max(1, Number(luckMultiplier) || 1);
   let best = RARITIES[0];
   for (const rarity of RARITIES) {
-    if (Math.floor(Math.random() * rarity.denominator) === 0 && rarity.denominator > best.denominator) {
+    const chance = Math.min(1, safeLuckMultiplier / rarity.denominator);
+    if (Math.random() < chance && rarity.denominator > best.denominator) {
       best = rarity;
     }
   }
@@ -423,11 +427,12 @@ function nextFiveMinuteBoundaryUtcPlus7(now = new Date()) {
   return new Date(shifted.getTime() - (7 * 60 * 60 * 1000));
 }
 
-function buildRollPayload(rarity, isNewRecord) {
+function buildRollPayload(rarity, isNewRecord, boostLines = []) {
   const lines = [
     `## You have rolled ${rarityLabel(rarity)}`,
     `-# ${formatPercent(rarity.denominator)}%`,
   ];
+  lines.push(...boostLines);
   if (isNewRecord) lines.push('-# **You have achieved a new RECORD!**');
   return container(accentForDenominator(rarity.denominator), lines.join('\n'));
 }
@@ -591,6 +596,21 @@ function setRollCooldown(userId) {
   rollCooldowns.set(userId, Date.now() + ROLL_COOLDOWN_MS);
 }
 
+function getMilestoneLuckMultiplier(totalRolls) {
+  const safeRolls = Math.max(0, Math.floor(Number(totalRolls) || 0));
+  if (safeRolls > 0 && safeRolls % 100 === 0) return 5;
+  if (safeRolls > 0 && safeRolls % 10 === 0) return 1.5;
+  return 1;
+}
+
+function getLuckBoostLines({ personalMultiplier, globalBoost, earnedNextMultiplier }) {
+  const lines = [];
+  if (personalMultiplier > 1) lines.push(`-# Personal next-roll luck boost used: ${formatMultiplier(personalMultiplier)}`);
+  if (globalBoost?.multiplier > 1) lines.push(`-# Server luck boost active: ${formatMultiplier(globalBoost.multiplier)} until <t:${Math.floor(globalBoost.endsAt / 1000)}:R>`);
+  if (earnedNextMultiplier > 1) lines.push(`-# You earned ${formatMultiplier(earnedNextMultiplier)} luck for your next roll!`);
+  return lines;
+}
+
 async function handleRollMessage(message, client) {
   if (message.author?.bot || message.content.trim().toLowerCase() !== '!roll') return false;
   if (!ROLL_CHANNEL_IDS.has(message.channelId)) {
@@ -617,9 +637,13 @@ async function handleRollMessage(message, client) {
   if (getRollCooldownUntil(message.author.id) > Date.now()) return true;
   setRollCooldown(message.author.id);
 
-  const rarity = rollRarity();
   const state = loadState();
   const record = getUserRecord(state, message.author.id);
+  const personalLuckMultiplier = record.pendingLuckMultiplier;
+  record.pendingLuckMultiplier = 1;
+  const globalBoost = getActiveBoost();
+  const totalLuckMultiplier = personalLuckMultiplier * (globalBoost?.multiplier || 1);
+  const rarity = rollRarity(totalLuckMultiplier);
   const isFirstRoll = !record.firstRolledAt;
   const achievedAt = Date.now();
   const previousBest = record.best?.denominator || 0;
@@ -627,12 +651,18 @@ async function handleRollMessage(message, client) {
   const rollRecord = { emoji: rarity.emoji, name: rarity.name, denominator: rarity.denominator, achievedAt };
 
   record.totalRolls += 1;
+  const earnedNextMultiplier = getMilestoneLuckMultiplier(record.totalRolls);
+  record.pendingLuckMultiplier = earnedNextMultiplier;
   if (isFirstRoll) record.firstRolledAt = achievedAt;
   if (isNewRecord) record.best = rollRecord;
   updateTopRolls(record, rollRecord);
   saveState(state);
 
-  await replyWithoutPing(message, buildRollPayload(rarity, isNewRecord)).catch(() => null);
+  await replyWithoutPing(message, buildRollPayload(rarity, isNewRecord, getLuckBoostLines({
+    personalMultiplier: personalLuckMultiplier,
+    globalBoost,
+    earnedNextMultiplier,
+  }))).catch(() => null);
   await assignRollRoles(message.member, rarity.denominator, isFirstRoll);
   await announceRareRoll(client, message.author.id, rarity);
   return true;
