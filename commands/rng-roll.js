@@ -3,6 +3,11 @@ const path = require('path');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const levelingManager = require('../src/levelingManager');
 const rngNotificationStore = require('../src/rngNotificationStore');
+const {
+  MIN_RARE_ANNOUNCE_DENOMINATOR,
+  getBaseRollDenominator,
+  shouldAnnounceRareRoll,
+} = require('../src/rngAnnouncementRules');
 const { formatMultiplier, getActiveBoost } = require('../src/luckBoosts');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
@@ -17,8 +22,6 @@ const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 const ROLL_COOLDOWN_MS = 5_000;
 const MIN_ROLL_LEVEL = 5;
-const MIN_RARE_ANNOUNCE_DENOMINATOR = 1_000;
-
 const rollCooldowns = new Map();
 
 const FIRST_ROLL_ROLE_ID = '1503735931574812762';
@@ -549,13 +552,6 @@ function updateTopRolls(record, roll) {
   record.topRolls = record.topRolls.slice(0, 3);
 }
 
-function getBaseRollDenominator(rollOrDenominator) {
-  if (rollOrDenominator && typeof rollOrDenominator === 'object') {
-    return Math.max(0, Math.floor(Number(rollOrDenominator.denominator) || 0));
-  }
-  return Math.max(0, Math.floor(Number(rollOrDenominator) || 0));
-}
-
 function getEarnedRoleThresholds(rollOrDenominator) {
   const baseDenominator = getBaseRollDenominator(rollOrDenominator);
   return ROLE_THRESHOLDS.filter((threshold) => baseDenominator >= threshold.denominator);
@@ -602,7 +598,7 @@ async function announceRareRoll(client, userId, rarity) {
   // help produce the roll, but it must not lower the displayed chance or affect
   // which threshold color/notification rules are used.
   const baseDenominator = getBaseRollDenominator(rarity);
-  if (baseDenominator < MIN_RARE_ANNOUNCE_DENOMINATOR) return;
+  if (!shouldAnnounceRareRoll(baseDenominator, MIN_RARE_ANNOUNCE_DENOMINATOR)) return;
   const threshold = getRollThreshold(baseDenominator);
   if (!threshold) return;
   const channel = await getTextChannel(client, ANNOUNCE_CHANNEL_ID);
