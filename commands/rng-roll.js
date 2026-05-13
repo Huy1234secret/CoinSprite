@@ -552,8 +552,20 @@ function updateTopRolls(record, roll) {
   record.topRolls = record.topRolls.slice(0, 3);
 }
 
-function getRollThreshold(denominator) {
-  return [...ROLE_THRESHOLDS].reverse().find((item) => denominator >= item.denominator) ?? null;
+function getBaseRollDenominator(rollOrDenominator) {
+  if (rollOrDenominator && typeof rollOrDenominator === 'object') {
+    return Math.max(0, Math.floor(Number(rollOrDenominator.denominator) || 0));
+  }
+  return Math.max(0, Math.floor(Number(rollOrDenominator) || 0));
+}
+
+function getEarnedRoleThresholds(rollOrDenominator) {
+  const baseDenominator = getBaseRollDenominator(rollOrDenominator);
+  return ROLE_THRESHOLDS.filter((threshold) => baseDenominator >= threshold.denominator);
+}
+
+function getRollThreshold(rollOrDenominator) {
+  return getEarnedRoleThresholds(rollOrDenominator).at(-1) ?? null;
 }
 
 async function getRoleColor(guild, threshold) {
@@ -562,12 +574,30 @@ async function getRoleColor(guild, threshold) {
   return role?.color || threshold.color || 0xFFFFFF;
 }
 
-async function assignRollRoles(member, denominator, isFirstRoll) {
-  if (!member?.roles?.add) return;
-  if (isFirstRoll) await member.roles.add(FIRST_ROLL_ROLE_ID).catch(() => null);
-  for (const threshold of ROLE_THRESHOLDS) {
-    if (denominator >= threshold.denominator) await member.roles.add(threshold.roleId).catch(() => null);
-  }
+async function assignRollRoles(member, roll, isFirstRoll) {
+  if (!member) return;
+
+  // Award threshold roles from the rarity's base listed denominator, not the
+  // luck-boosted effective odds used to generate the roll. For example, Runic
+  // is always treated as 1/213k here, so it earns the 1/100k-or-rarer role.
+  const roleIds = getEarnedRoleThresholds(roll).map((threshold) => threshold.roleId);
+  if (isFirstRoll) roleIds.unshift(FIRST_ROLL_ROLE_ID);
+  if (roleIds.length === 0) return;
+
+  const freshMember = typeof member.fetch === 'function'
+    ? await member.fetch(true).catch(() => member)
+    : member;
+  const roles = freshMember?.roles || member.roles;
+  if (!roles?.add) return;
+
+  const missingRoleIds = roleIds.filter((roleId) => !roles.cache?.has?.(roleId));
+  if (missingRoleIds.length === 0) return;
+
+  await roles.add(missingRoleIds).catch(async () => {
+    for (const roleId of missingRoleIds) {
+      await roles.add(roleId).catch(() => null);
+    }
+  });
 }
 
 async function announceRareRoll(client, userId, rarity, totalLuckMultiplier = 1) {
@@ -670,7 +700,7 @@ async function handleRollMessage(message, client) {
     globalBoost,
     earnedNextMultiplier,
   }))).catch(() => null);
-  await assignRollRoles(message.member, rarity.denominator, isFirstRoll);
+  await assignRollRoles(message.member, rarity, isFirstRoll);
   await announceRareRoll(client, message.author.id, rarity, totalLuckMultiplier);
   return true;
 }
