@@ -17,6 +17,8 @@ const ROLL_CHANNEL_ID_LIST = ['1503708687569522778', '1503763965497315458', '150
 const ROLL_CHANNEL_IDS = new Set(ROLL_CHANNEL_ID_LIST);
 const PRIMARY_ROLL_CHANNEL_ID = ROLL_CHANNEL_ID_LIST[0];
 const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
+const RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID = '1498300014114377860';
+const RARE_ROLL_LOG_THREAD_ID = '1495783372591730750';
 const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
@@ -599,6 +601,53 @@ async function assignRollRoles(member, roll, isFirstRoll) {
   });
 }
 
+function formatErrorForLog(error) {
+  if (!error) return 'Unknown error';
+  const code = error.code ? ` code=${error.code}` : '';
+  const status = error.status ? ` status=${error.status}` : '';
+  const message = error.message || String(error);
+  return `${message}${code}${status}`;
+}
+
+function buildRareRollLogContent({ userId, rarity, baseDenominator, rollChannelId, sent, reason, error, announcementId }) {
+  const lines = [
+    `${sent ? '✅' : '⚠️'} RNG rare roll announcement ${sent ? 'sent' : 'not sent'}`,
+    `User: <@${userId}> (${userId})`,
+    `Rarity: ${rarityLabel(rarity)}`,
+    `Base chance: 1/${formatNumber(baseDenominator)} (${formatPercent(baseDenominator)}%)`,
+    `Roll source channel: ${rollChannelId ? `<#${rollChannelId}> (${rollChannelId})` : 'unknown'}`,
+    `Announcement channel: <#${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}> (${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID})`,
+    `Announcement sent: ${sent ? 'yes' : 'no'}`,
+  ];
+  if (announcementId) lines.push(`Announcement message: ${announcementId}`);
+  if (reason) lines.push(`Reason: ${reason}`);
+  if (error) lines.push(`Error: ${formatErrorForLog(error)}`);
+  return lines.join('\n').slice(0, 2000);
+}
+
+async function sendRareRollLog(client, details) {
+  const content = buildRareRollLogContent(details);
+  const thread = await getTextChannel(client, RARE_ROLL_LOG_THREAD_ID, 'RNG rare-roll log thread');
+  if (!thread) {
+    console.error(`[rng-roll] Cannot post rare-roll log: thread ${RARE_ROLL_LOG_THREAD_ID} was not found or is not text-based.`);
+    return false;
+  }
+
+  try {
+    await thread.send({ content, allowedMentions: { parse: [] } });
+    return true;
+  } catch (error) {
+    console.error(`[rng-roll] Failed to post rare-roll log to thread ${RARE_ROLL_LOG_THREAD_ID}:`, error);
+    return false;
+  }
+}
+
+async function logRareRollNotSent(client, details) {
+  console.error(`[rng-roll] Rare-roll announcement not sent for ${details.userId}: ${details.reason || formatErrorForLog(details.error)}.`);
+  await sendRareRollLog(client, { ...details, sent: false });
+  return false;
+}
+
 async function announceRareRoll(client, userId, rarity, rollChannelId) {
   // Rare-roll announcements use the rarity's base listed odds only. Luck may
   // help produce the roll, but it must not lower the displayed chance or affect
@@ -609,21 +658,28 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
     return false;
   }
 
+  console.info(`[rng-roll] Rare roll detected for ${userId}: ${rarity?.name || 'unknown'} with base denominator 1/${baseDenominator}; luck-adjusted odds are ignored for announcement rules.`);
+
   const threshold = getRollThreshold(baseDenominator);
   if (!threshold) {
-    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: no role threshold matched denominator ${baseDenominator}.`);
-    return false;
+    return logRareRollNotSent(client, {
+      userId,
+      rarity,
+      baseDenominator,
+      rollChannelId,
+      reason: `No role threshold matched denominator ${baseDenominator}.`,
+    });
   }
 
-  if (!ROLL_CHANNEL_IDS.has(rollChannelId)) {
-    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: roll channel ${rollChannelId || 'unknown'} is not in configured roll channels (${ROLL_CHANNEL_ID_LIST.join(', ')}).`);
-    return false;
-  }
-
-  const channel = await getTextChannel(client, rollChannelId, 'RNG roll announcement channel');
+  const channel = await getTextChannel(client, RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID, 'RNG rare-roll announcement channel');
   if (!channel) {
-    console.error(`[rng-roll] Cannot announce ${rarity?.name || 'unknown'} for ${userId}: channel ${rollChannelId} was not found or is not text-based.`);
-    return false;
+    return logRareRollNotSent(client, {
+      userId,
+      rarity,
+      baseDenominator,
+      rollChannelId,
+      reason: `Announcement channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID} was not found or is not text-based.`,
+    });
   }
 
   const color = await getRoleColor(channel.guild, threshold);
@@ -632,21 +688,45 @@ async function announceRareRoll(client, userId, rarity, rollChannelId) {
   const pingContent = rngNotificationStore.shouldMention(userId, baseDenominator) ? `<@${userId}>` : undefined;
   const lines = [
     `## <@${userId}> has rolled ${rarityLabel(rarity)}`,
-    `with a chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
+    `with a base chance of 1 in ${formatNumber(baseDenominator)}! \`(${formatPercent(baseDenominator)}%)\``,
   ];
 
-  console.info(`[rng-roll] Sending rare-roll announcement for ${userId} in channel ${rollChannelId}: ${rarity?.name || 'unknown'} 1/${baseDenominator}.`);
+  console.info(`[rng-roll] Sending rare-roll announcement for ${userId} in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}: ${rarity?.name || 'unknown'} 1/${baseDenominator}.`);
   try {
     const announcement = await channel.send({
       content: pingContent,
       allowedMentions: pingContent ? { users: [userId] } : { users: [] },
       ...container(color, lines.join('\n')),
     });
-    console.info(`[rng-roll] Rare-roll announcement sent in channel ${rollChannelId}${announcement?.id ? ` as message ${announcement.id}` : ''}.`);
+    if (!announcement?.id) {
+      return logRareRollNotSent(client, {
+        userId,
+        rarity,
+        baseDenominator,
+        rollChannelId,
+        reason: 'Discord send resolved without an announcement message id.',
+      });
+    }
+
+    console.info(`[rng-roll] Rare-roll announcement sent in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID} as message ${announcement.id}.`);
+    await sendRareRollLog(client, {
+      userId,
+      rarity,
+      baseDenominator,
+      rollChannelId,
+      sent: true,
+      announcementId: announcement.id,
+    });
     return true;
   } catch (error) {
-    console.error(`[rng-roll] Failed to send rare-roll announcement for ${userId} in channel ${rollChannelId}:`, error);
-    return false;
+    console.error(`[rng-roll] Failed to send rare-roll announcement for ${userId} in channel ${RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID}:`, error);
+    return logRareRollNotSent(client, {
+      userId,
+      rarity,
+      baseDenominator,
+      rollChannelId,
+      error,
+    });
   }
 }
 
