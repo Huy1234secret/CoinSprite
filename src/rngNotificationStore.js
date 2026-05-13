@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-notifications.json');
+const { shouldMentionAtThreshold } = require('./rngAnnouncementRules');
+
 const MAX_SAFE_DENOMINATOR = Number.MAX_SAFE_INTEGER;
 
 function defaultState() {
@@ -57,8 +59,7 @@ function setThreshold(userId, threshold) {
 
 function shouldMention(userId, denominator) {
   const threshold = getThreshold(userId);
-  if (threshold === null) return true;
-  return Math.floor(Number(denominator) || 0) >= threshold;
+  return shouldMentionAtThreshold(threshold, denominator);
 }
 
 function formatShortNumber(value) {
