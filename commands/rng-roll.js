@@ -397,20 +397,20 @@ function accentForDenominator(denominator) {
   return 0xFFFFFF;
 }
 
-function getSequentialLuckFactor(luckMultiplier = 1) {
+const MAX_LUCK_ADJUSTED_CHANCE = 0.99;
+
+function getLuckAdjustedChance(stepMultiplier, luckMultiplier = 1) {
+  const safeStepMultiplier = Math.max(1, Number(stepMultiplier) || 1);
   const safeLuckMultiplier = Math.max(1, Number(luckMultiplier) || 1);
-  const gatedRollCount = Math.max(1, RARITIES.length - 1);
-  return Math.pow(safeLuckMultiplier, 1 / gatedRollCount);
+  return Math.min(MAX_LUCK_ADJUSTED_CHANCE, safeLuckMultiplier / safeStepMultiplier);
 }
 
 function rollRarity(luckMultiplier = 1) {
   let best = RARITIES[0];
-  const luckFactor = getSequentialLuckFactor(luckMultiplier);
 
   for (let i = 1; i < RARITIES.length; i += 1) {
     const rarity = RARITIES[i];
-    const stepMultiplier = Math.max(1, Number(rarity.stepMultiplier) || 1);
-    const chance = Math.min(1, luckFactor / stepMultiplier);
+    const chance = getLuckAdjustedChance(rarity.stepMultiplier, luckMultiplier);
     if (Math.random() >= chance) return best;
     best = rarity;
   }
@@ -838,5 +838,11 @@ module.exports = {
 
   async handleMessageCreate(message, client) {
     return handleRollMessage(message, client);
+  },
+
+  _test: {
+    MAX_LUCK_ADJUSTED_CHANCE,
+    getLuckAdjustedChance,
+    rollRarity,
   },
 };
