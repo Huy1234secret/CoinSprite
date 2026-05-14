@@ -5,7 +5,7 @@ const STORE_PATH = path.join(__dirname, '..', 'data', 'luck-boosts.json');
 const DEFAULT_STATE = { activeBoost: null };
 const MIN_DURATION_MS = 60_000;
 const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_PERCENT = 10_000;
+const MAX_PERCENT = 100_000;
 const MIN_AMOUNT_ROLLS = 1;
 const MAX_AMOUNT_ROLLS = 1_000_000;
 
