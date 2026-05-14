@@ -143,7 +143,7 @@ function votingBody(state, intro, resultAtMs = state.resultAt || (Date.now() + V
   return `${intro} Result in <t:${resultAt}:R>\n-#** 🎁Prize pool: +${percent}% luck for 2h.**\n\n-# Note: If that color didnt win, you lose all the prize pool and ended up having only 1.2x luck for 30m. If wanted to take the current prize pool, just vote for STOP and you can change your vote.`;
 }
 
-function votingPayload(state, intro = '* Pick a color, only 1 color will win! The final decision based on how much people voted for it.') {
+function votingPayload(state, intro = '* Pick a color, only 1 color will win! Each color has a 50/50 chance no matter how many people voted for it.') {
   return eventPayload({
     accent: COLORS.green,
     body: `### 🎉 Global Event\n${votingBody(state, intro)}`,
@@ -261,12 +261,8 @@ async function beginDeciding(client) {
   scheduleNext(client);
 }
 
-function pickWeightedColor(counts) {
-  const green = Math.max(0, counts.green);
-  const red = Math.max(0, counts.red);
-  const total = green + red;
-  if (total <= 0) return Math.random() < 0.5 ? 'green' : 'red';
-  return Math.random() * total < green ? 'green' : 'red';
+function pickRandomColor() {
+  return Math.random() < 0.5 ? 'green' : 'red';
 }
 
 async function finishGame(client, state, { type, chosenColor = null }) {
@@ -332,7 +328,7 @@ async function resolveRound(client) {
     return;
   }
 
-  const chosenColor = pickWeightedColor(counts);
+  const chosenColor = pickRandomColor();
   const otherColor = chosenColor === 'green' ? 'red' : 'green';
   const success = counts[chosenColor] >= counts[otherColor];
   if (!success) {
@@ -401,7 +397,7 @@ module.exports = {
     saveState(state);
     const payload = votingPayload(state, state.chosenColor
       ? `* ${state.chosenColor === 'green' ? '🟢 green' : '🔴 red'} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`
-      : '* Pick a color, only 1 color will win! The final decision based on how much people voted for it.');
+      : '* Pick a color, only 1 color will win! Each color has a 50/50 chance no matter how many people voted for it.');
     await interaction.message?.edit(payload).catch(() => null);
     return true;
   },
