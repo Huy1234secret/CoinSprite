@@ -137,8 +137,8 @@ function waitingPayload(nextStartAt) {
   });
 }
 
-function votingBody(state, intro) {
-  const resultAt = Math.floor((state.resultAt || (Date.now() + VOTE_MS)) / 1000);
+function votingBody(state, intro, resultAtMs = state.resultAt || (Date.now() + VOTE_MS)) {
+  const resultAt = Math.floor(resultAtMs / 1000);
   const percent = formatPrizePercent(prizeMultiplierForRound(state.round));
   return `${intro} Result in <t:${resultAt}:R>\n-#** 🎁Prize pool: +${percent}% luck for 2h.**\n\n-# Note: If that color didnt win, you lose all the prize pool and ended up having only 1.2x luck for 30m. If wanted to take the current prize pool, just vote for STOP and you can change your vote.`;
 }
@@ -155,7 +155,7 @@ function votingPayload(state, intro = '* Pick a color, only 1 color will win! Th
 function decidingPayload(state) {
   return eventPayload({
     accent: COLORS.white,
-    body: `### 🎉 Global Event\n${votingBody(state, '* Deciding the winning color...')}`,
+    body: `### 🎉 Global Event\n${votingBody(state, '* Deciding the winning color...', state.decidingEndsAt || Date.now() + DECIDING_MS)}`,
     counts: voteCounts(state.votes),
     disabled: true,
   });
@@ -166,6 +166,16 @@ function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, conte
   return eventPayload({
     accent,
     body: `### 🎉 Global Event\n${body}\n-#** 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for ${durationMs === WIN_BOOST_MS ? '2h' : '30m'}. \`[boost end <t:${Math.floor(endsAt / 1000)}:R>]\`**\n-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
+    content,
+  });
+}
+
+function noVotesPayload({ nextStartAt, content = `<@&${PING_ROLE_ID}>` }) {
+  return eventPayload({
+    accent: COLORS.white,
+    body: `### 🎉 Global Event
+* No one voted, so this global event round ended without a luck boost.
+-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
     content,
   });
 }
@@ -287,12 +297,35 @@ async function finishGame(client, state, { type, chosenColor = null }) {
   scheduleNext(client);
 }
 
+async function finishNoVotes(client, state) {
+  const channel = await getTextChannel(client);
+  if (!channel) return;
+  const nextStartAt = nextEventStart(Date.now() + 1_000);
+  Object.assign(state, {
+    phase: nextStartAt ? 'finished' : 'waiting',
+    votes: {},
+    resultAt: null,
+    decidingEndsAt: null,
+    chosenColor: null,
+    nextStartAt,
+  });
+  if (nextStartAt) await sendOrEdit(channel, state, noVotesPayload({ nextStartAt }));
+  saveState(state);
+  scheduleNext(client);
+}
+
 async function resolveRound(client) {
   const channel = await getTextChannel(client);
   if (!channel) return;
   const state = loadState();
   if (state.phase !== 'deciding') return scheduleNext(client);
   const counts = voteCounts(state.votes);
+  const colorVotes = counts.green + counts.red;
+
+  if (colorVotes <= 0 && counts.stop <= 0) {
+    await finishNoVotes(client, state);
+    return;
+  }
 
   if (counts.stop > counts.green && counts.stop > counts.red) {
     await finishGame(client, state, { type: 'stop' });
@@ -319,7 +352,7 @@ async function resolveRound(client) {
   state.resultAt = Date.now() + VOTE_MS;
   state.decidingEndsAt = null;
   state.chosenColor = chosenColor;
-  await sendOrEdit(channel, state, votingPayload(state, `* ${colorText} was chosen! You picked the correct one!. Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`));
+  await sendOrEdit(channel, state, votingPayload(state, `* ${colorText} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`));
   saveState(state);
   scheduleNext(client);
 }
@@ -362,12 +395,14 @@ module.exports = {
       await interaction.reply({ content: 'Voting is not open for this global event right now.', flags: EPHEMERAL_FLAG });
       return true;
     }
+    await interaction.deferUpdate();
     state.votes = state.votes && typeof state.votes === 'object' ? state.votes : {};
     state.votes[interaction.user.id] = action;
     saveState(state);
-    await interaction.update(votingPayload(state, state.chosenColor
-      ? `* ${state.chosenColor === 'green' ? '🟢 green' : '🔴 red'} was chosen! You picked the correct one!. Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`
-      : '* Pick a color, only 1 color will win! The final decision based on how much people voted for it.'));
+    const payload = votingPayload(state, state.chosenColor
+      ? `* ${state.chosenColor === 'green' ? '🟢 green' : '🔴 red'} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`
+      : '* Pick a color, only 1 color will win! The final decision based on how much people voted for it.');
+    await interaction.message?.edit(payload).catch(() => null);
     return true;
   },
 };
