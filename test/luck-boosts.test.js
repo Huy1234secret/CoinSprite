@@ -9,6 +9,7 @@ const {
   formatRollCount,
   getActiveBoost,
   parseAmountRolls,
+  parseLuckPercent,
   startBoost,
 } = require('../src/luckBoosts');
 
@@ -46,4 +47,9 @@ test('amount helpers accept only whole roll counts and format roll labels', () =
   assert.equal(parseAmountRolls(0), null);
   assert.equal(formatRollCount(1), '1 roll');
   assert.equal(formatRollCount(10), '10 rolls');
+});
+
+test('luck percent accepts boosts up to 100000%', () => {
+  assert.equal(parseLuckPercent(100000), 100000);
+  assert.equal(parseLuckPercent(100000.01), null);
 });
