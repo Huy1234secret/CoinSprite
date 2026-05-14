@@ -165,7 +165,7 @@ function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, conte
   const endsAt = Date.now() + durationMs;
   return eventPayload({
     accent,
-    body: `### 🎉 Global Event\n${body}\n-#** 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for ${durationMs === WIN_BOOST_MS ? '2h' : '30m'}. \`[boost end <t:${Math.floor(endsAt / 1000)}:R>]\`**\n-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
+    body: `### 🎉 Global Event\n${body}\n-# 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for ${durationMs === WIN_BOOST_MS ? '2h' : '30m'}. **[boost end <t:${Math.floor(endsAt / 1000)}:R>]**\n-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
     content,
   });
 }
