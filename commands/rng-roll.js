@@ -399,23 +399,29 @@ function accentForDenominator(denominator) {
 
 const MAX_LUCK_ADJUSTED_CHANCE = 0.99;
 
-function getLuckAdjustedChance(stepMultiplier, luckMultiplier = 1) {
-  const safeStepMultiplier = Math.max(1, Number(stepMultiplier) || 1);
+function getLuckAdjustedChance(denominator, luckMultiplier = 1) {
+  const safeDenominator = Math.max(1, Number(denominator) || 1);
   const safeLuckMultiplier = Math.max(1, Number(luckMultiplier) || 1);
-  return Math.min(MAX_LUCK_ADJUSTED_CHANCE, safeLuckMultiplier / safeStepMultiplier);
+  return Math.min(MAX_LUCK_ADJUSTED_CHANCE, safeLuckMultiplier / safeDenominator);
+}
+
+function getLuckAdjustedDenominator(denominator, luckMultiplier = 1) {
+  const chance = getLuckAdjustedChance(denominator, luckMultiplier);
+  return chance > 0 ? 1 / chance : Infinity;
 }
 
 function rollRarity(luckMultiplier = 1) {
-  let best = RARITIES[0];
+  const roll = Math.random();
 
-  for (let i = 1; i < RARITIES.length; i += 1) {
+  // Apply luck once to the listed/base denominator for every rarity. This keeps
+  // a 100x boost as exactly 100x odds (for example, 1/14.7b becomes
+  // 1/147m) instead of compounding the boost across every rarity step.
+  for (let i = RARITIES.length - 1; i >= 1; i -= 1) {
     const rarity = RARITIES[i];
-    const chance = getLuckAdjustedChance(rarity.stepMultiplier, luckMultiplier);
-    if (Math.random() >= chance) return best;
-    best = rarity;
+    if (roll < getLuckAdjustedChance(rarity.denominator, luckMultiplier)) return rarity;
   }
 
-  return best;
+  return RARITIES[0];
 }
 
 function sortRolls(a, b) {
@@ -843,6 +849,7 @@ module.exports = {
   _test: {
     MAX_LUCK_ADJUSTED_CHANCE,
     getLuckAdjustedChance,
+    getLuckAdjustedDenominator,
     rollRarity,
   },
 };
