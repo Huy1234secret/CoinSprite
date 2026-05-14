@@ -597,7 +597,9 @@ async function assignRollRoles(member, roll, isFirstRoll) {
   // luck-boosted effective odds used to generate the roll. For example, Runic
   // is always treated as 1/213k here, so it earns the 1/100k-or-rarer role.
   const roleIds = getEarnedRoleThresholds(roll).map((threshold) => threshold.roleId);
-  if (isFirstRoll) roleIds.unshift(FIRST_ROLL_ROLE_ID);
+  // Keep the first-roll role recoverable: if a user removes it with the prefix
+  // command below, any later !roll should add it back.
+  roleIds.unshift(FIRST_ROLL_ROLE_ID);
   if (roleIds.length === 0) return;
 
   const freshMember = typeof member.fetch === 'function'
@@ -768,7 +770,32 @@ function getLuckBoostLines({ personalMultiplier, globalBoost, earnedNextMultipli
   return lines;
 }
 
+async function handleRemoveNewbieRollerMessage(message) {
+  if (message.author?.bot || message.content.trim().toLowerCase() !== '!remove newbie-roller') return false;
+
+  const roles = message.member?.roles;
+  if (!roles?.remove) {
+    await replyWithoutPing(message, container(0xED4245, '### I could not access your roles.')).catch(() => null);
+    return true;
+  }
+
+  const hasRole = roles.cache?.has?.(FIRST_ROLL_ROLE_ID) ?? false;
+  if (!hasRole) {
+    await replyWithoutPing(message, container(0xED4245, `### You do not currently have the newbie-roller role.
+-# Use !roll to get it back.`)).catch(() => null);
+    return true;
+  }
+
+  await roles.remove(FIRST_ROLL_ROLE_ID).then(
+    () => replyWithoutPing(message, container(0x57F287, `### Removed the newbie-roller role.
+-# Use !roll anytime to get it back.`)),
+    () => replyWithoutPing(message, container(0xED4245, '### I could not remove the newbie-roller role.'))
+  ).catch(() => null);
+  return true;
+}
+
 async function handleRollMessage(message, client) {
+  if (await handleRemoveNewbieRollerMessage(message)) return true;
   if (message.author?.bot || message.content.trim().toLowerCase() !== '!roll') return false;
   if (!ROLL_CHANNEL_IDS.has(message.channelId)) {
     await replyWithoutPing(message, container(0xED4245, `Use !roll in <#${PRIMARY_ROLL_CHANNEL_ID}>.`)).catch(() => null);
