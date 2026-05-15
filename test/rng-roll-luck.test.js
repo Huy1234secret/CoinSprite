@@ -6,6 +6,8 @@ const {
   getGlobalGoalLuckMultiplier,
   getGlobalGoalLuckPercent,
   getGlobalGoalTier,
+  buildGlobalGoalPayload,
+  buildLeaderboardPayload,
   getGlobalRollCount,
   getLuckAdjustedChance,
   getLuckAdjustedDenominator,
@@ -76,4 +78,22 @@ test('global goal tiers increase every 1000 total rolls and grant permanent 25% 
 test('global roll count sums every user record', () => {
   assert.equal(getGlobalRollCount({ users: { a: { totalRolls: 250 }, b: { totalRolls: 750 }, c: { totalRolls: '12' } } }), 1012);
   assert.equal(getGlobalRollCount({ users: { a: { totalRolls: -1 }, b: { totalRolls: null } } }), 0);
+});
+
+test('rng event leaderboard payload remains separate from global goal payload', () => {
+  const state = {
+    users: {
+      first: { best: { emoji: '🏆', name: 'Supreme', denominator: 953, achievedAt: 2 }, totalRolls: 10 },
+      second: { best: { emoji: '🟣', name: 'Epic', denominator: 10, achievedAt: 1 }, totalRolls: 5 },
+    },
+  };
+
+  const leaderboard = JSON.stringify(buildLeaderboardPayload(state));
+  const globalGoal = JSON.stringify(buildGlobalGoalPayload(state));
+
+  assert.match(leaderboard, /RNG Event Leaderboard/);
+  assert.match(leaderboard, /<@first>/);
+  assert.match(leaderboard, /Supreme/);
+  assert.doesNotMatch(leaderboard, /Global Goal/);
+  assert.match(globalGoal, /Global Goal/);
 });

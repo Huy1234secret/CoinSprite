@@ -16,7 +16,9 @@ const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-rolls.json');
 const ROLL_CHANNEL_ID_LIST = ['1503708687569522778', '1503763965497315458', '1503773311547478196', '1503779472329936988'];
 const ROLL_CHANNEL_IDS = new Set(ROLL_CHANNEL_ID_LIST);
 const PRIMARY_ROLL_CHANNEL_ID = ROLL_CHANNEL_ID_LIST[0];
-const GLOBAL_GOAL_CHANNEL_ID = '1503738887929856121';
+const RNG_EVENT_CHANNEL_ID = '1503738887929856121';
+const GLOBAL_GOAL_CHANNEL_ID = RNG_EVENT_CHANNEL_ID;
+const LEADERBOARD_CHANNEL_ID = RNG_EVENT_CHANNEL_ID;
 const RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID = '1498300014114377860';
 const RARE_ROLL_LOG_THREAD_ID = '1495783372591730750';
 const START_PING_ROLE_ID = '1493930583137718272';
@@ -507,6 +509,38 @@ function buildProgressBar(current, required, width = 20) {
   return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
 }
 
+function buildLeaderboardPayload(state = loadState()) {
+  const status = getEventStatus();
+  const rankedUsers = getRankedUsers(state);
+  const totalParticipations = rankedUsers.length;
+  const ranked = rankedUsers.slice(0, 10);
+  const lines = ['## RNG Event Leaderboard'];
+
+  if (status === 'before') {
+    lines.push('-# Game has not started yet.');
+    lines.push(`-# Event starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`);
+  } else if (ranked.length === 0) {
+    lines.push('-# No rolls yet.');
+  } else {
+    for (let i = 0; i < ranked.length; i += 1) {
+      const row = ranked[i];
+      lines.push(`**#${i + 1}** <@${row.userId}> - ${rarityLabel(row)} (1/${formatShort(row.denominator)})`);
+    }
+  }
+
+  if (status === 'active') {
+    lines.push('');
+    lines.push(`-# * Total participations: ${formatNumber(totalParticipations)}`);
+    lines.push(`-# Refresh: <t:${Math.floor(nextFiveMinuteBoundaryUtcPlus7().getTime() / 1000)}:R>`);
+    lines.push(`-# Event ends: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
+  } else if (status === 'ended') {
+    lines.push('');
+    lines.push(`-# Event ended: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
+  }
+
+  return container(0xFFFFFF, lines.join('\n'));
+}
+
 function buildGlobalGoalPayload(state = loadState()) {
   const totalRolls = getGlobalRollCount(state);
   const tier = getGlobalGoalTier(totalRolls);
@@ -548,20 +582,32 @@ async function upsertGlobalGoalMessage(client) {
   let message = state.globalGoalMessageId
     ? await channel.messages.fetch(state.globalGoalMessageId).catch(() => null)
     : null;
-  if (!message && state.leaderboardMessageId) {
-    message = await channel.messages.fetch(state.leaderboardMessageId).catch(() => null);
-  }
   if (message) {
     await message.edit(payload).catch(() => null);
-    if (state.globalGoalMessageId !== message.id) {
-      state.globalGoalMessageId = message.id;
-      saveState(state);
-    }
     return;
   }
   message = await channel.send(payload).catch(() => null);
   if (message?.id) {
     state.globalGoalMessageId = message.id;
+    saveState(state);
+  }
+}
+
+async function upsertLeaderboardMessage(client) {
+  const channel = await getTextChannel(client, LEADERBOARD_CHANNEL_ID);
+  if (!channel) return;
+  const state = loadState();
+  const payload = buildLeaderboardPayload(state);
+  let message = state.leaderboardMessageId && state.leaderboardMessageId !== state.globalGoalMessageId
+    ? await channel.messages.fetch(state.leaderboardMessageId).catch(() => null)
+    : null;
+  if (message) {
+    await message.edit(payload).catch(() => null);
+    return;
+  }
+  message = await channel.send(payload).catch(() => null);
+  if (message?.id) {
+    state.leaderboardMessageId = message.id;
     saveState(state);
   }
 }
@@ -593,6 +639,7 @@ function scheduleNextRefresh() {
   scheduler = setTimeout(async () => {
     await maybeSendStartAnnouncement(schedulerClient);
     await upsertGlobalGoalMessage(schedulerClient);
+    await upsertLeaderboardMessage(schedulerClient);
     scheduleNextRefresh();
   }, delay);
 }
@@ -904,6 +951,7 @@ module.exports = {
     schedulerClient = client;
     await maybeSendStartAnnouncement(client);
     await upsertGlobalGoalMessage(client);
+    await upsertLeaderboardMessage(client);
     scheduleNextRefresh();
   },
 
@@ -924,6 +972,8 @@ module.exports = {
     getGlobalGoalTier,
     getGlobalRollCount,
     getStackedLuckMultiplier,
+    buildLeaderboardPayload,
+    buildGlobalGoalPayload,
     rollRarity,
   },
 };
