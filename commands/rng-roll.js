@@ -9,6 +9,12 @@ const {
   shouldAnnounceRareRoll,
 } = require('../src/rngAnnouncementRules');
 const { consumeActiveBoostRoll, formatMultiplier, formatRollCount, getActiveBoost } = require('../src/luckBoosts');
+const {
+  CLOVER,
+  awardCloverTokens,
+  consumeActiveUserBoostRolls,
+  getActiveUserBoosts,
+} = require('../src/luckShopStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -757,15 +763,32 @@ function getMilestoneLuckMultiplier(totalRolls) {
   return 1;
 }
 
-function getLuckBoostLines({ personalMultiplier, globalBoost, earnedNextMultiplier }) {
+function getStackedLuckMultiplier(...multipliers) {
+  const active = multipliers
+    .map((multiplier) => Math.max(1, Number(multiplier) || 1))
+    .filter((multiplier) => multiplier > 1);
+  if (active.length === 0) return 1;
+  return active.reduce((total, multiplier) => total + multiplier, 0);
+}
+
+function getInventoryBoostMultiplier(boosts) {
+  const activeBoosts = Array.isArray(boosts) ? boosts : [];
+  if (activeBoosts.length === 0) return 1;
+  return activeBoosts.reduce((total, boost) => total + Math.max(1, Number(boost.multiplier) || 1), 0);
+}
+
+function getLuckBoostLines({ personalMultiplier, inventoryMultiplier, inventoryBoostCount, globalBoost, totalLuckMultiplier, earnedNextMultiplier, cloverEarned }) {
   const lines = [];
   if (personalMultiplier > 1) lines.push(`-# Personal next-roll luck boost used: ${formatMultiplier(personalMultiplier)}`);
+  if (inventoryMultiplier > 1) lines.push(`-# Inventory luck boost used: ${formatMultiplier(inventoryMultiplier)} from ${formatRollCount(inventoryBoostCount).replace('rolls', 'boosts').replace('roll', 'boost')}`);
   if (globalBoost?.multiplier > 1) {
     const limitText = Number.isFinite(Number(globalBoost.endsAt))
       ? `until <t:${Math.floor(globalBoost.endsAt / 1000)}:R>`
       : `for this roll (${formatRollCount(globalBoost.remainingRolls)} available before this roll)`;
     lines.push(`-# Server luck boost active: ${formatMultiplier(globalBoost.multiplier)} ${limitText}`);
   }
+  if (totalLuckMultiplier > 1) lines.push(`-# Total stacked luck: ${formatMultiplier(totalLuckMultiplier)}`);
+  if (cloverEarned > 0) lines.push(`-# You earned ${formatNumber(cloverEarned)} ${CLOVER} clover token${cloverEarned === 1 ? '' : 's'}!`);
   if (earnedNextMultiplier > 1) lines.push(`-# You earned ${formatMultiplier(earnedNextMultiplier)} luck for your next roll!`);
   return lines;
 }
@@ -825,10 +848,13 @@ async function handleRollMessage(message, client) {
   const record = getUserRecord(state, message.author.id);
   const personalLuckMultiplier = record.pendingLuckMultiplier;
   record.pendingLuckMultiplier = 1;
+  const inventoryBoosts = getActiveUserBoosts(message.author.id);
+  const inventoryLuckMultiplier = getInventoryBoostMultiplier(inventoryBoosts);
   const globalBoost = getActiveBoost();
-  const totalLuckMultiplier = personalLuckMultiplier * (globalBoost?.multiplier || 1);
+  const totalLuckMultiplier = getStackedLuckMultiplier(personalLuckMultiplier, inventoryLuckMultiplier, globalBoost?.multiplier || 1);
   const rarity = rollRarity(totalLuckMultiplier);
   if (globalBoost?.remainingRolls) consumeActiveBoostRoll(globalBoost.id);
+  if (inventoryBoosts.length > 0) consumeActiveUserBoostRolls(message.author.id);
   const isFirstRoll = !record.firstRolledAt;
   const achievedAt = Date.now();
   const previousBest = record.best?.denominator || 0;
@@ -842,11 +868,16 @@ async function handleRollMessage(message, client) {
   if (isNewRecord) record.best = rollRecord;
   updateTopRolls(record, rollRecord);
   saveState(state);
+  const cloverAward = awardCloverTokens(message.author.id, rarity.denominator);
 
   await replyWithoutPing(message, buildRollPayload(rarity, isNewRecord, getLuckBoostLines({
     personalMultiplier: personalLuckMultiplier,
+    inventoryMultiplier: inventoryLuckMultiplier,
+    inventoryBoostCount: inventoryBoosts.length,
     globalBoost,
+    totalLuckMultiplier,
     earnedNextMultiplier,
+    cloverEarned: cloverAward.earned,
   }))).catch(() => null);
   await assignRollRoles(message.member, rarity, isFirstRoll);
   await announceRareRoll(client, message.author.id, rarity, message.channelId);
@@ -877,6 +908,7 @@ module.exports = {
     MAX_LUCK_ADJUSTED_CHANCE,
     getLuckAdjustedChance,
     getLuckAdjustedDenominator,
+    getStackedLuckMultiplier,
     rollRarity,
   },
 };
