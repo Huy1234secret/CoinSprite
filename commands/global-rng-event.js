@@ -20,6 +20,7 @@ const EVENT_INTERVAL_MS = 2 * 60 * 60_000;
 const WIN_BOOST_MS = 90 * 60_000;
 const FINAL_ROUND = 7;
 const PREFIX = 'globalrng';
+const CORRECT_COLOR_DM_USER_ID = '902736357766594611';
 const COLORS = {
   red: 0xed4245,
   green: 0x57f287,
@@ -279,6 +280,7 @@ function colorLabel(color) {
 }
 
 async function sendCorrectColorDm(user, state) {
+  if (user?.id !== CORRECT_COLOR_DM_USER_ID) return;
   const currentCorrectColor = isEventColor(state.currentCorrectColor) ? state.currentCorrectColor : null;
   if (!currentCorrectColor) return;
   await user.send({
@@ -420,7 +422,7 @@ module.exports = {
     ensureCurrentCorrectColor(state);
     state.votes[interaction.user.id] = action;
     saveState(state);
-    await sendCorrectColorDm(interaction.user, state);
+    if (isEventColor(action)) await sendCorrectColorDm(interaction.user, state);
     const payload = votingPayload(state, state.chosenColor
       ? `* ${state.chosenColor === 'green' ? '🟢 green' : '🔴 red'} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`
       : '* Pick a color, only 1 color will win! Each color has a 50/50 chance no matter how many people voted for it.');
