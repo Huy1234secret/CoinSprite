@@ -7,7 +7,6 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const STORE_PATH = path.join(__dirname, '..', 'data', 'global-rng-event.json');
 const CHANNEL_ID = '1503738887929856121';
-const PING_ROLE_ID = '1503735931574812762';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 // Keep global event rounds on the requested even-hour America/Chicago cadence
@@ -122,7 +121,7 @@ function eventPayload({ accent, body, counts = null, disabled = false, content =
   return {
     flags: COMPONENTS_V2_FLAG,
     components: [{ type: 17, accent_color: accent, components }],
-    allowedMentions: content ? { roles: [PING_ROLE_ID] } : { parse: [] },
+    allowedMentions: { parse: [] },
   };
 }
 
@@ -144,7 +143,6 @@ function votingPayload(state, intro = '* Pick a color, only 1 color will win! Ea
     accent: COLORS.green,
     body: `### 🎉 Global Event\n${votingBody(state, intro)}`,
     counts: voteCounts(state.votes),
-    content: `<@&${PING_ROLE_ID}>`,
   });
 }
 
@@ -157,7 +155,7 @@ function decidingPayload(state) {
   });
 }
 
-function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, content = `<@&${PING_ROLE_ID}>` }) {
+function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, content = null }) {
   const endsAt = durationMs ? Date.now() + durationMs : null;
   const prizeLine = durationMs
     ? `-# 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for 1.5h. **[boost end <t:${Math.floor(endsAt / 1000)}:R>]**`
@@ -169,7 +167,7 @@ function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, conte
   });
 }
 
-function noVotesPayload({ nextStartAt, content = `<@&${PING_ROLE_ID}>` }) {
+function noVotesPayload({ nextStartAt, content = null }) {
   return eventPayload({
     accent: COLORS.white,
     body: `### 🎉 Global Event
