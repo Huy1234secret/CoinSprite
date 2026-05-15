@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'luck-shop.json');
-const CLOVER = '🍀';
+const CLOVER = '<:CloverToken:1504669919638196386>';
 const RESTOCK_INTERVAL_MS = 60 * 60 * 1000;
 
 const LUCK_SHOP_ITEMS = [
