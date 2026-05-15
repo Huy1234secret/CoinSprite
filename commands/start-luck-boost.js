@@ -42,7 +42,6 @@ module.exports = {
       .setName('boost')
       .setDescription('Luck percent to add. Example: 100 = 2x luck')
       .setMinValue(0.01)
-      .setMaxValue(100000)
       .setRequired(true))
     .addStringOption((option) => option
       .setName('time')
