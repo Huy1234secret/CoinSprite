@@ -10,6 +10,10 @@ const CHANNEL_ID = '1503738887929856121';
 const PING_ROLE_ID = '1503735931574812762';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
+// Keep global event rounds on the requested even-hour America/Chicago cadence
+// (00:00, 02:00, 04:00, etc.) instead of anchoring the two-hour
+// interval to EVENT_START_AT, which made the schedule show 09:00 locally.
+const EVENT_SCHEDULE_ANCHOR_AT = Date.parse('2026-05-12T05:00:00.000Z');
 const VOTE_MS = 60_000;
 const DECIDING_MS = 10_000;
 const EVENT_INTERVAL_MS = 2 * 60 * 60_000;
@@ -75,9 +79,9 @@ function prizeMultiplierForRound(round) {
 
 function nextEventStart(now = Date.now()) {
   if (now >= EVENT_END_AT) return null;
-  if (now <= EVENT_START_AT) return EVENT_START_AT;
-  const intervalsElapsed = Math.ceil((now - EVENT_START_AT) / EVENT_INTERVAL_MS);
-  const startAt = EVENT_START_AT + (intervalsElapsed * EVENT_INTERVAL_MS);
+  const earliestStart = Math.max(now, EVENT_START_AT);
+  const intervalsElapsed = Math.max(0, Math.ceil((earliestStart - EVENT_SCHEDULE_ANCHOR_AT) / EVENT_INTERVAL_MS));
+  const startAt = EVENT_SCHEDULE_ANCHOR_AT + (intervalsElapsed * EVENT_INTERVAL_MS);
   return startAt < EVENT_END_AT ? startAt : null;
 }
 
