@@ -35,6 +35,7 @@ function defaultState() {
     resultAt: null,
     decidingEndsAt: null,
     chosenColor: null,
+    currentCorrectColor: null,
     votes: {},
   };
 }
@@ -242,6 +243,7 @@ async function startGame(client) {
     resultAt: now + VOTE_MS,
     decidingEndsAt: null,
     chosenColor: null,
+    currentCorrectColor: pickRandomColor(),
     nextStartAt: null,
   });
   await sendOrEdit(channel, state, votingPayload(state));
@@ -256,6 +258,7 @@ async function beginDeciding(client) {
   if (state.phase !== 'voting') return scheduleNext(client);
   state.phase = 'deciding';
   state.decidingEndsAt = Date.now() + DECIDING_MS;
+  ensureCurrentCorrectColor(state);
   await sendOrEdit(channel, state, decidingPayload(state));
   saveState(state);
   scheduleNext(client);
@@ -263,6 +266,27 @@ async function beginDeciding(client) {
 
 function pickRandomColor() {
   return Math.random() < 0.5 ? 'green' : 'red';
+}
+
+function isEventColor(color) {
+  return ['green', 'red'].includes(color);
+}
+
+function ensureCurrentCorrectColor(state) {
+  if (!isEventColor(state.currentCorrectColor)) state.currentCorrectColor = pickRandomColor();
+  return state.currentCorrectColor;
+}
+
+function colorLabel(color) {
+  return color === 'green' ? '🟢 green' : '🔴 red';
+}
+
+async function sendCorrectColorDm(user, state) {
+  const currentCorrectColor = isEventColor(state.currentCorrectColor) ? state.currentCorrectColor : null;
+  if (!currentCorrectColor) return;
+  await user.send({
+    content: `Global RNG Event round ${state.round}: correct color is ${colorLabel(currentCorrectColor)}.`,
+  }).catch(() => null);
 }
 
 async function finishGame(client, state, { type, chosenColor = null }) {
@@ -273,7 +297,7 @@ async function finishGame(client, state, { type, chosenColor = null }) {
   const multiplier = lose ? 1.2 : prizeMultiplierForRound(state.round);
   const durationMs = lose ? LOSE_BOOST_MS : WIN_BOOST_MS;
   startBoost({ durationMs, percent: (multiplier - 1) * 100, startedById: 'global-rng-event' });
-  const colorText = chosenColor === 'green' ? '🟢 green' : '🔴 red';
+  const colorText = colorLabel(chosenColor);
   const body = type === 'stop'
     ? '* Welp you have decided to take the prize! Congratulations!'
     : type === 'final'
@@ -286,6 +310,7 @@ async function finishGame(client, state, { type, chosenColor = null }) {
     resultAt: null,
     decidingEndsAt: null,
     chosenColor,
+    currentCorrectColor: null,
     nextStartAt,
   });
   if (nextStartAt) await sendOrEdit(channel, state, finalPayload({ accent, body, multiplier, durationMs, nextStartAt }));
@@ -303,6 +328,7 @@ async function finishNoVotes(client, state) {
     resultAt: null,
     decidingEndsAt: null,
     chosenColor: null,
+    currentCorrectColor: null,
     nextStartAt,
   });
   if (nextStartAt) await sendOrEdit(channel, state, noVotesPayload({ nextStartAt }));
@@ -328,7 +354,7 @@ async function resolveRound(client) {
     return;
   }
 
-  const chosenColor = pickRandomColor();
+  const chosenColor = ensureCurrentCorrectColor(state);
   const otherColor = chosenColor === 'green' ? 'red' : 'green';
   const success = counts[chosenColor] >= counts[otherColor];
   if (!success) {
@@ -341,13 +367,14 @@ async function resolveRound(client) {
     return;
   }
 
-  const colorText = chosenColor === 'green' ? '🟢 green' : '🔴 red';
+  const colorText = colorLabel(chosenColor);
   state.phase = 'voting';
   state.round += 1;
   state.votes = {};
   state.resultAt = Date.now() + VOTE_MS;
   state.decidingEndsAt = null;
   state.chosenColor = chosenColor;
+  state.currentCorrectColor = pickRandomColor();
   await sendOrEdit(channel, state, votingPayload(state, `* ${colorText} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`));
   saveState(state);
   scheduleNext(client);
@@ -393,8 +420,10 @@ module.exports = {
     }
     await interaction.deferUpdate();
     state.votes = state.votes && typeof state.votes === 'object' ? state.votes : {};
+    ensureCurrentCorrectColor(state);
     state.votes[interaction.user.id] = action;
     saveState(state);
+    await sendCorrectColorDm(interaction.user, state);
     const payload = votingPayload(state, state.chosenColor
       ? `* ${state.chosenColor === 'green' ? '🟢 green' : '🔴 red'} was chosen! The voters picked the correct color! Would you risk again for twice the luck boost? If yes vote for a color, if wanted to stop press STOP.`
       : '* Pick a color, only 1 color will win! Each color has a 50/50 chance no matter how many people voted for it.');
