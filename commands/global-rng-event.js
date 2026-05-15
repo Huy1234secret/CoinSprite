@@ -12,8 +12,8 @@ const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
 const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 const VOTE_MS = 60_000;
 const DECIDING_MS = 10_000;
-const WIN_BOOST_MS = 2 * 60 * 60_000;
-const LOSE_BOOST_MS = 30 * 60_000;
+const EVENT_INTERVAL_MS = 2 * 60 * 60_000;
+const WIN_BOOST_MS = 90 * 60_000;
 const FINAL_ROUND = 7;
 const PREFIX = 'globalrng';
 const COLORS = {
@@ -75,19 +75,9 @@ function prizeMultiplierForRound(round) {
 
 function nextEventStart(now = Date.now()) {
   if (now >= EVENT_END_AT) return null;
-  const floor = Math.max(now, EVENT_START_AT);
-  const shifted = new Date(floor + (7 * 60 * 60_000));
-  const atBoundary = shifted.getUTCHours() % 4 === 0
-    && shifted.getUTCMinutes() === 0
-    && shifted.getUTCSeconds() === 0
-    && shifted.getUTCMilliseconds() === 0;
-  if (atBoundary) return floor < EVENT_END_AT ? floor : null;
-
-  shifted.setUTCSeconds(0, 0);
-  const hour = shifted.getUTCHours();
-  const addHours = (4 - (hour % 4)) % 4;
-  shifted.setUTCHours(hour + (addHours || 4), 0, 0, 0);
-  const startAt = shifted.getTime() - (7 * 60 * 60_000);
+  if (now <= EVENT_START_AT) return EVENT_START_AT;
+  const intervalsElapsed = Math.ceil((now - EVENT_START_AT) / EVENT_INTERVAL_MS);
+  const startAt = EVENT_START_AT + (intervalsElapsed * EVENT_INTERVAL_MS);
   return startAt < EVENT_END_AT ? startAt : null;
 }
 
@@ -141,7 +131,7 @@ function waitingPayload(nextStartAt) {
 function votingBody(state, intro, resultAtMs = state.resultAt || (Date.now() + VOTE_MS)) {
   const resultAt = Math.floor(resultAtMs / 1000);
   const percent = formatPrizePercent(prizeMultiplierForRound(state.round));
-  return `${intro} Result in <t:${resultAt}:R>\n-#** 🎁Prize pool: +${percent}% luck for 2h.**\n\n-# Note: If that color didnt win, you lose all the prize pool and ended up having only 1.2x luck for 30m. If wanted to take the current prize pool, just vote for STOP and you can change your vote.`;
+  return `${intro} Result in <t:${resultAt}:R>\n-#** 🎁Prize pool: +${percent}% luck for 1.5h.**\n\n-# Note: If that color didnt win, you lose all the prize pool and earn nothing. If wanted to take the current prize pool, just vote for STOP and you can change your vote.`;
 }
 
 function votingPayload(state, intro = '* Pick a color, only 1 color will win! Each color has a 50/50 chance no matter how many people voted for it.') {
@@ -163,10 +153,13 @@ function decidingPayload(state) {
 }
 
 function finalPayload({ accent, body, multiplier, durationMs, nextStartAt, content = `<@&${PING_ROLE_ID}>` }) {
-  const endsAt = Date.now() + durationMs;
+  const endsAt = durationMs ? Date.now() + durationMs : null;
+  const prizeLine = durationMs
+    ? `-# 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for 1.5h. **[boost end <t:${Math.floor(endsAt / 1000)}:R>]**`
+    : '-# 🎁FINAL Prize pool: no luck boost awarded.';
   return eventPayload({
     accent,
-    body: `### 🎉 Global Event\n${body}\n-# 🎁FINAL Prize pool: +${formatPrizePercent(multiplier)}% luck for ${durationMs === WIN_BOOST_MS ? '2h' : '30m'}. **[boost end <t:${Math.floor(endsAt / 1000)}:R>]**\n-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
+    body: `### 🎉 Global Event\n${body}\n${prizeLine}\n-# Game start <t:${Math.floor(nextStartAt / 1000)}:R>`,
     content,
   });
 }
@@ -212,7 +205,7 @@ function scheduleNext(client) {
   if (!rngEventActive(now) && now >= EVENT_END_AT) return;
   if (state.phase === 'voting') return schedule((state.resultAt || now) - now, () => beginDeciding(client));
   if (state.phase === 'deciding') return schedule((state.decidingEndsAt || now) - now, () => resolveRound(client));
-  const nextStartAt = state.nextStartAt || nextEventStart(now);
+  const nextStartAt = nextEventStart(now);
   if (nextStartAt) schedule(nextStartAt - now, () => startGame(client));
 }
 
@@ -223,7 +216,7 @@ async function ensureWaitingMessage(client) {
   if (!channel) return;
   const state = loadState();
   if (state.phase !== 'waiting' && state.phase !== 'finished') return;
-  state.nextStartAt = state.nextStartAt && state.nextStartAt > now ? state.nextStartAt : nextEventStart(now);
+  state.nextStartAt = nextEventStart(now);
   if (!state.nextStartAt) return;
   await sendOrEdit(channel, state, waitingPayload(state.nextStartAt));
   saveState(state);
@@ -294,9 +287,9 @@ async function finishGame(client, state, { type, chosenColor = null }) {
   if (!channel) return;
   const nextStartAt = nextEventStart(Date.now() + 1_000);
   const lose = type === 'lose';
-  const multiplier = lose ? 1.2 : prizeMultiplierForRound(state.round);
-  const durationMs = lose ? LOSE_BOOST_MS : WIN_BOOST_MS;
-  startBoost({ durationMs, percent: (multiplier - 1) * 100, startedById: 'global-rng-event' });
+  const multiplier = lose ? 1 : prizeMultiplierForRound(state.round);
+  const durationMs = lose ? 0 : WIN_BOOST_MS;
+  if (!lose) startBoost({ durationMs, percent: (multiplier - 1) * 100, startedById: 'global-rng-event' });
   const colorText = colorLabel(chosenColor);
   const body = type === 'stop'
     ? '* Welp you have decided to take the prize! Congratulations!'
@@ -395,7 +388,7 @@ module.exports = {
       else await resolveRound(client);
       return;
     }
-    if ((state.phase === 'waiting' || state.phase === 'finished') && (!state.nextStartAt || state.nextStartAt <= now)) {
+    if (state.phase === 'waiting' || state.phase === 'finished') {
       state.nextStartAt = nextEventStart(now);
       saveState(state);
       if (state.nextStartAt && state.nextStartAt <= now) await startGame(client);
