@@ -27,7 +27,6 @@ function getPrefixCommandLabel(message) {
 
   const commandBody = content.slice(1).trim().toLowerCase();
   if (!commandBody) return null;
-  if (commandBody === 'remove newbie-roller') return '!remove newbie-roller';
   if (commandBody.startsWith('dm ')) return content;
   if (commandBody.startsWith('blacklist add ') || commandBody.startsWith('blacklist remove ')) return content;
   return null;
@@ -39,11 +38,11 @@ function shouldSkipActionTimeout(interaction) {
   const customId = interaction?.customId || '';
   if (!customId) return false;
 
-  if (customId.startsWith('pvpbjp:') || customId.startsWith('pvpmine:') || customId.startsWith('globalrng:')) return true;
+  if (customId.startsWith('pvpbjp:') || customId.startsWith('pvpmine:')) return true;
 
   // Ticket controls must remain usable indefinitely: the main panel, all three
   // ticket type flows, staff ticket actions, review controls, and ticket modals.
-  return customId.startsWith('ticket:') || customId.startsWith('giveaway:') || customId.startsWith('level:') || customId.startsWith('rngnotif:');
+  return customId.startsWith('ticket:') || customId.startsWith('giveaway:') || customId.startsWith('level:');
 }
 
 function canUseStaffActions(member) {
