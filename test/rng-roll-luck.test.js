@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { _test } = require('../commands/rng-roll');
-const { getLuckAdjustedChance, getLuckAdjustedDenominator, rollRarity } = _test;
+const { getLuckAdjustedChance, getLuckAdjustedDenominator, getStackedLuckMultiplier, rollRarity } = _test;
 
 function withMockedRandom(value, testFn) {
   const originalRandom = Math.random;
@@ -45,4 +45,10 @@ test('100x luck keeps a 1 in 14.7b rarity at 1 in 147m effective odds', () => {
   withMockedRandom(1 / 147_000_000, () => {
     assert.notEqual(rollRarity(100).name, 'Clockwork');
   });
+});
+
+test('luck multipliers stack additively instead of multiplying together', () => {
+  assert.equal(getStackedLuckMultiplier(2, 5), 7);
+  assert.equal(getStackedLuckMultiplier(1, 2, 10), 12);
+  assert.equal(getStackedLuckMultiplier(1, 1), 1);
 });
