@@ -2,7 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { _test } = require('../commands/rng-roll');
-const { getLuckAdjustedChance, getLuckAdjustedDenominator, getStackedLuckMultiplier, rollRarity } = _test;
+const {
+  getGlobalGoalLuckMultiplier,
+  getGlobalGoalLuckPercent,
+  getGlobalGoalTier,
+  getGlobalRollCount,
+  getLuckAdjustedChance,
+  getLuckAdjustedDenominator,
+  getStackedLuckMultiplier,
+  rollRarity,
+} = _test;
 
 function withMockedRandom(value, testFn) {
   const originalRandom = Math.random;
@@ -51,4 +60,20 @@ test('luck multipliers stack additively instead of multiplying together', () => 
   assert.equal(getStackedLuckMultiplier(2, 5), 7);
   assert.equal(getStackedLuckMultiplier(1, 2, 10), 12);
   assert.equal(getStackedLuckMultiplier(1, 1), 1);
+});
+
+test('global goal tiers increase every 1000 total rolls and grant permanent 25% luck per tier', () => {
+  assert.equal(getGlobalGoalTier(0), 0);
+  assert.equal(getGlobalGoalLuckPercent(999), 0);
+  assert.equal(getGlobalGoalTier(1000), 1);
+  assert.equal(getGlobalGoalLuckPercent(1000), 25);
+  assert.equal(getGlobalGoalLuckMultiplier(1000), 1.25);
+  assert.equal(getGlobalGoalTier(2500), 2);
+  assert.equal(getGlobalGoalLuckPercent(2500), 50);
+  assert.equal(getGlobalGoalLuckMultiplier(2500), 1.5);
+});
+
+test('global roll count sums every user record', () => {
+  assert.equal(getGlobalRollCount({ users: { a: { totalRolls: 250 }, b: { totalRolls: 750 }, c: { totalRolls: '12' } } }), 1012);
+  assert.equal(getGlobalRollCount({ users: { a: { totalRolls: -1 }, b: { totalRolls: null } } }), 0);
 });
