@@ -23,7 +23,6 @@ const RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID = '1498300014114377860';
 const RARE_ROLL_LOG_THREAD_ID = '1495783372591730750';
 const START_PING_ROLE_ID = '1493930583137718272';
 const EVENT_START_AT = Date.parse('2026-05-12T14:00:00.000Z');
-const EVENT_END_AT = Date.parse('2026-05-26T14:00:00.000Z');
 const ROLL_COOLDOWN_MS = 5_000;
 const MIN_ROLL_LEVEL = 5;
 const rollCooldowns = new Map();
@@ -461,7 +460,6 @@ function getRankedUsers(state) {
 
 function getEventStatus(now = Date.now()) {
   if (now < EVENT_START_AT) return 'before';
-  if (now >= EVENT_END_AT) return 'ended';
   return 'active';
 }
 
@@ -531,11 +529,7 @@ function buildLeaderboardPayload(state = loadState()) {
   if (status === 'active') {
     lines.push('');
     lines.push(`-# * Total participations: ${formatNumber(totalParticipations)}`);
-    lines.push(`-# Refresh: <t:${Math.floor(nextFiveMinuteBoundaryUtcPlus7().getTime() / 1000)}:R>`);
-    lines.push(`-# Event ends: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
-  } else if (status === 'ended') {
-    lines.push('');
-    lines.push(`-# Event ended: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
+    lines.push('-# Final leaderboard update is frozen.');
   }
 
   return container(0xFFFFFF, lines.join('\n'));
@@ -630,16 +624,14 @@ function scheduleNextRefresh() {
   if (scheduler) clearTimeout(scheduler);
   if (!schedulerClient) return;
   const status = getEventStatus();
-  if (status === 'ended') return;
   const nextRefresh = nextFiveMinuteBoundaryUtcPlus7();
   const nextTime = status === 'before'
     ? Math.min(EVENT_START_AT, nextRefresh.getTime())
-    : Math.min(EVENT_END_AT, nextRefresh.getTime());
+    : nextRefresh.getTime();
   const delay = Math.max(1_000, nextTime - Date.now());
   scheduler = setTimeout(async () => {
     await maybeSendStartAnnouncement(schedulerClient);
     await upsertGlobalGoalMessage(schedulerClient);
-    await upsertLeaderboardMessage(schedulerClient);
     scheduleNextRefresh();
   }, delay);
 }
@@ -899,11 +891,6 @@ async function handleRollMessage(message, client) {
     await replyWithoutPing(message, container(0xFFFFFF, `### RNG event has not started yet.\n-# Starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`)).catch(() => null);
     return true;
   }
-  if (status === 'ended') {
-    await replyWithoutPing(message, container(0xED4245, '### RNG event has ended.\n-# !roll is now disabled.')).catch(() => null);
-    return true;
-  }
-
   if (getRollCooldownUntil(message.author.id) > Date.now()) return true;
   setRollCooldown(message.author.id);
 
@@ -951,7 +938,6 @@ module.exports = {
     schedulerClient = client;
     await maybeSendStartAnnouncement(client);
     await upsertGlobalGoalMessage(client);
-    await upsertLeaderboardMessage(client);
     scheduleNextRefresh();
   },
 
@@ -971,6 +957,7 @@ module.exports = {
     getGlobalGoalLuckPercent,
     getGlobalGoalTier,
     getGlobalRollCount,
+    getEventStatus,
     getStackedLuckMultiplier,
     buildLeaderboardPayload,
     buildGlobalGoalPayload,

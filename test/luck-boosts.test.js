@@ -49,7 +49,9 @@ test('amount helpers accept only whole roll counts and format roll labels', () =
   assert.equal(formatRollCount(10), '10 rolls');
 });
 
-test('luck percent accepts boosts up to 100000%', () => {
+test('luck percent accepts uncapped finite positive boosts', () => {
   assert.equal(parseLuckPercent(100000), 100000);
-  assert.equal(parseLuckPercent(100000.01), null);
+  assert.equal(parseLuckPercent(100000.01), 100000.01);
+  assert.equal(parseLuckPercent(1_000_000_000), 1_000_000_000);
+  assert.equal(parseLuckPercent(Infinity), null);
 });

@@ -7,6 +7,7 @@ const {
   getGlobalGoalLuckPercent,
   getGlobalGoalTier,
   buildGlobalGoalPayload,
+  getEventStatus,
   buildLeaderboardPayload,
   getGlobalRollCount,
   getLuckAdjustedChance,
@@ -95,5 +96,11 @@ test('rng event leaderboard payload remains separate from global goal payload', 
   assert.match(leaderboard, /<@first>/);
   assert.match(leaderboard, /Supreme/);
   assert.doesNotMatch(leaderboard, /Global Goal/);
+  assert.doesNotMatch(leaderboard, /Event ends/);
+  assert.match(leaderboard, /Final leaderboard update is frozen/);
   assert.match(globalGoal, /Global Goal/);
+});
+
+test('rng event stays active after the original end date', () => {
+  assert.equal(getEventStatus(Date.parse('2026-05-27T14:00:00.000Z')), 'active');
 });
