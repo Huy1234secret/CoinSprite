@@ -21,8 +21,6 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Counts only real users (bots ignored).
 - `/invite-points`
   - Shows the user's current Invite Points.
-- `/rng-wipe confirm:WIPE`
-  - Administrator-only hard reset for RNG game data (`balances` + `upgrades`).
 - `/transcript-message amount:{1-100}`
   - Saves a transcript of the most recent messages from the current channel and sends it to the transcript channel.
 
