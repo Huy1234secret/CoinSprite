@@ -16,7 +16,7 @@ const STORE_PATH = path.join(__dirname, '..', 'data', 'rng-rolls.json');
 const ROLL_CHANNEL_ID_LIST = ['1503708687569522778', '1503763965497315458', '1503773311547478196', '1503779472329936988'];
 const ROLL_CHANNEL_IDS = new Set(ROLL_CHANNEL_ID_LIST);
 const PRIMARY_ROLL_CHANNEL_ID = ROLL_CHANNEL_ID_LIST[0];
-const LEADERBOARD_CHANNEL_ID = '1503738887929856121';
+const GLOBAL_GOAL_CHANNEL_ID = '1503738887929856121';
 const RARE_ROLL_ANNOUNCEMENT_CHANNEL_ID = '1498300014114377860';
 const RARE_ROLL_LOG_THREAD_ID = '1495783372591730750';
 const START_PING_ROLE_ID = '1493930583137718272';
@@ -294,12 +294,12 @@ let scheduler = null;
 let schedulerClient = null;
 
 function defaultState() {
-  return { users: {}, leaderboardMessageId: null, startAnnouncementSent: false };
+  return { users: {}, globalGoalMessageId: null, leaderboardMessageId: null, startAnnouncementSent: false };
 }
 
 function ensureStore() {
   const dir = path.dirname(STORE_PATH);
-  if (!fs.existsSync (dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (!fs.existsSync(STORE_PATH)) fs.writeFileSync(STORE_PATH, JSON.stringify(defaultState(), null, 2), 'utf8');
 }
 
@@ -331,6 +331,27 @@ function getUserRecord(state, userId) {
   record.topRolls = Array.isArray(record.topRolls) ? record.topRolls : [];
   record.pendingLuckMultiplier = Math.max(1, Number(record.pendingLuckMultiplier) || 1);
   return record;
+}
+
+function getGlobalRollCount(state) {
+  return Object.values(state?.users || {}).reduce((total, record) => {
+    return total + Math.max(0, Math.floor(Number(record?.totalRolls) || 0));
+  }, 0);
+}
+
+const GLOBAL_GOAL_ROLLS_PER_TIER = 1_000;
+const GLOBAL_GOAL_LUCK_PERCENT_PER_TIER = 25;
+
+function getGlobalGoalTier(totalRolls) {
+  return Math.floor(Math.max(0, Math.floor(Number(totalRolls) || 0)) / GLOBAL_GOAL_ROLLS_PER_TIER);
+}
+
+function getGlobalGoalLuckPercent(totalRolls) {
+  return getGlobalGoalTier(totalRolls) * GLOBAL_GOAL_LUCK_PERCENT_PER_TIER;
+}
+
+function getGlobalGoalLuckMultiplier(totalRolls) {
+  return 1 + (getGlobalGoalLuckPercent(totalRolls) / 100);
 }
 
 function container(accent, content) {
@@ -474,37 +495,38 @@ function buildMyRarestPayload(userId) {
   ].join('\n'));
 }
 
-function buildLeaderboardPayload(guild) {
-  const state = loadState();
-  const status = getEventStatus();
-  const rankedUsers = getRankedUsers(state);
-  const totalParticipations = rankedUsers.length;
-  const ranked = rankedUsers.slice(0, 10);
-  const lines = ['## RNG Event Leaderboard'];
+function formatProgressPercent(current, required) {
+  const percent = required > 0 ? (current / required) * 100 : 0;
+  return Number(percent.toFixed(2)).toLocaleString('en-US').replace(/\.00$/, '');
+}
 
-  if (status === 'before') {
-    lines.push('-# Game has not started yet.');
-    lines.push(`-# Event starts: <t:${Math.floor(EVENT_START_AT / 1000)}:R>`);
-  } else if (ranked.length === 0) {
-    lines.push('-# No rolls yet.');
-  } else {
-    for (let i = 0; i < ranked.length; i += 1) {
-      const row = ranked[i];
-      lines.push(`**#${i + 1}** <@${row.userId}> - ${rarityLabel(row)} (1/${formatShort(row.denominator)})`);
-    }
-  }
+function buildProgressBar(current, required, width = 20) {
+  const safeRequired = Math.max(1, Math.floor(Number(required) || 1));
+  const safeCurrent = Math.max(0, Math.min(safeRequired, Math.floor(Number(current) || 0)));
+  const filled = Math.floor((safeCurrent / safeRequired) * width);
+  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+}
 
-  if (status === 'active') {
-    lines.push('');
-    lines.push(`-# * Total participations: ${formatNumber(totalParticipations)}`);
-    lines.push(`-# Refresh: <t:${Math.floor(nextFiveMinuteBoundaryUtcPlus7().getTime() / 1000)}:R>`);
-    lines.push(`-# Event ends: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
-  } else if (status === 'ended') {
-    lines.push('');
-    lines.push(`-# Event ended: <t:${Math.floor(EVENT_END_AT / 1000)}:R>`);
-  }
-
-  return container(0xFFFFFF, lines.join('\n'));
+function buildGlobalGoalPayload(state = loadState()) {
+  const totalRolls = getGlobalRollCount(state);
+  const tier = getGlobalGoalTier(totalRolls);
+  const luckPercent = getGlobalGoalLuckPercent(totalRolls);
+  const currentAmount = totalRolls % GLOBAL_GOAL_ROLLS_PER_TIER;
+  const progressPercent = formatProgressPercent(currentAmount, GLOBAL_GOAL_ROLLS_PER_TIER);
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    components: [{
+      type: 17,
+      accent_color: 0xFFFFFF,
+      components: [
+        { type: 10, content: `### Global Goal: Tier ${tier}
+-# +${formatNumber(luckPercent)}% luck.` },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: `${buildProgressBar(currentAmount, GLOBAL_GOAL_ROLLS_PER_TIER)} ${formatNumber(currentAmount)} / ${formatNumber(GLOBAL_GOAL_ROLLS_PER_TIER)} - ${progressPercent}%` },
+      ],
+    }],
+    allowedMentions: { parse: [] },
+  };
 }
 
 async function getTextChannel(client, channelId, context = 'channel') {
@@ -518,21 +540,28 @@ async function getTextChannel(client, channelId, context = 'channel') {
   return channel?.isTextBased?.() ? channel : null;
 }
 
-async function upsertLeaderboardMessage(client) {
-  const channel = await getTextChannel(client, LEADERBOARD_CHANNEL_ID);
+async function upsertGlobalGoalMessage(client) {
+  const channel = await getTextChannel(client, GLOBAL_GOAL_CHANNEL_ID);
   if (!channel) return;
   const state = loadState();
-  const payload = buildLeaderboardPayload(channel.guild);
-  let message = state.leaderboardMessageId
-    ? await channel.messages.fetch(state.leaderboardMessageId).catch(() => null)
+  const payload = buildGlobalGoalPayload(state);
+  let message = state.globalGoalMessageId
+    ? await channel.messages.fetch(state.globalGoalMessageId).catch(() => null)
     : null;
+  if (!message && state.leaderboardMessageId) {
+    message = await channel.messages.fetch(state.leaderboardMessageId).catch(() => null);
+  }
   if (message) {
     await message.edit(payload).catch(() => null);
+    if (state.globalGoalMessageId !== message.id) {
+      state.globalGoalMessageId = message.id;
+      saveState(state);
+    }
     return;
   }
   message = await channel.send(payload).catch(() => null);
   if (message?.id) {
-    state.leaderboardMessageId = message.id;
+    state.globalGoalMessageId = message.id;
     saveState(state);
   }
 }
@@ -541,7 +570,7 @@ async function maybeSendStartAnnouncement(client) {
   if (getEventStatus() !== 'active') return;
   const state = loadState();
   if (state.startAnnouncementSent) return;
-  const channel = await getTextChannel(client, LEADERBOARD_CHANNEL_ID);
+  const channel = await getTextChannel(client, GLOBAL_GOAL_CHANNEL_ID);
   if (!channel) return;
   await channel.send({
     ...container(0xFFFFFF, `<@&${START_PING_ROLE_ID}>\n### RNG event has started! Goodluck and wish your luck.`),
@@ -563,7 +592,7 @@ function scheduleNextRefresh() {
   const delay = Math.max(1_000, nextTime - Date.now());
   scheduler = setTimeout(async () => {
     await maybeSendStartAnnouncement(schedulerClient);
-    await upsertLeaderboardMessage(schedulerClient);
+    await upsertGlobalGoalMessage(schedulerClient);
     scheduleNextRefresh();
   }, delay);
 }
@@ -765,7 +794,7 @@ function getStackedLuckMultiplier(...multipliers) {
   return active.reduce((total, multiplier) => total + multiplier, 0);
 }
 
-function getLuckBoostLines({ personalMultiplier, globalBoost, totalLuckMultiplier, earnedNextMultiplier }) {
+function getLuckBoostLines({ personalMultiplier, globalBoost, globalGoalMultiplier, totalLuckMultiplier, earnedNextMultiplier }) {
   const lines = [];
   if (personalMultiplier > 1) lines.push(`-# Personal next-roll luck boost used: ${formatMultiplier(personalMultiplier)}`);
   if (globalBoost?.multiplier > 1) {
@@ -774,6 +803,7 @@ function getLuckBoostLines({ personalMultiplier, globalBoost, totalLuckMultiplie
       : `for this roll (${formatRollCount(globalBoost.remainingRolls)} available before this roll)`;
     lines.push(`-# Server luck boost active: ${formatMultiplier(globalBoost.multiplier)} ${limitText}`);
   }
+  if (globalGoalMultiplier > 1) lines.push(`-# Global goal luck active: ${formatMultiplier(globalGoalMultiplier)}`);
   if (totalLuckMultiplier > 1) lines.push(`-# Total stacked luck: ${formatMultiplier(totalLuckMultiplier)}`);
   if (earnedNextMultiplier > 1) lines.push(`-# You earned ${formatMultiplier(earnedNextMultiplier)} luck for your next roll!`);
   return lines;
@@ -832,10 +862,12 @@ async function handleRollMessage(message, client) {
 
   const state = loadState();
   const record = getUserRecord(state, message.author.id);
+  const globalRollCountAfterThisRoll = getGlobalRollCount(state) + 1;
+  const globalGoalMultiplier = getGlobalGoalLuckMultiplier(globalRollCountAfterThisRoll);
   const personalLuckMultiplier = record.pendingLuckMultiplier;
   record.pendingLuckMultiplier = 1;
   const globalBoost = getActiveBoost();
-  const totalLuckMultiplier = getStackedLuckMultiplier(personalLuckMultiplier, globalBoost?.multiplier || 1);
+  const totalLuckMultiplier = getStackedLuckMultiplier(personalLuckMultiplier, globalBoost?.multiplier || 1, globalGoalMultiplier);
   const rarity = rollRarity(totalLuckMultiplier);
   if (globalBoost?.remainingRolls) consumeActiveBoostRoll(globalBoost.id);
   const isFirstRoll = !record.firstRolledAt;
@@ -854,6 +886,7 @@ async function handleRollMessage(message, client) {
   await replyWithoutPing(message, buildRollPayload(rarity, isNewRecord, getLuckBoostLines({
     personalMultiplier: personalLuckMultiplier,
     globalBoost,
+    globalGoalMultiplier,
     totalLuckMultiplier,
     earnedNextMultiplier,
   }))).catch(() => null);
@@ -870,7 +903,7 @@ module.exports = {
   async init(client) {
     schedulerClient = client;
     await maybeSendStartAnnouncement(client);
-    await upsertLeaderboardMessage(client);
+    await upsertGlobalGoalMessage(client);
     scheduleNextRefresh();
   },
 
@@ -886,6 +919,10 @@ module.exports = {
     MAX_LUCK_ADJUSTED_CHANCE,
     getLuckAdjustedChance,
     getLuckAdjustedDenominator,
+    getGlobalGoalLuckMultiplier,
+    getGlobalGoalLuckPercent,
+    getGlobalGoalTier,
+    getGlobalRollCount,
     getStackedLuckMultiplier,
     rollRarity,
   },
