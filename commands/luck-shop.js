@@ -24,20 +24,45 @@ function getSubmittedValue(interaction, customId) {
   return '';
 }
 
+function getSlotItem(slot) {
+  return LUCK_SHOP_ITEMS.find((entry) => entry.id === slot?.itemId) || null;
+}
+
 function buildPayload() {
   const state = getShopSnapshot();
   const nextRestock = nextHourDate();
-  const lines = ['## Luck Shop'];
-  for (const item of LUCK_SHOP_ITEMS) {
-    const stock = Math.max(0, Math.floor(Number(state.stock[item.id]) || 0));
-    lines.push(
-      `### ${item.name}`,
-      `-# 📦Stock: ${formatNumber(stock)}`,
-      `-# 💵Cost: ${formatNumber(item.cost)} ${CLOVER} clover token each`,
-      ''
-    );
+  const components = [{ type: 10, content: '## Luck Shop' }];
+
+  for (const slot of state.slots || []) {
+    const item = getSlotItem(slot);
+    if (!item) continue;
+    const stock = Math.max(0, Math.floor(Number(slot.stock) || 0));
+    components.push({
+      type: 9,
+      components: [
+        {
+          type: 10,
+          content: [
+            `### ${item.name}`,
+            `-# 📦Stock: ${formatNumber(stock)}`,
+            `-# 💵Cost: ${formatNumber(item.cost)} ${CLOVER} clover token each`,
+          ].join('\n'),
+        },
+      ],
+      accessory: {
+        type: 2,
+        custom_id: `${PREFIX}:buy:${slot.id}`,
+        label: 'Buy',
+        style: 2,
+        disabled: stock <= 0,
+      },
+    });
   }
-  lines.push(`-# Restocks: <t:${Math.floor(nextRestock.getTime() / 1000)}:R> (<t:${Math.floor(nextRestock.getTime() / 1000)}:T>)`);
+
+  components.push({
+    type: 10,
+    content: `-# Restocks: <t:${Math.floor(nextRestock.getTime() / 1000)}:R> (<t:${Math.floor(nextRestock.getTime() / 1000)}:T>)`,
+  });
 
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -45,37 +70,15 @@ function buildPayload() {
       {
         type: 17,
         accent_color: 0xffffff,
-        components: [
-          { type: 10, content: lines.join('\n').trim() },
-          {
-            type: 1,
-            components: LUCK_SHOP_ITEMS.slice(0, 5).map((item) => ({
-              type: 2,
-              custom_id: `${PREFIX}:buy:${item.id}`,
-              label: `Buy ${item.name}`,
-              style: 2,
-              disabled: Math.max(0, Math.floor(Number(state.stock[item.id]) || 0)) <= 0,
-            })),
-          },
-          {
-            type: 1,
-            components: LUCK_SHOP_ITEMS.slice(5).map((item) => ({
-              type: 2,
-              custom_id: `${PREFIX}:buy:${item.id}`,
-              label: `Buy ${item.name}`,
-              style: 2,
-              disabled: Math.max(0, Math.floor(Number(state.stock[item.id]) || 0)) <= 0,
-            })),
-          },
-        ],
+        components,
       },
     ],
   };
 }
 
-function buildBuyModal(item) {
+function buildBuyModal(slot, item) {
   return {
-    custom_id: `${PREFIX}:modal:${item.id}`,
+    custom_id: `${PREFIX}:modal:${slot.id}`,
     title: `Buy ${item.name}`,
     components: [
       {
@@ -125,24 +128,26 @@ module.exports = {
     if (!interaction.customId?.startsWith(`${PREFIX}:`)) return false;
 
     if (interaction.isButton?.() && interaction.customId.startsWith(`${PREFIX}:buy:`)) {
-      const itemId = interaction.customId.split(':')[2];
-      const item = LUCK_SHOP_ITEMS.find((entry) => entry.id === itemId);
-      if (!item) {
-        await interaction.reply({ content: 'That shop item no longer exists.', flags: EPHEMERAL_FLAG });
+      const slotId = interaction.customId.split(':')[2];
+      const state = getShopSnapshot();
+      const slot = state.slots.find((entry) => entry.id === slotId);
+      const item = getSlotItem(slot);
+      if (!slot || !item) {
+        await interaction.reply({ content: 'That shop item is no longer in the shop.', flags: EPHEMERAL_FLAG });
         return true;
       }
-      await interaction.showModal(buildBuyModal(item));
+      await interaction.showModal(buildBuyModal(slot, item));
       return true;
     }
 
     if (interaction.isModalSubmit?.() && interaction.customId.startsWith(`${PREFIX}:modal:`)) {
-      const itemId = interaction.customId.split(':')[2];
+      const slotId = interaction.customId.split(':')[2];
       const amount = Math.floor(Number(getSubmittedValue(interaction, 'quantity')) || 0);
       if (!Number.isInteger(amount) || amount <= 0) {
         await interaction.reply({ content: 'Enter a whole number greater than 0.', flags: EPHEMERAL_FLAG });
         return true;
       }
-      const result = buyItem(interaction.user.id, itemId, amount);
+      const result = buyItem(interaction.user.id, slotId, amount);
       if (!result.ok) {
         const message = result.reason === 'stock'
           ? `Only **${formatNumber(result.stock)}** are currently in stock.`

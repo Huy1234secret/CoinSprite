@@ -15,7 +15,7 @@ const LUCK_SHOP_ITEMS = [
 ];
 
 function defaultState() {
-  return { lastRestockHour: null, stock: {}, users: {} };
+  return { lastRestockHour: null, stock: {}, slots: [], users: {} };
 }
 
 function ensureStore() {
@@ -53,13 +53,41 @@ function normalizeUser(user) {
   return normalized;
 }
 
+function normalizeSlot(slot, index) {
+  const item = LUCK_SHOP_ITEMS.find((entry) => entry.id === slot?.itemId);
+  if (!item) return null;
+  return {
+    id: String(slot?.id || `slot_${index}`),
+    itemId: item.id,
+    stock: normalizeItemStock(slot?.stock),
+  };
+}
+
+function syncStockFromSlots(state) {
+  const stock = {};
+  for (const item of LUCK_SHOP_ITEMS) stock[item.id] = 0;
+  for (const slot of state.slots || []) {
+    if (stock[slot.itemId] == null) stock[slot.itemId] = 0;
+    stock[slot.itemId] += normalizeItemStock(slot.stock);
+  }
+  state.stock = stock;
+  return stock;
+}
+
 function normalizeState(state) {
   const normalized = { ...defaultState(), ...(state && typeof state === 'object' ? state : {}) };
   normalized.stock = normalized.stock && typeof normalized.stock === 'object' ? normalized.stock : {};
+  normalized.slots = Array.isArray(normalized.slots)
+    ? normalized.slots.map(normalizeSlot).filter(Boolean).slice(0, 3)
+    : [];
   normalized.users = normalized.users && typeof normalized.users === 'object' ? normalized.users : {};
   normalized.lastRestockHour = normalized.lastRestockHour ? String(normalized.lastRestockHour) : null;
 
-  for (const item of LUCK_SHOP_ITEMS) normalized.stock[item.id] = normalizeItemStock(normalized.stock[item.id]);
+  if (normalized.slots.length > 0) {
+    syncStockFromSlots(normalized);
+  } else {
+    for (const item of LUCK_SHOP_ITEMS) normalized.stock[item.id] = normalizeItemStock(normalized.stock[item.id]);
+  }
   for (const [userId, user] of Object.entries(normalized.users)) normalized.users[userId] = normalizeUser(user);
   return normalized;
 }
@@ -93,12 +121,33 @@ function randomStock(item) {
   return item.minStock + Math.floor(Math.random() * ((item.maxStock - item.minStock) + 1));
 }
 
+function randomShopItem() {
+  const totalChance = LUCK_SHOP_ITEMS.reduce((total, item) => total + item.chance, 0);
+  let roll = Math.random() * totalChance;
+  for (const item of LUCK_SHOP_ITEMS) {
+    roll -= item.chance;
+    if (roll <= 0) return item;
+  }
+  return LUCK_SHOP_ITEMS[LUCK_SHOP_ITEMS.length - 1];
+}
+
+function generateShopSlots() {
+  return Array.from({ length: 3 }, (_, index) => {
+    const item = randomShopItem();
+    return { id: `slot_${index}`, itemId: item.id, stock: randomStock(item) };
+  });
+}
+
+function hasCurrentShopSlots(state) {
+  return Array.isArray(state.slots) && state.slots.length === 3
+    && state.slots.every((slot) => LUCK_SHOP_ITEMS.some((item) => item.id === slot.itemId));
+}
+
 function restockState(state, now = Date.now()) {
   const key = hourKey(now);
-  if (state.lastRestockHour === key) return false;
-  const stock = {};
-  for (const item of LUCK_SHOP_ITEMS) stock[item.id] = Math.random() < item.chance ? randomStock(item) : 0;
-  state.stock = stock;
+  if (state.lastRestockHour === key && hasCurrentShopSlots(state)) return false;
+  state.slots = generateShopSlots();
+  syncStockFromSlots(state);
   state.lastRestockHour = key;
   return true;
 }
@@ -139,23 +188,27 @@ function awardCloverTokens(userId, denominator) {
   return { earned, balance: user.cloverTokens };
 }
 
-function buyItem(userId, itemId, quantity = 1, now = Date.now()) {
-  const item = LUCK_SHOP_ITEMS.find((entry) => entry.id === itemId);
+function buyItem(userId, slotId, quantity = 1, now = Date.now()) {
   const amount = Math.max(1, Math.floor(Number(quantity) || 1));
+  const state = ensureFreshShop(now);
+  const slot = state.slots.find((entry) => entry.id === slotId);
+  if (!slot) return { ok: false, reason: 'missing-slot' };
+
+  const item = LUCK_SHOP_ITEMS.find((entry) => entry.id === slot.itemId);
   if (!item) return { ok: false, reason: 'missing-item' };
 
-  const state = ensureFreshShop(now);
   const user = ensureUser(state, userId);
-  const stock = normalizeItemStock(state.stock[item.id]);
+  const stock = normalizeItemStock(slot.stock);
   const cost = item.cost * amount;
   if (stock < amount) return { ok: false, reason: 'stock', item, stock };
   if (user.cloverTokens < cost) return { ok: false, reason: 'tokens', item, cost, balance: user.cloverTokens };
 
-  state.stock[item.id] = stock - amount;
+  slot.stock = stock - amount;
+  syncStockFromSlots(state);
   user.cloverTokens -= cost;
   user.inventory[item.id] = Math.max(0, Math.floor(Number(user.inventory[item.id]) || 0)) + amount;
   saveState(state);
-  return { ok: true, item, quantity: amount, cost, balance: user.cloverTokens, remainingStock: state.stock[item.id] };
+  return { ok: true, item, quantity: amount, cost, balance: user.cloverTokens, remainingStock: slot.stock };
 }
 
 function activateInventoryBoost(userId, itemId, quantity) {
