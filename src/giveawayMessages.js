@@ -231,6 +231,7 @@ function buildRequirementButtonsPayload(draftId) {
     actionRow([
       button(`${CUSTOM_IDS.requirementTypePrefix}level:${draftId}`, 'Level', 2),
       button(`${CUSTOM_IDS.requirementTypePrefix}message:${draftId}`, 'Message', 2),
+      button(`${CUSTOM_IDS.requirementTypePrefix}level_message:${draftId}`, 'Level + Message', 2),
       button(`${CUSTOM_IDS.requirementTypePrefix}other:${draftId}`, 'Other', 2),
     ]),
   ], { flags: EPHEMERAL_FLAG });
@@ -250,7 +251,7 @@ function buildRequirementModal(type, draft) {
           style: 1,
           required: true,
           max_length: 3,
-          value: draft.requirement.type === 'level' ? String(draft.requirement.level) : '',
+          value: ['level', 'level_message'].includes(draft.requirement.type) ? String(draft.requirement.level) : '',
         },
       }],
     };
@@ -269,9 +270,42 @@ function buildRequirementModal(type, draft) {
           style: 1,
           required: true,
           max_length: 5,
-          value: draft.requirement.type === 'message' ? String(draft.requirement.messageCount) : '',
+          value: ['message', 'level_message'].includes(draft.requirement.type) ? String(draft.requirement.messageCount) : '',
         },
       }],
+    };
+  }
+
+  if (type === 'level_message') {
+    return {
+      custom_id: `${CUSTOM_IDS.requirementModalPrefix}level_message:${draft.id}`,
+      title: 'Level + message requirements',
+      components: [
+        {
+          type: 18,
+          label: 'Specific level needed',
+          component: {
+            type: 4,
+            custom_id: FIELD_IDS.requirementLevel,
+            style: 1,
+            required: true,
+            max_length: 3,
+            value: ['level', 'level_message'].includes(draft.requirement.type) ? String(draft.requirement.level) : '',
+          },
+        },
+        {
+          type: 18,
+          label: 'Amount message needed upon giveaway start',
+          component: {
+            type: 4,
+            custom_id: FIELD_IDS.requirementMessage,
+            style: 1,
+            required: true,
+            max_length: 5,
+            value: ['message', 'level_message'].includes(draft.requirement.type) ? String(draft.requirement.messageCount) : '',
+          },
+        },
+      ],
     };
   }
 

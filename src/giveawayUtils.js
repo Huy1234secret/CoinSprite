@@ -144,10 +144,25 @@ function isSetupComplete(draft) {
   );
 }
 
+function getRequirementLevel(requirement) {
+  if (!requirement) return null;
+  if (requirement.type === 'level' || requirement.type === 'level_message') return requirement.level || null;
+  return null;
+}
+
+function getRequirementMessageCount(requirement) {
+  if (!requirement) return null;
+  if (requirement.type === 'message' || requirement.type === 'level_message') return requirement.messageCount || null;
+  return null;
+}
+
 function getRequirementLabel(requirement) {
   if (!requirement || requirement.type === 'none') return null;
   if (requirement.type === 'level') return `Level ${requirement.level}+`;
   if (requirement.type === 'message') return `${requirement.messageCount} messages after giveaway start`;
+  if (requirement.type === 'level_message') {
+    return `Level ${requirement.level}+ and ${requirement.messageCount} messages after giveaway start`;
+  }
   if (requirement.type === 'other') return requirement.text;
   return null;
 }
@@ -272,6 +287,8 @@ module.exports = {
   getMessageRequirementFromInput,
   getModalComponents,
   getRequirementLabel,
+  getRequirementLevel,
+  getRequirementMessageCount,
   getSubmittedValues,
   getWinnerAmountFromInput,
   isSetupComplete,
