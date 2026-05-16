@@ -316,9 +316,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildInvites,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMessageReactions,
   ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+  partials: [Partials.Message, Partials.Channel],
 });
 
 client.commands = new Collection();
@@ -400,11 +399,6 @@ client.on(Events.MessageDelete, async (message) => {
   if (message.guildId !== ALLOWED_GUILD_ID) return;
   for (const command of client.commands.values()) if (typeof command.handleMessageDelete === 'function') await command.handleMessageDelete(message, client);
 });
-client.on(Events.MessageReactionAdd, async (reaction, user) => {
-  if (reaction.message?.guildId !== ALLOWED_GUILD_ID) return;
-  for (const command of client.commands.values()) if (typeof command.handleMessageReactionAdd === 'function') await command.handleMessageReactionAdd(reaction, user, client);
-});
-
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.guildId !== ALLOWED_GUILD_ID) {
