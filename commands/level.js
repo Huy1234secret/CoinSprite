@@ -6,7 +6,6 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
 const { LEVEL_ROLE_REWARDS, getEligibleRoleIds } = require('../src/levelRoleRewards');
-const { canEarnXpInChannel } = require('../src/xpChannels');
 
 const execFileAsync = promisify(execFile);
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
@@ -438,7 +437,7 @@ module.exports = {
       return;
     }
 
-    if (!canEarnXpInChannel(message.channelId) || isXpDisabledChannel(message.channel)) return;
+    if (isXpDisabledChannel(message.channel)) return;
 
     const fixedXp = isChannelInLowXpCategory(message.channel) ? LOW_XP_AMOUNT : undefined;
     const result = manager.awardMessageXp(message.guild.id, message.author.id, {
@@ -519,7 +518,7 @@ module.exports = {
     if (reaction.partial) await reaction.fetch().catch(() => null);
     if (!reaction.message.guild) return;
 
-    if (!canEarnXpInChannel(reaction.message.channelId) || isXpDisabledChannel(reaction.message.channel)) return;
+    if (isXpDisabledChannel(reaction.message.channel)) return;
 
     const fixedXp = isChannelInLowXpCategory(reaction.message.channel) ? LOW_XP_AMOUNT : undefined;
     const result = manager.awardReactionXp(reaction.message.guild.id, user.id, {
