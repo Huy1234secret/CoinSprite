@@ -172,6 +172,15 @@ function getCurrentPunishment(user) {
   return user.activePunishment;
 }
 
+function getXpGainForUser(rawXp, user) {
+  if (user.expLocked) {
+    return 0;
+  }
+
+  const punishment = getCurrentPunishment(user);
+  return getXpGainAfterPunishment(rawXp, punishment);
+}
+
 function getXpGainAfterPunishment(rawXp, punishment) {
   if (!punishment?.tier) {
     return rawXp;
@@ -191,8 +200,7 @@ function awardMessageXp(guildId, userId, options = {}) {
   const before = getProgress(user.totalXp);
   const hasFixedXp = Number.isFinite(options.fixedXp);
   const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : (Math.floor(Math.random() * 10) + 1);
-  const punishment = getCurrentPunishment(user);
-  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  const xp = floorOneDecimal(getXpGainForUser(rawXp, user));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.messages += 1;
   const after = getProgress(user.totalXp);
@@ -228,8 +236,7 @@ function awardReactionXp(guildId, userId, options = {}) {
   const before = getProgress(user.totalXp);
   const hasFixedXp = Number.isFinite(options.fixedXp);
   const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : (Math.floor(Math.random() * 2) + 1);
-  const punishment = getCurrentPunishment(user);
-  const xp = floorOneDecimal(getXpGainAfterPunishment(rawXp, punishment));
+  const xp = floorOneDecimal(getXpGainForUser(rawXp, user));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.reactions += 1;
   const after = getProgress(user.totalXp);
@@ -328,7 +335,7 @@ function addUserXp(guildId, userId, amount, options = {}) {
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
   const delta = floorOneDecimal(Number(amount) || 0);
-  const addedXp = Math.max(0, delta);
+  const addedXp = user.expLocked ? 0 : Math.max(0, delta);
   user.totalXp = floorOneDecimal(user.totalXp + addedXp);
   const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
@@ -364,6 +371,7 @@ function getUserProgress(guildId, userId) {
     ...getProgress(user.totalXp),
     punishTier: user.punishTier,
     activePunishment: user.activePunishment,
+    expLocked: user.expLocked,
   };
 }
 
@@ -377,6 +385,48 @@ function getPunishmentSummary(guildId, userId) {
     tier: user.activePunishment?.tier || 0,
     endsAt: user.activePunishment?.endsAt || null,
     userId,
+    expLocked: user.expLocked,
+  };
+}
+
+function setUserExpLock(guildId, userId, locked) {
+  const state = loadState();
+  const shouldLock = locked === true;
+  const existingGuild = state.guilds?.[guildId];
+  const existingUser = existingGuild?.users?.[userId];
+
+  if (!shouldLock && !existingUser) {
+    return {
+      userId,
+      wasLocked: false,
+      expLocked: false,
+      changed: false,
+    };
+  }
+
+  const guild = ensureGuildState(state, guildId);
+  const user = ensureUserState(guild, userId);
+  const wasLocked = user.expLocked === true;
+
+  if (wasLocked === shouldLock) {
+    return {
+      userId,
+      wasLocked,
+      expLocked: user.expLocked,
+      changed: false,
+    };
+  }
+
+  user.expLocked = shouldLock;
+  user.updatedAt = Date.now();
+  guild.updatedAt = Date.now();
+  saveState(state);
+
+  return {
+    userId,
+    wasLocked,
+    expLocked: user.expLocked,
+    changed: true,
   };
 }
 
@@ -640,6 +690,7 @@ module.exports = {
   addUserXp,
   getUserProgress,
   getPunishmentSummary,
+  setUserExpLock,
   applyLevelPunishment,
   buildLevelCard,
   buildLeaderboardImage,

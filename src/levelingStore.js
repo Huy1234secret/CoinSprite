@@ -92,6 +92,7 @@ function ensureUserState(guildState, userId) {
       reactions: 0,
       punishTier: 0,
       activePunishment: null,
+      expLocked: false,
       updatedAt: Date.now(),
     };
   }
@@ -101,6 +102,7 @@ function ensureUserState(guildState, userId) {
   user.messages = Number(user.messages) || 0;
   user.reactions = Number(user.reactions) || 0;
   user.punishTier = Math.max(0, Math.floor(Number(user.punishTier) || 0));
+  user.expLocked = user.expLocked === true;
   if (!user.activePunishment || typeof user.activePunishment !== 'object') {
     user.activePunishment = null;
   } else {
