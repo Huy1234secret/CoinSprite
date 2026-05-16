@@ -6,7 +6,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
 const { LEVEL_ROLE_REWARDS, getEligibleRoleIds } = require('../src/levelRoleRewards');
-const { canEarnXpInChannel } = require('../src/xpChannels');
+const { canEarnXpInChannel, isLowXpChannel } = require('../src/xpChannels');
 
 const execFileAsync = promisify(execFile);
 const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
@@ -145,6 +145,7 @@ function isXpDisabledChannel(channel) {
 
 function isChannelInLowXpCategory(channel) {
   if (!channel) return false;
+  if (isLowXpChannel(channel)) return true;
   if (channel.parentId === LOW_XP_CATEGORY_ID) return true;
   if (channel.isThread?.()) return channel.parent?.parentId === LOW_XP_CATEGORY_ID;
   return false;
