@@ -228,43 +228,6 @@ function awardMessageXp(guildId, userId, options = {}) {
     totalXp: user.totalXp,
   };
 }
-
-function awardReactionXp(guildId, userId, options = {}) {
-  const state = loadState();
-  const guild = ensureGuildState(state, guildId);
-  const user = ensureUserState(guild, userId);
-  const before = getProgress(user.totalXp);
-  const hasFixedXp = Number.isFinite(options.fixedXp);
-  const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : (Math.floor(Math.random() * 2) + 1);
-  const xp = floorOneDecimal(getXpGainForUser(rawXp, user));
-  user.totalXp = floorOneDecimal(user.totalXp + xp);
-  user.reactions += 1;
-  const after = getProgress(user.totalXp);
-  user.updatedAt = Date.now();
-  guild.updatedAt = Date.now();
-  saveState(state);
-  logXpEarn({
-    userId,
-    guildId,
-    amount: xp,
-    rawXp,
-    source: options.source || 'reaction',
-    channelId: options.channelId,
-    messageId: options.messageId,
-    totalXp: user.totalXp,
-    oldLevel: before.level,
-    newLevel: after.level,
-  });
-  return {
-    xp,
-    rawXp,
-    leveledUp: after.level > before.level,
-    oldLevel: before.level,
-    newLevel: after.level,
-    totalXp: user.totalXp,
-  };
-}
-
 function setUserLevel(guildId, userId, targetLevel, options = {}) {
   const safeLevel = Math.max(1, Math.floor(Number(targetLevel) || 1));
   let totalXp = 0;
@@ -705,7 +668,6 @@ module.exports = {
   getProgress,
   getSortedLeaderboard,
   awardMessageXp,
-  awardReactionXp,
   setUserLevel,
   setUserXp,
   addUserXp,
