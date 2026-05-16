@@ -33,7 +33,13 @@ function awardRoleBonusXp(message) {
   const xpBoostPercent = getXpBoostPercent(message.member);
   if (xpBoostPercent <= 0) return;
   const bonusXp = Math.floor((randomInt(1, 10) * xpBoostPercent) / 10) / 10;
-  if (bonusXp > 0) levelingManager.addUserXp(message.guild.id, message.author.id, bonusXp);
+  if (bonusXp > 0) {
+    levelingManager.addUserXp(message.guild.id, message.author.id, bonusXp, {
+      source: 'message XP boost',
+      channelId: message.channelId,
+      messageId: message.id,
+    });
+  }
 }
 
 function sectionLines(title, total, lines, note = null) {

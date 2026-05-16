@@ -4,6 +4,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./levelingStore');
 const { formatCompactNumber } = require('./numberFormat');
+const { logXpEarn } = require('./xpLogger');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
@@ -198,6 +199,18 @@ function awardMessageXp(guildId, userId, options = {}) {
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
+  logXpEarn({
+    userId,
+    guildId,
+    amount: xp,
+    rawXp,
+    source: options.source || 'message',
+    channelId: options.channelId,
+    messageId: options.messageId,
+    totalXp: user.totalXp,
+    oldLevel: before.level,
+    newLevel: after.level,
+  });
   return {
     xp,
     rawXp,
@@ -223,6 +236,18 @@ function awardReactionXp(guildId, userId, options = {}) {
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
+  logXpEarn({
+    userId,
+    guildId,
+    amount: xp,
+    rawXp,
+    source: options.source || 'reaction',
+    channelId: options.channelId,
+    messageId: options.messageId,
+    totalXp: user.totalXp,
+    oldLevel: before.level,
+    newLevel: after.level,
+  });
   return {
     xp,
     rawXp,
@@ -233,7 +258,7 @@ function awardReactionXp(guildId, userId, options = {}) {
   };
 }
 
-function setUserLevel(guildId, userId, targetLevel) {
+function setUserLevel(guildId, userId, targetLevel, options = {}) {
   const safeLevel = Math.max(1, Math.floor(Number(targetLevel) || 1));
   let totalXp = 0;
   for (let level = 1; level < safeLevel; level += 1) {
@@ -243,45 +268,87 @@ function setUserLevel(guildId, userId, targetLevel) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
+  const before = getProgress(user.totalXp);
+  const beforeTotalXp = floorOneDecimal(user.totalXp);
   user.totalXp = floorOneDecimal(totalXp);
+  const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
+  logXpEarn({
+    userId,
+    guildId,
+    amount: user.totalXp - beforeTotalXp,
+    source: options.source || 'level edit',
+    channelId: options.channelId,
+    messageId: options.messageId,
+    command: options.command,
+    totalXp: user.totalXp,
+    oldLevel: before.level,
+    newLevel: after.level,
+  });
 
   return { level: safeLevel, totalXp: user.totalXp };
 }
 
-function setUserXp(guildId, userId, targetXp) {
+function setUserXp(guildId, userId, targetXp, options = {}) {
   const safeXp = floorOneDecimal(Number(targetXp) || 0);
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
+  const before = getProgress(user.totalXp);
+  const beforeTotalXp = floorOneDecimal(user.totalXp);
   user.totalXp = safeXp;
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
 
   const progress = getProgress(user.totalXp);
+  logXpEarn({
+    userId,
+    guildId,
+    amount: user.totalXp - beforeTotalXp,
+    source: options.source || 'xp edit',
+    channelId: options.channelId,
+    messageId: options.messageId,
+    command: options.command,
+    totalXp: user.totalXp,
+    oldLevel: before.level,
+    newLevel: progress.level,
+  });
   return {
     totalXp: user.totalXp,
     level: progress.level,
   };
 }
 
-function addUserXp(guildId, userId, amount) {
+function addUserXp(guildId, userId, amount, options = {}) {
   const state = loadState();
   const guild = ensureGuildState(state, guildId);
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
   const delta = floorOneDecimal(Number(amount) || 0);
-  user.totalXp = floorOneDecimal(user.totalXp + Math.max(0, delta));
+  const addedXp = Math.max(0, delta);
+  user.totalXp = floorOneDecimal(user.totalXp + addedXp);
   const after = getProgress(user.totalXp);
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
+  logXpEarn({
+    userId,
+    guildId,
+    amount: addedXp,
+    source: options.source || 'xp award',
+    channelId: options.channelId,
+    messageId: options.messageId,
+    command: options.command,
+    totalXp: user.totalXp,
+    oldLevel: before.level,
+    newLevel: after.level,
+  });
 
   return {
-    addedXp: Math.max(0, delta),
+    addedXp,
     oldLevel: before.level,
     newLevel: after.level,
     totalXp: user.totalXp,

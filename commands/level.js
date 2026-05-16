@@ -440,7 +440,12 @@ module.exports = {
     if (isXpDisabledChannel(message.channel)) return;
 
     const fixedXp = isChannelInLowXpCategory(message.channel) ? LOW_XP_AMOUNT : undefined;
-    const result = manager.awardMessageXp(message.guild.id, message.author.id, { fixedXp });
+    const result = manager.awardMessageXp(message.guild.id, message.author.id, {
+      fixedXp,
+      source: 'message',
+      channelId: message.channelId,
+      messageId: message.id,
+    });
     await handleLevelUpRange(message.guild, message.author.id, result.oldLevel, result.newLevel);
   },
 
@@ -516,7 +521,12 @@ module.exports = {
     if (isXpDisabledChannel(reaction.message.channel)) return;
 
     const fixedXp = isChannelInLowXpCategory(reaction.message.channel) ? LOW_XP_AMOUNT : undefined;
-    const result = manager.awardReactionXp(reaction.message.guild.id, user.id, { fixedXp });
+    const result = manager.awardReactionXp(reaction.message.guild.id, user.id, {
+      fixedXp,
+      source: 'reaction',
+      channelId: reaction.message.channelId,
+      messageId: reaction.message.id,
+    });
     await handleLevelUpRange(reaction.message.guild, user.id, result.oldLevel, result.newLevel);
   },
 };

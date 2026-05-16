@@ -51,7 +51,11 @@ module.exports = {
       targetLevel = Math.max(1, current.level - value);
     }
 
-    const result = manager.setUserLevel(interaction.guildId, user.id, targetLevel);
+    const result = manager.setUserLevel(interaction.guildId, user.id, targetLevel, {
+      source: operation === '+' ? 'edit-level command add' : operation === 's' ? 'edit-level command set' : 'edit-level command remove',
+      channelId: interaction.channelId,
+      command: '/edit-level',
+    });
 
     const member = interaction.guild.members.cache.get(user.id)
       || await interaction.guild.members.fetch(user.id).catch(() => null);
