@@ -11,6 +11,8 @@ const {
   createDraft,
   getLevelRequirementFromInput,
   getMessageRequirementFromInput,
+  getRequirementLevel,
+  getRequirementMessageCount,
   getSubmittedValues,
   getWinnerAmountFromInput,
   isSetupComplete,
@@ -324,14 +326,32 @@ async function handleRequirementModalSubmit(interaction, type, draftId) {
       await interaction.reply({ content: 'Level requirement must be at least 1.', flags: EPHEMERAL_FLAG });
       return true;
     }
-    draft.requirement = { type: 'level', level };
+    const messageCount = getRequirementMessageCount(draft.requirement);
+    draft.requirement = messageCount
+      ? { type: 'level_message', level, messageCount }
+      : { type: 'level', level };
   } else if (type === 'message') {
     const messageCount = getMessageRequirementFromInput(interaction.fields.getTextInputValue(FIELD_IDS.requirementMessage));
     if (!messageCount) {
       await interaction.reply({ content: 'Message requirement must be at least 1.', flags: EPHEMERAL_FLAG });
       return true;
     }
-    draft.requirement = { type: 'message', messageCount };
+    const level = getRequirementLevel(draft.requirement);
+    draft.requirement = level
+      ? { type: 'level_message', level, messageCount }
+      : { type: 'message', messageCount };
+  } else if (type === 'level_message') {
+    const level = getLevelRequirementFromInput(interaction.fields.getTextInputValue(FIELD_IDS.requirementLevel));
+    const messageCount = getMessageRequirementFromInput(interaction.fields.getTextInputValue(FIELD_IDS.requirementMessage));
+    if (!level) {
+      await interaction.reply({ content: 'Level requirement must be at least 1.', flags: EPHEMERAL_FLAG });
+      return true;
+    }
+    if (!messageCount) {
+      await interaction.reply({ content: 'Message requirement must be at least 1.', flags: EPHEMERAL_FLAG });
+      return true;
+    }
+    draft.requirement = { type: 'level_message', level, messageCount };
   } else {
     const value = normalizeWhitespace(interaction.fields.getTextInputValue(FIELD_IDS.requirementOther));
     if (!value) {
@@ -378,18 +398,20 @@ async function handleJoinButton(interaction, giveawayId) {
     return true;
   }
 
-  if (giveaway.requirement.type === 'level') {
+  const requiredLevel = getRequirementLevel(giveaway.requirement);
+  if (requiredLevel) {
     const progress = levelingManager.getUserProgress(giveaway.guildId, interaction.user.id);
-    if ((progress.level || 0) < giveaway.requirement.level) {
-      await respondEphemeral(interaction, `You need chat level ${giveaway.requirement.level} or higher to join this giveaway.`);
+    if ((progress.level || 0) < requiredLevel) {
+      await respondEphemeral(interaction, `You need chat level ${requiredLevel} or higher to join this giveaway.`);
       return true;
     }
   }
 
-  if (giveaway.requirement.type === 'message') {
+  const requiredMessageCount = getRequirementMessageCount(giveaway.requirement);
+  if (requiredMessageCount) {
     const currentCount = Number(giveaway.messageCounts[interaction.user.id] || 0);
-    if (currentCount < giveaway.requirement.messageCount) {
-      await respondEphemeral(interaction, `You need ${giveaway.requirement.messageCount} messages after giveaway start to join. Current count: ${currentCount}.`);
+    if (currentCount < requiredMessageCount) {
+      await respondEphemeral(interaction, `You need ${requiredMessageCount} messages after giveaway start to join. Current count: ${currentCount}.`);
       return true;
     }
   }
@@ -460,7 +482,7 @@ async function handleMessageCreate(message) {
   const state = runtime.getState();
   let changed = false;
   for (const giveaway of Object.values(state.giveaways)) {
-    if (giveaway.guildId !== message.guild.id || giveaway.status !== 'live' || giveaway.requirement.type !== 'message') continue;
+    if (giveaway.guildId !== message.guild.id || giveaway.status !== 'live' || !getRequirementMessageCount(giveaway.requirement)) continue;
     giveaway.messageCounts[message.author.id] = Number(giveaway.messageCounts[message.author.id] || 0) + 1;
     giveaway.updatedAt = now();
     changed = true;
