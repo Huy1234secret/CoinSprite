@@ -372,6 +372,7 @@ function getUserProgress(guildId, userId) {
     punishTier: user.punishTier,
     activePunishment: user.activePunishment,
     expLocked: user.expLocked,
+    expLockReason: user.expLockReason,
   };
 }
 
@@ -386,12 +387,14 @@ function getPunishmentSummary(guildId, userId) {
     endsAt: user.activePunishment?.endsAt || null,
     userId,
     expLocked: user.expLocked,
+    expLockReason: user.expLockReason,
   };
 }
 
-function setUserExpLock(guildId, userId, locked) {
+function setUserExpLock(guildId, userId, locked, reason = null) {
   const state = loadState();
   const shouldLock = locked === true;
+  const cleanReason = typeof reason === 'string' ? reason.trim() : '';
   const existingGuild = state.guilds?.[guildId];
   const existingUser = existingGuild?.users?.[userId];
 
@@ -400,6 +403,7 @@ function setUserExpLock(guildId, userId, locked) {
       userId,
       wasLocked: false,
       expLocked: false,
+      expLockReason: null,
       changed: false,
     };
   }
@@ -409,15 +413,31 @@ function setUserExpLock(guildId, userId, locked) {
   const wasLocked = user.expLocked === true;
 
   if (wasLocked === shouldLock) {
+    if (shouldLock && user.expLockReason !== cleanReason) {
+      user.expLockReason = cleanReason;
+      user.updatedAt = Date.now();
+      guild.updatedAt = Date.now();
+      saveState(state);
+      return {
+        userId,
+        wasLocked,
+        expLocked: user.expLocked,
+        expLockReason: user.expLockReason,
+        changed: true,
+      };
+    }
+
     return {
       userId,
       wasLocked,
       expLocked: user.expLocked,
+      expLockReason: user.expLockReason,
       changed: false,
     };
   }
 
   user.expLocked = shouldLock;
+  user.expLockReason = shouldLock ? cleanReason : null;
   user.updatedAt = Date.now();
   guild.updatedAt = Date.now();
   saveState(state);
@@ -426,6 +446,7 @@ function setUserExpLock(guildId, userId, locked) {
     userId,
     wasLocked,
     expLocked: user.expLocked,
+    expLockReason: user.expLockReason,
     changed: true,
   };
 }

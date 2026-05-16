@@ -17,18 +17,30 @@ module.exports = {
       .addChoices(
         { name: 'yes', value: 'yes' },
         { name: 'no', value: 'no' },
-      )),
+      ))
+    .addStringOption((option) => option
+      .setName('reason')
+      .setDescription('Reason shown on the user rank card while locked')
+      .setRequired(false)
+      .setMaxLength(300)),
 
   async execute(interaction) {
     const user = interaction.options.getUser('user', true);
     const shouldLock = interaction.options.getString('locked', true) === 'yes';
-    const result = manager.setUserExpLock(interaction.guildId, user.id, shouldLock);
+    const reason = interaction.options.getString('reason')?.trim() ?? '';
+
+    if (shouldLock && !reason) {
+      await interaction.reply({ content: 'Please provide a reason when locking EXP.' });
+      return;
+    }
+
+    const result = manager.setUserExpLock(interaction.guildId, user.id, shouldLock, reason);
 
     if (shouldLock) {
       await interaction.reply({
         content: result.changed
-          ? `<@${user.id}> is now EXP locked and will not earn EXP.`
-          : `<@${user.id}> was already EXP locked and will not earn EXP.`,
+          ? `<@${user.id}> is now EXP locked and will not earn EXP. Reason: ${result.expLockReason}`
+          : `<@${user.id}> was already EXP locked and will not earn EXP. Reason: ${result.expLockReason}`,
         allowedMentions: { users: [] },
       });
       return;

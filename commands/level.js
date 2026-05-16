@@ -78,6 +78,16 @@ function punishmentNotice(summary) {
   return null;
 }
 
+function expLockNotice(summary) {
+  if (!summary?.expLocked) return null;
+  return `🔒Your exp are being locked, you are not longer be able to earn exp.
+-# Reason: ${summary.expLockReason || 'No reason provided.'}`;
+}
+
+function rankCardNotice(summary) {
+  return [expLockNotice(summary), punishmentNotice(summary)].filter(Boolean).join('\n') || null;
+}
+
 async function syncLevelRoles(guild, userId, level) {
   const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
   if (!member) return;
@@ -412,7 +422,7 @@ module.exports = {
   async execute(interaction) {
     const { attachment } = await getRankCardPayload(interaction.guild, interaction.user);
     const summary = manager.getPunishmentSummary(interaction.guildId, interaction.user.id);
-    const notice = punishmentNotice(summary);
+    const notice = rankCardNotice(summary);
 
     await interaction.reply({
       content: notice || undefined,
@@ -428,7 +438,7 @@ module.exports = {
     if (trimmed === '!level' || trimmed === '!rank') {
       const { attachment } = await getRankCardPayload(message.guild, message.author);
       const summary = manager.getPunishmentSummary(message.guild.id, message.author.id);
-      const notice = punishmentNotice(summary);
+      const notice = rankCardNotice(summary);
 
       await message.reply({
         content: notice || undefined,
