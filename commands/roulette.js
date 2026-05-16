@@ -16,6 +16,7 @@ const {
   setLastBetInput,
 } = require('../src/gamblingStore');
 const leveling = require('../src/levelingManager');
+const { canEarnXpInChannel } = require('../src/xpChannels');
 const { unlockBullseyeAchievement } = require('../src/achievementSystem');
 const {
   PRCOIN,
@@ -1176,7 +1177,7 @@ async function settleSpin(gameId) {
   if (won && payout > 0) {
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
-    if (game.guildId) {
+    if (game.guildId && canEarnXpInChannel(game.message?.channelId || game.channelId)) {
       leveling.addUserXp(game.guildId, game.userId, 10 * multiplier, {
         source: 'roulette win',
         channelId: game.message?.channelId || game.channelId,
