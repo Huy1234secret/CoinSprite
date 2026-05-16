@@ -1176,7 +1176,14 @@ async function settleSpin(gameId) {
   if (won && payout > 0) {
     addBalance(game.userId, payout);
     recordGamblingEarnings(game.userId, payout);
-    if (game.guildId) leveling.addUserXp(game.guildId, game.userId, 10 * multiplier);
+    if (game.guildId) {
+      leveling.addUserXp(game.guildId, game.userId, 10 * multiplier, {
+        source: 'roulette win',
+        channelId: game.message?.channelId || game.channelId,
+        messageId: game.message?.id,
+        command: '/roulette',
+      });
+    }
   }
   if (won && game.betSelection?.type === 'straight') {
     addJackpotBalance(game.userId, 1);
@@ -1238,6 +1245,7 @@ module.exports = {
       bet: 0,
       betCurrency: 'prcoin',
       guildId: interaction.guildId || null,
+      channelId: interaction.channelId || null,
       betSelection: null,
       status: 'waiting',
       resultNumber: null,

@@ -41,7 +41,11 @@ module.exports = {
     }
 
     if (operation === 's') {
-      const result = manager.setUserXp(interaction.guildId, user.id, value);
+      const result = manager.setUserXp(interaction.guildId, user.id, value, {
+        source: 'edit-xp command set',
+        channelId: interaction.channelId,
+        command: '/edit-xp',
+      });
       const member = interaction.guild.members.cache.get(user.id)
         || await interaction.guild.members.fetch(user.id).catch(() => null);
       if (member) {
@@ -56,7 +60,11 @@ module.exports = {
     const delta = operation === '+' ? value : -value;
     const current = manager.getUserProgress(interaction.guildId, user.id);
     const targetXp = Math.max(0, current.totalXp + delta);
-    const result = manager.setUserXp(interaction.guildId, user.id, targetXp);
+    const result = manager.setUserXp(interaction.guildId, user.id, targetXp, {
+      source: delta >= 0 ? 'edit-xp command add' : 'edit-xp command remove',
+      channelId: interaction.channelId,
+      command: '/edit-xp',
+    });
     const member = interaction.guild.members.cache.get(user.id)
       || await interaction.guild.members.fetch(user.id).catch(() => null);
     if (member) {
