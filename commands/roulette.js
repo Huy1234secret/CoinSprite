@@ -17,7 +17,6 @@ const {
 } = require('../src/gamblingStore');
 const leveling = require('../src/levelingManager');
 const { canEarnXpInChannel } = require('../src/xpChannels');
-const { unlockBullseyeAchievement } = require('../src/achievementSystem');
 const {
   PRCOIN,
   JPCOIN,
@@ -1190,7 +1189,6 @@ async function settleSpin(gameId) {
     addJackpotBalance(game.userId, 1);
   }
   if (won && game.betSelection?.type === 'straight' && game.message?.channel) {
-    await unlockBullseyeAchievement(game.message.channel, { id: game.userId });
     await announceStraightWin(game, payout);
   }
 

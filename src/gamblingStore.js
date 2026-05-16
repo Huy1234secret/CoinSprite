@@ -8,7 +8,6 @@ function getEmptyState() {
     coins: {},
     skillPoints: {},
     stats: {},
-    achievements: {},
     workCooldowns: {},
     lastBetInputs: {},
     incomeClaims: {},
@@ -25,6 +24,7 @@ function normalizeState(state) {
   const next = state && typeof state === 'object' ? { ...state } : {};
   const empty = getEmptyState();
   for (const key of Object.keys(empty)) next[key] = next[key] && typeof next[key] === 'object' ? next[key] : {};
+  delete next.achievements;
   return next;
 }
 function loadState() { ensureStoreFile(); try { return normalizeState(JSON.parse(fs.readFileSync(STORE_PATH, 'utf8'))); } catch { return getEmptyState(); } }
@@ -55,8 +55,6 @@ function getDefaultUserStats() {
     rouletteStraightWins: { straight: 0 },
   };
 }
-function getDefaultAchievementRecord() { return { unlockedAt: null }; }
-function getUserAchievementsRecord(state, userId) { if (!state.achievements[userId] || typeof state.achievements[userId] !== 'object') state.achievements[userId] = {}; return state.achievements[userId]; }
 function getUserStatsRecord(state, userId) {
   if (!state.stats[userId] || typeof state.stats[userId] !== 'object') state.stats[userId] = getDefaultUserStats();
   const base = getDefaultUserStats();
@@ -73,9 +71,6 @@ function incrementMinefieldCompleted(userId, difficulty) { const safeDifficulty 
 function getGamblingStats(userId) { const state = loadState(); return JSON.parse(JSON.stringify(getUserStatsRecord(state, userId))); }
 function getAllGamblingStats() { const state = loadState(); const result = {}; for (const userId of Object.keys(state.stats || {})) result[userId] = getUserStatsRecord(state, userId); return JSON.parse(JSON.stringify(result)); }
 function getAllBalances() { return JSON.parse(JSON.stringify(loadState().coins || {})); }
-function unlockAchievement(userId, achievementId) { const id = String(achievementId || '').trim(); if (!id) return false; const state = loadState(); const userAchievements = getUserAchievementsRecord(state, userId); if (userAchievements[id]?.unlockedAt) return false; userAchievements[id] = { ...getDefaultAchievementRecord(), unlockedAt: Date.now() }; saveState(state); return true; }
-function hasAchievement(userId, achievementId) { const id = String(achievementId || '').trim(); if (!id) return false; const state = loadState(); return Boolean(getUserAchievementsRecord(state, userId)[id]?.unlockedAt); }
-function getUserAchievements(userId) { const state = loadState(); return JSON.parse(JSON.stringify(getUserAchievementsRecord(state, userId))); }
 function getWorkCooldown(userId) { return Number(loadState().workCooldowns[userId] || 0); }
 function setWorkCooldown(userId, nextAvailableAt) { const state = loadState(); state.workCooldowns[userId] = Math.max(0, Math.floor(Number(nextAvailableAt) || 0)); saveState(state); return state.workCooldowns[userId]; }
 function getLastBetInput(userId, gameKey = 'default') { const state = loadState(); const key = String(gameKey || 'default').trim().toLowerCase() || 'default'; const userInputs = state.lastBetInputs[userId] && typeof state.lastBetInputs[userId] === 'object' ? state.lastBetInputs[userId] : {}; return typeof userInputs[key] === 'string' ? userInputs[key] : ''; }
@@ -83,4 +78,4 @@ function setLastBetInput(userId, value, gameKey = 'default') { const state = loa
 function getIncomeClaim(userId) { const state = loadState(); const stored = state.incomeClaims[userId]; const entry = stored && typeof stored === 'object' ? stored : {}; return { startedAt: Math.max(0, Math.floor(Number(entry.startedAt) || 0)), lastClaimAt: Math.max(0, Math.floor(Number(entry.lastClaimAt) || 0)) }; }
 function setIncomeClaim(userId, values = {}) { const state = loadState(); if (!state.incomeClaims[userId] || typeof state.incomeClaims[userId] !== 'object') state.incomeClaims[userId] = {}; if (values.startedAt !== undefined) state.incomeClaims[userId].startedAt = Math.max(0, Math.floor(Number(values.startedAt) || 0)); if (values.lastClaimAt !== undefined) state.incomeClaims[userId].lastClaimAt = Math.max(0, Math.floor(Number(values.lastClaimAt) || 0)); saveState(state); return getIncomeClaim(userId); }
 
-module.exports = { STORE_PATH, getBalance, setBalance, addBalance, spendBalance, getSkillPoints, setSkillPoints, addSkillPoints, spendSkillPoints, getJackpotBalance, addJackpotBalance, spendJackpotBalance, resetAllGamblingData, recordGamblingEarnings, recordRouletteStraightWin, recordTriviaRun, getTriviaXpMultiplier, incrementMinefieldCompleted, getGamblingStats, getAllGamblingStats, getAllBalances, unlockAchievement, hasAchievement, getUserAchievements, getWorkCooldown, setWorkCooldown, getLastBetInput, setLastBetInput, getIncomeClaim, setIncomeClaim };
+module.exports = { STORE_PATH, getBalance, setBalance, addBalance, spendBalance, getSkillPoints, setSkillPoints, addSkillPoints, spendSkillPoints, getJackpotBalance, addJackpotBalance, spendJackpotBalance, resetAllGamblingData, recordGamblingEarnings, recordRouletteStraightWin, recordTriviaRun, getTriviaXpMultiplier, incrementMinefieldCompleted, getGamblingStats, getAllGamblingStats, getAllBalances, getWorkCooldown, setWorkCooldown, getLastBetInput, setLastBetInput, getIncomeClaim, setIncomeClaim };
