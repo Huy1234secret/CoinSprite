@@ -28,6 +28,7 @@ function getPrefixCommandLabel(message) {
   const commandBody = content.slice(1).trim().toLowerCase();
   if (!commandBody) return null;
   if (commandBody.startsWith('dm ')) return content;
+  if (commandBody.startsWith('role remove ')) return content;
   if (commandBody.startsWith('blacklist add ') || commandBody.startsWith('blacklist remove ')) return content;
   return null;
 }

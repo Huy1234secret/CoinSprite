@@ -86,6 +86,54 @@ function parseUserIdToken(value) {
   return null;
 }
 
+function parseRoleIdToken(value) {
+  const token = String(value || '').trim();
+  const unwrapped = token.match(/^\[\s*([^\]]+?)\s*\]$/)?.[1]?.trim() ?? token;
+  const mentionMatch = unwrapped.match(/^<@&(\d{16,20})>$/);
+  if (mentionMatch) {
+    return mentionMatch[1];
+  }
+
+  if (/^\d{16,20}$/.test(unwrapped)) {
+    return unwrapped;
+  }
+
+  return null;
+}
+
+function parseUserIdListToken(value) {
+  const token = String(value || '').trim();
+  const listMatch = token.match(/^\[([\s\S]+)\]$/);
+  if (!listMatch) {
+    const userId = parseUserIdToken(token);
+    return userId ? [userId] : null;
+  }
+
+  const parts = listMatch[1].split(',').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const userIds = parts.map(parseUserIdToken);
+  if (userIds.some((userId) => !userId)) {
+    return null;
+  }
+
+  return [...new Set(userIds)];
+}
+
+function parseRoleRemoveCommand(commandBody) {
+  const match = commandBody.match(/^role\s+remove\s+(\[[^\]]+\]|<@!?\d{16,20}>|\d{16,20})\s+(\[\s*(?:<@&)?\d{16,20}>?\s*\]|<@&\d{16,20}>|\d{16,20})\s*$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    userIds: parseUserIdListToken(match[1]),
+    roleId: parseRoleIdToken(match[2]),
+  };
+}
+
 function getTierForMembers(memberCount) {
   return (
     TIERS.find((tier) => {
@@ -683,6 +731,7 @@ async function onMessageCreate(message) {
     /^blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^invitee-blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
+    /^role\s+remove\s+/i,
     /^(?:RI|IR)\s+(\S+)$/i,
     /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
     /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
@@ -809,6 +858,60 @@ async function onMessageCreate(message) {
     return;
   }
 
+  const roleRemove = parseRoleRemoveCommand(commandBody);
+  if (roleRemove) {
+    const { userIds, roleId } = roleRemove;
+    if (!userIds) {
+      await message.reply('Invalid user list. Use `!Role remove [userID, userID] [roleID]` for mass removal, or `!Role remove userID roleID` for one user.');
+      return;
+    }
+    if (!roleId) {
+      await message.reply('Invalid role ID. Use a numeric role ID, role mention, or `[roleID]`.');
+      return;
+    }
+
+    const role = await message.guild.roles.fetch(roleId).catch(() => null);
+    if (!role) {
+      await message.reply(`Could not find role \`${roleId}\` in this server.`);
+      return;
+    }
+
+    const removed = [];
+    const missingRole = [];
+    const failed = [];
+
+    for (const userId of userIds) {
+      const member = await message.guild.members.fetch(userId).catch(() => null);
+      if (!member) {
+        failed.push(`<@${userId}> (member not found)`);
+        continue;
+      }
+
+      if (!member.roles.cache.has(roleId)) {
+        missingRole.push(`<@${userId}>`);
+        continue;
+      }
+
+      try {
+        await member.roles.remove(roleId, `!Role remove used by ${message.author.tag ?? message.author.id}`);
+        removed.push(`<@${userId}>`);
+      } catch (error) {
+        failed.push(`<@${userId}> (${error?.message ?? 'remove failed'})`);
+      }
+    }
+
+    logReward(`Role ${roleId} remove command by ${message.author.id}. Removed=${removed.length}; missing=${missingRole.length}; failed=${failed.length}.`);
+
+    const lines = [
+      `Role removal finished for <@&${roleId}>.`,
+      `Removed: ${removed.length ? removed.join(', ') : 'none'}`,
+    ];
+    if (missingRole.length) lines.push(`Did not have role: ${missingRole.join(', ')}`);
+    if (failed.length) lines.push(`Failed: ${failed.join(', ')}`);
+    await message.reply(lines.join('\n'));
+    return;
+  }
+
   const rewardInventoryLookup = commandBody.match(/^(?:RI|IR)\s+(\S+)$/i);
   if (rewardInventoryLookup) {
     const [, userToken] = rewardInventoryLookup;
@@ -866,7 +969,7 @@ async function onMessageCreate(message) {
   if (!updateCmd) {
     logCommandSystem(`Invalid ! command syntax by ${message.author.id}: ${content}`);
     await message.reply(
-      'Invalid ! command. Use `!RI {userID}` (or `!IR {userID}`), `!DM {userID} {message} {yes/no}`, `!add/remove {userID} {item} {amount}`, `!blacklist add/remove {userID} {reason}`, or `!invitee-blacklist add/remove {userID} {reason}`.',
+      'Invalid ! command. Use `!RI {userID}` (or `!IR {userID}`), `!DM {userID} {message} {yes/no}`, `!Role remove [userID, userID] [roleID]`, `!add/remove {userID} {item} {amount}`, `!blacklist add/remove {userID} {reason}`, or `!invitee-blacklist add/remove {userID} {reason}`.',
     );
     return;
   }
