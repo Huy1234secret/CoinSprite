@@ -122,15 +122,16 @@ function parseUserIdListToken(value) {
   return [...new Set(userIds)];
 }
 
-function parseRoleRemoveCommand(commandBody) {
-  const match = commandBody.match(/^role\s+remove\s+(\[[^\]]+\]|<@!?\d{16,20}>|\d{16,20})\s+(\[\s*(?:<@&)?\d{16,20}>?\s*\]|<@&\d{16,20}>|\d{16,20})\s*$/i);
+function parseRoleCommand(commandBody) {
+  const match = commandBody.match(/^role\s+(add|remove)\s+(\[[^\]]+\]|<@!?\d{16,20}>|\d{16,20})\s+(\[\s*(?:<@&)?\d{16,20}>?\s*\]|<@&\d{16,20}>|\d{16,20})\s*$/i);
   if (!match) {
     return null;
   }
 
   return {
-    userIds: parseUserIdListToken(match[1]),
-    roleId: parseRoleIdToken(match[2]),
+    action: match[1].toLowerCase(),
+    userIds: parseUserIdListToken(match[2]),
+    roleId: parseRoleIdToken(match[3]),
   };
 }
 
@@ -731,7 +732,7 @@ async function onMessageCreate(message) {
     /^blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^invitee-blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
-    /^role\s+remove\s+/i,
+    /^role\s+(?:add|remove)\s+/i,
     /^(?:RI|IR)\s+(\S+)$/i,
     /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
     /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
@@ -858,26 +859,41 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const roleRemove = parseRoleRemoveCommand(commandBody);
-  if (roleRemove) {
-    const { userIds, roleId } = roleRemove;
+  const roleCommand = parseRoleCommand(commandBody);
+  if (roleCommand) {
+    const { action, userIds, roleId } = roleCommand;
+    const isAdd = action === 'add';
+    const actionLabel = isAdd ? 'add' : 'remove';
+    const actionPast = isAdd ? 'Added' : 'Removed';
+    const actionNoun = isAdd ? 'addition' : 'removal';
+    const noChangeLabel = isAdd ? 'Already had role' : 'Did not have role';
+
     if (!userIds) {
-      await message.reply('Invalid user list. Use `!Role remove [userID, userID] [roleID]` for mass removal, or `!Role remove userID roleID` for one user.');
+      await message.reply({
+        content: `Invalid user list. Use \`!Role ${actionLabel} [userID, userID] [roleID]\` for mass ${actionNoun}, or \`!Role ${actionLabel} userID roleID\` for one user.`,
+        allowedMentions: { parse: [] },
+      });
       return;
     }
     if (!roleId) {
-      await message.reply('Invalid role ID. Use a numeric role ID, role mention, or `[roleID]`.');
+      await message.reply({
+        content: 'Invalid role ID. Use a numeric role ID, role mention, or `[roleID]`.',
+        allowedMentions: { parse: [] },
+      });
       return;
     }
 
     const role = await message.guild.roles.fetch(roleId).catch(() => null);
     if (!role) {
-      await message.reply(`Could not find role \`${roleId}\` in this server.`);
+      await message.reply({
+        content: `Could not find role \`${roleId}\` in this server.`,
+        allowedMentions: { parse: [] },
+      });
       return;
     }
 
-    const removed = [];
-    const missingRole = [];
+    const changed = [];
+    const unchanged = [];
     const failed = [];
 
     for (const userId of userIds) {
@@ -887,28 +903,33 @@ async function onMessageCreate(message) {
         continue;
       }
 
-      if (!member.roles.cache.has(roleId)) {
-        missingRole.push(`<@${userId}>`);
+      const hasRole = member.roles.cache.has(roleId);
+      if (isAdd ? hasRole : !hasRole) {
+        unchanged.push(`<@${userId}>`);
         continue;
       }
 
       try {
-        await member.roles.remove(roleId, `!Role remove used by ${message.author.tag ?? message.author.id}`);
-        removed.push(`<@${userId}>`);
+        if (isAdd) {
+          await member.roles.add(roleId, `!Role add used by ${message.author.tag ?? message.author.id}`);
+        } else {
+          await member.roles.remove(roleId, `!Role remove used by ${message.author.tag ?? message.author.id}`);
+        }
+        changed.push(`<@${userId}>`);
       } catch (error) {
-        failed.push(`<@${userId}> (${error?.message ?? 'remove failed'})`);
+        failed.push(`<@${userId}> (${error?.message ?? `${actionLabel} failed`})`);
       }
     }
 
-    logReward(`Role ${roleId} remove command by ${message.author.id}. Removed=${removed.length}; missing=${missingRole.length}; failed=${failed.length}.`);
+    logReward(`Role ${roleId} ${actionLabel} command by ${message.author.id}. ${actionPast}=${changed.length}; unchanged=${unchanged.length}; failed=${failed.length}.`);
 
     const lines = [
-      `Role removal finished for <@&${roleId}>.`,
-      `Removed: ${removed.length ? removed.join(', ') : 'none'}`,
+      `Role ${actionNoun} finished for <@&${roleId}>.`,
+      `${actionPast}: ${changed.length ? changed.join(', ') : 'none'}`,
     ];
-    if (missingRole.length) lines.push(`Did not have role: ${missingRole.join(', ')}`);
+    if (unchanged.length) lines.push(`${noChangeLabel}: ${unchanged.join(', ')}`);
     if (failed.length) lines.push(`Failed: ${failed.join(', ')}`);
-    await message.reply(lines.join('\n'));
+    await message.reply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
     return;
   }
 
@@ -969,7 +990,7 @@ async function onMessageCreate(message) {
   if (!updateCmd) {
     logCommandSystem(`Invalid ! command syntax by ${message.author.id}: ${content}`);
     await message.reply(
-      'Invalid ! command. Use `!RI {userID}` (or `!IR {userID}`), `!DM {userID} {message} {yes/no}`, `!Role remove [userID, userID] [roleID]`, `!add/remove {userID} {item} {amount}`, `!blacklist add/remove {userID} {reason}`, or `!invitee-blacklist add/remove {userID} {reason}`.',
+      'Invalid ! command. Use `!RI {userID}` (or `!IR {userID}`), `!DM {userID} {message} {yes/no}`, `!Role add/remove [userID, userID] [roleID]`, `!add/remove {userID} {item} {amount}`, `!blacklist add/remove {userID} {reason}`, or `!invitee-blacklist add/remove {userID} {reason}`.',
     );
     return;
   }
