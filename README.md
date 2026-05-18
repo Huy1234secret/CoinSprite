@@ -23,6 +23,9 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Shows the user's current Invite Points.
 - `/transcript-message amount:{1-100}`
   - Saves a transcript of the most recent messages from the current channel and sends it to the transcript channel.
+- `/message channel:{channel} message:{text} [replyto:{message_id}]`
+  - Administrator-only command that sends a bot message to the selected text channel, optionally as a reply to an existing message ID.
+  - Sends the command confirmation ephemerally to the command user.
 
 ## Invite Reward System
 - Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).
@@ -51,7 +54,6 @@ Use these in a guild text channel:
 Use in a guild channel with Administrator permission:
 - `!RI {userID}` (or `!IR {userID}`)
 - `!DM {userID} {message} {yes/no}`
-- `!Message {channelID} {message} [replyto - messageID]` - Sends a message to a guild text channel, optionally as a reply to an existing message.
 - `!add/remove {userID} {item} {amount}`
 - `!blacklist add/remove {userID} {reason}`
 - `!invitee-blacklist add/remove {userID} {reason}`
