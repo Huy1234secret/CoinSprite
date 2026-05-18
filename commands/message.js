@@ -1,5 +1,4 @@
 const {
-  ChannelType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -7,23 +6,40 @@ const {
 const { logCommandSystem } = require('../src/commandLogger');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
+const MESSAGE_ID_PATTERN = /^\d{16,25}$/;
+
+function getReferencedMessageId(interaction) {
+  const directReference = interaction.reference?.messageId
+    ?? interaction.messageReference?.messageId
+    ?? interaction.message?.reference?.messageId
+    ?? interaction.message?.messageReference?.messageId
+    ?? interaction.data?.message_reference?.message_id
+    ?? interaction.raw?.message_reference?.message_id
+    ?? null;
+
+  if (directReference) return directReference;
+
+  const targetMessageId = interaction.targetMessage?.id ?? interaction.targetId ?? null;
+  if (targetMessageId) return targetMessageId;
+
+  return null;
+}
+
+async function fetchReplyTarget(interaction, targetChannel, explicitReplyToMessageId) {
+  const detectedMessageId = getReferencedMessageId(interaction);
+  const replyToMessageId = explicitReplyToMessageId || detectedMessageId;
+  if (!replyToMessageId) return null;
+
+  const targetMessage = await targetChannel.messages.fetch(replyToMessageId).catch(() => null);
+  if (!targetMessage) return { id: replyToMessageId, message: null };
+
+  return { id: replyToMessageId, message: targetMessage };
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('message')
-    .setDescription('Send a bot message to a selected channel.')
-    .addChannelOption((option) =>
-      option
-        .setName('channel')
-        .setDescription('The channel to send the message in.')
-        .addChannelTypes(
-          ChannelType.GuildText,
-          ChannelType.GuildAnnouncement,
-          ChannelType.PublicThread,
-          ChannelType.PrivateThread,
-        )
-        .setRequired(true),
-    )
+    .setDescription('Send a bot message in this channel, or reply when the command is used as a reply.')
     .addStringOption((option) =>
       option
         .setName('message')
@@ -34,16 +50,16 @@ module.exports = {
     .addStringOption((option) =>
       option
         .setName('replyto')
-        .setDescription('Optional message ID in the selected channel to reply to.')
+        .setDescription('Optional fallback message ID in this channel to reply to.')
         .setRequired(false)
         .setMaxLength(25),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
-    const targetChannel = interaction.options.getChannel('channel', true);
+    const targetChannel = interaction.channel;
     const body = interaction.options.getString('message', true).trim();
-    const replyToMessageId = interaction.options.getString('replyto')?.trim() ?? '';
+    const explicitReplyToMessageId = interaction.options.getString('replyto')?.trim() ?? '';
 
     if (!body) {
       await interaction.reply({ content: 'Message cannot be empty.', flags: EPHEMERAL_FLAG });
@@ -51,42 +67,44 @@ module.exports = {
     }
 
     if (!targetChannel?.isTextBased?.()) {
-      await interaction.reply({ content: 'Please choose a text-based channel.', flags: EPHEMERAL_FLAG });
+      await interaction.reply({ content: 'I can only send messages in a text-based channel.', flags: EPHEMERAL_FLAG });
       return;
     }
 
-    if (replyToMessageId && !/^\d{16,25}$/.test(replyToMessageId)) {
+    if (explicitReplyToMessageId && !MESSAGE_ID_PATTERN.test(explicitReplyToMessageId)) {
       await interaction.reply({ content: 'Reply target must be a valid message ID.', flags: EPHEMERAL_FLAG });
       return;
     }
 
     try {
+      const replyTarget = await fetchReplyTarget(interaction, targetChannel, explicitReplyToMessageId);
       let sentMessage;
-      if (replyToMessageId) {
-        const targetMessage = await targetChannel.messages.fetch(replyToMessageId).catch(() => null);
-        if (!targetMessage) {
-          await interaction.reply({
-            content: `I could not find message ID \`${replyToMessageId}\` in <#${targetChannel.id}>.`,
-            flags: EPHEMERAL_FLAG,
-          });
-          return;
-        }
 
-        sentMessage = await targetMessage.reply({ content: body });
+      if (replyTarget?.id && !replyTarget.message) {
+        await interaction.reply({
+          content: `I could not find message ID \`${replyTarget.id}\` in this channel.`,
+          flags: EPHEMERAL_FLAG,
+        });
+        return;
+      }
+
+      if (replyTarget?.message) {
+        sentMessage = await replyTarget.message.reply({ content: body });
       } else {
         sentMessage = await targetChannel.send({ content: body });
       }
 
       await interaction.reply({
-        content: `${replyToMessageId ? 'Reply' : 'Message'} sent to <#${targetChannel.id}> successfully. Sent message ID: \`${sentMessage.id}\`.`,
+        content: `${replyTarget?.message ? 'Reply' : 'Message'} sent in this channel successfully. Sent message ID: \`${sentMessage.id}\`.`,
         flags: EPHEMERAL_FLAG,
       });
     } catch (error) {
+      const detectedReplyId = explicitReplyToMessageId || getReferencedMessageId(interaction) || '';
       logCommandSystem(
-        `Failed /message command by ${interaction.user.id} to ${targetChannel.id}${replyToMessageId ? ` replying to ${replyToMessageId}` : ''}: ${error?.message ?? 'unknown error'}`,
+        `Failed /message command by ${interaction.user.id} in ${targetChannel.id}${detectedReplyId ? ` replying to ${detectedReplyId}` : ''}: ${error?.message ?? 'unknown error'}`,
       );
       await interaction.reply({
-        content: `Failed to ${replyToMessageId ? 'reply with a message' : 'send message'} in <#${targetChannel.id}>. Check my channel permissions and message content.`,
+        content: `Failed to ${detectedReplyId ? 'reply with a message' : 'send message'} in this channel. Check my channel permissions and message content.`,
         flags: EPHEMERAL_FLAG,
       });
     }
