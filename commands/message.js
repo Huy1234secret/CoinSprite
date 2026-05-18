@@ -4,42 +4,14 @@ const {
   SlashCommandBuilder,
 } = require('discord.js');
 const { logCommandSystem } = require('../src/commandLogger');
+const { fetchReplyTarget, getReferencedMessageId, parseMessageReferenceInput } = require('../src/messageReplyTarget');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const MESSAGE_ID_PATTERN = /^\d{16,25}$/;
-
-function getReferencedMessageId(interaction) {
-  const directReference = interaction.reference?.messageId
-    ?? interaction.messageReference?.messageId
-    ?? interaction.message?.reference?.messageId
-    ?? interaction.message?.messageReference?.messageId
-    ?? interaction.data?.message_reference?.message_id
-    ?? interaction.raw?.message_reference?.message_id
-    ?? null;
-
-  if (directReference) return directReference;
-
-  const targetMessageId = interaction.targetMessage?.id ?? interaction.targetId ?? null;
-  if (targetMessageId) return targetMessageId;
-
-  return null;
-}
-
-async function fetchReplyTarget(interaction, targetChannel, explicitReplyToMessageId) {
-  const detectedMessageId = getReferencedMessageId(interaction);
-  const replyToMessageId = explicitReplyToMessageId || detectedMessageId;
-  if (!replyToMessageId) return null;
-
-  const targetMessage = await targetChannel.messages.fetch(replyToMessageId).catch(() => null);
-  if (!targetMessage) return { id: replyToMessageId, message: null };
-
-  return { id: replyToMessageId, message: targetMessage };
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('message')
-    .setDescription('Send a bot message in this channel, or reply when the command is used as a reply.')
+    .setDescription('Send a bot message, or reply by giving a message ID/link.')
     .addStringOption((option) =>
       option
         .setName('message')
@@ -50,9 +22,9 @@ module.exports = {
     .addStringOption((option) =>
       option
         .setName('replyto')
-        .setDescription('Optional fallback message ID in this channel to reply to.')
+        .setDescription('Optional message ID or Discord message link to reply to.')
         .setRequired(false)
-        .setMaxLength(25),
+        .setMaxLength(200),
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
@@ -71,8 +43,8 @@ module.exports = {
       return;
     }
 
-    if (explicitReplyToMessageId && !MESSAGE_ID_PATTERN.test(explicitReplyToMessageId)) {
-      await interaction.reply({ content: 'Reply target must be a valid message ID.', flags: EPHEMERAL_FLAG });
+    if (explicitReplyToMessageId && !parseMessageReferenceInput(explicitReplyToMessageId)) {
+      await interaction.reply({ content: 'Reply target must be a valid message ID or Discord message link.', flags: EPHEMERAL_FLAG });
       return;
     }
 
@@ -80,9 +52,14 @@ module.exports = {
       const replyTarget = await fetchReplyTarget(interaction, targetChannel, explicitReplyToMessageId);
       let sentMessage;
 
+      if (replyTarget?.invalidChannel) {
+        await interaction.reply({ content: 'I cannot reply in the channel from that message link.', flags: EPHEMERAL_FLAG });
+        return;
+      }
+
       if (replyTarget?.id && !replyTarget.message) {
         await interaction.reply({
-          content: `I could not find message ID \`${replyTarget.id}\` in this channel.`,
+          content: `I could not find message ID \`${replyTarget.id}\`. Use a message ID from this channel or paste the full Discord message link.`,
           flags: EPHEMERAL_FLAG,
         });
         return;
@@ -95,7 +72,7 @@ module.exports = {
       }
 
       await interaction.reply({
-        content: `${replyTarget?.message ? 'Reply' : 'Message'} sent in this channel successfully. Sent message ID: \`${sentMessage.id}\`.`,
+        content: `${replyTarget?.message ? 'Reply' : 'Message'} sent successfully. Sent message ID: \`${sentMessage.id}\`.`,
         flags: EPHEMERAL_FLAG,
       });
     } catch (error) {
