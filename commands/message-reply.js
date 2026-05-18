@@ -13,11 +13,13 @@ const { logCommandSystem } = require('../src/commandLogger');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const MESSAGE_REPLY_COMMAND_NAME = 'Reply with Bot Message';
 const MESSAGE_REPLY_MODAL_PREFIX = 'message-reply:';
+const MESSAGE_REPLY_AWAITED_MODAL_PREFIX = 'message-reply-submit:';
 const MESSAGE_REPLY_BODY_INPUT = 'message_reply_body';
+const MODAL_SUBMIT_TIMEOUT_MS = 5 * 60 * 1000;
 
-function getReplyModal(messageId) {
+function getReplyModal(customId) {
   return new ModalBuilder()
-    .setCustomId(`${MESSAGE_REPLY_MODAL_PREFIX}${messageId}`)
+    .setCustomId(customId)
     .setTitle('Reply with bot message')
     .addComponents(
       new ActionRowBuilder().addComponents(
@@ -31,6 +33,38 @@ function getReplyModal(messageId) {
     );
 }
 
+async function sendReplyFromModalSubmit(modalInteraction, targetMessage) {
+  const body = modalInteraction.fields.getTextInputValue(MESSAGE_REPLY_BODY_INPUT).trim();
+
+  if (!body) {
+    await modalInteraction.reply({ content: 'Message cannot be empty.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  if (!targetMessage?.reply) {
+    await modalInteraction.reply({ content: 'I cannot reply to that message.', flags: EPHEMERAL_FLAG });
+    return true;
+  }
+
+  try {
+    await targetMessage.reply({ content: body });
+    await modalInteraction.reply({
+      content: 'Reply sent successfully.',
+      flags: EPHEMERAL_FLAG,
+    });
+  } catch (error) {
+    logCommandSystem(
+      `Failed bot message reply command by ${modalInteraction.user.id}: ${error?.message ?? 'unknown error'}`,
+    );
+    await modalInteraction.reply({
+      content: 'Failed to reply to that message. Check my channel permissions and message content.',
+      flags: EPHEMERAL_FLAG,
+    });
+  }
+
+  return true;
+}
+
 async function handleMessageContextMenu(interaction) {
   if (!interaction.isMessageContextMenuCommand?.()) return false;
   if (interaction.commandName !== MESSAGE_REPLY_COMMAND_NAME) return false;
@@ -40,7 +74,19 @@ async function handleMessageContextMenu(interaction) {
     return true;
   }
 
-  await interaction.showModal(getReplyModal(interaction.targetMessage.id));
+  const modalCustomId = `${MESSAGE_REPLY_AWAITED_MODAL_PREFIX}${interaction.id}`;
+  const targetMessage = interaction.targetMessage;
+
+  await interaction.showModal(getReplyModal(modalCustomId));
+
+  interaction.awaitModalSubmit({
+    filter: (modalInteraction) =>
+      modalInteraction.customId === modalCustomId && modalInteraction.user.id === interaction.user.id,
+    time: MODAL_SUBMIT_TIMEOUT_MS,
+  })
+    .then((modalInteraction) => sendReplyFromModalSubmit(modalInteraction, targetMessage))
+    .catch(() => null);
+
   return true;
 }
 
@@ -68,9 +114,9 @@ async function handleReplyModal(interaction) {
   }
 
   try {
-    const sentMessage = await targetMessage.reply({ content: body });
+    await targetMessage.reply({ content: body });
     await interaction.reply({
-      content: `Reply sent successfully. Sent message ID: \`${sentMessage.id}\`.`,
+      content: 'Reply sent successfully.',
       flags: EPHEMERAL_FLAG,
     });
   } catch (error) {
