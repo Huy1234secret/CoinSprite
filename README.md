@@ -51,6 +51,7 @@ Use these in a guild text channel:
 Use in a guild channel with Administrator permission:
 - `!RI {userID}` (or `!IR {userID}`)
 - `!DM {userID} {message} {yes/no}`
+- `!Message {channelID} {message} [replyto - messageID]` - Sends a message to a guild text channel, optionally as a reply to an existing message.
 - `!add/remove {userID} {item} {amount}`
 - `!blacklist add/remove {userID} {reason}`
 - `!invitee-blacklist add/remove {userID} {reason}`
