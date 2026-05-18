@@ -27,6 +27,11 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Administrator-only command that sends a bot message to the selected text channel, optionally as a reply to an existing message ID.
   - Sends the command confirmation ephemerally to the command user.
 
+## Message Context Menu Commands
+- `Reply with Bot Message`
+  - Administrator-only message context menu command for replying with the bot without copying or entering a message ID.
+  - Right-click or long-press the target message, choose Apps, choose `Reply with Bot Message`, then type the bot reply in the modal.
+
 ## Invite Reward System
 - Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).
 - Tracks invite usage and awards rewards only when:
