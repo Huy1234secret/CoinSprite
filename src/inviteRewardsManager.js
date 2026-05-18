@@ -86,47 +86,6 @@ function parseUserIdToken(value) {
   return null;
 }
 
-function parseChannelIdToken(value) {
-  const token = String(value || '').trim();
-  const mentionMatch = token.match(/^<#(\d{16,20})>$/);
-  if (mentionMatch) {
-    return mentionMatch[1];
-  }
-
-  if (/^\d{16,20}$/.test(token)) {
-    return token;
-  }
-
-  return null;
-}
-
-function parseMessageCommand(commandBody) {
-  const match = commandBody.match(/^message\s+(\S+)\s+([\s\S]+)$/i);
-  if (!match) {
-    return null;
-  }
-
-  const channelId = parseChannelIdToken(match[1]);
-  let body = match[2].trim();
-  let replyToMessageId = null;
-
-  const explicitReplyMatch = body.match(/\s+replyto\s*-?\s*(\d{16,20})\s*$/i);
-  const trailingReplyMatch = body.match(/\s+(\d{16,20})\s*$/);
-  if (explicitReplyMatch) {
-    replyToMessageId = explicitReplyMatch[1];
-    body = body.slice(0, explicitReplyMatch.index).trim();
-  } else if (trailingReplyMatch) {
-    replyToMessageId = trailingReplyMatch[1];
-    body = body.slice(0, trailingReplyMatch.index).trim();
-  }
-
-  return {
-    channelId,
-    body,
-    replyToMessageId,
-  };
-}
-
 function parseRoleIdToken(value) {
   const token = String(value || '').trim();
   const unwrapped = token.match(/^\[\s*([^\]]+?)\s*\]$/)?.[1]?.trim() ?? token;
@@ -774,7 +733,6 @@ async function onMessageCreate(message) {
     /^invitee-blacklist\s+add\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^role\s+(?:add|remove)\s+/i,
-    /^message\s+\S+\s+[\s\S]+$/i,
     /^(?:RI|IR)\s+(\S+)$/i,
     /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
     /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
@@ -972,48 +930,6 @@ async function onMessageCreate(message) {
     if (unchanged.length) lines.push(`${noChangeLabel}: ${unchanged.join(', ')}`);
     if (failed.length) lines.push(`Failed: ${failed.join(', ')}`);
     await message.reply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
-    return;
-  }
-
-  const messageCommand = parseMessageCommand(commandBody);
-  if (messageCommand) {
-    const { channelId, body, replyToMessageId } = messageCommand;
-    if (!channelId) {
-      await message.reply('Invalid channel ID. Use a numeric channel ID or #channel mention.');
-      return;
-    }
-    if (!body) {
-      await message.reply('Message cannot be empty. Use `!Message {channelID} {message} [replyto - messageID]`.');
-      return;
-    }
-
-    const targetChannel = await message.guild.channels.fetch(channelId).catch(() => null);
-    if (!targetChannel?.isTextBased?.()) {
-      await message.reply(`Could not find a text channel with ID \`${channelId}\` in this server.`);
-      return;
-    }
-
-    try {
-      let sentMessage;
-      if (replyToMessageId) {
-        const targetMessage = await targetChannel.messages.fetch(replyToMessageId).catch(() => null);
-        if (!targetMessage) {
-          await message.reply(`Could not find message \`${replyToMessageId}\` in <#${channelId}> to reply to.`);
-          return;
-        }
-        sentMessage = await targetMessage.reply({ content: body });
-      } else {
-        sentMessage = await targetChannel.send({ content: body });
-      }
-
-      logReward(`Manual channel message sent to ${channelId} by ${message.author.id}${replyToMessageId ? ` as reply to ${replyToMessageId}` : ''}.`);
-      await message.reply(`Message sent to <#${channelId}> successfully${replyToMessageId ? ` as a reply to \`${replyToMessageId}\`` : ''}. Sent message ID: \`${sentMessage.id}\`.`);
-    } catch (error) {
-      logCommandSystem(
-        `Failed !Message command by ${message.author.id} to ${channelId}: ${error?.message ?? 'unknown error'}`,
-      );
-      await message.reply(`Failed to send message to <#${channelId}>. Check my channel permissions and message content.`);
-    }
     return;
   }
 
