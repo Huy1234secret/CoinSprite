@@ -108,9 +108,16 @@ function ensureUserState(guildState, userId) {
   if (!user.activePunishment || typeof user.activePunishment !== 'object') {
     user.activePunishment = null;
   } else {
+    const type = typeof user.activePunishment.type === 'string' ? user.activePunishment.type : null;
     const tier = Math.floor(Number(user.activePunishment.tier) || 0);
     const endsAt = Number(user.activePunishment.endsAt) || null;
-    user.activePunishment = tier > 0 ? { tier, endsAt } : null;
+    if (type === 'xp_nerf' && endsAt) {
+      const scalePercent = Math.max(1, Math.min(100, Number(user.activePunishment.scalePercent) || 100));
+      const reason = typeof user.activePunishment.reason === 'string' ? user.activePunishment.reason.trim() : '';
+      user.activePunishment = { type, tier: 0, scalePercent, endsAt, reason };
+    } else {
+      user.activePunishment = tier > 0 ? { tier, endsAt } : null;
+    }
   }
   user.updatedAt = Number(user.updatedAt) || Date.now();
 
