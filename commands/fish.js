@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishingFeature').fishCommand;
+module.exports = require('../Fishing Game/fishingHotfix').fishCommand;
