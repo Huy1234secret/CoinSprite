@@ -53,7 +53,8 @@ function patchMessage(message) {
       if (prop === 'edit' && typeof target.edit === 'function') {
         return (payload, ...args) => target.edit(patchPayload(payload), ...args);
       }
-      return Reflect.get(target, prop, receiver);
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
     },
   });
 }
@@ -65,7 +66,8 @@ function patchInteraction(interaction) {
       if (['reply', 'update', 'editReply', 'followUp'].includes(prop) && typeof target[prop] === 'function') {
         return (payload, ...args) => target[prop](patchPayload(payload), ...args);
       }
-      return Reflect.get(target, prop, receiver);
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
     },
   });
 }
