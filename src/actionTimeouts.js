@@ -6,6 +6,11 @@ const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const sessionsByMessageId = new Map();
 const messagesByInteractionToken = new Map();
 
+function shouldIgnoreActionTimeout(interaction) {
+  const customId = interaction?.customId || '';
+  return customId.startsWith('fish:');
+}
+
 function isInteractiveComponent(component) {
   return Boolean(component && [2, 3, 5, 6, 7, 8].includes(component.type));
 }
@@ -113,6 +118,7 @@ async function rememberCommandReply(interaction) {
 }
 
 async function resetActionTimer(interaction) {
+  if (shouldIgnoreActionTimeout(interaction)) return;
   const session = getTrackedSessionForInteraction(interaction);
   if (!session || session.expired) return;
   if (interaction.message) session.message = interaction.message;
@@ -120,6 +126,7 @@ async function resetActionTimer(interaction) {
 }
 
 async function rejectIfExpired(interaction) {
+  if (shouldIgnoreActionTimeout(interaction)) return false;
   const messageId = interaction?.message?.id || (interaction?.token ? messagesByInteractionToken.get(interaction.token) : null);
   if (!messageId) return false;
   const session = sessionsByMessageId.get(String(messageId));
@@ -133,6 +140,7 @@ async function rejectIfExpired(interaction) {
 }
 
 async function refreshMessageAfterAction(interaction) {
+  if (shouldIgnoreActionTimeout(interaction)) return;
   if (interaction?.message) {
     await trackMessageFromInteraction(interaction);
     return;
