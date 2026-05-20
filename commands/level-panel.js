@@ -399,7 +399,6 @@ module.exports = {
     .setName('level-panel')
     .setDescription('Open the leveling staff panel.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
-  disableActionTimeout: true,
 
   async execute(interaction) {
     await interaction.reply(getPanelPayload());
