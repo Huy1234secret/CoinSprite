@@ -1,18 +1,7 @@
-const fs = require('fs');
-const path = require('path');
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { appendTranscriptSection } = require('../src/monthlyTranscriptArchive');
 
 const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
-
-function formatTimestamp(dateInput) {
-  const dt = new Date(dateInput);
-  const month = String(dt.getMonth() + 1).padStart(2, '0');
-  const day = String(dt.getDate()).padStart(2, '0');
-  const year = dt.getFullYear();
-  const hours = String(dt.getHours()).padStart(2, '0');
-  const minutes = String(dt.getMinutes()).padStart(2, '0');
-  return `${month}-${day}-${year}_${hours}-${minutes}`;
-}
 
 function attachmentToText(attachment) {
   if (!attachment?.url) return '';
@@ -87,12 +76,7 @@ module.exports = {
     });
 
     const headerLine = `Channel: ${channel.id} - ${channel.name}`;
-    const transcriptDir = path.join(__dirname, '..', 'transcripts');
-    fs.mkdirSync(transcriptDir, { recursive: true });
-
-    const fileName = `message-transcript-${channel.id}-${formatTimestamp(new Date())}.txt`;
-    const filePath = path.join(transcriptDir, fileName);
-    fs.writeFileSync(filePath, `${headerLine}\n\n${transcriptLines.join('\n')}\n`, 'utf8');
+    const filePath = appendTranscriptSection(`message-transcript-${channel.id}`, [headerLine], transcriptLines);
 
     const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
     if (!transcriptChannel?.isTextBased()) {
