@@ -107,7 +107,7 @@ manager.setUserXpNerf = setUserXpNerf;
 
 const command = require('./level-panel');
 
-command.handleMessageCreate = async function handleMessageCreate(message) {
+async function applyNerfCorrection(message) {
   if (!message.guild || message.author.bot) return;
 
   const active = getActiveNerf(message.guild.id, message.author.id);
@@ -135,6 +135,12 @@ command.handleMessageCreate = async function handleMessageCreate(message) {
   const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
   if (member) await syncMemberLevelRoles(message.guild, member).catch(() => null);
   markApplied(active.state, message.guild.id, message.author.id, message.id);
+}
+
+command.handleMessageCreate = function handleMessageCreate(message) {
+  setTimeout(() => {
+    applyNerfCorrection(message).catch(() => null);
+  }, 1500);
 };
 
 module.exports = command;
