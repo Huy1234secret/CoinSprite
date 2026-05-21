@@ -1,5 +1,3 @@
-const { MessageFlags } = require('discord.js');
-
 const TIMEOUT_MS = 30_000;
 const IGNORED_COMPONENT_PREFIXES = ['fish:reel:'];
 
@@ -145,7 +143,6 @@ async function rejectIfExpired(interaction) {
 }
 
 async function refreshMessageAfterAction(interaction) {
-  if (shouldIgnoreActionTimeout(interaction)) return;
   const message = await fetchLatestInteractionMessage(interaction);
   if (!message) return;
   trackMessage(message, interaction.user?.id);
