@@ -1,4 +1,5 @@
 const commands = require('./fishingHotfix');
+const { trackMessage } = require('../src/actionTimeouts');
 
 function patchFishNames(component) {
   if (component?.type !== 10 || typeof component.content !== 'string') return;
@@ -24,7 +25,11 @@ function patchMessage(message) {
   return new Proxy(message, {
     get(target, prop, receiver) {
       if (prop === 'edit' && typeof target.edit === 'function') {
-        return (payload, ...args) => target.edit(patchPayload(payload), ...args);
+        return async (payload, ...args) => {
+          const result = await target.edit(patchPayload(payload), ...args);
+          trackMessage(result?.id ? result : target);
+          return result;
+        };
       }
       const value = Reflect.get(target, prop, receiver);
       return typeof value === 'function' ? value.bind(target) : value;
