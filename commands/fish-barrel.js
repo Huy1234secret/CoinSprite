@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishingTimeoutHotfix').fishBarrelCommand;
+module.exports = require('../Fishing Game/fishingDisplayHotfix').fishBarrelCommand;

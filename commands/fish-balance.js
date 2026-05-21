@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishingTimeoutHotfix').fishBalanceCommand;
+module.exports = require('../Fishing Game/fishingDisplayHotfix').fishBalanceCommand;

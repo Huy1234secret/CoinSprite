@@ -2,13 +2,17 @@ const { MessageFlags } = require('discord.js');
 
 const TIMEOUT_MS = 30_000;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
+const IGNORED_COMPONENT_PREFIXES = ['fish:reel:'];
 
 const sessionsByMessageId = new Map();
 const messagesByInteractionToken = new Map();
 
+function isIgnoredComponentId(customId) {
+  return IGNORED_COMPONENT_PREFIXES.some((prefix) => String(customId || '').startsWith(prefix));
+}
+
 function shouldIgnoreActionTimeout(interaction) {
-  const customId = interaction?.customId || '';
-  return customId.startsWith('fish:');
+  return isIgnoredComponentId(interaction?.customId);
 }
 
 function isInteractiveComponent(component) {
@@ -24,16 +28,28 @@ function disableComponents(components) {
   });
 }
 
-function hasInteractiveComponents(components) {
+function hasTrackableInteractiveComponents(components) {
   for (const component of components || []) {
-    if (isInteractiveComponent(component)) return true;
-    if (Array.isArray(component.components) && hasInteractiveComponents(component.components)) return true;
+    if (isInteractiveComponent(component) && !isIgnoredComponentId(component.custom_id)) return true;
+    if (Array.isArray(component.components) && hasTrackableInteractiveComponents(component.components)) return true;
   }
   return false;
 }
 
 function messageKey(message) {
   return message?.id ? String(message.id) : null;
+}
+
+function messageComponents(message) {
+  return message?.components?.map((component) => component.toJSON ? component.toJSON() : component) || [];
+}
+
+function clearSession(messageId) {
+  const id = messageId ? String(messageId) : null;
+  if (!id) return;
+  const session = sessionsByMessageId.get(id);
+  if (session?.timer) clearTimeout(session.timer);
+  sessionsByMessageId.delete(id);
 }
 
 function getTrackedSessionForInteraction(interaction) {
@@ -49,10 +65,10 @@ async function expireSession(messageId) {
   sessionsByMessageId.delete(messageId);
 
   const message = session.message;
-  if (!message?.editable && typeof message?.edit !== 'function') return;
+  if (typeof message?.edit !== 'function') return;
   try {
-    const existingComponents = message.components?.map((component) => component.toJSON ? component.toJSON() : component) || session.components || [];
-    if (!hasInteractiveComponents(existingComponents)) return;
+    const existingComponents = messageComponents(message).length ? messageComponents(message) : session.components || [];
+    if (!hasTrackableInteractiveComponents(existingComponents)) return;
     await message.edit({ components: disableComponents(existingComponents) }).catch(() => null);
   } catch {
     // Ignore timeout cleanup failures. A deleted/unknown message should not crash the bot.
@@ -68,9 +84,12 @@ function scheduleSession(session) {
 
 function trackMessage(message, ownerId = null) {
   const id = messageKey(message);
-  if (!id || !message?.components?.length) return null;
-  const components = message.components.map((component) => component.toJSON ? component.toJSON() : component);
-  if (!hasInteractiveComponents(components)) return null;
+  if (!id) return null;
+  const components = messageComponents(message);
+  if (!hasTrackableInteractiveComponents(components)) {
+    clearSession(id);
+    return null;
+  }
 
   let session = sessionsByMessageId.get(id);
   if (!session) {
@@ -86,31 +105,21 @@ function trackMessage(message, ownerId = null) {
   return session;
 }
 
+async function fetchLatestInteractionMessage(interaction) {
+  if (interaction?.message?.id) {
+    const channel = interaction.channel || interaction.message.channel;
+    const fresh = await channel?.messages?.fetch?.(interaction.message.id).catch(() => null);
+    return fresh || interaction.message;
+  }
+  if (interaction?.fetchReply) return interaction.fetchReply().catch(() => null);
+  return null;
+}
+
 async function trackInteractionReply(interaction) {
-  if (!interaction?.fetchReply) return null;
-  const message = await interaction.fetchReply().catch(() => null);
+  const message = await fetchLatestInteractionMessage(interaction);
   if (!message) return null;
   if (interaction.token) messagesByInteractionToken.set(interaction.token, message.id);
   return trackMessage(message, interaction.user?.id);
-}
-
-async function trackMessageFromInteraction(interaction) {
-  const session = getTrackedSessionForInteraction(interaction);
-  if (!session || session.expired) return null;
-  if (interaction?.message) {
-    session.message = interaction.message;
-    scheduleSession(session);
-    return session;
-  }
-  if (interaction?.token && messagesByInteractionToken.has(interaction.token)) {
-    const message = await interaction.fetchReply?.().catch(() => null);
-    if (message) {
-      session.message = message;
-      scheduleSession(session);
-      return session;
-    }
-  }
-  return null;
 }
 
 async function rememberCommandReply(interaction) {
@@ -141,13 +150,9 @@ async function rejectIfExpired(interaction) {
 
 async function refreshMessageAfterAction(interaction) {
   if (shouldIgnoreActionTimeout(interaction)) return;
-  if (interaction?.message) {
-    await trackMessageFromInteraction(interaction);
-    return;
-  }
-  if (getTrackedSessionForInteraction(interaction)) {
-    await trackInteractionReply(interaction);
-  }
+  const message = await fetchLatestInteractionMessage(interaction);
+  if (!message) return;
+  trackMessage(message, interaction.user?.id);
 }
 
 module.exports = {
