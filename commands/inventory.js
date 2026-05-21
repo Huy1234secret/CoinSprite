@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishingHotfix').inventoryCommand;
+module.exports = require('../Fishing Game/fishingTimeoutHotfix').inventoryCommand;
