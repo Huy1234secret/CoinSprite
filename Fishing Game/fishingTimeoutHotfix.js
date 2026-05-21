@@ -32,9 +32,9 @@ function messageComponents(message) {
 }
 
 function armFishTimeout(message, components = null) {
-  if (!message?.id || typeof message.edit !== 'function') return;
+  if (!message?.id || typeof message.edit !== 'function') return false;
   const sourceComponents = cloneComponents(components?.length ? components : messageComponents(message));
-  if (!hasFishControl(sourceComponents)) return;
+  if (!hasFishControl(sourceComponents)) return false;
   const existing = fishTimeouts.get(message.id);
   if (existing) clearTimeout(existing.timer);
   const timer = setTimeout(() => {
@@ -43,6 +43,7 @@ function armFishTimeout(message, components = null) {
   }, FISH_TIMEOUT_MS);
   if (typeof timer.unref === 'function') timer.unref();
   fishTimeouts.set(message.id, { timer });
+  return true;
 }
 
 function patchFishNames(component) {
@@ -66,10 +67,9 @@ function patchPayload(payload) {
 
 async function armFromInteraction(interaction, payload, result) {
   if (!hasFishControl(payload?.components)) return false;
-  const message = result?.id ? result : interaction.message || await interaction.fetchReply?.().catch(() => null);
-  if (!message) return false;
-  armFishTimeout(message, payload.components);
-  return true;
+  if (armFishTimeout(result, payload.components)) return true;
+  if (armFishTimeout(interaction.message, payload.components)) return true;
+  return armFishTimeout(await interaction.fetchReply?.().catch(() => null), payload.components);
 }
 
 function patchMessage(message, state) {
@@ -80,8 +80,7 @@ function patchMessage(message, state) {
         return async (payload, ...args) => {
           const patchedPayload = patchPayload(payload);
           const result = await target.edit(patchedPayload, ...args);
-          armFishTimeout(target, patchedPayload.components);
-          if (state) state.fishTimeoutArmed = true;
+          if (armFishTimeout(target, patchedPayload.components) && state) state.fishTimeoutArmed = true;
           return result;
         };
       }
