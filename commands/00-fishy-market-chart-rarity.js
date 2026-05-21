@@ -23,7 +23,7 @@ function patchFishyMarketSource(source) {
   return \`\${RARITY_EMOJI[rarity] || ''} \${rarity}\`.trim();
 }`, `function rarityLabel(rarity) {
   const key = String(rarity || '').toLowerCase();
-  return \`\${RARITY_EMOJI[key] || ''} \${rarity}\`.trim();
+  return RARITY_EMOJI[key] || '';
 }`)
     .replace(`function soldFishMessage(fish, entry, value) {
   return \`-# **You've sold \${fish.displayName} \${fish.emoji} - \${fish.rarity} - \${Number(entry.weight || 0).toFixed(2)} kg - \${value} \${FISH_COIN}**\`;
