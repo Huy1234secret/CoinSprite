@@ -1,7 +1,6 @@
 const { MessageFlags } = require('discord.js');
 
 const TIMEOUT_MS = 30_000;
-const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const IGNORED_COMPONENT_PREFIXES = ['fish:reel:'];
 
 const sessionsByMessageId = new Map();
@@ -142,9 +141,6 @@ async function rejectIfExpired(interaction) {
   if (session && !session.expired && Date.now() <= session.expiresAt) return false;
 
   if (session && !session.expired) await expireSession(String(messageId));
-  if (interaction?.isRepliable?.() && !interaction.replied && !interaction.deferred) {
-    await interaction.reply({ content: 'This action expired because there was no activity for 30 seconds. Please run the command again.', flags: EPHEMERAL_FLAG }).catch(() => null);
-  }
   return Boolean(session);
 }
 
