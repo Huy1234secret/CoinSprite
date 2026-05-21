@@ -8,7 +8,61 @@ function isFishyMarketFile(filename) {
 }
 
 function patchFishyMarketChartSource(source) {
-  return source.replace(/function renderChartImage\(entry, itemName\) \{[\s\S]*?\n\}\n\nfunction renderValueChart/, `function chartStep(value) {
+  return source
+    .replace(`function updateExistingMarkets(state) {
+  for (const key of Object.keys(state.market?.entries || {})) {
+    const entry = state.market.entries[key];
+    if (!entry?.type || !entry?.id) continue;
+    updateMarketEntry(state, entry.type, entry.id, 0, 0);
+    if (entry.chartPath) renderChartImage(entry, getDisplayName(entry.type, entry.id));
+  }
+  state.market.lastUpdateAt = Date.now();
+}`, `function updateExistingMarkets(state, marketAt = Date.now()) {
+  for (const key of Object.keys(state.market?.entries || {})) {
+    const entry = state.market.entries[key];
+    if (!entry?.type || !entry?.id) continue;
+    updateMarketEntry(state, entry.type, entry.id, 0, 0);
+    if (Array.isArray(entry.history) && entry.history.length) entry.history[entry.history.length - 1].at = marketAt;
+    if (entry.chartPath) renderChartImage(entry, getDisplayName(entry.type, entry.id));
+  }
+  state.market.lastUpdateAt = marketAt;
+}`)
+    .replace(`function msUntilNextMarketUpdate() {
+  return MARKET_UPDATE_MS - (Date.now() % MARKET_UPDATE_MS);
+}
+
+function startMarketTimer() {
+  if (marketTimerStarted) return;
+  marketTimerStarted = true;
+  setTimeout(function tick() {
+    const state = loadState();
+    updateExistingMarkets(state);
+    saveState(state);
+    setTimeout(tick, msUntilNextMarketUpdate()).unref?.();
+  }, msUntilNextMarketUpdate()).unref?.();
+}`, `const MARKET_TIMEZONE_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function marketUpdateSlotAt(at = Date.now()) {
+  return (Math.floor((at + MARKET_TIMEZONE_OFFSET_MS) / MARKET_UPDATE_MS) * MARKET_UPDATE_MS) - MARKET_TIMEZONE_OFFSET_MS;
+}
+
+function msUntilNextMarketUpdate() {
+  const now = Date.now();
+  const nextSlot = marketUpdateSlotAt(now) + MARKET_UPDATE_MS;
+  return Math.max(1000, nextSlot - now);
+}
+
+function startMarketTimer() {
+  if (marketTimerStarted) return;
+  marketTimerStarted = true;
+  setTimeout(function tick() {
+    const state = loadState();
+    updateExistingMarkets(state, marketUpdateSlotAt(Date.now()));
+    saveState(state);
+    setTimeout(tick, msUntilNextMarketUpdate()).unref?.();
+  }, msUntilNextMarketUpdate()).unref?.();
+}`)
+    .replace(/function renderChartImage\(entry, itemName\) \{[\s\S]*?\n\}\n\nfunction renderValueChart/, `function chartStep(value) {
   if (!Number.isFinite(value) || value <= 0) return 1;
   const power = Math.pow(10, Math.floor(Math.log10(value)));
   const scaled = value / power;
@@ -105,9 +159,6 @@ function renderChartImage(entry, itemName) {
   ctx.font = '700 20px Arial';
   ctx.fillStyle = '#9fd4ff';
   ctx.fillText(itemName, 54, 102);
-  ctx.font = '600 13px Arial';
-  ctx.fillStyle = '#91a2be';
-  ctx.fillText('Last ' + history.length + ' market update' + (history.length === 1 ? '' : 's'), 214, 101);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#f7fbff';
   ctx.font = '800 26px Arial';
@@ -215,14 +266,11 @@ function renderChartImage(entry, itemName) {
 
   ctx.textAlign = 'left';
   ctx.font = '700 13px Arial';
-  chartPill(ctx, 54, 410, 'Base ' + formatChartNumber(baseValue), '#172235', '#2b3b59');
-  chartPill(ctx, 184, 410, 'High ' + formatChartNumber(high), '#172235', '#2b3b59');
-  chartPill(ctx, 314, 410, 'Low ' + formatChartNumber(low), '#172235', '#2b3b59');
+  chartPill(ctx, 54, 420, 'Base ' + formatChartNumber(baseValue), '#172235', '#2b3b59');
+  chartPill(ctx, 184, 420, 'High ' + formatChartNumber(high), '#172235', '#2b3b59');
+  chartPill(ctx, 314, 420, 'Low ' + formatChartNumber(low), '#172235', '#2b3b59');
   const trendText = (delta > 0 ? '+' : '') + formatChartNumber(delta) + ' (' + (percent > 0 ? '+' : '') + percent.toFixed(1) + '%)';
-  chartPill(ctx, 444, 410, 'Trend ' + trendText, delta > 0 ? '#12342d' : delta < 0 ? '#351d29' : '#172235', delta > 0 ? '#2f705f' : delta < 0 ? '#70425b' : '#2b3b59');
-  ctx.fillStyle = '#7889a8';
-  ctx.font = '15px Arial';
-  ctx.fillText('Value changes based on supply, demand, and recent market updates.', 54, 458);
+  chartPill(ctx, 444, 420, 'Trend ' + trendText, delta > 0 ? '#12342d' : delta < 0 ? '#351d29' : '#172235', delta > 0 ? '#2f705f' : delta < 0 ? '#70425b' : '#2b3b59');
 
   const chartPath = chartPathFor(entry.type, entry.id);
   fs.writeFileSync(chartPath, canvas.toBuffer('image/png'));
