@@ -39,6 +39,83 @@ function chartPathFor`)
     const displayValue = chartEntry.currentValue;
     rows.push({ type: 9, components: [{ type: 10, content: \`**\${record.name} \${record.emoji}**\n-# Value: \${displayValue} \${FISH_COIN}\` }], accessory: button(\`fm:chartcheck:\${userId}:\${type}:\${record.id}:\${paged.page}\`, 'Check', BUTTON_SUCCESS) });
   }`)
+    .replace(`function sellFishByRarity(userId, rarities) {
+  const wanted = new Set(rarities.map((rarity) => rarity.toLowerCase()));
+  const state = loadState();
+  const user = ensureUser(state, userId);
+  let totalValue = 0;
+  let sold = 0;
+  user.fishBarrel = user.fishBarrel.filter((entry) => {
+    const fish = FISH_BY_ID.get(entry.fishId);
+    if (!fish || entry.locked || !wanted.has(fish.rarity.toLowerCase())) return true;
+    totalValue += fishTotalValue(state, entry, fish);
+    sold += 1;
+    updateMarketEntry(state, 'fish', fish.id, 1, 0);
+    return false;
+  });
+  user.fishCoins += totalValue;
+  saveState(state);
+  const message = sold ? \`-# **You've sold \${sold} fish - \${totalValue} \${FISH_COIN}**\` : '-# **No unlocked fish matched that rarity**';
+  return renderFishMarket(userId, 1, message);
+}
+
+function filterModal(userId) {
+  return {
+    custom_id: \`fm:sellfiltersubmit:\${userId}\`,
+    title: 'Sell fish filter',
+    components: [{ type: 1, components: [{ type: 4, custom_id: 'rarities', label: 'Select rarity to sell', style: 1, required: true, placeholder: 'common, uncommon, rare, epic, legendary, mythical, secret', max_length: 120 }] }],
+  };
+}
+
+function parseList(value) {
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}`, `function sellFishByRarity(userId, rarities) {
+  const selected = Array.isArray(rarities) ? rarities : [];
+  const wanted = new Set(selected.map((rarity) => String(rarity || '').toLowerCase()));
+  const sellAll = wanted.has('all');
+  const state = loadState();
+  const user = ensureUser(state, userId);
+  let totalValue = 0;
+  let sold = 0;
+  user.fishBarrel = user.fishBarrel.filter((entry) => {
+    const fish = FISH_BY_ID.get(entry.fishId);
+    if (!fish || entry.locked || (!sellAll && !wanted.has(fish.rarity.toLowerCase()))) return true;
+    totalValue += fishTotalValue(state, entry, fish);
+    sold += 1;
+    updateMarketEntry(state, 'fish', fish.id, 1, 0);
+    return false;
+  });
+  user.fishCoins += totalValue;
+  saveState(state);
+  const message = sold ? \`-# **You've sold \${sold} fish - \${totalValue} \${FISH_COIN}**\` : '-# **No unlocked fish matched that rarity**';
+  return renderFishMarket(userId, 1, message);
+}
+
+function rarityFilterSelect(userId) {
+  const options = [
+    ['all', 'All'],
+    ['secret', 'Secret'],
+    ['mythical', 'Mythical'],
+    ['legendary', 'Legendary'],
+    ['epic', 'Epic'],
+    ['rare', 'Rare'],
+    ['uncommon', 'Uncommon'],
+    ['common', 'Common'],
+  ];
+  return actionRow([{ type: 3, custom_id: \`fm:sellfilterselect:\${userId}\`, placeholder: 'Select rarity to sell', min_values: 1, max_values: options.length, options: options.map(([value, label]) => ({ label, value })) }]);
+}
+
+function renderSellFilter(userId) {
+  return containerPayload(WHITE_ACCENT, [
+    { type: 10, content: '## Sell fish filter\n-# Select one or more rarities to sell.' },
+    separator(),
+    rarityFilterSelect(userId),
+    categorySelect(userId, 'fish'),
+  ]);
+}`)
+    .replace(`if (action === 'sellfilter') { await interaction.showModal(filterModal(userId)); return true; }
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, parseList(interaction.fields?.getTextInputValue('rarities'))));`, `if (action === 'sellfilter') return updateInteraction(interaction, renderSellFilter(userId)).then(() => true);
+  if (action === 'sellfilterselect') return updateInteraction(interaction, sellFishByRarity(userId, interaction.values || [])).then(() => true);`)
     .replace(`const total = fishTotalValue(state, entry, fish);
   user.fishBarrel.splice(index, 1);`, `const total = fishTotalValue(state, entry, fish);
   user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
