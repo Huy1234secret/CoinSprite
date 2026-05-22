@@ -105,74 +105,160 @@ function getCountdownString() {
   return `<t:${timestamp}:R>`;
 }
 
+function parseCustomEmoji(emoji) {
+  if (!emoji) return null;
+  const match = String(emoji).match(/<a?:([a-zA-Z0-9_]+):(\d+)>/);
+  if (!match) return null;
+  return { name: match[1], id: match[2], animated: emoji.startsWith('<a:') };
+}
+
+function emojiImageUrl(emoji) {
+  const parsed = parseCustomEmoji(emoji);
+  if (!parsed) return null;
+  return `https://cdn.discordapp.com/emojis/${parsed.id}.${parsed.animated ? 'gif' : 'png'}?quality=lossless`;
+}
+
+async function drawCustomEmoji(ctx, emoji, x, y, size) {
+  const url = emojiImageUrl(emoji);
+  if (!url) return false;
+  try {
+    const img = await loadImage(url);
+    ctx.drawImage(img, x, y, size, size);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, radius);
+}
+
+function fitText(ctx, text, maxWidth, baseSize, weight = '700') {
+  let size = baseSize;
+  do {
+    ctx.font = `${weight} ${size}px sans-serif`;
+    if (ctx.measureText(text).width <= maxWidth) return size;
+    size -= 1;
+  } while (size >= 16);
+  return size;
+}
+
 async function createGalleryImage(itemsOnPage, pageIndex) {
   const width = 900;
   const height = 600;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#1e1e24'; // Dark clean background
+  ctx.fillStyle = '#181820';
   ctx.fillRect(0, 0, width, height);
 
   const cols = 3;
   const rows = 2;
-  const itemWidth = width / cols;
-  const itemHeight = height / rows;
+  const gap = 24;
+  const cardWidth = (width - gap * (cols + 1)) / cols;
+  const cardHeight = (height - gap * (rows + 1)) / rows;
 
   for (let i = 0; i < itemsOnPage.length; i++) {
     const item = itemsOnPage[i];
-    const x = (i % cols) * itemWidth;
-    const y = Math.floor(i / cols) * itemHeight;
+    const x = gap + (i % cols) * (cardWidth + gap);
+    const y = gap + Math.floor(i / cols) * (cardHeight + gap);
+    const rarityEmoji = RARITY_EMOJI[item.rarity];
 
-    // Draw box
-    ctx.fillStyle = '#2c2c36';
-    ctx.beginPath();
-    ctx.roundRect(x + 20, y + 20, itemWidth - 40, itemHeight - 40, 15);
+    // Card background
+    ctx.fillStyle = '#292936';
+    roundRect(ctx, x, y, cardWidth, cardHeight, 18);
     ctx.fill();
-    ctx.strokeStyle = '#4e4e5e';
+    ctx.strokeStyle = '#5a5a70';
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Attempt to load image
-    const imagePath = path.join(ITEM_PNG_DIR, `${item.id}.png`); // Fallback if name doesn't match?
-    // We should try different variations for image name based on codebase norm or use emoji text if missing
+    // Soft top shine
+    const gradient = ctx.createLinearGradient(x, y, x, y + cardHeight);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.08)');
+    gradient.addColorStop(0.45, 'rgba(255,255,255,0.02)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.10)');
+    ctx.fillStyle = gradient;
+    roundRect(ctx, x + 3, y + 3, cardWidth - 6, cardHeight - 6, 15);
+    ctx.fill();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 28px sans-serif';
+    // Rarity badge uses the rarity emoji as an image, not text.
+    ctx.fillStyle = '#1e1e29';
+    roundRect(ctx, x + cardWidth - 52, y + 12, 36, 36, 12);
+    ctx.fill();
+    const drewRarity = await drawCustomEmoji(ctx, rarityEmoji, x + cardWidth - 46, y + 18, 24);
+    if (!drewRarity) {
+      ctx.font = '22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('★', x + cardWidth - 34, y + 39);
+    }
+
+    // Title fits inside the card so long names do not overlap cards.
+    const titleMaxWidth = cardWidth - 78;
+    const titleSize = fitText(ctx, item.name, titleMaxWidth, 25, '800');
+    ctx.font = `800 ${titleSize}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(item.name, x + itemWidth / 2, y + 55);
+    ctx.fillStyle = '#f6f6ff';
+    ctx.fillText(item.name, x + cardWidth / 2 - 10, y + 38);
 
-    ctx.font = '22px sans-serif';
-    ctx.fillStyle = '#b4b4b4';
-    ctx.fillText(`Price: ${item.currentValue || item.value}`, x + itemWidth / 2, y + itemHeight - 50);
-
-    ctx.font = '18px sans-serif';
-    ctx.fillStyle = '#888888';
-    ctx.fillText(`Stock: ${item.stockAmount}`, x + itemWidth / 2, y + itemHeight - 25);
-
-    // Try rendering image logic here...
-    try {
-      // Find actual image
-      let foundPath = null;
-      if (fs.existsSync(ITEM_PNG_DIR)) {
-        for (const file of fs.readdirSync(ITEM_PNG_DIR)) {
-          if (file.toLowerCase().includes(item.id.replace(/_/g, '').toLowerCase())) {
-            foundPath = path.join(ITEM_PNG_DIR, file);
-            break;
-          }
+    // Item image
+    let foundPath = null;
+    if (fs.existsSync(ITEM_PNG_DIR)) {
+      for (const file of fs.readdirSync(ITEM_PNG_DIR)) {
+        if (file.toLowerCase().includes(item.id.replace(/_/g, '').toLowerCase())) {
+          foundPath = path.join(ITEM_PNG_DIR, file);
+          break;
         }
       }
+    }
+
+    try {
       if (foundPath) {
         const img = await loadImage(foundPath);
-        ctx.drawImage(img, x + itemWidth / 2 - 50, y + 70, 100, 100);
+        ctx.drawImage(img, x + cardWidth / 2 - 58, y + 66, 116, 116);
       } else {
         const emojiCleaned = (item.emoji || '?').replace(/<:[a-zA-Z0-9_]+:[0-9]+>/g, '?');
-        ctx.font = '50px sans-serif';
-        ctx.fillText(emojiCleaned, x + itemWidth / 2, y + 140);
+        ctx.font = '56px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(emojiCleaned, x + cardWidth / 2, y + 135);
       }
     } catch (e) {
-      // Ignore
+      // Ignore item image failures so the shop still renders.
     }
+
+    // Price row with fish coin emoji drawn as an image next to the value.
+    const priceText = `${item.currentValue || item.value}`;
+    ctx.font = '700 23px sans-serif';
+    const labelWidth = ctx.measureText('Price: ').width;
+    const valueWidth = ctx.measureText(priceText).width;
+    const coinSize = 24;
+    const priceRowWidth = labelWidth + valueWidth + 8 + coinSize;
+    const priceX = x + cardWidth / 2 - priceRowWidth / 2;
+    const priceY = y + cardHeight - 58;
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c9c9d4';
+    ctx.fillText('Price: ', priceX, priceY + 21);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(priceText, priceX + labelWidth, priceY + 21);
+    const drewCoin = await drawCustomEmoji(ctx, FISH_COIN, priceX + labelWidth + valueWidth + 8, priceY, coinSize);
+    if (!drewCoin) {
+      ctx.font = '22px sans-serif';
+      ctx.fillText('🪙', priceX + labelWidth + valueWidth + 8, priceY + 22);
+    }
+
+    // Stock pill
+    const stockText = `Stock: ${item.stockAmount}`;
+    ctx.font = '600 18px sans-serif';
+    const stockWidth = ctx.measureText(stockText).width + 24;
+    ctx.fillStyle = '#20202a';
+    roundRect(ctx, x + cardWidth / 2 - stockWidth / 2, y + cardHeight - 35, stockWidth, 24, 12);
+    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = item.stockAmount > 0 ? '#aeb0bd' : '#ff9a9a';
+    ctx.fillText(stockText, x + cardWidth / 2, y + cardHeight - 17);
   }
 
   return canvas.toBuffer('image/png');
@@ -198,9 +284,10 @@ async function renderShopPage(userId, username, page = 1) {
   });
 
   const maxPage = Math.ceil(mappedItems.length / ITEMS_PER_PAGE);
-  const pagedItems = mappedItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const safePage = Math.min(Math.max(Number(page) || 1, 1), Math.max(maxPage, 1));
+  const pagedItems = mappedItems.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
-  const buffer = await createGalleryImage(pagedItems, page);
+  const buffer = await createGalleryImage(pagedItems, safePage);
   const attachment = new AttachmentBuilder(buffer, { name: 'shop.png' });
 
   const content = `## Welcome ${username} to Fishy Shop!\n-# Restock: ${getCountdownString()}`;
@@ -209,7 +296,7 @@ async function renderShopPage(userId, username, page = 1) {
     type: 1,
     components: [{
       type: BUTTON_SECONDARY,
-      custom_id: `fishyshop:page:${userId}:${page}:${maxPage}`,
+      custom_id: `fishyshop:page:${userId}:${safePage}:${maxPage}`,
       label: 'switch page',
       style: 2,
       disabled: maxPage <= 1
