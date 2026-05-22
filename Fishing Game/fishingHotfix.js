@@ -4,6 +4,7 @@ const { MessageFlags } = require('discord.js');
 const feature = require('./fishingFeature');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const WHITE_ACCENT = 0xffffff;
 const FISHING_CHANNEL_ID = '1506684299934437517';
 const LOCATION = 'Calm Fishing Lake';
@@ -12,6 +13,7 @@ const WOODEN_ROD_LABEL = 'Wooden Fishing Rod';
 const WOODEN_ROD_UNICODE = '\uD83C\uDFA3';
 const WOODEN_ROD_RAW = '<:IGWoodenFishingRod:1506709123646095430>';
 const WOODEN_ROD_EMOJI = { name: 'IGWoodenFishingRod', id: '1506709123646095430' };
+const FISH_GAME_LOCK_TIMEOUT_MS = 90_000;
 const SEASONS = [
   { key: 'Spring', emoji: '\uD83C\uDF38' },
   { key: 'Summer', emoji: '\u2600\uFE0F' },
@@ -28,6 +30,8 @@ const WEATHER_CHANCES = {
 const WEATHER_DURATIONS = { Sunny: [15, 30], Rain: [10, 22], Storm: [8, 16], Thunderstorm: [5, 12], Fog: [8, 18], Windy: [10, 20], Snow: [10, 24], Heatwave: [8, 15], 'Night Clear Sky': [15, 30], 'Full Moon Night': [10, 20], Bloodmoon: [5, 10] };
 const WEATHER_TEXT = { Sunny: ['No effects.'], Rain: ['Fish become more abundant when it rains.', "It's harder to catch a fish.", 'Higher rarity fish chance.'], Storm: ['Becareful when go fishing, your fishing rod can BREAK easily!', "Fish doesn't like this weather... become less abundant.", "It's more harder to catch a fish.", 'Higher rarity fish chance.'], Thunderstorm: ['Why? Why go fishing during this time?', "It's rare to see a fish during this time.", "It's EVEN harder to catch a fish.", 'But Even higher rarity fish chance.'], Fog: ['Fish may not see your hook clearly.', 'Harder to catch a fish', 'Higher fish chance.'], Windy: ["It's hard to be balance, becareful with your fishing rod.", 'Those mini waves will make fish hard to bite your hook.', 'Hard to catch a fish', 'Fish has a chance to escape while trying to catch', 'Higher fish rarity chance'], Snow: ['Fishing rod is a little bit easier to break now.', 'Fish doesnt like cold woter.', 'Hard to catch a fish.', 'Higher rarity fish chance.'], Heatwave: ['Fishing rod is a little bit easier to break now.', 'Fish may not like being cooked alive.', 'Harder to catch a fish.', 'Higher fish rarity chance'], 'Night Clear Sky': ['Easier to catch a fish, wonder why?', 'Some fish that only catchable during night started appearing.'], 'Full Moon Night': ['Even higher fish rarity chance.', 'We have found out Golden variant started appearing.'], Bloodmoon: ["it's beautiful but dangerous, one mistake can make your fishing rod broke immediately", 'seems like fish doesnt really like this weather', 'Hard to catch fish', 'EVEN HIGHER fish rarity chance.'] };
 let weatherTimerStarted = false;
+let activeFishGame = null;
+let activeFishGameTimer = null;
 
 function randomInt(min, max) { return Math.floor(Math.random() * ((max - min) + 1)) + min; }
 function weightedPick(entries) { const valid = entries.filter((entry) => Number(entry.weight) > 0); const total = valid.reduce((sum, entry) => sum + Number(entry.weight), 0); if (total <= 0) return valid[0]?.value ?? null; let roll = Math.random() * total; for (const entry of valid) { roll -= Number(entry.weight); if (roll <= 0) return entry.value; } return valid[valid.length - 1]?.value ?? null; }
@@ -43,6 +47,46 @@ function formatForecast(weather) { const effects = WEATHER_TEXT[weather.weather]
 async function findForecastMessage(channel) { const messages = await channel.messages?.fetch?.({ limit: 50 }).catch(() => null); if (!messages) return null; return messages.find((message) => message.author?.id === channel.client?.user?.id && message.components?.some((component) => JSON.stringify(component).includes('Fishy Weather Forecast'))) || null; }
 async function maybeEditWeatherForecast(client) { const state = loadState(); const weather = getCurrentWeather(state); const key = `${weather.location}:${weather.startedAt}:${weather.weather}`; if (state.forecasts.lastForecastKey === key && state.forecasts.forecastMessageId) { saveState(state); return; } const channel = await client.channels.fetch(FISHING_CHANNEL_ID).catch(() => null); if (!channel?.isTextBased?.()) { saveState(state); return; } let message = state.forecasts.forecastMessageId ? await channel.messages.fetch(state.forecasts.forecastMessageId).catch(() => null) : null; if (!message) message = await findForecastMessage(channel); const payload = containerPayload(WHITE_ACCENT, [{ type: 10, content: formatForecast(weather) }]); message = message ? await message.edit(payload).catch(() => null) : await channel.send(payload).catch(() => null); if (message?.id) state.forecasts.forecastMessageId = message.id; state.forecasts.lastForecastKey = key; saveState(state); }
 function startWeatherEditTimer(client) { if (weatherTimerStarted) return; weatherTimerStarted = true; maybeEditWeatherForecast(client).catch(() => null); setInterval(() => maybeEditWeatherForecast(client).catch(() => null), 60_000); }
+
+function clearFishGameLock() {
+  activeFishGame = null;
+  if (activeFishGameTimer) clearTimeout(activeFishGameTimer);
+  activeFishGameTimer = null;
+}
+
+function getActiveFishGame() {
+  if (!activeFishGame) return null;
+  if (Date.now() >= activeFishGame.expiresAt) clearFishGameLock();
+  return activeFishGame;
+}
+
+function startFishGameLock(userId) {
+  clearFishGameLock();
+  activeFishGame = { userId, expiresAt: Date.now() + FISH_GAME_LOCK_TIMEOUT_MS };
+  activeFishGameTimer = setTimeout(clearFishGameLock, FISH_GAME_LOCK_TIMEOUT_MS);
+  activeFishGameTimer.unref?.();
+}
+
+function collectPayloadText(payload, out = []) {
+  if (!payload || typeof payload !== 'object') return out;
+  if (payload.type === 10 && typeof payload.content === 'string') out.push(payload.content);
+  if (Array.isArray(payload.components)) payload.components.forEach((component) => collectPayloadText(component, out));
+  return out;
+}
+
+function isTerminalFishingPayload(payload) {
+  const text = collectPayloadText(payload).join('\n');
+  return text.includes('has been caught!')
+    || text.includes('has escaped!')
+    || text.includes('Fish Barrel is full!');
+}
+
+function rejectActiveFishGame(interaction) {
+  return interaction.reply({
+    content: 'A fishing minigame is already active. Please wait until it ends.',
+    flags: EPHEMERAL_FLAG,
+  }).catch(() => null);
+}
 
 function patchTextDisplay(component) {
   if (component?.type !== 10 || typeof component.content !== 'string') return;
@@ -82,6 +126,7 @@ function patchComponents(components) {
 function patchPayload(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   patchComponents(payload.components);
+  if (isTerminalFishingPayload(payload)) clearFishGameLock();
   return payload;
 }
 
@@ -111,6 +156,12 @@ function patchInteraction(interaction) {
   });
 }
 
+function shouldLockFishStart(interaction) {
+  const id = interaction.customId || '';
+  if (!id.startsWith('fish:start:')) return false;
+  return interaction.user?.id === id.split(':')[2];
+}
+
 function wrapCommand(command, init) {
   return {
     ...command,
@@ -119,7 +170,20 @@ function wrapCommand(command, init) {
       return command.execute(patchInteraction(interaction), client);
     },
     async handleInteraction(interaction, client) {
-      return command.handleInteraction(patchInteraction(interaction), client);
+      const lockFishStart = shouldLockFishStart(interaction);
+      if (lockFishStart && getActiveFishGame()) {
+        await rejectActiveFishGame(interaction);
+        return true;
+      }
+
+      if (lockFishStart) startFishGameLock(interaction.user.id);
+
+      try {
+        return await command.handleInteraction(patchInteraction(interaction), client);
+      } catch (error) {
+        if (lockFishStart) clearFishGameLock();
+        throw error;
+      }
     },
   };
 }
