@@ -54,9 +54,11 @@ function filterForm(kind, userId) {
     title: isFish ? 'Sell fish filter' : 'Sell item filter',
     components: [{
       type: 18,
+      id: 1,
       label: isFish ? 'Select fish rarity to sell' : 'Select item rarity to sell',
       component: {
         type: 3,
+        id: 2,
         custom_id: \`\${kind}_rarities\`,
         placeholder: 'Select rarity to sell',
         min_values: 1,
@@ -75,10 +77,13 @@ function getSelectedValues(interaction, customId) {
     if ((value.customId === customId || value.custom_id === customId) && typeof value.value === 'string') found.push(value.value);
     if (value.component) visit(value.component);
     if (Array.isArray(value.components)) value.components.forEach(visit);
+    if (Array.isArray(value.data?.components)) value.data.components.forEach(visit);
     if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
+    if (value.fields?.fields && typeof value.fields.fields.values === 'function') Array.from(value.fields.fields.values()).forEach(visit);
   };
   if (Array.isArray(interaction.values)) found.push(...interaction.values);
   try { visit(interaction.fields?.getField?.(customId)); } catch {}
+  try { visit(interaction.toJSON?.()); } catch {}
   visit(interaction);
   return [...new Set(found.map((item) => String(item || '').trim()).filter(Boolean))];
 }`;
@@ -230,9 +235,11 @@ function filterForm(kind, userId) {
     title: isFish ? 'Sell fish filter' : 'Sell item filter',
     components: [{
       type: 18,
+      id: 1,
       label: isFish ? 'Select fish rarity to sell' : 'Select item rarity to sell',
       component: {
         type: 3,
+        id: 2,
         custom_id: \`\${kind}_rarities\`,
         placeholder: 'Select rarity to sell',
         min_values: 1,
@@ -251,10 +258,13 @@ function getSelectedValues(interaction, customId) {
     if ((value.customId === customId || value.custom_id === customId) && typeof value.value === 'string') found.push(value.value);
     if (value.component) visit(value.component);
     if (Array.isArray(value.components)) value.components.forEach(visit);
+    if (Array.isArray(value.data?.components)) value.data.components.forEach(visit);
     if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
+    if (value.fields?.fields && typeof value.fields.fields.values === 'function') Array.from(value.fields.fields.values()).forEach(visit);
   };
   if (Array.isArray(interaction.values)) found.push(...interaction.values);
   try { visit(interaction.fields?.getField?.(customId)); } catch {}
+  try { visit(interaction.toJSON?.()); } catch {}
   visit(interaction);
   return [...new Set(found.map((item) => String(item || '').trim()).filter(Boolean))];
 }`)
