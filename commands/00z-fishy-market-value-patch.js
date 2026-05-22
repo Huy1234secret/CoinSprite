@@ -185,7 +185,13 @@ function getSelectedValues(interaction, customId) {
     user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
     const previous = user.fishIndex[fish.id] && typeof user.fishIndex[fish.id] === 'object' ? user.fishIndex[fish.id] : {};
     user.fishIndex[fish.id] = { discoveredAt: previous.discoveredAt || entry.caughtAt || Date.now(), count: Math.max(1, Math.floor(Number(previous.count) || 0)), lastCaughtAt: previous.lastCaughtAt || entry.caughtAt || Date.now() };
-    updateMarketEntry(state, 'fish', fish.id, 1, 0);`);
+    updateMarketEntry(state, 'fish', fish.id, 1, 0);`)
+    .replace(/function rarityFilterSelect\(userId\) \{[\s\S]*?\n\}\n\nfunction itemFilterSelect\(userId\) \{[\s\S]*?\n\}\n\nfunction renderSellFilter\(userId\) \{[\s\S]*?\n\}\n\nfunction renderItemSellFilter\(userId\) \{[\s\S]*?\n\}/, '')
+    .replace(/function renderSellFilter\(userId\) \{[\s\S]*?\n\}\n\nfunction renderItemSellFilter\(userId\) \{[\s\S]*?\n\}/, '')
+    .replace(/if \(action === 'sellfilter'\) return updateInteraction\(interaction, renderSellFilter\(userId\)\)\.then\(\(\) => true\);\n\s*if \(action === 'sellfilterselect'\) return updateInteraction\(interaction, sellFishByRarity\(userId, interaction\.values \|\| \[\]\)\)\.then\(\(\) => true\);\n\s*if \(action === 'itemfilter'\) return updateInteraction\(interaction, renderItemSellFilter\(userId\)\)\.then\(\(\) => true\);\n\s*if \(action === 'itemfilterselect'\) return updateInteraction\(interaction, sellItemsById\(userId, interaction\.values \|\| \[\]\)\)\.then\(\(\) => true\);/, `if (action === 'sellfilter') { await interaction.showModal(filterForm('fish', userId)); return true; }
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, getSelectedValues(interaction, 'fish_rarities')));
+  if (action === 'itemfilter') { await interaction.showModal(filterForm('item', userId)); return true; }
+  if (action === 'itemfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellItemsByRarity(userId, getSelectedValues(interaction, 'item_rarities')));`);
 }
 
 if (!globalThis.__fishyMarketValuePatch) {
