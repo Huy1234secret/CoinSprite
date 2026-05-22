@@ -173,7 +173,7 @@ const original = require('./fishyMarket');
 function checkboxFilterForm(kind, userId) {
   const isFish = kind === 'fish';
   return {
-    custom_id: `fm:${kind}filtersubmit:${userId}`,
+    custom_id: isFish ? `fm:sellfiltersubmit:${userId}` : `fm:itemfiltersubmit:${userId}`,
     title: isFish ? 'Sell fish filter' : 'Sell item filter',
     components: [{
       type: 18,
