@@ -88,19 +88,16 @@ index b52ba39..fixed 100644
 -      id: 1,
        label: isFish ? 'Select fish rarity to sell' : 'Select item rarity to sell',
        component: {
-         type: 3,
+-        type: 3,
 -        id: 2,
++        type: 22,
          custom_id: `${kind}_rarities`,
-         placeholder: 'Select rarity to sell',
+-        placeholder: 'Select rarity to sell',
          min_values: 1,
          max_values: FILTER_RARITIES.length,
-+        required: true,
+         required: true,
          options: rarityOptions(),
-       },
-     }],
-   };
- }
- 
+@@
  function getSelectedValues(interaction, customId) {
    const found = [];
 +
