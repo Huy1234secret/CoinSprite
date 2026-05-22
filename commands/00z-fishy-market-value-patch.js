@@ -22,7 +22,7 @@ function chartPathFor`)
   const values = history.map((point) => displayChartValue(point.value));`)
     .replace(`  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish Sell Value Chart' : 'Item Value Chart', 52, 70);`)
     .replace('  ctx.fillText(`Current: ${entry.currentValue} coins`, 620, 70);', `  const currentChartValue = displayChartValue(entry.currentValue);
-  ctx.fillText(\`${entry.type === 'fish' ? 'Sell value' : 'Current'}: \${currentChartValue} coins\`, 620, 70);`)
+  ctx.fillText(\`\$\{entry.type === 'fish' ? 'Sell value' : 'Current'\}: \$\{currentChartValue\} coins\`, 620, 70);`)
     .replace(`    y: y0 - (((point.value - scale.min) / (scale.max - scale.min)) * h),`, `    y: y0 - (((displayChartValue(point.value) - scale.min) / (scale.max - scale.min)) * h),`)
     .replace('  ctx.fillText(`Base: ${entry.baseValue} coins`, 52, 430);', '  ctx.fillText(`Base: ${displayChartValue(entry.baseValue)} coins`, 52, 430);')
     .replace(`  ctx.fillText('Value changes based on supply and demand', 52, 458);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish value changes when fish are obtained and sold' : 'Value changes based on supply and demand', 52, 458);`)
