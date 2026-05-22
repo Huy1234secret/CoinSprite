@@ -85,6 +85,22 @@ function decrementUserStock(userId, itemId, amount) {
   return true;
 }
 
+function grantShopInventoryItem(user, itemDef, amount) {
+  if (!itemDef || FISH_BY_ID.has(itemDef.id)) return false;
+
+  const existing = user.inventory[itemDef.id];
+  const existingEntry = existing && typeof existing === 'object' ? existing : {};
+  const currentAmount = Math.max(0, Math.floor(Number(existingEntry.amount ?? existing) || 0));
+  const nextEntry = { ...existingEntry, amount: currentAmount + amount };
+
+  if (!Object.prototype.hasOwnProperty.call(nextEntry, 'durability')) {
+    nextEntry.durability = itemDef.durability ?? null;
+  }
+
+  user.inventory[itemDef.id] = nextEntry;
+  return true;
+}
+
 function msUntilNextRestock() {
   const msInHour = 60 * 60 * 1000;
   const now = Date.now();
@@ -192,7 +208,7 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
       ctx.font = '22px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText('★', x + cardWidth - 34, y + 39);
+      ctx.fillText('\u2605', x + cardWidth - 34, y + 39);
     }
 
     // Title fits inside the card so long names do not overlap cards.
@@ -246,7 +262,7 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     const drewCoin = await drawCustomEmoji(ctx, FISH_COIN, priceX + labelWidth + valueWidth + 8, priceY, coinSize);
     if (!drewCoin) {
       ctx.font = '22px sans-serif';
-      ctx.fillText('🪙', priceX + labelWidth + valueWidth + 8, priceY + 22);
+      ctx.fillText('\ud83e\ude99', priceX + labelWidth + valueWidth + 8, priceY + 22);
     }
 
     // Stock pill
@@ -438,24 +454,37 @@ const fishyShopCommand = {
        const currentPrice = market?.entries?.[itemId]?.currentValue || itemDef.value;
        const totalCost = currentPrice * amount;
 
-       const { getUser, updateUser } = require('./fishingFeature');
-       const { recordMarketBuy, addInventoryItem } = require('../src/fishingStore');
+       const { updateUser } = require('./fishingFeature');
+       const { recordMarketBuy } = require('../src/fishingStore');
 
        let success = false;
+       let purchaseError = null;
        updateUser(userId, (user) => {
-         if (user.fishCoins >= totalCost) {
-           user.fishCoins -= totalCost;
-           success = true;
+         if (user.fishCoins < totalCost) {
+           purchaseError = 'funds';
+           return user;
          }
+
+         if (!grantShopInventoryItem(user, itemDef, amount)) {
+           purchaseError = 'inventory';
+           return user;
+         }
+
+         user.fishCoins -= totalCost;
+         success = true;
          return user;
        });
 
        if (!success) {
+         if (purchaseError === 'inventory') {
+           await interaction.reply({ content: 'That item could not be added to your inventory.', flags: EPHEMERAL_FLAG });
+           return true;
+         }
+
          await interaction.reply({ content: `You don't have enough Fish Coins to buy ${amount}x ${itemDef.name}. Need ${totalCost} Fish Coins.`, flags: EPHEMERAL_FLAG });
          return true;
        }
 
-       addInventoryItem(userId, itemId, amount);
        decrementUserStock(userId, itemId, amount);
 
        try {
