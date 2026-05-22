@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { appendTranscriptSection } = require('../src/monthlyTranscriptArchive');
 const path = require('path');
 const {
   SlashCommandBuilder,
