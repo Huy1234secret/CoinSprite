@@ -15,13 +15,10 @@ function patchFishyMarketSource(source) {
 }
 
 function chartPathFor`)
-    .replace(`  const values = history.map((point) => point.value);`, `  const displayChartValue = (rawValue) => {
-    const value = Number(rawValue) || entry.baseValue;
-    return entry.type === 'fish' ? Math.max(1, Math.floor(value * 0.25)) : value;
-  };
+    .replace(`  const values = history.map((point) => point.value);`, `  const displayChartValue = (rawValue) => Number(rawValue) || entry.baseValue;
   const values = history.map((point) => displayChartValue(point.value));`)
-    .replace(`  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish Sell Value Chart' : 'Item Value Chart', 52, 70);`)
-    .replace('  ctx.fillText(`Current: ${entry.currentValue} coins`, 620, 70);', "  const currentChartValue = displayChartValue(entry.currentValue);\n  ctx.fillText(`${entry.type === 'fish' ? 'Sell value' : 'Current'}: ${currentChartValue} coins`, 620, 70);")
+    .replace(`  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`)
+    .replace('  ctx.fillText(`Current: ${entry.currentValue} coins`, 620, 70);', "  const currentChartValue = displayChartValue(entry.currentValue);\n  ctx.fillText(`Current: ${currentChartValue} coins`, 620, 70);")
     .replace(`    y: y0 - (((point.value - scale.min) / (scale.max - scale.min)) * h),`, `    y: y0 - (((displayChartValue(point.value) - scale.min) / (scale.max - scale.min)) * h),`)
     .replace('  ctx.fillText(`Base: ${entry.baseValue} coins`, 52, 430);', '  ctx.fillText(`Base: ${displayChartValue(entry.baseValue)} coins`, 52, 430);')
     .replace(`  ctx.fillText('Value changes based on supply and demand', 52, 458);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish value changes when fish are obtained and sold' : 'Value changes based on supply and demand', 52, 458);`)
@@ -29,9 +26,8 @@ function chartPathFor`)
     rows.push({ type: 9, components: [{ type: 10, content: \`**\${record.name} \${record.emoji}**\` }], accessory: button(\`fm:chartcheck:\${userId}:\${type}:\${record.id}:\${paged.page}\`, 'Check', BUTTON_SUCCESS) });
   }`, `for (const record of paged.items) {
     const chartEntry = ensureMarketEntry(state, type, record.id);
-    const displayValue = type === 'fish' ? Math.max(1, Math.floor(chartEntry.currentValue * 0.25)) : chartEntry.currentValue;
-    const valueLabel = type === 'fish' ? 'Sell value' : 'Value';
-    rows.push({ type: 9, components: [{ type: 10, content: \`**\${record.name} \${record.emoji}**\n-# \${valueLabel}: \${displayValue} \${FISH_COIN}\` }], accessory: button(\`fm:chartcheck:\${userId}:\${type}:\${record.id}:\${paged.page}\`, 'Check', BUTTON_SUCCESS) });
+    const displayValue = chartEntry.currentValue;
+    rows.push({ type: 9, components: [{ type: 10, content: \`**\${record.name} \${record.emoji}**\n-# Value: \${displayValue} \${FISH_COIN}\` }], accessory: button(\`fm:chartcheck:\${userId}:\${type}:\${record.id}:\${paged.page}\`, 'Check', BUTTON_SUCCESS) });
   }`)
     .replace(`const total = fishTotalValue(state, entry, fish);
   user.fishBarrel.splice(index, 1);`, `const total = fishTotalValue(state, entry, fish);
