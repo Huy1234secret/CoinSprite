@@ -251,8 +251,9 @@ function mutationMultiplier(entry) {
 
 function fishTotalValue(state, entry, fish) {
   const marketValue = getMarketValue(state, 'fish', fish.id);
+  const sellValue = Math.max(1, Math.floor(marketValue * 0.25));
   const variant = VARIANT_MULTIPLIER[entry.variant] || 1;
-  return Math.max(1, Math.round(marketValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
+  return Math.max(1, Math.round(sellValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
 }
 
 function rarityLabel(rarity) {
@@ -617,71 +618,81 @@ async function handleMarketInteraction(interaction) {
   const userId = parts[2];
   if (!isOwner(interaction, userId)) return true;
   if (action === 'category') {
-    const type = interaction.values?.[0];
-    if (type === 'fish') await updateInteraction(interaction, renderFishMarket(userId));
-    else if (type === 'item') await updateInteraction(interaction, renderItemMarket(userId));
-    else if (type === 'chart') await updateInteraction(interaction, renderValueChart(userId));
+    const value = interaction.values?.[0];
+    if (value === 'fish') await interaction.update(renderFishMarket(userId));
+    else if (value === 'item') await interaction.update(renderItemMarket(userId));
+    else await interaction.update(renderValueChart(userId, 'fish'));
     return true;
   }
-  if (action === 'fishpage') return updateInteraction(interaction, renderFishMarket(userId, Number(parts[3]) || 1)).then(() => true);
-  if (action === 'itempage') return updateInteraction(interaction, renderItemMarket(userId, Number(parts[3]) || 1)).then(() => true);
-  if (action === 'barrelpage') return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, Number(parts[3]) || 1)).then(() => true);
-  if (action === 'invpage') return updateInteraction(interaction, renderInventory(userId, interaction.user.username, Number(parts[3]) || 1)).then(() => true);
-  if (action === 'sellfish') {
-    const result = sellFish(userId, parts[3]);
-    return updateInteraction(interaction, result.payload).then(() => true);
+  if (action === 'fishpage') return updateInteraction(interaction, renderFishMarket(userId, parts[3]));
+  if (action === 'itempage') return updateInteraction(interaction, renderItemMarket(userId, parts[3]));
+  if (action === 'invpage') return updateInteraction(interaction, renderInventory(userId, interaction.user.username, parts[3]));
+  if (action === 'barrelpage') return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, parts[3]));
+  if (action === 'sellfish') return updateInteraction(interaction, sellFish(userId, parts[3]).payload);
+  if (action === 'sellitem') return updateInteraction(interaction, sellItem(userId, parts[3]).payload);
+  if (action === 'sellfilter') { await interaction.showModal(filterModal(userId)); return true; }
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, parseList(interaction.fields?.getTextInputValue('rarities'))));
+  if (action === 'lockitem') {
+    const state = loadState();
+    const entry = ensureUser(state, userId).inventory[parts[3]];
+    if (entry) entry.locked = !entry.locked;
+    saveState(state);
+    return updateInteraction(interaction, renderInventory(userId, interaction.user.username, parts[4]));
   }
-  if (action === 'sellitem') {
-    const result = sellItem(userId, parts[3]);
-    return updateInteraction(interaction, result.payload).then(() => true);
-  }
-  if (action === 'sellfilter') {
-    if (typeof interaction.showModal === 'function') await interaction.showModal(filterModal(userId));
-    return true;
-  }
-  if (action === 'chartpage') return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(parts[4]) || 1)).then(() => true);
-  if (action === 'charttoggle') return updateInteraction(interaction, renderValueChart(userId, parts[3] === 'fish' ? 'item' : 'fish')).then(() => true);
-  if (action === 'chartcheck') return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(parts[5]) || 1, parts[4])).then(() => true);
   if (action === 'lockfish') {
     const state = loadState();
     const user = ensureUser(state, userId);
     const index = findFishIndex(user, parts[3]);
     if (index >= 0) user.fishBarrel[index].locked = !user.fishBarrel[index].locked;
     saveState(state);
-    return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, Number(parts[4]) || 1)).then(() => true);
+    return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, parts[4]));
   }
-  if (action === 'lockitem') {
-    const state = loadState();
-    const user = ensureUser(state, userId);
-    const entry = user.inventory[parts[3]];
-    if (entry) entry.locked = !entry.locked;
-    saveState(state);
-    return updateInteraction(interaction, renderInventory(userId, interaction.user.username, Number(parts[4]) || 1)).then(() => true);
-  }
-  return true;
+  if (action === 'chartpage') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[4]));
+  if (action === 'charttoggle') return updateInteraction(interaction, renderValueChart(userId, parts[3] === 'fish' ? 'item' : 'fish'));
+  if (action === 'chartcheck') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[5], parts[4]));
+  return false;
 }
 
-async function handleModal(interaction) {
-  const id = interaction.customId || '';
-  if (!id.startsWith('fm:sellfiltersubmit:')) return false;
-  const userId = id.split(':')[2];
-  if (!isOwner(interaction, userId)) return true;
-  const rarities = parseList(interaction.fields.getTextInputValue('rarities'));
-  await interaction.reply(renderFishMarket(userId, 1, '-# **Processing...**'));
-  const payload = sellFishByRarity(userId, rarities);
-  await interaction.editReply(payload);
-  return true;
-}
+const fishyMarketCommand = {
+  data: new SlashCommandBuilder().setName('fishy-market').setDescription('Open the Fishy Market'),
+  suppressCommandLog: true,
+  init: startMarketTimer,
+  async execute(interaction) {
+    await interaction.reply(renderMarketHome(interaction.user.id));
+  },
+  async handleInteraction(interaction) {
+    return handleMarketInteraction(interaction);
+  },
+};
+
+const inventoryCommand = {
+  ...displayCommands.inventoryCommand,
+  disableActionTimeout: false,
+  async execute(interaction) {
+    await interaction.reply(renderInventory(interaction.user.id, interaction.user.username));
+  },
+  async handleInteraction(interaction, client) {
+    const handled = await handleMarketInteraction(interaction);
+    if (handled) return true;
+    return displayCommands.inventoryCommand.handleInteraction(interaction, client);
+  },
+};
+
+const fishBarrelCommand = {
+  ...displayCommands.fishBarrelCommand,
+  disableActionTimeout: false,
+  async execute(interaction) {
+    await interaction.reply(renderFishBarrel(interaction.user.id, interaction.user.username));
+  },
+  async handleInteraction(interaction, client) {
+    const handled = await handleMarketInteraction(interaction);
+    if (handled) return true;
+    return displayCommands.fishBarrelCommand.handleInteraction(interaction, client);
+  },
+};
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName('fishy-market')
-    .setDescription('Open the fish and item selling market.'),
-  startMarketTimer,
-  async execute(interaction) {
-    startMarketTimer();
-    return interaction.reply(renderMarketHome(interaction.user.id));
-  },
-  handleMarketInteraction,
-  handleModal,
+  fishyMarketCommand,
+  inventoryCommand,
+  fishBarrelCommand,
 };
