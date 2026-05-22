@@ -51,6 +51,19 @@ function patchFishingFeatureSource(source) {
   );
   source = replaceOnce(
     source,
+    "function fishButton(userId) { return actionRow([{ type: 2, custom_id: `fish:start:${userId}`, label: 'Fish', style: BUTTON_STYLE_SECONDARY }]); }",
+    "function fishButton(userId) { return actionRow([{ type: 2, custom_id: `fish:start:${userId}`, label: 'Fish', style: BUTTON_STYLE_SECONDARY }]); }\nfunction componentEmoji(emoji) { if (!emoji) return null; if (typeof emoji === 'object' && emoji.id) return emoji; const raw = typeof emoji === 'string' ? emoji : emoji.name; const match = String(raw || '').match(/^<a?:([A-Za-z0-9_]+):(\\d+)>$/); if (match) return { name: match[1], id: match[2], animated: String(raw).startsWith('<a:') }; return raw ? { name: raw } : null; }"
+  );
+  source = source.replaceAll(
+    "return { label: item.name, value: item.id, emoji: { name: item.emoji }, default: item.id === user.equippedRodId };",
+    "const emoji = componentEmoji(item.emoji); return { label: item.name, value: item.id, ...(emoji ? { emoji } : {}), default: item.id === user.equippedRodId };"
+  );
+  source = source.replaceAll(
+    "return { label: item.name, value: item.id, emoji: { name: item.emoji }, default: item.id === user.equippedBaitId };",
+    "const emoji = componentEmoji(item.emoji); return { label: item.name, value: item.id, ...(emoji ? { emoji } : {}), default: item.id === user.equippedBaitId };"
+  );
+  source = replaceOnce(
+    source,
     "function renderEscaped(userId, fish, reason = '') { const files = []; const title = reason === 'broken' || reason === 'lightning' ? `## ${fish.emoji} ${fish.name} has escaped! Your fishing rod broke!` : `## ${fish.emoji} ${fish.name} has escaped!${reason === 'timeout' ? '\\nYou taking to long!' : ''}`; const note = reason === 'broken' || reason === 'lightning' ? `-# Should have bought a better fishing rod.${reason === 'lightning' ? '\\n-# Woops, looks like your fishing rod got struck by a lightning!' : ''}` : '-# Better luck next time'; const components = withThumbnail([{ type: 10, content: `${title}\\n${note}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(RED_ACCENT, components, files); }",
     "function renderEscaped(userId, fish, reason = '') { const files = []; const title = reason === 'broken' || reason === 'lightning' ? `## ${fish.emoji} ${fish.name} has escaped! Your fishing rod broke!` : `## ${fish.emoji} ${fish.name} has escaped!${reason === 'timeout' ? '\\nYou taking to long!' : ''}`; const note = reason === 'broken' || reason === 'lightning' ? `-# Should have bought a better fishing rod.${reason === 'lightning' ? '\\n-# Woops, looks like your fishing rod got struck by a lightning!' : ''}` : '-# Better luck next time'; const components = withThumbnail([{ type: 10, content: `${title}\\n${note}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(RED_ACCENT, components, files); }\nfunction scheduleBiteTimeout(session, message) { if (!session || !message) return; if (session.timeoutHandle) clearTimeout(session.timeoutHandle); const delay = Math.max(0, (session.deadlineAt || Date.now()) - Date.now()); session.timeoutHandle = setTimeout(async () => { const current = activeGames.get(session.id); if (!current) return; if (Date.now() < current.deadlineAt) { scheduleBiteTimeout(current, message); return; } const fish = FISH_BY_ID.get(current.fishId); activeGames.delete(current.id); if (fish) await message.edit(renderEscaped(current.ownerId, fish, 'timeout')).catch(() => null); }, delay); session.timeoutHandle.unref?.(); }"
   );
@@ -159,12 +172,17 @@ function parseOptionEmoji(emoji) {
   return raw ? { name: raw } : null;
 }
 
+function patchOption(option) {
+  if (!option || typeof option !== 'object') return;
+  if (option.label === WOODEN_ROD_LABEL) option.emoji = { ...WOODEN_ROD_EMOJI };
+  else if (option.emoji) option.emoji = parseOptionEmoji(option.emoji);
+  if (option.data?.emoji) option.data.emoji = parseOptionEmoji(option.data.emoji);
+}
+
 function patchSelect(component) {
-  if (component?.type !== 3 || !Array.isArray(component.options)) return;
-  for (const option of component.options) {
-    if (option?.label === WOODEN_ROD_LABEL) option.emoji = { ...WOODEN_ROD_EMOJI };
-    else if (option?.emoji) option.emoji = parseOptionEmoji(option.emoji);
-  }
+  if (component?.type !== 3) return;
+  if (Array.isArray(component.options)) component.options.forEach(patchOption);
+  if (Array.isArray(component.data?.options)) component.data.options.forEach(patchOption);
 }
 
 function patchContainer(component) {
