@@ -51,6 +51,9 @@ const RARITY_WEIGHTS = { common: 65, uncommon: 22, rare: 9, epic: 3, legendary: 
 const REEL_EMOJIS = ['🐟', '🎣', '🪝', '🫧', '🌊', '🐠', '🐡', '🦈', '🦑', '🦀', '🐚', '🪙', '⭐', '💧', '🍀'];
 const ITEMS = {
   wooden_fishing_rod: { id: 'wooden_fishing_rod', name: 'Wooden Fishing Rod', emoji: '🎣', type: 'Gear/Tool', rarity: 'common', value: 0, powerMin: 3, powerMax: 5, durability: null },
+  bamboo_fishing_rod: { id: 'bamboo_fishing_rod', name: 'Bamboo Fishing Rod', emoji: '<:IGBambooFishingRod:1507183020485120120>', type: 'Gear/Tool', rarity: 'common', value: 350, powerMin: 8, powerMax: 12, durability: 40 },
+  steel_fishing_rod: { id: 'steel_fishing_rod', name: 'Steel Fishing Rod', emoji: '<:IGSteelFishingRod:1507183025643847802>', type: 'Gear/Tool', rarity: 'common', value: 1250, powerMin: 18, powerMax: 25, durability: 85 },
+  carbon_fishing_rod: { id: 'carbon_fishing_rod', name: 'Carbon Fishing Rod', emoji: '<:IGCarbonFishingRod:1507183023139979395>', type: 'Gear/Tool', rarity: 'common', value: 5000, powerMin: 30, powerMax: 40, durability: 115 },
 };
 const VARIANTS = [
   { key: 'Normal', emoji: FISH_EMOJI, chance: 89, multiplier: 1 },
@@ -150,4 +153,4 @@ const fishCommand = { data: new SlashCommandBuilder().setName('fish').setDescrip
 const inventoryCommand = { data: new SlashCommandBuilder().setName('inventory').setDescription('Show your inventory'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderInventory(interaction.user.id, interaction.user.username)); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 const fishBarrelCommand = { data: new SlashCommandBuilder().setName('fish-barrel').setDescription('Show your Fish Barrel'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderFishBarrel(interaction.user.id, interaction.user.username)); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 const fishBalanceCommand = { data: new SlashCommandBuilder().setName('fish-balance').setDescription('Show your Fish Coin balance'), suppressCommandLog: true, async execute(interaction) { const user = getUser(interaction.user.id); await interaction.reply(containerPayload(WHITE_ACCENT, [{ type: 10, content: [`### ${interaction.user.username}'s Fish Balance`, `* ${user.fishCoins.toLocaleString('en-US')} ${FISH_COIN}`].join('\n') }])); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
-module.exports = { fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };
+module.exports = { ITEMS, FISH_BY_ID, getUser, updateUser, fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };
