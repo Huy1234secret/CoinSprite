@@ -15,6 +15,16 @@ function patchFishyMarketSource(source) {
 }
 
 function chartPathFor`)
+    .replace(`function fishTotalValue(state, entry, fish) {
+  const marketValue = getMarketValue(state, 'fish', fish.id);
+  const sellValue = Math.max(1, Math.floor(marketValue * 0.25));
+  const variant = VARIANT_MULTIPLIER[entry.variant] || 1;
+  return Math.max(1, Math.round(sellValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
+}`, `function fishTotalValue(state, entry, fish) {
+  const marketValue = getMarketValue(state, 'fish', fish.id);
+  const variant = VARIANT_MULTIPLIER[entry.variant] || 1;
+  return Math.max(1, Math.round(marketValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
+}`)
     .replace(`  const values = history.map((point) => point.value);`, `  const displayChartValue = (rawValue) => Number(rawValue) || entry.baseValue;
   const values = history.map((point) => displayChartValue(point.value));`)
     .replace(`  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`, `  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);`)
