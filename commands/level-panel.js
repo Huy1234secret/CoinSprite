@@ -101,8 +101,6 @@ function getLoggedMessageXp(userId, messageId) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-manager.setUserXpNerf = setUserXpNerf;
-
 async function applyNerfCorrection(message) {
   if (!message.guild || message.author.bot) return;
 
@@ -512,7 +510,7 @@ async function handlePunishmentSubmit(interaction) {
     punishmentLabel = result.changed ? 'Lock XP' : 'Lock XP (already locked)';
   } else if (punishment === 'nerf_xp_gain') {
     const nerf = parseNerfInput(amount);
-    result = manager.setUserXpNerf(interaction.guildId, user.id, nerf.scalePercent, nerf.durationMs, reason);
+    result = setUserXpNerf(interaction.guildId, user.id, nerf.scalePercent, nerf.durationMs, reason);
     punishmentLabel = `Nerf XP gain to **${result.scalePercent}%** until ${formatEndTime(result.endsAt)}`;
   } else {
     throw new Error('Choose a punishment.');
