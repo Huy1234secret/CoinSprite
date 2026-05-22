@@ -67,6 +67,14 @@ function startFishGameLock(userId) {
   activeFishGameTimer.unref?.();
 }
 
+function refreshFishGameLock() {
+  if (!activeFishGame) return;
+  activeFishGame.expiresAt = Date.now() + FISH_GAME_LOCK_TIMEOUT_MS;
+  if (activeFishGameTimer) clearTimeout(activeFishGameTimer);
+  activeFishGameTimer = setTimeout(clearFishGameLock, FISH_GAME_LOCK_TIMEOUT_MS);
+  activeFishGameTimer.unref?.();
+}
+
 function collectPayloadText(payload, out = []) {
   if (!payload || typeof payload !== 'object') return out;
   if (payload.type === 10 && typeof payload.content === 'string') out.push(payload.content);
@@ -93,10 +101,20 @@ function patchTextDisplay(component) {
   component.content = component.content.replaceAll(`${WOODEN_ROD_LABEL} ${WOODEN_ROD_UNICODE}`, `${WOODEN_ROD_LABEL} ${WOODEN_ROD_RAW}`);
 }
 
+function parseOptionEmoji(emoji) {
+  if (!emoji) return null;
+  if (typeof emoji === 'object' && emoji.id) return emoji;
+  const raw = typeof emoji === 'string' ? emoji : emoji.name;
+  const match = String(raw || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/);
+  if (match) return { name: match[1], id: match[2], animated: String(raw).startsWith('<a:') };
+  return raw ? { name: raw } : null;
+}
+
 function patchSelect(component) {
   if (component?.type !== 3 || !Array.isArray(component.options)) return;
   for (const option of component.options) {
     if (option?.label === WOODEN_ROD_LABEL) option.emoji = { ...WOODEN_ROD_EMOJI };
+    else if (option?.emoji) option.emoji = parseOptionEmoji(option.emoji);
   }
 }
 
@@ -162,6 +180,11 @@ function shouldLockFishStart(interaction) {
   return interaction.user?.id === id.split(':')[2];
 }
 
+function shouldRefreshFishLock(interaction) {
+  const active = getActiveFishGame();
+  return Boolean(active && (interaction.customId || '').startsWith('fish:reel:') && interaction.user?.id === active.userId);
+}
+
 function wrapCommand(command, init) {
   return {
     ...command,
@@ -177,6 +200,7 @@ function wrapCommand(command, init) {
       }
 
       if (lockFishStart) startFishGameLock(interaction.user.id);
+      else if (shouldRefreshFishLock(interaction)) refreshFishGameLock();
 
       try {
         return await command.handleInteraction(patchInteraction(interaction), client);
