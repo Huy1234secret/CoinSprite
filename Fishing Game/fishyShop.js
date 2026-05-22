@@ -312,7 +312,7 @@ async function renderShopPage(userId, username, page = 1) {
       min_values: 1,
       max_values: 1,
       options: pagedItems.map(item => {
-        const rarityStr = RARITY_EMOJI[item.rarity] || '';
+        const rarityStr = item.emoji || '';
         const match = rarityStr.match(/<:([^:]+):(\d+)>/);
         const emoji = match ? { name: match[1], id: match[2] } : undefined;
         return {
@@ -464,7 +464,17 @@ const fishyShopCommand = {
          // ignore if recordMarketBuy not perfectly aligned
        }
 
-       await interaction.reply({ content: `Successfully bought ${amount}x ${itemDef.name} for ${totalCost} Fish Coins!`, flags: EPHEMERAL_FLAG });
+
+       const payload = await renderShopPage(userId, interaction.user.username, 1);
+       if (typeof interaction.update === 'function') {
+         await interaction.update(payload);
+         await interaction.followUp({ content: `Successfully bought ${amount}x ${itemDef.name} for ${totalCost} Fish Coins!`, flags: EPHEMERAL_FLAG });
+       } else {
+         await interaction.deferUpdate();
+         await interaction.message?.edit(payload);
+         await interaction.followUp({ content: `Successfully bought ${amount}x ${itemDef.name} for ${totalCost} Fish Coins!`, flags: EPHEMERAL_FLAG });
+       }
+
        return true;
     }
 

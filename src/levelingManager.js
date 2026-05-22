@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { cleanupGeneratedFiles } = require('./fileCleanup');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
@@ -608,6 +609,7 @@ async function buildLevelCard({ guildId, userId, username, avatarUrl, rank, stat
   const filename = `${guildId}-${userId}-level.png`;
   const filePath = path.join(CARD_CACHE_DIR, filename);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
+  cleanupGeneratedFiles(filePath);
   return new AttachmentBuilder(filePath, { name: 'level-card.png' });
 }
 
@@ -660,6 +662,7 @@ async function buildLeaderboardImage({ guildName, rows, type, page, maxPage }) {
 
   const filePath = path.join(LEADERBOARD_CACHE_DIR, `leaderboard-${type}-${Date.now()}.png`);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
+  cleanupGeneratedFiles(filePath);
   return new AttachmentBuilder(filePath, { name: 'leaderboard.png' });
 }
 
