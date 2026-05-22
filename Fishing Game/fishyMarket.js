@@ -75,6 +75,30 @@ const ITEMS = {
     value: 0,
     unsellable: true,
   },
+  bamboo_fishing_rod: {
+    id: 'bamboo_fishing_rod',
+    name: 'Bamboo Fishing Rod',
+    emoji: '<:IGBambooFishingRod:1507183020485120120>',
+    type: 'Gear/Tool',
+    rarity: 'common',
+    value: 350,
+  },
+  steel_fishing_rod: {
+    id: 'steel_fishing_rod',
+    name: 'Steel Fishing Rod',
+    emoji: '<:IGSteelFishingRod:1507183025643847802>',
+    type: 'Gear/Tool',
+    rarity: 'common',
+    value: 1250,
+  },
+  carbon_fishing_rod: {
+    id: 'carbon_fishing_rod',
+    name: 'Carbon Fishing Rod',
+    emoji: '<:IGCarbonFishingRod:1507183023139979395>',
+    type: 'Gear/Tool',
+    rarity: 'common',
+    value: 5000,
+  },
 };
 
 const FISH_BY_ID = new Map(FISH.map((fish) => [fish.id, fish]));
@@ -227,8 +251,9 @@ function mutationMultiplier(entry) {
 
 function fishTotalValue(state, entry, fish) {
   const marketValue = getMarketValue(state, 'fish', fish.id);
+  const sellValue = Math.max(1, Math.floor(marketValue * 0.25));
   const variant = VARIANT_MULTIPLIER[entry.variant] || 1;
-  return Math.max(1, Math.round(marketValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
+  return Math.max(1, Math.round(sellValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
 }
 
 function rarityLabel(rarity) {
@@ -307,7 +332,8 @@ function renderFishLine(state, record) {
 }
 
 function renderItemLine(state, record) {
-  const value = getMarketValue(state, 'item', record.id);
+  const marketValue = getMarketValue(state, 'item', record.id);
+  const value = Math.max(1, Math.floor(marketValue * 0.25));
   return `**\u00d7${record.entry.amount} ${record.item.name} ${record.item.emoji} - ${record.item.type}**\n-# Rarity: ${rarityLabel(record.item.rarity)} - Value: ${value} ${FISH_COIN}`;
 }
 
@@ -527,7 +553,9 @@ function sellItem(userId, itemId) {
   if (!item || !entry || Number(entry.amount) <= 0) return { payload: renderItemMarket(userId), message: '-# **Item not found**' };
   if (item.unsellable || entry.locked) return { payload: renderItemMarket(userId), message: '-# **That item cannot be sold**' };
   const amount = Math.floor(Number(entry.amount) || 0);
-  const value = Math.max(1, Math.round(getMarketValue(state, 'item', itemId) * amount));
+  const marketValue = getMarketValue(state, 'item', itemId);
+  const sellValue = Math.max(1, Math.floor(marketValue * 0.25)); // Earn back 25% of market value
+  const value = sellValue * amount;
   delete user.inventory[itemId];
   user.fishCoins += value;
   updateMarketEntry(state, 'item', itemId, amount, 0);
