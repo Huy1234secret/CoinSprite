@@ -97,9 +97,13 @@ const WEATHER_EFFECTS = { Sunny: {}, Rain: { lureSeconds: -2, powerMultiplier: 1
 const WEATHER_TEXT = { Sunny: ['No effects.'], Rain: ['Fish become more abundant when it rains.', "It's harder to catch a fish.", 'Higher rarity fish chance.'], Storm: ['Becareful when go fishing, your fishing rod can BREAK easily!', "Fish doesn't like this weather... become less abundant.", "It's more harder to catch a fish.", 'Higher rarity fish chance.'], Thunderstorm: ['Why? Why go fishing during this time?', "It's rare to see a fish during this time.", "It's EVEN harder to catch a fish.", 'But Even higher rarity fish chance.'], Fog: ['Fish may not see your hook clearly.', 'Harder to catch a fish', 'Higher fish chance.'], Windy: ["It's hard to be balance, becareful with your fishing rod.", 'Those mini waves will make fish hard to bite your hook.', 'Hard to catch a fish', 'Fish has a chance to escape while trying to catch', 'Higher fish rarity chance'], Snow: ['Fishing rod is a little bit easier to break now.', 'Fish doesnt like cold woter.', 'Hard to catch a fish.', 'Higher rarity fish chance.'], Heatwave: ['Fishing rod is a little bit easier to break now.', 'Fish may not like being cooked alive.', 'Harder to catch a fish.', 'Higher fish rarity chance'], 'Night Clear Sky': ['Easier to catch a fish, wonder why?', 'Some fish that only catchable during night started appearing.'], 'Full Moon Night': ['Even higher fish rarity chance.', 'We have found out Golden variant started appearing.'], Bloodmoon: ["it's beautiful but dangerous, one mistake can make your fishing rod broke immediately", 'seems like fish doesnt really like this weather', 'Hard to catch fish', 'EVEN HIGHER fish rarity chance.'] };
 
 const activeGames = new Map();
+const FISHING_BITE_TIMEOUT_MS = 30_000;
+const FISH_GAME_LOCK_TIMEOUT_MS = 90_000;
 const inventoryFilters = new Map();
 const barrelFilters = new Map();
 let weatherTimerStarted = false;
+let activeFishGame = null;
+let activeFishGameTimer = null;
 let xlsxCache = null;
 
 function normalizeId(value) { return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
@@ -117,6 +121,7 @@ function updateUser(userId, updater) { const state = loadState(); const user = e
 function getInventoryAmount(user, itemId) { return Math.max(0, Math.floor(Number(user.inventory?.[itemId]?.amount) || 0)); }
 function getItemDefinition(itemId) { return ITEMS[itemId] || null; }
 function getEquippedRod(user) { return getItemDefinition(user.equippedRodId) || ITEMS.wooden_fishing_rod; }
+function shouldResetFishingTimer(user) { return (user.equippedRodId || 'wooden_fishing_rod') !== 'wooden_fishing_rod'; }
 function getRodPower(rod) { return randomInt(Math.floor(rod.powerMin || 1), Math.floor(rod.powerMax || rod.powerMin || 1)); }
 function damageEquippedRod(user, amount) { const rodId = user.equippedRodId || 'wooden_fishing_rod'; const rod = getItemDefinition(rodId); if (!rod || rod.durability === null) return false; const entry = user.inventory[rodId]; if (!entry) return false; entry.durability = Math.max(0, Math.floor(Number(entry.durability ?? rod.durability) - Math.max(0, Math.ceil(amount)))); if (entry.durability > 0) return false; entry.amount = Math.max(0, Math.floor(Number(entry.amount) || 0) - 1); if (entry.amount <= 0) delete user.inventory[rodId]; else entry.durability = rod.durability; user.equippedRodId = 'wooden_fishing_rod'; return true; }
 function seasonTime(now = new Date()) { const utc7 = now.getTime() + (7 * 60 * 60 * 1000); const day = Math.floor(utc7 / 86_400_000); const hour = Math.floor((utc7 % 86_400_000) / 3_600_000); const season = SEASONS[Math.floor(day / 2) % SEASONS.length]; const timeKey = ['Morning', 'Noon', 'Afternoon', 'Night'][Math.floor((hour % 12) / 3)]; return { season, time: { key: timeKey, emoji: TIMES[timeKey] } }; }
@@ -133,8 +138,34 @@ function findImage(dir, baseName) { if (!fs.existsSync(dir)) return null; const 
 function withThumbnail(components, imagePath, fileName, files) { if (!imagePath) return components; files.push(new AttachmentBuilder(imagePath, { name: fileName })); return [mediaGallery(fileName), ...components]; }
 function fishActionSelect(userId, placeholder = 'Select an action', values = ['equipment', 'location']) { const labels = { fishing: 'Fishing', equipment: 'Equipments', location: 'Change Location' }; return actionRow([{ type: 3, custom_id: `fish:action:${userId}`, placeholder, min_values: 1, max_values: 1, options: values.map((value) => ({ label: labels[value], value })) }]); }
 function fishButton(userId) { return actionRow([{ type: 2, custom_id: `fish:start:${userId}`, label: 'Fish', style: BUTTON_STYLE_SECONDARY }]); }
+function componentEmoji(emoji) {
+  if (!emoji) return null;
+  if (typeof emoji === 'object' && emoji.id) return emoji;
+  const raw = typeof emoji === 'string' ? emoji : emoji.name;
+  const match = String(raw || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/);
+  if (match) return { name: match[1], id: match[2], ...(String(raw).startsWith('<a:') ? { animated: true } : {}) };
+  return raw ? { name: raw } : null;
+}
 function renderHome(userId) { const user = getUser(userId); const files = []; const image = findImage(LOCATION_IMAGE_DIR, user.location || LOCATION); const components = withThumbnail([{ type: 10, content: `## You are in ${user.location || LOCATION}\n-# Ready to fish? Press the button below to start fishing` }, separator(), fishButton(userId), fishActionSelect(userId, 'Select an action', ['equipment', 'location'])], image, 'location.png', files); return containerPayload(WHITE_ACCENT, components, files); }
-function renderEquipment(userId, username) { const user = getUser(userId); const rod = getEquippedRod(user); const rodOptions = Object.entries(user.inventory).filter(([itemId, entry]) => getItemDefinition(itemId)?.type === 'Gear/Tool' && Number(entry.amount) > 0).map(([itemId]) => { const item = getItemDefinition(itemId); return { label: item.name, value: item.id, emoji: { name: item.emoji }, default: item.id === user.equippedRodId }; }); const baitOptions = Object.entries(user.inventory).filter(([itemId, entry]) => getItemDefinition(itemId)?.type === 'Bait' && Number(entry.amount) > 0).map(([itemId]) => { const item = getItemDefinition(itemId); return { label: item.name, value: item.id, emoji: { name: item.emoji }, default: item.id === user.equippedBaitId }; }); const rodDurability = rod.durability === null ? 'Infinity' : String(user.inventory[user.equippedRodId]?.durability ?? rod.durability); const bait = user.equippedBaitId ? getItemDefinition(user.equippedBaitId) : null; const baitPlaceholder = bait ? bait.name : (baitOptions.length ? 'Choose a bait to use' : "You don't have any bait"); const content = [`## ${username}'s Equipments.`, '-# Fishing rod:', `* Power: ${rod.powerMin} - ${rod.powerMax} - Dur: ${rodDurability}`, '', '-# Bait:', `* Usage: ${bait?.usage || 'No bait equipped'}`].join('\n'); return containerPayload(WHITE_ACCENT, [{ type: 10, content }, actionRow([{ type: 3, custom_id: `fish:rod:${userId}`, placeholder: rod.name, min_values: 1, max_values: 1, disabled: rodOptions.length <= 1, options: rodOptions.length ? rodOptions : [{ label: rod.name, value: rod.id, default: true }] }]), actionRow([{ type: 3, custom_id: `fish:bait:${userId}`, placeholder: baitPlaceholder, min_values: 1, max_values: 1, disabled: baitOptions.length === 0, options: baitOptions.length ? baitOptions : [{ label: "You don't have any bait", value: 'none' }] }]), fishActionSelect(userId, 'Select an action', ['fishing', 'location'])]); }
+function renderEquipment(userId, username) {
+  const user = getUser(userId);
+  const rod = getEquippedRod(user);
+  const rodOptions = Object.entries(user.inventory).filter(([itemId, entry]) => getItemDefinition(itemId)?.type === 'Gear/Tool' && Number(entry.amount) > 0).map(([itemId]) => {
+    const item = getItemDefinition(itemId);
+    const emoji = componentEmoji(item.emoji);
+    return { label: item.name, value: item.id, ...(emoji ? { emoji } : {}), default: item.id === user.equippedRodId };
+  });
+  const baitOptions = Object.entries(user.inventory).filter(([itemId, entry]) => getItemDefinition(itemId)?.type === 'Bait' && Number(entry.amount) > 0).map(([itemId]) => {
+    const item = getItemDefinition(itemId);
+    const emoji = componentEmoji(item.emoji);
+    return { label: item.name, value: item.id, ...(emoji ? { emoji } : {}), default: item.id === user.equippedBaitId };
+  });
+  const rodDurability = rod.durability === null ? 'Infinity' : String(user.inventory[user.equippedRodId]?.durability ?? rod.durability);
+  const bait = user.equippedBaitId ? getItemDefinition(user.equippedBaitId) : null;
+  const baitPlaceholder = bait ? bait.name : (baitOptions.length ? 'Choose a bait to use' : "You don't have any bait");
+  const content = [`## ${username}'s Equipments.`, '-# Fishing rod:', `* Power: ${rod.powerMin} - ${rod.powerMax} - Dur: ${rodDurability}`, '', '-# Bait:', `* Usage: ${bait?.usage || 'No bait equipped'}`].join('\n');
+  return containerPayload(WHITE_ACCENT, [{ type: 10, content }, actionRow([{ type: 3, custom_id: `fish:rod:${userId}`, placeholder: rod.name, min_values: 1, max_values: 1, disabled: rodOptions.length <= 1, options: rodOptions.length ? rodOptions : [{ label: rod.name, value: rod.id, default: true }] }]), actionRow([{ type: 3, custom_id: `fish:bait:${userId}`, placeholder: baitPlaceholder, min_values: 1, max_values: 1, disabled: baitOptions.length === 0, options: baitOptions.length ? baitOptions : [{ label: "You don't have any bait", value: 'none' }] }]), fishActionSelect(userId, 'Select an action', ['fishing', 'location'])]);
+}
 function renderLocationComingSoon(userId) { return containerPayload(BLACK_ACCENT, [{ type: 10, content: '## coming soon...' }, fishActionSelect(userId, 'Select an action', ['fishing', 'equipment'])]); }
 function renderFishBarrelFull(userId, username = 'Your') { const user = getUser(userId); const used = Array.isArray(user.fishBarrel) ? user.fishBarrel.length : 0; const capacity = Math.max(10, Math.floor(Number(user.fishCapacity) || 10)); return containerPayload(WHITE_ACCENT, [{ type: 10, content: `## ${username}'s Fish Barrel is full!
 -# Capacity: ${used} / ${capacity}
@@ -143,10 +174,60 @@ function renderFishBarrelFull(userId, username = 'Your') { const user = getUser(
 -# Capacity: ${used} / ${capacity}
 -# Sell some fish in /fishy-market or manage your barrel before fishing again.` }, separator(), fishActionSelect(userId, 'Select an action', ['equipment', 'location'])]); }
 function buildProgressBar(percent) { const safe = Math.max(0, Math.min(100, Math.floor(Number(percent) || 0))); const parts = [BAR.start]; for (let slot = 1; slot <= 9; slot += 1) parts.push(safe >= (slot * 10) ? BAR.middle : BAR.middleEmpty); parts.push(safe >= 100 ? BAR.end : BAR.endEmpty); return parts.join(''); }
-function createSession(userId, messageId, fish, weather) { const effect = WEATHER_EFFECTS[weather.weather] || {}; const totalPower = Math.max(1, Math.ceil(fish.powerReq * (effect.powerMultiplier || 1))); const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; const buttonCount = RARITY_BUTTONS[fish.rarity] || 2; const buttons = [...REEL_EMOJIS].sort(() => Math.random() - 0.5).slice(0, buttonCount); const correctEmoji = buttons[randomInt(0, buttons.length - 1)]; const session = { id, ownerId: userId, messageId, fishId: fish.id, totalPower, remainingPower: totalPower, startedAt: Date.now(), deadlineAt: Date.now() + 30_000, correctEmoji, buttons, weatherName: weather.weather }; activeGames.set(id, session); return session; }
+function createSession(userId, messageId, fish, weather) { const effect = WEATHER_EFFECTS[weather.weather] || {}; const totalPower = Math.max(1, Math.ceil(fish.powerReq * (effect.powerMultiplier || 1))); const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; const buttonCount = RARITY_BUTTONS[fish.rarity] || 2; const buttons = [...REEL_EMOJIS].sort(() => Math.random() - 0.5).slice(0, buttonCount); const correctEmoji = buttons[randomInt(0, buttons.length - 1)]; const session = { id, ownerId: userId, messageId, fishId: fish.id, totalPower, remainingPower: totalPower, castAt: Date.now(), biteAt: null, deadlineAt: null, timeoutHandle: null, correctEmoji, buttons, weatherName: weather.weather }; activeGames.set(id, session); return session; }
 function renderBite(session) { const fish = FISH_BY_ID.get(session.fishId); const percent = Math.floor(((session.totalPower - session.remainingPower) / session.totalPower) * 100); const files = []; const rows = []; for (let index = 0; index < session.buttons.length; index += 5) rows.push(actionRow(session.buttons.slice(index, index + 5).map((emoji, buttonIndex) => ({ type: 2, custom_id: `fish:reel:${session.id}:${index + buttonIndex}`, emoji: { name: emoji }, style: BUTTON_STYLE_SECONDARY })))); const components = withThumbnail([{ type: 10, content: `## ${fish.emoji} ${fish.name} have bitten your hook!\n${buildProgressBar(percent)} ${percent}%\n\n-# Select the correct button: ${session.correctEmoji}` }, separator(), ...rows], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(WHITE_ACCENT, components, files); }
 function renderCaught(userId, caughtFish) { const fish = FISH_BY_ID.get(caughtFish.fishId); const files = []; const components = withThumbnail([{ type: 10, content: `## ${fish.emoji} ${fish.name} has been caught!\n-# * Variant: ${caughtFish.variant} ${caughtFish.variantEmoji}\n-# * Weigh: ${caughtFish.weight} kg\n-# * Rarity: ${rarityLabel(fish.rarity)}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(GREEN_ACCENT, components, files); }
 function renderEscaped(userId, fish, reason = '') { const files = []; const title = reason === 'broken' || reason === 'lightning' ? `## ${fish.emoji} ${fish.name} has escaped! Your fishing rod broke!` : `## ${fish.emoji} ${fish.name} has escaped!${reason === 'timeout' ? '\nYou taking to long!' : ''}`; const note = reason === 'broken' || reason === 'lightning' ? `-# Should have bought a better fishing rod.${reason === 'lightning' ? '\n-# Woops, looks like your fishing rod got struck by a lightning!' : ''}` : '-# Better luck next time'; const components = withThumbnail([{ type: 10, content: `${title}\n${note}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(RED_ACCENT, components, files); }
+function clearFishGameLock() {
+  activeFishGame = null;
+  if (activeFishGameTimer) clearTimeout(activeFishGameTimer);
+  activeFishGameTimer = null;
+}
+function getActiveFishGame() {
+  if (!activeFishGame) return null;
+  if (Date.now() >= activeFishGame.expiresAt) clearFishGameLock();
+  return activeFishGame;
+}
+function startFishGameLock(userId) {
+  clearFishGameLock();
+  activeFishGame = { userId, expiresAt: Date.now() + FISH_GAME_LOCK_TIMEOUT_MS };
+  activeFishGameTimer = setTimeout(clearFishGameLock, FISH_GAME_LOCK_TIMEOUT_MS);
+  activeFishGameTimer.unref?.();
+}
+function refreshFishGameLock() {
+  if (!activeFishGame) return;
+  activeFishGame.expiresAt = Date.now() + FISH_GAME_LOCK_TIMEOUT_MS;
+  if (activeFishGameTimer) clearTimeout(activeFishGameTimer);
+  activeFishGameTimer = setTimeout(clearFishGameLock, FISH_GAME_LOCK_TIMEOUT_MS);
+  activeFishGameTimer.unref?.();
+}
+function clearSessionTimer(session) { if (session?.timeoutHandle) clearTimeout(session.timeoutHandle); if (session) session.timeoutHandle = null; }
+function finishSession(session) { if (!session) return; clearSessionTimer(session); activeGames.delete(session.id); clearFishGameLock(); }
+function scheduleBiteTimeout(session, message) {
+  if (!session || !message) return;
+  if (!session.biteAt) session.biteAt = Date.now();
+  if (!session.deadlineAt) session.deadlineAt = session.biteAt + FISHING_BITE_TIMEOUT_MS;
+  clearSessionTimer(session);
+  const delay = Math.max(0, session.deadlineAt - Date.now());
+  session.timeoutHandle = setTimeout(async () => {
+    const current = activeGames.get(session.id);
+    if (!current) return;
+    if (Date.now() < current.deadlineAt) {
+      scheduleBiteTimeout(current, message);
+      return;
+    }
+    const fish = FISH_BY_ID.get(current.fishId);
+    finishSession(current);
+    if (fish) await message.edit(renderEscaped(current.ownerId, fish, 'timeout')).catch(() => null);
+  }, delay);
+  session.timeoutHandle.unref?.();
+}
+function resetBiteTimeout(session, message) {
+  if (!session) return;
+  session.biteAt = session.biteAt || Date.now();
+  session.deadlineAt = Date.now() + FISHING_BITE_TIMEOUT_MS;
+  scheduleBiteTimeout(session, message);
+}
 function pickVariant(weatherName) { if (weatherName === 'Full Moon Night' && Math.random() < 0.1) return VARIANTS[1]; return weightedPick(VARIANTS.map((variant) => ({ value: variant, weight: variant.chance }))) || VARIANTS[0]; }
 function chooseFish(weather) { const xlsxWeights = loadXlsxFishWeights(weather.season, weather.time, weather.weather); if (xlsxWeights.length) return weightedPick(xlsxWeights.map((entry) => ({ value: entry.fish, weight: entry.weight }))) || FISH[0]; const rarity = weightedPick(Object.entries(RARITY_WEIGHTS).map(([key, weight]) => ({ value: key, weight }))) || 'common'; const candidates = FISH.filter((fish) => fish.rarity === rarity); return candidates[randomInt(0, candidates.length - 1)] || FISH[0]; }
 function loadXlsxFishWeights(seasonKey, timeKey, weatherName) { const column = COLUMN_MAP[seasonKey]?.[timeKey]?.[weatherName]; if (!column || !fs.existsSync(CALM_LAKE_XLSX)) return []; try { const stat = fs.statSync(CALM_LAKE_XLSX); if (!xlsxCache || xlsxCache.mtimeMs !== stat.mtimeMs) xlsxCache = { mtimeMs: stat.mtimeMs, cells: readXlsxCells(CALM_LAKE_XLSX) }; const rows = new Map(); for (const [cell, value] of xlsxCache.cells.entries()) { const match = /^([A-Z]+)(\d+)$/.exec(cell); if (!match) continue; const [, cellColumn, row] = match; const rowNumber = Number(row); if (rowNumber < 4 || rowNumber > 16) continue; if (cellColumn !== 'A' && cellColumn !== column) continue; if (!rows.has(row)) rows.set(row, {}); rows.get(row)[cellColumn] = value; } return [...rows.values()].map((row) => ({ fish: FISH_BY_NAME.get(normalizeName(row.A)), weight: Number(row[column]) })).filter((entry) => entry.fish && Number(entry.weight) > 0); } catch { return []; } }
@@ -155,8 +236,116 @@ function unzipXlsx(buffer) { const files = new Map(); let offset = 0; while (off
 function parseSharedStrings(xml) { const strings = []; for (const match of xml.matchAll(/<si\b[\s\S]*?<\/si>/g)) strings.push([...match[0].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join('')); return strings; }
 function parseSheetCells(xml, sharedStrings) { const cells = new Map(); for (const match of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) { const attrs = match[1]; const body = match[2]; const ref = /r="([^"]+)"/.exec(attrs)?.[1]; if (!ref) continue; const type = /t="([^"]+)"/.exec(attrs)?.[1]; const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? ''; const inline = /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1]; let value = raw; if (type === 's') value = sharedStrings[Number(raw)] ?? ''; else if (type === 'inlineStr') value = decodeXml(inline || ''); cells.set(ref, decodeXml(value)); } return cells; }
 function decodeXml(value) { return String(value || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); }
-async function startFishing(interaction) { const userId = interaction.user.id; const currentUser = getUser(userId); if ((Array.isArray(currentUser.fishBarrel) ? currentUser.fishBarrel.length : 0) >= Math.max(10, Math.floor(Number(currentUser.fishCapacity) || 10))) { await interaction.update(renderFishBarrelFull(userId, interaction.user.username)); return; } const weather = getCurrentWeather(); const effect = WEATHER_EFFECTS[weather.weather] || {}; const lureMs = Math.max(1000, (randomInt(5, 8) + (effect.lureSeconds || 0)) * 1000); await interaction.update(containerPayload(WHITE_ACCENT, [{ type: 10, content: `## You've cast your hook, waiting for fish... ${SPIN_FISH}` }])); setTimeout(async () => { const message = interaction.message; const fish = chooseFish(weather); const session = createSession(userId, message.id, fish, weather); if (weather.weather === 'Thunderstorm' && effect.lightningBreakChance && Math.random() < effect.lightningBreakChance) { const broke = updateUser(userId, (user) => damageEquippedRod(user, Number.MAX_SAFE_INTEGER)); activeGames.delete(session.id); await message.edit(renderEscaped(userId, fish, broke ? 'lightning' : '')).catch(() => null); return; } await message.edit(renderBite(session)).catch(() => activeGames.delete(session.id)); }, lureMs); }
-async function handleReel(interaction, sessionId, buttonIndex) { const session = activeGames.get(sessionId); if (!session) { await interaction.reply({ content: 'This fishing attempt already ended.', flags: EPHEMERAL_FLAG }).catch(() => null); return true; } if (interaction.user.id !== session.ownerId) { await interaction.reply({ content: 'This is not your fishing attempt.', flags: EPHEMERAL_FLAG }).catch(() => null); return true; } const fish = FISH_BY_ID.get(session.fishId); if (!fish) return true; if (Date.now() > session.deadlineAt) { activeGames.delete(session.id); await interaction.update(renderEscaped(session.ownerId, fish, 'timeout')); return true; } const selectedEmoji = session.buttons[Number(buttonIndex)]; const weatherEffect = WEATHER_EFFECTS[session.weatherName] || {}; let broke = false; let escaped = false; updateUser(session.ownerId, (user) => { const rod = getEquippedRod(user); const modifiedDur = Math.max(1, Math.ceil(fish.durDamage * (weatherEffect.durMultiplier || 1))); if (selectedEmoji === session.correctEmoji) { session.remainingPower = Math.max(0, session.remainingPower - getRodPower(rod)); broke = damageEquippedRod(user, Math.max(1, Math.ceil(modifiedDur / 4))); } else { session.remainingPower = Math.min(session.totalPower, session.remainingPower + Math.ceil(session.totalPower / 5)); broke = damageEquippedRod(user, modifiedDur); } if (!broke && weatherEffect.escapeChance && Math.random() < weatherEffect.escapeChance) escaped = true; return user; }); if (broke) { activeGames.delete(session.id); await interaction.update(renderEscaped(session.ownerId, fish, 'broken')); return true; } if (escaped) { activeGames.delete(session.id); await interaction.update(renderEscaped(session.ownerId, fish)); return true; } if (session.remainingPower <= 0) { const variant = pickVariant(session.weatherName); const caught = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, fishId: fish.id, weight: Number(randomFloat(fish.minWeight, fish.maxWeight).toFixed(2)), variant: variant.key, variantEmoji: variant.emoji, mutation: null, sellValue: fish.sellValue * variant.multiplier, caughtAt: Date.now() }; let storedCaught = false; updateUser(session.ownerId, (user) => { user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {}; const previous = user.fishIndex[fish.id] && typeof user.fishIndex[fish.id] === 'object' ? user.fishIndex[fish.id] : {}; user.fishIndex[fish.id] = { discoveredAt: previous.discoveredAt || Date.now(), count: Math.max(0, Math.floor(Number(previous.count) || 0)) + 1, lastCaughtAt: Date.now() }; if (user.fishBarrel.length < user.fishCapacity) { user.fishBarrel.push(caught); storedCaught = true; } return user; }); activeGames.delete(session.id); if (!storedCaught) { await interaction.update(renderFishBarrelFull(session.ownerId, interaction.user.username)); return true; } await interaction.update(renderCaught(session.ownerId, caught)); return true; } session.correctEmoji = session.buttons[randomInt(0, session.buttons.length - 1)]; await interaction.update(renderBite(session)); return true; }
+async function startFishing(interaction) {
+  const userId = interaction.user.id;
+  const currentUser = getUser(userId);
+  if (getActiveFishGame()) {
+    await interaction.reply({ content: 'A fishing minigame is already active. Please wait until it ends.', flags: EPHEMERAL_FLAG }).catch(() => null);
+    return;
+  }
+  if ((Array.isArray(currentUser.fishBarrel) ? currentUser.fishBarrel.length : 0) >= Math.max(10, Math.floor(Number(currentUser.fishCapacity) || 10))) {
+    await interaction.update(renderFishBarrelFull(userId, interaction.user.username));
+    return;
+  }
+  const weather = getCurrentWeather();
+  const effect = WEATHER_EFFECTS[weather.weather] || {};
+  const lureMs = Math.max(1000, (randomInt(5, 8) + (effect.lureSeconds || 0)) * 1000);
+  startFishGameLock(userId);
+  await interaction.update(containerPayload(WHITE_ACCENT, [{ type: 10, content: `## You've cast your hook, waiting for fish... ${SPIN_FISH}` }])).catch((error) => {
+    clearFishGameLock();
+    throw error;
+  });
+  setTimeout(async () => {
+    const message = interaction.message;
+    const fish = chooseFish(weather);
+    const session = createSession(userId, message.id, fish, weather);
+    if (weather.weather === 'Thunderstorm' && effect.lightningBreakChance && Math.random() < effect.lightningBreakChance) {
+      const broke = updateUser(userId, (user) => damageEquippedRod(user, Number.MAX_SAFE_INTEGER));
+      finishSession(session);
+      await message.edit(renderEscaped(userId, fish, broke ? 'lightning' : '')).catch(() => null);
+      return;
+    }
+    await message.edit(renderBite(session)).then(() => scheduleBiteTimeout(session, message)).catch(() => finishSession(session));
+  }, lureMs);
+}
+async function handleReel(interaction, sessionId, buttonIndex) {
+  const session = activeGames.get(sessionId);
+  if (!session) {
+    await interaction.reply({ content: 'This fishing attempt already ended.', flags: EPHEMERAL_FLAG }).catch(() => null);
+    return true;
+  }
+  if (interaction.user.id !== session.ownerId) {
+    await interaction.reply({ content: 'This is not your fishing attempt.', flags: EPHEMERAL_FLAG }).catch(() => null);
+    return true;
+  }
+  refreshFishGameLock();
+  const fish = FISH_BY_ID.get(session.fishId);
+  if (!fish) {
+    finishSession(session);
+    return true;
+  }
+  if (session.deadlineAt && Date.now() > session.deadlineAt) {
+    finishSession(session);
+    await interaction.update(renderEscaped(session.ownerId, fish, 'timeout'));
+    return true;
+  }
+  if (!session.deadlineAt) resetBiteTimeout(session, interaction.message);
+  const selectedEmoji = session.buttons[Number(buttonIndex)];
+  const weatherEffect = WEATHER_EFFECTS[session.weatherName] || {};
+  let broke = false;
+  let escaped = false;
+  let resetTimer = false;
+  updateUser(session.ownerId, (user) => {
+    const rod = getEquippedRod(user);
+    resetTimer = shouldResetFishingTimer(user);
+    const modifiedDur = Math.max(1, Math.ceil(fish.durDamage * (weatherEffect.durMultiplier || 1)));
+    if (selectedEmoji === session.correctEmoji) {
+      session.remainingPower = Math.max(0, session.remainingPower - getRodPower(rod));
+      broke = damageEquippedRod(user, Math.max(1, Math.ceil(modifiedDur / 4)));
+    } else {
+      session.remainingPower = Math.min(session.totalPower, session.remainingPower + Math.ceil(session.totalPower / 5));
+      broke = damageEquippedRod(user, modifiedDur);
+    }
+    if (!broke && weatherEffect.escapeChance && Math.random() < weatherEffect.escapeChance) escaped = true;
+    return user;
+  });
+  if (broke) {
+    finishSession(session);
+    await interaction.update(renderEscaped(session.ownerId, fish, 'broken'));
+    return true;
+  }
+  if (escaped) {
+    finishSession(session);
+    await interaction.update(renderEscaped(session.ownerId, fish));
+    return true;
+  }
+  if (session.remainingPower <= 0) {
+    const variant = pickVariant(session.weatherName);
+    const caught = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, fishId: fish.id, weight: Number(randomFloat(fish.minWeight, fish.maxWeight).toFixed(2)), variant: variant.key, variantEmoji: variant.emoji, mutation: null, sellValue: fish.sellValue * variant.multiplier, caughtAt: Date.now() };
+    let storedCaught = false;
+    updateUser(session.ownerId, (user) => {
+      user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
+      const previous = user.fishIndex[fish.id] && typeof user.fishIndex[fish.id] === 'object' ? user.fishIndex[fish.id] : {};
+      user.fishIndex[fish.id] = { discoveredAt: previous.discoveredAt || Date.now(), count: Math.max(0, Math.floor(Number(previous.count) || 0)) + 1, lastCaughtAt: Date.now() };
+      if (user.fishBarrel.length < user.fishCapacity) {
+        user.fishBarrel.push(caught);
+        storedCaught = true;
+      }
+      return user;
+    });
+    finishSession(session);
+    if (!storedCaught) {
+      await interaction.update(renderFishBarrelFull(session.ownerId, interaction.user.username));
+      return true;
+    }
+    await interaction.update(renderCaught(session.ownerId, caught));
+    return true;
+  }
+  session.correctEmoji = session.buttons[randomInt(0, session.buttons.length - 1)];
+  if (resetTimer) resetBiteTimeout(session, interaction.message);
+  await interaction.update(renderBite(session));
+  return true;
+}
 function pageItems(items, page, perPage = 5) { const maxPage = Math.max(1, Math.ceil(items.length / perPage)); const safePage = Math.max(1, Math.min(maxPage, Math.floor(Number(page) || 1))); return { page: safePage, maxPage, items: items.slice((safePage - 1) * perPage, safePage * perPage) }; }
 function renderInventory(userId, username, page = 1) { const user = getUser(userId); const filter = inventoryFilters.get(userId) || {}; const typeSet = new Set((filter.types || []).map((type) => type.toLowerCase())); const query = String(filter.query || '').toLowerCase(); const records = Object.entries(user.inventory).map(([itemId, entry]) => ({ item: getItemDefinition(itemId), entry })).filter((record) => record.item && Number(record.entry.amount) > 0).filter((record) => typeSet.size === 0 || typeSet.has(record.item.type.toLowerCase())).filter((record) => !query || record.item.name.toLowerCase().includes(query)); const paged = pageItems(records, page); const lines = paged.items.map(({ item, entry }) => { const dur = item.type === 'Gear/Tool' ? `* Durability left: ${item.durability === null ? 'Infinity' : (entry.durability ?? item.durability)}\n` : ''; return `### ×${entry.amount} ${item.name} ${item.emoji} \`${item.type}\`\n${dur}-# Rarity: ${rarityLabel(item.rarity)}\n-# Value: ${item.value}`; }); return containerPayload(WHITE_ACCENT, [{ type: 10, content: [`## ${username}'s inventory`, lines.join('\n') || '-# No items found.'].join('\n') }, separator(), actionRow([{ type: 2, custom_id: `fish:invfilter:${userId}`, label: 'Filter', style: BUTTON_STYLE_SECONDARY }, { type: 2, custom_id: `fish:invpage:${userId}:${paged.page}:${paged.maxPage}`, label: 'Switch page', style: BUTTON_STYLE_SECONDARY, disabled: paged.maxPage <= 1 }])]); }
 function renderFishBarrel(userId, username, page = 1) { const user = getUser(userId); const filter = barrelFilters.get(userId) || {}; const raritySet = new Set((filter.rarities || []).map((rarity) => rarity.toLowerCase())); const query = String(filter.query || '').toLowerCase(); const records = user.fishBarrel.map((entry) => ({ entry, fish: FISH_BY_ID.get(entry.fishId) })).filter((record) => record.fish).filter((record) => raritySet.size === 0 || raritySet.has(record.fish.rarity.toLowerCase())).filter((record) => !query || record.fish.name.toLowerCase().includes(query)); const paged = pageItems(records, page); const lines = paged.items.map(({ entry, fish }) => `### ×1 ${fish.name} ${fish.emoji}\n-# Rarity: ${rarityLabel(fish.rarity)}\n-# Weigh: ${entry.weight} kg\n-# Variant / Mutation: ${entry.variant} ${entry.variantEmoji} / ${entry.mutation || 'None'}`); return containerPayload(WHITE_ACCENT, [{ type: 10, content: [`## ${username}'s inventory`, `-# Capacity: ${user.fishBarrel.length} / ${user.fishCapacity}`, lines.join('\n') || '-# No fish found.'].join('\n') }, separator(), actionRow([{ type: 2, custom_id: `fish:barrelfilter:${userId}`, label: 'Filter', style: BUTTON_STYLE_SECONDARY }, { type: 2, custom_id: `fish:barrelpage:${userId}:${paged.page}:${paged.maxPage}`, label: 'Switch page', style: BUTTON_STYLE_SECONDARY, disabled: paged.maxPage <= 1 }])]); }
