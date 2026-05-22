@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { cleanupGeneratedFiles } = require('../src/fileCleanup');
 const path = require('path');
 const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { createCanvas } = require('@napi-rs/canvas');
@@ -23,13 +24,13 @@ const MARKET_UPDATE_MS = 30 * 60 * 1000;
 const PAGE_SIZE = 5;
 
 const RARITY_EMOJI = {
-  common: '<:F1Bluegill:1506653228245455039>',
-  uncommon: '<:F2BlackCrappie:1506653236512166019>',
-  rare: '<:F3Walleye:1506653246255792198>',
-  epic: '<:F4NorthernPike:1506653248147292290>',
-  legendary: '<:F5LakeSturgeon:1506653250621935827>',
-  mythical: '<:F6GoldenMahseer:1506653252530212975>',
-  secret: '<:F7AsianArowana:1506653254677954700>',
+  common: '<:SBCommon:1506965202585780274>',
+  uncommon: '<:SBUncommon:1506965215743447040>',
+  rare: '<:SBRare:1506965211607994461>',
+  epic: '<:SBEpic:1506965204624474153>',
+  legendary: '<:SBLegendary:1506965206197207131>',
+  mythical: '<:SBMythical:1506965209271762954>',
+  secret: '<:SBSecret:1506965213881307186>',
 };
 
 function normalizeId(value) {
@@ -208,18 +209,27 @@ function getDisplayName(type, id) {
   return getItem(id)?.name || id;
 }
 
-function updateExistingMarkets(state) {
+function updateExistingMarkets(state, marketAt = Date.now()) {
   for (const key of Object.keys(state.market?.entries || {})) {
     const entry = state.market.entries[key];
     if (!entry?.type || !entry?.id) continue;
     updateMarketEntry(state, entry.type, entry.id, 0, 0);
+    if (Array.isArray(entry.history) && entry.history.length) entry.history[entry.history.length - 1].at = marketAt;
     if (entry.chartPath) renderChartImage(entry, getDisplayName(entry.type, entry.id));
   }
-  state.market.lastUpdateAt = Date.now();
+  state.market.lastUpdateAt = marketAt;
+}
+
+const MARKET_TIMEZONE_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function marketUpdateSlotAt(at = Date.now()) {
+  return (Math.floor((at + MARKET_TIMEZONE_OFFSET_MS) / MARKET_UPDATE_MS) * MARKET_UPDATE_MS) - MARKET_TIMEZONE_OFFSET_MS;
 }
 
 function msUntilNextMarketUpdate() {
-  return MARKET_UPDATE_MS - (Date.now() % MARKET_UPDATE_MS);
+  const now = Date.now();
+  const nextSlot = marketUpdateSlotAt(now) + MARKET_UPDATE_MS;
+  return Math.max(1000, nextSlot - now);
 }
 
 function startMarketTimer() {
@@ -227,7 +237,7 @@ function startMarketTimer() {
   marketTimerStarted = true;
   setTimeout(function tick() {
     const state = loadState();
-    updateExistingMarkets(state);
+    updateExistingMarkets(state, marketUpdateSlotAt(Date.now()));
     saveState(state);
     setTimeout(tick, msUntilNextMarketUpdate()).unref?.();
   }, msUntilNextMarketUpdate()).unref?.();
@@ -251,13 +261,13 @@ function mutationMultiplier(entry) {
 
 function fishTotalValue(state, entry, fish) {
   const marketValue = getMarketValue(state, 'fish', fish.id);
-  const sellValue = Math.max(1, Math.floor(marketValue * 0.25));
   const variant = VARIANT_MULTIPLIER[entry.variant] || 1;
-  return Math.max(1, Math.round(sellValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
+  return Math.max(1, Math.round(marketValue * weightMultiplier(fish, entry) * variant * mutationMultiplier(entry)));
 }
 
 function rarityLabel(rarity) {
-  return `${RARITY_EMOJI[rarity] || ''} ${rarity}`.trim();
+  const key = String(rarity || '').toLowerCase();
+  return RARITY_EMOJI[key] || '';
 }
 
 function variantLabel(entry) {
@@ -348,7 +358,7 @@ function renderFishMarket(userId, page = 1, actionMessage = '-# **Anything you s
     rows.push({ type: 9, components: [{ type: 10, content: renderFishLine(state, record) }], accessory: button(`fm:sellfish:${userId}:${record.entry.id || record.index}:${paged.page}`, locked ? 'Locked' : 'Sell', BUTTON_SECONDARY, locked) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No fish found.' });
-  rows.push(separator(), { type: 10, content: actionMessage }, actionRow([button(`fm:fishpage:${userId}:${paged.page + 1}`, 'Switch page', BUTTON_DANGER, paged.maxPage <= 1), button(`fm:sellfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'fish'));
+  rows.push(separator(), { type: 10, content: actionMessage }, actionRow([button(`fm:fishpage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_DANGER, paged.maxPage <= 1), button(`fm:sellfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'fish'));
   return containerPayload(WHITE_ACCENT, withThumbnail(rows, thumb), files);
 }
 
@@ -365,19 +375,12 @@ function renderItemMarket(userId, page = 1, actionMessage = '-# **Anything you s
     rows.push({ type: 9, components: [{ type: 10, content: renderItemLine(state, record) }], accessory: button(`fm:sellitem:${userId}:${record.id}:${paged.page}`, label, unsellable || locked ? BUTTON_SECONDARY : BUTTON_DANGER, unsellable || locked) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No items found.' });
-  rows.push(separator(), { type: 10, content: actionMessage }, actionRow([button(`fm:itempage:${userId}:${paged.page + 1}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]), categorySelect(userId, 'item'));
+  rows.push(separator(), { type: 10, content: actionMessage }, actionRow([button(`fm:itempage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:itemfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'item'));
   return containerPayload(WHITE_ACCENT, withThumbnail(rows, thumb), files);
 }
 
 function getChartRecords(state, userId, type) {
-  if (type === 'fish') {
-    const seen = new Set();
-    return userFishRecords(state, userId).filter((record) => {
-      if (seen.has(record.fish.id)) return false;
-      seen.add(record.fish.id);
-      return true;
-    }).map((record) => ({ id: record.fish.id, name: record.fish.displayName, emoji: record.fish.emoji }));
-  }
+  if (type === 'fish') return FISH.map((fish) => ({ id: fish.id, name: fish.displayName, emoji: fish.emoji }));
   return userItemRecords(state, userId).map((record) => ({ id: record.id, name: record.item.name, emoji: record.item.emoji }));
 }
 
@@ -400,63 +403,255 @@ function roundedRect(ctx, x, y, w, h, r, fill, stroke) {
   ctx.stroke();
 }
 
+function niceStep(value) {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const power = Math.pow(10, Math.floor(Math.log10(value)));
+  const scaled = value / power;
+  if (scaled <= 1) return power;
+  if (scaled <= 2) return 2 * power;
+  if (scaled <= 5) return 5 * power;
+  return 10 * power;
+}
+
+function yScale(values, targetTicks = 5) {
+  const high = Math.max(...values);
+  const low = Math.min(...values);
+  const padding = Math.max(1, Math.ceil((high - low) * 0.1));
+  let min = Math.max(0, low - padding);
+  let max = high + padding;
+  if (min === max) {
+    min = Math.max(0, min - 5);
+    max += 5;
+  }
+  const step = niceStep((max - min) / Math.max(1, targetTicks - 1));
+  min = Math.max(0, Math.floor(min / step) * step);
+  max = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let tick = min; tick <= max + (step / 2); tick += step) ticks.push(tick);
+  return { min, max, ticks };
+}
+
+function formatAgo(ms) {
+  if (ms <= 0) return 'now';
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = minutes / 60;
+  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+}
+
+function chartStep(value) {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  const power = Math.pow(10, Math.floor(Math.log10(value)));
+  const scaled = value / power;
+  if (scaled <= 1) return power;
+  if (scaled <= 2) return 2 * power;
+  if (scaled <= 5) return 5 * power;
+  return 10 * power;
+}
+
+function formatChartNumber(value) {
+  const num = Number(value) || 0;
+  const abs = Math.abs(num);
+  if (abs >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+  if (abs >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+  return Number.isInteger(num) ? String(num) : num.toFixed(abs < 10 ? 1 : 0).replace(/\.0$/, '');
+}
+
+function formatChartAge(at, now) {
+  const minutes = Math.max(0, Math.round((now - (Number(at) || now)) / 60000));
+  if (minutes <= 0) return 'now';
+  if (minutes < 60) return minutes + 'm ago';
+  const hours = minutes / 60;
+  return (Number.isInteger(hours) ? String(hours) : hours.toFixed(1)) + 'h ago';
+}
+
+function getChartScale(values, baseValue) {
+  const allValues = values.concat([baseValue]).map((value) => Number(value) || 0);
+  const low = Math.min(...allValues);
+  const high = Math.max(...allValues);
+  const integerOnly = allValues.every((value) => Number.isInteger(value));
+  const spread = Math.max(0, high - low);
+  const padding = spread > 0 ? Math.max(spread * 0.22, integerOnly ? 1 : 0.5) : Math.max(2, Math.ceil(Math.max(1, high) * 0.25));
+  let min = Math.max(0, low - padding);
+  let max = high + padding;
+  let step = chartStep((max - min) / 4);
+  if (integerOnly) step = Math.max(1, Math.ceil(step));
+  min = Math.max(0, Math.floor(min / step) * step);
+  max = Math.ceil(max / step) * step;
+  if (max <= min) max = min + (step * 4);
+  const ticks = [];
+  for (let tick = min, guard = 0; tick <= max + (step / 2) && guard < 8; tick += step, guard += 1) ticks.push(tick);
+  return { min, max, ticks };
+}
+
+function chartPill(ctx, x, y, text, fill, stroke) {
+  const width = Math.max(94, ctx.measureText(text).width + 26);
+  roundedRect(ctx, x, y, width, 30, 15, fill, stroke);
+  ctx.fillStyle = '#dce6f6';
+  ctx.font = '700 13px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x + (width / 2), y + 20);
+  return width;
+}
+
 function renderChartImage(entry, itemName) {
   if (!fs.existsSync(CHART_DIR)) fs.mkdirSync(CHART_DIR, { recursive: true });
   const canvas = createCanvas(900, 500);
   const ctx = canvas.getContext('2d');
-  const values = (entry.history?.length ? entry.history : [{ value: entry.baseValue }]).map((point) => Number(point.value) || entry.baseValue);
+  const now = Date.now();
+  const baseValue = Number(entry.baseValue) || 1;
+  const currentValue = Math.max(1, Math.round(Number(entry.currentValue) || baseValue));
+  const history = (entry.history?.length ? entry.history : [{ at: now, value: currentValue }])
+    .map((point) => ({ at: Number(point.at) || now, value: Math.max(1, Math.round(Number(point.value) || baseValue)) }))
+    .sort((a, b) => a.at - b.at)
+    .slice(-14);
+
+  if (!history.length) history.push({ at: now, value: currentValue });
+  if (history[history.length - 1].value !== currentValue) history.push({ at: now, value: currentValue });
+
+  const values = history.map((point) => point.value);
   const high = Math.max(...values);
   const low = Math.min(...values);
-  const x0 = 90;
-  const y0 = 350;
-  const w = 760;
-  const h = 220;
-  ctx.fillStyle = '#10141f';
+  const first = values[0];
+  const delta = currentValue - first;
+  const percent = first ? (delta / first) * 100 : 0;
+  const scale = getChartScale(values, baseValue);
+  const x0 = 92;
+  const y0 = 354;
+  const w = 756;
+  const h = 206;
+
+  ctx.fillStyle = '#0d1320';
   ctx.fillRect(0, 0, 900, 500);
-  roundedRect(ctx, 24, 24, 852, 452, 24, '#161c2a', '#2d3a55');
-  ctx.fillStyle = '#f4f7fb';
+  roundedRect(ctx, 24, 24, 852, 452, 24, '#151c2b', '#33425f');
+  const headerGradient = ctx.createLinearGradient(24, 24, 876, 118);
+  headerGradient.addColorStop(0, 'rgba(82, 242, 194, 0.14)');
+  headerGradient.addColorStop(1, 'rgba(159, 212, 255, 0.04)');
+  roundedRect(ctx, 38, 38, 824, 84, 18, headerGradient, 'rgba(255, 255, 255, 0.03)');
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f6f8ff';
   ctx.font = '700 30px Arial';
-  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 52, 70);
-  ctx.font = '600 20px Arial';
+  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 54, 72);
+  ctx.font = '700 20px Arial';
   ctx.fillStyle = '#9fd4ff';
-  ctx.fillText(itemName, 52, 102);
-  ctx.fillStyle = '#f4f7fb';
-  ctx.fillText(`Current: ${entry.currentValue} coins`, 620, 70);
-  ctx.strokeStyle = '#3b4966';
+  ctx.fillText(itemName, 54, 102);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#f7fbff';
+  ctx.font = '800 26px Arial';
+  ctx.fillText(formatChartNumber(currentValue), 786, 76);
+  ctx.fillStyle = '#91a2be';
+  ctx.font = '700 13px Arial';
+  ctx.fillText('CURRENT COINS', 786, 100);
+
+  roundedRect(ctx, 54, 136, 804, 246, 18, '#111827', '#263754');
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x0, y0 - h, w, h);
+  ctx.clip();
+  const plotGradient = ctx.createLinearGradient(0, y0 - h, 0, y0);
+  plotGradient.addColorStop(0, 'rgba(82, 242, 194, 0.10)');
+  plotGradient.addColorStop(1, 'rgba(82, 242, 194, 0.00)');
+  ctx.fillStyle = plotGradient;
+  ctx.fillRect(x0, y0 - h, w, h);
+  ctx.restore();
+
+  ctx.textAlign = 'right';
+  ctx.font = '13px Arial';
+  ctx.setLineDash([6, 8]);
+  ctx.strokeStyle = '#263754';
+  ctx.lineWidth = 1;
+  for (const tick of scale.ticks) {
+    const y = y0 - (((tick - scale.min) / (scale.max - scale.min)) * h);
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    ctx.lineTo(x0 + w, y);
+    ctx.stroke();
+    ctx.fillStyle = '#9aa9c2';
+    ctx.fillText(formatChartNumber(tick), x0 - 12, y + 4);
+  }
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = '#465a7d';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(x0, y0 - h);
   ctx.lineTo(x0, y0);
   ctx.lineTo(x0 + w, y0);
   ctx.stroke();
-  ctx.fillStyle = '#93a4bf';
-  ctx.font = '14px Arial';
-  ctx.fillText('Coins', 42, 220);
-  ctx.fillText('Market Updates', 390, 390);
-  const minY = Math.max(1, low * 0.9);
-  const maxY = Math.max(minY + 1, high * 1.1);
-  const points = values.map((value, index) => ({
-    x: x0 + ((values.length === 1 ? 0.5 : index / (values.length - 1)) * w),
-    y: y0 - (((value - minY) / (maxY - minY)) * h),
+
+  const points = history.map((point, index) => ({
+    x: x0 + ((history.length === 1 ? 0.5 : index / (history.length - 1)) * w),
+    y: y0 - (((point.value - scale.min) / (scale.max - scale.min)) * h),
+    value: point.value,
+    at: point.at,
   }));
-  ctx.strokeStyle = '#52f2c2';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
-  ctx.stroke();
-  ctx.fillStyle = '#52f2c2';
-  points.forEach((point) => { ctx.beginPath(); ctx.arc(point.x, point.y, 5, 0, Math.PI * 2); ctx.fill(); });
-  ctx.font = '700 16px Arial';
-  ctx.fillText('Value', x0 + w - 60, Math.max(y0 - h + 20, points[points.length - 1].y - 12));
-  ctx.fillStyle = '#d6dfef';
-  ctx.font = '16px Arial';
-  ctx.fillText(`Base: ${entry.baseValue} coins`, 52, 430);
-  ctx.fillText(`High: ${high} coins`, 270, 430);
-  ctx.fillText(`Low: ${low} coins`, 470, 430);
-  ctx.fillStyle = '#7f8faa';
-  ctx.fillText('Value changes based on supply and demand', 52, 458);
+
+  if (points.length === 1) {
+    ctx.strokeStyle = 'rgba(82, 242, 194, 0.55)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x0, points[0].y);
+    ctx.lineTo(x0 + w, points[0].y);
+    ctx.stroke();
+  } else {
+    const areaGradient = ctx.createLinearGradient(0, y0 - h, 0, y0);
+    areaGradient.addColorStop(0, 'rgba(82, 242, 194, 0.26)');
+    areaGradient.addColorStop(1, 'rgba(82, 242, 194, 0.02)');
+    ctx.fillStyle = areaGradient;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, y0);
+    points.forEach((point) => ctx.lineTo(point.x, point.y));
+    ctx.lineTo(points[points.length - 1].x, y0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#52f2c2';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
+    ctx.stroke();
+  }
+
+  points.forEach((point, index) => {
+    const isLast = index === points.length - 1;
+    ctx.beginPath();
+    ctx.fillStyle = isLast ? 'rgba(82, 242, 194, 0.22)' : 'rgba(82, 242, 194, 0.14)';
+    ctx.arc(point.x, point.y, isLast ? 12 : 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = '#52f2c2';
+    ctx.arc(point.x, point.y, isLast ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  const lastPoint = points[points.length - 1];
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#dcfff7';
+  ctx.font = '800 15px Arial';
+  ctx.fillText(formatChartNumber(lastPoint.value) + ' coins', Math.min(lastPoint.x + 14, x0 + w - 86), Math.max(y0 - h + 22, lastPoint.y - 12));
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9aa9c2';
+  ctx.font = '12px Arial';
+  const labelIndexes = [...new Set([0, Math.round((points.length - 1) / 2), points.length - 1])];
+  for (const index of labelIndexes) ctx.fillText(formatChartAge(points[index].at, now), points[index].x, y0 + 24);
+  ctx.font = '700 12px Arial';
+  ctx.fillStyle = '#7889a8';
+  ctx.fillText('Market update history', x0 + (w / 2), y0 + 48);
+
+  ctx.textAlign = 'left';
+  ctx.font = '700 13px Arial';
+  chartPill(ctx, 54, 420, 'Base ' + formatChartNumber(baseValue), '#172235', '#2b3b59');
+  chartPill(ctx, 184, 420, 'High ' + formatChartNumber(high), '#172235', '#2b3b59');
+  chartPill(ctx, 314, 420, 'Low ' + formatChartNumber(low), '#172235', '#2b3b59');
+  const trendText = (delta > 0 ? '+' : '') + formatChartNumber(delta) + ' (' + (percent > 0 ? '+' : '') + percent.toFixed(1) + '%)';
+  chartPill(ctx, 444, 420, 'Trend ' + trendText, delta > 0 ? '#12342d' : delta < 0 ? '#351d29' : '#172235', delta > 0 ? '#2f705f' : delta < 0 ? '#70425b' : '#2b3b59');
+
   const chartPath = chartPathFor(entry.type, entry.id);
   fs.writeFileSync(chartPath, canvas.toBuffer('image/png'));
+  cleanupGeneratedFiles(chartPath);
   entry.chartPath = chartPath;
   return chartPath;
 }
@@ -468,7 +663,10 @@ function renderValueChart(userId, type = 'fish', page = 1, selectedId = null) {
   const paged = pageItems(getChartRecords(state, userId, type), page);
   const rows = [{ type: 10, content: '## Welcome to Value Chart!' }];
   for (const record of paged.items) {
-    rows.push({ type: 9, components: [{ type: 10, content: `**${record.name} ${record.emoji}**` }], accessory: button(`fm:chartcheck:${userId}:${type}:${record.id}:${paged.page}`, 'Check', BUTTON_SUCCESS) });
+    const chartEntry = ensureMarketEntry(state, type, record.id);
+    const displayValue = chartEntry.currentValue;
+    rows.push({ type: 9, components: [{ type: 10, content: `**${record.name} ${record.emoji}**
+-# Value: ${displayValue} ${FISH_COIN}` }], accessory: button(`fm:chartcheck:${userId}:${type}:${record.id}:${paged.page}`, 'Check', BUTTON_SUCCESS) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No entries found.' });
   rows.push(separator());
@@ -481,7 +679,7 @@ function renderValueChart(userId, type = 'fish', page = 1, selectedId = null) {
   } else {
     rows.push({ type: 10, content: '-# Select something to check its value' });
   }
-  rows.push(separator(), actionRow([button(`fm:chartpage:${userId}:${type}:${paged.page + 1}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:charttoggle:${userId}:${type}`, `[Value: ${type.toUpperCase()}]`, BUTTON_SECONDARY)]), categorySelect(userId, 'chart'));
+  rows.push(separator(), actionRow([button(`fm:chartpage:${userId}:${type}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:charttoggle:${userId}:${type}`, `[Value: ${type.toUpperCase()}]`, BUTTON_SECONDARY)]), categorySelect(userId, 'chart'));
   return containerPayload(WHITE_ACCENT, withThumbnail(rows, thumb), files);
 }
 
@@ -498,7 +696,7 @@ function renderInventory(userId, username, page = 1) {
     rows.push({ type: 9, components: [{ type: 10, content: renderItemLine(state, record) }], accessory: lockButton(`fm:lockitem:${userId}:${record.id}:${paged.page}`, Boolean(record.entry.locked)) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No items found.' });
-  rows.push(separator(), actionRow([button(`fm:invpage:${userId}:${paged.page + 1}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]));
+  rows.push(separator(), actionRow([button(`fm:invpage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]));
   saveState(state);
   return containerPayload(WHITE_ACCENT, rows);
 }
@@ -512,7 +710,7 @@ function renderFishBarrel(userId, username, page = 1) {
     rows.push({ type: 9, components: [{ type: 10, content: renderFishLine(state, record) }], accessory: lockButton(`fm:lockfish:${userId}:${record.entry.id || record.index}:${paged.page}`, Boolean(record.entry.locked)) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No fish found.' });
-  rows.push(separator(), actionRow([button(`fm:barrelpage:${userId}:${paged.page + 1}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]));
+  rows.push(separator(), actionRow([button(`fm:barrelpage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]));
   saveState(state);
   return containerPayload(WHITE_ACCENT, rows);
 }
@@ -522,11 +720,11 @@ function findFishIndex(user, fishKey) {
 }
 
 function soldFishMessage(fish, entry, value) {
-  return `-# **You've sold ${fish.displayName} ${fish.emoji} - ${fish.rarity} - ${Number(entry.weight || 0).toFixed(2)} kg - ${value} ${FISH_COIN}**`;
+  return `-# **You've sold ${fish.displayName} ${fish.emoji} - ${rarityLabel(fish.rarity)} - ${Number(entry.weight || 0).toFixed(2)} kg - ${value} ${FISH_COIN}**`;
 }
 
 function soldItemMessage(item, amount, value) {
-  return `-# **You've sold \u00d7${amount} ${item.name} ${item.emoji} - ${item.rarity} - ${value} ${FISH_COIN}**`;
+  return `-# **You've sold \u00d7${amount} ${item.name} ${item.emoji} - ${rarityLabel(item.rarity)} - ${value} ${FISH_COIN}**`;
 }
 
 function sellFish(userId, fishKey) {
@@ -538,6 +736,9 @@ function sellFish(userId, fishKey) {
   const fish = FISH_BY_ID.get(entry.fishId);
   if (!fish || entry.locked) return { payload: renderFishMarket(userId), message: '-# **That fish is locked**' };
   const total = fishTotalValue(state, entry, fish);
+  user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
+  const previous = user.fishIndex[fish.id] && typeof user.fishIndex[fish.id] === 'object' ? user.fishIndex[fish.id] : {};
+  user.fishIndex[fish.id] = { discoveredAt: previous.discoveredAt || entry.caughtAt || Date.now(), count: Math.max(1, Math.floor(Number(previous.count) || 0)), lastCaughtAt: previous.lastCaughtAt || entry.caughtAt || Date.now() };
   user.fishBarrel.splice(index, 1);
   user.fishCoins += total;
   updateMarketEntry(state, 'fish', fish.id, 1, 0);
@@ -564,16 +765,21 @@ function sellItem(userId, itemId) {
 }
 
 function sellFishByRarity(userId, rarities) {
-  const wanted = new Set(rarities.map((rarity) => rarity.toLowerCase()));
+  const selected = Array.isArray(rarities) ? rarities : [];
+  const wanted = new Set(selected.map((rarity) => String(rarity || '').toLowerCase()));
+  const sellAll = wanted.has('all');
   const state = loadState();
   const user = ensureUser(state, userId);
   let totalValue = 0;
   let sold = 0;
   user.fishBarrel = user.fishBarrel.filter((entry) => {
     const fish = FISH_BY_ID.get(entry.fishId);
-    if (!fish || entry.locked || !wanted.has(fish.rarity.toLowerCase())) return true;
+    if (!fish || entry.locked || (!sellAll && !wanted.has(fish.rarity.toLowerCase()))) return true;
     totalValue += fishTotalValue(state, entry, fish);
     sold += 1;
+    user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
+    const previous = user.fishIndex[fish.id] && typeof user.fishIndex[fish.id] === 'object' ? user.fishIndex[fish.id] : {};
+    user.fishIndex[fish.id] = { discoveredAt: previous.discoveredAt || entry.caughtAt || Date.now(), count: Math.max(1, Math.floor(Number(previous.count) || 0)), lastCaughtAt: previous.lastCaughtAt || entry.caughtAt || Date.now() };
     updateMarketEntry(state, 'fish', fish.id, 1, 0);
     return false;
   });
@@ -583,16 +789,85 @@ function sellFishByRarity(userId, rarities) {
   return renderFishMarket(userId, 1, message);
 }
 
-function filterModal(userId) {
+function sellItemsByRarity(userId, rarities) {
+  const selected = Array.isArray(rarities) ? rarities : [];
+  const wanted = new Set(selected.map((rarity) => String(rarity || '').toLowerCase()));
+  const sellAll = wanted.has('all');
+  const state = loadState();
+  const user = ensureUser(state, userId);
+  let totalValue = 0;
+  let sold = 0;
+  for (const record of userItemRecords(state, userId)) {
+    if (!record.item || record.item.unsellable || record.entry.locked || (!sellAll && !wanted.has(String(record.item.rarity || '').toLowerCase()))) continue;
+    const amount = Math.floor(Number(record.entry.amount) || 0);
+    if (amount <= 0) continue;
+    const marketValue = getMarketValue(state, 'item', record.id);
+    const sellValue = Math.max(1, Math.floor(marketValue * 0.25));
+    totalValue += sellValue * amount;
+    sold += amount;
+    delete user.inventory[record.id];
+    updateMarketEntry(state, 'item', record.id, amount, 0);
+  }
+  user.fishCoins += totalValue;
+  saveState(state);
+  const message = sold ? `-# **You've sold \u00d7${sold} items - ${totalValue} ${FISH_COIN}**` : '-# **No unlocked sellable items matched that filter**';
+  return renderItemMarket(userId, 1, message);
+}
+
+const FILTER_RARITIES = [
+  ['all', 'All'],
+  ['secret', 'Secret'],
+  ['mythical', 'Mythical'],
+  ['legendary', 'Legendary'],
+  ['epic', 'Epic'],
+  ['rare', 'Rare'],
+  ['uncommon', 'Uncommon'],
+  ['common', 'Common'],
+];
+
+function rarityOptions() {
+  return FILTER_RARITIES.map(([value, label]) => ({ label, value }));
+}
+
+function filterForm(kind, userId) {
+  const isFish = kind === 'fish';
   return {
-    custom_id: `fm:sellfiltersubmit:${userId}`,
-    title: 'Sell fish filter',
-    components: [{ type: 1, components: [{ type: 4, custom_id: 'rarities', label: 'Select rarity to sell', style: 1, required: true, placeholder: 'common, uncommon, rare, epic, legendary, mythical, secret', max_length: 120 }] }],
+    custom_id: `fm:${kind}filtersubmit:${userId}`,
+    title: isFish ? 'Sell fish filter' : 'Sell item filter',
+    components: [{
+      type: 18,
+      id: 1,
+      label: isFish ? 'Select fish rarity to sell' : 'Select item rarity to sell',
+      component: {
+        type: 3,
+        id: 2,
+        custom_id: `${kind}_rarities`,
+        placeholder: 'Select rarity to sell',
+        min_values: 1,
+        max_values: FILTER_RARITIES.length,
+        options: rarityOptions(),
+      },
+    }],
   };
 }
 
-function parseList(value) {
-  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+function getSelectedValues(interaction, customId) {
+  const found = [];
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') return;
+    if ((value.customId === customId || value.custom_id === customId) && Array.isArray(value.values)) found.push(...value.values);
+    if ((value.customId === customId || value.custom_id === customId) && typeof value.value === 'string') found.push(value.value);
+    if (value.component) visit(value.component);
+    if (Array.isArray(value.components)) value.components.forEach(visit);
+    if (Array.isArray(value.data?.components)) value.data.components.forEach(visit);
+    if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
+    if (value.fields?.fields && typeof value.fields.fields.values === 'function') Array.from(value.fields.fields.values()).forEach(visit);
+  };
+  if (Array.isArray(interaction.values)) found.push(...interaction.values);
+  try { visit(interaction.fields?.getField?.(customId)); } catch {}
+  try { visit(interaction.toJSON?.()); } catch {}
+  visit(interaction);
+  return [...new Set(found.map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
 function isOwner(interaction, userId) {
@@ -624,14 +899,21 @@ async function handleMarketInteraction(interaction) {
     else await interaction.update(renderValueChart(userId, 'fish'));
     return true;
   }
-  if (action === 'fishpage') return updateInteraction(interaction, renderFishMarket(userId, parts[3]));
-  if (action === 'itempage') return updateInteraction(interaction, renderItemMarket(userId, parts[3]));
-  if (action === 'invpage') return updateInteraction(interaction, renderInventory(userId, interaction.user.username, parts[3]));
-  if (action === 'barrelpage') return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, parts[3]));
+  if (action === 'fishpage') { await interaction.showModal(pageModal('fish', userId, 1, parts[4] || 1, parts[3] || 1)); return true; }
+  if (action === 'itempage') { await interaction.showModal(pageModal('item', userId, 1, parts[4] || 1, parts[3] || 1)); return true; }
+  if (action === 'invpage') { await interaction.showModal(pageModal('inv', userId, 1, parts[4] || 1, parts[3] || 1)); return true; }
+  if (action === 'barrelpage') { await interaction.showModal(pageModal('barrel', userId, 1, parts[4] || 1, parts[3] || 1)); return true; }
+  if (action === 'fishpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderFishMarket(userId, Number(getField(interaction, 'fm_fish_page'))));
+  if (action === 'itempagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderItemMarket(userId, Number(getField(interaction, 'fm_item_page'))));
+  if (action === 'invpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderInventory(userId, interaction.user.username, Number(getField(interaction, 'fm_inv_page'))));
+  if (action === 'barrelpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, Number(getField(interaction, 'fm_barrel_page'))));
+  if (action === 'chartpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(getField(interaction, 'fm_chart_page'))));
   if (action === 'sellfish') return updateInteraction(interaction, sellFish(userId, parts[3]).payload);
   if (action === 'sellitem') return updateInteraction(interaction, sellItem(userId, parts[3]).payload);
-  if (action === 'sellfilter') { await interaction.showModal(filterModal(userId)); return true; }
-  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, parseList(interaction.fields?.getTextInputValue('rarities'))));
+  if (action === 'sellfilter') { await interaction.showModal(filterForm('fish', userId)); return true; }
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, getSelectedValues(interaction, 'fish_rarities')));
+  if (action === 'itemfilter') { await interaction.showModal(filterForm('item', userId)); return true; }
+  if (action === 'itemfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellItemsByRarity(userId, getSelectedValues(interaction, 'item_rarities')));
   if (action === 'lockitem') {
     const state = loadState();
     const entry = ensureUser(state, userId).inventory[parts[3]];
@@ -647,7 +929,7 @@ async function handleMarketInteraction(interaction) {
     saveState(state);
     return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, parts[4]));
   }
-  if (action === 'chartpage') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[4]));
+  if (action === 'chartpage') { await interaction.showModal(pageModal('chart', userId, 1, parts[5] || 1, parts[4] || 1, `:${parts[3] || 'fish'}`)); return true; }
   if (action === 'charttoggle') return updateInteraction(interaction, renderValueChart(userId, parts[3] === 'fish' ? 'item' : 'fish'));
   if (action === 'chartcheck') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[5], parts[4]));
   return false;

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { cleanupGeneratedFiles } = require('./fileCleanup');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { AttachmentBuilder } = require('discord.js');
@@ -74,6 +75,7 @@ async function buildGamblingLeaderboardImage({ guildName, title, metricLabel, ro
 
   const filePath = path.join(LEADERBOARD_CACHE_DIR, `gambling-leaderboard-${Date.now()}.png`);
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
+  cleanupGeneratedFiles(filePath);
   return new AttachmentBuilder(filePath, { name: 'gambling-leaderboard.png' });
 }
 
