@@ -1,5 +1,4 @@
 const fs = require('fs');
-const { cleanupGeneratedFiles } = require('../src/fileCleanup');
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
@@ -378,7 +377,6 @@ async function saveUploadedBackground(interaction, upload) {
   const filePath = manager.getUserCardBackgroundPath(interaction.user.id);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, canvas.toBuffer('image/png'));
-  cleanupGeneratedFiles(filePath);
   const optimized = await optimizePng(filePath);
   return { filePath, optimized };
 }
