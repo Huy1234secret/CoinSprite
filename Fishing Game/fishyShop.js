@@ -12,13 +12,13 @@ const ITEM_PNG_DIR = path.join(__dirname, '..', 'Fishing Game', 'Item Png');
 const FISH_COIN = '<:CRFishCoin:1506701069990891751>';
 
 const RARITY_EMOJI = {
-  common: '<:F1Bluegill:1506653228245455039>',
-  uncommon: '<:F2BlackCrappie:1506653236512166019>',
-  rare: '<:F3Walleye:1506653246255792198>',
-  epic: '<:F4NorthernPike:1506653248147292290>',
-  legendary: '<:F5LakeSturgeon:1506653250621935827>',
-  mythical: '<:F6GoldenMahseer:1506653252530212975>',
-  secret: '<:F7AsianArowana:1506653254677954700>'
+  common: '<:SBCommon:1506965202585780274>',
+  uncommon: '<:SBUncommon:1506965215743447040>',
+  rare: '<:SBRare:1506965211607994461>',
+  epic: '<:SBEpic:1506965204624474153>',
+  legendary: '<:SBLegendary:1506965206197207131>',
+  mythical: '<:SBMythical:1506965209271762954>',
+  secret: '<:SBSecret:1506965213881307186>'
 };
 
 // We need to load items dynamically from fishingFeature.js or fishingStore to get actual market values
@@ -233,7 +233,7 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     ctx.font = '700 23px sans-serif';
     const labelWidth = ctx.measureText('Price: ').width;
     const valueWidth = ctx.measureText(priceText).width;
-    const coinSize = 24;
+    const coinSize = 35;
     const priceRowWidth = labelWidth + valueWidth + 8 + coinSize;
     const priceX = x + cardWidth / 2 - priceRowWidth / 2;
     const priceY = y + cardHeight - 58;
