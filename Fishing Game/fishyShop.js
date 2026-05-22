@@ -9,6 +9,17 @@ const WHITE_ACCENT = 0xffffff;
 const BUTTON_SECONDARY = 2;
 const ITEMS_PER_PAGE = 6;
 const ITEM_PNG_DIR = path.join(__dirname, '..', 'Fishing Game', 'Item Png');
+const FISH_COIN = '<:CRFishCoin:1506701069990891751>';
+
+const RARITY_EMOJI = {
+  common: '<:F1Bluegill:1506653228245455039>',
+  uncommon: '<:F2BlackCrappie:1506653236512166019>',
+  rare: '<:F3Walleye:1506653246255792198>',
+  epic: '<:F4NorthernPike:1506653248147292290>',
+  legendary: '<:F5LakeSturgeon:1506653250621935827>',
+  mythical: '<:F6GoldenMahseer:1506653252530212975>',
+  secret: '<:F7AsianArowana:1506653254677954700>'
+};
 
 // We need to load items dynamically from fishingFeature.js or fishingStore to get actual market values
 const { ITEMS: FISHING_ITEMS, FISH_BY_ID } = require('./fishingFeature');
@@ -17,7 +28,7 @@ const { getMarketSnapshot } = require('../src/fishingStore');
 function getStoreItems() {
   const allItems = { ...FISHING_ITEMS };
   // Only items with price/value that are gear/tool or usable might be shown
-  return Object.values(allItems).filter(item => !item.unsellable);
+  return Object.values(allItems).filter(item => !item.unsellable && item.id !== 'wooden_fishing_rod');
 }
 
 function getCurrentRestockWindow() {
@@ -114,12 +125,12 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     const y = Math.floor(i / cols) * itemHeight;
 
     // Draw box
-    ctx.fillStyle = '#2b2b36';
+    ctx.fillStyle = '#2c2c36';
     ctx.beginPath();
     ctx.roundRect(x + 20, y + 20, itemWidth - 40, itemHeight - 40, 15);
     ctx.fill();
-    ctx.strokeStyle = '#3f3f4e';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#4e4e5e';
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     // Attempt to load image
@@ -127,17 +138,17 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     // We should try different variations for image name based on codebase norm or use emoji text if missing
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = 'bold 28px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(item.name, x + itemWidth / 2, y + 40);
+    ctx.fillText(item.name, x + itemWidth / 2, y + 55);
 
-    ctx.font = '20px sans-serif';
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(`Price: ${item.currentValue || item.value}`, x + itemWidth / 2, y + itemHeight - 40);
+    ctx.font = '22px sans-serif';
+    ctx.fillStyle = '#b4b4b4';
+    ctx.fillText(`Price: ${item.currentValue || item.value}`, x + itemWidth / 2, y + itemHeight - 50);
 
-    ctx.font = '16px sans-serif';
+    ctx.font = '18px sans-serif';
     ctx.fillStyle = '#888888';
-    ctx.fillText(`Stock: ${item.stockAmount} | ${item.rarity.toUpperCase()}`, x + itemWidth / 2, y + itemHeight - 20);
+    ctx.fillText(`Stock: ${item.stockAmount}`, x + itemWidth / 2, y + itemHeight - 25);
 
     // Try rendering image logic here...
     try {
@@ -153,11 +164,11 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
       }
       if (foundPath) {
         const img = await loadImage(foundPath);
-        ctx.drawImage(img, x + itemWidth / 2 - 40, y + 70, 80, 80);
+        ctx.drawImage(img, x + itemWidth / 2 - 50, y + 70, 100, 100);
       } else {
         const emojiCleaned = (item.emoji || '?').replace(/<:[a-zA-Z0-9_]+:[0-9]+>/g, '?');
-        ctx.font = '40px sans-serif';
-        ctx.fillText(emojiCleaned, x + itemWidth / 2, y + 120);
+        ctx.font = '50px sans-serif';
+        ctx.fillText(emojiCleaned, x + itemWidth / 2, y + 140);
       }
     } catch (e) {
       // Ignore
@@ -213,11 +224,17 @@ async function renderShopPage(userId, username, page = 1) {
       placeholder: 'Select an item to purchase',
       min_values: 1,
       max_values: 1,
-      options: pagedItems.map(item => ({
-        label: item.name,
-        value: item.id,
-        description: `Price: ${item.currentValue}`
-      }))
+      options: pagedItems.map(item => {
+        const rarityStr = RARITY_EMOJI[item.rarity] || '';
+        const match = rarityStr.match(/<:([^:]+):(\d+)>/);
+        const emoji = match ? { name: match[1], id: match[2] } : undefined;
+        return {
+          label: item.name,
+          value: item.id,
+          description: `Price: ${item.currentValue} FC`,
+          emoji: emoji
+        };
+      })
     }]
   };
 
