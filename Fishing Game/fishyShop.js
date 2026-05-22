@@ -233,7 +233,7 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     ctx.font = '700 23px sans-serif';
     const labelWidth = ctx.measureText('Price: ').width;
     const valueWidth = ctx.measureText(priceText).width;
-    const coinSize = 24;
+    const coinSize = 35;
     const priceRowWidth = labelWidth + valueWidth + 8 + coinSize;
     const priceX = x + cardWidth / 2 - priceRowWidth / 2;
     const priceY = y + cardHeight - 58;
