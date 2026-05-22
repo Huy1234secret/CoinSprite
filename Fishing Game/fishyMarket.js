@@ -22,6 +22,7 @@ const RAINBOW_FISH_EMOJI = '<:SBRainbowFish:1506660311380398211>';
 const WOODEN_ROD_EMOJI = '<:IGWoodenFishingRod:1506709123646095430>';
 const MARKET_UPDATE_MS = 30 * 60 * 1000;
 const PAGE_SIZE = 5;
+const TEXT_INPUT_COMPONENT_TYPE = 4;
 
 const RARITY_EMOJI = {
   common: '<:SBCommon:1506965202585780274>',
@@ -665,8 +666,7 @@ function renderValueChart(userId, type = 'fish', page = 1, selectedId = null) {
   for (const record of paged.items) {
     const chartEntry = ensureMarketEntry(state, type, record.id);
     const displayValue = chartEntry.currentValue;
-    rows.push({ type: 9, components: [{ type: 10, content: `**${record.name} ${record.emoji}**
--# Value: ${displayValue} ${FISH_COIN}` }], accessory: button(`fm:chartcheck:${userId}:${type}:${record.id}:${paged.page}`, 'Check', BUTTON_SUCCESS) });
+    rows.push({ type: 9, components: [{ type: 10, content: `**${record.name} ${record.emoji}**\n-# Value: ${displayValue} ${FISH_COIN}` }], accessory: button(`fm:chartcheck:${userId}:${type}:${record.id}:${paged.page}`, 'Check', BUTTON_SUCCESS) });
   }
   if (!paged.items.length) rows.push({ type: 10, content: '-# No entries found.' });
   rows.push(separator());
@@ -868,6 +868,56 @@ function getSelectedValues(interaction, customId) {
   try { visit(interaction.toJSON?.()); } catch {}
   visit(interaction);
   return [...new Set(found.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function getField(interaction, customId) {
+  try {
+    return interaction.fields.getTextInputValue(customId);
+  } catch {}
+
+  let found = null;
+  const visit = (value) => {
+    if (!value || typeof value !== 'object' || found !== null) return;
+    if ((value.customId === customId || value.custom_id === customId) && value.value !== undefined) {
+      found = value.value;
+      return;
+    }
+    if (value.component) visit(value.component);
+    if (Array.isArray(value.components)) value.components.forEach(visit);
+    if (Array.isArray(value.data?.components)) value.data.components.forEach(visit);
+    if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
+    if (value.fields?.fields && typeof value.fields.fields.values === 'function') Array.from(value.fields.fields.values()).forEach(visit);
+  };
+
+  try { visit(interaction.fields?.getField?.(customId)); } catch {}
+  try { visit(interaction.toJSON?.()); } catch {}
+  visit(interaction);
+  return found;
+}
+
+function pageModal(kind, userId, minPage = 1, maxPage = 1, currentPage = 1, customIdSuffix = '') {
+  const safeMin = Math.max(1, Math.floor(Number(minPage) || 1));
+  const safeMax = Math.max(safeMin, Math.floor(Number(maxPage) || safeMin));
+  const safeCurrent = Math.max(safeMin, Math.min(safeMax, Math.floor(Number(currentPage) || safeMin)));
+
+  return {
+    custom_id: `fm:${kind}pagesubmit:${userId}${customIdSuffix || ''}`,
+    title: 'Switch page',
+    components: [{
+      type: 18,
+      label: `Page (${safeMin}-${safeMax})`,
+      component: {
+        type: TEXT_INPUT_COMPONENT_TYPE,
+        custom_id: `fm_${kind}_page`,
+        style: 1,
+        required: true,
+        min_length: 1,
+        max_length: Math.max(1, String(safeMax).length),
+        value: String(safeCurrent),
+        placeholder: `Enter page ${safeMin}-${safeMax}`,
+      },
+    }],
+  };
 }
 
 function isOwner(interaction, userId) {
