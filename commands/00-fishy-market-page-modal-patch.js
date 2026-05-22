@@ -7,8 +7,15 @@ function isFishyMarketFile(filename) {
   return path.normalize(filename).split(path.sep).join('/').endsWith('/Fishing Game/fishyMarket.js');
 }
 
-function patchFishyMarketPageSource(source) {
+function cleanupLegacySellFilterSource(source) {
   return source
+    .replace(/function rarityFilterSelect\(userId\) \{[\s\S]*?\n\}\n\nfunction itemFilterSelect\(userId\) \{[\s\S]*?\n\}\n\nfunction renderSellFilter\(userId\) \{[\s\S]*?\n\}\n\nfunction renderItemSellFilter\(userId\) \{[\s\S]*?\n\}/, '')
+    .replace(/function renderSellFilter\(userId\) \{[\s\S]*?\n\}\n\nfunction renderItemSellFilter\(userId\) \{[\s\S]*?\n\}/, '')
+    .replace(/content: '## Sell fish filter\r?\n([^']*)'/g, "content: `## Sell fish filter\n$1`");
+}
+
+function patchFishyMarketPageSource(source) {
+  return cleanupLegacySellFilterSource(source
     .replace("button(`fm:fishpage:${userId}:${paged.page + 1}`, 'Switch page'", "button(`fm:fishpage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page'")
     .replace("button(`fm:itempage:${userId}:${paged.page + 1}`, 'Switch page'", "button(`fm:itempage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page'")
     .replace("button(`fm:chartpage:${userId}:${type}:${paged.page + 1}`, 'Switch page'", "button(`fm:chartpage:${userId}:${type}:${paged.page}:${paged.maxPage}`, 'Switch page'")
@@ -53,13 +60,13 @@ function parseList(value) {
   if (action === 'invpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderInventory(userId, interaction.user.username, Number(getField(interaction, 'fm_inv_page'))));
   if (action === 'barrelpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderFishBarrel(userId, interaction.user.username, Number(getField(interaction, 'fm_barrel_page'))));
   if (action === 'chartpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(getField(interaction, 'fm_chart_page'))));
-  if (action === 'sellfish') return updateInteraction(interaction, () => sellFish(userId, parts[3]).payload);`);
+  if (action === 'sellfish') return updateInteraction(interaction, () => sellFish(userId, parts[3]).payload);`));
 }
 
 if (!globalThis.__fishyMarketPageModalPatch) {
   globalThis.__fishyMarketPageModalPatch = true;
   Module.prototype._compile = function patchedFishyMarketCompile(source, filename) {
-    const nextSource = isFishyMarketFile(filename) ? patchFishyMarketPageSource(source) : source;
+    const nextSource = isFishyMarketFile(filename) ? cleanupLegacySellFilterSource(patchFishyMarketPageSource(source)) : source;
     return originalCompile.call(this, nextSource, filename);
   };
 }
