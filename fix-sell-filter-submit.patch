@@ -23,6 +23,61 @@ index b52ba39..fixed 100644
 --- a/Fishing Game/fishyMarket.js
 +++ b/Fishing Game/fishyMarket.js
 @@
+ function rarityOptions() {
+   return FILTER_RARITIES.map(([value, label]) => ({ label, value }));
+ }
++
++function getField(interaction, customId) {
++  try {
++    return interaction.fields.getTextInputValue(customId);
++  } catch {}
++
++  let found = null;
++  const visit = (value) => {
++    if (!value || typeof value !== 'object' || found !== null) return;
++    if ((value.customId === customId || value.custom_id === customId) && value.value !== undefined) {
++      found = value.value;
++      return;
++    }
++    if (value.component) visit(value.component);
++    if (Array.isArray(value.components)) value.components.forEach(visit);
++    if (Array.isArray(value.data?.components)) value.data.components.forEach(visit);
++    if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
++    if (value.fields?.fields && typeof value.fields.fields.values === 'function') Array.from(value.fields.fields.values()).forEach(visit);
++  };
++
++  try { visit(interaction.fields?.getField?.(customId)); } catch {}
++  try { visit(interaction.toJSON?.()); } catch {}
++  visit(interaction);
++  return found;
++}
++
++function pageModal(kind, userId, minPage = 1, maxPage = 1, currentPage = 1, customIdSuffix = '') {
++  const safeMin = Math.max(1, Math.floor(Number(minPage) || 1));
++  const safeMax = Math.max(safeMin, Math.floor(Number(maxPage) || safeMin));
++  const safeCurrent = Math.max(safeMin, Math.min(safeMax, Math.floor(Number(currentPage) || safeMin)));
++  const label = `Page (${safeMin}-${safeMax})`;
++
++  return {
++    custom_id: `fm:${kind}pagesubmit:${userId}${customIdSuffix || ''}`,
++    title: 'Switch page',
++    components: [{
++      type: 18,
++      label,
++      component: {
++        type: 4,
++        custom_id: `fm_${kind}_page`,
++        style: 1,
++        required: true,
++        min_length: 1,
++        max_length: Math.max(1, String(safeMax).length),
++        value: String(safeCurrent),
++        placeholder: `Enter page ${safeMin}-${safeMax}`,
++      },
++    }],
++  };
++}
+ 
  function filterForm(kind, userId) {
    const isFish = kind === 'fish';
    return {
