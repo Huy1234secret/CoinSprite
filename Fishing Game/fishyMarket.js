@@ -695,4 +695,5 @@ module.exports = {
   fishyMarketCommand,
   inventoryCommand,
   fishBarrelCommand,
+  updateMarketEntry
 };

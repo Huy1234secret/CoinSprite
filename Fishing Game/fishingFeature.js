@@ -99,6 +99,17 @@ function ensureStoreFile() { const dir = path.dirname(STORE_PATH); if (!fs.exist
 function loadState() { ensureStoreFile(); try { const state = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8')); return { ...emptyState(), ...(state && typeof state === 'object' ? state : {}) }; } catch { return emptyState(); } }
 function saveState(state) { ensureStoreFile(); fs.writeFileSync(STORE_PATH, JSON.stringify({ ...emptyState(), ...state }, null, 2), 'utf8'); }
 function ensureUser(state, userId) { if (!state.users[userId]) state.users[userId] = { fishCoins: 0, inventory: {}, fishBarrel: [], equippedRodId: 'wooden_fishing_rod', equippedBaitId: null, location: LOCATION, fishCapacity: 10 }; const user = state.users[userId]; user.inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory : {}; user.fishBarrel = Array.isArray(user.fishBarrel) ? user.fishBarrel : []; user.fishCoins = Math.max(0, Math.floor(Number(user.fishCoins) || 0)); user.fishCapacity = Math.max(10, Math.floor(Number(user.fishCapacity) || 10)); if (!user.inventory.wooden_fishing_rod) user.inventory.wooden_fishing_rod = { amount: 1, durability: null }; if (!user.equippedRodId || !getInventoryAmount(user, user.equippedRodId)) user.equippedRodId = 'wooden_fishing_rod'; if (user.equippedBaitId && !getInventoryAmount(user, user.equippedBaitId)) user.equippedBaitId = null; return user; }
+function addInventoryItemDirectly(user, itemId, amount = 1) {
+  const delta = Math.max(0, Math.floor(Number(amount) || 0));
+  if (delta <= 0) return 0;
+  if (!user.inventory[itemId]) {
+    const itemDef = ITEMS[itemId];
+    user.inventory[itemId] = { amount: delta, durability: itemDef ? itemDef.durability : null };
+  } else {
+    user.inventory[itemId].amount = (user.inventory[itemId].amount || 0) + delta;
+  }
+  return user.inventory[itemId].amount;
+}
 function getUser(userId) { const state = loadState(); const user = ensureUser(state, userId); saveState(state); return JSON.parse(JSON.stringify(user)); }
 function updateUser(userId, updater) { const state = loadState(); const user = ensureUser(state, userId); const result = updater(user, state); saveState(state); return result ?? user; }
 function getInventoryAmount(user, itemId) { return Math.max(0, Math.floor(Number(user.inventory?.[itemId]?.amount) || 0)); }
@@ -153,4 +164,4 @@ const fishCommand = { data: new SlashCommandBuilder().setName('fish').setDescrip
 const inventoryCommand = { data: new SlashCommandBuilder().setName('inventory').setDescription('Show your inventory'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderInventory(interaction.user.id, interaction.user.username)); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 const fishBarrelCommand = { data: new SlashCommandBuilder().setName('fish-barrel').setDescription('Show your Fish Barrel'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderFishBarrel(interaction.user.id, interaction.user.username)); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 const fishBalanceCommand = { data: new SlashCommandBuilder().setName('fish-balance').setDescription('Show your Fish Coin balance'), suppressCommandLog: true, async execute(interaction) { const user = getUser(interaction.user.id); await interaction.reply(containerPayload(WHITE_ACCENT, [{ type: 10, content: [`### ${interaction.user.username}'s Fish Balance`, `* ${user.fishCoins.toLocaleString('en-US')} ${FISH_COIN}`].join('\n') }])); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
-module.exports = { ITEMS, FISH_BY_ID, getUser, updateUser, fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };
+module.exports = { ITEMS, FISH_BY_ID, getUser, updateUser, addInventoryItemDirectly, fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };

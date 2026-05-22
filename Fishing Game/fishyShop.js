@@ -13,11 +13,12 @@ const ITEM_PNG_DIR = path.join(__dirname, '..', 'Fishing Game', 'Item Png');
 // We need to load items dynamically from fishingFeature.js or fishingStore to get actual market values
 const { ITEMS: FISHING_ITEMS, FISH_BY_ID } = require('./fishingFeature');
 const { getMarketSnapshot } = require('../src/fishingStore');
+const { emojiUrl, RARITY_EMOJIS } = require('../src/fishingConfig');
 
 function getStoreItems() {
   const allItems = { ...FISHING_ITEMS };
   // Only items with price/value that are gear/tool or usable might be shown
-  return Object.values(allItems).filter(item => !item.unsellable);
+  return Object.values(allItems).filter(item => !item.unsellable && item.id !== 'wooden_fishing_rod');
 }
 
 function getCurrentRestockWindow() {
@@ -122,22 +123,68 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Attempt to load image
-    const imagePath = path.join(ITEM_PNG_DIR, `${item.id}.png`); // Fallback if name doesn't match?
-    // We should try different variations for image name based on codebase norm or use emoji text if missing
-
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 24px sans-serif';
+    ctx.font = 'bold 22px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(item.name, x + itemWidth / 2, y + 40);
+    ctx.fillText(item.name, x + itemWidth / 2, y + 50);
 
-    ctx.font = '20px sans-serif';
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(`Price: ${item.currentValue || item.value}`, x + itemWidth / 2, y + itemHeight - 40);
+    // Bottom text base Y
+    const bottomY = y + itemHeight - 35;
 
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#888888';
-    ctx.fillText(`Stock: ${item.stockAmount} | ${item.rarity.toUpperCase()}`, x + itemWidth / 2, y + itemHeight - 20);
+    // Price with Fish Coin
+    ctx.font = '20px monospace';
+    ctx.fillStyle = '#cccccc';
+    ctx.textAlign = 'left';
+
+    const priceText = `Price: ${item.currentValue || item.value}`;
+    const priceWidth = ctx.measureText(priceText).width;
+
+    // We try to render the Fish Coin Emoji from URL next to the text
+    const coinEmojiStr = '<:CRFishCoin:1506701069990891751>';
+    const coinUrl = emojiUrl(coinEmojiStr);
+
+    const totalPriceWidth = priceWidth + (coinUrl ? 26 : 0);
+    const startX = x + itemWidth / 2 - (totalPriceWidth / 2);
+
+    ctx.fillText(priceText, startX, bottomY - 30);
+
+    if (coinUrl) {
+      try {
+        const coinImg = await loadImage(coinUrl);
+        ctx.drawImage(coinImg, startX + priceWidth + 4, bottomY - 48, 22, 22);
+      } catch (e) {
+        // ignore fallback
+      }
+    }
+
+    // Stock and Rarity
+    ctx.font = '16px monospace';
+    ctx.fillStyle = '#999999';
+    const stockText = `Stock: ${item.stockAmount} | `;
+    const stockWidth = ctx.measureText(stockText).width;
+
+    const rarityEmojiStr = RARITY_EMOJIS[item.rarity] || '';
+    const rarityUrl = emojiUrl(rarityEmojiStr);
+
+    const rarityText = item.rarity.toUpperCase();
+    const rarityTextWidth = ctx.measureText(rarityText).width;
+
+    // Total width of stock + spacing + rarity to center them together
+    const totalBottomWidth = stockWidth + (rarityUrl ? 20 : rarityTextWidth);
+    const bottomStartX = x + itemWidth / 2 - (totalBottomWidth / 2);
+
+    ctx.fillText(stockText, bottomStartX, bottomY - 5);
+
+    if (rarityUrl) {
+      try {
+        const rarityImg = await loadImage(rarityUrl);
+        ctx.drawImage(rarityImg, bottomStartX + stockWidth, bottomY - 19, 18, 18);
+      } catch (e) {
+        ctx.fillText(rarityText, bottomStartX + stockWidth, bottomY - 5);
+      }
+    } else {
+      ctx.fillText(rarityText, bottomStartX + stockWidth, bottomY - 5);
+    }
 
     // Try rendering image logic here...
     try {
@@ -153,11 +200,11 @@ async function createGalleryImage(itemsOnPage, pageIndex) {
       }
       if (foundPath) {
         const img = await loadImage(foundPath);
-        ctx.drawImage(img, x + itemWidth / 2 - 40, y + 70, 80, 80);
+        ctx.drawImage(img, x + itemWidth / 2 - 40, y + 90, 80, 80);
       } else {
         const emojiCleaned = (item.emoji || '?').replace(/<:[a-zA-Z0-9_]+:[0-9]+>/g, '?');
         ctx.font = '40px sans-serif';
-        ctx.fillText(emojiCleaned, x + itemWidth / 2, y + 120);
+        ctx.fillText(emojiCleaned, x + itemWidth / 2, y + 150);
       }
     } catch (e) {
       // Ignore
@@ -334,13 +381,14 @@ const fishyShopCommand = {
        const currentPrice = market?.entries?.[itemId]?.currentValue || itemDef.value;
        const totalCost = currentPrice * amount;
 
-       const { getUser, updateUser } = require('./fishingFeature');
-       const { recordMarketBuy, addInventoryItem } = require('../src/fishingStore');
+       const { getUser, updateUser, addInventoryItemDirectly } = require('./fishingFeature');
+       const { updateMarketEntry } = require('./fishyMarket');
 
        let success = false;
        updateUser(userId, (user) => {
          if (user.fishCoins >= totalCost) {
            user.fishCoins -= totalCost;
+           addInventoryItemDirectly(user, itemId, amount);
            success = true;
          }
          return user;
@@ -351,13 +399,15 @@ const fishyShopCommand = {
          return true;
        }
 
-       addInventoryItem(userId, itemId, amount);
        decrementUserStock(userId, itemId, amount);
 
        try {
-         recordMarketBuy(itemId, amount);
+         const { loadState, saveState } = require('../src/ticketSystemStore');
+         const state = loadState();
+         updateMarketEntry(state, 'item', itemId, 0, amount);
+         saveState(state);
        } catch (e) {
-         // ignore if recordMarketBuy not perfectly aligned
+         // ignore if state integration issue
        }
 
        await interaction.reply({ content: `Successfully bought ${amount}x ${itemDef.name} for ${totalCost} Fish Coins!`, flags: EPHEMERAL_FLAG });
