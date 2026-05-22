@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const originalWriteFileSync = fs.writeFileSync.bind(fs);
+
 function tryDelete(filePath) {
   try {
     fs.unlinkSync(filePath);
@@ -50,7 +52,7 @@ function getCleanupMatcher(dirPath, fileName) {
   return null;
 }
 
-function cleanupGeneratedFiles(file) {
+fs.writeFileSync = function patchedWriteFileSync(file, data, options) {
   const filePath = path.resolve(String(file));
   const fileName = path.basename(filePath);
 
@@ -60,6 +62,8 @@ function cleanupGeneratedFiles(file) {
       deletePreviousImages(path.dirname(filePath), filePath, matcher);
     }
   }
-}
 
-module.exports = { cleanupGeneratedFiles };
+  return originalWriteFileSync(file, data, options);
+};
+
+module.exports = {};
