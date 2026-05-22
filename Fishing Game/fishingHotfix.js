@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const Module = require('module');
 const { MessageFlags } = require('discord.js');
-const feature = require('./fishingFeature');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -32,6 +32,55 @@ const WEATHER_TEXT = { Sunny: ['No effects.'], Rain: ['Fish become more abundant
 let weatherTimerStarted = false;
 let activeFishGame = null;
 let activeFishGameTimer = null;
+
+function replaceOnce(source, search, replacement) {
+  if (!source.includes(search)) return source;
+  return source.replace(search, replacement);
+}
+
+function patchFishingFeatureSource(source) {
+  source = replaceOnce(
+    source,
+    'const activeGames = new Map();',
+    'const activeGames = new Map();\nconst FISHING_BITE_TIMEOUT_MS = 30_000;'
+  );
+  source = replaceOnce(
+    source,
+    "function getEquippedRod(user) { return getItemDefinition(user.equippedRodId) || ITEMS.wooden_fishing_rod; }",
+    "function getEquippedRod(user) { return getItemDefinition(user.equippedRodId) || ITEMS.wooden_fishing_rod; }\nfunction shouldResetFishingTimer(user) { return (user.equippedRodId || 'wooden_fishing_rod') !== 'wooden_fishing_rod'; }"
+  );
+  source = replaceOnce(
+    source,
+    "function renderEscaped(userId, fish, reason = '') { const files = []; const title = reason === 'broken' || reason === 'lightning' ? `## ${fish.emoji} ${fish.name} has escaped! Your fishing rod broke!` : `## ${fish.emoji} ${fish.name} has escaped!${reason === 'timeout' ? '\\nYou taking to long!' : ''}`; const note = reason === 'broken' || reason === 'lightning' ? `-# Should have bought a better fishing rod.${reason === 'lightning' ? '\\n-# Woops, looks like your fishing rod got struck by a lightning!' : ''}` : '-# Better luck next time'; const components = withThumbnail([{ type: 10, content: `${title}\\n${note}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(RED_ACCENT, components, files); }",
+    "function renderEscaped(userId, fish, reason = '') { const files = []; const title = reason === 'broken' || reason === 'lightning' ? `## ${fish.emoji} ${fish.name} has escaped! Your fishing rod broke!` : `## ${fish.emoji} ${fish.name} has escaped!${reason === 'timeout' ? '\\nYou taking to long!' : ''}`; const note = reason === 'broken' || reason === 'lightning' ? `-# Should have bought a better fishing rod.${reason === 'lightning' ? '\\n-# Woops, looks like your fishing rod got struck by a lightning!' : ''}` : '-# Better luck next time'; const components = withThumbnail([{ type: 10, content: `${title}\\n${note}` }, separator(), fishButton(userId), fishActionSelect(userId)], findImage(FISH_IMAGE_DIR, fish.name), `${fish.id}.png`, files); return containerPayload(RED_ACCENT, components, files); }\nfunction scheduleBiteTimeout(session, message) { if (!session || !message) return; if (session.timeoutHandle) clearTimeout(session.timeoutHandle); const delay = Math.max(0, (session.deadlineAt || Date.now()) - Date.now()); session.timeoutHandle = setTimeout(async () => { const current = activeGames.get(session.id); if (!current) return; if (Date.now() < current.deadlineAt) { scheduleBiteTimeout(current, message); return; } const fish = FISH_BY_ID.get(current.fishId); activeGames.delete(current.id); if (fish) await message.edit(renderEscaped(current.ownerId, fish, 'timeout')).catch(() => null); }, delay); session.timeoutHandle.unref?.(); }"
+  );
+  source = replaceOnce(
+    source,
+    "await message.edit(renderBite(session)).catch(() => activeGames.delete(session.id));",
+    "scheduleBiteTimeout(session, message); await message.edit(renderBite(session)).catch(() => activeGames.delete(session.id));"
+  );
+  source = replaceOnce(
+    source,
+    "const modifiedDur = Math.max(1, Math.ceil(fish.durDamage * (weatherEffect.durMultiplier || 1)));",
+    "if (shouldResetFishingTimer(user)) session.deadlineAt = Date.now() + FISHING_BITE_TIMEOUT_MS; const modifiedDur = Math.max(1, Math.ceil(fish.durDamage * (weatherEffect.durMultiplier || 1)));"
+  );
+  return source;
+}
+
+function loadFishingFeature() {
+  const filename = require.resolve('./fishingFeature');
+  const cached = require.cache[filename];
+  if (cached) return cached.exports;
+  const source = patchFishingFeatureSource(fs.readFileSync(filename, 'utf8'));
+  const moduleInstance = new Module(filename, module);
+  moduleInstance.filename = filename;
+  moduleInstance.paths = Module._nodeModulePaths(path.dirname(filename));
+  require.cache[filename] = moduleInstance;
+  moduleInstance._compile(source, filename);
+  return moduleInstance.exports;
+}
+
+const feature = loadFishingFeature();
 
 function randomInt(min, max) { return Math.floor(Math.random() * ((max - min) + 1)) + min; }
 function weightedPick(entries) { const valid = entries.filter((entry) => Number(entry.weight) > 0); const total = valid.reduce((sum, entry) => sum + Number(entry.weight), 0); if (total <= 0) return valid[0]?.value ?? null; let roll = Math.random() * total; for (const entry of valid) { roll -= Number(entry.weight); if (roll <= 0) return entry.value; } return valid[valid.length - 1]?.value ?? null; }
