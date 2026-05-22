@@ -92,16 +92,16 @@ function parseList(value) {
   return renderFishMarket(userId, 1, message);
 }
 
-function sellItemsById(userId, itemIds) {
-  const selected = Array.isArray(itemIds) ? itemIds : [];
-  const wanted = new Set(selected.map((itemId) => String(itemId || '').toLowerCase()));
+function sellItemsByRarity(userId, rarities) {
+  const selected = Array.isArray(rarities) ? rarities : [];
+  const wanted = new Set(selected.map((rarity) => String(rarity || '').toLowerCase()));
   const sellAll = wanted.has('all');
   const state = loadState();
   const user = ensureUser(state, userId);
   let totalValue = 0;
   let sold = 0;
   for (const record of userItemRecords(state, userId)) {
-    if (!record.item || record.item.unsellable || record.entry.locked || (!sellAll && !wanted.has(record.id))) continue;
+    if (!record.item || record.item.unsellable || record.entry.locked || (!sellAll && !wanted.has(String(record.item.rarity || '').toLowerCase()))) continue;
     const amount = Math.floor(Number(record.entry.amount) || 0);
     if (amount <= 0) continue;
     const marketValue = getMarketValue(state, 'item', record.id);
@@ -117,52 +117,61 @@ function sellItemsById(userId, itemIds) {
   return renderItemMarket(userId, 1, message);
 }
 
-function rarityFilterSelect(userId) {
-  const options = [
-    ['all', 'All'],
-    ['secret', 'Secret'],
-    ['mythical', 'Mythical'],
-    ['legendary', 'Legendary'],
-    ['epic', 'Epic'],
-    ['rare', 'Rare'],
-    ['uncommon', 'Uncommon'],
-    ['common', 'Common'],
-  ];
-  return actionRow([{ type: 3, custom_id: \`fm:sellfilterselect:\${userId}\`, placeholder: 'Select rarity to sell', min_values: 1, max_values: options.length, options: options.map(([value, label]) => ({ label, value })) }]);
+const FILTER_RARITIES = [
+  ['all', 'All'],
+  ['secret', 'Secret'],
+  ['mythical', 'Mythical'],
+  ['legendary', 'Legendary'],
+  ['epic', 'Epic'],
+  ['rare', 'Rare'],
+  ['uncommon', 'Uncommon'],
+  ['common', 'Common'],
+];
+
+function rarityOptions() {
+  return FILTER_RARITIES.map(([value, label]) => ({ label, value }));
 }
 
-function itemFilterSelect(userId) {
-  const state = loadState();
-  const options = [{ label: 'All', value: 'all' }];
-  for (const record of userItemRecords(state, userId)) {
-    if (!record.item || record.item.unsellable || record.entry.locked) continue;
-    options.push({ label: \`\\u00d7\${record.entry.amount} \${record.item.name}\`.slice(0, 100), value: record.id });
-  }
-  return actionRow([{ type: 3, custom_id: \`fm:itemfilterselect:\${userId}\`, placeholder: 'Select items to sell', min_values: 1, max_values: Math.min(25, options.length), options: options.slice(0, 25) }]);
+function filterForm(kind, userId) {
+  const isFish = kind === 'fish';
+  return {
+    custom_id: \`fm:\${kind}filtersubmit:\${userId}\`,
+    title: isFish ? 'Sell fish filter' : 'Sell item filter',
+    components: [{
+      type: 18,
+      label: isFish ? 'Select fish rarity to sell' : 'Select item rarity to sell',
+      component: {
+        type: 3,
+        custom_id: \`\${kind}_rarities\`,
+        placeholder: 'Select rarity to sell',
+        min_values: 1,
+        max_values: FILTER_RARITIES.length,
+        options: rarityOptions(),
+      },
+    }],
+  };
 }
 
-function renderSellFilter(userId) {
-  return containerPayload(WHITE_ACCENT, [
-    { type: 10, content: '## Sell fish filter\\\\n-# Select one or more rarities to sell.' },
-    separator(),
-    rarityFilterSelect(userId),
-    categorySelect(userId, 'fish'),
-  ]);
-}
-
-function renderItemSellFilter(userId) {
-  return containerPayload(WHITE_ACCENT, [
-    { type: 10, content: '## Sell item filter\\\\n-# Select one or more items to sell.' },
-    separator(),
-    itemFilterSelect(userId),
-    categorySelect(userId, 'item'),
-  ]);
+function getSelectedValues(interaction, customId) {
+  const found = [];
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') return;
+    if ((value.customId === customId || value.custom_id === customId) && Array.isArray(value.values)) found.push(...value.values);
+    if ((value.customId === customId || value.custom_id === customId) && typeof value.value === 'string') found.push(value.value);
+    if (value.component) visit(value.component);
+    if (Array.isArray(value.components)) value.components.forEach(visit);
+    if (value.fields && typeof value.fields.values === 'function') Array.from(value.fields.values()).forEach(visit);
+  };
+  if (Array.isArray(interaction.values)) found.push(...interaction.values);
+  try { visit(interaction.fields?.getField?.(customId)); } catch {}
+  visit(interaction);
+  return [...new Set(found.map((item) => String(item || '').trim()).filter(Boolean))];
 }`)
     .replace(`if (action === 'sellfilter') { await interaction.showModal(filterModal(userId)); return true; }
-  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, parseList(interaction.fields?.getTextInputValue('rarities'))));`, `if (action === 'sellfilter') return updateInteraction(interaction, renderSellFilter(userId)).then(() => true);
-  if (action === 'sellfilterselect') return updateInteraction(interaction, sellFishByRarity(userId, interaction.values || [])).then(() => true);
-  if (action === 'itemfilter') return updateInteraction(interaction, renderItemSellFilter(userId)).then(() => true);
-  if (action === 'itemfilterselect') return updateInteraction(interaction, sellItemsById(userId, interaction.values || [])).then(() => true);`)
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, parseList(interaction.fields?.getTextInputValue('rarities'))));`, `if (action === 'sellfilter') { await interaction.showModal(filterForm('fish', userId)); return true; }
+  if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellFishByRarity(userId, getSelectedValues(interaction, 'fish_rarities')));
+  if (action === 'itemfilter') { await interaction.showModal(filterForm('item', userId)); return true; }
+  if (action === 'itemfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellItemsByRarity(userId, getSelectedValues(interaction, 'item_rarities')));`)
     .replace(`const total = fishTotalValue(state, entry, fish);
   user.fishBarrel.splice(index, 1);`, `const total = fishTotalValue(state, entry, fish);
   user.fishIndex = user.fishIndex && typeof user.fishIndex === 'object' ? user.fishIndex : {};
