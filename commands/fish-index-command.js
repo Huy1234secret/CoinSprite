@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishIndexCommand').fishIndexCommand;
+module.exports = require('../Fishing Game/fishIndexCommandCanvasPatch').fishIndexCommand;
