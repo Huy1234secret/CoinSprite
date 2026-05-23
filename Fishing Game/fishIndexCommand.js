@@ -1,24 +1,217 @@
-const fs=require('fs'),path=require('path');
-const{AttachmentBuilder,MessageFlags,SlashCommandBuilder}=require('discord.js');
-const{createCanvas,loadImage}=require('@napi-rs/canvas');
-const{MUTATIONS_BY_WEATHER,WEATHER_EMOJIS}=require('./Data/WeatherData');
-const FLAGS=MessageFlags.IsComponentsV2??32768,EPH=MessageFlags.Ephemeral??64,WHITE=0xffffff,STORE=path.join(__dirname,'..','data','fishing-game.json'),DIR=path.join(__dirname,'Fish Png'),PER=6;
-const R={common:'<:SBCommon:1506965202585780274>',uncommon:'<:SBUncommon:1506965215743447040>',rare:'<:SBRare:1506965211607994461>',epic:'<:SBEpic:1506965204624474153>',legendary:'<:SBLegendary:1506965206197207131>',mythical:'<:SBMythical:1506965209271762954>',secret:'<:SBSecret:1506965213881307186>'};
-function nid(v){return String(v||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')}function strip(v){return String(v||'').replace(/\bF[1-7]\s+(?=[A-Z])/g,'')}
-const F=[['<:F1Bluegill:1506653228245455039>','F1 Bluegill','common'],['<:F1CommonCarp:1506653230376030318>','F1 Common Carp','common'],['<:F1FatheadMinnow:1506653232146022531>','F1 Fathead Minnow','common'],['<:F1YellowPerch:1506653234419466290>','F1 Yellow Perch','common'],['<:F2BlackCrappie:1506653236512166019>','F2 Black Crappie','uncommon'],['<:F2ChannelCatfish:1506653238605254798>','F2 Channel Catfish','uncommon'],['<:F2RainbowTrout:1506653240756801708>','F2 Rainbow Trout','uncommon'],['<:F3LargemouthBass:1506653242506088478>','F3 Largemouth Bass','rare'],['<:F3Walleye:1506653246255792198>','F3 Walleye','rare'],['<:F4NorthernPike:1506653248147292290>','F4 Northern Pike','epic'],['<:F5LakeSturgeon:1506653250621935827>','F5 Lake Sturgeon','legendary'],['<:F6GoldenMahseer:1506653252530212975>','F6 Golden Mahseer','mythical'],['<:F7AsianArowana:1506653254677954700>','F7 Asian Arowana','secret']].map(([emoji,name,rarity])=>({id:nid(name),emoji,name,displayName:strip(name),rarity,category:'Calm Fishing Lake'}));
-const C=[{label:'All',value:'all'},{label:'Calm Fishing Lake',value:'calm_fishing_lake'}];
-const MUTATIONS=Object.entries(MUTATIONS_BY_WEATHER||{}).flatMap(([weather,items])=>(items||[]).map(m=>({id:nid(m.name),name:m.name,emoji:m.emoji,chance:Number(m.chance)||0,multiplier:Number(m.multiplier)||1,weather,weatherEmoji:WEATHER_EMOJIS?.[weather]||''})));
-function empty(){return{users:{},weather:{},forecasts:{}}}function load(){const d=path.dirname(STORE);if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true});if(!fs.existsSync(STORE))fs.writeFileSync(STORE,JSON.stringify(empty(),null,2));try{return{...empty(),...JSON.parse(fs.readFileSync(STORE,'utf8'))}}catch{return empty()}}function user(s,id){if(!s.users[id])s.users[id]={fishCoins:0,inventory:{},fishBarrel:[],fishCapacity:10,fishIndex:{},mutationIndex:{}};const u=s.users[id];u.fishBarrel=Array.isArray(u.fishBarrel)?u.fishBarrel:[];u.fishIndex=u.fishIndex&&typeof u.fishIndex==='object'?u.fishIndex:{};u.mutationIndex=u.mutationIndex&&typeof u.mutationIndex==='object'?u.mutationIndex:{};return u}
-function list(cat){return cat==='calm_fishing_lake'?F.filter(f=>f.category==='Calm Fishing Lake'):F}function label(cat){return C.find(x=>x.value===cat)?.label||'All'}function discovered(u){const s=new Set(Object.keys(u.fishIndex||{}));for(const e of u.fishBarrel||[])if(e?.fishId)s.add(e.fishId);return s}function mutDiscovered(u){const s=new Set(Object.keys(u.mutationIndex||{}));for(const e of u.fishBarrel||[])if(e?.mutation&&String(e.mutation).toLowerCase()!=='none')s.add(nid(e.mutation));return s}function page(a,p){const m=Math.max(1,Math.ceil(a.length/PER)),n=Math.max(1,Math.min(m,Math.floor(Number(p)||1)));return{page:n,maxPage:m,items:a.slice((n-1)*PER,n*PER)}}
-function sep(){return{type:14,divider:true,spacing:1}}function row(c){return{type:1,components:c}}function cont(cs,files=[]){return{flags:FLAGS,files,components:[{type:17,accent_color:WHITE,components:cs.filter(Boolean)}]}}function actions(id,p,cat,idx){return row([{type:3,custom_id:`fishindex:action:${id}:${p}:${cat}:${idx}`,placeholder:'Select an action',min_values:1,max_values:1,options:[{label:'Switch Page',value:'page'},{label:'Switch Category',value:'category'},{label:'Switch Index',value:'index'}]}])}function indexSelect(id,p,cat,idx){return row([{type:3,custom_id:`fishindex:index:${id}:${p}:${cat}:${idx}`,placeholder:'Switch index',min_values:1,max_values:1,options:[{label:'Fish',value:'fish',default:idx==='fish'},{label:'Mutations',value:'mutations',default:idx==='mutations'}]}])}
-function txt(id,label,ph){return{type:1,components:[{type:4,custom_id:id,label,style:1,required:true,placeholder:ph,max_length:100}]}}function pageModal(id,p,m,cat,idx){return{custom_id:`fishindex:pagesubmit:${id}:${cat}:${idx}`,title:'Switch page',components:[txt('fish_index_page','Which page?',`1 - ${m}: Current page ${p}`)]}}function catModal(id,p,cat,idx){return{custom_id:`fishindex:categorysubmit:${id}:${p}:${idx}`,title:'Switch category',components:[{type:18,label:'Select a category',component:{type:3,custom_id:'fish_index_category',placeholder:'Select a category',min_values:1,max_values:1,options:C.map(o=>({...o,default:o.value===cat}))}}]}}
-function imgPath(name){if(!fs.existsSync(DIR))return null;const n=nid(name).replace(/_/g,'');for(const f of fs.readdirSync(DIR)){if(path.extname(f).toLowerCase()!=='.png')continue;if(nid(path.basename(f,'.png')).replace(/_/g,'')===n)return path.join(DIR,f)}return null}function emojiUrl(e){const m=String(e||'').match(/<a?:([a-zA-Z0-9_]+):(\d+)>/);return m?`https://cdn.discordapp.com/emojis/${m[2]}.${String(e).startsWith('<a:')?'gif':'png'}?quality=lossless`:null}async function drawEmoji(ctx,e,x,y,s){try{const u=emojiUrl(e);if(!u)return false;const im=await loadImage(u);ctx.drawImage(im,x,y,s,s);return true}catch{return false}}
-function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}function fit(ctx,t,w,sz,wt='800'){for(let s=sz;s>=14;s--){ctx.font=`${wt} ${s}px sans-serif`;if(ctx.measureText(t).width<=w)return s}return 14}
-async function gallery(items,seen){const cv=createCanvas(900,600),ctx=cv.getContext('2d');ctx.fillStyle='#181820';ctx.fillRect(0,0,900,600);const gap=24,cw=(900-gap*4)/3,ch=(600-gap*3)/2;for(let i=0;i<items.length;i++){const f=items[i],ok=seen.has(f.id),x=gap+(i%3)*(cw+gap),y=gap+Math.floor(i/3)*(ch+gap);ctx.fillStyle=ok?'#292936':'#22222c';rr(ctx,x,y,cw,ch,18);ctx.fill();ctx.strokeStyle=ok?'#5a5a70':'#444454';ctx.lineWidth=3;ctx.stroke();const g=ctx.createLinearGradient(x,y,x,y+ch);g.addColorStop(0,'rgba(255,255,255,.08)');g.addColorStop(1,'rgba(0,0,0,.12)');ctx.fillStyle=g;rr(ctx,x+3,y+3,cw-6,ch-6,15);ctx.fill();ctx.fillStyle='#1e1e29';rr(ctx,x+cw-52,y+12,36,36,12);ctx.fill();if(!await drawEmoji(ctx,R[f.rarity],x+cw-46,y+18,24)){ctx.font='22px sans-serif';ctx.textAlign='center';ctx.fillStyle='#fff';ctx.fillText('★',x+cw-34,y+39)}const title=ok?f.displayName:'Undiscovered';ctx.font=`800 ${fit(ctx,title,cw-76,25)}px sans-serif`;ctx.textAlign='center';ctx.fillStyle=ok?'#f6f6ff':'#8c8c9a';ctx.fillText(title,x+cw/2-10,y+38);if(ok){try{const p=imgPath(f.name);if(p){const im=await loadImage(p);ctx.drawImage(im,x+cw/2-58,y+66,116,116)}else await drawEmoji(ctx,f.emoji,x+cw/2-38,y+78,76)}catch{ctx.font='56px sans-serif';ctx.fillText('🐟',x+cw/2,y+140)}}else{ctx.font='900 78px sans-serif';ctx.fillStyle='#5f6070';ctx.fillText('?',x+cw/2,y+148)}ctx.font='700 18px sans-serif';ctx.fillStyle=ok?'#aeb0bd':'#6f7080';ctx.fillText(ok?'Discovered':'Not discovered',x+cw/2,y+ch-28)}return cv.toBuffer('image/png')}
-function fmtChance(n){return `${Number(n).toLocaleString(undefined,{maximumFractionDigits:2})}%`}function fmtMulti(n){return `${Number(n).toLocaleString(undefined,{maximumFractionDigits:2})}x`}
-async function mutationGallery(items,seen){const cv=createCanvas(900,600),ctx=cv.getContext('2d');ctx.fillStyle='#181820';ctx.fillRect(0,0,900,600);const gap=24,cw=(900-gap*4)/3,ch=(600-gap*3)/2;for(let i=0;i<items.length;i++){const m=items[i],ok=seen.has(m.id),x=gap+(i%3)*(cw+gap),y=gap+Math.floor(i/3)*(ch+gap);ctx.fillStyle=ok?'#292936':'#22222c';rr(ctx,x,y,cw,ch,18);ctx.fill();ctx.strokeStyle=ok?'#5a5a70':'#444454';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle='#1e1e29';rr(ctx,x+14,y+14,54,54,16);ctx.fill();if(ok){if(!await drawEmoji(ctx,m.emoji,x+22,y+22,38)){ctx.font='34px sans-serif';ctx.textAlign='center';ctx.fillStyle='#f6f6ff';ctx.fillText('🧬',x+41,y+53)}}else{ctx.font='42px sans-serif';ctx.textAlign='center';ctx.fillStyle='#5f6070';ctx.fillText('?',x+41,y+55)}const title=ok?m.name:'Undiscovered';ctx.font=`800 ${fit(ctx,title,cw-94,24)}px sans-serif`;ctx.textAlign='left';ctx.fillStyle=ok?'#f6f6ff':'#8c8c9a';ctx.fillText(title,x+78,y+39);ctx.font='700 15px sans-serif';ctx.fillStyle=ok?'#aeb0bd':'#6f7080';ctx.fillText(ok?'Discovered':'Not discovered',x+78,y+61);ctx.font='700 18px sans-serif';ctx.textAlign='left';ctx.fillStyle=ok?'#d7d8e7':'#737482';const info=ok?[`Chance: ${fmtChance(m.chance)}`,`Multi Boost: ${fmtMulti(m.multiplier)}`]:['Chance: ???','Multi Boost: ???'];ctx.fillText(info[0],x+22,y+111);ctx.fillText(info[1],x+22,y+145);ctx.fillText('Weather:',x+22,y+180);if(ok){if(!await drawEmoji(ctx,m.weatherEmoji,x+105,y+160,30)){ctx.font='26px sans-serif';ctx.fillText('☁️',x+110,y+184)}}else{ctx.font='26px sans-serif';ctx.fillText('?',x+112,y+184)}}return cv.toBuffer('image/png')}
-async function render(id,name,p=1,cat='all',idx='fish'){idx=idx==='mutations'?'mutations':'fish';const s=load(),u=user(s,id);if(idx==='mutations'){const seen=mutDiscovered(u),pg=page(MUTATIONS,p),buf=await mutationGallery(pg.items,seen),att=new AttachmentBuilder(buf,{name:'mutation-index.png'});return cont([{type:10,content:`## ${name}'s Mutation Index\n-# Mutations discovered: ${MUTATIONS.filter(m=>seen.has(m.id)).length} / ${MUTATIONS.length}`},sep(),{type:12,items:[{media:{url:'attachment://mutation-index.png'}}]},sep(),actions(id,pg.page,cat,idx),indexSelect(id,pg.page,cat,idx)],[att])}const fish=list(cat),seen=discovered(u),pg=page(fish,p),buf=await gallery(pg.items,seen),att=new AttachmentBuilder(buf,{name:'fish-index.png'}),count=fish.filter(f=>seen.has(f.id)).length;return cont([{type:10,content:`## ${name}'s Fish Index\n-# Fish discovered: ${count} / ${fish.length}\n-# Category: ${label(cat)}`},sep(),{type:12,items:[{media:{url:'attachment://fish-index.png'}}]},sep(),actions(id,pg.page,cat,idx),indexSelect(id,pg.page,cat,idx)],[att])}
-function val(inter,id){try{return inter.fields?.getTextInputValue?.(id)||''}catch{}const stack=[...(inter.components??inter.data?.components??[])];while(stack.length){const it=stack.shift(),c=it?.component??it;if(c?.customId===id||c?.custom_id===id){const v=c.values??c.value;return Array.isArray(v)?v[0]:(v||'')}if(Array.isArray(it?.components))stack.push(...it.components);if(Array.isArray(c?.components))stack.push(...c.components)}return''}function owner(i,id){if(i.user.id===id)return true;i.reply({content:'Only the command owner can use this control.',flags:EPH}).catch(()=>null);return false}async function upd(i,p){if(typeof i.update==='function')return i.update(p);if(typeof i.deferUpdate==='function'){await i.deferUpdate();return i.message?.edit(p)}return i.reply(p)}
-async function handle(i){const id=i.customId||'';if(!id.startsWith('fishindex:'))return false;const parts=id.split(':'),a=parts[1],uid=parts[2];if(!owner(i,uid))return true;if(a==='index'&&i.isStringSelectMenu?.())return upd(i,await render(uid,i.user.username,1,parts[4]||'all',i.values?.[0]||'fish'));if(a==='action'&&i.isStringSelectMenu?.()){const p=Number(parts[3])||1,cat=parts[4]||'all',idx=parts[5]||'fish',m=idx==='mutations'?page(MUTATIONS,p).maxPage:page(list(cat),p).maxPage;if(i.values?.[0]==='page')await i.showModal(pageModal(uid,p,m,cat,idx));else if(i.values?.[0]==='category')await i.showModal(catModal(uid,p,cat,idx));else return upd(i,await render(uid,i.user.username,1,cat,idx==='mutations'?'fish':'mutations'));return true}if(a==='pagesubmit'&&i.isModalSubmit?.())return upd(i,await render(uid,i.user.username,Number(val(i,'fish_index_page'))||1,parts[3]||'all',parts[4]||'fish'));if(a==='categorysubmit'&&i.isModalSubmit?.()){const selected=val(i,'fish_index_category')||'all';return upd(i,await render(uid,i.user.username,1,C.some(o=>o.value===selected)?selected:'all',parts[4]||'fish'))}return false}
-const fishIndexCommand={data:new SlashCommandBuilder().setName('fish-index').setDescription('Show your discovered fish and mutation index'),suppressCommandLog:true,disableActionTimeout:true,async execute(i){await i.reply(await render(i.user.id,i.user.username))},async handleInteraction(i){return handle(i)}};
-module.exports={fishIndexCommand};
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { FISH, FISH_BY_NAME, normalizeId, normalizeName } = require('./Data/FishData');
+const { ALL_MUTATIONS, COLUMN_MAP, SEASONS, TIMES, WEATHER_EMOJIS } = require('./Data/WeatherData');
+const { FISH_EVENTS } = require('./Data/FishingRuntimeData');
+
+const FLAGS = MessageFlags.IsComponentsV2 ?? 32768;
+const EPH = MessageFlags.Ephemeral ?? 64;
+const WHITE = 0xffffff;
+const STORE = path.join(__dirname, '..', 'data', 'fishing-game.json');
+const FISH_IMAGE_DIR = path.join(__dirname, 'Fish Png');
+const CALM_LAKE_XLSX = path.join(__dirname, 'Calm Fishing Lake.xlsx');
+const FISH_PER_PAGE = 4;
+const MUTATION_PER_PAGE = 9;
+
+const RARITY_EMOJI = {
+  common: '<:SBCommon:1506965202585780274>',
+  uncommon: '<:SBUncommon:1506965215743447040>',
+  rare: '<:SBRare:1506965211607994461>',
+  epic: '<:SBEpic:1506965204624474153>',
+  legendary: '<:SBLegendary:1506965206197207131>',
+  mythical: '<:SBMythical:1506965209271762954>',
+  secret: '<:SBSecret:1506965213881307186>',
+};
+
+const CATEGORIES = [{ label: 'All', value: 'all' }, { label: 'Calm Fishing Lake', value: 'calm_fishing_lake' }];
+
+function empty() { return { users: {}, weather: {}, forecasts: {}, events: { active: {} } }; }
+function load() { const dir = path.dirname(STORE); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE)) fs.writeFileSync(STORE, JSON.stringify(empty(), null, 2)); try { return { ...empty(), ...JSON.parse(fs.readFileSync(STORE, 'utf8')) }; } catch { return empty(); } }
+function user(state, id) { if (!state.users[id]) state.users[id] = { fishCoins: 0, inventory: {}, fishBarrel: [], fishCapacity: 10, fishIndex: {}, mutationIndex: {} }; const record = state.users[id]; record.fishBarrel = Array.isArray(record.fishBarrel) ? record.fishBarrel : []; record.fishIndex = record.fishIndex && typeof record.fishIndex === 'object' ? record.fishIndex : {}; record.mutationIndex = record.mutationIndex && typeof record.mutationIndex === 'object' ? record.mutationIndex : {}; return record; }
+function discovered(record) { const seen = new Set(Object.keys(record.fishIndex || {})); for (const entry of record.fishBarrel || []) if (entry?.fishId) seen.add(entry.fishId); return seen; }
+function mutationDiscovered(record) { const seen = new Set(Object.keys(record.mutationIndex || {})); for (const entry of record.fishBarrel || []) if (entry?.mutation && String(entry.mutation).toLowerCase() !== 'none') seen.add(normalizeId(entry.mutation)); return seen; }
+function page(items, current, perPage) { const maxPage = Math.max(1, Math.ceil(items.length / perPage)); const safe = Math.max(1, Math.min(maxPage, Math.floor(Number(current) || 1))); return { page: safe, maxPage, items: items.slice((safe - 1) * perPage, safe * perPage) }; }
+function sep() { return { type: 14, divider: true, spacing: 1 }; }
+function row(components) { return { type: 1, components }; }
+function cont(components, files = []) { return { flags: FLAGS, files, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }; }
+function actions(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:action:${id}:${pageNo}:${category}:${index}`, placeholder: 'Select an action', min_values: 1, max_values: 1, options: [{ label: 'Switch Page', value: 'page' }, { label: 'Switch Category', value: 'category' }] }]); }
+function indexSelect(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:index:${id}:${pageNo}:${category}:${index}`, placeholder: 'Switch index', min_values: 1, max_values: 1, options: [{ label: 'Fish', value: 'fish', default: index === 'fish' }, { label: 'Mutations', value: 'mutations', default: index === 'mutations' }] }]); }
+function textInput(id, label, placeholder) { return { type: 1, components: [{ type: 4, custom_id: id, label, style: 1, required: true, placeholder, max_length: 100 }] }; }
+function pageModal(id, pageNo, maxPage, category, index) { return { custom_id: `fishindex:pagesubmit:${id}:${category}:${index}`, title: 'Switch page', components: [textInput('fish_index_page', 'Which page?', `1 - ${maxPage}: Current page ${pageNo}`)] }; }
+function categoryModal(id, pageNo, category, index) { return { custom_id: `fishindex:categorysubmit:${id}:${pageNo}:${index}`, title: 'Switch category', components: [{ type: 18, label: 'Select a category', component: { type: 3, custom_id: 'fish_index_category', placeholder: 'Select a category', min_values: 1, max_values: 1, options: CATEGORIES.map((option) => ({ ...option, default: option.value === category })) } }] }; }
+function val(interaction, customId) { try { return interaction.fields?.getTextInputValue?.(customId) || ''; } catch {} const stack = [...(interaction.components ?? interaction.data?.components ?? [])]; while (stack.length) { const item = stack.shift(); const component = item?.component ?? item; if (component?.customId === customId || component?.custom_id === customId) { const value = component.values ?? component.value; return Array.isArray(value) ? value[0] : (value || ''); } if (Array.isArray(item?.components)) stack.push(...item.components); if (Array.isArray(component?.components)) stack.push(...component.components); } return ''; }
+function owner(interaction, id) { if (interaction.user.id === id) return true; interaction.reply({ content: 'Only the command owner can use this control.', flags: EPH }).catch(() => null); return false; }
+async function update(interaction, payload) { if (typeof interaction.update === 'function') return interaction.update(payload); if (typeof interaction.deferUpdate === 'function') { await interaction.deferUpdate(); return interaction.message?.edit(payload); } return interaction.reply(payload); }
+function emojiUrl(emoji) { const match = String(emoji || '').match(/<a?:([A-Za-z0-9_]+):(\d+)>/); return match ? `https://cdn.discordapp.com/emojis/${match[2]}.${String(emoji).startsWith('<a:') ? 'gif' : 'png'}?quality=lossless` : null; }
+async function drawEmoji(ctx, emoji, x, y, size) { try { const url = emojiUrl(emoji); if (!url) return false; const image = await loadImage(url); ctx.drawImage(image, x, y, size, size); return true; } catch { return false; } }
+function roundRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
+function fit(ctx, text, width, size, weight = '800') { for (let current = size; current >= 12; current -= 1) { ctx.font = `${weight} ${current}px sans-serif`; if (ctx.measureText(text).width <= width) return current; } return 12; }
+function fishImagePath(name) { if (!fs.existsSync(FISH_IMAGE_DIR)) return null; const wanted = normalizeId(name).replace(/_/g, ''); for (const file of fs.readdirSync(FISH_IMAGE_DIR)) if (path.extname(file).toLowerCase() === '.png' && normalizeId(path.basename(file, '.png')).replace(/_/g, '') === wanted) return path.join(FISH_IMAGE_DIR, file); return null; }
+
+function unzipXlsx(buffer) { const files = new Map(); let offset = 0; while (offset < buffer.length - 30) { if (buffer.readUInt32LE(offset) !== 0x04034b50) { offset += 1; continue; } const method = buffer.readUInt16LE(offset + 8); const compressedSize = buffer.readUInt32LE(offset + 18); const nameLength = buffer.readUInt16LE(offset + 26); const extraLength = buffer.readUInt16LE(offset + 28); const name = buffer.slice(offset + 30, offset + 30 + nameLength).toString('utf8'); const dataStart = offset + 30 + nameLength + extraLength; const compressed = buffer.slice(dataStart, dataStart + compressedSize); if (method === 0) files.set(name, compressed.toString('utf8')); else if (method === 8) files.set(name, zlib.inflateRawSync(compressed).toString('utf8')); offset = dataStart + compressedSize; } return files; }
+function decodeXml(value) { return String(value || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); }
+function parseSharedStrings(xml) { const strings = []; for (const match of xml.matchAll(/<si\b[\s\S]*?<\/si>/g)) strings.push([...match[0].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join('')); return strings; }
+function parseSheetCells(xml, sharedStrings) { const cells = new Map(); for (const match of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) { const attrs = match[1]; const body = match[2]; const ref = /r="([^"]+)"/.exec(attrs)?.[1]; if (!ref) continue; const type = /t="([^"]+)"/.exec(attrs)?.[1]; const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? ''; const inline = /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1]; let value = raw; if (type === 's') value = sharedStrings[Number(raw)] ?? ''; else if (type === 'inlineStr') value = decodeXml(inline || ''); cells.set(ref, decodeXml(value)); } return cells; }
+function readXlsxCells(filePath) { const files = unzipXlsx(fs.readFileSync(filePath)); const sharedStrings = parseSharedStrings(files.get('xl/sharedStrings.xml') || ''); const sheetName = files.has('xl/worksheets/sheet1.xml') ? 'xl/worksheets/sheet1.xml' : [...files.keys()].find((name) => name.startsWith('xl/worksheets/sheet')); return parseSheetCells(files.get(sheetName) || '', sharedStrings); }
+function loadFishAvailability() {
+  const fallback = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(SEASONS.map((season) => [season.key, new Set(Object.keys(TIMES))])), weatherWeights: new Map() }]));
+  if (!fs.existsSync(CALM_LAKE_XLSX)) return fallback;
+  try {
+    const cells = readXlsxCells(CALM_LAKE_XLSX);
+    const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map() }]));
+    for (const [season, times] of Object.entries(COLUMN_MAP)) for (const [time, weathers] of Object.entries(times)) for (const [weather, column] of Object.entries(weathers)) {
+      for (let rowNo = 4; rowNo <= 16; rowNo += 1) {
+        const fish = FISH_BY_NAME.get(normalizeName(cells.get(`A${rowNo}`)));
+        const weight = Number(cells.get(`${column}${rowNo}`));
+        if (!fish || !(weight > 0)) continue;
+        const info = result.get(fish.id);
+        if (!info.seasons.has(season)) info.seasons.set(season, new Set());
+        info.seasons.get(season).add(time);
+        info.weatherWeights.set(weather, (info.weatherWeights.get(weather) || 0) + weight);
+      }
+    }
+    return result;
+  } catch {
+    return fallback;
+  }
+}
+const availability = loadFishAvailability();
+function seasonText(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return 'All'; const allTimes = Object.keys(TIMES).length; return [...info.seasons.entries()].map(([season, times]) => { const seasonEmoji = SEASONS.find((item) => item.key === season)?.emoji || season; const timeText = times.size >= allTimes ? '' : ` - ${[...times].map((time) => TIMES[time] || time).join(' ')}`; return `${seasonEmoji}${timeText}`; }).join('  '); }
+function favoriteWeatherText(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return 'All'; const max = Math.max(...info.weatherWeights.values()); return [...info.weatherWeights.entries()].filter(([, weight]) => weight === max).map(([weather]) => WEATHER_EMOJIS[weather] || weather).join(' '); }
+
+async function fishGallery(items, seen) {
+  const canvas = createCanvas(900, 660);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#181820';
+  ctx.fillRect(0, 0, 900, 660);
+  const gap = 24;
+  const cardWidth = (900 - gap * 3) / 2;
+  const cardHeight = (660 - gap * 3) / 2;
+  for (let index = 0; index < items.length; index += 1) {
+    const fish = items[index];
+    const ok = seen.has(fish.id);
+    const x = gap + (index % 2) * (cardWidth + gap);
+    const y = gap + Math.floor(index / 2) * (cardHeight + gap);
+    ctx.fillStyle = ok ? '#292936' : '#22222c';
+    roundRect(ctx, x, y, cardWidth, cardHeight, 16);
+    ctx.fill();
+    ctx.strokeStyle = ok ? '#5a5a70' : '#444454';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    const title = ok ? fish.displayName : 'Undiscovered';
+    ctx.font = `800 ${fit(ctx, title, cardWidth - 80, 27)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
+    ctx.fillText(title, x + cardWidth / 2, y + 40);
+    if (ok) {
+      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 32, y + 72, 112, 112); else await drawEmoji(ctx, fish.emoji, x + 54, y + 88, 72); } catch { await drawEmoji(ctx, fish.emoji, x + 54, y + 88, 72); }
+    } else {
+      ctx.font = '900 78px sans-serif';
+      ctx.fillStyle = '#5f6070';
+      ctx.fillText('?', x + 88, y + 145);
+    }
+    await drawEmoji(ctx, RARITY_EMOJI[fish.rarity], x + cardWidth - 54, y + 18, 30);
+    ctx.textAlign = 'left';
+    ctx.font = '700 18px sans-serif';
+    ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
+    ctx.fillText(ok ? 'Discovered' : 'Not discovered', x + 170, y + 92);
+    ctx.font = '700 16px sans-serif';
+    ctx.fillText(`Season: ${ok ? seasonText(fish) : '???'}`, x + 170, y + 132);
+    ctx.fillText(`Fav Weather: ${ok ? favoriteWeatherText(fish) : '???'}`, x + 170, y + 170);
+  }
+  return canvas.toBuffer('image/png');
+}
+
+async function mutationGallery(items, seen) {
+  const canvas = createCanvas(900, 660);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#181820';
+  ctx.fillRect(0, 0, 900, 660);
+  const gap = 18;
+  const cardWidth = (900 - gap * 4) / 3;
+  const cardHeight = (660 - gap * 4) / 3;
+  for (let index = 0; index < items.length; index += 1) {
+    const mutation = items[index];
+    const ok = seen.has(mutation.id);
+    const x = gap + (index % 3) * (cardWidth + gap);
+    const y = gap + Math.floor(index / 3) * (cardHeight + gap);
+    ctx.fillStyle = ok ? '#292936' : '#22222c';
+    roundRect(ctx, x, y, cardWidth, cardHeight, 14);
+    ctx.fill();
+    ctx.strokeStyle = ok ? '#5a5a70' : '#444454';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    if (ok) await drawEmoji(ctx, mutation.emoji || FISH_EVENTS.attack_of_fish.emoji, x + 22, y + 22, 44);
+    else {
+      ctx.font = '48px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#5f6070';
+      ctx.fillText('?', x + 44, y + 62);
+    }
+    const title = ok ? mutation.name : 'Undiscovered';
+    ctx.font = `800 ${fit(ctx, title, cardWidth - 92, 22)}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
+    ctx.fillText(title, x + 82, y + 42);
+    const boost = ok ? `x${Number(mutation.weightMultiplier || mutation.multiplier || 1).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${mutation.multiplierType || 'value'}` : '???';
+    ctx.font = '700 17px sans-serif';
+    ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
+    ctx.fillText(`Multi Boost: ${boost}`, x + 22, y + 118);
+    ctx.fillText(`Weather: ${ok ? (WEATHER_EMOJIS[mutation.weather] || FISH_EVENTS.attack_of_fish.emoji || mutation.weather) : '???'}`, x + 22, y + 154);
+  }
+  return canvas.toBuffer('image/png');
+}
+
+async function render(id, name, requestedPage = 1, category = 'all', index = 'fish') {
+  index = index === 'mutations' ? 'mutations' : 'fish';
+  const state = load();
+  const record = user(state, id);
+  if (index === 'mutations') {
+    const seen = mutationDiscovered(record);
+    const paged = page(ALL_MUTATIONS, requestedPage, MUTATION_PER_PAGE);
+    const buffer = await mutationGallery(paged.items, seen);
+    const attachment = new AttachmentBuilder(buffer, { name: 'mutation-index.png' });
+    return cont([{ type: 10, content: `## ${name}'s Mutation Index\n-# Mutations discovered: ${ALL_MUTATIONS.filter((mutation) => seen.has(mutation.id)).length} / ${ALL_MUTATIONS.length}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://mutation-index.png' } }] }, sep(), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
+  }
+  const fish = category === 'calm_fishing_lake' ? FISH : FISH;
+  const seen = discovered(record);
+  const paged = page(fish, requestedPage, FISH_PER_PAGE);
+  const buffer = await fishGallery(paged.items, seen);
+  const attachment = new AttachmentBuilder(buffer, { name: 'fish-index.png' });
+  return cont([{ type: 10, content: `## ${name}'s Fish Index\n-# Fish discovered: ${fish.filter((entry) => seen.has(entry.id)).length} / ${fish.length}\n-# Category: ${CATEGORIES.find((item) => item.value === category)?.label || 'All'}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://fish-index.png' } }] }, sep(), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
+}
+
+async function handle(interaction) {
+  const id = interaction.customId || '';
+  if (!id.startsWith('fishindex:')) return false;
+  const parts = id.split(':');
+  const action = parts[1];
+  const userId = parts[2];
+  if (!owner(interaction, userId)) return true;
+  if (action === 'index' && interaction.isStringSelectMenu?.()) return update(interaction, await render(userId, interaction.user.username, 1, parts[4] || 'all', interaction.values?.[0] || 'fish'));
+  if (action === 'action' && interaction.isStringSelectMenu?.()) {
+    const pageNo = Number(parts[3]) || 1;
+    const category = parts[4] || 'all';
+    const index = parts[5] || 'fish';
+    const maxPage = index === 'mutations' ? page(ALL_MUTATIONS, pageNo, MUTATION_PER_PAGE).maxPage : page(FISH, pageNo, FISH_PER_PAGE).maxPage;
+    if (interaction.values?.[0] === 'page') await interaction.showModal(pageModal(userId, pageNo, maxPage, category, index));
+    else await interaction.showModal(categoryModal(userId, pageNo, category, index));
+    return true;
+  }
+  if (action === 'pagesubmit' && interaction.isModalSubmit?.()) return update(interaction, await render(userId, interaction.user.username, Number(val(interaction, 'fish_index_page')) || 1, parts[3] || 'all', parts[4] || 'fish'));
+  if (action === 'categorysubmit' && interaction.isModalSubmit?.()) { const selected = val(interaction, 'fish_index_category') || 'all'; return update(interaction, await render(userId, interaction.user.username, 1, CATEGORIES.some((item) => item.value === selected) ? selected : 'all', parts[4] || 'fish')); }
+  return false;
+}
+
+const fishIndexCommand = {
+  data: new SlashCommandBuilder().setName('fish-index').setDescription('Show your discovered fish and mutation index'),
+  suppressCommandLog: true,
+  disableActionTimeout: true,
+  async execute(interaction) { await interaction.reply(await render(interaction.user.id, interaction.user.username)); },
+  async handleInteraction(interaction) { return handle(interaction); },
+};
+
+module.exports = { fishIndexCommand };
