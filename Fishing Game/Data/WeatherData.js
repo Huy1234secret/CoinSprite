@@ -3,15 +3,15 @@ const WEATHER_DURATION_MS = 30 * 60 * 1000;
 const WEATHER_EMOJIS = {
   Windy: '<:SBWWind:1507648034996228157>',
   Thunderstorm: '<:SBWThunderstorm:1507648033007992832>',
-  Sunny: '<:SBWSunny:150764801053582390>',
+  Sunny: '<:SBWSunny:1507648031053582390>',
   Storm: '<:SBWStorm:1507648028490862662>',
   Snow: '<:SBWSnow:1507648026288590898>',
   Rain: '<:SBWRain:1507648024279777402>',
-  'Night Clear Sky': '<:SBWNightClearSky:1507648022270578708>',
+  'Night Clear Sky': '<:SBWNightClearSky:1507648022270578798>',
   Heatwave: '<:SBWHeatwave:1507648020051660941>',
   'Full Moon Night': '<:SBWFullMoon:1507648017740595270>',
   Fog: '<:SBWFog:1507648015974928424>',
-  Bloodmoon: '<:SBWBloodMoon:1507648014125236315>',
+  Bloodmoon: '<:SBWBloodMoon:1507707019895767110>',
 };
 
 const TIME_EMOJIS = {
