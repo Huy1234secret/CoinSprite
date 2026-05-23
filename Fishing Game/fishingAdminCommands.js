@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const weatherData = require('./Data/WeatherData');
-const runtime = require('./fishingHotfix');
+const runtime = require('./fishingRuntime');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'fishing-game.json');
 const LOCATION = 'Calm Fishing Lake';
