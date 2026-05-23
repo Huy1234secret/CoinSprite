@@ -20,7 +20,7 @@ const ITEMS = {
     value: 450,
     powerMin: 6,
     powerMax: 10,
-    durability: 40,
+    durability: 55,
   },
   steel_fishing_rod: {
     id: 'steel_fishing_rod',
@@ -31,7 +31,7 @@ const ITEMS = {
     value: 1650,
     powerMin: 12,
     powerMax: 15,
-    durability: 85,
+    durability: 110,
   },
   carbon_fishing_rod: {
     id: 'carbon_fishing_rod',
@@ -42,7 +42,7 @@ const ITEMS = {
     value: 6000,
     powerMin: 18,
     powerMax: 25,
-    durability: 110,
+    durability: 200,
   },
 };
 
