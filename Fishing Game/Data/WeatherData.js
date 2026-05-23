@@ -151,6 +151,21 @@ const MUTATIONS_BY_WEATHER = {
   ],
 };
 
+const { GIANT_MUTATION } = require('./FishingRuntimeData');
+const ALL_MUTATIONS = Object.entries(MUTATIONS_BY_WEATHER).flatMap(([weather, mutations]) => (
+  mutations.map((mutation) => ({
+    ...mutation,
+    id: String(mutation.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+    weather,
+    multiplierType: mutation.multiplierType || 'value',
+  }))
+)).concat({
+  ...GIANT_MUTATION,
+  id: 'giant',
+  weather: 'Attack of Fish',
+  multiplierType: 'weigh',
+});
+
 function getFallbackWeather(timeKey) {
   return timeKey === 'Night' ? 'Night Clear Sky' : 'Sunny';
 }
@@ -184,6 +199,7 @@ function rollMutation(weatherName, random = Math.random) {
 module.exports = {
   COLUMN_MAP,
   MUTATIONS_BY_WEATHER,
+  ALL_MUTATIONS,
   SEASONS,
   TIMES,
   WEATHER_CHANCES,
