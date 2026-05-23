@@ -18,7 +18,7 @@ const TIME_EMOJIS = {
   Night: '<:SBTNight:1507707457802338404>',
   Morning: '<:SBTMorning:1507707455524569228>',
   Afternoon: '<:SBTAfternoon:1507707451770667009>',
-  Noon: '<:SBTNoon:1507707449480708236>',
+  Noon: '<:SBTNoon:1507707449480708236>', 
 };
 
 const SEASONS = [
