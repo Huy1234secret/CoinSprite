@@ -3,7 +3,7 @@ const WEATHER_DURATION_MS = 30 * 60 * 1000;
 const WEATHER_EMOJIS = {
   Windy: '<:SBWWind:1507648034996228157>',
   Thunderstorm: '<:SBWThunderstorm:1507648033007992832>',
-  Sunny: '<:SBWSunny:150764801053582390>',
+  Sunny: '<:SBWSunny:1507648031053582390>',
   Storm: '<:SBWStorm:1507648028490862662>',
   Snow: '<:SBWSnow:1507648026288590898>',
   Rain: '<:SBWRain:1507648024279777402>',
@@ -17,7 +17,7 @@ const WEATHER_EMOJIS = {
 const TIME_EMOJIS = {
   Night: '<:SBTNight:1507648012359303168>',
   Morning: '<:SBTMorning:1507648010434117753>',
-  Afternoon: '<:SBTAfternoon:1507648008538423397>',
+  Afternoon: '<:SBTAfternoon:1507707451770667009>',
   Noon: '<:SBSNoon:1507647998119772171>',
 };
 
