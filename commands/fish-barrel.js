@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishyMarket').fishBarrelCommand;
+module.exports = require('../Fishing Game/fishingFeature').fishBarrelCommand;
