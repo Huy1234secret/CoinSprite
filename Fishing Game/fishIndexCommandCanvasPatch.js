@@ -46,7 +46,7 @@ function favoriteWeatherEntries(fish) {
   const info = availability.get(fish.id);
   if (!info || !info.weatherWeights.size) return [];
   return [...info.weatherWeights.entries()]
-    .sort(([weatherA, weightA], [weatherB, weightB]) => (weightB - weightA) || weatherA.localeCompare(weatherB))
+    .sort(([weatherA, chanceA], [weatherB, chanceB]) => (Number(chanceB) - Number(chanceA)) || weatherA.localeCompare(weatherB))
     .slice(0, 3)
     .map(([weather]) => ({ emoji: WEATHER_EMOJIS[weather], text: weather }));
 }`);
@@ -68,10 +68,10 @@ source = source.replace(
   `ctx.fillText('Fav Weather:', x + 170, y + 170);
     if (ok) {
       const weathers = favoriteWeatherEntries(fish);
-      if (weathers.length) await drawEmojiRow(ctx, weathers, x + 272, y + 151, 24, 7, x + cardWidth - 18);
-      else ctx.fillText('All', x + 272, y + 170);
+      if (weathers.length) await drawEmojiRow(ctx, weathers, x + 282, y + 150, 25, 8, x + cardWidth - 18);
+      else ctx.fillText('All', x + 282, y + 170);
     } else {
-      ctx.fillText('???', x + 272, y + 170);
+      ctx.fillText('???', x + 282, y + 170);
     }`
 );
 

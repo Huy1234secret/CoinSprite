@@ -1,1 +1,1 @@
-module.exports = require('../Fishing Game/fishingFeature').inventoryCommand;
+module.exports = require('../Fishing Game/fishingFeatureInventoryPatch').inventoryCommand;
