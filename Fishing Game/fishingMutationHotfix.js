@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { MessageFlags } = require('discord.js');
 const baseCommands = require('./fishingHotfix');
-const { WEATHER_DURATION_MS, WEATHER_TEXT, rollMutation, rollWeather } = require('./Data/WeatherData');
+const { SEASONS, TIMES, WEATHER_DURATION_MS, WEATHER_TEXT, rollMutation, rollWeather } = require('./Data/WeatherData');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const WHITE_ACCENT = 0xffffff;
@@ -50,11 +50,11 @@ function seasonTime(now = new Date()) {
 }
 
 function getSeasonEmoji(season) {
-  return { Spring: '<:SBSSpring:1507648001156317214>', Summer: '<:SBSSummer:1507648004130082906>', Fall: '<:SBSAutumn:1507647996483997797>', Winter: '<:SBSWinter:1507648006298664990>' }[season] || '';
+  return SEASONS.find((entry) => entry.key === season)?.emoji || '';
 }
 
 function getTimeEmoji(time) {
-  return { Morning: '<:SBTMorning:1507648010434117753>', Noon: '<:SBSNoon:1507647998119772171>', Afternoon: '<:SBTAfternoon:1507648008538423397>', Night: '<:SBTNight:1507648012359303168>' }[time] || '';
+  return TIMES[time] || '';
 }
 
 function syncCurrentWeather(state = loadState()) {
