@@ -1,4 +1,7 @@
-const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { ITEMS, updateUser } = require('./fishingFeature');
 const { getMarketSnapshot, recordMarketBuy } = require('../src/fishingStore');
 
@@ -6,16 +9,16 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const WHITE = 0xffffff;
 const BUTTON_SECONDARY = 2;
-const BUTTON_SUCCESS = 3;
 const ITEMS_PER_PAGE = 6;
 const FISH_COIN = '<:CRFishCoin:1506701069990891751>';
+const ITEM_PNG_DIR = path.join(__dirname, 'Item Png');
+const RARITY_EMOJI = { common: '<:SBCommon:1506965202585780274>', uncommon: '<:SBUncommon:1506965215743447040>', rare: '<:SBRare:1506965211607994461>', epic: '<:SBEpic:1506965204624474153>', legendary: '<:SBLegendary:1506965206197207131>', mythical: '<:SBMythical:1506965209271762954>', secret: '<:SBSecret:1506965213881307186>' };
 
 const userStocks = new Map();
 
 function storeItems() {
   return Object.values(ITEMS).filter((item) => item.id !== 'wooden_fishing_rod' && !item.unsellable && Number(item.value) > 0);
 }
-
 function restockWindow() {
   const now = Date.now();
   const utc7 = now + 7 * 60 * 60 * 1000;
@@ -24,7 +27,6 @@ function restockWindow() {
   const slot = minute >= 40 ? 40 : minute >= 20 ? 20 : 0;
   return hour + slot * 60000;
 }
-
 function getUserStock(userId) {
   const window = restockWindow();
   const cached = userStocks.get(userId);
@@ -38,14 +40,82 @@ function getUserStock(userId) {
   userStocks.set(userId, { window, stock });
   return stock;
 }
-
 function randomInt(min, max) { return Math.floor(Math.random() * ((max - min) + 1)) + min; }
 function pageItems(items, page) { const maxPage = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE)); const safePage = Math.max(1, Math.min(maxPage, Math.floor(Number(page) || 1))); return { page: safePage, maxPage, items: items.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE) }; }
-function container(components) { return { flags: COMPONENTS_V2_FLAG, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }; }
+function stripUndefined(value) { if (Array.isArray(value)) return value.map(stripUndefined).filter((entry) => entry !== undefined); if (!value || typeof value !== 'object') return value; const out = {}; for (const [key, entry] of Object.entries(value)) { if (entry === undefined) continue; out[key] = stripUndefined(entry); } return out; }
+function container(components, files = []) { return stripUndefined({ flags: COMPONENTS_V2_FLAG, files, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }); }
 function row(components) { return { type: 1, components }; }
 function button(customId, label, style = BUTTON_SECONDARY, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
-function priceFor(item) { const market = getMarketSnapshot(); return Math.max(1, Math.floor(Number(market?.entries?.[item.id]?.currentValue || item.value || 1))); }
+function priceFor(item) { const market = getMarketSnapshot(); return Math.max(1, Math.floor(Number(market?.entries?.[item.id]?.currentValue || market?.items?.[item.id]?.buyPrice || item.value || 1))); }
 function restockCountdown() { const now = Date.now(); const next = restockWindow() + 20 * 60 * 1000; return `<t:${Math.floor(next / 1000)}:R>`; }
+function emojiUrl(emoji) { const match = String(emoji || '').match(/<a?:([A-Za-z0-9_]+):(\d+)>/); return match ? `https://cdn.discordapp.com/emojis/${match[2]}.${String(emoji).startsWith('<a:') ? 'gif' : 'png'}?quality=lossless` : null; }
+async function drawEmoji(ctx, emoji, x, y, size) { const url = emojiUrl(emoji); if (!url) return false; try { const img = await loadImage(url); ctx.drawImage(img, x, y, size, size); return true; } catch { return false; } }
+function roundRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
+function fitText(ctx, text, maxWidth, baseSize, weight = '800') { for (let size = baseSize; size >= 14; size -= 1) { ctx.font = `${weight} ${size}px sans-serif`; if (ctx.measureText(text).width <= maxWidth) return size; } return 14; }
+function itemImagePath(item) { if (!fs.existsSync(ITEM_PNG_DIR)) return null; const wanted = String(item.id || '').replace(/_/g, '').toLowerCase(); for (const file of fs.readdirSync(ITEM_PNG_DIR)) if (path.extname(file).toLowerCase() === '.png' && path.basename(file, '.png').replace(/[^a-z0-9]/gi, '').toLowerCase().includes(wanted)) return path.join(ITEM_PNG_DIR, file); return null; }
+function selectEmoji(emoji) { const match = String(emoji || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/); return match ? { name: match[1], id: match[2], animated: String(emoji).startsWith('<a:') } : undefined; }
+
+async function createShopImage(items) {
+  const canvas = createCanvas(900, 600);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#181820';
+  ctx.fillRect(0, 0, 900, 600);
+  const cols = 3;
+  const rows = 2;
+  const gap = 24;
+  const cardWidth = (900 - gap * (cols + 1)) / cols;
+  const cardHeight = (600 - gap * (rows + 1)) / rows;
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const x = gap + (index % cols) * (cardWidth + gap);
+    const y = gap + Math.floor(index / cols) * (cardHeight + gap);
+    ctx.fillStyle = '#292936';
+    roundRect(ctx, x, y, cardWidth, cardHeight, 16);
+    ctx.fill();
+    ctx.strokeStyle = item.stock > 0 ? '#5a5a70' : '#573b44';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    await drawEmoji(ctx, RARITY_EMOJI[item.rarity], x + cardWidth - 46, y + 16, 28);
+    const titleSize = fitText(ctx, item.name, cardWidth - 74, 23);
+    ctx.font = `800 ${titleSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f6f6ff';
+    ctx.fillText(item.name, x + cardWidth / 2 - 10, y + 40);
+    try {
+      const imgPath = itemImagePath(item);
+      if (imgPath) ctx.drawImage(await loadImage(imgPath), x + cardWidth / 2 - 54, y + 70, 108, 108);
+      else if (!await drawEmoji(ctx, item.emoji, x + cardWidth / 2 - 36, y + 86, 72)) {
+        ctx.font = '56px sans-serif';
+        ctx.fillStyle = '#d7d8e7';
+        ctx.fillText('?', x + cardWidth / 2, y + 140);
+      }
+    } catch {}
+    const priceText = String(item.price);
+    ctx.font = '700 22px sans-serif';
+    const labelWidth = ctx.measureText('Price: ').width;
+    const valueWidth = ctx.measureText(priceText).width;
+    const coinSize = 31;
+    const priceWidth = labelWidth + valueWidth + 8 + coinSize;
+    const priceX = x + cardWidth / 2 - priceWidth / 2;
+    const priceY = y + cardHeight - 58;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c9c9d4';
+    ctx.fillText('Price: ', priceX, priceY + 22);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(priceText, priceX + labelWidth, priceY + 22);
+    if (!await drawEmoji(ctx, FISH_COIN, priceX + labelWidth + valueWidth + 8, priceY, coinSize)) ctx.fillText('FC', priceX + labelWidth + valueWidth + 8, priceY + 22);
+    const stockText = `Stock: ${item.stock}`;
+    ctx.font = '700 17px sans-serif';
+    const stockWidth = ctx.measureText(stockText).width + 24;
+    ctx.fillStyle = '#20202a';
+    roundRect(ctx, x + cardWidth / 2 - stockWidth / 2, y + cardHeight - 30, stockWidth, 24, 12);
+    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = item.stock > 0 ? '#aeb0bd' : '#ff9a9a';
+    ctx.fillText(stockText, x + cardWidth / 2, y + cardHeight - 12);
+  }
+  return canvas.toBuffer('image/png');
+}
 
 function grantShopInventoryItem(user, item, amount) {
   user.inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory : {};
@@ -67,26 +137,27 @@ function grantShopInventoryItem(user, item, amount) {
   user.inventory[item.id] = entry;
 }
 
-function renderShop(userId, username, page = 1, message = '') {
+async function renderShop(userId, username, page = 1, message = '') {
   const stock = getUserStock(userId);
   const mapped = storeItems().map((item) => ({ ...item, price: priceFor(item), stock: stock[item.id] || 0 }));
   const paged = pageItems(mapped, page);
-  const lines = paged.items.map((item) => `### ${item.emoji} ${item.name}\n-# Price: ${item.price} ${FISH_COIN}\n-# Stock: ${item.stock}`).join('\n');
-  const options = paged.items.map((item) => ({ label: item.name, value: item.id, description: `${item.price} Fish Coins - Stock ${item.stock}` }));
+  const attachment = new AttachmentBuilder(await createShopImage(paged.items), { name: 'fishy-shop.png' });
+  const options = paged.items.map((item) => ({ label: item.name, value: item.id, description: `${item.price} Fish Coins - Stock ${item.stock}`, ...(selectEmoji(item.emoji) ? { emoji: selectEmoji(item.emoji) } : {}) }));
   return container([
-    { type: 10, content: [`## Welcome ${username} to Fishy Shop!`, `-# Restock: ${restockCountdown()}`, message, lines || '-# No items in stock list.'].filter(Boolean).join('\n') },
+    { type: 10, content: [`## Welcome ${username} to Fishy Shop!`, `-# Restock: ${restockCountdown()}`, message].filter(Boolean).join('\n') },
+    { type: 12, items: [{ media: { url: 'attachment://fishy-shop.png' } }] },
     row([button(`fishyshop:page:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1)]),
     options.length ? row([{ type: 3, custom_id: `fishyshop:select:${userId}:${paged.page}`, placeholder: 'Select an item to purchase', min_values: 1, max_values: 1, options }]) : null,
-  ]);
+  ], [attachment]);
 }
 
-async function updateReply(interaction, payload) { if (typeof interaction.update === 'function') return interaction.update(payload); await interaction.deferUpdate(); return interaction.message?.edit(payload); }
+async function updateReply(interaction, payload) { const clean = stripUndefined(payload); if (typeof interaction.update === 'function') return interaction.update(clean); await interaction.deferUpdate(); return interaction.message?.edit(clean); }
 
 const fishyShopCommand = {
   data: new SlashCommandBuilder().setName('fishy-shop').setDescription('Open the Fishy Shop'),
   suppressCommandLog: true,
   disableActionTimeout: true,
-  async execute(interaction) { await interaction.reply(renderShop(interaction.user.id, interaction.user.username)); },
+  async execute(interaction) { await interaction.reply(await renderShop(interaction.user.id, interaction.user.username)); },
   async handleInteraction(interaction) {
     const id = interaction.customId || '';
     if (!id.startsWith('fishyshop:')) return false;
@@ -94,7 +165,7 @@ const fishyShopCommand = {
     const action = parts[1];
     const userId = parts[2];
     if (interaction.user.id !== userId) { await interaction.reply({ content: 'Only the command owner can use this.', flags: EPHEMERAL_FLAG }).catch(() => null); return true; }
-    if (action === 'page' && interaction.isButton?.()) { const maxPage = Math.max(1, Number(parts[4]) || 1); const nextPage = ((Number(parts[3]) || 1) % maxPage) + 1; await updateReply(interaction, renderShop(userId, interaction.user.username, nextPage)); return true; }
+    if (action === 'page' && interaction.isButton?.()) { const maxPage = Math.max(1, Number(parts[4]) || 1); const nextPage = ((Number(parts[3]) || 1) % maxPage) + 1; await updateReply(interaction, await renderShop(userId, interaction.user.username, nextPage)); return true; }
     if (action === 'select' && interaction.isStringSelectMenu?.()) {
       const itemId = interaction.values?.[0];
       const item = ITEMS[itemId];
@@ -106,7 +177,7 @@ const fishyShopCommand = {
       if (!ok) { await interaction.reply({ content: `You do not have enough Fish Coins to buy ${item.name}.`, flags: EPHEMERAL_FLAG }); return true; }
       stock[itemId] -= 1;
       try { recordMarketBuy(itemId, 1); } catch {}
-      await updateReply(interaction, renderShop(userId, interaction.user.username, parts[3] || 1, `-# Bought 1 ${item.emoji} ${item.name} for ${cost} ${FISH_COIN}.`));
+      await updateReply(interaction, await renderShop(userId, interaction.user.username, parts[3] || 1, `-# Bought 1 ${item.emoji} ${item.name} for ${cost} ${FISH_COIN}.`));
       return true;
     }
     return false;
