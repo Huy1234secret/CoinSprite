@@ -21,6 +21,7 @@ const GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID = '1498546607686291558';
 const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
 const STAFF_ROLE_ID = '1494993523064443065';
 const CREW_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
+const UTDX_CREW_MEMBER_PLUS_ROLE_ID = '1507984807680938165';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const CUSTOM_IDS = {
@@ -47,6 +48,13 @@ const CUSTOM_IDS = {
   giveawayClaimEvidenceModalPrefix: 'ticket:giveaway-claim-evidence:',
   giveawayClaimEvidenceUpload: 'giveaway_claim_evidence_upload',
 };
+
+function getCrewMemberPlusRoleIdForGame(game) {
+  const normalizedGame = String(game || '').trim().toLowerCase();
+  return normalizedGame === 'universe tower defense x' || normalizedGame === 'utdx'
+    ? UTDX_CREW_MEMBER_PLUS_ROLE_ID
+    : CREW_MEMBER_PLUS_ROLE_ID;
+}
 
 function getTicketPanelPayload() {
   return {
@@ -327,8 +335,11 @@ function normalizeUploadedAttachment(attachment) {
 }
 
 function getUploadedAttachmentDetails(interaction) {
+  const uploadedFiles = typeof interaction?.fields?.getUploadedFiles === 'function'
+    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload) ?? []
+    : [];
   const fromFieldAccessor = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+    ? Array.from(uploadedFiles).map(normalizeUploadedAttachment).filter(Boolean)
     : [];
 
   if (fromFieldAccessor.length > 0) {
@@ -336,7 +347,7 @@ function getUploadedAttachmentDetails(interaction) {
   }
 
   const fileUploadComponent = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleEvidenceUpload);
-  const attachmentIds = fileUploadComponent?.values ?? [];
+  const attachmentIds = Array.isArray(fileUploadComponent?.values) ? fileUploadComponent.values : [];
   const resolvedAttachments = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? {};
   const fromResolved = attachmentIds
     .map((id) => normalizeUploadedAttachment(resolvedAttachments[id]))
@@ -811,7 +822,7 @@ async function handleRoleRequestReview(interaction) {
   const guild = interaction.guild;
   const member = await guild.members.fetch(request.userId).catch(() => null);
   if (member) {
-    await member.roles.add(CREW_MEMBER_PLUS_ROLE_ID).catch(() => null);
+    await member.roles.add(getCrewMemberPlusRoleIdForGame(request.game)).catch(() => null);
     await member
       .send(
         container(
@@ -979,13 +990,8 @@ module.exports = {
           title: 'Crew Member+ request',
           components: [
             {
-              type: 10,
-              content:
-                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 225%+\n* Level: 16000\n* ascension: 10\n\nPlease only press SUBMIT once and wait for bot to response!",
-            },
-            {
               type: 18,
-              label: 'Q1: What game you playing',
+              label: 'What game you playing',
               component: {
                 type: 21,
                 custom_id: CUSTOM_IDS.crewRoleGame,
@@ -1249,7 +1255,7 @@ module.exports = {
 
       const claimEvidence = (
         typeof interaction?.fields?.getUploadedFiles === 'function'
-          ? interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+          ? Array.from(interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload) ?? []).map(normalizeUploadedAttachment).filter(Boolean)
           : []
       );
       if (claimEvidence.length === 0) {
