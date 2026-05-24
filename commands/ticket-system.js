@@ -21,6 +21,7 @@ const GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID = '1498546607686291558';
 const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
 const STAFF_ROLE_ID = '1494993523064443065';
 const CREW_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
+const UTDX_CREW_MEMBER_PLUS_ROLE_ID = '1507984807680938165';
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const CUSTOM_IDS = {
@@ -47,6 +48,13 @@ const CUSTOM_IDS = {
   giveawayClaimEvidenceModalPrefix: 'ticket:giveaway-claim-evidence:',
   giveawayClaimEvidenceUpload: 'giveaway_claim_evidence_upload',
 };
+
+function getCrewMemberPlusRoleIdForGame(game) {
+  const normalizedGame = String(game || '').trim().toLowerCase();
+  return normalizedGame === 'universe tower defense x' || normalizedGame === 'utdx'
+    ? UTDX_CREW_MEMBER_PLUS_ROLE_ID
+    : CREW_MEMBER_PLUS_ROLE_ID;
+}
 
 function getTicketPanelPayload() {
   return {
@@ -814,7 +822,7 @@ async function handleRoleRequestReview(interaction) {
   const guild = interaction.guild;
   const member = await guild.members.fetch(request.userId).catch(() => null);
   if (member) {
-    await member.roles.add(CREW_MEMBER_PLUS_ROLE_ID).catch(() => null);
+    await member.roles.add(getCrewMemberPlusRoleIdForGame(request.game)).catch(() => null);
     await member
       .send(
         container(
