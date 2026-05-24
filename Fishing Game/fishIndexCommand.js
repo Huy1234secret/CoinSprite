@@ -13,7 +13,7 @@ const WHITE = 0xffffff;
 const STORE = path.join(__dirname, '..', 'data', 'fishing-game.json');
 const FISH_IMAGE_DIR = path.join(__dirname, 'Fish Png');
 const CALM_LAKE_XLSX = path.join(__dirname, 'Calm Fishing Lake.xlsx');
-const FISH_PER_PAGE = 4;
+const FISH_PER_PAGE = 6;
 const MUTATION_PER_PAGE = 9;
 
 const RARITY_EMOJI = {
@@ -24,6 +24,15 @@ const RARITY_EMOJI = {
   legendary: '<:SBLegendary:1506965206197207131>',
   mythical: '<:SBMythical:1506965209271762954>',
   secret: '<:SBSecret:1506965213881307186>',
+};
+const RARITY_CARD = {
+  common: { fill: '#292936', stroke: '#5a5a70' },
+  uncommon: { fill: '#27382f', stroke: '#8ee7a2' },
+  rare: { fill: '#243545', stroke: '#88d9ff' },
+  epic: { fill: '#3a2838', stroke: '#ffb3de' },
+  legendary: { fill: '#3b361d', stroke: '#f8df72' },
+  mythical: { fill: '#3d2428', stroke: '#ff7c7c' },
+  secret: { fill: '#241014', stroke: '#8b1f2f', gradient: ['#401018', '#17070b'] },
 };
 
 const CATEGORIES = [{ label: 'All', value: 'all' }, { label: 'Calm Fishing Lake', value: 'calm_fishing_lake' }];
@@ -81,46 +90,47 @@ function loadFishAvailability() {
 const availability = loadFishAvailability();
 function seasonText(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return 'All'; const allTimes = Object.keys(TIMES).length; return [...info.seasons.entries()].map(([season, times]) => { const seasonEmoji = SEASONS.find((item) => item.key === season)?.emoji || season; const timeText = times.size >= allTimes ? '' : ` - ${[...times].map((time) => TIMES[time] || time).join(' ')}`; return `${seasonEmoji}${timeText}`; }).join('  '); }
 function favoriteWeatherText(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return 'All'; const max = Math.max(...info.weatherWeights.values()); return [...info.weatherWeights.entries()].filter(([, weight]) => weight === max).map(([weather]) => WEATHER_EMOJIS[weather] || weather).join(' '); }
+function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
+function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
+async function drawEmojiList(ctx, emojis, x, y, size, gap = 6) { for (let index = 0; index < emojis.length; index += 1) await drawEmoji(ctx, emojis[index], x + index * (size + gap), y, size); }
+function fillCard(ctx, fish, ok, x, y, width, height, radius) { const color = RARITY_CARD[fish.rarity] || RARITY_CARD.common; if (ok && color.gradient) { const gradient = ctx.createLinearGradient(x, y, x + width, y + height); gradient.addColorStop(0, color.gradient[0]); gradient.addColorStop(1, color.gradient[1]); ctx.fillStyle = gradient; } else ctx.fillStyle = ok ? color.fill : '#22222c'; roundRect(ctx, x, y, width, height, radius); ctx.fill(); ctx.strokeStyle = ok ? color.stroke : '#444454'; ctx.lineWidth = 3; ctx.stroke(); }
 
 async function fishGallery(items, seen) {
-  const canvas = createCanvas(900, 660);
+  const canvas = createCanvas(900, 840);
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#181820';
-  ctx.fillRect(0, 0, 900, 660);
-  const gap = 24;
+  ctx.fillRect(0, 0, 900, 840);
+  const gap = 22;
   const cardWidth = (900 - gap * 3) / 2;
-  const cardHeight = (660 - gap * 3) / 2;
+  const cardHeight = (840 - gap * 4) / 3;
   for (let index = 0; index < items.length; index += 1) {
     const fish = items[index];
     const ok = seen.has(fish.id);
     const x = gap + (index % 2) * (cardWidth + gap);
     const y = gap + Math.floor(index / 2) * (cardHeight + gap);
-    ctx.fillStyle = ok ? '#292936' : '#22222c';
-    roundRect(ctx, x, y, cardWidth, cardHeight, 16);
-    ctx.fill();
-    ctx.strokeStyle = ok ? '#5a5a70' : '#444454';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    fillCard(ctx, fish, ok, x, y, cardWidth, cardHeight, 16);
     const title = ok ? fish.displayName : 'Undiscovered';
     ctx.font = `800 ${fit(ctx, title, cardWidth - 80, 27)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
     ctx.fillText(title, x + cardWidth / 2, y + 40);
     if (ok) {
-      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 32, y + 72, 112, 112); else await drawEmoji(ctx, fish.emoji, x + 54, y + 88, 72); } catch { await drawEmoji(ctx, fish.emoji, x + 54, y + 88, 72); }
+      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 28, y + 74, 96, 96); else await drawEmoji(ctx, fish.emoji, x + 44, y + 88, 70); } catch { await drawEmoji(ctx, fish.emoji, x + 44, y + 88, 70); }
     } else {
       ctx.font = '900 78px sans-serif';
       ctx.fillStyle = '#5f6070';
-      ctx.fillText('?', x + 88, y + 145);
+      ctx.fillText('?', x + 78, y + 145);
     }
     await drawEmoji(ctx, RARITY_EMOJI[fish.rarity], x + cardWidth - 54, y + 18, 30);
     ctx.textAlign = 'left';
     ctx.font = '700 18px sans-serif';
     ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
-    ctx.fillText(ok ? 'Discovered' : 'Not discovered', x + 170, y + 92);
+    ctx.fillText(ok ? 'Discovered' : 'Not discovered', x + 150, y + 88);
     ctx.font = '700 16px sans-serif';
-    ctx.fillText(`Season: ${ok ? seasonText(fish) : '???'}`, x + 170, y + 132);
-    ctx.fillText(`Fav Weather: ${ok ? favoriteWeatherText(fish) : '???'}`, x + 170, y + 170);
+    ctx.fillText('Season:', x + 150, y + 127);
+    if (ok) await drawEmojiList(ctx, seasonEmojis(fish), x + 224, y + 107, 28); else ctx.fillText('???', x + 224, y + 127);
+    ctx.fillText('Fav Weather:', x + 150, y + 171);
+    if (ok) await drawEmojiList(ctx, favoriteWeatherEmojis(fish), x + 260, y + 151, 28); else ctx.fillText('???', x + 260, y + 171);
   }
   return canvas.toBuffer('image/png');
 }
@@ -160,7 +170,11 @@ async function mutationGallery(items, seen) {
     ctx.font = '700 17px sans-serif';
     ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
     ctx.fillText(`Multi Boost: ${boost}`, x + 22, y + 118);
-    ctx.fillText(`Weather: ${ok ? (WEATHER_EMOJIS[mutation.weather] || FISH_EVENTS.attack_of_fish.emoji || mutation.weather) : '???'}`, x + 22, y + 154);
+    ctx.fillText('Weather:', x + 22, y + 154);
+    if (ok) {
+      const weatherEmoji = WEATHER_EMOJIS[mutation.weather] || FISH_EVENTS.attack_of_fish.emoji;
+      if (!await drawEmoji(ctx, weatherEmoji, x + 102, y + 133, 28)) ctx.fillText(mutation.weather, x + 102, y + 154);
+    } else ctx.fillText('???', x + 102, y + 154);
   }
   return canvas.toBuffer('image/png');
 }
