@@ -26,7 +26,7 @@ const FISH_EVENTS = {
   },
   attack_of_fish: {
     name: 'Attack of Fish',
-    emoji: '<:SBEAttackOfFish:150778638848098454>',
+    emoji: '<:SBEAttackOfFish:1507787638848098454>',
     description: 'Fish getting fat!',
     giantChance: 0.5,
   },
