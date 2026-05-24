@@ -4,7 +4,7 @@ const zlib = require('zlib');
 const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { FISH, FISH_BY_NAME, normalizeId, normalizeName } = require('./Data/FishData');
-const { ALL_MUTATIONS, COLUMN_MAP, SEASONS, TIMES, WEATHER_EMOJIS } = require('./Data/WeatherData');
+const { ALL_MUTATIONS, COLUMN_MAP, SEASONS, TIMES, WEATHER_CHANCES, WEATHER_EMOJIS } = require('./Data/WeatherData');
 const { FISH_EVENTS } = require('./Data/FishingRuntimeData');
 
 const FLAGS = MessageFlags.IsComponentsV2 ?? 32768;
@@ -65,12 +65,40 @@ function decodeXml(value) { return String(value || '').replace(/&lt;/g, '<').rep
 function parseSharedStrings(xml) { const strings = []; for (const match of xml.matchAll(/<si\b[\s\S]*?<\/si>/g)) strings.push([...match[0].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join('')); return strings; }
 function parseSheetCells(xml, sharedStrings) { const cells = new Map(); for (const match of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) { const attrs = match[1]; const body = match[2]; const ref = /r="([^"]+)"/.exec(attrs)?.[1]; if (!ref) continue; const type = /t="([^"]+)"/.exec(attrs)?.[1]; const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? ''; const inline = /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1]; let value = raw; if (type === 's') value = sharedStrings[Number(raw)] ?? ''; else if (type === 'inlineStr') value = decodeXml(inline || ''); cells.set(ref, decodeXml(value)); } return cells; }
 function readXlsxCells(filePath) { const files = unzipXlsx(fs.readFileSync(filePath)); const sharedStrings = parseSharedStrings(files.get('xl/sharedStrings.xml') || ''); const sheetName = files.has('xl/worksheets/sheet1.xml') ? 'xl/worksheets/sheet1.xml' : [...files.keys()].find((name) => name.startsWith('xl/worksheets/sheet')); return parseSheetCells(files.get(sheetName) || '', sharedStrings); }
+const RARITY_WEATHER_BONUS = {
+  common: { Sunny: 1.55, Rain: 1.25, Windy: 1.1 },
+  uncommon: { Rain: 1.5, Sunny: 1.2, Fog: 1.15, Windy: 1.1 },
+  rare: { Fog: 1.45, Rain: 1.35, Windy: 1.25, Storm: 1.15 },
+  epic: { Storm: 1.55, Thunderstorm: 1.35, Fog: 1.25 },
+  legendary: { Thunderstorm: 1.65, 'Full Moon Night': 1.45, Bloodmoon: 1.3, Storm: 1.2 },
+  mythical: { Bloodmoon: 1.75, Thunderstorm: 1.55, 'Full Moon Night': 1.35 },
+  secret: { Bloodmoon: 2, Thunderstorm: 1.65, 'Full Moon Night': 1.45 },
+};
+
+function pairKey(weather, season) { return `${weather}|${season}`; }
+function stableHash(value) { let hash = 0; for (const char of String(value || '')) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0; return hash; }
+function fallbackAvailability() {
+  const result = new Map();
+  for (const fish of FISH) {
+    const info = { seasons: new Map(SEASONS.map((season) => [season.key, new Set(Object.keys(TIMES))])), weatherWeights: new Map(), weatherSeasonWeights: new Map() };
+    const bonuses = RARITY_WEATHER_BONUS[fish.rarity] || RARITY_WEATHER_BONUS.common;
+    for (const [season, times] of Object.entries(WEATHER_CHANCES)) for (const weatherList of Object.values(times)) for (const [weather, chance] of weatherList) {
+      const bias = 1 + ((stableHash(`${fish.id}:${season}:${weather}`) % 21) / 100);
+      const score = Number(chance) * (bonuses[weather] || 0.65) * bias;
+      info.weatherWeights.set(weather, (info.weatherWeights.get(weather) || 0) + score);
+      const key = pairKey(weather, season);
+      info.weatherSeasonWeights.set(key, (info.weatherSeasonWeights.get(key) || 0) + score);
+    }
+    result.set(fish.id, info);
+  }
+  return result;
+}
 function loadFishAvailability() {
-  const fallback = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(SEASONS.map((season) => [season.key, new Set(Object.keys(TIMES))])), weatherWeights: new Map() }]));
+  const fallback = fallbackAvailability();
   if (!fs.existsSync(CALM_LAKE_XLSX)) return fallback;
   try {
     const cells = readXlsxCells(CALM_LAKE_XLSX);
-    const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map() }]));
+    const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map(), weatherSeasonWeights: new Map() }]));
     for (const [season, times] of Object.entries(COLUMN_MAP)) for (const [time, weathers] of Object.entries(times)) for (const [weather, column] of Object.entries(weathers)) {
       for (let rowNo = 4; rowNo <= 16; rowNo += 1) {
         const fish = FISH_BY_NAME.get(normalizeName(cells.get(`A${rowNo}`)));
@@ -80,8 +108,11 @@ function loadFishAvailability() {
         if (!info.seasons.has(season)) info.seasons.set(season, new Set());
         info.seasons.get(season).add(time);
         info.weatherWeights.set(weather, (info.weatherWeights.get(weather) || 0) + weight);
+        const key = pairKey(weather, season);
+        info.weatherSeasonWeights.set(key, (info.weatherSeasonWeights.get(key) || 0) + weight);
       }
     }
+    for (const [fishId, info] of result.entries()) if (!info.weatherSeasonWeights.size) result.set(fishId, fallback.get(fishId));
     return result;
   } catch {
     return fallback;
@@ -92,7 +123,9 @@ function seasonText(fish) { const info = availability.get(fish.id); if (!info ||
 function favoriteWeatherText(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return 'All'; const max = Math.max(...info.weatherWeights.values()); return [...info.weatherWeights.entries()].filter(([, weight]) => weight === max).map(([weather]) => WEATHER_EMOJIS[weather] || weather).join(' '); }
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
+function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return [...info.weatherSeasonWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key]) => { const [weather, season] = key.split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: SEASONS.find((item) => item.key === season)?.emoji }; }).filter((pair) => pair.weatherEmoji && pair.seasonEmoji); }
 async function drawEmojiList(ctx, emojis, x, y, size, gap = 6) { for (let index = 0; index < emojis.length; index += 1) await drawEmoji(ctx, emojis[index], x + index * (size + gap), y, size); }
+async function drawWeatherPairs(ctx, pairs, x, y, size) { let cursor = x; ctx.font = '700 18px sans-serif'; ctx.fillStyle = '#d7d8e7'; for (const pair of pairs) { await drawEmoji(ctx, pair.weatherEmoji, cursor, y, size); cursor += size + 5; ctx.fillText('[', cursor, y + size - 6); cursor += 10; await drawEmoji(ctx, pair.seasonEmoji, cursor, y, size); cursor += size + 2; ctx.fillText(']', cursor, y + size - 6); cursor += 18; } }
 function fillCard(ctx, fish, ok, x, y, width, height, radius) { const color = RARITY_CARD[fish.rarity] || RARITY_CARD.common; if (ok && color.gradient) { const gradient = ctx.createLinearGradient(x, y, x + width, y + height); gradient.addColorStop(0, color.gradient[0]); gradient.addColorStop(1, color.gradient[1]); ctx.fillStyle = gradient; } else ctx.fillStyle = ok ? color.fill : '#22222c'; roundRect(ctx, x, y, width, height, radius); ctx.fill(); ctx.strokeStyle = ok ? color.stroke : '#444454'; ctx.lineWidth = 3; ctx.stroke(); }
 
 async function fishGallery(items, seen) {
@@ -130,7 +163,7 @@ async function fishGallery(items, seen) {
     ctx.fillText('Season:', x + 150, y + 127);
     if (ok) await drawEmojiList(ctx, seasonEmojis(fish), x + 224, y + 107, 28); else ctx.fillText('???', x + 224, y + 127);
     ctx.fillText('Fav Weather:', x + 150, y + 171);
-    if (ok) await drawEmojiList(ctx, favoriteWeatherEmojis(fish), x + 260, y + 151, 28); else ctx.fillText('???', x + 260, y + 171);
+    if (ok) await drawWeatherPairs(ctx, favoriteWeatherPairs(fish), x + 260, y + 151, 28); else ctx.fillText('???', x + 260, y + 171);
   }
   return canvas.toBuffer('image/png');
 }

@@ -21,6 +21,11 @@ const ITEMS = {
     powerMin: 6,
     powerMax: 10,
     durability: 55,
+    shopStock: [
+      { amount: 1, chance: 50 },
+      { amount: 2, chance: 30 },
+      { amount: 3, chance: 20 },
+    ],
   },
   steel_fishing_rod: {
     id: 'steel_fishing_rod',
@@ -32,6 +37,11 @@ const ITEMS = {
     powerMin: 12,
     powerMax: 15,
     durability: 110,
+    shopStock: [
+      { amount: 1, chance: 60 },
+      { amount: 2, chance: 30 },
+      { amount: 3, chance: 10 },
+    ],
   },
   carbon_fishing_rod: {
     id: 'carbon_fishing_rod',
@@ -43,6 +53,11 @@ const ITEMS = {
     powerMin: 18,
     powerMax: 25,
     durability: 200,
+    shopStock: [
+      { amount: 0, chance: 25 },
+      { amount: 1, chance: 60 },
+      { amount: 2, chance: 15 },
+    ],
   },
 };
 
