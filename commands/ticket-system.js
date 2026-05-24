@@ -327,8 +327,11 @@ function normalizeUploadedAttachment(attachment) {
 }
 
 function getUploadedAttachmentDetails(interaction) {
+  const uploadedFiles = typeof interaction?.fields?.getUploadedFiles === 'function'
+    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload) ?? []
+    : [];
   const fromFieldAccessor = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+    ? Array.from(uploadedFiles).map(normalizeUploadedAttachment).filter(Boolean)
     : [];
 
   if (fromFieldAccessor.length > 0) {
@@ -336,7 +339,7 @@ function getUploadedAttachmentDetails(interaction) {
   }
 
   const fileUploadComponent = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleEvidenceUpload);
-  const attachmentIds = fileUploadComponent?.values ?? [];
+  const attachmentIds = Array.isArray(fileUploadComponent?.values) ? fileUploadComponent.values : [];
   const resolvedAttachments = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? {};
   const fromResolved = attachmentIds
     .map((id) => normalizeUploadedAttachment(resolvedAttachments[id]))
@@ -979,13 +982,8 @@ module.exports = {
           title: 'Crew Member+ request',
           components: [
             {
-              type: 10,
-              content:
-                "Besure to meet the requirement:\n* Dmg: 1000%+\n* CritC: 70%+\n* CritD: 225%+\n* Level: 16000\n* ascension: 10\n\nPlease only press SUBMIT once and wait for bot to response!",
-            },
-            {
               type: 18,
-              label: 'Q1: What game you playing',
+              label: 'What game you playing',
               component: {
                 type: 21,
                 custom_id: CUSTOM_IDS.crewRoleGame,
@@ -1249,7 +1247,7 @@ module.exports = {
 
       const claimEvidence = (
         typeof interaction?.fields?.getUploadedFiles === 'function'
-          ? interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload).map(normalizeUploadedAttachment).filter(Boolean)
+          ? Array.from(interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload) ?? []).map(normalizeUploadedAttachment).filter(Boolean)
           : []
       );
       if (claimEvidence.length === 0) {
