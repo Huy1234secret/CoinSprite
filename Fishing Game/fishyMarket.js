@@ -4,7 +4,7 @@ const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discor
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const fishing = require('./fishingFeature');
 
-const { ITEMS, FISH, FISH_BY_ID, getUser, updateUser, inventoryCommand: featureInventoryCommand, fishBarrelCommand: featureFishBarrelCommand } = fishing;
+const { ITEMS, FISH, FISH_BY_ID, VARIANT_MULTIPLIER, getUser, updateUser, inventoryCommand: featureInventoryCommand, fishBarrelCommand: featureFishBarrelCommand } = fishing;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const WHITE = 0xffffff;
@@ -18,7 +18,6 @@ const CHART_DIR = path.join(__dirname, 'Value Charts');
 const PAGE_SIZE = 5;
 const TEXT_INPUT = 4;
 const RARITY_EMOJI = { common: '<:SBCommon:1506965202585780274>', uncommon: '<:SBUncommon:1506965215743447040>', rare: '<:SBRare:1506965211607994461>', epic: '<:SBEpic:1506965204624474153>', legendary: '<:SBLegendary:1506965206197207131>', mythical: '<:SBMythical:1506965209271762954>', secret: '<:SBSecret:1506965213881307186>' };
-const VARIANT_MULTIPLIER = { Normal: 1, Golden: 2, Rainbow: 5 };
 
 function emptyState() { return { users: {}, weather: {}, forecasts: {}, events: { active: {} }, market: { entries: {}, lastUpdateAt: 0 } }; }
 function ensureStoreFile() { const dir = path.dirname(STORE_PATH); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE_PATH)) fs.writeFileSync(STORE_PATH, JSON.stringify(emptyState(), null, 2), 'utf8'); }
