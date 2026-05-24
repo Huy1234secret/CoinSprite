@@ -558,11 +558,10 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
 
   const ticketId = getNextTicketId(state, guild.id);
   const channelName = `${channelBaseName}-${ticketId}`;
-
-  const ticketChannel = await guild.channels.create({
+  const ticketCategory = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
+  const channelOptions = {
     name: sanitizeChannelName(channelName),
     type: ChannelType.GuildText,
-    parent: TICKET_CATEGORY_ID,
     permissionOverwrites: [
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
@@ -574,7 +573,13 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
       },
     ],
-  });
+  };
+
+  if (ticketCategory?.type === ChannelType.GuildCategory) {
+    channelOptions.parent = ticketCategory.id;
+  }
+
+  const ticketChannel = await guild.channels.create(channelOptions);
 
   state.tickets[ticketChannel.id] = {
     guildId: guild.id,
