@@ -199,7 +199,8 @@ function getGiveawayClaimButtonRow(customId, disabled = false) {
 }
 
 function formatUploadedFileList(uploadedEvidence) {
-  const list = uploadedEvidence
+  const list = (Array.isArray(uploadedEvidence) ? uploadedEvidence : [])
+    .filter((item) => isValidUploadUrl(item?.url))
     .slice(0, 10)
     .map((item, index) => `- [${sanitizeAttachmentName(item.filename, index)}](${item.url})`)
     .join('\n');
@@ -208,7 +209,8 @@ function formatUploadedFileList(uploadedEvidence) {
 }
 
 function getUploadedMediaGallery(uploadedEvidence) {
-  const items = uploadedEvidence
+  const items = (Array.isArray(uploadedEvidence) ? uploadedEvidence : [])
+    .filter((item) => isValidUploadUrl(item?.url))
     .slice(0, 10)
     .map((item, index) => ({
       media: { url: item.url },
@@ -326,12 +328,31 @@ function normalizeUploadedAttachment(attachment) {
     return null;
   }
 
+  const url = attachment.url || attachment.proxyURL || attachment.proxy_url || attachment.attachment;
+  if (!isValidUploadUrl(url)) {
+    return null;
+  }
+
   return {
     id: attachment.id,
-    url: attachment.url,
+    url,
     contentType: attachment.contentType || attachment.content_type || '',
-    filename: attachment.name || attachment.filename || getFilenameFromUrl(attachment.url),
+    filename: attachment.name || attachment.filename || getFilenameFromUrl(url),
   };
+}
+
+function isValidUploadUrl(url) {
+  return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
+function getUploadedEvidenceFiles(uploadedEvidence) {
+  return (Array.isArray(uploadedEvidence) ? uploadedEvidence : [])
+    .filter((item) => isValidUploadUrl(item?.url))
+    .slice(0, 10)
+    .map((item, index) => ({
+      attachment: item.url,
+      name: sanitizeAttachmentName(item.filename, index),
+    }));
 }
 
 function getUploadedAttachmentDetails(interaction) {
@@ -1063,10 +1084,7 @@ module.exports = {
       };
       saveState(state);
 
-      const files = uploadedEvidence.slice(0, 10).map((item, index) => ({
-        attachment: item.url,
-        name: sanitizeAttachmentName(item.filename, index),
-      }));
+      const files = getUploadedEvidenceFiles(uploadedEvidence);
 
       const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
@@ -1084,7 +1102,7 @@ module.exports = {
 
       await reviewChannel.send({
         flags: COMPONENTS_V2_FLAG,
-        files,
+        ...(files.length ? { files } : {}),
         components: [
           ...getRoleRequestReviewMessageComponents({
             userId: interaction.user.id,
@@ -1269,14 +1287,11 @@ module.exports = {
 
       const reviewChannel = await interaction.guild.channels.fetch(GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
       if (reviewChannel?.isTextBased()) {
-        const files = claimEvidence.slice(0, 10).map((item, index) => ({
-          attachment: item.url,
-          name: sanitizeAttachmentName(item.filename, index),
-        }));
+        const files = getUploadedEvidenceFiles(claimEvidence);
 
         await reviewChannel.send({
           content: `Claim proof for <@${request.userId}>'s giveaway request (${requestId})`,
-          files,
+          ...(files.length ? { files } : {}),
         }).catch(() => null);
       }
 

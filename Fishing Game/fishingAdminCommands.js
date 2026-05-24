@@ -7,6 +7,7 @@ const runtime = require('./fishingFeature');
 const STORE_PATH = path.join(__dirname, '..', 'data', 'fishing-game.json');
 const LOCATION = 'Calm Fishing Lake';
 const EPH = MessageFlags.Ephemeral ?? 64;
+const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const WHITE = 0xffffff;
 
 function emptyState() { return { users: {}, weather: {}, forecasts: {}, events: { active: {} } }; }
@@ -15,7 +16,7 @@ function loadState() { ensureStoreFile(); try { return { ...emptyState(), ...JSO
 function saveState(state) { ensureStoreFile(); fs.writeFileSync(STORE_PATH, JSON.stringify({ ...emptyState(), ...state }, null, 2), 'utf8'); }
 function parseDuration(value, fallbackMs = weatherData.WEATHER_DURATION_MS) { const raw = String(value || '').trim().toLowerCase(); if (!raw) return fallbackMs; const match = raw.match(/^(\d+(?:\.\d+)?)(s|sec|secs|m|min|mins|h|hr|hrs|d|day|days)?$/); if (!match) return fallbackMs; const n = Number(match[1]); const unit = match[2] || 'm'; const mult = unit.startsWith('s') ? 1000 : unit.startsWith('h') ? 3600000 : unit.startsWith('d') ? 86400000 : 60000; return Math.max(1000, Math.floor(n * mult)); }
 function seasonTime(now = new Date()) { const utc7 = now.getTime() + (7 * 60 * 60 * 1000); const day = Math.floor(utc7 / 86_400_000); const hour = Math.floor((utc7 % 86_400_000) / 3_600_000); const season = weatherData.SEASONS[Math.floor(day / 2) % weatherData.SEASONS.length]; const timeKey = ['Morning', 'Noon', 'Afternoon', 'Night'][Math.floor((hour % 12) / 3)]; return { season, time: { key: timeKey, emoji: weatherData.TIMES[timeKey] } }; }
-function payload(content) { return { flags: EPH, components: [{ type: 17, accent_color: WHITE, components: [{ type: 10, content }] }] }; }
+function payload(content) { return { flags: COMPONENTS_V2_FLAG | EPH, components: [{ type: 17, accent_color: WHITE, components: [{ type: 10, content }] }] }; }
 function isAdmin(interaction) { return Boolean(interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)); }
 function weatherChoices() { return [...Object.keys(weatherData.WEATHER_EMOJIS), ...Object.keys(runtime.ADMIN_WEATHER || {})].map((name) => ({ name, value: name })).slice(0, 25); }
 function eventChoices() { return Object.entries(runtime.FISH_EVENTS || {}).map(([id, event]) => ({ name: event.name, value: id })).slice(0, 25); }
