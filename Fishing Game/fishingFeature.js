@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { FISH, FISH_BY_ID, RARITY_BUTTONS, RARITY_WEIGHTS, VARIANTS } = require('./Data/FishData');
+const { FISH, FISH_BY_ID, RARITY_BUTTONS, RARITY_WEIGHTS, VARIANTS, VARIANT_MULTIPLIER } = require('./Data/FishData');
 const { ITEMS } = require('./Data/Item Data');
 const weatherData = require('./Data/WeatherData');
 const { ADMIN_WEATHER, FISH_EVENTS, GIANT_MUTATION } = require('./Data/FishingRuntimeData');
@@ -190,4 +190,4 @@ const inventoryCommand = { data: new SlashCommandBuilder().setName('inventory').
 const fishBarrelCommand = { data: new SlashCommandBuilder().setName('fish-barrel').setDescription('Show your Fish Barrel'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderFishBarrel(interaction.user.id, interaction.user.username)); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 const fishBalanceCommand = { data: new SlashCommandBuilder().setName('fish-balance').setDescription('Show your Fish Coin balance'), suppressCommandLog: true, async execute(interaction) { const user = getUser(interaction.user.id); await interaction.reply(container(WHITE, [{ type: 10, content: [`### ${interaction.user.username}'s Fish Balance`, `* ${user.fishCoins.toLocaleString('en-US')} ${FISH_COIN}`].join('\n') }])); }, async handleInteraction(interaction) { return handleFishingInteraction(interaction); } };
 
-module.exports = { ITEMS, FISH, FISH_BY_ID, ADMIN_WEATHER, FISH_EVENTS, activeEvents, cleanupEvents, getCurrentWeather, maybeEditWeatherForecast, getUser, updateUser, fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };
+module.exports = { ITEMS, FISH, FISH_BY_ID, VARIANTS, VARIANT_MULTIPLIER, ADMIN_WEATHER, FISH_EVENTS, activeEvents, cleanupEvents, getCurrentWeather, maybeEditWeatherForecast, getUser, updateUser, fishCommand, inventoryCommand, fishBarrelCommand, fishBalanceCommand };
