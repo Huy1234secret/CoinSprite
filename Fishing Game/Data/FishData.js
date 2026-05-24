@@ -1,6 +1,6 @@
 const FISH_EMOJI = '<:SBFish:1506659437165936690>';
 const GOLDEN_FISH_EMOJI = '<:SBGoldenFish:1506659439502168245>';
-const RAINBOW_FISH_EMOJI = '<:SBRainbowFish:1507787647450480680>';
+const RAINBOW_FISH_EMOJI = '<:SBRainbowFish:1506660311380398211>';
 
 function normalizeId(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
