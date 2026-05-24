@@ -56,6 +56,8 @@ function renderItemMarket(userId, page = 1, message = '-# **Anything you sold wi
 function chartRecords(state, userId, type) { if (type === 'fish') return FISH.map((fish) => ({ id: fish.id, name: fish.displayName || fish.name, emoji: fish.emoji })); return itemRecords(getUser(userId)).map((record) => ({ id: record.itemId, name: record.item.name, emoji: record.item.emoji })); }
 function chartPathFor(type, id) { if (!fs.existsSync(CHART_DIR)) fs.mkdirSync(CHART_DIR, { recursive: true }); return path.join(CHART_DIR, `${type}-${normalizeId(id)}.png`); }
 function formatNumber(value) { const num = Number(value) || 0; if (Math.abs(num) >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm'; if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k'; return String(Math.round(num)); }
+function formatSignedNumber(value) { const num = Number(value) || 0; if (!num) return '0'; return `${num > 0 ? '+' : ''}${formatNumber(num)}`; }
+function drawStatCard(ctx, label, value, color, x, y, width, height) { ctx.save(); const cardBg = ctx.createLinearGradient(x, y, x + width, y + height); cardBg.addColorStop(0, '#29364d'); cardBg.addColorStop(1, '#1f293c'); ctx.fillStyle = cardBg; ctx.beginPath(); ctx.roundRect(x, y, width, height, 12); ctx.fill(); ctx.strokeStyle = '#34465f'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.textAlign = 'left'; ctx.font = '800 12px Arial'; ctx.fillStyle = '#94a3b8'; ctx.fillText(String(label).toUpperCase(), x + 13, y + 21); ctx.font = '900 22px Arial'; ctx.fillStyle = color; ctx.fillText(String(value), x + 13, y + 49); ctx.restore(); }
 function emojiUrl(emoji) { const match = String(emoji || '').match(/<a?:([A-Za-z0-9_]+):(\d+)>/); return match ? `https://cdn.discordapp.com/emojis/${match[2]}.${String(emoji).startsWith('<a:') ? 'gif' : 'png'}?quality=lossless` : null; }
 async function drawEmoji(ctx, emoji, x, y, size) { try { const url = emojiUrl(emoji); if (!url) return false; const image = await loadImage(url); ctx.drawImage(image, x, y, size, size); return true; } catch { return false; } }
 async function renderChartImage(entry, title) {
@@ -83,23 +85,12 @@ async function renderChartImage(entry, title) {
   ctx.fillText(title, 42, 90);
 
   const stats = [
-    ['Base', entry.baseValue, '#cbd5e1'],
-    ['Top', high, '#86efac'],
-    ['Low', low, '#fca5a5'],
-    ['Trend', `${trend >= 0 ? '+' : ''}${formatNumber(trend)}`, trend > 0 ? '#86efac' : trend < 0 ? '#fca5a5' : '#cbd5e1'],
+    ['Low', formatNumber(low), '#fca5a5'],
+    ['High', formatNumber(high), '#86efac'],
+    ['Base', formatNumber(entry.baseValue), '#cbd5e1'],
+    ['Trend', formatSignedNumber(trend), trend > 0 ? '#86efac' : trend < 0 ? '#fca5a5' : '#cbd5e1'],
   ];
-  stats.forEach(([label, value, color], index) => {
-    const x = 430 + index * 112;
-    ctx.fillStyle = '#243044';
-    ctx.roundRect(x, 32, 96, 58, 10);
-    ctx.fill();
-    ctx.font = '700 13px Arial';
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(label, x + 12, 54);
-    ctx.font = '800 22px Arial';
-    ctx.fillStyle = color;
-    ctx.fillText(formatNumber(value), x + 12, 79);
-  });
+  stats.forEach(([label, value, color], index) => drawStatCard(ctx, label, value, color, 430 + index * 112, 32, 96, 58));
 
   ctx.strokeStyle = '#334155';
   ctx.lineWidth = 1;
@@ -167,7 +158,7 @@ async function renderChartImage(entry, title) {
   ctx.textAlign = 'left';
   ctx.font = '700 14px Arial';
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText('Current coin', chart.x, 430);
+  ctx.fillText('Current coin', 42, 430);
   ctx.fillStyle = '#f8fafc';
   ctx.font = '800 24px Arial';
   const currentText = formatNumber(entry.currentValue);
