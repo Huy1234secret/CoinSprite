@@ -9,6 +9,7 @@ const LOCATION = 'Calm Fishing Lake';
 const EPH = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const WHITE = 0xffffff;
+const DEFAULT_WEATHERS = new Set(['sunny', 'night clear sky', 'clear night sky']);
 
 function emptyState() { return { users: {}, weather: {}, forecasts: {}, events: { active: {} } }; }
 function ensureStoreFile() { const dir = path.dirname(STORE_PATH); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE_PATH)) fs.writeFileSync(STORE_PATH, JSON.stringify(emptyState(), null, 2), 'utf8'); }
@@ -18,6 +19,7 @@ function parseDuration(value, fallbackMs = weatherData.WEATHER_DURATION_MS) { co
 function seasonTime(now = new Date()) { const utc7 = now.getTime() + (7 * 60 * 60 * 1000); const day = Math.floor(utc7 / 86_400_000); const hour = Math.floor((utc7 % 86_400_000) / 3_600_000); const season = weatherData.SEASONS[Math.floor(day / 2) % weatherData.SEASONS.length]; const timeKey = ['Morning', 'Noon', 'Afternoon', 'Night'][Math.floor((hour % 12) / 3)]; return { season, time: { key: timeKey, emoji: weatherData.TIMES[timeKey] } }; }
 function payload(content) { return { flags: COMPONENTS_V2_FLAG | EPH, components: [{ type: 17, accent_color: WHITE, components: [{ type: 10, content }] }] }; }
 function isAdmin(interaction) { return Boolean(interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)); }
+function isDefaultWeather(name) { return DEFAULT_WEATHERS.has(String(name || '').trim().toLowerCase()); }
 function weatherChoices() { return [...Object.keys(weatherData.WEATHER_EMOJIS), ...Object.keys(runtime.ADMIN_WEATHER || {})].map((name) => ({ name, value: name })).slice(0, 25); }
 function eventChoices() { return Object.entries(runtime.FISH_EVENTS || {}).map(([id, event]) => ({ name: event.name, value: id })).slice(0, 25); }
 
@@ -36,7 +38,7 @@ const fishWeatherStartCommand = {
     const state = loadState();
     const now = Date.now();
     const current = state.weather?.[LOCATION];
-    const allowedOverride = name === 'Sunny' || name === 'Night Clear Sky';
+    const allowedOverride = isDefaultWeather(name) || isDefaultWeather(current?.weather);
     if (current && Number(current.endsAt) > now && !allowedOverride) return interaction.reply(payload(`A weather is already active: **${current.weather}**. Wait for it to end first.`));
     const { season, time } = seasonTime();
     const emoji = runtime.ADMIN_WEATHER?.[name]?.emoji || weatherData.WEATHER_EMOJIS[name] || '';
