@@ -827,7 +827,7 @@ async function handleRoleRequestReview(interaction) {
       .send(
         container(
           0x00ff00,
-          'Your **⭐Crew Member+** role request has been accepted!'
+          'Your **Request Join Guild** ticket has been accepted!'
         ),
       )
       .catch(() => null);
