@@ -17,10 +17,10 @@ const ITEMS = {
     emoji: '<:IGBambooFishingRod:1507183020485120120>',
     type: 'Gear/Tool',
     rarity: 'common',
-    value: 450,
+    value: 350,
     powerMin: 6,
     powerMax: 10,
-    durability: 55,
+    durability: 100,
     shopStock: [
       { amount: 1, chance: 50 },
       { amount: 2, chance: 30 },
@@ -36,7 +36,7 @@ const ITEMS = {
     value: 1650,
     powerMin: 12,
     powerMax: 15,
-    durability: 110,
+    durability: 220,
     shopStock: [
       { amount: 1, chance: 60 },
       { amount: 2, chance: 30 },
@@ -52,7 +52,7 @@ const ITEMS = {
     value: 6000,
     powerMin: 18,
     powerMax: 25,
-    durability: 200,
+    durability: 350,
     shopStock: [
       { amount: 0, chance: 25 },
       { amount: 1, chance: 60 },
