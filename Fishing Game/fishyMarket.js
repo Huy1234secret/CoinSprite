@@ -30,7 +30,7 @@ function pageItems(items, page) { const maxPage = Math.max(1, Math.ceil(items.le
 function row(components) { return { type: 1, components }; }
 function sep() { return { type: 14, divider: true, spacing: 1 }; }
 function button(customId, label, style = BUTTON_SECONDARY, disabled = false) { return { type: 2, custom_id: customId, label, style, disabled }; }
-function stripUndefined(value) { if (Array.isArray(value)) return value.map(stripUndefined).filter((entry) => entry !== undefined); if (!value || typeof value !== 'object') return value; const out = {}; for (const [key, entry] of Object.entries(value)) if (entry !== undefined) out[key] = stripUndefined(entry); return out; }
+function stripUndefined(value) { if (Buffer.isBuffer(value) || value instanceof AttachmentBuilder) return value; if (Array.isArray(value)) return value.map(stripUndefined).filter((entry) => entry !== undefined); if (!value || typeof value !== 'object') return value; const out = {}; for (const [key, entry] of Object.entries(value)) if (entry !== undefined) out[key] = key === 'files' ? entry : stripUndefined(entry); return out; }
 function symbolAttachment(fileName, files) { const imagePath = path.join(SYMBOL_DIR, fileName); if (!fs.existsSync(imagePath)) return null; files.push(new AttachmentBuilder(imagePath, { name: fileName })); return fileName; }
 function withThumbnail(components, fileName) { if (!fileName || !components[0] || components[0].type !== 10) return components; const [first, ...rest] = components; return [{ type: 9, components: [first], accessory: { type: 11, media: { url: `attachment://${fileName}` } } }, ...rest]; }
 function container(components, files = []) { return stripUndefined({ flags: COMPONENTS_V2_FLAG, files, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }); }
@@ -52,11 +52,127 @@ function renderFishLine(state, record) { const value = fishTotalValue(state, rec
 function renderItemLine(state, record) { const amount = Math.max(0, Math.floor(Number(record.entry.amount) || 0)); const value = Math.max(1, Math.floor(marketValue(state, 'item', record.itemId) * 0.25)); return `### x${amount} ${record.item.emoji} ${record.item.name}\n-# Rarity: ${rarityLabel(record.item.rarity)} - Type: ${record.item.type}\n-# Sell Value: **${value * amount} ${FISH_COIN}**`; }
 function renderHome(userId) { const files = []; const thumb = symbolAttachment('SBFishSellMarket.png', files); return container(withThumbnail([{ type: 10, content: '## Welcome to Fishy Market!\n-# Select a category.' }, sep(), categorySelect(userId)], thumb), files); }
 function renderFishMarket(userId, page = 1, message = '-# **Anything you sold will appear here**') { const state = loadState(); const user = getUser(userId); const files = []; const thumb = symbolAttachment('SBFishSellMarket.png', files); const paged = pageItems(fishRecords(user), page); const rows = [{ type: 10, content: '## Welcome to Fish Selling Market!' }]; for (const record of paged.items) rows.push({ type: 9, components: [{ type: 10, content: renderFishLine(state, record) }], accessory: button(`fm:sellfish:${userId}:${record.entry.id || record.index}:${paged.page}`, record.entry.locked ? 'Locked' : 'Sell', record.entry.locked ? BUTTON_SECONDARY : BUTTON_DANGER, Boolean(record.entry.locked)) }); if (!paged.items.length) rows.push({ type: 10, content: '-# No fish found.' }); rows.push(sep(), { type: 10, content: message }, row([button(`fm:fishpage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:sellfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'fish')); saveState(state); return container(withThumbnail(rows, thumb), files); }
-function renderItemMarket(userId, page = 1, message = '-# **Anything you sold will appear here**') { const state = loadState(); const user = getUser(userId); const files = []; const thumb = symbolAttachment('SBItemSellMarket.png', files); const paged = pageItems(itemRecords(user), page); const rows = [{ type: 10, content: '## Welcome to Item Selling Market!' }]; for (const record of paged.items) { const unsellable = record.item.unsellable || record.item.id === 'wooden_fishing_rod'; rows.push({ type: 9, components: [{ type: 10, content: renderItemLine(state, record) }], accessory: button(`fm:sellitem:${userId}:${record.itemId}:${paged.page}`, unsellable ? 'Unsellable' : 'Sell', unsellable ? BUTTON_SECONDARY : BUTTON_DANGER, unsellable) }); } if (!paged.items.length) rows.push({ type: 10, content: '-# No items found.' }); rows.push(sep(), { type: 10, content: message }, row([button(`fm:itempage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:itemfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'item')); saveState(state); return container(withThumbnail(rows, thumb), files); }
+function renderItemMarket(userId, page = 1, message = '-# **Anything you sold will appear here**') { const state = loadState(); const user = getUser(userId); const files = []; const thumb = symbolAttachment('SBItemSellMarket.png', files); const paged = pageItems(itemRecords(user), page); const rows = [{ type: 10, content: '## Welcome to Item Selling Market!' }]; for (const record of paged.items) { const unsellable = record.item.unsellable || record.item.id === 'wooden_fishing_rod'; const locked = Boolean(record.entry.locked); rows.push({ type: 9, components: [{ type: 10, content: renderItemLine(state, record) }], accessory: button(`fm:sellitem:${userId}:${record.itemId}:${paged.page}`, locked ? 'Locked' : unsellable ? 'Unsellable' : 'Sell', (locked || unsellable) ? BUTTON_SECONDARY : BUTTON_DANGER, locked || unsellable) }); } if (!paged.items.length) rows.push({ type: 10, content: '-# No items found.' }); rows.push(sep(), { type: 10, content: message }, row([button(`fm:itempage:${userId}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:itemfilter:${userId}`, 'Sell filter', BUTTON_SECONDARY, paged.items.length === 0)]), categorySelect(userId, 'item')); saveState(state); return container(withThumbnail(rows, thumb), files); }
 function chartRecords(state, userId, type) { if (type === 'fish') return FISH.map((fish) => ({ id: fish.id, name: fish.displayName || fish.name, emoji: fish.emoji })); return itemRecords(getUser(userId)).map((record) => ({ id: record.itemId, name: record.item.name, emoji: record.item.emoji })); }
 function chartPathFor(type, id) { if (!fs.existsSync(CHART_DIR)) fs.mkdirSync(CHART_DIR, { recursive: true }); return path.join(CHART_DIR, `${type}-${normalizeId(id)}.png`); }
 function formatNumber(value) { const num = Number(value) || 0; if (Math.abs(num) >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm'; if (Math.abs(num) >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k'; return String(Math.round(num)); }
-function renderChartImage(entry, title) { const canvas = createCanvas(900, 500); const ctx = canvas.getContext('2d'); const history = (entry.history?.length ? entry.history : [{ at: Date.now(), value: entry.currentValue }]).slice(-14); const values = history.map((point) => Math.max(1, Math.round(Number(point.value) || entry.baseValue || 1))); const min = Math.max(0, Math.min(...values, entry.baseValue) * 0.8); const max = Math.max(...values, entry.baseValue) * 1.2 || 10; const x0 = 90; const y0 = 355; const w = 760; const h = 220; ctx.fillStyle = '#0d1320'; ctx.fillRect(0, 0, 900, 500); ctx.fillStyle = '#151c2b'; ctx.roundRect(24, 24, 852, 452, 24); ctx.fill(); ctx.strokeStyle = '#33425f'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#f6f8ff'; ctx.font = '800 30px Arial'; ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 54, 72); ctx.font = '700 20px Arial'; ctx.fillStyle = '#9fd4ff'; ctx.fillText(title, 54, 104); ctx.textAlign = 'right'; ctx.fillStyle = '#f7fbff'; ctx.font = '800 28px Arial'; ctx.fillText(formatNumber(entry.currentValue), 790, 82); ctx.textAlign = 'left'; ctx.strokeStyle = '#465a7d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0, y0 - h); ctx.lineTo(x0, y0); ctx.lineTo(x0 + w, y0); ctx.stroke(); const points = values.map((value, index) => ({ x: x0 + ((values.length === 1 ? 0.5 : index / (values.length - 1)) * w), y: y0 - (((value - min) / Math.max(1, max - min)) * h), value })); ctx.strokeStyle = '#52f2c2'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); for (const point of points) { ctx.fillStyle = '#52f2c2'; ctx.beginPath(); ctx.arc(point.x, point.y, 5, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = '#9aa9c2'; ctx.font = '700 14px Arial'; ctx.fillText('Base ' + formatNumber(entry.baseValue), 56, 430); ctx.fillText('High ' + formatNumber(Math.max(...values)), 190, 430); ctx.fillText('Low ' + formatNumber(Math.min(...values)), 320, 430); const chartPath = chartPathFor(entry.type, entry.id); fs.writeFileSync(chartPath, canvas.toBuffer('image/png')); entry.chartPath = chartPath; return chartPath; }
+function renderChartImage(entry, title) {
+  const canvas = createCanvas(900, 500);
+  const ctx = canvas.getContext('2d');
+  const history = (entry.history?.length ? entry.history : [{ at: Date.now(), value: entry.currentValue }]).slice(-18);
+  const values = history.map((point) => Math.max(1, Math.round(Number(point.value) || entry.baseValue || 1)));
+  const low = Math.min(...values, entry.baseValue);
+  const high = Math.max(...values, entry.baseValue);
+  const min = Math.max(0, Math.floor(low * 0.85));
+  const max = Math.max(min + 5, Math.ceil(high * 1.15));
+  const chart = { x: 92, y: 142, width: 740, height: 230 };
+
+  const bg = ctx.createLinearGradient(0, 0, 900, 500);
+  bg.addColorStop(0, '#111827');
+  bg.addColorStop(1, '#162033');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 900, 500);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '800 31px Arial';
+  ctx.fillText(entry.type === 'fish' ? 'Fish Value Chart' : 'Item Value Chart', 42, 58);
+  ctx.font = '700 21px Arial';
+  ctx.fillStyle = '#93c5fd';
+  ctx.fillText(title, 42, 90);
+
+  const stats = [
+    ['Current', entry.currentValue, '#f8fafc'],
+    ['Base', entry.baseValue, '#cbd5e1'],
+    ['High', high, '#86efac'],
+    ['Low', low, '#fca5a5'],
+  ];
+  stats.forEach(([label, value, color], index) => {
+    const x = 430 + index * 112;
+    ctx.fillStyle = '#243044';
+    ctx.roundRect(x, 32, 96, 58, 10);
+    ctx.fill();
+    ctx.font = '700 13px Arial';
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(label, x + 12, 54);
+    ctx.font = '800 22px Arial';
+    ctx.fillStyle = color;
+    ctx.fillText(formatNumber(value), x + 12, 79);
+  });
+
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.font = '700 13px Arial';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i += 1) {
+    const y = chart.y + (chart.height / 4) * i;
+    const value = max - ((max - min) / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(chart.x, y);
+    ctx.lineTo(chart.x + chart.width, y);
+    ctx.stroke();
+    ctx.fillText(formatNumber(value), chart.x - 14, y + 4);
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  for (let i = 0; i < values.length; i += 1) {
+    if (i % Math.max(1, Math.ceil(values.length / 6)) !== 0 && i !== values.length - 1) continue;
+    const x = chart.x + ((values.length === 1 ? 0.5 : i / (values.length - 1)) * chart.width);
+    ctx.fillText(String(i + 1), x, chart.y + chart.height + 28);
+  }
+
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(chart.x, chart.y);
+  ctx.lineTo(chart.x, chart.y + chart.height);
+  ctx.lineTo(chart.x + chart.width, chart.y + chart.height);
+  ctx.stroke();
+
+  const points = values.map((value, index) => ({
+    x: chart.x + ((values.length === 1 ? 0.5 : index / (values.length - 1)) * chart.width),
+    y: chart.y + chart.height - (((value - min) / Math.max(1, max - min)) * chart.height),
+    value,
+  }));
+  const fill = ctx.createLinearGradient(0, chart.y, 0, chart.y + chart.height);
+  fill.addColorStop(0, 'rgba(45, 212, 191, 0.35)');
+  fill.addColorStop(1, 'rgba(45, 212, 191, 0)');
+  ctx.beginPath();
+  points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, chart.y + chart.height);
+  ctx.lineTo(points[0].x, chart.y + chart.height);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.strokeStyle = '#2dd4bf';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.stroke();
+  for (const point of points) {
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5eead4';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.textAlign = 'left';
+  ctx.font = '700 14px Arial';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('History points', chart.x, 430);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '800 24px Arial';
+  ctx.fillText(`${formatNumber(entry.currentValue)} ${FISH_COIN}`, 42, 462);
+  const chartPath = chartPathFor(entry.type, entry.id);
+  fs.writeFileSync(chartPath, canvas.toBuffer('image/png'));
+  entry.chartPath = chartPath;
+  return chartPath;
+}
 function renderValueChart(userId, type = 'fish', page = 1, selectedId = null) { const state = loadState(); const files = []; const thumb = symbolAttachment('SBValueChart.png', files); const paged = pageItems(chartRecords(state, userId, type), page); const rows = [{ type: 10, content: '## Welcome to Value Chart!' }]; for (const record of paged.items) { const entry = ensureMarketEntry(state, type, record.id); rows.push({ type: 9, components: [{ type: 10, content: `**${record.name} ${record.emoji}**\n-# Value: ${entry.currentValue} ${FISH_COIN}` }], accessory: button(`fm:chartcheck:${userId}:${type}:${record.id}:${paged.page}`, 'Check', BUTTON_SUCCESS) }); } if (!paged.items.length) rows.push({ type: 10, content: '-# No entries found.' }); rows.push(sep()); if (selectedId) { const entry = ensureMarketEntry(state, type, selectedId); const record = chartRecords(state, userId, type).find((item) => item.id === selectedId); const chartPath = renderChartImage(entry, record?.name || selectedId); files.push(new AttachmentBuilder(chartPath, { name: 'value-chart.png' })); rows.push({ type: 12, items: [{ media: { url: 'attachment://value-chart.png' } }] }); } else rows.push({ type: 10, content: '-# Select something to check its value' }); rows.push(sep(), row([button(`fm:chartpage:${userId}:${type}:${paged.page}:${paged.maxPage}`, 'Switch page', BUTTON_SECONDARY, paged.maxPage <= 1), button(`fm:charttoggle:${userId}:${type}`, `[Value: ${type.toUpperCase()}]`, BUTTON_SECONDARY)]), categorySelect(userId, 'chart')); saveState(state); return container(withThumbnail(rows, thumb), files); }
 function findFishIndex(user, key) { return (Array.isArray(user.fishBarrel) ? user.fishBarrel : []).findIndex((entry, index) => String(entry.id || index) === String(key)); }
 function sellFish(userId, fishKey) { let message = '-# **Fish not found**'; updateUser(userId, (user, state) => { const index = findFishIndex(user, fishKey); if (index < 0) return user; const entry = user.fishBarrel[index]; const fish = FISH_BY_ID.get(entry.fishId); if (!fish || entry.locked) { message = '-# **That fish is locked**'; return user; } state.market = state.market || { entries: {}, lastUpdateAt: 0 }; const value = fishTotalValue(state, entry, fish); user.fishCoins = Math.max(0, Math.floor(Number(user.fishCoins) || 0)) + value; user.fishBarrel.splice(index, 1); updateMarketEntry(state, 'fish', fish.id, 1, 0); message = `-# **You've sold ${fish.displayName || fish.name} ${fish.emoji} for ${value} ${FISH_COIN}**`; return user; }); return message; }
@@ -69,8 +185,8 @@ function fieldValue(interaction, customId) { try { return interaction.fields.get
 function pageModal(kind, userId, currentPage, maxPage, suffix = '') { return { custom_id: `fm:${kind}pagesubmit:${userId}${suffix}`, title: 'Switch page', components: [{ type: 1, components: [{ type: TEXT_INPUT, custom_id: `fm_${kind}_page`, label: `Page (1-${maxPage})`, style: 1, required: true, value: String(currentPage), max_length: String(maxPage).length }] }] }; }
 function isOwner(interaction, userId) { if (interaction.user.id === userId) return true; interaction.reply({ content: 'Only the command owner can use this control.', flags: EPHEMERAL_FLAG }).catch(() => null); return false; }
 async function updateInteraction(interaction, payload) { const clean = stripUndefined(payload); if (typeof interaction.update === 'function') return interaction.update(clean); if (typeof interaction.deferUpdate === 'function') { await interaction.deferUpdate(); return interaction.message?.edit(clean); } return interaction.reply(clean); }
-async function handleMarketInteraction(interaction) { const id = interaction.customId || ''; if (!id.startsWith('fm:')) return false; const parts = id.split(':'); const action = parts[1]; const userId = parts[2]; if (!isOwner(interaction, userId)) return true; if (action === 'category' && interaction.isStringSelectMenu?.()) { const value = interaction.values?.[0]; return updateInteraction(interaction, value === 'item' ? renderItemMarket(userId) : value === 'chart' ? renderValueChart(userId) : renderFishMarket(userId)); } if (action === 'fishpage') { await interaction.showModal(pageModal('fish', userId, parts[3] || 1, parts[4] || 1)); return true; } if (action === 'itempage') { await interaction.showModal(pageModal('item', userId, parts[3] || 1, parts[4] || 1)); return true; } if (action === 'chartpage') { await interaction.showModal(pageModal('chart', userId, parts[4] || 1, parts[5] || 1, `:${parts[3] || 'fish'}`)); return true; } if (action === 'fishpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderFishMarket(userId, Number(fieldValue(interaction, 'fm_fish_page')))); if (action === 'itempagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderItemMarket(userId, Number(fieldValue(interaction, 'fm_item_page')))); if (action === 'chartpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(fieldValue(interaction, 'fm_chart_page')))); if (action === 'sellfish') return updateInteraction(interaction, renderFishMarket(userId, parts[4] || 1, sellFish(userId, parts[3]))); if (action === 'sellitem') return updateInteraction(interaction, renderItemMarket(userId, parts[4] || 1, sellItem(userId, parts[3]))); if (action === 'sellfilter') { await interaction.showModal(filterForm('fish', userId)); return true; } if (action === 'itemfilter') { await interaction.showModal(filterForm('item', userId)); return true; } if (action === 'sellfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellByRarity(userId, 'fish', selectedValues(interaction, 'fish_rarities'))); if (action === 'itemfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellByRarity(userId, 'item', selectedValues(interaction, 'item_rarities'))); if (action === 'charttoggle') return updateInteraction(interaction, renderValueChart(userId, parts[3] === 'fish' ? 'item' : 'fish')); if (action === 'chartcheck') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[5], parts[4])); return false; }
+async function handleMarketInteraction(interaction) { const id = interaction.customId || ''; if (!id.startsWith('fm:')) return false; const parts = id.split(':'); const action = parts[1]; const userId = parts[2]; if (!isOwner(interaction, userId)) return true; if (action === 'category' && interaction.isStringSelectMenu?.()) { const value = interaction.values?.[0]; return updateInteraction(interaction, value === 'item' ? renderItemMarket(userId) : value === 'chart' ? renderValueChart(userId) : renderFishMarket(userId)); } if (action === 'fishpage') { await interaction.showModal(pageModal('fish', userId, parts[3] || 1, parts[4] || 1)); return true; } if (action === 'itempage') { await interaction.showModal(pageModal('item', userId, parts[3] || 1, parts[4] || 1)); return true; } if (action === 'chartpage') { await interaction.showModal(pageModal('chart', userId, parts[4] || 1, parts[5] || 1, `:${parts[3] || 'fish'}`)); return true; } if (action === 'fishpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderFishMarket(userId, Number(fieldValue(interaction, 'fm_fish_page')))); if (action === 'itempagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderItemMarket(userId, Number(fieldValue(interaction, 'fm_item_page')))); if (action === 'chartpagesubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, renderValueChart(userId, parts[3] || 'fish', Number(fieldValue(interaction, 'fm_chart_page')))); if (action === 'sellfish') return updateInteraction(interaction, renderFishMarket(userId, parts[4] || 1, sellFish(userId, parts[3]))); if (action === 'sellitem') return updateInteraction(interaction, renderItemMarket(userId, parts[4] || 1, sellItem(userId, parts[3]))); if (action === 'sellfilter') { await interaction.showModal(filterForm('fish', userId)); return true; } if (action === 'itemfilter') { await interaction.showModal(filterForm('item', userId)); return true; } if ((action === 'sellfiltersubmit' || action === 'fishfiltersubmit') && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellByRarity(userId, 'fish', selectedValues(interaction, 'fish_rarities'))); if (action === 'itemfiltersubmit' && interaction.isModalSubmit?.()) return updateInteraction(interaction, sellByRarity(userId, 'item', selectedValues(interaction, 'item_rarities'))); if (action === 'charttoggle') return updateInteraction(interaction, renderValueChart(userId, parts[3] === 'fish' ? 'item' : 'fish')); if (action === 'chartcheck') return updateInteraction(interaction, renderValueChart(userId, parts[3], parts[5], parts[4])); return false; }
 const fishyMarketCommand = { data: new SlashCommandBuilder().setName('fishy-market').setDescription('Open the Fishy Market'), suppressCommandLog: true, disableActionTimeout: true, async execute(interaction) { await interaction.reply(renderHome(interaction.user.id)); }, async handleInteraction(interaction) { return handleMarketInteraction(interaction); } };
 const inventoryCommand = { ...featureInventoryCommand, disableActionTimeout: false, async handleInteraction(interaction, client) { const handled = await handleMarketInteraction(interaction); if (handled) return true; return featureInventoryCommand.handleInteraction?.(interaction, client) || false; } };
-const fishBarrelCommand = { ...featureFishBarrelCommand, disableActionTimeout: false, async execute(interaction) { await interaction.reply(renderFishMarket(interaction.user.id)); }, async handleInteraction(interaction, client) { const handled = await handleMarketInteraction(interaction); if (handled) return true; return featureFishBarrelCommand.handleInteraction?.(interaction, client) || false; } };
+const fishBarrelCommand = { ...featureFishBarrelCommand, disableActionTimeout: false, async handleInteraction(interaction, client) { const handled = await handleMarketInteraction(interaction); if (handled) return true; return featureFishBarrelCommand.handleInteraction?.(interaction, client) || false; } };
 module.exports = { fishyMarketCommand, inventoryCommand, fishBarrelCommand };

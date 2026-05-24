@@ -31,6 +31,7 @@ const CUSTOM_IDS = {
   roleReviewSelectPrefix: 'ticket:role-review:',
   denyReasonPrefix: 'ticket:deny-reason:',
   crewRoleRequestModal: 'ticket:crew-role-request-modal',
+  crewRoleGame: 'crew_role_game',
   crewRoleUsername: 'roblox_username',
   crewRoleEvidenceUpload: 'role_requirement_evidence_upload',
   giveawayCoreDetails: 'giveaway_core_details',
@@ -219,6 +220,7 @@ function getUploadedMediaGallery(uploadedEvidence) {
 function getRoleRequestReviewMessageComponents({
   userId,
   username,
+  game = null,
   uploadedEvidence,
   statusText = null,
   statusColor = 0xffffff,
@@ -239,7 +241,8 @@ function getRoleRequestReviewMessageComponents({
           content:
             `### <@${userId}>'s ⭐Crew Member+ role request.\n` +
             `* userID: ${userId}\n` +
-            `* Roblox username: ${username}` +
+            `* Roblox username: ${username}\n` +
+            `-# Game user player: ${game || '-'}` +
             statusLine +
             statusNoteLine,
         },
@@ -302,6 +305,11 @@ function findSubmittedComponent(interaction, customId) {
 
 function getGuildSupportTypeFromModal(interaction) {
   const radio = findSubmittedComponent(interaction, CUSTOM_IDS.guildSupportRadio);
+  return radio?.value ?? radio?.values?.[0] ?? null;
+}
+
+function getCrewRoleGameFromModal(interaction) {
+  const radio = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleGame);
   return radio?.value ?? radio?.values?.[0] ?? null;
 }
 
@@ -770,6 +778,7 @@ async function handleRoleRequestReview(interaction) {
         ...getRoleRequestReviewMessageComponents({
           userId: request.userId,
           username: request.username,
+          game: request.game,
           uploadedEvidence: request.uploadedEvidence || [],
           statusText: '⭐ Accepted + INVITED',
           statusColor: 0x00ff00,
@@ -823,6 +832,7 @@ async function handleRoleRequestReview(interaction) {
       ...getRoleRequestReviewMessageComponents({
         userId: request.userId,
         username: request.username,
+        game: request.game,
         uploadedEvidence: request.uploadedEvidence || [],
         statusText: '✅ Accepted',
         statusColor: 0xd5f5e3,
@@ -975,6 +985,19 @@ module.exports = {
             },
             {
               type: 18,
+              label: 'Q1: What game you playing',
+              component: {
+                type: 21,
+                custom_id: CUSTOM_IDS.crewRoleGame,
+                required: true,
+                options: [
+                  { value: 'Universe Tower Defense X', label: 'Universe Tower Defense X' },
+                  { value: 'Sailor Piece', label: 'Sailor Piece' },
+                ],
+              },
+            },
+            {
+              type: 18,
               label: 'What is your Roblox username?',
               component: {
                 type: 4,
@@ -991,9 +1014,9 @@ module.exports = {
               component: {
                 type: 19,
                 custom_id: CUSTOM_IDS.crewRoleEvidenceUpload,
-                min_values: 1,
+                min_values: 0,
                 max_values: 10,
-                required: true,
+                required: false,
               },
             },
           ],
@@ -1019,6 +1042,7 @@ module.exports = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
       }
 
+      const game = getCrewRoleGameFromModal(interaction) || '-';
       const username = getTextInputValueSafely(interaction, CUSTOM_IDS.crewRoleUsername, '-');
       const uploadedEvidence = getUploadedAttachmentDetails(interaction);
 
@@ -1027,6 +1051,7 @@ module.exports = {
       state.roleRequests[requestId] = {
         guildId: interaction.guildId,
         userId: interaction.user.id,
+        game,
         username,
         uploadedEvidence,
         status: 'pending',
@@ -1059,6 +1084,7 @@ module.exports = {
           ...getRoleRequestReviewMessageComponents({
             userId: interaction.user.id,
             username,
+            game,
             uploadedEvidence,
             statusColor: 0xf8f9f9,
           }),
@@ -1129,6 +1155,7 @@ module.exports = {
           ...getRoleRequestReviewMessageComponents({
             userId: request.userId,
             username: request.username,
+            game: request.game,
             uploadedEvidence: request.uploadedEvidence || [],
             statusText: '❌ Denied',
             statusColor: 0xf5b7b1,
