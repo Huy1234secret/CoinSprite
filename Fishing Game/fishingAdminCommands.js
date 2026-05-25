@@ -17,7 +17,6 @@ function saveState(state) { ensureStoreFile(); fs.writeFileSync(STORE_PATH, JSON
 function parseDuration(value, fallbackMs = weatherData.WEATHER_DURATION_MS) { const raw = String(value || '').trim().toLowerCase(); if (!raw) return fallbackMs; const match = raw.match(/^(\d+(?:\.\d+)?)(s|sec|secs|m|min|mins|h|hr|hrs|d|day|days)?$/); if (!match) return fallbackMs; const n = Number(match[1]); const unit = match[2] || 'm'; const mult = unit.startsWith('s') ? 1000 : unit.startsWith('h') ? 3600000 : unit.startsWith('d') ? 86400000 : 60000; return Math.max(1000, Math.floor(n * mult)); }
 function seasonTime(now = new Date()) { const utc7 = now.getTime() + (7 * 60 * 60 * 1000); const day = Math.floor(utc7 / 86_400_000); const hour = Math.floor((utc7 % 86_400_000) / 3_600_000); const season = weatherData.SEASONS[Math.floor(day / 2) % weatherData.SEASONS.length]; const timeKey = ['Morning', 'Noon', 'Afternoon', 'Night'][Math.floor((hour % 12) / 3)]; return { season, time: { key: timeKey, emoji: weatherData.TIMES[timeKey] } }; }
 function emojiImageUrl(emoji) { const match = String(emoji || '').match(/<a?:([A-Za-z0-9_]+):(\d+)>/); return match ? `https://cdn.discordapp.com/emojis/${match[2]}.${String(emoji).startsWith('<a:') ? 'gif' : 'png'}?quality=lossless` : null; }
-function discordCountdown(timestampMs) { return `<t:${Math.max(0, Math.floor(Number(timestampMs) / 1000))}:R>`; }
 function activeAdminWeathers(weather, now = Date.now()) { return (Array.isArray(weather?.adminWeathers) ? weather.adminWeathers : []).filter((entry) => entry?.weather && Number(entry.endsAt) > now); }
 function payload(content, mediaUrl = null) { const text = { type: 10, content }; return { flags: COMPONENTS_V2_FLAG | EPH, components: [{ type: 17, accent_color: WHITE, components: [mediaUrl ? { type: 9, components: [text], accessory: { type: 11, media: { url: mediaUrl } } } : text] }] }; }
 function isAdmin(interaction) { return Boolean(interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)); }
@@ -50,7 +49,7 @@ const fishWeatherStartCommand = {
     delete state.forecasts.lastForecastKey;
     saveState(state);
     await runtime.maybeEditWeatherForecast(client).catch(() => null);
-    return interaction.reply(payload(`Started **${name} ${emoji}**\n-# Duration: ${discordCountdown(endsAt)}`));
+    return interaction.reply(payload(`Started **${name} ${emoji}**.`));
   },
 };
 
@@ -78,7 +77,7 @@ const fishEventStartCommand = {
     delete state.forecasts.lastForecastKey;
     saveState(state);
     await runtime.maybeEditWeatherForecast(client).catch(() => null);
-    return interaction.reply(payload(`Started **${event.name}**\n-# Duration: ${discordCountdown(endsAt)}`, emojiImageUrl(event.emoji)));
+    return interaction.reply(payload(`Started **${event.name}**.`, emojiImageUrl(event.emoji)));
   },
 };
 
