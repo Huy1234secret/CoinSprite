@@ -125,7 +125,7 @@ function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info 
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
 async function drawEmojiList(ctx, emojis, x, y, size, gap = 6) { for (let index = 0; index < emojis.length; index += 1) await drawEmoji(ctx, emojis[index], x + index * (size + gap), y, size); }
-async function drawWeatherPairs(ctx, pairs, x, y, size) { ctx.font = '700 14px sans-serif'; ctx.fillStyle = '#d7d8e7'; for (let index = 0; index < pairs.length; index += 1) { const pair = pairs[index]; const rowY = y + index * (size + 4); let cursor = x; await drawEmoji(ctx, pair.weatherEmoji, cursor, rowY, size); cursor += size + 4; ctx.fillText('[', cursor, rowY + size - 4); cursor += 8; await drawEmoji(ctx, pair.seasonEmoji, cursor, rowY, size); cursor += size + 1; ctx.fillText(']', cursor, rowY + size - 4); } }
+async function drawWeatherPairs(ctx, pairs, x, y, size) { const columnGap = 20; const pairWidth = size * 2 + 17; const rowGap = 5; ctx.font = `700 ${Math.max(14, Math.floor(size * 0.72))}px sans-serif`; ctx.fillStyle = '#d7d8e7'; for (let index = 0; index < pairs.length; index += 1) { const pair = pairs[index]; const column = index % 2; const row = Math.floor(index / 2); const rowY = y + row * (size + rowGap); let cursor = x + column * (pairWidth + columnGap); await drawEmoji(ctx, pair.weatherEmoji, cursor, rowY, size); cursor += size + 4; ctx.fillText('[', cursor, rowY + size - 5); cursor += 8; await drawEmoji(ctx, pair.seasonEmoji, cursor, rowY, size); cursor += size + 1; ctx.fillText(']', cursor, rowY + size - 5); } }
 function fillCard(ctx, fish, ok, x, y, width, height, radius) { const color = RARITY_CARD[fish.rarity] || RARITY_CARD.common; if (ok && color.gradient) { const gradient = ctx.createLinearGradient(x, y, x + width, y + height); gradient.addColorStop(0, color.gradient[0]); gradient.addColorStop(1, color.gradient[1]); ctx.fillStyle = gradient; } else ctx.fillStyle = ok ? color.fill : '#22222c'; roundRect(ctx, x, y, width, height, radius); ctx.fill(); ctx.strokeStyle = ok ? color.stroke : '#444454'; ctx.lineWidth = 3; ctx.stroke(); }
 
 async function fishGallery(items, seen) {
@@ -148,7 +148,7 @@ async function fishGallery(items, seen) {
     ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
     ctx.fillText(title, x + cardWidth / 2, y + 40);
     if (ok) {
-      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 28, y + 74, 96, 96); else await drawEmoji(ctx, fish.emoji, x + 44, y + 88, 70); } catch { await drawEmoji(ctx, fish.emoji, x + 44, y + 88, 70); }
+      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 20, y + 68, 122, 122); else await drawEmoji(ctx, fish.emoji, x + 36, y + 86, 84); } catch { await drawEmoji(ctx, fish.emoji, x + 36, y + 86, 84); }
     } else {
       ctx.font = '900 78px sans-serif';
       ctx.fillStyle = '#5f6070';
@@ -161,9 +161,9 @@ async function fishGallery(items, seen) {
     ctx.fillText(ok ? 'Discovered' : 'Not discovered', x + 150, y + 82);
     ctx.font = '700 16px sans-serif';
     ctx.fillText('Season:', x + 150, y + 115);
-    if (ok) await drawEmojiList(ctx, seasonEmojis(fish), x + 224, y + 95, 26); else ctx.fillText('???', x + 224, y + 115);
+    if (ok) await drawEmojiList(ctx, seasonEmojis(fish), x + 224, y + 90, 32); else ctx.fillText('???', x + 224, y + 115);
     ctx.fillText('Fav Weather:', x + 150, y + 148);
-    if (ok) await drawWeatherPairs(ctx, favoriteWeatherPairs(fish), x + 172, y + 158, 18); else ctx.fillText('???', x + 260, y + 148);
+    if (ok) await drawWeatherPairs(ctx, favoriteWeatherPairs(fish), x + 172, y + 158, 24); else ctx.fillText('???', x + 260, y + 148);
   }
   return canvas.toBuffer('image/png');
 }
