@@ -34,6 +34,15 @@ const RARITY_CARD = {
   mythical: { fill: '#3d2428', stroke: '#ff7c7c' },
   secret: { fill: '#241014', stroke: '#8b1f2f', gradient: ['#401018', '#17070b'] },
 };
+const RARITY_ACCENT = {
+  common: 0x5a5a70,
+  uncommon: 0x8ee7a2,
+  rare: 0x88d9ff,
+  epic: 0xffb3de,
+  legendary: 0xf8df72,
+  mythical: 0xff7c7c,
+  secret: 0x8b1f2f,
+};
 
 const CATEGORIES = [{ label: 'All', value: 'all' }, { label: 'Calm Fishing Lake', value: 'calm_fishing_lake' }];
 
@@ -48,6 +57,8 @@ function row(components) { return { type: 1, components }; }
 function cont(components, files = []) { return { flags: FLAGS, files, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }; }
 function actions(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:action:${id}:${pageNo}:${category}:${index}`, placeholder: 'Select an action', min_values: 1, max_values: 1, options: [{ label: 'Switch Page', value: 'page' }, { label: 'Switch Category', value: 'category' }] }]); }
 function indexSelect(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:index:${id}:${pageNo}:${category}:${index}`, placeholder: 'Switch index', min_values: 1, max_values: 1, options: [{ label: 'Fish', value: 'fish', default: index === 'fish' }, { label: 'Mutations', value: 'mutations', default: index === 'mutations' }] }]); }
+function componentEmoji(emoji) { const match = String(emoji || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/); return match ? { name: match[1], id: match[2], animated: String(emoji).startsWith('<a:') } : null; }
+function infoSelect(id, pageNo, category, fishList) { if (!fishList.length) return null; return row([{ type: 3, custom_id: `fishindex:info:${id}:${pageNo}:${category}`, placeholder: 'Check Info', min_values: 1, max_values: 1, options: fishList.map((fish) => ({ label: fish.displayName || fish.name, value: fish.id, ...(componentEmoji(fish.emoji) ? { emoji: componentEmoji(fish.emoji) } : {}) })) }]); }
 function textInput(id, label, placeholder) { return { type: 1, components: [{ type: 4, custom_id: id, label, style: 1, required: true, placeholder, max_length: 100 }] }; }
 function pageModal(id, pageNo, maxPage, category, index) { return { custom_id: `fishindex:pagesubmit:${id}:${category}:${index}`, title: 'Switch page', components: [textInput('fish_index_page', 'Which page?', `1 - ${maxPage}: Current page ${pageNo}`)] }; }
 function categoryModal(id, pageNo, category, index) { return { custom_id: `fishindex:categorysubmit:${id}:${pageNo}:${index}`, title: 'Switch category', components: [{ type: 18, label: 'Select a category', component: { type: 3, custom_id: 'fish_index_category', placeholder: 'Select a category', min_values: 1, max_values: 1, options: CATEGORIES.map((option) => ({ ...option, default: option.value === category })) } }] }; }
@@ -59,6 +70,7 @@ async function drawEmoji(ctx, emoji, x, y, size) { try { const url = emojiUrl(em
 function roundRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
 function fit(ctx, text, width, size, weight = '800') { for (let current = size; current >= 12; current -= 1) { ctx.font = `${weight} ${current}px sans-serif`; if (ctx.measureText(text).width <= width) return current; } return 12; }
 function fishImagePath(name) { if (!fs.existsSync(FISH_IMAGE_DIR)) return null; const wanted = normalizeId(name).replace(/_/g, ''); for (const file of fs.readdirSync(FISH_IMAGE_DIR)) if (path.extname(file).toLowerCase() === '.png' && normalizeId(path.basename(file, '.png')).replace(/_/g, '') === wanted) return path.join(FISH_IMAGE_DIR, file); return null; }
+function labelCase(value) { return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()); }
 
 function unzipXlsx(buffer) { const files = new Map(); let offset = 0; while (offset < buffer.length - 30) { if (buffer.readUInt32LE(offset) !== 0x04034b50) { offset += 1; continue; } const method = buffer.readUInt16LE(offset + 8); const compressedSize = buffer.readUInt32LE(offset + 18); const nameLength = buffer.readUInt16LE(offset + 26); const extraLength = buffer.readUInt16LE(offset + 28); const name = buffer.slice(offset + 30, offset + 30 + nameLength).toString('utf8'); const dataStart = offset + 30 + nameLength + extraLength; const compressed = buffer.slice(dataStart, dataStart + compressedSize); if (method === 0) files.set(name, compressed.toString('utf8')); else if (method === 8) files.set(name, zlib.inflateRawSync(compressed).toString('utf8')); offset = dataStart + compressedSize; } return files; }
 function decodeXml(value) { return String(value || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); }
@@ -124,6 +136,30 @@ function favoriteWeatherText(fish) { const info = availability.get(fish.id); if 
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
+function weatherNameListForSeason(fish, season) { const info = availability.get(fish.id); const possible = new Set(); for (const weathers of Object.values(COLUMN_MAP[season] || {})) for (const weather of Object.keys(weathers)) possible.add(weather); const positive = [...possible].filter((weather) => Number(info?.weatherSeasonWeights?.get(pairKey(weather, season))) > 0); if (!positive.length) return 'None'; if (positive.length >= possible.size) return 'All'; return positive.map((weather) => `${WEATHER_EMOJIS[weather] || ''} ${weather}`.trim()).join(', '); }
+function weatherSeasonLines(fish) { return SEASONS.map((season) => `${season.emoji} ${season.key}: ${weatherNameListForSeason(fish, season.key)}`).join('\n'); }
+function fishInfoText(fish, discoveredFish) {
+  const tags = Array.isArray(fish.tags) && fish.tags.length ? fish.tags.join(', ') : 'None';
+  const averageWeight = ((Number(fish.minWeight) + Number(fish.maxWeight)) / 2).toFixed(2);
+  return [
+    `## ${fish.emoji} ${fish.displayName || fish.name}`,
+    discoveredFish ? '-# Status: Discovered' : '-# Status: Undiscovered',
+    `-# Rarity: ${RARITY_EMOJI[fish.rarity] || ''} ${fish.rarity}`,
+    `-# Fish Type / Tags: ${tags}`,
+    `-# Base Value: ${fish.value || fish.sellValue} Fish Coins`,
+    `-# Average Weight: ~${averageWeight} kg (${fish.minWeight} - ${fish.maxWeight} kg)`,
+    `-# Power Required: ${fish.powerReq}`,
+    '',
+    '**Weather & Season**',
+    weatherSeasonLines(fish),
+  ].join('\n');
+}
+function fishInfoPayload(fish, discoveredFish) {
+  const media = emojiUrl(fish.emoji);
+  const content = { type: 10, content: fishInfoText(fish, discoveredFish) };
+  const body = media ? { type: 9, components: [content], accessory: { type: 11, media: { url: media } } } : content;
+  return { flags: FLAGS | EPH, components: [{ type: 17, accent_color: RARITY_ACCENT[fish.rarity] || WHITE, components: [body] }] };
+}
 async function drawEmojiList(ctx, emojis, x, y, size, gap = 6) { for (let index = 0; index < emojis.length; index += 1) await drawEmoji(ctx, emojis[index], x + index * (size + gap), y, size); }
 async function drawWeatherPairs(ctx, pairs, x, y, size) { const columnGap = 20; const pairWidth = size * 2 + 17; const rowGap = 5; ctx.font = `700 ${Math.max(14, Math.floor(size * 0.72))}px sans-serif`; ctx.fillStyle = '#d7d8e7'; for (let index = 0; index < pairs.length; index += 1) { const pair = pairs[index]; const column = index % 2; const row = Math.floor(index / 2); const rowY = y + row * (size + rowGap); let cursor = x + column * (pairWidth + columnGap); await drawEmoji(ctx, pair.weatherEmoji, cursor, rowY, size); cursor += size + 4; ctx.fillText('[', cursor, rowY + size - 5); cursor += 8; await drawEmoji(ctx, pair.seasonEmoji, cursor, rowY, size); cursor += size + 1; ctx.fillText(']', cursor, rowY + size - 5); } }
 function fillCard(ctx, fish, ok, x, y, width, height, radius) { const color = RARITY_CARD[fish.rarity] || RARITY_CARD.common; if (ok && color.gradient) { const gradient = ctx.createLinearGradient(x, y, x + width, y + height); gradient.addColorStop(0, color.gradient[0]); gradient.addColorStop(1, color.gradient[1]); ctx.fillStyle = gradient; } else ctx.fillStyle = ok ? color.fill : '#22222c'; roundRect(ctx, x, y, width, height, radius); ctx.fill(); ctx.strokeStyle = ok ? color.stroke : '#444454'; ctx.lineWidth = 3; ctx.stroke(); }
@@ -142,28 +178,26 @@ async function fishGallery(items, seen) {
     const x = gap + (index % 2) * (cardWidth + gap);
     const y = gap + Math.floor(index / 2) * (cardHeight + gap);
     fillCard(ctx, fish, ok, x, y, cardWidth, cardHeight, 16);
-    const title = ok ? fish.displayName : 'Undiscovered';
-    ctx.font = `800 ${fit(ctx, title, cardWidth - 80, 27)}px sans-serif`;
+    const title = fish.displayName || fish.name;
+    ctx.font = `800 ${fit(ctx, title, cardWidth - 92, 28)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
     ctx.fillText(title, x + cardWidth / 2, y + 40);
     if (ok) {
-      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 20, y + 68, 122, 122); else await drawEmoji(ctx, fish.emoji, x + 36, y + 86, 84); } catch { await drawEmoji(ctx, fish.emoji, x + 36, y + 86, 84); }
+      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 34, y + 78, 144, 144); else await drawEmoji(ctx, fish.emoji, x + 56, y + 96, 104); } catch { await drawEmoji(ctx, fish.emoji, x + 56, y + 96, 104); }
     } else {
-      ctx.font = '900 78px sans-serif';
+      ctx.font = '900 96px sans-serif';
       ctx.fillStyle = '#5f6070';
-      ctx.fillText('?', x + 78, y + 145);
+      ctx.fillText('?', x + 106, y + 170);
     }
     await drawEmoji(ctx, RARITY_EMOJI[fish.rarity], x + cardWidth - 54, y + 18, 30);
-    ctx.textAlign = 'left';
-    ctx.font = '700 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.font = '800 21px sans-serif';
     ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
-    ctx.fillText(ok ? 'Discovered' : 'Not discovered', x + 150, y + 82);
-    ctx.font = '700 16px sans-serif';
-    ctx.fillText('Season:', x + 150, y + 115);
-    if (ok) await drawEmojiList(ctx, seasonEmojis(fish), x + 224, y + 90, 32); else ctx.fillText('???', x + 224, y + 115);
-    ctx.fillText('Fav Weather:', x + 150, y + 148);
-    if (ok) await drawWeatherPairs(ctx, favoriteWeatherPairs(fish), x + 172, y + 158, 24); else ctx.fillText('???', x + 260, y + 148);
+    ctx.fillText(ok ? 'Discovered' : 'Undiscovered', x + cardWidth / 2, y + 92);
+    ctx.font = '700 17px sans-serif';
+    ctx.fillStyle = ok ? '#b7bacb' : '#737482';
+    ctx.fillText(labelCase(fish.rarity || 'unknown'), x + cardWidth / 2, y + 122);
   }
   return canvas.toBuffer('image/png');
 }
@@ -228,7 +262,7 @@ async function render(id, name, requestedPage = 1, category = 'all', index = 'fi
   const paged = page(fish, requestedPage, FISH_PER_PAGE);
   const buffer = await fishGallery(paged.items, seen);
   const attachment = new AttachmentBuilder(buffer, { name: 'fish-index.png' });
-  return cont([{ type: 10, content: `## ${name}'s Fish Index\n-# Fish discovered: ${fish.filter((entry) => seen.has(entry.id)).length} / ${fish.length}\n-# Category: ${CATEGORIES.find((item) => item.value === category)?.label || 'All'}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://fish-index.png' } }] }, sep(), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
+  return cont([{ type: 10, content: `## ${name}'s Fish Index\n-# Fish discovered: ${fish.filter((entry) => seen.has(entry.id)).length} / ${fish.length}\n-# Category: ${CATEGORIES.find((item) => item.value === category)?.label || 'All'}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://fish-index.png' } }] }, sep(), infoSelect(id, paged.page, category, paged.items), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
 }
 
 async function handle(interaction) {
@@ -238,6 +272,16 @@ async function handle(interaction) {
   const action = parts[1];
   const userId = parts[2];
   if (!owner(interaction, userId)) return true;
+  if (action === 'info' && interaction.isStringSelectMenu?.()) {
+    const fish = FISH.find((entry) => entry.id === interaction.values?.[0]);
+    if (!fish) {
+      await interaction.reply({ content: 'Fish not found.', flags: EPH }).catch(() => null);
+      return true;
+    }
+    const record = user(load(), userId);
+    await interaction.reply(fishInfoPayload(fish, discovered(record).has(fish.id))).catch(() => null);
+    return true;
+  }
   if (action === 'index' && interaction.isStringSelectMenu?.()) return update(interaction, await render(userId, interaction.user.username, 1, parts[4] || 'all', interaction.values?.[0] || 'fish'));
   if (action === 'action' && interaction.isStringSelectMenu?.()) {
     const pageNo = Number(parts[3]) || 1;
