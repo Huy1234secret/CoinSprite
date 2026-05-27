@@ -4,6 +4,7 @@ const zlib = require('zlib');
 const { AttachmentBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { FISH, FISH_BY_NAME, normalizeId, normalizeName } = require('./Data/FishData');
+const { ITEMS } = require('./Data/Item Data');
 const { ALL_MUTATIONS, COLUMN_MAP, SEASONS, TIMES, WEATHER_CHANCES, WEATHER_EMOJIS } = require('./Data/WeatherData');
 const { FISH_EVENTS } = require('./Data/FishingRuntimeData');
 
@@ -12,8 +13,10 @@ const EPH = MessageFlags.Ephemeral ?? 64;
 const WHITE = 0xffffff;
 const STORE = path.join(__dirname, '..', 'data', 'fishing-game.json');
 const FISH_IMAGE_DIR = path.join(__dirname, 'Fish Png');
+const ITEM_IMAGE_DIR = path.join(__dirname, 'Item Png');
 const CALM_LAKE_XLSX = findCalmLakeXlsx();
 const FISH_PER_PAGE = 6;
+const ITEM_PER_PAGE = 6;
 const MUTATION_PER_PAGE = 9;
 
 const RARITY_EMOJI = {
@@ -22,6 +25,7 @@ const RARITY_EMOJI = {
   rare: '<:SBRare:1506965211607994461>',
   epic: '<:SBEpic:1506965204624474153>',
   legendary: '<:SBLegendary:1506965206197207131>',
+  very_rare: '<:SBLegendary:1506965206197207131>',
   mythical: '<:SBMythical:1506965209271762954>',
   secret: '<:SBSecret:1506965213881307186>',
 };
@@ -31,6 +35,7 @@ const RARITY_CARD = {
   rare: { fill: '#243545', stroke: '#88d9ff' },
   epic: { fill: '#3a2838', stroke: '#ffb3de' },
   legendary: { fill: '#3b361d', stroke: '#f8df72' },
+  very_rare: { fill: '#3b361d', stroke: '#f8df72' },
   mythical: { fill: '#3d2428', stroke: '#ff7c7c' },
   secret: { fill: '#241014', stroke: '#8b1f2f', gradient: ['#401018', '#17070b'] },
 };
@@ -40,6 +45,7 @@ const RARITY_ACCENT = {
   rare: 0x88d9ff,
   epic: 0xffb3de,
   legendary: 0xf8df72,
+  very_rare: 0xf8df72,
   mythical: 0xff7c7c,
   secret: 0x8b1f2f,
 };
@@ -48,20 +54,26 @@ const CATEGORIES = [{ label: 'All', value: 'all' }, { label: 'Calm Fishing Lake'
 
 function empty() { return { users: {}, weather: {}, forecasts: {}, events: { active: {} } }; }
 function load() { const dir = path.dirname(STORE); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); if (!fs.existsSync(STORE)) fs.writeFileSync(STORE, JSON.stringify(empty(), null, 2)); try { return { ...empty(), ...JSON.parse(fs.readFileSync(STORE, 'utf8')) }; } catch { return empty(); } }
-function user(state, id) { if (!state.users[id]) state.users[id] = { fishCoins: 0, inventory: {}, fishBarrel: [], fishCapacity: 10, fishIndex: {}, mutationIndex: {} }; const record = state.users[id]; record.fishBarrel = Array.isArray(record.fishBarrel) ? record.fishBarrel : []; record.fishIndex = record.fishIndex && typeof record.fishIndex === 'object' ? record.fishIndex : {}; record.mutationIndex = record.mutationIndex && typeof record.mutationIndex === 'object' ? record.mutationIndex : {}; return record; }
+function user(state, id) { if (!state.users[id]) state.users[id] = { fishCoins: 0, inventory: {}, fishBarrel: [], fishCapacity: 10, fishIndex: {}, mutationIndex: {}, itemIndex: {} }; const record = state.users[id]; record.inventory = record.inventory && typeof record.inventory === 'object' ? record.inventory : {}; record.fishBarrel = Array.isArray(record.fishBarrel) ? record.fishBarrel : []; record.fishIndex = record.fishIndex && typeof record.fishIndex === 'object' ? record.fishIndex : {}; record.mutationIndex = record.mutationIndex && typeof record.mutationIndex === 'object' ? record.mutationIndex : {}; record.itemIndex = record.itemIndex && typeof record.itemIndex === 'object' ? record.itemIndex : {}; for (const itemId of Object.keys(record.inventory)) if (ITEMS[itemId]) record.itemIndex[itemId] = record.itemIndex[itemId] || { discoveredAt: Date.now() }; return record; }
 function discovered(record) { const seen = new Set(Object.keys(record.fishIndex || {})); for (const entry of record.fishBarrel || []) if (entry?.fishId) seen.add(entry.fishId); return seen; }
 function mutationDiscovered(record) { const seen = new Set(Object.keys(record.mutationIndex || {})); for (const entry of record.fishBarrel || []) if (entry?.mutation && String(entry.mutation).toLowerCase() !== 'none') seen.add(normalizeId(entry.mutation)); return seen; }
+function itemDiscovered(record) { const seen = new Set(Object.keys(record.itemIndex || {})); for (const [itemId, entry] of Object.entries(record.inventory || {})) if (ITEMS[itemId] && Math.max(0, Math.floor(Number(entry?.amount) || 0)) > 0) seen.add(itemId); return seen; }
 function page(items, current, perPage) { const maxPage = Math.max(1, Math.ceil(items.length / perPage)); const safe = Math.max(1, Math.min(maxPage, Math.floor(Number(current) || 1))); return { page: safe, maxPage, items: items.slice((safe - 1) * perPage, safe * perPage) }; }
 function sep() { return { type: 14, divider: true, spacing: 1 }; }
 function row(components) { return { type: 1, components }; }
 function cont(components, files = []) { return { flags: FLAGS, files, components: [{ type: 17, accent_color: WHITE, components: components.filter(Boolean) }] }; }
 function actions(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:action:${id}:${pageNo}:${category}:${index}`, placeholder: 'Select an action', min_values: 1, max_values: 1, options: [{ label: 'Switch Page', value: 'page' }, { label: 'Switch Category', value: 'category' }] }]); }
-function indexSelect(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:index:${id}:${pageNo}:${category}:${index}`, placeholder: 'Switch index', min_values: 1, max_values: 1, options: [{ label: 'Fish', value: 'fish', default: index === 'fish' }, { label: 'Mutations', value: 'mutations', default: index === 'mutations' }] }]); }
+function indexSelect(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:index:${id}:${pageNo}:${category}:${index}`, placeholder: 'Switch index', min_values: 1, max_values: 1, options: [{ label: 'Fish', value: 'fish', default: index === 'fish' }, { label: 'Items', value: 'item', default: index === 'item' }, { label: 'Mutations', value: 'mutations', default: index === 'mutations' }] }]); }
 function componentEmoji(emoji) { const match = String(emoji || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/); return match ? { name: match[1], id: match[2], animated: String(emoji).startsWith('<a:') } : null; }
 function infoSelect(id, pageNo, category, fishList, seen) {
   const discoveredFish = fishList.filter((fish) => seen.has(fish.id));
   if (!discoveredFish.length) return null;
   return row([{ type: 3, custom_id: `fishindex:info:${id}:${pageNo}:${category}`, placeholder: 'Check Info', min_values: 1, max_values: 1, options: discoveredFish.map((fish) => ({ label: fish.displayName || fish.name, value: fish.id, ...(componentEmoji(fish.emoji) ? { emoji: componentEmoji(fish.emoji) } : {}) })) }]);
+}
+function itemInfoSelect(id, pageNo, category, items, seen) {
+  const discoveredItems = items.filter((item) => seen.has(item.id));
+  if (!discoveredItems.length) return null;
+  return row([{ type: 3, custom_id: `fishindex:iteminfo:${id}:${pageNo}:${category}`, placeholder: 'Check Info', min_values: 1, max_values: 1, options: discoveredItems.map((item) => ({ label: item.name, value: item.id, ...(componentEmoji(item.emoji) ? { emoji: componentEmoji(item.emoji) } : {}) })) }]);
 }
 function textInput(id, label, placeholder) { return { type: 1, components: [{ type: 4, custom_id: id, label, style: 1, required: true, placeholder, max_length: 100 }] }; }
 function pageModal(id, pageNo, maxPage, category, index) { return { custom_id: `fishindex:pagesubmit:${id}:${category}:${index}`, title: 'Switch page', components: [textInput('fish_index_page', 'Which page?', `1 - ${maxPage}: Current page ${pageNo}`)] }; }
@@ -74,6 +86,7 @@ async function drawEmoji(ctx, emoji, x, y, size) { try { const url = emojiUrl(em
 function roundRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
 function fit(ctx, text, width, size, weight = '800') { for (let current = size; current >= 12; current -= 1) { ctx.font = `${weight} ${current}px sans-serif`; if (ctx.measureText(text).width <= width) return current; } return 12; }
 function fishImagePath(name) { if (!fs.existsSync(FISH_IMAGE_DIR)) return null; const wanted = normalizeId(name).replace(/_/g, ''); for (const file of fs.readdirSync(FISH_IMAGE_DIR)) if (path.extname(file).toLowerCase() === '.png' && normalizeId(path.basename(file, '.png')).replace(/_/g, '') === wanted) return path.join(FISH_IMAGE_DIR, file); return null; }
+function itemImagePath(item) { if (!fs.existsSync(ITEM_IMAGE_DIR)) return null; const wanted = [item.imageKey, item.id, item.name].filter(Boolean).map((value) => normalizeId(value).replace(/_/g, '')); for (const file of fs.readdirSync(ITEM_IMAGE_DIR)) { const fileKey = normalizeId(path.basename(file, '.png')).replace(/_/g, ''); if (path.extname(file).toLowerCase() === '.png' && wanted.some((key) => fileKey.includes(key) || key.includes(fileKey))) return path.join(ITEM_IMAGE_DIR, file); } return null; }
 function labelCase(value) { return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()); }
 function normalizeFileName(value) { return String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase(); }
 function findCalmLakeXlsx() {
@@ -274,24 +287,44 @@ function seasonAvailabilityText(fish, season) {
 }
 function weatherSeasonLines(fish) {
   if (!hasSheetAvailability()) return '-# Weather rows require FCCalmFishingLake.xlsx.';
-  return SEASONS.map((season) => `${season.emoji} ${season.key}: ${seasonAvailabilityText(fish, season.key)}`).join('\n');
+  const allSeasons = [];
+  const lines = [];
+  for (const season of SEASONS) {
+    const text = seasonAvailabilityText(fish, season.key);
+    if (text === 'All') allSeasons.push(season.emoji);
+    else lines.push(`${season.emoji} ${season.key}: ${text}`);
+  }
+  if (allSeasons.length > 1) lines.unshift(`${allSeasons.join(' ')}: All`);
+  else if (allSeasons.length === 1) lines.unshift(`${allSeasons[0]} ${SEASONS.find((season) => season.emoji === allSeasons[0])?.key || ''}: All`);
+  return lines.join('\n');
+}
+function infoValue(value) {
+  if (Array.isArray(value)) return value.length ? value.map((entry) => `- ${entry}`).join('\n') : '-# Unknown';
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).filter(([, entry]) => entry !== null && entry !== undefined && entry !== '');
+    return entries.length ? entries.map(([key, entry]) => `- ${labelCase(key)}: ${entry}`).join('\n') : '-# Unknown';
+  }
+  const text = String(value ?? '').trim();
+  return text || '-# Unknown';
 }
 function fishInfoText(fish, discoveredFish) {
   const tags = Array.isArray(fish.tags) && fish.tags.length ? fish.tags.join(', ') : 'None';
   const averageWeight = ((Number(fish.minWeight) + Number(fish.maxWeight)) / 2).toFixed(2);
   return [
-    `## ${fish.emoji} ${fish.displayName || fish.name}`,
-    discoveredFish ? '-# Status: Discovered' : '-# Status: Undiscovered',
-    `-# Rarity: ${RARITY_EMOJI[fish.rarity] || ''} ${fish.rarity}`,
-    `-# Fish Type / Tags: ${tags}`,
-    '-# Location: Calm Fishing Lake',
-    `-# Base Value: ${fish.value || fish.sellValue} Fish Coins`,
-    `-# Average Weight: ~${averageWeight} kg (${fish.minWeight} - ${fish.maxWeight} kg)`,
-    `-# Power Required: ${fish.powerReq}`,
-    '',
-    '**Weather & Season**',
+    `### ${fish.displayName || fish.name}`,
+    `* Rarity: ${RARITY_EMOJI[fish.rarity] || ''} ${fish.rarity}`,
+    `* Value: ${fish.value || fish.sellValue}`,
+    `* Tags: \`${tags}\``,
+    `* Location: ${fish.location || 'Calm Fishing Lake'}`,
+    `* Average Weight: ~${averageWeight} kg (${fish.minWeight} - ${fish.maxWeight} kg)`,
+    `* Power Req: ${fish.powerReq}`,
+    '## Seasons:',
     availabilitySourceText(),
     weatherSeasonLines(fish),
+    '## Obtainment:',
+    infoValue(fish.obtainment),
+    '## Facts:',
+    infoValue(fish.facts),
   ].join('\n');
 }
 function fishInfoPayload(fish, discoveredFish) {
@@ -299,6 +332,26 @@ function fishInfoPayload(fish, discoveredFish) {
   const content = { type: 10, content: fishInfoText(fish, discoveredFish) };
   const body = media ? { type: 9, components: [content], accessory: { type: 11, media: { url: media } } } : content;
   return { flags: FLAGS | EPH, components: [{ type: 17, accent_color: RARITY_ACCENT[fish.rarity] || WHITE, components: [body] }] };
+}
+function itemInfoText(item) {
+  return [
+    `### ${item.name}`,
+    `* Rarity: ${RARITY_EMOJI[item.rarity] || ''} ${item.rarity || 'unknown'}`,
+    `* Value: ${Number(item.value) || 0}`,
+    `* Item type: ${item.type || 'Unknown'}`,
+    '## Stats:',
+    infoValue(item.stats),
+    '## Usage:',
+    infoValue(item.usage),
+    '## Obtainment:',
+    infoValue(item.obtainment),
+  ].join('\n');
+}
+function itemInfoPayload(item) {
+  const media = emojiUrl(item.emoji);
+  const content = { type: 10, content: itemInfoText(item) };
+  const body = media ? { type: 9, components: [content], accessory: { type: 11, media: { url: media } } } : content;
+  return { flags: FLAGS | EPH, components: [{ type: 17, accent_color: RARITY_ACCENT[item.rarity] || WHITE, components: [body] }] };
 }
 async function drawEmojiList(ctx, emojis, x, y, size, gap = 6) { for (let index = 0; index < emojis.length; index += 1) await drawEmoji(ctx, emojis[index], x + index * (size + gap), y, size); }
 async function drawWeatherPairs(ctx, pairs, x, y, size) { const columnGap = 20; const pairWidth = size * 2 + 17; const rowGap = 5; ctx.font = `700 ${Math.max(14, Math.floor(size * 0.72))}px sans-serif`; ctx.fillStyle = '#d7d8e7'; for (let index = 0; index < pairs.length; index += 1) { const pair = pairs[index]; const column = index % 2; const row = Math.floor(index / 2); const rowY = y + row * (size + rowGap); let cursor = x + column * (pairWidth + columnGap); await drawEmoji(ctx, pair.weatherEmoji, cursor, rowY, size); cursor += size + 4; ctx.fillText('[', cursor, rowY + size - 5); cursor += 8; await drawEmoji(ctx, pair.seasonEmoji, cursor, rowY, size); cursor += size + 1; ctx.fillText(']', cursor, rowY + size - 5); } }
@@ -334,6 +387,50 @@ async function fishGallery(items, seen) {
       ctx.fillText('?', x + cardWidth / 2, y + 176);
     }
     await drawEmoji(ctx, RARITY_EMOJI[fish.rarity], x + cardWidth - 54, y + 18, 30);
+    ctx.textAlign = 'center';
+    ctx.font = '800 21px sans-serif';
+    ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
+    ctx.fillText(ok ? 'Discovered' : 'Undiscovered', x + cardWidth / 2, y + 82);
+  }
+  return canvas.toBuffer('image/png');
+}
+
+async function itemGallery(items, seen) {
+  const canvas = createCanvas(900, 840);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#181820';
+  ctx.fillRect(0, 0, 900, 840);
+  const gap = 22;
+  const cardWidth = (900 - gap * 3) / 2;
+  const cardHeight = (840 - gap * 4) / 3;
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const ok = seen.has(item.id);
+    const x = gap + (index % 2) * (cardWidth + gap);
+    const y = gap + Math.floor(index / 2) * (cardHeight + gap);
+    fillCard(ctx, item, ok, x, y, cardWidth, cardHeight, 16);
+    const title = ok ? item.name : 'Undiscovered';
+    ctx.font = `800 ${fit(ctx, title, cardWidth - 92, 28)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
+    ctx.fillText(title, x + cardWidth / 2, y + 40);
+    if (ok) {
+      const imageSize = 138;
+      const imageX = x + (cardWidth - imageSize) / 2;
+      const imageY = y + 96;
+      try {
+        const img = itemImagePath(item);
+        if (img) ctx.drawImage(await loadImage(img), imageX, imageY, imageSize, imageSize);
+        else await drawEmoji(ctx, item.emoji, x + (cardWidth - 112) / 2, y + 108, 112);
+      } catch {
+        await drawEmoji(ctx, item.emoji, x + (cardWidth - 112) / 2, y + 108, 112);
+      }
+    } else {
+      ctx.font = '900 96px sans-serif';
+      ctx.fillStyle = '#5f6070';
+      ctx.fillText('?', x + cardWidth / 2, y + 176);
+    }
+    await drawEmoji(ctx, RARITY_EMOJI[item.rarity], x + cardWidth - 54, y + 18, 30);
     ctx.textAlign = 'center';
     ctx.font = '800 21px sans-serif';
     ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
@@ -387,7 +484,7 @@ async function mutationGallery(items, seen) {
 }
 
 async function render(id, name, requestedPage = 1, category = 'all', index = 'fish') {
-  index = index === 'mutations' ? 'mutations' : 'fish';
+  index = ['fish', 'item', 'mutations'].includes(index) ? index : 'fish';
   const state = load();
   const record = user(state, id);
   if (index === 'mutations') {
@@ -396,6 +493,14 @@ async function render(id, name, requestedPage = 1, category = 'all', index = 'fi
     const buffer = await mutationGallery(paged.items, seen);
     const attachment = new AttachmentBuilder(buffer, { name: 'mutation-index.png' });
     return cont([{ type: 10, content: `## ${name}'s Mutation Index\n-# Mutations discovered: ${ALL_MUTATIONS.filter((mutation) => seen.has(mutation.id)).length} / ${ALL_MUTATIONS.length}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://mutation-index.png' } }] }, sep(), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
+  }
+  if (index === 'item') {
+    const items = Object.values(ITEMS);
+    const seen = itemDiscovered(record);
+    const paged = page(items, requestedPage, ITEM_PER_PAGE);
+    const buffer = await itemGallery(paged.items, seen);
+    const attachment = new AttachmentBuilder(buffer, { name: 'item-index.png' });
+    return cont([{ type: 10, content: `## ${name}'s Item Index\n-# Items discovered: ${items.filter((item) => seen.has(item.id)).length} / ${items.length}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://item-index.png' } }] }, sep(), itemInfoSelect(id, paged.page, category, paged.items, seen), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
   }
   const fish = category === 'calm_fishing_lake' ? FISH : FISH;
   const seen = discovered(record);
@@ -426,12 +531,26 @@ async function handle(interaction) {
     await interaction.reply(fishInfoPayload(fish, true)).catch(() => null);
     return true;
   }
+  if (action === 'iteminfo' && interaction.isStringSelectMenu?.()) {
+    const item = ITEMS[interaction.values?.[0]];
+    if (!item) {
+      await interaction.reply({ content: 'Item not found.', flags: EPH }).catch(() => null);
+      return true;
+    }
+    const record = user(load(), userId);
+    if (!itemDiscovered(record).has(item.id)) {
+      await interaction.reply({ content: 'You have not discovered this item yet.', flags: EPH }).catch(() => null);
+      return true;
+    }
+    await interaction.reply(itemInfoPayload(item)).catch(() => null);
+    return true;
+  }
   if (action === 'index' && interaction.isStringSelectMenu?.()) return update(interaction, await render(userId, interaction.user.username, 1, parts[4] || 'all', interaction.values?.[0] || 'fish'));
   if (action === 'action' && interaction.isStringSelectMenu?.()) {
     const pageNo = Number(parts[3]) || 1;
     const category = parts[4] || 'all';
     const index = parts[5] || 'fish';
-    const maxPage = index === 'mutations' ? page(ALL_MUTATIONS, pageNo, MUTATION_PER_PAGE).maxPage : page(FISH, pageNo, FISH_PER_PAGE).maxPage;
+    const maxPage = index === 'mutations' ? page(ALL_MUTATIONS, pageNo, MUTATION_PER_PAGE).maxPage : index === 'item' ? page(Object.values(ITEMS), pageNo, ITEM_PER_PAGE).maxPage : page(FISH, pageNo, FISH_PER_PAGE).maxPage;
     if (interaction.values?.[0] === 'page') await interaction.showModal(pageModal(userId, pageNo, maxPage, category, index));
     else await interaction.showModal(categoryModal(userId, pageNo, category, index));
     return true;
@@ -442,7 +561,7 @@ async function handle(interaction) {
 }
 
 const fishIndexCommand = {
-  data: new SlashCommandBuilder().setName('fish-index').setDescription('Show your discovered fish and mutation index'),
+  data: new SlashCommandBuilder().setName('fish-index').setDescription('Show your discovered fish, item, and mutation index'),
   suppressCommandLog: true,
   disableActionTimeout: true,
   async execute(interaction) { await interaction.reply(await render(interaction.user.id, interaction.user.username)); },
