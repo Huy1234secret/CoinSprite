@@ -73,10 +73,14 @@ function fishImagePath(name) { if (!fs.existsSync(FISH_IMAGE_DIR)) return null; 
 function labelCase(value) { return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()); }
 function normalizeFileName(value) { return String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase(); }
 function findCalmLakeXlsx() {
-  const exact = ['FCCalmFishingLake.xlsx', 'Calm Fishing Lake.xlsx'].map((fileName) => path.join(__dirname, fileName));
+  const exact = ['FCCalmFishingLake.xlsx', 'Calm Fishing Lake.xlsx'].flatMap((fileName) => [
+    path.join(__dirname, fileName),
+    path.join(__dirname, 'Data', fileName),
+    path.join(__dirname, '..', fileName),
+  ]);
   const foundExact = exact.find((filePath) => fs.existsSync(filePath));
   if (foundExact) return foundExact;
-  const dirs = [__dirname, path.join(__dirname, 'Data')].filter((dir, index, list) => fs.existsSync(dir) && list.indexOf(dir) === index);
+  const dirs = [__dirname, path.join(__dirname, 'Data'), path.join(__dirname, '..')].filter((dir, index, list) => fs.existsSync(dir) && list.indexOf(dir) === index);
   for (const dir of dirs) {
     for (const file of fs.readdirSync(dir)) {
       if (path.extname(file).toLowerCase() !== '.xlsx') continue;
@@ -132,6 +136,7 @@ function fallbackAvailability() {
     }
     result.set(fish.id, info);
   }
+  result.source = 'fallback';
   return result;
 }
 function loadFishAvailability() {
@@ -155,18 +160,20 @@ function loadFishAvailability() {
         info.weatherSeasonTimeWeights.set(timeKey, (info.weatherSeasonTimeWeights.get(timeKey) || 0) + weight);
       }
     }
+    result.source = 'xlsx';
     return result;
   } catch {
     return fallback;
   }
 }
 const availability = loadFishAvailability();
+function hasSheetAvailability() { return availability.source === 'xlsx'; }
 function seasonText(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return 'All'; const allTimes = Object.keys(TIMES).length; return [...info.seasons.entries()].map(([season, times]) => { const seasonEmoji = SEASONS.find((item) => item.key === season)?.emoji || season; const timeText = times.size >= allTimes ? '' : ` - ${[...times].map((time) => TIMES[time] || time).join(' ')}`; return `${seasonEmoji}${timeText}`; }).join('  '); }
 function favoriteWeatherText(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return 'All'; const max = Math.max(...info.weatherWeights.values()); return [...info.weatherWeights.entries()].filter(([, weight]) => weight === max).map(([weather]) => WEATHER_EMOJIS[weather] || weather).join(' '); }
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
-function weatherListForSeasonTime(fish, season, time) { const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
+function weatherListForSeasonTime(fish, season, time) { if (!hasSheetAvailability()) return []; const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
 function seasonAvailabilityText(fish, season) {
   const times = COLUMN_MAP[season] || {};
   const rows = [];
