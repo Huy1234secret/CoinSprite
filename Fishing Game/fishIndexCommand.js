@@ -12,7 +12,9 @@ const EPH = MessageFlags.Ephemeral ?? 64;
 const WHITE = 0xffffff;
 const STORE = path.join(__dirname, '..', 'data', 'fishing-game.json');
 const FISH_IMAGE_DIR = path.join(__dirname, 'Fish Png');
-const CALM_LAKE_XLSX = path.join(__dirname, 'Calm Fishing Lake.xlsx');
+const CALM_LAKE_XLSX = ['FCCalmFishingLake.xlsx', 'Calm Fishing Lake.xlsx']
+  .map((fileName) => path.join(__dirname, fileName))
+  .find((filePath) => fs.existsSync(filePath)) || path.join(__dirname, 'FCCalmFishingLake.xlsx');
 const FISH_PER_PAGE = 6;
 const MUTATION_PER_PAGE = 9;
 
@@ -88,18 +90,21 @@ const RARITY_WEATHER_BONUS = {
 };
 
 function pairKey(weather, season) { return `${weather}|${season}`; }
+function timePairKey(weather, season, time) { return `${weather}|${season}|${time}`; }
 function stableHash(value) { let hash = 0; for (const char of String(value || '')) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0; return hash; }
 function fallbackAvailability() {
   const result = new Map();
   for (const fish of FISH) {
-    const info = { seasons: new Map(SEASONS.map((season) => [season.key, new Set(Object.keys(TIMES))])), weatherWeights: new Map(), weatherSeasonWeights: new Map() };
+    const info = { seasons: new Map(SEASONS.map((season) => [season.key, new Set(Object.keys(TIMES))])), weatherWeights: new Map(), weatherSeasonWeights: new Map(), weatherSeasonTimeWeights: new Map() };
     const bonuses = RARITY_WEATHER_BONUS[fish.rarity] || RARITY_WEATHER_BONUS.common;
-    for (const [season, times] of Object.entries(WEATHER_CHANCES)) for (const weatherList of Object.values(times)) for (const [weather, chance] of weatherList) {
+    for (const [season, times] of Object.entries(WEATHER_CHANCES)) for (const [time, weatherList] of Object.entries(times)) for (const [weather, chance] of weatherList) {
       const bias = 1 + ((stableHash(`${fish.id}:${season}:${weather}`) % 21) / 100);
       const score = Number(chance) * (bonuses[weather] || 0.65) * bias;
       info.weatherWeights.set(weather, (info.weatherWeights.get(weather) || 0) + score);
       const key = pairKey(weather, season);
       info.weatherSeasonWeights.set(key, (info.weatherSeasonWeights.get(key) || 0) + score);
+      const timeKey = timePairKey(weather, season, time);
+      info.weatherSeasonTimeWeights.set(timeKey, (info.weatherSeasonTimeWeights.get(timeKey) || 0) + score);
     }
     result.set(fish.id, info);
   }
@@ -110,7 +115,7 @@ function loadFishAvailability() {
   if (!fs.existsSync(CALM_LAKE_XLSX)) return fallback;
   try {
     const cells = readXlsxCells(CALM_LAKE_XLSX);
-    const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map(), weatherSeasonWeights: new Map() }]));
+    const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map(), weatherSeasonWeights: new Map(), weatherSeasonTimeWeights: new Map() }]));
     for (const [season, times] of Object.entries(COLUMN_MAP)) for (const [time, weathers] of Object.entries(times)) for (const [weather, column] of Object.entries(weathers)) {
       for (let rowNo = 4; rowNo <= 16; rowNo += 1) {
         const fish = FISH_BY_NAME.get(normalizeName(cells.get(`A${rowNo}`)));
@@ -122,6 +127,8 @@ function loadFishAvailability() {
         info.weatherWeights.set(weather, (info.weatherWeights.get(weather) || 0) + weight);
         const key = pairKey(weather, season);
         info.weatherSeasonWeights.set(key, (info.weatherSeasonWeights.get(key) || 0) + weight);
+        const timeKey = timePairKey(weather, season, time);
+        info.weatherSeasonTimeWeights.set(timeKey, (info.weatherSeasonTimeWeights.get(timeKey) || 0) + weight);
       }
     }
     for (const [fishId, info] of result.entries()) if (!info.weatherSeasonWeights.size) result.set(fishId, fallback.get(fishId));
@@ -136,8 +143,24 @@ function favoriteWeatherText(fish) { const info = availability.get(fish.id); if 
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
-function weatherNameListForSeason(fish, season) { const info = availability.get(fish.id); const possible = new Set(); for (const weathers of Object.values(COLUMN_MAP[season] || {})) for (const weather of Object.keys(weathers)) possible.add(weather); const positive = [...possible].filter((weather) => Number(info?.weatherSeasonWeights?.get(pairKey(weather, season))) > 0); if (!positive.length) return 'None'; if (positive.length >= possible.size) return 'All'; return positive.map((weather) => WEATHER_EMOJIS[weather] || weather).join(' '); }
-function weatherSeasonLines(fish) { return SEASONS.map((season) => `${season.emoji} ${season.key}: ${weatherNameListForSeason(fish, season.key)}`).join('\n'); }
+function weatherListForSeasonTime(fish, season, time) { const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
+function seasonAvailabilityText(fish, season) {
+  const times = COLUMN_MAP[season] || {};
+  const rows = [];
+  let possibleCount = 0;
+  let positiveCount = 0;
+  for (const [time, weathers] of Object.entries(times)) {
+    const possible = Object.keys(weathers);
+    const positive = weatherListForSeasonTime(fish, season, time);
+    possibleCount += possible.length;
+    positiveCount += positive.length;
+    if (positive.length) rows.push(`-# * ${TIMES[time] || ''} ${time}: ${positive.map((weather) => WEATHER_EMOJIS[weather] || weather).join(', ')}`);
+  }
+  if (!positiveCount) return '-';
+  if (possibleCount > 0 && positiveCount >= possibleCount) return 'All';
+  return `\n${rows.join('\n')}`;
+}
+function weatherSeasonLines(fish) { return SEASONS.map((season) => `${season.emoji} ${season.key}: ${seasonAvailabilityText(fish, season.key)}`).join('\n'); }
 function fishInfoText(fish, discoveredFish) {
   const tags = Array.isArray(fish.tags) && fish.tags.length ? fish.tags.join(', ') : 'None';
   const averageWeight = ((Number(fish.minWeight) + Number(fish.maxWeight)) / 2).toFixed(2);
