@@ -174,7 +174,12 @@ function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info 
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
 function weatherListForSeasonTime(fish, season, time) { if (!hasSheetAvailability()) return []; const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
+function availabilitySourceText() {
+  if (hasSheetAvailability()) return `-# Source: ${path.basename(CALM_LAKE_XLSX)}`;
+  return '-# Source: FCCalmFishingLake.xlsx not loaded. Weather availability is hidden.';
+}
 function seasonAvailabilityText(fish, season) {
+  if (!hasSheetAvailability()) return '-';
   const times = COLUMN_MAP[season] || {};
   const rows = [];
   let possibleCount = 0;
@@ -190,7 +195,10 @@ function seasonAvailabilityText(fish, season) {
   if (possibleCount > 0 && positiveCount >= possibleCount) return 'All';
   return `\n${rows.join('\n')}`;
 }
-function weatherSeasonLines(fish) { return SEASONS.map((season) => `${season.emoji} ${season.key}: ${seasonAvailabilityText(fish, season.key)}`).join('\n'); }
+function weatherSeasonLines(fish) {
+  if (!hasSheetAvailability()) return '-# Weather rows require FCCalmFishingLake.xlsx.';
+  return SEASONS.map((season) => `${season.emoji} ${season.key}: ${seasonAvailabilityText(fish, season.key)}`).join('\n');
+}
 function fishInfoText(fish, discoveredFish) {
   const tags = Array.isArray(fish.tags) && fish.tags.length ? fish.tags.join(', ') : 'None';
   const averageWeight = ((Number(fish.minWeight) + Number(fish.maxWeight)) / 2).toFixed(2);
@@ -205,6 +213,7 @@ function fishInfoText(fish, discoveredFish) {
     `-# Power Required: ${fish.powerReq}`,
     '',
     '**Weather & Season**',
+    availabilitySourceText(),
     weatherSeasonLines(fish),
   ].join('\n');
 }

@@ -92,6 +92,8 @@ const PAYOUTS = {
 };
 
 const activeGames = new Map();
+const rouletteCooldowns = new Map();
+const ROULETTE_COOLDOWN_MS = 30_000;
 
 function rangeStrings(start, end) {
   return Array.from({ length: end - start + 1 }, (_, index) => String(start + index));
@@ -1231,16 +1233,7 @@ module.exports = {
   suppressCommandLog: true,
 
   async execute(interaction) {
-    const until = globalThis.rouletteCooldowns.get(interaction.user.id) || 0;
-    if (until > Date.now()) {
-      await interaction.reply({ content: `You can start Roulette again <t:${Math.floor(until / 1000)}:R>.`, flags: EPHEMERAL_FLAG });
-      return;
-    }
-    const cooldownUntil = Date.now() + COOLDOWN_MS;
-    globalThis.rouletteCooldowns.set(interaction.user.id, cooldownUntil);
-    await this.executeOriginal(interaction);
-    const message = await interaction.fetchReply().catch(() => null);
-    sessionFromMessage(message, interaction.user.id, cooldownUntil);
+    return this.executeOriginal(interaction);
   },
   async executeOriginal(interaction) {
     const cooldownUntil = rouletteCooldowns.get(interaction.user.id) || 0;
@@ -1279,50 +1272,6 @@ module.exports = {
   },
 
   async handleInteraction(interaction) {
-    const customId = interaction.customId;
-    if (typeof customId !== 'string' || !customId.startsWith('roulette:')) return false;
-    const [, action, ownerId, gameId] = customId.split(':');
-    const session = sessions.get(gameId);
-    if (session?.expired) {
-      await interaction.reply({ content: 'This Roulette game ended after 30 seconds of inactivity. Use /roulette to start a new one.', flags: EPHEMERAL_FLAG }).catch(() => null);
-      return true;
-    }
-    if (session) {
-      session.message = interaction.message || session.message;
-      resetTimer(session);
-    }
-    if (action === 'modal') {
-      const bet = parseBet(submittedValue(interaction, 'bet'));
-      const MIN_BET = 100;
-      if (!Number.isFinite(bet) || bet < MIN_BET) {
-        await interaction.reply({ content: `Bet must be at least **${formatNumber(MIN_BET)}** ${PRCOIN}.`, flags: EPHEMERAL_FLAG });
-        return true;
-      }
-      const available = getBalance(ownerId) + (session?.status === 'bet_placed' ? session.bet : 0);
-      if (available < bet) {
-        await interaction.reply({ content: `You need **${formatNumber(bet)}** ${PRCOIN} to place that bet.`, flags: EPHEMERAL_FLAG });
-        return true;
-      }
-      const handled = await this.handleInteractionOriginal(interaction);
-      if (session && !interaction.replied) {
-        session.status = 'bet_placed';
-        session.bet = bet;
-        resetTimer(session);
-      }
-      return handled;
-    }
-    if (action === 'start') {
-      if (session) {
-        clearTimer(session);
-        session.status = 'spinning';
-        session.bet = 0;
-        setTimeout(() => {
-          globalThis.rouletteCooldowns.set(session.userId, session.cooldownUntil);
-          if (!session.expired) resetTimer(session);
-        }, SPIN_MS + 1_000);
-      }
-      return this.handleInteractionOriginal(interaction);
-    }
     return this.handleInteractionOriginal(interaction);
   },
   async handleInteractionOriginal(interaction) {
