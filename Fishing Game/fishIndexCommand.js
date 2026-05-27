@@ -58,7 +58,11 @@ function cont(components, files = []) { return { flags: FLAGS, files, components
 function actions(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:action:${id}:${pageNo}:${category}:${index}`, placeholder: 'Select an action', min_values: 1, max_values: 1, options: [{ label: 'Switch Page', value: 'page' }, { label: 'Switch Category', value: 'category' }] }]); }
 function indexSelect(id, pageNo, category, index) { return row([{ type: 3, custom_id: `fishindex:index:${id}:${pageNo}:${category}:${index}`, placeholder: 'Switch index', min_values: 1, max_values: 1, options: [{ label: 'Fish', value: 'fish', default: index === 'fish' }, { label: 'Mutations', value: 'mutations', default: index === 'mutations' }] }]); }
 function componentEmoji(emoji) { const match = String(emoji || '').match(/^<a?:([A-Za-z0-9_]+):(\d+)>$/); return match ? { name: match[1], id: match[2], animated: String(emoji).startsWith('<a:') } : null; }
-function infoSelect(id, pageNo, category, fishList) { if (!fishList.length) return null; return row([{ type: 3, custom_id: `fishindex:info:${id}:${pageNo}:${category}`, placeholder: 'Check Info', min_values: 1, max_values: 1, options: fishList.map((fish) => ({ label: fish.displayName || fish.name, value: fish.id, ...(componentEmoji(fish.emoji) ? { emoji: componentEmoji(fish.emoji) } : {}) })) }]); }
+function infoSelect(id, pageNo, category, fishList, seen) {
+  const discoveredFish = fishList.filter((fish) => seen.has(fish.id));
+  if (!discoveredFish.length) return null;
+  return row([{ type: 3, custom_id: `fishindex:info:${id}:${pageNo}:${category}`, placeholder: 'Check Info', min_values: 1, max_values: 1, options: discoveredFish.map((fish) => ({ label: fish.displayName || fish.name, value: fish.id, ...(componentEmoji(fish.emoji) ? { emoji: componentEmoji(fish.emoji) } : {}) })) }]);
+}
 function textInput(id, label, placeholder) { return { type: 1, components: [{ type: 4, custom_id: id, label, style: 1, required: true, placeholder, max_length: 100 }] }; }
 function pageModal(id, pageNo, maxPage, category, index) { return { custom_id: `fishindex:pagesubmit:${id}:${category}:${index}`, title: 'Switch page', components: [textInput('fish_index_page', 'Which page?', `1 - ${maxPage}: Current page ${pageNo}`)] }; }
 function categoryModal(id, pageNo, category, index) { return { custom_id: `fishindex:categorysubmit:${id}:${pageNo}:${index}`, title: 'Switch category', components: [{ type: 18, label: 'Select a category', component: { type: 3, custom_id: 'fish_index_category', placeholder: 'Select a category', min_values: 1, max_values: 1, options: CATEGORIES.map((option) => ({ ...option, default: option.value === category })) } }] }; }
@@ -314,7 +318,7 @@ async function fishGallery(items, seen) {
     const x = gap + (index % 2) * (cardWidth + gap);
     const y = gap + Math.floor(index / 2) * (cardHeight + gap);
     fillCard(ctx, fish, ok, x, y, cardWidth, cardHeight, 16);
-    const title = fish.displayName || fish.name;
+    const title = ok ? (fish.displayName || fish.name) : 'Undiscovered';
     ctx.font = `800 ${fit(ctx, title, cardWidth - 92, 28)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
@@ -398,7 +402,7 @@ async function render(id, name, requestedPage = 1, category = 'all', index = 'fi
   const paged = page(fish, requestedPage, FISH_PER_PAGE);
   const buffer = await fishGallery(paged.items, seen);
   const attachment = new AttachmentBuilder(buffer, { name: 'fish-index.png' });
-  return cont([{ type: 10, content: `## ${name}'s Fish Index\n-# Fish discovered: ${fish.filter((entry) => seen.has(entry.id)).length} / ${fish.length}\n-# Category: ${CATEGORIES.find((item) => item.value === category)?.label || 'All'}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://fish-index.png' } }] }, sep(), infoSelect(id, paged.page, category, paged.items), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
+  return cont([{ type: 10, content: `## ${name}'s Fish Index\n-# Fish discovered: ${fish.filter((entry) => seen.has(entry.id)).length} / ${fish.length}\n-# Category: ${CATEGORIES.find((item) => item.value === category)?.label || 'All'}` }, sep(), { type: 12, items: [{ media: { url: 'attachment://fish-index.png' } }] }, sep(), infoSelect(id, paged.page, category, paged.items, seen), actions(id, paged.page, category, index), indexSelect(id, paged.page, category, index)], [attachment]);
 }
 
 async function handle(interaction) {
@@ -415,7 +419,11 @@ async function handle(interaction) {
       return true;
     }
     const record = user(load(), userId);
-    await interaction.reply(fishInfoPayload(fish, discovered(record).has(fish.id))).catch(() => null);
+    if (!discovered(record).has(fish.id)) {
+      await interaction.reply({ content: 'You have not discovered this fish yet.', flags: EPH }).catch(() => null);
+      return true;
+    }
+    await interaction.reply(fishInfoPayload(fish, true)).catch(() => null);
     return true;
   }
   if (action === 'index' && interaction.isStringSelectMenu?.()) return update(interaction, await render(userId, interaction.user.username, 1, parts[4] || 'all', interaction.values?.[0] || 'fish'));
