@@ -136,7 +136,7 @@ function favoriteWeatherText(fish) { const info = availability.get(fish.id); if 
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
-function weatherNameListForSeason(fish, season) { const info = availability.get(fish.id); const possible = new Set(); for (const weathers of Object.values(COLUMN_MAP[season] || {})) for (const weather of Object.keys(weathers)) possible.add(weather); const positive = [...possible].filter((weather) => Number(info?.weatherSeasonWeights?.get(pairKey(weather, season))) > 0); if (!positive.length) return 'None'; if (positive.length >= possible.size) return 'All'; return positive.map((weather) => `${WEATHER_EMOJIS[weather] || ''} ${weather}`.trim()).join(', '); }
+function weatherNameListForSeason(fish, season) { const info = availability.get(fish.id); const possible = new Set(); for (const weathers of Object.values(COLUMN_MAP[season] || {})) for (const weather of Object.keys(weathers)) possible.add(weather); const positive = [...possible].filter((weather) => Number(info?.weatherSeasonWeights?.get(pairKey(weather, season))) > 0); if (!positive.length) return 'None'; if (positive.length >= possible.size) return 'All'; return positive.map((weather) => WEATHER_EMOJIS[weather] || weather).join(' '); }
 function weatherSeasonLines(fish) { return SEASONS.map((season) => `${season.emoji} ${season.key}: ${weatherNameListForSeason(fish, season.key)}`).join('\n'); }
 function fishInfoText(fish, discoveredFish) {
   const tags = Array.isArray(fish.tags) && fish.tags.length ? fish.tags.join(', ') : 'None';
@@ -146,6 +146,7 @@ function fishInfoText(fish, discoveredFish) {
     discoveredFish ? '-# Status: Discovered' : '-# Status: Undiscovered',
     `-# Rarity: ${RARITY_EMOJI[fish.rarity] || ''} ${fish.rarity}`,
     `-# Fish Type / Tags: ${tags}`,
+    '-# Location: Calm Fishing Lake',
     `-# Base Value: ${fish.value || fish.sellValue} Fish Coins`,
     `-# Average Weight: ~${averageWeight} kg (${fish.minWeight} - ${fish.maxWeight} kg)`,
     `-# Power Required: ${fish.powerReq}`,
@@ -184,20 +185,20 @@ async function fishGallery(items, seen) {
     ctx.fillStyle = ok ? '#f6f6ff' : '#8c8c9a';
     ctx.fillText(title, x + cardWidth / 2, y + 40);
     if (ok) {
-      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), x + 34, y + 78, 144, 144); else await drawEmoji(ctx, fish.emoji, x + 56, y + 96, 104); } catch { await drawEmoji(ctx, fish.emoji, x + 56, y + 96, 104); }
+      const imageSize = 138;
+      const imageX = x + (cardWidth - imageSize) / 2;
+      const imageY = y + 96;
+      try { const img = fishImagePath(fish.name); if (img) ctx.drawImage(await loadImage(img), imageX, imageY, imageSize, imageSize); else await drawEmoji(ctx, fish.emoji, x + (cardWidth - 112) / 2, y + 108, 112); } catch { await drawEmoji(ctx, fish.emoji, x + (cardWidth - 112) / 2, y + 108, 112); }
     } else {
       ctx.font = '900 96px sans-serif';
       ctx.fillStyle = '#5f6070';
-      ctx.fillText('?', x + 106, y + 170);
+      ctx.fillText('?', x + cardWidth / 2, y + 176);
     }
     await drawEmoji(ctx, RARITY_EMOJI[fish.rarity], x + cardWidth - 54, y + 18, 30);
     ctx.textAlign = 'center';
     ctx.font = '800 21px sans-serif';
     ctx.fillStyle = ok ? '#d7d8e7' : '#737482';
-    ctx.fillText(ok ? 'Discovered' : 'Undiscovered', x + cardWidth / 2, y + 92);
-    ctx.font = '700 17px sans-serif';
-    ctx.fillStyle = ok ? '#b7bacb' : '#737482';
-    ctx.fillText(labelCase(fish.rarity || 'unknown'), x + cardWidth / 2, y + 122);
+    ctx.fillText(ok ? 'Discovered' : 'Undiscovered', x + cardWidth / 2, y + 82);
   }
   return canvas.toBuffer('image/png');
 }
