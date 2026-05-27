@@ -41,6 +41,9 @@ const FISH = [
   powerReq,
   durDamage,
   tags: Array.isArray(tags) ? [...tags] : [],
+  location: 'Calm Fishing Lake',
+  obtainment: null,
+  facts: null,
 }));
 
 const FISH_BY_ID = new Map(FISH.map((fish) => [fish.id, fish]));

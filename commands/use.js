@@ -31,9 +31,12 @@ function addInventoryItem(user, itemId, amount) {
   const item = ITEMS[itemId];
   if (!item || amount <= 0) return;
   user.inventory = user.inventory && typeof user.inventory === 'object' ? user.inventory : {};
+  user.itemIndex = user.itemIndex && typeof user.itemIndex === 'object' ? user.itemIndex : {};
   const entry = user.inventory[itemId] && typeof user.inventory[itemId] === 'object' ? user.inventory[itemId] : { amount: 0 };
   entry.amount = Math.max(0, Math.floor(Number(entry.amount) || 0)) + amount;
   user.inventory[itemId] = entry;
+  const previous = user.itemIndex[itemId] && typeof user.itemIndex[itemId] === 'object' ? user.itemIndex[itemId] : {};
+  user.itemIndex[itemId] = { discoveredAt: previous.discoveredAt || Date.now(), count: Math.max(0, Math.floor(Number(previous.count) || 0)) + Math.max(0, Math.floor(Number(amount) || 0)), lastObtainedAt: Date.now() };
 }
 
 function removeInventoryItem(user, itemId, amount) {

@@ -245,4 +245,11 @@ const ITEMS = {
   },
 };
 
+for (const item of Object.values(ITEMS)) {
+  item.stats = item.stats ?? null;
+  item.usage = item.usage ?? null;
+  item.obtainment = item.obtainment ?? null;
+  item.facts = item.facts ?? null;
+}
+
 module.exports = { ITEMS };
