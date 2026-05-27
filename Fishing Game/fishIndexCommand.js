@@ -95,7 +95,18 @@ function unzipXlsx(buffer) { const files = new Map(); let offset = 0; while (off
 function decodeXml(value) { return String(value || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'"); }
 function parseSharedStrings(xml) { const strings = []; for (const match of xml.matchAll(/<si\b[\s\S]*?<\/si>/g)) strings.push([...match[0].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((part) => decodeXml(part[1])).join('')); return strings; }
 function parseSheetCells(xml, sharedStrings) { const cells = new Map(); for (const match of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) { const attrs = match[1]; const body = match[2]; const ref = /r="([^"]+)"/.exec(attrs)?.[1]; if (!ref) continue; const type = /t="([^"]+)"/.exec(attrs)?.[1]; const raw = /<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? ''; const inline = /<t[^>]*>([\s\S]*?)<\/t>/.exec(body)?.[1]; let value = raw; if (type === 's') value = sharedStrings[Number(raw)] ?? ''; else if (type === 'inlineStr') value = decodeXml(inline || ''); cells.set(ref, decodeXml(value)); } return cells; }
-function readXlsxCells(filePath) { const files = unzipXlsx(fs.readFileSync(filePath)); const sharedStrings = parseSharedStrings(files.get('xl/sharedStrings.xml') || ''); const sheetName = files.has('xl/worksheets/sheet1.xml') ? 'xl/worksheets/sheet1.xml' : [...files.keys()].find((name) => name.startsWith('xl/worksheets/sheet')); return parseSheetCells(files.get(sheetName) || '', sharedStrings); }
+function readXlsxCells(filePath) {
+  const files = unzipXlsx(fs.readFileSync(filePath));
+  const sharedStrings = parseSharedStrings(files.get('xl/sharedStrings.xml') || '');
+  const sheetNames = [...files.keys()].filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name));
+  let best = null;
+  for (const sheetName of sheetNames) {
+    const cells = parseSheetCells(files.get(sheetName) || '', sharedStrings);
+    const score = scoreFishSheet(cells);
+    if (!best || score > best.score) best = { cells, score };
+  }
+  return best?.cells || new Map();
+}
 function parseChanceValue(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   const text = String(value ?? '').trim();
@@ -106,6 +117,11 @@ function parseChanceValue(value) {
 function fishFromSheetName(value) {
   const normalized = normalizeName(value);
   return FISH_BY_NAME.get(normalized) || FISH.find((fish) => normalizeName(fish.displayName || fish.name) === normalized) || null;
+}
+function scoreFishSheet(cells) {
+  let score = 0;
+  for (let rowNo = 1; rowNo <= 250; rowNo += 1) if (fishFromSheetName(cells.get(`A${rowNo}`))) score += 1;
+  return score;
 }
 const RARITY_WEATHER_BONUS = {
   common: { Sunny: 1.55, Rain: 1.25, Windy: 1.1 },
@@ -119,6 +135,56 @@ const RARITY_WEATHER_BONUS = {
 
 function pairKey(weather, season) { return `${weather}|${season}`; }
 function timePairKey(weather, season, time) { return `${weather}|${season}|${time}`; }
+function columnNameToNumber(columnName) {
+  let number = 0;
+  for (const char of String(columnName || '').toUpperCase()) number = (number * 26) + char.charCodeAt(0) - 64;
+  return number;
+}
+function columnNumberToName(number) {
+  let name = '';
+  for (let current = Number(number); current > 0; current = Math.floor((current - 1) / 26)) name = String.fromCharCode(((current - 1) % 26) + 65) + name;
+  return name;
+}
+function normalizedHeader(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+function headerMatch(value, choices) {
+  const normalized = normalizedHeader(value);
+  if (!normalized) return null;
+  return choices.find((choice) => {
+    const target = normalizedHeader(choice);
+    return normalized === target || normalized.includes(target);
+  }) || null;
+}
+function maxColumnNumber(cells) {
+  let max = columnNameToNumber('CN');
+  for (const key of cells.keys()) {
+    const column = /^([A-Z]+)\d+$/.exec(key)?.[1];
+    if (column) max = Math.max(max, columnNameToNumber(column));
+  }
+  return max;
+}
+function buildColumnMapFromHeaders(cells) {
+  const seasons = SEASONS.map((season) => season.key);
+  const times = Object.keys(TIMES);
+  const weathers = Object.keys(WEATHER_EMOJIS).sort((a, b) => b.length - a.length);
+  const map = {};
+  let currentSeason = null;
+  let currentTime = null;
+  for (let columnNo = 2; columnNo <= maxColumnNumber(cells); columnNo += 1) {
+    const column = columnNumberToName(columnNo);
+    const headerValues = [];
+    for (let rowNo = 1; rowNo <= 12; rowNo += 1) headerValues.push(cells.get(`${column}${rowNo}`));
+    const season = headerValues.map((value) => headerMatch(value, seasons)).find(Boolean);
+    const time = headerValues.map((value) => headerMatch(value, times)).find(Boolean);
+    const weather = headerValues.map((value) => headerMatch(value, weathers)).find(Boolean);
+    if (season) currentSeason = season;
+    if (time) currentTime = time;
+    if (!weather || !currentSeason || !currentTime) continue;
+    if (!map[currentSeason]) map[currentSeason] = {};
+    if (!map[currentSeason][currentTime]) map[currentSeason][currentTime] = {};
+    map[currentSeason][currentTime][weather] = column;
+  }
+  return Object.keys(map).length ? map : COLUMN_MAP;
+}
 function stableHash(value) { let hash = 0; for (const char of String(value || '')) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0; return hash; }
 function fallbackAvailability() {
   const result = new Map();
@@ -145,7 +211,9 @@ function loadFishAvailability() {
   try {
     const cells = readXlsxCells(CALM_LAKE_XLSX);
     const result = new Map(FISH.map((fish) => [fish.id, { seasons: new Map(), weatherWeights: new Map(), weatherSeasonWeights: new Map(), weatherSeasonTimeWeights: new Map() }]));
-    for (const [season, times] of Object.entries(COLUMN_MAP)) for (const [time, weathers] of Object.entries(times)) for (const [weather, column] of Object.entries(weathers)) {
+    const sheetColumnMap = buildColumnMapFromHeaders(cells);
+    result.columnSource = sheetColumnMap === COLUMN_MAP ? 'static' : 'headers';
+    for (const [season, times] of Object.entries(sheetColumnMap)) for (const [time, weathers] of Object.entries(times)) for (const [weather, column] of Object.entries(weathers)) {
       for (let rowNo = 1; rowNo <= 200; rowNo += 1) {
         const fish = fishFromSheetName(cells.get(`A${rowNo}`));
         const weight = parseChanceValue(cells.get(`${column}${rowNo}`));
@@ -173,9 +241,14 @@ function favoriteWeatherText(fish) { const info = availability.get(fish.id); if 
 function seasonEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.seasons.size) return []; return [...info.seasons.keys()].map((season) => SEASONS.find((item) => item.key === season)?.emoji).filter(Boolean); }
 function favoriteWeatherEmojis(fish) { const info = availability.get(fish.id); if (!info || !info.weatherWeights.size) return []; return [...info.weatherWeights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([weather]) => WEATHER_EMOJIS[weather]).filter(Boolean); }
 function favoriteWeatherPairs(fish) { const info = availability.get(fish.id); if (!info || !info.weatherSeasonWeights?.size) return []; return SEASONS.map((seasonInfo) => { const best = [...info.weatherSeasonWeights.entries()].filter(([key, weight]) => key.endsWith(`|${seasonInfo.key}`) && Number(weight) > 0).sort((a, b) => b[1] - a[1])[0]; if (!best) return null; const [weather] = best[0].split('|'); return { weatherEmoji: WEATHER_EMOJIS[weather], seasonEmoji: seasonInfo.emoji }; }).filter((pair) => pair?.weatherEmoji && pair.seasonEmoji); }
-function weatherListForSeasonTime(fish, season, time) { if (!hasSheetAvailability()) return []; const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
+function fishAllowsWeather(fish, weather) {
+  const tags = new Set((fish.tags || []).map((tag) => normalizeId(tag)));
+  if (weather === 'Heatwave' && tags.has('noheat')) return false;
+  return true;
+}
+function weatherListForSeasonTime(fish, season, time) { if (!hasSheetAvailability()) return []; const info = availability.get(fish.id); const possible = Object.keys(COLUMN_MAP[season]?.[time] || {}); return possible.filter((weather) => fishAllowsWeather(fish, weather) && Number(info?.weatherSeasonTimeWeights?.get(timePairKey(weather, season, time))) > 0); }
 function availabilitySourceText() {
-  if (hasSheetAvailability()) return `-# Source: ${path.basename(CALM_LAKE_XLSX)}`;
+  if (hasSheetAvailability()) return `-# Source: ${path.basename(CALM_LAKE_XLSX)} (${availability.columnSource || 'static'} columns)`;
   return '-# Source: FCCalmFishingLake.xlsx not loaded. Weather availability is hidden.';
 }
 function seasonAvailabilityText(fish, season) {
