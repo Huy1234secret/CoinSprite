@@ -155,7 +155,6 @@ function loadFishAvailability() {
         info.weatherSeasonTimeWeights.set(timeKey, (info.weatherSeasonTimeWeights.get(timeKey) || 0) + weight);
       }
     }
-    for (const [fishId, info] of result.entries()) if (!info.weatherSeasonWeights.size) result.set(fishId, fallback.get(fishId));
     return result;
   } catch {
     return fallback;
