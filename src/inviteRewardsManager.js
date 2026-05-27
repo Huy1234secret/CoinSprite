@@ -135,6 +135,19 @@ function parseRoleCommand(commandBody) {
   };
 }
 
+function parseDmCommand(commandBody) {
+  const match = commandBody.match(/^DM\s+(\[[^\]]+\]|<@!?\d{16,20}>|\d{16,20})\s+([\s\S]+?)\s+(yes|no)\s*$/i);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    userIds: parseUserIdListToken(match[1]),
+    body: match[2].trim(),
+    shouldMention: match[3].toLowerCase() === 'yes',
+  };
+}
+
 function getTierForMembers(memberCount) {
   return (
     TIERS.find((tier) => {
@@ -734,7 +747,7 @@ async function onMessageCreate(message) {
     /^invitee-blacklist\s+remove\s+(\S+)(?:\s+([\s\S]+))?$/i,
     /^role\s+(?:add|remove)\s+/i,
     /^(?:RI|IR)\s+(\S+)$/i,
-    /^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i,
+    /^DM\s+(\[[^\]]+\]|<@!?\d{16,20}>|\d{16,20})\s+([\s\S]+?)\s+(yes|no)\s*$/i,
     /^(add|remove)\s+(\S+)\s+(.+)\s+(\d+)$/i,
   ].some((pattern) => pattern.test(commandBody));
 
@@ -954,35 +967,42 @@ async function onMessageCreate(message) {
     return;
   }
 
-  const dmCommand = commandBody.match(/^DM\s+(\S+)\s+([\s\S]+)\s+(yes|no)$/i);
+  const dmCommand = parseDmCommand(commandBody);
   if (dmCommand) {
-    const [, userToken, rawMessage, mentionRaw] = dmCommand;
-    const userId = parseUserIdToken(userToken);
-    if (!userId) {
-      await message.reply('Invalid user ID. Use a numeric ID or @mention.');
+    const { userIds, body: dmBody, shouldMention } = dmCommand;
+    if (!userIds) {
+      await message.reply('Invalid user list. Use `!DM userID message yes/no` or `!DM [userID, userID] message yes/no`.');
       return;
     }
-    const shouldMention = mentionRaw.toLowerCase() === 'yes';
-    const dmBody = rawMessage.trim();
 
     if (!dmBody) {
-      await message.reply('Message cannot be empty. Use `!DM {userID} {message} {yes/no}`.');
+      await message.reply('Message cannot be empty. Use `!DM {userID} {message} {yes/no}` or `!DM [{id1}, {id2}] {message} {yes/no}`.');
       return;
     }
 
-    try {
-      const targetUser = await message.client.users.fetch(userId);
-      const dmContent = shouldMention ? `<@${userId}>\n${dmBody}` : dmBody;
-      await targetUser.send({ content: dmContent });
-
-      logReward(`Manual DM sent to ${userId} by ${message.author.id}. mention=${shouldMention ? 'yes' : 'no'}`);
-      await message.reply(`DM sent to <@${userId}> successfully.`);
-    } catch (error) {
-      logCommandSystem(
-        `Failed !DM command by ${message.author.id} to ${userId}: ${error?.message ?? 'unknown error'}`,
-      );
-      await message.reply(`Failed to send DM to <@${userId}>. The user may have DMs disabled.`);
+    const sent = [];
+    const failed = [];
+    for (const userId of userIds) {
+      try {
+        const targetUser = await message.client.users.fetch(userId);
+        const dmContent = shouldMention ? `<@${userId}>\n${dmBody}` : dmBody;
+        await targetUser.send({ content: dmContent });
+        sent.push(`<@${userId}>`);
+      } catch (error) {
+        logCommandSystem(
+          `Failed !DM command by ${message.author.id} to ${userId}: ${error?.message ?? 'unknown error'}`,
+        );
+        failed.push(`<@${userId}> (${error?.message ?? 'DM failed'})`);
+      }
     }
+
+    logReward(`Manual DM command by ${message.author.id}. sent=${sent.length}; failed=${failed.length}; mention=${shouldMention ? 'yes' : 'no'}`);
+
+    const lines = [
+      `DM finished. Sent: ${sent.length ? sent.join(', ') : 'none'}`,
+    ];
+    if (failed.length) lines.push(`Failed: ${failed.join(', ')}`);
+    await message.reply({ content: lines.join('\n'), allowedMentions: { parse: [] } });
     return;
   }
 
