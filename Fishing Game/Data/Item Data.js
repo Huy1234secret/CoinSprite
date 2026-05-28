@@ -83,6 +83,8 @@ const ITEMS = {
     rarity: 'common',
     value: 20,
     imageKey: 'ITCSBreadBallBait',
+    usage: 'Bread Ball is cheap bait for common peaceful fish, giving **+45% Peaceful fish**, **+35% Common fish**, **+30% Carp**, and **+10% bite speed**, but it lowers **Predator fish by 25%**, **Rare fish by 20%**, **Very Rare fish by 35%**, and **Legendary fish by 45%**.',
+    obtainment: 'Bread Ball can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 22,
       boostCap: 0.6,
@@ -100,6 +102,8 @@ const ITEMS = {
     rarity: 'common',
     value: 25,
     imageKey: 'ITCSWormBait',
+    usage: 'Worm is a basic beginner bait for simple freshwater fishing, giving **+25% Common fish**, **+20% Small fish**, **+15% Freshwater fish**, **+10% Pond/Lake fish**, and **+5% bite speed**.',
+    obtainment: 'Worm can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 20,
       boostCap: 0.6,
@@ -116,6 +120,8 @@ const ITEMS = {
     rarity: 'common',
     value: 40,
     imageKey: 'ITCSBugBait',
+    usage: 'Bug is surface bait for daytime fishing, giving **+50% Surface fish**, **+25% Small fish**, **+20% Day fish**, **+15% Pond/Lake fish**, and **+10% bite speed**, but it lowers **Bottom Feeder fish by 25%** and **Deep Water fish by 20%**.',
+    obtainment: 'Bug can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 15,
       boostCap: 0.6,
@@ -132,6 +138,8 @@ const ITEMS = {
     rarity: 'uncommon',
     value: 70,
     imageKey: 'ITCSGrubBait',
+    usage: 'Grub is an upgraded worm for faster freshwater catches, giving **+35% Small fish**, **+30% Small-Medium fish**, **+25% Uncommon fish**, **+15% Freshwater fish**, **+15% bite speed**, and **+10% chance to save bait**, but it lowers **Large fish by 20%** and **Legendary fish by 15%**.',
+    obtainment: 'Grub can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 12,
       boostCap: 0.8,
@@ -149,6 +157,8 @@ const ITEMS = {
     rarity: 'uncommon',
     value: 90,
     imageKey: 'ITCSShrimp',
+    usage: 'Shrimp is medium lake bait, giving **+30% Medium fish**, **+20% Rain fish**, **+15% Uncommon fish**, **+15% Lake fish**, and **+10% River fish**, but it lowers **Small fish by 10%**.',
+    obtainment: 'Shrimp can be obtained from **Box of Fish Baits**.',
     bait: {
       boxChance: 10,
       boostCap: 0.8,
@@ -164,6 +174,8 @@ const ITEMS = {
     rarity: 'uncommon',
     value: 110,
     imageKey: 'ITCSCheeseBait',
+    usage: 'Cheese Cube is smelly bait for carp, catfish, and bottom-feeders, giving **+40% Catfish**, **+35% Carp**, **+30% Bottom Feeder fish**, **+20% Muddy Water fish**, and **+10% Uncommon fish**, but it adds **+5% junk chance** and lowers **Surface fish by 15%**.',
+    obtainment: 'Cheese Cube can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 8,
       boostCap: 0.8,
@@ -181,6 +193,8 @@ const ITEMS = {
     rarity: 'rare',
     value: 175,
     imageKey: 'ITCSLeechBait',
+    usage: 'Leech is night bait for dark-water and bottom-feeder fishing, giving **+45% Bottom Feeder fish**, **+30% Night fish**, **+25% Muddy Water fish**, **+20% Catfish**, and **+15% Rare fish at night**, but it lowers daytime bite speed by **10%** and lowers **Surface fish by 15%**.',
+    obtainment: 'Leech can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 5,
       boostCap: 0.8,
@@ -199,6 +213,8 @@ const ITEMS = {
     rarity: 'rare',
     value: 225,
     imageKey: 'ITCSMinnowBait',
+    usage: 'Minnow is predator bait for strong fish, giving **+50% Predator fish**, **+35% Large fish**, **+20% Rare fish**, and **+15% Deep Water fish**, but it increases rod durability drain by **10%**, lowers **Peaceful fish by 25%**, and lowers **Small fish by 15%**.',
+    obtainment: 'Minnow can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 4,
       boostCap: 0.8,
@@ -216,6 +232,8 @@ const ITEMS = {
     rarity: 'very_rare',
     value: 375,
     imageKey: 'ITCSSquidBait',
+    usage: 'Squid Piece is heavy cut bait for large and deep fish, giving **+40% Large fish**, **+35% Deep Water fish**, **+25% Predator fish**, **+20% Very Rare fish**, and **+10% Night fish**, but it increases rod durability drain by **12%**, lowers **Small fish by 30%**, and lowers **Common fish by 15%**.',
+    obtainment: 'Squid Piece can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 2.5,
       boostCap: 0.8,
@@ -233,6 +251,8 @@ const ITEMS = {
     rarity: 'legendary',
     value: 750,
     imageKey: 'ITCSGlowingMagicWorm',
+    usage: 'Magic Glowing Worm is special bait for rare and legendary fishing, giving **+50% Legendary fish**, **+35% Very Rare fish**, **+25% Rare fish**, **+30% Night fish**, **+20% Full Moon fish**, **+20% Bloodmoon fish**, and **+10% Special/Magic fish**, but it increases rod durability drain by **15%** and lowers **Common fish by 20%**.',
+    obtainment: 'Magic Glowing Worm can be obtained from **Box of Fish Baits**',
     bait: {
       boxChance: 1.5,
       boostCap: 1.2,
