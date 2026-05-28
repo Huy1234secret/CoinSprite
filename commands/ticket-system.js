@@ -355,30 +355,48 @@ function getUploadedEvidenceFiles(uploadedEvidence) {
     }));
 }
 
-function getUploadedAttachmentDetails(interaction) {
+function collectionToArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.values === 'function') return Array.from(value.values());
+  return [value];
+}
+
+function getResolvedAttachment(resolvedAttachments, id) {
+  if (!resolvedAttachments || !id) return null;
+  if (typeof resolvedAttachments.get === 'function') return resolvedAttachments.get(id) ?? null;
+  return resolvedAttachments[id] ?? null;
+}
+
+function getSubmittedUploadIds(interaction, customId) {
+  const component = findSubmittedComponent(interaction, customId);
+  const values = component?.values ?? component?.value ?? [];
+  return Array.isArray(values) ? values : [values].filter(Boolean);
+}
+
+function getUploadedAttachmentDetails(interaction, customId = CUSTOM_IDS.crewRoleEvidenceUpload) {
   const uploadedFiles = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? interaction.fields.getUploadedFiles(CUSTOM_IDS.crewRoleEvidenceUpload) ?? []
+    ? interaction.fields.getUploadedFiles(customId) ?? []
     : [];
   const fromFieldAccessor = typeof interaction?.fields?.getUploadedFiles === 'function'
-    ? Array.from(uploadedFiles).map(normalizeUploadedAttachment).filter(Boolean)
+    ? collectionToArray(uploadedFiles).map(normalizeUploadedAttachment).filter(Boolean)
     : [];
 
   if (fromFieldAccessor.length > 0) {
     return fromFieldAccessor;
   }
 
-  const fileUploadComponent = findSubmittedComponent(interaction, CUSTOM_IDS.crewRoleEvidenceUpload);
-  const attachmentIds = Array.isArray(fileUploadComponent?.values) ? fileUploadComponent.values : [];
+  const attachmentIds = getSubmittedUploadIds(interaction, customId);
   const resolvedAttachments = interaction?.data?.resolved?.attachments ?? interaction?.resolved?.attachments ?? {};
   const fromResolved = attachmentIds
-    .map((id) => normalizeUploadedAttachment(resolvedAttachments[id]))
+    .map((id) => normalizeUploadedAttachment(getResolvedAttachment(resolvedAttachments, id)))
     .filter(Boolean);
 
   if (fromResolved.length > 0) {
     return fromResolved;
   }
 
-  return Array.from(interaction?.attachments?.values?.() ?? [])
+  return collectionToArray(interaction?.attachments)
     .map(normalizeUploadedAttachment)
     .filter(Boolean);
 }
@@ -1275,11 +1293,7 @@ module.exports = {
         return true;
       }
 
-      const claimEvidence = (
-        typeof interaction?.fields?.getUploadedFiles === 'function'
-          ? Array.from(interaction.fields.getUploadedFiles(CUSTOM_IDS.giveawayClaimEvidenceUpload) ?? []).map(normalizeUploadedAttachment).filter(Boolean)
-          : []
-      );
+      const claimEvidence = getUploadedAttachmentDetails(interaction, CUSTOM_IDS.giveawayClaimEvidenceUpload);
       if (claimEvidence.length === 0) {
         await interaction.reply({ content: 'Please upload at least one proof file.', flags: MessageFlags.Ephemeral });
         return true;
