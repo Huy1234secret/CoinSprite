@@ -20,7 +20,7 @@ const ITEMS = {
     value: 350,
     powerMin: 6,
     powerMax: 10,
-    durability: 100,
+    durability: 250,
     shopStock: [
       { amount: 1, chance: 50 },
       { amount: 2, chance: 30 },
@@ -36,7 +36,7 @@ const ITEMS = {
     value: 1650,
     powerMin: 12,
     powerMax: 15,
-    durability: 220,
+    durability: 550,
     shopStock: [
       { amount: 1, chance: 60 },
       { amount: 2, chance: 30 },
@@ -52,7 +52,7 @@ const ITEMS = {
     value: 6000,
     powerMin: 18,
     powerMax: 25,
-    durability: 350,
+    durability: 1000,
     shopStock: [
       { amount: 0, chance: 25 },
       { amount: 1, chance: 60 },
@@ -70,7 +70,7 @@ const ITEMS = {
     usable: true,
     useAction: 'bait_box',
     shopStock: [
-      { min: 0, max: 10, chance: 60 },
+      { min: 5, max: 10, chance: 60 },
       { min: 11, max: 25, chance: 35 },
       { min: 26, max: 50, chance: 5 },
     ],
