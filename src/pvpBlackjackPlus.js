@@ -87,13 +87,68 @@ function payload(accent, components, files = []) { const data = { flags: COMPONE
 function roundedRect(ctx, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + width - r, y); ctx.quadraticCurveTo(x + width, y, x + width, y + r); ctx.lineTo(x + width, y + height - r); ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height); ctx.lineTo(x + r, y + height); ctx.quadraticCurveTo(x, y + height, x, y + height - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
-function drawHeart(ctx, cx, cy, size, color) { const s = size / 100; ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s); ctx.beginPath(); ctx.moveTo(0, 34); ctx.bezierCurveTo(-55, -8, -36, -54, 0, -30); ctx.bezierCurveTo(36, -54, 55, -8, 0, 34); ctx.closePath(); ctx.fillStyle = color; ctx.fill(); ctx.restore(); }
-function drawDiamond(ctx, cx, cy, size, color) { ctx.beginPath(); ctx.moveTo(cx, cy - size / 2); ctx.lineTo(cx + size * 0.42, cy); ctx.lineTo(cx, cy + size / 2); ctx.lineTo(cx - size * 0.42, cy); ctx.closePath(); ctx.fillStyle = color; ctx.fill(); }
-function drawClub(ctx, cx, cy, size, color) { const r = size * 0.18; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(cx, cy - size * 0.18, r, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx - size * 0.2, cy + size * 0.04, r, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + size * 0.2, cy + size * 0.04, r, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(cx - size * 0.08, cy + size * 0.15); ctx.lineTo(cx + size * 0.08, cy + size * 0.15); ctx.lineTo(cx + size * 0.16, cy + size * 0.43); ctx.lineTo(cx - size * 0.16, cy + size * 0.43); ctx.closePath(); ctx.fill(); }
-function drawSpade(ctx, cx, cy, size, color) { ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.PI); drawHeart(ctx, 0, 0, size, color); ctx.restore(); ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(cx - size * 0.09, cy + size * 0.12); ctx.lineTo(cx + size * 0.09, cy + size * 0.12); ctx.lineTo(cx + size * 0.18, cy + size * 0.43); ctx.lineTo(cx - size * 0.18, cy + size * 0.43); ctx.closePath(); ctx.fill(); }
+function drawHeart(ctx, cx, cy, size, color) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.moveTo(0, size * 0.36);
+  ctx.bezierCurveTo(-size * 0.52, size * 0.04, -size * 0.46, -size * 0.25, -size * 0.27, -size * 0.34);
+  ctx.bezierCurveTo(-size * 0.13, -size * 0.41, -size * 0.03, -size * 0.34, 0, -size * 0.22);
+  ctx.bezierCurveTo(size * 0.03, -size * 0.34, size * 0.13, -size * 0.41, size * 0.27, -size * 0.34);
+  ctx.bezierCurveTo(size * 0.46, -size * 0.25, size * 0.52, size * 0.04, 0, size * 0.36);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+function drawDiamond(ctx, cx, cy, size, color) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.46);
+  ctx.quadraticCurveTo(cx + size * 0.08, cy - size * 0.16, cx + size * 0.35, cy);
+  ctx.quadraticCurveTo(cx + size * 0.08, cy + size * 0.16, cx, cy + size * 0.46);
+  ctx.quadraticCurveTo(cx - size * 0.08, cy + size * 0.16, cx - size * 0.35, cy);
+  ctx.quadraticCurveTo(cx - size * 0.08, cy - size * 0.16, cx, cy - size * 0.46);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+function drawClub(ctx, cx, cy, size, color) {
+  const r = size * 0.16;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy - size * 0.22, r, 0, Math.PI * 2);
+  ctx.arc(cx - size * 0.18, cy + size * 0.02, r, 0, Math.PI * 2);
+  ctx.arc(cx + size * 0.18, cy + size * 0.02, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.07, cy + size * 0.12);
+  ctx.quadraticCurveTo(cx - size * 0.09, cy + size * 0.28, cx - size * 0.20, cy + size * 0.38);
+  ctx.lineTo(cx + size * 0.20, cy + size * 0.38);
+  ctx.quadraticCurveTo(cx + size * 0.09, cy + size * 0.28, cx + size * 0.07, cy + size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+}
+function drawSpade(ctx, cx, cy, size, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - size * 0.42);
+  ctx.bezierCurveTo(cx - size * 0.43, cy - size * 0.10, cx - size * 0.41, cy + size * 0.20, cx - size * 0.17, cy + size * 0.20);
+  ctx.bezierCurveTo(cx - size * 0.07, cy + size * 0.20, cx, cy + size * 0.13, cx, cy + size * 0.03);
+  ctx.bezierCurveTo(cx, cy + size * 0.13, cx + size * 0.07, cy + size * 0.20, cx + size * 0.17, cy + size * 0.20);
+  ctx.bezierCurveTo(cx + size * 0.41, cy + size * 0.20, cx + size * 0.43, cy - size * 0.10, cx, cy - size * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - size * 0.07, cy + size * 0.13);
+  ctx.quadraticCurveTo(cx - size * 0.09, cy + size * 0.29, cx - size * 0.20, cy + size * 0.39);
+  ctx.lineTo(cx + size * 0.20, cy + size * 0.39);
+  ctx.quadraticCurveTo(cx + size * 0.09, cy + size * 0.29, cx + size * 0.07, cy + size * 0.13);
+  ctx.closePath();
+  ctx.fill();
+}
 function drawSuitImage(ctx, card, cx, cy, size) { if (card.suit === 'H') drawHeart(ctx, cx, cy, size, card.color); else if (card.suit === 'D') drawDiamond(ctx, cx, cy, size, card.color); else if (card.suit === 'C') drawClub(ctx, cx, cy, size, card.color); else drawSpade(ctx, cx, cy, size, card.color); }
 function drawHiddenCard(ctx, x, y, w, h) { ctx.shadowColor = 'rgba(0, 0, 0, 0.28)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4; roundedRect(ctx, x, y, w, h, 18); ctx.fillStyle = '#2b2d31'; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#5865f2'; ctx.lineWidth = 4; ctx.stroke(); roundedRect(ctx, x + 12, y + 12, w - 24, h - 24, 12); ctx.fillStyle = '#1f2126'; ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.font = 'bold 52px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', x + w / 2, y + h / 2); }
-function drawCardFace(ctx, card, x, y, w, h) { ctx.shadowColor = 'rgba(0, 0, 0, 0.22)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4; roundedRect(ctx, x, y, w, h, 18); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#d7dce2'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = card.color; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = card.label === '10' ? 'bold 28px sans-serif' : 'bold 34px sans-serif'; ctx.fillText(card.label, x + 13, y + 11); drawSuitImage(ctx, card, x + w / 2, y + h / 2 + 12, 76); }
+function drawCardFace(ctx, card, x, y, w, h) { ctx.shadowColor = 'rgba(0, 0, 0, 0.22)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 4; roundedRect(ctx, x, y, w, h, 18); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#d7dce2'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = card.color; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = card.label === '10' ? 'bold 28px sans-serif' : 'bold 34px sans-serif'; ctx.fillText(card.label, x + 13, y + 11); drawSuitImage(ctx, card, x + w / 2, y + h / 2 + 12, 64); }
 function drawHand(ctx, hand, x, y, reveal, maxWidth = 390) { const cardW = 92; const cardH = 132; const overlap = hand.length > 5 ? Math.max(42, Math.floor((maxWidth - cardW) / Math.max(1, hand.length - 1))) : 70; for (let i = 0; i < hand.length; i += 1) { const cx = x + i * overlap; if (reveal) drawCardFace(ctx, hand[i], cx, y, cardW, cardH); else drawHiddenCard(ctx, cx, y, cardW, cardH); } }
 function fitText(ctx, value, x, y, maxWidth, baseSize = 28) { let size = baseSize; do { ctx.font = `bold ${size}px sans-serif`; if (ctx.measureText(value).width <= maxWidth) break; size -= 1; } while (size >= 14); ctx.fillText(value, x, y); }
 function tableAttachment(game) {
