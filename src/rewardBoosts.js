@@ -1,8 +1,7 @@
 const ROLE_BOOSTS = [
-  { roleId: '1502905486645788713', coinPercent: 25, xpPercent: 10 },
-  { roleId: '1502905217945964596', coinPercent: 60, xpPercent: 5 },
-  { roleId: '1493911895634084042', coinPercent: 100, xpPercent: 25 },
-  { roleId: '1495039173260873738', coinPercent: 5, xpPercent: 0 },
+  { roleId: '1502905486645788713', xpPercent: 10 },
+  { roleId: '1502905217945964596', xpPercent: 5 },
+  { roleId: '1493911895634084042', xpPercent: 25 },
 ];
 
 function getMemberRoleBoosts(member) {
@@ -13,10 +12,6 @@ function getMemberRoleBoosts(member) {
 
 function sumBoostPercent(boosts, key) {
   return boosts.reduce((total, boost) => total + Math.max(0, Number(boost[key]) || 0), 0);
-}
-
-function getCoinBoostPercent(member) {
-  return sumBoostPercent(getMemberRoleBoosts(member), 'coinPercent');
 }
 
 function getXpBoostPercent(member) {
@@ -32,7 +27,6 @@ function formatBoostLines(boosts, key) {
 module.exports = {
   ROLE_BOOSTS,
   getMemberRoleBoosts,
-  getCoinBoostPercent,
   getXpBoostPercent,
   formatBoostLines,
 };
