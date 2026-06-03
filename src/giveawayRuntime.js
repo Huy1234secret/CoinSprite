@@ -123,6 +123,11 @@ function getEligibleRerollPool(giveaway) {
   return giveaway.entrantIds.filter((userId) => !rolled.has(userId));
 }
 
+function getCompletedRerollPool(giveaway, excludedUserIds = []) {
+  const excluded = new Set([...(giveaway.claimedUserIds || []), ...excludedUserIds]);
+  return giveaway.entrantIds.filter((userId) => !excluded.has(userId));
+}
+
 function getCurrentRound(giveaway) {
   return giveaway.rounds.find((round) => round.status === 'active') ?? null;
 }
@@ -299,19 +304,30 @@ async function forceRerollGiveaway(giveawayId) {
 
   const round = getCurrentRound(giveaway);
   if (!round) {
-    const remainingSlots = Math.max(0, Number(giveaway.winnerCount) - giveaway.claimedUserIds.length);
-    if (remainingSlots <= 0) return { ok: false, reason: 'all_claimed' };
-
-    const rerollPool = getEligibleRerollPool(giveaway);
-    if (rerollPool.length === 0) return { ok: false, reason: 'no_eligible_users' };
-
     const state = getState();
     const refreshedGiveaway = getGiveaway(state, giveawayId);
     if (!refreshedGiveaway) return { ok: false, reason: 'not_found' };
+
+    const claimedIds = Array.isArray(refreshedGiveaway.claimedUserIds) ? refreshedGiveaway.claimedUserIds : [];
+    const unclaimedSlots = Math.max(0, Number(refreshedGiveaway.winnerCount) - claimedIds.length);
+    const replacedUserIds = [];
+    let rerollSlots = unclaimedSlots;
+
+    if (rerollSlots <= 0 && claimedIds.length > 0) {
+      const replacedUserId = claimedIds.pop();
+      if (replacedUserId) replacedUserIds.push(replacedUserId);
+      rerollSlots = 1;
+    }
+
+    if (rerollSlots <= 0) return { ok: false, reason: 'no_active_round' };
+
+    const rerollPool = getCompletedRerollPool(refreshedGiveaway, replacedUserIds);
+    if (rerollPool.length === 0) return { ok: false, reason: 'no_eligible_users' };
+
     refreshedGiveaway.status = 'claiming';
     refreshedGiveaway.finishedAt = null;
     refreshedGiveaway.updatedAt = now();
-    await createClaimRound(refreshedGiveaway, pickRandomUsers(rerollPool, Math.min(remainingSlots, rerollPool.length)));
+    await createClaimRound(refreshedGiveaway, pickRandomUsers(rerollPool, Math.min(rerollSlots, rerollPool.length)));
     persistState(state);
     return { ok: true };
   }
