@@ -187,11 +187,10 @@ async function finalizeGiveaway(giveawayId) {
   if (!giveaway) return;
   giveaway.status = 'completed';
   giveaway.finishedAt = now();
+  giveaway.updatedAt = now();
   clearGiveawayTimers(giveaway);
   persistState(state);
   await updateGiveawayMessage(giveaway, buildFinalGiveawayPayload(giveaway));
-  delete state.giveaways[giveawayId];
-  persistState(state);
 }
 
 async function sendNoMoreUsersMessageAndFinalize(giveaway) {
@@ -295,10 +294,27 @@ async function handleClaimWindowExpiry(giveawayId, roundNumber) {
 
 async function forceRerollGiveaway(giveawayId) {
   const giveaway = getGiveaway(getState(), giveawayId);
-  if (!giveaway || giveaway.status !== 'claiming') return { ok: false, reason: 'not_claiming' };
+  if (!giveaway) return { ok: false, reason: 'not_found' };
+  if (!['claiming', 'completed'].includes(giveaway.status)) return { ok: false, reason: 'not_claiming' };
 
   const round = getCurrentRound(giveaway);
-  if (!round) return { ok: false, reason: 'no_active_round' };
+  if (!round) {
+    const remainingSlots = Math.max(0, Number(giveaway.winnerCount) - giveaway.claimedUserIds.length);
+    if (remainingSlots <= 0) return { ok: false, reason: 'all_claimed' };
+
+    const rerollPool = getEligibleRerollPool(giveaway);
+    if (rerollPool.length === 0) return { ok: false, reason: 'no_eligible_users' };
+
+    const state = getState();
+    const refreshedGiveaway = getGiveaway(state, giveawayId);
+    if (!refreshedGiveaway) return { ok: false, reason: 'not_found' };
+    refreshedGiveaway.status = 'claiming';
+    refreshedGiveaway.finishedAt = null;
+    refreshedGiveaway.updatedAt = now();
+    await createClaimRound(refreshedGiveaway, pickRandomUsers(rerollPool, Math.min(remainingSlots, rerollPool.length)));
+    persistState(state);
+    return { ok: true };
+  }
 
   if (round.winnerIds.length <= round.claimedIds.length) {
     await handleClaimWindowExpiry(giveawayId, round.roundNumber);

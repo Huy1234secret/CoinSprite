@@ -90,6 +90,11 @@ function normalizeWhitespace(value) {
   return String(value || '').trim();
 }
 
+function extractMessageId(value) {
+  const matches = normalizeWhitespace(value).match(/\d{17,20}/g) || [];
+  return matches[matches.length - 1] || null;
+}
+
 function joinMentions(userIds) {
   return userIds.length ? userIds.map((userId) => `<@${userId}>`).join(', ') : 'None';
 }
@@ -280,6 +285,7 @@ module.exports = {
   draftHostText,
   draftPrizeText,
   draftWinnerCountText,
+  extractMessageId,
   findSubmittedComponent,
   formatDiscordRelative,
   formatDurationCompact,

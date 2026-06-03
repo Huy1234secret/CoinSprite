@@ -9,6 +9,7 @@ const {
   MIN_CLAIM_MS,
   MIN_DURATION_MS,
   createDraft,
+  extractMessageId,
   getLevelRequirementFromInput,
   getMessageRequirementFromInput,
   getRequirementLevel,
@@ -97,8 +98,8 @@ async function startGiveawayFromDraft(interaction, draft, state, draftId) {
 }
 
 async function handleDeleteCommand(interaction, messageId) {
-  const normalizedId = normalizeWhitespace(messageId);
-  if (!/^\d{17,20}$/.test(normalizedId)) {
+  const normalizedId = extractMessageId(messageId);
+  if (!normalizedId) {
     await interaction.reply({ content: 'Giveaway message id is invalid.', flags: EPHEMERAL_FLAG });
     return;
   }
@@ -142,8 +143,8 @@ async function handleDeleteCommand(interaction, messageId) {
 }
 
 async function handleRerollCommand(interaction, messageId) {
-  const normalizedId = normalizeWhitespace(messageId);
-  if (!/^\d{17,20}$/.test(normalizedId)) {
+  const normalizedId = extractMessageId(messageId);
+  if (!normalizedId) {
     await interaction.reply({ content: 'Giveaway message id is invalid.', flags: EPHEMERAL_FLAG });
     return;
   }
@@ -155,23 +156,19 @@ async function handleRerollCommand(interaction, messageId) {
     return;
   }
 
-  if (giveaway.status === 'live') {
-    await interaction.reply({ content: 'This giveaway has not drawn winners yet.', flags: EPHEMERAL_FLAG });
-    return;
-  }
-
-  if (giveaway.status !== 'claiming') {
-    await interaction.reply({ content: 'This giveaway has no active reroll timer to skip.', flags: EPHEMERAL_FLAG });
-    return;
-  }
-
   const result = await runtime.forceRerollGiveaway(giveaway.id);
   if (!result.ok) {
-    await interaction.reply({ content: 'This giveaway has no active claim round to reroll.', flags: EPHEMERAL_FLAG });
+    const messages = {
+      all_claimed: 'All winner slots are already claimed, so there is nothing to reroll.',
+      no_active_round: 'This giveaway has no active claim round to reroll.',
+      no_eligible_users: 'There are no eligible entrants left to reroll.',
+      not_claiming: 'This giveaway has not drawn winners yet.',
+    };
+    await interaction.reply({ content: messages[result.reason] || 'This giveaway cannot be rerolled.', flags: EPHEMERAL_FLAG });
     return;
   }
 
-  await interaction.reply({ content: 'Giveaway reroll forced.', flags: EPHEMERAL_FLAG });
+  await interaction.reply({ content: giveaway.status === 'completed' ? 'Giveaway rerolled after completion.' : 'Giveaway reroll forced.', flags: EPHEMERAL_FLAG });
 }
 
 async function handleListCommand(interaction) {
