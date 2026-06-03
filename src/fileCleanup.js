@@ -31,17 +31,7 @@ function getCleanupMatcher(dirPath, fileName) {
     return (name) => name.startsWith(match[1]) && name.endsWith('.png');
   }
 
-  if (normalizedDir.endsWith(path.normalize('data/roulette-cache'))) {
-    const match = fileName.match(/^(roulette-table-[a-z0-9]+)-\d+\.png$/i);
-    if (!match) return null;
-    return (name) => name.startsWith(`${match[1]}-`) && name.endsWith('.png');
-  }
-
   if (normalizedDir.endsWith(path.normalize('data/leaderboards'))) {
-    if (/^gambling-leaderboard-\d+\.png$/i.test(fileName)) {
-      return (name) => /^gambling-leaderboard-\d+\.png$/i.test(name);
-    }
-
     const match = fileName.match(/^(leaderboard-[^-]+)-\d+\.png$/i);
     if (!match) return null;
     return (name) => name.startsWith(`${match[1]}-`) && name.endsWith('.png');

@@ -39,8 +39,6 @@ function shouldSkipActionTimeout(interaction) {
   const customId = interaction?.customId || '';
   if (!customId) return false;
 
-  if (customId.startsWith('pvpbjp:') || customId.startsWith('pvpmine:')) return true;
-
   // Ticket controls must remain usable indefinitely: the main panel, all three
   // ticket type flows, staff ticket actions, review controls, and ticket modals.
   return customId.startsWith('ticket:') || customId.startsWith('giveaway:') || customId.startsWith('level:');
