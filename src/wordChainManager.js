@@ -16,6 +16,10 @@ const DICTIONARY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const DICTIONARY_API_BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 const COMPONENTS_V2_FLAG = 32768;
 
+const FALLBACK_VALID_WORDS = new Set([
+  'tableful',
+]);
+
 const dictionaryCache = new Map();
 
 let clientRef = null;
@@ -353,6 +357,8 @@ function isDictionaryCacheFresh(entry) {
 }
 
 async function isKnownEnglishWord(word) {
+  if (FALLBACK_VALID_WORDS.has(word)) return { ok: true, found: true, source: 'fallback' };
+
   const cached = dictionaryCache.get(word);
   if (isDictionaryCacheFresh(cached)) return cached.result;
 
