@@ -33,6 +33,7 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Correct words reset the countdown. Timeout or invalid words cost 1 server heart.
   - The current match is saved in `data/word-chain-state.json` and restored after bot restarts.
   - The streak counts accepted chained words in the current match and resets to 0 after a timeout or invalid word penalty.
+  - Accepted words award XP equal to the current word length, from 3x to 10x.
   - A player cannot submit two accepted words in a row; they must wait for another player.
   - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel and add role `1512488707461091420` for 1 minute.
   - English words are checked online with DictionaryAPI.dev and cached in memory; temporary dictionary lookup failures do not punish the player.

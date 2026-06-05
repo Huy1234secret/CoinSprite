@@ -1,5 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
+const levelingManager = require('./levelingManager');
 const { loadState, saveState } = require('./wordChainStore');
 
 const WORD_CHAIN_CHANNEL_ID = '1512480152410525958';
@@ -135,6 +136,16 @@ function getWordLengthLine() {
 
 function getStreakLine() {
   return currentGame ? `Streak: **${currentGame.streak || 0} words**` : null;
+}
+
+function awardCorrectWordXp(message) {
+  if (!message.guild?.id || !message.author?.id || !currentGame) return null;
+  return levelingManager.awardMessageXp(message.guild.id, message.author.id, {
+    fixedXp: currentGame.wordLength,
+    source: 'word chain',
+    channelId: message.channelId,
+    messageId: message.id,
+  });
 }
 
 function getGameLine() {
@@ -380,9 +391,11 @@ async function acceptWord(message, word) {
   currentGame.lastUserId = message.author.id;
   currentGame.requiredFirstLetter = word.at(-1);
   currentGame.streak = (currentGame.streak || 0) + 1;
+  const xpResult = awardCorrectWordXp(message);
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
+  const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
+  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\n${xpLine}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
 }
 
 async function init(client) {
