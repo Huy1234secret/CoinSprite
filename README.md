@@ -26,6 +26,12 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - `/message channel:{channel} message:{text} [replyto:{message_id}]`
   - Administrator-only command that sends a bot message to the selected text channel, optionally as a reply to an existing message ID.
   - Sends the command confirmation ephemerally to the command user.
+- `/noi-chu`
+  - Shows the current noi chu game status.
+  - The game auto-starts and is only playable in channel `1512480152410525958`.
+  - Each game has 3 server hearts, a random fixed word length from 3 to 10 letters, and a 1-hour countdown.
+  - Correct words reset the countdown. Timeout or invalid words cost 1 server heart.
+  - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel for 1 hour.
 
 ## Message Context Menu Commands
 - `Reply with Bot Message`
