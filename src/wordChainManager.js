@@ -1,5 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
+const levelingManager = require('./levelingManager');
+const { loadState, saveState } = require('./wordChainStore');
 
 const WORD_CHAIN_CHANNEL_ID = '1512480152410525958';
 const MIN_WORD_LENGTH = 3;
@@ -23,6 +25,58 @@ let turnTimer = null;
 let cooldownTimer = null;
 let cooldownEndsAt = 0;
 let initStarted = false;
+
+function serializeGame(game) {
+  if (!game) return null;
+  const wordLength = Number(game.wordLength);
+  const hearts = Number(game.hearts);
+  const startedAt = Number(game.startedAt);
+  const expiresAt = Number(game.expiresAt);
+  return {
+    wordLength: Number.isFinite(wordLength) ? wordLength : MIN_WORD_LENGTH,
+    hearts: Number.isFinite(hearts) ? hearts : STARTING_HEARTS,
+    usedWords: Array.from(game.usedWords || []),
+    lastWord: game.lastWord || null,
+    lastUserId: game.lastUserId || null,
+    requiredFirstLetter: game.requiredFirstLetter || null,
+    startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(),
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : Date.now() + TURN_TIMEOUT_MS,
+    streak: Number(game.streak) || 0,
+  };
+}
+
+function hydrateGame(game) {
+  if (!game || !Number.isFinite(Number(game.wordLength))) return null;
+  const parsedHearts = Number(game.hearts);
+  const hearts = Math.min(STARTING_HEARTS, Math.max(0, Math.floor(Number.isFinite(parsedHearts) ? parsedHearts : STARTING_HEARTS)));
+  if (hearts <= 0) return null;
+  return {
+    wordLength: Math.min(MAX_WORD_LENGTH, Math.max(MIN_WORD_LENGTH, Math.floor(Number(game.wordLength)))),
+    hearts,
+    usedWords: new Set(Array.isArray(game.usedWords) ? game.usedWords.map(normalizeWord).filter(Boolean) : []),
+    lastWord: game.lastWord ? normalizeWord(game.lastWord) : null,
+    lastUserId: game.lastUserId || null,
+    requiredFirstLetter: game.requiredFirstLetter ? normalizeWord(game.requiredFirstLetter).slice(0, 1) : null,
+    startedAt: Number(game.startedAt) || Date.now(),
+    expiresAt: Number(game.expiresAt) || Date.now() + TURN_TIMEOUT_MS,
+    streak: Math.max(0, Math.floor(Number(game.streak) || 0)),
+  };
+}
+
+function persistState() {
+  saveState({
+    game: serializeGame(currentGame),
+    cooldownEndsAt,
+  });
+}
+
+function restoreState() {
+  const state = loadState();
+  currentGame = hydrateGame(state.game);
+  cooldownEndsAt = Number(state.cooldownEndsAt) || 0;
+  if (!currentGame && cooldownEndsAt <= Date.now()) cooldownEndsAt = 0;
+  persistState();
+}
 
 function normalizeWord(input) {
   return String(input || '')
@@ -80,6 +134,20 @@ function getWordLengthLine() {
   return currentGame ? `Word length: **${currentGame.wordLength} letters**` : null;
 }
 
+function getStreakLine() {
+  return currentGame ? `Streak: **${currentGame.streak || 0} words**` : null;
+}
+
+function awardCorrectWordXp(message) {
+  if (!message.guild?.id || !message.author?.id || !currentGame) return null;
+  return levelingManager.awardMessageXp(message.guild.id, message.author.id, {
+    fixedXp: currentGame.wordLength,
+    source: 'word chain',
+    channelId: message.channelId,
+    messageId: message.id,
+  });
+}
+
 function getGameLine() {
   if (!currentGame) return 'Word Chain is not running.';
   const required = currentGame.requiredFirstLetter ? `\nNext word must start with: **${currentGame.requiredFirstLetter.toUpperCase()}**` : '';
@@ -89,6 +157,7 @@ function getGameLine() {
     '**Word Chain is running**',
     `Channel: <#${WORD_CHAIN_CHANNEL_ID}>`,
     `Word length: **${currentGame.wordLength} letters**`,
+    `Streak: **${currentGame.streak || 0} words**`,
     `Server hearts: **${currentGame.hearts}/${STARTING_HEARTS}**`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
     previous,
@@ -139,6 +208,7 @@ function scheduleTurnTimer() {
 function resetTurnCountdown() {
   if (!currentGame) return;
   currentGame.expiresAt = Date.now() + TURN_TIMEOUT_MS;
+  persistState();
   scheduleTurnTimer();
 }
 
@@ -158,7 +228,9 @@ async function startGame(reason = 'auto') {
     requiredFirstLetter: null,
     startedAt: Date.now(),
     expiresAt: Date.now() + TURN_TIMEOUT_MS,
+    streak: 0,
   };
+  persistState();
   scheduleTurnTimer();
 
   await sendToGameChannel(`${getGameLine()}\n\nGame started${reason === 'auto' ? ' automatically' : ''}.`, 0x57f287);
@@ -168,8 +240,10 @@ async function startGame(reason = 'auto') {
 function scheduleNextGame() {
   clearCooldownTimer();
   cooldownEndsAt = Date.now() + GAME_COOLDOWN_MS;
+  persistState();
   cooldownTimer = setTimeout(() => {
     cooldownEndsAt = 0;
+    persistState();
     void startGame('auto');
   }, GAME_COOLDOWN_MS);
 }
@@ -177,6 +251,7 @@ function scheduleNextGame() {
 async function endGame(reason) {
   clearTurnTimer();
   currentGame = null;
+  persistState();
   await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + GAME_COOLDOWN_MS)}.`, 0xed4245);
   scheduleNextGame();
 }
@@ -184,6 +259,8 @@ async function endGame(reason) {
 async function loseHeart(reason) {
   if (!currentGame) return;
   currentGame.hearts -= 1;
+  currentGame.streak = 0;
+  persistState();
 
   if (currentGame.hearts <= 0) {
     await endGame(`${reason}. Server ran out of hearts.`);
@@ -191,7 +268,7 @@ async function loseHeart(reason) {
   }
 
   resetTurnCountdown();
-  await sendToGameChannel(`${reason}\n${getWordLengthLine()}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${STARTING_HEARTS}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c);
+  await sendToGameChannel(`${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${STARTING_HEARTS}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c);
 }
 
 async function handleTurnTimeout() {
@@ -289,19 +366,23 @@ async function validateWord(word) {
 
 async function punishInvalidWord(message, word, reason) {
   await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
+  if (currentGame) {
+    currentGame.streak = 0;
+    persistState();
+  }
   await message.react('\u274c').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\nThey are muted in this channel and given <@&${PUNISHMENT_ROLE_ID}> for 1 minute.`, 0xed4245);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nThey are muted in this channel and given <@&${PUNISHMENT_ROLE_ID}> for 1 minute.`, 0xed4245);
   await loseHeart('Invalid word penalty.');
 }
 
 async function rejectTemporaryValidationIssue(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
 }
 
 async function rejectRepeatedPlayer(message) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
 }
 
 async function acceptWord(message, word) {
@@ -309,16 +390,34 @@ async function acceptWord(message, word) {
   currentGame.lastWord = word;
   currentGame.lastUserId = message.author.id;
   currentGame.requiredFirstLetter = word.at(-1);
+  currentGame.streak = (currentGame.streak || 0) + 1;
+  const xpResult = awardCorrectWordXp(message);
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
+  const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
+  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\n${xpLine}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
 }
 
 async function init(client) {
   clientRef = client;
   if (initStarted) return;
   initStarted = true;
+  restoreState();
   await getGameChannel();
+  if (currentGame) {
+    scheduleTurnTimer();
+    await sendToGameChannel(`${getGameLine()}\n\nGame restored after restart.`, 0x57f287);
+    return;
+  }
+  if (cooldownEndsAt > Date.now()) {
+    clearCooldownTimer();
+    cooldownTimer = setTimeout(() => {
+      cooldownEndsAt = 0;
+      persistState();
+      void startGame('auto');
+    }, Math.max(1000, cooldownEndsAt - Date.now()));
+    return;
+  }
   await startGame('auto');
 }
 
