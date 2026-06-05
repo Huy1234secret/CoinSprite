@@ -1,23 +1,19 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
-const { VALID_NOI_CHU_WORDS } = require('./noiChuWords');
 
-const NOI_CHU_CHANNEL_ID = '1512480152410525958';
+const WORD_CHAIN_CHANNEL_ID = '1512480152410525958';
 const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 10;
 const STARTING_HEARTS = 3;
 const TURN_TIMEOUT_MS = 60 * 60 * 1000;
 const PUNISHMENT_MS = 60 * 60 * 1000;
 const GAME_COOLDOWN_MS = 60 * 1000;
+const DICTIONARY_LOOKUP_TIMEOUT_MS = 5000;
+const DICTIONARY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const DICTIONARY_API_BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
 const COMPONENTS_V2_FLAG = 32768;
 
-const wordSet = new Set(VALID_NOI_CHU_WORDS.map(normalizeWord).filter(Boolean));
-const wordsByLength = new Map();
-for (const word of wordSet) {
-  if (word.length < MIN_WORD_LENGTH || word.length > MAX_WORD_LENGTH) continue;
-  if (!wordsByLength.has(word.length)) wordsByLength.set(word.length, []);
-  wordsByLength.get(word.length).push(word);
-}
+const dictionaryCache = new Map();
 
 let clientRef = null;
 let channelRef = null;
@@ -57,11 +53,9 @@ function randomItem(items) {
 }
 
 function pickWordLength() {
-  const availableLengths = [];
-  for (let length = MIN_WORD_LENGTH; length <= MAX_WORD_LENGTH; length += 1) {
-    if ((wordsByLength.get(length) || []).length > 0) availableLengths.push(length);
-  }
-  return randomItem(availableLengths) || MIN_WORD_LENGTH;
+  const lengths = [];
+  for (let length = MIN_WORD_LENGTH; length <= MAX_WORD_LENGTH; length += 1) lengths.push(length);
+  return randomItem(lengths) || MIN_WORD_LENGTH;
 }
 
 function formatCountdown(timestamp) {
@@ -82,12 +76,12 @@ function buildPanel(content, accentColor = 0x2f80ed) {
 }
 
 function getGameLine() {
-  if (!currentGame) return 'Noi chu game is not running.';
+  if (!currentGame) return 'Word Chain is not running.';
   const required = currentGame.requiredFirstLetter ? `\nNext word must start with: **${currentGame.requiredFirstLetter.toUpperCase()}**` : '';
   const previous = currentGame.lastWord ? `\nLast word: **${currentGame.lastWord}**` : '\nFirst valid word can start with any letter.';
   return [
-    '**Noi chu is running**',
-    `Channel: <#${NOI_CHU_CHANNEL_ID}>`,
+    '**Word Chain is running**',
+    `Channel: <#${WORD_CHAIN_CHANNEL_ID}>`,
     `Word length: **${currentGame.wordLength} letters**`,
     `Server hearts: **${currentGame.hearts}/${STARTING_HEARTS}**`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
@@ -100,17 +94,17 @@ async function sendToGameChannel(content, accentColor) {
   const channel = await getGameChannel();
   if (!channel?.isTextBased?.()) return null;
   return channel.send(buildPanel(content, accentColor)).catch((error) => {
-    logCommandSystem(`Noi chu send failed: ${error?.message ?? 'unknown error'}`);
+    logCommandSystem(`Word Chain send failed: ${error?.message ?? 'unknown error'}`);
     return null;
   });
 }
 
 async function getGameChannel() {
-  if (channelRef?.id === NOI_CHU_CHANNEL_ID) return channelRef;
+  if (channelRef?.id === WORD_CHAIN_CHANNEL_ID) return channelRef;
   if (!clientRef) return null;
-  channelRef = clientRef.channels.cache.get(NOI_CHU_CHANNEL_ID)
-    || await clientRef.channels.fetch(NOI_CHU_CHANNEL_ID).catch((error) => {
-      logCommandSystem(`Noi chu channel fetch failed: ${error?.message ?? 'unknown error'}`);
+  channelRef = clientRef.channels.cache.get(WORD_CHAIN_CHANNEL_ID)
+    || await clientRef.channels.fetch(WORD_CHAIN_CHANNEL_ID).catch((error) => {
+      logCommandSystem(`Word Chain channel fetch failed: ${error?.message ?? 'unknown error'}`);
       return null;
     });
   return channelRef;
@@ -175,7 +169,7 @@ function scheduleNextGame() {
 async function endGame(reason) {
   clearTurnTimer();
   currentGame = null;
-  await sendToGameChannel(`Noi chu game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + GAME_COOLDOWN_MS)}.`, 0xed4245);
+  await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + GAME_COOLDOWN_MS)}.`, 0xed4245);
   scheduleNextGame();
 }
 
@@ -208,34 +202,82 @@ async function muteMemberInGameChannel(message, reason) {
   if (currentOverwrite?.deny?.has(PermissionFlagsBits.SendMessages)) previousSendMessages = false;
 
   await channel.permissionOverwrites.edit(member.id, { SendMessages: false }, { reason }).catch((error) => {
-    logCommandSystem(`Noi chu mute failed for ${message.author.id}: ${error?.message ?? 'unknown error'}`);
+    logCommandSystem(`Word Chain mute failed for ${message.author.id}: ${error?.message ?? 'unknown error'}`);
   });
 
   setTimeout(() => {
-    channel.permissionOverwrites.edit(member.id, { SendMessages: previousSendMessages }, { reason: `Noi chu punishment expired for ${member.id}` }).catch((error) => {
-      logCommandSystem(`Noi chu unmute failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
+    channel.permissionOverwrites.edit(member.id, { SendMessages: previousSendMessages }, { reason: `Word Chain punishment expired for ${member.id}` }).catch((error) => {
+      logCommandSystem(`Word Chain unmute failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
     });
   }, PUNISHMENT_MS);
 
   return true;
 }
 
-function validateWord(word) {
+function isDictionaryCacheFresh(entry) {
+  return entry && Date.now() - entry.checkedAt < DICTIONARY_CACHE_TTL_MS;
+}
+
+async function isKnownEnglishWord(word) {
+  const cached = dictionaryCache.get(word);
+  if (isDictionaryCacheFresh(cached)) return cached.result;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DICTIONARY_LOOKUP_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${DICTIONARY_API_BASE_URL}/${encodeURIComponent(word)}`, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+    });
+
+    if (response.status === 404) {
+      const result = { ok: true, found: false };
+      dictionaryCache.set(word, { checkedAt: Date.now(), result });
+      return result;
+    }
+
+    if (!response.ok) {
+      logCommandSystem(`Word Chain dictionary lookup failed for ${word}: HTTP ${response.status}`);
+      return { ok: false, found: false };
+    }
+
+    const body = await response.json().catch(() => null);
+    const found = Array.isArray(body) && body.some((entry) => Array.isArray(entry?.meanings) && entry.meanings.length > 0);
+    const result = { ok: true, found };
+    dictionaryCache.set(word, { checkedAt: Date.now(), result });
+    return result;
+  } catch (error) {
+    logCommandSystem(`Word Chain dictionary lookup failed for ${word}: ${error?.message ?? 'unknown error'}`);
+    return { ok: false, found: false };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function validateWord(word) {
   if (!currentGame) return 'No active game.';
   if (word.length !== currentGame.wordLength) return `Word must have exactly ${currentGame.wordLength} letters.`;
   if (currentGame.usedWords.has(word)) return 'That word was already used.';
-  if (!wordSet.has(word)) return 'That word is not in the noi chu dictionary.';
   if (currentGame.requiredFirstLetter && !word.startsWith(currentGame.requiredFirstLetter)) {
     return `Word must start with "${currentGame.requiredFirstLetter.toUpperCase()}".`;
   }
+
+  const dictionaryResult = await isKnownEnglishWord(word);
+  if (!dictionaryResult.ok) return { temporary: true, reason: 'Dictionary lookup is unavailable right now. Try again in a moment.' };
+  if (!dictionaryResult.found) return 'That word was not found in the English dictionary.';
   return null;
 }
 
 async function punishInvalidWord(message, word, reason) {
-  await muteMemberInGameChannel(message, `Noi chu invalid word: ${reason}`);
+  await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
   await message.react('\u274c').catch(() => null);
   await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\nThey are muted in this channel for 1 hour.`, 0xed4245);
   await loseHeart('Invalid word penalty.');
+}
+
+async function rejectTemporaryValidationIssue(message, word, reason) {
+  await message.react('\u26a0\ufe0f').catch(() => null);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\nNo heart was lost and no mute was applied.`, 0xfee75c);
 }
 
 async function acceptWord(message, word) {
@@ -256,7 +298,7 @@ async function init(client) {
 }
 
 async function handleMessageCreate(message) {
-  if (message.author?.bot || message.channelId !== NOI_CHU_CHANNEL_ID || !message.guild) return;
+  if (message.author?.bot || message.channelId !== WORD_CHAIN_CHANNEL_ID || !message.guild) return;
   if (!currentGame) {
     if (cooldownEndsAt > Date.now()) return;
     await startGame('auto');
@@ -269,8 +311,12 @@ async function handleMessageCreate(message) {
     return;
   }
 
-  const invalidReason = validateWord(word);
+  const invalidReason = await validateWord(word);
   if (invalidReason) {
+    if (typeof invalidReason === 'object' && invalidReason.temporary) {
+      await rejectTemporaryValidationIssue(message, word, invalidReason.reason);
+      return;
+    }
     await punishInvalidWord(message, word, invalidReason);
     return;
   }
@@ -279,25 +325,26 @@ async function handleMessageCreate(message) {
 }
 
 async function handleStatus(interaction) {
-  if (interaction.channelId !== NOI_CHU_CHANNEL_ID && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: `Noi chu is only playable in <#${NOI_CHU_CHANNEL_ID}>.`, flags: 64 });
+  if (interaction.channelId !== WORD_CHAIN_CHANNEL_ID && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: `Word Chain is only playable in <#${WORD_CHAIN_CHANNEL_ID}>.`, flags: 64 });
     return;
   }
 
   if (!currentGame && cooldownEndsAt > Date.now()) {
-    await interaction.reply({ content: `Noi chu is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === NOI_CHU_CHANNEL_ID ? undefined : 64 });
+    await interaction.reply({ content: `Word Chain is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64 });
     return;
   }
 
   if (!currentGame) await startGame('manual');
-  await interaction.reply({ content: getGameLine(), flags: interaction.channelId === NOI_CHU_CHANNEL_ID ? undefined : 64 });
+  await interaction.reply({ content: getGameLine(), flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64 });
 }
 
 module.exports = {
-  NOI_CHU_CHANNEL_ID,
+  WORD_CHAIN_CHANNEL_ID,
   init,
   handleMessageCreate,
   handleStatus,
   normalizeWord,
   validateWord,
+  isKnownEnglishWord,
 };
