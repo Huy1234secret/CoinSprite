@@ -29,9 +29,10 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - `/word-chain`
   - Shows the current Word Chain game status.
   - The game auto-starts and is only playable in channel `1512480152410525958`.
-  - Each game has 3 server hearts, a random fixed word length from 3 to 10 letters, and a 1-hour countdown.
+  - Each game has 3 server hearts, a random fixed word length from 3 to 10 letters, and a 4-hour countdown.
   - Correct words reset the countdown. Timeout or invalid words cost 1 server heart.
-  - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel for 1 hour.
+  - A player cannot submit two accepted words in a row; they must wait for another player.
+  - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel and add role `1512488707461091420` for 1 minute.
   - English words are checked online with DictionaryAPI.dev and cached in memory; temporary dictionary lookup failures do not punish the player.
 
 ## Message Context Menu Commands
