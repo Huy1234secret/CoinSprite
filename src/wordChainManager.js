@@ -14,6 +14,8 @@ const GAME_COOLDOWN_MS = 60 * 1000;
 const DICTIONARY_LOOKUP_TIMEOUT_MS = 5000;
 const DICTIONARY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const DICTIONARY_API_BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
+const WIKTIONARY_API_BASE_URL = 'https://en.wiktionary.org/api/rest_v1/page/definition';
+const DATAMUSE_API_BASE_URL = 'https://api.datamuse.com/words';
 const COMPONENTS_V2_FLAG = 32768;
 
 const FALLBACK_VALID_WORDS = new Set([
@@ -356,42 +358,81 @@ function isDictionaryCacheFresh(entry) {
   return entry && Date.now() - entry.checkedAt < DICTIONARY_CACHE_TTL_MS;
 }
 
+async function fetchJsonWithTimeout(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DICTIONARY_LOOKUP_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+    });
+    if (response.status === 404) return { ok: true, status: response.status, body: null };
+    if (!response.ok) return { ok: false, status: response.status, body: null };
+    return { ok: true, status: response.status, body: await response.json().catch(() => null) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function checkDictionaryApi(word) {
+  const response = await fetchJsonWithTimeout(`${DICTIONARY_API_BASE_URL}/${encodeURIComponent(word)}`);
+  if (!response.ok) return { ok: false, found: false, source: 'dictionaryapi', status: response.status };
+  if (response.status === 404) return { ok: true, found: false, source: 'dictionaryapi' };
+
+  const found = Array.isArray(response.body)
+    && response.body.some((entry) => Array.isArray(entry?.meanings) && entry.meanings.length > 0);
+  return { ok: true, found, source: 'dictionaryapi' };
+}
+
+async function checkWiktionary(word) {
+  const response = await fetchJsonWithTimeout(`${WIKTIONARY_API_BASE_URL}/${encodeURIComponent(word)}`);
+  if (!response.ok) return { ok: false, found: false, source: 'wiktionary', status: response.status };
+  if (response.status === 404) return { ok: true, found: false, source: 'wiktionary' };
+
+  const englishEntries = response.body?.en;
+  const found = Array.isArray(englishEntries)
+    && englishEntries.some((entry) => Array.isArray(entry?.definitions) && entry.definitions.length > 0);
+  return { ok: true, found, source: 'wiktionary' };
+}
+
+async function checkDatamuse(word) {
+  const params = new URLSearchParams({ sp: word, md: 'd', max: '5' });
+  const response = await fetchJsonWithTimeout(`${DATAMUSE_API_BASE_URL}?${params.toString()}`);
+  if (!response.ok) return { ok: false, found: false, source: 'datamuse', status: response.status };
+
+  const found = Array.isArray(response.body)
+    && response.body.some((entry) => entry?.word === word && Array.isArray(entry.defs) && entry.defs.length > 0);
+  return { ok: true, found, source: 'datamuse' };
+}
+
 async function isKnownEnglishWord(word) {
   if (FALLBACK_VALID_WORDS.has(word)) return { ok: true, found: true, source: 'fallback' };
 
   const cached = dictionaryCache.get(word);
   if (isDictionaryCacheFresh(cached)) return cached.result;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DICTIONARY_LOOKUP_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${DICTIONARY_API_BASE_URL}/${encodeURIComponent(word)}`, {
-      signal: controller.signal,
-      headers: { accept: 'application/json' },
-    });
-
-    if (response.status === 404) {
-      const result = { ok: true, found: false };
-      dictionaryCache.set(word, { checkedAt: Date.now(), result });
-      return result;
+  const providers = [checkDictionaryApi, checkWiktionary, checkDatamuse];
+  let anyProviderSucceeded = false;
+  for (const provider of providers) {
+    try {
+      const result = await provider(word);
+      if (!result.ok) {
+        logCommandSystem(`Word Chain ${result.source} lookup failed for ${word}: HTTP ${result.status || 'unknown'}`);
+        continue;
+      }
+      anyProviderSucceeded = true;
+      if (result.found) {
+        dictionaryCache.set(word, { checkedAt: Date.now(), result });
+        return result;
+      }
+    } catch (error) {
+      logCommandSystem(`Word Chain dictionary lookup failed for ${word}: ${error?.message ?? 'unknown error'}`);
     }
-
-    if (!response.ok) {
-      logCommandSystem(`Word Chain dictionary lookup failed for ${word}: HTTP ${response.status}`);
-      return { ok: false, found: false };
-    }
-
-    const body = await response.json().catch(() => null);
-    const found = Array.isArray(body) && body.some((entry) => Array.isArray(entry?.meanings) && entry.meanings.length > 0);
-    const result = { ok: true, found };
-    dictionaryCache.set(word, { checkedAt: Date.now(), result });
-    return result;
-  } catch (error) {
-    logCommandSystem(`Word Chain dictionary lookup failed for ${word}: ${error?.message ?? 'unknown error'}`);
-    return { ok: false, found: false };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  const result = anyProviderSucceeded ? { ok: true, found: false, source: 'multi' } : { ok: false, found: false, source: 'multi' };
+  dictionaryCache.set(word, { checkedAt: Date.now(), result });
+  return result;
 }
 
 async function validateWord(word) {
