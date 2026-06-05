@@ -5,7 +5,7 @@ const WORD_CHAIN_CHANNEL_ID = '1512480152410525958';
 const MIN_WORD_LENGTH = 3;
 const MAX_WORD_LENGTH = 10;
 const STARTING_HEARTS = 3;
-const TURN_TIMEOUT_MS = 60 * 60 * 1000;
+const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
 const PUNISHMENT_MS = 60 * 60 * 1000;
 const GAME_COOLDOWN_MS = 60 * 1000;
 const DICTIONARY_LOOKUP_TIMEOUT_MS = 5000;
@@ -75,10 +75,15 @@ function buildPanel(content, accentColor = 0x2f80ed) {
   };
 }
 
+function getWordLengthLine() {
+  return currentGame ? `Word length: **${currentGame.wordLength} letters**` : null;
+}
+
 function getGameLine() {
   if (!currentGame) return 'Word Chain is not running.';
   const required = currentGame.requiredFirstLetter ? `\nNext word must start with: **${currentGame.requiredFirstLetter.toUpperCase()}**` : '';
   const previous = currentGame.lastWord ? `\nLast word: **${currentGame.lastWord}**` : '\nFirst valid word can start with any letter.';
+  const lastPlayer = currentGame.lastUserId ? `\nLast player: <@${currentGame.lastUserId}>` : '';
   return [
     '**Word Chain is running**',
     `Channel: <#${WORD_CHAIN_CHANNEL_ID}>`,
@@ -86,6 +91,7 @@ function getGameLine() {
     `Server hearts: **${currentGame.hearts}/${STARTING_HEARTS}**`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
     previous,
+    lastPlayer,
     required,
   ].join('\n');
 }
@@ -147,6 +153,7 @@ async function startGame(reason = 'auto') {
     hearts: STARTING_HEARTS,
     usedWords: new Set(),
     lastWord: null,
+    lastUserId: null,
     requiredFirstLetter: null,
     startedAt: Date.now(),
     expiresAt: Date.now() + TURN_TIMEOUT_MS,
@@ -183,7 +190,7 @@ async function loseHeart(reason) {
   }
 
   resetTurnCountdown();
-  await sendToGameChannel(`${reason}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${STARTING_HEARTS}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c);
+  await sendToGameChannel(`${reason}\n${getWordLengthLine()}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${STARTING_HEARTS}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c);
 }
 
 async function handleTurnTimeout() {
@@ -271,22 +278,28 @@ async function validateWord(word) {
 async function punishInvalidWord(message, word, reason) {
   await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
   await message.react('\u274c').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\nThey are muted in this channel for 1 hour.`, 0xed4245);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\nThey are muted in this channel for 1 hour.`, 0xed4245);
   await loseHeart('Invalid word penalty.');
 }
 
 async function rejectTemporaryValidationIssue(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+}
+
+async function rejectRepeatedPlayer(message) {
+  await message.react('\u26a0\ufe0f').catch(() => null);
+  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
 }
 
 async function acceptWord(message, word) {
   currentGame.usedWords.add(word);
   currentGame.lastWord = word;
+  currentGame.lastUserId = message.author.id;
   currentGame.requiredFirstLetter = word.at(-1);
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
+  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
 }
 
 async function init(client) {
@@ -308,6 +321,11 @@ async function handleMessageCreate(message) {
   const word = getSubmittedWord(message);
   if (!word) {
     await punishInvalidWord(message, null, 'Only one word made of letters is allowed.');
+    return;
+  }
+
+  if (currentGame.lastUserId === message.author.id) {
+    await rejectRepeatedPlayer(message);
     return;
   }
 
