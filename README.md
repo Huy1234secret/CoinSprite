@@ -36,7 +36,8 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Accepted words award XP equal to the current word length, from 3x to 10x.
   - A player cannot submit two accepted words in a row; they must wait for another player.
   - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel and add role `1512488707461091420` for 1 minute.
-  - English words are checked online with DictionaryAPI.dev and cached in memory; temporary dictionary lookup failures do not punish the player.
+  - The bot needs `Manage Roles`, and its highest role must be above role `1512488707461091420`, for the punishment role to be applied.
+  - English words are checked online with DictionaryAPI.dev and cached in memory; a small fallback list covers valid words missing from that API, and temporary dictionary lookup failures do not punish the player.
 
 ## Message Context Menu Commands
 - `Reply with Bot Message`
