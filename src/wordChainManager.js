@@ -276,23 +276,61 @@ async function handleTurnTimeout() {
   await loseHeart('Countdown ran out.');
 }
 
+async function fetchBotMember(guild) {
+  return guild.members.me || await guild.members.fetchMe().catch(() => null);
+}
+
+async function getPunishmentRole(guild) {
+  return guild.roles.cache.get(PUNISHMENT_ROLE_ID)
+    || await guild.roles.fetch(PUNISHMENT_ROLE_ID).catch(() => null);
+}
+
+function canBotManageRole(botMember, role) {
+  if (!botMember || !role) return false;
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return false;
+  return botMember.roles.highest.position > role.position;
+}
+
 async function muteMemberInGameChannel(message, reason) {
-  const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+  const member = await message.guild.members.fetch(message.author.id).catch(() => message.member || null);
   const channel = message.channel;
-  if (!member || !channel?.permissionOverwrites?.edit) return false;
+  const result = {
+    muted: false,
+    roleAdded: false,
+    roleAlreadyPresent: false,
+    roleError: null,
+  };
+  if (!member || !channel?.permissionOverwrites?.edit) {
+    result.roleError = 'Could not fetch the member or channel.';
+    return result;
+  }
 
   const currentOverwrite = channel.permissionOverwrites.cache.get(member.id);
   let previousSendMessages = null;
   if (currentOverwrite?.allow?.has(PermissionFlagsBits.SendMessages)) previousSendMessages = true;
   if (currentOverwrite?.deny?.has(PermissionFlagsBits.SendMessages)) previousSendMessages = false;
-  const hadPunishmentRole = member.roles.cache.has(PUNISHMENT_ROLE_ID);
 
-  await channel.permissionOverwrites.edit(member.id, { SendMessages: false }, { reason }).catch((error) => {
+  result.muted = await channel.permissionOverwrites.edit(member.id, { SendMessages: false }, { reason }).then(() => true).catch((error) => {
     logCommandSystem(`Word Chain mute failed for ${message.author.id}: ${error?.message ?? 'unknown error'}`);
+    return false;
   });
-  if (!hadPunishmentRole) {
-    await member.roles.add(PUNISHMENT_ROLE_ID, reason).catch((error) => {
-      logCommandSystem(`Word Chain punishment role add failed for ${message.author.id}: ${error?.message ?? 'unknown error'}`);
+
+  const punishmentRole = await getPunishmentRole(message.guild);
+  const botMember = await fetchBotMember(message.guild);
+  result.roleAlreadyPresent = member.roles.cache.has(PUNISHMENT_ROLE_ID);
+  if (!punishmentRole) {
+    result.roleError = `Role ${PUNISHMENT_ROLE_ID} was not found.`;
+  } else if (result.roleAlreadyPresent) {
+    result.roleAdded = true;
+  } else if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    result.roleError = 'Bot is missing Manage Roles permission.';
+  } else if (!canBotManageRole(botMember, punishmentRole)) {
+    result.roleError = `Bot role must be above <@&${PUNISHMENT_ROLE_ID}>.`;
+  } else {
+    result.roleAdded = await member.roles.add(punishmentRole, reason).then(() => true).catch((error) => {
+      result.roleError = error?.message || 'Discord rejected the role add.';
+      logCommandSystem(`Word Chain punishment role add failed for ${message.author.id}: ${result.roleError}`);
+      return false;
     });
   }
 
@@ -300,14 +338,14 @@ async function muteMemberInGameChannel(message, reason) {
     channel.permissionOverwrites.edit(member.id, { SendMessages: previousSendMessages }, { reason: `Word Chain punishment expired for ${member.id}` }).catch((error) => {
       logCommandSystem(`Word Chain unmute failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
     });
-    if (!hadPunishmentRole) {
+    if (result.roleAdded && !result.roleAlreadyPresent) {
       member.roles.remove(PUNISHMENT_ROLE_ID, `Word Chain punishment expired for ${member.id}`).catch((error) => {
         logCommandSystem(`Word Chain punishment role remove failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
       });
     }
   }, PUNISHMENT_MS);
 
-  return true;
+  return result;
 }
 
 function isDictionaryCacheFresh(entry) {
@@ -364,14 +402,25 @@ async function validateWord(word) {
   return null;
 }
 
+function formatPunishmentLine(result) {
+  const muteText = result?.muted ? 'muted in this channel' : 'not muted because channel permissions could not be updated';
+  if (result?.roleAdded) {
+    const roleText = result.roleAlreadyPresent ? `already had <@&${PUNISHMENT_ROLE_ID}>` : `given <@&${PUNISHMENT_ROLE_ID}>`;
+    return `They are ${muteText} and ${roleText} for 1 minute.`;
+  }
+
+  const roleError = result?.roleError || 'unknown role add error';
+  return `They are ${muteText} for 1 minute. Role was not added: ${roleError}`;
+}
+
 async function punishInvalidWord(message, word, reason) {
-  await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
+  const punishment = await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
   if (currentGame) {
     currentGame.streak = 0;
     persistState();
   }
   await message.react('\u274c').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nThey are muted in this channel and given <@&${PUNISHMENT_ROLE_ID}> for 1 minute.`, 0xed4245);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\n${formatPunishmentLine(punishment)}`, 0xed4245);
   await loseHeart('Invalid word penalty.');
 }
 
