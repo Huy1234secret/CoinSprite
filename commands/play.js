@@ -4,6 +4,7 @@ const {
   NoSubscriberBehavior,
   createAudioPlayer,
   createAudioResource,
+  demuxProbe,
   entersState,
   joinVoiceChannel,
   VoiceConnectionStatus,
@@ -111,14 +112,14 @@ async function resolveTrack(query) {
 
 async function createTrackStream(url) {
   if (ytdl.validateURL(url)) {
-    return {
-      stream: ytdl(url, {
-        agent: getYtdlAgent(),
-        filter: 'audioonly',
-        quality: 'highestaudio',
-        highWaterMark: 1 << 25,
-      }),
-    };
+    const youtubeStream = ytdl(url, {
+      agent: getYtdlAgent(),
+      filter: 'audioonly',
+      quality: 'highestaudio',
+      highWaterMark: 1 << 25,
+    });
+    const probed = await demuxProbe(youtubeStream);
+    return { stream: probed.stream, inputType: probed.type };
   }
 
   await ensureYoutubeCookieToken();
@@ -187,7 +188,8 @@ module.exports = {
 
       player.once(AudioPlayerStatus.Idle, () => destroySession(guildId));
       player.once('error', (error) => {
-        console.error('Music player error:', error);
+        console.error('Music player error:', error?.message || error);
+        if (error?.resource?.metadata) console.error('Music player resource metadata:', error.resource.metadata);
         destroySession(guildId);
       });
 
