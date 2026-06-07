@@ -9,12 +9,44 @@ const {
   VoiceConnectionStatus,
 } = require('@discordjs/voice');
 const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
+const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
 let youtubeCookieTokenPromise = null;
+let ytdlAgent = null;
+let ytdlAgentCookie = '';
+
+if (ffmpegPath && !process.env.FFMPEG_PATH) {
+  process.env.FFMPEG_PATH = ffmpegPath;
+}
 
 function getYoutubeCookie() {
   return process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
+}
+
+function parseCookieHeader(cookieHeader) {
+  const input = String(cookieHeader || '').trim();
+  if (!input) return [];
+
+  if (input.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(input);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return input
+    .split(';')
+    .map((part) => {
+      const [name, ...valueParts] = part.trim().split('=');
+      const value = valueParts.join('=');
+      if (!name || !value) return null;
+      return { name, value, domain: '.youtube.com' };
+    })
+    .filter(Boolean);
 }
 
 async function ensureYoutubeCookieToken() {
@@ -27,6 +59,16 @@ async function ensureYoutubeCookieToken() {
     });
   }
   await youtubeCookieTokenPromise;
+}
+
+function getYtdlAgent() {
+  const cookie = getYoutubeCookie();
+  if (!cookie) return undefined;
+  if (!ytdlAgent || ytdlAgentCookie !== cookie) {
+    ytdlAgent = ytdl.createAgent(parseCookieHeader(cookie));
+    ytdlAgentCookie = cookie;
+  }
+  return ytdlAgent;
 }
 
 function isYoutubeBotCheckError(error) {
@@ -65,6 +107,23 @@ async function resolveTrack(query) {
     title: first.title || input,
     url: first.url,
   };
+}
+
+async function createTrackStream(url) {
+  if (ytdl.validateURL(url)) {
+    return {
+      stream: ytdl(url, {
+        agent: getYtdlAgent(),
+        filter: 'audioonly',
+        quality: 'highestaudio',
+        highWaterMark: 1 << 25,
+      }),
+    };
+  }
+
+  await ensureYoutubeCookieToken();
+  const stream = await play.stream(url);
+  return { stream: stream.stream, inputType: stream.type };
 }
 
 function destroySession(guildId) {
@@ -114,9 +173,8 @@ module.exports = {
 
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
-      await ensureYoutubeCookieToken();
-      const stream = await play.stream(track.url);
-      const resource = createAudioResource(stream.stream, { inputType: stream.type });
+      const stream = await createTrackStream(track.url);
+      const resource = createAudioResource(stream.stream, stream.inputType ? { inputType: stream.inputType } : undefined);
       const player = createAudioPlayer({
         behaviors: {
           noSubscriber: NoSubscriberBehavior.Stop,
