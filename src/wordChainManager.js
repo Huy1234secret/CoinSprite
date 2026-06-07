@@ -17,6 +17,7 @@ const DICTIONARY_API_BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en
 const WIKTIONARY_API_BASE_URL = 'https://en.wiktionary.org/api/rest_v1/page/definition';
 const DATAMUSE_API_BASE_URL = 'https://api.datamuse.com/words';
 const COMPONENTS_V2_FLAG = 32768;
+const NO_MENTIONS = { parse: [] };
 
 const FALLBACK_VALID_WORDS = new Set([
   'tableful',
@@ -175,7 +176,7 @@ function getGameLine() {
 async function sendToGameChannel(content, accentColor) {
   const channel = await getGameChannel();
   if (!channel?.isTextBased?.()) return null;
-  return channel.send(buildPanel(content, accentColor)).catch((error) => {
+  return channel.send({ ...buildPanel(content, accentColor), allowedMentions: NO_MENTIONS }).catch((error) => {
     logCommandSystem(`Word Chain send failed: ${error?.message ?? 'unknown error'}`);
     return null;
   });
@@ -551,17 +552,17 @@ async function handleMessageCreate(message) {
 
 async function handleStatus(interaction) {
   if (interaction.channelId !== WORD_CHAIN_CHANNEL_ID && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: `Word Chain is only playable in <#${WORD_CHAIN_CHANNEL_ID}>.`, flags: 64 });
+    await interaction.reply({ content: `Word Chain is only playable in <#${WORD_CHAIN_CHANNEL_ID}>.`, flags: 64, allowedMentions: NO_MENTIONS });
     return;
   }
 
   if (!currentGame && cooldownEndsAt > Date.now()) {
-    await interaction.reply({ content: `Word Chain is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64 });
+    await interaction.reply({ content: `Word Chain is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64, allowedMentions: NO_MENTIONS });
     return;
   }
 
   if (!currentGame) await startGame('manual');
-  await interaction.reply({ content: getGameLine(), flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64 });
+  await interaction.reply({ content: getGameLine(), flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64, allowedMentions: NO_MENTIONS });
 }
 
 module.exports = {

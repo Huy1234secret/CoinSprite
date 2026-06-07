@@ -15,8 +15,6 @@ const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
 let youtubeCookieTokenPromise = null;
-let ytdlAgent = null;
-let ytdlAgentCookie = '';
 
 if (ffmpegPath && !process.env.FFMPEG_PATH) {
   process.env.FFMPEG_PATH = ffmpegPath;
@@ -26,28 +24,24 @@ function getYoutubeCookie() {
   return process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
 }
 
-function parseCookieHeader(cookieHeader) {
-  const input = String(cookieHeader || '').trim();
-  if (!input) return [];
+function getYoutubeCookieHeader() {
+  const input = getYoutubeCookie();
+  if (!input) return '';
 
   if (input.startsWith('[')) {
     try {
       const parsed = JSON.parse(input);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return '';
+      return parsed
+        .filter((cookie) => cookie?.name && cookie?.value)
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ');
     } catch {
-      return [];
+      return '';
     }
   }
 
-  return input
-    .split(';')
-    .map((part) => {
-      const [name, ...valueParts] = part.trim().split('=');
-      const value = valueParts.join('=');
-      if (!name || !value) return null;
-      return { name, value, domain: '.youtube.com' };
-    })
-    .filter(Boolean);
+  return input;
 }
 
 async function ensureYoutubeCookieToken() {
@@ -60,16 +54,6 @@ async function ensureYoutubeCookieToken() {
     });
   }
   await youtubeCookieTokenPromise;
-}
-
-function getYtdlAgent() {
-  const cookie = getYoutubeCookie();
-  if (!cookie) return undefined;
-  if (!ytdlAgent || ytdlAgentCookie !== cookie) {
-    ytdlAgent = ytdl.createAgent(parseCookieHeader(cookie));
-    ytdlAgentCookie = cookie;
-  }
-  return ytdlAgent;
 }
 
 function isYoutubeBotCheckError(error) {
@@ -112,11 +96,12 @@ async function resolveTrack(query) {
 
 async function createTrackStream(url) {
   if (ytdl.validateURL(url)) {
+    const cookie = getYoutubeCookieHeader();
     const youtubeStream = ytdl(url, {
-      agent: getYtdlAgent(),
       filter: 'audioonly',
       quality: 'highestaudio',
       highWaterMark: 1 << 25,
+      requestOptions: cookie ? { headers: { cookie, Cookie: cookie } } : undefined,
     });
     const probed = await demuxProbe(youtubeStream);
     return { stream: probed.stream, inputType: probed.type };
