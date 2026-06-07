@@ -21,6 +21,9 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Counts only real users (bots ignored).
 - `/invite-points`
   - Shows the user's current Invite Points.
+- `/play music:{song_or_url}`
+  - Joins your current voice channel and plays the requested song or URL.
+  - Starting another `/play` replaces the current track in that server.
 - `/transcript-message amount:{1-100}`
   - Saves a transcript of the most recent messages from the current channel and sends it to the transcript channel.
 - `/message channel:{channel} message:{text} [replyto:{message_id}]`
@@ -91,6 +94,7 @@ Supported item aliases (case-insensitive):
    ```bash
    npm install
    ```
+   Music playback uses Discord voice, FFmpeg, and an Opus encoder from npm.
 2. Configure `.env`:
    ```env
    DISCORD_TOKEN=your_token_here
