@@ -98,9 +98,12 @@ Supported item aliases (case-insensitive):
 2. Configure `.env`:
    ```env
    DISCORD_TOKEN=your_token_here
+   # Optional: use when YouTube blocks VPS playback with a bot-check page.
+   PLAY_DL_YOUTUBE_COOKIE=your_youtube_cookie_header_here
    # Optional override for where the invitation rules message is posted.
    INVITATION_RULES_CHANNEL_ID=1494329296670425279
    ```
+   Keep `PLAY_DL_YOUTUBE_COOKIE` private. It should be the full YouTube cookie header from a browser session, and it is only needed when YouTube blocks playback from the server.
 3. Run bot:
    ```bash
    npm start

@@ -11,6 +11,28 @@ const {
 const play = require('play-dl');
 
 const sessions = new Map();
+let youtubeCookieTokenPromise = null;
+
+function getYoutubeCookie() {
+  return process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
+}
+
+async function ensureYoutubeCookieToken() {
+  const cookie = getYoutubeCookie();
+  if (!cookie) return;
+  if (!youtubeCookieTokenPromise) {
+    youtubeCookieTokenPromise = play.setToken({ youtube: { cookie } }).catch((error) => {
+      youtubeCookieTokenPromise = null;
+      throw error;
+    });
+  }
+  await youtubeCookieTokenPromise;
+}
+
+function isYoutubeBotCheckError(error) {
+  const message = String(error?.message || error || '');
+  return /sign in to confirm.*not a bot/i.test(message) || /confirm you.?re not a bot/i.test(message);
+}
 
 function getSessionKey(interaction) {
   return interaction.guildId;
@@ -28,6 +50,8 @@ function destroyConnection(connection) {
 async function resolveTrack(query) {
   const input = String(query || '').trim();
   if (!input) return null;
+
+  await ensureYoutubeCookieToken();
 
   if (/^https?:\/\//i.test(input)) {
     return { title: input, url: input };
@@ -90,6 +114,7 @@ module.exports = {
 
     try {
       await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+      await ensureYoutubeCookieToken();
       const stream = await play.stream(track.url);
       const resource = createAudioResource(stream.stream, { inputType: stream.type });
       const player = createAudioPlayer({
@@ -113,6 +138,10 @@ module.exports = {
       console.error('Play command failed:', error);
       destroySession(guildId);
       destroyConnection(connection);
+      if (isYoutubeBotCheckError(error)) {
+        await interaction.editReply('YouTube blocked playback from this server. Add `PLAY_DL_YOUTUBE_COOKIE` to the bot environment and restart, or try a direct non-YouTube audio URL.');
+        return;
+      }
       await interaction.editReply('I could not play that track. Try a different song or URL.');
     }
   },
