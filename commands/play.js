@@ -184,6 +184,8 @@ async function createTrackStream(url) {
         '--no-playlist',
         '--quiet',
         '--no-warnings',
+        '--remote-components',
+        'ejs:github',
         '--format',
         'bestaudio/best',
         '--output',
