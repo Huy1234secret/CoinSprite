@@ -17,6 +17,7 @@ const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
 const YOUTUBE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies.json');
+const YOUTUBE_PLAYER_CLIENTS = ['IOS', 'ANDROID'];
 let youtubeCookieTokenPromise = null;
 let youtubeCookieData = null;
 let ytdlAgent = null;
@@ -142,6 +143,8 @@ async function createTrackStream(url) {
       filter: 'audioonly',
       quality: 'highestaudio',
       highWaterMark: 1 << 25,
+      dlChunkSize: 0,
+      playerClients: YOUTUBE_PLAYER_CLIENTS,
     });
     const probed = await demuxProbe(youtubeStream);
     return { stream: probed.stream, inputType: probed.type };
