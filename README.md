@@ -21,9 +21,6 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Counts only real users (bots ignored).
 - `/invite-points`
   - Shows the user's current Invite Points.
-- `/play music:{song_or_url}`
-  - Joins your current voice channel and plays the requested song or URL.
-  - Starting another `/play` replaces the current track in that server.
 - `/transcript-message amount:{1-100}`
   - Saves a transcript of the most recent messages from the current channel and sends it to the transcript channel.
 - `/message channel:{channel} message:{text} [replyto:{message_id}]`
@@ -94,18 +91,12 @@ Supported item aliases (case-insensitive):
    ```bash
    npm install
    ```
-   Music playback uses Discord voice, FFmpeg, and an Opus encoder from npm.
 2. Configure `.env`:
    ```env
    DISCORD_TOKEN=your_token_here
-   # Optional: use when YouTube blocks VPS playback with a bot-check page.
-   PLAY_DL_YOUTUBE_COOKIE=your_youtube_cookie_header_here
    # Optional override for where the invitation rules message is posted.
    INVITATION_RULES_CHANNEL_ID=1494329296670425279
    ```
-   Keep YouTube cookies private. For yt-dlp playback, you can paste a native Netscape cookie export into ignored file `data/youtube-cookies.txt`; if that file is missing, the bot can convert exported YouTube cookie JSON from `data/youtube-cookies.json`. Both files are preferred over `PLAY_DL_YOUTUBE_COOKIE` and do not need an `.env` entry.
-   If YouTube still returns HTTP 429 during playback, install `yt-dlp` and Deno on the server and set `YOUTUBE_USE_YT_DLP=1`. The bot will stream YouTube audio through `yt-dlp`, reuse `data/youtube-cookies.json`, and allow yt-dlp to fetch the EJS challenge solver when YouTube requires it.
-   If the VPS IP is rate-limited, set `YOUTUBE_PROXY_URL=http://user:pass@proxy-host:proxy-port` to pass yt-dlp's `--proxy` option.
 3. Run bot:
    ```bash
    npm start

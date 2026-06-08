@@ -1,5 +1,5 @@
 const TIMEOUT_MS = 30_000;
-const IGNORED_COMPONENT_PREFIXES = ['fish:reel:'];
+const IGNORED_COMPONENT_PREFIXES = [];
 
 const sessionsByMessageId = new Map();
 const messagesByInteractionToken = new Map();
