@@ -92,13 +92,18 @@ function isYtDlpEnabled() {
   return process.env.YOUTUBE_USE_YT_DLP === '1';
 }
 
+function isSpotifyUrl(url) {
+  return /^https?:\/\/(?:open\.)?spotify\.com\//i.test(String(url || ''));
+}
+
 function getYtDlpPath() {
   return process.env.YT_DLP_PATH?.trim() || 'yt-dlp';
 }
 
 function toNetscapeCookieLine(cookie) {
-  const domain = cookie.domain || '.youtube.com';
-  const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+  const baseDomain = cookie.domain || '.youtube.com';
+  const domain = cookie.httpOnly && !baseDomain.startsWith('#HttpOnly_') ? `#HttpOnly_${baseDomain}` : baseDomain;
+  const includeSubdomains = baseDomain.startsWith('.') ? 'TRUE' : 'FALSE';
   const pathValue = cookie.path || '/';
   const secure = cookie.secure ? 'TRUE' : 'FALSE';
   const expires = Number.isFinite(Number(cookie.expirationDate)) ? Math.floor(Number(cookie.expirationDate)) : 0;
@@ -191,6 +196,7 @@ async function createTrackStream(url) {
       const child = spawn(getYtDlpPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
       child.stderr.on('data', (chunk) => {
         const line = chunk.toString().trim();
+        if (/broken pipe/i.test(line)) return;
         if (line) console.error(`yt-dlp: ${line}`);
       });
       child.once('error', (error) => {
@@ -210,6 +216,10 @@ async function createTrackStream(url) {
     });
     const probed = await demuxProbe(youtubeStream);
     return { stream: probed.stream, inputType: probed.type };
+  }
+
+  if (isSpotifyUrl(url)) {
+    throw new Error('Spotify links are not directly playable. Search the song name instead so I can find a playable YouTube or SoundCloud track.');
   }
 
   await ensureYoutubeCookieToken();
@@ -289,7 +299,11 @@ module.exports = {
       destroySession(guildId);
       destroyConnection(connection);
       if (isYoutubeBotCheckError(error)) {
-        await interaction.editReply('YouTube blocked playback from this server. Add `PLAY_DL_YOUTUBE_COOKIE` to the bot environment and restart, or try a direct non-YouTube audio URL.');
+        await interaction.editReply('YouTube blocked playback from this server. Refresh `data/youtube-cookies.json`, enable `YOUTUBE_USE_YT_DLP=1`, or try a direct non-YouTube audio URL.');
+        return;
+      }
+      if (/spotify links are not directly playable/i.test(error?.message || '')) {
+        await interaction.editReply(error.message);
         return;
       }
       await interaction.editReply('I could not play that track. Try a different song or URL.');
