@@ -103,7 +103,7 @@ Supported item aliases (case-insensitive):
    # Optional override for where the invitation rules message is posted.
    INVITATION_RULES_CHANNEL_ID=1494329296670425279
    ```
-   Keep `PLAY_DL_YOUTUBE_COOKIE` private. It should be the full YouTube cookie header from a browser session, and it is only needed when YouTube blocks playback from the server.
+   Keep YouTube cookies private. You can also paste an exported YouTube cookie JSON array into ignored file `data/youtube-cookies.json`; that file is preferred over `PLAY_DL_YOUTUBE_COOKIE` and does not need an `.env` entry.
 3. Run bot:
    ```bash
    npm start
