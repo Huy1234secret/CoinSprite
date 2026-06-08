@@ -104,7 +104,7 @@ Supported item aliases (case-insensitive):
    INVITATION_RULES_CHANNEL_ID=1494329296670425279
    ```
    Keep YouTube cookies private. You can also paste an exported YouTube cookie JSON array into ignored file `data/youtube-cookies.json`; that file is preferred over `PLAY_DL_YOUTUBE_COOKIE` and does not need an `.env` entry.
-   If YouTube still returns HTTP 429 during playback, install `yt-dlp` on the server and set `YOUTUBE_USE_YT_DLP=1`. The bot will stream YouTube audio through `yt-dlp` and reuse `data/youtube-cookies.json`.
+   If YouTube still returns HTTP 429 during playback, install `yt-dlp` and Deno on the server and set `YOUTUBE_USE_YT_DLP=1`. The bot will stream YouTube audio through `yt-dlp`, reuse `data/youtube-cookies.json`, and allow yt-dlp to fetch the EJS challenge solver when YouTube requires it.
 3. Run bot:
    ```bash
    npm start
