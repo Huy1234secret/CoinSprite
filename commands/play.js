@@ -30,43 +30,146 @@ if (ffmpegPath && !process.env.FFMPEG_PATH) {
   process.env.FFMPEG_PATH = ffmpegPath;
 }
 
+function readTextFileIfExists(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8').trim() : '';
+}
+
 function getYoutubeCookieInput() {
   if (youtubeCookieData) return youtubeCookieData.raw;
 
-  const fileCookie = fs.existsSync(YOUTUBE_COOKIE_FILE) ? fs.readFileSync(YOUTUBE_COOKIE_FILE, 'utf8').trim() : '';
+  const fileCookie = readTextFileIfExists(YOUTUBE_COOKIE_FILE);
+  const nativeCookie = readTextFileIfExists(YOUTUBE_NATIVE_COOKIE_FILE);
   const envCookie = process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
-  return fileCookie || envCookie;
+  return fileCookie || nativeCookie || envCookie;
+}
+
+function normaliseCookie(cookie) {
+  if (!cookie?.name || cookie.value == null) return null;
+
+  const name = String(cookie.name).trim();
+  const value = String(cookie.value);
+  if (!name) return null;
+
+  const domain = String(cookie.domain || '.youtube.com').replace(/^#HttpOnly_/i, '') || '.youtube.com';
+  const secure = cookie.secure == null ? /^__Secure-|^__Host-/.test(name) : Boolean(cookie.secure);
+  const expirationDate = Number(cookie.expirationDate ?? cookie.expires ?? cookie.expiry ?? 0) || 0;
+
+  return {
+    ...cookie,
+    name,
+    value,
+    domain,
+    path: cookie.path || '/',
+    secure,
+    httpOnly: Boolean(cookie.httpOnly),
+    expirationDate,
+  };
+}
+
+function cookieArrayToHeader(cookies) {
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; ');
+}
+
+function extractCookieArray(parsed) {
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed?.cookies)) return parsed.cookies;
+  if (Array.isArray(parsed?.youtube?.cookies)) return parsed.youtube.cookies;
+  if (Array.isArray(parsed?.data?.cookies)) return parsed.data.cookies;
+  return null;
+}
+
+function parseCookieHeader(input) {
+  return input
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [name, ...valueParts] = part.split('=');
+      const value = valueParts.join('=');
+      return normaliseCookie({
+        name,
+        value,
+        domain: '.youtube.com',
+        path: '/',
+        secure: /^__Secure-|^__Host-/.test(String(name || '')),
+      });
+    })
+    .filter(Boolean);
+}
+
+function parseNetscapeCookieInput(input) {
+  return input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && (!line.startsWith('#') || line.startsWith('#HttpOnly_')))
+    .map((line) => {
+      const parts = line.split('\t');
+      if (parts.length < 7) return null;
+
+      const [rawDomain, , cookiePath, secure, expires, name, ...valueParts] = parts;
+      const httpOnly = rawDomain.startsWith('#HttpOnly_');
+      const domain = rawDomain.replace(/^#HttpOnly_/i, '');
+      return normaliseCookie({
+        domain,
+        path: cookiePath || '/',
+        secure: /^true$/i.test(secure),
+        expirationDate: Number(expires) || 0,
+        name,
+        value: valueParts.join('\t'),
+        httpOnly,
+      });
+    })
+    .filter(Boolean);
+}
+
+function looksLikeNetscapeCookieFile(input) {
+  return /Netscape HTTP Cookie File/i.test(input) || input.split(/\r?\n/).some((line) => line.split('\t').length >= 7);
 }
 
 function parseYoutubeCookieInput() {
   const input = getYoutubeCookieInput();
   if (!input) {
-    youtubeCookieData = { raw: '', header: '', cookies: null };
+    youtubeCookieData = { raw: '', header: '', cookies: null, sourceType: 'empty' };
     return youtubeCookieData;
   }
 
-  if (input.startsWith('[')) {
+  if (input.startsWith('{') || input.startsWith('[')) {
     try {
       const parsed = JSON.parse(input);
-      if (!Array.isArray(parsed)) {
-        youtubeCookieData = { raw: input, header: '', cookies: null };
+      const cookieArray = extractCookieArray(parsed);
+      if (cookieArray) {
+        const cookies = cookieArray.map(normaliseCookie).filter(Boolean);
+        youtubeCookieData = {
+          raw: input,
+          header: cookieArrayToHeader(cookies),
+          cookies,
+          sourceType: 'json',
+        };
         return youtubeCookieData;
       }
-
-      const cookies = parsed.filter((cookie) => cookie?.name && cookie?.value);
-      const header = cookies
-        .filter((cookie) => cookie?.name && cookie?.value)
-        .map((cookie) => `${cookie.name}=${cookie.value}`)
-        .join('; ');
-      youtubeCookieData = { raw: input, header, cookies };
-      return youtubeCookieData;
-    } catch {
-      youtubeCookieData = { raw: input, header: '', cookies: null };
-      return youtubeCookieData;
+    } catch (error) {
+      console.warn(`Could not parse ${YOUTUBE_COOKIE_FILE} as JSON cookies: ${error.message}`);
     }
   }
 
-  youtubeCookieData = { raw: input, header: input, cookies: null };
+  if (looksLikeNetscapeCookieFile(input)) {
+    const cookies = parseNetscapeCookieInput(input);
+    youtubeCookieData = {
+      raw: input,
+      header: cookieArrayToHeader(cookies),
+      cookies,
+      sourceType: 'netscape',
+    };
+    return youtubeCookieData;
+  }
+
+  const cookies = parseCookieHeader(input);
+  youtubeCookieData = {
+    raw: input,
+    header: cookieArrayToHeader(cookies) || input,
+    cookies,
+    sourceType: 'header',
+  };
   return youtubeCookieData;
 }
 
@@ -106,24 +209,30 @@ function getYoutubeProxyUrl() {
 }
 
 function toNetscapeCookieLine(cookie) {
-  const baseDomain = cookie.domain || '.youtube.com';
-  const domain = cookie.httpOnly && !baseDomain.startsWith('#HttpOnly_') ? `#HttpOnly_${baseDomain}` : baseDomain;
+  const normalised = normaliseCookie(cookie);
+  if (!normalised) return null;
+
+  const baseDomain = normalised.domain || '.youtube.com';
+  const domain = normalised.httpOnly && !baseDomain.startsWith('#HttpOnly_') ? `#HttpOnly_${baseDomain}` : baseDomain;
   const includeSubdomains = baseDomain.startsWith('.') ? 'TRUE' : 'FALSE';
-  const pathValue = cookie.path || '/';
-  const secure = cookie.secure ? 'TRUE' : 'FALSE';
-  const expires = Number.isFinite(Number(cookie.expirationDate)) ? Math.floor(Number(cookie.expirationDate)) : 0;
-  return [domain, includeSubdomains, pathValue, secure, expires, cookie.name, cookie.value].join('\t');
+  const pathValue = normalised.path || '/';
+  const secure = normalised.secure ? 'TRUE' : 'FALSE';
+  const expires = Number.isFinite(Number(normalised.expirationDate)) ? Math.floor(Number(normalised.expirationDate)) : 0;
+  return [domain, includeSubdomains, pathValue, secure, expires, normalised.name, normalised.value].join('\t');
 }
 
 function ensureYtDlpCookieFile() {
   if (fs.existsSync(YOUTUBE_NATIVE_COOKIE_FILE)) return YOUTUBE_NATIVE_COOKIE_FILE;
 
   const cookieData = parseYoutubeCookieInput();
-  if (!cookieData.cookies?.length) return null;
+  if (!cookieData.cookies?.length) {
+    console.warn('No usable YouTube cookies found for yt-dlp. Add a browser-exported cookie array to data/youtube-cookies.json, a Netscape file to data/youtube-cookies.txt, or PLAY_DL_YOUTUBE_COOKIE in name=value; name2=value2 format.');
+    return null;
+  }
 
   const content = [
     '# Netscape HTTP Cookie File',
-    ...cookieData.cookies.map(toNetscapeCookieLine),
+    ...cookieData.cookies.map(toNetscapeCookieLine).filter(Boolean),
     '',
   ].join('\n');
 
@@ -184,37 +293,66 @@ async function resolveTrack(query) {
   };
 }
 
+async function waitForYtDlpExit(child, stderrChunks) {
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      const stderr = stderrChunks.join('').trim();
+      reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+    });
+  });
+}
+
+async function createYtDlpStream(url) {
+  const args = [
+    '--no-playlist',
+    '--quiet',
+    '--no-warnings',
+    '--format',
+    'bestaudio/best',
+    '--output',
+    '-',
+  ];
+
+  const cookieFile = ensureYtDlpCookieFile();
+  if (cookieFile) args.unshift('--cookies', cookieFile);
+  const proxyUrl = getYoutubeProxyUrl();
+  if (proxyUrl) args.unshift('--proxy', proxyUrl);
+  args.push(url);
+
+  const stderrChunks = [];
+  const child = spawn(getYtDlpPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  const exitPromise = waitForYtDlpExit(child, stderrChunks);
+
+  child.stderr.on('data', (chunk) => {
+    const line = chunk.toString();
+    stderrChunks.push(line);
+    const trimmed = line.trim();
+    if (/broken pipe/i.test(trimmed)) return;
+    if (trimmed) console.error(`yt-dlp: ${trimmed}`);
+  });
+
+  const probed = await Promise.race([
+    demuxProbe(child.stdout),
+    exitPromise.then(() => new Promise(() => {})),
+  ]);
+
+  exitPromise.catch((error) => {
+    if (!isYoutubeBotCheckError(error)) console.error('yt-dlp exited after stream start:', error.message);
+  });
+
+  return { stream: probed.stream, inputType: probed.type };
+}
+
 async function createTrackStream(url) {
   if (ytdl.validateURL(url)) {
     if (isYtDlpEnabled()) {
-      const args = [
-        '--no-playlist',
-        '--quiet',
-        '--no-warnings',
-        '--remote-components',
-        'ejs:github',
-        '--format',
-        'bestaudio/best',
-        '--output',
-        '-',
-      ];
-      const cookieFile = ensureYtDlpCookieFile();
-      if (cookieFile) args.unshift('--cookies', cookieFile);
-      const proxyUrl = getYoutubeProxyUrl();
-      if (proxyUrl) args.unshift('--proxy', proxyUrl);
-      args.push(url);
-
-      const child = spawn(getYtDlpPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
-      child.stderr.on('data', (chunk) => {
-        const line = chunk.toString().trim();
-        if (/broken pipe/i.test(line)) return;
-        if (line) console.error(`yt-dlp: ${line}`);
-      });
-      child.once('error', (error) => {
-        child.stdout.destroy(error);
-      });
-      const probed = await demuxProbe(child.stdout);
-      return { stream: probed.stream, inputType: probed.type };
+      return createYtDlpStream(url);
     }
 
     const youtubeStream = ytdl(url, {
@@ -310,7 +448,7 @@ module.exports = {
       destroySession(guildId);
       destroyConnection(connection);
       if (isYoutubeBotCheckError(error)) {
-        await interaction.editReply('YouTube blocked playback from this server. Refresh `data/youtube-cookies.json`, enable `YOUTUBE_USE_YT_DLP=1`, or try a direct non-YouTube audio URL.');
+        await interaction.editReply('YouTube blocked playback from this server. Refresh your YouTube cookies, restart the bot, and make sure yt-dlp is receiving `--cookies data/youtube-cookies-netscape.txt`.');
         return;
       }
       if (/spotify links are not directly playable/i.test(error?.message || '')) {
