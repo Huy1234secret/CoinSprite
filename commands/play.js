@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { SlashCommandBuilder } = require('discord.js');
 const {
   AudioPlayerStatus,
@@ -14,38 +16,77 @@ const ytdl = require('@distube/ytdl-core');
 const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
+const YOUTUBE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies.json');
 let youtubeCookieTokenPromise = null;
+let youtubeCookieData = null;
+let ytdlAgent = null;
+let ytdlAgentKey = '';
 
 if (ffmpegPath && !process.env.FFMPEG_PATH) {
   process.env.FFMPEG_PATH = ffmpegPath;
 }
 
-function getYoutubeCookie() {
-  return process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
+function getYoutubeCookieInput() {
+  if (youtubeCookieData) return youtubeCookieData.raw;
+
+  const fileCookie = fs.existsSync(YOUTUBE_COOKIE_FILE) ? fs.readFileSync(YOUTUBE_COOKIE_FILE, 'utf8').trim() : '';
+  const envCookie = process.env.PLAY_DL_YOUTUBE_COOKIE?.trim() || '';
+  return fileCookie || envCookie;
 }
 
-function getYoutubeCookieHeader() {
-  const input = getYoutubeCookie();
-  if (!input) return '';
+function parseYoutubeCookieInput() {
+  const input = getYoutubeCookieInput();
+  if (!input) {
+    youtubeCookieData = { raw: '', header: '', cookies: null };
+    return youtubeCookieData;
+  }
 
   if (input.startsWith('[')) {
     try {
       const parsed = JSON.parse(input);
-      if (!Array.isArray(parsed)) return '';
-      return parsed
+      if (!Array.isArray(parsed)) {
+        youtubeCookieData = { raw: input, header: '', cookies: null };
+        return youtubeCookieData;
+      }
+
+      const cookies = parsed.filter((cookie) => cookie?.name && cookie?.value);
+      const header = cookies
         .filter((cookie) => cookie?.name && cookie?.value)
         .map((cookie) => `${cookie.name}=${cookie.value}`)
         .join('; ');
+      youtubeCookieData = { raw: input, header, cookies };
+      return youtubeCookieData;
     } catch {
-      return '';
+      youtubeCookieData = { raw: input, header: '', cookies: null };
+      return youtubeCookieData;
     }
   }
 
-  return input;
+  youtubeCookieData = { raw: input, header: input, cookies: null };
+  return youtubeCookieData;
+}
+
+function getYoutubeCookieHeader() {
+  return parseYoutubeCookieInput().header;
+}
+
+function getYtdlOptions() {
+  const cookieData = parseYoutubeCookieInput();
+  if (!cookieData.raw) return {};
+
+  if (cookieData.cookies?.length) {
+    if (!ytdlAgent || ytdlAgentKey !== cookieData.raw) {
+      ytdlAgent = ytdl.createAgent(cookieData.cookies);
+      ytdlAgentKey = cookieData.raw;
+    }
+    return { agent: ytdlAgent };
+  }
+
+  return { requestOptions: { headers: { cookie: cookieData.header, Cookie: cookieData.header } } };
 }
 
 async function ensureYoutubeCookieToken() {
-  const cookie = getYoutubeCookie();
+  const cookie = getYoutubeCookieHeader();
   if (!cookie) return;
   if (!youtubeCookieTokenPromise) {
     youtubeCookieTokenPromise = play.setToken({ youtube: { cookie } }).catch((error) => {
@@ -96,12 +137,11 @@ async function resolveTrack(query) {
 
 async function createTrackStream(url) {
   if (ytdl.validateURL(url)) {
-    const cookie = getYoutubeCookieHeader();
     const youtubeStream = ytdl(url, {
+      ...getYtdlOptions(),
       filter: 'audioonly',
       quality: 'highestaudio',
       highWaterMark: 1 << 25,
-      requestOptions: cookie ? { headers: { cookie, Cookie: cookie } } : undefined,
     });
     const probed = await demuxProbe(youtubeStream);
     return { stream: probed.stream, inputType: probed.type };
