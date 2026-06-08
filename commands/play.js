@@ -18,6 +18,7 @@ const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
 const YOUTUBE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies.json');
+const YOUTUBE_NATIVE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies.txt');
 const YOUTUBE_NETSCAPE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies-netscape.txt');
 const YOUTUBE_PLAYER_CLIENTS = ['IOS', 'ANDROID'];
 let youtubeCookieTokenPromise = null;
@@ -100,6 +101,10 @@ function getYtDlpPath() {
   return process.env.YT_DLP_PATH?.trim() || 'yt-dlp';
 }
 
+function getYoutubeProxyUrl() {
+  return process.env.YOUTUBE_PROXY_URL?.trim() || '';
+}
+
 function toNetscapeCookieLine(cookie) {
   const baseDomain = cookie.domain || '.youtube.com';
   const domain = cookie.httpOnly && !baseDomain.startsWith('#HttpOnly_') ? `#HttpOnly_${baseDomain}` : baseDomain;
@@ -111,6 +116,8 @@ function toNetscapeCookieLine(cookie) {
 }
 
 function ensureYtDlpCookieFile() {
+  if (fs.existsSync(YOUTUBE_NATIVE_COOKIE_FILE)) return YOUTUBE_NATIVE_COOKIE_FILE;
+
   const cookieData = parseYoutubeCookieInput();
   if (!cookieData.cookies?.length) return null;
 
@@ -193,6 +200,8 @@ async function createTrackStream(url) {
       ];
       const cookieFile = ensureYtDlpCookieFile();
       if (cookieFile) args.unshift('--cookies', cookieFile);
+      const proxyUrl = getYoutubeProxyUrl();
+      if (proxyUrl) args.unshift('--proxy', proxyUrl);
       args.push(url);
 
       const child = spawn(getYtDlpPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
