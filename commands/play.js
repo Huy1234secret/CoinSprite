@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 const { SlashCommandBuilder } = require('discord.js');
 const {
   AudioPlayerStatus,
@@ -17,6 +18,7 @@ const ffmpegPath = require('ffmpeg-static');
 
 const sessions = new Map();
 const YOUTUBE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies.json');
+const YOUTUBE_NETSCAPE_COOKIE_FILE = path.join(__dirname, '..', 'data', 'youtube-cookies-netscape.txt');
 const YOUTUBE_PLAYER_CLIENTS = ['IOS', 'ANDROID'];
 let youtubeCookieTokenPromise = null;
 let youtubeCookieData = null;
@@ -86,6 +88,40 @@ function getYtdlOptions() {
   return { requestOptions: { headers: { cookie: cookieData.header, Cookie: cookieData.header } } };
 }
 
+function isYtDlpEnabled() {
+  return process.env.YOUTUBE_USE_YT_DLP === '1';
+}
+
+function getYtDlpPath() {
+  return process.env.YT_DLP_PATH?.trim() || 'yt-dlp';
+}
+
+function toNetscapeCookieLine(cookie) {
+  const domain = cookie.domain || '.youtube.com';
+  const includeSubdomains = domain.startsWith('.') ? 'TRUE' : 'FALSE';
+  const pathValue = cookie.path || '/';
+  const secure = cookie.secure ? 'TRUE' : 'FALSE';
+  const expires = Number.isFinite(Number(cookie.expirationDate)) ? Math.floor(Number(cookie.expirationDate)) : 0;
+  return [domain, includeSubdomains, pathValue, secure, expires, cookie.name, cookie.value].join('\t');
+}
+
+function ensureYtDlpCookieFile() {
+  const cookieData = parseYoutubeCookieInput();
+  if (!cookieData.cookies?.length) return null;
+
+  const content = [
+    '# Netscape HTTP Cookie File',
+    ...cookieData.cookies.map(toNetscapeCookieLine),
+    '',
+  ].join('\n');
+
+  const existing = fs.existsSync(YOUTUBE_NETSCAPE_COOKIE_FILE)
+    ? fs.readFileSync(YOUTUBE_NETSCAPE_COOKIE_FILE, 'utf8')
+    : '';
+  if (existing !== content) fs.writeFileSync(YOUTUBE_NETSCAPE_COOKIE_FILE, content, { mode: 0o600 });
+  return YOUTUBE_NETSCAPE_COOKIE_FILE;
+}
+
 async function ensureYoutubeCookieToken() {
   const cookie = getYoutubeCookieHeader();
   if (!cookie) return;
@@ -138,6 +174,32 @@ async function resolveTrack(query) {
 
 async function createTrackStream(url) {
   if (ytdl.validateURL(url)) {
+    if (isYtDlpEnabled()) {
+      const args = [
+        '--no-playlist',
+        '--quiet',
+        '--no-warnings',
+        '--format',
+        'bestaudio/best',
+        '--output',
+        '-',
+      ];
+      const cookieFile = ensureYtDlpCookieFile();
+      if (cookieFile) args.unshift('--cookies', cookieFile);
+      args.push(url);
+
+      const child = spawn(getYtDlpPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child.stderr.on('data', (chunk) => {
+        const line = chunk.toString().trim();
+        if (line) console.error(`yt-dlp: ${line}`);
+      });
+      child.once('error', (error) => {
+        child.stdout.destroy(error);
+      });
+      const probed = await demuxProbe(child.stdout);
+      return { stream: probed.stream, inputType: probed.type };
+    }
+
     const youtubeStream = ytdl(url, {
       ...getYtdlOptions(),
       filter: 'audioonly',
