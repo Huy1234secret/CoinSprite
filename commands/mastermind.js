@@ -17,7 +17,6 @@ const GAME_DURATION_MS = 300 * 1000;
 const WIN_COOLDOWN_MS = 10 * 60 * 1000;
 const SESSION_MAX_AGE_MS = GAME_DURATION_MS;
 const EMPTY_SLOT = '🔳';
-const IMPOSSIBLE_EMPTY_SLOT = '😈';
 const EMPTY_HINT = '〇';
 const COLOR_BUTTON_PREFIX = 'mastermind:color:';
 const SUBMIT_PREFIX = 'mastermind:submit:';
@@ -438,7 +437,7 @@ module.exports = {
       maxAttempts: difficulty.attempts,
       codeLength: difficulty.codeLength,
       rewardXp: difficulty.rewardXp,
-      emptySlot: difficulty.mode === 'animals' ? IMPOSSIBLE_EMPTY_SLOT : EMPTY_SLOT,
+      emptySlot: EMPTY_SLOT,
       attempts: [],
       currentGuess: [],
       result: null,
