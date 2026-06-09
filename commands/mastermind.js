@@ -13,11 +13,11 @@ const BUTTON_STYLE_SECONDARY = 2;
 const BUTTON_STYLE_SUCCESS = 3;
 const BUTTON_STYLE_DANGER = 4;
 const DEFAULT_CODE_LENGTH = 4;
-const GAME_DURATION_MS = 300 * 1000;
+const STANDARD_GAME_DURATION_MS = 10 * 60 * 1000;
+const IMPOSSIBLE_GAME_DURATION_MS = 30 * 60 * 1000;
 const WIN_COOLDOWN_MS = 10 * 60 * 1000;
-const SESSION_MAX_AGE_MS = GAME_DURATION_MS;
+const SESSION_MAX_AGE_MS = IMPOSSIBLE_GAME_DURATION_MS;
 const EMPTY_SLOT = '🔳';
-const IMPOSSIBLE_EMPTY_SLOT = '😈';
 const EMPTY_HINT = '〇';
 const COLOR_BUTTON_PREFIX = 'mastermind:color:';
 const SUBMIT_PREFIX = 'mastermind:submit:';
@@ -37,10 +37,10 @@ const COLORS = [
 ];
 
 const DIFFICULTIES = {
-  easy: { label: 'Easy', attempts: 7, codeLength: 4, rewardXp: 50, mode: 'colors' },
-  medium: { label: 'Medium', attempts: 5, codeLength: 4, rewardXp: 100, mode: 'colors' },
-  hard: { label: 'Hard', attempts: 4, codeLength: 4, rewardXp: 200, mode: 'colors' },
-  impossible: { label: 'Impossible', attempts: 10, codeLength: 8, rewardXp: 1000, mode: 'animals' },
+  easy: { label: 'Easy', attempts: 7, codeLength: 4, rewardXp: 50, mode: 'colors', durationMs: STANDARD_GAME_DURATION_MS },
+  medium: { label: 'Medium', attempts: 5, codeLength: 4, rewardXp: 100, mode: 'colors', durationMs: STANDARD_GAME_DURATION_MS },
+  hard: { label: 'Hard', attempts: 4, codeLength: 4, rewardXp: 200, mode: 'colors', durationMs: STANDARD_GAME_DURATION_MS },
+  impossible: { label: 'Impossible', attempts: 10, codeLength: 8, rewardXp: 1000, mode: 'animals', durationMs: IMPOSSIBLE_GAME_DURATION_MS },
 };
 
 const ANIMALS = [
@@ -126,10 +126,11 @@ async function expireGame(gameId) {
 
 function startGameTimer(game) {
   clearGameTimer(game);
-  if (!game.expiresAt) game.expiresAt = Date.now() + GAME_DURATION_MS;
+  const durationMs = game.durationMs || STANDARD_GAME_DURATION_MS;
+  if (!game.expiresAt) game.expiresAt = Date.now() + durationMs;
   game.timer = setTimeout(() => {
     expireGame(game.id).catch(() => null);
-  }, GAME_DURATION_MS);
+  }, durationMs);
   if (typeof game.timer.unref === 'function') game.timer.unref();
 }
 
@@ -299,7 +300,8 @@ function rulePayload() {
         '**Impossible mode:** uses 20 random animal buttons, 8 slots, and shows hints as xN🟢 xN🔴.',
         '',
         '**Rewards:** Easy 50 EXP, Medium 100 EXP, Hard 200 EXP, Impossible 1000 EXP.',
-        'Each game lasts 300 seconds. Win once and /mastermind goes on cooldown for 10 minutes.',
+        'Easy, Medium, and Hard last 10 minutes. Impossible lasts 30 minutes.',
+        'Win once and /mastermind goes on cooldown for 10 minutes.',
       ].join('\n'),
     },
   ], COMPONENTS_V2_FLAG | EPHEMERAL_FLAG);
@@ -438,12 +440,13 @@ module.exports = {
       maxAttempts: difficulty.attempts,
       codeLength: difficulty.codeLength,
       rewardXp: difficulty.rewardXp,
-      emptySlot: difficulty.mode === 'animals' ? IMPOSSIBLE_EMPTY_SLOT : EMPTY_SLOT,
+      durationMs: difficulty.durationMs,
+      emptySlot: EMPTY_SLOT,
       attempts: [],
       currentGuess: [],
       result: null,
       ended: false,
-      expiresAt: Date.now() + GAME_DURATION_MS,
+      expiresAt: Date.now() + difficulty.durationMs,
       message: null,
       timer: null,
     };
@@ -455,7 +458,7 @@ module.exports = {
       label: 'Mastermind',
       lockedCommand: 'mastermind',
       lockToCommand: true,
-      maxAgeMs: SESSION_MAX_AGE_MS,
+      maxAgeMs: difficulty.durationMs || SESSION_MAX_AGE_MS,
       lockMessage: 'You have an active Mastermind game. Finish it before using another command.',
     });
 
