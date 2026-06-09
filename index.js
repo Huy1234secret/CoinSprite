@@ -44,7 +44,8 @@ function shouldSkipActionTimeout(interaction) {
   return customId.startsWith('ticket:')
     || customId.startsWith('giveaway:')
     || customId.startsWith('level:')
-    || customId.startsWith('mastermind:');
+    || customId.startsWith('mastermind:')
+    || customId.startsWith('program-trivia:');
 }
 
 function canUseStaffActions(member) {
