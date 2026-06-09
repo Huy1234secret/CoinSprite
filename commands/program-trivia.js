@@ -9,7 +9,11 @@ const BUTTON_STYLE_SECONDARY = 2;
 const BUTTON_STYLE_SUCCESS = 3;
 const BUTTON_STYLE_DANGER = 4;
 const ANSWER_PREFIX = 'program-trivia:answer:';
+const INPUT_PREFIX = 'program-trivia:input:';
+const MODAL_PREFIX = 'program-trivia:modal:';
+const OUTPUT_FIELD_ID = 'program_trivia_output';
 const LETTERS = ['A', 'B', 'C', 'D'];
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 const sessions = new Map();
 
 const LANGUAGE_CHOICES = {
@@ -55,7 +59,10 @@ function uniqueChoices(answer, distractors) {
 
   let offset = 1;
   while (choices.length < 4) {
-    const fallback = String(Number(answer) + offset);
+    const numericAnswer = Number(answer);
+    const fallback = Number.isFinite(numericAnswer)
+      ? String(numericAnswer + offset)
+      : `${answer}${offset}`;
     if (!seen.has(fallback)) {
       seen.add(fallback);
       choices.push(fallback);
@@ -70,6 +77,20 @@ function linePrinter(language, expression) {
   if (language === 'cpp') return `    cout << ${expression} << endl;`;
   if (language === 'csharp') return `        Console.WriteLine(${expression});`;
   return `        System.out.println(${expression});`;
+}
+
+function textPrinter(language, expression) {
+  if (language === 'c') return `    printf("%s\\n", ${expression});`;
+  if (language === 'cpp') return `    cout << ${expression} << endl;`;
+  if (language === 'csharp') return `        Console.WriteLine(${expression});`;
+  return `        System.out.println(${expression});`;
+}
+
+function intConcatPrinter(language, prefixExpression, valueExpression) {
+  if (language === 'c') return `    printf("%s%d\\n", ${prefixExpression}, ${valueExpression});`;
+  if (language === 'cpp') return `    cout << ${prefixExpression} << ${valueExpression} << endl;`;
+  if (language === 'csharp') return `        Console.WriteLine(${prefixExpression} + ${valueExpression});`;
+  return `        System.out.println(${prefixExpression} + ${valueExpression});`;
 }
 
 function wrapProgram(language, body, helpers = '') {
@@ -179,6 +200,26 @@ function easyLoop(language) {
   };
 }
 
+function easyText(language) {
+  const coins = randInt(6, 14);
+  const bonus = randInt(2, 7);
+  const total = coins + bonus;
+  const label = total >= 15 ? 'WIN' : 'TRY';
+  const indent = language === 'csharp' || language === 'java' ? '        ' : '    ';
+  const body = [
+    `int coins = ${coins};`,
+    `int bonus = ${bonus};`,
+    'int total = coins + bonus;',
+    intConcatPrinter(language, 'total >= 15 ? "WIN:" : "TRY:"', 'total').trimStart(),
+  ].map((line) => `${indent}${line}`).join('\n');
+  const answer = `${label}:${total}`;
+  return {
+    code: wrapProgram(language, body),
+    answer,
+    distractors: [`${label}:${coins}`, `${label}:${total + 1}`, `${label === 'WIN' ? 'TRY' : 'WIN'}:${total}`, `${label}-${total}`],
+  };
+}
+
 function mediumArray(language) {
   const values = Array.from({ length: 5 }, () => randInt(1, 9));
   let total = 0;
@@ -197,12 +238,47 @@ function mediumArray(language) {
   ];
   if (language === 'c' || language === 'cpp') {
     body[2] = 'for (int i = 0; i < 5; i++) {';
+  } else if (language === 'csharp') {
+    body[2] = 'for (int i = 0; i < numbers.Length; i++) {';
   }
   const indent = language === 'csharp' || language === 'java' ? '        ' : '    ';
   return {
     code: wrapProgram(language, body.map((line) => `${indent}${line}`).join('\n')),
     answer: total,
     distractors: [values.reduce((sum, value) => sum + value, 0), total + 2, total - 2, values.filter((value) => value % 2 === 0).length],
+  };
+}
+
+function mediumText(language) {
+  const base = randInt(3, 8);
+  const values = [base, base + 2, base - 1, base + 4];
+  let score = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    score += i % 2 === 0 ? values[i] * 2 : values[i] - 1;
+  }
+  const label = score % 3 === 0 ? 'alpha' : score % 3 === 1 ? 'beta' : 'gamma';
+  const body = [
+    arrayLiteral(language, values),
+    'int score = 0;',
+    'for (int i = 0; i < numbers.length; i++) {',
+    '    if (i % 2 == 0) {',
+    '        score += numbers[i] * 2;',
+    '    } else {',
+    '        score += numbers[i] - 1;',
+    '    }',
+    '}',
+    textPrinter(language, 'score % 3 == 0 ? "alpha" : score % 3 == 1 ? "beta" : "gamma"').trimStart(),
+  ];
+  if (language === 'c' || language === 'cpp') {
+    body[2] = 'for (int i = 0; i < 4; i++) {';
+  } else if (language === 'csharp') {
+    body[2] = 'for (int i = 0; i < numbers.Length; i++) {';
+  }
+  const indent = language === 'csharp' || language === 'java' ? '        ' : '    ';
+  return {
+    code: wrapProgram(language, body.map((line) => `${indent}${line}`).join('\n')),
+    answer: label,
+    distractors: ['alpha', 'beta', 'gamma', `${label}:${score}`],
   };
 }
 
@@ -226,66 +302,157 @@ function mediumFunction(language) {
 }
 
 function hardNested(language) {
-  const outer = randInt(3, 4);
-  const inner = randInt(3, 5);
-  let total = 0;
-  for (let i = 1; i <= outer; i += 1) {
-    for (let j = 1; j <= inner; j += 1) {
-      total += (i + j) % 2 === 0 ? i * j : -j;
+  const values = Array.from({ length: 6 }, () => randInt(3, 12));
+  const adjust = (value, index) => (value % 2 === 0 ? value * (index + 1) : -(value + index));
+  const fold = (current, value, index) => {
+    const next = current + adjust(value, index);
+    return next % 3 === 0 ? next + index : next - 1;
+  };
+  let score = 0;
+  let flips = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    score = fold(score, values[i], i);
+    if (score % 5 === 0) {
+      flips += i;
+    } else {
+      flips -= 1;
     }
   }
+  const status = score > flips ? 'trace' : 'hold';
+  const checksum = score + flips;
+  const helper = language === 'c' || language === 'cpp'
+    ? [
+      'int adjust(int value, int index) {',
+      '    if (value % 2 == 0) {',
+      '        return value * (index + 1);',
+      '    }',
+      '    return -(value + index);',
+      '}',
+      '',
+      'int foldScore(int current, int value, int index) {',
+      '    int next = current + adjust(value, index);',
+      '    if (next % 3 == 0) {',
+      '        return next + index;',
+      '    }',
+      '    return next - 1;',
+      '}',
+      '',
+    ].join('\n')
+    : [
+      '    static int adjust(int value, int index) {',
+      '        if (value % 2 == 0) {',
+      '            return value * (index + 1);',
+      '        }',
+      '        return -(value + index);',
+      '    }',
+      '',
+      '    static int foldScore(int current, int value, int index) {',
+      '        int next = current + adjust(value, index);',
+      '        if (next % 3 == 0) {',
+      '            return next + index;',
+      '        }',
+      '        return next - 1;',
+      '    }',
+      '',
+    ].join('\n');
   const indent = language === 'csharp' || language === 'java' ? '        ' : '    ';
+  const statusType = language === 'java' ? 'String' : language === 'csharp' ? 'string' : 'const char *';
   const body = [
-    'int total = 0;',
-    `for (int i = 1; i <= ${outer}; i++) {`,
-    `    for (int j = 1; j <= ${inner}; j++) {`,
-    '        if ((i + j) % 2 == 0) {',
-    '            total += i * j;',
-    '        } else {',
-    '            total -= j;',
-    '        }',
+    arrayLiteral(language, values),
+    'int score = 0;',
+    'int flips = 0;',
+    'for (int i = 0; i < 6; i++) {',
+    '    score = foldScore(score, numbers[i], i);',
+    '    if (score % 5 == 0) {',
+    '        flips += i;',
+    '    } else {',
+    '        flips -= 1;',
     '    }',
     '}',
-    linePrinter(language, 'total').trimStart(),
+    `${statusType} status = score > flips ? "trace" : "hold";`,
+    textPrinter(language, 'status').trimStart(),
+    intConcatPrinter(language, '"checksum="', 'score + flips').trimStart(),
   ].map((line) => `${indent}${line}`).join('\n');
   return {
-    code: wrapProgram(language, body),
-    answer: total,
-    distractors: [total + outer, total - inner, outer * inner, total * -1],
+    code: wrapProgram(language, body, helper),
+    answer: `${status}\nchecksum=${checksum}`,
+    distractors: [`${status}\nchecksum=${score}`, `${status === 'trace' ? 'hold' : 'trace'}\nchecksum=${checksum}`, `${status}\nchecksum=${checksum + 1}`, String(checksum)],
   };
 }
 
 function hardRecursion(language) {
-  const n = randInt(4, 6);
-  const mystery = (value) => {
-    if (value <= 1) return value + 1;
-    return mystery(value - 1) + mystery(value - 2);
-  };
-  const answer = mystery(n);
+  const rows = 3;
+  const cols = 4;
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => randInt(1, 9)));
+  let total = 0;
+  let diagonal = 0;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const value = grid[r][c];
+      if ((value + r + c) % 3 === 0) {
+        total += value * (r + 1);
+      } else {
+        total -= c + 1;
+      }
+      if (r === c) diagonal += value;
+    }
+  }
+  const finalScore = total + diagonal;
+  const label = finalScore % 2 === 0 ? 'EVEN' : 'ODD';
+  const matrixLiteral = language === 'csharp'
+    ? `int[,] grid = { ${grid.map((row) => `{ ${row.join(', ')} }`).join(', ')} };`
+    : language === 'java'
+      ? `int[][] grid = { ${grid.map((row) => `{ ${row.join(', ')} }`).join(', ')} };`
+      : `int grid[3][4] = { ${grid.map((row) => `{ ${row.join(', ')} }`).join(', ')} };`;
   const indent = language === 'csharp' || language === 'java' ? '        ' : '    ';
-  const body = `${indent}${linePrinter(language, `mystery(${n})`).trimStart()}`;
+  const access = language === 'csharp' ? 'grid[r, c]' : 'grid[r][c]';
+  const labelType = language === 'java' ? 'String' : language === 'csharp' ? 'string' : 'const char *';
+  const body = [
+    matrixLiteral,
+    'int total = 0;',
+    'int diagonal = 0;',
+    'for (int r = 0; r < 3; r++) {',
+    '    for (int c = 0; c < 4; c++) {',
+    `        int value = ${access};`,
+    '        if ((value + r + c) % 3 == 0) {',
+    '            total += value * (r + 1);',
+    '        } else {',
+    '            total -= c + 1;',
+    '        }',
+    '        if (r == c) {',
+    '            diagonal += value;',
+    '        }',
+    '    }',
+    '}',
+    'int finalScore = total + diagonal;',
+    `${labelType} label = finalScore % 2 == 0 ? "EVEN" : "ODD";`,
+    textPrinter(language, 'label').trimStart(),
+    intConcatPrinter(language, '"score="', 'finalScore').trimStart(),
+  ].map((line) => `${indent}${line}`).join('\n');
   return {
-    code: wrapProgram(language, body, recursiveHelper(language)),
-    answer,
-    distractors: [answer - 1, answer + 1, answer + n, n * n],
+    code: wrapProgram(language, body),
+    answer: `${label}\nscore=${finalScore}`,
+    distractors: [`${label}\nscore=${total}`, `${label === 'EVEN' ? 'ODD' : 'EVEN'}\nscore=${finalScore}`, `${label}\nscore=${finalScore + diagonal}`, String(finalScore)],
   };
 }
 
 const GENERATORS = {
-  easy: [easyArithmetic, easyLoop],
-  medium: [mediumArray, mediumFunction],
+  easy: [easyArithmetic, easyLoop, easyText],
+  medium: [mediumArray, mediumFunction, mediumText],
   hard: [hardNested, hardRecursion],
 };
 
 function buildQuestion(language, difficulty) {
   const generator = pick(GENERATORS[difficulty] || GENERATORS.easy);
   const generated = generator(language);
-  const choices = shuffle(uniqueChoices(generated.answer, generated.distractors));
-  const correctIndex = choices.indexOf(String(generated.answer));
+  const isInputMode = difficulty === 'hard';
+  const choices = isInputMode ? [] : shuffle(uniqueChoices(generated.answer, generated.distractors));
+  const correctIndex = isInputMode ? -1 : choices.indexOf(String(generated.answer));
   return {
     language,
     difficulty,
     code: generated.code,
+    mode: isInputMode ? 'input' : 'choice',
     choices,
     correctIndex,
     answer: String(generated.answer),
@@ -314,31 +481,65 @@ function optionLines(question) {
   return question.choices.map((choice, index) => `**${LETTERS[index]}.** \`${choice}\``).join('\n');
 }
 
-function questionContent(question) {
+function formatAnswer(answer) {
+  return answer.includes('\n') ? `\n\`\`\`\n${answer}\n\`\`\`` : `\`${answer}\``;
+}
+
+function questionContent(question, expiresAt = null) {
   const language = LANGUAGE_CHOICES[question.language];
   const difficulty = DIFFICULTY_CHOICES[question.difficulty];
-  return [
+  const lines = [
     `## Program Trivia - ${language.label}`,
     `-# Difficulty: ${difficulty.label}`,
-    'What is the exact output of this full program?',
+    expiresAt ? `-# Ends <t:${Math.floor(expiresAt / 1000)}:R>` : null,
+    question.mode === 'input'
+      ? 'Type the exact output of this full program.'
+      : 'What is the exact output of this full program?',
     '',
     `\`\`\`${language.fence}`,
     question.code,
     '```',
-    optionLines(question),
-  ].join('\n');
+  ].filter((line) => line !== null);
+
+  if (question.mode === 'choice') {
+    lines.push(optionLines(question));
+  } else {
+    lines.push('-# Hard mode uses typed answers. Press the button below and enter the exact output.');
+  }
+
+  return lines.join('\n');
 }
 
-function resultContent(question, selectedIndex) {
+function choiceResultContent(question, selectedIndex, expiresAt = null) {
   const selected = LETTERS[selectedIndex] || '?';
   const correct = LETTERS[question.correctIndex];
   const isCorrect = selectedIndex === question.correctIndex;
   return [
-    questionContent(question),
+    questionContent(question, expiresAt),
     '',
     isCorrect
       ? `Correct. The answer is **${correct}**: \`${question.answer}\`.`
       : `Wrong. You picked **${selected}**. The correct answer is **${correct}**: \`${question.answer}\`.`,
+  ].join('\n');
+}
+
+function inputResultContent(question, submittedAnswer, expiresAt = null) {
+  const normalizedSubmitted = normalizeSubmittedAnswer(submittedAnswer);
+  const isCorrect = normalizedSubmitted === normalizeSubmittedAnswer(question.answer);
+  return [
+    questionContent(question, expiresAt),
+    '',
+    isCorrect
+      ? `Correct. The exact output is:${formatAnswer(question.answer)}`
+      : `Wrong. Your answer was:${formatAnswer(normalizedSubmitted || '[blank]')}\nCorrect output:${formatAnswer(question.answer)}`,
+  ].join('\n');
+}
+
+function timeoutContent(question, expiresAt = null) {
+  return [
+    questionContent(question, expiresAt),
+    '',
+    `Time is up. Correct output:${formatAnswer(question.answer)}`,
   ].join('\n');
 }
 
@@ -362,20 +563,116 @@ function answerRows(sessionId, question, selectedIndex = null) {
   ];
 }
 
-function questionPayload(sessionId, question) {
+function inputRows(sessionId, disabled = false) {
+  return [
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          custom_id: `${INPUT_PREFIX}${sessionId}`,
+          label: 'Input Answer',
+          style: BUTTON_STYLE_SECONDARY,
+          disabled,
+        },
+      ],
+    },
+  ];
+}
+
+function controlsForQuestion(sessionId, question, done = false, selectedIndex = null) {
+  if (question.mode === 'input') return inputRows(sessionId, done);
+  return answerRows(sessionId, question, selectedIndex);
+}
+
+function questionPayload(sessionId, question, expiresAt) {
   return triviaContainer(WHITE_ACCENT, [
-    { type: 10, content: questionContent(question) },
+    { type: 10, content: questionContent(question, expiresAt) },
     { type: 14, divider: true, spacing: 1 },
-    ...answerRows(sessionId, question),
+    ...controlsForQuestion(sessionId, question),
   ]);
 }
 
-function resultPayload(sessionId, question, selectedIndex) {
+function choiceResultPayload(sessionId, question, selectedIndex, expiresAt) {
   return triviaContainer(selectedIndex === question.correctIndex ? GREEN_ACCENT : RED_ACCENT, [
-    { type: 10, content: resultContent(question, selectedIndex) },
+    { type: 10, content: choiceResultContent(question, selectedIndex, expiresAt) },
     { type: 14, divider: true, spacing: 1 },
     ...answerRows(sessionId, question, selectedIndex),
   ]);
+}
+
+function inputResultPayload(sessionId, question, submittedAnswer, expiresAt) {
+  const isCorrect = normalizeSubmittedAnswer(submittedAnswer) === normalizeSubmittedAnswer(question.answer);
+  return triviaContainer(isCorrect ? GREEN_ACCENT : RED_ACCENT, [
+    { type: 10, content: inputResultContent(question, submittedAnswer, expiresAt) },
+    { type: 14, divider: true, spacing: 1 },
+    ...inputRows(sessionId, true),
+  ]);
+}
+
+function timeoutPayload(sessionId, question, expiresAt) {
+  return triviaContainer(RED_ACCENT, [
+    { type: 10, content: timeoutContent(question, expiresAt) },
+    { type: 14, divider: true, spacing: 1 },
+    ...controlsForQuestion(sessionId, question, true, question.correctIndex),
+  ]);
+}
+
+function answerModal(sessionId) {
+  return {
+    custom_id: `${MODAL_PREFIX}${sessionId}`,
+    title: 'Program trivia answer',
+    components: [
+      {
+        type: 1,
+        components: [
+          {
+            type: 4,
+            custom_id: OUTPUT_FIELD_ID,
+            label: 'Exact output',
+            style: 2,
+            required: true,
+            min_length: 1,
+            max_length: 500,
+            placeholder: 'Type the exact output. For multiple lines, put each line on its own line.',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function normalizeSubmittedAnswer(value) {
+  return String(value ?? '').replace(/\r\n/g, '\n').trim();
+}
+
+function clearSessionTimer(session) {
+  if (session?.timer) clearTimeout(session.timer);
+  if (session) session.timer = null;
+}
+
+function deleteSession(sessionId) {
+  const session = sessions.get(sessionId);
+  clearSessionTimer(session);
+  sessions.delete(sessionId);
+  return session;
+}
+
+async function expireSession(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  deleteSession(sessionId);
+  if (session.message?.editable) {
+    await session.message.edit(timeoutPayload(sessionId, session.question, session.expiresAt)).catch(() => null);
+  }
+}
+
+function startSessionTimer(sessionId, session) {
+  clearSessionTimer(session);
+  session.timer = setTimeout(() => {
+    expireSession(sessionId).catch(() => null);
+  }, SESSION_TIMEOUT_MS);
+  if (typeof session.timer.unref === 'function') session.timer.unref();
 }
 
 module.exports = {
@@ -401,21 +698,69 @@ module.exports = {
         { name: 'Medium', value: 'medium' },
         { name: 'Hard', value: 'hard' },
       )),
+  disableActionTimeout: true,
 
   async execute(interaction) {
     const language = interaction.options.getString('code-type');
     const difficulty = interaction.options.getString('difficulty');
     const question = buildQuestion(language, difficulty);
     const sessionId = createSessionId(interaction.user.id);
-    sessions.set(sessionId, {
+    const expiresAt = Date.now() + SESSION_TIMEOUT_MS;
+    const session = {
       ownerId: interaction.user.id,
       question,
+      expiresAt,
       createdAt: Date.now(),
-    });
-    await interaction.reply(questionPayload(sessionId, question));
+      message: null,
+      timer: null,
+    };
+    sessions.set(sessionId, session);
+    await interaction.reply(questionPayload(sessionId, question, expiresAt));
+    session.message = await interaction.fetchReply?.().catch(() => null);
+    startSessionTimer(sessionId, session);
   },
 
   async handleInteraction(interaction) {
+    if (interaction.isButton?.() && interaction.customId.startsWith(INPUT_PREFIX)) {
+      const sessionId = interaction.customId.slice(INPUT_PREFIX.length);
+      const session = sessions.get(sessionId);
+      if (!session) {
+        await interaction.reply({ content: 'This program trivia question is no longer active.', flags: EPHEMERAL_FLAG });
+        return true;
+      }
+
+      if (session.ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'Only the player who started this program trivia can answer it.', flags: EPHEMERAL_FLAG });
+        return true;
+      }
+
+      if (interaction.message) session.message = interaction.message;
+      await interaction.showModal(answerModal(sessionId));
+      return true;
+    }
+
+    if (interaction.isModalSubmit?.() && interaction.customId.startsWith(MODAL_PREFIX)) {
+      const sessionId = interaction.customId.slice(MODAL_PREFIX.length);
+      const session = sessions.get(sessionId);
+      if (!session) {
+        await interaction.reply({ content: 'This program trivia question is no longer active.', flags: EPHEMERAL_FLAG });
+        return true;
+      }
+
+      if (session.ownerId !== interaction.user.id) {
+        await interaction.reply({ content: 'Only the player who started this program trivia can answer it.', flags: EPHEMERAL_FLAG });
+        return true;
+      }
+
+      const submittedAnswer = interaction.fields.getTextInputValue(OUTPUT_FIELD_ID);
+      deleteSession(sessionId);
+      await interaction.reply({ content: 'Answer submitted.', flags: EPHEMERAL_FLAG });
+      if (session.message?.editable) {
+        await session.message.edit(inputResultPayload(sessionId, session.question, submittedAnswer, session.expiresAt)).catch(() => null);
+      }
+      return true;
+    }
+
     if (!interaction.isButton?.() || !interaction.customId.startsWith(ANSWER_PREFIX)) return false;
 
     const rest = interaction.customId.slice(ANSWER_PREFIX.length);
@@ -434,8 +779,8 @@ module.exports = {
       return true;
     }
 
-    sessions.delete(sessionId);
-    await interaction.update(resultPayload(sessionId, session.question, selectedIndex));
+    deleteSession(sessionId);
+    await interaction.update(choiceResultPayload(sessionId, session.question, selectedIndex, session.expiresAt));
     return true;
   },
 };
