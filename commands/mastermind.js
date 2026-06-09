@@ -89,8 +89,8 @@ function endGame(game) {
 }
 
 function boardLine(guess, feedback) {
-  const slots = [...guess, ...Array(CODE_LENGTH - guess.length).fill(EMPTY_SLOT)].join('');
-  const hints = feedback || EMPTY_HINT.repeat(CODE_LENGTH);
+  const slots = [...guess, ...Array(CODE_LENGTH - guess.length).fill(EMPTY_SLOT)].join(' ');
+  const hints = (feedback || Array(CODE_LENGTH).fill(EMPTY_HINT)).join(' ');
   return `${slots}┆ ${hints}`;
 }
 
@@ -119,7 +119,11 @@ function scoreGuess(guess, secret) {
   return {
     green,
     red,
-    feedback: `${'🟢'.repeat(green)}${'🔴'.repeat(red)}${EMPTY_HINT.repeat(CODE_LENGTH - green - red)}`,
+    feedback: [
+      ...Array(green).fill('🟢'),
+      ...Array(red).fill('🔴'),
+      ...Array(CODE_LENGTH - green - red).fill(EMPTY_HINT),
+    ],
   };
 }
 
@@ -127,7 +131,7 @@ function formatBoard(game) {
   const rows = game.attempts.map((attempt) => boardLine(attempt.guess, attempt.feedback));
   if (!game.ended) rows.push(boardLine(game.currentGuess, null));
   while (rows.length < game.maxAttempts) rows.push(boardLine([], null));
-  return rows.slice(0, game.maxAttempts).join('\n');
+  return rows.slice(0, game.maxAttempts).join('\n\n');
 }
 
 function statusLine(game) {
