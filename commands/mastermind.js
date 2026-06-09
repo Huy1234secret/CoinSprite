@@ -2,6 +2,7 @@ const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const levelingManager = require('../src/levelingManager');
 const { endUserSession, startUserSession } = require('../src/gameSessionLock');
 const { syncMemberLevelRoles } = require('../src/levelRoleManager');
+const { replyIfOnCooldown, setCommandCooldown } = require('../src/commandCooldowns');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -11,10 +12,12 @@ const RED_ACCENT = 0xED4245;
 const BUTTON_STYLE_SECONDARY = 2;
 const BUTTON_STYLE_SUCCESS = 3;
 const BUTTON_STYLE_DANGER = 4;
-const CODE_LENGTH = 4;
-const WIN_XP = 100;
-const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
+const DEFAULT_CODE_LENGTH = 4;
+const GAME_DURATION_MS = 300 * 1000;
+const WIN_COOLDOWN_MS = 10 * 60 * 1000;
+const SESSION_MAX_AGE_MS = GAME_DURATION_MS;
 const EMPTY_SLOT = '🔳';
+const IMPOSSIBLE_EMPTY_SLOT = '😈';
 const EMPTY_HINT = '〇';
 const COLOR_BUTTON_PREFIX = 'mastermind:color:';
 const SUBMIT_PREFIX = 'mastermind:submit:';
@@ -34,10 +37,24 @@ const COLORS = [
 ];
 
 const DIFFICULTIES = {
-  easy: { label: 'Easy', attempts: 7 },
-  normal: { label: 'Normal', attempts: 5 },
-  hard: { label: 'Hard', attempts: 4 },
+  easy: { label: 'Easy', attempts: 7, codeLength: 4, rewardXp: 50, mode: 'colors' },
+  medium: { label: 'Medium', attempts: 5, codeLength: 4, rewardXp: 100, mode: 'colors' },
+  hard: { label: 'Hard', attempts: 4, codeLength: 4, rewardXp: 200, mode: 'colors' },
+  impossible: { label: 'Impossible', attempts: 10, codeLength: 8, rewardXp: 1000, mode: 'animals' },
 };
+
+const ANIMALS = [
+  '🐒', '🦍', '🦧', '🐕', '🐺', '🦊', '🦝', '🐈', '🦁', '🐅',
+  '🐆', '🐎', '🫎', '🫏', '🦓', '🦌', '🦬', '🐄', '🐃', '🐖',
+  '🐗', '🐑', '🐐', '🐫', '🦙', '🦒', '🐘', '🦣', '🦏', '🦛',
+  '🐁', '🐀', '🐹', '🐇', '🐿️', '🦫', '🦔', '🦇', '🐻', '🐨',
+  '🐼', '🦥', '🦦', '🦨', '🦘', '🦡', '🦭', '🐋', '🐬', '🦃',
+  '🐔', '🐧', '🐦', '🕊️', '🦅', '🦆', '🦢', '🦉', '🦤', '🦩',
+  '🦚', '🦜', '🪿', '🐸', '🐊', '🐢', '🦎', '🐍', '🦕', '🦖',
+  '🐟', '🐡', '🦈', '🐙', '🦀', '🦞', '🦐', '🦑', '🦪', '🪼',
+  '🪸', '🐌', '🦋', '🐛', '🐜', '🐝', '🪲', '🐞', '🦗', '🪳',
+  '🕷️', '🦂', '🦟', '🪰', '🪱', '🦄', '🐉', '🐦‍🔥',
+];
 
 const activeGames = new Map();
 const activeUserGames = new Map();
@@ -60,10 +77,20 @@ function createGameId(userId) {
   return `${userId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function pickSecret() {
-  const pool = [...COLORS];
+function sampleItems(items, count) {
+  const pool = [...items];
+  const picked = [];
+  while (picked.length < count && pool.length > 0) {
+    const index = Math.floor(Math.random() * pool.length);
+    picked.push(pool.splice(index, 1)[0]);
+  }
+  return picked;
+}
+
+function pickSecret(inputs, codeLength) {
+  const pool = [...inputs];
   const secret = [];
-  while (secret.length < CODE_LENGTH) {
+  while (secret.length < codeLength) {
     const index = Math.floor(Math.random() * pool.length);
     secret.push(pool.splice(index, 1)[0]);
   }
@@ -81,16 +108,44 @@ function getUserGame(userId) {
   return game;
 }
 
+function clearGameTimer(game) {
+  if (game?.timer) clearTimeout(game.timer);
+  if (game) game.timer = null;
+}
+
+async function expireGame(gameId) {
+  const game = activeGames.get(gameId);
+  if (!game || game.ended) return;
+  game.result = 'timeout';
+  game.currentGuess = [];
+  endGame(game);
+  if (game.message?.editable) {
+    await game.message.edit(gamePayload(game)).catch(() => null);
+  }
+}
+
+function startGameTimer(game) {
+  clearGameTimer(game);
+  if (!game.expiresAt) game.expiresAt = Date.now() + GAME_DURATION_MS;
+  game.timer = setTimeout(() => {
+    expireGame(game.id).catch(() => null);
+  }, GAME_DURATION_MS);
+  if (typeof game.timer.unref === 'function') game.timer.unref();
+}
+
 function endGame(game) {
   game.ended = true;
+  clearGameTimer(game);
   activeGames.delete(game.id);
   if (activeUserGames.get(game.userId) === game.id) activeUserGames.delete(game.userId);
   endUserSession(game.userId, 'mastermind');
 }
 
 function boardLine(guess, feedback) {
-  const slots = [...guess, ...Array(CODE_LENGTH - guess.length).fill(EMPTY_SLOT)].join(' ');
-  const hints = (feedback || Array(CODE_LENGTH).fill(EMPTY_HINT)).join(' ');
+  const emptySlot = feedback?.emptySlot || EMPTY_SLOT;
+  const codeLength = feedback?.codeLength || DEFAULT_CODE_LENGTH;
+  const slots = [...guess, ...Array(codeLength - guess.length).fill(emptySlot)].join(' ');
+  const hints = feedback?.text || Array(codeLength).fill(EMPTY_HINT).join(' ');
   return `${slots}┆ ${hints}`;
 }
 
@@ -99,7 +154,7 @@ function scoreGuess(guess, secret) {
   const remainingSecret = [];
   const remainingGuess = [];
 
-  for (let i = 0; i < CODE_LENGTH; i += 1) {
+  for (let i = 0; i < secret.length; i += 1) {
     if (guess[i] === secret[i]) {
       green += 1;
     } else {
@@ -119,29 +174,58 @@ function scoreGuess(guess, secret) {
   return {
     green,
     red,
-    feedback: [
-      ...Array(green).fill('🟢'),
-      ...Array(red).fill('🔴'),
-      ...Array(CODE_LENGTH - green - red).fill(EMPTY_HINT),
-    ],
+    feedback: { green, red },
   };
 }
 
 function formatBoard(game) {
-  const rows = game.attempts.map((attempt) => boardLine(attempt.guess, attempt.feedback));
-  if (!game.ended) rows.push(boardLine(game.currentGuess, null));
-  while (rows.length < game.maxAttempts) rows.push(boardLine([], null));
+  const rows = game.attempts.map((attempt) => boardLine(attempt.guess, {
+    text: formatFeedback(game, attempt.feedback),
+    codeLength: game.codeLength,
+    emptySlot: game.emptySlot,
+  }));
+  if (!game.ended) {
+    rows.push(boardLine(game.currentGuess, {
+      text: game.mode === 'animals' ? 'x0🟢 x0🔴' : null,
+      codeLength: game.codeLength,
+      emptySlot: game.emptySlot,
+    }));
+  }
+  while (rows.length < game.maxAttempts) {
+    rows.push(boardLine([], {
+      text: game.mode === 'animals' ? 'x0🟢 x0🔴' : null,
+      codeLength: game.codeLength,
+      emptySlot: game.emptySlot,
+    }));
+  }
   return rows.slice(0, game.maxAttempts).join('\n\n');
+}
+
+function formatFeedback(game, feedback) {
+  const green = Number(feedback?.green) || 0;
+  const red = Number(feedback?.red) || 0;
+  if (game.mode === 'animals') return `x${green}🟢 x${red}🔴`;
+  return [
+    ...Array(green).fill('🟢'),
+    ...Array(red).fill('🔴'),
+    ...Array(game.codeLength - green - red).fill(EMPTY_HINT),
+  ].join(' ');
 }
 
 function statusLine(game) {
   if (game.result === 'won') {
-    return `\nYou solved the code and earned **${WIN_XP} chat EXP**.\nCorrect color: ${game.secret.join('')}`;
+    return `\nYou solved the code and earned **${game.rewardXp} chat EXP**.\nCorrect answer: ${game.secret.join(' ')}`;
   }
   if (game.result === 'lost') {
-    return `\nYou used all slots. No EXP earned.\nCorrect color: ${game.secret.join('')}`;
+    return `\nYou used all slots. No EXP earned.\nCorrect answer: ${game.secret.join(' ')}`;
   }
-  return `\n-# Difficulty: ${game.difficultyLabel} • Attempt ${Math.min(game.attempts.length + 1, game.maxAttempts)} / ${game.maxAttempts}`;
+  if (game.result === 'timeout') {
+    return `\nTime is up. No EXP earned.\nCorrect answer: ${game.secret.join(' ')}`;
+  }
+  return [
+    `\n-# Difficulty: ${game.difficultyLabel} • Reward: ${game.rewardXp} EXP • Attempt ${Math.min(game.attempts.length + 1, game.maxAttempts)} / ${game.maxAttempts}`,
+    game.expiresAt ? `-# Ends <t:${Math.floor(game.expiresAt / 1000)}:R>` : null,
+  ].filter(Boolean).join('\n');
 }
 
 function button(customId, emoji, style, disabled = false, label = null) {
@@ -157,27 +241,25 @@ function button(customId, emoji, style, disabled = false, label = null) {
 
 function colorRows(game) {
   const currentColors = new Set(game.currentGuess);
-  const disabled = game.ended || game.currentGuess.length >= CODE_LENGTH;
-  const colorButtons = COLORS.map((color, index) => button(
+  const disabled = game.ended || game.currentGuess.length >= game.codeLength;
+  const colorButtons = game.inputs.map((color, index) => button(
     `${COLOR_BUTTON_PREFIX}${game.id}:${index}`,
     color,
     BUTTON_STYLE_SECONDARY,
     disabled || currentColors.has(color),
   ));
-
-  return [
-    { type: 1, components: colorButtons.slice(0, 5) },
-    { type: 1, components: colorButtons.slice(5) },
-  ];
+  const rows = [];
+  for (let i = 0; i < colorButtons.length; i += 5) rows.push({ type: 1, components: colorButtons.slice(i, i + 5) });
+  return rows;
 }
 
 function controlRow(game) {
   return {
     type: 1,
     components: [
-      button(`${SUBMIT_PREFIX}${game.id}`, null, BUTTON_STYLE_SUCCESS, game.ended || game.currentGuess.length !== CODE_LENGTH, 'Submit'),
+      button(`${SUBMIT_PREFIX}${game.id}`, null, BUTTON_STYLE_SUCCESS, game.ended || game.currentGuess.length !== game.codeLength, 'Submit'),
       button(`${CLEAR_PREFIX}${game.id}`, null, BUTTON_STYLE_DANGER, game.ended || game.currentGuess.length === 0, 'Clear'),
-      button(`${RULE_PREFIX}${game.id}`, null, BUTTON_STYLE_SECONDARY, false, 'Rule'),
+      button(`${RULE_PREFIX}${game.id}`, null, BUTTON_STYLE_SECONDARY, game.ended, 'Rule'),
     ],
   };
 }
@@ -206,15 +288,18 @@ function rulePayload() {
       type: 10,
       content: [
         '## Mastermind rules',
-        `The bot secretly picks **${CODE_LENGTH} different colors**.`,
-        'Press color buttons to build your guess, then press **Submit** when all 4 slots are filled.',
+        'The bot secretly picks a code from the buttons shown on your game.',
+        'Press buttons to build your guess, then press **Submit** when every slot is filled.',
         '',
         '**Hints after each submit:**',
-        '🟢 = correct color in the correct place',
-        '🔴 = correct color in the wrong place',
+        '🟢 = correct item in the correct place',
+        '🔴 = correct item in the wrong place',
         '〇 = no matching color for that hint slot',
         '',
-        'Hints are always shown with green first, then red. Solve the full code before all slots are used to earn 100 chat EXP.',
+        '**Impossible mode:** uses 20 random animal buttons, 8 slots, and shows hints as xN🟢 xN🔴.',
+        '',
+        '**Rewards:** Easy 50 EXP, Medium 100 EXP, Hard 200 EXP, Impossible 1000 EXP.',
+        'Each game lasts 300 seconds. Win once and /mastermind goes on cooldown for 10 minutes.',
       ].join('\n'),
     },
   ], COMPONENTS_V2_FLAG | EPHEMERAL_FLAG);
@@ -226,8 +311,9 @@ async function rejectNonOwner(interaction, game) {
   return true;
 }
 
-function awardWinXp(interaction) {
-  const result = levelingManager.addUserXp(interaction.guildId, interaction.user.id, WIN_XP, {
+function awardWinXp(interaction, game) {
+  const amount = game?.rewardXp || 0;
+  const result = levelingManager.addUserXp(interaction.guildId, interaction.user.id, amount, {
     source: 'mastermind win',
     channelId: interaction.channelId,
     command: '/mastermind',
@@ -252,12 +338,13 @@ async function handleColor(interaction, gameId, colorIndex) {
     return true;
   }
   if (await rejectNonOwner(interaction, game)) return true;
-  if (game.ended || game.currentGuess.length >= CODE_LENGTH) {
+  if (game.ended || game.currentGuess.length >= game.codeLength) {
     await interaction.update(gamePayload(game));
     return true;
   }
 
-  const color = COLORS[colorIndex];
+  if (interaction.message) game.message = interaction.message;
+  const color = game.inputs[colorIndex];
   if (!color || game.currentGuess.includes(color)) {
     await interaction.update(gamePayload(game));
     return true;
@@ -275,6 +362,7 @@ async function handleClear(interaction, gameId) {
     return true;
   }
   if (await rejectNonOwner(interaction, game)) return true;
+  if (interaction.message) game.message = interaction.message;
   if (!game.ended) game.currentGuess = [];
   await interaction.update(gamePayload(game));
   return true;
@@ -288,7 +376,8 @@ async function handleSubmit(interaction, gameId) {
   }
   if (await rejectNonOwner(interaction, game)) return true;
 
-  if (game.ended || game.currentGuess.length !== CODE_LENGTH) {
+  if (interaction.message) game.message = interaction.message;
+  if (game.ended || game.currentGuess.length !== game.codeLength) {
     await interaction.update(gamePayload(game));
     return true;
   }
@@ -297,9 +386,10 @@ async function handleSubmit(interaction, gameId) {
   game.attempts.push({ guess: [...game.currentGuess], feedback: score.feedback });
   game.currentGuess = [];
 
-  if (score.green === CODE_LENGTH) {
+  if (score.green === game.codeLength) {
     game.result = 'won';
-    awardWinXp(interaction);
+    awardWinXp(interaction, game);
+    setCommandCooldown(interaction.user.id, 'mastermind', WIN_COOLDOWN_MS);
     endGame(game);
   } else if (game.attempts.length >= game.maxAttempts) {
     game.result = 'lost';
@@ -319,31 +409,43 @@ module.exports = {
       .setDescription('How many slots you get before losing.')
       .setRequired(false)
       .addChoices(
-        { name: 'Easy - 7 slots', value: 'easy' },
-        { name: 'Normal - 5 slots', value: 'normal' },
-        { name: 'Hard - 4 slots', value: 'hard' },
+        { name: 'Easy - 50 EXP', value: 'easy' },
+        { name: 'Medium - 100 EXP', value: 'medium' },
+        { name: 'Hard - 200 EXP', value: 'hard' },
+        { name: 'Impossible - 1000 EXP', value: 'impossible' },
       )),
   disableActionTimeout: true,
 
   async execute(interaction) {
+    if (await replyIfOnCooldown(interaction, 'mastermind', WIN_COOLDOWN_MS, EPHEMERAL_FLAG)) return;
+
     const existing = getUserGame(interaction.user.id);
     if (existing) {
       await interaction.reply({ content: 'You already have an active Mastermind game. Finish it before starting another one.', flags: EPHEMERAL_FLAG });
       return;
     }
 
-    const difficultyKey = interaction.options.getString('difficulty') || 'normal';
-    const difficulty = DIFFICULTIES[difficultyKey] || DIFFICULTIES.normal;
+    const difficultyKey = interaction.options.getString('difficulty') || 'medium';
+    const difficulty = DIFFICULTIES[difficultyKey] || DIFFICULTIES.medium;
+    const inputs = difficulty.mode === 'animals' ? sampleItems(ANIMALS, 20) : COLORS;
     const game = {
       id: createGameId(interaction.user.id),
       userId: interaction.user.id,
-      secret: pickSecret(),
+      secret: pickSecret(inputs, difficulty.codeLength),
+      inputs,
+      mode: difficulty.mode,
       difficultyLabel: difficulty.label,
       maxAttempts: difficulty.attempts,
+      codeLength: difficulty.codeLength,
+      rewardXp: difficulty.rewardXp,
+      emptySlot: difficulty.mode === 'animals' ? IMPOSSIBLE_EMPTY_SLOT : EMPTY_SLOT,
       attempts: [],
       currentGuess: [],
       result: null,
       ended: false,
+      expiresAt: Date.now() + GAME_DURATION_MS,
+      message: null,
+      timer: null,
     };
 
     activeGames.set(game.id, game);
@@ -359,6 +461,8 @@ module.exports = {
 
     try {
       await interaction.reply(gamePayload(game));
+      game.message = await interaction.fetchReply?.().catch(() => null);
+      startGameTimer(game);
     } catch (error) {
       endGame(game);
       throw error;
