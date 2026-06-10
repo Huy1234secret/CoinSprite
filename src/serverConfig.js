@@ -57,6 +57,8 @@ const DEFAULT_GUILD_CONFIG = {
       '1503773311547478196',
       '1503779472329936988',
     ],
+    messageXpMin: 1,
+    messageXpMax: 3,
     lowXpAmount: 0.5,
     boosts: [
       { roleId: '1502905486645788713', xpPercent: 10 },
