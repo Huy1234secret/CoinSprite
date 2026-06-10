@@ -13,15 +13,16 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { loadState, saveState } = require('../src/ticketSystemStore');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
 
-const TICKET_PANEL_CHANNEL_ID = '1493971939545583836';
-const TICKET_CATEGORY_ID = '1493971752680947802';
-const ROLE_REQUEST_REVIEW_CHANNEL_ID = '1495714584437329940';
-const GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID = '1498546607686291558';
-const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
-const STAFF_ROLE_ID = '1494993523064443065';
-const CREW_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
-const UTDX_CREW_MEMBER_PLUS_ROLE_ID = '1507984807680938165';
+const TICKET_PANEL_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.ticketPanel;
+const TICKET_CATEGORY_ID = DEFAULT_GUILD_CONFIG.channels.ticketCategory;
+const ROLE_REQUEST_REVIEW_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.roleRequestReview;
+const GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.giveawayRequestReview;
+const TRANSCRIPT_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.transcript;
+const STAFF_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.staff;
+const CREW_MEMBER_PLUS_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.crewMemberPlus;
+const UTDX_CREW_MEMBER_PLUS_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.utdxCrewMemberPlus;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const CUSTOM_IDS = {
@@ -49,11 +50,16 @@ const CUSTOM_IDS = {
   giveawayClaimEvidenceUpload: 'giveaway_claim_evidence_upload',
 };
 
-function getCrewMemberPlusRoleIdForGame(game) {
+function getTicketConfig(guildId) {
+  return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
+}
+
+function getCrewMemberPlusRoleIdForGame(game, guildId) {
+  const roles = getTicketConfig(guildId).roles;
   const normalizedGame = String(game || '').trim().toLowerCase();
   return normalizedGame === 'universe tower defense x' || normalizedGame === 'utdx'
-    ? UTDX_CREW_MEMBER_PLUS_ROLE_ID
-    : CREW_MEMBER_PLUS_ROLE_ID;
+    ? roles.utdxCrewMemberPlus || UTDX_CREW_MEMBER_PLUS_ROLE_ID
+    : roles.crewMemberPlus || CREW_MEMBER_PLUS_ROLE_ID;
 }
 
 function getTicketPanelPayload() {
@@ -165,7 +171,8 @@ function getInviteConfirmationActionRow(customId, disabled = false) {
   };
 }
 
-function getGiveawayReviewActionRow(customId, disabled = false) {
+function getGiveawayReviewActionRow(customId, disabled = false, guildId = null) {
+  const emojis = getTicketConfig(guildId).emojis || DEFAULT_GUILD_CONFIG.emojis;
   return {
     type: 1,
     components: [
@@ -175,8 +182,8 @@ function getGiveawayReviewActionRow(customId, disabled = false) {
         disabled,
         placeholder: disabled ? 'This giveaway request was reviewed' : 'Choose review action',
         options: [
-          { label: 'Accept', value: 'accept_request', emoji: { id: '1498173245981986869', name: 'Y_' } },
-          { label: 'Deny', value: 'deny_request', emoji: { id: '1498173244031631400', name: 'N_' } },
+          { label: 'Accept', value: 'accept_request', emoji: emojis.giveawayRequestAccept },
+          { label: 'Deny', value: 'deny_request', emoji: emojis.giveawayRequestDeny },
         ],
       },
     ],
@@ -505,7 +512,8 @@ function getGiveawayRequestMessageComponents({
 
 async function ensurePanelMessage(guild, clientUserId) {
   const state = loadState();
-  const channel = await guild.channels.fetch(TICKET_PANEL_CHANNEL_ID).catch(() => null);
+  const panelChannelId = getTicketConfig(guild.id).channels.ticketPanel || TICKET_PANEL_CHANNEL_ID;
+  const channel = await guild.channels.fetch(panelChannelId).catch(() => null);
   if (!channel?.isTextBased()) {
     saveState(state);
     return;
@@ -550,7 +558,8 @@ function getNextTicketId(state, guildId) {
 }
 
 function canUseStaffActions(member) {
-  return member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.has(STAFF_ROLE_ID);
+  const staffRoleId = getTicketConfig(member.guild?.id).roles.staff || STAFF_ROLE_ID;
+  return member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.has(staffRoleId);
 }
 
 async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseName, questionAnswerPairs }) {
@@ -576,7 +585,10 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
 
   const ticketId = getNextTicketId(state, guild.id);
   const channelName = `${channelBaseName}-${ticketId}`;
-  const ticketCategory = await guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
+  const ticketConfig = getTicketConfig(guild.id);
+  const ticketCategoryId = ticketConfig.channels.ticketCategory || TICKET_CATEGORY_ID;
+  const staffRoleId = ticketConfig.roles.staff || STAFF_ROLE_ID;
+  const ticketCategory = await guild.channels.fetch(ticketCategoryId).catch(() => null);
   const channelOptions = {
     name: sanitizeChannelName(channelName),
     type: ChannelType.GuildText,
@@ -587,7 +599,7 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
       },
       {
-        id: STAFF_ROLE_ID,
+        id: staffRoleId,
         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
       },
     ],
@@ -774,7 +786,8 @@ async function handleTicketAction(interaction) {
     closedBy: interaction.user.id,
     closeAction: action,
   });
-  const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+  const transcriptChannelId = getTicketConfig(interaction.guildId).channels.transcript || TRANSCRIPT_CHANNEL_ID;
+  const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
   if (transcriptChannel?.isTextBased()) {
     await transcriptChannel
       .send({
@@ -866,7 +879,7 @@ async function handleRoleRequestReview(interaction) {
   const guild = interaction.guild;
   const member = await guild.members.fetch(request.userId).catch(() => null);
   if (member) {
-    await member.roles.add(getCrewMemberPlusRoleIdForGame(request.game)).catch(() => null);
+    await member.roles.add(getCrewMemberPlusRoleIdForGame(request.game, interaction.guildId)).catch(() => null);
     await member
       .send(
         container(
@@ -1109,7 +1122,8 @@ module.exports = {
 
       const files = getUploadedEvidenceFiles(uploadedEvidence);
 
-      const reviewChannel = await interaction.guild.channels.fetch(ROLE_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
+      const reviewChannelId = getTicketConfig(interaction.guildId).channels.roleRequestReview || ROLE_REQUEST_REVIEW_CHANNEL_ID;
+      const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
         const payload = {
           ...container(0xffffff, 'Request channel is not available right now.'),
@@ -1244,7 +1258,7 @@ module.exports = {
             statusColor: 0xf5b7b1,
             deniedReason: reason,
           }),
-          getGiveawayReviewActionRow(`${CUSTOM_IDS.giveawayReviewSelectPrefix}${requestId}`, true),
+          getGiveawayReviewActionRow(`${CUSTOM_IDS.giveawayReviewSelectPrefix}${requestId}`, true, interaction.guildId),
         ],
       });
       return true;
@@ -1304,7 +1318,8 @@ module.exports = {
       state.giveawayRequests[requestId] = request;
       saveState(state);
 
-      const reviewChannel = await interaction.guild.channels.fetch(GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID).catch(() => null);
+      const reviewChannelId = getTicketConfig(interaction.guildId).channels.giveawayRequestReview || GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID;
+      const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
       if (reviewChannel?.isTextBased()) {
         const files = getUploadedEvidenceFiles(claimEvidence);
 

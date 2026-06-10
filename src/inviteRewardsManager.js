@@ -5,49 +5,48 @@ const {
   saveState: saveTicketSystemState,
 } = require('./ticketSystemStore');
 const { logCommandUse, logCommandSystem } = require('./commandLogger');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
-const RULES_CHANNEL_ID = process.env.INVITATION_RULES_CHANNEL_ID || '1494329296670425279';
-const CLAIM_CHANNEL_ID = '1493971939545583836';
-const LOG_CHANNEL_ID = '1493915942047059999';
-const INVITE_ANNOUNCE_CHANNEL_ID = '1494322475117445383';
-const ONBOARDING_ROLE_ID = '1494397171045503129';
-const INVITATION_REWARD_CAP_MEMBERS = 150;
-const INVITATION_REWARDS_ENABLED = false;
+const RULES_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.inviteRules;
+const CLAIM_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.inviteClaim;
+const LOG_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.inviteLog;
+const INVITE_ANNOUNCE_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.inviteAnnounce;
+const ONBOARDING_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.onboarding;
+const INVITATION_REWARD_CAP_MEMBERS = DEFAULT_GUILD_CONFIG.inviteRewards.capMembers;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
-const EMOJIS = {
-  invitePoint: '<:InvitePoint:1494571122186915922>',
-  clanRerolls: '<:SPCRR:1494572058313625741>',
-  traitRerolls: '<:SPTRR:1494572054165323836>',
-  raceRerolls: '<:SPRRR:1494572061358555196>',
-};
-
-const TIERS = [
-  {
-    minMembers: 50,
-    maxMembers: null,
-    label: '50+',
-    rewards: { clanRerolls: 1000, raceRerolls: 150, traitRerolls: 150 },
-  },
-  {
-    minMembers: 30,
-    maxMembers: 49,
-    label: '30 - 49',
-    rewards: { clanRerolls: 500, raceRerolls: 135, traitRerolls: 135 },
-  },
-  {
-    minMembers: 0,
-    maxMembers: 29,
-    label: '0 - 29',
-    rewards: { clanRerolls: 250, raceRerolls: 120, traitRerolls: 120 },
-  },
-];
+const EMOJIS = DEFAULT_GUILD_CONFIG.inviteRewards.emojis;
+const TIERS = DEFAULT_GUILD_CONFIG.inviteRewards.tiers;
 
 let initialized = false;
 let clientRef = null;
 const inviteCache = new Map();
 
-function logReward(message) {
+function getConfig(guildId) {
+  return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
+}
+
+function getInviteConfig(guildId) {
+  return getConfig(guildId).inviteRewards;
+}
+
+function isInviteRewardsEnabled(guildId) {
+  return Boolean(getInviteConfig(guildId).enabled);
+}
+
+function getInviteRewardTiers(guildId) {
+  return getInviteConfig(guildId).tiers || TIERS;
+}
+
+function getInviteRewardEmojis(guildId) {
+  return getInviteConfig(guildId).emojis || EMOJIS;
+}
+
+function getInviteRewardCapMembers(guildId) {
+  return Number(getInviteConfig(guildId).capMembers) || INVITATION_REWARD_CAP_MEMBERS;
+}
+
+function logReward(message, guildId) {
   const logLine = `[InviteRewards] ${message}`;
   console.info(logLine);
   logCommandSystem(logLine);
@@ -57,7 +56,7 @@ function logReward(message) {
   }
 
   clientRef.channels
-    .fetch(LOG_CHANNEL_ID)
+    .fetch(getConfig(guildId).channels.inviteLog || LOG_CHANNEL_ID)
     .then((channel) => {
       if (!channel?.isTextBased()) {
         return null;
@@ -148,9 +147,10 @@ function parseDmCommand(commandBody) {
   };
 }
 
-function getTierForMembers(memberCount) {
+function getTierForMembers(memberCount, guildId) {
+  const tiers = getInviteRewardTiers(guildId);
   return (
-    TIERS.find((tier) => {
+    tiers.find((tier) => {
       const maxMembers = Number.isFinite(tier.maxMembers) ? tier.maxMembers : Number.POSITIVE_INFINITY;
       return memberCount >= tier.minMembers && memberCount <= maxMembers;
     }) ?? null
@@ -161,12 +161,13 @@ function formatPrizeLine(rewardData) {
   return `${rewardData.clanRerolls} Clan Rerolls, ${rewardData.raceRerolls} Race Rerolls, and ${rewardData.traitRerolls} Trait Rerolls`;
 }
 
-function getNextTierThreshold(tier) {
+function getNextTierThreshold(tier, guildId) {
+  const tiers = getInviteRewardTiers(guildId);
   if (!tier) {
-    return TIERS[TIERS.length - 1]?.minMembers ?? 30;
+    return tiers[tiers.length - 1]?.minMembers ?? 30;
   }
 
-  const sorted = [...TIERS].sort((a, b) => a.minMembers - b.minMembers);
+  const sorted = [...tiers].sort((a, b) => a.minMembers - b.minMembers);
   const currentIndex = sorted.findIndex((candidate) => candidate.minMembers === tier.minMembers && candidate.label === tier.label);
   if (currentIndex === -1) {
     return tier.minMembers;
@@ -177,13 +178,14 @@ function getNextTierThreshold(tier) {
 }
 
 function buildRulesCard(guild, tier, memberCount) {
-  const capped = isInvitationRewardCapped(memberCount);
+  const capped = isInvitationRewardCapped(memberCount, guild.id);
+  const claimChannelId = getConfig(guild.id).channels.inviteClaim || CLAIM_CHANNEL_ID;
   const prizeText = capped
-    ? 'Invitation rewards have ended at 150 members. Eligible invites now grant Invite Points only.'
+    ? `Invitation rewards have ended at ${getInviteRewardCapMembers(guild.id)} members. Eligible invites now grant Invite Points only.`
     : tier
       ? formatPrizeLine(tier.rewards)
       : 'No active prize tier yet. Keep inviting members!';
-  const nextTierThreshold = capped ? null : getNextTierThreshold(tier);
+  const nextTierThreshold = capped ? null : getNextTierThreshold(tier, guild.id);
   const thumbnail = guild.iconURL();
 
   const content = [
@@ -197,7 +199,7 @@ function buildRulesCard(guild, tier, memberCount) {
       ? `-# The prize increases once we reach at least ${nextTierThreshold} members!`
       : '-# You are currently in the highest reward tier.',
     '**How to Claim Your Prize**',
-    `Go to <#${CLAIM_CHANNEL_ID}> to claim your prize.`,
+    `Go to <#${claimChannelId}> to claim your prize.`,
   ].join('\n');
 
   const cardComponents = [
@@ -263,7 +265,8 @@ function createRewardsDisabledPayload() {
   };
 }
 
-function createInvitePointsPayload(username, invitePoints) {
+function createInvitePointsPayload(username, invitePoints, guildId) {
+  const emojis = getInviteRewardEmojis(guildId);
   return {
     flags: COMPONENTS_V2_FLAG,
     components: [
@@ -273,7 +276,7 @@ function createInvitePointsPayload(username, invitePoints) {
         components: [
           {
             type: 10,
-            content: `### ${username}'s Stats\n* ${invitePoints} ${EMOJIS.invitePoint}`,
+            content: `### ${username}'s Stats\n* ${invitePoints} ${emojis.invitePoint}`,
           },
         ],
       },
@@ -281,7 +284,8 @@ function createInvitePointsPayload(username, invitePoints) {
   };
 }
 
-function createRewardInventoryPayload(username, lines) {
+function createRewardInventoryPayload(username, lines, guildId) {
+  const claimChannelId = getConfig(guildId).channels.inviteClaim || CLAIM_CHANNEL_ID;
   const rewardsBlock = lines.length ? lines.join('\n') : "-# You don't have any rewards yet 😔";
   return {
     flags: COMPONENTS_V2_FLAG,
@@ -294,7 +298,7 @@ function createRewardInventoryPayload(username, lines) {
             type: 10,
             content:
               `### ${username}'s Rewards\n${rewardsBlock}\n\n` +
-              `* 🎟️ If you want to claim your rewards, please go to <#${CLAIM_CHANNEL_ID}>. ` +
+              `* 🎟️ If you want to claim your rewards, please go to <#${claimChannelId}>. ` +
               'Be sure to provide the necessary information so we can help you quickly.\n' +
               '-# **⚠️ Items in the Reward Inventory are exclusive to this guild and cannot be traded, bought, or sold. ' +
               'If you are caught violating this rule, all items will be wiped, you may be blacklisted, or you may be banned.**',
@@ -305,16 +309,17 @@ function createRewardInventoryPayload(username, lines) {
   };
 }
 
-function getRewardLines(userState) {
+function getRewardLines(userState, guildId) {
+  const emojis = getInviteRewardEmojis(guildId);
   const lines = [];
   if (userState.rewards.clanRerolls > 0) {
-    lines.push(`### ${userState.rewards.clanRerolls} Clan Rerolls ${EMOJIS.clanRerolls}`);
+    lines.push(`### ${userState.rewards.clanRerolls} Clan Rerolls ${emojis.clanRerolls}`);
   }
   if (userState.rewards.traitRerolls > 0) {
-    lines.push(`### ${userState.rewards.traitRerolls} Trait Rerolls ${EMOJIS.traitRerolls}`);
+    lines.push(`### ${userState.rewards.traitRerolls} Trait Rerolls ${emojis.traitRerolls}`);
   }
   if (userState.rewards.raceRerolls > 0) {
-    lines.push(`### ${userState.rewards.raceRerolls} Race Rerolls ${EMOJIS.raceRerolls}`);
+    lines.push(`### ${userState.rewards.raceRerolls} Race Rerolls ${emojis.raceRerolls}`);
   }
   return lines;
 }
@@ -375,7 +380,7 @@ async function refreshInviteCacheForGuild(guild) {
 }
 
 async function ensureRulesMessage(guild) {
-  if (!INVITATION_REWARDS_ENABLED) {
+  if (!isInviteRewardsEnabled(guild.id)) {
     return;
   }
 
@@ -383,16 +388,18 @@ async function ensureRulesMessage(guild) {
   const guildState = ensureGuildState(state, guild.id);
 
   const memberCount = await countHumanMembers(guild).catch(() => 0);
-  const tier = getTierForMembers(memberCount);
+  const tier = getTierForMembers(memberCount, guild.id);
+  const rulesChannelId = getConfig(guild.id).channels.inviteRules || RULES_CHANNEL_ID;
 
-  const channel = await guild.channels.fetch(RULES_CHANNEL_ID).catch((error) => {
+  const channel = await guild.channels.fetch(rulesChannelId).catch((error) => {
     logReward(
-      `Failed to fetch rules channel ${RULES_CHANNEL_ID} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+      `Failed to fetch rules channel ${rulesChannelId} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+      guild.id,
     );
     return null;
   });
   if (!channel?.isTextBased()) {
-    logReward(`Rules channel ${RULES_CHANNEL_ID} in guild ${guild.id} is not text-based or is inaccessible.`);
+    logReward(`Rules channel ${rulesChannelId} in guild ${guild.id} is not text-based or is inaccessible.`, guild.id);
     saveState(state);
     return;
   }
@@ -406,6 +413,7 @@ async function ensureRulesMessage(guild) {
       await sentMessage.edit(payload).catch((error) => {
         logReward(
           `Failed editing existing rules message ${guildState.rulesMessageId} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+          guild.id,
         );
         return null;
       });
@@ -420,6 +428,7 @@ async function ensureRulesMessage(guild) {
       await botMessage.edit(payload).catch((error) => {
         logReward(
           `Failed editing discovered rules message ${botMessage.id} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+          guild.id,
         );
         return null;
       });
@@ -429,7 +438,8 @@ async function ensureRulesMessage(guild) {
   if (!sentMessage) {
     sentMessage = await channel.send(payload).catch((error) => {
       logReward(
-        `Failed sending rules message to channel ${RULES_CHANNEL_ID} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+        `Failed sending rules message to channel ${rulesChannelId} in guild ${guild.id}: ${error?.message ?? 'unknown error'}.`,
+        guild.id,
       );
       return null;
     });
@@ -439,9 +449,9 @@ async function ensureRulesMessage(guild) {
     guildState.rulesMessageId = sentMessage.id;
     guildState.updatedAt = Date.now();
     saveState(state);
-    logReward(`Rules message ensured in guild ${guild.id} at message ${sentMessage.id}.`);
+    logReward(`Rules message ensured in guild ${guild.id} at message ${sentMessage.id}.`, guild.id);
   } else {
-    logReward(`Unable to ensure rules message in guild ${guild.id}; no message could be created or edited.`);
+    logReward(`Unable to ensure rules message in guild ${guild.id}; no message could be created or edited.`, guild.id);
   }
 }
 
@@ -460,13 +470,15 @@ function addRewardsToUser(guildId, userId, rewardDelta, inviterId, reason) {
   saveState(state);
   logReward(
     `Updated ${userId} by ${inviterId}: +${rewardDelta.invitePoints ?? 0} IP, +${rewardDelta.clanRerolls ?? 0} CRR, +${rewardDelta.traitRerolls ?? 0} TRR, +${rewardDelta.raceRerolls ?? 0} RRR (${reason}).`,
+    guildId,
   );
 
   return userState;
 }
 
 function hasSailorPiece(member) {
-  return member.roles.cache.has(ONBOARDING_ROLE_ID);
+  const onboardingRoleId = getConfig(member.guild?.id).roles.onboarding || ONBOARDING_ROLE_ID;
+  return member.roles.cache.has(onboardingRoleId);
 }
 
 function getTierRewardPack(tier, bonusMultiplier = 1) {
@@ -487,8 +499,8 @@ function getBonusRewardPack(tier) {
   };
 }
 
-function isInvitationRewardCapped(memberCount) {
-  return Number(memberCount) >= INVITATION_REWARD_CAP_MEMBERS;
+function isInvitationRewardCapped(memberCount, guildId) {
+  return Number(memberCount) >= getInviteRewardCapMembers(guildId);
 }
 
 function upsertInvitedUserRecord(guildState, invitedUserId, patch) {
@@ -513,7 +525,8 @@ function isInvitedUserBlacklisted(guildState, userId) {
 }
 
 async function sendInviteAnnouncement(guild, invitedUserId, inviterUserId, totalInvitePoints) {
-  const channel = await guild.channels.fetch(INVITE_ANNOUNCE_CHANNEL_ID).catch(() => null);
+  const announceChannelId = getConfig(guild.id).channels.inviteAnnounce || INVITE_ANNOUNCE_CHANNEL_ID;
+  const channel = await guild.channels.fetch(announceChannelId).catch(() => null);
   if (!channel?.isTextBased()) {
     return;
   }
@@ -522,7 +535,7 @@ async function sendInviteAnnouncement(guild, invitedUserId, inviterUserId, total
 }
 
 async function onGuildMemberAdd(member) {
-  if (!INVITATION_REWARDS_ENABLED) {
+  if (!isInviteRewardsEnabled(member.guild?.id)) {
     return;
   }
 
@@ -580,7 +593,7 @@ async function onGuildMemberAdd(member) {
     });
     guildState.updatedAt = Date.now();
     saveState(state);
-    logReward(`Invite ignored for ${usedInvite.inviter.id}; invited user ${member.user.id} is blacklisted.`);
+    logReward(`Invite ignored for ${usedInvite.inviter.id}; invited user ${member.user.id} is blacklisted.`, guild.id);
     return;
   }
 
@@ -589,6 +602,7 @@ async function onGuildMemberAdd(member) {
     saveState(state);
     logReward(
       `Invite ignored for ${usedInvite.inviter.id}; invited user ${member.user.id} already rewarded (inviter ${invitedHistory.inviterId}).`,
+      guild.id,
     );
     return;
   }
@@ -601,13 +615,13 @@ async function onGuildMemberAdd(member) {
     });
     guildState.updatedAt = Date.now();
     saveState(state);
-    logReward(`Invite ignored for blacklisted user ${usedInvite.inviter.id}.`);
+    logReward(`Invite ignored for blacklisted user ${usedInvite.inviter.id}.`, guild.id);
     return;
   }
 
   const humanCount = await countHumanMembers(guild).catch(() => 0);
-  const rewardsCapped = isInvitationRewardCapped(humanCount);
-  const tier = rewardsCapped ? null : getTierForMembers(humanCount);
+  const rewardsCapped = isInvitationRewardCapped(humanCount, guild.id);
+  const tier = rewardsCapped ? null : getTierForMembers(humanCount, guild.id);
   if (!rewardsCapped && !tier) {
     upsertInvitedUserRecord(guildState, member.user.id, {
       inviterId: usedInvite.inviter.id,
@@ -616,7 +630,7 @@ async function onGuildMemberAdd(member) {
     });
     guildState.updatedAt = Date.now();
     saveState(state);
-    logReward(`No eligible reward tier for inviter ${usedInvite.inviter.id} at ${humanCount} members.`);
+    logReward(`No eligible reward tier for inviter ${usedInvite.inviter.id} at ${humanCount} members.`, guild.id);
     return;
   }
 
@@ -666,7 +680,7 @@ async function onGuildMemberAdd(member) {
 }
 
 async function onGuildMemberUpdate(oldMember, newMember) {
-  if (!INVITATION_REWARDS_ENABLED) {
+  if (!isInviteRewardsEnabled(newMember.guild?.id)) {
     return;
   }
 
@@ -674,7 +688,8 @@ async function onGuildMemberUpdate(oldMember, newMember) {
     return;
   }
 
-  const gainedOnboardingRole = !oldMember.roles.cache.has(ONBOARDING_ROLE_ID) && newMember.roles.cache.has(ONBOARDING_ROLE_ID);
+  const onboardingRoleId = getConfig(newMember.guild?.id).roles.onboarding || ONBOARDING_ROLE_ID;
+  const gainedOnboardingRole = !oldMember.roles.cache.has(onboardingRoleId) && newMember.roles.cache.has(onboardingRoleId);
   if (!gainedOnboardingRole) {
     return;
   }
@@ -698,13 +713,13 @@ async function onGuildMemberUpdate(oldMember, newMember) {
   saveState(state);
 
   const humanCount = await countHumanMembers(newMember.guild).catch(() => 0);
-  if (isInvitationRewardCapped(humanCount)) {
-    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; reward cap reached at ${humanCount} members.`);
+  if (isInvitationRewardCapped(humanCount, newMember.guild.id)) {
+    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; reward cap reached at ${humanCount} members.`, newMember.guild.id);
     return;
   }
-  const tier = getTierForMembers(humanCount);
+  const tier = getTierForMembers(humanCount, newMember.guild.id);
   if (!tier) {
-    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; no eligible tier at ${humanCount} members.`);
+    logReward(`Onboarding bonus skipped for inviter ${inviteRecord.inviterId}; no eligible tier at ${humanCount} members.`, newMember.guild.id);
     return;
   }
 
@@ -719,7 +734,7 @@ async function onGuildMemberUpdate(oldMember, newMember) {
 }
 
 async function onInviteCreateOrDelete(invite) {
-  if (!INVITATION_REWARDS_ENABLED) {
+  if (!isInviteRewardsEnabled(invite.guild?.id)) {
     return;
   }
 
@@ -960,10 +975,10 @@ async function onMessageCreate(message) {
       return;
     }
 
-    const rewardLines = getRewardLines(userState);
+    const rewardLines = getRewardLines(userState, message.guild.id);
     const member = await message.guild.members.fetch(userId).catch(() => null);
     const username = member?.user?.username ?? userId;
-    await message.reply(createRewardInventoryPayload(username, rewardLines));
+    await message.reply(createRewardInventoryPayload(username, rewardLines, message.guild.id));
     return;
   }
 
@@ -996,7 +1011,7 @@ async function onMessageCreate(message) {
       }
     }
 
-    logReward(`Manual DM command by ${message.author.id}. sent=${sent.length}; failed=${failed.length}; mention=${shouldMention ? 'yes' : 'no'}`);
+    logReward(`Manual DM command by ${message.author.id}. sent=${sent.length}; failed=${failed.length}; mention=${shouldMention ? 'yes' : 'no'}`, message.guild.id);
 
     const lines = [
       `DM finished. Sent: ${sent.length ? sent.join(', ') : 'none'}`,
@@ -1043,7 +1058,7 @@ async function onMessageCreate(message) {
   guildState.updatedAt = Date.now();
   saveState(state);
 
-  logReward(`Manual ${action.toUpperCase()} ${amount} ${itemKey} for ${userId} by ${message.author.id}.`);
+  logReward(`Manual ${action.toUpperCase()} ${amount} ${itemKey} for ${userId} by ${message.author.id}.`, message.guild.id);
   await message.reply(`Updated <@${userId}>: ${action.toLowerCase()} ${amount} ${itemKey}.`);
 }
 
@@ -1055,20 +1070,22 @@ async function init(client) {
   initialized = true;
   clientRef = client;
 
-  if (!INVITATION_REWARDS_ENABLED) {
-    logReward('Invitation rewards system is disabled.');
-    return;
-  }
-
+  let initializedAnyGuild = false;
   for (const guild of client.guilds.cache.values()) {
+    if (!isInviteRewardsEnabled(guild.id)) continue;
+    initializedAnyGuild = true;
     await refreshInviteCacheForGuild(guild).catch(() => null);
     await ensureRulesMessage(guild).catch(() => null);
+  }
+
+  if (!initializedAnyGuild) {
+    logReward('Invitation rewards system is disabled for all configured guilds.');
   }
 }
 
 module.exports = {
   init,
-  isEnabled: () => INVITATION_REWARDS_ENABLED,
+  isEnabled: isInviteRewardsEnabled,
   onGuildMemberAdd,
   onInviteCreateOrDelete,
   onGuildMemberUpdate,

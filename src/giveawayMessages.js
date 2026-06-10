@@ -3,7 +3,6 @@ const path = require('path');
 const { AttachmentBuilder } = require('discord.js');
 
 const {
-  ANNOUNCEMENT_TARGET_ID,
   BLACK_ACCENT,
   CUSTOM_IDS,
   EPHEMERAL_FLAG,
@@ -22,6 +21,7 @@ const {
   draftPrizeText,
   draftWinnerCountText,
   formatDiscordRelative,
+  getGiveawayAnnouncementTargetId,
   getRequirementLabel,
   isSetupComplete,
   joinMentions,
@@ -33,6 +33,11 @@ const {
 const GIVEAWAY_IMAGE_FILE_NAME = 'GiveawayImage.png';
 const GIVEAWAY_IMAGE_ATTACHMENT_URL = `attachment://${GIVEAWAY_IMAGE_FILE_NAME}`;
 let cachedGiveawayImagePath;
+
+function announcementMention(guildId) {
+  const roleId = getGiveawayAnnouncementTargetId(guildId);
+  return roleId ? text(`<@&${roleId}>`) : null;
+}
 
 function findGiveawayImagePath() {
   if (cachedGiveawayImagePath !== undefined) return cachedGiveawayImagePath;
@@ -365,7 +370,7 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
   });
 
   return toV2Payload([
-    text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
+    announcementMention(giveaway.guildId),
     container(options.accent ?? WHITE_ACCENT, [
       giveawayInfoComponent(info.header, Boolean(imageAttachment)),
       separator(),
@@ -375,7 +380,7 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, options.buttonStyle ?? 3, Boolean(options.buttonDisabled)),
       ]),
     ]),
-  ], imageAttachment ? { files: [imageAttachment] } : {});
+  ].filter(Boolean), imageAttachment ? { files: [imageAttachment] } : {});
 }
 
 function getRoundWinnerLine(round) {
@@ -444,7 +449,7 @@ function buildFinalGiveawayPayload(giveaway) {
   });
 
   return toV2Payload([
-    text(`<@&${ANNOUNCEMENT_TARGET_ID}>`),
+    announcementMention(giveaway.guildId),
     container(GREEN_ACCENT, [
       giveawayInfoComponent(info.header, Boolean(imageAttachment)),
       separator(),
@@ -454,7 +459,7 @@ function buildFinalGiveawayPayload(giveaway) {
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, 3, true),
       ]),
     ]),
-  ], imageAttachment ? { files: [imageAttachment] } : {});
+  ].filter(Boolean), imageAttachment ? { files: [imageAttachment] } : {});
 }
 
 function buildHosterDmPayload(giveaway, userId) {

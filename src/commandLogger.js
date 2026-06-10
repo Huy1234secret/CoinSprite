@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_GUILD_CONFIG, getEnabledGuildIds, getGuildConfig } = require('./serverConfig');
 
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
-const LOG_THREAD_ID = '1495783372591730750';
+const LOG_THREAD_ID = DEFAULT_GUILD_CONFIG.channels.commandLogThread;
 const DISCORD_MESSAGE_LIMIT = 2000;
 
 let loggingClient = null;
@@ -60,8 +61,10 @@ async function getLogThread() {
   }
 
   if (!logThreadPromise) {
-    logThreadPromise = loggingClient.channels.fetch(LOG_THREAD_ID).catch((error) => {
-      console.error(`Failed to fetch log thread ${LOG_THREAD_ID}:`, error);
+    const guildId = getEnabledGuildIds()[0];
+    const logThreadId = getGuildConfig(guildId)?.channels?.commandLogThread || LOG_THREAD_ID;
+    logThreadPromise = loggingClient.channels.fetch(logThreadId).catch((error) => {
+      console.error(`Failed to fetch log thread ${logThreadId}:`, error);
       return null;
     });
   }

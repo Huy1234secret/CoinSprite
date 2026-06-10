@@ -2,16 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const { Client, Collection, Events, GatewayIntentBits, MessageFlags, Partials, PermissionFlagsBits } = require('discord.js');
 const { config } = require('dotenv');
+config();
+
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const { loadState, saveState } = require('./src/ticketSystemStore');
 const inviteRewardsManager = require('./src/inviteRewardsManager');
+const { getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const ALLOWED_GUILD_ID = '1493901002519347290';
-const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
-const STAFF_ROLE_ID = '1494993523064443065';
 const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
 const GIVEAWAY_CLOSE_PROOF_MODAL_PREFIX = 'ticket:giveaway-close-proof:';
 const GIVEAWAY_CLOSE_PROOF_UPLOAD = 'giveaway_winners_claimed_prize_evidence';
@@ -49,7 +49,8 @@ function shouldSkipActionTimeout(interaction) {
 }
 
 function canUseStaffActions(member) {
-  return Boolean(member?.permissions?.has(PermissionFlagsBits.Administrator) || member?.roles?.cache?.has(STAFF_ROLE_ID));
+  const staffRoleId = getGuildConfig(member?.guild?.id)?.roles?.staff;
+  return Boolean(member?.permissions?.has(PermissionFlagsBits.Administrator) || (staffRoleId && member?.roles?.cache?.has(staffRoleId)));
 }
 
 function sanitizeAttachmentName(filename, fallbackIndex = 0) {
@@ -287,7 +288,8 @@ async function handleGiveawayCloseProofSubmit(interaction) {
     closedBy: interaction.user.id,
   });
 
-  const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+  const transcriptChannelId = getGuildConfig(interaction.guildId)?.channels?.transcript;
+  const transcriptChannel = transcriptChannelId ? await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null) : null;
   if (transcriptChannel?.isTextBased()) {
     const proofList = proofFiles.map((item, index) => `- ${sanitizeAttachmentName(item.filename, index)}`).join('\n');
     await transcriptChannel.send({
@@ -309,8 +311,6 @@ async function handleGiveawayCloseProofSubmit(interaction) {
 
   return true;
 }
-
-config();
 
 const client = new Client({
   intents: [
@@ -347,14 +347,22 @@ async function initCommandModules() {
 
 async function registerSlashCommands() {
   const slashCommands = client.commands.map((command) => command.data.toJSON());
+  for (const guildId of getEnabledGuildIds()) {
+    try {
+      const guild = await client.guilds.fetch(guildId);
+      await guild.commands.set(slashCommands);
+      logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${guildId}.`);
+    } catch (error) {
+      console.error(`Slash command registration failed for guild ${guildId}:`, error);
+      logCommandSystem(`Slash command registration failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
+    }
+  }
+
   try {
-    const guild = await client.guilds.fetch(ALLOWED_GUILD_ID);
-    await guild.commands.set(slashCommands);
     await client.application.commands.set([]);
-    logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${ALLOWED_GUILD_ID}.`);
   } catch (error) {
-    console.error('Slash command registration failed:', error);
-    logCommandSystem(`Slash command registration failed: ${error?.message ?? 'unknown error'}`);
+    console.error('Global slash command cleanup failed:', error);
+    logCommandSystem(`Global slash command cleanup failed: ${error?.message ?? 'unknown error'}`);
   }
 }
 
@@ -370,27 +378,27 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
-  if (member.guild?.id !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(member.guild?.id)) return;
   await inviteRewardsManager.onGuildMemberAdd(member).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-  if (newMember.guild?.id !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(newMember.guild?.id)) return;
   await inviteRewardsManager.onGuildMemberUpdate(oldMember, newMember).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
 client.on(Events.InviteCreate, async (invite) => {
-  if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(invite.guild?.id)) return;
   await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
 client.on(Events.InviteDelete, async (invite) => {
-  if (invite.guild?.id !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(invite.guild?.id)) return;
   await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
-  if (message.guildId !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(message.guildId)) return;
   const prefixCommand = message.author?.bot ? null : getPrefixCommandLabel(message);
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
@@ -399,12 +407,12 @@ client.on(Events.MessageCreate, async (message) => {
   for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
 });
 client.on(Events.MessageDelete, async (message) => {
-  if (message.guildId !== ALLOWED_GUILD_ID) return;
+  if (!isGuildEnabled(message.guildId)) return;
   for (const command of client.commands.values()) if (typeof command.handleMessageDelete === 'function') await command.handleMessageDelete(message, client);
 });
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
-    if (interaction.guildId !== ALLOWED_GUILD_ID) {
+    if (!isGuildEnabled(interaction.guildId)) {
       if (interaction.isRepliable()) await interaction.reply({ content: 'This bot only works in the configured server.', flags: EPHEMERAL_FLAG }).catch(() => null);
       return;
     }

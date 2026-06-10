@@ -1,20 +1,15 @@
-const LOW_XP_CHANNEL_IDS = new Set([
-  '1503763557421154447',
-  '1498299976781135893',
-  '1498299950235390156',
-]);
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
-const XP_CHANNEL_IDS = new Set([
-  '1493906607166328872',
-  '1495676540875182212',
-  '1493907879328088064',
-  '1493907677284139099',
-  '1493908074669543544',
-  '1496256300655317092',
-  '1495375260642705488',
-  '1507985673871687823',
-  ...LOW_XP_CHANNEL_IDS,
-]);
+const LOW_XP_CHANNEL_IDS = new Set(DEFAULT_GUILD_CONFIG.xp.lowXpChannels);
+const XP_CHANNEL_IDS = new Set(DEFAULT_GUILD_CONFIG.xp.channels);
+
+function getXpConfig(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp;
+}
+
+function getGuildId(channelOrId, guildId) {
+  return guildId || (typeof channelOrId === 'string' ? null : channelOrId?.guildId);
+}
 
 function getChannelId(channelOrId) {
   return typeof channelOrId === 'string' ? channelOrId : channelOrId?.id;
@@ -24,15 +19,18 @@ function getParentChannelId(channelOrId) {
   return typeof channelOrId === 'string' ? null : channelOrId?.parentId;
 }
 
-function canEarnXpInChannel(channelOrId) {
+function canEarnXpInChannel(channelOrId, guildId) {
+  const xpConfig = getXpConfig(getGuildId(channelOrId, guildId));
   const channelId = getChannelId(channelOrId);
-  return XP_CHANNEL_IDS.has(String(channelId || ''));
+  return new Set(xpConfig.channels || []).has(String(channelId || ''));
 }
 
-function isLowXpChannel(channelOrId) {
+function isLowXpChannel(channelOrId, guildId) {
+  const xpConfig = getXpConfig(getGuildId(channelOrId, guildId));
+  const lowXpChannelIds = new Set(xpConfig.lowXpChannels || []);
   const channelId = getChannelId(channelOrId);
   const parentId = getParentChannelId(channelOrId);
-  return LOW_XP_CHANNEL_IDS.has(String(channelId || '')) || LOW_XP_CHANNEL_IDS.has(String(parentId || ''));
+  return lowXpChannelIds.has(String(channelId || '')) || lowXpChannelIds.has(String(parentId || ''));
 }
 
 module.exports = {

@@ -4,12 +4,9 @@ const {
   CUSTOM_IDS,
   EPHEMERAL_FLAG,
   FIELD_IDS,
-  MAX_CLAIM_MS,
-  MAX_DURATION_MS,
-  MIN_CLAIM_MS,
-  MIN_DURATION_MS,
   createDraft,
   extractMessageId,
+  getGiveawayConfig,
   getLevelRequirementFromInput,
   getMessageRequirementFromInput,
   getRequirementLevel,
@@ -245,8 +242,12 @@ async function handleStartDurationModalSubmit(interaction, draftId) {
 
   const durationInput = normalizeWhitespace(interaction.fields.getTextInputValue(FIELD_IDS.duration));
   const durationMs = parseDurationInput(durationInput);
-  if (!durationMs || durationMs < MIN_DURATION_MS || durationMs > MAX_DURATION_MS) {
-    await interaction.reply({ content: 'Giveaway duration is invalid. Use a value like 30m, 6h, or 1d.', flags: EPHEMERAL_FLAG });
+  const giveawayConfig = getGiveawayConfig(draft.guildId || interaction.guildId);
+  if (!durationMs || durationMs < giveawayConfig.minDurationMs || durationMs > giveawayConfig.maxDurationMs) {
+    await interaction.reply({
+      content: `Giveaway duration must be between ${formatDurationCompact(giveawayConfig.minDurationMs)} and ${formatDurationCompact(giveawayConfig.maxDurationMs)}.`,
+      flags: EPHEMERAL_FLAG,
+    });
     return true;
   }
 
@@ -277,8 +278,12 @@ async function handleSetupModalSubmit(interaction, draftId) {
   const hostId = getSubmittedValues(interaction, FIELD_IDS.hoster)[0] || '';
 
   const claimDurationMs = parseDurationInput(claimInput);
-  if (!claimDurationMs || claimDurationMs < MIN_CLAIM_MS || claimDurationMs > MAX_CLAIM_MS) {
-    await interaction.reply({ content: 'Claim time must be between 5m and 24h.', flags: EPHEMERAL_FLAG });
+  const giveawayConfig = getGiveawayConfig(draft.guildId || interaction.guildId);
+  if (!claimDurationMs || claimDurationMs < giveawayConfig.minClaimMs || claimDurationMs > giveawayConfig.maxClaimMs) {
+    await interaction.reply({
+      content: `Claim time must be between ${formatDurationCompact(giveawayConfig.minClaimMs)} and ${formatDurationCompact(giveawayConfig.maxClaimMs)}.`,
+      flags: EPHEMERAL_FLAG,
+    });
     return true;
   }
 

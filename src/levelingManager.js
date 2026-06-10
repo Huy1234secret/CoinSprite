@@ -6,6 +6,7 @@ const { AttachmentBuilder } = require('discord.js');
 const { loadState, saveState, ensureGuildState, ensureUserState } = require('./levelingStore');
 const { formatCompactNumber } = require('./numberFormat');
 const { logXpEarn } = require('./xpLogger');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
 const CARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'level-cards');
 const LEADERBOARD_CACHE_DIR = path.join(__dirname, '..', 'data', 'leaderboards');
@@ -13,11 +14,11 @@ const LEVEL_CARD_CUSTOMIZATION_PATH = path.join(__dirname, '..', 'data', 'level-
 const USER_CARD_BACKGROUND_DIR = path.join(__dirname, '..', 'User card background');
 const LEVEL_CARD_BG_FILENAME = 'Level card background.png';
 
-const PUNISHMENT_DURATIONS_MS = {
-  1: 24 * 60 * 60 * 1000,
-  2: 3 * 24 * 60 * 60 * 1000,
-  3: 7 * 24 * 60 * 60 * 1000,
-};
+const PUNISHMENT_DURATIONS_MS = DEFAULT_GUILD_CONFIG.xp.punishmentDurationsMs;
+
+function getPunishmentDurationsMs(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp.punishmentDurationsMs || PUNISHMENT_DURATIONS_MS;
+}
 
 function loadCardCustomizations() {
   try {
@@ -427,8 +428,9 @@ function applyLevelPunishment(guildId, userId) {
   const now = Date.now();
   let endsAt = null;
 
-  if (PUNISHMENT_DURATIONS_MS[nextTier]) {
-    endsAt = now + PUNISHMENT_DURATIONS_MS[nextTier];
+  const punishmentDurationsMs = getPunishmentDurationsMs(guildId);
+  if (punishmentDurationsMs[nextTier]) {
+    endsAt = now + punishmentDurationsMs[nextTier];
     user.activePunishment = { tier: nextTier, endsAt };
   } else {
     user.activePunishment = null;
