@@ -7,5 +7,6 @@ node_modules/
 data/*
 !data/.gitkeep
 !data/milestone-state.json
+!data/server-config.example.json
 
 User card background/

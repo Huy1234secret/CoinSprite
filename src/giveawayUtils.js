@@ -1,9 +1,10 @@
 const { MessageFlags } = require('discord.js');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const ANNOUNCEMENT_TARGET_ID = '1493927942546259969';
-const BLACKLIST_ROLE_ID = '1498405208969973840';
+const ANNOUNCEMENT_TARGET_ID = DEFAULT_GUILD_CONFIG.channels.giveawayAnnouncement;
+const BLACKLIST_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.giveawayBlacklist;
 const WHITE_ACCENT = 0xffffff;
 const GREEN_ACCENT = 0x57f287;
 const YELLOW_ACCENT = 0xfee75c;
@@ -11,10 +12,10 @@ const ORANGE_ACCENT = 0xfaa61a;
 const BLACK_ACCENT = 0x2b2d31;
 const PARTY_POPPER = '\u{1F389}';
 const MAX_TIMEOUT_MS = 2_147_000_000;
-const MIN_CLAIM_MS = 5 * 60 * 1000;
-const MAX_CLAIM_MS = 24 * 60 * 60 * 1000;
-const MIN_DURATION_MS = 60 * 1000;
-const MAX_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
+const MIN_CLAIM_MS = DEFAULT_GUILD_CONFIG.giveaway.minClaimMs;
+const MAX_CLAIM_MS = DEFAULT_GUILD_CONFIG.giveaway.maxClaimMs;
+const MIN_DURATION_MS = DEFAULT_GUILD_CONFIG.giveaway.minDurationMs;
+const MAX_DURATION_MS = DEFAULT_GUILD_CONFIG.giveaway.maxDurationMs;
 
 const CUSTOM_IDS = {
   editMessagePrefix: 'giveaway:setup:message:',
@@ -80,6 +81,18 @@ function toV2Payload(components, extra = {}) {
 
 function now() {
   return Date.now();
+}
+
+function getGiveawayConfig(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).giveaway;
+}
+
+function getGiveawayAnnouncementTargetId(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).channels.giveawayAnnouncement;
+}
+
+function getGiveawayBlacklistRoleId(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).roles.giveawayBlacklist;
 }
 
 function formatDiscordRelative(timestampMs) {
@@ -292,6 +305,9 @@ module.exports = {
   getLevelRequirementFromInput,
   getMessageRequirementFromInput,
   getModalComponents,
+  getGiveawayAnnouncementTargetId,
+  getGiveawayBlacklistRoleId,
+  getGiveawayConfig,
   getRequirementLabel,
   getRequirementLevel,
   getRequirementMessageCount,

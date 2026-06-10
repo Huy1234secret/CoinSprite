@@ -2,15 +2,16 @@ const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 const levelingManager = require('./levelingManager');
 const { loadState, saveState } = require('./wordChainStore');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
-const WORD_CHAIN_CHANNEL_ID = '1512480152410525958';
-const MIN_WORD_LENGTH = 3;
-const MAX_WORD_LENGTH = 10;
-const STARTING_HEARTS = 3;
-const TURN_TIMEOUT_MS = 4 * 60 * 60 * 1000;
-const PUNISHMENT_MS = 60 * 1000;
-const PUNISHMENT_ROLE_ID = '1512488707461091420';
-const GAME_COOLDOWN_MS = 60 * 1000;
+const WORD_CHAIN_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.wordChain;
+const MIN_WORD_LENGTH = DEFAULT_GUILD_CONFIG.wordChain.minWordLength;
+const MAX_WORD_LENGTH = DEFAULT_GUILD_CONFIG.wordChain.maxWordLength;
+const STARTING_HEARTS = DEFAULT_GUILD_CONFIG.wordChain.startingHearts;
+const TURN_TIMEOUT_MS = DEFAULT_GUILD_CONFIG.wordChain.turnTimeoutMs;
+const PUNISHMENT_MS = DEFAULT_GUILD_CONFIG.wordChain.punishmentMs;
+const PUNISHMENT_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.wordChainPunishment;
+const GAME_COOLDOWN_MS = DEFAULT_GUILD_CONFIG.wordChain.gameCooldownMs;
 const DICTIONARY_LOOKUP_TIMEOUT_MS = 5000;
 const DICTIONARY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const DICTIONARY_API_BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
@@ -32,6 +33,22 @@ let turnTimer = null;
 let cooldownTimer = null;
 let cooldownEndsAt = 0;
 let initStarted = false;
+
+function getConfig(guildId) {
+  return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
+}
+
+function getWordChainConfig(guildId) {
+  return getConfig(guildId).wordChain;
+}
+
+function getWordChainChannelId(guildId) {
+  return getConfig(guildId).channels.wordChain || WORD_CHAIN_CHANNEL_ID;
+}
+
+function getPunishmentRoleId(guildId) {
+  return getConfig(guildId).roles.wordChainPunishment || PUNISHMENT_ROLE_ID;
+}
 
 function serializeGame(game) {
   if (!game) return null;
@@ -155,14 +172,15 @@ function awardCorrectWordXp(message) {
   });
 }
 
-function getGameLine() {
+function getGameLine(guildId) {
   if (!currentGame) return 'Word Chain is not running.';
+  const wordChainChannelId = getWordChainChannelId(guildId);
   const required = currentGame.requiredFirstLetter ? `\nNext word must start with: **${currentGame.requiredFirstLetter.toUpperCase()}**` : '';
   const previous = currentGame.lastWord ? `\nLast word: **${currentGame.lastWord}**` : '\nFirst valid word can start with any letter.';
   const lastPlayer = currentGame.lastUserId ? `\nLast player: <@${currentGame.lastUserId}>` : '';
   return [
     '**Word Chain is running**',
-    `Channel: <#${WORD_CHAIN_CHANNEL_ID}>`,
+    `Channel: <#${wordChainChannelId}>`,
     `Word length: **${currentGame.wordLength} letters**`,
     `Streak: **${currentGame.streak || 0} words**`,
     `Server hearts: **${currentGame.hearts}/${STARTING_HEARTS}**`,
@@ -288,8 +306,9 @@ async function fetchBotMember(guild) {
 }
 
 async function getPunishmentRole(guild) {
-  return guild.roles.cache.get(PUNISHMENT_ROLE_ID)
-    || await guild.roles.fetch(PUNISHMENT_ROLE_ID).catch(() => null);
+  const punishmentRoleId = getPunishmentRoleId(guild.id);
+  return guild.roles.cache.get(punishmentRoleId)
+    || await guild.roles.fetch(punishmentRoleId).catch(() => null);
 }
 
 function canBotManageRole(botMember, role) {
@@ -323,16 +342,17 @@ async function muteMemberInGameChannel(message, reason) {
   });
 
   const punishmentRole = await getPunishmentRole(message.guild);
+  const punishmentRoleId = getPunishmentRoleId(message.guild.id);
   const botMember = await fetchBotMember(message.guild);
-  result.roleAlreadyPresent = member.roles.cache.has(PUNISHMENT_ROLE_ID);
+  result.roleAlreadyPresent = member.roles.cache.has(punishmentRoleId);
   if (!punishmentRole) {
-    result.roleError = `Role ${PUNISHMENT_ROLE_ID} was not found.`;
+    result.roleError = `Role ${punishmentRoleId} was not found.`;
   } else if (result.roleAlreadyPresent) {
     result.roleAdded = true;
   } else if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
     result.roleError = 'Bot is missing Manage Roles permission.';
   } else if (!canBotManageRole(botMember, punishmentRole)) {
-    result.roleError = `Bot role must be above <@&${PUNISHMENT_ROLE_ID}>.`;
+    result.roleError = `Bot role must be above <@&${punishmentRoleId}>.`;
   } else {
     result.roleAdded = await member.roles.add(punishmentRole, reason).then(() => true).catch((error) => {
       result.roleError = error?.message || 'Discord rejected the role add.';
@@ -346,7 +366,7 @@ async function muteMemberInGameChannel(message, reason) {
       logCommandSystem(`Word Chain unmute failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
     });
     if (result.roleAdded && !result.roleAlreadyPresent) {
-      member.roles.remove(PUNISHMENT_ROLE_ID, `Word Chain punishment expired for ${member.id}`).catch((error) => {
+      member.roles.remove(punishmentRoleId, `Word Chain punishment expired for ${member.id}`).catch((error) => {
         logCommandSystem(`Word Chain punishment role remove failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
       });
     }
@@ -453,7 +473,8 @@ async function validateWord(word) {
 function formatPunishmentLine(result) {
   const muteText = result?.muted ? 'muted in this channel' : 'not muted because channel permissions could not be updated';
   if (result?.roleAdded) {
-    const roleText = result.roleAlreadyPresent ? `already had <@&${PUNISHMENT_ROLE_ID}>` : `given <@&${PUNISHMENT_ROLE_ID}>`;
+    const punishmentRoleId = getPunishmentRoleId(message.guild.id);
+    const roleText = result.roleAlreadyPresent ? `already had <@&${punishmentRoleId}>` : `given <@&${punishmentRoleId}>`;
     return `They are ${muteText} and ${roleText} for 1 minute.`;
   }
 
@@ -519,7 +540,7 @@ async function init(client) {
 }
 
 async function handleMessageCreate(message) {
-  if (message.author?.bot || message.channelId !== WORD_CHAIN_CHANNEL_ID || !message.guild) return;
+  if (message.author?.bot || !message.guild || message.channelId !== getWordChainChannelId(message.guild.id)) return;
   if (!currentGame) {
     if (cooldownEndsAt > Date.now()) return;
     await startGame('auto');
@@ -551,18 +572,19 @@ async function handleMessageCreate(message) {
 }
 
 async function handleStatus(interaction) {
-  if (interaction.channelId !== WORD_CHAIN_CHANNEL_ID && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
-    await interaction.reply({ content: `Word Chain is only playable in <#${WORD_CHAIN_CHANNEL_ID}>.`, flags: 64, allowedMentions: NO_MENTIONS });
+  const wordChainChannelId = getWordChainChannelId(interaction.guildId);
+  if (interaction.channelId !== wordChainChannelId && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: `Word Chain is only playable in <#${wordChainChannelId}>.`, flags: 64, allowedMentions: NO_MENTIONS });
     return;
   }
 
   if (!currentGame && cooldownEndsAt > Date.now()) {
-    await interaction.reply({ content: `Word Chain is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64, allowedMentions: NO_MENTIONS });
+    await interaction.reply({ content: `Word Chain is on cooldown. A new game starts ${formatCountdown(cooldownEndsAt)}.`, flags: interaction.channelId === wordChainChannelId ? undefined : 64, allowedMentions: NO_MENTIONS });
     return;
   }
 
   if (!currentGame) await startGame('manual');
-  await interaction.reply({ content: getGameLine(), flags: interaction.channelId === WORD_CHAIN_CHANNEL_ID ? undefined : 64, allowedMentions: NO_MENTIONS });
+  await interaction.reply({ content: getGameLine(interaction.guildId), flags: interaction.channelId === wordChainChannelId ? undefined : 64, allowedMentions: NO_MENTIONS });
 }
 
 module.exports = {

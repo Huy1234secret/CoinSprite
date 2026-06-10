@@ -1,13 +1,15 @@
-const ROLE_BOOSTS = [
-  { roleId: '1502905486645788713', xpPercent: 10 },
-  { roleId: '1502905217945964596', xpPercent: 5 },
-  { roleId: '1493911895634084042', xpPercent: 25 },
-];
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
+
+const ROLE_BOOSTS = DEFAULT_GUILD_CONFIG.xp.boosts;
+
+function getRoleBoosts(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp.boosts || [];
+}
 
 function getMemberRoleBoosts(member) {
   const roles = member?.roles?.cache;
   if (!roles) return [];
-  return ROLE_BOOSTS.filter((boost) => roles.has(boost.roleId));
+  return getRoleBoosts(member.guild?.id).filter((boost) => roles.has(boost.roleId));
 }
 
 function sumBoostPercent(boosts, key) {
@@ -26,6 +28,7 @@ function formatBoostLines(boosts, key) {
 
 module.exports = {
   ROLE_BOOSTS,
+  getRoleBoosts,
   getMemberRoleBoosts,
   getXpBoostPercent,
   formatBoostLines,

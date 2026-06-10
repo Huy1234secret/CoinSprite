@@ -6,15 +6,11 @@ const { promisify } = require('util');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
-const { LEVEL_ROLE_REWARDS, getEligibleRoleIds } = require('../src/levelRoleRewards');
+const { getEligibleRoleIds } = require('../src/levelRoleRewards');
 const { canEarnXpInChannel, isLowXpChannel } = require('../src/xpChannels');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
 
 const execFileAsync = promisify(execFile);
-const LEVEL_UP_CHANNEL_ID = '1493909588775272448';
-const LOW_XP_CATEGORY_ID = '1498006922912202948';
-const NO_XP_CHANNEL_IDS = new Set(['1503708687569522778', '1503763965497315458', '1503773311547478196', '1503779472329936988']);
-const BACKGROUND_LOG_THREAD_ID = '1502296881395536033';
-const LOW_XP_AMOUNT = 0.5;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const BUTTON_STYLE_SECONDARY = 2;
@@ -66,6 +62,19 @@ const LEVEL_FUN_MESSAGES = new Map([
   [90, 'So close to Level 100, your keyboard is crying.'],
   [100, 'Someone give them grass… or a trophy.'],
 ]);
+
+function getLevelConfig(guildId) {
+  return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
+}
+
+function getXpConfig(guildId) {
+  return getLevelConfig(guildId).xp;
+}
+
+function getLevelFunMessage(guildId, level) {
+  return getXpConfig(guildId).levelFunMessages?.[level] ?? LEVEL_FUN_MESSAGES.get(level);
+}
+
 function formatCountdown(endsAt) {
   if (!endsAt) return null;
   return `<t:${Math.floor(endsAt / 1000)}:R>`;
@@ -93,7 +102,7 @@ async function syncLevelRoles(guild, userId, level) {
   const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
   if (!member) return;
 
-  const eligibleRoleIds = getEligibleRoleIds(level);
+  const eligibleRoleIds = getEligibleRoleIds(level, guild.id);
   for (const roleId of eligibleRoleIds) {
     if (!member.roles.cache.has(roleId)) {
       // eslint-disable-next-line no-await-in-loop
@@ -105,11 +114,13 @@ async function syncLevelRoles(guild, userId, level) {
 async function sendLevelUpMessage(guild, userId, newLevel) {
   await syncLevelRoles(guild, userId, newLevel);
 
-  const channel = guild.channels.cache.get(LEVEL_UP_CHANNEL_ID)
-    || await guild.channels.fetch(LEVEL_UP_CHANNEL_ID).catch(() => null);
+  const levelUpChannelId = getLevelConfig(guild.id).channels.levelUp;
+  const channel = guild.channels.cache.get(levelUpChannelId)
+    || await guild.channels.fetch(levelUpChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const funMessage = LEVEL_FUN_MESSAGES.get(newLevel) ? `\n${LEVEL_FUN_MESSAGES.get(newLevel)}` : '';
+  const levelFunMessage = getLevelFunMessage(guild.id, newLevel);
+  const funMessage = levelFunMessage ? `\n${levelFunMessage}` : '';
   const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
 
   await channel.send({
@@ -139,16 +150,18 @@ async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
 
 function isXpDisabledChannel(channel) {
   if (!channel) return false;
-  if (NO_XP_CHANNEL_IDS.has(channel.id)) return true;
-  if (channel.isThread?.()) return NO_XP_CHANNEL_IDS.has(channel.parentId);
+  const noXpChannelIds = new Set(getXpConfig(channel.guildId).noXpChannels || []);
+  if (noXpChannelIds.has(channel.id)) return true;
+  if (channel.isThread?.()) return noXpChannelIds.has(channel.parentId);
   return false;
 }
 
 function isChannelInLowXpCategory(channel) {
   if (!channel) return false;
-  if (isLowXpChannel(channel)) return true;
-  if (channel.parentId === LOW_XP_CATEGORY_ID) return true;
-  if (channel.isThread?.()) return channel.parent?.parentId === LOW_XP_CATEGORY_ID;
+  const lowXpCategoryId = getLevelConfig(channel.guildId).channels.lowXpCategory;
+  if (isLowXpChannel(channel, channel.guildId)) return true;
+  if (channel.parentId === lowXpCategoryId) return true;
+  if (channel.isThread?.()) return channel.parent?.parentId === lowXpCategoryId;
   return false;
 }
 
@@ -384,7 +397,8 @@ async function saveUploadedBackground(interaction, upload) {
 }
 
 async function logBackgroundUpload(interaction, filePath, optimized) {
-  const channel = await interaction.guild.channels.fetch(BACKGROUND_LOG_THREAD_ID).catch(() => null);
+  const backgroundLogThreadId = getLevelConfig(interaction.guildId).channels.backgroundLogThread;
+  const channel = backgroundLogThreadId ? await interaction.guild.channels.fetch(backgroundLogThreadId).catch(() => null) : null;
   if (!channel?.isTextBased()) return;
   await channel.send({
     content: `Rank card background updated by <@${interaction.user.id}> (${interaction.user.id}). PNG optimization: ${optimized ? 'oxipng applied' : 'oxipng unavailable/skipped'}.`,
@@ -451,9 +465,9 @@ module.exports = {
       return;
     }
 
-    if (!canEarnXpInChannel(message.channelId) || isXpDisabledChannel(message.channel)) return;
+    if (!canEarnXpInChannel(message.channel, message.guildId) || isXpDisabledChannel(message.channel)) return;
 
-    const fixedXp = isChannelInLowXpCategory(message.channel) ? LOW_XP_AMOUNT : undefined;
+    const fixedXp = isChannelInLowXpCategory(message.channel) ? getXpConfig(message.guildId).lowXpAmount : undefined;
     const result = manager.awardMessageXp(message.guild.id, message.author.id, {
       fixedXp,
       source: 'message',

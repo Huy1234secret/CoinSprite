@@ -1,7 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { appendTranscriptSection } = require('../src/monthlyTranscriptArchive');
-
-const TRANSCRIPT_CHANNEL_ID = '1495788766600757418';
+const { getGuildConfig } = require('../src/serverConfig');
 
 function attachmentToText(attachment) {
   if (!attachment?.url) return '';
@@ -78,9 +77,10 @@ module.exports = {
     const headerLine = `Channel: ${channel.id} - ${channel.name}`;
     const filePath = appendTranscriptSection(`message-transcript-${channel.id}`, [headerLine], transcriptLines);
 
-    const transcriptChannel = await interaction.guild.channels.fetch(TRANSCRIPT_CHANNEL_ID).catch(() => null);
+    const transcriptChannelId = getGuildConfig(interaction.guildId)?.channels?.transcript;
+    const transcriptChannel = transcriptChannelId ? await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null) : null;
     if (!transcriptChannel?.isTextBased()) {
-      await interaction.editReply(`Transcript generated, but I could not find transcript channel (${TRANSCRIPT_CHANNEL_ID}).`);
+      await interaction.editReply(`Transcript generated, but I could not find transcript channel (${transcriptChannelId || 'not configured'}).`);
       return;
     }
 
@@ -89,6 +89,6 @@ module.exports = {
       files: [filePath],
     });
 
-    await interaction.editReply(`Transcript saved and sent to <#${TRANSCRIPT_CHANNEL_ID}>.`);
+    await interaction.editReply(`Transcript saved and sent to <#${transcriptChannelId}>.`);
   },
 };

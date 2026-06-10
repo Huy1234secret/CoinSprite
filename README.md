@@ -82,6 +82,11 @@ Supported item aliases (case-insensitive):
 - Invite Point, Invite Points, IP
 
 ## Persistence
+- Server config: `data/server-config.json`
+  - Created automatically on startup from the defaults in `src/serverConfig.js`.
+  - Use `data/server-config.example.json` as the editable shape/reference.
+  - Keyed by Discord guild/server ID under `guilds`.
+  - Stores server-specific channel IDs, role IDs, XP channels, level role rewards, invite reward tiers, giveaway limits, word-chain settings, ticket settings, and command log target.
 - Giveaway state: `data/giveaway-state.json`
 - Milestone state: `data/milestone-state.json`
 - Invite reward state: `data/invite-rewards-state.json`
@@ -94,10 +99,15 @@ Supported item aliases (case-insensitive):
 2. Configure `.env`:
    ```env
    DISCORD_TOKEN=your_token_here
-   # Optional override for where the invitation rules message is posted.
-   INVITATION_RULES_CHANNEL_ID=1494329296670425279
+   # Optional override for the default guild used when data/server-config.json is first generated.
+   DEFAULT_GUILD_ID=1493901002519347290
    ```
-3. Run bot:
+3. Review or edit server config:
+   ```bash
+   cp data/server-config.example.json data/server-config.json
+   ```
+   Add more guild IDs under `guilds` and set `enabled: true` for every server the bot should serve.
+4. Run bot:
    ```bash
    npm start
    ```

@@ -1,10 +1,10 @@
 const levelingManager = require('./levelingManager');
 const { loadState, saveState } = require('./giveawayStore');
 const {
-  BLACKLIST_ROLE_ID,
   EPHEMERAL_FLAG,
   GREEN_ACCENT,
   MAX_TIMEOUT_MS,
+  getGiveawayBlacklistRoleId,
   now,
 } = require('./giveawayUtils');
 const {
@@ -417,7 +417,8 @@ async function fetchMemberFromInteraction(interaction) {
 }
 
 function isBlacklistedMember(member) {
-  return Boolean(member?.roles?.cache?.has(BLACKLIST_ROLE_ID));
+  const blacklistRoleId = getGiveawayBlacklistRoleId(member?.guild?.id);
+  return Boolean(blacklistRoleId && member?.roles?.cache?.has(blacklistRoleId));
 }
 
 module.exports = {

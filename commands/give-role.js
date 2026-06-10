@@ -1,18 +1,14 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
 
-const UTDX_MEMBER_PLUS_ROLE_ID = '1507984807680938165';
-const SP_MEMBER_PLUS_ROLE_ID = '1495039173260873738';
+const ROLE_CHOICES = DEFAULT_GUILD_CONFIG.giveRoleChoices;
 
-const ROLE_CHOICES = {
-  utdx_member_plus: {
-    label: 'UTDX Member+',
-    roleId: UTDX_MEMBER_PLUS_ROLE_ID,
-  },
-  sp_member_plus: {
-    label: 'SP Member+',
-    roleId: SP_MEMBER_PLUS_ROLE_ID,
-  },
-};
+function getRoleChoice(guildId, choiceKey) {
+  const config = getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
+  const choice = config.giveRoleChoices?.[choiceKey];
+  const roleId = choice?.roleId || config.roles?.[choice?.roleKey];
+  return choice && roleId ? { label: choice.label, roleId } : null;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -38,7 +34,7 @@ module.exports = {
       return;
     }
 
-    const choice = ROLE_CHOICES[interaction.options.getString('role', true)];
+    const choice = getRoleChoice(interaction.guildId, interaction.options.getString('role', true));
     const targetUser = interaction.options.getUser('user', true);
     const member = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
 

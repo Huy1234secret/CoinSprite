@@ -1,22 +1,22 @@
-const LEVEL_ROLE_REWARDS = new Map([
-  [5, '1493906016570572801'],
-  [10, '1493906102990147654'],
-  [15, '1493906169054625792'],
-  [20, '1493906220065619988'],
-  [30, '1493906329465655376'],
-  [40, '1496480275352391680'],
-  [50, '1502908550253510756'],
-  [60, '1513347125910442055'],
-  [70, '1513347126208364655'],
-  [80, '1513347126518616064'],
-  [90, '1513347127038705745'],
-  [100, '1513347127810719866'],
+const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
-]);
+function toRewardMap(config) {
+  return new Map(
+    (config?.xp?.levelRoleRewards || [])
+      .map((reward) => [Math.max(0, Math.floor(Number(reward.level) || 0)), String(reward.roleId || '')])
+      .filter(([level, roleId]) => level > 0 && roleId),
+  );
+}
 
-function getEligibleRoleIds(level) {
+const LEVEL_ROLE_REWARDS = toRewardMap(DEFAULT_GUILD_CONFIG);
+
+function getLevelRoleRewards(guildId) {
+  return toRewardMap(getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG);
+}
+
+function getEligibleRoleIds(level, guildId) {
   const numericLevel = Number(level) || 0;
-  return [...LEVEL_ROLE_REWARDS.entries()]
+  return [...getLevelRoleRewards(guildId).entries()]
     .filter(([requiredLevel]) => numericLevel >= requiredLevel)
     .map(([, roleId]) => roleId);
 }
@@ -24,4 +24,5 @@ function getEligibleRoleIds(level) {
 module.exports = {
   LEVEL_ROLE_REWARDS,
   getEligibleRoleIds,
+  getLevelRoleRewards,
 };
