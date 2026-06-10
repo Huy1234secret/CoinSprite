@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoinSprite Admin</title>
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>CoinSprite Admin</h1>
+      <p id="sessionLabel">Discord login required</p>
+    </div>
+    <div class="topbar-actions">
+      <a class="button primary" id="loginButton" href="/auth/discord">Log in with Discord</a>
+      <button class="button" id="logoutButton" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <label for="guildSelect">Server</label>
+      <select id="guildSelect" disabled>
+        <option value="">No editable servers</option>
+      </select>
+      <p class="hint">Only servers where your Discord account has Administrator permission appear here.</p>
+      <div class="status" id="statusBox" role="status">Loading session...</div>
+    </aside>
+
+    <section class="workspace" id="editor" hidden>
+      <div class="section-title">
+        <div>
+          <h2 id="guildTitle">Server settings</h2>
+          <p>Changes save to <code>data/server-config.json</code> and are used by the bot immediately on the next config read.</p>
+        </div>
+        <button class="button primary" id="saveButton" type="button">Save changes</button>
+      </div>
+
+      <form id="configForm">
+        <section class="panel">
+          <h3>XP</h3>
+          <div class="grid">
+            <label>Message XP min <input name="xp.messageXpMin" type="number" min="0" step="1"></label>
+            <label>Message XP max <input name="xp.messageXpMax" type="number" min="0" step="1"></label>
+            <label>Low XP amount <input name="xp.lowXpAmount" type="number" min="0" step="0.1"></label>
+          </div>
+          <div class="grid three">
+            <label>XP channels <textarea name="xp.channels" rows="7" spellcheck="false"></textarea></label>
+            <label>Low XP channels <textarea name="xp.lowXpChannels" rows="7" spellcheck="false"></textarea></label>
+            <label>No XP channels <textarea name="xp.noXpChannels" rows="7" spellcheck="false"></textarea></label>
+          </div>
+          <div class="grid two">
+            <label>XP boosts <textarea name="xp.boosts" rows="6" spellcheck="false" placeholder="roleId:percent"></textarea></label>
+            <label>Level role rewards <textarea name="xp.levelRoleRewards" rows="6" spellcheck="false" placeholder="level:roleId"></textarea></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Channels</h3>
+          <div class="grid three" id="channelsGrid"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Roles</h3>
+          <div class="grid three" id="rolesGrid"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Invite Rewards</h3>
+          <div class="grid">
+            <label class="checkline"><input name="inviteRewards.enabled" type="checkbox"> Enabled</label>
+            <label>Member cap <input name="inviteRewards.capMembers" type="number" min="0" step="1"></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Word Chain</h3>
+          <div class="grid three">
+            <label>Min word length <input name="wordChain.minWordLength" type="number" min="1" step="1"></label>
+            <label>Max word length <input name="wordChain.maxWordLength" type="number" min="1" step="1"></label>
+            <label>Starting hearts <input name="wordChain.startingHearts" type="number" min="1" step="1"></label>
+            <label>Turn timeout ms <input name="wordChain.turnTimeoutMs" type="number" min="1000" step="1000"></label>
+            <label>Punishment ms <input name="wordChain.punishmentMs" type="number" min="1000" step="1000"></label>
+            <label>Game cooldown ms <input name="wordChain.gameCooldownMs" type="number" min="1000" step="1000"></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>Giveaway Limits</h3>
+          <div class="grid">
+            <label>Min claim ms <input name="giveaway.minClaimMs" type="number" min="1000" step="1000"></label>
+            <label>Max claim ms <input name="giveaway.maxClaimMs" type="number" min="1000" step="1000"></label>
+            <label>Min duration ms <input name="giveaway.minDurationMs" type="number" min="1000" step="1000"></label>
+            <label>Max duration ms <input name="giveaway.maxDurationMs" type="number" min="1000" step="1000"></label>
+          </div>
+        </section>
+      </form>
+    </section>
+  </main>
+
+  <script src="/admin/app.js" defer></script>
+</body>
+</html>

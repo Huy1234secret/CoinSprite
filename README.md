@@ -112,6 +112,21 @@ Supported item aliases (case-insensitive):
    npm start
    ```
 
+## Admin Web Panel
+The bot can also run a small Discord-login admin panel from the same process. It only allows a user to edit guild config when the bot can confirm that Discord member has Administrator permission in that guild.
+
+Add these values to `.env` to enable it:
+```env
+ADMIN_WEB_PORT=3000
+DISCORD_CLIENT_ID=your_discord_application_client_id
+DISCORD_CLIENT_SECRET=your_discord_application_client_secret
+DISCORD_REDIRECT_URI=https://panel.yourdomain.com/auth/discord/callback
+SESSION_SECRET=use_a_long_random_secret_here
+ADMIN_COOKIE_SECURE=true
+```
+
+In the Discord Developer Portal, add the exact `DISCORD_REDIRECT_URI` to the application's OAuth2 redirect URLs. On Vultr, proxy your public HTTPS domain to `http://127.0.0.1:3000`; the admin server intentionally listens on localhost so it is not exposed directly.
+
 ## Ticket System
 - The bot maintains a Components V2 support ticket panel in channel `1493971939545583836` on startup (`/ticket-panel` can force-refresh).
 - Ticket types:
