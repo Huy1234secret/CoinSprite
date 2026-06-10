@@ -10,6 +10,7 @@ const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageA
 const { loadState, saveState } = require('./src/ticketSystemStore');
 const inviteRewardsManager = require('./src/inviteRewardsManager');
 const { getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
+const { startAdminServer } = require('./src/adminServer');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
@@ -369,6 +370,7 @@ async function registerSlashCommands() {
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
+  startAdminServer(client);
   await initCommandModules();
   await inviteRewardsManager.init(client).catch((error) => {
     console.error('Invite rewards init failed:', error);
