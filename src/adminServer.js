@@ -24,6 +24,7 @@ function getEnv() {
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
     redirectUri: process.env.DISCORD_REDIRECT_URI,
     sessionSecret: process.env.SESSION_SECRET || process.env.DISCORD_CLIENT_SECRET || crypto.randomBytes(32).toString('hex'),
+    host: process.env.ADMIN_WEB_HOST || '127.0.0.1',
     port: Number(process.env.ADMIN_WEB_PORT) || 3000,
     cookieSecure: String(process.env.ADMIN_COOKIE_SECURE || '').toLowerCase() === 'true',
   };
@@ -622,8 +623,8 @@ function startAdminServer(client) {
     });
   });
 
-  serverRef.listen(env.port, '127.0.0.1', () => {
-    logCommandSystem(`Admin web panel listening on http://127.0.0.1:${env.port}.`);
+  serverRef.listen(env.port, env.host, () => {
+    logCommandSystem(`Admin web panel listening on http://${env.host}:${env.port}.`);
   });
 
   return serverRef;
