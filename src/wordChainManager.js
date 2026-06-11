@@ -2,7 +2,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 const levelingManager = require('./levelingManager');
 const { loadState, saveState } = require('./wordChainStore');
-const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
+const { DEFAULT_GUILD_CONFIG, DEFAULT_GUILD_ID, getEnabledGuildIds, getGuildConfig } = require('./serverConfig');
 
 const WORD_CHAIN_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.wordChain;
 const MIN_WORD_LENGTH = DEFAULT_GUILD_CONFIG.wordChain.minWordLength;
@@ -42,8 +42,28 @@ function getWordChainConfig(guildId) {
   return getConfig(guildId).wordChain;
 }
 
+function getFallbackGuildId() {
+  return getEnabledGuildIds()[0] || DEFAULT_GUILD_ID;
+}
+
+function getGameGuildId(guildId = null) {
+  return guildId || currentGame?.guildId || getFallbackGuildId();
+}
+
+function getWordChainSettings(guildId) {
+  const config = getWordChainConfig(getGameGuildId(guildId));
+  return {
+    minWordLength: Number(config.minWordLength) || MIN_WORD_LENGTH,
+    maxWordLength: Number(config.maxWordLength) || MAX_WORD_LENGTH,
+    startingHearts: Number(config.startingHearts) || STARTING_HEARTS,
+    turnTimeoutMs: Number(config.turnTimeoutMs) || TURN_TIMEOUT_MS,
+    punishmentMs: Number(config.punishmentMs) || PUNISHMENT_MS,
+    gameCooldownMs: Number(config.gameCooldownMs) || GAME_COOLDOWN_MS,
+  };
+}
+
 function getWordChainChannelId(guildId) {
-  return getConfig(guildId).channels.wordChain || WORD_CHAIN_CHANNEL_ID;
+  return getConfig(getGameGuildId(guildId)).channels.wordChain || WORD_CHAIN_CHANNEL_ID;
 }
 
 function getPunishmentRoleId(guildId) {
@@ -52,37 +72,43 @@ function getPunishmentRoleId(guildId) {
 
 function serializeGame(game) {
   if (!game) return null;
+  const guildId = game.guildId || getFallbackGuildId();
+  const settings = getWordChainSettings(guildId);
   const wordLength = Number(game.wordLength);
   const hearts = Number(game.hearts);
   const startedAt = Number(game.startedAt);
   const expiresAt = Number(game.expiresAt);
   return {
-    wordLength: Number.isFinite(wordLength) ? wordLength : MIN_WORD_LENGTH,
-    hearts: Number.isFinite(hearts) ? hearts : STARTING_HEARTS,
+    guildId,
+    wordLength: Number.isFinite(wordLength) ? wordLength : settings.minWordLength,
+    hearts: Number.isFinite(hearts) ? hearts : settings.startingHearts,
     usedWords: Array.from(game.usedWords || []),
     lastWord: game.lastWord || null,
     lastUserId: game.lastUserId || null,
     requiredFirstLetter: game.requiredFirstLetter || null,
     startedAt: Number.isFinite(startedAt) ? startedAt : Date.now(),
-    expiresAt: Number.isFinite(expiresAt) ? expiresAt : Date.now() + TURN_TIMEOUT_MS,
+    expiresAt: Number.isFinite(expiresAt) ? expiresAt : Date.now() + settings.turnTimeoutMs,
     streak: Number(game.streak) || 0,
   };
 }
 
 function hydrateGame(game) {
   if (!game || !Number.isFinite(Number(game.wordLength))) return null;
+  const guildId = game.guildId || getFallbackGuildId();
+  const settings = getWordChainSettings(guildId);
   const parsedHearts = Number(game.hearts);
-  const hearts = Math.min(STARTING_HEARTS, Math.max(0, Math.floor(Number.isFinite(parsedHearts) ? parsedHearts : STARTING_HEARTS)));
+  const hearts = Math.min(settings.startingHearts, Math.max(0, Math.floor(Number.isFinite(parsedHearts) ? parsedHearts : settings.startingHearts)));
   if (hearts <= 0) return null;
   return {
-    wordLength: Math.min(MAX_WORD_LENGTH, Math.max(MIN_WORD_LENGTH, Math.floor(Number(game.wordLength)))),
+    guildId,
+    wordLength: Math.min(settings.maxWordLength, Math.max(settings.minWordLength, Math.floor(Number(game.wordLength)))),
     hearts,
     usedWords: new Set(Array.isArray(game.usedWords) ? game.usedWords.map(normalizeWord).filter(Boolean) : []),
     lastWord: game.lastWord ? normalizeWord(game.lastWord) : null,
     lastUserId: game.lastUserId || null,
     requiredFirstLetter: game.requiredFirstLetter ? normalizeWord(game.requiredFirstLetter).slice(0, 1) : null,
     startedAt: Number(game.startedAt) || Date.now(),
-    expiresAt: Number(game.expiresAt) || Date.now() + TURN_TIMEOUT_MS,
+    expiresAt: Number(game.expiresAt) || Date.now() + settings.turnTimeoutMs,
     streak: Math.max(0, Math.floor(Number(game.streak) || 0)),
   };
 }
@@ -131,10 +157,11 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function pickWordLength() {
+function pickWordLength(guildId) {
+  const settings = getWordChainSettings(guildId);
   const lengths = [];
-  for (let length = MIN_WORD_LENGTH; length <= MAX_WORD_LENGTH; length += 1) lengths.push(length);
-  return randomItem(lengths) || MIN_WORD_LENGTH;
+  for (let length = settings.minWordLength; length <= settings.maxWordLength; length += 1) lengths.push(length);
+  return randomItem(lengths) || settings.minWordLength;
 }
 
 function formatCountdown(timestamp) {
@@ -174,7 +201,9 @@ function awardCorrectWordXp(message) {
 
 function getGameLine(guildId) {
   if (!currentGame) return 'Word Chain is not running.';
-  const wordChainChannelId = getWordChainChannelId(guildId);
+  const resolvedGuildId = getGameGuildId(guildId);
+  const settings = getWordChainSettings(resolvedGuildId);
+  const wordChainChannelId = getWordChainChannelId(resolvedGuildId);
   const required = currentGame.requiredFirstLetter ? `\nNext word must start with: **${currentGame.requiredFirstLetter.toUpperCase()}**` : '';
   const previous = currentGame.lastWord ? `\nLast word: **${currentGame.lastWord}**` : '\nFirst valid word can start with any letter.';
   const lastPlayer = currentGame.lastUserId ? `\nLast player: <@${currentGame.lastUserId}>` : '';
@@ -183,7 +212,7 @@ function getGameLine(guildId) {
     `Channel: <#${wordChainChannelId}>`,
     `Word length: **${currentGame.wordLength} letters**`,
     `Streak: **${currentGame.streak || 0} words**`,
-    `Server hearts: **${currentGame.hearts}/${STARTING_HEARTS}**`,
+    `Server hearts: **${currentGame.hearts}/${settings.startingHearts}**`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
     previous,
     lastPlayer,
@@ -191,8 +220,8 @@ function getGameLine(guildId) {
   ].join('\n');
 }
 
-async function sendToGameChannel(content, accentColor) {
-  const channel = await getGameChannel();
+async function sendToGameChannel(content, accentColor, guildId = null) {
+  const channel = await getGameChannel(guildId);
   if (!channel?.isTextBased?.()) return null;
   return channel.send({ ...buildPanel(content, accentColor), allowedMentions: NO_MENTIONS }).catch((error) => {
     logCommandSystem(`Word Chain send failed: ${error?.message ?? 'unknown error'}`);
@@ -200,11 +229,12 @@ async function sendToGameChannel(content, accentColor) {
   });
 }
 
-async function getGameChannel() {
-  if (channelRef?.id === WORD_CHAIN_CHANNEL_ID) return channelRef;
+async function getGameChannel(guildId = null) {
+  const channelId = getWordChainChannelId(guildId);
+  if (channelRef?.id === channelId) return channelRef;
   if (!clientRef) return null;
-  channelRef = clientRef.channels.cache.get(WORD_CHAIN_CHANNEL_ID)
-    || await clientRef.channels.fetch(WORD_CHAIN_CHANNEL_ID).catch((error) => {
+  channelRef = clientRef.channels.cache.get(channelId)
+    || await clientRef.channels.fetch(channelId).catch((error) => {
       logCommandSystem(`Word Chain channel fetch failed: ${error?.message ?? 'unknown error'}`);
       return null;
     });
@@ -232,53 +262,61 @@ function scheduleTurnTimer() {
 
 function resetTurnCountdown() {
   if (!currentGame) return;
-  currentGame.expiresAt = Date.now() + TURN_TIMEOUT_MS;
+  const settings = getWordChainSettings(currentGame.guildId);
+  currentGame.expiresAt = Date.now() + settings.turnTimeoutMs;
   persistState();
   scheduleTurnTimer();
 }
 
-async function startGame(reason = 'auto') {
+async function startGame(reason = 'auto', guildId = null) {
   if (currentGame) return currentGame;
   if (cooldownEndsAt > Date.now()) return null;
   clearCooldownTimer();
   cooldownEndsAt = 0;
 
-  const wordLength = pickWordLength();
+  const resolvedGuildId = getGameGuildId(guildId);
+  const settings = getWordChainSettings(resolvedGuildId);
+  const wordLength = pickWordLength(resolvedGuildId);
   currentGame = {
+    guildId: resolvedGuildId,
     wordLength,
-    hearts: STARTING_HEARTS,
+    hearts: settings.startingHearts,
     usedWords: new Set(),
     lastWord: null,
     lastUserId: null,
     requiredFirstLetter: null,
     startedAt: Date.now(),
-    expiresAt: Date.now() + TURN_TIMEOUT_MS,
+    expiresAt: Date.now() + settings.turnTimeoutMs,
     streak: 0,
   };
   persistState();
   scheduleTurnTimer();
 
-  await sendToGameChannel(`${getGameLine()}\n\nGame started${reason === 'auto' ? ' automatically' : ''}.`, 0x57f287);
+  await sendToGameChannel(`${getGameLine(resolvedGuildId)}\n\nGame started${reason === 'auto' ? ' automatically' : ''}.`, 0x57f287, resolvedGuildId);
   return currentGame;
 }
 
-function scheduleNextGame() {
+function scheduleNextGame(guildId = null) {
+  const resolvedGuildId = getGameGuildId(guildId);
+  const settings = getWordChainSettings(resolvedGuildId);
   clearCooldownTimer();
-  cooldownEndsAt = Date.now() + GAME_COOLDOWN_MS;
+  cooldownEndsAt = Date.now() + settings.gameCooldownMs;
   persistState();
   cooldownTimer = setTimeout(() => {
     cooldownEndsAt = 0;
     persistState();
-    void startGame('auto');
-  }, GAME_COOLDOWN_MS);
+    void startGame('auto', resolvedGuildId);
+  }, settings.gameCooldownMs);
 }
 
 async function endGame(reason) {
+  const guildId = getGameGuildId();
+  const settings = getWordChainSettings(guildId);
   clearTurnTimer();
   currentGame = null;
   persistState();
-  await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + GAME_COOLDOWN_MS)}.`, 0xed4245);
-  scheduleNextGame();
+  await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + settings.gameCooldownMs)}.`, 0xed4245, guildId);
+  scheduleNextGame(guildId);
 }
 
 async function loseHeart(reason) {
@@ -287,13 +325,15 @@ async function loseHeart(reason) {
   currentGame.streak = 0;
   persistState();
 
+  const guildId = getGameGuildId();
+  const settings = getWordChainSettings(guildId);
   if (currentGame.hearts <= 0) {
     await endGame(`${reason}. Server ran out of hearts.`);
     return;
   }
 
   resetTurnCountdown();
-  await sendToGameChannel(`${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${STARTING_HEARTS}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c);
+  await sendToGameChannel(`${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nServer lost 1 heart. Hearts left: **${currentGame.hearts}/${settings.startingHearts}**\nCountdown restarted: ${formatCountdown(currentGame.expiresAt)}`, 0xfee75c, guildId);
 }
 
 async function handleTurnTimeout() {
@@ -370,7 +410,7 @@ async function muteMemberInGameChannel(message, reason) {
         logCommandSystem(`Word Chain punishment role remove failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
       });
     }
-  }, PUNISHMENT_MS);
+  }, getWordChainSettings(message.guild.id).punishmentMs);
 
   return result;
 }
@@ -470,7 +510,7 @@ async function validateWord(word) {
   return null;
 }
 
-function formatPunishmentLine(result) {
+function formatPunishmentLine(message, result) {
   const muteText = result?.muted ? 'muted in this channel' : 'not muted because channel permissions could not be updated';
   if (result?.roleAdded) {
     const punishmentRoleId = getPunishmentRoleId(message.guild.id);
@@ -489,21 +529,22 @@ async function punishInvalidWord(message, word, reason) {
     persistState();
   }
   await message.react('\u274c').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\n${formatPunishmentLine(punishment)}`, 0xed4245);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\n${formatPunishmentLine(message, punishment)}`, 0xed4245, message.guild.id);
   await loseHeart('Invalid word penalty.');
 }
 
 async function rejectTemporaryValidationIssue(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
 }
 
 async function rejectRepeatedPlayer(message) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c);
+  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
 }
 
 async function acceptWord(message, word) {
+  if (!currentGame.guildId) currentGame.guildId = message.guild.id;
   currentGame.usedWords.add(word);
   currentGame.lastWord = word;
   currentGame.lastUserId = message.author.id;
@@ -513,7 +554,7 @@ async function acceptWord(message, word) {
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
   const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
-  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\n${xpLine}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287);
+  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\n${xpLine}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287, message.guild.id);
 }
 
 async function init(client) {
@@ -521,10 +562,10 @@ async function init(client) {
   if (initStarted) return;
   initStarted = true;
   restoreState();
-  await getGameChannel();
+  await getGameChannel(getGameGuildId());
   if (currentGame) {
     scheduleTurnTimer();
-    await sendToGameChannel(`${getGameLine()}\n\nGame restored after restart.`, 0x57f287);
+    logCommandSystem(`Word Chain restored active game for guild ${getGameGuildId()}; no public restore message sent.`);
     return;
   }
   if (cooldownEndsAt > Date.now()) {
@@ -532,19 +573,23 @@ async function init(client) {
     cooldownTimer = setTimeout(() => {
       cooldownEndsAt = 0;
       persistState();
-      void startGame('auto');
+      void startGame('auto', getFallbackGuildId());
     }, Math.max(1000, cooldownEndsAt - Date.now()));
     return;
   }
-  await startGame('auto');
+  await startGame('auto', getFallbackGuildId());
 }
 
 async function handleMessageCreate(message) {
   if (message.author?.bot || !message.guild || message.channelId !== getWordChainChannelId(message.guild.id)) return;
   if (!currentGame) {
     if (cooldownEndsAt > Date.now()) return;
-    await startGame('auto');
+    await startGame('auto', message.guild.id);
     return;
+  }
+  if (!currentGame.guildId) {
+    currentGame.guildId = message.guild.id;
+    persistState();
   }
 
   const word = getSubmittedWord(message);
@@ -583,7 +628,7 @@ async function handleStatus(interaction) {
     return;
   }
 
-  if (!currentGame) await startGame('manual');
+  if (!currentGame) await startGame('manual', interaction.guildId);
   await interaction.reply({ content: getGameLine(interaction.guildId), flags: interaction.channelId === wordChainChannelId ? undefined : 64, allowedMentions: NO_MENTIONS });
 }
 

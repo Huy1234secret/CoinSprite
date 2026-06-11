@@ -406,7 +406,16 @@ client.on(Events.MessageCreate, async (message) => {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
   await inviteRewardsManager.onMessageCreate(message).catch(() => null);
-  for (const command of client.commands.values()) if (typeof command.handleMessageCreate === 'function') await command.handleMessageCreate(message, client);
+  for (const command of client.commands.values()) {
+    if (typeof command.handleMessageCreate !== 'function') continue;
+    try {
+      await command.handleMessageCreate(message, client);
+    } catch (error) {
+      const commandName = command.data?.name ?? 'unknown';
+      console.error(`Message handler failed for ${commandName}:`, error);
+      logCommandSystem(`Message handler failed for ${commandName}: ${error?.message ?? 'unknown error'}`);
+    }
+  }
 });
 client.on(Events.MessageDelete, async (message) => {
   if (!isGuildEnabled(message.guildId)) return;
