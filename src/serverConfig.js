@@ -5,6 +5,10 @@ const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
 const SCHEMA_VERSION = 1;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
+function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
+  return { channelId, minXp, maxXp, cooldownMs };
+}
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
   channels: {
@@ -18,7 +22,6 @@ const DEFAULT_GUILD_CONFIG = {
     inviteLog: '1493915942047059999',
     inviteAnnounce: '1494322475117445383',
     levelUp: '1493909588775272448',
-    lowXpCategory: '1498006922912202948',
     backgroundLogThread: '1502296881395536033',
     wordChain: '1512480152410525958',
     giveawayAnnouncement: '1493927942546259969',
@@ -34,32 +37,21 @@ const DEFAULT_GUILD_CONFIG = {
   },
   xp: {
     channels: [
-      '1493906607166328872',
-      '1495676540875182212',
-      '1493907879328088064',
-      '1493907677284139099',
-      '1493908074669543544',
-      '1496256300655317092',
-      '1495375260642705488',
-      '1507985673871687823',
-      '1503763557421154447',
-      '1498299976781135893',
-      '1498299950235390156',
-    ],
-    lowXpChannels: [
-      '1503763557421154447',
-      '1498299976781135893',
-      '1498299950235390156',
-    ],
-    noXpChannels: [
-      '1503708687569522778',
-      '1503763965497315458',
-      '1503773311547478196',
-      '1503779472329936988',
+      xpChannel('1493906607166328872'),
+      xpChannel('1495676540875182212'),
+      xpChannel('1493907879328088064'),
+      xpChannel('1493907677284139099'),
+      xpChannel('1493908074669543544'),
+      xpChannel('1496256300655317092'),
+      xpChannel('1495375260642705488'),
+      xpChannel('1507985673871687823'),
+      xpChannel('1503763557421154447', 0.5, 0.5),
+      xpChannel('1498299976781135893', 0.5, 0.5),
+      xpChannel('1498299950235390156', 0.5, 0.5),
     ],
     messageXpMin: 1,
     messageXpMax: 3,
-    lowXpAmount: 0.5,
+    messageCooldownMs: 0,
     boosts: [
       { roleId: '1502905486645788713', xpPercent: 10 },
       { roleId: '1502905217945964596', xpPercent: 5 },
@@ -211,7 +203,12 @@ function normalizeState(rawState) {
     guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_GUILD_CONFIG);
   } else {
     for (const [guildId, guildConfig] of Object.entries(rawGuilds)) {
-      guilds[guildId] = mergeConfig(DEFAULT_GUILD_CONFIG, guildConfig);
+      const merged = mergeConfig(DEFAULT_GUILD_CONFIG, guildConfig);
+      delete merged.channels.lowXpCategory;
+      delete merged.xp.lowXpChannels;
+      delete merged.xp.noXpChannels;
+      delete merged.xp.lowXpAmount;
+      guilds[guildId] = merged;
     }
   }
 
