@@ -7,7 +7,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
 const { getEligibleRoleIds } = require('../src/levelRoleRewards');
-const { canEarnXpInChannel, isLowXpChannel } = require('../src/xpChannels');
+const { canEarnXpInChannel, getXpChannelRule } = require('../src/xpChannels');
 const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +22,7 @@ const BACKGROUND_PREFIX = 'level:background:';
 const COLOR_MODAL_PREFIX = 'level:color-modal:';
 const BACKGROUND_MODAL_PREFIX = 'level:background-modal:';
 const BACKGROUND_UPLOAD_ID = 'level_card_background_upload';
+const messageXpCooldowns = new Map();
 const ACCEPTED_BACKGROUND_IMAGE_EXTENSIONS = new Set([
   '.apng',
   '.avif',
@@ -148,20 +149,17 @@ async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {
   }
 }
 
-function isXpDisabledChannel(channel) {
-  if (!channel) return false;
-  const noXpChannelIds = new Set(getXpConfig(channel.guildId).noXpChannels || []);
-  if (noXpChannelIds.has(channel.id)) return true;
-  if (channel.isThread?.()) return noXpChannelIds.has(channel.parentId);
-  return false;
+function getMessageXpCooldownKey(guildId, channelRule, userId) {
+  return `${guildId}:${channelRule?.channelId || 'unknown'}:${userId}`;
 }
 
-function isChannelInLowXpCategory(channel) {
-  if (!channel) return false;
-  const lowXpCategoryId = getLevelConfig(channel.guildId).channels.lowXpCategory;
-  if (isLowXpChannel(channel, channel.guildId)) return true;
-  if (channel.parentId === lowXpCategoryId) return true;
-  if (channel.isThread?.()) return channel.parent?.parentId === lowXpCategoryId;
+function isMessageXpOnCooldown(guildId, channelRule, userId) {
+  const cooldownMs = Math.max(0, Math.floor(Number(channelRule?.cooldownMs) || 0));
+  if (cooldownMs <= 0) return false;
+  const key = getMessageXpCooldownKey(guildId, channelRule, userId);
+  const until = messageXpCooldowns.get(key) || 0;
+  if (until > Date.now()) return true;
+  messageXpCooldowns.set(key, Date.now() + cooldownMs);
   return false;
 }
 
@@ -465,11 +463,13 @@ module.exports = {
       return;
     }
 
-    if (!canEarnXpInChannel(message.channel, message.guildId) || isXpDisabledChannel(message.channel)) return;
+    if (!canEarnXpInChannel(message.channel, message.guildId)) return;
 
-    const fixedXp = isChannelInLowXpCategory(message.channel) ? getXpConfig(message.guildId).lowXpAmount : undefined;
+    const xpRule = getXpChannelRule(message.channel, message.guildId) || getXpConfig(message.guildId);
+    if (isMessageXpOnCooldown(message.guildId, xpRule, message.author.id)) return;
     const result = manager.awardMessageXp(message.guild.id, message.author.id, {
-      fixedXp,
+      minXp: xpRule.minXp,
+      maxXp: xpRule.maxXp,
       source: 'message',
       channelId: message.channelId,
       messageId: message.id,

@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { PermissionFlagsBits } = require('discord.js');
+const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 
@@ -188,6 +188,65 @@ async function fetchAccessibleGuilds(client, userId) {
   return result;
 }
 
+function channelKind(channel) {
+  switch (channel?.type) {
+    case ChannelType.GuildCategory:
+      return 'category';
+    case ChannelType.GuildVoice:
+    case ChannelType.GuildStageVoice:
+      return 'voice';
+    case ChannelType.GuildAnnouncement:
+      return 'announcement';
+    case ChannelType.GuildForum:
+    case ChannelType.GuildMedia:
+      return 'forum';
+    default:
+      return 'text';
+  }
+}
+
+function channelSort(a, b) {
+  const parentA = a.parentId || '';
+  const parentB = b.parentId || '';
+  if (parentA !== parentB) return parentA.localeCompare(parentB);
+  if (a.rawPosition !== b.rawPosition) return a.rawPosition - b.rawPosition;
+  return a.name.localeCompare(b.name);
+}
+
+async function fetchGuildDirectory(guild) {
+  const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
+  const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
+  const channelItems = Array.from(channels.values())
+    .filter((channel) => channel && 'name' in channel)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      kind: channelKind(channel),
+      parentId: channel.parentId || null,
+      rawPosition: Number.isFinite(channel.rawPosition) ? channel.rawPosition : 0,
+    }))
+    .sort(channelSort);
+  const categoryItems = channelItems.filter((channel) => channel.kind === 'category');
+  const usableChannels = channelItems.filter((channel) => channel.kind !== 'category');
+  const roleItems = Array.from(roles.values())
+    .filter((role) => role && role.id !== guild.id)
+    .map((role) => ({
+      id: role.id,
+      name: role.name,
+      color: role.hexColor && role.hexColor !== '#000000' ? role.hexColor : '#99aab5',
+      position: Number.isFinite(role.position) ? role.position : 0,
+      managed: Boolean(role.managed),
+    }))
+    .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name));
+
+  return {
+    channels: usableChannels,
+    categories: categoryItems,
+    roles: roleItems,
+  };
+}
+
 async function requireAdmin(req, res, env, client, guildId = null) {
   const { session } = getSession(req, res, env);
   if (!session.user?.id) {
@@ -213,11 +272,6 @@ async function requireAdmin(req, res, env, client, guildId = null) {
 function asSnowflake(value, fallback = '') {
   const clean = String(value ?? '').trim();
   return /^\d{16,20}$/.test(clean) ? clean : fallback;
-}
-
-function asSnowflakeList(value, fallback = []) {
-  if (!Array.isArray(value)) return fallback;
-  return [...new Set(value.map((item) => asSnowflake(item)).filter(Boolean))];
 }
 
 function asNumber(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
@@ -251,6 +305,23 @@ function sanitizeLevelRewards(value, fallback = []) {
     .sort((a, b) => a.level - b.level);
 }
 
+function sanitizeXpChannelRules(value, fallback = [], xpConfig = {}) {
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => {
+      const channelId = asSnowflake(typeof item === 'string' ? item : item?.channelId);
+      if (!channelId) return null;
+      const minXp = asNumber(item?.minXp, xpConfig.messageXpMin ?? 0, 0, 100000);
+      return {
+        channelId,
+        minXp,
+        maxXp: asNumber(item?.maxXp, xpConfig.messageXpMax ?? minXp, minXp, 100000),
+        cooldownMs: asInteger(item?.cooldownMs, xpConfig.messageCooldownMs ?? 0, 0, 2_147_000_000),
+      };
+    })
+    .filter(Boolean);
+}
+
 function sanitizeGuildPatch(current, patch) {
   const clean = {};
 
@@ -275,10 +346,8 @@ function sanitizeGuildPatch(current, patch) {
     const requestedMax = 'messageXpMax' in patch.xp ? asInteger(patch.xp.messageXpMax, current.xp.messageXpMax, 0, 100000) : asInteger(current.xp.messageXpMax, requestedMin, 0, 100000);
     if ('messageXpMin' in patch.xp) clean.xp.messageXpMin = requestedMin;
     if ('messageXpMax' in patch.xp) clean.xp.messageXpMax = Math.max(requestedMin, requestedMax);
-    if ('lowXpAmount' in patch.xp) clean.xp.lowXpAmount = asNumber(patch.xp.lowXpAmount, current.xp.lowXpAmount, 0, 100000);
-    if ('channels' in patch.xp) clean.xp.channels = asSnowflakeList(patch.xp.channels, current.xp.channels);
-    if ('lowXpChannels' in patch.xp) clean.xp.lowXpChannels = asSnowflakeList(patch.xp.lowXpChannels, current.xp.lowXpChannels);
-    if ('noXpChannels' in patch.xp) clean.xp.noXpChannels = asSnowflakeList(patch.xp.noXpChannels, current.xp.noXpChannels);
+    if ('messageCooldownMs' in patch.xp) clean.xp.messageCooldownMs = asInteger(patch.xp.messageCooldownMs, current.xp.messageCooldownMs, 0, 2_147_000_000);
+    if ('channels' in patch.xp) clean.xp.channels = sanitizeXpChannelRules(patch.xp.channels, current.xp.channels, { ...current.xp, ...clean.xp });
     if ('boosts' in patch.xp) clean.xp.boosts = sanitizeBoosts(patch.xp.boosts, current.xp.boosts);
     if ('levelRoleRewards' in patch.xp) clean.xp.levelRoleRewards = sanitizeLevelRewards(patch.xp.levelRoleRewards, current.xp.levelRoleRewards);
   }
@@ -404,6 +473,20 @@ async function routeRequest(req, res, env, client) {
     if (!session) return;
     const guilds = await fetchAccessibleGuilds(client, session.user.id);
     sendJson(res, 200, { user: session.user, guilds });
+    return;
+  }
+
+  const directoryMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/directory$/);
+  if (directoryMatch && req.method === 'GET') {
+    const guildId = directoryMatch[1];
+    const session = await requireAdmin(req, res, env, client, guildId);
+    if (!session) return;
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      sendJson(res, 404, { error: 'Guild is not available to the bot.' });
+      return;
+    }
+    sendJson(res, 200, { guildId, directory: await fetchGuildDirectory(guild) });
     return;
   }
 

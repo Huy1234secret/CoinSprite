@@ -20,11 +20,13 @@ function getPunishmentDurationsMs(guildId) {
   return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp.punishmentDurationsMs || PUNISHMENT_DURATIONS_MS;
 }
 
-function getMessageXpRoll(guildId) {
+function getMessageXpRoll(guildId, options = {}) {
   const xpConfig = (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp;
-  const min = Math.max(0, Math.floor(Number(xpConfig.messageXpMin) || 0));
-  const max = Math.max(min, Math.floor(Number(xpConfig.messageXpMax) || min));
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  const min = Math.max(0, Number(options.minXp ?? xpConfig.messageXpMin) || 0);
+  const max = Math.max(min, Number(options.maxXp ?? xpConfig.messageXpMax) || min);
+  const minTenths = Math.round(min * 10);
+  const maxTenths = Math.round(max * 10);
+  return (Math.floor(Math.random() * (maxTenths - minTenths + 1)) + minTenths) / 10;
 }
 
 function loadCardCustomizations() {
@@ -208,7 +210,7 @@ function awardMessageXp(guildId, userId, options = {}) {
   const user = ensureUserState(guild, userId);
   const before = getProgress(user.totalXp);
   const hasFixedXp = Number.isFinite(options.fixedXp);
-  const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : getMessageXpRoll(guildId);
+  const rawXp = hasFixedXp ? floorOneDecimal(options.fixedXp) : getMessageXpRoll(guildId, options);
   const xp = floorOneDecimal(getXpGainForUser(rawXp, user));
   user.totalXp = floorOneDecimal(user.totalXp + xp);
   user.messages += 1;
