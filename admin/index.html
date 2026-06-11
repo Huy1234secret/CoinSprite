@@ -8,9 +8,12 @@
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <h1>CoinSprite Admin</h1>
-      <p id="sessionLabel">Discord login required</p>
+    <div class="brand">
+      <div class="brand-mark">CS</div>
+      <div>
+        <h1>CoinSprite Admin</h1>
+        <p id="sessionLabel">Discord login required</p>
+      </div>
     </div>
     <div class="topbar-actions">
       <a class="button primary" id="loginButton" href="/auth/discord">Log in with Discord</a>
@@ -18,13 +21,21 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main class="login-screen" id="loginPanel">
+    <div class="login-box">
+      <h2>Server Admin</h2>
+      <a class="button primary wide" href="/auth/discord">Log in with Discord</a>
+      <div class="status" id="loginStatus" role="status">Waiting for login</div>
+    </div>
+  </main>
+
+  <main class="layout" id="appShell" hidden>
     <aside class="sidebar">
-      <label for="guildSelect">Server</label>
+      <label class="field-label" for="guildSelect">Server</label>
       <select id="guildSelect" disabled>
         <option value="">No editable servers</option>
       </select>
-      <p class="hint">Only servers where your Discord account has Administrator permission appear here.</p>
+      <div class="server-meta" id="serverMeta"></div>
       <div class="status" id="statusBox" role="status">Loading session...</div>
     </aside>
 
@@ -32,67 +43,100 @@
       <div class="section-title">
         <div>
           <h2 id="guildTitle">Server settings</h2>
-          <p>Changes save to <code>data/server-config.json</code> and are used by the bot immediately on the next config read.</p>
+          <p id="guildSubtitle">Config editor</p>
         </div>
         <button class="button primary" id="saveButton" type="button">Save changes</button>
       </div>
 
+      <nav class="tabs" id="tabList" aria-label="Settings sections">
+        <button class="tab active" type="button" data-tab="xp">XP</button>
+        <button class="tab" type="button" data-tab="channels">Channels</button>
+        <button class="tab" type="button" data-tab="roles">Roles</button>
+        <button class="tab" type="button" data-tab="rewards">Rewards</button>
+        <button class="tab" type="button" data-tab="games">Games</button>
+      </nav>
+
       <form id="configForm">
-        <section class="panel">
-          <h3>XP</h3>
-          <div class="grid">
-            <label>Message XP min <input name="xp.messageXpMin" type="number" min="0" step="1"></label>
-            <label>Message XP max <input name="xp.messageXpMax" type="number" min="0" step="1"></label>
-            <label>Low XP amount <input name="xp.lowXpAmount" type="number" min="0" step="0.1"></label>
+        <section class="tab-panel active" data-panel="xp">
+          <div class="panel">
+            <h3>Message XP</h3>
+            <div class="grid">
+              <label>Minimum <input name="xp.messageXpMin" type="number" min="0" step="1"></label>
+              <label>Maximum <input name="xp.messageXpMax" type="number" min="0" step="1"></label>
+              <label>Default cooldown ms <input name="xp.messageCooldownMs" type="number" min="0" step="1000"></label>
+            </div>
           </div>
-          <div class="grid three">
-            <label>XP channels <textarea name="xp.channels" rows="7" spellcheck="false"></textarea></label>
-            <label>Low XP channels <textarea name="xp.lowXpChannels" rows="7" spellcheck="false"></textarea></label>
-            <label>No XP channels <textarea name="xp.noXpChannels" rows="7" spellcheck="false"></textarea></label>
-          </div>
-          <div class="grid two">
-            <label>XP boosts <textarea name="xp.boosts" rows="6" spellcheck="false" placeholder="roleId:percent"></textarea></label>
-            <label>Level role rewards <textarea name="xp.levelRoleRewards" rows="6" spellcheck="false" placeholder="level:roleId"></textarea></label>
-          </div>
-        </section>
 
-        <section class="panel">
-          <h3>Channels</h3>
-          <div class="grid three" id="channelsGrid"></div>
-        </section>
-
-        <section class="panel">
-          <h3>Roles</h3>
-          <div class="grid three" id="rolesGrid"></div>
-        </section>
-
-        <section class="panel">
-          <h3>Invite Rewards</h3>
-          <div class="grid">
-            <label class="checkline"><input name="inviteRewards.enabled" type="checkbox"> Enabled</label>
-            <label>Member cap <input name="inviteRewards.capMembers" type="number" min="0" step="1"></label>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>XP Channels</h3>
+              <button class="button small" id="addXpChannelButton" type="button">Add channel</button>
+            </div>
+            <div class="rows" id="xpChannelRows"></div>
           </div>
         </section>
 
-        <section class="panel">
-          <h3>Word Chain</h3>
-          <div class="grid three">
-            <label>Min word length <input name="wordChain.minWordLength" type="number" min="1" step="1"></label>
-            <label>Max word length <input name="wordChain.maxWordLength" type="number" min="1" step="1"></label>
-            <label>Starting hearts <input name="wordChain.startingHearts" type="number" min="1" step="1"></label>
-            <label>Turn timeout ms <input name="wordChain.turnTimeoutMs" type="number" min="1000" step="1000"></label>
-            <label>Punishment ms <input name="wordChain.punishmentMs" type="number" min="1000" step="1000"></label>
-            <label>Game cooldown ms <input name="wordChain.gameCooldownMs" type="number" min="1000" step="1000"></label>
+        <section class="tab-panel" data-panel="channels">
+          <div class="panel">
+            <h3>Configured Channels</h3>
+            <div class="settings-grid" id="channelsGrid"></div>
           </div>
         </section>
 
-        <section class="panel">
-          <h3>Giveaway Limits</h3>
-          <div class="grid">
-            <label>Min claim ms <input name="giveaway.minClaimMs" type="number" min="1000" step="1000"></label>
-            <label>Max claim ms <input name="giveaway.maxClaimMs" type="number" min="1000" step="1000"></label>
-            <label>Min duration ms <input name="giveaway.minDurationMs" type="number" min="1000" step="1000"></label>
-            <label>Max duration ms <input name="giveaway.maxDurationMs" type="number" min="1000" step="1000"></label>
+        <section class="tab-panel" data-panel="roles">
+          <div class="panel">
+            <h3>Configured Roles</h3>
+            <div class="settings-grid" id="rolesGrid"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="rewards">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>XP Boost Roles</h3>
+              <button class="button small" id="addBoostButton" type="button">Add boost</button>
+            </div>
+            <div class="rows" id="boostRows"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Level Role Rewards</h3>
+              <button class="button small" id="addRewardButton" type="button">Add reward</button>
+            </div>
+            <div class="rows" id="rewardRows"></div>
+          </div>
+
+          <div class="panel">
+            <h3>Invite Rewards</h3>
+            <div class="grid">
+              <label class="checkline"><input name="inviteRewards.enabled" type="checkbox"> Enabled</label>
+              <label>Member cap <input name="inviteRewards.capMembers" type="number" min="0" step="1"></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="games">
+          <div class="panel">
+            <h3>Word Chain</h3>
+            <div class="grid three">
+              <label>Min word length <input name="wordChain.minWordLength" type="number" min="1" step="1"></label>
+              <label>Max word length <input name="wordChain.maxWordLength" type="number" min="1" step="1"></label>
+              <label>Starting hearts <input name="wordChain.startingHearts" type="number" min="1" step="1"></label>
+              <label>Turn timeout ms <input name="wordChain.turnTimeoutMs" type="number" min="1000" step="1000"></label>
+              <label>Punishment ms <input name="wordChain.punishmentMs" type="number" min="1000" step="1000"></label>
+              <label>Game cooldown ms <input name="wordChain.gameCooldownMs" type="number" min="1000" step="1000"></label>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Giveaway Limits</h3>
+            <div class="grid">
+              <label>Min claim ms <input name="giveaway.minClaimMs" type="number" min="1000" step="1000"></label>
+              <label>Max claim ms <input name="giveaway.maxClaimMs" type="number" min="1000" step="1000"></label>
+              <label>Min duration ms <input name="giveaway.minDurationMs" type="number" min="1000" step="1000"></label>
+              <label>Max duration ms <input name="giveaway.maxDurationMs" type="number" min="1000" step="1000"></label>
+            </div>
           </div>
         </section>
       </form>

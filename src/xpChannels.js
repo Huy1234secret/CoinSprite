@@ -1,7 +1,32 @@
 const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('./serverConfig');
 
-const LOW_XP_CHANNEL_IDS = new Set(DEFAULT_GUILD_CONFIG.xp.lowXpChannels);
-const XP_CHANNEL_IDS = new Set(DEFAULT_GUILD_CONFIG.xp.channels);
+function normalizeXpChannelRule(rule, xpConfig = DEFAULT_GUILD_CONFIG.xp) {
+  if (typeof rule === 'string') {
+    return {
+      channelId: rule,
+      minXp: xpConfig.messageXpMin,
+      maxXp: xpConfig.messageXpMax,
+      cooldownMs: xpConfig.messageCooldownMs || 0,
+    };
+  }
+
+  const channelId = String(rule?.channelId || rule?.id || '').trim();
+  if (!channelId) return null;
+  const minXp = Math.max(0, Number(rule?.minXp ?? xpConfig.messageXpMin) || 0);
+  const maxXp = Math.max(minXp, Number(rule?.maxXp ?? xpConfig.messageXpMax) || minXp);
+  const cooldownMs = Math.max(0, Math.floor(Number(rule?.cooldownMs ?? xpConfig.messageCooldownMs) || 0));
+  return { channelId, minXp, maxXp, cooldownMs };
+}
+
+function getXpChannelRules(guildId) {
+  const xpConfig = getXpConfig(guildId);
+  return (xpConfig.channels || [])
+    .map((rule) => normalizeXpChannelRule(rule, xpConfig))
+    .filter(Boolean);
+}
+
+const XP_CHANNEL_IDS = new Set(getXpChannelRules().map((rule) => rule.channelId));
+const LOW_XP_CHANNEL_IDS = new Set();
 
 function getXpConfig(guildId) {
   return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp;
@@ -20,22 +45,23 @@ function getParentChannelId(channelOrId) {
 }
 
 function canEarnXpInChannel(channelOrId, guildId) {
-  const xpConfig = getXpConfig(getGuildId(channelOrId, guildId));
-  const channelId = getChannelId(channelOrId);
-  return new Set(xpConfig.channels || []).has(String(channelId || ''));
-}
-
-function isLowXpChannel(channelOrId, guildId) {
-  const xpConfig = getXpConfig(getGuildId(channelOrId, guildId));
-  const lowXpChannelIds = new Set(xpConfig.lowXpChannels || []);
   const channelId = getChannelId(channelOrId);
   const parentId = getParentChannelId(channelOrId);
-  return lowXpChannelIds.has(String(channelId || '')) || lowXpChannelIds.has(String(parentId || ''));
+  return getXpChannelRules(getGuildId(channelOrId, guildId))
+    .some((rule) => rule.channelId === String(channelId || '') || rule.channelId === String(parentId || ''));
+}
+
+function getXpChannelRule(channelOrId, guildId) {
+  const channelId = getChannelId(channelOrId);
+  const parentId = getParentChannelId(channelOrId);
+  return getXpChannelRules(getGuildId(channelOrId, guildId))
+    .find((rule) => rule.channelId === String(channelId || '') || rule.channelId === String(parentId || '')) || null;
 }
 
 module.exports = {
   XP_CHANNEL_IDS,
   LOW_XP_CHANNEL_IDS,
   canEarnXpInChannel,
-  isLowXpChannel,
+  getXpChannelRule,
+  getXpChannelRules,
 };
