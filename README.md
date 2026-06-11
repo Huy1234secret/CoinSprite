@@ -115,6 +115,8 @@ Supported item aliases (case-insensitive):
 ## Admin Web Panel
 The bot can also run a small Discord-login admin panel from the same process. It only allows a user to edit guild config when the bot can confirm that Discord member has Administrator permission in that guild.
 
+Admin sessions are stored in `data/admin-sessions.json` and expire after three days. The dashboard can list guild channels, categories, roles, and active or archived forum threads that are visible to the bot.
+
 Add these values to `.env` to enable it:
 ```env
 ADMIN_WEB_PORT=3000
