@@ -1,8 +1,1 @@
-body{height:100vh;overflow:hidden}
-.login-screen{height:calc(100vh - 72px);overflow:auto}
-.layout{height:calc(100vh - 72px);min-height:0;overflow:hidden}
-.sidebar,.workspace{overflow:auto}
-.workspace{padding-bottom:104px}
-.section-title>#saveButton{display:none}
-.admin-help{margin:8px 0 14px;max-width:860px}
-.xp-channel-header{display:grid;grid-template-columns:minmax(240px,1.4fr
+body{height:100vh;overflow:hidden}.login-screen{height:calc(100vh - 72px);overflow:auto}.layout{height:calc(100vh - 72px);overflow:hidden}.sidebar,.workspace{overflow:auto}.workspace{padding-bottom:96px}.section-title>#saveButton{display:none}.admin-help{margin:8px 0 14px;max-width:860px}.xp-channel-header{display:grid;grid-template-columns:1fr 120px 120px 150px auto;gap:10px;margin-bottom:8px;color:var(--muted);font-size:12px;font-weight:800}#dirtyBar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;width:min(920px,calc(100vw - 32px));display:none;align
