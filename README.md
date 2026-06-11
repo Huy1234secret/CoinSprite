@@ -119,15 +119,18 @@ Admin sessions are stored in `data/admin-sessions.json` and expire after three d
 
 Add these values to `.env` to enable it:
 ```env
+ADMIN_WEB_HOST=0.0.0.0
 ADMIN_WEB_PORT=3000
 DISCORD_CLIENT_ID=your_discord_application_client_id
 DISCORD_CLIENT_SECRET=your_discord_application_client_secret
-DISCORD_REDIRECT_URI=https://panel.yourdomain.com/auth/discord/callback
+DISCORD_REDIRECT_URI=http://your_server_ip:3000/auth/discord/callback
 SESSION_SECRET=use_a_long_random_secret_here
-ADMIN_COOKIE_SECURE=true
+ADMIN_COOKIE_SECURE=false
 ```
 
-In the Discord Developer Portal, add the exact `DISCORD_REDIRECT_URI` to the application's OAuth2 redirect URLs. On Vultr, proxy your public HTTPS domain to `http://127.0.0.1:3000`; the admin server intentionally listens on localhost so it is not exposed directly.
+`ADMIN_WEB_HOST=0.0.0.0` exposes the panel through the Vultr instance network interfaces. Open TCP port `3000` in the Vultr firewall and Ubuntu firewall, then visit `http://your_server_ip:3000`. In the Discord Developer Portal, add the exact `DISCORD_REDIRECT_URI` to the application's OAuth2 redirect URLs.
+
+For production, put Nginx or Caddy in front of `127.0.0.1:3000`, use an HTTPS domain, set `ADMIN_WEB_HOST=127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
 ## Ticket System
 - The bot maintains a Components V2 support ticket panel in channel `1493971939545583836` on startup (`/ticket-panel` can force-refresh).
