@@ -40,22 +40,31 @@ function getChannelId(channelOrId) {
   return typeof channelOrId === 'string' ? channelOrId : channelOrId?.id;
 }
 
-function getParentChannelId(channelOrId) {
-  return typeof channelOrId === 'string' ? null : channelOrId?.parentId;
+function getAncestorChannelIds(channelOrId) {
+  if (typeof channelOrId === 'string') return [];
+  return [
+    channelOrId?.parentId,
+    channelOrId?.parent?.parentId,
+  ].map((id) => String(id || '')).filter(Boolean);
+}
+
+function getCandidateChannelIds(channelOrId) {
+  return [String(getChannelId(channelOrId) || ''), ...getAncestorChannelIds(channelOrId)].filter(Boolean);
 }
 
 function canEarnXpInChannel(channelOrId, guildId) {
-  const channelId = getChannelId(channelOrId);
-  const parentId = getParentChannelId(channelOrId);
+  const candidateIds = new Set(getCandidateChannelIds(channelOrId));
   return getXpChannelRules(getGuildId(channelOrId, guildId))
-    .some((rule) => rule.channelId === String(channelId || '') || rule.channelId === String(parentId || ''));
+    .some((rule) => candidateIds.has(rule.channelId));
 }
 
 function getXpChannelRule(channelOrId, guildId) {
-  const channelId = getChannelId(channelOrId);
-  const parentId = getParentChannelId(channelOrId);
-  return getXpChannelRules(getGuildId(channelOrId, guildId))
-    .find((rule) => rule.channelId === String(channelId || '') || rule.channelId === String(parentId || '')) || null;
+  const rules = getXpChannelRules(getGuildId(channelOrId, guildId));
+  for (const candidateId of getCandidateChannelIds(channelOrId)) {
+    const matchingRule = rules.find((rule) => rule.channelId === candidateId);
+    if (matchingRule) return matchingRule;
+  }
+  return null;
 }
 
 module.exports = {

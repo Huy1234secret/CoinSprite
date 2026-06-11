@@ -1,20 +1,32 @@
+const TAB_NAMES = {
+  xp: 'XP settings',
+  channels: 'Channels',
+  roles: 'Roles',
+  rewards: 'Rewards',
+  games: 'Games',
+};
+
 const state = {
   me: null,
   guilds: [],
   guildId: '',
-  config: null,
+  savedConfig: null,
+  savedSnapshots: {},
   directory: { channels: [], categories: [], roles: [] },
   channelValues: {},
   roleValues: {},
-  xpChannels: [],
+  xpGroups: [],
   boosts: [],
   rewards: [],
   activeTab: 'xp',
-  dirty: false,
+  dirtyTabs: new Set(),
+  saving: false,
 };
 
 const elements = {
   sessionLabel: document.querySelector('#sessionLabel'),
+  userChip: document.querySelector('#userChip'),
+  userAvatar: document.querySelector('#userAvatar'),
   loginButton: document.querySelector('#loginButton'),
   logoutButton: document.querySelector('#logoutButton'),
   loginPanel: document.querySelector('#loginPanel'),
@@ -26,12 +38,17 @@ const elements = {
   editor: document.querySelector('#editor'),
   guildTitle: document.querySelector('#guildTitle'),
   guildSubtitle: document.querySelector('#guildSubtitle'),
+  savedState: document.querySelector('#savedState'),
   saveButton: document.querySelector('#saveButton'),
+  resetTabButton: document.querySelector('#resetTabButton'),
+  unsavedBar: document.querySelector('#unsavedBar'),
+  unsavedDetail: document.querySelector('#unsavedDetail'),
   configForm: document.querySelector('#configForm'),
   tabList: document.querySelector('#tabList'),
   channelsGrid: document.querySelector('#channelsGrid'),
   rolesGrid: document.querySelector('#rolesGrid'),
   xpChannelRows: document.querySelector('#xpChannelRows'),
+  xpEmptyState: document.querySelector('#xpEmptyState'),
   addXpChannelButton: document.querySelector('#addXpChannelButton'),
   boostRows: document.querySelector('#boostRows'),
   addBoostButton: document.querySelector('#addBoostButton'),
@@ -39,18 +56,15 @@ const elements = {
   addRewardButton: document.querySelector('#addRewardButton'),
 };
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function setStatus(message, kind = '') {
   elements.statusBox.textContent = message;
   elements.statusBox.className = `status${kind ? ` ${kind}` : ''}`;
   elements.loginStatus.textContent = message;
-  elements.loginStatus.className = elements.statusBox.className;
-}
-
-function setDirty(value) {
-  state.dirty = Boolean(value);
-  elements.saveButton.disabled = !state.dirty;
-  elements.saveButton.classList.toggle('dirty', state.dirty);
-  elements.saveButton.textContent = state.dirty ? 'Save changes' : 'Saved';
+  elements.loginStatus.className = `status compact${kind ? ` ${kind}` : ''}`;
 }
 
 async function api(path, options = {}) {
@@ -69,11 +83,8 @@ async function api(path, options = {}) {
 function setField(name, value) {
   const field = elements.configForm.elements[name];
   if (!field) return;
-  if (field.type === 'checkbox') {
-    field.checked = Boolean(value);
-  } else {
-    field.value = value ?? '';
-  }
+  if (field.type === 'checkbox') field.checked = Boolean(value);
+  else field.value = value ?? '';
 }
 
 function getField(name) {
@@ -82,14 +93,36 @@ function getField(name) {
   return field.type === 'checkbox' ? field.checked : field.value;
 }
 
+function secondsFromMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return numeric / 1000;
+}
+
+function msFromSeconds(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.round(numeric * 1000));
+}
+
 function labelFromKey(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase());
+}
+
+function displayChannelLabel(item) {
+  if (item.kind === 'thread' && item.parentName) return `${item.parentName} / ${item.name}`;
+  return item.name;
 }
 
 function channelOptions() {
   return [
     ...state.directory.categories.map((item) => ({ ...item, label: item.name, optionType: 'category' })),
-    ...state.directory.channels.map((item) => ({ ...item, label: item.name, optionType: item.kind || 'text' })),
+    ...state.directory.channels.map((item) => ({
+      ...item,
+      label: displayChannelLabel(item),
+      optionType: item.kind || 'text',
+      searchText: `${item.name} ${item.parentName || ''} ${item.id}`.toLowerCase(),
+    })),
   ];
 }
 
@@ -97,14 +130,20 @@ function roleOptions() {
   return state.directory.roles.map((item) => ({ ...item, label: item.name, optionType: 'role' }));
 }
 
-function optionById(options, id) {
-  return options.find((option) => option.id === id) || null;
+function optionById(options, id, type) {
+  return options.find((option) => option.id === id) || {
+    id,
+    label: `Unavailable (${id})`,
+    optionType: type === 'role' ? 'role' : 'text',
+    color: '#99aab5',
+  };
 }
 
 function channelTag(option) {
   if (option?.optionType === 'category') return 'CAT';
   if (option?.optionType === 'voice') return 'VC';
   if (option?.optionType === 'forum') return 'FOR';
+  if (option?.optionType === 'thread') return 'THR';
   if (option?.optionType === 'announcement') return 'ANN';
   return '#';
 }
@@ -141,18 +180,18 @@ function renderPicker(mount, options, selectedValue, settings) {
   button.type = 'button';
   const selectedWrap = document.createElement('span');
   selectedWrap.className = 'selected-wrap';
-  const selectedOptions = [...selected].map((id) => optionById(options, id)).filter(Boolean);
+  const selectedOptions = [...selected].map((id) => optionById(options, id, type));
   if (selectedOptions.length === 0) {
     const empty = document.createElement('span');
     empty.className = 'placeholder';
     empty.textContent = placeholder;
     selectedWrap.append(empty);
   } else {
-    selectedOptions.slice(0, multiple ? 8 : 1).forEach((option) => selectedWrap.append(makeToken(option, type)));
-    if (selectedOptions.length > 8) {
+    selectedOptions.slice(0, multiple ? 5 : 1).forEach((option) => selectedWrap.append(makeToken(option, type)));
+    if (selectedOptions.length > 5) {
       const more = document.createElement('span');
       more.className = 'token';
-      more.textContent = `+${selectedOptions.length - 8}`;
+      more.textContent = `+${selectedOptions.length - 5}`;
       selectedWrap.append(more);
     }
   }
@@ -165,20 +204,18 @@ function renderPicker(mount, options, selectedValue, settings) {
   menu.className = 'picker-menu';
   const search = document.createElement('input');
   search.className = 'picker-search';
-  search.placeholder = 'Search';
+  search.placeholder = 'Search by name or ID';
   search.autocomplete = 'off';
   const optionList = document.createElement('div');
   optionList.className = 'option-list';
   menu.append(search, optionList);
 
-  function close() {
-    menu.classList.remove('open');
-    button.classList.remove('open');
-  }
-
   function drawOptions() {
     const query = search.value.trim().toLowerCase();
-    const filtered = options.filter((option) => !query || option.label.toLowerCase().includes(query) || option.id.includes(query));
+    const filtered = options.filter((option) => {
+      const haystack = option.searchText || `${option.label} ${option.id}`.toLowerCase();
+      return !query || haystack.includes(query);
+    });
     optionList.replaceChildren();
     if (filtered.length === 0) {
       const empty = document.createElement('div');
@@ -197,19 +234,17 @@ function renderPicker(mount, options, selectedValue, settings) {
       main.append(makeToken(option, type));
       const check = document.createElement('span');
       check.className = 'check-mark';
-      check.textContent = selected.has(option.id) ? 'ON' : '';
+      check.textContent = selected.has(option.id) ? 'Selected' : '';
       row.append(main, check);
       row.addEventListener('click', () => {
         if (multiple) {
           if (selected.has(option.id)) selected.delete(option.id);
           else selected.add(option.id);
           onChange([...selected]);
-          renderPicker(mount, options, [...selected], settings);
         } else {
           onChange(option.id);
-          close();
         }
-        setDirty(true);
+        refreshDirtyState();
       });
       optionList.append(row);
     }
@@ -229,7 +264,6 @@ function renderPicker(mount, options, selectedValue, settings) {
   search.addEventListener('input', drawOptions);
   picker.append(button, menu);
   mount.append(picker);
-  drawOptions();
 }
 
 document.addEventListener('click', (event) => {
@@ -238,87 +272,120 @@ document.addEventListener('click', (event) => {
   document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open'));
 });
 
-function normalizeXpChannelRule(value) {
+function normalizeXpRule(value, xpConfig) {
   if (typeof value === 'string') {
     return {
       channelId: value,
-      minXp: Number(getField('xp.messageXpMin')) || 1,
-      maxXp: Number(getField('xp.messageXpMax')) || 3,
-      cooldownMs: Number(getField('xp.messageCooldownMs')) || 0,
+      minXp: Number(xpConfig.messageXpMin) || 0,
+      maxXp: Number(xpConfig.messageXpMax) || 0,
+      cooldownMs: Number(xpConfig.messageCooldownMs) || 0,
     };
   }
   return {
     channelId: value?.channelId || '',
-    minXp: Number(value?.minXp ?? getField('xp.messageXpMin')) || 0,
-    maxXp: Number(value?.maxXp ?? getField('xp.messageXpMax')) || 0,
-    cooldownMs: Number(value?.cooldownMs ?? getField('xp.messageCooldownMs')) || 0,
+    minXp: Number(value?.minXp ?? xpConfig.messageXpMin) || 0,
+    maxXp: Number(value?.maxXp ?? xpConfig.messageXpMax) || 0,
+    cooldownMs: Number(value?.cooldownMs ?? xpConfig.messageCooldownMs) || 0,
   };
 }
 
-function renderXpChannelRows() {
-  const options = channelOptions();
-  elements.xpChannelRows.replaceChildren();
-  state.xpChannels.forEach((rule, index) => {
-    const row = document.createElement('div');
-    row.className = 'config-row xp-row';
-    const pickerWrap = document.createElement('div');
-    pickerWrap.className = 'picker-field';
-    const label = document.createElement('span');
-    label.className = 'field-label';
-    label.textContent = 'Channel or category';
-    const pickerMount = document.createElement('div');
-    pickerWrap.append(label, pickerMount);
-
-    const min = rowInput('Min XP', rule.minXp, 'number', '0.1');
-    const max = rowInput('Max XP', rule.maxXp, 'number', '0.1');
-    const cooldown = rowInput('Cooldown ms', rule.cooldownMs, 'number', '1000');
-    const remove = document.createElement('button');
-    remove.className = 'button small danger';
-    remove.type = 'button';
-    remove.textContent = 'Remove';
-
-    renderPicker(pickerMount, options, rule.channelId, {
-      type: 'channel',
-      placeholder: 'Select channel',
-      onChange: (value) => {
-        state.xpChannels[index].channelId = value;
-        renderXpChannelRows();
-      },
-    });
-
-    min.input.addEventListener('input', () => {
-      state.xpChannels[index].minXp = Number(min.input.value);
-      setDirty(true);
-    });
-    max.input.addEventListener('input', () => {
-      state.xpChannels[index].maxXp = Number(max.input.value);
-      setDirty(true);
-    });
-    cooldown.input.addEventListener('input', () => {
-      state.xpChannels[index].cooldownMs = Number(cooldown.input.value);
-      setDirty(true);
-    });
-    remove.addEventListener('click', () => {
-      state.xpChannels.splice(index, 1);
-      renderXpChannelRows();
-      setDirty(true);
-    });
-
-    row.append(pickerWrap, min.label, max.label, cooldown.label, remove);
-    elements.xpChannelRows.append(row);
-  });
+function groupXpRules(xpConfig) {
+  const groups = new Map();
+  for (const rawRule of xpConfig?.channels || []) {
+    const rule = normalizeXpRule(rawRule, xpConfig || {});
+    if (!rule.channelId) continue;
+    const key = `${rule.minXp}|${rule.maxXp}|${rule.cooldownMs}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        channelIds: [],
+        minXp: rule.minXp,
+        maxXp: rule.maxXp,
+        cooldownSeconds: secondsFromMs(rule.cooldownMs),
+      });
+    }
+    groups.get(key).channelIds.push(rule.channelId);
+  }
+  return Array.from(groups.values());
 }
 
-function rowInput(title, value, type = 'number', step = '1') {
+function setXpGroupChannels(groupIndex, channelIds) {
+  const selected = new Set(channelIds);
+  state.xpGroups.forEach((group, index) => {
+    if (index === groupIndex) return;
+    group.channelIds = group.channelIds.filter((channelId) => !selected.has(channelId));
+  });
+  state.xpGroups[groupIndex].channelIds = channelIds;
+  renderXpChannelRows();
+}
+
+function rowInput(title, value, step = '1') {
   const label = document.createElement('label');
   label.textContent = title;
   const input = document.createElement('input');
-  input.type = type;
+  input.type = 'number';
   input.min = '0';
   input.step = step;
   input.value = value ?? '';
   label.append(input);
   return { label, input };
+}
+
+function renderXpChannelRows() {
+  const options = channelOptions();
+  elements.xpChannelRows.replaceChildren();
+  elements.xpEmptyState.hidden = state.xpGroups.length > 0;
+
+  state.xpGroups.forEach((group, index) => {
+    const row = document.createElement('div');
+    row.className = 'config-row xp-group-row';
+    const pickerWrap = document.createElement('div');
+    pickerWrap.className = 'picker-field';
+    const label = document.createElement('span');
+    label.className = 'field-label';
+    label.textContent = 'Channels, categories, or threads';
+    const pickerMount = document.createElement('div');
+    pickerWrap.append(label, pickerMount);
+
+    const rangeWrap = document.createElement('div');
+    rangeWrap.className = 'xp-range';
+    const min = rowInput('Minimum XP', group.minXp, '0.1');
+    const max = rowInput('Maximum XP', group.maxXp, '0.1');
+    const cooldown = rowInput('Cooldown (seconds)', group.cooldownSeconds, '1');
+    rangeWrap.append(min.label, max.label, cooldown.label);
+
+    const remove = document.createElement('button');
+    remove.className = 'button small danger';
+    remove.type = 'button';
+    remove.textContent = 'Remove';
+
+    renderPicker(pickerMount, options, group.channelIds, {
+      multiple: true,
+      type: 'channel',
+      placeholder: 'Select one or more destinations',
+      onChange: (value) => setXpGroupChannels(index, value),
+    });
+
+    min.input.addEventListener('input', () => {
+      state.xpGroups[index].minXp = Number(min.input.value);
+      refreshDirtyState();
+    });
+    max.input.addEventListener('input', () => {
+      state.xpGroups[index].maxXp = Number(max.input.value);
+      refreshDirtyState();
+    });
+    cooldown.input.addEventListener('input', () => {
+      state.xpGroups[index].cooldownSeconds = Number(cooldown.input.value);
+      refreshDirtyState();
+    });
+    remove.addEventListener('click', () => {
+      state.xpGroups.splice(index, 1);
+      renderXpChannelRows();
+      refreshDirtyState();
+    });
+
+    row.append(pickerWrap, rangeWrap, remove);
+    elements.xpChannelRows.append(row);
+  });
 }
 
 function renderObjectPickers(container, groupName, values, options, type) {
@@ -357,7 +424,7 @@ function renderBoostRows() {
     label.textContent = 'Role';
     const mount = document.createElement('div');
     pickerWrap.append(label, mount);
-    const percent = rowInput('XP percent', boost.xpPercent);
+    const percent = rowInput('XP boost (%)', boost.xpPercent);
     const remove = document.createElement('button');
     remove.className = 'button small danger';
     remove.type = 'button';
@@ -372,12 +439,12 @@ function renderBoostRows() {
     });
     percent.input.addEventListener('input', () => {
       state.boosts[index].xpPercent = Number(percent.input.value);
-      setDirty(true);
+      refreshDirtyState();
     });
     remove.addEventListener('click', () => {
       state.boosts.splice(index, 1);
       renderBoostRows();
-      setDirty(true);
+      refreshDirtyState();
     });
     row.append(pickerWrap, percent.label, remove);
     elements.boostRows.append(row);
@@ -412,45 +479,132 @@ function renderRewardRows() {
     });
     level.input.addEventListener('input', () => {
       state.rewards[index].level = Number(level.input.value);
-      setDirty(true);
+      refreshDirtyState();
     });
     remove.addEventListener('click', () => {
       state.rewards.splice(index, 1);
       renderRewardRows();
-      setDirty(true);
+      refreshDirtyState();
     });
     row.append(level.label, pickerWrap, remove);
     elements.rewardRows.append(row);
   });
 }
 
-function fillConfig(config) {
-  state.config = config;
-  state.channelValues = { ...(config.channels || {}) };
-  state.roleValues = { ...(config.roles || {}) };
-  state.xpChannels = (config.xp?.channels || []).map(normalizeXpChannelRule);
-  state.boosts = (config.xp?.boosts || []).map((item) => ({ ...item }));
-  state.rewards = (config.xp?.levelRoleRewards || []).map((item) => ({ ...item }));
-
-  setField('xp.messageXpMin', config.xp?.messageXpMin);
-  setField('xp.messageXpMax', config.xp?.messageXpMax);
-  setField('xp.messageCooldownMs', config.xp?.messageCooldownMs || 0);
-  setField('inviteRewards.enabled', config.inviteRewards?.enabled);
-  setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
-
-  for (const key of ['minWordLength', 'maxWordLength', 'startingHearts', 'turnTimeoutMs', 'punishmentMs', 'gameCooldownMs']) {
-    setField(`wordChain.${key}`, config.wordChain?.[key]);
+function setDurationFields(config) {
+  for (const key of ['turnTimeoutMs', 'punishmentMs', 'gameCooldownMs']) {
+    setField(`wordChain.${key}`, secondsFromMs(config.wordChain?.[key]));
   }
   for (const key of ['minClaimMs', 'maxClaimMs', 'minDurationMs', 'maxDurationMs']) {
-    setField(`giveaway.${key}`, config.giveaway?.[key]);
+    setField(`giveaway.${key}`, secondsFromMs(config.giveaway?.[key]));
   }
+}
 
-  renderXpChannelRows();
-  renderObjectPickers(elements.channelsGrid, 'channels', state.channelValues, channelOptions(), 'channel');
-  renderObjectPickers(elements.rolesGrid, 'roles', state.roleValues, roleOptions(), 'role');
-  renderBoostRows();
-  renderRewardRows();
-  setDirty(false);
+function applyTabFromConfig(tabName, config) {
+  if (tabName === 'xp') {
+    state.xpGroups = groupXpRules(config.xp || {});
+    setField('xp.messageXpMin', config.xp?.messageXpMin);
+    setField('xp.messageXpMax', config.xp?.messageXpMax);
+    setField('xp.messageCooldownMs', secondsFromMs(config.xp?.messageCooldownMs));
+    renderXpChannelRows();
+  } else if (tabName === 'channels') {
+    state.channelValues = { ...(config.channels || {}) };
+    renderObjectPickers(elements.channelsGrid, 'channels', state.channelValues, channelOptions(), 'channel');
+  } else if (tabName === 'roles') {
+    state.roleValues = { ...(config.roles || {}) };
+    renderObjectPickers(elements.rolesGrid, 'roles', state.roleValues, roleOptions(), 'role');
+  } else if (tabName === 'rewards') {
+    state.boosts = (config.xp?.boosts || []).map((item) => ({ ...item }));
+    state.rewards = (config.xp?.levelRoleRewards || []).map((item) => ({ ...item }));
+    setField('inviteRewards.enabled', config.inviteRewards?.enabled);
+    setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
+    renderBoostRows();
+    renderRewardRows();
+  } else if (tabName === 'games') {
+    for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
+      setField(`wordChain.${key}`, config.wordChain?.[key]);
+    }
+    setDurationFields(config);
+  }
+}
+
+function collectTabState(tabName) {
+  if (tabName === 'xp') {
+    return {
+      messageXpMin: Number(getField('xp.messageXpMin')),
+      messageXpMax: Number(getField('xp.messageXpMax')),
+      messageCooldownSeconds: Number(getField('xp.messageCooldownMs')),
+      groups: state.xpGroups.map((group) => ({
+        channelIds: [...group.channelIds],
+        minXp: Number(group.minXp),
+        maxXp: Number(group.maxXp),
+        cooldownSeconds: Number(group.cooldownSeconds),
+      })),
+    };
+  }
+  if (tabName === 'channels') return clone(state.channelValues);
+  if (tabName === 'roles') return clone(state.roleValues);
+  if (tabName === 'rewards') {
+    return {
+      boosts: clone(state.boosts),
+      rewards: clone(state.rewards),
+      inviteEnabled: Boolean(getField('inviteRewards.enabled')),
+      inviteCap: Number(getField('inviteRewards.capMembers')),
+    };
+  }
+  return {
+    wordChain: {
+      minWordLength: Number(getField('wordChain.minWordLength')),
+      maxWordLength: Number(getField('wordChain.maxWordLength')),
+      startingHearts: Number(getField('wordChain.startingHearts')),
+      turnTimeoutSeconds: Number(getField('wordChain.turnTimeoutMs')),
+      punishmentSeconds: Number(getField('wordChain.punishmentMs')),
+      gameCooldownSeconds: Number(getField('wordChain.gameCooldownMs')),
+    },
+    giveaway: {
+      minClaimSeconds: Number(getField('giveaway.minClaimMs')),
+      maxClaimSeconds: Number(getField('giveaway.maxClaimMs')),
+      minDurationSeconds: Number(getField('giveaway.minDurationMs')),
+      maxDurationSeconds: Number(getField('giveaway.maxDurationMs')),
+    },
+  };
+}
+
+function captureSavedSnapshots() {
+  state.savedSnapshots = {};
+  for (const tabName of Object.keys(TAB_NAMES)) {
+    state.savedSnapshots[tabName] = JSON.stringify(collectTabState(tabName));
+  }
+}
+
+function refreshDirtyState() {
+  state.dirtyTabs.clear();
+  for (const tabName of Object.keys(TAB_NAMES)) {
+    if (JSON.stringify(collectTabState(tabName)) !== state.savedSnapshots[tabName]) state.dirtyTabs.add(tabName);
+  }
+  const hasChanges = state.dirtyTabs.size > 0;
+  elements.unsavedBar.hidden = !hasChanges;
+  elements.savedState.textContent = hasChanges ? `${state.dirtyTabs.size} section${state.dirtyTabs.size === 1 ? '' : 's'} changed` : 'All changes saved';
+  elements.savedState.classList.toggle('dirty', hasChanges);
+  elements.resetTabButton.disabled = !state.dirtyTabs.has(state.activeTab);
+  const dirtyNames = [...state.dirtyTabs].map((tabName) => TAB_NAMES[tabName]);
+  elements.unsavedDetail.textContent = dirtyNames.length ? `Changed: ${dirtyNames.join(', ')}` : '';
+}
+
+function fillConfig(config) {
+  state.savedConfig = clone(config);
+  for (const tabName of Object.keys(TAB_NAMES)) applyTabFromConfig(tabName, config);
+  captureSavedSnapshots();
+  refreshDirtyState();
+}
+
+function flattenXpGroups() {
+  return state.xpGroups.flatMap((group) => group.channelIds.map((channelId) => ({
+    channelId,
+    minXp: Number(group.minXp),
+    maxXp: Number(group.maxXp),
+    cooldownMs: msFromSeconds(group.cooldownSeconds),
+  })));
 }
 
 function collectPatch() {
@@ -460,8 +614,8 @@ function collectPatch() {
     xp: {
       messageXpMin: Number(getField('xp.messageXpMin')),
       messageXpMax: Number(getField('xp.messageXpMax')),
-      messageCooldownMs: Number(getField('xp.messageCooldownMs')),
-      channels: state.xpChannels.filter((rule) => rule.channelId),
+      messageCooldownMs: msFromSeconds(getField('xp.messageCooldownMs')),
+      channels: flattenXpGroups(),
       boosts: state.boosts.filter((item) => item.roleId && Number.isFinite(Number(item.xpPercent))),
       levelRoleRewards: state.rewards.filter((item) => item.roleId && Number.isFinite(Number(item.level))),
     },
@@ -473,48 +627,62 @@ function collectPatch() {
       minWordLength: Number(getField('wordChain.minWordLength')),
       maxWordLength: Number(getField('wordChain.maxWordLength')),
       startingHearts: Number(getField('wordChain.startingHearts')),
-      turnTimeoutMs: Number(getField('wordChain.turnTimeoutMs')),
-      punishmentMs: Number(getField('wordChain.punishmentMs')),
-      gameCooldownMs: Number(getField('wordChain.gameCooldownMs')),
+      turnTimeoutMs: msFromSeconds(getField('wordChain.turnTimeoutMs')),
+      punishmentMs: msFromSeconds(getField('wordChain.punishmentMs')),
+      gameCooldownMs: msFromSeconds(getField('wordChain.gameCooldownMs')),
     },
     giveaway: {
-      minClaimMs: Number(getField('giveaway.minClaimMs')),
-      maxClaimMs: Number(getField('giveaway.maxClaimMs')),
-      minDurationMs: Number(getField('giveaway.minDurationMs')),
-      maxDurationMs: Number(getField('giveaway.maxDurationMs')),
+      minClaimMs: msFromSeconds(getField('giveaway.minClaimMs')),
+      maxClaimMs: msFromSeconds(getField('giveaway.maxClaimMs')),
+      minDurationMs: msFromSeconds(getField('giveaway.minDurationMs')),
+      maxDurationMs: msFromSeconds(getField('giveaway.maxDurationMs')),
     },
   };
 }
 
+function confirmDiscard(message) {
+  return state.dirtyTabs.size === 0 || window.confirm(message);
+}
+
 async function loadGuild(guildId) {
   if (!guildId) return;
-  if (state.dirty && !window.confirm('You have unsaved changes. Switch server and lose them?')) {
+  if (!confirmDiscard('You have unsaved changes. Switch servers and discard them?')) {
     elements.guildSelect.value = state.guildId;
     return;
   }
   state.guildId = guildId;
   const guild = state.guilds.find((item) => item.id === guildId);
-  elements.guildTitle.textContent = guild ? `${guild.name} settings` : 'Server settings';
-  elements.guildSubtitle.textContent = 'Only configured XP channels can earn XP.';
+  elements.guildTitle.textContent = guild ? guild.name : 'Server settings';
+  elements.guildSubtitle.textContent = 'Changes apply to this Discord server only.';
   elements.serverMeta.textContent = guild ? `Guild ID ${guild.id}` : '';
   elements.editor.hidden = false;
-  setStatus('Loading server config...');
+  setStatus('Loading server data...');
   const [directoryPayload, configPayload] = await Promise.all([
     api(`/api/guilds/${guildId}/directory`),
     api(`/api/guilds/${guildId}/config`),
   ]);
   state.directory = directoryPayload.directory || { channels: [], categories: [], roles: [] };
   fillConfig(configPayload.config);
-  setStatus('Server config loaded.', 'ok');
+  setStatus(`Loaded ${state.directory.channels.length} channels and threads.`, 'ok');
+}
+
+function avatarUrl(user) {
+  if (user?.avatar) return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`;
+  return 'https://cdn.discordapp.com/embed/avatars/0.png';
 }
 
 function renderSession() {
   const user = state.me?.user;
   elements.loginButton.hidden = Boolean(user);
   elements.logoutButton.hidden = !user;
+  elements.userChip.hidden = !user;
   elements.loginPanel.hidden = Boolean(user);
   elements.appShell.hidden = !user;
-  elements.sessionLabel.textContent = user ? `Logged in as ${user.globalName || user.username}` : 'Discord login required';
+  elements.sessionLabel.textContent = user ? user.globalName || user.username : '';
+  if (user) {
+    elements.userAvatar.src = avatarUrl(user);
+    elements.userAvatar.alt = `${user.globalName || user.username} avatar`;
+  }
 
   elements.guildSelect.replaceChildren();
   if (!user || state.guilds.length === 0) {
@@ -525,15 +693,15 @@ function renderSession() {
   }
 
   elements.guildSelect.disabled = false;
-  for (const guild of state.guilds) {
-    elements.guildSelect.append(new Option(guild.name, guild.id));
-  }
+  for (const guild of state.guilds) elements.guildSelect.append(new Option(guild.name, guild.id));
 }
 
 function setActiveTab(tabName) {
   state.activeTab = tabName;
   document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabName));
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tabName));
+  elements.resetTabButton.disabled = !state.dirtyTabs.has(tabName);
+  elements.configForm.scrollTop = 0;
 }
 
 async function loadSession() {
@@ -551,18 +719,16 @@ async function loadSession() {
     state.me = null;
     state.guilds = [];
     renderSession();
-    setStatus(error.message === 'Not logged in.' ? 'Log in with Discord to edit server settings.' : error.message, error.message === 'Not logged in.' ? '' : 'error');
+    setStatus(error.message === 'Not logged in.' ? 'Log in with Discord to continue.' : error.message, error.message === 'Not logged in.' ? '' : 'error');
   }
 }
 
-elements.configForm.addEventListener('input', () => setDirty(true));
-elements.configForm.addEventListener('change', () => setDirty(true));
+elements.configForm.addEventListener('input', refreshDirtyState);
+elements.configForm.addEventListener('change', refreshDirtyState);
 
 elements.tabList.addEventListener('click', (event) => {
   const tab = event.target.closest('.tab');
-  if (!tab) return;
-  if (state.dirty && tab.dataset.tab !== state.activeTab && !window.confirm('You have unsaved changes. Continue without saving first?')) return;
-  setActiveTab(tab.dataset.tab);
+  if (tab) setActiveTab(tab.dataset.tab);
 });
 
 elements.guildSelect.addEventListener('change', () => {
@@ -570,37 +736,46 @@ elements.guildSelect.addEventListener('change', () => {
 });
 
 elements.logoutButton.addEventListener('click', async () => {
-  if (state.dirty && !window.confirm('You have unsaved changes. Log out and lose them?')) return;
+  if (!confirmDiscard('You have unsaved changes. Log out and discard them?')) return;
   await api('/auth/logout', { method: 'POST' }).catch(() => null);
   window.location.href = '/admin';
 });
 
 elements.addXpChannelButton.addEventListener('click', () => {
-  state.xpChannels.push({
-    channelId: '',
-    minXp: Number(getField('xp.messageXpMin')) || 1,
-    maxXp: Number(getField('xp.messageXpMax')) || 3,
-    cooldownMs: Number(getField('xp.messageCooldownMs')) || 0,
+  state.xpGroups.push({
+    channelIds: [],
+    minXp: Number(getField('xp.messageXpMin')) || 0,
+    maxXp: Number(getField('xp.messageXpMax')) || 0,
+    cooldownSeconds: Number(getField('xp.messageCooldownMs')) || 0,
   });
   renderXpChannelRows();
-  setDirty(true);
+  refreshDirtyState();
 });
 
 elements.addBoostButton.addEventListener('click', () => {
   state.boosts.push({ roleId: '', xpPercent: 5 });
   renderBoostRows();
-  setDirty(true);
+  refreshDirtyState();
 });
 
 elements.addRewardButton.addEventListener('click', () => {
   state.rewards.push({ level: 1, roleId: '' });
   renderRewardRows();
-  setDirty(true);
+  refreshDirtyState();
+});
+
+elements.resetTabButton.addEventListener('click', () => {
+  if (!state.savedConfig || !state.dirtyTabs.has(state.activeTab)) return;
+  applyTabFromConfig(state.activeTab, state.savedConfig);
+  refreshDirtyState();
+  setStatus(`${TAB_NAMES[state.activeTab]} reset to the last saved values.`);
 });
 
 elements.saveButton.addEventListener('click', async () => {
-  if (!state.guildId || !state.dirty) return;
+  if (!state.guildId || state.dirtyTabs.size === 0 || state.saving) return;
+  state.saving = true;
   elements.saveButton.disabled = true;
+  elements.saveButton.textContent = 'Saving...';
   setStatus('Saving changes...');
   try {
     const payload = await api(`/api/guilds/${state.guildId}/config`, {
@@ -611,16 +786,19 @@ elements.saveButton.addEventListener('click', async () => {
     setStatus('Changes saved.', 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
+  } finally {
+    state.saving = false;
     elements.saveButton.disabled = false;
+    elements.saveButton.textContent = 'Save changes';
+    refreshDirtyState();
   }
 });
 
 window.addEventListener('beforeunload', (event) => {
-  if (!state.dirty) return;
+  if (state.dirtyTabs.size === 0) return;
   event.preventDefault();
   event.returnValue = '';
 });
 
 setActiveTab('xp');
-setDirty(false);
 loadSession();

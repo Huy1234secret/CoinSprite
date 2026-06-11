@@ -7,11 +7,15 @@ const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./
 const { logCommandSystem } = require('./commandLogger');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
+const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const MAX_BODY_BYTES = 128 * 1024;
 const COOKIE_NAME = 'coinsprite_admin';
+const SESSION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
 
 const sessions = new Map();
+const directoryCache = new Map();
 let serverRef = null;
 
 function getEnv() {
@@ -32,6 +36,35 @@ function sign(value, secret) {
 function createSessionId(secret) {
   const raw = crypto.randomBytes(32).toString('base64url');
   return `${raw}.${sign(raw, secret)}`;
+}
+
+function loadSessions() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(SESSION_STORE_PATH, 'utf8') || '{}');
+    const now = Date.now();
+    for (const [sessionId, session] of Object.entries(parsed.sessions || {})) {
+      const expiresAt = Number(session?.expiresAt);
+      if (!session || !Number.isFinite(expiresAt) || expiresAt <= now) continue;
+      sessions.set(sessionId, session);
+    }
+  } catch {
+    sessions.clear();
+  }
+}
+
+function saveSessions() {
+  fs.mkdirSync(path.dirname(SESSION_STORE_PATH), { recursive: true });
+  const now = Date.now();
+  const activeSessions = {};
+  for (const [sessionId, session] of sessions.entries()) {
+    const expiresAt = Number(session?.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) {
+      sessions.delete(sessionId);
+      continue;
+    }
+    activeSessions[sessionId] = session;
+  }
+  fs.writeFileSync(SESSION_STORE_PATH, `${JSON.stringify({ sessions: activeSessions }, null, 2)}\n`, 'utf8');
 }
 
 function verifySessionId(value, secret) {
@@ -58,7 +91,7 @@ function parseCookies(header = '') {
 
 function setSessionCookie(res, sessionId, env) {
   const secure = env.cookieSecure ? '; Secure' : '';
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${secure}`);
+  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}${secure}`);
 }
 
 function clearSessionCookie(res, env) {
@@ -70,13 +103,22 @@ function getSession(req, res, env) {
   const sessionId = parseCookies(req.headers.cookie || '')[COOKIE_NAME];
   if (sessionId && verifySessionId(sessionId, env.sessionSecret) && sessions.has(sessionId)) {
     const session = sessions.get(sessionId);
-    session.touchedAt = Date.now();
-    return { sessionId, session };
+    const expiresAt = Number(session?.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      sessions.delete(sessionId);
+      saveSessions();
+      clearSessionCookie(res, env);
+    } else {
+      session.touchedAt = Date.now();
+      return { sessionId, session };
+    }
   }
 
   const newSessionId = createSessionId(env.sessionSecret);
-  const session = { createdAt: Date.now(), touchedAt: Date.now(), user: null, oauthState: null };
+  const now = Date.now();
+  const session = { createdAt: now, touchedAt: now, expiresAt: now + SESSION_TTL_MS, user: null, oauthState: null };
   sessions.set(newSessionId, session);
+  saveSessions();
   setSessionCookie(res, newSessionId, env);
   return { sessionId: newSessionId, session };
 }
@@ -200,6 +242,10 @@ function channelKind(channel) {
     case ChannelType.GuildForum:
     case ChannelType.GuildMedia:
       return 'forum';
+    case ChannelType.PublicThread:
+    case ChannelType.PrivateThread:
+    case ChannelType.AnnouncementThread:
+      return 'thread';
     default:
       return 'text';
   }
@@ -213,19 +259,56 @@ function channelSort(a, b) {
   return a.name.localeCompare(b.name);
 }
 
+function serializeChannel(channel, parentNames = new Map()) {
+  return {
+    id: channel.id,
+    name: channel.name,
+    type: channel.type,
+    kind: channelKind(channel),
+    parentId: channel.parentId || null,
+    parentName: channel.parentId ? parentNames.get(channel.parentId) || null : null,
+    rawPosition: Number.isFinite(channel.rawPosition) ? channel.rawPosition : 0,
+    archived: Boolean(channel.archived),
+  };
+}
+
+async function fetchArchivedForumThreads(forumChannel) {
+  const threads = new Map();
+  let before;
+  for (let page = 0; page < 10; page += 1) {
+    const result = await forumChannel.threads.fetchArchived({
+      type: 'public',
+      limit: 100,
+      ...(before ? { before } : {}),
+    }).catch(() => null);
+    if (!result?.threads) break;
+    for (const thread of result.threads.values()) threads.set(thread.id, thread);
+    if (!result.hasMore || result.threads.size === 0) break;
+    const oldestTimestamp = Math.min(...Array.from(result.threads.values()).map((thread) => Number(thread.archiveTimestamp) || Date.now()));
+    before = new Date(oldestTimestamp - 1);
+  }
+  return threads;
+}
+
 async function fetchGuildDirectory(guild) {
+  const cached = directoryCache.get(guild.id);
+  if (cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
+
   const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
-  const channelItems = Array.from(channels.values())
-    .filter((channel) => channel && 'name' in channel)
-    .map((channel) => ({
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      kind: channelKind(channel),
-      parentId: channel.parentId || null,
-      rawPosition: Number.isFinite(channel.rawPosition) ? channel.rawPosition : 0,
-    }))
+  const baseChannels = Array.from(channels.values()).filter((channel) => channel && 'name' in channel);
+  const parentNames = new Map(baseChannels.map((channel) => [channel.id, channel.name]));
+  const threadMap = new Map();
+  const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
+  for (const thread of activeThreads?.threads?.values?.() || []) threadMap.set(thread.id, thread);
+  const forumChannels = baseChannels.filter((channel) => channelKind(channel) === 'forum' && channel.threads);
+  const archivedThreadCollections = await Promise.all(forumChannels.map((forumChannel) => fetchArchivedForumThreads(forumChannel)));
+  for (const archivedThreads of archivedThreadCollections) {
+    for (const thread of archivedThreads.values()) threadMap.set(thread.id, thread);
+  }
+
+  const channelItems = [...baseChannels, ...threadMap.values()]
+    .map((channel) => serializeChannel(channel, parentNames))
     .sort(channelSort);
   const categoryItems = channelItems.filter((channel) => channel.kind === 'category');
   const usableChannels = channelItems.filter((channel) => channel.kind !== 'category');
@@ -240,11 +323,13 @@ async function fetchGuildDirectory(guild) {
     }))
     .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name));
 
-  return {
+  const directory = {
     channels: usableChannels,
     categories: categoryItems,
     roles: roleItems,
   };
+  directoryCache.set(guild.id, { createdAt: Date.now(), directory });
+  return directory;
 }
 
 async function requireAdmin(req, res, env, client, guildId = null) {
@@ -341,9 +426,9 @@ function sanitizeGuildPatch(current, patch) {
 
   if (patch.xp && typeof patch.xp === 'object') {
     clean.xp = {};
-    const currentMin = asInteger(current.xp.messageXpMin, 0, 0, 100000);
-    const requestedMin = 'messageXpMin' in patch.xp ? asInteger(patch.xp.messageXpMin, currentMin, 0, 100000) : currentMin;
-    const requestedMax = 'messageXpMax' in patch.xp ? asInteger(patch.xp.messageXpMax, current.xp.messageXpMax, 0, 100000) : asInteger(current.xp.messageXpMax, requestedMin, 0, 100000);
+    const currentMin = asNumber(current.xp.messageXpMin, 0, 0, 100000);
+    const requestedMin = 'messageXpMin' in patch.xp ? asNumber(patch.xp.messageXpMin, currentMin, 0, 100000) : currentMin;
+    const requestedMax = 'messageXpMax' in patch.xp ? asNumber(patch.xp.messageXpMax, current.xp.messageXpMax, 0, 100000) : asNumber(current.xp.messageXpMax, requestedMin, 0, 100000);
     if ('messageXpMin' in patch.xp) clean.xp.messageXpMin = requestedMin;
     if ('messageXpMax' in patch.xp) clean.xp.messageXpMax = Math.max(requestedMin, requestedMax);
     if ('messageCooldownMs' in patch.xp) clean.xp.messageCooldownMs = asInteger(patch.xp.messageCooldownMs, current.xp.messageCooldownMs, 0, 2_147_000_000);
@@ -405,6 +490,7 @@ async function handleAuthStart(req, res, env) {
   const { session } = getSession(req, res, env);
   const state = crypto.randomBytes(24).toString('base64url');
   session.oauthState = state;
+  saveSessions();
 
   const url = new URL('https://discord.com/oauth2/authorize');
   url.searchParams.set('response_type', 'code');
@@ -416,7 +502,7 @@ async function handleAuthStart(req, res, env) {
 }
 
 async function handleAuthCallback(req, res, env, url) {
-  const { session } = getSession(req, res, env);
+  const { sessionId, session } = getSession(req, res, env);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   if (!code || !state || state !== session.oauthState) {
@@ -434,6 +520,9 @@ async function handleAuthCallback(req, res, env, url) {
       avatar: user.avatar,
     };
     session.oauthState = null;
+    session.expiresAt = Date.now() + SESSION_TTL_MS;
+    saveSessions();
+    setSessionCookie(res, sessionId, env);
     redirect(res, '/admin');
   } catch (error) {
     logCommandSystem(`Admin OAuth callback failed: ${error?.message ?? 'unknown error'}`);
@@ -463,6 +552,7 @@ async function routeRequest(req, res, env, client) {
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     const { sessionId } = getSession(req, res, env);
     sessions.delete(sessionId);
+    saveSessions();
     clearSessionCookie(res, env);
     sendJson(res, 200, { ok: true });
     return;
@@ -522,6 +612,8 @@ function startAdminServer(client) {
     return null;
   }
 
+  loadSessions();
+  saveSessions();
   serverRef = http.createServer((req, res) => {
     routeRequest(req, res, env, client).catch((error) => {
       const status = error?.statusCode || 500;
