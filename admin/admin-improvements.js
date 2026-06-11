@@ -1,7 +1,1 @@
-(() => {
-  const MS_KEYS = ['messageCooldownMs','turnTimeoutMs','punishmentMs','gameCooldownMs','minClaimMs','maxClaimMs','minDurationMs','maxDurationMs'];
-  const originalFetch = window.fetch.bind(window);
-  function copy(value) { return value && typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value; }
-  function mapMs(value, mapper) {
-    if (!value || typeof value !== 'object') return value;
-    for (const key of MS_KEYS) if
+(()=>{const $=s=>document.querySelector(s);function ready(){const save=$('#saveButton');if(!save||$('#dirtyBar'))return;document.querySelectorAll('label').forEach(l=>{if(l.firstChild&&l.firstChild.nodeType===3)l.firstChild.nodeValue=l.firstChild.nodeValue.replace(/ms/g,'seconds')});const rows=$('#xpChannelRows');if(rows&&!$('.xp-channel-header')){const h=document.createElement('div');h.className='xp-channel-header';h.innerHTML='<span>Channel or category</span
