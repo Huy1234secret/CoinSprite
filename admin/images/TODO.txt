@@ -1,1 +1,0 @@
-Place leveling.png and ticket.png in this folder to override the embedded sidebar icon fallbacks.
