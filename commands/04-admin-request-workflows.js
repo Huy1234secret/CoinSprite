@@ -57,12 +57,22 @@ function browserScript() {
   let templates = [];
   let activeTicketId = '';
   let rendering = false;
+  let workflowObserver = null;
   const copy = (value) => JSON.parse(JSON.stringify(value || {}));
   const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   const id = (prefix) => prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
   const isRequest = (type) => Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
   const ticketValue = () => { try { return ensureTicketEditor().getValue().tickets; } catch { return { types: [] }; } };
-  const activeType = () => ticketValue().types.find((type) => type.id === activeTicketId) || null;
+  function activeType() {
+    const types = ticketValue().types;
+    let type = types.find((item) => item.id === activeTicketId) || null;
+    if (!type) {
+      const heading = document.querySelector('#ticketEditorRoot .ticket-editor-head h3')?.textContent?.trim();
+      type = types.find((item) => item.name === heading) || null;
+      if (type) activeTicketId = type.id;
+    }
+    return type;
+  }
   const workflow = (ticketId, controlId) => {
     workflows[ticketId] ||= {};
     workflows[ticketId][controlId] ||= { dmTemplateId: '', conditions: [] };
@@ -71,21 +81,26 @@ function browserScript() {
   const roleOptionsHtml = (selected = '') => '<option value="">Select role</option>' + (state.directory.roles || []).map((role) => '<option value="' + esc(role.id) + '" ' + (role.id === selected ? 'selected' : '') + '>' + esc(role.name) + '</option>').join('');
   const templateOptionsHtml = (selected = '') => '<option value="">None</option>' + templates.map((template) => '<option value="' + esc(template.id) + '" ' + (template.id === selected ? 'selected' : '') + '>' + esc(template.name) + '</option>').join('');
   const questionOptionsHtml = (type, selected = '') => '<option value="">Select question</option>' + (type.forms?.create || []).filter((question) => question.type !== 'text_display').map((question, index) => '<option value="' + esc(question.id) + '" ' + (question.id === selected ? 'selected' : '') + '>Question ' + (index + 1) + ': ' + esc(question.question) + '</option>').join('');
+  function defaultExpected(question) {
+    if (question?.type === 'file_upload') return 'has_files';
+    if (question?.type === 'checkbox') return 'checked';
+    return '';
+  }
   function answerInput(condition, type, conditionIndex, controlIndex) {
     const question = (type.forms?.create || []).find((item) => item.id === condition.questionId);
     const attrs = ' data-workflow-field="expected" data-control-index="' + controlIndex + '" data-condition-index="' + conditionIndex + '"';
     if (!question) return '<label>Expected answer<input type="text" disabled placeholder="Select a question first"></label>';
     if (question.type === 'file_upload') return '<label>File answer<select' + attrs + '><option value="has_files" ' + (condition.expected === 'has_files' ? 'selected' : '') + '>Has files</option><option value="no_files" ' + (condition.expected === 'no_files' ? 'selected' : '') + '>No files</option></select></label>';
+    if (question.type === 'checkbox') return '<label>Expected answer<select' + attrs + '><option value="checked" ' + (condition.expected === 'checked' ? 'selected' : '') + '>Checked</option><option value="not_checked" ' + (condition.expected === 'not_checked' ? 'selected' : '') + '>Not checked</option></select></label>';
     if (['string_select', 'radio_group', 'checkbox_group'].includes(question.type)) return '<label>Expected answer<select' + attrs + '><option value="">Select answer</option>' + (question.options || []).map((option) => '<option value="' + esc(option.name) + '" ' + (option.name === condition.expected ? 'selected' : '') + '>' + esc(option.name) + '</option>').join('') + '</select></label>';
-    const inputType = question.type === 'number_input' ? 'number' : 'text';
-    return '<label>Exact answer<input type="' + inputType + '" value="' + esc(condition.expected) + '"' + attrs + '></label>';
+    return '<label>Exact answer<input type="text" value="' + esc(condition.expected) + '"' + attrs + '></label>';
   }
   function actionHtml(action, controlIndex, conditionIndex, actionIndex) {
     const attrs = ' data-control-index="' + controlIndex + '" data-condition-index="' + conditionIndex + '" data-condition-action-index="' + actionIndex + '"';
     let detail = '';
     if (action.type === 'dm_template') detail = '<label>Message template<select data-condition-action-field="templateId"' + attrs + '>' + templateOptionsHtml(action.templateId) + '</select></label>';
     if (action.type === 'role_add') detail = '<label>Role<select data-condition-action-field="roleId"' + attrs + '>' + roleOptionsHtml(action.roleId) + '</select></label>';
-    return '<div class="condition-action"><label>Action<select data-condition-action-field="type"' + attrs + '><option value="dm_template" ' + (action.type === 'dm_template' ? 'selected' : '') + '>DM message template</option><option value="role_add" ' + (action.type === 'role_add' ? 'selected' : '') + '>Role add</option><option value="accept" ' + (action.type === 'accept' ? 'selected' : '') + '>Accept request</option><option value="deny" ' + (action.type === 'deny' ? 'selected' : '') + '>Deny request</option><option value="blacklist" ' + (action.type === 'blacklist' ? 'selected' : '') + '>Blacklist author</option></select></label>' + detail + '<button class="icon-button danger-text" type="button" data-workflow-action="remove-condition-action"' + attrs + '>×</button></div>';
+    return '<div class="condition-action"><label>Action<select data-condition-action-field="type"' + attrs + '><option value="dm_template" ' + (action.type === 'dm_template' ? 'selected' : '') + '>DM message template</option><option value="role_add" ' + (action.type === 'role_add' ? 'selected' : '') + '>Role add</option><option value="accept" ' + (action.type === 'accept' ? 'selected' : '') + '>Accept request</option><option value="deny" ' + (action.type === 'deny' ? 'selected' : '') + '>Deny request</option><option value="blacklist" ' + (action.type === 'blacklist' ? 'selected' : '') + '>Blacklist author</option></select></label>' + detail + '<button class="icon-button danger-text" type="button" data-workflow-action="remove-condition-action"' + attrs + '>&times;</button></div>';
   }
   function conditionHtml(condition, type, controlIndex, conditionIndex) {
     const attrs = ' data-control-index="' + controlIndex + '" data-condition-index="' + conditionIndex + '"';
@@ -93,7 +108,11 @@ function browserScript() {
     if (condition.type === 'form_input') criteria = '<label>Question<select data-workflow-field="questionId"' + attrs + '>' + questionOptionsHtml(type, condition.questionId) + '</select></label>' + answerInput(condition, type, conditionIndex, controlIndex);
     if (condition.type === 'has_role') criteria = '<label>Required role<select data-workflow-field="roleId"' + attrs + '>' + roleOptionsHtml(condition.roleId) + '</select></label>';
     if (condition.type === 'level') criteria = '<label>Minimum level<input type="number" min="0" step="1" value="' + Number(condition.level || 0) + '" data-workflow-field="level"' + attrs + '></label>';
-    return '<article class="request-condition"><div class="request-condition-head"><strong>Condition ' + (conditionIndex + 1) + '</strong><button class="icon-button danger-text" type="button" data-workflow-action="remove-condition"' + attrs + '>×</button></div><div class="request-condition-grid"><label>Condition type<select data-workflow-field="type"' + attrs + '><option value="form_input" ' + (condition.type === 'form_input' ? 'selected' : '') + '>Form input</option><option value="level" ' + (condition.type === 'level' ? 'selected' : '') + '>Level</option><option value="has_role" ' + (condition.type === 'has_role' ? 'selected' : '') + '>Has role</option></select></label>' + criteria + '</div><div class="condition-actions"><div class="sequence-head"><span class="field-label">Actions when true</span><button class="button small" type="button" data-workflow-action="add-condition-action"' + attrs + '>+ Add action</button></div>' + (condition.actions || []).map((action, index) => actionHtml(action, controlIndex, conditionIndex, index)).join('') + '</div></article>';
+    return '<article class="request-condition"><div class="request-condition-head"><strong>Condition ' + (conditionIndex + 1) + '</strong><button class="icon-button danger-text" type="button" data-workflow-action="remove-condition"' + attrs + '>&times;</button></div><div class="request-condition-grid"><label>Condition type<select data-workflow-field="type"' + attrs + '><option value="form_input" ' + (condition.type === 'form_input' ? 'selected' : '') + '>Form input</option><option value="level" ' + (condition.type === 'level' ? 'selected' : '') + '>Level</option><option value="has_role" ' + (condition.type === 'has_role' ? 'selected' : '') + '>Has role</option></select></label>' + criteria + '</div><div class="condition-actions"><div class="sequence-head"><span class="field-label">Actions when true</span><button class="button small" type="button" data-workflow-action="add-condition-action"' + attrs + '>+ Add action</button></div>' + (condition.actions || []).map((action, index) => actionHtml(action, controlIndex, conditionIndex, index)).join('') + '</div></article>';
+  }
+  function observeWorkflowPanels() {
+    const root = document.querySelector('#ticketEditorRoot');
+    if (workflowObserver && root) workflowObserver.observe(root, { childList: true, subtree: true });
   }
   function renderWorkflowPanels() {
     if (rendering) return;
@@ -101,28 +120,34 @@ function browserScript() {
     const root = document.querySelector('#ticketEditorRoot');
     if (!root || !isRequest(type) || !root.dataset.requestEditor) return;
     rendering = true;
-    root.querySelectorAll('.ticket-control-card').forEach((card, controlIndex) => {
-      const control = type.adminPanel?.controls?.[controlIndex];
-      if (!control) return;
-      const data = workflow(type.id, control.id);
-      const labels = [...card.querySelectorAll('.sequence-item strong')].map((node) => node.textContent.trim().toLowerCase());
-      const hasDm = labels.includes('dm message');
-      card.querySelector('.request-template-field')?.remove();
-      card.querySelector('.request-conditions')?.remove();
-      const nativeDescription = card.querySelector('[data-control-field="description"]')?.closest('label');
-      if (nativeDescription) nativeDescription.hidden = hasDm;
-      if (hasDm) {
-        const field = document.createElement('label');
-        field.className = 'request-template-field';
-        field.innerHTML = '<span class="field-label">DM message template</span><select data-workflow-dm-template="' + controlIndex + '">' + templateOptionsHtml(data.dmTemplateId) + '</select><span class="request-action-note">Choose a saved Messages template. If None is saved, the DM action is removed.</span>';
-        card.querySelector('.action-sequence')?.append(field);
-      }
-      const section = document.createElement('section');
-      section.className = 'request-conditions';
-      section.innerHTML = '<div class="request-conditions-head"><div><strong>Conditions</strong><span>Actions inside a condition run only when it matches.</span></div><button class="button small" type="button" data-workflow-action="add-condition" data-control-index="' + controlIndex + '">+ Add condition</button></div>' + (data.conditions || []).map((condition, index) => conditionHtml(condition, type, controlIndex, index)).join('');
-      card.append(section);
-    });
-    rendering = false;
+    workflowObserver?.disconnect();
+    try {
+      root.querySelectorAll('.ticket-control-card').forEach((card, controlIndex) => {
+        const control = type.adminPanel?.controls?.[controlIndex];
+        if (!control) return;
+        const data = workflow(type.id, control.id);
+        const labels = [...card.querySelectorAll('.sequence-item strong')].map((node) => node.textContent.trim().toLowerCase());
+        const hasDm = labels.includes('dm message');
+        card.querySelector('.request-template-field')?.remove();
+        card.querySelector('.request-conditions')?.remove();
+        card.querySelector('.request-dm-field')?.remove();
+        const nativeDescription = card.querySelector('[data-control-field="description"]')?.closest('label');
+        if (nativeDescription) nativeDescription.hidden = hasDm;
+        if (hasDm) {
+          const field = document.createElement('label');
+          field.className = 'request-template-field';
+          field.innerHTML = '<span class="field-label">DM message template</span><select data-workflow-dm-template="' + controlIndex + '">' + templateOptionsHtml(data.dmTemplateId) + '</select><span class="request-action-note">Choose a saved Messages template. If None is saved, the DM action is removed.</span>';
+          card.querySelector('.action-sequence')?.append(field);
+        }
+        const section = document.createElement('section');
+        section.className = 'request-conditions';
+        section.innerHTML = '<div class="request-conditions-head"><div><strong>Conditions</strong><span>Actions inside a condition run only when it matches.</span></div><button class="button small" type="button" data-workflow-action="add-condition" data-control-index="' + controlIndex + '">+ Add condition</button></div>' + (data.conditions || []).map((condition, index) => conditionHtml(condition, type, controlIndex, index)).join('');
+        card.append(section);
+      });
+    } finally {
+      rendering = false;
+      observeWorkflowPanels();
+    }
   }
   function markChanged() { refreshDirtyState(); queueMicrotask(renderWorkflowPanels); }
   document.addEventListener('click', (event) => {
@@ -159,7 +184,10 @@ function browserScript() {
     if (target.dataset.workflowField) {
       condition[target.dataset.workflowField] = target.dataset.workflowField === 'level' ? Number(target.value) : target.value;
       if (target.dataset.workflowField === 'type') Object.assign(condition, { questionId: '', expected: '', roleId: '', level: 0 });
-      if (target.dataset.workflowField === 'questionId') condition.expected = '';
+      if (target.dataset.workflowField === 'questionId') {
+        const question = (type.forms?.create || []).find((item) => item.id === target.value);
+        condition.expected = defaultExpected(question);
+      }
     }
     if (target.dataset.conditionActionField) {
       const action = condition.actions[Number(target.dataset.conditionActionIndex)];
@@ -189,10 +217,18 @@ function browserScript() {
     if (configMatch && method === 'PATCH' && init.body) {
       const body = JSON.parse(init.body);
       (body.tickets?.types || []).filter(isRequest).forEach((type) => {
-        (type.adminPanel?.controls || []).forEach((control) => {
+        const keptControlIds = new Set();
+        const controls = (type.adminPanel?.controls || []).filter((control) => {
           const data = workflows[type.id]?.[control.id];
           if ((control.actions || []).includes('transcript') && !data?.dmTemplateId) control.actions = control.actions.filter((action) => action !== 'transcript');
+          const keep = Boolean(control.url || (control.actions || []).length || data?.conditions?.length);
+          if (keep) keptControlIds.add(control.id);
+          return keep;
         });
+        if (type.adminPanel) type.adminPanel.controls = controls;
+        if (workflows[type.id]) {
+          Object.keys(workflows[type.id]).forEach((controlId) => { if (!keptControlIds.has(controlId)) delete workflows[type.id][controlId]; });
+        }
       });
       const response = await previousFetch(input, { ...init, body: JSON.stringify(body) });
       if (!response.ok) return response;
@@ -214,7 +250,8 @@ function browserScript() {
     workflows = copy(savedWorkflows);
     queueMicrotask(renderWorkflowPanels);
   }, true);
-  new MutationObserver(() => queueMicrotask(renderWorkflowPanels)).observe(document.querySelector('#ticketEditorRoot'), { childList: true, subtree: true });
+  workflowObserver = new MutationObserver(() => queueMicrotask(renderWorkflowPanels));
+  observeWorkflowPanels();
 })();
 `;
 }
