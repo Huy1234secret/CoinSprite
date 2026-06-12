@@ -1,0 +1,169 @@
+.ticket-modal {
+  width: min(640px, 100%);
+  min-height: 0;
+  max-height: min(720px, calc(100dvh - 40px));
+}
+
+.ticket-modal-head,
+.ticket-modal-actions {
+  flex: 0 0 auto;
+  background: #202329;
+}
+
+.ticket-modal-head {
+  min-height: 66px;
+  padding: 14px 18px;
+}
+
+.ticket-modal-head h3 {
+  font-size: 17px;
+}
+
+.ticket-modal-actions {
+  position: relative;
+  z-index: 2;
+  min-height: 68px;
+  padding: 12px 18px;
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.permission-grid {
+  min-height: 0;
+  display: block;
+  padding: 6px 18px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.permission-item {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  color: #dbdee1;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.permission-item:last-child {
+  border-bottom: 0;
+}
+
+.permission-item > input {
+  display: none;
+}
+
+.permission-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.permission-state {
+  width: 120px;
+  height: 34px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  flex: 0 0 120px;
+  overflow: hidden;
+  background: #111318;
+  border: 1px solid #30343c;
+  border-radius: 7px;
+}
+
+.permission-state button {
+  min-width: 0;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #949ba4;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid #30343c;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.permission-state button:last-child {
+  border-right: 0;
+}
+
+.permission-state button:hover:not(:disabled),
+.permission-state button:focus-visible {
+  background: #2b2d31;
+  color: #f2f3f5;
+  outline: none;
+}
+
+.permission-state .permission-deny {
+  color: #da373c;
+}
+
+.permission-state .permission-deny:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.permission-state .permission-neutral.active {
+  color: #f2f3f5;
+  background: #3f4147;
+}
+
+.permission-state .permission-allow {
+  color: #23a55a;
+}
+
+.permission-state .permission-allow.active {
+  color: #fff;
+  background: #248046;
+}
+
+.picker-menu {
+  position: fixed;
+  z-index: 1000;
+  inset: auto;
+  width: var(--picker-menu-width, 320px);
+  max-width: calc(100vw - 24px);
+  max-height: var(--picker-menu-height, 340px);
+}
+
+.picker-menu.open {
+  display: grid;
+}
+
+.picker-menu .option-list {
+  max-height: var(--picker-list-height, 296px);
+}
+
+@media (max-width: 560px) {
+  .ticket-modal-backdrop {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .ticket-modal {
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+  }
+
+  .permission-grid {
+    padding-inline: 14px;
+  }
+
+  .permission-item {
+    gap: 10px;
+  }
+
+  .permission-state {
+    width: 108px;
+    flex-basis: 108px;
+  }
+}
