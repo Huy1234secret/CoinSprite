@@ -5,6 +5,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('word-chain')
     .setDescription('Show the current Word Chain game status.'),
+  registerSlashCommand: false,
   disableActionTimeout: true,
 
   async init(client) {
