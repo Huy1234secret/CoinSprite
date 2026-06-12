@@ -143,6 +143,32 @@
   max-height: var(--picker-list-height, 296px);
 }
 
+.tab[data-tab="leveling"],
+.tab[data-tab="tickets"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tab[data-tab="leveling"]::before,
+.tab[data-tab="tickets"]::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.tab[data-tab="leveling"]::before {
+  background-image: url("/admin/Images/leveling.png");
+}
+
+.tab[data-tab="tickets"]::before {
+  background-image: url("/admin/Images/ticket.png");
+}
+
 @media (max-width: 560px) {
   .ticket-modal-backdrop {
     align-items: stretch;
