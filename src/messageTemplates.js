@@ -53,12 +53,13 @@ function sanitizeContainer(value, index) {
 
 function sanitizeTemplate(value, index = 0) {
   const source = value && typeof value === 'object' ? value : {};
-  const containers = (Array.isArray(source.containers) ? source.containers : []).slice(0, 8).map(sanitizeContainer);
+  const hasContainerList = Array.isArray(source.containers);
+  const containers = (hasContainerList ? source.containers : []).slice(0, 8).map(sanitizeContainer);
   return {
     id: cleanId(source.id, `message-${index + 1}`),
     name: cleanText(source.name, `Message template ${index + 1}`, 80),
     content: String(source.content || '').slice(0, 2000),
-    containers: containers.length ? containers : defaultTemplate(index + 1).containers,
+    containers: hasContainerList ? containers : defaultTemplate(index + 1).containers,
     updatedAt: new Date().toISOString(),
   };
 }
