@@ -118,6 +118,7 @@ The bot can also run a small Discord-login admin panel from the same process. It
 Admin sessions are stored in `data/admin-sessions.json` and expire after three days. The dashboard can list guild channels, categories, roles, and active or archived forum threads that are visible to the bot.
 Word Chain settings include warning or punishment behavior for repeated and wrong-start words. Its XP formula supports `wordLength`, `streak`, arithmetic, parentheses, and the `min`, `max`, `round`, `floor`, `ceil`, and `abs` functions. Invalid formulas safely fall back to `wordLength`.
 The Leveling tab groups XP earning, role rewards, and level-up announcements. Every guild inherits a default Components V2 level-up container until it saves an override. Message templates support member/server placeholders, `<separator>`, and conditions such as `<if<level>==10,"shown","hidden">`; optional thumbnails and images remain inside the container.
+The Tickets tab manages the launcher channel and message, ticket types, role and permission overwrites, transcripts, ticket messages, staff controls, and creating or closing forms. Form builders follow Discord's component limits and allow up to five questions per form.
 
 Add these values to `.env` to enable it:
 ```env
@@ -135,12 +136,10 @@ ADMIN_COOKIE_SECURE=false
 For production, put Nginx or Caddy in front of `127.0.0.1:3000`, use an HTTPS domain, set `ADMIN_WEB_HOST=127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
 ## Ticket System
-- The bot maintains a Components V2 support ticket panel in channel `1493971939545583836` on startup (`/ticket-panel` can force-refresh).
-- Ticket types:
-  - Guild Support
-  - Claim Reward
-  - Request role: Crew Member+
-- Guild Support and Claim Reward create private ticket channels with staff action controls.
-- Ticket actions include close + blacklist, transcript save, and delayed channel deletion.
-- Closed ticket transcripts are sent to channel `1495788766600757418`.
-- Crew Member+ role requests are sent to channel `1495714584437329940` with accept/deny review actions.
+- Ticket definitions are stored per guild in `data/server-config.json`; open-ticket state and generated transcripts remain file-backed runtime data.
+- The launcher can use a selection panel or buttons and has its own editable Components V2 message.
+- Each ticket type can override its category, transcript channel, staff roles, blacklist role, channel permissions, opening message, admin panel, and forms.
+- Admin controls support close, transcript, delete, blacklist, and move-to actions. Close, transcript, and delete always execute in that order when combined.
+- `/ticket-action` provides the same staff actions inside a ticket channel when its admin panel is disabled.
+- New guild configs start with no ticket types. The original CoinSprite guild is migrated with Guild Support, Request Giveaway, and Guild Join Request definitions.
+- `/ticket-panel` force-refreshes the configured launcher message.

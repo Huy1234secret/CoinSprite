@@ -6,12 +6,13 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { sanitizeLevelUpMessage } = require('./levelUpMessage');
+const { sanitizeTicketsConfig } = require('./ticketConfig');
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
-const MAX_BODY_BYTES = 128 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
 const COOKIE_NAME = 'coinsprite_admin';
 const SESSION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
@@ -474,6 +475,10 @@ function sanitizeGuildPatch(current, patch) {
     }
   }
 
+  if (patch.tickets && typeof patch.tickets === 'object') {
+    clean.tickets = sanitizeTicketsConfig(patch.tickets, current.tickets);
+  }
+
   return clean;
 }
 
@@ -609,6 +614,13 @@ async function routeRequest(req, res, env, client) {
     if (!session) return;
     const patch = await readJsonBody(req);
     const config = updateGuildConfig(guildId, patch);
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    const ticketCommand = client.commands?.get('ticket-panel');
+    if (guild && typeof ticketCommand?.refreshGuild === 'function') {
+      await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => {
+        logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
+      });
+    }
     sendJson(res, 200, { guildId, config });
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
     return;
