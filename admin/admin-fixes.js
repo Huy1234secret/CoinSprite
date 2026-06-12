@@ -3,10 +3,15 @@
   const requestIds = new Set();
   let allowNativeAdd = false;
   let pendingRequest = false;
+  let uiFixScheduled = false;
 
   function cleanTabIcons() {
-    document.querySelectorAll('.tab-image-icon').forEach((image) => image.remove());
-    const sources = { leveling: '/admin/images/leveling.png', tickets: '/admin/images/ticket.png' };
+    document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
+    const sources = {
+      leveling: '/admin/images/leveling.png',
+      tickets: '/admin/images/ticket.png',
+      messages: '/admin/images/message.png',
+    };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);
       if (!button) return;
@@ -18,7 +23,7 @@
         image.setAttribute('aria-hidden', 'true');
         button.prepend(image);
       }
-      image.src = source;
+      if (image.getAttribute('src') !== source) image.src = source;
     });
   }
 
@@ -185,11 +190,19 @@
       backdrop.remove();
       if (!kind || kind === 'cancel') return;
       pendingRequest = kind === 'request';
-      allowNativeAdd = true;
-      nativeButton.click();
-      allowNativeAdd = false;
+      setTimeout(() => {
+        if (!nativeButton.isConnected) return;
+        allowNativeAdd = true;
+        nativeButton.click();
+        allowNativeAdd = false;
+        requestAnimationFrame(decorateTicketEditor);
+      }, 0);
     });
     document.body.append(backdrop);
+  }
+
+  function setText(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
   }
 
   function decorateTicketEditor() {
@@ -205,35 +218,33 @@
         badge.className = 'ticket-kind-badge';
         card.querySelector('.ticket-type-copy')?.append(badge);
       }
-      badge.className = `ticket-kind-badge ${request ? 'request' : 'channel'}`;
-      badge.textContent = `Type: ${request ? 'Request' : 'Channel'}`;
+      const className = `ticket-kind-badge ${request ? 'request' : 'channel'}`;
+      if (badge.className !== className) badge.className = className;
+      setText(badge, `Type: ${request ? 'Request' : 'Channel'}`);
     });
     if (pendingRequest && root.querySelector('.ticket-type-section')) {
       root.dataset.requestEditor = 'true';
       const heading = root.querySelector('.ticket-editor-head h3')?.textContent || '';
       root.dataset.pendingRequestName = heading;
       root.querySelectorAll('.ticket-type-tabs .mini-tab').forEach((tab) => {
-        if (tab.textContent.trim() === 'Ticket message') tab.textContent = 'Request message';
+        if (tab.textContent.trim() === 'Ticket message') setText(tab, 'Request message');
       });
       const settings = root.querySelector('.ticket-type-section');
       const category = [...settings.querySelectorAll('.picker-field')].find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Category override');
-      if (category) category.hidden = true;
+      if (category && !category.hidden) category.hidden = true;
       settings.querySelector('.permission-buttons')?.setAttribute('hidden', '');
-      const transcript = [...settings.querySelectorAll('.panel')].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript');
+      const transcript = [...settings.querySelectorAll('.panel')].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript' || panel.querySelector('h3')?.textContent.trim() === 'Request channel');
       if (transcript) {
-        transcript.querySelector('h3').textContent = 'Request channel';
-        const description = transcript.querySelector('.panel-heading p');
-        if (description) description.textContent = 'Choose where staff receive and review this request.';
+        setText(transcript.querySelector('h3'), 'Request channel');
+        setText(transcript.querySelector('.panel-heading p'), 'Choose where staff receive and review this request.');
         const checkline = transcript.querySelector('.checkline');
-        if (checkline) checkline.hidden = true;
-        const label = transcript.querySelector('.field-label');
-        if (label) label.textContent = 'Request review channel';
+        if (checkline && !checkline.hidden) checkline.hidden = true;
+        setText(transcript.querySelector('.field-label'), 'Request review channel');
       }
       const phase = root.querySelector('.form-phase-switch');
       if (phase) {
         phase.querySelectorAll('[data-value="close"]').forEach((button) => button.remove());
-        const note = phase.querySelector('p');
-        if (note) note.textContent = 'Sent to the request author before the request is submitted.';
+        setText(phase.querySelector('p'), 'Sent to the request author before the request is submitted.');
       }
     }
   }
@@ -306,12 +317,19 @@
     if (tabName === 'tickets') queueMicrotask(decorateTicketEditor);
   };
 
-  new MutationObserver(() => {
-    cleanTabIcons();
-    ensureWordChainTools();
-    decorateTicketEditor();
-  }).observe(document.body, { childList: true, subtree: true });
+  function scheduleUiFixes() {
+    if (uiFixScheduled) return;
+    uiFixScheduled = true;
+    requestAnimationFrame(() => {
+      uiFixScheduled = false;
+      cleanTabIcons();
+      ensureWordChainTools();
+      decorateTicketEditor();
+    });
+  }
+
+  new MutationObserver(scheduleUiFixes).observe(document.body, { childList: true, subtree: true });
   window.addEventListener('resize', () => closePickerMenus());
   elements.configForm.addEventListener('scroll', () => closePickerMenus(), { passive: true });
-  cleanTabIcons();
+  scheduleUiFixes();
 })();

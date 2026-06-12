@@ -110,6 +110,10 @@ function canEarnXpInChannel(channelOrId, guildId) {
   return Boolean(getXpChannelRule(channelOrId, guildId));
 }
 
+function isLowXpChannel(channelOrId, guildId) {
+  return canEarnXpInChannel(channelOrId, guildId);
+}
+
 module.exports = {
   XP_CHANNEL_IDS,
   LOW_XP_CHANNEL_IDS,
@@ -118,4 +122,5 @@ module.exports = {
   getXpChannelOverrides,
   getXpChannelRule,
   getXpChannelRules,
+  isLowXpChannel,
 };
