@@ -1,62 +1,62 @@
 (() => {
   const pickerMenus = new Set();
-  const fallbackTabIcons = {
-    leveling: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAC0klEQVR4nOWXXUhTYRjHf/typnPVSJuW2/KD1CRK01HSRRAEQhfRRRTSTVF3FZV1ERlmUEF213UXxi4qEuquICLQ/CTrQkM2c2q6qUxd82Otebo4eeY8+zDUGfjcPe/H8/+9//e857wHNnoo4g0w5xQJKxVx9nVH1YnasRrCywFRJko8Wl0ZwFqJR6uvjNWZCIiIW5DIkAAStfqlev+PAxsWQL04ScnbQrGtEmWSCoC+2k+MNtrDJpivlpJ5tgiAgGeOryffoLcayX9wWFZcCAoEPHP4vowx8qyHn12jsjFhDszYJxl80hUSu34AbZZOytNKMsisKpTyvrstBCbmoq5OoVKQlL4Jw1ETe54eI+NkfmwAgJGGHrydbgBUqRpy6w6BUoEqRU1eXQUoxbfp2GsHEx8GIwq3WW207Gvgc2WjVAsFWG6UodmaHBuAeQFHTTPB6QAA+tLtZFYVYq4uQ7tDdMPvmqb/YXvUlS+Ef9iH81FHSEyrQm81xgEA/D98OOtDE02X9pNxIk9MBHDcDgHGhRjyheUaQzwH/sboKzsTH4cAUKhDw0ZsPXjbXcsSB9Bmp4XlAU/4MxPzGLpf9MrBIrRFFc/SYb5WKuXz/iDetnB49dJJElmyGkt1max91y0r3RfeQYwXd3nrGXmjAM76juU7YLpSQrJJtC8wPsu8PwiAvsyI8XRBdPXFmkGBwPgsnvcDdJ9/i/u53L2IDmy2ZmI8tVvKHXeaSbboJUdMl0uYah5mtt8bUbjNapOA44XMAZVOQ27tQemy5n7Zy2TTMC7bN6Zaxf1TalXk3qtAoYx7pfx3AMvNcpKMqYB4hAYed4odguhE0CceP13xNrLOFa8ugOFINunHc8RkXsBe00Rw5rfU/8s1zff7bVK+8+JeUgsMKwII8zCRl5KFG/K6f47DAGL9QKxmLNaRObDWEEvrR9yCtYKIVHfd/w3XPf4AadT6ohNi+d4AAAAASUVORK5CYII=',
-    tickets: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAtUlEQVR4nGNgGOmAkZACeSWt/5Ra8vDeNZz24JSghsXEOISJXpbjMhfDAbSyHJf5TPgk6eEIrFFATwB3AL18j27f4AmBEesAFmIV7mtmZxDmJVhwwkFY9y+Gm0//EVQ3dELAqfYnCr/Yn4UhzhGi/e6L/wxBHT+xaSMIBjwERh0w6oBRB4w6YMAdgFK70LNRAmshD3gIoDgAXweCmgDZHowQoLUj0M3HGgW0cgQ2cwe8bzjgAACoqTjHn+EJLQAAAABJRU5ErkJggg==',
-  };
+  const requestIds = new Set();
+  let allowNativeAdd = false;
+  let pendingRequest = false;
 
-  function hydrateTabIcons() {
-    for (const [tabName, fallback] of Object.entries(fallbackTabIcons)) {
-      const image = document.querySelector(`.tab[data-tab="${tabName}"] .tab-icon`);
-      if (!image) continue;
-      image.addEventListener('error', () => {
-        if (image.src !== fallback) image.src = fallback;
-      }, { once: true });
-    }
+  function cleanTabIcons() {
+    document.querySelectorAll('.tab-image-icon').forEach((image) => image.remove());
+    const sources = { leveling: '/admin/images/leveling.png', tickets: '/admin/images/ticket.png' };
+    Object.entries(sources).forEach(([tab, source]) => {
+      const button = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (!button) return;
+      let image = button.querySelector('.tab-icon');
+      if (!image) {
+        image = document.createElement('img');
+        image.className = 'tab-icon';
+        image.alt = '';
+        image.setAttribute('aria-hidden', 'true');
+        button.prepend(image);
+      }
+      image.src = source;
+    });
   }
 
   function closePickerMenus(except = null) {
-    pickerMenus.forEach((menu) => {
-      if (menu !== except) menu.classList.remove('open');
-    });
+    pickerMenus.forEach((menu) => menu.classList.toggle('open', menu === except));
     document.querySelectorAll('.picker-button.open').forEach((button) => {
-      const menuId = button.dataset.menuId;
-      if (!except || menuId !== except.dataset.menuId) button.classList.remove('open');
+      button.classList.toggle('open', Boolean(except && button.dataset.menuId === except.dataset.menuId));
     });
   }
 
   function placeMenu(button, menu) {
     const rect = button.getBoundingClientRect();
-    const gap = 6;
-    const width = Math.max(rect.width, 260);
-    const maxWidth = Math.max(260, window.innerWidth - 24);
-    menu.style.width = `${Math.min(width, maxWidth)}px`;
-    menu.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - Math.min(width, maxWidth) - 12)}px`;
-    menu.style.top = `${Math.min(rect.bottom + gap, window.innerHeight - 36)}px`;
+    const width = Math.min(Math.max(rect.width, 280), window.innerWidth - 24);
+    const roomBelow = window.innerHeight - rect.bottom - 12;
+    const top = roomBelow >= 220 ? rect.bottom + 6 : Math.max(12, rect.top - Math.min(420, window.innerHeight - 24) - 6);
+    menu.style.width = `${width}px`;
+    menu.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - width - 12)}px`;
+    menu.style.top = `${top}px`;
   }
 
-  renderPicker = function renderPicker(mount, options, selectedValue, settings) {
+  renderPicker = function fixedPicker(mount, options, selectedValue, settings) {
     const { multiple = false, type = 'channel', placeholder = 'Select', onChange } = settings;
-    const selected = multiple ? new Set(selectedValue || []) : new Set(selectedValue ? [selectedValue] : []);
+    const selected = new Set(multiple ? selectedValue || [] : selectedValue ? [selectedValue] : []);
     if (mount._pickerMenu) {
       pickerMenus.delete(mount._pickerMenu);
       mount._pickerMenu.remove();
-      mount._pickerMenu = null;
     }
     mount.replaceChildren();
-
     const picker = document.createElement('div');
     picker.className = 'picker';
     const button = document.createElement('button');
-    button.className = 'picker-button';
     button.type = 'button';
-    const menuId = `picker-${Math.random().toString(36).slice(2)}`;
-    button.dataset.menuId = menuId;
-
+    button.className = 'picker-button';
+    button.dataset.menuId = `picker-${Math.random().toString(36).slice(2)}`;
     const selectedWrap = document.createElement('span');
     selectedWrap.className = 'selected-wrap';
     const selectedOptions = [...selected].map((id) => optionById(options, id, type));
-    if (selectedOptions.length === 0) {
+    if (!selectedOptions.length) {
       const empty = document.createElement('span');
       empty.className = 'placeholder';
       empty.textContent = placeholder;
@@ -74,33 +74,29 @@
     chevron.className = 'chevron';
     chevron.textContent = 'v';
     button.append(selectedWrap, chevron);
-
     const menu = document.createElement('div');
     menu.className = 'picker-menu picker-portal-menu';
-    menu.dataset.menuId = menuId;
+    menu.dataset.menuId = button.dataset.menuId;
     const search = document.createElement('input');
     search.className = 'picker-search';
     search.placeholder = 'Search by name or ID';
     search.autocomplete = 'off';
-    const optionList = document.createElement('div');
-    optionList.className = 'option-list';
-    menu.append(search, optionList);
+    const list = document.createElement('div');
+    list.className = 'option-list';
+    menu.append(search, list);
 
-    function drawOptions() {
+    function draw() {
       const query = search.value.trim().toLowerCase();
-      const filtered = options.filter((option) => {
-        const haystack = option.searchText || `${option.label} ${option.id}`.toLowerCase();
-        return !query || haystack.includes(query);
-      });
-      optionList.replaceChildren();
-      if (filtered.length === 0) {
+      const filtered = options.filter((option) => !query || (option.searchText || `${option.label} ${option.id}`.toLowerCase()).includes(query));
+      list.replaceChildren();
+      if (!filtered.length) {
         const empty = document.createElement('div');
         empty.className = 'empty-option';
         empty.textContent = 'No results';
-        optionList.append(empty);
+        list.append(empty);
         return;
       }
-      for (const option of filtered) {
+      filtered.forEach((option) => {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = `option ${type === 'role' ? 'role-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
@@ -114,33 +110,27 @@
         row.append(main, check);
         row.addEventListener('click', () => {
           if (multiple) {
-            if (selected.has(option.id)) selected.delete(option.id);
-            else selected.add(option.id);
+            if (selected.has(option.id)) selected.delete(option.id); else selected.add(option.id);
             onChange([...selected]);
-          } else {
-            onChange(selected.has(option.id) ? '' : option.id);
-          }
+          } else onChange(selected.has(option.id) ? '' : option.id);
           closePickerMenus();
           refreshDirtyState();
         });
-        optionList.append(row);
-      }
+        list.append(row);
+      });
     }
-
     button.addEventListener('click', (event) => {
       event.stopPropagation();
-      const open = !menu.classList.contains('open');
-      closePickerMenus(open ? menu : null);
-      menu.classList.toggle('open', open);
-      button.classList.toggle('open', open);
-      if (open) {
-        drawOptions();
+      const opening = !menu.classList.contains('open');
+      closePickerMenus(opening ? menu : null);
+      if (opening) {
+        draw();
         placeMenu(button, menu);
         search.focus();
       }
     });
     menu.addEventListener('click', (event) => event.stopPropagation());
-    search.addEventListener('input', drawOptions);
+    search.addEventListener('input', draw);
     picker.append(button);
     mount.append(picker);
     document.body.append(menu);
@@ -148,87 +138,180 @@
     mount._pickerMenu = menu;
   };
 
-  window.addEventListener('resize', () => {
-    document.querySelectorAll('.picker-menu.open').forEach((menu) => {
-      const button = document.querySelector(`.picker-button[data-menu-id="${menu.dataset.menuId}"]`);
-      if (button) placeMenu(button, menu);
-    });
-  });
-  elements.configForm.addEventListener('scroll', () => closePickerMenus(), { passive: true });
-
-  function wordChainChannelOptions() {
+  function wordChainOptions() {
     return channelOptions().filter((option) => !['category', 'voice', 'forum'].includes(option.optionType));
   }
 
-  function ensureWordChainChannelPicker() {
-    let mount = document.querySelector('#wordChainChannelMount');
-    if (mount) return mount;
+  function ensureWordChainTools() {
     const gamesPanel = document.querySelector('[data-panel="games"] .panel');
     const grid = gamesPanel?.querySelector('.grid.three');
-    if (!gamesPanel || !grid) return null;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'game-channel-setting';
-    wrapper.innerHTML = `
-      <div class="picker-field">
-        <span class="field-label">Word chain game channel</span>
-        <div id="wordChainChannelMount"></div>
-      </div>
-    `;
-    gamesPanel.insertBefore(wrapper, grid);
-    mount = wrapper.querySelector('#wordChainChannelMount');
-    return mount;
+    if (!gamesPanel || !grid) return;
+    let tools = gamesPanel.querySelector('.word-chain-tools');
+    if (!tools) {
+      tools = document.createElement('div');
+      tools.className = 'word-chain-tools settings-grid';
+      tools.innerHTML = '<div class="picker-field"><span class="field-label">Word chain game channel</span><div id="wordChainChannelMount"></div></div><div class="picker-field" id="wordChainRoleMount"><span class="field-label">Punishment role</span></div>';
+      gamesPanel.insertBefore(tools, grid);
+    }
+    const channelMount = tools.querySelector('#wordChainChannelMount');
+    if (channelMount && !channelMount.querySelector('.picker')) {
+      renderPicker(channelMount, wordChainOptions(), state.channelValues.wordChain, {
+        type: 'channel', placeholder: 'Select word chain channel',
+        onChange: (value) => { state.channelValues.wordChain = value; ensureWordChainTools(); },
+      });
+    }
+    const roleMount = tools.querySelector('#wordChainRoleMount');
+    const roleField = [...document.querySelectorAll('#rolesGrid .picker-field')]
+      .find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Word Chain Punishment');
+    if (roleMount && roleField) {
+      const picker = roleField.querySelector('.picker');
+      if (picker) roleMount.append(picker);
+      roleField.remove();
+    }
   }
 
-  function renderWordChainChannelPicker() {
-    const mount = ensureWordChainChannelPicker();
-    if (!mount) return;
-    renderPicker(mount, wordChainChannelOptions(), state.channelValues.wordChain, {
-      type: 'channel',
-      placeholder: 'Select word chain channel',
-      onChange: (value) => {
-        state.channelValues.wordChain = value;
-        renderWordChainChannelPicker();
-      },
+  function isRequestType(type) {
+    return Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
+  }
+
+  function showTicketKindDialog(nativeButton) {
+    document.querySelector('.ticket-kind-dialog')?.remove();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'ticket-modal-backdrop ticket-kind-dialog';
+    backdrop.innerHTML = '<section class="ticket-modal ticket-kind-modal" role="dialog" aria-modal="true"><div class="ticket-modal-head"><div><h3>Create ticket type</h3><p>Choose how members submit this ticket.</p></div><button class="icon-button" type="button" data-kind="cancel">×</button></div><div class="ticket-kind-grid"><button type="button" data-kind="channel"><strong>Channel Ticket</strong><span>Create a private Discord channel for the member and staff.</span></button><button type="button" data-kind="request"><strong>Request Ticket</strong><span>Send a request card to staff for approval or denial.</span></button></div></section>';
+    backdrop.addEventListener('click', (event) => {
+      const kind = event.target.closest('[data-kind]')?.dataset.kind;
+      if (!kind && event.target !== backdrop) return;
+      backdrop.remove();
+      if (!kind || kind === 'cancel') return;
+      pendingRequest = kind === 'request';
+      allowNativeAdd = true;
+      nativeButton.click();
+      allowNativeAdd = false;
     });
+    document.body.append(backdrop);
   }
 
-  const originalApplyTabFromConfig = applyTabFromConfig;
-  applyTabFromConfig = function patchedApplyTabFromConfig(tabName, config) {
-    originalApplyTabFromConfig(tabName, config);
+  function decorateTicketEditor() {
+    const root = document.querySelector('#ticketEditorRoot');
+    if (!root) return;
+    root.querySelectorAll('.ticket-type-card').forEach((card) => {
+      const id = card.dataset.ticketId || '';
+      if (id.startsWith('request-') || id === 'request_role_crew_member_plus') requestIds.add(id);
+      const request = requestIds.has(id) || id === 'request_role_crew_member_plus';
+      let badge = card.querySelector('.ticket-kind-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'ticket-kind-badge';
+        card.querySelector('.ticket-type-copy')?.append(badge);
+      }
+      badge.className = `ticket-kind-badge ${request ? 'request' : 'channel'}`;
+      badge.textContent = `Type: ${request ? 'Request' : 'Channel'}`;
+    });
+    if (pendingRequest && root.querySelector('.ticket-type-section')) {
+      root.dataset.requestEditor = 'true';
+      const heading = root.querySelector('.ticket-editor-head h3')?.textContent || '';
+      root.dataset.pendingRequestName = heading;
+      root.querySelectorAll('.ticket-type-tabs .mini-tab').forEach((tab) => {
+        if (tab.textContent.trim() === 'Ticket message') tab.textContent = 'Request message';
+      });
+      const settings = root.querySelector('.ticket-type-section');
+      const category = [...settings.querySelectorAll('.picker-field')].find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Category override');
+      if (category) category.hidden = true;
+      settings.querySelector('.permission-buttons')?.setAttribute('hidden', '');
+      const transcript = [...settings.querySelectorAll('.panel')].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript');
+      if (transcript) {
+        transcript.querySelector('h3').textContent = 'Request channel';
+        const description = transcript.querySelector('.panel-heading p');
+        if (description) description.textContent = 'Choose where staff receive and review this request.';
+        const checkline = transcript.querySelector('.checkline');
+        if (checkline) checkline.hidden = true;
+        const label = transcript.querySelector('.field-label');
+        if (label) label.textContent = 'Request review channel';
+      }
+      const phase = root.querySelector('.form-phase-switch');
+      if (phase) {
+        phase.querySelectorAll('[data-value="close"]').forEach((button) => button.remove());
+        const note = phase.querySelector('p');
+        if (note) note.textContent = 'Sent to the request author before the request is submitted.';
+      }
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    const add = event.target.closest('#ticketEditorRoot [data-action="add-ticket"]');
+    if (add && !allowNativeAdd) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showTicketKindDialog(add);
+      return;
+    }
+    const card = event.target.closest('.ticket-type-card');
+    if (card) pendingRequest = requestIds.has(card.dataset.ticketId) || card.dataset.ticketId === 'request_role_crew_member_plus';
+    if (event.target.closest('[data-action="back-list"]')) pendingRequest = false;
+  }, true);
+
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (/\/api\/guilds\/\d{16,20}\/config$/.test(url) && String(init.method || 'GET').toUpperCase() === 'PATCH' && init.body) {
+      const body = JSON.parse(init.body);
+      const types = body.tickets?.types || [];
+      types.forEach((type, index) => {
+        const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
+        if (!marked || type.workflow === 'request_role_crew_member_plus') return;
+        if (!String(type.id).startsWith('request-')) type.id = `request-${type.id}`.slice(0, 40);
+        type.transcriptEnabled = true;
+        type.authorPermissions = ['UseApplicationCommands'];
+        if (!type.adminPanel?.controls?.length || (type.adminPanel.controls.length === 1 && type.adminPanel.controls[0].name === 'Close Ticket')) {
+          type.adminPanel = { enabled: true, style: 'buttons', controls: [
+            { id: 'accept', name: 'Accept', emoji: '✅', description: '', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
+            { id: 'reason-deny', name: 'Deny', emoji: '❌', description: '', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
+          ] };
+        }
+      });
+      init = { ...init, body: JSON.stringify(body) };
+    }
+    return nativeFetch(input, init);
+  };
+
+  const originalApply = applyTabFromConfig;
+  applyTabFromConfig = function fixedApply(tabName, config) {
+    originalApply(tabName, config);
     if (tabName === 'games') {
       state.channelValues.wordChain = config.channels?.wordChain || '';
-      renderWordChainChannelPicker();
+      ensureWordChainTools();
+    }
+    if (tabName === 'roles') queueMicrotask(ensureWordChainTools);
+    if (tabName === 'tickets') {
+      (config.tickets?.types || []).filter(isRequestType).forEach((type) => requestIds.add(type.id));
+      queueMicrotask(decorateTicketEditor);
     }
   };
-
-  const originalCollectTabState = collectTabState;
-  collectTabState = function patchedCollectTabState(tabName) {
-    const value = originalCollectTabState(tabName);
-    if (tabName === 'games') {
-      return {
-        ...value,
-        wordChainChannel: state.channelValues.wordChain || '',
-      };
-    }
-    return value;
+  const originalCollect = collectTabState;
+  collectTabState = function fixedCollect(tabName) {
+    const value = originalCollect(tabName);
+    return tabName === 'games' ? { ...value, wordChainChannel: state.channelValues.wordChain || '', wordChainPunishmentRole: state.roleValues.wordChainPunishment || '' } : value;
   };
-
-  const originalCollectPatch = collectPatch;
-  collectPatch = function patchedCollectPatch() {
-    const patch = originalCollectPatch();
-    patch.channels = {
-      ...patch.channels,
-      wordChain: state.channelValues.wordChain || '',
-    };
+  const originalPatch = collectPatch;
+  collectPatch = function fixedPatch() {
+    const patch = originalPatch();
+    patch.channels = { ...patch.channels, wordChain: state.channelValues.wordChain || '' };
     return patch;
   };
-
-  const originalSetActiveTab = setActiveTab;
-  setActiveTab = function patchedSetActiveTab(tabName) {
-    originalSetActiveTab(tabName);
-    if (tabName === 'games') renderWordChainChannelPicker();
+  const originalSetTab = setActiveTab;
+  setActiveTab = function fixedSetTab(tabName) {
+    originalSetTab(tabName);
+    if (tabName === 'games') queueMicrotask(ensureWordChainTools);
+    if (tabName === 'tickets') queueMicrotask(decorateTicketEditor);
   };
 
-  hydrateTabIcons();
+  new MutationObserver(() => {
+    cleanTabIcons();
+    ensureWordChainTools();
+    decorateTicketEditor();
+  }).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', () => closePickerMenus());
+  elements.configForm.addEventListener('scroll', () => closePickerMenus(), { passive: true });
+  cleanTabIcons();
 })();
