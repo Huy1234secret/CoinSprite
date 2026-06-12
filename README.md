@@ -116,6 +116,8 @@ Supported item aliases (case-insensitive):
 The bot can also run a small Discord-login admin panel from the same process. It only allows a user to edit guild config when the bot can confirm that Discord member has Administrator permission in that guild.
 
 Admin sessions are stored in `data/admin-sessions.json` and expire after three days. The dashboard can list guild channels, categories, roles, and active or archived forum threads that are visible to the bot.
+Word Chain settings include warning or punishment behavior for repeated and wrong-start words. Its XP formula supports `wordLength`, `streak`, arithmetic, parentheses, and the `min`, `max`, `round`, `floor`, `ceil`, and `abs` functions. Invalid formulas safely fall back to `wordLength`.
+The Leveling tab groups XP earning, role rewards, and level-up announcements. Every guild inherits a default Components V2 level-up container until it saves an override. Message templates support member/server placeholders, `<separator>`, and conditions such as `<if<level>==10,"shown","hidden">`; optional thumbnails and images remain inside the container.
 
 Add these values to `.env` to enable it:
 ```env

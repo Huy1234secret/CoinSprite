@@ -3,6 +3,7 @@ const { logCommandSystem } = require('./commandLogger');
 const levelingManager = require('./levelingManager');
 const { loadState, saveState } = require('./wordChainStore');
 const { DEFAULT_GUILD_CONFIG, DEFAULT_GUILD_ID, getEnabledGuildIds, getGuildConfig } = require('./serverConfig');
+const { calculateWordChainXp, sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const WORD_CHAIN_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.wordChain;
 const MIN_WORD_LENGTH = DEFAULT_GUILD_CONFIG.wordChain.minWordLength;
@@ -59,6 +60,9 @@ function getWordChainSettings(guildId) {
     turnTimeoutMs: Number(config.turnTimeoutMs) || TURN_TIMEOUT_MS,
     punishmentMs: Number(config.punishmentMs) || PUNISHMENT_MS,
     gameCooldownMs: Number(config.gameCooldownMs) || GAME_COOLDOWN_MS,
+    repeatedWordAction: config.repeatedWordAction === 'warn' ? 'warn' : 'punish',
+    wrongStartAction: config.wrongStartAction === 'warn' ? 'warn' : 'punish',
+    xpRewardFormula: sanitizeWordChainXpFormula(config.xpRewardFormula),
   };
 }
 
@@ -191,8 +195,13 @@ function getStreakLine() {
 
 function awardCorrectWordXp(message) {
   if (!message.guild?.id || !message.author?.id || !currentGame) return null;
+  const settings = getWordChainSettings(message.guild.id);
+  const fixedXp = calculateWordChainXp(settings.xpRewardFormula, {
+    wordLength: currentGame.wordLength,
+    streak: currentGame.streak || 0,
+  });
   return levelingManager.awardMessageXp(message.guild.id, message.author.id, {
-    fixedXp: currentGame.wordLength,
+    fixedXp,
     source: 'word chain',
     channelId: message.channelId,
     messageId: message.id,
@@ -499,10 +508,6 @@ async function isKnownEnglishWord(word) {
 async function validateWord(word) {
   if (!currentGame) return 'No active game.';
   if (word.length !== currentGame.wordLength) return `Word must have exactly ${currentGame.wordLength} letters.`;
-  if (currentGame.usedWords.has(word)) return 'That word was already used.';
-  if (currentGame.requiredFirstLetter && !word.startsWith(currentGame.requiredFirstLetter)) {
-    return `Word must start with "${currentGame.requiredFirstLetter.toUpperCase()}".`;
-  }
 
   const dictionaryResult = await isKnownEnglishWord(word);
   if (!dictionaryResult.ok) return { temporary: true, reason: 'Dictionary lookup is unavailable right now. Try again in a moment.' };
@@ -512,14 +517,16 @@ async function validateWord(word) {
 
 function formatPunishmentLine(message, result) {
   const muteText = result?.muted ? 'muted in this channel' : 'not muted because channel permissions could not be updated';
+  const durationSeconds = Math.max(1, Math.ceil(getWordChainSettings(message.guild.id).punishmentMs / 1000));
+  const durationText = durationSeconds === 60 ? '1 minute' : `${durationSeconds} seconds`;
   if (result?.roleAdded) {
     const punishmentRoleId = getPunishmentRoleId(message.guild.id);
     const roleText = result.roleAlreadyPresent ? `already had <@&${punishmentRoleId}>` : `given <@&${punishmentRoleId}>`;
-    return `They are ${muteText} and ${roleText} for 1 minute.`;
+    return `They are ${muteText} and ${roleText} for ${durationText}.`;
   }
 
   const roleError = result?.roleError || 'unknown role add error';
-  return `They are ${muteText} for 1 minute. Role was not added: ${roleError}`;
+  return `They are ${muteText} for ${durationText}. Role was not added: ${roleError}`;
 }
 
 async function punishInvalidWord(message, word, reason) {
@@ -536,6 +543,19 @@ async function punishInvalidWord(message, word, reason) {
 async function rejectTemporaryValidationIssue(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
   await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
+}
+
+async function warnInvalidWord(message, word, reason) {
+  await message.react('\u26a0\ufe0f').catch(() => null);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nWarning only: no heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
+}
+
+async function handleConfiguredViolation(message, word, reason, action) {
+  if (action === 'warn') {
+    await warnInvalidWord(message, word, reason);
+    return;
+  }
+  await punishInvalidWord(message, word, reason);
 }
 
 async function rejectRepeatedPlayer(message) {
@@ -600,6 +620,27 @@ async function handleMessageCreate(message) {
 
   if (currentGame.lastUserId === message.author.id) {
     await rejectRepeatedPlayer(message);
+    return;
+  }
+
+  if (word.length !== currentGame.wordLength) {
+    await punishInvalidWord(message, word, `Word must have exactly ${currentGame.wordLength} letters.`);
+    return;
+  }
+
+  const settings = getWordChainSettings(message.guild.id);
+  if (currentGame.usedWords.has(word)) {
+    await handleConfiguredViolation(message, word, 'That word was already used.', settings.repeatedWordAction);
+    return;
+  }
+
+  if (currentGame.requiredFirstLetter && !word.startsWith(currentGame.requiredFirstLetter)) {
+    await handleConfiguredViolation(
+      message,
+      word,
+      `Word must start with "${currentGame.requiredFirstLetter.toUpperCase()}".`,
+      settings.wrongStartAction,
+    );
     return;
   }
 

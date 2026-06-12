@@ -46,6 +46,13 @@
         "messageXpMin": 1,
         "messageXpMax": 3,
         "messageCooldownMs": 0,
+        "levelUpMessage": {
+          "enabled": true,
+          "content": "## Level up!\n<@mention> reached **Level <level>** in **<server>**.\n<separator>\n<if<level>==5,\"Bro discovered the chat button.\",\"\">\n<if<level>==10,\"Double digits? Okay, yapper training complete.\",\"\">\n<if<level>==15,\"Slowly becoming a professional keyboard warrior.\",\"\">\n<if<level>==20,\"Hydrate before the next yap session.\",\"\">\n<if<level>==30,\"Chat activity detected. Grass not detected.\",\"\">\n<if<level>==40,\"At this point, the keyboard fears you.\",\"\">\n<if<level>==50,\"Halfway to please go outside.\",\"\">\n<if<level>==60,\"The yap grind is getting concerning.\",\"\">\n<if<level>==70,\"Bro is not chatting anymore, bro is farming XP.\",\"\">\n<if<level>==80,\"Scientists are studying this level of activity.\",\"\">\n<if<level>==90,\"So close to Level 100, your keyboard is crying.\",\"\">\n<if<level>==100,\"Someone give them grass... or a trophy.\",\"\">",
+          "accentColor": "#57F287",
+          "thumbnailUrl": "<avatar_url>",
+          "imageUrl": ""
+        },
         "boosts": [
           { "roleId": "1502905486645788713", "xpPercent": 10 },
           { "roleId": "1502905217945964596", "xpPercent": 5 },
@@ -65,20 +72,6 @@
           { "level": 90, "roleId": "1513347127038705745" },
           { "level": 100, "roleId": "1513347127810719866" }
         ],
-        "levelFunMessages": {
-          "5": "Bro discovered the chat button.",
-          "10": "Double digits? Okay, yapper training complete.",
-          "15": "Slowly becoming a professional keyboard warrior.",
-          "20": "Hydrate before the next yap session.",
-          "30": "Chat activity detected. Grass not detected.",
-          "40": "At this point, the keyboard fears you.",
-          "50": "Halfway to \"please go outside.\"",
-          "60": "The yap grind is getting concerning.",
-          "70": "Bro is not chatting anymore, bro is farming XP.",
-          "80": "Scientists are studying this level of activity.",
-          "90": "So close to Level 100, your keyboard is crying.",
-          "100": "Someone give them grass... or a trophy."
-        },
         "punishmentDurationsMs": {
           "1": 86400000,
           "2": 259200000,
@@ -121,7 +114,10 @@
         "startingHearts": 3,
         "turnTimeoutMs": 14400000,
         "punishmentMs": 60000,
-        "gameCooldownMs": 60000
+        "gameCooldownMs": 60000,
+        "repeatedWordAction": "punish",
+        "wrongStartAction": "punish",
+        "xpRewardFormula": "wordLength"
       },
       "giveaway": {
         "minClaimMs": 300000,
