@@ -32,7 +32,16 @@ function patchMessagesScript(source) {
 function patchAppScript(source) {
   const currentExcludedKeys = "['levelUp', 'ticketPanel', 'ticketCategory', 'transcript']";
   const hiddenChannelKeys = "['levelUp', 'ticketPanel', 'ticketCategory', 'transcript', 'roleRequestReview', 'giveawayRequestReview', 'inviteRules', 'inviteClaim', 'inviteLog', 'inviteAnnounce', 'wordChain']";
-  return source.split(currentExcludedKeys).join(hiddenChannelKeys);
+  return source
+    .split(currentExcludedKeys).join(hiddenChannelKeys)
+    .replace(
+      "elements.configForm.addEventListener('input', (event) => {\n  refreshDirtyState();",
+      "elements.configForm.addEventListener('input', (event) => {\n  if (event.target !== elements.levelUpPreviewLevel) refreshDirtyState();",
+    )
+    .replace(
+      "elements.configForm.addEventListener('change', (event) => {\n  refreshDirtyState();",
+      "elements.configForm.addEventListener('change', (event) => {\n  if (event.target !== elements.levelUpPreviewLevel) refreshDirtyState();",
+    );
 }
 
 function emojiPickerFunction() {
@@ -135,7 +144,8 @@ function patchTicketUpgradeScript(source) {
 }
 
 function patchTicketUpgradeCss(source) {
-  return `${source}\n
+  return `${source}
+
 .emoji-component-popover {
   width: min(430px, calc(100vw - 24px));
   max-height: none !important;
