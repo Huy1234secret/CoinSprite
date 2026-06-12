@@ -9,7 +9,7 @@ const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const { loadState, saveState } = require('./src/ticketSystemStore');
 const inviteRewardsManager = require('./src/inviteRewardsManager');
-const { getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
+const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
@@ -346,13 +346,17 @@ async function initCommandModules() {
   }
 }
 
-async function registerSlashCommands() {
+async function registerGuildSlashCommands(guild) {
   const slashCommands = client.commands.map((command) => command.data.toJSON());
+  await guild.commands.set(slashCommands);
+  logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${guild.id}.`);
+}
+
+async function registerSlashCommands() {
   for (const guildId of getEnabledGuildIds()) {
     try {
       const guild = await client.guilds.fetch(guildId);
-      await guild.commands.set(slashCommands);
-      logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${guildId}.`);
+      await registerGuildSlashCommands(guild);
     } catch (error) {
       console.error(`Slash command registration failed for guild ${guildId}:`, error);
       logCommandSystem(`Slash command registration failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
@@ -370,6 +374,7 @@ async function registerSlashCommands() {
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
+  for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   startAdminServer(client);
   await initCommandModules();
   await inviteRewardsManager.init(client).catch((error) => {
@@ -377,6 +382,19 @@ client.once(Events.ClientReady, async () => {
     logCommandSystem(`Invite rewards init failed: ${error?.message ?? 'unknown error'}`);
   });
   await registerSlashCommands();
+});
+
+client.on(Events.GuildCreate, async (guild) => {
+  ensureGuildConfig(guild.id);
+  await registerGuildSlashCommands(guild).catch((error) => {
+    console.error(`Slash command registration failed for new guild ${guild.id}:`, error);
+    logCommandSystem(`Slash command registration failed for new guild ${guild.id}: ${error?.message ?? 'unknown error'}`);
+  });
+  logCommandSystem(`Created blank server config for guild ${guild.id}.`);
+});
+
+client.on(Events.GuildDelete, (guild) => {
+  if (deleteGuildConfig(guild.id)) logCommandSystem(`Removed server config for guild ${guild.id}.`);
 });
 
 client.on(Events.GuildMemberAdd, async (member) => {
