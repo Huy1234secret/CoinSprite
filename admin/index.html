@@ -48,10 +48,10 @@
       </div>
 
       <nav class="tabs" id="tabList" aria-label="Settings sections">
-        <button class="tab active" type="button" data-tab="xp"><span>XP settings</span></button>
+        <button class="tab active" type="button" data-tab="leveling"><span>Leveling</span></button>
         <button class="tab" type="button" data-tab="channels"><span>Channels</span></button>
         <button class="tab" type="button" data-tab="roles"><span>Roles</span></button>
-        <button class="tab" type="button" data-tab="rewards"><span>Rewards</span></button>
+        <button class="tab" type="button" data-tab="invites"><span>Invite rewards</span></button>
         <button class="tab" type="button" data-tab="games"><span>Games</span></button>
       </nav>
 
@@ -68,31 +68,124 @@
       </div>
 
       <form id="configForm" class="config-scroll">
-        <section class="tab-panel active" data-panel="xp">
-          <div class="panel">
-            <div class="panel-heading">
-              <div>
-                <h3>Default message XP</h3>
-                <p>These values apply to every XP-enabled destination unless an override below replaces them.</p>
+        <section class="tab-panel active" data-panel="leveling">
+          <nav class="mini-tabs" id="levelingTabList" aria-label="Leveling settings">
+            <button class="mini-tab active" type="button" data-leveling-tab="xp">XP earning</button>
+            <button class="mini-tab" type="button" data-leveling-tab="rewards">Rewards</button>
+            <button class="mini-tab" type="button" data-leveling-tab="message">Level-up message</button>
+          </nav>
+
+          <div class="mini-panel active" data-leveling-panel="xp">
+            <div class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Default message XP</h3>
+                  <p>These values apply to every XP-enabled destination unless an override below replaces them.</p>
+                </div>
+              </div>
+              <div class="grid compact-grid">
+                <label>Minimum XP <input name="xp.messageXpMin" type="number" min="0" step="0.1"></label>
+                <label>Maximum XP <input name="xp.messageXpMax" type="number" min="0" step="0.1"></label>
+                <label>Cooldown (seconds) <input name="xp.messageCooldownMs" type="number" min="0" step="1"></label>
               </div>
             </div>
-            <div class="grid compact-grid">
-              <label>Minimum XP <input name="xp.messageXpMin" type="number" min="0" step="0.1"></label>
-              <label>Maximum XP <input name="xp.messageXpMax" type="number" min="0" step="0.1"></label>
-              <label>Cooldown (seconds) <input name="xp.messageCooldownMs" type="number" min="0" step="1"></label>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-heading">
+                  <h3>Channel overrides</h3>
+                  <p>Select several channels, categories, or forum threads in one group. A group set to 1-5 XP uses 1-5 in those destinations instead of the default range above.</p>
+                </div>
+                <button class="button small" id="addXpChannelButton" type="button">Add override</button>
+              </div>
+              <div class="rows" id="xpChannelRows"></div>
+              <div class="empty-state" id="xpEmptyState" hidden>No overrides. Add one to enable XP in selected destinations.</div>
             </div>
           </div>
 
-          <div class="panel">
-            <div class="panel-head">
-              <div class="panel-heading">
-                <h3>Channel overrides</h3>
-                <p>Select several channels, categories, or forum threads in one group. A group set to 1-5 XP uses 1-5 in those destinations instead of the default range above.</p>
+          <div class="mini-panel" data-leveling-panel="rewards">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-heading">
+                  <h3>XP boost roles</h3>
+                  <p>Members receive the configured percentage boost while they hold the selected role.</p>
+                </div>
+                <button class="button small" id="addBoostButton" type="button">Add boost</button>
               </div>
-              <button class="button small" id="addXpChannelButton" type="button">Add override</button>
+              <div class="rows" id="boostRows"></div>
             </div>
-            <div class="rows" id="xpChannelRows"></div>
-            <div class="empty-state" id="xpEmptyState" hidden>No overrides. Add one to enable XP in selected destinations.</div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-heading">
+                  <h3>Level role rewards</h3>
+                  <p>Assign a Discord role automatically when a member reaches a level.</p>
+                </div>
+                <button class="button small" id="addRewardButton" type="button">Add reward</button>
+              </div>
+              <div class="rows" id="rewardRows"></div>
+            </div>
+          </div>
+
+          <div class="mini-panel" data-leveling-panel="message">
+            <div class="panel">
+              <div class="panel-heading">
+                <h3>Level-up destination</h3>
+                <p>The selected channel receives the Components V2 message whenever a member gains a level.</p>
+              </div>
+              <div class="announcement-basics">
+                <label class="checkline"><input name="xp.levelUpMessage.enabled" type="checkbox"> Send level-up messages</label>
+                <div class="picker-field">
+                  <span class="field-label">Announcement channel</span>
+                  <div id="levelUpChannelMount"></div>
+                </div>
+                <label>Preview level <input id="levelUpPreviewLevel" type="number" min="1" step="1" value="10"></label>
+              </div>
+            </div>
+
+            <div class="message-builder">
+              <div class="panel message-editor">
+                <div class="panel-heading">
+                  <h3>Components V2 container</h3>
+                  <p>Text stays inside one container. Insert <code>&lt;separator&gt;</code> to divide text sections. Thumbnail and image URLs render inside that same container.</p>
+                </div>
+                <div class="template-tokens" id="levelUpTokens" aria-label="Message placeholders">
+                  <button type="button" data-token="&lt;@mention&gt;">&lt;@mention&gt;</button>
+                  <button type="button" data-token="&lt;username&gt;">&lt;username&gt;</button>
+                  <button type="button" data-token="&lt;display_name&gt;">&lt;display_name&gt;</button>
+                  <button type="button" data-token="&lt;level&gt;">&lt;level&gt;</button>
+                  <button type="button" data-token="&lt;previous_level&gt;">&lt;previous_level&gt;</button>
+                  <button type="button" data-token="&lt;server&gt;">&lt;server&gt;</button>
+                  <button type="button" data-token="&lt;channel&gt;">&lt;channel&gt;</button>
+                  <button type="button" data-token="&lt;user_id&gt;">&lt;user_id&gt;</button>
+                  <button type="button" data-token="&lt;avatar_url&gt;">&lt;avatar_url&gt;</button>
+                  <button type="button" data-token="&lt;separator&gt;">&lt;separator&gt;</button>
+                  <button type="button" data-token="&lt;if&lt;level&gt;==10,&quot;Shown at Level 10&quot;,&quot;&quot;&gt;">Conditional</button>
+                </div>
+                <label>Message
+                  <textarea name="xp.levelUpMessage.content" id="levelUpContent" rows="11" maxlength="4000" spellcheck="true"></textarea>
+                </label>
+                <div class="grid">
+                  <label>Container color <input name="xp.levelUpMessage.accentColor" type="color" value="#57f287"></label>
+                  <label>Thumbnail URL <input name="xp.levelUpMessage.thumbnailUrl" type="text" maxlength="1000" placeholder="&lt;avatar_url&gt;"></label>
+                  <label>Image URL <input name="xp.levelUpMessage.imageUrl" type="url" maxlength="1000" placeholder="https://example.com/banner.png"></label>
+                </div>
+                <p class="condition-help">Condition format: <code>&lt;if&lt;level&gt;==10,"shown","hidden"&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, and <code>&lt;=</code>. Aliases <code>&lt;currentlevel&gt;</code> and <code>&lt;current_level&gt;</code> also work.</p>
+              </div>
+
+              <div class="panel preview-panel">
+                <div class="panel-heading">
+                  <h3>Live preview</h3>
+                  <p>Preview data is illustrative; Discord renders the saved payload using Components V2.</p>
+                </div>
+                <div class="discord-preview" id="levelUpPreview">
+                  <div class="preview-container" id="levelUpPreviewContainer">
+                    <div id="levelUpPreviewBody"></div>
+                    <img class="preview-image" id="levelUpPreviewImage" alt="" hidden>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -116,29 +209,7 @@
           </div>
         </section>
 
-        <section class="tab-panel" data-panel="rewards">
-          <div class="panel">
-            <div class="panel-head">
-              <div class="panel-heading">
-                <h3>XP boost roles</h3>
-                <p>Members receive the configured percentage boost while they hold the selected role.</p>
-              </div>
-              <button class="button small" id="addBoostButton" type="button">Add boost</button>
-            </div>
-            <div class="rows" id="boostRows"></div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-head">
-              <div class="panel-heading">
-                <h3>Level role rewards</h3>
-                <p>Assign a Discord role automatically when a member reaches a level.</p>
-              </div>
-              <button class="button small" id="addRewardButton" type="button">Add reward</button>
-            </div>
-            <div class="rows" id="rewardRows"></div>
-          </div>
-
+        <section class="tab-panel" data-panel="invites">
           <div class="panel">
             <div class="panel-heading">
               <h3>Invite rewards</h3>

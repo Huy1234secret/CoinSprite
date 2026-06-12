@@ -274,10 +274,10 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-width: 0;
-  height: 40px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--input);
@@ -285,8 +285,22 @@ select {
   padding: 0 10px;
 }
 
+input,
+select {
+  height: 40px;
+}
+
+textarea {
+  min-height: 180px;
+  padding: 10px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.45;
+}
+
 input:focus,
 select:focus,
+textarea:focus,
 .picker-button:focus-visible {
   border-color: var(--primary);
   outline: 3px solid rgba(88, 101, 242, 0.2);
@@ -411,6 +425,47 @@ select:focus,
   display: block;
 }
 
+.mini-tabs {
+  position: sticky;
+  z-index: 12;
+  top: -18px;
+  display: flex;
+  gap: 4px;
+  margin: -18px 0 14px;
+  padding: 12px 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+
+.mini-tab {
+  min-height: 34px;
+  border: 0;
+  border-radius: 5px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.mini-tab:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.mini-tab.active {
+  color: #fff;
+  background: var(--primary);
+}
+
+.mini-panel {
+  display: none;
+}
+
+.mini-panel.active {
+  display: block;
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -516,6 +571,143 @@ select:focus,
 
 .formula-field code {
   color: var(--text);
+}
+
+.announcement-basics {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.5fr) minmax(130px, 0.5fr);
+  align-items: end;
+  gap: 14px;
+}
+
+.message-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.message-builder .panel {
+  min-width: 0;
+}
+
+.template-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.template-tokens button {
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.template-tokens button:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.message-editor textarea {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.message-editor input[type="color"] {
+  padding: 4px;
+  cursor: pointer;
+}
+
+.condition-help {
+  margin: 12px 0 0;
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.condition-help code,
+.panel-heading code {
+  color: var(--text);
+}
+
+.preview-panel {
+  position: sticky;
+  top: 54px;
+}
+
+.discord-preview {
+  min-height: 260px;
+  border-radius: 6px;
+  padding: 18px;
+  background: #313338;
+}
+
+.preview-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  padding: 14px 14px 14px 18px;
+  background: #2b2d31;
+  color: #dbdee1;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.preview-container::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--preview-accent, #57f287);
+}
+
+.preview-section {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  overflow-wrap: anywhere;
+}
+
+.preview-heading {
+  display: block;
+  margin-bottom: 3px;
+  color: #f2f3f5;
+  font-size: 18px;
+}
+
+.preview-thumbnail {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.preview-separator {
+  height: 1px;
+  margin: 12px 0;
+  background: #4e5058;
+}
+
+.preview-image {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  margin-top: 12px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.preview-image[hidden] {
+  display: none;
 }
 
 .settings-grid {
@@ -823,6 +1015,14 @@ select:focus,
 }
 
 @media (max-width: 1050px) {
+  .message-builder {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-panel {
+    position: static;
+  }
+
   .config-row.xp-group-row {
     grid-template-columns: 1fr auto;
   }
@@ -918,6 +1118,19 @@ select:focus,
   .config-row.reward-row,
   .xp-range {
     grid-template-columns: 1fr;
+  }
+
+  .announcement-basics {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .mini-tabs {
+    overflow-x: auto;
+  }
+
+  .mini-tab {
+    flex: 0 0 auto;
   }
 
   .mode-setting {

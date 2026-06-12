@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_LEVEL_UP_MESSAGE, sanitizeLevelUpMessage } = require('./levelUpMessage');
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
@@ -53,6 +54,7 @@ const DEFAULT_GUILD_CONFIG = {
     messageXpMin: 1,
     messageXpMax: 3,
     messageCooldownMs: 0,
+    levelUpMessage: DEFAULT_LEVEL_UP_MESSAGE,
     boosts: [
       { roleId: '1502905486645788713', xpPercent: 10 },
       { roleId: '1502905217945964596', xpPercent: 5 },
@@ -72,20 +74,6 @@ const DEFAULT_GUILD_CONFIG = {
       { level: 90, roleId: '1513347127038705745' },
       { level: 100, roleId: '1513347127810719866' },
     ],
-    levelFunMessages: {
-      5: 'Bro discovered the chat button.',
-      10: 'Double digits? Okay, yapper training complete.',
-      15: 'Slowly becoming a professional keyboard warrior.',
-      20: 'Hydrate before the next yap session.',
-      30: 'Chat activity detected. Grass not detected.',
-      40: 'At this point, the keyboard fears you.',
-      50: 'Halfway to "please go outside."',
-      60: 'The yap grind is getting concerning.',
-      70: 'Bro is not chatting anymore, bro is farming XP.',
-      80: 'Scientists are studying this level of activity.',
-      90: 'So close to Level 100, your keyboard is crying.',
-      100: 'Someone give them grass... or a trophy.',
-    },
     punishmentDurationsMs: {
       1: 24 * 60 * 60 * 1000,
       2: 3 * 24 * 60 * 60 * 1000,
@@ -212,6 +200,8 @@ function normalizeState(rawState) {
       delete merged.xp.lowXpChannels;
       delete merged.xp.noXpChannels;
       delete merged.xp.lowXpAmount;
+      delete merged.xp.levelFunMessages;
+      merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage);
       merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
       merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
       merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);

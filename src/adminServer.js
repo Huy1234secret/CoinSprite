@@ -5,6 +5,7 @@ const path = require('path');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { sanitizeLevelUpMessage } = require('./levelUpMessage');
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
@@ -441,6 +442,7 @@ function sanitizeGuildPatch(current, patch) {
     if ('channels' in patch.xp) clean.xp.channels = sanitizeXpChannelRules(patch.xp.channels, current.xp.channels, { ...current.xp, ...clean.xp });
     if ('boosts' in patch.xp) clean.xp.boosts = sanitizeBoosts(patch.xp.boosts, current.xp.boosts);
     if ('levelRoleRewards' in patch.xp) clean.xp.levelRoleRewards = sanitizeLevelRewards(patch.xp.levelRoleRewards, current.xp.levelRoleRewards);
+    if ('levelUpMessage' in patch.xp) clean.xp.levelUpMessage = sanitizeLevelUpMessage(patch.xp.levelUpMessage, current.xp.levelUpMessage);
   }
 
   if (patch.inviteRewards && typeof patch.inviteRewards === 'object') {

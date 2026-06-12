@@ -7,11 +7,11 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const manager = require('../src/levelingManager');
 const { getEligibleRoleIds } = require('../src/levelRoleRewards');
+const { buildLevelUpPayload } = require('../src/levelUpMessage');
 const { canEarnXpInChannel, getXpChannelRule } = require('../src/xpChannels');
 const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
 
 const execFileAsync = promisify(execFile);
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const BUTTON_STYLE_SECONDARY = 2;
 const CARD_BACKGROUND_WIDTH = 740;
@@ -49,20 +49,6 @@ const COLOR_FIELD_IDS = {
   numberFillColor: 'level_card_number_fill_color',
 };
 const COLOR_PLACEHOLDER = 'Gradient: 255,0,0-10%;0,0,255-90%. RGB or Hex. Leave empty for no change.';
-const LEVEL_FUN_MESSAGES = new Map([
-  [5, 'Bro discovered the chat button.'],
-  [10, 'Double digits? Okay, yapper training complete.'],
-  [15, 'Slowly becoming a professional keyboard warrior.'],
-  [20, 'Hydrate before the next yap session.'],
-  [30, 'Chat activity detected. Grass not detected.'],
-  [40, 'At this point, the keyboard fears you.'],
-  [50, 'Halfway to “please go outside.”'],
-  [60, 'The yap grind is getting concerning.'],
-  [70, 'Bro is not chatting anymore, bro is farming XP.'],
-  [80, 'Scientists are studying this level of activity.'],
-  [90, 'So close to Level 100, your keyboard is crying.'],
-  [100, 'Someone give them grass… or a trophy.'],
-]);
 
 function getLevelConfig(guildId) {
   return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
@@ -70,10 +56,6 @@ function getLevelConfig(guildId) {
 
 function getXpConfig(guildId) {
   return getLevelConfig(guildId).xp;
-}
-
-function getLevelFunMessage(guildId, level) {
-  return getXpConfig(guildId).levelFunMessages?.[level] ?? LEVEL_FUN_MESSAGES.get(level);
 }
 
 function formatCountdown(endsAt) {
@@ -120,21 +102,22 @@ async function sendLevelUpMessage(guild, userId, newLevel) {
     || await guild.channels.fetch(levelUpChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
-  const levelFunMessage = getLevelFunMessage(guild.id, newLevel);
-  const funMessage = levelFunMessage ? `\n${levelFunMessage}` : '';
-  const levelMessage = `<@${userId}> has leveled up to level ${newLevel}!${funMessage}`;
-
-  await channel.send({
-    allowedMentions: { users: [userId] },
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0x57F287,
-        components: [{ type: 10, content: levelMessage }],
-      },
-    ],
+  const member = guild.members.cache.get(userId) || await guild.members.fetch(userId).catch(() => null);
+  const user = member?.user || await guild.client.users.fetch(userId).catch(() => null);
+  if (!user) return;
+  const payload = buildLevelUpPayload(getXpConfig(guild.id).levelUpMessage, {
+    mention: `<@${userId}>`,
+    username: user.username,
+    display_name: member?.displayName || user.globalName || user.username,
+    level: newLevel,
+    previous_level: Math.max(0, newLevel - 1),
+    server: guild.name,
+    channel: channel.name ? `#${channel.name}` : `<#${channel.id}>`,
+    channel_id: channel.id,
+    user_id: userId,
+    avatar_url: user.displayAvatarURL({ extension: 'png', size: 256 }),
   });
+  if (payload) await channel.send(payload);
 }
 
 async function handleLevelUpRange(guild, userId, oldLevel, newLevel) {

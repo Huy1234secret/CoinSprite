@@ -1,8 +1,8 @@
 const TAB_NAMES = {
-  xp: 'XP settings',
+  leveling: 'Leveling',
   channels: 'Channels',
   roles: 'Roles',
-  rewards: 'Rewards',
+  invites: 'Invite rewards',
   games: 'Games',
 };
 
@@ -18,7 +18,8 @@ const state = {
   xpGroups: [],
   boosts: [],
   rewards: [],
-  activeTab: 'xp',
+  activeTab: 'leveling',
+  activeLevelingTab: 'xp',
   dirtyTabs: new Set(),
   saving: false,
 };
@@ -45,6 +46,7 @@ const elements = {
   unsavedDetail: document.querySelector('#unsavedDetail'),
   configForm: document.querySelector('#configForm'),
   tabList: document.querySelector('#tabList'),
+  levelingTabList: document.querySelector('#levelingTabList'),
   channelsGrid: document.querySelector('#channelsGrid'),
   rolesGrid: document.querySelector('#rolesGrid'),
   xpChannelRows: document.querySelector('#xpChannelRows'),
@@ -54,6 +56,13 @@ const elements = {
   addBoostButton: document.querySelector('#addBoostButton'),
   rewardRows: document.querySelector('#rewardRows'),
   addRewardButton: document.querySelector('#addRewardButton'),
+  levelUpChannelMount: document.querySelector('#levelUpChannelMount'),
+  levelUpTokens: document.querySelector('#levelUpTokens'),
+  levelUpContent: document.querySelector('#levelUpContent'),
+  levelUpPreviewLevel: document.querySelector('#levelUpPreviewLevel'),
+  levelUpPreviewContainer: document.querySelector('#levelUpPreviewContainer'),
+  levelUpPreviewBody: document.querySelector('#levelUpPreviewBody'),
+  levelUpPreviewImage: document.querySelector('#levelUpPreviewImage'),
 };
 
 function clone(value) {
@@ -388,9 +397,11 @@ function renderXpChannelRows() {
   });
 }
 
-function renderObjectPickers(container, groupName, values, options, type) {
+function renderObjectPickers(container, groupName, values, options, type, excludedKeys = []) {
+  const excluded = new Set(excludedKeys);
   container.replaceChildren();
   for (const [key, value] of Object.entries(values || {})) {
+    if (excluded.has(key)) continue;
     const wrap = document.createElement('div');
     wrap.className = 'picker-field';
     const label = document.createElement('span');
@@ -404,11 +415,173 @@ function renderObjectPickers(container, groupName, values, options, type) {
       onChange: (selected) => {
         if (groupName === 'channels') state.channelValues[key] = selected;
         else state.roleValues[key] = selected;
-        renderObjectPickers(container, groupName, groupName === 'channels' ? state.channelValues : state.roleValues, options, type);
+        renderObjectPickers(container, groupName, groupName === 'channels' ? state.channelValues : state.roleValues, options, type, excludedKeys);
       },
     });
     container.append(wrap);
   }
+}
+
+function levelUpChannelOptions() {
+  return channelOptions().filter((option) => !['category', 'voice', 'forum'].includes(option.optionType));
+}
+
+function renderLevelUpChannelPicker() {
+  renderPicker(elements.levelUpChannelMount, levelUpChannelOptions(), state.channelValues.levelUp, {
+    type: 'channel',
+    placeholder: 'Select announcement channel',
+    onChange: (value) => {
+      state.channelValues.levelUp = value;
+      renderLevelUpChannelPicker();
+      renderLevelUpPreview();
+    },
+  });
+}
+
+function decodePreviewValue(value) {
+  const clean = String(value || '').trim();
+  if (!clean) return '';
+  if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+    if (clean.startsWith('"')) {
+      try {
+        return JSON.parse(clean);
+      } catch {
+        return '';
+      }
+    }
+    return clean.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+  }
+  if (/^-?\d+(?:\.\d+)?$/.test(clean)) return Number(clean);
+  return clean;
+}
+
+function comparePreviewValues(left, operator, right) {
+  const numeric = Number.isFinite(Number(left)) && Number.isFinite(Number(right));
+  const a = numeric ? Number(left) : String(left);
+  const b = numeric ? Number(right) : String(right);
+  if (operator === '==') return a === b;
+  if (operator === '!=') return a !== b;
+  if (operator === '>=') return a >= b;
+  if (operator === '<=') return a <= b;
+  if (operator === '>') return a > b;
+  if (operator === '<') return a < b;
+  return false;
+}
+
+function previewContext() {
+  const level = Math.max(1, Number(elements.levelUpPreviewLevel.value) || 10);
+  const selectedChannel = optionById(levelUpChannelOptions(), state.channelValues.levelUp, 'channel');
+  return {
+    mention: '@CoinSprite User',
+    username: 'CoinSpriteUser',
+    display_name: 'CoinSprite User',
+    level,
+    previous_level: Math.max(0, level - 1),
+    server: document.querySelector('#guildTitle').textContent || 'CoinSprite Server',
+    channel: selectedChannel?.label ? `#${selectedChannel.label}` : '#level-up',
+    channel_id: state.channelValues.levelUp || '123456789012345678',
+    user_id: '123456789012345678',
+    avatar_url: 'https://cdn.discordapp.com/embed/avatars/0.png',
+  };
+}
+
+function renderPreviewTemplate(template, context) {
+  let output = String(template || '');
+  const aliases = { currentlevel: 'level', current_level: 'level', currenlevel: 'level', displayname: 'display_name', previouslevel: 'previous_level', userid: 'user_id' };
+  const conditionPattern = /<if<([a-z_]+)>\s*(==|!=|>=|<=|>|<)\s*([^,]+),\s*("(?:\\.|[^"])*"|'(?:\\.|[^'])*')\s*,\s*("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|)\s*>/gi;
+  for (let pass = 0; pass < 20 && output.includes('<if<'); pass += 1) {
+    const next = output.replace(conditionPattern, (match, rawKey, operator, rawRight, rawTrue, rawFalse) => {
+      const key = aliases[rawKey.toLowerCase()] || rawKey.toLowerCase();
+      const rightKey = String(rawRight).trim().replace(/^<|>$/g, '').toLowerCase();
+      const normalizedRightKey = aliases[rightKey] || rightKey;
+      const right = Object.prototype.hasOwnProperty.call(context, normalizedRightKey)
+        ? context[normalizedRightKey]
+        : decodePreviewValue(rawRight);
+      return comparePreviewValues(context[key] ?? '', operator, right)
+        ? decodePreviewValue(rawTrue)
+        : decodePreviewValue(rawFalse);
+    });
+    if (next === output) break;
+    output = next;
+  }
+
+  const replacements = {
+    '@mention': context.mention,
+    username: context.username,
+    display_name: context.display_name,
+    displayname: context.display_name,
+    level: context.level,
+    currentlevel: context.level,
+    current_level: context.level,
+    currenlevel: context.level,
+    previous_level: context.previous_level,
+    previouslevel: context.previous_level,
+    server: context.server,
+    channel: context.channel,
+    channel_id: context.channel_id,
+    user_id: context.user_id,
+    userid: context.user_id,
+    avatar_url: context.avatar_url,
+  };
+  return output.replace(/<(@mention|username|display_name|displayname|level|currentlevel|current_level|currenlevel|previous_level|previouslevel|server|channel|channel_id|user_id|userid|avatar_url)>/gi, (match, key) => String(replacements[key.toLowerCase()] ?? ''));
+}
+
+function safePreviewMediaUrl(template, context) {
+  const value = renderPreviewTemplate(template, context).trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function previewMarkdown(value) {
+  const escaped = String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/^## (.+)$/gm, '<strong class="preview-heading">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  return escaped.replace(/\n/g, '<br>');
+}
+
+function renderLevelUpPreview() {
+  if (!elements.levelUpPreviewBody) return;
+  const context = previewContext();
+  const content = renderPreviewTemplate(getField('xp.levelUpMessage.content'), context);
+  const thumbnailUrl = safePreviewMediaUrl(getField('xp.levelUpMessage.thumbnailUrl'), context);
+  const rawSections = content.split(/<separator>/gi).map((section) => section.trim()).filter(Boolean);
+  const sections = rawSections.length > 18
+    ? [...rawSections.slice(0, 17), rawSections.slice(17).join('\n\n')]
+    : rawSections;
+  elements.levelUpPreviewBody.replaceChildren();
+  sections.forEach((section, index) => {
+    if (index > 0) {
+      const separator = document.createElement('div');
+      separator.className = 'preview-separator';
+      elements.levelUpPreviewBody.append(separator);
+    }
+    const row = document.createElement('div');
+    row.className = 'preview-section';
+    const text = document.createElement('div');
+    text.innerHTML = previewMarkdown(section);
+    row.append(text);
+    if (index === 0 && thumbnailUrl) {
+      const thumbnail = document.createElement('img');
+      thumbnail.className = 'preview-thumbnail';
+      thumbnail.src = thumbnailUrl;
+      thumbnail.alt = '';
+      row.append(thumbnail);
+    }
+    elements.levelUpPreviewBody.append(row);
+  });
+  elements.levelUpPreviewContainer.style.setProperty('--preview-accent', getField('xp.levelUpMessage.accentColor') || '#57f287');
+  const imageUrl = safePreviewMediaUrl(getField('xp.levelUpMessage.imageUrl'), context);
+  elements.levelUpPreviewImage.hidden = !imageUrl;
+  if (imageUrl) elements.levelUpPreviewImage.src = imageUrl;
 }
 
 function renderBoostRows() {
@@ -501,25 +674,34 @@ function setDurationFields(config) {
 }
 
 function applyTabFromConfig(tabName, config) {
-  if (tabName === 'xp') {
+  if (tabName === 'leveling') {
+    state.channelValues.levelUp = config.channels?.levelUp || '';
     state.xpGroups = groupXpRules(config.xp || {});
+    state.boosts = (config.xp?.boosts || []).map((item) => ({ ...item }));
+    state.rewards = (config.xp?.levelRoleRewards || []).map((item) => ({ ...item }));
     setField('xp.messageXpMin', config.xp?.messageXpMin);
     setField('xp.messageXpMax', config.xp?.messageXpMax);
     setField('xp.messageCooldownMs', secondsFromMs(config.xp?.messageCooldownMs));
+    const levelUpMessage = config.xp?.levelUpMessage || {};
+    for (const key of ['enabled', 'content', 'accentColor', 'thumbnailUrl', 'imageUrl']) {
+      setField(`xp.levelUpMessage.${key}`, levelUpMessage[key]);
+    }
     renderXpChannelRows();
+    renderBoostRows();
+    renderRewardRows();
+    renderLevelUpChannelPicker();
+    renderLevelUpPreview();
   } else if (tabName === 'channels') {
-    state.channelValues = { ...(config.channels || {}) };
-    renderObjectPickers(elements.channelsGrid, 'channels', state.channelValues, channelOptions(), 'channel');
+    for (const [key, value] of Object.entries(config.channels || {})) {
+      if (key !== 'levelUp') state.channelValues[key] = value;
+    }
+    renderObjectPickers(elements.channelsGrid, 'channels', state.channelValues, channelOptions(), 'channel', ['levelUp']);
   } else if (tabName === 'roles') {
     state.roleValues = { ...(config.roles || {}) };
     renderObjectPickers(elements.rolesGrid, 'roles', state.roleValues, roleOptions(), 'role');
-  } else if (tabName === 'rewards') {
-    state.boosts = (config.xp?.boosts || []).map((item) => ({ ...item }));
-    state.rewards = (config.xp?.levelRoleRewards || []).map((item) => ({ ...item }));
+  } else if (tabName === 'invites') {
     setField('inviteRewards.enabled', config.inviteRewards?.enabled);
     setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
-    renderBoostRows();
-    renderRewardRows();
   } else if (tabName === 'games') {
     for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
       setField(`wordChain.${key}`, config.wordChain?.[key]);
@@ -532,25 +714,35 @@ function applyTabFromConfig(tabName, config) {
 }
 
 function collectTabState(tabName) {
-  if (tabName === 'xp') {
+  if (tabName === 'leveling') {
     return {
       messageXpMin: Number(getField('xp.messageXpMin')),
       messageXpMax: Number(getField('xp.messageXpMax')),
       messageCooldownSeconds: Number(getField('xp.messageCooldownMs')),
+      levelUpChannel: state.channelValues.levelUp || '',
       groups: state.xpGroups.map((group) => ({
         channelIds: [...group.channelIds],
         minXp: Number(group.minXp),
         maxXp: Number(group.maxXp),
         cooldownSeconds: Number(group.cooldownSeconds),
       })),
-    };
-  }
-  if (tabName === 'channels') return clone(state.channelValues);
-  if (tabName === 'roles') return clone(state.roleValues);
-  if (tabName === 'rewards') {
-    return {
       boosts: clone(state.boosts),
       rewards: clone(state.rewards),
+      levelUpMessage: {
+        enabled: Boolean(getField('xp.levelUpMessage.enabled')),
+        content: String(getField('xp.levelUpMessage.content')).trim(),
+        accentColor: String(getField('xp.levelUpMessage.accentColor')).trim(),
+        thumbnailUrl: String(getField('xp.levelUpMessage.thumbnailUrl')).trim(),
+        imageUrl: String(getField('xp.levelUpMessage.imageUrl')).trim(),
+      },
+    };
+  }
+  if (tabName === 'channels') {
+    return Object.fromEntries(Object.entries(state.channelValues).filter(([key]) => key !== 'levelUp'));
+  }
+  if (tabName === 'roles') return clone(state.roleValues);
+  if (tabName === 'invites') {
+    return {
       inviteEnabled: Boolean(getField('inviteRewards.enabled')),
       inviteCap: Number(getField('inviteRewards.capMembers')),
     };
@@ -599,6 +791,8 @@ function refreshDirtyState() {
 
 function fillConfig(config) {
   state.savedConfig = clone(config);
+  state.channelValues = { ...(config.channels || {}) };
+  state.roleValues = { ...(config.roles || {}) };
   for (const tabName of Object.keys(TAB_NAMES)) applyTabFromConfig(tabName, config);
   captureSavedSnapshots();
   refreshDirtyState();
@@ -624,6 +818,13 @@ function collectPatch() {
       channels: flattenXpGroups(),
       boosts: state.boosts.filter((item) => item.roleId && Number.isFinite(Number(item.xpPercent))),
       levelRoleRewards: state.rewards.filter((item) => item.roleId && Number.isFinite(Number(item.level))),
+      levelUpMessage: {
+        enabled: getField('xp.levelUpMessage.enabled'),
+        content: String(getField('xp.levelUpMessage.content')).trim(),
+        accentColor: String(getField('xp.levelUpMessage.accentColor')).trim(),
+        thumbnailUrl: String(getField('xp.levelUpMessage.thumbnailUrl')).trim(),
+        imageUrl: String(getField('xp.levelUpMessage.imageUrl')).trim(),
+      },
     },
     inviteRewards: {
       enabled: getField('inviteRewards.enabled'),
@@ -713,6 +914,14 @@ function setActiveTab(tabName) {
   elements.configForm.scrollTop = 0;
 }
 
+function setActiveLevelingTab(tabName) {
+  state.activeLevelingTab = tabName;
+  document.querySelectorAll('[data-leveling-tab]').forEach((tab) => tab.classList.toggle('active', tab.dataset.levelingTab === tabName));
+  document.querySelectorAll('[data-leveling-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.levelingPanel === tabName));
+  elements.configForm.scrollTop = 0;
+  if (tabName === 'message') renderLevelUpPreview();
+}
+
 async function loadSession() {
   try {
     const payload = await api('/api/me');
@@ -732,12 +941,42 @@ async function loadSession() {
   }
 }
 
-elements.configForm.addEventListener('input', refreshDirtyState);
-elements.configForm.addEventListener('change', refreshDirtyState);
+elements.configForm.addEventListener('input', (event) => {
+  refreshDirtyState();
+  if (event.target.name?.startsWith('xp.levelUpMessage.') || event.target === elements.levelUpPreviewLevel) renderLevelUpPreview();
+});
+elements.configForm.addEventListener('change', (event) => {
+  refreshDirtyState();
+  if (event.target.name?.startsWith('xp.levelUpMessage.') || event.target === elements.levelUpPreviewLevel) renderLevelUpPreview();
+});
 
 elements.tabList.addEventListener('click', (event) => {
   const tab = event.target.closest('.tab');
   if (tab) setActiveTab(tab.dataset.tab);
+});
+
+elements.levelingTabList.addEventListener('click', (event) => {
+  const tab = event.target.closest('[data-leveling-tab]');
+  if (tab) setActiveLevelingTab(tab.dataset.levelingTab);
+});
+
+elements.levelUpTokens.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-token]');
+  if (!button) return;
+  const active = document.activeElement;
+  const target = active?.name?.startsWith('xp.levelUpMessage.') && ['text', 'url', 'textarea'].includes(active.type)
+    ? active
+    : elements.levelUpContent;
+  const token = button.dataset.token;
+  const start = Number.isFinite(target.selectionStart) ? target.selectionStart : target.value.length;
+  const end = Number.isFinite(target.selectionEnd) ? target.selectionEnd : start;
+  target.setRangeText(token, start, end, 'end');
+  target.focus();
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+elements.levelUpPreviewImage.addEventListener('error', () => {
+  elements.levelUpPreviewImage.hidden = true;
 });
 
 elements.guildSelect.addEventListener('change', () => {
@@ -809,5 +1048,6 @@ window.addEventListener('beforeunload', (event) => {
   event.returnValue = '';
 });
 
-setActiveTab('xp');
+setActiveTab('leveling');
+setActiveLevelingTab('xp');
 loadSession();
