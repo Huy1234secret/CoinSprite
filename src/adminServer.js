@@ -5,6 +5,7 @@ const path = require('path');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -370,6 +371,10 @@ function asInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
   return Math.floor(asNumber(value, fallback, min, max));
 }
 
+function sanitizeWordChainAction(value, fallback = 'punish') {
+  return value === 'warn' || value === 'punish' ? value : fallback;
+}
+
 function sanitizeBoosts(value, fallback = []) {
   if (!Array.isArray(value)) return fallback;
   return value
@@ -451,6 +456,12 @@ function sanitizeGuildPatch(current, patch) {
     }
     for (const key of ['turnTimeoutMs', 'punishmentMs', 'gameCooldownMs']) {
       if (key in patch.wordChain) clean.wordChain[key] = asInteger(patch.wordChain[key], current.wordChain[key], 1000, 2_147_000_000);
+    }
+    for (const key of ['repeatedWordAction', 'wrongStartAction']) {
+      if (key in patch.wordChain) clean.wordChain[key] = sanitizeWordChainAction(patch.wordChain[key], current.wordChain[key]);
+    }
+    if ('xpRewardFormula' in patch.wordChain) {
+      clean.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(patch.wordChain.xpRewardFormula);
     }
   }
 

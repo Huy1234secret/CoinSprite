@@ -448,6 +448,76 @@ select:focus,
   max-width: 760px;
 }
 
+.game-rules {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.mode-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.mode-setting p,
+.formula-field > span {
+  margin: 5px 0 0;
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(90px, 1fr));
+  flex: 0 0 210px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--input);
+}
+
+.segmented-control label {
+  display: block;
+}
+
+.segmented-control input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control span {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented-control input:checked + span {
+  color: #fff;
+  background: var(--primary);
+}
+
+.segmented-control input:focus-visible + span {
+  outline: 3px solid rgba(88, 101, 242, 0.25);
+}
+
+.formula-field {
+  max-width: 760px;
+}
+
+.formula-field code {
+  color: var(--text);
+}
+
 .settings-grid {
   margin-top: 16px;
 }
@@ -848,6 +918,15 @@ select:focus,
   .config-row.reward-row,
   .xp-range {
     grid-template-columns: 1fr;
+  }
+
+  .mode-setting {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .segmented-control {
+    flex-basis: auto;
   }
 
   .config-row.xp-group-row .picker-field {

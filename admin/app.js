@@ -524,6 +524,9 @@ function applyTabFromConfig(tabName, config) {
     for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
       setField(`wordChain.${key}`, config.wordChain?.[key]);
     }
+    for (const key of ['repeatedWordAction', 'wrongStartAction', 'xpRewardFormula']) {
+      setField(`wordChain.${key}`, config.wordChain?.[key]);
+    }
     setDurationFields(config);
   }
 }
@@ -560,6 +563,9 @@ function collectTabState(tabName) {
       turnTimeoutSeconds: Number(getField('wordChain.turnTimeoutMs')),
       punishmentSeconds: Number(getField('wordChain.punishmentMs')),
       gameCooldownSeconds: Number(getField('wordChain.gameCooldownMs')),
+      repeatedWordAction: getField('wordChain.repeatedWordAction'),
+      wrongStartAction: getField('wordChain.wrongStartAction'),
+      xpRewardFormula: String(getField('wordChain.xpRewardFormula')).trim(),
     },
     giveaway: {
       minClaimSeconds: Number(getField('giveaway.minClaimMs')),
@@ -630,6 +636,9 @@ function collectPatch() {
       turnTimeoutMs: msFromSeconds(getField('wordChain.turnTimeoutMs')),
       punishmentMs: msFromSeconds(getField('wordChain.punishmentMs')),
       gameCooldownMs: msFromSeconds(getField('wordChain.gameCooldownMs')),
+      repeatedWordAction: getField('wordChain.repeatedWordAction'),
+      wrongStartAction: getField('wordChain.wrongStartAction'),
+      xpRewardFormula: String(getField('wordChain.xpRewardFormula')).trim(),
     },
     giveaway: {
       minClaimMs: msFromSeconds(getField('giveaway.minClaimMs')),

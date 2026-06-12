@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
 const SCHEMA_VERSION = 1;
@@ -128,6 +129,9 @@ const DEFAULT_GUILD_CONFIG = {
     turnTimeoutMs: 4 * 60 * 60 * 1000,
     punishmentMs: 60 * 1000,
     gameCooldownMs: 60 * 1000,
+    repeatedWordAction: 'punish',
+    wrongStartAction: 'punish',
+    xpRewardFormula: 'wordLength',
   },
   giveaway: {
     minClaimMs: 5 * 60 * 1000,
@@ -208,6 +212,9 @@ function normalizeState(rawState) {
       delete merged.xp.lowXpChannels;
       delete merged.xp.noXpChannels;
       delete merged.xp.lowXpAmount;
+      merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
+      merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
+      merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
       guilds[guildId] = merged;
     }
   }

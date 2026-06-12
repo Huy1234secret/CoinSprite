@@ -163,6 +163,33 @@
               <label>Punishment (seconds) <input name="wordChain.punishmentMs" type="number" min="1" step="1"></label>
               <label>Game cooldown (seconds) <input name="wordChain.gameCooldownMs" type="number" min="1" step="1"></label>
             </div>
+            <div class="game-rules">
+              <div class="mode-setting">
+                <div>
+                  <span class="field-label">Repeated word</span>
+                  <p>Choose whether a word already used in the current game receives a warning or the full invalid-word penalty.</p>
+                </div>
+                <div class="segmented-control">
+                  <label><input name="wordChain.repeatedWordAction" type="radio" value="warn"><span>Warn</span></label>
+                  <label><input name="wordChain.repeatedWordAction" type="radio" value="punish"><span>Punish</span></label>
+                </div>
+              </div>
+              <div class="mode-setting">
+                <div>
+                  <span class="field-label">Wrong starting letter</span>
+                  <p>Choose whether a word that ignores the required first letter receives a warning or the full invalid-word penalty.</p>
+                </div>
+                <div class="segmented-control">
+                  <label><input name="wordChain.wrongStartAction" type="radio" value="warn"><span>Warn</span></label>
+                  <label><input name="wordChain.wrongStartAction" type="radio" value="punish"><span>Punish</span></label>
+                </div>
+              </div>
+              <label class="formula-field">
+                XP reward formula
+                <input name="wordChain.xpRewardFormula" type="text" maxlength="120" spellcheck="false" placeholder="wordLength">
+                <span>Variables: <code>wordLength</code> and <code>streak</code>. Supports +, -, *, /, %, parentheses, and min/max/round/floor/ceil/abs. Empty or invalid formulas use <code>wordLength</code>.</span>
+              </label>
+            </div>
           </div>
 
           <div class="panel">

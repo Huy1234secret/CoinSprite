@@ -121,7 +121,10 @@
         "startingHearts": 3,
         "turnTimeoutMs": 14400000,
         "punishmentMs": 60000,
-        "gameCooldownMs": 60000
+        "gameCooldownMs": 60000,
+        "repeatedWordAction": "punish",
+        "wrongStartAction": "punish",
+        "xpRewardFormula": "wordLength"
       },
       "giveaway": {
         "minClaimMs": 300000,
