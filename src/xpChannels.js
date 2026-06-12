@@ -18,19 +18,56 @@ function normalizeXpChannelRule(rule, xpConfig = DEFAULT_GUILD_CONFIG.xp) {
   return { channelId, minXp, maxXp, cooldownMs };
 }
 
+function getXpConfig(guildId) {
+  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp;
+}
+
+function getDefaultXpRule(xpConfig) {
+  return {
+    minXp: Math.max(0, Number(xpConfig.messageXpMin) || 0),
+    maxXp: Math.max(0, Number(xpConfig.messageXpMax) || 0),
+    cooldownMs: Math.max(0, Math.floor(Number(xpConfig.messageCooldownMs) || 0)),
+  };
+}
+
+function isDefaultRule(rule, xpConfig) {
+  const defaults = getDefaultXpRule(xpConfig);
+  return rule.minXp === defaults.minXp
+    && rule.maxXp === defaults.maxXp
+    && rule.cooldownMs === defaults.cooldownMs;
+}
+
+function getDefaultXpChannelIds(guildId) {
+  const xpConfig = getXpConfig(guildId);
+  return [...new Set((xpConfig.channels || [])
+    .map((rule) => normalizeXpChannelRule(rule, xpConfig)?.channelId)
+    .filter(Boolean))];
+}
+
+function getXpChannelOverrides(guildId) {
+  const xpConfig = getXpConfig(guildId);
+  const hasExplicitOverrides = Object.prototype.hasOwnProperty.call(xpConfig, 'channelOverrides');
+  const source = hasExplicitOverrides ? xpConfig.channelOverrides : xpConfig.channels;
+  return (source || [])
+    .map((rule) => normalizeXpChannelRule(rule, xpConfig))
+    .filter((rule) => rule && (hasExplicitOverrides || (typeof rule !== 'string' && !isDefaultRule(rule, xpConfig))));
+}
+
 function getXpChannelRules(guildId) {
   const xpConfig = getXpConfig(guildId);
-  return (xpConfig.channels || [])
-    .map((rule) => normalizeXpChannelRule(rule, xpConfig))
-    .filter(Boolean);
+  const overrides = getXpChannelOverrides(guildId);
+  const overrideIds = new Set(overrides.map((rule) => rule.channelId));
+  const defaults = getDefaultXpRule(xpConfig);
+  return [
+    ...overrides,
+    ...getDefaultXpChannelIds(guildId)
+      .filter((channelId) => !overrideIds.has(channelId))
+      .map((channelId) => ({ channelId, ...defaults })),
+  ];
 }
 
 const XP_CHANNEL_IDS = new Set(getXpChannelRules().map((rule) => rule.channelId));
 const LOW_XP_CHANNEL_IDS = new Set();
-
-function getXpConfig(guildId) {
-  return (getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG).xp;
-}
 
 function getGuildId(channelOrId, guildId) {
   return guildId || (typeof channelOrId === 'string' ? null : channelOrId?.guildId);
@@ -52,25 +89,31 @@ function getCandidateChannelIds(channelOrId) {
   return [String(getChannelId(channelOrId) || ''), ...getAncestorChannelIds(channelOrId)].filter(Boolean);
 }
 
-function canEarnXpInChannel(channelOrId, guildId) {
-  const candidateIds = new Set(getCandidateChannelIds(channelOrId));
-  return getXpChannelRules(getGuildId(channelOrId, guildId))
-    .some((rule) => candidateIds.has(rule.channelId));
-}
-
 function getXpChannelRule(channelOrId, guildId) {
-  const rules = getXpChannelRules(getGuildId(channelOrId, guildId));
+  const resolvedGuildId = getGuildId(channelOrId, guildId);
+  const xpConfig = getXpConfig(resolvedGuildId);
+  const overrides = getXpChannelOverrides(resolvedGuildId);
+  const defaultChannelIds = new Set(getDefaultXpChannelIds(resolvedGuildId));
+  const defaults = getDefaultXpRule(xpConfig);
+
   for (const candidateId of getCandidateChannelIds(channelOrId)) {
-    const matchingRule = rules.find((rule) => rule.channelId === candidateId);
-    if (matchingRule) return matchingRule;
+    const matchingOverride = overrides.find((rule) => rule.channelId === candidateId);
+    if (matchingOverride) return matchingOverride;
+    if (defaultChannelIds.has(candidateId)) return { channelId: candidateId, ...defaults };
   }
   return null;
+}
+
+function canEarnXpInChannel(channelOrId, guildId) {
+  return Boolean(getXpChannelRule(channelOrId, guildId));
 }
 
 module.exports = {
   XP_CHANNEL_IDS,
   LOW_XP_CHANNEL_IDS,
   canEarnXpInChannel,
+  getDefaultXpChannelIds,
+  getXpChannelOverrides,
   getXpChannelRule,
   getXpChannelRules,
 };
