@@ -23,12 +23,22 @@
 .permission-state .permission-allow.active { color: #fff; background: #248046; }
 
 .tab[data-tab="leveling"],
-.tab[data-tab="tickets"] { display: flex; align-items: center; gap: 10px; }
+.tab[data-tab="tickets"] { display: flex; align-items: center; gap: 12px; }
 .tab[data-tab="leveling"]::before,
-.tab[data-tab="tickets"]::before { content: ''; width: 24px; height: 24px; flex: 0 0 24px; display: block; background-position: center; background-repeat: no-repeat; background-size: contain; border-radius: 4px; }
-.tab[data-tab="leveling"]::before { background-image: url('/admin/leveling.png'); }
-.tab[data-tab="tickets"]::before { background-image: url('/admin/ticket.png'); }
-.tab-image-icon { display: none; }
+.tab[data-tab="tickets"]::before { content: none !important; display: none !important; }
+.tab[data-tab="leveling"] .tab-icon,
+.tab[data-tab="tickets"] .tab-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  image-rendering: auto;
+  border: 0;
+  border-radius: 5px;
+}
+.tab-image-icon { display: none !important; }
 
 .default-xp-destinations { margin: 2px 0 18px; }
 .default-xp-destinations p { margin: 0; color: var(--muted); font-size: 13px; }
@@ -69,6 +79,8 @@
   .word-chain-controls { grid-template-columns: 1fr; gap: 12px; }
   .emoji-popover { grid-template-columns: 44px minmax(0,1fr); }
   .emoji-grid { grid-template-columns: repeat(6,minmax(34px,1fr)); }
+  .tab[data-tab="leveling"] .tab-icon,
+  .tab[data-tab="tickets"] .tab-icon { width: 26px; height: 26px; flex-basis: 26px; }
 }
 @media (max-width: 560px) {
   .ticket-modal-backdrop { align-items: stretch; padding: 10px; }
