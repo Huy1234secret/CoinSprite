@@ -16,11 +16,52 @@ const originalCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 let clientRef = null;
 
 function sendJson(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(payload));
+}
+
+function sendAsset(res, status, body, contentType, cacheControl = 'public, max-age=300') {
+  res.writeHead(status, { 'Content-Type': contentType, 'Cache-Control': cacheControl });
+  res.end(body);
+}
+
+function imageContentType(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === '.png') return 'image/png';
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+  if (extension === '.webp') return 'image/webp';
+  if (extension === '.gif') return 'image/gif';
+  if (extension === '.svg') return 'image/svg+xml; charset=utf-8';
+  return 'application/octet-stream';
+}
+
+function serveImageAsset(res, imagePath) {
+  const decoded = decodeURIComponent(String(imagePath || ''));
+  const normalized = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
+  if (!/^[a-z0-9_.\-/\\]+$/i.test(normalized)) {
+    sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
+    return;
+  }
+
+  const filePath = path.join(IMAGE_DIR, normalized);
+  const resolvedImageDir = path.resolve(IMAGE_DIR);
+  const resolvedFile = path.resolve(filePath);
+  if (resolvedFile !== resolvedImageDir && !resolvedFile.startsWith(`${resolvedImageDir}${path.sep}`)) {
+    sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
+    return;
+  }
+
+  fs.readFile(resolvedFile, (error, data) => {
+    if (error) {
+      sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
+      return;
+    }
+    sendAsset(res, 200, data, imageContentType(resolvedFile));
+  });
 }
 
 function parseCookies(header = '') {
@@ -76,7 +117,7 @@ function injectedIndex() {
   html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="messages"><span class="message-tab-icon">✉</span><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
@@ -88,6 +129,10 @@ function injectedIndex() {
 
 async function handleTemplateRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'GET' && url.pathname.startsWith('/admin/images/')) {
+    serveImageAsset(res, url.pathname.slice('/admin/images/'.length));
+    return true;
+  }
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
     const html = injectedIndex();
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
