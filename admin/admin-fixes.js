@@ -1,5 +1,19 @@
 (() => {
   const pickerMenus = new Set();
+  const fallbackTabIcons = {
+    leveling: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAC0klEQVR4nOWXXUhTYRjHf/typnPVSJuW2/KD1CRK01HSRRAEQhfRRRTSTVF3FZV1ERlmUEF213UXxi4qEuquICLQ/CTrQkM2c2q6qUxd82Otebo4eeY8+zDUGfjcPe/H8/+9//e857wHNnoo4g0w5xQJKxVx9nVH1YnasRrCywFRJko8Wl0ZwFqJR6uvjNWZCIiIW5DIkAAStfqlev+PAxsWQL04ScnbQrGtEmWSCoC+2k+MNtrDJpivlpJ5tgiAgGeOryffoLcayX9wWFZcCAoEPHP4vowx8qyHn12jsjFhDszYJxl80hUSu34AbZZOytNKMsisKpTyvrstBCbmoq5OoVKQlL4Jw1ETe54eI+NkfmwAgJGGHrydbgBUqRpy6w6BUoEqRU1eXQUoxbfp2GsHEx8GIwq3WW207Gvgc2WjVAsFWG6UodmaHBuAeQFHTTPB6QAA+tLtZFYVYq4uQ7tDdMPvmqb/YXvUlS+Ef9iH81FHSEyrQm81xgEA/D98OOtDE02X9pNxIk9MBHDcDgHGhRjyheUaQzwH/sboKzsTH4cAUKhDw0ZsPXjbXcsSB9Bmp4XlAU/4MxPzGLpf9MrBIrRFFc/SYb5WKuXz/iDetnB49dJJElmyGkt1max91y0r3RfeQYwXd3nrGXmjAM76juU7YLpSQrJJtC8wPsu8PwiAvsyI8XRBdPXFmkGBwPgsnvcDdJ9/i/u53L2IDmy2ZmI8tVvKHXeaSbboJUdMl0uYah5mtt8bUbjNapOA44XMAZVOQ27tQemy5n7Zy2TTMC7bN6Zaxf1TalXk3qtAoYx7pfx3AMvNcpKMqYB4hAYed4odguhE0CceP13xNrLOFa8ugOFINunHc8RkXsBe00Rw5rfU/8s1zff7bVK+8+JeUgsMKwII8zCRl5KFG/K6f47DAGL9QKxmLNaRObDWEEvrR9yCtYKIVHfd/w3XPf4AadT6ohNi+d4AAAAASUVORK5CYII=',
+    tickets: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAtUlEQVR4nGNgGOmAkZACeSWt/5Ra8vDeNZz24JSghsXEOISJXpbjMhfDAbSyHJf5TPgk6eEIrFFATwB3AL18j27f4AmBEesAFmIV7mtmZxDmJVhwwkFY9y+Gm0//EVQ3dELAqfYnCr/Yn4UhzhGi/e6L/wxBHT+xaSMIBjwERh0w6oBRB4w6YMAdgFK70LNRAmshD3gIoDgAXweCmgDZHowQoLUj0M3HGgW0cgQ2cwe8bzjgAACoqTjHn+EJLQAAAABJRU5ErkJggg==',
+  };
+
+  function hydrateTabIcons() {
+    for (const [tabName, fallback] of Object.entries(fallbackTabIcons)) {
+      const image = document.querySelector(`.tab[data-tab="${tabName}"] .tab-icon`);
+      if (!image) continue;
+      image.addEventListener('error', () => {
+        if (image.src !== fallback) image.src = fallback;
+      }, { once: true });
+    }
+  }
 
   function closePickerMenus(except = null) {
     pickerMenus.forEach((menu) => {
@@ -215,4 +229,6 @@
     originalSetActiveTab(tabName);
     if (tabName === 'games') renderWordChainChannelPicker();
   };
+
+  hydrateTabIcons();
 })();
