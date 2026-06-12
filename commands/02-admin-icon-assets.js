@@ -3,9 +3,11 @@ const http = require('http');
 const path = require('path');
 
 const previousCreateServer = http.createServer.bind(http);
+const IMAGE_DIR = process.env.ADMIN_IMAGE_DIR || path.join(__dirname, '..', 'images');
 const ICONS = new Map([
-  ['/admin/images/leveling.png', path.join(__dirname, '..', 'admin', 'images', 'leveling.png')],
-  ['/admin/images/ticket.png', path.join(__dirname, '..', 'admin', 'images', 'ticket.png')],
+  ['/admin/images/leveling.png', path.join(IMAGE_DIR, 'leveling.png')],
+  ['/admin/images/ticket.png', path.join(IMAGE_DIR, 'ticket.png')],
+  ['/admin/images/message.png', path.join(IMAGE_DIR, 'message.png')],
 ]);
 
 http.createServer = function iconAssetServer(listener) {
