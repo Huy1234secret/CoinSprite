@@ -16,6 +16,7 @@ const originalCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
+const BOT_IMAGES_DIR = path.join(__dirname, '..', 'images');
 let clientRef = null;
 
 function sendJson(res, status, payload) {
@@ -71,12 +72,37 @@ async function readBody(req) {
   catch { throw Object.assign(new Error('Invalid JSON body.'), { statusCode: 400 }); }
 }
 
+function serveBotImage(req, res, url) {
+  if (req.method !== 'GET') return false;
+  const match = url.pathname.match(/^\/(?:admin\/)?images\/(leveling|ticket|message)\.png$/);
+  if (!match) return false;
+  const filePath = path.join(BOT_IMAGES_DIR, `${match[1]}.png`);
+  const resolvedDir = path.resolve(BOT_IMAGES_DIR);
+  const resolvedFile = path.resolve(filePath);
+  if (!resolvedFile.startsWith(`${resolvedDir}${path.sep}`)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Not found');
+    return true;
+  }
+  fs.readFile(resolvedFile, (error, data) => {
+    if (error) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end('Not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
+    res.end(data);
+  });
+  return true;
+}
+
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
   html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n</head>');
+  html = html.replace(/src="\/admin\/images\/(leveling|ticket)\.png"/g, 'src="/images/$1.png"');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="messages"><span class="message-tab-icon">✉</span><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
@@ -88,6 +114,7 @@ function injectedIndex() {
 
 async function handleTemplateRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (serveBotImage(req, res, url)) return true;
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
     const html = injectedIndex();
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
