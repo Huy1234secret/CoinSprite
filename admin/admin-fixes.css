@@ -1,5 +1,6 @@
 .tab {
-  display: flex;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 11px;
   min-height: 48px;
@@ -11,28 +12,20 @@
 .tab:hover { background: rgba(255, 255, 255, 0.055); }
 .tab.active { border-color: rgba(255, 255, 255, 0.08); }
 .tab span { min-width: 0; }
+.tab:not(:has(.tab-icon))::before { content: ''; width: 34px; height: 34px; }
+.tab:not(:has(.tab-icon)) { padding-left: 10px; }
 
 .tab-icon {
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
-  padding: 5px;
   border-radius: 8px;
   object-fit: contain;
+  object-position: center;
   image-rendering: auto;
 }
 
-.tab[data-tab="leveling"] .tab-icon {
-  background: rgba(35, 210, 110, 0.16);
-  box-shadow: 0 0 16px rgba(35, 210, 110, 0.28), inset 0 0 0 1px rgba(87, 242, 135, 0.18);
-}
-
-.tab[data-tab="tickets"] .tab-icon {
-  background: rgba(235, 69, 89, 0.15);
-  box-shadow: 0 0 16px rgba(235, 69, 89, 0.25), inset 0 0 0 1px rgba(255, 105, 120, 0.16);
-}
-
-.tab:not(:has(.tab-icon)) { padding-left: 24px; }
+.message-tab-icon,
 .tab-image-icon { display: none !important; }
 
 .config-row, .rows, .panel, .mini-panel, .tab-panel, .picker-field { overflow: visible; }
@@ -84,6 +77,8 @@
 .ticket-kind-grid span { color: #aeb4c0; line-height: 1.45; }
 
 @media (max-width: 740px) {
+  .tab { grid-template-columns: 30px minmax(0, 1fr); }
   .tab-icon { width: 30px; height: 30px; flex-basis: 30px; }
+  .tab:not(:has(.tab-icon))::before { width: 30px; height: 30px; }
   .ticket-kind-grid { grid-template-columns: 1fr; }
 }
