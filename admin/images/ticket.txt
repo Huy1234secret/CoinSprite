@@ -1,0 +1,1 @@
+ticket.png fallback is embedded in admin-fixes.js.
