@@ -2,6 +2,7 @@ const TAB_NAMES = {
   leveling: 'Leveling',
   channels: 'Channels',
   roles: 'Roles',
+  tickets: 'Tickets',
   invites: 'Invite rewards',
   games: 'Games',
 };
@@ -20,6 +21,7 @@ const state = {
   rewards: [],
   activeTab: 'leveling',
   activeLevelingTab: 'xp',
+  ticketEditor: null,
   dirtyTabs: new Set(),
   saving: false,
 };
@@ -63,6 +65,7 @@ const elements = {
   levelUpPreviewContainer: document.querySelector('#levelUpPreviewContainer'),
   levelUpPreviewBody: document.querySelector('#levelUpPreviewBody'),
   levelUpPreviewImage: document.querySelector('#levelUpPreviewImage'),
+  ticketEditorRoot: document.querySelector('#ticketEditorRoot'),
 };
 
 function clone(value) {
@@ -251,7 +254,7 @@ function renderPicker(mount, options, selectedValue, settings) {
           else selected.add(option.id);
           onChange([...selected]);
         } else {
-          onChange(option.id);
+          onChange(selected.has(option.id) ? '' : option.id);
         }
         refreshDirtyState();
       });
@@ -273,6 +276,19 @@ function renderPicker(mount, options, selectedValue, settings) {
   search.addEventListener('input', drawOptions);
   picker.append(button, menu);
   mount.append(picker);
+}
+
+function ensureTicketEditor() {
+  if (!state.ticketEditor) {
+    state.ticketEditor = window.createTicketEditor({
+      root: elements.ticketEditorRoot,
+      renderPicker,
+      channelOptions,
+      roleOptions,
+      onChange: refreshDirtyState,
+    });
+  }
+  return state.ticketEditor;
 }
 
 document.addEventListener('click', (event) => {
@@ -538,14 +554,34 @@ function safePreviewMediaUrl(template, context) {
 }
 
 function previewMarkdown(value) {
-  const escaped = String(value)
+  const escape = (text) => String(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/^## (.+)$/gm, '<strong class="preview-heading">$1</strong>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  return escaped.replace(/\n/g, '<br>');
+    .replace(/"/g, '&quot;');
+  const inline = (text) => escape(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  let inCode = false;
+  const lines = [];
+  for (const line of String(value).split('\n')) {
+    if (line.trim().startsWith('```')) {
+      lines.push(inCode ? '</code></pre>' : '<pre class="preview-code"><code>');
+      inCode = !inCode;
+    } else if (inCode) {
+      lines.push(`${escape(line)}\n`);
+    } else if (line.startsWith('## ')) {
+      lines.push(`<strong class="preview-heading">${inline(line.slice(3))}</strong>`);
+    } else if (line.startsWith('-# ')) {
+      lines.push(`<span class="preview-subtext">${inline(line.slice(3))}</span>`);
+    } else if (line.startsWith('> ')) {
+      lines.push(`<span class="preview-quote">${inline(line.slice(2))}</span>`);
+    } else {
+      lines.push(`<span class="preview-line">${inline(line) || '&nbsp;'}</span>`);
+    }
+  }
+  if (inCode) lines.push('</code></pre>');
+  return lines.join('');
 }
 
 function renderLevelUpPreview() {
@@ -695,10 +731,19 @@ function applyTabFromConfig(tabName, config) {
     for (const [key, value] of Object.entries(config.channels || {})) {
       if (key !== 'levelUp') state.channelValues[key] = value;
     }
-    renderObjectPickers(elements.channelsGrid, 'channels', state.channelValues, channelOptions(), 'channel', ['levelUp']);
+    renderObjectPickers(
+      elements.channelsGrid,
+      'channels',
+      state.channelValues,
+      channelOptions(),
+      'channel',
+      ['levelUp', 'ticketPanel', 'ticketCategory', 'transcript'],
+    );
   } else if (tabName === 'roles') {
     state.roleValues = { ...(config.roles || {}) };
     renderObjectPickers(elements.rolesGrid, 'roles', state.roleValues, roleOptions(), 'role');
+  } else if (tabName === 'tickets') {
+    ensureTicketEditor().load(config.tickets, config.channels);
   } else if (tabName === 'invites') {
     setField('inviteRewards.enabled', config.inviteRewards?.enabled);
     setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
@@ -738,9 +783,12 @@ function collectTabState(tabName) {
     };
   }
   if (tabName === 'channels') {
-    return Object.fromEntries(Object.entries(state.channelValues).filter(([key]) => key !== 'levelUp'));
+    return Object.fromEntries(Object.entries(state.channelValues).filter(
+      ([key]) => !['levelUp', 'ticketPanel', 'ticketCategory', 'transcript'].includes(key),
+    ));
   }
   if (tabName === 'roles') return clone(state.roleValues);
+  if (tabName === 'tickets') return ensureTicketEditor().getValue();
   if (tabName === 'invites') {
     return {
       inviteEnabled: Boolean(getField('inviteRewards.enabled')),
@@ -808,9 +856,11 @@ function flattenXpGroups() {
 }
 
 function collectPatch() {
+  const ticketValue = ensureTicketEditor().getValue();
   return {
-    channels: { ...state.channelValues },
+    channels: { ...state.channelValues, ...ticketValue.channels },
     roles: { ...state.roleValues },
+    tickets: ticketValue.tickets,
     xp: {
       messageXpMin: Number(getField('xp.messageXpMin')),
       messageXpMax: Number(getField('xp.messageXpMax')),

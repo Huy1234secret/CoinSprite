@@ -51,6 +51,7 @@
         <button class="tab active" type="button" data-tab="leveling"><span>Leveling</span></button>
         <button class="tab" type="button" data-tab="channels"><span>Channels</span></button>
         <button class="tab" type="button" data-tab="roles"><span>Roles</span></button>
+        <button class="tab" type="button" data-tab="tickets"><span>Tickets</span></button>
         <button class="tab" type="button" data-tab="invites"><span>Invite rewards</span></button>
         <button class="tab" type="button" data-tab="games"><span>Games</span></button>
       </nav>
@@ -131,7 +132,7 @@
             <div class="panel">
               <div class="panel-heading">
                 <h3>Level-up destination</h3>
-                <p>The selected channel receives the Components V2 message whenever a member gains a level.</p>
+                <p>The selected channel receives the message whenever a member gains a level.</p>
               </div>
               <div class="announcement-basics">
                 <label class="checkline"><input name="xp.levelUpMessage.enabled" type="checkbox"> Send level-up messages</label>
@@ -146,8 +147,8 @@
             <div class="message-builder">
               <div class="panel message-editor">
                 <div class="panel-heading">
-                  <h3>Components V2 container</h3>
-                  <p>Text stays inside one container. Insert <code>&lt;separator&gt;</code> to divide text sections. Thumbnail and image URLs render inside that same container.</p>
+                  <h3>Level-up message</h3>
+                  <p>Add text, a thumbnail, or an image. Use <code>&lt;separator&gt;</code> when you want a divider between sections.</p>
                 </div>
                 <div class="template-tokens" id="levelUpTokens" aria-label="Message placeholders">
                   <button type="button" data-token="&lt;@mention&gt;">&lt;@mention&gt;</button>
@@ -176,7 +177,7 @@
               <div class="panel preview-panel">
                 <div class="panel-heading">
                   <h3>Live preview</h3>
-                  <p>Preview data is illustrative; Discord renders the saved payload using Components V2.</p>
+                  <p>Preview your message as it will appear in Discord.</p>
                 </div>
                 <div class="discord-preview" id="levelUpPreview">
                   <div class="preview-container" id="levelUpPreviewContainer">
@@ -207,6 +208,10 @@
             </div>
             <div class="settings-grid" id="rolesGrid"></div>
           </div>
+        </section>
+
+        <section class="tab-panel" data-panel="tickets">
+          <div id="ticketEditorRoot"></div>
         </section>
 
         <section class="tab-panel" data-panel="invites">
@@ -290,6 +295,7 @@
     </div>
   </aside>
 
+  <script src="/admin/tickets.js" defer></script>
   <script src="/admin/app.js" defer></script>
 </body>
 </html>

@@ -138,6 +138,17 @@
       "emojis": {
         "giveawayRequestAccept": { "id": "1498173245981986869", "name": "Y_" },
         "giveawayRequestDeny": { "id": "1498173244031631400", "name": "N_" }
+      },
+      "tickets": {
+        "enabled": true,
+        "launcherStyle": "select",
+        "launcherMessage": {
+          "content": "## Support Ticket\nChoose the ticket type that best matches your request.\n<separator>\n-# Staff will respond as soon as possible.",
+          "accentColor": "#FFFFFF",
+          "thumbnailUrl": "",
+          "imageUrl": ""
+        },
+        "types": []
       }
     }
   }

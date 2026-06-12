@@ -14,6 +14,14 @@ const {
 } = require('discord.js');
 const { loadState, saveState } = require('../src/ticketSystemStore');
 const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
+const {
+  DEFAULT_AUTHOR_PERMISSIONS,
+  DEFAULT_STAFF_PERMISSIONS,
+  buildTicketMessagePayload,
+  discordEmoji,
+  formatFormAnswers,
+  orderAdminActions,
+} = require('../src/ticketConfig');
 
 const TICKET_PANEL_CHANNEL_ID = DEFAULT_GUILD_CONFIG.channels.ticketPanel;
 const TICKET_CATEGORY_ID = DEFAULT_GUILD_CONFIG.channels.ticketCategory;
@@ -27,6 +35,11 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 
 const CUSTOM_IDS = {
   panelTypeSelect: 'ticket:type-select',
+  panelTypeButtonPrefix: 'ticket:type-button:',
+  createFormPrefix: 'ticket:create-form:',
+  adminSelectPrefix: 'ticket:admin-select:',
+  adminButtonPrefix: 'ticket:admin-button:',
+  closeFormPrefix: 'ticket:close-form:',
   guildSupportModal: 'ticket:guild-support-modal',
   guildSupportRadio: 'guild_support_type',
   ticketActionSelectPrefix: 'ticket:actions:',
@@ -62,58 +75,62 @@ function getCrewMemberPlusRoleIdForGame(game, guildId) {
     : roles.crewMemberPlus || CREW_MEMBER_PLUS_ROLE_ID;
 }
 
-function getTicketPanelPayload() {
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          { type: 10, content: '## Support Ticket' },
-          { type: 10, content: 'Need help? Please open the correct ticket type below.' },
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 10,
-            content:
-              '-# ⚠️ Please do not open joke, false, or duplicate tickets.\n-# 📌 Please be patient after opening a ticket. Staff will respond as soon as possible.',
-          },
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 1,
-            components: [
-              {
-                type: 3,
-                custom_id: CUSTOM_IDS.panelTypeSelect,
-                placeholder: 'Choose a ticket type',
-                options: [
-                  {
-                    label: 'Guild Support',
-                    value: 'guild_support',
-                    description:
-                      'Use this ticket for guild help, member issues, questions, or other guild-related support.',
-                    emoji: { name: '🛡️' },
-                  },
-                  {
-                    label: 'Request Giveaway',
-                    value: 'request_giveaway',
-                    description: 'Use this ticket to request a giveaway ticket.',
-                    emoji: { name: '🎁' },
-                  },
-                  {
-                    label: 'Guild Join Request',
-                    value: 'request_role_crew_member_plus',
-                    description: 'Verify your stat here to join the guild',
-                    emoji: { name: '⭐' },
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  };
+function getTicketTypes(guildId) {
+  const config = getTicketConfig(guildId);
+  return Array.isArray(config.tickets?.types) ? config.tickets.types : [];
+}
+
+function findTicketType(guildId, ticketTypeId) {
+  return getTicketTypes(guildId).find((ticketType) => ticketType.id === ticketTypeId) || null;
+}
+
+function buttonStyleValue(style) {
+  return { primary: 1, secondary: 2, success: 3, danger: 4 }[style] || 2;
+}
+
+function getTicketPanelControls(ticketConfig) {
+  if (!ticketConfig.enabled) return [];
+  const types = Array.isArray(ticketConfig.types) ? ticketConfig.types : [];
+  if (types.length === 0) return [];
+  if (ticketConfig.launcherStyle === 'buttons') {
+    const rows = [];
+    for (let index = 0; index < types.length; index += 5) {
+      rows.push({
+        type: 1,
+        components: types.slice(index, index + 5).map((ticketType) => ({
+          type: 2,
+          custom_id: `${CUSTOM_IDS.panelTypeButtonPrefix}${ticketType.id}`,
+          label: ticketType.name,
+          style: buttonStyleValue(ticketType.buttonStyle),
+          ...(ticketType.emoji ? { emoji: discordEmoji(ticketType.emoji) } : {}),
+        })),
+      });
+    }
+    return rows;
+  }
+  return [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: CUSTOM_IDS.panelTypeSelect,
+      placeholder: 'Choose a ticket type',
+      options: types.map((ticketType) => ({
+        label: ticketType.name,
+        value: ticketType.id,
+        ...(ticketType.description ? { description: ticketType.description } : {}),
+        ...(ticketType.emoji ? { emoji: discordEmoji(ticketType.emoji) } : {}),
+      })),
+    }],
+  }];
+}
+
+function getTicketPanelPayload(guild) {
+  const ticketConfig = getTicketConfig(guild.id).tickets;
+  return buildTicketMessagePayload(
+    ticketConfig.launcherMessage,
+    { server: guild.name },
+    getTicketPanelControls(ticketConfig),
+  );
 }
 
 async function resetPanelTypeSelection(interaction) {
@@ -121,7 +138,7 @@ async function resetPanelTypeSelection(interaction) {
     return;
   }
 
-  await interaction.message.edit(getTicketPanelPayload()).catch(() => null);
+  await interaction.message.edit(getTicketPanelPayload(interaction.guild)).catch(() => null);
 }
 
 function getTicketActionRow(channelId, closed) {
@@ -510,9 +527,259 @@ function getGiveawayRequestMessageComponents({
   ];
 }
 
+function permissionBits(permissionNames, fallback) {
+  const source = Array.isArray(permissionNames) ? permissionNames : fallback;
+  return source.map((name) => PermissionFlagsBits[name]).filter((value) => value !== undefined);
+}
+
+function ticketQuestionCustomId(index) {
+  return `ticket_question_${index + 1}`;
+}
+
+function modalOptionPayload(option, index) {
+  return {
+    label: option.name,
+    value: String(index),
+    ...(option.description ? { description: option.description } : {}),
+    ...(option.emoji ? { emoji: discordEmoji(option.emoji) } : {}),
+  };
+}
+
+function ticketQuestionComponent(question, index) {
+  const customId = ticketQuestionCustomId(index);
+  const required = Boolean(question.required);
+  if (question.type === 'text_display') {
+    return { type: 10, content: question.question };
+  }
+
+  let component;
+  if (question.type === 'text_input') {
+    component = {
+      type: 4,
+      custom_id: customId,
+      style: question.textStyle === 'short' ? 1 : 2,
+      min_length: question.minLength,
+      max_length: question.maxLength,
+      required,
+      ...(question.placeholder ? { placeholder: question.placeholder } : {}),
+    };
+  } else if (question.type === 'string_select') {
+    component = {
+      type: 3,
+      custom_id: customId,
+      options: question.options.map(modalOptionPayload),
+      min_values: question.minValues,
+      max_values: question.maxValues,
+      required,
+      ...(question.placeholder ? { placeholder: question.placeholder } : {}),
+    };
+  } else if (question.type === 'user_select') {
+    component = {
+      type: 5,
+      custom_id: customId,
+      min_values: question.minValues,
+      max_values: question.maxValues,
+      required,
+      ...(question.placeholder ? { placeholder: question.placeholder } : {}),
+    };
+  } else if (question.type === 'role_select') {
+    component = {
+      type: 6,
+      custom_id: customId,
+      min_values: question.minValues,
+      max_values: question.maxValues,
+      required,
+      ...(question.placeholder ? { placeholder: question.placeholder } : {}),
+    };
+  } else if (question.type === 'channel_select') {
+    component = {
+      type: 8,
+      custom_id: customId,
+      min_values: question.minValues,
+      max_values: question.maxValues,
+      required,
+      ...(question.placeholder ? { placeholder: question.placeholder } : {}),
+    };
+  } else if (question.type === 'file_upload') {
+    component = {
+      type: 19,
+      custom_id: customId,
+      min_values: required ? 1 : 0,
+      max_values: question.maxFiles,
+      required,
+    };
+  } else if (question.type === 'radio_group') {
+    component = {
+      type: 21,
+      custom_id: customId,
+      required,
+      options: question.options.map((option, optionIndex) => ({
+        label: option.name,
+        value: String(optionIndex),
+        ...(option.description ? { description: option.description } : {}),
+      })),
+    };
+  } else if (question.type === 'checkbox_group') {
+    component = {
+      type: 22,
+      custom_id: customId,
+      required,
+      min_values: question.minValues,
+      max_values: question.maxValues,
+      options: question.options.map((option, optionIndex) => ({
+        label: option.name,
+        value: String(optionIndex),
+        ...(option.description ? { description: option.description } : {}),
+      })),
+    };
+  } else {
+    component = {
+      type: 23,
+      custom_id: customId,
+      default: Boolean(question.default),
+    };
+  }
+
+  return {
+    type: 18,
+    label: question.question,
+    component,
+  };
+}
+
+function getTicketFormModal(ticketType, phase, channelId = '', controlId = '') {
+  const questions = ticketType.forms?.[phase] || [];
+  const customId = phase === 'close'
+    ? `${CUSTOM_IDS.closeFormPrefix}${channelId}:${controlId}`
+    : `${CUSTOM_IDS.createFormPrefix}${ticketType.id}`;
+  return {
+    custom_id: customId,
+    title: `${phase === 'close' ? 'Close' : 'Create'} ${ticketType.name}`.slice(0, 45),
+    components: questions.map(ticketQuestionComponent),
+  };
+}
+
+function getSubmittedValues(interaction, customId) {
+  const component = findSubmittedComponent(interaction, customId);
+  const raw = component?.values ?? component?.value ?? [];
+  return Array.isArray(raw) ? raw : [raw].filter((value) => value !== undefined && value !== null);
+}
+
+function ticketFormAnswers(interaction, questions) {
+  return (Array.isArray(questions) ? questions : []).map((question, index) => {
+    const customId = ticketQuestionCustomId(index);
+    let answer = '';
+    let uploadedFiles = [];
+    if (question.type === 'text_display') {
+      return { order: question.order, question: question.question, type: question.type, answer: '' };
+    }
+    if (question.type === 'text_input') {
+      answer = getTextInputValueSafely(interaction, customId, '');
+    } else if (question.type === 'file_upload') {
+      uploadedFiles = getUploadedAttachmentDetails(interaction, customId);
+      answer = uploadedFiles.map((file) => `[${file.filename}](${file.url})`).join('\n');
+    } else if (question.type === 'checkbox') {
+      const value = getSubmittedValues(interaction, customId)[0];
+      answer = value === true || value === 'true' ? 'Yes' : 'No';
+    } else {
+      const values = getSubmittedValues(interaction, customId);
+      if (['string_select', 'radio_group', 'checkbox_group'].includes(question.type)) {
+        answer = values.map((value) => question.options?.[Number(value)]?.name || value).join(', ');
+      } else if (question.type === 'user_select') {
+        answer = values.map((value) => `<@${value}>`).join(', ');
+      } else if (question.type === 'role_select') {
+        answer = values.map((value) => `<@&${value}>`).join(', ');
+      } else if (question.type === 'channel_select') {
+        answer = values.map((value) => `<#${value}>`).join(', ');
+      }
+    }
+    return {
+      order: question.order,
+      question: question.question,
+      type: question.type,
+      answer,
+      uploadedFiles,
+    };
+  });
+}
+
+function getConfiguredAdminComponents(ticketType, channelId, disabled = false) {
+  if (!ticketType.adminPanel?.enabled) return [];
+  const controls = Array.isArray(ticketType.adminPanel.controls) ? ticketType.adminPanel.controls : [];
+  if (ticketType.adminPanel.style === 'buttons') {
+    const rows = [];
+    for (let index = 0; index < controls.length; index += 5) {
+      const components = controls.slice(index, index + 5).map((control) => {
+        if (control.url) {
+          return {
+            type: 2,
+            label: control.name,
+            style: 5,
+            url: control.url,
+            disabled,
+          };
+        }
+        return {
+          type: 2,
+          custom_id: `${CUSTOM_IDS.adminButtonPrefix}${channelId}:${control.id}`,
+          label: control.name,
+          style: buttonStyleValue(control.buttonStyle),
+          disabled,
+          ...(control.emoji ? { emoji: discordEmoji(control.emoji) } : {}),
+        };
+      });
+      if (components.length) rows.push({ type: 1, components });
+    }
+    return rows;
+  }
+
+  const options = controls.filter((control) => !control.url).map((control) => ({
+    label: control.name,
+    value: control.id,
+    ...(control.description ? { description: control.description } : {}),
+    ...(control.emoji ? { emoji: discordEmoji(control.emoji) } : {}),
+  }));
+  if (!options.length) return [];
+  return [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: `${CUSTOM_IDS.adminSelectPrefix}${channelId}`,
+      placeholder: disabled ? 'Ticket actions are disabled' : 'Ticket actions',
+      disabled,
+      options,
+    }],
+  }];
+}
+
 async function ensurePanelMessage(guild, clientUserId) {
   const state = loadState();
-  const panelChannelId = getTicketConfig(guild.id).channels.ticketPanel || TICKET_PANEL_CHANNEL_ID;
+  const guildConfig = getTicketConfig(guild.id);
+  const panelChannelId = guildConfig.channels.ticketPanel || TICKET_PANEL_CHANNEL_ID;
+  const savedId = state.panelMessageIdByGuild[guild.id];
+  const savedChannelId = state.panelChannelIdByGuild?.[guild.id];
+  if (savedId && savedChannelId && savedChannelId !== panelChannelId) {
+    const previousChannel = await guild.channels.fetch(savedChannelId).catch(() => null);
+    const previousMessage = previousChannel?.isTextBased()
+      ? await previousChannel.messages.fetch(savedId).catch(() => null)
+      : null;
+    if (previousMessage) await previousMessage.delete().catch(() => null);
+    delete state.panelMessageIdByGuild[guild.id];
+  }
+
+  if (!guildConfig.tickets?.enabled) {
+    const existingChannelId = savedChannelId || panelChannelId;
+    const existingChannel = await guild.channels.fetch(existingChannelId).catch(() => null);
+    const existingMessage = existingChannel?.isTextBased() && savedId
+      ? await existingChannel.messages.fetch(savedId).catch(() => null)
+      : null;
+    if (existingMessage) await existingMessage.delete().catch(() => null);
+    delete state.panelMessageIdByGuild[guild.id];
+    delete state.panelChannelIdByGuild[guild.id];
+    saveState(state);
+    return;
+  }
+
   const channel = await guild.channels.fetch(panelChannelId).catch(() => null);
   if (!channel?.isTextBased()) {
     saveState(state);
@@ -520,11 +787,11 @@ async function ensurePanelMessage(guild, clientUserId) {
   }
 
   let panelMessage = null;
-  const savedId = state.panelMessageIdByGuild[guild.id];
-  if (savedId) {
-    panelMessage = await channel.messages.fetch(savedId).catch(() => null);
+  const currentSavedId = state.panelMessageIdByGuild[guild.id];
+  if (currentSavedId) {
+    panelMessage = await channel.messages.fetch(currentSavedId).catch(() => null);
     if (panelMessage) {
-      await panelMessage.edit(getTicketPanelPayload()).catch(() => null);
+      await panelMessage.edit(getTicketPanelPayload(guild)).catch(() => null);
     }
   }
 
@@ -535,16 +802,17 @@ async function ensurePanelMessage(guild, clientUserId) {
       null;
 
     if (panelMessage) {
-      await panelMessage.edit(getTicketPanelPayload()).catch(() => null);
+      await panelMessage.edit(getTicketPanelPayload(guild)).catch(() => null);
     }
   }
 
   if (!panelMessage) {
-    panelMessage = await channel.send(getTicketPanelPayload()).catch(() => null);
+    panelMessage = await channel.send(getTicketPanelPayload(guild)).catch(() => null);
   }
 
   if (panelMessage) {
     state.panelMessageIdByGuild[guild.id] = panelMessage.id;
+    state.panelChannelIdByGuild[guild.id] = channel.id;
   }
 
   saveState(state);
@@ -557,12 +825,20 @@ function getNextTicketId(state, guildId) {
   return next;
 }
 
-function canUseStaffActions(member) {
-  const staffRoleId = getTicketConfig(member.guild?.id).roles.staff || STAFF_ROLE_ID;
-  return member.permissions.has(PermissionFlagsBits.Administrator) || member.roles.cache.has(staffRoleId);
+function canUseStaffActions(member, ticketType = null) {
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
+  const fallbackRoleId = getTicketConfig(member.guild?.id).roles.staff || STAFF_ROLE_ID;
+  const roleIds = ticketType?.staffRoleIds?.length ? ticketType.staffRoleIds : [fallbackRoleId];
+  return roleIds.some((roleId) => member.roles.cache.has(roleId));
 }
 
-async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseName, questionAnswerPairs }) {
+async function createTicketChannel({
+  interaction,
+  ticketType = null,
+  ticketTypeLabel,
+  channelBaseName,
+  questionAnswerPairs = [],
+}) {
   const guild = interaction.guild;
   if (!guild) {
     return;
@@ -574,7 +850,10 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
 
   const state = loadState();
   const blacklist = state.blacklistedUsersByGuild[guild.id] ?? [];
-  if (blacklist.includes(interaction.user.id)) {
+  const member = interaction.member;
+  const configuredBlacklistRole = ticketType?.blacklistRoleId;
+  const hasBlacklistRole = Boolean(configuredBlacklistRole && member?.roles?.cache?.has(configuredBlacklistRole));
+  if (blacklist.includes(interaction.user.id) || hasBlacklistRole) {
     if (interaction.deferred) {
       await interaction.editReply({ content: 'You are blacklisted from the ticket system.' });
     } else {
@@ -584,10 +863,16 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
   }
 
   const ticketId = getNextTicketId(state, guild.id);
-  const channelName = `${channelBaseName}-${ticketId}`;
+  const resolvedLabel = ticketType?.name || ticketTypeLabel || 'Support';
+  const channelName = `${channelBaseName || resolvedLabel}-${ticketId}`;
   const ticketConfig = getTicketConfig(guild.id);
-  const ticketCategoryId = ticketConfig.channels.ticketCategory || TICKET_CATEGORY_ID;
-  const staffRoleId = ticketConfig.roles.staff || STAFF_ROLE_ID;
+  const ticketCategoryId = ticketType?.categoryChannelId || ticketConfig.channels.ticketCategory || TICKET_CATEGORY_ID;
+  const fallbackStaffRoleId = ticketConfig.roles.staff || STAFF_ROLE_ID;
+  const staffRoleIds = ticketType?.staffRoleIds?.length ? ticketType.staffRoleIds : [fallbackStaffRoleId];
+  await guild.roles.fetch().catch(() => null);
+  const validStaffRoleIds = staffRoleIds.filter((roleId) => guild.roles.cache.has(roleId));
+  const authorPermissions = permissionBits(ticketType?.authorPermissions, DEFAULT_AUTHOR_PERMISSIONS);
+  const staffPermissions = permissionBits(ticketType?.staffPermissions, DEFAULT_STAFF_PERMISSIONS);
   const ticketCategory = await guild.channels.fetch(ticketCategoryId).catch(() => null);
   const channelOptions = {
     name: sanitizeChannelName(channelName),
@@ -596,12 +881,9 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
       { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
         id: interaction.user.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+        allow: authorPermissions,
       },
-      {
-        id: staffRoleId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-      },
+      ...validStaffRoleIds.map((roleId) => ({ id: roleId, allow: staffPermissions })),
     ],
   };
 
@@ -614,42 +896,46 @@ async function createTicketChannel({ interaction, ticketTypeLabel, channelBaseNa
   state.tickets[ticketChannel.id] = {
     guildId: guild.id,
     userId: interaction.user.id,
-    ticketType: ticketTypeLabel,
+    ticketTypeId: ticketType?.id || '',
+    ticketType: resolvedLabel,
+    ticketTypeSnapshot: ticketType || null,
     questionAnswerPairs,
     closed: false,
     createdAt: new Date().toISOString(),
   };
   saveState(state);
 
-  const qnaLines = questionAnswerPairs.map((entry) => `**${entry.question}**\n${entry.answer || '-'}\n`).join('\n');
-  const ticketDetailsComponents = [];
-  if (qnaLines) {
-    ticketDetailsComponents.push(
-      { type: 14, divider: true, spacing: 1 },
-      { type: 10, content: qnaLines },
-      { type: 14, divider: true, spacing: 1 },
-    );
-  }
-
-  await ticketChannel.send({
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: 0xffffff,
-        components: [
-          {
+  const adminComponents = ticketType
+    ? getConfiguredAdminComponents(ticketType, ticketChannel.id)
+    : [getTicketActionRow(ticketChannel.id, false).toJSON()];
+  const messagePayload = ticketType
+    ? buildTicketMessagePayload(ticketType.message, {
+      mention: `<@${interaction.user.id}>`,
+      username: interaction.user.username,
+      displayName: interaction.member?.displayName || interaction.user.globalName || interaction.user.username,
+      userId: interaction.user.id,
+      ticketName: resolvedLabel,
+      ticketId,
+      channel: `<#${ticketChannel.id}>`,
+      server: guild.name,
+      avatarUrl: interaction.user.displayAvatarURL(),
+      formAnswers: formatFormAnswers(questionAnswerPairs),
+    }, adminComponents)
+    : {
+      flags: COMPONENTS_V2_FLAG,
+      components: [
+        {
+          type: 17,
+          accent_color: 0xffffff,
+          components: [{
             type: 10,
-            content:
-              `<@${interaction.user.id}> Welcome!\n## ${ticketTypeLabel}'s ticket\n` +
-              '* Our staff will be with you soon, please be patience and provide necessary information so the help will be faster!',
-          },
-          ...ticketDetailsComponents,
-        ],
-      },
-      getTicketActionRow(ticketChannel.id, false).toJSON(),
-    ],
-  });
+            content: `<@${interaction.user.id}> Welcome!\n## ${resolvedLabel} ticket\nOur staff will be with you soon.`,
+          }],
+        },
+        ...adminComponents,
+      ],
+    };
+  await ticketChannel.send(messagePayload);
 
   if (interaction.deferred) {
     await interaction.editReply({ content: `Your ticket has been created: ${ticketChannel}` });
@@ -736,6 +1022,300 @@ async function saveTranscript(channel, options = {}) {
   ];
   fs.writeFileSync(filePath, `${headerLines.join('\n')}\n\n${lines.join('\n')}\n`, 'utf8');
   return filePath;
+}
+
+function getRuntimeTicketType(guildId, ticketRecord) {
+  return findTicketType(guildId, ticketRecord?.ticketTypeId) || ticketRecord?.ticketTypeSnapshot || null;
+}
+
+async function sendConfiguredTranscript(interaction, channel, ticketRecord, ticketType, closeAnswers = []) {
+  if (!ticketType.transcriptEnabled) return null;
+  const transcriptPath = await saveTranscript(channel, {
+    ticketRecord,
+    closedBy: interaction.user.id,
+    closeAction: 'configured_admin_action',
+  });
+  if (closeAnswers.length) {
+    const answerText = formatFormAnswers(closeAnswers);
+    if (answerText) fs.appendFileSync(transcriptPath, `\nClosing form\n\n${answerText}\n`, 'utf8');
+  }
+  const guildConfig = getTicketConfig(interaction.guildId);
+  const transcriptChannelId = ticketType.transcriptChannelId || guildConfig.channels.transcript || TRANSCRIPT_CHANNEL_ID;
+  const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
+  if (transcriptChannel?.isTextBased()) {
+    await transcriptChannel.send({
+      content: `Transcript for #${channel.name} (${channel.id})`,
+      files: [transcriptPath],
+    }).catch(() => null);
+  }
+  return transcriptPath;
+}
+
+async function disableConfiguredAdminMessage(interaction) {
+  const message = interaction.message;
+  if (!message?.editable) return;
+  const components = message.components.map((component) => component.toJSON());
+  for (const component of components) {
+    if (component.type !== 1 || !Array.isArray(component.components)) continue;
+    for (const child of component.components) {
+      if ([2, 3].includes(child.type)) child.disabled = true;
+    }
+  }
+  await message.edit({ components }).catch(() => null);
+}
+
+async function executeConfiguredAdminActions(interaction, channelId, controlId, closeAnswers = [], controlOverride = null) {
+  const state = loadState();
+  const ticketRecord = state.tickets[channelId];
+  if (!ticketRecord) {
+    await interaction.reply({ content: 'This ticket record is missing.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  const ticketType = getRuntimeTicketType(interaction.guildId, ticketRecord);
+  const control = controlOverride || ticketType?.adminPanel?.controls?.find((item) => item.id === controlId);
+  if (!ticketType || !control) {
+    await interaction.reply({ content: 'This ticket action is no longer configured.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!canUseStaffActions(interaction.member, ticketType)) {
+    await interaction.reply({ content: 'Only configured ticket staff can use this action.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+  const channel = interaction.guild.channels.cache.get(channelId)
+    || await interaction.guild.channels.fetch(channelId).catch(() => null);
+  if (!channel?.isTextBased()) {
+    await interaction.editReply({ content: 'The ticket channel is unavailable.' }).catch(() => null);
+    return true;
+  }
+
+  const actions = orderAdminActions(control.actions);
+  const completed = [];
+  let shouldDelete = false;
+  for (const action of actions) {
+    if (action === 'close') {
+      const ticketOwner = await interaction.guild.members.fetch(ticketRecord.userId).catch(() => null);
+      if (ticketOwner) {
+        await channel.permissionOverwrites.edit(ticketOwner.id, {
+          ViewChannel: false,
+          SendMessages: false,
+        }).catch(() => null);
+      }
+      ticketRecord.closed = true;
+      ticketRecord.closedAt = new Date().toISOString();
+      ticketRecord.closedBy = interaction.user.id;
+      ticketRecord.closeQuestionAnswerPairs = closeAnswers;
+      completed.push('closed');
+    } else if (action === 'blacklist') {
+      const ticketOwner = await interaction.guild.members.fetch(ticketRecord.userId).catch(() => null);
+      const roleAdded = ticketType.blacklistRoleId && ticketOwner
+        ? await ticketOwner.roles.add(ticketType.blacklistRoleId, 'Ticket system blacklist action').then(() => true).catch(() => false)
+        : false;
+      if (!roleAdded) {
+        const list = state.blacklistedUsersByGuild[interaction.guildId] ?? [];
+        if (!list.includes(ticketRecord.userId)) list.push(ticketRecord.userId);
+        state.blacklistedUsersByGuild[interaction.guildId] = list;
+      }
+      completed.push('blacklisted');
+    } else if (action === 'move_to') {
+      const targetType = findTicketType(interaction.guildId, control.moveToTicketTypeId);
+      if (targetType) {
+        const targetCategoryId = targetType.categoryChannelId || getTicketConfig(interaction.guildId).channels.ticketCategory;
+        if (targetCategoryId) await channel.setParent(targetCategoryId, { lockPermissions: false }).catch(() => null);
+        await channel.setName(sanitizeChannelName(`${targetType.name}-${channel.id.slice(-4)}`)).catch(() => null);
+        ticketRecord.ticketTypeId = targetType.id;
+        ticketRecord.ticketType = targetType.name;
+        ticketRecord.ticketTypeSnapshot = targetType;
+        completed.push(`moved to ${targetType.name}`);
+      }
+    } else if (action === 'transcript') {
+      const transcriptPath = await sendConfiguredTranscript(interaction, channel, ticketRecord, ticketType, closeAnswers);
+      if (transcriptPath) completed.push('transcript saved');
+    } else if (action === 'delete') {
+      shouldDelete = true;
+      completed.push('scheduled for deletion');
+    }
+  }
+
+  state.tickets[channelId] = ticketRecord;
+  saveState(state);
+  if (ticketRecord.closed) await disableConfiguredAdminMessage(interaction);
+  const summary = completed.length ? `Ticket ${completed.join(', ')}.` : 'No executable actions were configured.';
+  await interaction.editReply({ content: summary }).catch(() => null);
+  if (shouldDelete) {
+    setTimeout(() => {
+      channel.delete('Configured ticket action').catch(() => null);
+    }, 3000);
+  }
+  return true;
+}
+
+async function openConfiguredTicketType(interaction, ticketTypeId) {
+  const ticketType = findTicketType(interaction.guildId, ticketTypeId);
+  if (!ticketType) {
+    await interaction.reply({ content: 'This ticket type is no longer available.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (interaction.isStringSelectMenu()) await resetPanelTypeSelection(interaction);
+  const createQuestions = ticketType.forms?.enabled ? ticketType.forms.create || [] : [];
+  if (createQuestions.length) {
+    await interaction.showModal(getTicketFormModal(ticketType, 'create'));
+    return true;
+  }
+  await createTicketChannel({
+    interaction,
+    ticketType,
+    channelBaseName: ticketType.name,
+    questionAnswerPairs: [],
+  });
+  return true;
+}
+
+async function submitConfiguredCrewRoleRequest(interaction, questionAnswerPairs) {
+  if (!interaction.replied && !interaction.deferred) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
+  }
+  const game = questionAnswerPairs.find((entry) => entry.question.toLowerCase().includes('game'))?.answer || '-';
+  const username = questionAnswerPairs.find((entry) => entry.question.toLowerCase().includes('username'))?.answer || '-';
+  const uploadedEvidence = questionAnswerPairs.flatMap((entry) => entry.uploadedFiles || []);
+  const state = loadState();
+  const requestId = `${interaction.guildId}-${interaction.user.id}-${Date.now()}`;
+  state.roleRequests[requestId] = {
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    game,
+    username,
+    uploadedEvidence,
+    status: 'pending',
+  };
+  saveState(state);
+
+  const files = getUploadedEvidenceFiles(uploadedEvidence);
+  const reviewChannelId = getTicketConfig(interaction.guildId).channels.roleRequestReview || ROLE_REQUEST_REVIEW_CHANNEL_ID;
+  const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
+  if (!reviewChannel?.isTextBased()) {
+    await interaction.editReply({ content: 'The role request review channel is unavailable.' }).catch(() => null);
+    return true;
+  }
+  await reviewChannel.send({
+    flags: COMPONENTS_V2_FLAG,
+    ...(files.length ? { files } : {}),
+    components: [
+      ...getRoleRequestReviewMessageComponents({
+        userId: interaction.user.id,
+        username,
+        game,
+        uploadedEvidence,
+        statusColor: 0xf8f9f9,
+      }),
+      getRoleReviewActionRow(`${CUSTOM_IDS.roleReviewSelectPrefix}${requestId}`),
+    ],
+  });
+  await interaction.editReply({ content: 'Your Crew Member+ role request has been submitted.' }).catch(() => null);
+  return true;
+}
+
+async function handleConfiguredCreateForm(interaction) {
+  const ticketTypeId = interaction.customId.slice(CUSTOM_IDS.createFormPrefix.length);
+  const ticketType = findTicketType(interaction.guildId, ticketTypeId);
+  if (!ticketType) {
+    await interaction.reply({ content: 'This ticket type is no longer available.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  const answers = ticketFormAnswers(interaction, ticketType.forms?.create || []);
+  if (ticketType.workflow === 'request_role_crew_member_plus') {
+    return submitConfiguredCrewRoleRequest(interaction, answers);
+  }
+  await createTicketChannel({
+    interaction,
+    ticketType,
+    channelBaseName: ticketType.name,
+    questionAnswerPairs: answers,
+  });
+  return true;
+}
+
+async function handleConfiguredAdminInteraction(interaction) {
+  let channelId = '';
+  let controlId = '';
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_IDS.adminSelectPrefix)) {
+    channelId = interaction.customId.slice(CUSTOM_IDS.adminSelectPrefix.length);
+    [controlId] = interaction.values;
+  } else if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_IDS.adminButtonPrefix)) {
+    const value = interaction.customId.slice(CUSTOM_IDS.adminButtonPrefix.length);
+    [channelId, controlId] = value.split(':');
+  } else {
+    return false;
+  }
+
+  const state = loadState();
+  const ticketRecord = state.tickets[channelId];
+  const ticketType = getRuntimeTicketType(interaction.guildId, ticketRecord);
+  const control = ticketType?.adminPanel?.controls?.find((item) => item.id === controlId);
+  if (!ticketRecord || !ticketType || !control) {
+    await interaction.reply({ content: 'This ticket action is unavailable.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!canUseStaffActions(interaction.member, ticketType)) {
+    await interaction.reply({ content: 'Only configured ticket staff can use this action.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (orderAdminActions(control.actions).includes('close') && ticketType.forms?.enabled && ticketType.forms.close?.length) {
+    await interaction.showModal(getTicketFormModal(ticketType, 'close', channelId, controlId));
+    return true;
+  }
+  return executeConfiguredAdminActions(interaction, channelId, controlId);
+}
+
+async function handleConfiguredCloseForm(interaction) {
+  const value = interaction.customId.slice(CUSTOM_IDS.closeFormPrefix.length);
+  const [channelId, controlId] = value.split(':');
+  const state = loadState();
+  const ticketRecord = state.tickets[channelId];
+  const ticketType = getRuntimeTicketType(interaction.guildId, ticketRecord);
+  if (!ticketType) {
+    await interaction.reply({ content: 'This ticket type is unavailable.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  const answers = ticketFormAnswers(interaction, ticketType.forms?.close || []);
+  const commandAction = controlId.startsWith('command-') ? controlId.slice('command-'.length) : '';
+  const controlOverride = commandAction
+    ? {
+      id: controlId,
+      actions: [commandAction],
+      moveToTicketTypeId: '',
+    }
+    : null;
+  return executeConfiguredAdminActions(interaction, channelId, controlId, answers, controlOverride);
+}
+
+async function executeTicketCommandAction(interaction, action, moveToTicketTypeId = '') {
+  const state = loadState();
+  const ticketRecord = state.tickets[interaction.channelId];
+  const ticketType = getRuntimeTicketType(interaction.guildId, ticketRecord);
+  if (!ticketRecord || !ticketType) {
+    await interaction.reply({ content: 'Use this command inside a configured ticket channel.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (!canUseStaffActions(interaction.member, ticketType)) {
+    await interaction.reply({ content: 'Only configured ticket staff can use this command.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  if (action === 'move_to' && !findTicketType(interaction.guildId, moveToTicketTypeId)) {
+    await interaction.reply({ content: 'Choose a valid destination ticket type.', flags: MessageFlags.Ephemeral });
+    return true;
+  }
+  const control = {
+    id: `command-${action}`,
+    actions: [action],
+    moveToTicketTypeId,
+  };
+  if (action === 'close' && ticketType.forms?.enabled && ticketType.forms.close?.length) {
+    await interaction.showModal(getTicketFormModal(ticketType, 'close', interaction.channelId, control.id));
+    return true;
+  }
+  return executeConfiguredAdminActions(interaction, interaction.channelId, control.id, [], control);
 }
 
 async function handleTicketAction(interaction) {
@@ -998,94 +1578,44 @@ module.exports = {
     await interaction.reply({ content: 'Ticket panel checked and updated.', flags: MessageFlags.Ephemeral });
   },
 
+  async refreshGuild(guild, clientUserId) {
+    await ensurePanelMessage(guild, clientUserId);
+  },
+
+  async executeTicketAction(interaction, action, moveToTicketTypeId = '') {
+    return executeTicketCommandAction(interaction, action, moveToTicketTypeId);
+  },
+
+  getTicketTypeChoices(guildId) {
+    return getTicketTypes(guildId).map((ticketType) => ({ name: ticketType.name, value: ticketType.id }));
+  },
+
   async handleInteraction(interaction) {
     if (!interaction.guildId) {
       return false;
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === CUSTOM_IDS.panelTypeSelect) {
-      const selected = interaction.values[0];
-      await resetPanelTypeSelection(interaction);
+      return openConfiguredTicketType(interaction, interaction.values[0]);
+    }
 
-      if (selected === 'guild_support') {
-        await interaction.showModal({
-          custom_id: CUSTOM_IDS.guildSupportModal,
-          title: 'Guild Support',
-          components: [
-            {
-              type: 18,
-              label: 'What type of support do you need?',
-              component: {
-                type: 21,
-                custom_id: CUSTOM_IDS.guildSupportRadio,
-                required: true,
-                options: [
-                  { value: 'Member Report', label: 'Member Report' },
-                  { value: 'Other Support', label: 'Other Support' },
-                ],
-              },
-            },
-          ],
-        });
-        return true;
-      }
+    if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_IDS.panelTypeButtonPrefix)) {
+      return openConfiguredTicketType(interaction, interaction.customId.slice(CUSTOM_IDS.panelTypeButtonPrefix.length));
+    }
 
-      if (selected === 'request_giveaway') {
-        await createTicketChannel({
-          interaction,
-          ticketTypeLabel: 'Giveaway Request',
-          channelBaseName: 'Giveaway-Request',
-          questionAnswerPairs: [],
-        });
-        return true;
-      }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.createFormPrefix)) {
+      return handleConfiguredCreateForm(interaction);
+    }
 
-      if (selected === 'request_role_crew_member_plus') {
-        await interaction.showModal({
-          custom_id: CUSTOM_IDS.crewRoleRequestModal,
-          title: 'Crew Member+ request',
-          components: [
-            {
-              type: 18,
-              label: 'What game you playing',
-              component: {
-                type: 21,
-                custom_id: CUSTOM_IDS.crewRoleGame,
-                required: true,
-                options: [
-                  { value: 'Universe Tower Defense X', label: 'Universe Tower Defense X' },
-                  { value: 'Sailor Piece', label: 'Sailor Piece' },
-                ],
-              },
-            },
-            {
-              type: 18,
-              label: 'What is your Roblox username?',
-              component: {
-                type: 4,
-                custom_id: CUSTOM_IDS.crewRoleUsername,
-                style: 2,
-                required: true,
-                max_length: 300,
-              },
-            },
-            {
-              type: 18,
-              label: 'Upload proof you meet role requirements',
-              description: 'Upload screenshots/videos/files.',
-              component: {
-                type: 19,
-                custom_id: CUSTOM_IDS.crewRoleEvidenceUpload,
-                min_values: 0,
-                max_values: 10,
-                required: false,
-              },
-            },
-          ],
-        });
-        return true;
-      }
+    if (
+      (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_IDS.adminSelectPrefix))
+      || (interaction.isButton() && interaction.customId.startsWith(CUSTOM_IDS.adminButtonPrefix))
+    ) {
+      return handleConfiguredAdminInteraction(interaction);
+    }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_IDS.closeFormPrefix)) {
+      return handleConfiguredCloseForm(interaction);
     }
 
     if (interaction.isModalSubmit() && interaction.customId === CUSTOM_IDS.guildSupportModal) {

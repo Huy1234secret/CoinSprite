@@ -5,6 +5,7 @@ const DATA_PATH = path.join(__dirname, '..', 'data', 'ticket-system-state.json')
 
 const DEFAULT_STATE = {
   panelMessageIdByGuild: {},
+  panelChannelIdByGuild: {},
   nextTicketIdByGuild: {},
   tickets: {},
   blacklistedUsersByGuild: {},
@@ -29,6 +30,7 @@ function loadState() {
     const parsed = JSON.parse(raw || '{}');
     return {
       panelMessageIdByGuild: parsed.panelMessageIdByGuild ?? {},
+      panelChannelIdByGuild: parsed.panelChannelIdByGuild ?? {},
       nextTicketIdByGuild: parsed.nextTicketIdByGuild ?? {},
       tickets: parsed.tickets ?? {},
       blacklistedUsersByGuild: parsed.blacklistedUsersByGuild ?? {},

@@ -1,6 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const { DEFAULT_LEVEL_UP_MESSAGE, sanitizeLevelUpMessage } = require('./levelUpMessage');
+const {
+  DEFAULT_TICKETS_CONFIG,
+  LEGACY_DEFAULT_TICKET_TYPES,
+  clone: cloneTicketValue,
+  sanitizeTicketsConfig,
+} = require('./ticketConfig');
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
@@ -141,6 +147,15 @@ const DEFAULT_GUILD_CONFIG = {
     giveawayRequestAccept: { id: '1498173245981986869', name: 'Y_' },
     giveawayRequestDeny: { id: '1498173244031631400', name: 'N_' },
   },
+  tickets: DEFAULT_TICKETS_CONFIG,
+};
+
+const DEFAULT_COINSPRITE_GUILD_CONFIG = {
+  ...DEFAULT_GUILD_CONFIG,
+  tickets: {
+    ...cloneTicketValue(DEFAULT_TICKETS_CONFIG),
+    types: cloneTicketValue(LEGACY_DEFAULT_TICKET_TYPES),
+  },
 };
 
 const DEFAULT_STATE = {
@@ -148,7 +163,7 @@ const DEFAULT_STATE = {
     schemaVersion: SCHEMA_VERSION,
   },
   guilds: {
-    [DEFAULT_GUILD_ID]: DEFAULT_GUILD_CONFIG,
+    [DEFAULT_GUILD_ID]: DEFAULT_COINSPRITE_GUILD_CONFIG,
   },
 };
 
@@ -192,10 +207,13 @@ function normalizeState(rawState) {
   const guilds = {};
 
   if (Object.keys(rawGuilds).length === 0) {
-    guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_GUILD_CONFIG);
+    guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_COINSPRITE_GUILD_CONFIG);
   } else {
     for (const [guildId, guildConfig] of Object.entries(rawGuilds)) {
-      const merged = mergeConfig(DEFAULT_GUILD_CONFIG, guildConfig);
+      const isLegacyCoinSpriteConfig = guildId === DEFAULT_GUILD_ID
+        && !Object.prototype.hasOwnProperty.call(guildConfig || {}, 'tickets');
+      const defaults = isLegacyCoinSpriteConfig ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG;
+      const merged = mergeConfig(defaults, guildConfig);
       delete merged.channels.lowXpCategory;
       delete merged.xp.lowXpChannels;
       delete merged.xp.noXpChannels;
@@ -205,6 +223,7 @@ function normalizeState(rawState) {
       merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
       merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
       merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
+      merged.tickets = sanitizeTicketsConfig(merged.tickets, defaults.tickets);
       guilds[guildId] = merged;
     }
   }
@@ -258,6 +277,7 @@ function isGuildEnabled(guildId) {
 
 module.exports = {
   DEFAULT_GUILD_CONFIG,
+  DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
   SCHEMA_VERSION,
