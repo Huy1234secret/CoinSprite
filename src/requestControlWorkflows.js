@@ -4,6 +4,7 @@ const path = require('path');
 const DATA_PATH = path.join(__dirname, '..', 'data', 'request-control-workflows.json');
 const CONDITION_TYPES = new Set(['form_input', 'level', 'has_role']);
 const ACTION_TYPES = new Set(['dm_template', 'role_add', 'accept', 'deny', 'blacklist']);
+const NATIVE_ACTIONS = new Set(['close', 'transcript', 'delete', 'blacklist', 'move_to']);
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function cleanId(value, max = 40) {
@@ -12,6 +13,10 @@ function cleanId(value, max = 40) {
 function cleanSnowflake(value) {
   const text = String(value || '').trim();
   return /^\d{16,20}$/.test(text) ? text : '';
+}
+function conditionIdFromStep(value) {
+  const match = String(value || '').match(/^condition_([a-z0-9_-]{1,32})$/);
+  return match?.[1] || '';
 }
 function loadAll() {
   try {
@@ -46,11 +51,31 @@ function sanitizeCondition(value, index) {
     actions: (Array.isArray(source.actions) ? source.actions : []).slice(0, 10).map(sanitizeAction),
   };
 }
+function sanitizeSequence(value, conditions) {
+  const conditionIds = new Set(conditions.map((condition) => condition.id));
+  const seenNative = new Set();
+  const result = [];
+  for (const step of Array.isArray(value) ? value : []) {
+    if (NATIVE_ACTIONS.has(step)) {
+      if (!seenNative.has(step)) {
+        seenNative.add(step);
+        result.push(step);
+      }
+    } else {
+      const conditionId = conditionIdFromStep(step);
+      if (conditionId && conditionIds.has(conditionId)) result.push(`condition_${conditionId}`);
+    }
+    if (result.length >= 20) break;
+  }
+  return result;
+}
 function sanitizeControl(value) {
   const source = value && typeof value === 'object' ? value : {};
+  const conditions = (Array.isArray(source.conditions) ? source.conditions : []).slice(0, 10).map(sanitizeCondition);
   return {
     dmTemplateId: cleanId(source.dmTemplateId, 40),
-    conditions: (Array.isArray(source.conditions) ? source.conditions : []).slice(0, 10).map(sanitizeCondition),
+    sequence: sanitizeSequence(source.sequence, conditions),
+    conditions,
   };
 }
 function sanitizeGuild(value) {

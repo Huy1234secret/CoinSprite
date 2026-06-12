@@ -32,7 +32,16 @@ function patchMessagesScript(source) {
 function patchAppScript(source) {
   const currentExcludedKeys = "['levelUp', 'ticketPanel', 'ticketCategory', 'transcript']";
   const hiddenChannelKeys = "['levelUp', 'ticketPanel', 'ticketCategory', 'transcript', 'roleRequestReview', 'giveawayRequestReview', 'inviteRules', 'inviteClaim', 'inviteLog', 'inviteAnnounce', 'wordChain']";
-  return source.split(currentExcludedKeys).join(hiddenChannelKeys);
+  return source
+    .split(currentExcludedKeys).join(hiddenChannelKeys)
+    .replace(
+      "elements.configForm.addEventListener('input', (event) => {\n  refreshDirtyState();",
+      "elements.configForm.addEventListener('input', (event) => {\n  if (event.target !== elements.levelUpPreviewLevel) refreshDirtyState();",
+    )
+    .replace(
+      "elements.configForm.addEventListener('change', (event) => {\n  refreshDirtyState();",
+      "elements.configForm.addEventListener('change', (event) => {\n  if (event.target !== elements.levelUpPreviewLevel) refreshDirtyState();",
+    );
 }
 
 function emojiPickerFunction() {
@@ -78,6 +87,47 @@ function emojiPickerFunction() {
 `;
 }
 
+function adminInteractionFixes() {
+  return `
+(() => {
+  const workflowSelectSelector = [
+    '[data-workflow-dm-template]',
+    '[data-workflow-field]',
+    '[data-condition-action-field]',
+  ].join(',');
+
+  // Workflow panels are rebuilt by a document click listener. Keep native select
+  // clicks from reaching it so the browser dropdown remains open.
+  window.addEventListener('click', (event) => {
+    if (event.target.closest?.(workflowSelectSelector)) event.stopPropagation();
+  }, true);
+
+  let cleanupScheduled = false;
+  function cleanupPunishmentRolePickers() {
+    cleanupScheduled = false;
+    const mount = document.querySelector('#wordChainRoleMount');
+    if (!mount) return;
+    const pickers = [...mount.children].filter((node) => node.classList?.contains('picker'));
+    pickers.slice(0, -1).forEach((picker) => {
+      const menuId = picker.querySelector('.picker-button')?.dataset.menuId;
+      if (menuId) {
+        [...document.querySelectorAll('.picker-portal-menu')]
+          .find((menu) => menu.dataset.menuId === menuId)?.remove();
+      }
+      picker.remove();
+    });
+  }
+  function schedulePunishmentRoleCleanup() {
+    if (cleanupScheduled) return;
+    cleanupScheduled = true;
+    queueMicrotask(cleanupPunishmentRolePickers);
+  }
+  new MutationObserver(schedulePunishmentRoleCleanup).observe(document.body, { childList: true, subtree: true });
+  schedulePunishmentRoleCleanup();
+})();
+`;
+}
+
 function patchTicketUpgradeScript(source) {
   let patched = source;
   const categoriesStart = patched.indexOf('  const EMOJI_CATEGORIES = {');
@@ -90,11 +140,12 @@ function patchTicketUpgradeScript(source) {
   if (emojiStart >= 0 && positionStart > emojiStart) {
     patched = `${patched.slice(0, emojiStart)}${emojiPickerFunction()}${patched.slice(positionStart)}`;
   }
-  return patched;
+  return `${patched}\n${adminInteractionFixes()}`;
 }
 
 function patchTicketUpgradeCss(source) {
-  return `${source}\n
+  return `${source}
+
 .emoji-component-popover {
   width: min(430px, calc(100vw - 24px));
   max-height: none !important;
