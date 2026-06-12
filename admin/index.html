@@ -6,6 +6,7 @@
   <title>CoinSprite Admin</title>
   <link rel="stylesheet" href="/admin/style.css">
   <link rel="stylesheet" href="/admin/ticket-ui-upgrade.css">
+  <link rel="stylesheet" href="/admin/admin-fixes.css">
 </head>
 <body>
   <header class="topbar">
@@ -49,10 +50,10 @@
       </div>
 
       <nav class="tabs" id="tabList" aria-label="Settings sections">
-        <button class="tab active" type="button" data-tab="leveling"><span>Leveling</span></button>
+        <button class="tab active" type="button" data-tab="leveling"><img class="tab-icon" src="/admin/images/leveling.png" alt="" aria-hidden="true"><span>Leveling</span></button>
         <button class="tab" type="button" data-tab="channels"><span>Channels</span></button>
         <button class="tab" type="button" data-tab="roles"><span>Roles</span></button>
-        <button class="tab" type="button" data-tab="tickets"><span>Tickets</span></button>
+        <button class="tab" type="button" data-tab="tickets"><img class="tab-icon" src="/admin/images/ticket.png" alt="" aria-hidden="true"><span>Tickets</span></button>
         <button class="tab" type="button" data-tab="invites"><span>Invite rewards</span></button>
         <button class="tab" type="button" data-tab="games"><span>Games</span></button>
       </nav>
@@ -298,6 +299,7 @@
 
   <script src="/admin/tickets.js" defer></script>
   <script src="/admin/app.js" defer></script>
+  <script src="/admin/admin-fixes.js" defer></script>
   <script src="/admin/ticket-ui-upgrade.js" defer></script>
 </body>
 </html>
