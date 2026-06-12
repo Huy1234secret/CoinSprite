@@ -1,6 +1,33 @@
 (() => {
   const pickerMenus = new Set();
   const requestIds = new Set();
+  const REQUEST_ACTIONS = [
+    ['accept', 'Accept request'],
+    ['deny', 'Deny request'],
+    ['dm_message', 'DM message'],
+    ['role_add', 'Role add'],
+    ['blacklist', 'Blacklist author'],
+  ];
+  const REQUEST_ACTION_TEXT = new Map([
+    ['accept', 'accept'], ['accept request', 'accept'], ['close', 'accept'], ['close ticket', 'accept'],
+    ['deny', 'deny'], ['deny request', 'deny'], ['delete', 'deny'], ['delete channel', 'deny'],
+    ['dm', 'dm_message'], ['dm message', 'dm_message'], ['transcript', 'dm_message'], ['save transcript', 'dm_message'],
+    ['role_add', 'role_add'], ['role add', 'role_add'], ['role-add', 'role_add'], ['move_to', 'role_add'], ['move to ticket type', 'role_add'],
+    ['blacklist', 'blacklist'], ['blacklist author', 'blacklist'], ['blacklist user', 'blacklist'],
+  ]);
+  const REQUEST_SAVE_ACTIONS = {
+    accept: 'close',
+    deny: 'delete',
+    dm_message: 'transcript',
+    dm: 'transcript',
+    role_add: 'move_to',
+    'role-add': 'move_to',
+    blacklist: 'blacklist',
+    close: 'close',
+    delete: 'delete',
+    transcript: 'transcript',
+    move_to: 'move_to',
+  };
   let allowNativeAdd = false;
   let pendingRequest = false;
   let uiFixScheduled = false;
@@ -179,6 +206,19 @@
     return Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
   }
 
+  function requestActionValue(value) {
+    return REQUEST_ACTION_TEXT.get(String(value || '').trim().toLowerCase()) || String(value || '').trim();
+  }
+
+  function requestActionLabel(value) {
+    const normalized = requestActionValue(value);
+    return REQUEST_ACTIONS.find(([action]) => action === normalized)?.[1] || value;
+  }
+
+  function requestActionSaveValue(value) {
+    return REQUEST_SAVE_ACTIONS[requestActionValue(value)] || REQUEST_SAVE_ACTIONS[value] || value;
+  }
+
   function showTicketKindDialog(nativeButton) {
     document.querySelector('.ticket-kind-dialog')?.remove();
     const backdrop = document.createElement('div');
@@ -203,6 +243,106 @@
 
   function setText(node, text) {
     if (node && node.textContent !== text) node.textContent = text;
+  }
+
+  function controlActionsFromCard(card) {
+    return [...card.querySelectorAll('.sequence-item strong')].map((node) => requestActionValue(node.textContent)).filter(Boolean);
+  }
+
+  function controlIndexFromCard(card) {
+    return card.querySelector('[data-control-index]')?.dataset.controlIndex
+      || card.querySelector('[data-index]')?.dataset.index
+      || '0';
+  }
+
+  function dispatchInput(node) {
+    node.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function decorateRequestRoleField(card, actions) {
+    const existing = card.querySelector('.request-role-add-field');
+    const nativeMoveLabel = card.querySelector('select[data-control-field="moveToTicketTypeId"]')?.closest('label');
+    if (!actions.includes('role_add')) {
+      existing?.remove();
+      if (nativeMoveLabel) nativeMoveLabel.hidden = false;
+      return;
+    }
+    if (nativeMoveLabel) nativeMoveLabel.hidden = true;
+    const controlIndex = controlIndexFromCard(card);
+    let field = existing;
+    if (!field) {
+      field = document.createElement('label');
+      field.className = 'request-role-add-field';
+      field.innerHTML = '<span class="field-label">Role to add</span><input type="hidden" data-request-role-value><div data-request-role-picker></div><span class="request-action-note">This role is added to the request author when this control runs.</span>';
+      card.querySelector('.action-sequence')?.append(field);
+    }
+    const hidden = field.querySelector('[data-request-role-value]');
+    const nativeSelect = card.querySelector('select[data-control-field="moveToTicketTypeId"]');
+    hidden.dataset.controlIndex = controlIndex;
+    hidden.dataset.controlField = 'moveToTicketTypeId';
+    if (!hidden.value && nativeSelect?.value) hidden.value = nativeSelect.value;
+    const mount = field.querySelector('[data-request-role-picker]');
+    if (mount && !mount.querySelector('.picker')) {
+      renderPicker(mount, roleOptions(), hidden.value, {
+        type: 'role',
+        placeholder: 'Select role to add',
+        onChange: (value) => {
+          hidden.value = value;
+          dispatchInput(hidden);
+          refreshDirtyState();
+        },
+      });
+    }
+  }
+
+  function decorateRequestDmField(card, actions) {
+    const descriptionInput = card.querySelector('[data-control-field="description"]');
+    const descriptionLabel = descriptionInput?.closest('label');
+    const existing = card.querySelector('.request-dm-field');
+    if (!actions.includes('dm_message')) {
+      existing?.remove();
+      if (descriptionLabel) descriptionLabel.firstChild.textContent = 'Description ';
+      return;
+    }
+    if (descriptionLabel) {
+      descriptionLabel.firstChild.textContent = 'DM message ';
+      return;
+    }
+    const controlIndex = controlIndexFromCard(card);
+    let field = existing;
+    if (!field) {
+      field = document.createElement('label');
+      field.className = 'request-dm-field';
+      field.innerHTML = '<span class="field-label">DM message</span><textarea rows="3" maxlength="100" data-request-dm-value placeholder="Your <ticket_name> request was reviewed."></textarea><span class="request-action-note">Use &lt;ticket_name&gt; and &lt;reason&gt; in this message.</span>';
+      card.querySelector('.action-sequence')?.append(field);
+    }
+    const textarea = field.querySelector('[data-request-dm-value]');
+    textarea.dataset.controlIndex = controlIndex;
+    textarea.dataset.controlField = 'description';
+  }
+
+  function decorateRequestAdminPanel(root) {
+    if (!root.dataset.requestEditor) return;
+    root.querySelectorAll('.action-sequence').forEach((sequence) => {
+      const hint = sequence.querySelector('.sequence-head span:last-child');
+      setText(hint, 'Request actions run in the order shown.');
+      const card = sequence.closest('.ticket-control-card');
+      sequence.querySelectorAll('.sequence-item strong').forEach((label) => setText(label, requestActionLabel(label.textContent)));
+      const actions = card ? controlActionsFromCard(card) : [];
+      const select = sequence.querySelector('select[data-action-select]');
+      if (select) {
+        const signature = actions.join('|');
+        if (select.dataset.requestOptionsSignature !== signature) {
+          const available = REQUEST_ACTIONS.filter(([value]) => !actions.includes(value));
+          select.replaceChildren(...available.map(([value, label]) => new Option(label, value)));
+          select.dataset.requestOptionsSignature = signature;
+        }
+      }
+      if (card) {
+        decorateRequestDmField(card, actions);
+        decorateRequestRoleField(card, actions);
+      }
+    });
   }
 
   function decorateTicketEditor() {
@@ -247,6 +387,44 @@
         setText(phase.querySelector('p'), 'Sent to the request author before the request is submitted.');
       }
     }
+    decorateRequestAdminPanel(root);
+  }
+
+  function defaultRequestControls() {
+    return [
+      { id: 'accept', name: 'Accept', emoji: '✅', description: '', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
+      { id: 'deny', name: 'Deny', emoji: '❌', description: '', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
+      { id: 'dm-message', name: 'DM Message', emoji: '📩', description: 'Your <ticket_name> request was reviewed.', buttonStyle: 'secondary', url: '', actions: ['transcript'], moveToTicketTypeId: '' },
+      { id: 'role-add', name: 'Role Add', emoji: '➕', description: '', buttonStyle: 'success', url: '', actions: ['move_to'], moveToTicketTypeId: '' },
+      { id: 'blacklist', name: 'Blacklist', emoji: '🚫', description: '', buttonStyle: 'danger', url: '', actions: ['blacklist'], moveToTicketTypeId: '' },
+    ];
+  }
+
+  function normalizeRequestControl(control, index) {
+    const actions = [...new Set((control.actions || []).map(requestActionSaveValue).filter(Boolean))];
+    if (!actions.length) actions.push(index === 0 ? 'close' : 'delete');
+    if (control.dmMessage) control.description = control.dmMessage;
+    if (control.roleId) control.moveToTicketTypeId = control.roleId;
+    control.url = '';
+    control.actions = actions;
+    return control;
+  }
+
+  function normalizeRequestTypeForSave(type, index) {
+    if (!String(type.id || '').startsWith('request-')) type.id = `request-${type.id || `ticket-${index + 1}`}`.slice(0, 40);
+    requestIds.add(type.id);
+    type.transcriptEnabled = true;
+    type.authorPermissions = ['UseApplicationCommands'];
+    const controls = type.adminPanel?.controls || [];
+    if (!controls.length || (controls.length === 1 && controls[0].name === 'Close Ticket')) {
+      type.adminPanel = { enabled: true, style: 'buttons', controls: defaultRequestControls() };
+    } else {
+      type.adminPanel = {
+        ...(type.adminPanel || {}),
+        enabled: type.adminPanel?.enabled !== false,
+        controls: controls.map(normalizeRequestControl),
+      };
+    }
   }
 
   document.addEventListener('click', (event) => {
@@ -270,16 +448,8 @@
       const types = body.tickets?.types || [];
       types.forEach((type, index) => {
         const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
-        if (!marked || type.workflow === 'request_role_crew_member_plus') return;
-        if (!String(type.id).startsWith('request-')) type.id = `request-${type.id}`.slice(0, 40);
-        type.transcriptEnabled = true;
-        type.authorPermissions = ['UseApplicationCommands'];
-        if (!type.adminPanel?.controls?.length || (type.adminPanel.controls.length === 1 && type.adminPanel.controls[0].name === 'Close Ticket')) {
-          type.adminPanel = { enabled: true, style: 'buttons', controls: [
-            { id: 'accept', name: 'Accept', emoji: '✅', description: '', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
-            { id: 'reason-deny', name: 'Deny', emoji: '❌', description: '', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
-          ] };
-        }
+        if (!marked) return;
+        normalizeRequestTypeForSave(type, index);
       });
       init = { ...init, body: JSON.stringify(body) };
     }
