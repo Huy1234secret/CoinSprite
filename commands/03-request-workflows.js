@@ -14,6 +14,17 @@ const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 function decodedActions(control) {
   return [...new Set((control.actions || []).map((action) => ACTION_MAP[action]).filter(Boolean))];
 }
+function conditionIdFromStep(value) {
+  const match = String(value || '').match(/^condition_([a-z0-9_-]{1,32})$/);
+  return match?.[1] || '';
+}
+function workflowSequence(control, workflow) {
+  if (Array.isArray(workflow?.sequence) && workflow.sequence.length) return workflow.sequence;
+  return [
+    ...(control.actions || []),
+    ...(workflow?.conditions || []).map((condition) => `condition_${condition.id}`),
+  ];
+}
 function buttonStyle(style) {
   return { primary: 1, secondary: 2, success: 3, danger: 4 }[style] || 2;
 }
@@ -110,14 +121,20 @@ async function runWorkflow(interaction, request, control, workflow) {
   const member = await interaction.guild.members.fetch(request.userId).catch(() => null);
   const state = loadState();
   const context = { member, request, state, terminal: '' };
-  for (const actionType of decodedActions(control)) {
+  const conditions = new Map((workflow.conditions || []).map((condition) => [condition.id, condition]));
+  for (const step of workflowSequence(control, workflow)) {
+    const conditionId = conditionIdFromStep(step);
+    if (conditionId) {
+      const condition = conditions.get(conditionId);
+      if (condition && matchesCondition(request, condition, member)) {
+        for (const action of condition.actions || []) await executeAction(action, context);
+      }
+      continue;
+    }
+    const actionType = ACTION_MAP[step];
     if (actionType === 'dm_template') await sendTemplate(member, request.guildId, workflow.dmTemplateId);
     else if (actionType === 'role_add') await executeAction({ type: 'role_add', roleId: control.moveToTicketTypeId }, context);
-    else await executeAction({ type: actionType }, context);
-  }
-  for (const condition of workflow.conditions || []) {
-    if (!matchesCondition(request, condition, member)) continue;
-    for (const action of condition.actions || []) await executeAction(action, context);
+    else if (actionType) await executeAction({ type: actionType }, context);
   }
   request.status = context.terminal || 'processed';
   request.reviewedBy = interaction.user.id;
@@ -138,7 +155,7 @@ async function handleWorkflowInteraction(interaction) {
   const request = loadState().roleRequests?.[requestId];
   const control = request?.type?.adminPanel?.controls?.find((item) => item.id === controlId);
   const workflow = request ? getControlWorkflow(interaction.guildId, request.type.id, controlId) : null;
-  if (!request || !control || !workflow || (!workflow.dmTemplateId && !(workflow.conditions || []).length)) return false;
+  if (!request || !control || !workflow || (!workflow.dmTemplateId && !(workflow.conditions || []).length && !(workflow.sequence || []).length)) return false;
   if (!canInteract(interaction, request.type)) {
     await interaction.reply({ content: 'You do not have permission to interact with this request.', flags: EPHEMERAL });
     return true;
@@ -163,4 +180,4 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return exported;
 };
 
-module.exports = { __test: { matchesFormCondition } };
+module.exports = { __test: { matchesFormCondition, workflowSequence } };
