@@ -1,0 +1,63 @@
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.tab span {
+  min-width: 0;
+}
+
+.tab-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 7px;
+  object-fit: contain;
+}
+
+.tab:not(:has(.tab-icon)) {
+  padding-left: 24px;
+}
+
+.config-row,
+.rows,
+.panel,
+.mini-panel,
+.tab-panel,
+.picker-field {
+  overflow: visible;
+}
+
+.picker {
+  position: relative;
+}
+
+.picker-menu {
+  z-index: 2000;
+}
+
+.picker-portal-menu {
+  position: fixed;
+  min-width: 260px;
+  max-width: min(720px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 24px));
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+}
+
+.game-channel-setting {
+  margin-bottom: 16px;
+}
+
+.game-channel-setting .picker-field {
+  max-width: 620px;
+}
+
+@media (max-width: 740px) {
+  .tab-icon {
+    width: 24px;
+    height: 24px;
+    flex-basis: 24px;
+  }
+}
