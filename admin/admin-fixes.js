@@ -1,16 +1,27 @@
 (() => {
   const pickerMenus = new Set();
   const requestIds = new Set();
+  const requestActionLabels = {
+    close: 'Accept request',
+    delete: 'Deny request',
+    transcript: 'DM message',
+    move_to: 'Role-add',
+    blacklist: 'Blacklist author',
+  };
+  const requestActionOrder = ['close', 'delete', 'transcript', 'move_to', 'blacklist'];
   let allowNativeAdd = false;
   let pendingRequest = false;
   let uiFixScheduled = false;
+  let templateGuildId = '';
+  let requestTemplates = [];
+  let templatesLoading = false;
 
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
-      leveling: '/admin/images/leveling.png',
-      tickets: '/admin/images/ticket.png',
-      messages: '/admin/images/message.png',
+      leveling: '/images/leveling.png',
+      tickets: '/images/ticket.png',
+      messages: '/images/message.png',
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);
@@ -179,6 +190,69 @@
     return Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
   }
 
+  function requestDefaultControls() {
+    return [
+      { id: 'accept', name: 'Accept', emoji: '✅', description: 'Accept the request.', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
+      { id: 'deny', name: 'Deny', emoji: '❌', description: 'Deny the request.', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
+      { id: 'dm-message', name: 'DM message', emoji: '💬', description: 'Your <ticket_name> request was reviewed.', buttonStyle: 'secondary', url: '', actions: ['transcript'], moveToTicketTypeId: '' },
+      { id: 'role-add', name: 'Role-add', emoji: '➕', description: 'Add the selected role to the request author.', buttonStyle: 'primary', url: '', actions: ['move_to'], moveToTicketTypeId: '' },
+      { id: 'blacklist', name: 'Blacklist', emoji: '🚫', description: 'Blacklist the request author.', buttonStyle: 'danger', url: '', actions: ['blacklist'], moveToTicketTypeId: '' },
+    ];
+  }
+
+  function normalizeRequestActions(actions, control = {}) {
+    const raw = Array.isArray(actions) ? actions : [];
+    const mapped = raw.map((action) => ({
+      accept: 'close',
+      deny: 'delete',
+      dm: 'transcript',
+      dm_message: 'transcript',
+      role_add: 'move_to',
+      'role-add': 'move_to',
+      close: 'close',
+      delete: 'delete',
+      transcript: 'transcript',
+      move_to: 'move_to',
+      blacklist: 'blacklist',
+    })[action]).filter((action) => requestActionOrder.includes(action));
+    if (mapped.length) return [...new Set(mapped)].slice(0, 5);
+    const id = String(control.id || control.name || '').toLowerCase();
+    if (id.includes('deny')) return ['delete'];
+    if (id.includes('dm') || id.includes('message')) return ['transcript'];
+    if (id.includes('role')) return ['move_to'];
+    if (id.includes('blacklist')) return ['blacklist'];
+    return ['close'];
+  }
+
+  function normalizeRequestControl(control, index) {
+    const defaults = requestDefaultControls();
+    const base = control && typeof control === 'object' ? control : defaults[index] || defaults[0];
+    const actions = normalizeRequestActions(base.actions, base);
+    const fallback = defaults.find((item) => item.actions[0] === actions[0]) || defaults[index] || defaults[0];
+    return {
+      ...fallback,
+      ...base,
+      id: String(base.id || fallback.id).replace(/[^a-z0-9_-]+/gi, '-').slice(0, 32) || fallback.id,
+      name: base.name || fallback.name,
+      emoji: base.emoji || fallback.emoji,
+      description: base.description || fallback.description,
+      buttonStyle: base.buttonStyle || fallback.buttonStyle,
+      url: '',
+      actions,
+      moveToTicketTypeId: base.moveToTicketTypeId || base.roleId || '',
+    };
+  }
+
+  function normalizeRequestAdminPanel(type) {
+    const panel = type.adminPanel && typeof type.adminPanel === 'object' ? type.adminPanel : {};
+    const controls = Array.isArray(panel.controls) && panel.controls.length ? panel.controls : requestDefaultControls();
+    type.adminPanel = {
+      enabled: panel.enabled !== false,
+      style: panel.style === 'select' ? 'select' : 'buttons',
+      controls: controls.slice(0, 25).map(normalizeRequestControl),
+    };
+  }
+
   function showTicketKindDialog(nativeButton) {
     document.querySelector('.ticket-kind-dialog')?.remove();
     const backdrop = document.createElement('div');
@@ -205,6 +279,120 @@
     if (node && node.textContent !== text) node.textContent = text;
   }
 
+  function updateControlValue(card, index, field, value) {
+    let input = card.querySelector(`.request-hidden-value[data-control-index="${index}"][data-control-field="${field}"]`);
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.className = 'request-hidden-value';
+      input.dataset.controlIndex = String(index);
+      input.dataset.controlField = field;
+      card.append(input);
+    }
+    input.value = value || '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function currentEditedTicketType(root) {
+    const heading = root.querySelector('.ticket-editor-head h3')?.textContent || '';
+    const types = state.ticketEditor?.getValue?.().tickets?.types || [];
+    return types.find((type) => heading.includes(type.name)) || null;
+  }
+
+  async function loadRequestTemplates() {
+    if (!state.guildId || templatesLoading || templateGuildId === state.guildId) return;
+    templatesLoading = true;
+    try {
+      const response = await fetch(`/api/guilds/${state.guildId}/message-templates`);
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) {
+        requestTemplates = payload.templates || [];
+        templateGuildId = state.guildId;
+      }
+    } catch {
+      requestTemplates = [];
+    } finally {
+      templatesLoading = false;
+      scheduleUiFixes();
+    }
+  }
+
+  function controlActionsFromCard(card) {
+    return [...card.querySelectorAll('.sequence-item strong')].map((node) => node.textContent.trim());
+  }
+
+  function hasActionLabel(card, internalAction) {
+    const labels = controlActionsFromCard(card);
+    const oldLabels = {
+      close: 'Close ticket', delete: 'Delete channel', transcript: 'Save transcript', move_to: 'Move to ticket type', blacklist: 'Blacklist author',
+    };
+    return labels.includes(requestActionLabels[internalAction]) || labels.includes(oldLabels[internalAction]) || labels.includes(internalAction);
+  }
+
+  function decorateRequestControlCard(card, ticketType) {
+    const index = Number(card.querySelector('[data-control-index]')?.dataset.controlIndex ?? card.querySelector('[data-index]')?.dataset.index ?? -1);
+    const control = Number.isFinite(index) && index >= 0 ? ticketType?.adminPanel?.controls?.[index] : null;
+    card.querySelectorAll('select[data-action-select] option').forEach((option) => {
+      if (requestActionLabels[option.value]) option.textContent = requestActionLabels[option.value];
+      else option.remove();
+    });
+    card.querySelectorAll('.sequence-item strong').forEach((strong) => {
+      const label = strong.textContent.trim();
+      const entry = Object.entries({ 'Close ticket': 'close', 'Delete channel': 'delete', 'Save transcript': 'transcript', 'Move to ticket type': 'move_to', 'Blacklist author': 'blacklist' }).find(([text]) => text === label);
+      if (entry) setText(strong, requestActionLabels[entry[1]]);
+    });
+    const urlLabel = card.querySelector('input[data-control-field="url"]')?.closest('label');
+    if (urlLabel) urlLabel.hidden = true;
+    if (!card.querySelector('.request-action-note')) {
+      const note = document.createElement('div');
+      note.className = 'request-action-note';
+      note.textContent = 'Request admin buttons only run request actions: accept, deny, DM message, role-add, or blacklist. They do not close or delete ticket channels.';
+      card.append(note);
+    }
+    if (hasActionLabel(card, 'transcript') && !card.querySelector('.request-dm-field')) {
+      loadRequestTemplates();
+      const field = document.createElement('div');
+      field.className = 'request-extra-field request-dm-field';
+      const value = control?.description || '';
+      const selectedTemplate = value.startsWith('template:') ? value.slice('template:'.length) : '';
+      field.innerHTML = `<span class="field-label">DM message</span><select class="request-template-select"><option value="">Custom text</option>${requestTemplates.map((template) => `<option value="${template.id}" ${selectedTemplate === template.id ? 'selected' : ''}>${template.name}</option>`).join('')}</select><textarea rows="3" maxlength="100" placeholder="Message sent to request author. Use template selection above, or write custom text.">${selectedTemplate ? '' : value}</textarea>`;
+      const select = field.querySelector('select');
+      const textarea = field.querySelector('textarea');
+      select.addEventListener('change', () => {
+        const next = select.value ? `template:${select.value}` : textarea.value;
+        updateControlValue(card, index, 'description', next);
+      });
+      textarea.addEventListener('input', () => {
+        if (!select.value) updateControlValue(card, index, 'description', textarea.value);
+      });
+      card.append(field);
+    }
+    if (hasActionLabel(card, 'move_to') && !card.querySelector('.request-role-field')) {
+      const oldLabel = card.querySelector('select[data-control-field="moveToTicketTypeId"]')?.closest('label');
+      if (oldLabel) oldLabel.hidden = true;
+      const field = document.createElement('div');
+      field.className = 'request-extra-field request-role-field';
+      field.innerHTML = '<span class="field-label">Role to add</span><div class="request-role-picker"></div>';
+      card.append(field);
+      renderPicker(field.querySelector('.request-role-picker'), roleOptions(), control?.moveToTicketTypeId || '', {
+        type: 'role',
+        placeholder: 'Select role to add',
+        onChange: (value) => updateControlValue(card, index, 'moveToTicketTypeId', value),
+      });
+    }
+  }
+
+  function decorateRequestAdminPanel(root) {
+    if (root.dataset.requestEditor !== 'true' && !pendingRequest) return;
+    const heading = [...root.querySelectorAll('.panel-heading h3')].find((node) => node.textContent.trim() === 'Admin panel');
+    const panel = heading?.closest('.panel');
+    if (!panel) return;
+    setText(heading, 'Request admin panel');
+    setText(panel.querySelector('.panel-heading p'), 'Configure staff review actions for request cards. These are separate from channel-ticket close/delete actions.');
+    const ticketType = currentEditedTicketType(root);
+    root.querySelectorAll('.ticket-control-card').forEach((card) => decorateRequestControlCard(card, ticketType));
+  }
+
   function decorateTicketEditor() {
     const root = document.querySelector('#ticketEditorRoot');
     if (!root) return;
@@ -226,14 +414,16 @@
       root.dataset.requestEditor = 'true';
       const heading = root.querySelector('.ticket-editor-head h3')?.textContent || '';
       root.dataset.pendingRequestName = heading;
+    }
+    if (root.dataset.requestEditor === 'true') {
       root.querySelectorAll('.ticket-type-tabs .mini-tab').forEach((tab) => {
         if (tab.textContent.trim() === 'Ticket message') setText(tab, 'Request message');
       });
       const settings = root.querySelector('.ticket-type-section');
-      const category = [...settings.querySelectorAll('.picker-field')].find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Category override');
+      const category = [...(settings?.querySelectorAll('.picker-field') || [])].find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Category override');
       if (category && !category.hidden) category.hidden = true;
-      settings.querySelector('.permission-buttons')?.setAttribute('hidden', '');
-      const transcript = [...settings.querySelectorAll('.panel')].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript' || panel.querySelector('h3')?.textContent.trim() === 'Request channel');
+      settings?.querySelector('.permission-buttons')?.setAttribute('hidden', '');
+      const transcript = [...(settings?.querySelectorAll('.panel') || [])].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript' || panel.querySelector('h3')?.textContent.trim() === 'Request channel');
       if (transcript) {
         setText(transcript.querySelector('h3'), 'Request channel');
         setText(transcript.querySelector('.panel-heading p'), 'Choose where staff receive and review this request.');
@@ -246,6 +436,7 @@
         phase.querySelectorAll('[data-value="close"]').forEach((button) => button.remove());
         setText(phase.querySelector('p'), 'Sent to the request author before the request is submitted.');
       }
+      decorateRequestAdminPanel(root);
     }
   }
 
@@ -272,14 +463,11 @@
         const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
         if (!marked || type.workflow === 'request_role_crew_member_plus') return;
         if (!String(type.id).startsWith('request-')) type.id = `request-${type.id}`.slice(0, 40);
+        requestIds.add(type.id);
         type.transcriptEnabled = true;
         type.authorPermissions = ['UseApplicationCommands'];
-        if (!type.adminPanel?.controls?.length || (type.adminPanel.controls.length === 1 && type.adminPanel.controls[0].name === 'Close Ticket')) {
-          type.adminPanel = { enabled: true, style: 'buttons', controls: [
-            { id: 'accept', name: 'Accept', emoji: '✅', description: '', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
-            { id: 'reason-deny', name: 'Deny', emoji: '❌', description: '', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
-          ] };
-        }
+        type.categoryChannelId = '';
+        normalizeRequestAdminPanel(type);
       });
       init = { ...init, body: JSON.stringify(body) };
     }
