@@ -65,9 +65,18 @@ function answerForCondition(request, condition) {
 function matchesFormCondition(request, condition) {
   const { question, answer } = answerForCondition(request, condition);
   if (!question) return false;
-  if (question.type === 'file_upload') return condition.expected === 'has_files' ? Boolean(answer) : !answer;
+  if (question.type === 'file_upload') {
+    if (!['has_files', 'no_files'].includes(condition.expected)) return false;
+    return condition.expected === 'has_files' ? Boolean(answer) : !answer;
+  }
+  if (question.type === 'checkbox') {
+    if (!['checked', 'not_checked'].includes(condition.expected)) return false;
+    const checked = ['true', '1', 'yes', 'on', 'checked'].includes(answer.toLowerCase());
+    return condition.expected === 'checked' ? checked : !checked;
+  }
   if (['string_select', 'radio_group', 'checkbox_group'].includes(question.type)) {
-    return answer.split(',').map((value) => value.trim()).includes(String(condition.expected || '').trim());
+    const expected = String(condition.expected || '').trim();
+    return Boolean(expected) && answer.split(',').map((value) => value.trim()).includes(expected);
   }
   return answer.toLowerCase() === String(condition.expected || '').trim().toLowerCase();
 }
@@ -154,4 +163,4 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return exported;
 };
 
-module.exports = {};
+module.exports = { __test: { matchesFormCondition } };
