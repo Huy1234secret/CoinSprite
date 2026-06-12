@@ -4,8 +4,8 @@ const path = require('path');
 
 const previousCreateServer = http.createServer.bind(http);
 const ICONS = new Map([
-  ['/admin/images/leveling.png', path.join(__dirname, '..', 'admin', 'leveling.png')],
-  ['/admin/images/ticket.png', path.join(__dirname, '..', 'admin', 'ticket.png')],
+  ['/admin/images/leveling.png', path.join(__dirname, '..', 'admin', 'images', 'leveling.png')],
+  ['/admin/images/ticket.png', path.join(__dirname, '..', 'admin', 'images', 'ticket.png')],
 ]);
 
 http.createServer = function iconAssetServer(listener) {
