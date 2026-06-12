@@ -1,28 +1,53 @@
 .tab {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  display: grid !important;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
-  gap: 11px;
-  min-height: 48px;
-  padding: 7px 10px;
+  gap: 13px;
+  min-height: 60px;
+  padding: 9px 14px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.025);
 }
 
 .tab:hover { background: rgba(255, 255, 255, 0.055); }
-.tab.active { border-color: rgba(255, 255, 255, 0.08); }
+.tab.active { border-color: rgba(255, 255, 255, 0.09); }
 .tab span { min-width: 0; }
-.tab:not(:has(.tab-icon))::before { content: ''; width: 34px; height: 34px; }
-.tab:not(:has(.tab-icon)) { padding-left: 10px; }
+.tab:not(:has(.tab-icon))::before { content: ''; width: 42px; height: 42px; }
+.tab:not(:has(.tab-icon)) { padding-left: 14px; }
 
 .tab-icon {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
-  border-radius: 8px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  padding: 7px;
+  border-radius: 12px;
   object-fit: contain;
   object-position: center;
+  box-sizing: border-box;
   image-rendering: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.tab[data-tab="leveling"] .tab-icon {
+  background: radial-gradient(circle at 50% 50%, rgba(120, 255, 180, 0.18), rgba(45, 255, 135, 0.08));
+  border-color: rgba(130, 255, 185, 0.22);
+  box-shadow: 0 0 18px rgba(113, 255, 176, 0.38), inset 0 0 12px rgba(113, 255, 176, 0.13);
+  filter: drop-shadow(0 0 7px rgba(118, 255, 183, 0.95));
+}
+
+.tab[data-tab="tickets"] .tab-icon {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 108, 116, 0.22), rgba(255, 70, 80, 0.09));
+  border-color: rgba(255, 115, 125, 0.26);
+  box-shadow: 0 0 18px rgba(255, 82, 94, 0.42), inset 0 0 12px rgba(255, 82, 94, 0.13);
+  filter: drop-shadow(0 0 7px rgba(255, 105, 115, 0.95));
+}
+
+.tab[data-tab="messages"] .tab-icon {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.07));
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.32), inset 0 0 12px rgba(255, 255, 255, 0.12);
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.9));
 }
 
 .message-tab-icon,
@@ -76,9 +101,32 @@
 .ticket-kind-grid strong { font-size: 18px; }
 .ticket-kind-grid span { color: #aeb4c0; line-height: 1.45; }
 
+.request-action-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(88, 101, 242, 0.22);
+  border-radius: 8px;
+  background: rgba(88, 101, 242, 0.08);
+  color: #c8d0ff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.request-extra-field {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.request-extra-field select,
+.request-extra-field input,
+.request-extra-field textarea {
+  width: 100%;
+}
+.request-hidden-value { display: none !important; }
+
 @media (max-width: 740px) {
-  .tab { grid-template-columns: 30px minmax(0, 1fr); }
-  .tab-icon { width: 30px; height: 30px; flex-basis: 30px; }
-  .tab:not(:has(.tab-icon))::before { width: 30px; height: 30px; }
+  .tab { grid-template-columns: 36px minmax(0, 1fr); }
+  .tab-icon { width: 36px; height: 36px; flex-basis: 36px; padding: 6px; }
+  .tab:not(:has(.tab-icon))::before { width: 36px; height: 36px; }
   .ticket-kind-grid { grid-template-columns: 1fr; }
 }
