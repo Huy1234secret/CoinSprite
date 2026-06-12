@@ -10,15 +10,130 @@ const {
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
   return { channelId, minXp, maxXp, cooldownMs };
 }
 
+const GIVE_ROLE_CHOICES = {
+  utdx_member_plus: {
+    label: 'UTDX Member+',
+    roleKey: 'utdxCrewMemberPlus',
+  },
+  sp_member_plus: {
+    label: 'SP Member+',
+    roleKey: 'crewMemberPlus',
+  },
+};
+
+const INVITE_REWARD_TIERS = [
+  {
+    minMembers: 50,
+    maxMembers: null,
+    label: '50+',
+    rewards: { clanRerolls: 1000, raceRerolls: 150, traitRerolls: 150 },
+  },
+  {
+    minMembers: 30,
+    maxMembers: 49,
+    label: '30 - 49',
+    rewards: { clanRerolls: 500, raceRerolls: 135, traitRerolls: 135 },
+  },
+  {
+    minMembers: 0,
+    maxMembers: 29,
+    label: '0 - 29',
+    rewards: { clanRerolls: 250, raceRerolls: 120, traitRerolls: 120 },
+  },
+];
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
+  channels: {
+    transcript: '',
+    ticketPanel: '',
+    ticketCategory: '',
+    roleRequestReview: '',
+    giveawayRequestReview: '',
+    inviteRules: '',
+    inviteClaim: '',
+    inviteLog: '',
+    inviteAnnounce: '',
+    levelUp: '',
+    backgroundLogThread: '',
+    wordChain: '',
+    giveawayAnnouncement: '',
+    commandLogThread: '',
+  },
+  roles: {
+    staff: '',
+    crewMemberPlus: '',
+    utdxCrewMemberPlus: '',
+    onboarding: '',
+    giveawayBlacklist: '',
+    wordChainPunishment: '',
+  },
+  xp: {
+    channels: [],
+    messageXpMin: 1,
+    messageXpMax: 3,
+    messageCooldownMs: 0,
+    levelUpMessage: {
+      ...DEFAULT_LEVEL_UP_MESSAGE,
+      enabled: false,
+    },
+    boosts: [],
+    levelRoleRewards: [],
+    punishmentDurationsMs: {
+      1: 24 * 60 * 60 * 1000,
+      2: 3 * 24 * 60 * 60 * 1000,
+      3: 7 * 24 * 60 * 60 * 1000,
+    },
+  },
+  inviteRewards: {
+    enabled: false,
+    capMembers: 150,
+    emojis: {
+      invitePoint: '',
+      clanRerolls: '',
+      traitRerolls: '',
+      raceRerolls: '',
+    },
+    tiers: INVITE_REWARD_TIERS,
+  },
+  wordChain: {
+    minWordLength: 3,
+    maxWordLength: 10,
+    startingHearts: 3,
+    turnTimeoutMs: 4 * 60 * 60 * 1000,
+    punishmentMs: 60 * 1000,
+    gameCooldownMs: 60 * 1000,
+    repeatedWordAction: 'punish',
+    wrongStartAction: 'punish',
+    xpRewardFormula: 'wordLength',
+  },
+  giveaway: {
+    minClaimMs: 5 * 60 * 1000,
+    maxClaimMs: 24 * 60 * 60 * 1000,
+    minDurationMs: 60 * 1000,
+    maxDurationMs: 30 * 24 * 60 * 60 * 1000,
+  },
+  giveRoleChoices: GIVE_ROLE_CHOICES,
+  emojis: {
+    giveawayRequestAccept: { name: '✅' },
+    giveawayRequestDeny: { name: '❌' },
+  },
+  tickets: {
+    ...cloneTicketValue(DEFAULT_TICKETS_CONFIG),
+    enabled: false,
+    types: [],
+  },
+};
+
+const DEFAULT_COINSPRITE_GUILD_CONFIG = {
+  ...DEFAULT_GUILD_CONFIG,
   channels: {
     transcript: '1495788766600757418',
     ticketPanel: '1493971939545583836',
@@ -44,6 +159,7 @@ const DEFAULT_GUILD_CONFIG = {
     wordChainPunishment: '1512488707461091420',
   },
   xp: {
+    ...DEFAULT_GUILD_CONFIG.xp,
     channels: [
       xpChannel('1493906607166328872'),
       xpChannel('1495676540875182212'),
@@ -57,9 +173,6 @@ const DEFAULT_GUILD_CONFIG = {
       xpChannel('1498299976781135893', 0.5, 0.5),
       xpChannel('1498299950235390156', 0.5, 0.5),
     ],
-    messageXpMin: 1,
-    messageXpMax: 3,
-    messageCooldownMs: 0,
     levelUpMessage: DEFAULT_LEVEL_UP_MESSAGE,
     boosts: [
       { roleId: '1502905486645788713', xpPercent: 10 },
@@ -80,78 +193,20 @@ const DEFAULT_GUILD_CONFIG = {
       { level: 90, roleId: '1513347127038705745' },
       { level: 100, roleId: '1513347127810719866' },
     ],
-    punishmentDurationsMs: {
-      1: 24 * 60 * 60 * 1000,
-      2: 3 * 24 * 60 * 60 * 1000,
-      3: 7 * 24 * 60 * 60 * 1000,
-    },
   },
   inviteRewards: {
-    enabled: false,
-    capMembers: 150,
+    ...DEFAULT_GUILD_CONFIG.inviteRewards,
     emojis: {
       invitePoint: '<:InvitePoint:1494571122186915922>',
       clanRerolls: '<:SPCRR:1494572058313625741>',
       traitRerolls: '<:SPTRR:1494572054165323836>',
       raceRerolls: '<:SPRRR:1494572061358555196>',
     },
-    tiers: [
-      {
-        minMembers: 50,
-        maxMembers: null,
-        label: '50+',
-        rewards: { clanRerolls: 1000, raceRerolls: 150, traitRerolls: 150 },
-      },
-      {
-        minMembers: 30,
-        maxMembers: 49,
-        label: '30 - 49',
-        rewards: { clanRerolls: 500, raceRerolls: 135, traitRerolls: 135 },
-      },
-      {
-        minMembers: 0,
-        maxMembers: 29,
-        label: '0 - 29',
-        rewards: { clanRerolls: 250, raceRerolls: 120, traitRerolls: 120 },
-      },
-    ],
-  },
-  wordChain: {
-    minWordLength: 3,
-    maxWordLength: 10,
-    startingHearts: 3,
-    turnTimeoutMs: 4 * 60 * 60 * 1000,
-    punishmentMs: 60 * 1000,
-    gameCooldownMs: 60 * 1000,
-    repeatedWordAction: 'punish',
-    wrongStartAction: 'punish',
-    xpRewardFormula: 'wordLength',
-  },
-  giveaway: {
-    minClaimMs: 5 * 60 * 1000,
-    maxClaimMs: 24 * 60 * 60 * 1000,
-    minDurationMs: 60 * 1000,
-    maxDurationMs: 30 * 24 * 60 * 60 * 1000,
-  },
-  giveRoleChoices: {
-    utdx_member_plus: {
-      label: 'UTDX Member+',
-      roleKey: 'utdxCrewMemberPlus',
-    },
-    sp_member_plus: {
-      label: 'SP Member+',
-      roleKey: 'crewMemberPlus',
-    },
   },
   emojis: {
     giveawayRequestAccept: { id: '1498173245981986869', name: 'Y_' },
     giveawayRequestDeny: { id: '1498173244031631400', name: 'N_' },
   },
-  tickets: DEFAULT_TICKETS_CONFIG,
-};
-
-const DEFAULT_COINSPRITE_GUILD_CONFIG = {
-  ...DEFAULT_GUILD_CONFIG,
   tickets: {
     ...cloneTicketValue(DEFAULT_TICKETS_CONFIG),
     types: cloneTicketValue(LEGACY_DEFAULT_TICKET_TYPES),
@@ -202,53 +257,96 @@ function ensureStoreFile() {
   }
 }
 
+function normalizeGuildConfig(guildId, guildConfig, defaults) {
+  const merged = mergeConfig(defaults, guildConfig);
+  delete merged.channels.lowXpCategory;
+  delete merged.xp.lowXpChannels;
+  delete merged.xp.noXpChannels;
+  delete merged.xp.lowXpAmount;
+  delete merged.xp.levelFunMessages;
+  merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
+  merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
+  merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
+  merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
+  merged.tickets = sanitizeTicketsConfig(merged.tickets, defaults.tickets);
+  return merged;
+}
+
 function normalizeState(rawState) {
   const rawGuilds = isPlainObject(rawState?.guilds) ? rawState.guilds : {};
+  const rawSchemaVersion = Number(rawState?.meta?.schemaVersion) || 0;
+  const resetNonPrimaryGuilds = rawSchemaVersion < SCHEMA_VERSION;
   const guilds = {};
 
-  if (Object.keys(rawGuilds).length === 0) {
-    guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_COINSPRITE_GUILD_CONFIG);
-  } else {
-    for (const [guildId, guildConfig] of Object.entries(rawGuilds)) {
-      const isLegacyCoinSpriteConfig = guildId === DEFAULT_GUILD_ID
-        && !Object.prototype.hasOwnProperty.call(guildConfig || {}, 'tickets');
-      const defaults = isLegacyCoinSpriteConfig ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG;
-      const merged = mergeConfig(defaults, guildConfig);
-      delete merged.channels.lowXpCategory;
-      delete merged.xp.lowXpChannels;
-      delete merged.xp.noXpChannels;
-      delete merged.xp.lowXpAmount;
-      delete merged.xp.levelFunMessages;
-      merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage);
-      merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
-      merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
-      merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
-      merged.tickets = sanitizeTicketsConfig(merged.tickets, defaults.tickets);
-      guilds[guildId] = merged;
+  for (const [guildId, guildConfig] of Object.entries(rawGuilds)) {
+    if (guildId !== DEFAULT_GUILD_ID && resetNonPrimaryGuilds) {
+      guilds[guildId] = clone(DEFAULT_GUILD_CONFIG);
+      continue;
     }
+
+    const defaults = guildId === DEFAULT_GUILD_ID
+      ? DEFAULT_COINSPRITE_GUILD_CONFIG
+      : DEFAULT_GUILD_CONFIG;
+    guilds[guildId] = normalizeGuildConfig(guildId, guildConfig, defaults);
+  }
+
+  if (!guilds[DEFAULT_GUILD_ID]) {
+    guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_COINSPRITE_GUILD_CONFIG);
   }
 
   return {
     meta: {
-      schemaVersion: SCHEMA_VERSION,
       ...(isPlainObject(rawState?.meta) ? rawState.meta : {}),
+      schemaVersion: SCHEMA_VERSION,
     },
     guilds,
   };
 }
 
+function writeState(state) {
+  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
+  fs.writeFileSync(STORE_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
 function loadState() {
   ensureStoreFile();
   try {
-    return normalizeState(JSON.parse(fs.readFileSync(STORE_PATH, 'utf8') || '{}'));
+    const rawState = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8') || '{}');
+    const normalized = normalizeState(rawState);
+    if (JSON.stringify(rawState) !== JSON.stringify(normalized)) writeState(normalized);
+    return normalized;
   } catch {
-    return clone(DEFAULT_STATE);
+    const fallback = clone(DEFAULT_STATE);
+    writeState(fallback);
+    return fallback;
   }
 }
 
 function saveState(state) {
-  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  fs.writeFileSync(STORE_PATH, `${JSON.stringify(normalizeState(state), null, 2)}\n`, 'utf8');
+  writeState(normalizeState(state));
+}
+
+function ensureGuildConfig(guildId) {
+  const id = String(guildId || '').trim();
+  if (!/^\d{16,20}$/.test(id)) return null;
+  const state = loadState();
+  if (!state.guilds[id]) {
+    state.guilds[id] = clone(id === DEFAULT_GUILD_ID
+      ? DEFAULT_COINSPRITE_GUILD_CONFIG
+      : DEFAULT_GUILD_CONFIG);
+    saveState(state);
+  }
+  return state.guilds[id];
+}
+
+function deleteGuildConfig(guildId) {
+  const id = String(guildId || '').trim();
+  if (!id || id === DEFAULT_GUILD_ID) return false;
+  const state = loadState();
+  if (!state.guilds[id]) return false;
+  delete state.guilds[id];
+  saveState(state);
+  return true;
 }
 
 function getGuildConfig(guildId) {
@@ -282,6 +380,8 @@ module.exports = {
   DEFAULT_STATE,
   SCHEMA_VERSION,
   STORE_PATH,
+  deleteGuildConfig,
+  ensureGuildConfig,
   getEnabledGuildIds,
   getGuildConfig,
   getGuildConfigValue,
