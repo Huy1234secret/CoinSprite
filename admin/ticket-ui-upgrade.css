@@ -25,10 +25,10 @@
 .tab[data-tab="leveling"],
 .tab[data-tab="tickets"] { display: flex; align-items: center; gap: 10px; }
 .tab[data-tab="leveling"]::before,
-.tab[data-tab="tickets"]::before { content: none; display: none; }
-.tab-image-icon { width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; border: 0; border-radius: 4px; }
-.tab-image-icon:not([src]),
-.tab-image-icon[src=""] { display: none; }
+.tab[data-tab="tickets"]::before { content: ''; width: 24px; height: 24px; flex: 0 0 24px; display: block; background-position: center; background-repeat: no-repeat; background-size: contain; border-radius: 4px; }
+.tab[data-tab="leveling"]::before { background-image: url('/admin/leveling.png'); }
+.tab[data-tab="tickets"]::before { background-image: url('/admin/ticket.png'); }
+.tab-image-icon { display: none; }
 
 .default-xp-destinations { margin: 2px 0 18px; }
 .default-xp-destinations p { margin: 0; color: var(--muted); font-size: 13px; }
