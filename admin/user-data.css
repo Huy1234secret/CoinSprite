@@ -1,30 +1,27 @@
 .tab[data-tab="data"]::before {
-  --tab-icon-glow: rgba(255, 255, 255, 0.22);
-  --tab-icon-bg: rgba(255, 255, 255, 0.06);
-  --tab-icon-border: rgba(255, 255, 255, 0.16);
   content: '';
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
   box-sizing: border-box;
-  border: 1px solid var(--tab-icon-border);
+  border: 1.5px solid rgba(255, 255, 255, 0.72);
   border-radius: 9px;
-  background-image:
-    url('/admin/images/data.png'),
-    radial-gradient(circle at 50% 45%, var(--tab-icon-bg), rgba(255, 255, 255, 0.015) 72%);
-  background-color: rgba(15, 17, 23, 0.58);
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-size: 22px 22px, auto;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025) inset, 0 0 9px var(--tab-icon-glow);
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  background-color: rgba(15, 17, 23, 0.82);
+  background-image: url('/admin/images/data.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 22px 22px;
+  box-shadow: none;
+  filter: none;
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
 }
 
 .tab[data-tab="data"]:hover::before,
 .tab[data-tab="data"].active::before {
-  --tab-icon-glow: rgba(255, 255, 255, 0.32);
   transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.035) inset, 0 0 12px var(--tab-icon-glow);
+  border-color: #ffffff;
+  background-color: rgba(23, 25, 31, 0.96);
+  box-shadow: none;
 }
 
 .tab[data-tab="data"] > .tab-icon {
@@ -148,6 +145,6 @@
     width: 30px;
     height: 30px;
     flex-basis: 30px;
-    background-size: 20px 20px, auto;
+    background-size: 20px 20px;
   }
 }
