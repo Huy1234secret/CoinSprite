@@ -55,10 +55,14 @@ const OPTION_FIX_SCRIPT = `
     }
   }
 
-  function dedupeConditionOptions(select) {
+  function hideDuplicateConditionOptions(select) {
     const options = [...select.options].filter((option) =>
       option.textContent.trim() === 'Condition' || String(option.value).startsWith('condition_'));
-    options.slice(0, -1).forEach((option) => option.remove());
+    options.forEach((option, index) => {
+      const duplicate = index < options.length - 1;
+      option.hidden = duplicate;
+      option.disabled = duplicate;
+    });
   }
 
   function ensureDmTemplateFields() {
@@ -84,7 +88,7 @@ const OPTION_FIX_SCRIPT = `
 
   async function repairWorkflowOptions() {
     scheduled = false;
-    document.querySelectorAll('#ticketEditorRoot select[data-action-select]').forEach(dedupeConditionOptions);
+    document.querySelectorAll('#ticketEditorRoot select[data-action-select]').forEach(hideDuplicateConditionOptions);
     await loadGuildData();
     ensureDmTemplateFields();
   }
@@ -119,6 +123,10 @@ const OPTION_FIX_SCRIPT = `
     workflowValues[type.id][control.id].dmTemplateId = target.value;
   }, true);
 
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('#ticketEditorRoot, [data-tab="tickets"]')) scheduleRepair();
+  }, true);
+
   document.querySelector('#guildSelect')?.addEventListener('change', () => {
     loadedGuildId = '';
     templates = [];
@@ -126,7 +134,8 @@ const OPTION_FIX_SCRIPT = `
     scheduleRepair();
   }, true);
 
-  new MutationObserver(scheduleRepair).observe(document.body, { childList: true, subtree: true });
+  const root = document.querySelector('#ticketEditorRoot');
+  if (root) new MutationObserver(scheduleRepair).observe(root, { childList: true, subtree: true });
   scheduleRepair();
 })();
 `;

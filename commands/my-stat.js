@@ -5,16 +5,21 @@ const {
   getXpBoostPercent,
   formatBoostLines,
 } = require('../src/rewardBoosts');
-const { canEarnXpInChannel } = require('../src/xpChannels');
+const xpChannels = require('../src/xpChannels');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const canEarnMessageXp = typeof xpChannels.canEarnXpInChannel === 'function'
+  ? xpChannels.canEarnXpInChannel
+  : typeof xpChannels.isLowXpChannel === 'function'
+    ? xpChannels.isLowXpChannel
+    : () => false;
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * ((max - min) + 1)) + min;
 }
 
 function awardRoleBonusXp(message) {
-  if (!canEarnXpInChannel(message.channel, message.guildId)) return;
+  if (!canEarnMessageXp(message.channel, message.guildId)) return;
   const xpBoostPercent = getXpBoostPercent(message.member);
   if (xpBoostPercent <= 0) return;
   const bonusXp = Math.floor((randomInt(1, 10) * xpBoostPercent) / 10) / 10;
