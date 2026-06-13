@@ -2,8 +2,9 @@
   const nativeFetch = window.fetch.bind(window);
   const state = {
     directory: { channels: [], categories: [] },
-    xpIds: [], savedXpIds: [], gameChannel: '', savedGameChannel: '',
+    xpIds: [], savedXpIds: [], xpOverrides: [], gameChannel: '', savedGameChannel: '',
     gameEnabled: false, savedGameEnabled: false, dirty: false, reloaded: false,
+    configUrl: '', patchStarted: 0, customSaving: false,
   };
   const EMOJI_CATEGORIES = {
     recent: { icon: '☺', label: 'Frequently used', emojis: ['✅','❌','⚠️','🎫','🎟️','🔒','📩','📢','🔔','🎁','🏆','🔥','✨','👍','❤️'] },
@@ -13,7 +14,7 @@
     food: { icon: '🍜', label: 'Food and drink', emojis: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','☕','🍵','🧃','🥤','🧋','🍺','🍻','🥂','🍷','🍸','🍹'] },
     activities: { icon: '🎮', label: 'Activities', emojis: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🏑','🥍','🏏','🪃','🥅','⛳','🪁','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🏋️','🤼','🤸','⛹️','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🏵️','🎗️','🎫','🎟️','🎪','🤹','🎭','🩰','🎨','🎬','🎤','🎧','🎼','🎹','🥁','🎷','🎺','🪗','🎸','🪕','🎻','🎲','♟️','🎯','🎳','🎮','🕹️','🧩'] },
     travel: { icon: '🚲', label: 'Travel and places', emojis: ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🦯','🦽','🛴','🚲','🛵','🏍️','🛺','🚨','🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️','🛫','🛬','🛩️','💺','🛰️','🚀','🛸','🚁','🛶','⛵','🚤','🛥️','🛳️','⛴️','🚢','⚓','🛟','⛽','🚧','🚦','🗺️','🗿','🗽','🗼','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛺','🌁','🌃','🏙️','🌄','🌅','🌆','🌇','🌉','♨️'] },
-    objects: { icon: '🛠️', label: 'Objects', emojis: ['⌚','📱','📲','💻','⌨️','🖥️','🖨️','🖱️','🖲️','🕹️','🗜️','💽','💾','💿','📀','📼','📷','📸','📹','🎥','📽️','🎞️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','⏱️','⏲️','⏰','🕰️','⌛','⏳','📡','🔋','🪫','🔌','💡','🔦','🕯️','🧯','🛢️','💸','💵','💴','💶','💷','🪙','💰','💳','💎','⚖️','🪜','🧰','🪛','🔧','🔨','⚒️','🛠️','⛏️','🪚','🔩','⚙️','⛓️','🧲','🔫','💣','🧨','🪓','🔪','🗡️','🛡️','🔮','📿','💈','⚗️','🔭','🔬','🕳️','🩹','🩺','💊','💉','🩸','🚪','🪞','🪟','🛏️','🪑','🚿','🛁','🧹','🧺','🧻','🪣','🧼','🫧','🪥','🧽','🧯','🛒','🎁','🎈','🎀','🪄','🪅','🎊','🎉','✉️','📩','📨','📧','💌','📥','📤','📦','🏷️','📪','📫','📬','📭','📮','📜','📃','📄','📑','🧾','📊','📈','📉','🗒️','🗓️','📆','📅','🗑️','📇','🗃️','🗳️','🗄️','📋','📁','📂','🗂️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🧷','🔗','📎','🖇️','📐','📏','📌','📍','✂️','🖊️','🖋️','✒️','🖌️','🖍️','📝','✏️','🔍','🔎','🔏','🔐','🔒','🔓'] },
+    objects: { icon: '🛠️', label: 'Objects', emojis: ['⌚','📱','📲','💻','⌨️','🖥️','🖨️','🖱️','🖲️','🕹️','🗜️','💽','💾','💿','📀','📼','📷','📸','📹','🎥','📽️','🎞️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','⏱️','⏲️','⏰','🕰️','⌛','⏳','📡','🔋','🪫','🔌','💡','🔦','🕯️','🧯','🛢️','💸','💵','💴','💶','💷','🪙','💰','💳','💎','⚖️','🪜','🧰','🪛','🔧','🔨','⚒️','🛠️','⛏️','🪚','🔩','⚙️','⛓️','🧲','🔫','💣','🧨','🪓','🔪','🗡️','🛡️','🔮','📿','💈','⚗️','🔭','🔬','🕳️','🩹','🩺','💊','💉','🩸','🚪','🪞','🪟','🛏️','🪑','🚿','🛁','🧹','🧺','🧻','🪠','🧼','🪥','🧽','🧯','🛒','🎁','🎈','🎀','🪄','🪅','🎊','🎉','✉️','📩','📨','📧','💌','📥','📤','📦','🏷️','📪','📫','📬','📭','📮','📜','📃','📄','📑','🧾','📊','📈','📉','🗒️','🗓️','📆','📅','🗑️','📇','🗃️','🗳️','🗄️','📋','📁','📂','🗂️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🧷','🔗','📎','🖇️','📐','📏','📌','📍','✂️','🖊️','🖋️','✒️','🖌️','🖍️','📝','✏️','🔍','🔎','🔏','🔐','🔒','🔓'] },
     symbols: { icon: '♥', label: 'Symbols', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🚹','🚺','🚼','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','🔀','🔁','🔂','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔃','🔄','🔙','🔚','🔛','🔜','🔝'] },
     flags: { icon: '🏳️', label: 'Flags', emojis: ['🏁','🚩','🎌','🏴','🏳️','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇺🇳','🇺🇸','🇨🇦','🇲🇽','🇧🇷','🇦🇷','🇬🇧','🇮🇪','🇫🇷','🇩🇪','🇪🇸','🇮🇹','🇵🇹','🇳🇱','🇧🇪','🇨🇭','🇦🇹','🇸🇪','🇳🇴','🇩🇰','🇫🇮','🇵🇱','🇺🇦','🇷🇺','🇹🇷','🇸🇦','🇦🇪','🇮🇳','🇵🇰','🇧🇩','🇱🇰','🇨🇳','🇭🇰','🇹🇼','🇯🇵','🇰🇷','🇸🇬','🇲🇾','🇹🇭','🇻🇳','🇵🇭','🇮🇩','🇦🇺','🇳🇿','🇿🇦','🇪🇬','🇳🇬','🇰🇪'] },
   };
@@ -39,8 +40,10 @@
     const url = typeof input === 'string' ? input : input.url;
     const method = String(init.method || 'GET').toUpperCase();
     const configRequest = /\/api\/guilds\/\d{16,20}\/config$/.test(url);
+    if (configRequest) state.configUrl = url;
     let options = init;
     if (configRequest && method === 'PATCH' && init.body) {
+      state.patchStarted += 1;
       const body = JSON.parse(init.body);
       const overrides = Array.isArray(body.xp?.channels) ? body.xp.channels : [];
       body.xp.channels = [...state.xpIds, ...overrides.filter((rule) => rule?.channelId && !state.xpIds.includes(String(rule.channelId)))];
@@ -56,7 +59,7 @@
     }
     if (configRequest) {
       const payload = await response.json(); const split = splitXp(payload.config);
-      state.xpIds = split.ids; state.savedXpIds = [...split.ids];
+      state.xpIds = split.ids; state.savedXpIds = [...split.ids]; state.xpOverrides = split.overrides;
       state.gameChannel = String(payload.config?.channels?.wordChain || ''); state.savedGameChannel = state.gameChannel;
       state.gameEnabled = Boolean(payload.config?.wordChain?.enabled ?? state.gameChannel); state.savedGameEnabled = state.gameEnabled; state.dirty = false;
       payload.config.xp.channels = split.overrides; setTimeout(renderDashboard, 0); return responseWithJson(response, payload);
@@ -110,19 +113,12 @@
       });
     }
     function closeMenu() { menu.classList.remove('open'); button.classList.remove('open'); }
-    button.onclick = (event) => { event.stopPropagation(); const open = !menu.classList.contains('open'); document.querySelectorAll('.picker-menu.open').forEach((node) => node.classList.remove('open')); document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open')); menu.classList.toggle('open', open); button.classList.toggle('open', open); if (open) { drawList(); search.focus(); requestAnimationFrame(() => positionPicker(menu)); } };
-    search.oninput = drawList; drawButton(); return root;
-  }
-  function positionPicker(menu) {
-    const button = menu.closest('.picker')?.querySelector('.picker-button'); if (!button || !menu.classList.contains('open')) return;
-    const rect = button.getBoundingClientRect(); const gap = 6; const pad = 12; const below = innerHeight - rect.bottom - pad - gap; const above = rect.top - pad - gap; const up = below < 220 && above > below;
-    const width = Math.min(Math.max(rect.width, 320), innerWidth - pad * 2); const height = Math.min(420, Math.max(170, up ? above : below));
-    menu.style.width = `${width}px`; menu.style.maxHeight = `${height}px`; menu.style.left = `${Math.min(Math.max(pad, rect.left), innerWidth - width - pad)}px`; menu.style.right = 'auto';
-    if (up) { menu.style.top = 'auto'; menu.style.bottom = `${innerHeight - rect.top + gap}px`; } else { menu.style.top = `${rect.bottom + gap}px`; menu.style.bottom = 'auto'; }
+    button.onclick = (event) => { event.stopPropagation(); const open = !menu.classList.contains('open'); document.querySelectorAll('.picker-menu.open').forEach((node) => node.classList.remove('open')); document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open')); menu.classList.toggle('open', open); button.classList.toggle('open', open); if (open) { drawList(); search.focus(); positionPicker(menu); } };
+    search.onclick = (event) => event.stopPropagation(); search.oninput = drawList; drawButton(); return root;
   }
   function installTabIcon(tabName, filename, label) {
-    const tab = document.querySelector(`.tab[data-tab="${tabName}"]`); if (!tab) return;
-    tab.querySelector('.tab-image-icon')?.remove(); const image = document.createElement('img'); image.className = 'tab-image-icon'; image.src = `/images/${filename}`; image.alt = ''; image.title = label; tab.prepend(image);
+    const tab = document.querySelector(`[data-tab="${tabName}"]`); if (!tab || tab.querySelector('.tab-image-icon')) return;
+    tab.querySelector('.tab-icon')?.remove(); const image = document.createElement('img'); image.className = 'tab-image-icon'; image.src = `/images/${filename}`; image.alt = ''; image.title = label; tab.prepend(image);
   }
   function renderDashboard() {
     document.querySelector('[data-tab="invites"]')?.remove(); document.querySelector('[data-panel="invites"]')?.remove();
@@ -137,27 +133,78 @@
     const gameMount = document.querySelector('#wordChainChannelMount'); if (gameMount) gameMount.replaceChildren(picker('game', false, [state.gameChannel], (ids) => { state.gameChannel = ids[0] || ''; }));
     document.querySelectorAll('#channelsGrid .picker-field').forEach((field) => { if (/word chain/i.test(field.textContent)) field.hidden = true; }); syncDirty();
   }
-  function permissions(scope = document) {
-    scope.querySelectorAll('.ticket-modal-head p').forEach((item) => item.remove());
-    scope.querySelectorAll('.permission-item:not([data-upgraded])').forEach((item) => { const input = item.querySelector('input[data-permission]'); const title = item.querySelector('span')?.textContent?.trim(); if (!input || !title) return; item.dataset.upgraded = 'true'; const name = document.createElement('span'); name.className = 'permission-name'; name.textContent = title; const buttons = document.createElement('span'); buttons.className = 'permission-state'; buttons.innerHTML = '<button type="button" class="permission-deny" disabled>X</button><button type="button" class="permission-neutral">/</button><button type="button" class="permission-allow">✓</button>'; const refresh = () => { buttons.children[1].classList.toggle('active', !input.checked); buttons.children[2].classList.toggle('active', input.checked); }; buttons.children[1].onclick = () => { input.checked = false; input.dispatchEvent(new Event('input',{bubbles:true})); refresh(); }; buttons.children[2].onclick = () => { input.checked = true; input.dispatchEvent(new Event('input',{bubbles:true})); refresh(); }; item.replaceChildren(input, name, buttons); refresh(); });
+  function permissions() {
+    if (!document.querySelector('#ticketEditorRoot .permission-trigger')) return;
+    document.querySelectorAll('#ticketEditorRoot .permission-trigger').forEach((button) => { const label = button.closest('label'); if (!label) return; button.textContent = label.textContent.replace(button.textContent, '').trim() || 'Permissions'; label.classList.add('permission-field'); });
   }
-  function emoji(input) {
-    if (input.dataset.emojiPicker) return; input.dataset.emojiPicker = 'true';
-    const wrap = document.createElement('span'); wrap.className = 'emoji-field'; input.parentNode.insertBefore(wrap,input); wrap.append(input);
-    const button = document.createElement('button'); button.type='button'; button.className='emoji-picker-button'; button.textContent='☺'; button.title='Choose emoji';
-    const pop = document.createElement('span'); pop.className='emoji-popover'; const side = document.createElement('span'); side.className='emoji-categories';
-    const browser = document.createElement('span'); browser.className='emoji-browser'; const search = document.createElement('input'); search.type='search'; search.placeholder='Search emoji'; const grid = document.createElement('span'); grid.className='emoji-grid'; browser.append(search,grid); pop.append(side,browser);
-    let active = 'recent';
-    function drawCategories() { side.replaceChildren(); Object.entries(EMOJI_CATEGORIES).forEach(([key, category]) => { const item=document.createElement('button'); item.type='button'; item.textContent=category.icon; item.title=category.label; item.classList.toggle('active',key===active); item.onclick=()=>{active=key; search.value=''; drawCategories(); draw();}; side.append(item); }); }
-    function draw() { const q=search.value.trim().toLowerCase(); grid.replaceChildren(); const categories=q ? Object.values(EMOJI_CATEGORIES) : [EMOJI_CATEGORIES[active]]; [...new Set(categories.flatMap((category)=>category.emojis))].forEach((value)=>{ if(q && !value.includes(q) && !categories.some((category)=>category.label.toLowerCase().includes(q))) return; const option=document.createElement('button'); option.type='button'; option.textContent=value; option.onclick=()=>{input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); pop.classList.remove('open');}; grid.append(option); }); }
-    button.onclick=(event)=>{event.stopPropagation(); document.querySelectorAll('.emoji-popover.open').forEach((node)=>{if(node!==pop)node.classList.remove('open');}); pop.classList.toggle('open'); if(pop.classList.contains('open')){drawCategories();draw();positionEmoji(pop,button);search.focus();}}; search.oninput=draw; wrap.append(button,pop);
+  function addEmojiPicker(input) {
+    if (!input || input.dataset.enhancedEmoji) return; input.dataset.enhancedEmoji = '1';
+    const wrapper = document.createElement('div'); wrapper.className = 'emoji-field'; input.parentNode.insertBefore(wrapper, input); wrapper.append(input);
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'emoji-picker-button'; button.textContent = input.value || '☺'; button.title = 'Choose emoji'; wrapper.append(button);
+    const popup = document.createElement('div'); popup.className = 'emoji-popover'; popup.innerHTML = '<input class="emoji-search" type="search" placeholder="Search emoji"><div class="emoji-category-tabs"></div><div class="emoji-grid"></div>'; wrapper.append(popup);
+    let category = 'recent'; const tabs = popup.querySelector('.emoji-category-tabs'); const grid = popup.querySelector('.emoji-grid'); const search = popup.querySelector('.emoji-search');
+    function draw() { const query = search.value.trim().toLowerCase(); grid.replaceChildren(); const entries = query ? Object.values(EMOJI_CATEGORIES).flatMap((item) => item.emojis) : EMOJI_CATEGORIES[category].emojis; [...new Set(entries)].forEach((emoji) => { const option = document.createElement('button'); option.type = 'button'; option.className = 'emoji-option'; option.textContent = emoji; option.onclick = (event) => { event.stopPropagation(); input.value = emoji; button.textContent = emoji; input.dispatchEvent(new Event('input', { bubbles: true })); popup.classList.remove('open'); }; grid.append(option); }); }
+    Object.entries(EMOJI_CATEGORIES).forEach(([key, value]) => { const tab = document.createElement('button'); tab.type = 'button'; tab.textContent = value.icon; tab.title = value.label; tab.onclick = (event) => { event.stopPropagation(); category = key; search.value = ''; draw(); }; tabs.append(tab); });
+    button.onclick = (event) => { event.stopPropagation(); popup.classList.toggle('open'); if (popup.classList.contains('open')) { draw(); search.focus(); positionEmoji(popup, button); } };
+    search.onclick = (event) => event.stopPropagation(); search.oninput = draw;
   }
-  function positionEmoji(pop,button){const rect=button.getBoundingClientRect();const width=Math.min(430,innerWidth-24);const height=Math.min(470,innerHeight-24);pop.style.width=`${width}px`;pop.style.maxHeight=`${height}px`;pop.style.left=`${Math.min(Math.max(12,rect.right-width),innerWidth-width-12)}px`;if(innerHeight-rect.bottom<height&&rect.top>innerHeight-rect.bottom){pop.style.top='auto';pop.style.bottom=`${innerHeight-rect.top+6}px`;}else{pop.style.top=`${rect.bottom+6}px`;pop.style.bottom='auto';}}
-  function upgradeDynamic(){permissions();document.querySelectorAll('input[data-ticket-field="emoji"],input[data-control-field="emoji"],input[data-option-field="emoji"]').forEach(emoji);}
-  new MutationObserver(upgradeDynamic).observe(document.body,{childList:true,subtree:true});
-  document.addEventListener('click',(event)=>{if(!event.target.closest('.picker')){document.querySelectorAll('.picker-menu.open').forEach((menu)=>menu.classList.remove('open'));document.querySelectorAll('.picker-button.open').forEach((node)=>node.classList.remove('open'));}if(!event.target.closest('.emoji-field'))document.querySelectorAll('.emoji-popover.open').forEach((pop)=>pop.classList.remove('open'));});
-  document.addEventListener('scroll',()=>{document.querySelectorAll('.picker-menu.open').forEach(positionPicker);document.querySelectorAll('.emoji-popover.open').forEach((pop)=>positionEmoji(pop,pop.closest('.emoji-field').querySelector('.emoji-picker-button')));},true);
+  function upgradeDynamic() { permissions(); document.querySelectorAll('#ticketEditorRoot input[data-control-field="emoji"],#ticketEditorRoot input[data-ticket-field="emoji"]').forEach(addEmojiPicker); }
+  const style = document.createElement('style'); style.textContent = '.default-xp-destinations{margin:16px 0}.tab-image-icon{width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 0 8px currentColor)}.word-chain-controls{display:grid;gap:14px;margin:14px 0}.switch-control{display:flex;align-items:center;gap:10px}.switch-track{width:42px;height:24px;border-radius:99px;background:#2b303b;padding:3px;transition:.2s}.switch-thumb{display:block;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}.switch-control input{display:none}.switch-control input:checked+.switch-track{background:#5865f2}.switch-control input:checked+.switch-track .switch-thumb{transform:translateX(18px)}.emoji-field{position:relative;display:flex;gap:8px}.emoji-field>input{flex:1}.emoji-picker-button{width:44px;border:1px solid #303441;background:#171a21;color:#fff;border-radius:8px;font-size:20px}.emoji-popover{display:none;position:fixed;width:360px;height:390px;background:#111318;border:1px solid #303441;border-radius:10px;padding:10px;z-index:10000;box-shadow:0 18px 50px #0008}.emoji-popover.open{display:flex;flex-direction:column;gap:8px}.emoji-search{width:100%}.emoji-category-tabs{display:flex;overflow-x:auto;gap:3px}.emoji-category-tabs button,.emoji-option{border:0;background:transparent;color:#fff;border-radius:6px;cursor:pointer}.emoji-category-tabs button{font-size:17px;padding:5px}.emoji-category-tabs button:hover,.emoji-option:hover{background:#292d38}.emoji-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;overflow:auto}.emoji-option{font-size:23px;padding:5px}.permission-field .permission-trigger{margin-top:7px;width:100%;text-align:left}@media(max-width:600px){.emoji-popover{width:min(350px,calc(100vw - 20px));height:360px}}'; document.head.append(style);
+  document.addEventListener('click', (event) => { if (!event.target.closest('.picker')) document.querySelectorAll('.picker-menu.open,.picker-button.open').forEach((node) => node.classList.remove('open')); if (!event.target.closest('.emoji-field')) document.querySelectorAll('.emoji-popover.open').forEach((node) => node.classList.remove('open')); });
+  new MutationObserver(() => { upgradeDynamic(); renderDashboard(); }).observe(document.body, { childList: true, subtree: true });
+  function positionFloating(element,anchor,gap=8){const rect=anchor.getBoundingClientRect();const width=element.offsetWidth||360;const height=element.offsetHeight||390;let left=Math.min(Math.max(10,rect.right-width),window.innerWidth-width-10);let top=rect.bottom+gap;if(top+height>window.innerHeight-10&&rect.top-height-gap>=10)top=rect.top-height-gap;top=Math.min(Math.max(10,top),Math.max(10,window.innerHeight-height-10));element.style.left=`${left}px`;element.style.top=`${top}px`;}
+  function positionPicker(menu){positionFloating(menu,menu.parentElement.querySelector('.picker-button'),6);}
+  function positionEmoji(pop,button){positionFloating(pop,button,8);}
+  window.addEventListener('scroll',()=>{document.querySelectorAll('.picker-menu.open').forEach(positionPicker);document.querySelectorAll('.emoji-popover.open').forEach((pop)=>positionEmoji(pop,pop.closest('.emoji-field').querySelector('.emoji-picker-button')));},true);
   window.addEventListener('resize',()=>{document.querySelectorAll('.picker-menu.open').forEach(positionPicker);document.querySelectorAll('.emoji-popover.open').forEach((pop)=>positionEmoji(pop,pop.closest('.emoji-field').querySelector('.emoji-picker-button')));});
+  async function saveUpgradeState() {
+    if (!state.dirty || state.customSaving || !state.configUrl) return;
+    state.customSaving = true;
+    const save = document.querySelector('#saveButton');
+    const status = document.querySelector('#statusBox');
+    if (save) { save.disabled = true; save.textContent = 'Saving...'; }
+    if (status) { status.textContent = 'Saving changes...'; status.className = 'status'; }
+    try {
+      const xpChanged = JSON.stringify([...state.xpIds].sort()) !== JSON.stringify([...state.savedXpIds].sort());
+      const gameChanged = state.gameEnabled !== state.savedGameEnabled || state.gameChannel !== state.savedGameChannel;
+      const body = {};
+      if (xpChanged) body.xp = { channels: [...state.xpIds, ...state.xpOverrides.filter((rule) => rule?.channelId && !state.xpIds.includes(String(rule.channelId)))] };
+      if (gameChanged) {
+        body.channels = { wordChain: state.gameEnabled ? state.gameChannel : '' };
+        body.wordChain = { enabled: state.gameEnabled };
+      }
+      const response = await nativeFetch(state.configUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Request failed with ${response.status}`);
+      const split = splitXp(payload.config);
+      state.xpIds = split.ids; state.savedXpIds = [...split.ids]; state.xpOverrides = split.overrides;
+      state.gameChannel = String(payload.config?.channels?.wordChain || ''); state.savedGameChannel = state.gameChannel;
+      state.gameEnabled = Boolean(payload.config?.wordChain?.enabled ?? state.gameChannel); state.savedGameEnabled = state.gameEnabled;
+      state.dirty = false;
+      const bar = document.querySelector('#unsavedBar');
+      const label = document.querySelector('#savedState');
+      if (bar) bar.hidden = true;
+      if (label) label.textContent = 'Saved';
+      if (status) { status.textContent = 'Changes saved.'; status.className = 'status ok'; }
+      renderDashboard();
+    } catch (error) {
+      if (status) { status.textContent = error.message; status.className = 'status error'; }
+    } finally {
+      state.customSaving = false;
+      if (save) { save.disabled = !state.dirty; save.textContent = 'Save changes'; }
+    }
+  }
+  document.querySelector('#saveButton')?.addEventListener('click', () => {
+    if (!state.dirty) return;
+    const patchStarted = state.patchStarted;
+    setTimeout(() => {
+      if (state.dirty && state.patchStarted === patchStarted) saveUpgradeState();
+    }, 0);
+  });
   document.querySelector('#resetTabButton')?.addEventListener('click',()=>{if(!state.dirty)return;state.xpIds=[...state.savedXpIds];state.gameChannel=state.savedGameChannel;state.gameEnabled=state.savedGameEnabled;state.dirty=false;setTimeout(renderDashboard,0);},true);
   window.addEventListener('beforeunload',(event)=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
   const timer=setInterval(()=>{const select=document.querySelector('#guildSelect');if(state.reloaded||!select?.value||select.disabled||document.querySelector('#editor')?.hidden)return;state.reloaded=true;select.dispatchEvent(new Event('change',{bubbles:true}));clearInterval(timer);},250);
