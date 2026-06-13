@@ -1,13 +1,27 @@
 .tab[data-tab="data"]::before {
+  --tab-icon-glow: rgba(255, 255, 255, 0.55);
+  --tab-icon-bg: rgba(255, 255, 255, 0.1);
+  --tab-icon-border: rgba(255, 255, 255, 0.3);
   content: '';
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  border-radius: 6px;
-  background-image: url('/admin/images/data.png'), url('/admin/images/data.svg');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid var(--tab-icon-border);
+  border-radius: 9px;
+  background:
+    url('/admin/images/data.png') center / 22px 22px no-repeat,
+    radial-gradient(circle at 50% 45%, var(--tab-icon-bg), rgba(255, 255, 255, 0.015) 72%),
+    rgba(15, 17, 23, 0.58);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025) inset, 0 0 13px var(--tab-icon-glow);
+  filter: drop-shadow(0 0 7px var(--tab-icon-glow));
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.tab[data-tab="data"]:hover::before,
+.tab[data-tab="data"].active::before {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.035) inset, 0 0 18px var(--tab-icon-glow);
+  filter: drop-shadow(0 0 10px var(--tab-icon-glow));
 }
 
 .tab[data-tab="data"] > .tab-icon {
@@ -123,5 +137,13 @@
 
   .data-actions .button {
     width: 100%;
+  }
+}
+
+@media (max-width: 740px) {
+  .tab[data-tab="data"]::before {
+    width: 30px;
+    height: 30px;
+    background-size: 20px 20px, auto, auto;
   }
 }
