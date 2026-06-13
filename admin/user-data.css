@@ -1,3 +1,19 @@
+.tab[data-tab="data"]::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 6px;
+  background-image: url('/admin/images/data.png'), url('/admin/images/data.svg');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.tab[data-tab="data"] > .tab-icon {
+  display: none;
+}
+
 .data-workspace {
   display: grid;
   gap: 18px;
