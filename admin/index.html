@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/admin/style.css">
   <link rel="stylesheet" href="/admin/ticket-ui-upgrade.css">
   <link rel="stylesheet" href="/admin/admin-fixes.css">
+  <link rel="stylesheet" href="/admin/user-data.css">
 </head>
 <body>
   <header class="topbar">
@@ -53,6 +54,7 @@
         <button class="tab active" type="button" data-tab="leveling"><img class="tab-icon" src="/admin/images/leveling.png" alt="" aria-hidden="true"><span>Leveling</span></button>
         <button class="tab" type="button" data-tab="channels"><span>Channels</span></button>
         <button class="tab" type="button" data-tab="roles"><span>Roles</span></button>
+        <button class="tab" type="button" data-tab="data"><span>Data</span></button>
         <button class="tab" type="button" data-tab="tickets"><img class="tab-icon" src="/admin/images/ticket.png" alt="" aria-hidden="true"><span>Tickets</span></button>
         <button class="tab" type="button" data-tab="invites"><span>Invite rewards</span></button>
         <button class="tab" type="button" data-tab="games"><span>Games</span></button>
@@ -173,7 +175,7 @@
                   <label>Thumbnail URL <input name="xp.levelUpMessage.thumbnailUrl" type="text" maxlength="1000" placeholder="&lt;avatar_url&gt;"></label>
                   <label>Image URL <input name="xp.levelUpMessage.imageUrl" type="url" maxlength="1000" placeholder="https://example.com/banner.png"></label>
                 </div>
-                <p class="condition-help">Condition format: <code>&lt;if&lt;level&gt;==10,"shown","hidden"&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, and <code>&lt;=</code>. Aliases <code>&lt;currentlevel&gt;</code> and <code>&lt;current_level&gt;</code> also work.</p>
+                <p class="condition-help">Condition format: <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, and <code>&lt;=</code>. Aliases <code>&lt;currentlevel&gt;</code> and <code>&lt;current_level&gt;</code> also work.</p>
               </div>
 
               <div class="panel preview-panel">
@@ -209,6 +211,65 @@
               <p>Role colors match the roles currently configured in Discord.</p>
             </div>
             <div class="settings-grid" id="rolesGrid"></div>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="data">
+          <div class="data-workspace" id="userDataRoot">
+            <div class="panel data-search-panel">
+              <div class="panel-heading">
+                <h3>Guild user data</h3>
+                <p>Search by Discord user ID only. The bot keeps saved data here even after that user leaves the guild.</p>
+              </div>
+              <div class="data-search-row">
+                <label>User ID <input id="userDataSearchId" type="text" inputmode="numeric" pattern="\d{16,20}" maxlength="20" placeholder="902736357766594611" autocomplete="off"></label>
+                <button class="button primary" id="userDataSearchButton" type="button">Find user</button>
+              </div>
+              <div class="status compact" id="userDataStatus" role="status">Enter a user ID to load stored level and punishment data.</div>
+            </div>
+
+            <div class="panel user-data-card" id="userDataEditor" hidden>
+              <div class="user-data-head">
+                <img id="userDataAvatar" alt="" hidden>
+                <div>
+                  <h3 id="userDataTitle">User data</h3>
+                  <p id="userDataMeta">No user loaded.</p>
+                </div>
+              </div>
+
+              <div class="user-data-summary" id="userDataSummary"></div>
+
+              <div class="mode-setting user-data-mode">
+                <div>
+                  <span class="field-label">XP save mode</span>
+                  <p>Use total XP for precise edits, or set the minimum XP for a target level.</p>
+                </div>
+                <div class="segmented-control">
+                  <label><input name="userDataXpMode" type="radio" value="xp" checked><span>Total XP</span></label>
+                  <label><input name="userDataXpMode" type="radio" value="level"><span>Exact level</span></label>
+                </div>
+              </div>
+
+              <div class="grid three data-grid">
+                <label>Level <input id="userDataLevel" type="number" min="1" step="1"></label>
+                <label>Total XP <input id="userDataTotalXp" type="number" min="0" step="0.1"></label>
+                <label>Messages <input id="userDataMessages" type="number" min="0" step="1"></label>
+                <label>Reactions <input id="userDataReactions" type="number" min="0" step="1"></label>
+                <label>Stored punish tier <input id="userDataPunishTier" type="number" min="0" max="5" step="1"></label>
+                <label>Active punishment tier <input id="userDataActivePunishTier" type="number" min="0" max="5" step="1"></label>
+              </div>
+
+              <div class="grid compact-grid">
+                <label>Active punishment ends <input id="userDataPunishEndsAt" type="datetime-local"></label>
+                <label class="checkline"><input id="userDataExpLocked" type="checkbox"> Lock XP earning / XP blacklist</label>
+              </div>
+              <label>XP lock reason <textarea id="userDataExpLockReason" rows="3" maxlength="500" placeholder="Reason shown on the user's rank card"></textarea></label>
+
+              <div class="data-actions">
+                <button class="button subtle" id="userDataReloadButton" type="button">Reload</button>
+                <button class="button success" id="userDataSaveButton" type="button">Save user data</button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -299,6 +360,7 @@
 
   <script src="/admin/tickets.js" defer></script>
   <script src="/admin/app.js" defer></script>
+  <script src="/admin/user-data.js" defer></script>
   <script src="/admin/admin-fixes.js" defer></script>
   <script src="/admin/ticket-ui-upgrade.js" defer></script>
 </body>
