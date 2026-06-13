@@ -111,6 +111,49 @@
 .ticket-kind-grid strong { font-size: 18px; }
 .ticket-kind-grid span { color: #aeb4c0; line-height: 1.45; }
 
+.ticket-message-builder,
+.ticket-main-content,
+.ticket-type-section { min-width: 0; }
+.ticket-control-card,
+.form-question-card,
+.preview-panel,
+.message-editor {
+  border-color: rgba(116, 128, 255, 0.18);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.20);
+}
+.ticket-control-card:hover,
+.form-question-card:hover { border-color: rgba(116, 128, 255, 0.32); }
+.ticket-card-toolbar {
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sequence-item,
+.condition-action,
+.request-condition-inline {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+}
+.sequence-number,
+.question-order {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+.preview-container.ticket-preview {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+.template-tokens button,
+.ticket-segmented button,
+.button,
+.icon-button { transition: transform 140ms ease, border-color 140ms ease, background 140ms ease; }
+.template-tokens button:hover,
+.ticket-segmented button:hover,
+.button:hover,
+.icon-button:hover { transform: translateY(-1px); }
+.inline-note,
+.condition-help,
+.request-action-note { line-height: 1.45; }
+
 @media (max-width: 740px) {
   .tab { grid-template-columns: 30px minmax(0, 1fr); }
   .tab-icon {
@@ -121,4 +164,5 @@
   }
   .tab:not(:has(.tab-icon))::before { width: 30px; height: 30px; }
   .ticket-kind-grid { grid-template-columns: 1fr; }
+  .ticket-message-builder { grid-template-columns: 1fr; }
 }
