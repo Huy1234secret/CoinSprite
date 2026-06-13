@@ -95,8 +95,21 @@ const OPTION_FIX_SCRIPT = `
     queueMicrotask(repairWorkflowOptions);
   }
 
+  function preserveWorkflowScroll(target) {
+    if (!target.matches?.('[data-workflow-dm-template], [data-workflow-field], [data-condition-action-field], select[data-action-select]')) return;
+    const scrollTop = elements.configForm.scrollTop;
+    const restore = () => { elements.configForm.scrollTop = scrollTop; };
+    queueMicrotask(restore);
+    requestAnimationFrame(() => {
+      restore();
+      requestAnimationFrame(restore);
+    });
+  }
+
+  document.addEventListener('input', (event) => preserveWorkflowScroll(event.target), true);
   document.addEventListener('change', (event) => {
     const target = event.target;
+    preserveWorkflowScroll(target);
     if (target.dataset.workflowDmTemplate === undefined) return;
     const type = activeRequestType();
     const control = type?.adminPanel?.controls?.[Number(target.dataset.workflowDmTemplate)];
