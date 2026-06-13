@@ -15,8 +15,8 @@ const ICON_ALIASES = new Map([
 function browserScript() {
   return String.raw`
 ;(() => {
-  if (window.__coinSpriteWorkflowObserverGuard) return;
-  window.__coinSpriteWorkflowObserverGuard = true;
+  if (window.__coinSpriteWorkflowStability) return;
+  window.__coinSpriteWorkflowStability = true;
 
   const NativeMutationObserver = window.MutationObserver;
   if (typeof NativeMutationObserver !== 'function') return;
@@ -26,9 +26,7 @@ function browserScript() {
       const callbackSource = Function.prototype.toString.call(callback);
       const isWorkflowRenderer = callbackSource.includes('renderWorkflowPanels');
 
-      if (!isWorkflowRenderer) {
-        return new NativeMutationObserver(callback);
-      }
+      if (!isWorkflowRenderer) return new NativeMutationObserver(callback);
 
       let rendering = false;
       let releaseScheduled = false;
@@ -38,27 +36,146 @@ function browserScript() {
         rendering = false;
         releaseScheduled = false;
         observer.takeRecords();
+        if (typeof window.refreshDirtyState === 'function') window.refreshDirtyState();
       };
 
       observer = new NativeMutationObserver((records, nativeObserver) => {
         if (rendering) return;
-
         rendering = true;
         callback(records, nativeObserver);
 
         if (!releaseScheduled) {
           releaseScheduled = true;
-          if (typeof window.requestAnimationFrame === 'function') {
-            window.requestAnimationFrame(release);
-          } else {
-            window.setTimeout(release, 16);
-          }
+          if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(release);
+          else window.setTimeout(release, 16);
         }
       });
 
       return observer;
     }
   };
+
+  const roleLayoutCss = document.createElement('style');
+  roleLayoutCss.textContent =
+    '.sequence-item .request-role-add-field.inline-role-add-field{' +
+      'display:block;flex:1;min-width:240px;max-width:520px;margin:0 12px 0 auto' +
+    '}' +
+    '.sequence-item .request-role-add-field.inline-role-add-field>.field-label,' +
+    '.sequence-item .request-role-add-field.inline-role-add-field>.request-action-note{' +
+      'display:none' +
+    '}' +
+    '.sequence-item .request-role-add-field.inline-role-add-field .picker-button{' +
+      'min-height:38px' +
+    '}' +
+    '@media(max-width:760px){' +
+      '.sequence-item .request-role-add-field.inline-role-add-field{' +
+        'flex:0 0 100%;min-width:0;max-width:none;margin:8px 0 0' +
+      '}' +
+    '}';
+  document.head.append(roleLayoutCss);
+
+  let layoutScheduled = false;
+  function placeRolePickerInActionRow() {
+    layoutScheduled = false;
+    document.querySelectorAll('#ticketEditorRoot .ticket-control-card').forEach((card) => {
+      const field = card.querySelector('.request-role-add-field');
+      if (!field) return;
+      const roleItem = [...card.querySelectorAll('.sequence-item')].find((item) => {
+        const label = item.querySelector(':scope > strong')?.textContent?.trim().toLowerCase();
+        return label === 'role add';
+      });
+      if (!roleItem) return;
+      field.classList.add('inline-role-add-field');
+      if (field.parentElement === roleItem) return;
+      const actionButtons = roleItem.querySelector(':scope > div:last-child');
+      roleItem.insertBefore(field, actionButtons || null);
+    });
+  }
+  function scheduleRoleLayout() {
+    if (layoutScheduled) return;
+    layoutScheduled = true;
+    window.requestAnimationFrame(placeRolePickerInActionRow);
+  }
+
+  const ticketRoot = document.querySelector('#ticketEditorRoot');
+  if (ticketRoot) new NativeMutationObserver(scheduleRoleLayout).observe(ticketRoot, { childList: true, subtree: true });
+  scheduleRoleLayout();
+
+  function captureEditorView() {
+    const view = {
+      tab: window.state?.activeTab || '',
+      levelingTab: window.state?.activeLevelingTab || '',
+      scrollTop: document.querySelector('#configForm')?.scrollTop || 0,
+      ticketId: '',
+      ticketSection: '',
+    };
+    if (view.tab !== 'tickets') return view;
+
+    const heading = document.querySelector('#ticketEditorRoot .ticket-editor-head h3')?.textContent?.trim() || '';
+    const types = window.ensureTicketEditor?.().getValue()?.tickets?.types || [];
+    view.ticketId = types.find((type) => heading.endsWith(type.name))?.id || '';
+    view.ticketSection = document.querySelector('#ticketEditorRoot .ticket-type-tabs .mini-tab.active')?.dataset.value || '';
+    return view;
+  }
+
+  function restoreEditorView(view) {
+    if (!view) return;
+    if (view.tab && window.state?.activeTab !== view.tab) {
+      const nativeTab = document.querySelector('.tab[data-tab="' + CSS.escape(view.tab) + '"]');
+      nativeTab?.click();
+    }
+    if (view.levelingTab && view.tab === 'leveling') {
+      document.querySelector('[data-leveling-tab="' + CSS.escape(view.levelingTab) + '"]')?.click();
+    }
+    if (view.ticketId && view.tab === 'tickets') {
+      const card = document.querySelector('.ticket-type-card[data-ticket-id="' + CSS.escape(view.ticketId) + '"]');
+      card?.click();
+      if (view.ticketSection) {
+        document.querySelector('#ticketEditorRoot .ticket-type-tabs [data-value="' + CSS.escape(view.ticketSection) + '"]')?.click();
+      }
+    }
+    window.requestAnimationFrame(() => {
+      const form = document.querySelector('#configForm');
+      if (form) form.scrollTop = view.scrollTop;
+      scheduleRoleLayout();
+    });
+  }
+
+  function waitForSaveAndRestore(view, attempts = 0) {
+    if (window.state?.saving && attempts < 200) {
+      window.setTimeout(() => waitForSaveAndRestore(view, attempts + 1), 25);
+      return;
+    }
+    restoreEditorView(view);
+  }
+
+  document.addEventListener('click', (event) => {
+    const reset = event.target.closest('#resetTabButton');
+    const save = event.target.closest('#saveButton');
+    if (!reset && !save) return;
+    const view = captureEditorView();
+    if (reset) queueMicrotask(() => restoreEditorView(view));
+    if (save) queueMicrotask(() => waitForSaveAndRestore(view));
+  }, true);
+
+  queueMicrotask(() => {
+    if (typeof window.setActiveTab !== 'function' || window.setActiveTab.__dirtyGuard) return;
+    const nativeSetActiveTab = window.setActiveTab;
+    function guardedSetActiveTab(tabName) {
+      const activeTab = window.state?.activeTab;
+      if (tabName !== activeTab && window.state?.dirtyTabs?.has(activeTab)) {
+        window.setStatus?.('Save or reset ' + (window.TAB_NAMES?.[activeTab] || activeTab) + ' before opening another section.', 'error');
+        const bar = document.querySelector('#unsavedBar');
+        bar?.classList.remove('attention');
+        void bar?.offsetWidth;
+        bar?.classList.add('attention');
+        return;
+      }
+      return nativeSetActiveTab(tabName);
+    }
+    guardedSetActiveTab.__dirtyGuard = true;
+    window.setActiveTab = guardedSetActiveTab;
+  });
 })();
 `;
 }
@@ -109,6 +226,6 @@ http.createServer = function patchedCreateServer(listener) {
 };
 
 module.exports = {
-  data: { name: 'admin-workflow-stability', description: 'Prevents recursive workflow renders and serves tab icon aliases.' },
+  data: { name: 'admin-workflow-stability', description: 'Stabilizes request workflow editing and admin navigation.' },
   async execute() {},
 };
