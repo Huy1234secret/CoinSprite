@@ -1,9 +1,13 @@
 'use strict';
 
-const { ButtonInteraction, TextChannel } = require('discord.js');
+const {
+  ButtonInteraction,
+  Message,
+  StringSelectMenuInteraction,
+  TextChannel,
+} = require('discord.js');
 
 const originalSend = TextChannel.prototype.send;
-const originalButtonUpdate = ButtonInteraction.prototype.update;
 
 function validationDetails(error) {
   try {
@@ -37,29 +41,56 @@ function emojiFreePayload(options) {
   };
 }
 
-TextChannel.prototype.send = async function sendWithInvalidEmojiFallback(options) {
+function patchComponentPayloadMethod(prototype, methodName, logLabel) {
+  if (!prototype?.[methodName]) return;
+  const original = prototype[methodName];
+  if (original.__componentEmojiFallbackPatched) return;
+
+  async function patchedComponentPayloadMethod(options, ...rest) {
+    try {
+      return await original.call(this, options, ...rest);
+    } catch (error) {
+      if (!hasInvalidEmojiError(error) || !options || typeof options !== 'object') {
+        if (Number(error?.code) === 50035) {
+          console.error('Discord component validation details:', validationDetails(error));
+        }
+        throw error;
+      }
+      console.warn(`${logLabel(this)} without invalid component emojis.`);
+      return original.call(this, emojiFreePayload(options), ...rest);
+    }
+  }
+
+  patchedComponentPayloadMethod.__componentEmojiFallbackPatched = true;
+  prototype[methodName] = patchedComponentPayloadMethod;
+}
+
+TextChannel.prototype.send = async function sendWithInvalidEmojiFallback(options, ...rest) {
   try {
-    return await originalSend.call(this, options);
+    return await originalSend.call(this, options, ...rest);
   } catch (error) {
     if (!hasInvalidEmojiError(error) || !options || typeof options !== 'object') throw error;
     console.warn(`Retrying message in channel ${this.id} without invalid component emojis.`);
-    return originalSend.call(this, emojiFreePayload(options));
+    return originalSend.call(this, emojiFreePayload(options), ...rest);
   }
 };
 
-ButtonInteraction.prototype.update = async function updateWithInvalidEmojiFallback(options) {
-  try {
-    return await originalButtonUpdate.call(this, options);
-  } catch (error) {
-    if (!hasInvalidEmojiError(error) || !options || typeof options !== 'object') {
-      if (Number(error?.code) === 50035) {
-        console.error('Discord interaction update validation details:', validationDetails(error));
-      }
-      throw error;
-    }
-    console.warn(`Retrying button interaction ${this.customId || this.id} without invalid component emojis.`);
-    return originalButtonUpdate.call(this, emojiFreePayload(options));
-  }
-};
+patchComponentPayloadMethod(
+  ButtonInteraction?.prototype,
+  'update',
+  (interaction) => `Retrying button interaction ${interaction.customId || interaction.id}`,
+);
+
+patchComponentPayloadMethod(
+  StringSelectMenuInteraction?.prototype,
+  'update',
+  (interaction) => `Retrying select-menu interaction ${interaction.customId || interaction.id}`,
+);
+
+patchComponentPayloadMethod(
+  Message?.prototype,
+  'edit',
+  (message) => `Retrying message edit ${message.id || ''}`.trim(),
+);
 
 module.exports = {};
