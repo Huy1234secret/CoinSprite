@@ -87,13 +87,13 @@ const levelingSaveScript = String.raw`
       if (save) { save.disabled = !state.dirty; save.textContent = 'Save changes'; }
     }
   }
-  document.querySelector('#saveButton')?.addEventListener('click', () => {
-    if (!state.dirty) return;
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#saveButton') || !state.dirty) return;
     const patchStarted = state.patchStarted;
     setTimeout(() => {
       if (state.dirty && state.patchStarted === patchStarted) saveUpgradeState();
     }, 0);
-  });
+  }, true);
 `;
 
 function patchTicketUi(source) {
