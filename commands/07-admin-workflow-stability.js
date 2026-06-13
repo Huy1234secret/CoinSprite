@@ -45,28 +45,67 @@ function browserScript() {
   };
 
   const style = document.createElement('style');
-  style.textContent = '.sequence-item .request-role-add-field.inline-role-add-field{display:block;flex:1;min-width:240px;max-width:520px;margin:0 12px 0 auto}.sequence-item .request-role-add-field.inline-role-add-field>.field-label,.sequence-item .request-role-add-field.inline-role-add-field>.request-action-note{display:none}.sequence-item .request-role-add-field.inline-role-add-field .picker-button{min-height:38px}@media(max-width:760px){.sequence-item .request-role-add-field.inline-role-add-field{flex:0 0 100%;min-width:0;max-width:none;margin:8px 0 0}}';
+  style.textContent =
+    '.sequence-item.has-inline-action-field{' +
+      'grid-template-columns:26px minmax(130px,max-content) minmax(220px,420px) auto;' +
+      'align-items:center' +
+    '}' +
+    '.sequence-item .inline-action-field{' +
+      'display:block;min-width:0;width:100%;max-width:420px;margin:0' +
+    '}' +
+    '.sequence-item .inline-action-field>.field-label,' +
+    '.sequence-item .inline-action-field>.request-action-note{' +
+      'display:none' +
+    '}' +
+    '.sequence-item .inline-action-field>select,' +
+    '.sequence-item .inline-action-field .picker-button{' +
+      'width:100%;min-height:38px' +
+    '}' +
+    '.sequence-item.has-inline-action-field>div:last-child{' +
+      'justify-self:end;flex-wrap:nowrap' +
+    '}' +
+    '@media(max-width:900px){' +
+      '.sequence-item.has-inline-action-field{' +
+        'grid-template-columns:26px minmax(100px,1fr) minmax(180px,320px) auto' +
+      '}' +
+    '}' +
+    '@media(max-width:650px){' +
+      '.sequence-item.has-inline-action-field{' +
+        'grid-template-columns:26px minmax(0,1fr) auto' +
+      '}' +
+      '.sequence-item .inline-action-field{' +
+        'grid-column:2 / 4;grid-row:2;max-width:none' +
+      '}' +
+    '}';
   document.head.append(style);
 
   let layoutQueued = false;
-  function placeRolePickers() {
+  function actionRow(card, label) {
+    return [...card.querySelectorAll('.sequence-item')].find((item) =>
+      item.querySelector(':scope > strong')?.textContent?.trim().toLowerCase() === label
+    );
+  }
+  function moveFieldIntoRow(field, row) {
+    if (!field || !row) return;
+    field.classList.add('inline-action-field');
+    row.classList.add('has-inline-action-field');
+    if (field.parentElement !== row) row.insertBefore(field, row.querySelector(':scope > div:last-child'));
+  }
+  function placeInlineActionFields() {
     layoutQueued = false;
     document.querySelectorAll('#ticketEditorRoot .ticket-control-card').forEach((card) => {
-      const field = card.querySelector('.request-role-add-field');
-      const row = [...card.querySelectorAll('.sequence-item')].find((item) => item.querySelector(':scope > strong')?.textContent?.trim().toLowerCase() === 'role add');
-      if (!field || !row) return;
-      field.classList.add('inline-role-add-field');
-      if (field.parentElement !== row) row.insertBefore(field, row.querySelector(':scope > div:last-child'));
+      moveFieldIntoRow(card.querySelector('.request-role-add-field'), actionRow(card, 'role add'));
+      moveFieldIntoRow(card.querySelector('.request-template-field, .request-dm-field'), actionRow(card, 'dm message'));
     });
   }
-  function queueRoleLayout() {
+  function queueActionLayout() {
     if (layoutQueued) return;
     layoutQueued = true;
-    window.requestAnimationFrame(placeRolePickers);
+    window.requestAnimationFrame(placeInlineActionFields);
   }
   const ticketRoot = document.querySelector('#ticketEditorRoot');
-  if (ticketRoot) new NativeObserver(queueRoleLayout).observe(ticketRoot, { childList: true, subtree: true });
-  queueRoleLayout();
+  if (ticketRoot) new NativeObserver(queueActionLayout).observe(ticketRoot, { childList: true, subtree: true });
+  queueActionLayout();
 
   function captureView() {
     const view = { tab: window.state?.activeTab || '', levelingTab: window.state?.activeLevelingTab || '', scrollTop: document.querySelector('#configForm')?.scrollTop || 0, ticketId: '', ticketSection: '' };
@@ -88,7 +127,7 @@ function browserScript() {
     window.requestAnimationFrame(() => {
       const form = document.querySelector('#configForm');
       if (form) form.scrollTop = view.scrollTop;
-      queueRoleLayout();
+      queueActionLayout();
     });
   }
   function restoreAfterSave(view, attempts = 0) {
