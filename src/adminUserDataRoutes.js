@@ -1,5 +1,6 @@
 const levelingStore = require('./levelingStore');
 const levelingManager = require('./levelingManager');
+const ticketSystemStore = require('./ticketSystemStore');
 const { logCommandSystem } = require('./commandLogger');
 
 const MAX_ADMIN_TEXT_LENGTH = 500;
@@ -63,7 +64,27 @@ function normalizeStoredUser(user) {
   return normalized;
 }
 
-function serializeUserData(guildId, userId, user, found, profile = {}) {
+function getTicketBlacklistState(guildId, userId) {
+  const state = ticketSystemStore.loadState();
+  const blacklist = state.blacklistedUsersByGuild?.[guildId];
+  return Array.isArray(blacklist) && blacklist.map(String).includes(String(userId));
+}
+
+function setTicketBlacklistState(guildId, userId, enabled) {
+  const state = ticketSystemStore.loadState();
+  state.blacklistedUsersByGuild ||= {};
+  const current = Array.isArray(state.blacklistedUsersByGuild[guildId])
+    ? state.blacklistedUsersByGuild[guildId]
+    : [];
+  const next = new Set(current.map(String).filter((id) => /^\d{16,20}$/.test(id)));
+  if (enabled) next.add(String(userId));
+  else next.delete(String(userId));
+  state.blacklistedUsersByGuild[guildId] = [...next];
+  ticketSystemStore.saveState(state);
+  return next.has(String(userId));
+}
+
+function serializeUserData(guildId, userId, user, found, profile = {}, extras = {}) {
   const normalized = normalizeStoredUser(user);
   const progress = levelingManager.getProgress(normalized.totalXp);
   return {
@@ -84,6 +105,7 @@ function serializeUserData(guildId, userId, user, found, profile = {}) {
       activePunishment: normalized.activePunishment,
       expLocked: normalized.expLocked,
       expLockReason: normalized.expLockReason,
+      ticketBlacklisted: extras.ticketBlacklisted === true,
       updatedAt: normalized.updatedAt,
     },
   };
@@ -114,7 +136,8 @@ async function getUserDataPayload(client, guildId, userId) {
   const guild = state.guilds?.[guildId];
   const user = guild?.users?.[userId];
   const profile = await fetchUserProfile(client, guildId, userId);
-  return serializeUserData(guildId, userId, user, Boolean(user), profile);
+  const ticketBlacklisted = getTicketBlacklistState(guildId, userId);
+  return serializeUserData(guildId, userId, user, Boolean(user), profile, { ticketBlacklisted });
 }
 
 function patchStoredUserData(guildId, userId, patch, adminUserId) {
@@ -174,8 +197,11 @@ async function handleUserDataPatch(req, res, env, client, guildId, userId, deps)
   if (!session) return;
   const patch = await deps.readJsonBody(req);
   const user = patchStoredUserData(guildId, userId, patch, session.user.id);
+  const ticketBlacklisted = Object.prototype.hasOwnProperty.call(patch || {}, 'ticketBlacklisted')
+    ? setTicketBlacklistState(guildId, userId, patch.ticketBlacklisted === true)
+    : getTicketBlacklistState(guildId, userId);
   const profile = await fetchUserProfile(client, guildId, userId);
-  deps.sendJson(res, 200, serializeUserData(guildId, userId, user, true, profile));
+  deps.sendJson(res, 200, serializeUserData(guildId, userId, user, true, profile, { ticketBlacklisted }));
   logCommandSystem(`Admin ${session.user.id} updated user data for ${userId} in guild ${guildId}.`);
 }
 
