@@ -90,10 +90,14 @@ function getResolvedAttachment(interaction, id) {
 function getUploadedFiles(interaction, customIds) {
   for (const customId of customIds) {
     if (typeof interaction?.fields?.getUploadedFiles === 'function') {
-      const fromFields = collectionToArray(interaction.fields.getUploadedFiles(customId))
-        .map(normalizeAttachment)
-        .filter(Boolean);
-      if (fromFields.length) return fromFields;
+      try {
+        const fromFields = collectionToArray(interaction.fields.getUploadedFiles(customId))
+          .map(normalizeAttachment)
+          .filter(Boolean);
+        if (fromFields.length) return fromFields;
+      } catch {
+        // Continue checking alternate custom ids and resolved attachment data.
+      }
     }
   }
 
