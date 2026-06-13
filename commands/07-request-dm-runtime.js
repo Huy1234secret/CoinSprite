@@ -129,11 +129,38 @@ function cleanEmojis(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'emoji').map(([key, item]) => [key, cleanEmojis(item)]));
   return value;
 }
-async function updateMessage(interaction, payload) {
-  try { await interaction.update(payload); }
+function invalidEmojiError(error) { return error?.code === 50035 || /Invalid Form Body|emoji/i.test(String(error?.message || '')); }
+function expiredInteractionError(error) { return error?.code === 10062 || error?.code === 40060 || /Unknown interaction|already (been )?acknowledged/i.test(String(error?.message || '')); }
+async function acknowledgeForWork(interaction) {
+  if (interaction.deferred || interaction.replied) return true;
+  const defer = typeof interaction.deferUpdate === 'function'
+    ? () => interaction.deferUpdate()
+    : (typeof interaction.deferReply === 'function' ? () => interaction.deferReply({ flags: EPHEMERAL }) : null);
+  if (!defer) return false;
+  try { await defer(); return true; }
   catch (error) {
-    if (error?.code === 50035 || /Invalid Form Body|emoji/i.test(String(error?.message || ''))) await interaction.update(cleanEmojis(payload));
-    else throw error;
+    if (expiredInteractionError(error)) return false;
+    throw error;
+  }
+}
+async function editRequestMessage(interaction, payload) {
+  if (interaction.message?.edit) return interaction.message.edit(payload);
+  if (interaction.deferred || interaction.replied) return interaction.editReply(payload);
+  return interaction.update(payload);
+}
+async function updateMessage(interaction, payload) {
+  try { await editRequestMessage(interaction, payload); }
+  catch (error) {
+    if (invalidEmojiError(error)) { await editRequestMessage(interaction, cleanEmojis(payload)); return; }
+    if (expiredInteractionError(error) && interaction.message?.edit) {
+      try { await interaction.message.edit(payload); }
+      catch (editError) {
+        if (invalidEmojiError(editError)) { await interaction.message.edit(cleanEmojis(payload)); return; }
+        throw editError;
+      }
+      return;
+    }
+    throw error;
   }
 }
 function statusMessage(type, statusLabel, reason, hasWarnings) {
@@ -221,6 +248,7 @@ async function handleRequestAction(interaction) {
   if (request.status !== 'pending') { await interaction.reply({ content: 'This request has already been handled.', flags: EPHEMERAL }); return true; }
   const needsReason = !reason && String(control.id).startsWith('reason-') && actions(control).some((action) => ['accept', 'deny', 'blacklist'].includes(action));
   if (needsReason) { await interaction.showModal(reasonModal(request.id, control)); return true; }
+  await acknowledgeForWork(interaction);
   return run(interaction, request, type, control, getControlWorkflow(interaction.guildId, type.id, control.id), reason);
 }
 
