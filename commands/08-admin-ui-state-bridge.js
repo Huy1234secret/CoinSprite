@@ -31,7 +31,4 @@ fs.readFile = function patchedReadFile(filePath, ...args) {
   return previousReadFile(filePath, ...args);
 };
 
-module.exports = {
-  data: { name: 'admin-ui-state-bridge', description: 'Shares admin UI state with compatibility patches.' },
-  async execute() {},
-};
+module.exports = {};
