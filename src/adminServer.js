@@ -5,9 +5,7 @@ const path = require('path');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
-const { sanitizeLevelUpMessage } = require('./levelUpMessage');
-const { sanitizeTicketsConfig } = require('./ticketConfig');
-const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
+const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -108,14 +106,13 @@ function getSession(req, res, env) {
   if (sessionId && verifySessionId(sessionId, env.sessionSecret) && sessions.has(sessionId)) {
     const session = sessions.get(sessionId);
     const expiresAt = Number(session?.expiresAt);
-    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-      sessions.delete(sessionId);
-      saveSessions();
-      clearSessionCookie(res, env);
-    } else {
+    if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
       session.touchedAt = Date.now();
       return { sessionId, session };
     }
+    sessions.delete(sessionId);
+    saveSessions();
+    clearSessionCookie(res, env);
   }
 
   const newSessionId = createSessionId(env.sessionSecret);
@@ -147,6 +144,9 @@ function contentTypeFor(filePath) {
   if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
   if (filePath.endsWith('.js')) return 'application/javascript; charset=utf-8';
   if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (filePath.endsWith('.png')) return 'image/png';
+  if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) return 'image/jpeg';
+  if (filePath.endsWith('.svg')) return 'image/svg+xml';
   return 'application/octet-stream';
 }
 
@@ -159,12 +159,8 @@ function serveAdminAsset(res, assetPath) {
     send(res, 404, 'Not found');
     return;
   }
-
   fs.readFile(resolvedFile, (error, data) => {
-    if (error) {
-      send(res, 404, 'Not found');
-      return;
-    }
+    if (error) return send(res, 404, 'Not found');
     send(res, 200, data, {
       'Content-Type': contentTypeFor(resolvedFile),
       'Cache-Control': resolvedFile.endsWith('.html') ? 'no-store' : 'public, max-age=300',
@@ -184,41 +180,25 @@ async function readJsonBody(req) {
     }
     chunks.push(chunk);
   }
-
   if (chunks.length === 0) return {};
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
 async function exchangeCodeForToken(code, env) {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: env.redirectUri,
-  });
-
+  const body = new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: env.redirectUri });
   const auth = Buffer.from(`${env.clientId}:${env.clientSecret}`).toString('base64');
   const response = await fetch(`${DISCORD_API_BASE}/oauth2/token`, {
     method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
-
-  if (!response.ok) {
-    throw new Error(`Discord token exchange failed with ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Discord token exchange failed with ${response.status}`);
   return response.json();
 }
 
 async function fetchDiscordUser(accessToken) {
-  const response = await fetch(`${DISCORD_API_BASE}/users/@me`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) {
-    throw new Error(`Discord user fetch failed with ${response.status}`);
-  }
+  const response = await fetch(`${DISCORD_API_BASE}/users/@me`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!response.ok) throw new Error(`Discord user fetch failed with ${response.status}`);
   return response.json();
 }
 
@@ -236,31 +216,17 @@ async function fetchAccessibleGuilds(client, userId) {
 
 function channelKind(channel) {
   switch (channel?.type) {
-    case ChannelType.GuildCategory:
-      return 'category';
+    case ChannelType.GuildCategory: return 'category';
     case ChannelType.GuildVoice:
-    case ChannelType.GuildStageVoice:
-      return 'voice';
-    case ChannelType.GuildAnnouncement:
-      return 'announcement';
+    case ChannelType.GuildStageVoice: return 'voice';
+    case ChannelType.GuildAnnouncement: return 'announcement';
     case ChannelType.GuildForum:
-    case ChannelType.GuildMedia:
-      return 'forum';
+    case ChannelType.GuildMedia: return 'forum';
     case ChannelType.PublicThread:
     case ChannelType.PrivateThread:
-    case ChannelType.AnnouncementThread:
-      return 'thread';
-    default:
-      return 'text';
+    case ChannelType.AnnouncementThread: return 'thread';
+    default: return 'text';
   }
-}
-
-function channelSort(a, b) {
-  const parentA = a.parentId || '';
-  const parentB = b.parentId || '';
-  if (parentA !== parentB) return parentA.localeCompare(parentB);
-  if (a.rawPosition !== b.rawPosition) return a.rawPosition - b.rawPosition;
-  return a.name.localeCompare(b.name);
 }
 
 function serializeChannel(channel, parentNames = new Map()) {
@@ -276,61 +242,37 @@ function serializeChannel(channel, parentNames = new Map()) {
   };
 }
 
-async function fetchArchivedForumThreads(forumChannel) {
-  const threads = new Map();
-  let before;
-  for (let page = 0; page < 10; page += 1) {
-    const result = await forumChannel.threads.fetchArchived({
-      type: 'public',
-      limit: 100,
-      ...(before ? { before } : {}),
-    }).catch(() => null);
-    if (!result?.threads) break;
-    for (const thread of result.threads.values()) threads.set(thread.id, thread);
-    if (!result.hasMore || result.threads.size === 0) break;
-    const oldestTimestamp = Math.min(...Array.from(result.threads.values()).map((thread) => Number(thread.archiveTimestamp) || Date.now()));
-    before = new Date(oldestTimestamp - 1);
-  }
-  return threads;
+function channelSort(a, b) {
+  const parentA = a.parentId || '';
+  const parentB = b.parentId || '';
+  if (parentA !== parentB) return parentA.localeCompare(parentB);
+  if (a.rawPosition !== b.rawPosition) return a.rawPosition - b.rawPosition;
+  return a.name.localeCompare(b.name);
 }
 
 async function fetchGuildDirectory(guild) {
   const cached = directoryCache.get(guild.id);
   if (cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
-
   const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
   const baseChannels = Array.from(channels.values()).filter((channel) => channel && 'name' in channel);
   const parentNames = new Map(baseChannels.map((channel) => [channel.id, channel.name]));
-  const threadMap = new Map();
   const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
-  for (const thread of activeThreads?.threads?.values?.() || []) threadMap.set(thread.id, thread);
-  const forumChannels = baseChannels.filter((channel) => channelKind(channel) === 'forum' && channel.threads);
-  const archivedThreadCollections = await Promise.all(forumChannels.map((forumChannel) => fetchArchivedForumThreads(forumChannel)));
-  for (const archivedThreads of archivedThreadCollections) {
-    for (const thread of archivedThreads.values()) threadMap.set(thread.id, thread);
-  }
-
-  const channelItems = [...baseChannels, ...threadMap.values()]
-    .map((channel) => serializeChannel(channel, parentNames))
-    .sort(channelSort);
-  const categoryItems = channelItems.filter((channel) => channel.kind === 'category');
-  const usableChannels = channelItems.filter((channel) => channel.kind !== 'category');
-  const roleItems = Array.from(roles.values())
-    .filter((role) => role && role.id !== guild.id)
-    .map((role) => ({
-      id: role.id,
-      name: role.name,
-      color: role.hexColor && role.hexColor !== '#000000' ? role.hexColor : '#99aab5',
-      position: Number.isFinite(role.position) ? role.position : 0,
-      managed: Boolean(role.managed),
-    }))
-    .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name));
-
+  const threadItems = Array.from(activeThreads?.threads?.values?.() || []);
+  const channelItems = [...baseChannels, ...threadItems].map((channel) => serializeChannel(channel, parentNames)).sort(channelSort);
   const directory = {
-    channels: usableChannels,
-    categories: categoryItems,
-    roles: roleItems,
+    channels: channelItems.filter((channel) => channel.kind !== 'category'),
+    categories: channelItems.filter((channel) => channel.kind === 'category'),
+    roles: Array.from(roles.values())
+      .filter((role) => role && role.id !== guild.id)
+      .map((role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.hexColor && role.hexColor !== '#000000' ? role.hexColor : '#99aab5',
+        position: Number.isFinite(role.position) ? role.position : 0,
+        managed: Boolean(role.managed),
+      }))
+      .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name)),
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
   return directory;
@@ -342,13 +284,11 @@ async function requireAdmin(req, res, env, client, guildId = null) {
     sendJson(res, 401, { error: 'Not logged in.' });
     return null;
   }
-
   if (!guildId) return session;
   if (!getGuildConfig(guildId)) {
     sendJson(res, 404, { error: 'Guild is not configured.' });
     return null;
   }
-
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   const member = guild ? await guild.members.fetch(session.user.id).catch(() => null) : null;
   if (!member?.permissions?.has(PermissionFlagsBits.Administrator)) {
@@ -358,136 +298,12 @@ async function requireAdmin(req, res, env, client, guildId = null) {
   return session;
 }
 
-function asSnowflake(value, fallback = '') {
-  const clean = String(value ?? '').trim();
-  return /^\d{16,20}$/.test(clean) ? clean : fallback;
-}
-
-function asNumber(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.max(min, Math.min(max, numeric));
-}
-
-function asInteger(value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) {
-  return Math.floor(asNumber(value, fallback, min, max));
-}
-
-function sanitizeWordChainAction(value, fallback = 'punish') {
-  return value === 'warn' || value === 'punish' ? value : fallback;
-}
-
-function sanitizeBoosts(value, fallback = []) {
-  if (!Array.isArray(value)) return fallback;
-  return value
-    .map((item) => ({
-      roleId: asSnowflake(item?.roleId),
-      xpPercent: asNumber(item?.xpPercent, 0, 0, 10000),
-    }))
-    .filter((item) => item.roleId && item.xpPercent > 0);
-}
-
-function sanitizeLevelRewards(value, fallback = []) {
-  if (!Array.isArray(value)) return fallback;
-  return value
-    .map((item) => ({
-      level: asInteger(item?.level, 0, 1, 100000),
-      roleId: asSnowflake(item?.roleId),
-    }))
-    .filter((item) => item.level > 0 && item.roleId)
-    .sort((a, b) => a.level - b.level);
-}
-
-function sanitizeXpChannelRules(value, fallback = [], xpConfig = {}) {
-  if (!Array.isArray(value)) return fallback;
-  return value
-    .map((item) => {
-      const channelId = asSnowflake(typeof item === 'string' ? item : item?.channelId);
-      if (!channelId) return null;
-      const minXp = asNumber(item?.minXp, xpConfig.messageXpMin ?? 0, 0, 100000);
-      return {
-        channelId,
-        minXp,
-        maxXp: asNumber(item?.maxXp, xpConfig.messageXpMax ?? minXp, minXp, 100000),
-        cooldownMs: asInteger(item?.cooldownMs, xpConfig.messageCooldownMs ?? 0, 0, 2_147_000_000),
-      };
-    })
-    .filter(Boolean);
-}
-
-function sanitizeGuildPatch(current, patch) {
-  const clean = {};
-
-  if (patch.channels && typeof patch.channels === 'object') {
-    clean.channels = {};
-    for (const key of Object.keys(current.channels || {})) {
-      if (key in patch.channels) clean.channels[key] = asSnowflake(patch.channels[key], current.channels[key]);
-    }
-  }
-
-  if (patch.roles && typeof patch.roles === 'object') {
-    clean.roles = {};
-    for (const key of Object.keys(current.roles || {})) {
-      if (key in patch.roles) clean.roles[key] = asSnowflake(patch.roles[key], current.roles[key]);
-    }
-  }
-
-  if (patch.xp && typeof patch.xp === 'object') {
-    clean.xp = {};
-    const currentMin = asNumber(current.xp.messageXpMin, 0, 0, 100000);
-    const requestedMin = 'messageXpMin' in patch.xp ? asNumber(patch.xp.messageXpMin, currentMin, 0, 100000) : currentMin;
-    const requestedMax = 'messageXpMax' in patch.xp ? asNumber(patch.xp.messageXpMax, current.xp.messageXpMax, 0, 100000) : asNumber(current.xp.messageXpMax, requestedMin, 0, 100000);
-    if ('messageXpMin' in patch.xp) clean.xp.messageXpMin = requestedMin;
-    if ('messageXpMax' in patch.xp) clean.xp.messageXpMax = Math.max(requestedMin, requestedMax);
-    if ('messageCooldownMs' in patch.xp) clean.xp.messageCooldownMs = asInteger(patch.xp.messageCooldownMs, current.xp.messageCooldownMs, 0, 2_147_000_000);
-    if ('channels' in patch.xp) clean.xp.channels = sanitizeXpChannelRules(patch.xp.channels, current.xp.channels, { ...current.xp, ...clean.xp });
-    if ('boosts' in patch.xp) clean.xp.boosts = sanitizeBoosts(patch.xp.boosts, current.xp.boosts);
-    if ('levelRoleRewards' in patch.xp) clean.xp.levelRoleRewards = sanitizeLevelRewards(patch.xp.levelRoleRewards, current.xp.levelRoleRewards);
-    if ('levelUpMessage' in patch.xp) clean.xp.levelUpMessage = sanitizeLevelUpMessage(patch.xp.levelUpMessage, current.xp.levelUpMessage);
-  }
-
-  if (patch.inviteRewards && typeof patch.inviteRewards === 'object') {
-    clean.inviteRewards = {};
-    if ('enabled' in patch.inviteRewards) clean.inviteRewards.enabled = Boolean(patch.inviteRewards.enabled);
-    if ('capMembers' in patch.inviteRewards) clean.inviteRewards.capMembers = asInteger(patch.inviteRewards.capMembers, current.inviteRewards.capMembers, 0, 1000000);
-  }
-
-  if (patch.wordChain && typeof patch.wordChain === 'object') {
-    clean.wordChain = {};
-    for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
-      if (key in patch.wordChain) clean.wordChain[key] = asInteger(patch.wordChain[key], current.wordChain[key], 1, 1000);
-    }
-    for (const key of ['turnTimeoutMs', 'punishmentMs', 'gameCooldownMs']) {
-      if (key in patch.wordChain) clean.wordChain[key] = asInteger(patch.wordChain[key], current.wordChain[key], 1000, 2_147_000_000);
-    }
-    for (const key of ['repeatedWordAction', 'wrongStartAction']) {
-      if (key in patch.wordChain) clean.wordChain[key] = sanitizeWordChainAction(patch.wordChain[key], current.wordChain[key]);
-    }
-    if ('xpRewardFormula' in patch.wordChain) {
-      clean.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(patch.wordChain.xpRewardFormula);
-    }
-  }
-
-  if (patch.giveaway && typeof patch.giveaway === 'object') {
-    clean.giveaway = {};
-    for (const key of ['minClaimMs', 'maxClaimMs', 'minDurationMs', 'maxDurationMs']) {
-      if (key in patch.giveaway) clean.giveaway[key] = asInteger(patch.giveaway[key], current.giveaway[key], 1000, 2_592_000_000);
-    }
-  }
-
-  if (patch.tickets && typeof patch.tickets === 'object') {
-    clean.tickets = sanitizeTicketsConfig(patch.tickets, current.tickets);
-  }
-
-  return clean;
-}
-
 function mergePlain(base, patch) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return base;
-  const result = { ...base };
+  const result = { ...(base || {}) };
   for (const [key, value] of Object.entries(patch)) {
-    if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) {
-      result[key] = mergePlain(base[key], value);
+    if (value && typeof value === 'object' && !Array.isArray(value) && result[key] && typeof result[key] === 'object' && !Array.isArray(result[key])) {
+      result[key] = mergePlain(result[key], value);
     } else {
       result[key] = value;
     }
@@ -499,8 +315,7 @@ function updateGuildConfig(guildId, patch) {
   const state = loadState();
   const current = state.guilds[guildId];
   if (!current) return null;
-  const cleanPatch = sanitizeGuildPatch(current, patch);
-  state.guilds[guildId] = mergePlain(current, cleanPatch);
+  state.guilds[guildId] = mergePlain(current, patch);
   saveState(state);
   return getGuildConfig(guildId);
 }
@@ -510,7 +325,6 @@ async function handleAuthStart(req, res, env) {
   const state = crypto.randomBytes(24).toString('base64url');
   session.oauthState = state;
   saveSessions();
-
   const url = new URL('https://discord.com/oauth2/authorize');
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', env.clientId);
@@ -524,20 +338,11 @@ async function handleAuthCallback(req, res, env, url) {
   const { sessionId, session } = getSession(req, res, env);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  if (!code || !state || state !== session.oauthState) {
-    send(res, 400, 'Invalid OAuth state.');
-    return;
-  }
-
+  if (!code || !state || state !== session.oauthState) return send(res, 400, 'Invalid OAuth state.');
   try {
     const token = await exchangeCodeForToken(code, env);
     const user = await fetchDiscordUser(token.access_token);
-    session.user = {
-      id: user.id,
-      username: user.username,
-      globalName: user.global_name || user.username,
-      avatar: user.avatar,
-    };
+    session.user = { id: user.id, username: user.username, globalName: user.global_name || user.username, avatar: user.avatar };
     session.oauthState = null;
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     saveSessions();
@@ -551,38 +356,21 @@ async function handleAuthCallback(req, res, env, url) {
 
 async function routeRequest(req, res, env, client) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
-    serveAdminAsset(res, 'index.html');
-    return;
-  }
-  if (req.method === 'GET' && url.pathname.startsWith('/admin/')) {
-    serveAdminAsset(res, url.pathname.slice('/admin/'.length));
-    return;
-  }
-  if (req.method === 'GET' && url.pathname === '/auth/discord') {
-    await handleAuthStart(req, res, env);
-    return;
-  }
-  if (req.method === 'GET' && url.pathname === '/auth/discord/callback') {
-    await handleAuthCallback(req, res, env, url);
-    return;
-  }
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) return serveAdminAsset(res, 'index.html');
+  if (req.method === 'GET' && url.pathname.startsWith('/admin/')) return serveAdminAsset(res, url.pathname.slice('/admin/'.length));
+  if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env);
+  if (req.method === 'GET' && url.pathname === '/auth/discord/callback') return handleAuthCallback(req, res, env, url);
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     const { sessionId } = getSession(req, res, env);
     sessions.delete(sessionId);
     saveSessions();
     clearSessionCookie(res, env);
-    sendJson(res, 200, { ok: true });
-    return;
+    return sendJson(res, 200, { ok: true });
   }
-
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const session = await requireAdmin(req, res, env, client);
     if (!session) return;
-    const guilds = await fetchAccessibleGuilds(client, session.user.id);
-    sendJson(res, 200, { user: session.user, guilds });
-    return;
+    return sendJson(res, 200, { user: session.user, guilds: await fetchAccessibleGuilds(client, session.user.id) });
   }
 
   const directoryMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/directory$/);
@@ -591,12 +379,16 @@ async function routeRequest(req, res, env, client) {
     const session = await requireAdmin(req, res, env, client, guildId);
     if (!session) return;
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-    if (!guild) {
-      sendJson(res, 404, { error: 'Guild is not available to the bot.' });
-      return;
-    }
-    sendJson(res, 200, { guildId, directory: await fetchGuildDirectory(guild) });
-    return;
+    if (!guild) return sendJson(res, 404, { error: 'Guild is not available to the bot.' });
+    return sendJson(res, 200, { guildId, directory: await fetchGuildDirectory(guild) });
+  }
+
+  const userDataMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/users\/(\d{16,20})\/data$/);
+  if (userDataMatch && req.method === 'GET') {
+    return handleUserDataGet(req, res, env, client, userDataMatch[1], userDataMatch[2], { requireAdmin, readJsonBody, sendJson });
+  }
+  if (userDataMatch && req.method === 'PATCH') {
+    return handleUserDataPatch(req, res, env, client, userDataMatch[1], userDataMatch[2], { requireAdmin, readJsonBody, sendJson });
   }
 
   const configMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/config$/);
@@ -604,40 +396,32 @@ async function routeRequest(req, res, env, client) {
     const guildId = configMatch[1];
     const session = await requireAdmin(req, res, env, client, guildId);
     if (!session) return;
-    sendJson(res, 200, { guildId, config: getGuildConfig(guildId) });
-    return;
+    return sendJson(res, 200, { guildId, config: getGuildConfig(guildId) });
   }
-
   if (configMatch && req.method === 'PATCH') {
     const guildId = configMatch[1];
     const session = await requireAdmin(req, res, env, client, guildId);
     if (!session) return;
-    const patch = await readJsonBody(req);
-    const config = updateGuildConfig(guildId, patch);
+    const config = updateGuildConfig(guildId, await readJsonBody(req));
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
     const ticketCommand = client.commands?.get('ticket-panel');
     if (guild && typeof ticketCommand?.refreshGuild === 'function') {
-      await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => {
-        logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
-      });
+      await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
     }
-    sendJson(res, 200, { guildId, config });
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
-    return;
+    return sendJson(res, 200, { guildId, config });
   }
 
-  sendJson(res, 404, { error: 'Not found.' });
+  return sendJson(res, 404, { error: 'Not found.' });
 }
 
 function startAdminServer(client) {
   if (serverRef) return serverRef;
-
   const env = getEnv();
   if (!env.clientId || !env.clientSecret || !env.redirectUri) {
     logCommandSystem('Admin web panel disabled: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, or DISCORD_REDIRECT_URI is missing.');
     return null;
   }
-
   loadSessions();
   saveSessions();
   serverRef = http.createServer((req, res) => {
@@ -647,14 +431,8 @@ function startAdminServer(client) {
       sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
     });
   });
-
-  serverRef.listen(env.port, env.host, () => {
-    logCommandSystem(`Admin web panel listening on http://${env.host}:${env.port}.`);
-  });
-
+  serverRef.listen(env.port, env.host, () => logCommandSystem(`Admin web panel listening on http://${env.host}:${env.port}.`));
   return serverRef;
 }
 
-module.exports = {
-  startAdminServer,
-};
+module.exports = { startAdminServer };
