@@ -2,6 +2,33 @@
   const root = document.querySelector('#userDataRoot');
   if (!root) return;
 
+  function ensureDataTabIcon() {
+    const button = document.querySelector('.tab[data-tab="data"]');
+    if (!button) return;
+    let image = button.querySelector('.tab-icon');
+    if (!image) {
+      image = document.createElement('img');
+      image.className = 'tab-icon';
+      image.alt = '';
+      image.setAttribute('aria-hidden', 'true');
+      button.prepend(image);
+    }
+    if (image.getAttribute('src') !== '/admin/images/data.png') image.src = '/admin/images/data.png';
+  }
+
+  function ensureTicketBlacklistField() {
+    if (document.querySelector('#userDataTicketBlacklisted')) return;
+    const xpLockLabel = document.querySelector('#userDataExpLocked')?.closest('label');
+    if (!xpLockLabel) return;
+    const label = document.createElement('label');
+    label.className = 'checkline';
+    label.innerHTML = '<input id="userDataTicketBlacklisted" type="checkbox"> Ticket system blacklist';
+    xpLockLabel.after(label);
+  }
+
+  ensureDataTabIcon();
+  ensureTicketBlacklistField();
+
   const els = {
     guildSelect: document.querySelector('#guildSelect'),
     searchId: document.querySelector('#userDataSearchId'),
@@ -23,6 +50,7 @@
     punishEndsAt: document.querySelector('#userDataPunishEndsAt'),
     expLocked: document.querySelector('#userDataExpLocked'),
     expLockReason: document.querySelector('#userDataExpLockReason'),
+    ticketBlacklisted: document.querySelector('#userDataTicketBlacklisted'),
   };
 
   let loadedUserId = '';
@@ -117,6 +145,7 @@
       chip('Guild member', inGuild ? 'Yes' : 'No', inGuild ? 'ok' : 'warn'),
       chip('Stored data', payload.found ? 'Found' : 'New', payload.found ? 'ok' : 'warn'),
       chip('XP locked', data.expLocked ? 'Yes' : 'No', data.expLocked ? 'danger' : 'ok'),
+      chip('Ticket blacklist', data.ticketBlacklisted ? 'Yes' : 'No', data.ticketBlacklisted ? 'danger' : 'ok'),
       chip('Active punishment', active?.tier ? `Tier ${active.tier}` : 'None', active?.tier ? 'danger' : 'ok'),
       chip('Punishment ends', active?.endsAt ? formatDate(active.endsAt) : 'Not set'),
     );
@@ -142,6 +171,7 @@
     els.punishEndsAt.value = toDatetimeLocal(data.activePunishment?.endsAt);
     els.expLocked.checked = data.expLocked === true;
     els.expLockReason.value = data.expLockReason || '';
+    if (els.ticketBlacklisted) els.ticketBlacklisted.checked = data.ticketBlacklisted === true;
     setXpMode('xp');
     renderSummary(payload);
   }
@@ -184,6 +214,7 @@
       },
       expLocked: els.expLocked.checked,
       expLockReason: String(els.expLockReason.value || '').trim(),
+      ticketBlacklisted: els.ticketBlacklisted?.checked === true,
     };
   }
 
@@ -202,7 +233,7 @@
         body: JSON.stringify(collectPatch()),
       });
       fill(payload);
-      setStatus('User data saved. This saved data remains even if the user leaves the guild.', 'ok');
+      setStatus('User data saved. Leveling and ticket blacklist data remain even if the user leaves the guild.', 'ok');
     } catch (error) {
       setStatus(error.message, 'error');
     } finally {
@@ -213,7 +244,7 @@
   function clearLoadedUser() {
     loadedUserId = '';
     els.editor.hidden = true;
-    setStatus('Enter a user ID to load stored level and punishment data.');
+    setStatus('Enter a user ID to load stored level, punishment, and ticket blacklist data.');
   }
 
   els.searchButton?.addEventListener('click', () => loadUser());
