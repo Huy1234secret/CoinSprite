@@ -21,7 +21,6 @@ const {
   draftPrizeText,
   draftWinnerCountText,
   formatDiscordRelative,
-  getGiveawayAnnouncementTargetId,
   getRequirementLabel,
   isSetupComplete,
   joinMentions,
@@ -34,9 +33,16 @@ const GIVEAWAY_IMAGE_FILE_NAME = 'GiveawayImage.png';
 const GIVEAWAY_IMAGE_ATTACHMENT_URL = `attachment://${GIVEAWAY_IMAGE_FILE_NAME}`;
 let cachedGiveawayImagePath;
 
-function announcementMention(guildId) {
-  const roleId = getGiveawayAnnouncementTargetId(guildId);
-  return roleId ? text(`<@&${roleId}>`) : null;
+function startupPingMention(giveaway) {
+  const roleId = String(giveaway?.pingRoleId || '').trim();
+  if (giveaway?.messageId || !/^\d{17,20}$/.test(roleId)) return null;
+  return text(`<@&${roleId}>`);
+}
+
+function liveAllowedMentions(giveaway) {
+  const roleId = String(giveaway?.pingRoleId || '').trim();
+  if (!giveaway?.messageId && /^\d{17,20}$/.test(roleId)) return { allowedMentions: { parse: [], roles: [roleId] } };
+  return { allowedMentions: { parse: [] } };
 }
 
 function findGiveawayImagePath() {
@@ -368,9 +374,13 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
     winnerCount: giveaway.winnerCount,
     requirement: giveaway.requirement,
   });
+  const extra = {
+    ...liveAllowedMentions(giveaway),
+    ...(imageAttachment ? { files: [imageAttachment] } : {}),
+  };
 
   return toV2Payload([
-    announcementMention(giveaway.guildId),
+    startupPingMention(giveaway),
     container(options.accent ?? WHITE_ACCENT, [
       giveawayInfoComponent(info.header, Boolean(imageAttachment)),
       separator(),
@@ -380,7 +390,7 @@ function buildLiveGiveawayPayload(giveaway, options = {}) {
         button(`${CUSTOM_IDS.joinPrefix}${giveaway.id}`, `${PARTY_POPPER} ${giveaway.entrantIds.length}`, options.buttonStyle ?? 3, Boolean(options.buttonDisabled)),
       ]),
     ]),
-  ].filter(Boolean), imageAttachment ? { files: [imageAttachment] } : {});
+  ].filter(Boolean), extra);
 }
 
 function getRoundWinnerLine(round) {
@@ -449,7 +459,6 @@ function buildFinalGiveawayPayload(giveaway) {
   });
 
   return toV2Payload([
-    announcementMention(giveaway.guildId),
     container(GREEN_ACCENT, [
       giveawayInfoComponent(info.header, Boolean(imageAttachment)),
       separator(),
