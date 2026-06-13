@@ -2,12 +2,10 @@
 
 const ticketConfig = require('../src/ticketConfig');
 
-const CUSTOM_EMOJI = /^<(?:(a):)?([a-zA-Z0-9_]{1,32}):(\d{16,20})>$/;
+const CUSTOM_EMOJI = /^<(a?):([a-zA-Z0-9_]{1,32}):(\d{16,20})>$/;
 const KEYCAP_EMOJI = /^[#*0-9]\uFE0F?\u20E3$/u;
 const FLAG_EMOJI = /^\p{Regional_Indicator}{2}$/u;
 const PICTOGRAPHIC_EMOJI = /\p{Extended_Pictographic}/u;
-const EMOJI_MODIFIER = /\p{Emoji_Modifier}/u;
-const VARIATION_OR_JOINER = /[\uFE0F\u200D]/u;
 
 function isSingleGrapheme(value) {
   if (typeof Intl?.Segmenter !== 'function') return true;
@@ -24,16 +22,12 @@ function safeDiscordEmoji(value) {
     return {
       name: custom[2],
       id: custom[3],
-      animated: Boolean(custom[1]),
+      animated: custom[1] === 'a',
     };
   }
 
   if (clean.startsWith('<') || clean.endsWith('>') || !isSingleGrapheme(clean)) return undefined;
-  if (!KEYCAP_EMOJI.test(clean)
-    && !FLAG_EMOJI.test(clean)
-    && !PICTOGRAPHIC_EMOJI.test(clean)
-    && !EMOJI_MODIFIER.test(clean)
-    && !VARIATION_OR_JOINER.test(clean)) {
+  if (!KEYCAP_EMOJI.test(clean) && !FLAG_EMOJI.test(clean) && !PICTOGRAPHIC_EMOJI.test(clean)) {
     return undefined;
   }
 
