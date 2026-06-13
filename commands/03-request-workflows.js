@@ -28,6 +28,12 @@ function workflowSequence(control, workflow) {
 function buttonStyle(style) {
   return { primary: 1, secondary: 2, success: 3, danger: 4 }[style] || 2;
 }
+function currentRequestType(guildId, request) {
+  const typeId = request?.type?.id || request?.ticketTypeId || '';
+  return (getGuildConfig(guildId)?.tickets?.types || []).find((type) => type.id === typeId)
+    || request?.type
+    || null;
+}
 function requestComponents(type, requestId, disabled = false) {
   if (type.adminPanel?.enabled === false) return [];
   const controls = (type.adminPanel?.controls || []).filter((control) => !control.url && decodedActions(control).length);
@@ -35,22 +41,25 @@ function requestComponents(type, requestId, disabled = false) {
   for (let index = 0; index < controls.length; index += 5) {
     rows.push({
       type: 1,
-      components: controls.slice(index, index + 5).map((control) => ({
-        type: 2,
-        custom_id: `request:act:${requestId}:${control.id}`,
-        label: String(control.name || 'Action').slice(0, 80),
-        style: buttonStyle(control.buttonStyle),
-        disabled,
-        ...(control.emoji ? { emoji: discordEmoji(control.emoji) } : {}),
-      })),
+      components: controls.slice(index, index + 5).map((control) => {
+        const emoji = control.emoji ? discordEmoji(control.emoji) : undefined;
+        return {
+          type: 2,
+          custom_id: `request:act:${requestId}:${control.id}`,
+          label: String(control.name || 'Action').slice(0, 80),
+          style: buttonStyle(control.buttonStyle),
+          disabled,
+          ...(emoji ? { emoji } : {}),
+        };
+      }),
     });
   }
   return rows;
 }
-function storedContext(guild, request) {
+function storedContext(guild, request, type) {
   return {
     mention: `<@${request.userId}>`, username: request.username, displayName: request.displayName,
-    userId: request.userId, ticketName: request.type.name, ticketId: request.id,
+    userId: request.userId, ticketName: type.name, ticketId: request.id,
     channel: request.reviewChannelId ? `<#${request.reviewChannelId}>` : '', server: guild.name,
     avatarUrl: request.avatarUrl, formAnswers: formatFormAnswers(request.answers),
   };
@@ -103,7 +112,7 @@ async function sendTemplate(member, guildId, templateId) {
   if (template) await member.send(buildMessagePayload(template)).catch(() => null);
 }
 async function executeAction(action, context) {
-  const { member, request, state } = context;
+  const { member, request, state, type } = context;
   if (action.type === 'dm_template') await sendTemplate(member, request.guildId, action.templateId);
   if (action.type === 'role_add' && member && action.roleId) await member.roles.add(action.roleId).catch(() => null);
   if (action.type === 'accept') context.terminal = 'accepted';
@@ -113,20 +122,21 @@ async function executeAction(action, context) {
     const values = new Set(state.blacklistedUsersByGuild[request.guildId] || []);
     values.add(request.userId);
     state.blacklistedUsersByGuild[request.guildId] = [...values];
-    if (member && request.type.blacklistRoleId) await member.roles.add(request.type.blacklistRoleId).catch(() => null);
+    if (member && type.blacklistRoleId) await member.roles.add(type.blacklistRoleId).catch(() => null);
     context.terminal ||= 'blacklisted';
   }
 }
-async function runWorkflow(interaction, request, control, workflow) {
+async function runWorkflow(interaction, request, type, control, workflow) {
   const member = await interaction.guild.members.fetch(request.userId).catch(() => null);
   const state = loadState();
-  const context = { member, request, state, terminal: '' };
+  const requestForConditions = { ...request, type };
+  const context = { member, request, state, type, terminal: '' };
   const conditions = new Map((workflow.conditions || []).map((condition) => [condition.id, condition]));
   for (const step of workflowSequence(control, workflow)) {
     const conditionId = conditionIdFromStep(step);
     if (conditionId) {
       const condition = conditions.get(conditionId);
-      if (condition && matchesCondition(request, condition, member)) {
+      if (condition && matchesCondition(requestForConditions, condition, member)) {
         for (const action of condition.actions || []) await executeAction(action, context);
       }
       continue;
@@ -136,15 +146,16 @@ async function runWorkflow(interaction, request, control, workflow) {
     else if (actionType === 'role_add') await executeAction({ type: 'role_add', roleId: control.moveToTicketTypeId }, context);
     else if (actionType) await executeAction({ type: actionType }, context);
   }
+  request.type = type;
   request.status = context.terminal || 'processed';
   request.reviewedBy = interaction.user.id;
   request.reviewedAt = new Date().toISOString();
   state.roleRequests[request.id] = request;
   saveState(state);
   const payload = buildTicketMessagePayload(
-    statusMessage(request.type, request.status, ''),
-    storedContext(interaction.guild, request),
-    requestComponents(request.type, request.id, true),
+    statusMessage(type, request.status, ''),
+    storedContext(interaction.guild, request, type),
+    requestComponents(type, request.id, true),
   );
   await interaction.update(payload);
   return true;
@@ -153,10 +164,11 @@ async function handleWorkflowInteraction(interaction) {
   if (!interaction.guildId || !interaction.isButton?.() || !interaction.customId.startsWith('request:act:')) return false;
   const [, , requestId, controlId] = interaction.customId.split(':');
   const request = loadState().roleRequests?.[requestId];
-  const control = request?.type?.adminPanel?.controls?.find((item) => item.id === controlId);
-  const workflow = request ? getControlWorkflow(interaction.guildId, request.type.id, controlId) : null;
-  if (!request || !control || !workflow || (!workflow.dmTemplateId && !(workflow.conditions || []).length && !(workflow.sequence || []).length)) return false;
-  if (!canInteract(interaction, request.type)) {
+  const type = request ? currentRequestType(interaction.guildId, request) : null;
+  const control = type?.adminPanel?.controls?.find((item) => item.id === controlId);
+  const workflow = type ? getControlWorkflow(interaction.guildId, type.id, controlId) : null;
+  if (!request || !type || !control || !workflow || (!workflow.dmTemplateId && !(workflow.conditions || []).length && !(workflow.sequence || []).length)) return false;
+  if (!canInteract(interaction, type)) {
     await interaction.reply({ content: 'You do not have permission to interact with this request.', flags: EPHEMERAL });
     return true;
   }
@@ -164,7 +176,7 @@ async function handleWorkflowInteraction(interaction) {
     await interaction.reply({ content: 'This request has already been handled.', flags: EPHEMERAL });
     return true;
   }
-  return runWorkflow(interaction, request, control, workflow);
+  return runWorkflow(interaction, request, type, control, workflow);
 }
 
 Module._load = function patchedLoad(request, parent, isMain) {
@@ -180,4 +192,4 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return exported;
 };
 
-module.exports = { __test: { matchesFormCondition, workflowSequence } };
+module.exports = { __test: { currentRequestType, matchesFormCondition, workflowSequence } };
