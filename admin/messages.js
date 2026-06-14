@@ -2,6 +2,8 @@
   const root = document.querySelector('#messageTemplatesRoot');
   if (!root) return;
 
+  const PALETTE = ['#FFFFFF', '#5865F2', '#57F287', '#FEE75C', '#ED4245', '#EB459E', '#9B59B6', '#2B2D31', '#3498DB', '#1ABC9C', '#E67E22', '#99AAB5'];
+  let popover = null;
   const view = {
     guildId: '',
     templates: [],
@@ -22,6 +24,12 @@
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+  const validHex = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '').trim());
+  const toHex = (value) => validHex(value) ? String(value).trim().toUpperCase() : '#5865F2';
+  const cleanHex = (value) => {
+    const clean = String(value || '').trim().replace(/^#/, '');
+    return /^[0-9a-f]{6}$/i.test(clean) ? `#${clean.toUpperCase()}` : '';
+  };
 
   async function request(url, options = {}) {
     const response = await fetch(url, {
@@ -160,14 +168,35 @@
     return lines.join('');
   }
 
-  function renderContainerPreview(container) {
+  function previewUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function mediaControl(container, index, field, label) {
+    const value = String(container[field] || '').trim();
+    const url = previewUrl(value);
+    return `<button class="preview-media-edit ${field === 'thumbnailUrl' ? 'thumbnail' : 'image'}${value ? ' has-value' : ''}" type="button" data-message-action="preview-media" data-index="${index}" data-field="${field}" aria-label="${escapeHtml(label)}">
+      ${url ? `<img src="${escapeHtml(url)}" alt="">` : `<span class="preview-media-empty"><strong>${value ? 'Edit' : 'Add'} ${escapeHtml(label)}</strong><span>${value ? 'Preview unavailable' : 'Click to set URL'}</span></span>`}
+      ${value ? `<span class="preview-media-clear" data-message-action="preview-media-clear" data-index="${index}" data-field="${field}">×</span>` : ''}
+    </button>`;
+  }
+
+  function renderContainerPreview(container, index) {
     const sections = String(container.text || '').split(/<separator>/gi).map((section) => section.trim()).filter(Boolean);
-    return `<div class="message-preview-container" style="--container-color:${escapeHtml(container.accentColor)}">
-      <div class="message-preview-text">
-        ${container.thumbnailUrl ? `<img class="message-preview-thumb" src="${escapeHtml(container.thumbnailUrl)}" alt="">` : ''}
-        ${sections.map((section, index) => `${index ? '<div class="message-preview-separator"></div>' : ''}${renderMarkdown(section)}`).join('') || '<div class="message-preview-line message-preview-empty">Write your message here.</div>'}
+    return `<div class="message-preview-container message-direct-ready" data-preview-container-index="${index}" style="--container-color:${escapeHtml(container.accentColor)};--preview-accent:${escapeHtml(container.accentColor)}">
+      <button class="preview-accent-picker" type="button" data-message-action="preview-color" data-index="${index}" aria-label="Change container color" style="--preview-accent:${escapeHtml(container.accentColor)}"></button>
+      ${mediaControl(container, index, 'thumbnailUrl', 'thumbnail')}
+      <div class="message-preview-text" data-message-action="preview-text" data-index="${index}">
+        ${sections.map((section, sectionIndex) => `${sectionIndex ? '<div class="message-preview-separator"></div>' : ''}${renderMarkdown(section)}`).join('') || '<div class="message-preview-line message-preview-empty">Write your message here.</div>'}
       </div>
-      ${container.imageUrl ? `<img class="message-preview-image" src="${escapeHtml(container.imageUrl)}" alt="">` : ''}
+      ${mediaControl(container, index, 'imageUrl', 'image')}
     </div>`;
   }
 
@@ -177,11 +206,171 @@
         <div class="message-bot-avatar">CS</div>
         <div class="message-discord-body">
           <div class="message-author"><strong>CoinSprite</strong><span>APP</span></div>
-          ${template.content ? `<div class="message-root-content">${renderMarkdown(template.content)}</div>` : ''}
+          ${template.content ? `<div class="message-root-content" data-message-action="preview-root-text">${renderMarkdown(template.content)}</div>` : ''}
           ${template.containers.map(renderContainerPreview).join('')}
         </div>
       </div>
     </div>`;
+  }
+
+  function closePopover() {
+    popover?.remove();
+    popover = null;
+  }
+
+  function placePopover(node, anchor) {
+    const rect = anchor.getBoundingClientRect();
+    const pad = 12;
+    const width = Math.min(360, window.innerWidth - pad * 2);
+    node.style.width = `${width}px`;
+    document.body.append(node);
+    const height = node.offsetHeight || 220;
+    let top = rect.bottom + 8;
+    if (top + height > window.innerHeight - pad) top = rect.top - height - 8;
+    if (top < pad) top = pad;
+    node.style.left = `${Math.min(Math.max(pad, rect.left), window.innerWidth - width - pad)}px`;
+    node.style.top = `${Math.min(Math.max(pad, top), window.innerHeight - height - pad)}px`;
+  }
+
+  function popButton(className, text) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.textContent = text;
+    return button;
+  }
+
+  function openColorEditor(anchor, index) {
+    const template = selected();
+    const container = template?.containers?.[index];
+    if (!container) return;
+    closePopover();
+    const box = document.createElement('div');
+    box.className = 'message-color-popover open';
+    const swatches = document.createElement('div');
+    swatches.className = 'message-color-swatches';
+    for (const color of PALETTE) {
+      const button = popButton(`message-color-swatch${toHex(container.accentColor) === color ? ' selected' : ''}`, '');
+      button.style.setProperty('--swatch', color);
+      button.addEventListener('click', () => {
+        container.accentColor = color;
+        closePopover();
+        scheduleSave();
+        refreshPreview(template);
+      });
+      swatches.append(button);
+    }
+    const label = document.createElement('label');
+    label.className = 'message-popover-label';
+    label.append(document.createTextNode('Custom hex color'));
+    const row = document.createElement('div');
+    row.className = 'message-color-custom';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 7;
+    input.value = toHex(container.accentColor);
+    const apply = popButton('message-color-apply', 'Apply');
+    const close = popButton('message-color-apply', 'Close');
+    const save = () => {
+      const value = cleanHex(input.value);
+      if (!value) return input.focus({ preventScroll: true });
+      container.accentColor = value;
+      closePopover();
+      scheduleSave();
+      refreshPreview(template);
+    };
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); save(); } if (event.key === 'Escape') closePopover(); });
+    apply.addEventListener('click', save);
+    close.addEventListener('click', closePopover);
+    row.append(input, apply, close);
+    label.append(row);
+    box.append(swatches, label);
+    box.addEventListener('click', (event) => event.stopPropagation());
+    popover = box;
+    placePopover(box, anchor);
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+
+  function openMediaEditor(anchor, index, field) {
+    const template = selected();
+    const container = template?.containers?.[index];
+    if (!container) return;
+    closePopover();
+    const box = document.createElement('div');
+    box.className = 'message-media-popover open';
+    const label = document.createElement('label');
+    label.className = 'message-popover-label';
+    label.append(document.createTextNode(field === 'thumbnailUrl' ? 'Thumbnail URL' : 'Image URL'));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = container[field] || '';
+    input.placeholder = 'https://example.com/image.png';
+    label.append(input);
+    const actions = document.createElement('div');
+    actions.className = 'message-media-actions';
+    actions.append(document.createElement('span'));
+    const clear = popButton('message-media-clear-button', 'Clear');
+    const save = popButton('message-media-apply', 'Save');
+    actions.append(clear, save);
+    const set = (value) => {
+      container[field] = String(value || '').trim();
+      closePopover();
+      scheduleSave();
+      refreshPreview(template);
+    };
+    clear.addEventListener('click', () => set(''));
+    save.addEventListener('click', () => set(input.value));
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); set(input.value); } if (event.key === 'Escape') closePopover(); });
+    box.append(label, actions);
+    box.addEventListener('click', (event) => event.stopPropagation());
+    popover = box;
+    placePopover(box, anchor);
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+
+  function openTextEditor(preview, index, rootText = false) {
+    const template = selected();
+    const target = rootText ? template : template?.containers?.[index];
+    if (!target || preview.querySelector('.preview-inline-overlay')) return;
+    closePopover();
+    const key = rootText ? 'content' : 'text';
+    const original = target[key] || '';
+    preview.classList.add('is-direct-editing');
+    const overlay = document.createElement('div');
+    overlay.className = 'preview-inline-overlay';
+    const bar = document.createElement('div');
+    bar.className = 'preview-edit-toolbar';
+    const title = document.createElement('strong');
+    title.textContent = 'Editing message';
+    const hint = document.createElement('span');
+    hint.textContent = 'Ctrl/⌘ + Enter to finish · Esc to cancel';
+    bar.append(title, hint);
+    const editor = document.createElement('div');
+    editor.className = 'preview-live-editor';
+    editor.contentEditable = 'true';
+    editor.spellcheck = true;
+    editor.textContent = original;
+    let done = false;
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      target[key] = commit ? String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/\n$/g, '') : original;
+      overlay.remove();
+      preview.classList.remove('is-direct-editing');
+      scheduleSave();
+      refreshPreview(template);
+    };
+    editor.addEventListener('input', () => { target[key] = String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n'); updateSaveState(); });
+    editor.addEventListener('blur', () => finish(true));
+    editor.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); editor.blur(); }
+      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+    });
+    overlay.append(bar, editor);
+    preview.append(overlay);
+    requestAnimationFrame(() => editor.focus({ preventScroll: true }));
   }
 
   function renderList() {
@@ -220,7 +409,7 @@
   }
 
   function renderEdit(template) {
-    return `<div class="message-edit-layout">
+    return `<div class="message-edit-layout inline-message-mode">
       <div class="message-edit-fields">
         <section class="message-compose-card">
           <div class="message-compose-head"><strong>Message content</strong><span>Optional text above containers</span></div>
@@ -230,8 +419,9 @@
         <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>
       </div>
       <aside class="message-sticky-preview">
-        <div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type, using Discord-style Markdown.</p></div>
+        <div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>
         ${messagePreview(template)}
+        <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>
       </aside>
     </div>`;
   }
@@ -289,7 +479,7 @@
 
   function refreshPreview(template) {
     const preview = root.querySelector('.message-sticky-preview');
-    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type, using Discord-style Markdown.</p></div>${messagePreview(template)}`;
+    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>${messagePreview(template)}<button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>`;
   }
 
   root.addEventListener('input', (event) => {
@@ -313,6 +503,17 @@
     const button = event.target.closest('[data-message-action]');
     if (!button) return;
     const action = button.dataset.messageAction;
+    if (action === 'preview-color') { event.preventDefault(); openColorEditor(button, Number(button.dataset.index)); return; }
+    if (action === 'preview-media') { event.preventDefault(); openMediaEditor(button, Number(button.dataset.index), button.dataset.field); return; }
+    if (action === 'preview-media-clear') {
+      event.preventDefault();
+      const template = selected();
+      const container = template?.containers?.[Number(button.dataset.index)];
+      if (container) { container[button.dataset.field] = ''; scheduleSave(); refreshPreview(template); }
+      return;
+    }
+    if (action === 'preview-text') { event.preventDefault(); openTextEditor(button.closest('.message-preview-container'), Number(button.dataset.index)); return; }
+    if (action === 'preview-root-text') { event.preventDefault(); openTextEditor(button.closest('.message-root-content'), 0, true); return; }
     if (action === 'create') {
       const template = newTemplate();
       view.templates.push(template);
