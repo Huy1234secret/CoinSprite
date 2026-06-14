@@ -1,7 +1,11 @@
 (() => {
+  if (window.__coinSpritePreviewPolishV2) return;
+  window.__coinSpritePreviewPolishV2 = true;
+
   const POLISH_CSS = '/admin/message-preview-polish.css';
   let popover = null;
   let colorInput = null;
+  let queued = false;
 
   const qs = (selector, root = document) => root.querySelector(selector);
   const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -9,23 +13,18 @@
   const hex = (value) => isHex(value) ? String(value).trim().toUpperCase() : '#FFFFFF';
 
   function ensureCss() {
-    let link = qs(`link[href="${POLISH_CSS}"]`);
-    if (!link) {
-      link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = POLISH_CSS;
-      document.head.append(link);
-    } else if (document.head.lastElementChild !== link) {
-      link.remove();
-      document.head.append(link);
-    }
+    if (qs(`link[href="${POLISH_CSS}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = POLISH_CSS;
+    document.head.append(link);
   }
 
   function assignIdentity(input, prefix = 'preview-field') {
-    if (!input) return;
+    if (!input || !['INPUT', 'SELECT', 'TEXTAREA'].includes(input.tagName)) return;
     if (!input.id) input.id = `${prefix}-${Math.random().toString(36).slice(2)}`;
     if (!input.name) input.name = input.id;
-    if (!input.autocomplete) input.autocomplete = 'off';
+    if (input.tagName === 'INPUT' && !input.autocomplete) input.autocomplete = 'off';
   }
 
   function emit(field) {
@@ -33,6 +32,7 @@
     field.dispatchEvent(new Event('input', { bubbles: true }));
     field.dispatchEvent(new Event('change', { bubbles: true }));
     if (typeof window.refreshDirtyState === 'function') window.refreshDirtyState();
+    schedule();
   }
 
   function setField(field, value) {
@@ -87,28 +87,36 @@
     }
   }
 
-  function emptyMedia(kind, value) {
+  function button(className, text = '') {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = className;
+    item.textContent = text;
+    return item;
+  }
+
+  function emptyMedia(kind, hasValue) {
     const wrap = document.createElement('span');
     wrap.className = 'preview-media-empty';
     const plus = document.createElement('span');
     plus.className = 'preview-media-plus';
     plus.textContent = '+';
-    const strong = document.createElement('strong');
-    strong.textContent = `${value ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-    const small = document.createElement('span');
-    small.textContent = value ? 'Preview unavailable' : 'Click to set URL';
-    wrap.append(plus, strong, small);
+    const title = document.createElement('strong');
+    title.textContent = `${hasValue ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
+    const hint = document.createElement('span');
+    hint.textContent = hasValue ? 'Preview unavailable' : 'Click to set URL';
+    wrap.append(plus, title, hint);
     return wrap;
   }
 
-  function buildMediaButton(field, kind) {
+  function mediaButton(field, kind) {
     const value = String(field?.value || '').trim();
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `preview-media-edit ${kind === 'thumb' ? 'thumbnail' : 'image'}${value ? ' has-value' : ''}`;
-    button.dataset.inlineMessageAction = kind;
-    button.ariaLabel = `${value ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-    button.title = button.ariaLabel;
+    const item = button(`preview-media-edit ${kind === 'thumb' ? 'thumbnail' : 'image'}${value ? ' has-value' : ''}`);
+    item.dataset.inlineMessageAction = kind;
+    item.dataset.sourceValue = value;
+    item.title = `${value ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
+    item.ariaLabel = item.title;
+
     const url = previewUrl(value);
     if (url) {
       const img = document.createElement('img');
@@ -116,27 +124,39 @@
       img.alt = '';
       img.addEventListener('error', () => {
         img.remove();
-        button.classList.remove('has-value');
-        button.append(emptyMedia(kind, value));
+        item.classList.remove('has-value');
+        item.append(emptyMedia(kind, Boolean(value)));
       }, { once: true });
-      button.append(img);
+      item.append(img);
     } else {
-      button.append(emptyMedia(kind, value));
+      item.append(emptyMedia(kind, Boolean(value)));
     }
+
     if (value) {
       const clear = document.createElement('span');
       clear.className = 'preview-media-clear';
       clear.dataset.inlineMessageAction = `${kind}-clear`;
       clear.title = `Clear ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
       clear.textContent = '×';
-      button.append(clear);
+      item.append(clear);
     }
-    return button;
+    return item;
+  }
+
+  function syncMedia(preview, field, kind) {
+    if (!field) return;
+    const className = kind === 'thumb' ? 'thumbnail' : 'image';
+    const value = String(field.value || '').trim();
+    const selector = `:scope > .preview-media-edit.${className}`;
+    const current = qs(selector, preview);
+    if (current?.dataset?.sourceValue === value) return;
+    current?.remove();
+    preview.append(mediaButton(field, kind));
   }
 
   function decorateTicketAndLevelPreview(preview) {
     const fields = fieldsForPreview(preview);
-    if (!fields.content) return;
+    if (!fields.content || preview.classList.contains('is-direct-editing')) return;
     preview.classList.add('message-direct-ready');
     const color = hex(fields.color?.value);
     preview.style.setProperty('--preview-accent', color);
@@ -144,9 +164,7 @@
 
     let bar = qs(':scope > .preview-accent-picker', preview);
     if (fields.color && !bar) {
-      bar = document.createElement('button');
-      bar.type = 'button';
-      bar.className = 'preview-accent-picker';
+      bar = button('preview-accent-picker');
       bar.dataset.inlineMessageAction = 'color';
       bar.ariaLabel = 'Change container color';
       bar.title = 'Change container color';
@@ -154,25 +172,29 @@
     }
     if (bar) bar.style.setProperty('--preview-accent', color);
 
-    if (fields.thumb && !qs(':scope > .preview-media-edit.thumbnail', preview)) {
-      preview.append(buildMediaButton(fields.thumb, 'thumb'));
-    }
-    if (fields.image && !qs(':scope > .preview-media-edit.image', preview)) {
-      preview.append(buildMediaButton(fields.image, 'image'));
-    }
+    syncMedia(preview, fields.thumb, 'thumb');
+    syncMedia(preview, fields.image, 'image');
+  }
+
+  function decorateDataIcon() {
+    const tab = qs('.tab[data-tab="data"]');
+    if (!tab) return;
+    tab.classList.add('data-icon-ready');
   }
 
   function decorate() {
     ensureCss();
+    decorateDataIcon();
     qsa('input, textarea, select').forEach(assignIdentity);
     qsa('.ticket-message-builder .preview-container.ticket-preview, #levelUpPreviewContainer').forEach(decorateTicketAndLevelPreview);
-    qsa('.preview-media-empty').forEach((node) => {
-      if (!qs('.preview-media-plus', node)) {
-        const plus = document.createElement('span');
-        plus.className = 'preview-media-plus';
-        plus.textContent = '+';
-        node.prepend(plus);
-      }
+  }
+
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      decorate();
     });
   }
 
@@ -232,7 +254,7 @@
     box.className = 'message-media-popover message-preview-url-popover open';
     const title = document.createElement('div');
     title.className = 'message-popover-title';
-    title.innerHTML = `<strong>${kind === 'thumb' ? 'Thumbnail' : 'Image'} URL</strong><span>Paste an http(s) URL. Ticket and level messages also support &lt;avatar_url&gt;.</span>`;
+    title.innerHTML = `<strong>${kind === 'thumb' ? 'Thumbnail' : 'Image'} URL</strong><span>Paste an http(s) URL. Placeholders like &lt;avatar_url&gt; are supported where the message supports them.</span>`;
     const input = document.createElement('input');
     input.type = 'text';
     input.value = field.value || '';
@@ -240,23 +262,14 @@
     assignIdentity(input, 'media-url');
     const actions = document.createElement('div');
     actions.className = 'message-media-actions';
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.className = 'message-media-clear-button';
-    clear.textContent = 'Clear';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'message-media-clear-button neutral';
-    cancel.textContent = 'Cancel';
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'message-media-apply';
-    save.textContent = 'Save';
+    const clear = button('message-media-clear-button', 'Clear');
+    const cancel = button('message-media-clear-button neutral', 'Cancel');
+    const save = button('message-media-apply', 'Save');
     actions.append(clear, cancel, save);
     const set = (value) => {
       setField(field, String(value || '').trim());
       closePopover();
-      setTimeout(decorate, 0);
+      schedule();
     };
     clear.addEventListener('click', () => set(''));
     cancel.addEventListener('click', closePopover);
@@ -273,8 +286,8 @@
     input.select();
   }
 
-  function stop(event) {
-    event.preventDefault();
+  function stop(event, prevent = true) {
+    if (prevent) event.preventDefault();
     event.stopPropagation();
     if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
   }
@@ -283,27 +296,44 @@
     const action = event.target.closest?.('[data-inline-message-action]');
     if (!action || action.closest('.message-media-popover')) return false;
     const preview = action.closest('.preview-container');
+    if (preview?.classList.contains('is-direct-editing')) {
+      stop(event);
+      return true;
+    }
     const fields = fieldsForPreview(preview);
     const name = action.dataset.inlineMessageAction;
     stop(event);
     if (name === 'color') openNativeColor(fields.color, action);
-    if (name === 'thumb') openUrlEditor(fields.thumb, action, 'thumb');
-    if (name === 'image') openUrlEditor(fields.image, action, 'image');
-    if (name === 'thumb-clear') { setField(fields.thumb, ''); setTimeout(decorate, 0); }
-    if (name === 'image-clear') { setField(fields.image, ''); setTimeout(decorate, 0); }
+    else if (name === 'thumb') openUrlEditor(fields.thumb, action, 'thumb');
+    else if (name === 'image') openUrlEditor(fields.image, action, 'image');
+    else if (name === 'thumb-clear') setField(fields.thumb, '');
+    else if (name === 'image-clear') setField(fields.image, '');
     return true;
   }
 
   function messageTemplateAction(event) {
     const action = event.target.closest?.('[data-message-action="preview-color"], [data-message-action="preview-media"], [data-message-action="preview-media-clear"]');
     if (!action || action.closest('.message-media-popover')) return false;
+    const preview = action.closest('.message-preview-container');
+    if (preview?.classList.contains('is-direct-editing')) {
+      stop(event);
+      return true;
+    }
     stop(event);
     const name = action.dataset.messageAction;
     if (name === 'preview-color') openNativeColor(messageTemplateField(action, 'accentColor'), action);
-    if (name === 'preview-media') openUrlEditor(messageTemplateField(action, action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
-    if (name === 'preview-media-clear') setField(messageTemplateField(action, action.dataset.field), '');
+    else if (name === 'preview-media') openUrlEditor(messageTemplateField(action, action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
+    else if (name === 'preview-media-clear') setField(messageTemplateField(action, action.dataset.field), '');
     return true;
   }
+
+  window.addEventListener('pointerdown', (event) => {
+    const action = event.target.closest?.('[data-inline-message-action], [data-message-action="preview-color"], [data-message-action="preview-media"], [data-message-action="preview-media-clear"]');
+    if (action && !action.closest('.message-media-popover')) {
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    }
+  }, true);
 
   window.addEventListener('click', (event) => {
     if (inlineAction(event)) return;
@@ -313,8 +343,8 @@
 
   window.addEventListener('resize', closePopover);
   window.addEventListener('scroll', closePopover, true);
-  new MutationObserver(decorate).observe(document.body, { childList: true, subtree: true });
-  decorate();
-  setTimeout(decorate, 250);
-  setTimeout(decorate, 900);
+  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+  schedule();
+  setTimeout(schedule, 250);
+  setTimeout(schedule, 900);
 })();
