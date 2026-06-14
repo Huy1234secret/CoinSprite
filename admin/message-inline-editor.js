@@ -121,50 +121,62 @@
     return b;
   }
 
-  function openColor(field, anchor) {
+  function placeNativeColorInput(input, anchor) {
+    const r = anchor.getBoundingClientRect();
+    const size = Math.max(34, Math.min(46, Math.max(r.width || 0, r.height || 0)));
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - size - 8);
+    const top = Math.min(Math.max(8, r.top), window.innerHeight - size - 8);
+    input.style.left = `${left}px`;
+    input.style.top = `${top}px`;
+    input.style.width = `${size}px`;
+    input.style.height = `${size}px`;
+  }
+
+  function updatePreviewAccent(anchor, value) {
+    anchor?.style?.setProperty('--preview-accent', value);
+    const preview = anchor?.closest?.('.preview-container,.message-preview-container');
+    preview?.style?.setProperty('--preview-accent', value);
+    preview?.style?.setProperty('--container-color', value);
+  }
+
+  function openNativeColor(field, anchor) {
     if (!field) return;
     closePopover();
-    const box = document.createElement('div');
-    box.className = 'message-color-popover open';
-    const swatches = document.createElement('div');
-    swatches.className = 'message-color-swatches';
-    for (const color of PALETTE) {
-      const b = btn(`message-color-swatch${hex(field.value) === color ? ' selected' : ''}`);
-      b.style.setProperty('--swatch', color);
-      b.ariaLabel = color;
-      b.addEventListener('click', () => { setField(field, color); closePopover(); });
-      swatches.append(b);
-    }
-    const label = document.createElement('label');
-    label.className = 'message-popover-label';
-    label.append(document.createTextNode('Custom hex color'));
-    const row = document.createElement('div');
-    row.className = 'message-color-custom';
     const input = document.createElement('input');
-    input.type = 'text';
-    input.maxLength = 7;
+    input.type = 'color';
+    input.className = 'message-native-color-input';
     input.value = hex(field.value);
-    input.placeholder = '#FFFFFF';
     id(input);
-    const apply = btn('message-color-apply', 'Apply');
-    const close = btn('message-color-apply', 'Close');
-    const save = () => {
-      const value = cleanHex(input.value);
-      if (!value) return input.focus({ preventScroll: true });
+    placeNativeColorInput(input, anchor);
+    document.body.append(input);
+    popover = input;
+    const commit = () => {
+      const value = hex(input.value);
       setField(field, value);
-      closePopover();
+      updatePreviewAccent(anchor, value);
     };
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') closePopover(); });
-    apply.addEventListener('click', save);
-    close.addEventListener('click', closePopover);
-    row.append(input, apply, close);
-    label.append(row);
-    box.append(swatches, label);
-    box.addEventListener('click', (e) => e.stopPropagation());
-    popover = box;
-    place(box, anchor);
+    input.addEventListener('input', commit);
+    input.addEventListener('change', () => { commit(); setTimeout(closePopover, 250); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
+    input.addEventListener('blur', () => setTimeout(() => { if (popover === input) closePopover(); }, 60000), { once: true });
     input.focus({ preventScroll: true });
-    input.select();
+    try {
+      if (typeof input.showPicker === 'function') input.showPicker();
+      else input.click();
+    } catch {
+      input.click();
+    }
+  }
+
+  function openColor(field, anchor) {
+    openNativeColor(field, anchor);
+  }
+
+  function messageTemplateColorField(anchor) {
+    const root = qs('#messageTemplatesRoot');
+    const index = Number(anchor?.dataset?.index);
+    if (!root || !Number.isFinite(index)) return null;
+    return qs(`[data-container-index="${index}"] [data-container-field="accentColor"]`, root);
   }
 
   function previewUrl(v) {
@@ -347,6 +359,12 @@
 
   document.addEventListener('pointerdown', actionEvent, true);
   document.addEventListener('click', (e) => {
+    const messageColor = e.target.closest?.('.preview-accent-picker[data-message-action="preview-color"]');
+    if (messageColor) {
+      e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openNativeColor(messageTemplateColorField(messageColor), messageColor);
+      return;
+    }
     if (actionEvent(e)) return;
     const preview = e.target.closest?.('.preview-container.message-direct-ready,.preview-container.ticket-preview,#levelUpPreviewContainer');
     if (preview && !e.target.closest('button,input,select,textarea,a,[contenteditable="true"],.message-color-popover,.message-media-popover')) {
