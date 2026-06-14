@@ -1,31 +1,48 @@
+.tab[data-tab="data"] {
+  position: relative;
+}
+
 .tab[data-tab="data"]::before {
   content: '';
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
   box-sizing: border-box;
-  border: 1.5px solid rgba(255, 255, 255, 0.72);
+  border: 1.5px solid rgba(255, 255, 255, 0.72) !important;
   border-radius: 9px;
-  background-color: rgba(15, 17, 23, 0.82);
-  background-image: url('/admin/images/data.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 22px 22px;
+  background: rgba(15, 17, 23, 0.82) !important;
+  background-image: none !important;
   box-shadow: none;
   filter: none;
   transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
 }
 
+.tab[data-tab="data"]::after {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 15px;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  border: 3px solid #ffffff;
+  border-radius: 50% / 23%;
+  box-sizing: border-box;
+  box-shadow:
+    0 5px 0 -2px #ffffff,
+    0 10px 0 -2px #ffffff;
+}
+
 .tab[data-tab="data"]:hover::before,
 .tab[data-tab="data"].active::before {
   transform: translateY(-1px) scale(1.04);
-  border-color: #ffffff;
-  background-color: rgba(23, 25, 31, 0.96);
+  border-color: #ffffff !important;
+  background-color: rgba(23, 25, 31, 0.96) !important;
   box-shadow: none;
 }
 
 .tab[data-tab="data"] > .tab-icon {
-  display: none;
+  display: none !important;
 }
 
 .data-workspace {
@@ -125,6 +142,82 @@
   margin-top: 16px;
 }
 
+html body .preview-container.is-direct-editing > .preview-accent-picker,
+html body .preview-container.is-direct-editing > .preview-media-edit,
+html body .message-preview-container.is-direct-editing > .preview-accent-picker,
+html body .message-preview-container.is-direct-editing > .preview-media-edit {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+html body .preview-inline-overlay {
+  z-index: 140 !important;
+}
+
+html body .preview-container.message-direct-ready > .preview-media-edit,
+html body .preview-container.ticket-preview > .preview-media-edit,
+html body #levelUpPreviewContainer > .preview-media-edit,
+html body .message-preview-container.message-direct-ready > .preview-media-edit {
+  pointer-events: auto !important;
+  user-select: none;
+}
+
+html body .preview-container.message-direct-ready > .preview-media-edit.thumbnail,
+html body .preview-container.ticket-preview > .preview-media-edit.thumbnail,
+html body #levelUpPreviewContainer > .preview-media-edit.thumbnail,
+html body .message-preview-container.message-direct-ready > .preview-media-edit.thumbnail {
+  width: 98px !important;
+  height: 98px !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+html body .preview-media-edit.thumbnail .preview-media-empty,
+html body .preview-media-edit.image .preview-media-empty {
+  display: flex !important;
+  width: 100% !important;
+  height: 100% !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  padding: 6px !important;
+  text-align: center !important;
+  line-height: 1.08 !important;
+}
+
+html body .preview-media-edit.thumbnail .preview-media-empty strong,
+html body .preview-media-edit.image .preview-media-empty strong {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+  white-space: normal !important;
+  text-align: center !important;
+}
+
+html body .preview-media-edit.thumbnail .preview-media-empty strong {
+  max-width: 84px !important;
+  font-size: 11px !important;
+  line-height: 1.08 !important;
+}
+
+html body .preview-media-edit.thumbnail .preview-media-empty span:last-child {
+  max-width: 84px !important;
+  font-size: 10px !important;
+  line-height: 1.12 !important;
+}
+
+html body .preview-media-edit.image .preview-media-empty strong {
+  font-size: 12px !important;
+  line-height: 1.12 !important;
+}
+
+html body .preview-media-plus {
+  flex: 0 0 auto !important;
+}
+
 @media (max-width: 780px) {
   .data-search-row {
     grid-template-columns: 1fr;
@@ -145,6 +238,16 @@
     width: 30px;
     height: 30px;
     flex-basis: 30px;
-    background-size: 20px 20px;
+  }
+
+  .tab[data-tab="data"]::after {
+    left: 16px;
+    top: 15px;
+    width: 16px;
+    height: 16px;
+    border-width: 2.7px;
+    box-shadow:
+      0 4.5px 0 -2px #ffffff,
+      0 9px 0 -2px #ffffff;
   }
 }
