@@ -14,11 +14,44 @@
   };
 
   function loadCss() {
-    if (qs(`link[href="${CSS}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = CSS;
-    document.head.append(link);
+    if (!qs(`link[href="${CSS}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = CSS;
+      document.head.append(link);
+    }
+    if (!qs('link[href="/admin/messages.css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/admin/messages.css';
+      document.head.append(link);
+    }
+  }
+
+  function ensureMessagesTab() {
+    const tabs = qs('#tabList');
+    const form = qs('#configForm');
+    if (tabs && !qs('[data-tab="messages"]', tabs)) {
+      const tab = document.createElement('button');
+      tab.className = 'tab';
+      tab.type = 'button';
+      tab.dataset.tab = 'messages';
+      tab.innerHTML = '<img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span>';
+      (qs('[data-tab="tickets"]', tabs) || tabs.lastElementChild)?.after(tab);
+    }
+    if (form && !qs('[data-panel="messages"]', form)) {
+      const panel = document.createElement('section');
+      panel.className = 'tab-panel';
+      panel.dataset.panel = 'messages';
+      panel.innerHTML = '<div id="messageTemplatesRoot"></div>';
+      (qs('[data-panel="tickets"]', form) || form.lastElementChild)?.after(panel);
+    }
+    if (qs('#messageTemplatesRoot') && !qs('script[src="/admin/messages.js"]')) {
+      const script = document.createElement('script');
+      script.src = '/admin/messages.js';
+      script.defer = true;
+      document.body.append(script);
+    }
   }
 
   function id(field) {
@@ -281,6 +314,7 @@
 
   function decorate() {
     loadCss();
+    ensureMessagesTab();
     qsa('input,select,textarea').forEach(id);
     qsa('.ticket-message-builder,.message-builder').forEach((builder) => {
       if (qs('textarea[data-message-scope],#levelUpContent', builder) && qs('.preview-container.ticket-preview,#levelUpPreviewContainer', builder)) builder.classList.add('inline-message-mode');
