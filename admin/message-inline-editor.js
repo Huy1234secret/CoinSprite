@@ -4,6 +4,7 @@
   let uid = 0;
   let queued = false;
   let popover = null;
+  let ignoreNextInlineClick = false;
 
   const qs = (s, r = document) => r.querySelector(s);
   const qsa = (s, r = document) => [...r.querySelectorAll(s)];
@@ -349,6 +350,14 @@
     const f = fields(preview);
     e.preventDefault(); e.stopPropagation();
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (e.type === 'click' && ignoreNextInlineClick) {
+      ignoreNextInlineClick = false;
+      return true;
+    }
+    if (e.type === 'pointerdown') {
+      ignoreNextInlineClick = true;
+      setTimeout(() => { ignoreNextInlineClick = false; }, 500);
+    }
     if (a.dataset.inlineMessageAction === 'color') openColor(f.color, a);
     if (a.dataset.inlineMessageAction === 'thumb') openMedia(f.thumb, a, 'thumb');
     if (a.dataset.inlineMessageAction === 'image') openMedia(f.image, a, 'image');
