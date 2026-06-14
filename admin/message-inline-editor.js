@@ -15,12 +15,11 @@
   };
 
   function loadCss() {
-    if (!document.querySelector(`link[href="${CSS}"]`)) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = CSS;
-      document.head.append(link);
-    }
+    if (document.querySelector(`link[href="${CSS}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = CSS;
+    document.head.append(link);
   }
 
   function identify(field, prefix = 'admin-field') {
@@ -34,7 +33,12 @@
     document.querySelectorAll('input, select, textarea').forEach(identify);
   }
 
+  function closestPreview(node) {
+    return node?.closest?.('.preview-container.message-direct-ready, .preview-container.ticket-preview, #levelUpPreviewContainer') || null;
+  }
+
   function fieldsFor(preview) {
+    if (!preview) return {};
     if (preview.id === 'levelUpPreviewContainer' || preview.closest('#levelUpPreview')) {
       const form = document.querySelector('#configForm');
       return {
@@ -44,7 +48,7 @@
         image: form?.elements?.['xp.levelUpMessage.imageUrl'],
       };
     }
-    const box = preview.closest('.ticket-message-builder');
+    const box = preview.closest('.ticket-message-builder, .message-builder');
     return {
       content: box?.querySelector('textarea[data-message-scope]'),
       color: box?.querySelector('[data-message-field="accentColor"]'),
@@ -56,23 +60,19 @@
   function hideSourceField(field) {
     identify(field, 'message-source');
     const label = field?.closest('label');
-    if (label) {
-      label.hidden = true;
-      label.classList.add('message-source-hidden');
-    }
+    if (label) label.classList.add('message-source-hidden');
   }
 
   function hideSources() {
     document.querySelectorAll('.ticket-message-builder, .message-builder').forEach((builder) => {
-      if (builder.querySelector('textarea[data-message-scope], #levelUpContent') && builder.querySelector('.preview-container.ticket-preview, #levelUpPreviewContainer')) {
-        builder.classList.add('inline-message-mode');
-      }
+      const hasContent = builder.querySelector('textarea[data-message-scope], #levelUpContent');
+      const hasPreview = builder.querySelector('.preview-container.ticket-preview, #levelUpPreviewContainer');
+      if (hasContent && hasPreview) builder.classList.add('inline-message-mode');
     });
     document.querySelectorAll('.ticket-message-builder textarea[data-message-scope], #levelUpContent').forEach(hideSourceField);
     document.querySelectorAll('.ticket-message-builder [data-message-field="accentColor"], .ticket-message-builder [data-message-field="thumbnailUrl"], .ticket-message-builder [data-message-field="imageUrl"], input[name="xp.levelUpMessage.accentColor"], input[name="xp.levelUpMessage.thumbnailUrl"], input[name="xp.levelUpMessage.imageUrl"]').forEach(hideSourceField);
     document.querySelectorAll('.message-editor .grid').forEach((grid) => {
       if (grid.querySelector('[data-message-field="accentColor"], [data-message-field="thumbnailUrl"], [data-message-field="imageUrl"], input[name="xp.levelUpMessage.accentColor"], input[name="xp.levelUpMessage.thumbnailUrl"], input[name="xp.levelUpMessage.imageUrl"]')) {
-        grid.hidden = true;
         grid.classList.add('message-source-hidden');
       }
     });
@@ -101,12 +101,13 @@
   function place(menu, anchor) {
     const r = anchor.getBoundingClientRect();
     const pad = 12;
-    const w = Math.min(320, window.innerWidth - pad * 2);
+    const w = Math.min(360, window.innerWidth - pad * 2);
     menu.style.width = `${w}px`;
     document.body.append(menu);
     const h = menu.offsetHeight || 260;
     let top = r.bottom + 8;
     if (top + h > window.innerHeight - pad) top = r.top - h - 8;
+    if (top < pad) top = pad;
     menu.style.left = `${Math.min(Math.max(pad, r.left), window.innerWidth - w - pad)}px`;
     menu.style.top = `${Math.min(Math.max(pad, top), window.innerHeight - h - pad)}px`;
   }
@@ -166,7 +167,7 @@
     label.append(labelText, row);
     const help = document.createElement('p');
     help.className = 'message-popover-help';
-    help.textContent = 'Preset or custom hex color. This menu is fixed to the page so it will not be cut off.';
+    help.textContent = 'Choose a preset or paste a hex color. This menu stays inside the visible screen.';
     menu.append(swatches, label, help);
     menu.addEventListener('click', (event) => event.stopPropagation());
     colorMenu = menu;
@@ -224,10 +225,22 @@
     input.select();
   }
 
+  function emptyMedia(kind, hasValue) {
+    const wrap = document.createElement('span');
+    wrap.className = 'preview-media-empty';
+    const strong = document.createElement('strong');
+    strong.textContent = `${hasValue ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
+    const small = document.createElement('span');
+    small.textContent = hasValue ? 'Preview unavailable' : 'Click to set URL';
+    wrap.append(strong, small);
+    return wrap;
+  }
+
   function mediaButton(field, kind) {
     const value = String(field?.value || '').trim();
     const node = button(`preview-media-edit ${kind === 'thumb' ? 'thumbnail' : 'image'}${value ? ' has-value' : ''}`, '');
     const title = `${value ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
+    node.dataset.inlineMessageAction = kind;
     node.title = title;
     node.setAttribute('aria-label', title);
     const url = mediaPreview(value);
@@ -247,31 +260,38 @@
     if (value) {
       const x = document.createElement('span');
       x.className = 'preview-media-clear';
+      x.dataset.inlineMessageAction = `${kind}-clear`;
       x.textContent = '×';
-      x.addEventListener('click', (event) => {
-        event.preventDefault(); event.stopPropagation(); setField(field, '');
-      });
       node.append(x);
     }
-    node.addEventListener('click', (event) => {
-      event.preventDefault(); event.stopPropagation(); openMedia(field, node, kind);
-    });
     return node;
-  }
-
-  function emptyMedia(kind, hasValue) {
-    const wrap = document.createElement('span');
-    wrap.className = 'preview-media-empty';
-    const strong = document.createElement('strong');
-    strong.textContent = `${hasValue ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-    const small = document.createElement('span');
-    small.textContent = hasValue ? 'Preview unavailable' : 'Click to set URL';
-    wrap.append(strong, small);
-    return wrap;
   }
 
   function normalizeEditorText(value) {
     return String(value || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/\n$/g, '');
+  }
+
+  function finishEditor(editor, commit) {
+    const preview = editor?.closest?.('.preview-container');
+    const source = preview ? fieldsFor(preview).content : null;
+    if (!preview || !source || preview.dataset.editorDone === 'true') return;
+    preview.dataset.editorDone = 'true';
+    const original = preview.dataset.editorOriginal || '';
+    source.value = commit ? normalizeEditorText(editor.innerText || editor.textContent || '') : original;
+    preview.classList.remove('is-direct-editing');
+    delete preview.dataset.editorOriginal;
+    delete preview.dataset.editorDone;
+    emit(source);
+  }
+
+  function cancelOpenEditors() {
+    document.querySelectorAll('.preview-live-editor').forEach((editor) => finishEditor(editor, false));
+    closeMenus();
+  }
+
+  function commitOpenEditors() {
+    document.querySelectorAll('.preview-live-editor').forEach((editor) => finishEditor(editor, true));
+    closeMenus();
   }
 
   function openEditor(preview) {
@@ -279,6 +299,7 @@
     if (!source || preview.querySelector('.preview-live-editor')) return;
     closeMenus();
     const original = source.value || '';
+    preview.dataset.editorOriginal = original;
     preview.classList.add('is-direct-editing');
     preview.replaceChildren();
     const bar = document.createElement('div');
@@ -293,23 +314,15 @@
     editor.contentEditable = 'true';
     editor.spellcheck = true;
     editor.textContent = original;
-    let done = false;
-    const finish = (commit) => {
-      if (done) return;
-      done = true;
-      source.value = commit ? normalizeEditorText(editor.innerText || editor.textContent || '') : original;
-      preview.classList.remove('is-direct-editing');
-      emit(source);
-    };
     editor.addEventListener('input', () => {
       source.value = normalizeEditorText(editor.innerText || editor.textContent || '');
       if (typeof refreshDirtyState === 'function') refreshDirtyState();
     });
-    editor.addEventListener('blur', () => finish(true));
-    editor.addEventListener('commit-preview', () => finish(true));
+    editor.addEventListener('blur', () => finishEditor(editor, true));
+    editor.addEventListener('commit-preview', () => finishEditor(editor, true));
     editor.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); editor.blur(); }
-      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+      if (event.key === 'Escape') { event.preventDefault(); finishEditor(editor, false); }
     });
     preview.append(bar, editor);
     requestAnimationFrame(() => {
@@ -332,10 +345,10 @@
     preview.tabIndex = 0;
     if (fields.color) {
       const accent = button('preview-accent-picker', '');
+      accent.dataset.inlineMessageAction = 'color';
       accent.style.setProperty('--preview-accent', toHex(fields.color.value));
       accent.title = 'Change container color';
       accent.setAttribute('aria-label', 'Change container color');
-      accent.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); openColor(fields.color, accent); });
       preview.prepend(accent);
     }
     if (fields.thumb) preview.append(mediaButton(fields.thumb, 'thumb'));
@@ -343,7 +356,7 @@
     if (preview.dataset.inlineEditBound !== 'true') {
       preview.dataset.inlineEditBound = 'true';
       preview.addEventListener('click', (event) => {
-        if (event.target.closest('button, input, select, textarea, a, [contenteditable="true"]')) return;
+        if (event.target.closest('button, input, select, textarea, a, [contenteditable="true"], [data-inline-message-action]')) return;
         openEditor(preview);
       });
       preview.addEventListener('keydown', (event) => {
@@ -372,14 +385,36 @@
     requestAnimationFrame(() => { scheduled = false; decorate(); });
   }
 
+  function handleInlineAction(event) {
+    const actionTarget = event.target.closest?.('[data-inline-message-action]');
+    if (!actionTarget) return false;
+    const preview = closestPreview(actionTarget);
+    const fields = fieldsFor(preview);
+    const action = actionTarget.dataset.inlineMessageAction;
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    if (action === 'color') openColor(fields.color, actionTarget);
+    if (action === 'thumb') openMedia(fields.thumb, actionTarget, 'thumb');
+    if (action === 'image') openMedia(fields.image, actionTarget, 'image');
+    if (action === 'thumb-clear') setField(fields.thumb, '');
+    if (action === 'image-clear') setField(fields.image, '');
+    return true;
+  }
+
+  document.addEventListener('pointerdown', handleInlineAction, true);
   document.addEventListener('click', (event) => {
+    if (handleInlineAction(event)) return;
     if (!event.target.closest('.message-color-popover, .message-media-popover, .preview-accent-picker, .preview-media-edit')) closeMenus();
-  });
+  }, true);
   window.addEventListener('resize', closeMenus);
   window.addEventListener('scroll', closeMenus, true);
-  document.querySelector('#saveButton')?.addEventListener('mousedown', () => {
-    document.querySelectorAll('.preview-live-editor').forEach((editor) => editor.dispatchEvent(new Event('commit-preview', { bubbles: true })));
+  document.querySelector('#saveButton')?.addEventListener('mousedown', commitOpenEditors, true);
+  document.querySelector('#resetTabButton')?.addEventListener('mousedown', () => {
+    cancelOpenEditors();
+    setTimeout(schedule, 0);
   }, true);
+  document.querySelector('#resetTabButton')?.addEventListener('click', () => setTimeout(schedule, 0), true);
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
   schedule();
 })();
