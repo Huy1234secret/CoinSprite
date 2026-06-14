@@ -2,6 +2,21 @@
   const root = document.querySelector('#userDataRoot');
   if (!root) return;
 
+  function ensurePreviewPolishAssets() {
+    if (!document.querySelector('link[href="/admin/message-preview-polish.css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/admin/message-preview-polish.css';
+      document.head.append(link);
+    }
+    if (!document.querySelector('script[src="/admin/message-preview-polish.js"]')) {
+      const script = document.createElement('script');
+      script.src = '/admin/message-preview-polish.js';
+      script.defer = true;
+      document.body.append(script);
+    }
+  }
+
   function ensureDataTabIcon() {
     const button = document.querySelector('.tab[data-tab="data"]');
     if (!button) return;
@@ -26,6 +41,7 @@
     xpLockLabel.after(label);
   }
 
+  ensurePreviewPolishAssets();
   ensureDataTabIcon();
   ensureTicketBlacklistField();
 
