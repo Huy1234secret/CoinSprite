@@ -194,6 +194,7 @@
 
 .tab[data-tab="data"]::before {
   border-width: 1.5px;
+  background-image: url('/admin/images/data.svg');
   background-size: 25px 25px;
 }
 
