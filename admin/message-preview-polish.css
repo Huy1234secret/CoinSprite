@@ -1,0 +1,204 @@
+/* Discord-style preview polish and interaction fixes. */
+#messageTemplatesRoot .message-editor-head {
+  position: sticky;
+  top: -18px;
+  z-index: 90;
+  margin-bottom: 12px;
+  padding: 12px 0;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 88%, rgba(17, 19, 24, 0));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+}
+
+#messageTemplatesRoot .message-editor-tabs {
+  position: relative;
+  z-index: 30;
+}
+
+#messageTemplatesRoot .message-editor-body,
+#messageTemplatesRoot .message-edit-layout.inline-message-mode {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
+#messageTemplatesRoot .message-sticky-preview,
+.message-edit-layout.inline-message-mode .message-sticky-preview,
+.message-builder.inline-message-mode .preview-panel,
+.ticket-message-builder.inline-message-mode .preview-panel {
+  position: relative !important;
+  top: auto !important;
+  z-index: 1;
+  overflow: hidden;
+  isolation: isolate;
+  max-width: 960px;
+  border-radius: 12px;
+}
+
+.discord-preview,
+.message-discord-preview {
+  overflow: hidden;
+  border-radius: 10px;
+  background: #313338;
+}
+
+.preview-container.message-direct-ready,
+.preview-container.ticket-preview,
+#levelUpPreviewContainer,
+.message-preview-container.message-direct-ready {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 5px;
+  background: #2b2d31;
+  box-shadow: none;
+}
+
+.preview-container.message-direct-ready::before,
+.preview-container.ticket-preview::before,
+#levelUpPreviewContainer::before,
+.message-preview-container.message-direct-ready::before {
+  pointer-events: none;
+}
+
+.preview-container.message-direct-ready:hover,
+.preview-container.ticket-preview:hover,
+#levelUpPreviewContainer:hover,
+.message-preview-container.message-direct-ready:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  outline: none;
+}
+
+.preview-accent-picker,
+.message-preview-container.message-direct-ready .preview-accent-picker {
+  z-index: 70 !important;
+  width: 5px !important;
+  min-width: 5px;
+  border-radius: 4px 0 0 4px !important;
+  cursor: pointer;
+}
+
+.preview-accent-picker:hover,
+.preview-accent-picker:focus-visible {
+  width: 8px !important;
+  outline: 2px solid rgba(255, 255, 255, 0.22) !important;
+  outline-offset: 2px;
+}
+
+.preview-media-edit {
+  z-index: 65 !important;
+  border: 1px dashed rgba(181, 186, 193, 0.42);
+  background: rgba(49, 51, 56, 0.72);
+  color: #b5bac1;
+  box-shadow: none;
+  pointer-events: auto !important;
+}
+
+.preview-media-edit.thumbnail {
+  width: 88px !important;
+  height: 88px !important;
+  top: 14px !important;
+  right: 14px !important;
+  border-radius: 8px;
+}
+
+.preview-media-edit.image {
+  width: min(100%, 560px) !important;
+  min-height: 78px !important;
+  margin-top: 14px !important;
+  border-radius: 8px;
+}
+
+.preview-media-edit.has-value {
+  border-style: solid;
+  background: #1e1f22;
+}
+
+.preview-media-edit img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-media-edit.image.has-value img {
+  width: auto;
+  max-width: min(100%, 560px);
+  height: auto;
+  max-height: 340px;
+  object-fit: contain;
+}
+
+.preview-media-empty {
+  display: flex !important;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  text-align: center;
+  line-height: 1.15;
+  pointer-events: none;
+}
+
+.preview-media-empty strong {
+  display: block;
+  max-width: 100%;
+  color: #f2f3f5;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.preview-media-empty span:last-child {
+  display: block;
+  max-width: 100%;
+  color: #949ba4;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.preview-media-plus {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid rgba(219, 222, 225, 0.35);
+  border-radius: 999px;
+  color: #f2f3f5;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.preview-media-clear {
+  z-index: 75 !important;
+}
+
+.message-media-popover,
+.message-preview-url-popover {
+  position: fixed !important;
+  z-index: 100000 !important;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+}
+
+.message-native-color-input {
+  position: fixed !important;
+  z-index: 100001 !important;
+}
+
+.tab[data-tab="data"]::before {
+  border-width: 1.5px;
+  background-size: 25px 25px;
+}
+
+@media (max-width: 740px) {
+  .tab[data-tab="data"]::before {
+    background-size: 22px 22px;
+  }
+}
