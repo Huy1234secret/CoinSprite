@@ -31,9 +31,29 @@
   const makeId = (prefix) => `${prefix}-${Date.now().toString(36)}-${(++idCounter).toString(36)}`.slice(0, 40);
   const messageApi = (url) => String(url || '').match(/\/api\/guilds\/(\d{16,20})\/message-templates(?:\/([a-z0-9_-]{1,40}))?/);
 
+  function groupButtonRows(rows) {
+    const grouped = [];
+    for (const source of rows || []) {
+      if (source?.type !== 'buttons') {
+        grouped.push(source);
+        continue;
+      }
+      const remaining = [...(source.buttons || [])];
+      while (remaining.length) {
+        const previous = grouped[grouped.length - 1];
+        if (previous?.type === 'buttons' && previous.buttons.length < 5) {
+          previous.buttons.push(...remaining.splice(0, 5 - previous.buttons.length));
+        } else {
+          grouped.push({ ...source, buttons: remaining.splice(0, 5) });
+        }
+      }
+    }
+    return grouped;
+  }
+
   function normalize(template) {
     if (!template || typeof template !== 'object') return null;
-    if (!Array.isArray(template.componentRows)) template.componentRows = [];
+    template.componentRows = groupButtonRows(Array.isArray(template.componentRows) ? template.componentRows : []);
     return template;
   }
 
@@ -44,7 +64,7 @@
     if (match?.[2] && method === 'PUT' && init.body) {
       const body = JSON.parse(init.body);
       const current = templates.get(match[2]);
-      if (current) body.componentRows = current.componentRows || [];
+      if (current) body.componentRows = groupButtonRows(current.componentRows || []);
       init = { ...init, body: JSON.stringify(body) };
     }
     const response = await nativeFetch(input, init);
@@ -90,6 +110,7 @@
     const template = currentTemplate();
     const guildId = window.state?.guildId;
     if (!template || !guildId) return;
+    template.componentRows = groupButtonRows(template.componentRows);
     setSaveState('Saving...', 'pending');
     try {
       const response = await nativeFetch(`/api/guilds/${guildId}/message-templates/${template.id}`, {
@@ -176,19 +197,21 @@
       </article>`;
     }
     return `<article class="message-component-row-editor">
-      <div class="message-component-row-head"><div><strong>Button panel</strong><span>Up to five buttons in one Discord action row.</span></div><button type="button" class="button danger" data-component-action="remove-row" data-row-index="${rowIndex}">Remove</button></div>
+      <div class="message-component-row-head"><div><strong>Button row</strong><span>Buttons appear side by side, up to five per Discord row.</span></div><button type="button" class="button danger" data-component-action="remove-row" data-row-index="${rowIndex}">Remove</button></div>
       <div class="message-component-items">${(row.buttons || []).map((button, index) => buttonEditor(button, rowIndex, index)).join('')}</div>
-      <button type="button" class="button subtle" data-component-action="add-button" data-row-index="${rowIndex}" ${(row.buttons || []).length >= 5 ? 'disabled' : ''}>+ Add button</button>
+      <button type="button" class="button subtle" data-component-action="add-button" data-row-index="${rowIndex}" ${(row.buttons || []).length >= 5 ? 'disabled' : ''}>+ Add button to row</button>
     </article>`;
   }
 
   function editorHtml(template) {
+    const lastRow = template.componentRows[template.componentRows.length - 1];
+    const canAddButton = lastRow?.type === 'buttons' && lastRow.buttons.length < 5 || template.componentRows.length < 5;
     return `<section class="message-components-editor">
       <div class="message-components-heading"><div><h3>Buttons and selection panels</h3><p>Add Sapphire-style interactive components. Non-link actions send an ephemeral response to the user.</p></div><span>${template.componentRows.length}/5 rows</span></div>
       <div class="message-component-rows">${template.componentRows.map(rowEditor).join('')}</div>
       ${template.componentRows.length ? '' : '<div class="empty-state compact">No interactive components added.</div>'}
       <div class="message-component-add-actions">
-        <button type="button" class="button subtle" data-component-action="add-button-row" ${template.componentRows.length >= 5 ? 'disabled' : ''}>+ Button panel</button>
+        <button type="button" class="button subtle" data-component-action="add-button-row" ${canAddButton ? '' : 'disabled'}>+ Add button</button>
         <button type="button" class="button subtle" data-component-action="add-select-row" ${template.componentRows.length >= 5 ? 'disabled' : ''}>+ Selection panel</button>
       </div>
     </section>`;
@@ -211,6 +234,7 @@
   function renderEditor(template) {
     const preview = root?.querySelector('.message-sticky-preview');
     if (!preview) return;
+    template.componentRows = groupButtonRows(template.componentRows);
     preview.querySelector('.message-components-editor')?.remove();
     preview.insertAdjacentHTML('beforeend', editorHtml(template));
     renderPreview(template);
@@ -259,9 +283,12 @@
     const itemIndex = Number(action.dataset.itemIndex);
     const row = template.componentRows[rowIndex];
     switch (action.dataset.componentAction) {
-      case 'add-button-row':
-        template.componentRows.push({ id: makeId('row'), type: 'buttons', buttons: [newButton()] });
+      case 'add-button-row': {
+        const lastRow = template.componentRows[template.componentRows.length - 1];
+        if (lastRow?.type === 'buttons' && lastRow.buttons.length < 5) lastRow.buttons.push(newButton());
+        else if (template.componentRows.length < 5) template.componentRows.push({ id: makeId('row'), type: 'buttons', buttons: [newButton()] });
         break;
+      }
       case 'add-select-row':
         template.componentRows.push({ id: makeId('row'), type: 'select', placeholder: 'Choose an option', minValues: 1, maxValues: 1, options: [newOption()] });
         break;
@@ -283,6 +310,7 @@
       default:
         return;
     }
+    template.componentRows = groupButtonRows(template.componentRows);
     renderEditor(template);
     queueSave();
   }, true);
