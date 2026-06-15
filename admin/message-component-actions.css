@@ -1,6 +1,5 @@
 .message-component-action-editor {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 12px;
   border: 1px solid rgba(88, 101, 242, 0.42);
@@ -8,7 +7,47 @@
   background: rgba(88, 101, 242, 0.07);
 }
 
-.message-component-action-editor > label,
+.message-component-actions-heading,
+.message-component-action-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message-component-actions-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.message-component-actions-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.message-component-action-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.message-component-action-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.message-component-action-head .icon-button {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+}
+
 .message-component-role-field {
   min-width: 0;
 }
@@ -18,7 +57,6 @@
 }
 
 .message-component-reverse {
-  grid-column: 1 / -1;
   align-items: flex-start;
   padding: 10px 12px;
   border: 1px solid var(--line-soft);
@@ -34,6 +72,10 @@
 .message-component-reverse small {
   color: var(--muted);
   font-weight: 400;
+}
+
+.message-component-add-action {
+  justify-self: start;
 }
 
 .emoji-field > input {
@@ -99,12 +141,8 @@
   --indicator-color: #5865f2;
 }
 
-@media (max-width: 760px) {
-  .message-component-action-editor {
+@media (max-width: 900px) {
+  .message-component-action-list {
     grid-template-columns: 1fr;
-  }
-
-  .message-component-reverse {
-    grid-column: auto;
   }
 }
