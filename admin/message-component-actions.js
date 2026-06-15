@@ -14,6 +14,7 @@
   let saveTimer = null;
 
   const messageApi = (url) => String(url || '').match(/\/api\/guilds\/(\d{16,20})\/message-templates(?:\/([a-z0-9_-]{1,40}))?/);
+  const defaultResponses = new Set(['Thanks, <@mention>!', 'You selected this option, <@mention>.']);
 
   function normalizeTemplate(template) {
     if (!template?.id) return null;
@@ -104,9 +105,26 @@
     }
   }
 
-  function actionType(item) {
-    if (item?.actionType === 'give_role') return 'give_role';
-    return 'send_message';
+  function actionFromLegacy(item) {
+    if (item?.actionType === 'give_role' || item?.roleId) {
+      return { type: 'give_role', roleId: item.roleId || '', reverse: Boolean(item.reverse) };
+    }
+    if (item?.actionType === 'send_message' || item?.templateId || defaultResponses.has(item?.response)) {
+      return { type: 'send_message', templateId: item.templateId || '' };
+    }
+    if (item?.response) return { type: 'legacy_response', response: item.response };
+    return { type: 'send_message', templateId: '' };
+  }
+
+  function actionsFor(item) {
+    if (!Array.isArray(item.actions) || !item.actions.length) item.actions = [actionFromLegacy(item)];
+    item.actions = item.actions.slice(0, 2).map((action) => ({ ...action, type: action.type || action.actionType || 'send_message' }));
+    delete item.actionType;
+    delete item.templateId;
+    delete item.roleId;
+    delete item.reverse;
+    delete item.response;
+    return item.actions;
   }
 
   function itemFor(editor, template) {
@@ -118,11 +136,12 @@
       : row.buttons?.[Number(field.dataset.itemIndex)];
   }
 
-  function option(value, label, selected) {
+  function option(value, label, selected, disabled = false) {
     const node = document.createElement('option');
     node.value = value;
     node.textContent = label;
     node.selected = value === selected;
+    node.disabled = disabled;
     return node;
   }
 
@@ -132,27 +151,27 @@
     schedule();
   }
 
-  function fallbackRolePicker(mount, item, editor) {
+  function fallbackRolePicker(mount, action, editor) {
     const select = document.createElement('select');
-    select.append(option('', 'Select a role', item.roleId || ''));
-    roles.forEach((role) => select.append(option(role.id, role.name, item.roleId || '')));
+    select.append(option('', 'Select a role', action.roleId || ''));
+    roles.forEach((role) => select.append(option(role.id, role.name, action.roleId || '')));
     select.addEventListener('change', () => {
-      item.roleId = select.value;
+      action.roleId = select.value;
       queueSave();
       rebuild(editor);
     });
     mount.append(select);
   }
 
-  function mountRolePicker(mount, item, editor) {
+  function mountRolePicker(mount, action, editor) {
     const roleItems = roles.map((role) => ({ ...role, label: role.name, optionType: 'role' }));
     try {
       if (typeof renderPicker === 'function') {
-        renderPicker(mount, roleItems, item.roleId || '', {
+        renderPicker(mount, roleItems, action.roleId || '', {
           type: 'role',
           placeholder: 'Select role',
           onChange: (value) => {
-            item.roleId = value;
+            action.roleId = value;
             queueSave();
             rebuild(editor);
           },
@@ -160,46 +179,73 @@
         return;
       }
     } catch {}
-    fallbackRolePicker(mount, item, editor);
+    fallbackRolePicker(mount, action, editor);
   }
 
-  function buildActionEditor(editor, item) {
-    const type = actionType(item);
-    item.actionType = type;
-    const section = document.createElement('div');
-    section.className = 'message-component-action-editor message-component-wide';
+  function resetAction(action, type) {
+    for (const key of Object.keys(action)) delete action[key];
+    action.type = type;
+    if (type === 'send_message') action.templateId = '';
+    if (type === 'give_role') Object.assign(action, { roleId: '', reverse: false });
+    if (type === 'legacy_response') action.response = '';
+  }
 
-    const actionLabel = document.createElement('label');
-    actionLabel.textContent = 'Action';
-    const actionSelect = document.createElement('select');
-    actionSelect.append(
-      option('send_message', 'Send message', type),
-      option('give_role', 'Give role', type),
-    );
-    actionLabel.append(actionSelect);
-    section.append(actionLabel);
+  function buildActionCard(editor, item, action, index) {
+    const actions = actionsFor(item);
+    const card = document.createElement('div');
+    card.className = 'message-component-action-card';
 
-    actionSelect.addEventListener('change', () => {
-      item.actionType = actionSelect.value;
+    const heading = document.createElement('div');
+    heading.className = 'message-component-action-head';
+    const title = document.createElement('strong');
+    title.textContent = `Action ${index + 1}`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon-button danger-text';
+    remove.textContent = '×';
+    remove.title = 'Remove action';
+    remove.disabled = actions.length <= 1;
+    remove.addEventListener('click', () => {
+      if (actions.length <= 1) return;
+      actions.splice(index, 1);
       queueSave();
       rebuild(editor);
     });
+    heading.append(title, remove);
+    card.append(heading);
 
-    if (type === 'send_message') {
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Action type';
+    const typeSelect = document.createElement('select');
+    const used = new Set(actions.map((entry, entryIndex) => entryIndex === index ? '' : entry.type));
+    typeSelect.append(
+      option('send_message', 'Send message', action.type, used.has('send_message')),
+      option('give_role', 'Give role', action.type, used.has('give_role')),
+    );
+    if (action.type === 'legacy_response') typeSelect.append(option('legacy_response', 'Existing text response', action.type));
+    typeSelect.addEventListener('change', () => {
+      resetAction(action, typeSelect.value);
+      queueSave();
+      rebuild(editor);
+    });
+    typeLabel.append(typeSelect);
+    card.append(typeLabel);
+
+    if (action.type === 'send_message') {
       const templateLabel = document.createElement('label');
       templateLabel.textContent = 'Message template';
       const templateSelect = document.createElement('select');
-      templateSelect.append(option('', 'Select a template', item.templateId || ''));
+      templateSelect.append(option('', 'Select a template', action.templateId || ''));
       [...templates.values()].forEach((template) => {
-        templateSelect.append(option(template.id, template.name, item.templateId || ''));
+        templateSelect.append(option(template.id, template.name, action.templateId || ''));
       });
       templateSelect.addEventListener('change', () => {
-        item.templateId = templateSelect.value;
+        action.templateId = templateSelect.value;
         queueSave();
       });
       templateLabel.append(templateSelect);
-      section.append(templateLabel);
-    } else {
+      card.append(templateLabel);
+    } else if (action.type === 'give_role') {
       const roleField = document.createElement('div');
       roleField.className = 'picker-field message-component-role-field';
       const roleLabel = document.createElement('span');
@@ -207,23 +253,73 @@
       roleLabel.textContent = 'Role';
       const roleMount = document.createElement('div');
       roleField.append(roleLabel, roleMount);
-      section.append(roleField);
-      mountRolePicker(roleMount, item, editor);
+      card.append(roleField);
+      mountRolePicker(roleMount, action, editor);
 
       const reverse = document.createElement('label');
       reverse.className = 'checkline message-component-reverse';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.checked = Boolean(item.reverse);
+      checkbox.checked = Boolean(action.reverse);
       checkbox.addEventListener('change', () => {
-        item.reverse = checkbox.checked;
+        action.reverse = checkbox.checked;
         queueSave();
       });
       const copy = document.createElement('span');
       copy.innerHTML = '<strong>Reverse</strong><small>Remove the role when the member selects this action again.</small>';
       reverse.append(checkbox, copy);
-      section.append(reverse);
+      card.append(reverse);
+    } else {
+      const legacy = document.createElement('label');
+      legacy.textContent = 'Existing response';
+      const textarea = document.createElement('textarea');
+      textarea.rows = 2;
+      textarea.maxLength = 2000;
+      textarea.value = action.response || '';
+      textarea.addEventListener('input', () => {
+        action.response = textarea.value;
+        queueSave();
+      });
+      legacy.append(textarea);
+      card.append(legacy);
     }
+    return card;
+  }
+
+  function buildActionEditor(editor, item) {
+    const actions = actionsFor(item);
+    const section = document.createElement('div');
+    section.className = 'message-component-action-editor message-component-wide';
+
+    const heading = document.createElement('div');
+    heading.className = 'message-component-actions-heading';
+    const copy = document.createElement('div');
+    copy.innerHTML = `<strong>Actions</strong><span>Run one or two actions when this component is selected.</span>`;
+    const count = document.createElement('span');
+    count.textContent = `${actions.length}/2`;
+    heading.append(copy, count);
+    section.append(heading);
+
+    const list = document.createElement('div');
+    list.className = 'message-component-action-list';
+    actions.forEach((action, index) => list.append(buildActionCard(editor, item, action, index)));
+    section.append(list);
+
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'button subtle message-component-add-action';
+    add.textContent = '+ Add action';
+    add.disabled = actions.length >= 2;
+    add.addEventListener('click', () => {
+      if (actions.length >= 2) return;
+      const used = new Set(actions.map((action) => action.type));
+      actions.push(used.has('send_message')
+        ? { type: 'give_role', roleId: '', reverse: false }
+        : { type: 'send_message', templateId: '' });
+      queueSave();
+      rebuild(editor);
+    });
+    section.append(add);
     return section;
   }
 
@@ -231,13 +327,13 @@
     const item = itemFor(editor, template);
     if (!item) return;
     const style = editor.querySelector('[data-component-field="style"]')?.value;
-    const response = editor.querySelector('[data-component-field="response"]');
-    response?.closest('label')?.remove();
+    editor.querySelector('[data-component-field="response"]')?.closest('label')?.remove();
     if (style === 'link') {
       editor.querySelector('.message-component-action-editor')?.remove();
       return;
     }
-    const signature = `${actionType(item)}:${item.templateId || ''}:${item.roleId || ''}:${Boolean(item.reverse)}:${templates.size}:${roles.length}`;
+    const actions = actionsFor(item);
+    const signature = `${JSON.stringify(actions)}:${templates.size}:${roles.length}`;
     if (editor.dataset.messageActionSignature === signature && editor.querySelector('.message-component-action-editor')) return;
     editor.dataset.messageActionSignature = signature;
     editor.querySelector('.message-component-action-editor')?.remove();
@@ -250,7 +346,7 @@
     loadRoles();
     root.querySelectorAll('.message-button-editor, .message-select-option-editor').forEach((editor) => decorateEditor(editor, template));
     const heading = root.querySelector('.message-components-heading p');
-    if (heading) heading.textContent = 'Add interactive components and choose what each button or selection option does.';
+    if (heading) heading.textContent = 'Add interactive components and run up to two actions from each button or selection option.';
     root.querySelectorAll('.message-component-row-head span').forEach((description) => {
       if (/receive the configured response/i.test(description.textContent)) {
         description.textContent = 'Users choose one or more options and run the configured actions.';
