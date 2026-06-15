@@ -1,0 +1,160 @@
+.message-component-action-editor {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(88, 101, 242, 0.42);
+  border-radius: 8px;
+  background: rgba(88, 101, 242, 0.07);
+}
+
+.message-component-actions-heading,
+.message-component-action-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message-component-actions-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.message-component-actions-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.message-component-action-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.message-component-action-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.message-component-action-head .icon-button {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+}
+
+.message-component-role-field {
+  min-width: 0;
+}
+
+.message-component-role-field .picker-button {
+  min-height: 42px;
+}
+
+.message-component-reverse {
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.message-component-reverse > span {
+  display: grid;
+  gap: 3px;
+}
+
+.message-component-reverse small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.message-component-add-action {
+  justify-self: start;
+}
+
+.emoji-field > input {
+  padding-right: 132px !important;
+}
+
+.emoji-picker-button {
+  width: 122px !important;
+  height: 36px !important;
+  right: 3px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px !important;
+  border: 1px solid #3b3f48 !important;
+  background: #292c33 !important;
+  color: #f2f3f5 !important;
+  font-size: 13px !important;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.emoji-picker-button:hover {
+  border-color: #5865f2 !important;
+  background: #353944 !important;
+}
+
+.emoji-picker-preview {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.emoji-picker-preview img {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
+}
+
+.emoji-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emoji-component-popover {
+  width: min(430px, calc(100vw - 24px));
+  max-height: none !important;
+  grid-template-columns: 1fr !important;
+  padding: 0 !important;
+}
+
+.emoji-component-popover.open {
+  display: block !important;
+}
+
+.emoji-component-popover emoji-picker {
+  width: min(430px, calc(100vw - 24px));
+  height: min(420px, calc(100vh - 48px));
+  color-scheme: dark;
+  --background: #111318;
+  --border-color: #303441;
+  --input-border-color: #5865f2;
+  --input-font-color: #ffffff;
+  --input-placeholder-color: #888888;
+  --category-font-color: #ffffff;
+  --button-hover-background: #222633;
+  --button-active-background: #2b3040;
+  --indicator-color: #5865f2;
+}
+
+@media (max-width: 900px) {
+  .message-component-action-list {
+    grid-template-columns: 1fr;
+  }
+}
