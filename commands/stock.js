@@ -58,6 +58,18 @@ async function resolveSetupChannel(interaction) {
   return { channel, created: true };
 }
 
+function displayProviderUrl(value) {
+  if (!value) return 'Not configured';
+  try {
+    const url = new URL(value);
+    url.search = '';
+    url.hash = '';
+    return `\`${url.toString()}\``;
+  } catch {
+    return 'Configured';
+  }
+}
+
 function formatStatus(guildId) {
   const config = stockManager.getStockConfig(guildId);
   const runtime = stockManager.getRuntimeGuild(guildId);
@@ -66,7 +78,7 @@ function formatStatus(guildId) {
   return [
     `**Enabled:** ${config.enabled ? 'Yes' : 'No'}`,
     `**Channel:** ${config.channelId ? `<#${config.channelId}>` : 'Not configured'}`,
-    `**Provider:** ${config.endpointUrl ? `\`${config.endpointUrl}\`` : 'Not configured'}`,
+    `**Provider:** ${displayProviderUrl(config.endpointUrl)}`,
     `**Interval:** ${Math.round(config.pollIntervalMs / 60000)} minute(s)`,
     `**Mode:** ${config.updateMode === 'post' ? 'Post each stock change' : 'Edit one live stock message'}`,
     `**Ping role:** ${config.pingRoleId ? `<@&${config.pingRoleId}>` : 'None'}`,
@@ -94,8 +106,7 @@ module.exports = {
       .setDescription('Configure automatic Grow a Garden 2 stock updates.')
       .addStringOption((option) => option
         .setName('endpoint')
-        .setDescription('HTTPS JSON stock API endpoint.')
-        .setRequired(true)
+        .setDescription('HTTPS JSON endpoint; optional when configured in the bot environment.')
         .setMaxLength(1000))
       .addChannelOption((option) => option
         .setName('channel')
@@ -171,20 +182,25 @@ module.exports = {
     }
 
     try {
-      const endpointUrl = stockManager.assertSafeEndpointUrl(interaction.options.getString('endpoint', true));
+      const existing = stockManager.getStockConfig(interaction.guildId);
+      const requestedEndpoint = interaction.options.getString('endpoint') || existing.endpointUrl;
+      if (!requestedEndpoint) {
+        throw new Error('Provide an endpoint, or configure GROW_GARDEN_2_STOCK_URL in the bot environment.');
+      }
+      const endpointUrl = stockManager.assertSafeEndpointUrl(requestedEndpoint);
       const { channel, created } = await resolveSetupChannel(interaction);
-      const intervalMinutes = interaction.options.getInteger('interval') || 5;
-      const updateMode = interaction.options.getString('mode') || 'edit';
+      const intervalMinutes = interaction.options.getInteger('interval') || Math.round(existing.pollIntervalMs / 60000) || 5;
+      const updateMode = interaction.options.getString('mode') || existing.updateMode || 'edit';
       const pingRole = interaction.options.getRole('ping_role');
       updateStockConfig(interaction.guildId, {
         channelId: channel.id,
-        pingRoleId: pingRole?.id || '',
+        pingRoleId: pingRole?.id || existing.pingRoleId || '',
         stock: {
           enabled: true,
           endpointUrl,
           pollIntervalMs: intervalMinutes * 60 * 1000,
           updateMode,
-          title: 'Grow a Garden 2 Stock',
+          title: existing.title || 'Grow a Garden 2 Stock',
         },
       });
 
