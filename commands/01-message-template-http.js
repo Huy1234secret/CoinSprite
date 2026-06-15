@@ -96,7 +96,7 @@ async function requireGuildAdmin(req, res, guildId) {
     sendJson(res, 403, { error: 'Administrator permission is required.' });
     return null;
   }
-  return { user, guild };
+  return { user, guild, member };
 }
 
 async function readBody(req) {
@@ -114,7 +114,7 @@ async function readBody(req) {
 
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n</head>');
+  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
     '<button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
@@ -123,7 +123,7 @@ function injectedIndex() {
     '<section class="tab-panel" data-panel="games">',
     '<section class="tab-panel" data-panel="messages"><div id="messageTemplatesRoot"></div></section>\n\n        <section class="tab-panel" data-panel="games">',
   );
-  html = html.replace('</body>', '  <script src="/admin/messages.js" defer></script>\n</body>');
+  html = html.replace('</body>', '  <script src="/admin/messages.js" defer></script>\n  <script src="/admin/message-components.js" defer></script>\n</body>');
   return html;
 }
 
@@ -184,7 +184,12 @@ async function handleTemplateRequest(req, res) {
       sendJson(res, 400, { error: 'Select a text channel the bot can access.' });
       return true;
     }
-    const payload = buildMessagePayload(template);
+    const payload = buildMessagePayload(template, {
+      guild: auth.guild,
+      channel,
+      user: auth.user,
+      member: auth.member,
+    });
     if (actionMatch[3] === 'send') {
       const message = await channel.send(payload);
       sendJson(res, 200, { ok: true, messageLink: `https://discord.com/channels/${guildId}/${channel.id}/${message.id}` });
