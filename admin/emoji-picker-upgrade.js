@@ -10,15 +10,27 @@
     return pickerImport;
   }
 
-  function updateButton(input, button) {
-    const value = String(input.value || '').trim();
+  function emojiPreview(value) {
     const preview = document.createElement('span');
     preview.className = 'emoji-picker-preview';
-    preview.textContent = value && !/^<a?:/.test(value) ? value : '☺';
+    const custom = String(value || '').match(/^<(a?):([a-z0-9_]+):(\d{16,20})>$/i);
+    if (custom) {
+      const image = document.createElement('img');
+      image.src = `https://cdn.discordapp.com/emojis/${custom[3]}.${custom[1] ? 'gif' : 'webp'}?size=32&quality=lossless`;
+      image.alt = `:${custom[2]}:`;
+      preview.append(image);
+    } else {
+      preview.textContent = value || '☺';
+    }
+    return preview;
+  }
+
+  function updateButton(input, button) {
+    const value = String(input.value || '').trim();
     const label = document.createElement('span');
     label.className = 'emoji-picker-label';
     label.textContent = value ? 'Change emoji' : 'Choose emoji';
-    button.replaceChildren(preview, label);
+    button.replaceChildren(emojiPreview(value), label);
     button.setAttribute('aria-label', label.textContent);
     button.title = label.textContent;
   }
@@ -97,6 +109,9 @@
       'input[data-control-field="emoji"]',
       'input[data-option-field="emoji"]',
       'input[data-component-field="emoji"]',
+      'input[type="text"][name*="emoji" i]',
+      'input[type="text"][id*="emoji" i]',
+      'input[type="text"][placeholder*="emoji" i]',
     ].join(',')).forEach(attach);
     document.querySelectorAll('.emoji-field > input').forEach(enhanceExisting);
   }
