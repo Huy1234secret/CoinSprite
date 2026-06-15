@@ -161,6 +161,11 @@
   color: #b5bac1;
 }
 
+.preview-live-editor {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .message-placeholder-palette > div:first-child,
   .message-components-heading,
