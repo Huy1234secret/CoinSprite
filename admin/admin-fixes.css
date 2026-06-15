@@ -1,4 +1,5 @@
-.mini-tabs {
+.mini-tabs,
+.message-editor-head {
   z-index: 90 !important;
   isolation: isolate;
 }
