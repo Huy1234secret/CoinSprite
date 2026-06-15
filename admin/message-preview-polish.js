@@ -1,350 +1,199 @@
 (() => {
-  if (window.__coinSpritePreviewPolishV2) return;
-  window.__coinSpritePreviewPolishV2 = true;
+  if (window.__coinSpriteRichMessageEditorV1) return;
+  window.__coinSpriteRichMessageEditorV1 = true;
 
-  const POLISH_CSS = '/admin/message-preview-polish.css';
-  let popover = null;
-  let colorInput = null;
-  let queued = false;
-
-  const qs = (selector, root = document) => root.querySelector(selector);
   const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const isHex = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '').trim());
-  const hex = (value) => isHex(value) ? String(value).trim().toUpperCase() : '#FFFFFF';
+  const normalize = (value) => String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ');
 
-  function ensureCss() {
-    if (qs(`link[href="${POLISH_CSS}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = POLISH_CSS;
-    document.head.append(link);
+  function marker(value) {
+    const span = document.createElement('span');
+    span.className = 'live-markdown-marker';
+    span.contentEditable = 'false';
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = value;
+    return span;
   }
 
-  function assignIdentity(input, prefix = 'preview-field') {
-    if (!input || !['INPUT', 'SELECT', 'TEXTAREA'].includes(input.tagName)) return;
-    if (!input.id) input.id = `${prefix}-${Math.random().toString(36).slice(2)}`;
-    if (!input.name) input.name = input.id;
-    if (input.tagName === 'INPUT' && !input.autocomplete) input.autocomplete = 'off';
-  }
-
-  function emit(field) {
-    if (!field) return;
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-    field.dispatchEvent(new Event('change', { bubbles: true }));
-    if (typeof window.refreshDirtyState === 'function') window.refreshDirtyState();
-    schedule();
-  }
-
-  function setField(field, value) {
-    if (!field) return;
-    field.value = value;
-    emit(field);
-  }
-
-  function closePopover() {
-    popover?.remove();
-    popover = null;
-    colorInput?.remove();
-    colorInput = null;
-  }
-
-  function fieldsForPreview(preview) {
-    if (!preview) return {};
-    if (preview.id === 'levelUpPreviewContainer' || preview.closest('#levelUpPreview')) {
-      const form = qs('#configForm');
-      return {
-        content: qs('#levelUpContent'),
-        color: form?.elements?.['xp.levelUpMessage.accentColor'],
-        thumb: form?.elements?.['xp.levelUpMessage.thumbnailUrl'],
-        image: form?.elements?.['xp.levelUpMessage.imageUrl'],
-      };
+  function appendInline(parent, value) {
+    const text = String(value || '');
+    const pattern = /(\x60[^\x60\n]+\x60|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\|\|[^|\n]+\|\||\*[^*\n]+\*|_[^_\n]+_)/g;
+    let cursor = 0;
+    let match;
+    while ((match = pattern.exec(text))) {
+      if (match.index > cursor) parent.append(document.createTextNode(text.slice(cursor, match.index)));
+      const token = match[0];
+      let open = token[0];
+      let close = token[token.length - 1];
+      let tag = 'em';
+      let className = '';
+      if (token.startsWith('**')) { open = close = '**'; tag = 'strong'; }
+      else if (token.startsWith('__')) { open = close = '__'; tag = 'u'; }
+      else if (token.startsWith('~~')) { open = close = '~~'; tag = 's'; }
+      else if (token.startsWith('||')) { open = close = '||'; tag = 'span'; className = 'live-markdown-spoiler'; }
+      else if (token.startsWith('\x60')) { open = close = '\x60'; tag = 'code'; }
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      node.append(marker(open), document.createTextNode(token.slice(open.length, token.length - close.length)), marker(close));
+      parent.append(node);
+      cursor = pattern.lastIndex;
     }
-    const builder = preview.closest('.ticket-message-builder');
-    return {
-      content: qs('textarea[data-message-scope]', builder),
-      color: qs('[data-message-field="accentColor"]', builder),
-      thumb: qs('[data-message-field="thumbnailUrl"]', builder),
-      image: qs('[data-message-field="imageUrl"]', builder),
-    };
+    if (cursor < text.length) parent.append(document.createTextNode(text.slice(cursor)));
   }
 
-  function messageTemplateField(anchor, fieldName) {
-    const root = qs('#messageTemplatesRoot');
-    const index = Number(anchor?.dataset?.index ?? anchor?.closest?.('[data-preview-container-index]')?.dataset?.previewContainerIndex);
-    if (!root || !Number.isFinite(index)) return null;
-    return qs(`[data-container-index="${index}"] [data-container-field="${fieldName}"]`, root);
+  function renderEditor(editor, value) {
+    const fragment = document.createDocumentFragment();
+    let inCode = false;
+    String(value || '').split('\n').forEach((rawLine) => {
+      const line = document.createElement('div');
+      line.className = 'live-markdown-line';
+      let body = rawLine;
+      let prefix = '';
+
+      if (rawLine.trimStart().startsWith('\x60\x60\x60')) {
+        line.classList.add('is-code-fence');
+        prefix = rawLine;
+        body = '';
+        inCode = !inCode;
+      } else if (inCode) {
+        line.classList.add('is-code');
+      } else if (rawLine.trim().toLowerCase() === '<separator>') {
+        line.classList.add('is-separator');
+        prefix = rawLine;
+        body = '';
+      } else {
+        const match = rawLine.match(/^(### |## |# |-# |> |[-*] )/);
+        if (match) {
+          prefix = match[0];
+          body = rawLine.slice(prefix.length);
+          if (prefix === '# ') line.classList.add('is-heading-1');
+          else if (prefix === '## ') line.classList.add('is-heading-2');
+          else if (prefix === '### ') line.classList.add('is-heading-3');
+          else if (prefix === '-# ') line.classList.add('is-subtext');
+          else if (prefix === '> ') line.classList.add('is-quote');
+          else line.classList.add('is-list');
+        }
+      }
+
+      if (prefix) line.append(marker(prefix));
+      const content = document.createElement('span');
+      content.className = 'live-markdown-content';
+      if (line.classList.contains('is-code')) content.textContent = body || '\u200b';
+      else appendInline(content, body);
+      if (!prefix && !body) content.append(document.createElement('br'));
+      line.append(content);
+      fragment.append(line);
+    });
+    editor.replaceChildren(fragment);
   }
 
-  function previewUrl(value) {
-    const raw = String(value || '').trim();
-    if (!raw) return '';
-    if (raw.includes('<avatar_url>')) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-    try {
-      const url = new URL(raw);
-      return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
-    } catch {
-      return '';
+  function directLine(editor, node) {
+    let current = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+    while (current && current.parentElement !== editor) current = current.parentElement;
+    return current?.parentElement === editor ? current : null;
+  }
+
+  function captureCaret(editor) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editor.contains(selection.anchorNode)) {
+      return { line: Math.max(0, editor.children.length - 1), offset: Number.MAX_SAFE_INTEGER };
+    }
+    const line = directLine(editor, selection.anchorNode);
+    if (!line) return { line: Math.max(0, editor.children.length - 1), offset: Number.MAX_SAFE_INTEGER };
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    range.setEnd(selection.anchorNode, selection.anchorOffset);
+    return { line: [...editor.children].indexOf(line), offset: range.toString().length };
+  }
+
+  function restoreCaret(editor, caret) {
+    const line = editor.children[Math.min(caret.line, editor.children.length - 1)];
+    if (!line) return;
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    let remaining = caret.offset;
+    let node;
+    let last = line;
+    const range = document.createRange();
+    while ((node = walker.nextNode())) {
+      last = node;
+      const length = node.data.length;
+      if (remaining <= length) {
+        const markerNode = node.parentElement?.closest('.live-markdown-marker');
+        if (markerNode) range.setStartAfter(markerNode);
+        else range.setStart(node, Math.max(0, remaining));
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      remaining -= length;
+    }
+    range.selectNodeContents(last.nodeType === Node.TEXT_NODE ? last.parentNode : last);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function enhanceEditor(editor) {
+    if (!editor || editor.dataset.richMarkdown === 'true') return;
+    editor.dataset.richMarkdown = 'true';
+    editor.setAttribute('aria-label', 'Discord Markdown message editor');
+
+    const overlay = editor.closest('.preview-inline-overlay');
+    const preview = overlay?.parentElement;
+    const image = preview?.querySelector(':scope > .preview-media-edit.image');
+    if (overlay && image) preview.insertBefore(overlay, image);
+
+    renderEditor(editor, normalize(editor.innerText || editor.textContent || ''));
+    editor.addEventListener('input', () => {
+      if (editor.dataset.richSync === 'true') return;
+      const caret = captureCaret(editor);
+      const value = normalize(editor.innerText || editor.textContent || '');
+      renderEditor(editor, value);
+      restoreCaret(editor, caret);
+      editor.dataset.richSync = 'true';
+      editor.dispatchEvent(new Event('input', { bubbles: true }));
+      delete editor.dataset.richSync;
+    });
+  }
+
+  function stripPrefix(node, length) {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let remaining = length;
+    let text;
+    while (remaining > 0 && (text = walker.nextNode())) {
+      const count = Math.min(remaining, text.data.length);
+      text.data = text.data.slice(count);
+      remaining -= count;
     }
   }
 
-  function button(className, text = '') {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = className;
-    item.textContent = text;
-    return item;
-  }
-
-  function emptyMedia(kind, hasValue) {
-    const wrap = document.createElement('span');
-    wrap.className = 'preview-media-empty';
-    const plus = document.createElement('span');
-    plus.className = 'preview-media-plus';
-    plus.textContent = '+';
-    const title = document.createElement('strong');
-    title.textContent = `${hasValue ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-    const hint = document.createElement('span');
-    hint.textContent = hasValue ? 'Preview unavailable' : 'Click to set URL';
-    wrap.append(plus, title, hint);
-    return wrap;
-  }
-
-  function mediaButton(field, kind) {
-    const value = String(field?.value || '').trim();
-    const item = button(`preview-media-edit ${kind === 'thumb' ? 'thumbnail' : 'image'}${value ? ' has-value' : ''}`);
-    item.dataset.inlineMessageAction = kind;
-    item.dataset.sourceValue = value;
-    item.title = `${value ? 'Edit' : 'Add'} ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-    item.ariaLabel = item.title;
-
-    const url = previewUrl(value);
-    if (url) {
-      const img = document.createElement('img');
-      img.src = url;
-      img.alt = '';
-      img.addEventListener('error', () => {
-        img.remove();
-        item.classList.remove('has-value');
-        item.append(emptyMedia(kind, Boolean(value)));
-      }, { once: true });
-      item.append(img);
-    } else {
-      item.append(emptyMedia(kind, Boolean(value)));
+  function upgradePreviewLine(line) {
+    if (line.dataset.discordPolished === 'true') return;
+    const value = line.textContent || '';
+    if (line.classList.contains('preview-line')) {
+      if (value.startsWith('### ')) {
+        stripPrefix(line, 4);
+        line.className = 'preview-heading small';
+      } else if (value.startsWith('# ')) {
+        stripPrefix(line, 2);
+        line.className = 'preview-heading large';
+      } else if (/^[-*] /.test(value)) {
+        stripPrefix(line, 2);
+        line.classList.add('preview-list-line');
+      }
     }
-
-    if (value) {
-      const clear = document.createElement('span');
-      clear.className = 'preview-media-clear';
-      clear.dataset.inlineMessageAction = `${kind}-clear`;
-      clear.title = `Clear ${kind === 'thumb' ? 'thumbnail' : 'image'}`;
-      clear.textContent = '×';
-      item.append(clear);
-    }
-    return item;
-  }
-
-  function syncMedia(preview, field, kind) {
-    if (!field) return;
-    const className = kind === 'thumb' ? 'thumbnail' : 'image';
-    const value = String(field.value || '').trim();
-    const selector = `:scope > .preview-media-edit.${className}`;
-    const current = qs(selector, preview);
-    if (current?.dataset?.sourceValue === value) return;
-    current?.remove();
-    preview.append(mediaButton(field, kind));
-  }
-
-  function decorateTicketAndLevelPreview(preview) {
-    const fields = fieldsForPreview(preview);
-    if (!fields.content || preview.classList.contains('is-direct-editing')) return;
-    preview.classList.add('message-direct-ready');
-    const color = hex(fields.color?.value);
-    preview.style.setProperty('--preview-accent', color);
-    preview.style.setProperty('--container-color', color);
-
-    let bar = qs(':scope > .preview-accent-picker', preview);
-    if (fields.color && !bar) {
-      bar = button('preview-accent-picker');
-      bar.dataset.inlineMessageAction = 'color';
-      bar.ariaLabel = 'Change container color';
-      bar.title = 'Change container color';
-      preview.prepend(bar);
-    }
-    if (bar) bar.style.setProperty('--preview-accent', color);
-
-    syncMedia(preview, fields.thumb, 'thumb');
-    syncMedia(preview, fields.image, 'image');
-  }
-
-  function decorateDataIcon() {
-    const tab = qs('.tab[data-tab="data"]');
-    if (!tab) return;
-    tab.classList.add('data-icon-ready');
+    line.dataset.discordPolished = 'true';
   }
 
   function decorate() {
-    ensureCss();
-    decorateDataIcon();
-    qsa('input, textarea, select').forEach(assignIdentity);
-    qsa('.ticket-message-builder .preview-container.ticket-preview, #levelUpPreviewContainer').forEach(decorateTicketAndLevelPreview);
+    qsa('.preview-live-editor').forEach(enhanceEditor);
+    qsa('.preview-container .preview-line, .message-preview-container .message-preview-line').forEach(upgradePreviewLine);
   }
 
-  function schedule() {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      decorate();
-    });
-  }
-
-  function place(node, anchor) {
-    const rect = anchor.getBoundingClientRect();
-    const pad = 12;
-    const width = Math.min(390, window.innerWidth - pad * 2);
-    node.style.width = `${width}px`;
-    document.body.append(node);
-    const height = node.offsetHeight || 180;
-    let top = rect.bottom + 8;
-    if (top + height > window.innerHeight - pad) top = rect.top - height - 8;
-    top = Math.max(pad, Math.min(top, window.innerHeight - height - pad));
-    const left = Math.max(pad, Math.min(rect.left, window.innerWidth - width - pad));
-    node.style.left = `${left}px`;
-    node.style.top = `${top}px`;
-  }
-
-  function openNativeColor(field, anchor) {
-    if (!field) return;
-    closePopover();
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.className = 'message-native-color-input';
-    input.value = hex(field.value);
-    assignIdentity(input, 'native-color');
-    const rect = anchor.getBoundingClientRect();
-    input.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 50))}px`;
-    input.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - 50))}px`;
-    document.body.append(input);
-    colorInput = input;
-    const commit = () => {
-      const value = hex(input.value);
-      setField(field, value);
-      const preview = anchor.closest('.preview-container, .message-preview-container');
-      preview?.style.setProperty('--preview-accent', value);
-      preview?.style.setProperty('--container-color', value);
-      anchor.style.setProperty('--preview-accent', value);
-    };
-    input.addEventListener('input', commit);
-    input.addEventListener('change', () => { commit(); setTimeout(closePopover, 250); });
-    input.addEventListener('keydown', (event) => { if (event.key === 'Escape') closePopover(); });
-    input.addEventListener('blur', () => setTimeout(() => { if (colorInput === input) closePopover(); }, 60000), { once: true });
-    input.focus({ preventScroll: true });
-    try {
-      if (typeof input.showPicker === 'function') input.showPicker();
-      else input.click();
-    } catch {
-      input.click();
-    }
-  }
-
-  function openUrlEditor(field, anchor, kind) {
-    if (!field) return;
-    closePopover();
-    const box = document.createElement('div');
-    box.className = 'message-media-popover message-preview-url-popover open';
-    const title = document.createElement('div');
-    title.className = 'message-popover-title';
-    title.innerHTML = `<strong>${kind === 'thumb' ? 'Thumbnail' : 'Image'} URL</strong><span>Paste an http(s) URL. Placeholders like &lt;avatar_url&gt; are supported where the message supports them.</span>`;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = field.value || '';
-    input.placeholder = kind === 'thumb' ? '<avatar_url> or https://example.com/avatar.png' : 'https://example.com/banner.png';
-    assignIdentity(input, 'media-url');
-    const actions = document.createElement('div');
-    actions.className = 'message-media-actions';
-    const clear = button('message-media-clear-button', 'Clear');
-    const cancel = button('message-media-clear-button neutral', 'Cancel');
-    const save = button('message-media-apply', 'Save');
-    actions.append(clear, cancel, save);
-    const set = (value) => {
-      setField(field, String(value || '').trim());
-      closePopover();
-      schedule();
-    };
-    clear.addEventListener('click', () => set(''));
-    cancel.addEventListener('click', closePopover);
-    save.addEventListener('click', () => set(input.value));
-    input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') { event.preventDefault(); set(input.value); }
-      if (event.key === 'Escape') closePopover();
-    });
-    box.append(title, input, actions);
-    box.addEventListener('click', (event) => event.stopPropagation());
-    popover = box;
-    place(box, anchor);
-    input.focus({ preventScroll: true });
-    input.select();
-  }
-
-  function stop(event, prevent = true) {
-    if (prevent) event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-  }
-
-  function inlineAction(event) {
-    const action = event.target.closest?.('[data-inline-message-action]');
-    if (!action || action.closest('.message-media-popover')) return false;
-    const preview = action.closest('.preview-container');
-    if (preview?.classList.contains('is-direct-editing')) {
-      stop(event);
-      return true;
-    }
-    const fields = fieldsForPreview(preview);
-    const name = action.dataset.inlineMessageAction;
-    stop(event);
-    if (name === 'color') openNativeColor(fields.color, action);
-    else if (name === 'thumb') openUrlEditor(fields.thumb, action, 'thumb');
-    else if (name === 'image') openUrlEditor(fields.image, action, 'image');
-    else if (name === 'thumb-clear') setField(fields.thumb, '');
-    else if (name === 'image-clear') setField(fields.image, '');
-    return true;
-  }
-
-  function messageTemplateAction(event) {
-    const action = event.target.closest?.('[data-message-action="preview-color"], [data-message-action="preview-media"], [data-message-action="preview-media-clear"]');
-    if (!action || action.closest('.message-media-popover')) return false;
-    const preview = action.closest('.message-preview-container');
-    if (preview?.classList.contains('is-direct-editing')) {
-      stop(event);
-      return true;
-    }
-    stop(event);
-    const name = action.dataset.messageAction;
-    if (name === 'preview-color') openNativeColor(messageTemplateField(action, 'accentColor'), action);
-    else if (name === 'preview-media') openUrlEditor(messageTemplateField(action, action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
-    else if (name === 'preview-media-clear') setField(messageTemplateField(action, action.dataset.field), '');
-    return true;
-  }
-
-  window.addEventListener('pointerdown', (event) => {
-    const action = event.target.closest?.('[data-inline-message-action], [data-message-action="preview-color"], [data-message-action="preview-media"], [data-message-action="preview-media-clear"]');
-    if (action && !action.closest('.message-media-popover')) {
-      event.stopPropagation();
-      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-    }
-  }, true);
-
-  window.addEventListener('click', (event) => {
-    if (inlineAction(event)) return;
-    if (messageTemplateAction(event)) return;
-    if (!event.target.closest?.('.message-media-popover, .message-native-color-input, .preview-accent-picker, .preview-media-edit')) closePopover();
-  }, true);
-
-  window.addEventListener('resize', closePopover);
-  window.addEventListener('scroll', closePopover, true);
-  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
-  schedule();
-  setTimeout(schedule, 250);
-  setTimeout(schedule, 900);
+  new MutationObserver(decorate).observe(document.body, { childList: true, subtree: true });
+  decorate();
 })();
