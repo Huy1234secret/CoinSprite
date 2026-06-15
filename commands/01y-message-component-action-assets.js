@@ -10,10 +10,19 @@ if (!fs.__coinSpriteMessageComponentActionAsset) {
     const value = nativeReadFileSync(filePath, ...args);
     if (path.resolve(String(filePath)) !== INDEX_PATH || typeof value !== 'string') return value;
     if (value.includes('/admin/message-component-actions.js')) return value;
-    return value.replace(
-      '</body>',
-      '  <script src="/admin/message-component-actions.js" defer></script>\n</body>',
-    );
+    return value
+      .replace(
+        '</head>',
+        '  <link rel="stylesheet" href="/admin/message-component-actions.css">\n</head>',
+      )
+      .replace(
+        '</body>',
+        [
+          '  <script src="/admin/message-component-actions.js" defer></script>',
+          '  <script src="/admin/emoji-picker-upgrade.js" defer></script>',
+          '</body>',
+        ].join('\n'),
+      );
   };
 }
 
