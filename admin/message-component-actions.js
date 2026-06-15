@@ -85,7 +85,7 @@
     try {
       const payload = await xhrJson('PUT', `/api/guilds/${guildId}/message-templates/${template.id}`, template);
       normalizeTemplate(payload.template);
-      await nativeFetch(`/api/guilds/${guildId}/message-templates`).catch(() => null);
+      await window.fetch(`/api/guilds/${guildId}/message-templates`).catch(() => null);
       setSaveState('Saved', 'success');
       schedule();
     } catch (error) {
