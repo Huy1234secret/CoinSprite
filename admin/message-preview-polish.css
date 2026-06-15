@@ -1,4 +1,4 @@
-/* Discord-style preview polish and interaction fixes. */
+/* Shared Discord-style message editor polish. */
 #messageTemplatesRoot .message-editor-head {
   position: sticky;
   top: -18px;
@@ -28,7 +28,6 @@
   position: relative !important;
   top: auto !important;
   z-index: 1;
-  overflow: hidden;
   isolation: isolate;
   max-width: 960px;
   border-radius: 12px;
@@ -36,7 +35,6 @@
 
 .discord-preview,
 .message-discord-preview {
-  overflow: hidden;
   border-radius: 10px;
   background: #313338;
 }
@@ -46,18 +44,10 @@
 #levelUpPreviewContainer,
 .message-preview-container.message-direct-ready {
   position: relative;
-  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 5px;
   background: #2b2d31;
   box-shadow: none;
-}
-
-.preview-container.message-direct-ready::before,
-.preview-container.ticket-preview::before,
-#levelUpPreviewContainer::before,
-.message-preview-container.message-direct-ready::before {
-  pointer-events: none;
 }
 
 .preview-container.message-direct-ready:hover,
@@ -74,7 +64,6 @@
   width: 5px !important;
   min-width: 5px;
   border-radius: 4px 0 0 4px !important;
-  cursor: pointer;
 }
 
 .preview-accent-picker:hover,
@@ -144,39 +133,15 @@
 }
 
 .preview-media-empty strong {
-  display: block;
-  max-width: 100%;
   color: #f2f3f5;
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
 }
 
 .preview-media-empty span:last-child {
-  display: block;
-  max-width: 100%;
   color: #949ba4;
   font-size: 11px;
   font-weight: 650;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
-}
-
-.preview-media-plus {
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  border: 1px solid rgba(219, 222, 225, 0.35);
-  border-radius: 999px;
-  color: #f2f3f5;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.preview-media-clear {
-  z-index: 75 !important;
 }
 
 .message-media-popover,
@@ -192,14 +157,188 @@
   z-index: 100001 !important;
 }
 
-.tab[data-tab="data"]::before {
-  border-width: 1.5px;
-  background-image: url('/admin/images/data.svg');
-  background-size: 25px 25px;
+/* The editor now participates in layout instead of covering the preview. */
+.preview-container.is-direct-editing,
+.message-preview-container.is-direct-editing,
+.message-root-content.is-direct-editing {
+  min-height: 0 !important;
+  overflow: visible !important;
+  cursor: text;
+  background: #25272c;
 }
 
-@media (max-width: 740px) {
-  .tab[data-tab="data"]::before {
-    background-size: 22px 22px;
+.preview-container.is-direct-editing > :not(.preview-accent-picker):not(.preview-media-edit):not(.preview-inline-overlay),
+.message-preview-container.is-direct-editing > :not(.preview-accent-picker):not(.preview-media-edit):not(.preview-inline-overlay),
+.message-root-content.is-direct-editing > :not(.preview-inline-overlay) {
+  display: none !important;
+}
+
+.preview-container.is-direct-editing > .preview-inline-overlay,
+.message-preview-container.is-direct-editing > .preview-inline-overlay,
+.message-root-content.is-direct-editing > .preview-inline-overlay {
+  position: relative !important;
+  inset: auto !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 10px;
+  width: auto !important;
+  min-height: 0 !important;
+  margin: 0 102px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(88, 101, 242, 0.48);
+  border-radius: 8px;
+  background: #1f2126;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+.message-root-content.is-direct-editing > .preview-inline-overlay {
+  margin-right: 0;
+}
+
+.preview-edit-toolbar {
+  margin: 0;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preview-live-editor {
+  min-height: 120px !important;
+  max-height: none !important;
+  overflow: visible !important;
+  color: #dbdee1;
+  font: 14px/1.375 Arial, sans-serif !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  caret-color: #fff;
+}
+
+.preview-live-editor:focus {
+  outline: none;
+}
+
+.live-markdown-line {
+  min-height: 19px;
+  position: relative;
+}
+
+.live-markdown-line.is-heading-1,
+.live-markdown-line.is-heading-2,
+.live-markdown-line.is-heading-3 {
+  margin: 0 0 4px;
+  color: #f2f3f5;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.live-markdown-line.is-heading-1 { font-size: 22px; }
+.live-markdown-line.is-heading-2 { font-size: 20px; }
+.live-markdown-line.is-heading-3 { font-size: 18px; }
+
+.live-markdown-line.is-subtext {
+  color: #949ba4;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.live-markdown-line.is-quote {
+  margin: 2px 0;
+  padding-left: 10px;
+  border-left: 3px solid #4e5058;
+}
+
+.live-markdown-line.is-list {
+  padding-left: 18px;
+}
+
+.live-markdown-line.is-list::before,
+.preview-list-line::before {
+  position: absolute;
+  left: 5px;
+  content: '\2022';
+  color: #dbdee1;
+}
+
+.live-markdown-line.is-code {
+  min-height: 20px;
+  padding: 0 9px;
+  border-right: 1px solid #111214;
+  border-left: 1px solid #111214;
+  background: #1e1f22;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.live-markdown-line.is-code-fence {
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.live-markdown-line.is-separator {
+  min-height: 13px;
+  margin: 3px 0;
+  border-bottom: 1px solid #4e5058;
+}
+
+.live-markdown-marker {
+  display: inline-block;
+  width: 0;
+  max-width: 0;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.preview-live-editor code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #111214;
+  font: 0.92em ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.live-markdown-spoiler {
+  border-radius: 3px;
+  background: #111214;
+  color: #111214;
+  cursor: pointer;
+}
+
+.live-markdown-spoiler:hover,
+.live-markdown-spoiler:focus {
+  color: #dbdee1;
+}
+
+.preview-list-line {
+  position: relative;
+  padding-left: 18px;
+}
+
+/* Use the PNG icon and the same one-pixel outline as every other tab icon. */
+.tab[data-tab="data"]::before {
+  display: none !important;
+  content: none !important;
+  background-image: none !important;
+}
+
+.tab[data-tab="data"] .tab-icon {
+  --tab-icon-glow: rgba(255, 255, 255, 0.58);
+  --tab-icon-bg: rgba(255, 255, 255, 0.1);
+  --tab-icon-border: rgba(255, 255, 255, 0.18);
+  border-width: 1px;
+}
+
+@media (max-width: 680px) {
+  .preview-container.is-direct-editing > .preview-inline-overlay,
+  .message-preview-container.is-direct-editing > .preview-inline-overlay {
+    margin: 100px 0 0;
+  }
+
+  .message-root-content.is-direct-editing > .preview-inline-overlay {
+    margin-top: 0;
   }
 }
