@@ -317,10 +317,31 @@
       source.value = value;
       if (typeof window.refreshDirtyState === 'function') window.refreshDirtyState();
     });
+    const insertLineBreak = () => {
+      const caret = captureCaret(editor);
+      const lines = surfaceValue(editor).split('\n');
+      const lineIndex = Math.max(0, Math.min(caret.line, lines.length - 1));
+      const line = lines[lineIndex] || '';
+      const offset = Math.max(0, Math.min(caret.offset, line.length));
+      lines.splice(lineIndex, 1, line.slice(0, offset), line.slice(offset));
+      const value = lines.join('\n');
+      renderSurface(editor, value);
+      restoreCaret(editor, { line: lineIndex + 1, offset: 0 });
+      source.value = value;
+      if (typeof window.refreshDirtyState === 'function') window.refreshDirtyState();
+    };
+    editor.addEventListener('beforeinput', (event) => {
+      if (event.inputType !== 'insertParagraph' && event.inputType !== 'insertLineBreak') return;
+      event.preventDefault();
+      insertLineBreak();
+    });
     editor.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault();
         finishEditor(true);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        insertLineBreak();
       } else if (event.key === 'Escape') {
         event.preventDefault();
         finishEditor(false);
