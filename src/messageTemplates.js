@@ -64,13 +64,15 @@ function sanitizeContainer(value, index) {
 }
 
 function sanitizeButton(value, index) {
-  const style = BUTTON_STYLES.has(value?.style) ? value.style : 'primary';
+  const requestedStyle = BUTTON_STYLES.has(value?.style) ? value.style : 'primary';
+  const url = requestedStyle === 'link' ? cleanUrl(value?.url) : '';
+  const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;
   return {
     id: cleanId(value?.id, `button-${index + 1}`),
     label: cleanText(value?.label, `Button ${index + 1}`, 80),
     style,
     emoji: cleanEmoji(value?.emoji),
-    url: style === 'link' ? cleanUrl(value?.url) : '',
+    url: style === 'link' ? url : '',
     response: style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000),
   };
 }
