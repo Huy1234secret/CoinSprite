@@ -4,14 +4,44 @@ const { buildSetupPayload } = require('../src/giveawayMessages');
 const { createDraft, now } = require('../src/giveawayUtils');
 const giveawayManager = require('../src/giveawayManager');
 
+const START_DURATION_PREFIX = 'giveaway:modal:start-duration:';
+
 if (!runtime.__giveawaySelectedPingRoleReady) {
   const createLiveGiveawayFromDraft = runtime.createLiveGiveawayFromDraft;
   runtime.createLiveGiveawayFromDraft = (draft) => {
     const giveaway = createLiveGiveawayFromDraft(draft);
-    giveaway.pingRoleId = draft?.pingRoleId || '';
+    giveaway.startupPingRoleId = draft?.pingRoleId || '';
+    giveaway.pingRoleId = '';
     return giveaway;
   };
   Object.defineProperty(runtime, '__giveawaySelectedPingRoleReady', { value: true });
+}
+
+async function sendSelectedRolePing(interaction, giveawayId, roleId) {
+  const normalizedRoleId = String(roleId || '').trim();
+  if (!/^\d{17,20}$/.test(normalizedRoleId)) return;
+
+  const state = runtime.getState();
+  const giveaway = state.giveaways?.[giveawayId];
+  if (!giveaway?.messageId || giveaway.startupPingMessageId) return;
+
+  const giveawayMessage = await runtime.fetchMessageById(
+    giveaway.guildId,
+    giveaway.channelId,
+    giveaway.messageId,
+  );
+  if (!giveawayMessage) return;
+
+  const pingMessage = await giveawayMessage.reply({
+    content: `<@&${normalizedRoleId}>`,
+    allowedMentions: { parse: [], roles: [normalizedRoleId] },
+  }).catch(() => null);
+  if (!pingMessage) return;
+
+  giveaway.startupPingMessageId = pingMessage.id;
+  giveaway.updatedAt = now();
+  state.giveaways[giveawayId] = giveaway;
+  runtime.persistState(state);
 }
 
 module.exports = {
@@ -51,7 +81,19 @@ module.exports = {
   },
 
   async handleInteraction(interaction) {
-    return giveawayManager.handleInteraction(interaction);
+    const customId = interaction.customId || '';
+    const giveawayId = customId.startsWith(START_DURATION_PREFIX)
+      ? customId.slice(START_DURATION_PREFIX.length)
+      : '';
+    const pingRoleId = giveawayId
+      ? runtime.getDraft(runtime.getState(), giveawayId)?.pingRoleId || ''
+      : '';
+
+    const handled = await giveawayManager.handleInteraction(interaction);
+    if (handled && giveawayId && pingRoleId) {
+      await sendSelectedRolePing(interaction, giveawayId, pingRoleId);
+    }
+    return handled;
   },
 
   async handleMessageCreate(message) {
