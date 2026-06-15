@@ -8,23 +8,23 @@ const nativeJsLoader = Module._extensions['.js'];
 function patchSanitizers(source) {
   let patched = source.replace(
     "function cleanEmoji(value) {\n  return String(value || '').trim().slice(0, 100);\n}\n",
-    `function cleanEmoji(value) {\n  return String(value || '').trim().slice(0, 100);\n}\nfunction cleanOptionalId(value) {\n  return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);\n}\nfunction cleanRoleId(value) {\n  const text = String(value || '').trim();\n  return /^\\d{16,20}$/.test(text) ? text : '';\n}\nfunction cleanBoolean(value) {\n  return value === true || ['true', '1', 'on', 'yes'].includes(String(value || '').toLowerCase());\n}\nfunction cleanActionType(value, fallback = 'send_message') {\n  const type = String(value || '');\n  return ['send_message', 'give_role', 'legacy_response'].includes(type) ? type : fallback;\n}\n`,
+    `function cleanEmoji(value) {\n  return String(value || '').trim().slice(0, 100);\n}\nfunction cleanOptionalId(value) {\n  return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);\n}\nfunction cleanRoleId(value) {\n  const text = String(value || '').trim();\n  return /^\\d{16,20}$/.test(text) ? text : '';\n}\nfunction cleanBoolean(value) {\n  return value === true || ['true', '1', 'on', 'yes'].includes(String(value || '').toLowerCase());\n}\nfunction cleanComponentAction(value) {\n  const source = value && typeof value === 'object' ? value : {};\n  const type = ['send_message', 'give_role', 'legacy_response'].includes(source.type || source.actionType)\n    ? source.type || source.actionType\n    : 'send_message';\n  if (type === 'give_role') return { type, roleId: cleanRoleId(source.roleId), reverse: cleanBoolean(source.reverse) };\n  if (type === 'legacy_response') return { type, response: cleanText(source.response, 'This action has no response configured.', 2000) };\n  return { type: 'send_message', templateId: cleanOptionalId(source.templateId) };\n}\nfunction sanitizeComponentActions(value) {\n  const source = value && typeof value === 'object' ? value : {};\n  let actions = Array.isArray(source.actions) ? source.actions.slice(0, 2).map(cleanComponentAction) : [];\n  if (!actions.length) {\n    if (source.roleId || source.actionType === 'give_role') actions = [cleanComponentAction({ type: 'give_role', roleId: source.roleId, reverse: source.reverse })];\n    else if (source.templateId || source.actionType === 'send_message') actions = [cleanComponentAction({ type: 'send_message', templateId: source.templateId })];\n    else if (source.response) actions = [cleanComponentAction({ type: 'legacy_response', response: source.response })];\n    else actions = [cleanComponentAction({ type: 'send_message' })];\n  }\n  const unique = [];\n  for (const action of actions) {\n    if (action.type !== 'legacy_response' && unique.some((item) => item.type === action.type)) continue;\n    unique.push(action);\n  }\n  return unique.slice(0, 2);\n}\n`,
   );
   patched = patched.replace(
     "  const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;\n  return {",
-    "  const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;\n  const fallbackAction = value?.roleId ? 'give_role' : value?.templateId ? 'send_message' : value?.response ? 'legacy_response' : 'send_message';\n  const actionType = style === 'link' ? '' : cleanActionType(value?.actionType, fallbackAction);\n  return {",
+    "  const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;\n  const actions = style === 'link' ? [] : sanitizeComponentActions(value);\n  return {",
   );
   patched = patched.replace(
     "    response: style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000),\n  };\n}\n\nfunction sanitizeSelectOption",
-    "    response: actionType === 'legacy_response' ? cleanText(value?.response, 'This button has no response configured.', 2000) : '',\n    actionType,\n    templateId: actionType === 'send_message' ? cleanOptionalId(value?.templateId) : '',\n    roleId: actionType === 'give_role' ? cleanRoleId(value?.roleId) : '',\n    reverse: actionType === 'give_role' && cleanBoolean(value?.reverse),\n  };\n}\n\nfunction sanitizeSelectOption",
+    "    response: '',\n    actions,\n  };\n}\n\nfunction sanitizeSelectOption",
   );
   patched = patched.replace(
     "function sanitizeSelectOption(value, index) {\n  return {",
-    "function sanitizeSelectOption(value, index) {\n  const fallbackAction = value?.roleId ? 'give_role' : value?.templateId ? 'send_message' : value?.response ? 'legacy_response' : 'send_message';\n  const actionType = cleanActionType(value?.actionType, fallbackAction);\n  return {",
+    "function sanitizeSelectOption(value, index) {\n  const actions = sanitizeComponentActions(value);\n  return {",
   );
   patched = patched.replace(
     "    response: cleanText(value?.response, 'This option has no response configured.', 2000),\n  };\n}\n\nfunction sanitizeComponentRow",
-    "    response: actionType === 'legacy_response' ? cleanText(value?.response, 'This option has no response configured.', 2000) : '',\n    actionType,\n    templateId: actionType === 'send_message' ? cleanOptionalId(value?.templateId) : '',\n    roleId: actionType === 'give_role' ? cleanRoleId(value?.roleId) : '',\n    reverse: actionType === 'give_role' && cleanBoolean(value?.reverse),\n  };\n}\n\nfunction sanitizeComponentRow",
+    "    response: '',\n    actions,\n  };\n}\n\nfunction sanitizeComponentRow",
   );
   return patched;
 }
@@ -36,18 +36,18 @@ async function componentRespond(interaction, payload) {
 }
 
 async function executeComponentAction(interaction, action, context) {
-  if (action.actionType === 'legacy_response') {
+  if (action.type === 'legacy_response') {
     return componentRespond(interaction, {
       content: formatPlaceholders(action.response, context),
       allowedMentions: allowedMentions(context),
     });
   }
-  if (action.actionType === 'send_message') {
+  if (action.type === 'send_message') {
     const target = findTemplate(interaction.guildId, action.templateId);
     if (!target) throw new Error('The selected message template is no longer available.');
     return componentRespond(interaction, buildMessagePayload(target, context));
   }
-  if (action.actionType === 'give_role') {
+  if (action.type === 'give_role') {
     const guild = interaction.guild;
     const member = interaction.member?.roles?.cache
       ? interaction.member
@@ -72,25 +72,27 @@ async function handleMessageTemplateInteraction(interaction) {
   const parsed = parseComponentCustomId(interaction.customId);
   if (!parsed) return false;
   const template = findTemplate(interaction.guildId, parsed.templateId);
-  const context = interactionContext(interaction);
   const actions = [];
 
   if (interaction.isButton()) {
     for (const row of template?.componentRows || []) {
       if (row.type !== 'buttons') continue;
       const button = row.buttons.find((item) => row.id + '-' + item.id === parsed.componentId);
-      if (button) { actions.push(button); break; }
+      if (button) { actions.push(...(button.actions || [])); break; }
     }
   } else {
     const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === parsed.componentId);
     const selected = new Set(interaction.values || []);
-    actions.push(...(row?.options || []).filter((option) => selected.has(option.id)));
+    for (const option of row?.options || []) {
+      if (selected.has(option.id)) actions.push(...(option.actions || []));
+    }
   }
 
   if (!template || !actions.length) {
     await componentRespond(interaction, { content: 'This message component is no longer configured.' }).catch(() => null);
     return true;
   }
+  const context = interactionContext(interaction);
   for (const action of actions) {
     try {
       await executeComponentAction(interaction, action, context);
