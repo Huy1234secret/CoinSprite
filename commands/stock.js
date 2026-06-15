@@ -38,11 +38,17 @@ function updateStockConfig(guildId, patch) {
   saveState(state);
 }
 
-async function resolveSetupChannel(interaction) {
+async function resolveSetupChannel(interaction, existingChannelId = '') {
   const selected = interaction.options.getChannel('channel');
   if (selected) {
     if (!selected.isTextBased?.() || typeof selected.send !== 'function') throw new Error('Choose a text or announcement channel.');
     return { channel: selected, created: false };
+  }
+
+  if (existingChannelId) {
+    const existing = interaction.guild.channels.cache.get(existingChannelId)
+      || await interaction.guild.channels.fetch(existingChannelId).catch(() => null);
+    if (existing?.isTextBased?.() && typeof existing.send === 'function') return { channel: existing, created: false };
   }
 
   const botMember = interaction.guild.members.me;
@@ -110,7 +116,7 @@ module.exports = {
         .setMaxLength(1000))
       .addChannelOption((option) => option
         .setName('channel')
-        .setDescription('Stock channel. Leave empty to create one.')
+        .setDescription('Stock channel. Leave empty to create or reuse one.')
         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
       .addIntegerOption((option) => option
         .setName('interval')
@@ -188,7 +194,7 @@ module.exports = {
         throw new Error('Provide an endpoint, or configure GROW_GARDEN_2_STOCK_URL in the bot environment.');
       }
       const endpointUrl = stockManager.assertSafeEndpointUrl(requestedEndpoint);
-      const { channel, created } = await resolveSetupChannel(interaction);
+      const { channel, created } = await resolveSetupChannel(interaction, existing.channelId);
       const intervalMinutes = interaction.options.getInteger('interval') || Math.round(existing.pollIntervalMs / 60000) || 5;
       const updateMode = interaction.options.getString('mode') || existing.updateMode || 'edit';
       const pingRole = interaction.options.getRole('ping_role');
