@@ -1,3 +1,8 @@
+.mini-tabs {
+  z-index: 90 !important;
+  isolation: isolate;
+}
+
 .tab {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
