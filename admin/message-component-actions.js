@@ -72,6 +72,26 @@
     });
   }
 
+  function actionSnapshot(template) {
+    const snapshot = new Map();
+    for (const row of template.componentRows || []) {
+      const items = row.type === 'select' ? row.options || [] : row.buttons || [];
+      for (const item of items) snapshot.set(`${row.id}:${item.id}`, JSON.parse(JSON.stringify(actionsFor(item))));
+    }
+    return snapshot;
+  }
+
+  function mergeActions(template, snapshot) {
+    for (const row of template.componentRows || []) {
+      const items = row.type === 'select' ? row.options || [] : row.buttons || [];
+      for (const item of items) {
+        const actions = snapshot.get(`${row.id}:${item.id}`);
+        if (actions) item.actions = actions;
+      }
+    }
+    return template;
+  }
+
   function queueSave() {
     clearTimeout(saveTimer);
     setSaveState('Unsaved changes', 'pending');
@@ -81,9 +101,12 @@
   async function saveActions() {
     const template = currentTemplate();
     if (!template || !guildId) return;
+    const snapshot = actionSnapshot(template);
     setSaveState('Saving...', 'pending');
     try {
-      const payload = await xhrJson('PUT', `/api/guilds/${guildId}/message-templates/${template.id}`, template);
+      const latestPayload = await xhrJson('GET', `/api/guilds/${guildId}/message-templates`, null);
+      const latest = (latestPayload.templates || []).find((item) => item.id === template.id) || template;
+      const payload = await xhrJson('PUT', `/api/guilds/${guildId}/message-templates/${template.id}`, mergeActions(latest, snapshot));
       normalizeTemplate(payload.template);
       await window.fetch(`/api/guilds/${guildId}/message-templates`).catch(() => null);
       setSaveState('Saved', 'success');
