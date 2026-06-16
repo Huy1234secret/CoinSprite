@@ -46,6 +46,7 @@
       (async () => {
         await loadScript('/admin/message-components.js');
         await loadScript('/admin/message-component-actions.js');
+        await loadScript('/admin/message-root-gap-fix.js');
         await loadScript('/admin/emoji-picker-upgrade.js');
         await loadScript('/admin/message-action-select-fix.js');
       })();
