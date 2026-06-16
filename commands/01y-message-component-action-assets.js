@@ -13,12 +13,13 @@ if (!fs.__coinSpriteMessageComponentActionAsset) {
     return value
       .replace(
         '</head>',
-        '  <link rel="stylesheet" href="/admin/message-component-actions.css">\n</head>',
+        '  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n</head>',
       )
       .replace(
         '</body>',
         [
-          '  <script src="/admin/message-component-actions.js" defer></script>',
+          '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
+          '  <script src="/admin/message-action-persistence-fix.js?v=action-save-3" defer></script>',
           '  <script src="/admin/emoji-picker-upgrade.js" defer></script>',
           '</body>',
         ].join('\n'),
