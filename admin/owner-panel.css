@@ -134,6 +134,17 @@
   display: block;
 }
 
+.owner-usage-stack {
+  display: grid;
+  gap: 3px;
+  min-width: 210px;
+}
+
+.owner-usage-stack > span,
+.owner-usage-stack > small {
+  display: block;
+}
+
 .owner-guild-table tr.is-disabled {
   background: rgba(250, 119, 112, 0.045);
 }
