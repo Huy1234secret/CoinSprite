@@ -24,16 +24,17 @@
   object-position: center;
   image-rendering: auto;
   padding: 4px;
-  border: 1px solid rgba(190, 127, 222, 0.88);
+  border: 1px solid #9b59ff;
   border-radius: 8px;
-  background: rgba(155, 89, 182, 0.12);
-  box-shadow: 0 0 0 1px rgba(155, 89, 182, 0.14) inset;
+  background: rgba(155, 89, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(155, 89, 255, 0.28) inset;
 }
 
 .tab[data-tab="moderator"]:hover .tab-icon,
 .tab[data-tab="moderator"].active .tab-icon {
-  border-color: rgba(215, 171, 237, 0.98);
-  background: rgba(155, 89, 182, 0.2);
+  border-color: #b56cff;
+  background: rgba(155, 89, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(181, 108, 255, 0.36) inset;
 }
 
 .moderator-shell {
