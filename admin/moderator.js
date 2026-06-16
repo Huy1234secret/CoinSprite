@@ -3,6 +3,7 @@
   window.__coinSpriteModeratorTab = true;
 
   const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
+  const MODERATOR_TAB_HTML = '<span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/images/moderator.png" alt=""></span><span>Moderator</span>';
   const moderatorState = {
     enabled: false,
     logChannelId: '',
@@ -13,13 +14,18 @@
   function ensureModeratorTab() {
     TAB_NAMES.moderator = 'Moderator';
     const tabs = document.querySelector('#tabList');
-    if (tabs && !tabs.querySelector('[data-tab="moderator"]')) {
-      const tab = document.createElement('button');
-      tab.className = 'tab';
-      tab.type = 'button';
-      tab.dataset.tab = 'moderator';
-      tab.innerHTML = '<span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/images/moderator.png" alt=""></span><span>Moderator</span>';
-      (tabs.querySelector('[data-tab="messages"]') || tabs.querySelector('[data-tab="games"]') || tabs.lastElementChild)?.before(tab);
+    if (tabs) {
+      const existing = tabs.querySelector('[data-tab="moderator"]');
+      if (existing) {
+        if (!existing.querySelector('.tab-icon-frame')) existing.innerHTML = MODERATOR_TAB_HTML;
+      } else {
+        const tab = document.createElement('button');
+        tab.className = 'tab';
+        tab.type = 'button';
+        tab.dataset.tab = 'moderator';
+        tab.innerHTML = MODERATOR_TAB_HTML;
+        (tabs.querySelector('[data-tab="messages"]') || tabs.querySelector('[data-tab="games"]') || tabs.lastElementChild)?.before(tab);
+      }
     }
 
     const form = document.querySelector('#configForm');
