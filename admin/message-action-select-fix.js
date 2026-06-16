@@ -28,6 +28,14 @@
     return item;
   }
 
+  function ensurePersistenceFix() {
+    if (document.querySelector('script[src="/admin/message-action-persistence-fix.js"]')) return;
+    const script = document.createElement('script');
+    script.src = '/admin/message-action-persistence-fix.js';
+    script.async = false;
+    document.body.append(script);
+  }
+
   function forceNewestActionType(section, selectedType, previousCount) {
     requestAnimationFrame(() => {
       const selects = actionTypeSelects(section);
@@ -79,5 +87,6 @@
   }
 
   new MutationObserver(decorate).observe(root, { childList: true, subtree: true });
+  ensurePersistenceFix();
   decorate();
 })();
