@@ -7,8 +7,6 @@ const EPHEMERAL_FLAG = 64;
 const BUTTON_STYLES = new Set(['primary', 'secondary', 'success', 'danger', 'link']);
 const BUTTON_STYLE_VALUES = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 };
 const COMPONENT_CUSTOM_ID_PREFIX = 'message-template:';
-const ACTION_TYPES = new Set(['send_message', 'give_role', 'legacy_response']);
-const DEFAULT_COMPONENT_RESPONSES = new Set(['Thanks, <@mention>!', 'You selected this option, <@mention>.']);
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function cleanText(value, fallback = '', max = 4000) {
@@ -32,10 +30,6 @@ function cleanId(value, fallback = 'template') {
 }
 function cleanEmoji(value) {
   return String(value || '').trim().slice(0, 100);
-}
-function cleanRoleId(value) {
-  const text = String(value || '').trim();
-  return /^\d{16,20}$/.test(text) ? text : '';
 }
 function clampInteger(value, min, max, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -69,73 +63,27 @@ function sanitizeContainer(value, index) {
   };
 }
 
-function sanitizeAction(value, fallbackResponse = '') {
-  const source = value && typeof value === 'object' ? value : {};
-  const requestedType = source.type || source.actionType;
-  const type = ACTION_TYPES.has(requestedType) ? requestedType : 'send_message';
-  if (type === 'give_role') {
-    return { type: 'give_role', roleId: cleanRoleId(source.roleId), reverse: Boolean(source.reverse) };
-  }
-  if (type === 'legacy_response') {
-    return {
-      type: 'legacy_response',
-      response: cleanText(source.response, fallbackResponse || 'This component has no response configured.', 2000),
-    };
-  }
-  return { type: 'send_message', templateId: cleanId(source.templateId, '') };
-}
-
-function legacyActionFromItem(value, fallbackResponse) {
-  if (value?.actionType === 'give_role' || value?.roleId) {
-    return sanitizeAction({ type: 'give_role', roleId: value.roleId, reverse: value.reverse });
-  }
-  if (value?.actionType === 'send_message' || value?.templateId || DEFAULT_COMPONENT_RESPONSES.has(value?.response)) {
-    return sanitizeAction({ type: 'send_message', templateId: value?.templateId || '' });
-  }
-  if (value?.response) return sanitizeAction({ type: 'legacy_response', response: value.response }, fallbackResponse);
-  return sanitizeAction({ type: 'send_message', templateId: '' });
-}
-
-function sanitizeActions(value, fallbackResponse = '') {
-  const source = Array.isArray(value?.actions) && value.actions.length
-    ? value.actions
-    : [legacyActionFromItem(value, fallbackResponse)];
-  const used = new Set();
-  return source
-    .map((action) => sanitizeAction(action, fallbackResponse))
-    .filter((action) => {
-      if (used.has(action.type)) return false;
-      used.add(action.type);
-      return true;
-    })
-    .slice(0, 2);
-}
-
 function sanitizeButton(value, index) {
   const requestedStyle = BUTTON_STYLES.has(value?.style) ? value.style : 'primary';
   const url = requestedStyle === 'link' ? cleanUrl(value?.url) : '';
   const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;
-  const response = style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000);
   return {
     id: cleanId(value?.id, `button-${index + 1}`),
     label: cleanText(value?.label, `Button ${index + 1}`, 80),
     style,
     emoji: cleanEmoji(value?.emoji),
     url: style === 'link' ? url : '',
-    response,
-    actions: style === 'link' ? [] : sanitizeActions(value, response),
+    response: style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000),
   };
 }
 
 function sanitizeSelectOption(value, index) {
-  const response = cleanText(value?.response, 'This option has no response configured.', 2000);
   return {
     id: cleanId(value?.id || value?.value, `option-${index + 1}`),
     label: cleanText(value?.label, `Option ${index + 1}`, 100),
     description: cleanText(value?.description, '', 100),
     emoji: cleanEmoji(value?.emoji),
-    response,
-    actions: sanitizeActions(value, response),
+    response: cleanText(value?.response, 'This option has no response configured.', 2000),
   };
 }
 
@@ -336,134 +284,35 @@ function interactionContext(interaction) {
   };
 }
 
-function buttonForComponent(template, componentId) {
-  for (const row of template?.componentRows || []) {
-    if (row.type !== 'buttons') continue;
-    const button = row.buttons.find((item) => `${row.id}-${item.id}` === componentId);
-    if (button) return button;
-  }
-  return null;
-}
-
-function selectedOptionsForComponent(template, componentId, values = []) {
-  const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === componentId);
-  const selected = new Set(values || []);
-  return (row?.options || []).filter((option) => selected.has(option.id));
-}
-
-function itemActions(item) {
-  if (!item) return [];
-  if (Array.isArray(item.actions) && item.actions.length) return item.actions;
-  return sanitizeActions(item, item.response || '');
-}
-
-function componentActionsForInteraction(template, parsed, interaction) {
-  if (interaction.isButton()) return itemActions(buttonForComponent(template, parsed.componentId));
-  return selectedOptionsForComponent(template, parsed.componentId, interaction.values)
-    .flatMap((option) => itemActions(option));
-}
-
-async function roleActionMember(interaction) {
-  if (interaction.member?.roles?.add && interaction.member?.roles?.remove) return interaction.member;
-  return interaction.guild?.members?.fetch?.(interaction.user.id).catch(() => null) || null;
-}
-
-async function runRoleAction(interaction, action) {
-  const roleId = cleanRoleId(action.roleId);
-  if (!roleId) return 'This role action is missing a role.';
-  const member = await roleActionMember(interaction);
-  if (!member?.roles?.add || !member?.roles?.remove) return 'I could not update your role in this server.';
-  const hasRole = Boolean(member.roles.cache?.has(roleId));
-  try {
-    if (hasRole && action.reverse) {
-      await member.roles.remove(roleId, 'Message template component action');
-      return `Removed <@&${roleId}>.`;
-    }
-    if (!hasRole) {
-      await member.roles.add(roleId, 'Message template component action');
-      return `Added <@&${roleId}>.`;
-    }
-    return `You already have <@&${roleId}>.`;
-  } catch {
-    return 'I could not update the role. Check my Manage Roles permission and role order.';
-  }
-}
-
-function withEphemeralFlag(payload) {
-  return { ...payload, flags: (Number(payload.flags) || 0) | EPHEMERAL_FLAG };
-}
-
-async function sendInteractionMessage(interaction, payload, alreadyReplied) {
-  if (alreadyReplied) {
-    await interaction.followUp(payload);
-    return true;
-  }
-  await interaction.reply(payload);
-  return true;
-}
-
-async function runComponentActions(interaction, actions, context) {
-  const textResponses = [];
-  const templatePayloads = [];
-  for (const action of actions) {
-    if (action.type === 'give_role') {
-      textResponses.push(await runRoleAction(interaction, action));
-    } else if (action.type === 'legacy_response') {
-      const response = formatPlaceholders(action.response, context).trim();
-      if (response) textResponses.push(response);
-    } else if (action.type === 'send_message') {
-      if (!action.templateId) {
-        textResponses.push('No message template is selected for this action.');
-        continue;
-      }
-      const responseTemplate = findTemplate(interaction.guildId, action.templateId);
-      if (!responseTemplate) {
-        textResponses.push('The selected message template no longer exists.');
-        continue;
-      }
-      templatePayloads.push(buildMessagePayload(responseTemplate, context));
-    }
-  }
-
-  if (!textResponses.length && !templatePayloads.length) {
-    await interaction.reply({ content: 'This message component is no longer configured.', flags: EPHEMERAL_FLAG });
-    return;
-  }
-
-  let replied = false;
-  for (const payload of templatePayloads) {
-    const nextPayload = withEphemeralFlag(payload);
-    if (!replied && textResponses.length) {
-      nextPayload.components = [
-        { type: 10, content: textResponses.splice(0).join('\n').slice(0, 2000) },
-        ...(nextPayload.components || []),
-      ];
-    }
-    replied = await sendInteractionMessage(interaction, nextPayload, replied);
-  }
-
-  if (textResponses.length) {
-    const content = textResponses.join('\n').slice(0, 2000);
-    replied = await sendInteractionMessage(interaction, {
-      content,
-      flags: EPHEMERAL_FLAG,
-      allowedMentions: allowedMentions(context),
-    }, replied);
-  }
-}
-
 async function handleMessageTemplateInteraction(interaction) {
   if (!interaction?.isButton?.() && !interaction?.isStringSelectMenu?.()) return false;
   const parsed = parseComponentCustomId(interaction.customId);
   if (!parsed) return false;
   const template = findTemplate(interaction.guildId, parsed.templateId);
-  if (!template) {
+  const context = interactionContext(interaction);
+  let response = '';
+
+  if (interaction.isButton()) {
+    for (const row of template?.componentRows || []) {
+      if (row.type !== 'buttons') continue;
+      const button = row.buttons.find((item) => `${row.id}-${item.id}` === parsed.componentId);
+      if (button) { response = button.response; break; }
+    }
+  } else {
+    const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === parsed.componentId);
+    const selected = new Set(interaction.values || []);
+    response = (row?.options || []).filter((option) => selected.has(option.id)).map((option) => option.response).filter(Boolean).join('\n');
+  }
+
+  if (!template || !response) {
     await interaction.reply({ content: 'This message component is no longer configured.', flags: EPHEMERAL_FLAG }).catch(() => null);
     return true;
   }
-  const context = interactionContext(interaction);
-  const actions = componentActionsForInteraction(template, parsed, interaction);
-  await runComponentActions(interaction, actions, context);
+  await interaction.reply({
+    content: formatPlaceholders(response, context),
+    flags: EPHEMERAL_FLAG,
+    allowedMentions: allowedMentions(context),
+  });
   return true;
 }
 
