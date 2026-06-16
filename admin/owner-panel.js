@@ -6,6 +6,53 @@
   let ownerRoot = null;
   let ownerData = null;
   let installed = false;
+  let messageAssetsStarted = false;
+
+  function ensureStylesheet(href) {
+    if (document.querySelector(`link[href="${href}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.append(link);
+  }
+
+  function loadScript(src) {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing?.dataset.loaded === 'true') return Promise.resolve();
+    if (existing) {
+      return new Promise((resolve) => {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', resolve, { once: true });
+      });
+    }
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = false;
+      script.addEventListener('load', () => { script.dataset.loaded = 'true'; resolve(); }, { once: true });
+      script.addEventListener('error', resolve, { once: true });
+      document.body.append(script);
+    });
+  }
+
+  function loadMessageAssetsWhenReady() {
+    if (messageAssetsStarted) return;
+    ensureStylesheet('/admin/message-components.css');
+    ensureStylesheet('/admin/message-component-actions.css');
+    const timer = setInterval(() => {
+      if (!document.querySelector('#messageTemplatesRoot')) return;
+      clearInterval(timer);
+      messageAssetsStarted = true;
+      (async () => {
+        await loadScript('/admin/message-components.js');
+        await loadScript('/admin/message-component-actions.js');
+        await loadScript('/admin/emoji-picker-upgrade.js');
+        await loadScript('/admin/message-action-select-fix.js');
+      })();
+    }, 100);
+  }
+
+  loadMessageAssetsWhenReady();
 
   async function ownerApi(path, options = {}) {
     const response = await fetch(path, {
