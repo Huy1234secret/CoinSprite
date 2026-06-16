@@ -7,12 +7,17 @@ const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
 const cooldowns = new Map();
 
+function uniqueIds(value) {
+  return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
+}
+
 function moderationConfig(guildId) {
   const config = getGuildConfig(guildId);
   const ai = config?.moderation?.ai || {};
   return {
     enabled: Boolean(ai.enabled),
     logChannelId: String(ai.logChannelId || ''),
+    scanChannelIds: uniqueIds(ai.scanChannelIds),
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
   };
 }
@@ -56,6 +61,12 @@ function shouldSkipMessage(message) {
   if (!message?.guild || message.author?.bot || !message.content?.trim()) return true;
   if (message.member?.permissions?.has(PermissionFlagsBits.ManageMessages)) return true;
   return false;
+}
+
+function shouldScanChannel(message, settings) {
+  if (!settings.scanChannelIds.length) return true;
+  const allowed = new Set(settings.scanChannelIds);
+  return allowed.has(message.channelId) || allowed.has(message.channel?.parentId);
 }
 
 function cooldownKey(message) {
@@ -111,6 +122,7 @@ module.exports = {
     await interaction.reply({
       content: [
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
+        `Scan channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI' : 'fallback scan only'}`,
       ].join('\n'),
@@ -121,7 +133,7 @@ module.exports = {
   async handleMessageCreate(message) {
     if (shouldSkipMessage(message) || inCooldown(message)) return;
     const settings = moderationConfig(message.guildId);
-    if (!settings.enabled || !settings.logChannelId) return;
+    if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings)) return;
 
     const result = await analyzeModerationMessage(message.content);
     if (!result.flagged) return;
