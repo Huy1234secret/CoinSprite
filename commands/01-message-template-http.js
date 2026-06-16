@@ -191,7 +191,7 @@ function injectedIndex() {
   html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-1">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/admin/images/moderator.png" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/images/moderator.png" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
@@ -213,6 +213,10 @@ function injectedIndex() {
 
 async function handleTemplateRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'GET' && url.pathname.startsWith('/images/')) {
+    serveImageAsset(res, url.pathname.slice('/images/'.length));
+    return true;
+  }
   if (req.method === 'GET' && url.pathname.startsWith('/admin/images/')) {
     serveImageAsset(res, url.pathname.slice('/admin/images/'.length));
     return true;
