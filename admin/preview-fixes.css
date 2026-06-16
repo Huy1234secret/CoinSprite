@@ -1,0 +1,22 @@
+.preview-thumbnail,
+.preview-image,
+.message-preview-thumb,
+.preview-media-edit img {
+  object-fit: contain !important;
+  background: #1e1f22;
+}
+
+.message-root-content.message-root-empty {
+  min-height: 20px !important;
+  margin: 0 0 4px !important;
+  padding: 0 !important;
+}
+
+.message-root-content.message-root-empty::before,
+#levelUpPreviewBody:empty::before {
+  min-height: 20px !important;
+}
+
+.message-preview-container {
+  margin-top: 4px !important;
+}
