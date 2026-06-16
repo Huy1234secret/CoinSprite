@@ -2,7 +2,7 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const THUMBNAIL_SIZE = 160;
 const MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 7000;
+const FETCH_TIMEOUT_MS = 2200;
 
 function isRemoteImageUrl(value) {
   try {
