@@ -32,22 +32,6 @@
     return payload;
   }
 
-  function rawPut(url, body) {
-    return new Promise((resolve, reject) => {
-      const request = new XMLHttpRequest();
-      request.open('PUT', url);
-      request.responseType = 'json';
-      request.setRequestHeader('Content-Type', 'application/json');
-      request.onload = () => {
-        const payload = request.response || {};
-        if (request.status >= 200 && request.status < 300) resolve(payload);
-        else reject(new Error(payload.error || `Request failed (${request.status})`));
-      };
-      request.onerror = () => reject(new Error('Network request failed.'));
-      request.send(JSON.stringify(body));
-    });
-  }
-
   function currentTemplate(templates) {
     if (selectedId) {
       const byId = templates.find((template) => template.id === selectedId);
@@ -78,10 +62,11 @@
     return { rowIndex, itemIndex, actionIndex };
   }
 
-  function itemFor(template, meta) {
+  function targetFor(template, meta) {
     const row = template?.componentRows?.[meta.rowIndex];
     if (!row) return null;
-    return row.type === 'select' ? row.options?.[meta.itemIndex] : row.buttons?.[meta.itemIndex];
+    const item = row.type === 'select' ? row.options?.[meta.itemIndex] : row.buttons?.[meta.itemIndex];
+    return item ? { row, item } : null;
   }
 
   function actionsFor(item) {
@@ -119,8 +104,8 @@
     for (const select of selects) {
       if (dirty.has(select)) continue;
       const meta = metaFor(select);
-      const item = meta && itemFor(template, meta);
-      const action = item ? actionsFor(item)[meta.actionIndex] : null;
+      const target = meta && targetFor(template, meta);
+      const action = target ? actionsFor(target.item)[meta.actionIndex] : null;
       fill(select, templates, action?.type === 'send_message' ? action.templateId : '');
     }
   }
@@ -136,14 +121,18 @@
       const template = currentTemplate(templates);
       if (!template) throw new Error('Open a message template before saving this action.');
       selectedId = template.id;
-      const item = itemFor(template, meta);
-      if (!item) throw new Error('This component no longer exists.');
-      const actions = actionsFor(item);
+      const target = targetFor(template, meta);
+      if (!target) throw new Error('This component no longer exists.');
+      const actions = actionsFor(target.item);
       while (actions.length <= meta.actionIndex) actions.push({ type: 'send_message', templateId: '' });
       actions[meta.actionIndex] = { ...actions[meta.actionIndex], type: 'send_message', templateId: select.value || '' };
-      item.actions = actions.slice(0, 2);
-      await rawPut(`/api/guilds/${id}/message-templates/${template.id}`, template);
-      await json('GET', `/api/guilds/${id}/message-templates`);
+      target.item.actions = actions.slice(0, 2);
+      const payload = await json('PUT', `/api/guilds/${id}/message-templates/${template.id}/component-actions`, {
+        rowId: target.row.id,
+        itemId: target.item.id,
+        actions: target.item.actions,
+      });
+      if (payload.template) selectedId = payload.template.id;
       dirty.delete(select);
       setState('Saved', 'success');
       sync().catch(() => null);
