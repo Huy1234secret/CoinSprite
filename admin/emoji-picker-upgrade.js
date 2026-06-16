@@ -27,12 +27,11 @@
 
   function updateButton(input, button) {
     const value = String(input.value || '').trim();
-    const label = document.createElement('span');
-    label.className = 'emoji-picker-label';
-    label.textContent = value ? 'Change emoji' : 'Choose emoji';
-    button.replaceChildren(emojiPreview(value), label);
-    button.setAttribute('aria-label', label.textContent);
-    button.title = label.textContent;
+    const title = value ? 'Change emoji' : 'Choose emoji';
+    button.replaceChildren(emojiPreview(value));
+    button.classList.toggle('has-emoji-value', Boolean(value));
+    button.setAttribute('aria-label', title);
+    button.title = title;
   }
 
   function enhanceExisting(input) {
