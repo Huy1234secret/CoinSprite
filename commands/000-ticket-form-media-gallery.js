@@ -60,11 +60,25 @@ function rememberMediaForAnswer(answerText, mediaUploads) {
   mediaByFormAnswerText.set(answerText, mediaUploads);
 }
 
+function componentCount(component) {
+  if (!component || typeof component !== 'object') return 0;
+  const children = Array.isArray(component.components)
+    ? component.components.reduce((total, child) => total + componentCount(child), 0)
+    : 0;
+  const accessory = component.accessory ? componentCount(component.accessory) : 0;
+  return 1 + children + accessory;
+}
+
+function payloadComponentCount(payload) {
+  return (Array.isArray(payload?.components) ? payload.components : [])
+    .reduce((total, component) => total + componentCount(component), 0);
+}
+
 function attachMediaGallery(payload, mediaUploads) {
   const gallery = buildMediaGallery(mediaUploads);
   if (!gallery) return payload;
   const container = payload?.components?.find((component) => component?.type === 17 && Array.isArray(component.components));
-  if (!container || container.components.length > 38) return payload;
+  if (!container || payloadComponentCount(payload) + 2 > 40) return payload;
   container.components.push({ type: 14, divider: true, spacing: 1 }, gallery);
   payload.files = [...(Array.isArray(payload.files) ? payload.files : []), ...buildMediaFiles(mediaUploads)];
   return payload;
