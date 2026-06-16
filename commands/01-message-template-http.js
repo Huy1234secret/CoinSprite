@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const Module = require('module');
 const { PermissionFlagsBits } = require('discord.js');
+const { fitMessageThumbnailSquares } = require('../src/thumbnailFit');
 const {
   buildMessagePayload,
   deleteTemplate,
@@ -275,12 +276,12 @@ async function handleTemplateRequest(req, res) {
       sendJson(res, 400, { error: 'Select a text channel the bot can access.' });
       return true;
     }
-    const payload = buildMessagePayload(template, {
+    const payload = await fitMessageThumbnailSquares(buildMessagePayload(template, {
       guild: auth.guild,
       channel,
       user: auth.user,
       member: auth.member,
-    });
+    }));
     if (actionMatch[3] === 'send') {
       const message = await channel.send(payload);
       sendJson(res, 200, { ok: true, messageLink: `https://discord.com/channels/${guildId}/${channel.id}/${message.id}` });
