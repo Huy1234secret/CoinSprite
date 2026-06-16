@@ -1,5 +1,7 @@
 'use strict';
 
+const { recordUsage } = require('./aiTokenUsageStats');
+
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const SERVER_RULE_SUMMARY = [
@@ -101,9 +103,10 @@ function responseText(payload) {
   return parts.join('\n');
 }
 
-async function analyzeWithOpenAI(content) {
+async function analyzeWithOpenAI(content, context = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || typeof fetch !== 'function') return null;
+  const model = process.env.OPENAI_MODERATION_MODEL || DEFAULT_MODEL;
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -112,7 +115,7 @@ async function analyzeWithOpenAI(content) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODERATION_MODEL || DEFAULT_MODEL,
+      model,
       input: [
         {
           role: 'system',
@@ -137,14 +140,18 @@ async function analyzeWithOpenAI(content) {
   }
 
   const payload = await response.json();
-  return normalizeResult(parseJsonObject(responseText(payload)), 'ai');
+  const result = normalizeResult(parseJsonObject(responseText(payload)), 'ai');
+  try {
+    recordUsage({ guildId: context.guildId, model, usage: payload.usage, source: 'openai' });
+  } catch {}
+  return result;
 }
 
-async function analyzeModerationMessage(content) {
+async function analyzeModerationMessage(content, context = {}) {
   const text = compactWhitespace(content);
   if (!text) return normalizeResult({ flagged: false, severity: 'none' }, 'empty');
   try {
-    const aiResult = await analyzeWithOpenAI(text);
+    const aiResult = await analyzeWithOpenAI(text, context);
     if (aiResult) return aiResult;
   } catch (error) {
     const fallback = fallbackAnalyze(text);
