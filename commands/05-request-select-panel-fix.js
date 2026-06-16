@@ -427,7 +427,11 @@ Module._load = function requestSelectPanelPatch(request, parent, isMain) {
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
-    if (await handleRequestInteraction(interaction)) return true;
+    const handledByRequestPatch = await handleRequestInteraction(interaction);
+    if (handledByRequestPatch) {
+      await resetTicketTypeSelection(interaction);
+      return true;
+    }
     const handled = await nativeHandle(interaction, client);
     if (handled) await resetTicketTypeSelection(interaction);
     return handled;
