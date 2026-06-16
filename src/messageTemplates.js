@@ -7,6 +7,8 @@ const EPHEMERAL_FLAG = 64;
 const BUTTON_STYLES = new Set(['primary', 'secondary', 'success', 'danger', 'link']);
 const BUTTON_STYLE_VALUES = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 };
 const COMPONENT_CUSTOM_ID_PREFIX = 'message-template:';
+const ACTION_TYPES = new Set(['send_message', 'give_role', 'legacy_response']);
+const DEFAULT_COMPONENT_RESPONSES = new Set(['Thanks, <@mention>!', 'You selected this option, <@mention>.']);
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function cleanText(value, fallback = '', max = 4000) {
@@ -31,44 +33,13 @@ function cleanId(value, fallback = 'template') {
 function cleanEmoji(value) {
   return String(value || '').trim().slice(0, 100);
 }
-function cleanOptionalId(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-}
 function cleanRoleId(value) {
   const text = String(value || '').trim();
   return /^\d{16,20}$/.test(text) ? text : '';
 }
-function cleanBoolean(value) {
-  return value === true || ['true', '1', 'on', 'yes'].includes(String(value || '').toLowerCase());
-}
 function clampInteger(value, min, max, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
-}
-function cleanComponentAction(value) {
-  const source = value && typeof value === 'object' ? value : {};
-  const type = ['send_message', 'give_role', 'legacy_response'].includes(source.type || source.actionType)
-    ? source.type || source.actionType
-    : 'send_message';
-  if (type === 'give_role') return { type, roleId: cleanRoleId(source.roleId), reverse: cleanBoolean(source.reverse) };
-  if (type === 'legacy_response') return { type, response: cleanText(source.response, 'This action has no response configured.', 2000) };
-  return { type: 'send_message', templateId: cleanOptionalId(source.templateId) };
-}
-function sanitizeComponentActions(value) {
-  const source = value && typeof value === 'object' ? value : {};
-  let actions = Array.isArray(source.actions) ? source.actions.slice(0, 2).map(cleanComponentAction) : [];
-  if (!actions.length) {
-    if (source.roleId || source.actionType === 'give_role') actions = [cleanComponentAction({ type: 'give_role', roleId: source.roleId, reverse: source.reverse })];
-    else if (source.templateId || source.actionType === 'send_message') actions = [cleanComponentAction({ type: 'send_message', templateId: source.templateId })];
-    else if (source.response) actions = [cleanComponentAction({ type: 'legacy_response', response: source.response })];
-    else actions = [cleanComponentAction({ type: 'send_message' })];
-  }
-  const unique = [];
-  for (const action of actions) {
-    if (action.type !== 'legacy_response' && unique.some((item) => item.type === action.type)) continue;
-    unique.push(action);
-  }
-  return unique.slice(0, 2);
 }
 
 function defaultTemplate(index = 1) {
@@ -98,31 +69,73 @@ function sanitizeContainer(value, index) {
   };
 }
 
+function sanitizeAction(value, fallbackResponse = '') {
+  const source = value && typeof value === 'object' ? value : {};
+  const requestedType = source.type || source.actionType;
+  const type = ACTION_TYPES.has(requestedType) ? requestedType : 'send_message';
+  if (type === 'give_role') {
+    return { type: 'give_role', roleId: cleanRoleId(source.roleId), reverse: Boolean(source.reverse) };
+  }
+  if (type === 'legacy_response') {
+    return {
+      type: 'legacy_response',
+      response: cleanText(source.response, fallbackResponse || 'This component has no response configured.', 2000),
+    };
+  }
+  return { type: 'send_message', templateId: cleanId(source.templateId, '') };
+}
+
+function legacyActionFromItem(value, fallbackResponse) {
+  if (value?.actionType === 'give_role' || value?.roleId) {
+    return sanitizeAction({ type: 'give_role', roleId: value.roleId, reverse: value.reverse });
+  }
+  if (value?.actionType === 'send_message' || value?.templateId || DEFAULT_COMPONENT_RESPONSES.has(value?.response)) {
+    return sanitizeAction({ type: 'send_message', templateId: value?.templateId || '' });
+  }
+  if (value?.response) return sanitizeAction({ type: 'legacy_response', response: value.response }, fallbackResponse);
+  return sanitizeAction({ type: 'send_message', templateId: '' });
+}
+
+function sanitizeActions(value, fallbackResponse = '') {
+  const source = Array.isArray(value?.actions) && value.actions.length
+    ? value.actions
+    : [legacyActionFromItem(value, fallbackResponse)];
+  const used = new Set();
+  return source
+    .map((action) => sanitizeAction(action, fallbackResponse))
+    .filter((action) => {
+      if (used.has(action.type)) return false;
+      used.add(action.type);
+      return true;
+    })
+    .slice(0, 2);
+}
+
 function sanitizeButton(value, index) {
   const requestedStyle = BUTTON_STYLES.has(value?.style) ? value.style : 'primary';
   const url = requestedStyle === 'link' ? cleanUrl(value?.url) : '';
   const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;
-  const actions = style === 'link' ? [] : sanitizeComponentActions(value);
+  const response = style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000);
   return {
     id: cleanId(value?.id, `button-${index + 1}`),
     label: cleanText(value?.label, `Button ${index + 1}`, 80),
     style,
     emoji: cleanEmoji(value?.emoji),
     url: style === 'link' ? url : '',
-    response: '',
-    actions,
+    response,
+    actions: style === 'link' ? [] : sanitizeActions(value, response),
   };
 }
 
 function sanitizeSelectOption(value, index) {
-  const actions = sanitizeComponentActions(value);
+  const response = cleanText(value?.response, 'This option has no response configured.', 2000);
   return {
     id: cleanId(value?.id || value?.value, `option-${index + 1}`),
     label: cleanText(value?.label, `Option ${index + 1}`, 100),
     description: cleanText(value?.description, '', 100),
     emoji: cleanEmoji(value?.emoji),
-    response: '',
-    actions,
+    response,
+    actions: sanitizeActions(value, response),
   };
 }
 
@@ -323,42 +336,120 @@ function interactionContext(interaction) {
   };
 }
 
-async function componentRespond(interaction, payload) {
-  const body = { ...payload, flags: Number(payload.flags || 0) | EPHEMERAL_FLAG };
-  if (interaction.replied || interaction.deferred) return interaction.followUp(body);
-  return interaction.reply(body);
+function buttonForComponent(template, componentId) {
+  for (const row of template?.componentRows || []) {
+    if (row.type !== 'buttons') continue;
+    const button = row.buttons.find((item) => `${row.id}-${item.id}` === componentId);
+    if (button) return button;
+  }
+  return null;
 }
 
-async function executeComponentAction(interaction, action, context) {
-  if (action.type === 'legacy_response') {
-    return componentRespond(interaction, {
-      content: formatPlaceholders(action.response, context),
-      allowedMentions: allowedMentions(context),
-    });
-  }
-  if (action.type === 'send_message') {
-    const target = findTemplate(interaction.guildId, action.templateId);
-    if (!target) throw new Error('The selected message template is no longer available.');
-    return componentRespond(interaction, buildMessagePayload(target, context));
-  }
-  if (action.type === 'give_role') {
-    const guild = interaction.guild;
-    const member = interaction.member?.roles?.cache
-      ? interaction.member
-      : await guild?.members?.fetch(interaction.user.id).catch(() => null);
-    const role = guild?.roles?.cache?.get(action.roleId) || await guild?.roles?.fetch(action.roleId).catch(() => null);
-    if (!member || !role) throw new Error('The selected role is no longer available.');
-    if (role.id === guild.id || role.managed || !role.editable) throw new Error('The bot cannot manage the selected role.');
-    const hasRole = member.roles.cache.has(role.id);
-    if (action.reverse && hasRole) {
-      await member.roles.remove(role, 'Message component reverse role action');
-      return componentRespond(interaction, { content: `Removed the **${role.name}** role.` });
+function selectedOptionsForComponent(template, componentId, values = []) {
+  const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === componentId);
+  const selected = new Set(values || []);
+  return (row?.options || []).filter((option) => selected.has(option.id));
+}
+
+function itemActions(item) {
+  if (!item) return [];
+  if (Array.isArray(item.actions) && item.actions.length) return item.actions;
+  return sanitizeActions(item, item.response || '');
+}
+
+function componentActionsForInteraction(template, parsed, interaction) {
+  if (interaction.isButton()) return itemActions(buttonForComponent(template, parsed.componentId));
+  return selectedOptionsForComponent(template, parsed.componentId, interaction.values)
+    .flatMap((option) => itemActions(option));
+}
+
+async function roleActionMember(interaction) {
+  if (interaction.member?.roles?.add && interaction.member?.roles?.remove) return interaction.member;
+  return interaction.guild?.members?.fetch?.(interaction.user.id).catch(() => null) || null;
+}
+
+async function runRoleAction(interaction, action) {
+  const roleId = cleanRoleId(action.roleId);
+  if (!roleId) return 'This role action is missing a role.';
+  const member = await roleActionMember(interaction);
+  if (!member?.roles?.add || !member?.roles?.remove) return 'I could not update your role in this server.';
+  const hasRole = Boolean(member.roles.cache?.has(roleId));
+  try {
+    if (hasRole && action.reverse) {
+      await member.roles.remove(roleId, 'Message template component action');
+      return `Removed <@&${roleId}>.`;
     }
-    if (hasRole) return componentRespond(interaction, { content: `You already have the **${role.name}** role.` });
-    await member.roles.add(role, 'Message component role action');
-    return componentRespond(interaction, { content: `Added the **${role.name}** role.` });
+    if (!hasRole) {
+      await member.roles.add(roleId, 'Message template component action');
+      return `Added <@&${roleId}>.`;
+    }
+    return `You already have <@&${roleId}>.`;
+  } catch {
+    return 'I could not update the role. Check my Manage Roles permission and role order.';
   }
-  throw new Error('This message component has no action configured.');
+}
+
+function withEphemeralFlag(payload) {
+  return { ...payload, flags: (Number(payload.flags) || 0) | EPHEMERAL_FLAG };
+}
+
+async function sendInteractionMessage(interaction, payload, alreadyReplied) {
+  if (alreadyReplied) {
+    await interaction.followUp(payload);
+    return true;
+  }
+  await interaction.reply(payload);
+  return true;
+}
+
+async function runComponentActions(interaction, actions, context) {
+  const textResponses = [];
+  const templatePayloads = [];
+  for (const action of actions) {
+    if (action.type === 'give_role') {
+      textResponses.push(await runRoleAction(interaction, action));
+    } else if (action.type === 'legacy_response') {
+      const response = formatPlaceholders(action.response, context).trim();
+      if (response) textResponses.push(response);
+    } else if (action.type === 'send_message') {
+      if (!action.templateId) {
+        textResponses.push('No message template is selected for this action.');
+        continue;
+      }
+      const responseTemplate = findTemplate(interaction.guildId, action.templateId);
+      if (!responseTemplate) {
+        textResponses.push('The selected message template no longer exists.');
+        continue;
+      }
+      templatePayloads.push(buildMessagePayload(responseTemplate, context));
+    }
+  }
+
+  if (!textResponses.length && !templatePayloads.length) {
+    await interaction.reply({ content: 'This message component is no longer configured.', flags: EPHEMERAL_FLAG });
+    return;
+  }
+
+  let replied = false;
+  for (const payload of templatePayloads) {
+    const nextPayload = withEphemeralFlag(payload);
+    if (!replied && textResponses.length) {
+      nextPayload.components = [
+        { type: 10, content: textResponses.splice(0).join('\n').slice(0, 2000) },
+        ...(nextPayload.components || []),
+      ];
+    }
+    replied = await sendInteractionMessage(interaction, nextPayload, replied);
+  }
+
+  if (textResponses.length) {
+    const content = textResponses.join('\n').slice(0, 2000);
+    replied = await sendInteractionMessage(interaction, {
+      content,
+      flags: EPHEMERAL_FLAG,
+      allowedMentions: allowedMentions(context),
+    }, replied);
+  }
 }
 
 async function handleMessageTemplateInteraction(interaction) {
@@ -366,34 +457,13 @@ async function handleMessageTemplateInteraction(interaction) {
   const parsed = parseComponentCustomId(interaction.customId);
   if (!parsed) return false;
   const template = findTemplate(interaction.guildId, parsed.templateId);
-  const actions = [];
-
-  if (interaction.isButton()) {
-    for (const row of template?.componentRows || []) {
-      if (row.type !== 'buttons') continue;
-      const button = row.buttons.find((item) => `${row.id}-${item.id}` === parsed.componentId);
-      if (button) { actions.push(...(button.actions || [])); break; }
-    }
-  } else {
-    const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === parsed.componentId);
-    const selected = new Set(interaction.values || []);
-    for (const option of row?.options || []) {
-      if (selected.has(option.id)) actions.push(...(option.actions || []));
-    }
-  }
-
-  if (!template || !actions.length) {
-    await componentRespond(interaction, { content: 'This message component is no longer configured.' }).catch(() => null);
+  if (!template) {
+    await interaction.reply({ content: 'This message component is no longer configured.', flags: EPHEMERAL_FLAG }).catch(() => null);
     return true;
   }
   const context = interactionContext(interaction);
-  for (const action of actions) {
-    try {
-      await executeComponentAction(interaction, action, context);
-    } catch (error) {
-      await componentRespond(interaction, { content: error.message || 'This action could not be completed.' }).catch(() => null);
-    }
-  }
+  const actions = componentActionsForInteraction(template, parsed, interaction);
+  await runComponentActions(interaction, actions, context);
   return true;
 }
 
