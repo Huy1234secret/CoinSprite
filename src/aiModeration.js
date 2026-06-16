@@ -2,11 +2,20 @@
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-4o-mini';
+const SERVER_RULE_SUMMARY = [
+  'Server rules:',
+  '1.1 Be respectful. Swearing is allowed, but excessive swearing, targeted insults, provocation, harassment, or disruptive arguments are not allowed.',
+  '1.5 Political or religious discussions are prohibited.',
+  '2.4 Public e-dating, romantic roleplay, or seeking romantic partners is prohibited.',
+  '3.1 NSFW, explicit sexual, gory, or highly inappropriate content is banned.',
+  '3.2 Hate speech, bullying, discrimination, targeted abuse, and threats are zero tolerance.',
+  '3.3 Sexual conversations, sexual roleplay, or inappropriate advances toward members are prohibited.',
+  'Use the rules to decide whether the message really breaks policy. Do not flag casual non-targeted swearing by itself.',
+].join(' ');
 const FALLBACK_TERMS = [
-  'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'dick', 'pussy', 'cunt',
-  'kill yourself', 'kys', 'nigger', 'faggot', 'retard', 'whore', 'slut',
-  'idiot', 'idiota', 'stupid', 'dumbass', 'moron', 'imbecile',
-  'estupido', 'estupida', 'tonto', 'tonta', 'imbecil',
+  'kill yourself', 'kys', 'nigger', 'faggot', 'retard',
+  'fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot',
+  'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil',
 ];
 const FALLBACK_TRANSLATIONS = [
   { pattern: /\beres\s+un\s+idiota\b/i, english: 'you are an idiot' },
@@ -45,12 +54,12 @@ function fallbackAnalyze(content) {
   return {
     flagged: matchedTerms.length > 0,
     severity: matchedTerms.length > 1 ? 'high' : matchedTerms.length ? 'medium' : 'none',
-    categories: matchedTerms.length ? ['profanity_or_abuse'] : [],
+    categories: matchedTerms.length ? ['rule_1_1_respect_or_rule_3_2_harassment'] : [],
     matchedTerms,
     originalLanguage: matchedTerms.length ? fallbackLanguage(normalized) : 'unknown',
     englishTranslation: fallbackEnglish(content, normalized),
     reason: matchedTerms.length
-      ? 'Fallback moderation scan matched abusive wording. Configure OPENAI_API_KEY for stronger multilingual AI review.'
+      ? 'Fallback moderation scan matched targeted abusive wording. Configure OPENAI_API_KEY for full rule-aware review.'
       : '',
     source: 'fallback',
   };
@@ -108,11 +117,12 @@ async function analyzeWithOpenAI(content) {
         {
           role: 'system',
           content: [
-            'You are a Discord moderation classifier.',
-            'Translate the user message to English when it is not English.',
-            'Flag profanity, hate or harassment, sexual insults, self-harm encouragement, threats, direct personal insults, and attempts to bypass filters.',
-            'Direct insults like calling someone an idiot or stupid should be flagged as low or medium severity, even in non-English languages.',
+            'You are a Discord moderation classifier for CoinSprite.',
+            SERVER_RULE_SUMMARY,
+            'Translate non-English text to English before judging.',
+            'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, or disruptive.',
             'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
+            'Use category values like rule_1_1_respect, rule_1_5_politics_religion, rule_2_4_edating, rule_3_1_nsfw, rule_3_2_hate_harassment, rule_3_3_sexual_misconduct.',
           ].join(' '),
         },
         { role: 'user', content: String(content || '').slice(0, 4000) },
