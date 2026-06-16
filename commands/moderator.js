@@ -27,9 +27,22 @@ function listText(value) {
   return '-';
 }
 
+function listLines(value) {
+  if (!Array.isArray(value) || !value.length) return '-';
+  return value.map((entry) => `- ${entry}`).join('\n');
+}
+
+function formatSeverityScore(value) {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return '0';
+  return String(Math.max(0, Math.min(10, Math.round(score * 100) / 100));
+}
+
 function moderationValues(message, result) {
   return new Map([
     ['severity', result.severity || 'medium'],
+    ['severity-tier', formatSeverityScore(result.severityScore)],
+    ['broken-rules', listLines(result.brokenRules)],
     ['moderation-reason', result.reason || 'Flagged by moderation policy.'],
     ['matched-terms', listText(result.matchedTerms)],
     ['moderation-categories', listText(result.categories)],
@@ -90,7 +103,8 @@ async function sendModerationAlert(message, result, settings) {
     await channel.send({
       content: [
         `AI moderation alert for ${message.author} in ${message.channel}`,
-        `Severity: ${result.severity}`,
+        `Severity: ${result.severity} ${formatSeverityScore(result.severityScore)}/10`,
+        `Broken rules:\n${listLines(result.brokenRules)}`,
         `Reason: ${result.reason || 'Flagged by moderation policy.'}`,
         `English: ${result.englishTranslation || message.content}`,
         message.url,
