@@ -37,25 +37,6 @@
     history.redo = [];
   }
 
-  function selectionOffsets(editor) {
-    const selection = window.getSelection();
-    const value = editorValue(editor);
-    if (!selection?.rangeCount || !editor.contains(selection.anchorNode)) {
-      return { start: value.length, end: value.length };
-    }
-    const range = selection.getRangeAt(0);
-    const startRange = document.createRange();
-    startRange.selectNodeContents(editor);
-    startRange.setEnd(range.startContainer, range.startOffset);
-    const endRange = document.createRange();
-    endRange.selectNodeContents(editor);
-    endRange.setEnd(range.endContainer, range.endOffset);
-    return {
-      start: Math.max(0, Math.min(value.length, startRange.toString().length)),
-      end: Math.max(0, Math.min(value.length, endRange.toString().length)),
-    };
-  }
-
   function setSelection(editor, start, end = start) {
     const range = document.createRange();
     const selection = window.getSelection();
@@ -96,14 +77,33 @@
     syncing.delete(editor);
   }
 
+  function insertTextAtSelection(editor, text) {
+    editor.focus({ preventScroll: true });
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editor.contains(selection.anchorNode)) {
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    if (!document.execCommand('insertText', false, text)) {
+      const range = window.getSelection()?.getRangeAt(0);
+      if (!range) return;
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+    }
+    editor.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function wrapSelection(editor, marker, placeholder) {
-    const value = editorValue(editor);
-    const { start, end } = selectionOffsets(editor);
-    const selected = value.slice(start, end) || placeholder;
-    const next = `${value.slice(0, start)}${marker}${selected}${marker}${value.slice(end)}`;
-    pushHistory(editor, value);
-    setEditorValue(editor, next, start + marker.length, start + marker.length + selected.length);
-    pushHistory(editor, next);
+    const selection = window.getSelection();
+    const hasSelection = Boolean(selection?.rangeCount && editor.contains(selection.anchorNode) && !selection.isCollapsed);
+    const selected = hasSelection ? selection.toString() : placeholder;
+    pushHistory(editor);
+    insertTextAtSelection(editor, `${marker}${selected}${marker}`);
+    queueMicrotask(() => pushHistory(editor));
   }
 
   function applyHistory(editor, direction) {
