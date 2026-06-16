@@ -53,6 +53,13 @@
 .message-author strong { color: #f2f3f5; font-size: 16px; font-weight: 700; }
 .message-author span { padding: 1px 4px; border-radius: 3px; color: #fff; background: #5865f2; font-size: 10px; font-weight: 800; line-height: 1.25; }
 .message-root-content { margin: 0 0 8px; line-height: 1.375; overflow-wrap: anywhere; }
+.message-root-content.message-root-empty { width: min(100%,680px); margin: 4px 0 10px; }
+.message-add-root { display: flex; width: 100%; min-height: 46px; align-items: center; gap: 10px; padding: 9px 12px; border: 1px dashed rgba(181,186,193,.36); border-radius: 7px; background: rgba(255,255,255,.035); color: #dbdee1; cursor: pointer; text-align: left; font: inherit; }
+.message-add-root:hover,
+.message-add-root:focus-visible { border-color: rgba(88,101,242,.74); background: rgba(88,101,242,.12); outline: none; }
+.message-add-root-plus { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; border: 1px solid rgba(219,222,225,.42); border-radius: 999px; color: #f2f3f5; font-size: 18px; line-height: 1; }
+.message-add-root strong { color: #f2f3f5; font-size: 13px; line-height: 1.1; }
+.message-add-root span:last-child { color: #949ba4; font-size: 12px; font-weight: 700; }
 .message-preview-container { position: relative; width: min(100%, 680px); margin: 8px 0 0; padding: 14px 16px 14px 18px; overflow: hidden; border-radius: 4px; background: #2b2d31; }
 .message-preview-container::before { position: absolute; inset: 0 auto 0 0; width: 4px; content: ''; background: var(--container-color); }
 .message-preview-text { min-width: 0; line-height: 1.375; overflow-wrap: anywhere; }
