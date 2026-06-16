@@ -2,31 +2,33 @@
   if (window.__coinSpriteMessageMediaPasteGuard) return;
   window.__coinSpriteMessageMediaPasteGuard = true;
 
-  function mediaField(event) {
-    const target = event.target;
-    return target?.closest?.('.message-media-popover input, .message-media-popover textarea') || null;
+  const EVENTS = ['keydown', 'beforeinput', 'input', 'paste', 'copy', 'cut'];
+
+  function guardField(field) {
+    if (!field || field.dataset.mediaPasteGuard === 'true') return;
+    field.dataset.mediaPasteGuard = 'true';
+    EVENTS.forEach((name) => {
+      field.addEventListener(name, (event) => {
+        if (name === 'keydown') {
+          const key = event.key.toLowerCase();
+          if (!(event.ctrlKey || event.metaKey) || !['v', 'c', 'x', 'a', 'z', 'y'].includes(key)) return;
+        }
+        event.stopPropagation();
+      });
+    });
   }
 
-  function keepLocal(event) {
-    if (!mediaField(event)) return;
-    event.stopPropagation();
+  function scan(root = document) {
+    root.querySelectorAll?.('.message-media-popover input, .message-media-popover textarea').forEach(guardField);
   }
 
-  function keepLocalImmediate(event) {
-    if (!mediaField(event)) return;
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-  }
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+      });
+    }
+  }).observe(document.body, { childList: true, subtree: true });
 
-  document.addEventListener('keydown', (event) => {
-    if (!mediaField(event)) return;
-    const key = event.key.toLowerCase();
-    if ((event.ctrlKey || event.metaKey) && ['v', 'c', 'x', 'a', 'z', 'y'].includes(key)) keepLocalImmediate(event);
-  }, true);
-
-  document.addEventListener('beforeinput', keepLocal, true);
-  document.addEventListener('input', keepLocal, true);
-  document.addEventListener('paste', keepLocalImmediate, true);
-  document.addEventListener('copy', keepLocalImmediate, true);
-  document.addEventListener('cut', keepLocalImmediate, true);
+  scan(document);
 })();
