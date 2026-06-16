@@ -4,18 +4,16 @@ const path = require('path');
 const STORE_PATH = path.join(__dirname, '..', 'data', 'daily-message-stats.json');
 const RETENTION_DAYS = 45;
 const SAVE_DELAY_MS = 2000;
+const UTC_PLUS_7_MS = 7 * 60 * 60 * 1000;
 let state = null;
 let saveTimer = null;
 
-function localDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function utcPlus7DateKey(date = new Date()) {
+  return new Date(date.getTime() + UTC_PLUS_7_MS).toISOString().slice(0, 10);
 }
 
 function emptyState() {
-  return { updatedAt: Date.now(), days: {} };
+  return { updatedAt: Date.now(), timezone: 'UTC+7', resetAt: '00:00 UTC+7', days: {} };
 }
 
 function loadState() {
@@ -23,7 +21,7 @@ function loadState() {
   try {
     const parsed = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8') || '{}');
     state = parsed && typeof parsed === 'object' && parsed.days && typeof parsed.days === 'object'
-      ? parsed
+      ? { timezone: 'UTC+7', resetAt: '00:00 UTC+7', ...parsed }
       : emptyState();
   } catch {
     state = emptyState();
@@ -47,6 +45,8 @@ function saveNow() {
   }
   pruneDays(state);
   state.updatedAt = Date.now();
+  state.timezone = 'UTC+7';
+  state.resetAt = '00:00 UTC+7';
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   fs.writeFileSync(STORE_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
@@ -66,7 +66,7 @@ function ensureGuildDay(target, dayKey, guildId) {
 function recordMessage(message) {
   if (!message?.guildId || message.author?.bot) return;
   const target = loadState();
-  const dayKey = localDateKey();
+  const dayKey = utcPlus7DateKey();
   const guild = ensureGuildDay(target, dayKey, String(message.guildId));
   const channelId = String(message.channelId || 'unknown');
   target.days[dayKey].total = Number(target.days[dayKey].total || 0) + 1;
@@ -78,10 +78,12 @@ function recordMessage(message) {
 function todayOverview() {
   const target = loadState();
   saveNow();
-  const dayKey = localDateKey();
+  const dayKey = utcPlus7DateKey();
   const day = target.days[dayKey] || { total: 0, guilds: {} };
   return {
     date: dayKey,
+    timezone: 'UTC+7',
+    resetAt: '00:00 UTC+7',
     total: Number(day.total || 0),
     guilds: Object.fromEntries(Object.entries(day.guilds || {}).map(([guildId, value]) => [guildId, {
       total: Number(value?.total || 0),
