@@ -112,9 +112,82 @@ async function readBody(req) {
   catch { throw Object.assign(new Error('Invalid JSON body.'), { statusCode: 400 }); }
 }
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function actionType(action = {}) {
+  if (action.type || action.actionType) return action.type || action.actionType;
+  if (action.roleId) return 'give_role';
+  if (action.templateId) return 'send_message';
+  if (action.response) return 'legacy_response';
+  return 'send_message';
+}
+
+function actionConfigured(action = {}) {
+  const type = actionType(action);
+  if (type === 'send_message') return Boolean(String(action.templateId || '').trim());
+  if (type === 'give_role') return /^\d{16,20}$/.test(String(action.roleId || '').trim());
+  if (type === 'legacy_response') return Boolean(String(action.response || '').trim());
+  return false;
+}
+
+function componentItems(template) {
+  const items = new Map();
+  for (const row of template?.componentRows || []) {
+    const list = row.type === 'select' ? row.options || [] : row.buttons || [];
+    for (const item of list) items.set(`${row.id}:${item.id}`, item);
+  }
+  return items;
+}
+
+function mergeItemActions(incomingItem, storedItem) {
+  const storedActions = Array.isArray(storedItem?.actions) ? storedItem.actions.filter(Boolean) : [];
+  if (!storedActions.some(actionConfigured)) return;
+  if (incomingItem?.style === 'link') return;
+
+  const incomingActions = Array.isArray(incomingItem.actions) ? incomingItem.actions.filter(Boolean) : [];
+  if (!incomingActions.length || !incomingActions.some(actionConfigured)) {
+    incomingItem.actions = clone(storedActions).slice(0, 2);
+    return;
+  }
+
+  const storedByType = new Map(storedActions.map((action) => [actionType(action), action]));
+  incomingItem.actions = incomingActions.slice(0, 2).map((action) => {
+    if (actionConfigured(action)) return action;
+    const stored = storedByType.get(actionType(action));
+    return stored && actionConfigured(stored) ? clone(stored) : action;
+  });
+}
+
+function preserveStoredComponentActions(incoming, stored) {
+  if (!stored?.componentRows?.length || !incoming?.componentRows?.length) return incoming;
+  const storedItems = componentItems(stored);
+  for (const row of incoming.componentRows || []) {
+    const list = row.type === 'select' ? row.options || [] : row.buttons || [];
+    for (const item of list) {
+      mergeItemActions(item, storedItems.get(`${row.id}:${item.id}`));
+    }
+  }
+  return incoming;
+}
+
+function applyComponentActions(guildId, templateId, body = {}) {
+  const template = findTemplate(guildId, templateId);
+  if (!template) return null;
+  const rowId = String(body.rowId || '').trim();
+  const itemId = String(body.itemId || '').trim();
+  const row = template.componentRows.find((entry) => entry.id === rowId);
+  const items = row?.type === 'select' ? row.options : row?.buttons;
+  const item = items?.find((entry) => entry.id === itemId);
+  if (!item) return null;
+  item.actions = Array.isArray(body.actions) ? body.actions.slice(0, 2) : [];
+  return saveTemplate(guildId, template);
+}
+
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n</head>');
+  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
     '<button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
@@ -123,7 +196,16 @@ function injectedIndex() {
     '<section class="tab-panel" data-panel="games">',
     '<section class="tab-panel" data-panel="messages"><div id="messageTemplatesRoot"></div></section>\n\n        <section class="tab-panel" data-panel="games">',
   );
-  html = html.replace('</body>', '  <script src="/admin/messages.js" defer></script>\n  <script src="/admin/message-components.js" defer></script>\n</body>');
+  html = html.replace(
+    '</body>',
+    [
+      '  <script src="/admin/messages.js?v=action-save-3" defer></script>',
+      '  <script src="/admin/message-components.js?v=action-save-3" defer></script>',
+      '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
+      '  <script src="/admin/message-action-persistence-fix.js?v=action-save-3" defer></script>',
+      '</body>',
+    ].join('\n'),
+  );
   return html;
 }
 
@@ -141,8 +223,9 @@ async function handleTemplateRequest(req, res) {
   }
   const listMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates$/);
   const itemMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-z0-9_-]{1,40})$/);
+  const componentActionsMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-z0-9_-]{1,40})\/component-actions$/);
   const actionMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-z0-9_-]{1,40})\/(send|edit)$/);
-  const match = listMatch || itemMatch || actionMatch;
+  const match = listMatch || itemMatch || componentActionsMatch || actionMatch;
   if (!match) return false;
   const auth = await requireGuildAdmin(req, res, match[1]);
   if (!auth) return true;
@@ -152,8 +235,16 @@ async function handleTemplateRequest(req, res) {
     return true;
   }
   if (itemMatch && req.method === 'PUT') {
-    const template = saveTemplate(guildId, { ...(await readBody(req)), id: itemMatch[2] });
+    const body = await readBody(req);
+    const existing = findTemplate(guildId, itemMatch[2]);
+    const template = saveTemplate(guildId, preserveStoredComponentActions({ ...body, id: itemMatch[2] }, existing));
     sendJson(res, 200, { guildId, template });
+    return true;
+  }
+  if (componentActionsMatch && req.method === 'PUT') {
+    const template = applyComponentActions(guildId, componentActionsMatch[2], await readBody(req));
+    if (!template) sendJson(res, 404, { error: 'Message component not found.' });
+    else sendJson(res, 200, { guildId, template });
     return true;
   }
   if (itemMatch && req.method === 'DELETE') {
