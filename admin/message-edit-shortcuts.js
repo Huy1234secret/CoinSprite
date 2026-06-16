@@ -2,6 +2,13 @@
   if (window.__coinSpriteMessageEditShortcuts) return;
   window.__coinSpriteMessageEditShortcuts = true;
 
+  if (!document.querySelector('script[src="/admin/message-media-paste-guard.js"]')) {
+    const guard = document.createElement('script');
+    guard.src = '/admin/message-media-paste-guard.js';
+    guard.async = false;
+    document.body.append(guard);
+  }
+
   const EDITOR_SELECTOR = '.message-inline-surface, .preview-live-editor';
   const LIMIT = 100;
   const histories = new WeakMap();
