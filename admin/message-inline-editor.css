@@ -89,11 +89,37 @@
 }
 
 .message-root-content.message-root-empty {
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px dashed rgba(181, 186, 193, 0.28);
-  border-radius: 6px;
+  min-height: 34px;
+  padding: 4px 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #949ba4;
+}
+
+.message-root-content.message-root-empty .message-add-root {
+  display: block;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.message-root-content.message-root-empty .message-add-root > * {
+  display: none;
+}
+
+.message-root-content.message-root-empty::before,
+#levelUpPreviewBody:empty::before {
+  display: block;
+  min-height: 28px;
+  content: '\00a0';
+}
+
+#levelUpPreviewBody,
+.preview-container.ticket-preview {
+  min-height: 34px;
 }
 
 .message-inline-edit-host:not(.preview-container) > :not(.message-inline-surface),
@@ -105,7 +131,7 @@
   display: block;
   width: 100%;
   min-width: 0;
-  min-height: 1.375em;
+  min-height: 32px;
   margin: 0;
   padding: 0;
   border: 0;
