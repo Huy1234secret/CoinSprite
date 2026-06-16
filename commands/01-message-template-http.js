@@ -18,7 +18,6 @@ const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
-const MODERATOR_ICON_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAA/klEQVR42u2YyQ3DIBAAaTPVpJD0kWdKSSuO8kCKLC/LEdgFZiT//PAMFjYbAgAAAEAhr/v78HYRgABGAR63p9lFAAIQgAAEIAABCEAAAhCAAAQgAAEIQACrkZi1vIuZ4AjpL1fyWwSIuA3QK8IZ12Px3vLS6g8PMCKCa3ltL4gP/A/51M5vKp+KcPXwtavuWl6KIEnUypt/91vegpwIpfLuArRE0O6ZQj71iywJaqs+xatfG2FZ+dRpUcLlaa/XabFkY5x29bWZQe6ncWr51sHJEvK1EZaSL42wpDwBMiMsLa9F2EJeirCV/DnCb4CwE9sHiBFigAAAAAAAY/kAzxkkZXJZRPMAAAAASUVORK5CYII=';
 let clientRef = null;
 
 function sendJson(res, status, payload) {
@@ -44,10 +43,6 @@ function imageContentType(filePath) {
 function serveImageAsset(res, imagePath) {
   const decoded = decodeURIComponent(String(imagePath || ''));
   const normalized = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
-  if (normalized.replace(/\\/g, '/') === 'moderator.png') {
-    sendAsset(res, 200, Buffer.from(MODERATOR_ICON_PNG_BASE64, 'base64'), 'image/png');
-    return;
-  }
   if (!/^[a-z0-9_.\-/\\]+$/i.test(normalized)) {
     sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
     return;
