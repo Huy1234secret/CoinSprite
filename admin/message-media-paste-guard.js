@@ -2,7 +2,18 @@
   if (window.__coinSpriteMessageMediaPasteGuard) return;
   window.__coinSpriteMessageMediaPasteGuard = true;
 
-  const EVENTS = ['keydown', 'beforeinput', 'input', 'paste', 'copy', 'cut'];
+  const EVENTS = ['keydown', 'beforeinput', 'input', 'copy', 'cut'];
+
+  function insertText(field, text) {
+    const value = String(field.value || '');
+    const start = field.selectionStart ?? value.length;
+    const end = field.selectionEnd ?? start;
+    const next = `${value.slice(0, start)}${text}${value.slice(end)}`;
+    field.value = next;
+    const cursor = start + text.length;
+    field.setSelectionRange?.(cursor, cursor);
+    field.dispatchEvent(new Event('input', { bubbles: false }));
+  }
 
   function guardField(field) {
     if (!field || field.dataset.mediaPasteGuard === 'true') return;
@@ -15,6 +26,15 @@
         }
         event.stopPropagation();
       });
+    });
+    field.addEventListener('paste', (event) => {
+      const text = event.clipboardData?.getData('text/plain');
+      if (text == null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      insertText(field, text);
+      field.focus({ preventScroll: true });
     });
   }
 
