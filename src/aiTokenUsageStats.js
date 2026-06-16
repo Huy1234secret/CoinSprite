@@ -56,6 +56,7 @@ function addUsage(target, usage, model) {
   target.inputTokens = safeNumber(target.inputTokens) + usage.inputTokens;
   target.outputTokens = safeNumber(target.outputTokens) + usage.outputTokens;
   target.totalTokens = safeNumber(target.totalTokens) + usage.totalTokens;
+  target.models = target.models && typeof target.models === 'object' ? target.models : {};
   if (model) {
     const existing = target.models[model] || emptyUsage();
     addUsage(existing, usage, '');
@@ -86,6 +87,8 @@ function recordUsage({ guildId, model, usage, source = 'openai' } = {}) {
   const month = utcPlus7MonthKey();
   const state = loadState();
   state.months[month] = state.months[month] || { total: emptyUsage(), guilds: {} };
+  state.months[month].total = state.months[month].total || emptyUsage();
+  state.months[month].guilds = state.months[month].guilds || {};
   state.months[month].guilds[id] = state.months[month].guilds[id] || emptyUsage();
 
   addUsage(state.months[month].total, tokenUsage, model);
@@ -107,7 +110,7 @@ function recordUsage({ guildId, model, usage, source = 'openai' } = {}) {
 
 function monthUsageForGuild(state, month, guildId) {
   const usage = state.months?.[month]?.guilds?.[guildId];
-  return usage ? { ...emptyUsage(), ...usage } : emptyUsage();
+  return usage ? { ...emptyUsage(), ...usage, models: usage.models || {} } : emptyUsage();
 }
 
 function monthlyOverview(date = new Date()) {
