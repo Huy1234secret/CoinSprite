@@ -79,24 +79,22 @@
 }
 
 .emoji-field > input {
-  padding-right: 132px !important;
+  padding-right: 48px !important;
 }
 
 .emoji-picker-button {
-  width: 122px !important;
+  width: 36px !important;
   height: 36px !important;
   right: 3px !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 10px !important;
+  display: grid !important;
+  place-items: center;
+  padding: 0 !important;
   border: 1px solid #3b3f48 !important;
+  border-radius: 6px !important;
   background: #292c33 !important;
   color: #f2f3f5 !important;
-  font-size: 13px !important;
-  font-weight: 650;
-  white-space: nowrap;
+  font-size: 18px !important;
+  line-height: 1 !important;
 }
 
 .emoji-picker-button:hover {
@@ -107,7 +105,6 @@
 .emoji-picker-preview {
   width: 22px;
   height: 22px;
-  flex: 0 0 22px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -123,8 +120,7 @@
 }
 
 .emoji-picker-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none;
 }
 
 .emoji-component-popover {
