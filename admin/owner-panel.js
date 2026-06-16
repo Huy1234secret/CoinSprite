@@ -72,6 +72,21 @@
     return Number(value || 0).toLocaleString();
   }
 
+  function fmtCompactNumber(value) {
+    const number = Number(value) || 0;
+    if (number >= 1000000) return `${(number / 1000000).toFixed(number >= 10000000 ? 0 : 1)}M`;
+    if (number >= 1000) return `${(number / 1000).toFixed(number >= 10000 ? 1 : 2)}K`;
+    return fmtNumber(number);
+  }
+
+  function fmtUsd(value) {
+    const number = Number(value) || 0;
+    if (number <= 0) return '$0.0000';
+    if (number < 0.01) return `$${number.toFixed(4)}`;
+    if (number < 1) return `$${number.toFixed(3)}`;
+    return `$${number.toFixed(2)}`;
+  }
+
   function fmtUptime(ms) {
     const total = Math.max(0, Math.floor(Number(ms) / 1000));
     const days = Math.floor(total / 86400);
@@ -95,7 +110,7 @@
     const rows = (Array.isArray(history) ? history : [])
       .filter((entry) => Number(entry?.totalTokens) || Number(entry?.requests))
       .slice(0, 3)
-      .map((entry) => `${entry.month}: ${fmtNumber(entry.totalTokens)} tok`);
+      .map((entry) => `${entry.month}: ${fmtCompactNumber(entry.totalTokens)} tok ${fmtUsd(entry.estimatedCostUsd)}`);
     return rows.join(' | ') || '-';
   }
 
@@ -106,7 +121,7 @@
     const whenText = Number.isNaN(when.getTime())
       ? String(entry.month || '')
       : when.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    return `${whenText} ${fmtNumber(entry.totalTokens)} tok ${entry.model || ''}`.trim();
+    return `${whenText} ${fmtCompactNumber(entry.totalTokens)} tok ${fmtUsd(entry.estimatedCostUsd)} ${entry.model || ''}`.trim();
   }
 
   function guildIcon(guild) {
@@ -145,7 +160,7 @@
         <td>${fmtNumber(guild.totalUsers)}</td>
         <td>${escapeHtml(guild.ownerId || 'Unknown')}</td>
         <td><span class="owner-pill ${guild.enabled ? 'ok' : 'danger'}">${guild.enabled ? 'Enabled' : 'Disabled'}</span></td>
-        <td><div class="owner-usage-stack"><span>${fmtNumber(usage.todayMessages)} messages today</span><small>${fmtNumber(currentAi.totalTokens)} AI tokens this month, ${fmtNumber(currentAi.requests)} checks</small><small>History: ${escapeHtml(tokenHistoryText(aiTokens.history))}</small><small>Last AI use: ${escapeHtml(recentTokenLogText(aiTokens.recent))}</small><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></div></td>
+        <td><div class="owner-usage-stack"><span>${fmtNumber(usage.todayMessages)} messages today</span><small>${fmtCompactNumber(currentAi.totalTokens)} AI tokens (${fmtUsd(currentAi.estimatedCostUsd)}) this month, ${fmtNumber(currentAi.requests)} checks</small><small>History: ${escapeHtml(tokenHistoryText(aiTokens.history))}</small><small>Last AI use: ${escapeHtml(recentTokenLogText(aiTokens.recent))}</small><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></div></td>
         <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles</small></td>
         <td>${disabled ? `<small>${escapeHtml(disabled.reason || 'No reason')}</small>` : '<small>-</small>'}</td>
         <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
