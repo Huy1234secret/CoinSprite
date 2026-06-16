@@ -31,9 +31,44 @@ function cleanId(value, fallback = 'template') {
 function cleanEmoji(value) {
   return String(value || '').trim().slice(0, 100);
 }
+function cleanOptionalId(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+function cleanRoleId(value) {
+  const text = String(value || '').trim();
+  return /^\d{16,20}$/.test(text) ? text : '';
+}
+function cleanBoolean(value) {
+  return value === true || ['true', '1', 'on', 'yes'].includes(String(value || '').toLowerCase());
+}
 function clampInteger(value, min, max, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+function cleanComponentAction(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const type = ['send_message', 'give_role', 'legacy_response'].includes(source.type || source.actionType)
+    ? source.type || source.actionType
+    : 'send_message';
+  if (type === 'give_role') return { type, roleId: cleanRoleId(source.roleId), reverse: cleanBoolean(source.reverse) };
+  if (type === 'legacy_response') return { type, response: cleanText(source.response, 'This action has no response configured.', 2000) };
+  return { type: 'send_message', templateId: cleanOptionalId(source.templateId) };
+}
+function sanitizeComponentActions(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  let actions = Array.isArray(source.actions) ? source.actions.slice(0, 2).map(cleanComponentAction) : [];
+  if (!actions.length) {
+    if (source.roleId || source.actionType === 'give_role') actions = [cleanComponentAction({ type: 'give_role', roleId: source.roleId, reverse: source.reverse })];
+    else if (source.templateId || source.actionType === 'send_message') actions = [cleanComponentAction({ type: 'send_message', templateId: source.templateId })];
+    else if (source.response) actions = [cleanComponentAction({ type: 'legacy_response', response: source.response })];
+    else actions = [cleanComponentAction({ type: 'send_message' })];
+  }
+  const unique = [];
+  for (const action of actions) {
+    if (action.type !== 'legacy_response' && unique.some((item) => item.type === action.type)) continue;
+    unique.push(action);
+  }
+  return unique.slice(0, 2);
 }
 
 function defaultTemplate(index = 1) {
@@ -67,23 +102,27 @@ function sanitizeButton(value, index) {
   const requestedStyle = BUTTON_STYLES.has(value?.style) ? value.style : 'primary';
   const url = requestedStyle === 'link' ? cleanUrl(value?.url) : '';
   const style = requestedStyle === 'link' && !url ? 'primary' : requestedStyle;
+  const actions = style === 'link' ? [] : sanitizeComponentActions(value);
   return {
     id: cleanId(value?.id, `button-${index + 1}`),
     label: cleanText(value?.label, `Button ${index + 1}`, 80),
     style,
     emoji: cleanEmoji(value?.emoji),
     url: style === 'link' ? url : '',
-    response: style === 'link' ? '' : cleanText(value?.response, 'This button has no response configured.', 2000),
+    response: '',
+    actions,
   };
 }
 
 function sanitizeSelectOption(value, index) {
+  const actions = sanitizeComponentActions(value);
   return {
     id: cleanId(value?.id || value?.value, `option-${index + 1}`),
     label: cleanText(value?.label, `Option ${index + 1}`, 100),
     description: cleanText(value?.description, '', 100),
     emoji: cleanEmoji(value?.emoji),
-    response: cleanText(value?.response, 'This option has no response configured.', 2000),
+    response: '',
+    actions,
   };
 }
 
@@ -284,35 +323,77 @@ function interactionContext(interaction) {
   };
 }
 
+async function componentRespond(interaction, payload) {
+  const body = { ...payload, flags: Number(payload.flags || 0) | EPHEMERAL_FLAG };
+  if (interaction.replied || interaction.deferred) return interaction.followUp(body);
+  return interaction.reply(body);
+}
+
+async function executeComponentAction(interaction, action, context) {
+  if (action.type === 'legacy_response') {
+    return componentRespond(interaction, {
+      content: formatPlaceholders(action.response, context),
+      allowedMentions: allowedMentions(context),
+    });
+  }
+  if (action.type === 'send_message') {
+    const target = findTemplate(interaction.guildId, action.templateId);
+    if (!target) throw new Error('The selected message template is no longer available.');
+    return componentRespond(interaction, buildMessagePayload(target, context));
+  }
+  if (action.type === 'give_role') {
+    const guild = interaction.guild;
+    const member = interaction.member?.roles?.cache
+      ? interaction.member
+      : await guild?.members?.fetch(interaction.user.id).catch(() => null);
+    const role = guild?.roles?.cache?.get(action.roleId) || await guild?.roles?.fetch(action.roleId).catch(() => null);
+    if (!member || !role) throw new Error('The selected role is no longer available.');
+    if (role.id === guild.id || role.managed || !role.editable) throw new Error('The bot cannot manage the selected role.');
+    const hasRole = member.roles.cache.has(role.id);
+    if (action.reverse && hasRole) {
+      await member.roles.remove(role, 'Message component reverse role action');
+      return componentRespond(interaction, { content: `Removed the **${role.name}** role.` });
+    }
+    if (hasRole) return componentRespond(interaction, { content: `You already have the **${role.name}** role.` });
+    await member.roles.add(role, 'Message component role action');
+    return componentRespond(interaction, { content: `Added the **${role.name}** role.` });
+  }
+  throw new Error('This message component has no action configured.');
+}
+
 async function handleMessageTemplateInteraction(interaction) {
   if (!interaction?.isButton?.() && !interaction?.isStringSelectMenu?.()) return false;
   const parsed = parseComponentCustomId(interaction.customId);
   if (!parsed) return false;
   const template = findTemplate(interaction.guildId, parsed.templateId);
-  const context = interactionContext(interaction);
-  let response = '';
+  const actions = [];
 
   if (interaction.isButton()) {
     for (const row of template?.componentRows || []) {
       if (row.type !== 'buttons') continue;
       const button = row.buttons.find((item) => `${row.id}-${item.id}` === parsed.componentId);
-      if (button) { response = button.response; break; }
+      if (button) { actions.push(...(button.actions || [])); break; }
     }
   } else {
     const row = template?.componentRows?.find((item) => item.type === 'select' && item.id === parsed.componentId);
     const selected = new Set(interaction.values || []);
-    response = (row?.options || []).filter((option) => selected.has(option.id)).map((option) => option.response).filter(Boolean).join('\n');
+    for (const option of row?.options || []) {
+      if (selected.has(option.id)) actions.push(...(option.actions || []));
+    }
   }
 
-  if (!template || !response) {
-    await interaction.reply({ content: 'This message component is no longer configured.', flags: EPHEMERAL_FLAG }).catch(() => null);
+  if (!template || !actions.length) {
+    await componentRespond(interaction, { content: 'This message component is no longer configured.' }).catch(() => null);
     return true;
   }
-  await interaction.reply({
-    content: formatPlaceholders(response, context),
-    flags: EPHEMERAL_FLAG,
-    allowedMentions: allowedMentions(context),
-  });
+  const context = interactionContext(interaction);
+  for (const action of actions) {
+    try {
+      await executeComponentAction(interaction, action, context);
+    } catch (error) {
+      await componentRespond(interaction, { content: error.message || 'This action could not be completed.' }).catch(() => null);
+    }
+  }
   return true;
 }
 
