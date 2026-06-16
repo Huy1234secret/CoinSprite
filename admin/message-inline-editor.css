@@ -98,16 +98,7 @@
 }
 
 .message-root-content.message-root-empty .message-add-root {
-  display: block;
-  min-height: 32px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  pointer-events: none;
-}
-
-.message-root-content.message-root-empty .message-add-root > * {
-  display: none;
+  display: none !important;
 }
 
 .message-root-content.message-root-empty::before,
