@@ -55,7 +55,7 @@
         </nav>
         <div class="moderator-status-grid">
           <div class="moderator-stat"><span class="field-label">Status</span><strong>${moderatorState.enabled ? 'Enabled' : 'Disabled'}</strong></div>
-          <div class="moderator-stat"><span class="field-label">Provider</span><strong>${window.OPENAI_API_KEY ? 'OpenAI' : 'Runtime'}</strong></div>
+          <div class="moderator-stat"><span class="field-label">Check</span><strong>Server-side</strong></div>
           <div class="moderator-stat"><span class="field-label">Alert template</span><strong>Default</strong></div>
         </div>
         <div class="panel moderator-ai-panel">
