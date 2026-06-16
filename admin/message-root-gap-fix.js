@@ -2,6 +2,14 @@
   if (window.__coinSpriteMessageRootGapFix) return;
   window.__coinSpriteMessageRootGapFix = true;
 
+  function loadGuard() {
+    if (document.querySelector('script[src="/admin/message-media-paste-guard.js"]')) return;
+    const script = document.createElement('script');
+    script.src = '/admin/message-media-paste-guard.js';
+    script.async = false;
+    document.body.append(script);
+  }
+
   function blankLine() {
     const line = document.createElement('div');
     line.className = 'message-preview-line message-preview-empty message-root-gap-line';
@@ -27,6 +35,9 @@
     decorate(document);
   });
 
-  if (document.body) observer.observe(document.body, { childList: true, subtree: true });
+  if (document.body) {
+    loadGuard();
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
   decorate(document);
 })();
