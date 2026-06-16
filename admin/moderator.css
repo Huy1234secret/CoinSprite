@@ -25,28 +25,33 @@
   border: 2px solid #9b59ff;
   border-radius: 9px;
   background: rgba(155, 89, 255, 0.08);
-  box-shadow: 0 0 0 1px rgba(155, 89, 255, 0.28) inset;
+  box-shadow: none;
 }
 
 .tab[data-tab="moderator"] .tab-icon {
-  width: 22px;
-  height: 22px;
+  width: 34px;
+  height: 34px;
+  max-width: none;
+  max-height: none;
   display: block;
   object-fit: contain;
   object-position: center;
   image-rendering: auto;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  padding: 0 !important;
+  transform: scale(1.35);
+  clip-path: inset(18%);
 }
 
 .tab[data-tab="moderator"]:hover .tab-icon-frame,
 .tab[data-tab="moderator"].active .tab-icon-frame {
   border-color: #b56cff;
   background: rgba(155, 89, 255, 0.18);
-  box-shadow: 0 0 0 1px rgba(181, 108, 255, 0.36) inset;
+  box-shadow: none;
 }
 
 .moderator-shell {
@@ -104,7 +109,7 @@
   }
 
   .tab[data-tab="moderator"] .tab-icon {
-    width: 20px;
-    height: 20px;
+    width: 30px;
+    height: 30px;
   }
 }
