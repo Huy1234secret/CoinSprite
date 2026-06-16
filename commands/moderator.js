@@ -58,9 +58,7 @@ function applyModerationPlaceholders(template, message, result) {
 }
 
 function shouldSkipMessage(message) {
-  if (!message?.guild || message.author?.bot || !message.content?.trim()) return true;
-  if (message.member?.permissions?.has(PermissionFlagsBits.ManageMessages)) return true;
-  return false;
+  return !message?.guild || message.author?.bot || !message.content?.trim();
 }
 
 function shouldScanChannel(message, settings) {
