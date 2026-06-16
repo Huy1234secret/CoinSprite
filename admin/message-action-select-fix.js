@@ -10,8 +10,12 @@
     ['give_role', 'Give role'],
   ];
 
+  function actionTypeSelects(section) {
+    return [...section.querySelectorAll('.message-component-action-card label:first-of-type select')];
+  }
+
   function actionTypes(section) {
-    return [...section.querySelectorAll('.message-component-action-card select')]
+    return actionTypeSelects(section)
       .map((select) => select.value)
       .filter((value) => value === 'send_message' || value === 'give_role');
   }
@@ -22,6 +26,17 @@
     item.textContent = label;
     item.disabled = disabled;
     return item;
+  }
+
+  function forceNewestActionType(section, selectedType, previousCount) {
+    requestAnimationFrame(() => {
+      const selects = actionTypeSelects(section);
+      if (selects.length <= previousCount) return;
+      const typeSelect = selects[selects.length - 1];
+      if (typeSelect.value === selectedType) return;
+      typeSelect.value = selectedType;
+      typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   }
 
   function replaceAddButton(section) {
@@ -48,7 +63,9 @@
         select.value = '';
         return;
       }
+      const previousCount = section.querySelectorAll('.message-component-action-card').length;
       button.click();
+      forceNewestActionType(section, value, previousCount);
       select.value = '';
     });
 
