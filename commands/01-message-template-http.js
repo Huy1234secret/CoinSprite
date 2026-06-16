@@ -188,7 +188,7 @@ function applyComponentActions(guildId, templateId, body = {}) {
 
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-4">\n</head>');
+  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-5">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
     '<button class="tab" type="button" data-tab="moderator"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/images/moderator.png" alt=""></span><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
@@ -200,7 +200,7 @@ function injectedIndex() {
   html = html.replace(
     '</body>',
     [
-      '  <script src="/admin/moderator.js?v=moderator-4" defer></script>',
+      '  <script src="/admin/moderator.js?v=moderator-5" defer></script>',
       '  <script src="/admin/messages.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-components.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
