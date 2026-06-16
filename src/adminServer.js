@@ -3,9 +3,10 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
-const { getEnabledGuildIds, getGuildConfig, loadState, saveState } = require('./serverConfig');
+const { ensureGuildConfig, getEnabledGuildIds, getGuildConfig, getGuildConfigRaw, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
+const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -285,14 +286,34 @@ async function requireAdmin(req, res, env, client, guildId = null) {
     return null;
   }
   if (!guildId) return session;
+
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (isOwnerSession(session, client)) {
+    if (!guild) {
+      sendJson(res, 404, { error: 'Guild is not available to the bot.' });
+      return null;
+    }
+    ensureGuildConfig(guildId);
+    return session;
+  }
+
   if (!getGuildConfig(guildId)) {
     sendJson(res, 404, { error: 'Guild is not configured.' });
     return null;
   }
-  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   const member = guild ? await guild.members.fetch(session.user.id).catch(() => null) : null;
   if (!member?.permissions?.has(PermissionFlagsBits.Administrator)) {
     sendJson(res, 403, { error: 'Administrator permission is required for this guild.' });
+    return null;
+  }
+  return session;
+}
+
+async function requireOwner(req, res, env, client) {
+  const session = await requireAdmin(req, res, env, client);
+  if (!session) return null;
+  if (!isOwnerSession(session, client)) {
+    sendJson(res, 403, { error: 'Owner access is required.' });
     return null;
   }
   return session;
@@ -317,7 +338,7 @@ function updateGuildConfig(guildId, patch) {
   if (!current) return null;
   state.guilds[guildId] = mergePlain(current, patch);
   saveState(state);
-  return getGuildConfig(guildId);
+  return getGuildConfigRaw(guildId);
 }
 
 async function handleAuthStart(req, res, env) {
@@ -370,7 +391,26 @@ async function routeRequest(req, res, env, client) {
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const session = await requireAdmin(req, res, env, client);
     if (!session) return;
-    return sendJson(res, 200, { user: session.user, guilds: await fetchAccessibleGuilds(client, session.user.id) });
+    return sendJson(res, 200, {
+      user: session.user,
+      owner: isOwnerSession(session, client),
+      guilds: await fetchAccessibleGuilds(client, session.user.id),
+    });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/owner/overview') {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerOverview(req, res, client, { sendJson });
+  }
+  const ownerActionMatch = url.pathname.match(/^\/api\/owner\/guilds\/(\d{16,20})\/(disable|enable)$/);
+  if (ownerActionMatch && req.method === 'POST') {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    const deps = { readJsonBody, sendJson };
+    return ownerActionMatch[2] === 'disable'
+      ? handleOwnerDisable(req, res, client, ownerActionMatch[1], session, deps)
+      : handleOwnerEnable(req, res, client, ownerActionMatch[1], session, deps);
   }
 
   const directoryMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/directory$/);
@@ -396,7 +436,7 @@ async function routeRequest(req, res, env, client) {
     const guildId = configMatch[1];
     const session = await requireAdmin(req, res, env, client, guildId);
     if (!session) return;
-    return sendJson(res, 200, { guildId, config: getGuildConfig(guildId) });
+    return sendJson(res, 200, { guildId, config: isOwnerSession(session, client) ? getGuildConfigRaw(guildId) : getGuildConfig(guildId) });
   }
   if (configMatch && req.method === 'PATCH') {
     const guildId = configMatch[1];
@@ -405,7 +445,7 @@ async function routeRequest(req, res, env, client) {
     const config = updateGuildConfig(guildId, await readJsonBody(req));
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
     const ticketCommand = client.commands?.get('ticket-panel');
-    if (guild && typeof ticketCommand?.refreshGuild === 'function') {
+    if (guild && config?.enabled !== false && typeof ticketCommand?.refreshGuild === 'function') {
       await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
     }
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
