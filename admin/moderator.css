@@ -16,21 +16,21 @@
 }
 
 .tab[data-tab="moderator"] .tab-icon-frame {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   display: grid;
   place-items: center;
   overflow: hidden;
   border: 2px solid #9b59ff;
-  border-radius: 9px;
+  border-radius: 8px;
   background: rgba(155, 89, 255, 0.08);
   box-shadow: none;
 }
 
 .tab[data-tab="moderator"] .tab-icon {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   max-width: none;
   max-height: none;
   display: block;
@@ -43,8 +43,8 @@
   box-shadow: none !important;
   outline: 0 !important;
   padding: 0 !important;
-  transform: scale(1.35);
-  clip-path: inset(18%);
+  transform: scale(1.18);
+  clip-path: inset(16%);
 }
 
 .tab[data-tab="moderator"]:hover .tab-icon-frame,
@@ -103,13 +103,14 @@
 
 @media (max-width: 700px) {
   .tab[data-tab="moderator"] .tab-icon-frame {
-    width: 32px;
-    height: 32px;
-    flex-basis: 32px;
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
   }
 
   .tab[data-tab="moderator"] .tab-icon {
-    width: 30px;
-    height: 30px;
+    width: 27px;
+    height: 27px;
+    transform: scale(1.16);
   }
 }
