@@ -32,6 +32,29 @@
   let pendingRequest = false;
   let uiFixScheduled = false;
 
+  function installInlineSurfaceTextPatch() {
+    if (HTMLElement.prototype.__coinSpriteInlineTextPatch) return;
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText');
+    if (!descriptor?.get || !descriptor?.set) return;
+    Object.defineProperty(HTMLElement.prototype, 'innerText', {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() {
+        if (this.classList?.contains('message-inline-surface')) {
+          const lines = [...this.children]
+            .filter((child) => child.classList?.contains('message-inline-line'))
+            .map((line) => String(line.textContent || '').replace(/\u200b/g, '').replace(/\u00a0/g, ' '));
+          if (lines.length) return lines.join('\n').replace(/\n+$/g, '');
+        }
+        return descriptor.get.call(this);
+      },
+      set(value) {
+        descriptor.set.call(this, value);
+      },
+    });
+    HTMLElement.prototype.__coinSpriteInlineTextPatch = true;
+  }
+
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
@@ -172,6 +195,109 @@
 
   function wordChainOptions() {
     return channelOptions().filter((option) => !['category', 'voice', 'forum'].includes(option.optionType));
+  }
+
+  function ensureLevelUpOutsideField() {
+    const content = document.querySelector('#levelUpContent');
+    if (!content) return null;
+    let field = document.querySelector('#levelUpOutsideContent');
+    if (!field) {
+      field = document.createElement('textarea');
+      field.id = 'levelUpOutsideContent';
+      field.name = 'xp.levelUpMessage.outsideContent';
+      field.hidden = true;
+      field.className = 'message-source-hidden';
+      content.after(field);
+      field.addEventListener('input', renderLevelUpRootPreview);
+      field.addEventListener('change', renderLevelUpRootPreview);
+    }
+    return field;
+  }
+
+  function levelUpRootHtml(value) {
+    const context = typeof previewContext === 'function' ? previewContext() : {};
+    const rendered = typeof renderPreviewTemplate === 'function'
+      ? renderPreviewTemplate(value, context)
+      : String(value || '');
+    const clean = String(rendered || '').trim();
+    if (!clean) return '';
+    return typeof previewMarkdown === 'function'
+      ? previewMarkdown(clean)
+      : clean.replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+  }
+
+  function levelUpHasContainer() {
+    const content = document.querySelector('#levelUpContent')?.value.trim() || '';
+    const thumb = document.querySelector('[name="xp.levelUpMessage.thumbnailUrl"]')?.value.trim() || '';
+    const image = document.querySelector('[name="xp.levelUpMessage.imageUrl"]')?.value.trim() || '';
+    return Boolean(content || thumb || image);
+  }
+
+  function renderLevelUpRootPreview() {
+    const field = ensureLevelUpOutsideField();
+    const preview = document.querySelector('#levelUpPreview');
+    const container = document.querySelector('#levelUpPreviewContainer');
+    if (!field || !preview || !container) return;
+    let root = document.querySelector('#levelUpRootContent');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'levelUpRootContent';
+      container.before(root);
+    }
+    const html = levelUpRootHtml(field.value);
+    root.className = `message-root-content${html ? '' : ' message-root-empty'}`;
+    root.innerHTML = html || 'Add text outside the container';
+    container.hidden = !levelUpHasContainer();
+    let add = document.querySelector('#levelUpAddContainer');
+    if (!add) {
+      add = document.createElement('button');
+      add.id = 'levelUpAddContainer';
+      add.type = 'button';
+      add.className = 'button subtle message-add-container';
+      add.textContent = '+ Add container';
+      preview.append(add);
+    }
+    add.hidden = levelUpHasContainer();
+  }
+
+  function startLevelUpRootEditor(root) {
+    const field = ensureLevelUpOutsideField();
+    if (!field || root.querySelector('[contenteditable="true"]')) return;
+    const original = field.value || '';
+    root.classList.add('message-inline-edit-host', 'is-inline-editing');
+    const editor = document.createElement('div');
+    editor.className = 'message-inline-surface';
+    editor.contentEditable = 'true';
+    editor.spellcheck = true;
+    editor.textContent = original;
+    root.replaceChildren(editor);
+    const finish = (commit) => {
+      field.value = commit ? String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/\n+$/g, '') : original;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+      root.classList.remove('message-inline-edit-host', 'is-inline-editing');
+      renderLevelUpRootPreview();
+      refreshDirtyState();
+    };
+    editor.addEventListener('input', () => {
+      field.value = String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ');
+      refreshDirtyState();
+    });
+    editor.addEventListener('blur', () => finish(true), { once: true });
+    editor.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); editor.blur(); }
+      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+    });
+    editor.focus({ preventScroll: true });
+  }
+
+  function setLevelUpContainerStarter() {
+    const field = document.querySelector('#levelUpContent');
+    if (!field) return;
+    field.value = '## Container message\nWrite your container message here.';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    renderLevelUpRootPreview();
   }
 
   function ensureWordChainTools() {
@@ -428,6 +554,19 @@
   }
 
   document.addEventListener('click', (event) => {
+    const addContainer = event.target.closest('#levelUpAddContainer');
+    if (addContainer) {
+      event.preventDefault();
+      setLevelUpContainerStarter();
+      return;
+    }
+    const levelRoot = event.target.closest('#levelUpRootContent');
+    if (levelRoot && !event.target.closest('button,input,select,textarea,a,[contenteditable="true"]')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      startLevelUpRootEditor(levelRoot);
+      return;
+    }
     const add = event.target.closest('#ticketEditorRoot [data-action="add-ticket"]');
     if (add && !allowNativeAdd) {
       event.preventDefault();
@@ -445,6 +584,8 @@
     const url = typeof input === 'string' ? input : input.url;
     if (/\/api\/guilds\/\d{16,20}\/config$/.test(url) && String(init.method || 'GET').toUpperCase() === 'PATCH' && init.body) {
       const body = JSON.parse(init.body);
+      const outside = ensureLevelUpOutsideField();
+      if (body.xp?.levelUpMessage && outside) body.xp.levelUpMessage.outsideContent = outside.value.trim();
       const types = body.tickets?.types || [];
       types.forEach((type, index) => {
         const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
@@ -459,6 +600,11 @@
   const originalApply = applyTabFromConfig;
   applyTabFromConfig = function fixedApply(tabName, config) {
     originalApply(tabName, config);
+    if (tabName === 'leveling') {
+      const outside = ensureLevelUpOutsideField();
+      if (outside) outside.value = config.xp?.levelUpMessage?.outsideContent || '';
+      renderLevelUpRootPreview();
+    }
     if (tabName === 'games') {
       state.channelValues.wordChain = config.channels?.wordChain || '';
       ensureWordChainTools();
@@ -472,17 +618,25 @@
   const originalCollect = collectTabState;
   collectTabState = function fixedCollect(tabName) {
     const value = originalCollect(tabName);
+    if (tabName === 'leveling') return { ...value, outsideContent: ensureLevelUpOutsideField()?.value.trim() || '' };
     return tabName === 'games' ? { ...value, wordChainChannel: state.channelValues.wordChain || '', wordChainPunishmentRole: state.roleValues.wordChainPunishment || '' } : value;
   };
   const originalPatch = collectPatch;
   collectPatch = function fixedPatch() {
     const patch = originalPatch();
     patch.channels = { ...patch.channels, wordChain: state.channelValues.wordChain || '' };
+    if (patch.xp?.levelUpMessage) patch.xp.levelUpMessage.outsideContent = ensureLevelUpOutsideField()?.value.trim() || '';
     return patch;
+  };
+  const originalLevelPreview = renderLevelUpPreview;
+  renderLevelUpPreview = function fixedLevelPreview() {
+    originalLevelPreview();
+    renderLevelUpRootPreview();
   };
   const originalSetTab = setActiveTab;
   setActiveTab = function fixedSetTab(tabName) {
     originalSetTab(tabName);
+    if (tabName === 'leveling') queueMicrotask(renderLevelUpRootPreview);
     if (tabName === 'games') queueMicrotask(ensureWordChainTools);
     if (tabName === 'tickets') queueMicrotask(decorateTicketEditor);
   };
@@ -493,11 +647,13 @@
     requestAnimationFrame(() => {
       uiFixScheduled = false;
       cleanTabIcons();
+      renderLevelUpRootPreview();
       ensureWordChainTools();
       decorateTicketEditor();
     });
   }
 
+  installInlineSurfaceTextPatch();
   new MutationObserver(scheduleUiFixes).observe(document.body, { childList: true, subtree: true });
   window.addEventListener('resize', () => closePickerMenus());
   elements.configForm.addEventListener('scroll', () => closePickerMenus(), { passive: true });
