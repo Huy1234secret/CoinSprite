@@ -1,0 +1,63 @@
+.tab[data-tab="moderator"] {
+  border-color: rgba(155, 89, 182, 0.42);
+  box-shadow: 0 0 0 1px rgba(155, 89, 182, 0.12) inset;
+}
+
+.tab[data-tab="moderator"]:hover,
+.tab[data-tab="moderator"].active {
+  border-color: rgba(190, 127, 222, 0.78);
+  background: rgba(155, 89, 182, 0.12);
+}
+
+.tab[data-tab="moderator"] .tab-icon {
+  --tab-icon-glow: rgba(190, 127, 222, 0.78);
+  --tab-icon-bg: rgba(155, 89, 182, 0.22);
+  --tab-icon-border: rgba(190, 127, 222, 0.54);
+}
+
+.moderator-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.moderator-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.moderator-stat {
+  min-height: 82px;
+  padding: 14px;
+  border: 1px solid rgba(155, 89, 182, 0.22);
+  border-radius: 8px;
+  background: rgba(155, 89, 182, 0.055);
+}
+
+.moderator-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.moderator-ai-panel {
+  border-color: rgba(155, 89, 182, 0.34);
+  box-shadow: 0 0 0 1px rgba(155, 89, 182, 0.1) inset, 0 16px 38px rgba(0, 0, 0, 0.22);
+}
+
+.moderator-template-note {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(155, 89, 182, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 820px) {
+  .moderator-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
