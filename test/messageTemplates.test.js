@@ -64,3 +64,35 @@ test('builds Components V2 buttons and selection panels', () => {
   assert.equal(payload.components[2].components[0].type, 3);
   assert.deepEqual(payload.allowedMentions.users, ['300']);
 });
+
+test('preserves component actions while sanitizing message templates', () => {
+  const template = sanitizeTemplate({
+    id: 'action-panel',
+    containers: [],
+    componentRows: [{
+      id: 'row',
+      type: 'buttons',
+      buttons: [{
+        id: 'open',
+        label: 'Open',
+        style: 'primary',
+        actions: [
+          { type: 'send_message', templateId: 'Follow Up!' },
+          { type: 'give_role', roleId: '123456789012345678', reverse: 'true' },
+        ],
+      }],
+    }, {
+      id: 'select',
+      type: 'select',
+      options: [{ id: 'legacy', label: 'Legacy', response: 'Legacy response' }],
+    }],
+  });
+
+  assert.deepEqual(template.componentRows[0].buttons[0].actions, [
+    { type: 'send_message', templateId: 'follow-up' },
+    { type: 'give_role', roleId: '123456789012345678', reverse: true },
+  ]);
+  assert.deepEqual(template.componentRows[1].options[0].actions, [
+    { type: 'legacy_response', response: 'Legacy response' },
+  ]);
+});
