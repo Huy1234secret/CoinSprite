@@ -75,6 +75,14 @@ const DEFAULT_GUILD_CONFIG = {
     giveawayBlacklist: '',
     wordChainPunishment: '',
   },
+  moderation: {
+    ai: {
+      enabled: false,
+      logChannelId: '',
+      scanChannelIds: [],
+      alertTemplateId: 'default-ai-moderation-alert',
+    },
+  },
   xp: {
     channels: [],
     messageXpMin: 1,
