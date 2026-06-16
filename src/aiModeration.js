@@ -4,14 +4,31 @@ const { recordUsage } = require('./aiTokenUsageStats');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-4o-mini';
+const RULE_LABELS = Object.freeze({
+  '1.1': '1.1┆🤝 Be Respectful',
+  '1.5': '1.5┆🗣️ No Political or Religious Discussions',
+  '2.4': '2.4┆❤️ No E-Dating',
+  '3.1': '3.1┆🔞 No NSFW Content',
+  '3.2': '3.2┆🚨 No Hate Speech or Harassment',
+  '3.3': '3.3┆❤️‍🔥 No Sexual Misconduct',
+});
+const CATEGORY_RULES = Object.freeze({
+  rule_1_1_respect: '1.1',
+  rule_1_1_respect_or_rule_3_2_harassment: '1.1',
+  rule_1_5_politics_religion: '1.5',
+  rule_2_4_edating: '2.4',
+  rule_3_1_nsfw: '3.1',
+  rule_3_2_hate_harassment: '3.2',
+  rule_3_3_sexual_misconduct: '3.3',
+});
 const SERVER_RULE_SUMMARY = [
   'Server rules:',
-  '1.1 Be respectful. Swearing is allowed, but excessive swearing, targeted insults, provocation, harassment, or disruptive arguments are not allowed.',
-  '1.5 Political or religious discussions are prohibited.',
-  '2.4 Public e-dating, romantic roleplay, or seeking romantic partners is prohibited.',
-  '3.1 NSFW, explicit sexual, gory, or highly inappropriate content is banned.',
-  '3.2 Hate speech, bullying, discrimination, targeted abuse, and threats are zero tolerance.',
-  '3.3 Sexual conversations, sexual roleplay, or inappropriate advances toward members are prohibited.',
+  `${RULE_LABELS['1.1']}: Swearing is allowed, but excessive swearing, targeted insults, provocation, harassment, or disruptive arguments are not allowed.`,
+  `${RULE_LABELS['1.5']}: Political or religious discussions are prohibited.`,
+  `${RULE_LABELS['2.4']}: Public e-dating, romantic roleplay, or seeking romantic partners is prohibited.`,
+  `${RULE_LABELS['3.1']}: NSFW, explicit sexual, gory, or highly inappropriate content is banned.`,
+  `${RULE_LABELS['3.2']}: Hate speech, bullying, discrimination, targeted abuse, and threats are zero tolerance.`,
+  `${RULE_LABELS['3.3']}: Sexual conversations, sexual roleplay, or inappropriate advances toward members are prohibited.`,
   'Use the rules to decide whether the message really breaks policy. Do not flag casual non-targeted swearing by itself.',
 ].join(' ');
 const FALLBACK_TERMS = [
@@ -50,13 +67,62 @@ function fallbackLanguage(normalized) {
   return 'unknown';
 }
 
+function defaultScoreForSeverity(severity, flagged = false) {
+  if (!flagged) return 0;
+  if (severity === 'critical') return 9;
+  if (severity === 'high') return 6.5;
+  if (severity === 'medium') return 3.5;
+  return 1.25;
+}
+
+function severityFromScore(score, flagged = false) {
+  if (!flagged || score <= 0) return 'none';
+  if (score >= 8) return 'critical';
+  if (score >= 5) return 'high';
+  if (score >= 2) return 'medium';
+  return 'low';
+}
+
+function normalizeScore(value, severity, flagged) {
+  const score = Number(value);
+  if (Number.isFinite(score)) return Math.max(0, Math.min(10, Math.round(score * 100) / 100));
+  return defaultScoreForSeverity(severity, flagged);
+}
+
+function normalizeRuleLabel(value) {
+  const text = compactWhitespace(value);
+  const key = Object.keys(RULE_LABELS).find((rule) => text.includes(rule));
+  return key ? RULE_LABELS[key] : '';
+}
+
+function brokenRulesFromCategories(categories = []) {
+  const keys = [];
+  for (const category of categories) {
+    const mapped = CATEGORY_RULES[String(category || '')];
+    if (mapped) keys.push(mapped);
+    if (String(category || '').includes('rule_3_2')) keys.push('3.2');
+  }
+  return [...new Set(keys)].map((key) => RULE_LABELS[key]).filter(Boolean);
+}
+
+function fallbackRules(matchedTerms) {
+  const terms = new Set(matchedTerms);
+  const rules = new Set(['1.1']);
+  if ([...terms].some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'].includes(term))) rules.add('3.2');
+  return [...rules].map((key) => RULE_LABELS[key]);
+}
+
 function fallbackAnalyze(content) {
   const normalized = normalizeForScan(content);
   const matchedTerms = FALLBACK_TERMS.filter((term) => normalized.includes(term));
+  const severe = matchedTerms.some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'].includes(term));
+  const severity = severe ? 'high' : matchedTerms.length > 1 ? 'medium' : matchedTerms.length ? 'low' : 'none';
   return {
     flagged: matchedTerms.length > 0,
-    severity: matchedTerms.length > 1 ? 'high' : matchedTerms.length ? 'medium' : 'none',
-    categories: matchedTerms.length ? ['rule_1_1_respect_or_rule_3_2_harassment'] : [],
+    severity,
+    severityScore: matchedTerms.length ? (severe ? 6.5 : matchedTerms.length > 1 ? 3.5 : 1.25) : 0,
+    categories: matchedTerms.length ? (severe ? ['rule_1_1_respect', 'rule_3_2_hate_harassment'] : ['rule_1_1_respect']) : [],
+    brokenRules: matchedTerms.length ? fallbackRules(matchedTerms) : [],
     matchedTerms,
     originalLanguage: matchedTerms.length ? fallbackLanguage(normalized) : 'unknown',
     englishTranslation: fallbackEnglish(content, normalized),
@@ -79,10 +145,20 @@ function parseJsonObject(value) {
 }
 
 function normalizeResult(value, source = 'ai') {
+  const categories = Array.isArray(value.categories) ? value.categories.map(String).slice(0, 8) : [];
+  const score = normalizeScore(value.severityScore ?? value.severity_score ?? value.score, value.severity, Boolean(value.flagged));
+  const severity = ['low', 'medium', 'high', 'critical'].includes(value.severity)
+    ? value.severity
+    : severityFromScore(score, Boolean(value.flagged));
+  const brokenRules = Array.isArray(value.brokenRules || value.broken_rules)
+    ? (value.brokenRules || value.broken_rules).map(normalizeRuleLabel).filter(Boolean)
+    : [];
   return {
     flagged: Boolean(value.flagged),
-    severity: ['low', 'medium', 'high', 'critical'].includes(value.severity) ? value.severity : (value.flagged ? 'medium' : 'none'),
-    categories: Array.isArray(value.categories) ? value.categories.map(String).slice(0, 8) : [],
+    severity,
+    severityScore: score,
+    brokenRules: [...new Set([...brokenRules, ...brokenRulesFromCategories(categories)])].slice(0, 6),
+    categories,
     matchedTerms: Array.isArray(value.matchedTerms) ? value.matchedTerms.map(String).slice(0, 10) : [],
     originalLanguage: compactWhitespace(value.originalLanguage || 'unknown').slice(0, 80),
     englishTranslation: compactWhitespace(value.englishTranslation || '').slice(0, 1000),
@@ -124,7 +200,9 @@ async function analyzeWithOpenAI(content, context = {}) {
             SERVER_RULE_SUMMARY,
             'Translate non-English text to English before judging.',
             'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, or disruptive.',
-            'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
+            'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, severityScore number from 0 to 10, brokenRules array, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
+            'severityScore examples: low 1.25, medium 3.5, high 6.5, critical 9.0. Use decimals when useful.',
+            `brokenRules must contain exact labels from this list only: ${Object.values(RULE_LABELS).join('; ')}. Include multiple labels if multiple rules are broken.`,
             'Use category values like rule_1_1_respect, rule_1_5_politics_religion, rule_2_4_edating, rule_3_1_nsfw, rule_3_2_hate_harassment, rule_3_3_sexual_misconduct.',
           ].join(' '),
         },
