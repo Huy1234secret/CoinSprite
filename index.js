@@ -5,6 +5,7 @@ const { config } = require('dotenv');
 config();
 
 const { logCommandUse, logCommandSystem, setLogClient } = require('./src/commandLogger');
+const dailyMessageStats = require('./src/dailyMessageStats');
 const { getCommandBlockReason } = require('./src/gameSessionLock');
 const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageAfterAction } = require('./src/actionTimeouts');
 const { loadState, saveState } = require('./src/ticketSystemStore');
@@ -419,6 +420,7 @@ client.on(Events.InviteDelete, async (invite) => {
 });
 client.on(Events.MessageCreate, async (message) => {
   if (!isGuildEnabled(message.guildId)) return;
+  dailyMessageStats.recordMessage(message);
   const prefixCommand = message.author?.bot ? null : getPrefixCommandLabel(message);
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
