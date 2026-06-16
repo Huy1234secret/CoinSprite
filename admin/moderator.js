@@ -18,7 +18,7 @@
       tab.className = 'tab';
       tab.type = 'button';
       tab.dataset.tab = 'moderator';
-      tab.innerHTML = '<img class="tab-icon" src="/images/moderator.png" alt="" aria-hidden="true"><span>Moderator</span>';
+      tab.innerHTML = '<span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/images/moderator.png" alt=""></span><span>Moderator</span>';
       (tabs.querySelector('[data-tab="messages"]') || tabs.querySelector('[data-tab="games"]') || tabs.lastElementChild)?.before(tab);
     }
 
