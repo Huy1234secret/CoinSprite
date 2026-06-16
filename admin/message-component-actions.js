@@ -15,6 +15,10 @@
 
   const messageApi = (url) => String(url || '').match(/\/api\/guilds\/(\d{16,20})\/message-templates(?:\/([a-z0-9_-]{1,40}))?/);
   const defaultResponses = new Set(['Thanks, <@mention>!', 'You selected this option, <@mention>.']);
+  const ACTION_TYPES = [
+    ['send_message', 'Send message'],
+    ['give_role', 'Give role'],
+  ];
 
   function normalizeTemplate(template) {
     if (!template?.id) return null;
@@ -205,12 +209,16 @@
     fallbackRolePicker(mount, action, editor);
   }
 
+  function defaultAction(type) {
+    if (type === 'give_role') return { type: 'give_role', roleId: '', reverse: false };
+    if (type === 'legacy_response') return { type: 'legacy_response', response: '' };
+    return { type: 'send_message', templateId: '' };
+  }
+
   function resetAction(action, type) {
+    const next = defaultAction(type);
     for (const key of Object.keys(action)) delete action[key];
-    action.type = type;
-    if (type === 'send_message') action.templateId = '';
-    if (type === 'give_role') Object.assign(action, { roleId: '', reverse: false });
-    if (type === 'legacy_response') action.response = '';
+    Object.assign(action, next);
   }
 
   function buildActionCard(editor, item, action, index) {
@@ -241,12 +249,10 @@
     typeLabel.textContent = 'Action type';
     const typeSelect = document.createElement('select');
     const used = new Set(actions.map((entry, entryIndex) => entryIndex === index ? '' : entry.type));
-    typeSelect.append(
-      option('send_message', 'Send message', action.type, used.has('send_message')),
-      option('give_role', 'Give role', action.type, used.has('give_role')),
-    );
+    ACTION_TYPES.forEach(([value, label]) => typeSelect.append(option(value, label, action.type, used.has(value))));
     if (action.type === 'legacy_response') typeSelect.append(option('legacy_response', 'Existing text response', action.type));
     typeSelect.addEventListener('change', () => {
+      if (typeSelect.value === action.type) return;
       resetAction(action, typeSelect.value);
       queueSave();
       rebuild(editor);
@@ -309,6 +315,27 @@
     return card;
   }
 
+  function buildAddActionSelect(editor, actions) {
+    const used = new Set(actions.map((action) => action.type));
+    const select = document.createElement('select');
+    select.className = 'message-component-add-action-select';
+    select.append(option('', 'Add action', '', true));
+    select.value = '';
+    ACTION_TYPES.forEach(([value, label]) => {
+      select.append(option(value, label, '', actions.length >= 2 || used.has(value)));
+    });
+    select.disabled = actions.length >= 2 || ACTION_TYPES.every(([value]) => used.has(value));
+    select.addEventListener('change', () => {
+      const type = select.value;
+      select.value = '';
+      if (!type || actions.length >= 2 || used.has(type)) return;
+      actions.push(defaultAction(type));
+      queueSave();
+      rebuild(editor);
+    });
+    return select;
+  }
+
   function buildActionEditor(editor, item) {
     const actions = actionsFor(item);
     const section = document.createElement('div');
@@ -327,22 +354,7 @@
     list.className = 'message-component-action-list';
     actions.forEach((action, index) => list.append(buildActionCard(editor, item, action, index)));
     section.append(list);
-
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'button subtle message-component-add-action';
-    add.textContent = '+ Add action';
-    add.disabled = actions.length >= 2;
-    add.addEventListener('click', () => {
-      if (actions.length >= 2) return;
-      const used = new Set(actions.map((action) => action.type));
-      actions.push(used.has('send_message')
-        ? { type: 'give_role', roleId: '', reverse: false }
-        : { type: 'send_message', templateId: '' });
-      queueSave();
-      rebuild(editor);
-    });
-    section.append(add);
+    section.append(buildAddActionSelect(editor, actions));
     return section;
   }
 
