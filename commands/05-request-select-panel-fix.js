@@ -19,6 +19,8 @@ const { getControlWorkflow } = require('../src/requestControlWorkflows');
 const previousLoad = Module._load;
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const ACTION_MAP = Object.freeze({ close: 'accept', delete: 'deny', transcript: 'dm_template', move_to: 'role_add', blacklist: 'blacklist' });
+const PANEL_TYPE_SELECT = 'ticket:type-select';
+const PANEL_TYPE_BUTTON_PREFIX = 'ticket:type-button:';
 
 function isRequestType(type) {
   return Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
@@ -35,6 +37,53 @@ function decodedActions(control) {
 }
 function buttonStyle(style) {
   return { primary: 1, secondary: 2, success: 3, danger: 4 }[style] || 2;
+}
+function panelTypeControls(ticketConfig) {
+  if (!ticketConfig?.enabled) return [];
+  const types = Array.isArray(ticketConfig.types) ? ticketConfig.types : [];
+  if (!types.length) return [];
+  if (ticketConfig.launcherStyle === 'buttons') {
+    const rows = [];
+    for (let index = 0; index < types.length; index += 5) {
+      rows.push({
+        type: 1,
+        components: types.slice(index, index + 5).map((ticketType) => ({
+          type: 2,
+          custom_id: `${PANEL_TYPE_BUTTON_PREFIX}${ticketType.id}`,
+          label: ticketType.name,
+          style: buttonStyle(ticketType.buttonStyle),
+          ...(ticketType.emoji ? { emoji: discordEmoji(ticketType.emoji) } : {}),
+        })),
+      });
+    }
+    return rows;
+  }
+  return [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: PANEL_TYPE_SELECT,
+      placeholder: 'Choose a ticket type',
+      options: types.map((ticketType) => ({
+        label: ticketType.name,
+        value: ticketType.id,
+        ...(ticketType.description ? { description: ticketType.description } : {}),
+        ...(ticketType.emoji ? { emoji: discordEmoji(ticketType.emoji) } : {}),
+      })),
+    }],
+  }];
+}
+function ticketPanelPayload(interaction) {
+  const ticketConfig = getGuildConfig(interaction.guildId)?.tickets;
+  return buildTicketMessagePayload(
+    ticketConfig?.launcherMessage,
+    { server: interaction.guild?.name || '' },
+    panelTypeControls(ticketConfig),
+  );
+}
+async function resetTicketTypeSelection(interaction) {
+  if (!interaction?.isStringSelectMenu?.() || interaction.customId !== PANEL_TYPE_SELECT || !interaction.message?.editable || !interaction.guildId) return;
+  await interaction.message.edit(ticketPanelPayload(interaction)).catch(() => null);
 }
 function requestButton(control, requestId, disabled = false) {
   const emoji = control.emoji ? discordEmoji(control.emoji) : undefined;
@@ -379,7 +428,9 @@ Module._load = function requestSelectPanelPatch(request, parent, isMain) {
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
     if (await handleRequestInteraction(interaction)) return true;
-    return nativeHandle(interaction, client);
+    const handled = await nativeHandle(interaction, client);
+    if (handled) await resetTicketTypeSelection(interaction);
+    return handled;
   };
   exported.__requestSelectPanelPatched = true;
   return exported;
