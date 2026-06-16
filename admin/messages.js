@@ -22,7 +22,7 @@
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#039;');
   const validHex = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '').trim());
   const toHex = (value) => validHex(value) ? String(value).trim().toUpperCase() : '#5865F2';
@@ -124,7 +124,7 @@
 
   function renderInlineMarkdown(value) {
     const codeSpans = [];
-    let safe = escapeHtml(value).replace(/`([^`]+)`/g, (_, code) => {
+    let safe = escapeHtml(value).replace(/`([^`\n]+)`/g, (_, code) => {
       codeSpans.push(`<code>${code}</code>`);
       return `\u0000CODE${codeSpans.length - 1}\u0000`;
     });
@@ -168,6 +168,12 @@
     return lines.join('');
   }
 
+  function rootMessageHtml(content) {
+    const value = String(content || '').trim();
+    if (value) return renderMarkdown(value);
+    return '<button class="message-add-root" type="button" data-message-action="preview-root-text"><span class="message-add-root-plus">+</span><strong>Add message</strong><span>Outside container</span></button>';
+  }
+
   function previewUrl(value) {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -201,12 +207,13 @@
   }
 
   function messagePreview(template) {
+    const rootEmpty = !String(template.content || '').trim();
     return `<div class="message-discord-preview">
       <div class="message-discord-message">
         <div class="message-bot-avatar">CS</div>
         <div class="message-discord-body">
           <div class="message-author"><strong>CoinSprite</strong><span>APP</span></div>
-          ${template.content ? `<div class="message-root-content" data-message-action="preview-root-text">${renderMarkdown(template.content)}</div>` : ''}
+          <div class="message-root-content${rootEmpty ? ' message-root-empty' : ''}" data-message-action="preview-root-text">${rootMessageHtml(template.content)}</div>
           ${template.containers.map(renderContainerPreview).join('')}
         </div>
       </div>
