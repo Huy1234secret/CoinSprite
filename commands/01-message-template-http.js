@@ -18,6 +18,7 @@ const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
+const MODERATOR_ICON_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAA/klEQVR42u2YyQ3DIBAAaTPVpJD0kWdKSSuO8kCKLC/LEdgFZiT//PAMFjYbAgAAAEAhr/v78HYRgABGAR63p9lFAAIQgAAEIAABCEAAAhCAAAQgAAEIQACrkZi1vIuZ4AjpL1fyWwSIuA3QK8IZ12Px3vLS6g8PMCKCa3ltL4gP/A/51M5vKp+KcPXwtavuWl6KIEnUypt/91vegpwIpfLuArRE0O6ZQj71iywJaqs+xatfG2FZ+dRpUcLlaa/XabFkY5x29bWZQe6ncWr51sHJEvK1EZaSL42wpDwBMiMsLa9F2EJeirCV/DnCb4CwE9sHiBFigAAAAAAAY/kAzxkkZXJZRPMAAAAASUVORK5CYII=';
 let clientRef = null;
 
 function sendJson(res, status, payload) {
@@ -43,6 +44,10 @@ function imageContentType(filePath) {
 function serveImageAsset(res, imagePath) {
   const decoded = decodeURIComponent(String(imagePath || ''));
   const normalized = path.normalize(decoded).replace(/^(\.\.[/\\])+/, '');
+  if (normalized.replace(/\\/g, '/') === 'moderator.png') {
+    sendAsset(res, 200, Buffer.from(MODERATOR_ICON_PNG_BASE64, 'base64'), 'image/png');
+    return;
+  }
   if (!/^[a-z0-9_.\-/\\]+$/i.test(normalized)) {
     sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
     return;
@@ -188,18 +193,19 @@ function applyComponentActions(guildId, templateId, body = {}) {
 
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n</head>');
+  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-1">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/admin/images/moderator.png" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
-    '<section class="tab-panel" data-panel="messages"><div id="messageTemplatesRoot"></div></section>\n\n        <section class="tab-panel" data-panel="games">',
+    '<section class="tab-panel" data-panel="moderator"><div id="moderatorRoot"></div></section>\n\n        <section class="tab-panel" data-panel="messages"><div id="messageTemplatesRoot"></div></section>\n\n        <section class="tab-panel" data-panel="games">',
   );
   html = html.replace(
     '</body>',
     [
+      '  <script src="/admin/moderator.js?v=moderator-1" defer></script>',
       '  <script src="/admin/messages.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-components.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
