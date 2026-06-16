@@ -172,3 +172,25 @@
   .ticket-kind-grid { grid-template-columns: 1fr; }
   .ticket-message-builder { grid-template-columns: 1fr; }
 }
+
+.workspace {
+  padding-top: 8px;
+}
+
+.section-title {
+  padding-bottom: 10px;
+}
+
+.config-scroll {
+  padding-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    padding-top: 8px;
+  }
+
+  .config-scroll {
+    padding-top: 10px;
+  }
+}
