@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { monitorEventLoopDelay } = require('perf_hooks');
+const aiTokenUsageStats = require('./aiTokenUsageStats');
 const dailyMessageStats = require('./dailyMessageStats');
 const levelingStore = require('./levelingStore');
 const ticketSystemStore = require('./ticketSystemStore');
@@ -94,7 +95,7 @@ function dataFileBytesForGuild(guildId) {
   };
 }
 
-function dataUsageForGuild(guildId, todayMessages = null) {
+function dataUsageForGuild(guildId, todayMessages = null, aiUsage = null) {
   const levelingState = levelingStore.loadState();
   const levelingGuild = levelingState.guilds?.[guildId] || {};
   const ticketState = ticketSystemStore.loadState();
@@ -103,6 +104,7 @@ function dataUsageForGuild(guildId, todayMessages = null) {
     levelingUsers: Object.keys(levelingGuild.users || {}).length,
     messagesTracked: Object.values(levelingGuild.users || {}).reduce((sum, user) => sum + (Number(user?.messages) || 0), 0),
     todayMessages: Number(todayMessages?.guilds?.[guildId]?.total || 0),
+    aiTokens: aiUsage?.guilds?.[guildId] || { current: {}, history: [], recent: [] },
     reactionsTracked: Object.values(levelingGuild.users || {}).reduce((sum, user) => sum + (Number(user?.reactions) || 0), 0),
     messageTemplates: templates.length,
     ticketBlacklistedUsers: Array.isArray(ticketState.blacklistedUsersByGuild?.[guildId]) ? ticketState.blacklistedUsersByGuild[guildId].length : 0,
@@ -129,7 +131,7 @@ function globalStorage() {
   };
 }
 
-async function guildSummary(client, guildId, disabledRecords, todayMessages) {
+async function guildSummary(client, guildId, disabledRecords, todayMessages, aiUsage) {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return null;
   const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
@@ -137,7 +139,7 @@ async function guildSummary(client, guildId, disabledRecords, todayMessages) {
   const owner = guild.ownerId ? null : await guild.fetchOwner().catch(() => null);
   const config = getGuildConfigRaw(guild.id);
   const storage = dataFileBytesForGuild(guild.id);
-  const usage = dataUsageForGuild(guild.id, todayMessages);
+  const usage = dataUsageForGuild(guild.id, todayMessages, aiUsage);
   return {
     id: guild.id,
     name: guild.name,
@@ -160,10 +162,11 @@ async function guildSummary(client, guildId, disabledRecords, todayMessages) {
 async function ownerOverview(client) {
   await client.guilds.fetch().catch(() => null);
   const todayMessages = dailyMessageStats.todayOverview();
+  const aiUsage = aiTokenUsageStats.monthlyOverview();
   const disabledRecords = getDisabledGuilds();
   const configuredIds = new Set(getConfiguredGuildIds({ includeDisabled: true }));
   const ids = new Set([...client.guilds.cache.keys(), ...configuredIds]);
-  const guilds = (await Promise.all([...ids].map((id) => guildSummary(client, id, disabledRecords, todayMessages)))).filter(Boolean);
+  const guilds = (await Promise.all([...ids].map((id) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage)))).filter(Boolean);
   const delayMeanMs = Number.isFinite(eventLoopDelay.mean) ? eventLoopDelay.mean / 1e6 : 0;
   const fps = delayMeanMs > 0 ? Math.max(1, Math.round(1000 / Math.max(1, delayMeanMs))) : null;
   return {
@@ -188,6 +191,12 @@ async function ownerOverview(client) {
       date: todayMessages.date,
       timezone: todayMessages.timezone,
       resetAt: todayMessages.resetAt,
+    },
+    aiTokens: {
+      month: aiUsage.month,
+      timezone: aiUsage.timezone,
+      resetAt: aiUsage.resetAt,
+      total: aiUsage.total,
     },
     storage: globalStorage(),
     disabledGuilds: disabledRecords,
