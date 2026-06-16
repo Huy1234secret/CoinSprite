@@ -7,6 +7,9 @@ const DATA_PATH = path.join(__dirname, '..', 'data', 'ai-token-usage.json');
 const UTC_PLUS_7_MS = 7 * 60 * 60 * 1000;
 const RETENTION_MONTHS = 13;
 const RECENT_EVENTS_PER_GUILD = 40;
+const DEFAULT_MODEL_RATES = {
+  'gpt-4o-mini': { inputPerMillion: 0.15, outputPerMillion: 0.60 },
+};
 
 function utcPlus7MonthKey(date = new Date()) {
   return new Date(date.getTime() + UTC_PLUS_7_MS).toISOString().slice(0, 7);
@@ -17,14 +20,46 @@ function safeNumber(value) {
   return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
+function safeMoney(value) {
+  const number = Number(value) || 0;
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
 function emptyUsage() {
   return {
     requests: 0,
     inputTokens: 0,
     outputTokens: 0,
     totalTokens: 0,
+    estimatedCostUsd: 0,
     models: {},
   };
+}
+
+function modelRate(model) {
+  const key = String(model || '').trim();
+  const envInput = safeMoney(process.env.OPENAI_INPUT_USD_PER_1M);
+  const envOutput = safeMoney(process.env.OPENAI_OUTPUT_USD_PER_1M);
+  if (envInput || envOutput) {
+    return {
+      inputPerMillion: envInput || DEFAULT_MODEL_RATES['gpt-4o-mini'].inputPerMillion,
+      outputPerMillion: envOutput || DEFAULT_MODEL_RATES['gpt-4o-mini'].outputPerMillion,
+    };
+  }
+  return DEFAULT_MODEL_RATES[key] || DEFAULT_MODEL_RATES['gpt-4o-mini'];
+}
+
+function estimateCostUsd(usage = {}, model = 'gpt-4o-mini') {
+  const rate = modelRate(model);
+  return ((safeNumber(usage.inputTokens) / 1000000) * rate.inputPerMillion)
+    + ((safeNumber(usage.outputTokens) / 1000000) * rate.outputPerMillion);
+}
+
+function estimateAggregateCostUsd(usage = {}) {
+  const models = usage.models && typeof usage.models === 'object' ? usage.models : {};
+  const modelEntries = Object.entries(models);
+  if (!modelEntries.length) return estimateCostUsd(usage, process.env.OPENAI_MODERATION_MODEL || 'gpt-4o-mini');
+  return modelEntries.reduce((sum, [model, modelUsage]) => sum + estimateCostUsd(modelUsage, model), 0);
 }
 
 function loadState() {
@@ -60,8 +95,10 @@ function addUsage(target, usage, model) {
   if (model) {
     const existing = target.models[model] || emptyUsage();
     addUsage(existing, usage, '');
+    existing.estimatedCostUsd = estimateCostUsd(existing, model);
     target.models[model] = existing;
   }
+  target.estimatedCostUsd = estimateAggregateCostUsd(target);
 }
 
 function pruneState(state) {
@@ -83,6 +120,7 @@ function recordUsage({ guildId, model, usage, source = 'openai' } = {}) {
   if (!/^\d{16,20}$/.test(id)) return null;
   const tokenUsage = normalizeUsage(usage);
   if (!tokenUsage.totalTokens) return null;
+  const costUsd = estimateCostUsd(tokenUsage, model);
 
   const month = utcPlus7MonthKey();
   const state = loadState();
@@ -100,17 +138,24 @@ function recordUsage({ guildId, model, usage, source = 'openai' } = {}) {
     month,
     model: String(model || 'unknown').slice(0, 80),
     source,
+    estimatedCostUsd: costUsd,
     ...tokenUsage,
   });
 
   pruneState(state);
   saveState(state);
-  return tokenUsage;
+  return { ...tokenUsage, estimatedCostUsd: costUsd };
+}
+
+function withEstimatedCost(usage = {}, model = '') {
+  const normalized = { ...emptyUsage(), ...usage, models: usage.models || {} };
+  normalized.estimatedCostUsd = estimateAggregateCostUsd(normalized) || estimateCostUsd(normalized, model);
+  return normalized;
 }
 
 function monthUsageForGuild(state, month, guildId) {
   const usage = state.months?.[month]?.guilds?.[guildId];
-  return usage ? { ...emptyUsage(), ...usage, models: usage.models || {} } : emptyUsage();
+  return usage ? withEstimatedCost(usage) : emptyUsage();
 }
 
 function monthlyOverview(date = new Date()) {
@@ -130,19 +175,26 @@ function monthlyOverview(date = new Date()) {
     guilds[guildId] = {
       current: monthUsageForGuild(state, month, guildId),
       history,
-      recent: (Array.isArray(state.history[guildId]) ? state.history[guildId] : []).slice(-8).reverse(),
+      recent: (Array.isArray(state.history[guildId]) ? state.history[guildId] : [])
+        .slice(-8)
+        .reverse()
+        .map((entry) => ({
+          ...entry,
+          estimatedCostUsd: safeMoney(entry.estimatedCostUsd) || estimateCostUsd(entry, entry.model),
+        })),
     };
   }
   return {
     month,
     timezone: 'UTC+7',
     resetAt: '1st day 00:00 UTC+7',
-    total: state.months?.[month]?.total || emptyUsage(),
+    total: withEstimatedCost(state.months?.[month]?.total || emptyUsage()),
     guilds,
   };
 }
 
 module.exports = {
+  estimateCostUsd,
   monthlyOverview,
   recordUsage,
   utcPlus7MonthKey,
