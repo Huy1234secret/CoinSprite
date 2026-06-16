@@ -216,6 +216,7 @@ const DEFAULT_COINSPRITE_GUILD_CONFIG = {
 const DEFAULT_STATE = {
   meta: {
     schemaVersion: SCHEMA_VERSION,
+    disabledGuilds: {},
   },
   guilds: {
     [DEFAULT_GUILD_ID]: DEFAULT_COINSPRITE_GUILD_CONFIG,
@@ -264,12 +265,29 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   delete merged.xp.noXpChannels;
   delete merged.xp.lowXpAmount;
   delete merged.xp.levelFunMessages;
+  merged.enabled = guildConfig?.enabled === false ? false : true;
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
   merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
   merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
   merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
   merged.tickets = sanitizeTicketsConfig(merged.tickets, defaults.tickets);
   return merged;
+}
+
+function normalizeDisabledGuilds(value) {
+  const source = isPlainObject(value) ? value : {};
+  const disabledGuilds = {};
+  for (const [guildId, record] of Object.entries(source)) {
+    if (!/^\d{16,20}$/.test(guildId)) continue;
+    disabledGuilds[guildId] = {
+      guildId,
+      reason: String(record?.reason || '').slice(0, 500),
+      disabledBy: String(record?.disabledBy || ''),
+      disabledAt: Number(record?.disabledAt) || Date.now(),
+      guildName: String(record?.guildName || '').slice(0, 120),
+    };
+  }
+  return disabledGuilds;
 }
 
 function normalizeState(rawState) {
@@ -294,10 +312,18 @@ function normalizeState(rawState) {
     guilds[DEFAULT_GUILD_ID] = clone(DEFAULT_COINSPRITE_GUILD_CONFIG);
   }
 
+  const disabledGuilds = normalizeDisabledGuilds(rawState?.meta?.disabledGuilds);
+  for (const [guildId, config] of Object.entries(guilds)) {
+    if (config?.enabled === false && !disabledGuilds[guildId]) {
+      disabledGuilds[guildId] = { guildId, reason: '', disabledBy: '', disabledAt: Date.now(), guildName: '' };
+    }
+  }
+
   return {
     meta: {
       ...(isPlainObject(rawState?.meta) ? rawState.meta : {}),
       schemaVersion: SCHEMA_VERSION,
+      disabledGuilds,
     },
     guilds,
   };
@@ -326,14 +352,16 @@ function saveState(state) {
   writeState(normalizeState(state));
 }
 
+function defaultConfigForGuild(id) {
+  return clone(id === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
+}
+
 function ensureGuildConfig(guildId) {
   const id = String(guildId || '').trim();
   if (!/^\d{16,20}$/.test(id)) return null;
   const state = loadState();
   if (!state.guilds[id]) {
-    state.guilds[id] = clone(id === DEFAULT_GUILD_ID
-      ? DEFAULT_COINSPRITE_GUILD_CONFIG
-      : DEFAULT_GUILD_CONFIG);
+    state.guilds[id] = defaultConfigForGuild(id);
     saveState(state);
   }
   return state.guilds[id];
@@ -345,13 +373,18 @@ function deleteGuildConfig(guildId) {
   const state = loadState();
   if (!state.guilds[id]) return false;
   delete state.guilds[id];
+  delete state.meta.disabledGuilds?.[id];
   saveState(state);
   return true;
 }
 
-function getGuildConfig(guildId) {
+function getGuildConfigRaw(guildId) {
   if (!guildId) return null;
-  const config = loadState().guilds[String(guildId)];
+  return loadState().guilds[String(guildId)] || null;
+}
+
+function getGuildConfig(guildId) {
+  const config = getGuildConfigRaw(guildId);
   if (!config?.enabled) return null;
   return config;
 }
@@ -363,10 +396,44 @@ function getGuildConfigValue(guildId, selector, fallback = null) {
   return selected === undefined || selected === null ? fallback : selected;
 }
 
-function getEnabledGuildIds() {
+function getConfiguredGuildIds({ includeDisabled = false } = {}) {
   return Object.entries(loadState().guilds)
-    .filter(([, config]) => config?.enabled)
+    .filter(([, config]) => includeDisabled || config?.enabled)
     .map(([guildId]) => guildId);
+}
+
+function getEnabledGuildIds() {
+  return getConfiguredGuildIds();
+}
+
+function getDisabledGuilds() {
+  return clone(loadState().meta?.disabledGuilds || {});
+}
+
+function setGuildEnabled(guildId, enabled, details = {}) {
+  const id = String(guildId || '').trim();
+  if (!/^\d{16,20}$/.test(id)) return null;
+  const state = loadState();
+  state.guilds[id] ||= defaultConfigForGuild(id);
+  state.guilds[id].enabled = enabled !== false;
+  state.meta ||= { schemaVersion: SCHEMA_VERSION };
+  state.meta.disabledGuilds ||= {};
+  if (state.guilds[id].enabled) {
+    delete state.meta.disabledGuilds[id];
+  } else {
+    state.meta.disabledGuilds[id] = {
+      guildId: id,
+      reason: String(details.reason || '').trim().slice(0, 500),
+      disabledBy: String(details.disabledBy || ''),
+      disabledAt: Number(details.disabledAt) || Date.now(),
+      guildName: String(details.guildName || '').slice(0, 120),
+    };
+  }
+  saveState(state);
+  return {
+    config: getGuildConfigRaw(id),
+    disabled: getDisabledGuilds()[id] || null,
+  };
 }
 
 function isGuildEnabled(guildId) {
@@ -382,10 +449,14 @@ module.exports = {
   STORE_PATH,
   deleteGuildConfig,
   ensureGuildConfig,
+  getConfiguredGuildIds,
+  getDisabledGuilds,
   getEnabledGuildIds,
   getGuildConfig,
+  getGuildConfigRaw,
   getGuildConfigValue,
   isGuildEnabled,
   loadState,
   saveState,
+  setGuildEnabled,
 };
