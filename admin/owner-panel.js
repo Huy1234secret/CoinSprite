@@ -117,6 +117,7 @@
 
   function renderOwnerPanel(payload) {
     ownerData = payload;
+    const messages = payload.messages || {};
     const guildRows = (payload.guilds || []).map((guild) => {
       const disabled = guild.disabled;
       const usage = guild.usage || {};
@@ -125,7 +126,7 @@
         <td>${fmtNumber(guild.totalUsers)}</td>
         <td>${escapeHtml(guild.ownerId || 'Unknown')}</td>
         <td><span class="owner-pill ${guild.enabled ? 'ok' : 'danger'}">${guild.enabled ? 'Enabled' : 'Disabled'}</span></td>
-        <td><span>${fmtNumber(usage.levelingUsers)} users</span><small>${fmtNumber(usage.messagesTracked)} messages, ${fmtNumber(usage.messageTemplates)} templates</small></td>
+        <td><span>${fmtNumber(usage.todayMessages)} today</span><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></td>
         <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles</small></td>
         <td>${disabled ? `<small>${escapeHtml(disabled.reason || 'No reason')}</small>` : '<small>-</small>'}</td>
         <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
@@ -143,7 +144,7 @@
       <div class="owner-stat"><span>Uptime</span><strong>${fmtUptime(payload.bot?.uptimeMs)}</strong></div>
       <div class="owner-stat"><span>Guilds</span><strong>${fmtNumber(payload.bot?.guildCount)}</strong></div>
       <div class="owner-stat"><span>Total users</span><strong>${fmtNumber(payload.bot?.totalUsers)}</strong></div>
-      <div class="owner-stat"><span>Heap</span><strong>${escapeHtml(payload.bot?.memory?.heapUsedLabel || '0 B')}</strong></div>
+      <div class="owner-stat"><span>Daily messages</span><strong>${fmtNumber(messages.today)}</strong><small>${escapeHtml(messages.date || '')} resets ${escapeHtml(messages.resetAt || '00:00 UTC+7')}</small></div>
       <div class="owner-stat"><span>Data storage</span><strong>${escapeHtml(payload.storage?.label || '0 B')}</strong></div>
     </section>
     <section class="owner-control-grid">
