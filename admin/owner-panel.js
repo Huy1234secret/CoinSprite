@@ -91,6 +91,24 @@
       .replace(/'/g, '&#039;');
   }
 
+  function tokenHistoryText(history) {
+    const rows = (Array.isArray(history) ? history : [])
+      .filter((entry) => Number(entry?.totalTokens) || Number(entry?.requests))
+      .slice(0, 3)
+      .map((entry) => `${entry.month}: ${fmtNumber(entry.totalTokens)} tok`);
+    return rows.join(' | ') || '-';
+  }
+
+  function recentTokenLogText(recent) {
+    const entry = Array.isArray(recent) ? recent[0] : null;
+    if (!entry) return '-';
+    const when = new Date(entry.at);
+    const whenText = Number.isNaN(when.getTime())
+      ? String(entry.month || '')
+      : when.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `${whenText} ${fmtNumber(entry.totalTokens)} tok ${entry.model || ''}`.trim();
+  }
+
   function guildIcon(guild) {
     if (guild.iconURL) return `<img src="${escapeHtml(guild.iconURL)}" alt="">`;
     const initials = String(guild.name || '?').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
@@ -117,16 +135,17 @@
 
   function renderOwnerPanel(payload) {
     ownerData = payload;
-    const messages = payload.messages || {};
     const guildRows = (payload.guilds || []).map((guild) => {
       const disabled = guild.disabled;
       const usage = guild.usage || {};
+      const aiTokens = usage.aiTokens || {};
+      const currentAi = aiTokens.current || {};
       return `<tr class="${disabled ? 'is-disabled' : ''}">
         <td><div class="owner-guild-cell"><span class="owner-guild-icon">${guildIcon(guild)}</span><div><strong>${escapeHtml(guild.name)}</strong><small>${escapeHtml(guild.id)}</small></div></div></td>
         <td>${fmtNumber(guild.totalUsers)}</td>
         <td>${escapeHtml(guild.ownerId || 'Unknown')}</td>
         <td><span class="owner-pill ${guild.enabled ? 'ok' : 'danger'}">${guild.enabled ? 'Enabled' : 'Disabled'}</span></td>
-        <td><span>${fmtNumber(usage.todayMessages)} today</span><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></td>
+        <td><div class="owner-usage-stack"><span>${fmtNumber(usage.todayMessages)} messages today</span><small>${fmtNumber(currentAi.totalTokens)} AI tokens this month, ${fmtNumber(currentAi.requests)} checks</small><small>History: ${escapeHtml(tokenHistoryText(aiTokens.history))}</small><small>Last AI use: ${escapeHtml(recentTokenLogText(aiTokens.recent))}</small><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></div></td>
         <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles</small></td>
         <td>${disabled ? `<small>${escapeHtml(disabled.reason || 'No reason')}</small>` : '<small>-</small>'}</td>
         <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
@@ -144,7 +163,7 @@
       <div class="owner-stat"><span>Uptime</span><strong>${fmtUptime(payload.bot?.uptimeMs)}</strong></div>
       <div class="owner-stat"><span>Guilds</span><strong>${fmtNumber(payload.bot?.guildCount)}</strong></div>
       <div class="owner-stat"><span>Total users</span><strong>${fmtNumber(payload.bot?.totalUsers)}</strong></div>
-      <div class="owner-stat"><span>Daily messages</span><strong>${fmtNumber(messages.today)}</strong><small>${escapeHtml(messages.date || '')} resets ${escapeHtml(messages.resetAt || '00:00 UTC+7')}</small></div>
+      <div class="owner-stat"><span>Heap used</span><strong>${escapeHtml(payload.bot?.memory?.heapUsedLabel || '0 B')}</strong></div>
       <div class="owner-stat"><span>Data storage</span><strong>${escapeHtml(payload.storage?.label || '0 B')}</strong></div>
     </section>
     <section class="owner-control-grid">
