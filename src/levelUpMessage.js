@@ -1,6 +1,7 @@
 const COMPONENTS_V2_FLAG = 32768;
 const DEFAULT_LEVEL_UP_MESSAGE = Object.freeze({
   enabled: true,
+  outsideContent: '',
   content: [
     '## Level up!',
     '<@mention> reached **Level <level>** in **<server>**.',
@@ -41,6 +42,11 @@ function optionalString(value, fallback, maxLength) {
   return value === undefined ? String(fallback || '').slice(0, maxLength) : String(value ?? '').trim().slice(0, maxLength);
 }
 
+function editableString(source, key, fallback, maxLength) {
+  if (!Object.prototype.hasOwnProperty.call(source, key)) return String(fallback || '').slice(0, maxLength);
+  return String(source[key] ?? '').trim().slice(0, maxLength);
+}
+
 function sanitizeAccentColor(value, fallback = DEFAULT_LEVEL_UP_MESSAGE.accentColor) {
   const clean = String(value ?? '').trim();
   return /^#[0-9a-f]{6}$/i.test(clean) ? clean.toUpperCase() : fallback;
@@ -51,7 +57,8 @@ function sanitizeLevelUpMessage(value, fallback = DEFAULT_LEVEL_UP_MESSAGE) {
   const base = fallback && typeof fallback === 'object' ? fallback : DEFAULT_LEVEL_UP_MESSAGE;
   return {
     enabled: 'enabled' in source ? Boolean(source.enabled) : Boolean(base.enabled),
-    content: boundedString(source.content, base.content || DEFAULT_LEVEL_UP_MESSAGE.content, 4000),
+    outsideContent: editableString(source, 'outsideContent', base.outsideContent || '', 2000),
+    content: editableString(source, 'content', base.content || DEFAULT_LEVEL_UP_MESSAGE.content, 4000),
     accentColor: sanitizeAccentColor(source.accentColor, sanitizeAccentColor(base.accentColor)),
     thumbnailUrl: optionalString(source.thumbnailUrl, base.thumbnailUrl, 1000),
     imageUrl: optionalString(source.imageUrl, base.imageUrl, 1000),
@@ -164,6 +171,18 @@ function compareValues(left, operator, right) {
   return false;
 }
 
+function removeConditionalLine(output, start, end, replacement) {
+  if (replacement) return null;
+  const lineStart = output.lastIndexOf('\n', start - 1) + 1;
+  const nextLineStart = output.indexOf('\n', end + 1);
+  const lineEnd = nextLineStart === -1 ? output.length : nextLineStart;
+  const before = output.slice(lineStart, start);
+  const after = output.slice(end + 1, lineEnd);
+  if (before.trim() || after.trim()) return null;
+  const removeEnd = nextLineStart === -1 ? lineEnd : lineEnd + 1;
+  return `${output.slice(0, lineStart)}${output.slice(removeEnd)}`;
+}
+
 function resolveConditionals(template, context) {
   let output = String(template ?? '');
   for (let pass = 0; pass < 100; pass += 1) {
@@ -193,9 +212,20 @@ function resolveConditionals(template, context) {
       const right = parseComparisonValue(comparison[2], context);
       replacement = compareValues(left, comparison[1], right) ? whenTrue : whenFalse;
     }
-    output = `${output.slice(0, start)}${replacement}${output.slice(end + 1)}`;
+    const lineRemoved = removeConditionalLine(output, start, end, replacement);
+    output = lineRemoved ?? `${output.slice(0, start)}${replacement}${output.slice(end + 1)}`;
   }
   return output;
+}
+
+function cleanRenderedMessage(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/g, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function renderLevelUpTemplate(template, context) {
@@ -218,10 +248,10 @@ function renderLevelUpTemplate(template, context) {
     userid: context.user_id,
     avatar_url: context.avatar_url,
   };
-  return resolved.replace(/<(@mention|username|display_name|displayname|level|currentlevel|current_level|currenlevel|previous_level|previouslevel|server|channel|channel_id|user_id|userid|avatar_url)>/gi, (match, key) => {
+  return cleanRenderedMessage(resolved.replace(/<(@mention|username|display_name|displayname|level|currentlevel|current_level|currenlevel|previous_level|previouslevel|server|channel|channel_id|user_id|userid|avatar_url)>/gi, (match, key) => {
     const value = replacements[key.toLowerCase()];
     return value === undefined || value === null ? '' : String(value);
-  });
+  }));
 }
 
 function mediaUrlFromTemplate(template, context) {
@@ -259,20 +289,29 @@ function buildTextComponents(content, thumbnailUrl) {
 function buildLevelUpPayload(configValue, context) {
   const config = sanitizeLevelUpMessage(configValue);
   if (!config.enabled) return null;
-  const content = renderLevelUpTemplate(config.content, context).trim()
-    || renderLevelUpTemplate(DEFAULT_LEVEL_UP_MESSAGE.content, context).trim();
-  const components = buildTextComponents(content, mediaUrlFromTemplate(config.thumbnailUrl, context));
-  const imageUrl = mediaUrlFromTemplate(config.imageUrl, context);
-  if (imageUrl) components.push({ type: 12, items: [{ media: { url: imageUrl } }] });
 
+  const components = [];
+  const outsideContent = renderLevelUpTemplate(config.outsideContent, context);
+  if (outsideContent) components.push({ type: 10, content: outsideContent });
+
+  const containerContent = renderLevelUpTemplate(config.content, context);
+  const thumbnailUrl = mediaUrlFromTemplate(config.thumbnailUrl, context);
+  const imageUrl = mediaUrlFromTemplate(config.imageUrl, context);
+  const containerComponents = buildTextComponents(containerContent, thumbnailUrl);
+  if (imageUrl) containerComponents.push({ type: 12, items: [{ media: { url: imageUrl } }] });
+  if (containerComponents.length) {
+    components.push({
+      type: 17,
+      accent_color: Number.parseInt(config.accentColor.slice(1), 16),
+      components: containerComponents,
+    });
+  }
+
+  if (!components.length) return null;
   return {
     allowedMentions: { parse: [], users: [context.user_id] },
     flags: COMPONENTS_V2_FLAG,
-    components: [{
-      type: 17,
-      accent_color: Number.parseInt(config.accentColor.slice(1), 16),
-      components,
-    }],
+    components,
   };
 }
 
