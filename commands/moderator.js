@@ -133,7 +133,11 @@ module.exports = {
     const settings = moderationConfig(message.guildId);
     if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings)) return;
 
-    const result = await analyzeModerationMessage(message.content);
+    const result = await analyzeModerationMessage(message.content, {
+      guildId: message.guildId,
+      channelId: message.channelId,
+      userId: message.author.id,
+    });
     if (!result.flagged) return;
     await sendModerationAlert(message, result, settings);
   },
