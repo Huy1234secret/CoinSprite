@@ -5,6 +5,14 @@ const DEFAULT_MODEL = 'gpt-4o-mini';
 const FALLBACK_TERMS = [
   'fuck', 'shit', 'bitch', 'asshole', 'bastard', 'dick', 'pussy', 'cunt',
   'kill yourself', 'kys', 'nigger', 'faggot', 'retard', 'whore', 'slut',
+  'idiot', 'idiota', 'stupid', 'dumbass', 'moron', 'imbecile',
+  'estupido', 'estupida', 'tonto', 'tonta', 'imbecil',
+];
+const FALLBACK_TRANSLATIONS = [
+  { pattern: /\beres\s+un\s+idiota\b/i, english: 'you are an idiot' },
+  { pattern: /\beres\s+una\s+idiota\b/i, english: 'you are an idiot' },
+  { pattern: /\beres\s+estupido\b/i, english: 'you are stupid' },
+  { pattern: /\beres\s+estupida\b/i, english: 'you are stupid' },
 ];
 
 function compactWhitespace(value) {
@@ -19,6 +27,18 @@ function normalizeForScan(value) {
     .replace(/[@$!|]/g, (char) => ({ '@': 'a', '$': 's', '!': 'i', '|': 'i' }[char] || char));
 }
 
+function fallbackEnglish(content, normalized) {
+  for (const entry of FALLBACK_TRANSLATIONS) {
+    if (entry.pattern.test(normalized)) return entry.english;
+  }
+  return compactWhitespace(content).slice(0, 1000);
+}
+
+function fallbackLanguage(normalized) {
+  if (/\b(eres|idiota|estupido|estupida|tonto|tonta|imbecil)\b/i.test(normalized)) return 'Spanish';
+  return 'unknown';
+}
+
 function fallbackAnalyze(content) {
   const normalized = normalizeForScan(content);
   const matchedTerms = FALLBACK_TERMS.filter((term) => normalized.includes(term));
@@ -27,10 +47,10 @@ function fallbackAnalyze(content) {
     severity: matchedTerms.length > 1 ? 'high' : matchedTerms.length ? 'medium' : 'none',
     categories: matchedTerms.length ? ['profanity_or_abuse'] : [],
     matchedTerms,
-    originalLanguage: 'unknown',
-    englishTranslation: compactWhitespace(content).slice(0, 1000),
+    originalLanguage: matchedTerms.length ? fallbackLanguage(normalized) : 'unknown',
+    englishTranslation: fallbackEnglish(content, normalized),
     reason: matchedTerms.length
-      ? 'Fallback profanity scan matched blocked wording. Configure OPENAI_API_KEY for multilingual AI review.'
+      ? 'Fallback moderation scan matched abusive wording. Configure OPENAI_API_KEY for stronger multilingual AI review.'
       : '',
     source: 'fallback',
   };
@@ -90,7 +110,8 @@ async function analyzeWithOpenAI(content) {
           content: [
             'You are a Discord moderation classifier.',
             'Translate the user message to English when it is not English.',
-            'Flag profanity, hate or harassment, sexual insults, self-harm encouragement, threats, and attempts to bypass filters.',
+            'Flag profanity, hate or harassment, sexual insults, self-harm encouragement, threats, direct personal insults, and attempts to bypass filters.',
+            'Direct insults like calling someone an idiot or stupid should be flagged as low or medium severity, even in non-English languages.',
             'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
           ].join(' '),
         },
