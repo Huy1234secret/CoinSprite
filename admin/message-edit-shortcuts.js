@@ -325,3 +325,47 @@
 
   scan(document);
 })();
+
+(() => {
+  if (window.__coinSpriteDefaultMessageCards) return;
+  window.__coinSpriteDefaultMessageCards = true;
+
+  const DEFAULTS = [
+    ['default-ai-moderation-alert', 'Default: AI moderation alert', '1 container'],
+    ['default-ai-moderation-user-warning', 'Default: AI moderation user warning', '1 container'],
+  ];
+
+  function defaultsActive(root) {
+    return Boolean(root.querySelector('[data-message-action="section-defaults"].active'))
+      || /default messages/i.test(root.querySelector('.message-list-head h3')?.textContent || '');
+  }
+
+  function card([id, name, meta]) {
+    return `<button class="message-template-card bot-default-template-card" type="button" data-message-action="open" data-id="${id}">
+      <span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span>
+      <span><strong>${name}</strong><small>${meta}</small></span><span class="message-card-arrow">›</span>
+    </button>`;
+  }
+
+  function restoreDefaultCards() {
+    const root = document.querySelector('#messageTemplatesRoot');
+    if (!root || !defaultsActive(root)) return;
+    const count = Number(root.dataset.defaultTemplateCount || 0);
+    if (count <= 0) return;
+    const grid = root.querySelector('.message-template-grid');
+    if (!grid || grid.querySelector('.message-template-card')) return;
+    grid.innerHTML = DEFAULTS.slice(0, count).map(card).join('');
+    root.dataset.renderedCardCount = String(grid.querySelectorAll('.message-template-card').length);
+    root.querySelector('.empty-state')?.remove();
+  }
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-message-action="section-defaults"], [data-message-action="section-templates"], .message-template-card')) {
+      requestAnimationFrame(restoreDefaultCards);
+      setTimeout(restoreDefaultCards, 80);
+    }
+  }, true);
+
+  new MutationObserver(() => requestAnimationFrame(restoreDefaultCards)).observe(document.body, { childList: true, subtree: true });
+  restoreDefaultCards();
+})();
