@@ -206,23 +206,21 @@ function patchAiModeration(source) {
     "reason: matchedTerms.length ? `Matched local moderation term(s): ${matchedTerms.slice(0, 3).join(', ')}.` : 'Matched local moderation rules.',",
   );
   if (!text.includes('function normalizeModerationReason(')) {
-    text = replaceOnce(
-      text,
-      "function normalizeResult(value = {}, source = 'ai') {",
-      `function normalizeModerationReason(value, brokenRules = [], categories = []) {
-  const reason = compactWhitespace(value);
-  const lower = reason.toLowerCase();
-  const generic = new Set(['short', 'bad', 'rude', 'abuse', 'violation', 'rule violation']);
-  if (!reason || reason.length < 12 || generic.has(lower)) {
-    const ruleText = brokenRules.length ? `rule ${brokenRules.join(', ')}` : 'server conduct rules';
-    const categoryText = categories.length ? ` (${categories.slice(0, 2).join(', ')})` : '';
-    return `Message appears to violate ${ruleText}${categoryText}; staff should review the wording and context.`.slice(0, 180);
-  }
-  return reason.slice(0, 180);
-}
-
-function normalizeResult(value = {}, source = 'ai') {`,
-    );
+    const helper = [
+      'function normalizeModerationReason(value, brokenRules = [], categories = []) {',
+      '  const reason = compactWhitespace(value);',
+      '  const lower = reason.toLowerCase();',
+      "  const generic = new Set(['short', 'bad', 'rude', 'abuse', 'violation', 'rule violation']);",
+      '  if (!reason || reason.length < 12 || generic.has(lower)) {',
+      "    const ruleText = brokenRules.length ? 'rule ' + brokenRules.join(', ') : 'server conduct rules';",
+      "    const categoryText = categories.length ? ' (' + categories.slice(0, 2).join(', ') + ')' : '';",
+      "    return ('Message appears to violate ' + ruleText + categoryText + '; staff should review the wording and context.').slice(0, 180);",
+      '  }',
+      '  return reason.slice(0, 180);',
+      '}',
+      '',
+    ].join('\n');
+    text = replaceOnce(text, "function normalizeResult(value = {}, source = 'ai') {", `${helper}function normalizeResult(value = {}, source = 'ai') {`);
   }
   text = replaceOnce(
     text,
@@ -243,18 +241,16 @@ function patchMessageTemplates(source) {
 function patchModeratorCommand(source) {
   let text = patchDefaultTemplateText(source);
   if (!text.includes('function moderationMessagePreview(')) {
-    text = replaceOnce(
-      text,
-      'function moderationValues(message, result, screenshot = null) {',
-      `function moderationMessagePreview(message, max = 900) {
-  const text = String(message?.content || '').replace(/\s+/g, ' ').trim();
-  if (!text) return '[no text content]';
-  const safe = text.replace(/[`*_~|>]/g, '').replace(/"/g, "'");
-  return safe.length > max ? `${safe.slice(0, Math.max(0, max - 3))}...` : safe;
-}
-
-function moderationValues(message, result, screenshot = null) {`,
-    );
+    const helper = [
+      'function moderationMessagePreview(message, max = 900) {',
+      "  const text = String(message?.content || '').replace(/\\s+/g, ' ').trim();",
+      "  if (!text) return '[no text content]';",
+      "  const safe = text.replace(/[`*_~|>]/g, '').replace(/\"/g, \"'\");",
+      "  return safe.length > max ? safe.slice(0, Math.max(0, max - 3)) + '...' : safe;",
+      '}',
+      '',
+    ].join('\n');
+    text = replaceOnce(text, 'function moderationValues(message, result, screenshot = null) {', `${helper}function moderationValues(message, result, screenshot = null) {`);
   }
   text = replaceOnce(
     text,
