@@ -1,11 +1,15 @@
+'use strict';
+
 // Compatibility shim for existing event hooks. The invite rewards system has been removed.
-const noop = async () => {};
+function removedFeatureHook() {
+  return Promise.resolve(null); // FIXED: always return a Promise so legacy callers can safely append .catch().
+}
 
 module.exports = {
-  init: noop,
+  init: removedFeatureHook,
   isEnabled: () => false,
-  onGuildMemberAdd: noop,
-  onGuildMemberUpdate: noop,
-  onInviteCreateOrDelete: noop,
-  onMessageCreate: noop,
+  onGuildMemberAdd: removedFeatureHook,
+  onGuildMemberUpdate: removedFeatureHook,
+  onInviteCreateOrDelete: removedFeatureHook,
+  onMessageCreate: removedFeatureHook,
 };
