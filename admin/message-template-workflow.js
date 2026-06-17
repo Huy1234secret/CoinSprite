@@ -18,6 +18,10 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function activeGuildId() {
+    return guildId || document.querySelector('#guildSelect')?.value || window.state?.guildId || ''; // ADDED: create-menu fallback can resolve the active guild without waiting for a fetch.
+  }
+
   function route(input, method = 'GET') {
     const urlText = typeof input === 'string' ? input : input?.url;
     if (!urlText) return null;
@@ -36,11 +40,56 @@
     });
   }
 
-  function setSaveState(text, kind) {
+  function setSaveState() {
     const status = root()?.querySelector('#messageSaveState');
     if (!status) return;
-    status.textContent = text;
-    status.className = `message-save-state ${kind}`;
+    status.textContent = ''; // FIXED: removes the old per-template saved/autosave text.
+    status.className = 'message-save-state';
+    status.hidden = true; // FIXED: only the existing global unsaved bar is shown.
+  }
+
+  function isCoreDirtyVisible() {
+    return Boolean(document.querySelector('#savedState')?.classList.contains('dirty'));
+  }
+
+  function isMessagesTabActive() {
+    return Boolean(document.querySelector('[data-panel="messages"]')?.classList.contains('active'));
+  }
+
+  function styleGlobalSaveBar() {
+    const bar = document.querySelector('#unsavedBar');
+    if (!bar) return;
+    const textBlock = bar.firstElementChild;
+    if (textBlock && !textBlock.classList.contains('unsaved-actions')) textBlock.hidden = true; // FIXED: removes the unsaved text block from the global bar.
+    const detail = document.querySelector('#unsavedDetail');
+    if (detail) detail.textContent = ''; // FIXED: clears the per-tab changed text.
+    const saveButton = document.querySelector('#saveButton');
+    if (saveButton) saveButton.classList.add('message-global-save-button'); // FIXED: uses one shared green save button style.
+  }
+
+  function syncGlobalSaveBar() {
+    styleGlobalSaveBar();
+    const bar = document.querySelector('#unsavedBar');
+    if (!bar) return;
+    if (pending.size > 0) {
+      bar.hidden = false; // FIXED: message template edits use the existing global save bar.
+      const resetButton = document.querySelector('#resetTabButton');
+      if (resetButton && isMessagesTabActive()) resetButton.disabled = false; // FIXED: reset is enabled while editing unsaved message templates.
+      return;
+    }
+    if (!isCoreDirtyVisible()) bar.hidden = true; // FIXED: do not hide the bar while the original dashboard system has changes.
+  }
+
+  function keepPendingState(templateId) {
+    const restore = () => {
+      if (pending.has(templateId)) {
+        setSaveState(); // FIXED: old autosave labels stay hidden.
+        syncGlobalSaveBar(); // FIXED: unsaved message edits stay on the global bar.
+      }
+    };
+    setTimeout(restore, 0); // FIXED: beats the original autosave success microtask.
+    setTimeout(restore, 75); // FIXED: keeps the manual-save state visible after delayed UI updates.
+    setTimeout(restore, 300); // FIXED: prevents the old autosave label from coming back after component saves.
   }
 
   function hold(templateId, template) {
@@ -48,7 +97,9 @@
     pending.set(templateId, clone(template)); // ADDED: autosave attempts are held until Save changes is pressed.
     templates.set(templateId, clone(template));
     selectedId = templateId;
-    setSaveState('Unsaved changes', 'pending');
+    setSaveState();
+    syncGlobalSaveBar(); // FIXED: every message template change opens the one global unsaved bar.
+    keepPendingState(templateId); // FIXED: saved/auto-saved status no longer replaces the pending manual-save status.
     decorateSoon();
   }
 
@@ -120,7 +171,6 @@
     const id = currentTemplateId();
     const template = collectTemplate() || pending.get(id) || templates.get(id);
     if (!guildId || !id || !template) return;
-    setSaveState('Saving...', 'pending');
     try {
       bypass = true;
       const response = await nativeFetch(`/api/guilds/${guildId}/message-templates/${id}`, {
@@ -133,108 +183,13 @@
       if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
       pending.delete(id);
       templates.set(id, payload.template || template);
-      setSaveState('Saved', 'success');
+      setSaveState(); // FIXED: old saved text stays removed after saving.
+      syncGlobalSaveBar(); // FIXED: global bar closes after the pending template is saved.
     } catch (error) {
-      setSaveState(error.message || 'Save failed.', 'error');
+      window.alert(error.message || 'Save failed.'); // FIXED: save errors use the single global save flow instead of the old label.
     } finally {
       bypass = false;
       decorateSoon();
     }
   }
-
-  function fixCreateButtons(scope = document) {
-    scope.querySelectorAll?.('[data-message-action="create-message"].button.primary').forEach((button) => {
-      button.dataset.messageAction = 'create-open'; // FIXED: main Create template button opens the Message/Folder menu.
-      button.setAttribute('data-message-action', 'create-open');
-    });
-  }
-
-  function ensureSaveButton(host) {
-    const head = host.querySelector('.message-editor-head');
-    if (!head || head.querySelector('[data-message-action="manual-save"]')) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'button success message-manual-save';
-    button.dataset.messageAction = 'manual-save';
-    button.textContent = 'Save changes';
-    head.append(button); // ADDED: users confirm message template changes manually.
-  }
-
-  function injectCss() {
-    if (document.querySelector('#messageTemplateWorkflowStyle')) return;
-    const style = document.createElement('style');
-    style.id = 'messageTemplateWorkflowStyle';
-    style.textContent = '.message-template-card{position:relative}.message-card-folder-button{position:absolute;right:42px;bottom:10px;display:none;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font-size:11px;font-weight:800}.message-template-card:hover .message-card-folder-button{display:inline-flex}.message-card-folder-button:hover{border-color:var(--primary);background:var(--surface-3)}.message-manual-save{white-space:nowrap}';
-    document.head.append(style); // ADDED: folder move controls stay hidden until hover.
-  }
-
-  function decorateFolderButtons(host) {
-    host.querySelectorAll('.message-template-card[data-id]').forEach((card) => {
-      const template = templates.get(card.dataset.id);
-      if (!template || template.type === 'folder' || template.botDefault || template.defaultLocked || card.querySelector('[data-message-action="move-template"]')) return;
-      const button = document.createElement('span');
-      button.className = 'message-card-folder-button';
-      button.dataset.messageAction = 'move-template';
-      button.dataset.id = template.id;
-      button.textContent = 'Folder';
-      button.title = 'Move to folder';
-      card.append(button); // ADDED: user templates show a folder move button on hover.
-    });
-  }
-
-  async function moveTemplate(templateId) {
-    const template = clone(templates.get(templateId));
-    if (!template || template.botDefault || template.defaultLocked) return;
-    const folders = [...templates.values()].filter((item) => item.type === 'folder' && !item.botDefault && !item.defaultLocked);
-    const choice = window.prompt(['Move template to folder:', '0: Root', ...folders.map((folder, index) => `${index + 1}: ${folder.name}`)].join('\n'), '0');
-    if (choice == null) return;
-    const index = Number(choice);
-    if (!Number.isInteger(index) || index < 0 || index > folders.length) return;
-    template.folderId = index === 0 ? '' : folders[index - 1].id; // ADDED: chosen folder is saved after confirmation.
-    if (!guildId) guildId = document.querySelector('#guildSelect')?.value || window.state?.guildId || '';
-    if (!guildId) return;
-    bypass = true;
-    const response = await nativeFetch(`/api/guilds/${guildId}/message-templates/${template.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(template) }).catch(() => null);
-    bypass = false;
-    if (response?.ok) {
-      templates.set(template.id, template);
-      root()?.querySelector(`[data-id="${CSS.escape(template.id)}"]`)?.remove();
-    }
-  }
-
-  function decorate() {
-    const host = root() || document;
-    injectCss();
-    fixCreateButtons(host);
-    ensureSaveButton(host);
-    decorateFolderButtons(host);
-  }
-
-  function decorateSoon() {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(() => {
-      queued = false;
-      decorate();
-    });
-  }
-
-  document.addEventListener('click', (event) => {
-    const card = event.target.closest?.('.message-template-card[data-id]');
-    if (card) selectedId = card.dataset.id;
-    const action = event.target.closest?.('[data-message-action]');
-    if (!action) return;
-    if (action.dataset.messageAction === 'manual-save') {
-      event.preventDefault();
-      saveSelected();
-    }
-    if (action.dataset.messageAction === 'move-template') {
-      event.preventDefault();
-      event.stopPropagation();
-      moveTemplate(action.dataset.id);
-    }
-  }, true);
-
-  new MutationObserver(decorateSoon).observe(document.documentElement, { childList: true, subtree: true });
-  decorateSoon();
 })();
