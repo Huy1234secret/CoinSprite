@@ -208,7 +208,8 @@
       const userTemplates = all.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && (folderState.folderId ? item.folderId === folderState.folderId : !item.folderId));
       const shown = folderState.mode === 'defaults' ? defaults : userTemplates;
       const signature = JSON.stringify({ mode: folderState.mode, folderId: folderState.folderId, items: all.map((item) => [item.id, item.name, item.folderId, item.botDefault, item.defaultLocked, item.type]) });
-      if (!force && root.dataset.folderEnhanced === 'true' && signature === folderState.signature) return;
+      const alreadyEnhanced = Boolean(root.querySelector('.message-section-tabs'));
+      if (!force && alreadyEnhanced && signature === folderState.signature) return;
       folderState.signature = signature;
       root.dataset.folderEnhanced = 'true';
       root.innerHTML = `<div class="message-list-head">
