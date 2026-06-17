@@ -4,10 +4,43 @@
 
   const nativeFetch = window.fetch.bind(window);
   const templates = new Map();
+  const savedTemplates = new Map();
   const pending = new Map();
   const DEFAULT_TEMPLATE_FALLBACKS = [
-    { id: 'default-ai-moderation-alert', type: 'template', folderId: '', name: 'Default: AI moderation alert', containers: [{ id: 'ai-moderation-alert', accentColor: '#9B59B6', text: '## AI moderation alert' }], componentRows: [], botDefault: true, defaultLocked: true }, // FIXED: default cards have a local fallback when the rendered grid is empty.
-    { id: 'default-ai-moderation-user-warning', type: 'template', folderId: '', name: 'Default: AI moderation user warning', containers: [{ id: 'ai-moderation-user-warning', accentColor: '#9B59B6', text: '## Message flagged' }], componentRows: [], botDefault: true, defaultLocked: true }, // FIXED: default cards have a local fallback when the rendered grid is empty.
+    {
+      id: 'default-ai-moderation-alert',
+      type: 'template',
+      folderId: '',
+      name: 'Default: AI moderation alert',
+      content: '',
+      containers: [{
+        id: 'ai-moderation-alert',
+        accentColor: '#9B59B6',
+        text: '## AI moderation alert\n**User:** <@mention> (<user-id>)\n**Channel:** <channel>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n<separator>\n**Reason**\n<moderation-reason>\n<separator>\n**English translation**\n<english-translation>\n<separator>\n-# Original language: <original-language>\n-# Matched terms: <matched-terms>\n-# Message: <message-link>',
+        thumbnailUrl: '<avatar_url>',
+        imageUrl: '',
+      }],
+      componentRows: [],
+      botDefault: true,
+      defaultLocked: true,
+    }, // FIXED: full default card body is available for no-change comparisons.
+    {
+      id: 'default-ai-moderation-user-warning',
+      type: 'template',
+      folderId: '',
+      name: 'Default: AI moderation user warning',
+      content: '',
+      containers: [{
+        id: 'ai-moderation-user-warning',
+        accentColor: '#9B59B6',
+        text: '## Message flagged\n<@mention>, your message in <channel> was flagged by AI moderation.\n<separator>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n**Reason:** <moderation-reason>\n-# If this was a mistake, please contact staff.',
+        thumbnailUrl: '',
+        imageUrl: '',
+      }],
+      componentRows: [],
+      botDefault: true,
+      defaultLocked: true,
+    }, // FIXED: full default card body is available for no-change comparisons.
   ];
   let selectedId = '';
   let guildId = '';
@@ -47,9 +80,80 @@
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 
+  function fallbackTemplate(templateId) {
+    const fallback = DEFAULT_TEMPLATE_FALLBACKS.find((template) => template.id === templateId);
+    return fallback ? clone(fallback) : null;
+  }
+
+  function hydrateTemplate(template) {
+    if (!template?.id) return template ? clone(template) : null;
+    const fallback = fallbackTemplate(template.id);
+    if (!fallback) return clone(template);
+    const saved = clone(template);
+    const containers = Array.isArray(saved.containers) && saved.containers.length ? saved.containers : fallback.containers;
+    const componentRows = Array.isArray(saved.componentRows) ? saved.componentRows : fallback.componentRows;
+    return {
+      ...fallback,
+      ...saved,
+      id: fallback.id,
+      type: 'template',
+      folderId: '',
+      name: fallback.name,
+      containers,
+      componentRows,
+      botDefault: true,
+      defaultLocked: true,
+    }; // FIXED: default templates compare against the rendered built-in body, not an empty API shell.
+  }
+
+  function comparableTemplate(template) {
+    const value = hydrateTemplate(template) || {};
+    return {
+      id: String(value.id || ''),
+      type: String(value.type || 'template'),
+      folderId: String(value.folderId || ''),
+      name: String(value.name || ''),
+      content: String(value.content || ''),
+      containers: (Array.isArray(value.containers) ? value.containers : []).map((container) => ({
+        id: String(container?.id || ''),
+        accentColor: String(container?.accentColor || '#5865F2').toUpperCase(),
+        text: String(container?.text || ''),
+        thumbnailUrl: String(container?.thumbnailUrl || ''),
+        imageUrl: String(container?.imageUrl || ''),
+      })),
+      componentRows: Array.isArray(value.componentRows) ? value.componentRows : [],
+      botDefault: Boolean(value.botDefault),
+      defaultLocked: Boolean(value.defaultLocked),
+    };
+  }
+
+  function stableJson(value) {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+    if (value && typeof value === 'object') {
+      return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  function templatesMatch(left, right) {
+    return stableJson(comparableTemplate(left)) === stableJson(comparableTemplate(right));
+  }
+
+  function savedTemplate(templateId) {
+    return savedTemplates.get(templateId) || fallbackTemplate(templateId);
+  }
+
+  function hasTemplateChanges(templateId, template) {
+    const saved = savedTemplate(templateId);
+    return !saved || !templatesMatch(saved, template);
+  }
+
   function remember(list) {
     (Array.isArray(list) ? list : []).forEach((template) => {
-      if (template?.id) templates.set(template.id, pending.get(template.id) || template); // FIXED: pending edits stay visible during refreshes.
+      if (!template?.id) return;
+      const saved = hydrateTemplate(template);
+      savedTemplates.set(template.id, saved); // FIXED: keeps a real saved baseline separate from pending editor values.
+      templates.set(template.id, pending.get(template.id) || saved); // FIXED: pending edits stay visible during refreshes.
     });
   }
 
@@ -94,18 +198,33 @@
     if (!coreHasChanges()) bar.hidden = true; // FIXED: hides only when no dashboard system has changes.
   }
 
+  function restoreSavedTemplate(templateId, fallback = null) {
+    const saved = savedTemplate(templateId) || hydrateTemplate(fallback);
+    if (saved) templates.set(templateId, clone(saved));
+    pending.delete(templateId); // FIXED: no-op autosaves from Back/Use no longer leave fake pending changes.
+    hideOldSaveState();
+    syncSaveBar();
+    decorateSoon();
+    return saved || fallback;
+  }
+
   function hold(templateId, template) {
     if (!templateId || !template) return;
-    pending.set(templateId, clone(template)); // FIXED: autosaves are converted into pending changes.
-    templates.set(templateId, clone(template));
+    if (!hasTemplateChanges(templateId, template)) {
+      restoreSavedTemplate(templateId, template); // FIXED: reverting to the saved value clears the shared save bar.
+      return;
+    }
+    const staged = hydrateTemplate(template) || clone(template);
+    pending.set(templateId, clone(staged)); // FIXED: autosaves are converted into pending changes.
+    templates.set(templateId, clone(staged));
     selectedId = templateId;
     hideOldSaveState();
-    syncSaveBar(); // FIXED: every message edit opens the one global bar.
+    syncSaveBar(); // FIXED: every real message edit opens the one global bar.
     decorateSoon();
   }
 
   function applyActions(templateId, body) {
-    const template = clone(templates.get(templateId) || pending.get(templateId) || {});
+    const template = clone(pending.get(templateId) || templates.get(templateId) || savedTemplate(templateId) || {});
     const row = (template.componentRows || []).find((entry) => entry.id === body?.rowId);
     const list = row?.type === 'select' ? row.options : row?.buttons;
     const item = list?.find((entry) => entry.id === body?.itemId);
@@ -116,11 +235,20 @@
   window.fetch = async (input, init = {}) => {
     const info = route(input, init.method || input?.method || 'GET');
     if (info?.method === 'PUT' && info.templateId && !bypass && info.action !== 'send' && info.action !== 'edit') {
-      const body = JSON.parse(init.body || '{}');
+      let body = {};
+      try {
+        body = JSON.parse(init.body || '{}');
+      } catch {
+        body = {};
+      }
       const template = info.action === 'component-actions' ? applyActions(info.templateId, body) : { ...body, id: info.templateId };
       guildId = info.guildId;
+      if (!hasTemplateChanges(info.templateId, template)) {
+        const saved = restoreSavedTemplate(info.templateId, template); // FIXED: opening/backing out of any template does not create a false unsaved save.
+        return jsonResponse({ guildId: info.guildId, template: hydrateTemplate(saved) || saved || template });
+      }
       hold(info.templateId, template);
-      return jsonResponse({ guildId: info.guildId, template }); // FIXED: field changes no longer save directly.
+      return jsonResponse({ guildId: info.guildId, template: hydrateTemplate(template) || template }); // FIXED: field changes no longer save directly.
     }
     const response = await nativeFetch(input, init);
     if (info && response.ok) {
@@ -128,7 +256,9 @@
         guildId = info.guildId || guildId;
         if (payload.templates) remember(payload.templates);
         if (payload.template?.id) {
-          templates.set(payload.template.id, payload.template);
+          const saved = hydrateTemplate(payload.template);
+          templates.set(payload.template.id, saved);
+          savedTemplates.set(payload.template.id, saved); // FIXED: successful real saves update the no-change baseline.
           selectedId = payload.template.id;
         }
         hideOldSaveState();
@@ -151,7 +281,7 @@
     const host = root();
     const id = currentTemplateId();
     if (!host || !id) return null;
-    const template = clone(pending.get(id) || templates.get(id) || { id, type: 'template', containers: [] });
+    const template = clone(pending.get(id) || templates.get(id) || savedTemplate(id) || { id, type: 'template', containers: [] });
     const name = host.querySelector('[data-template-field="name"]');
     const content = host.querySelector('[data-template-field="content"]');
     if (name && !template.defaultLocked && !template.botDefault) template.name = name.value;
@@ -174,7 +304,10 @@
     guildId = activeGuildId();
     const id = currentTemplateId();
     const template = collectTemplate();
-    if (id && template) pending.set(id, clone(template)); // FIXED: includes the open editor values before saving.
+    if (id && template) {
+      if (hasTemplateChanges(id, template)) pending.set(id, clone(hydrateTemplate(template) || template)); // FIXED: includes the open editor values only when they differ from saved.
+      else restoreSavedTemplate(id, template); // FIXED: Save changes does not force-save a clean open template.
+    }
     if (!guildId || pending.size === 0) return;
     bypass = true;
     try {
@@ -187,8 +320,10 @@
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+        const saved = hydrateTemplate(payload.template || pendingTemplate);
         pending.delete(templateId);
-        templates.set(templateId, payload.template || pendingTemplate);
+        templates.set(templateId, saved);
+        savedTemplates.set(templateId, saved); // FIXED: saved templates become the new baseline for tab/refresh warnings.
       }
       hideOldSaveState();
     } finally {
@@ -201,6 +336,7 @@
   function resetPendingTemplates() {
     if (pending.size === 0) return;
     pending.clear(); // FIXED: reset uses the shared bar instead of another save system.
+    for (const [templateId, template] of savedTemplates.entries()) templates.set(templateId, clone(template)); // FIXED: reset restores clean message-template baselines.
     syncSaveBar();
     window.location.reload(); // FIXED: reloads the last saved message data after reset.
   }
@@ -279,7 +415,11 @@
     const grid = host.querySelector('.message-template-grid');
     if (!grid) return;
     const defaults = defaultTemplates();
-    for (const template of defaults) templates.set(template.id, templates.get(template.id) || clone(template)); // FIXED: fallback default cards still open through the main message editor.
+    for (const template of defaults) {
+      const hydrated = hydrateTemplate(template);
+      templates.set(template.id, templates.get(template.id) || hydrated); // FIXED: fallback default cards still open through the main message editor.
+      if (!savedTemplates.has(template.id)) savedTemplates.set(template.id, clone(hydrated)); // FIXED: defaults have a clean baseline before Back/Use runs.
+    }
     const missing = defaults.filter((template) => !grid.querySelector(`[data-id="${CSS.escape(template.id)}"]`));
     if (missing.length) grid.insertAdjacentHTML('beforeend', missing.map(defaultCard).join('')); // FIXED: repopulates the empty Defaults tab.
     host.querySelectorAll('.empty-state').forEach((node) => {
@@ -357,11 +497,13 @@
   }
 
   document.addEventListener('input', (event) => {
-    if (!root()?.contains(event.target)) return;
+    const host = root();
+    if (!host?.contains(event.target)) return;
+    if (event.target.closest?.('.preview-live-editor')) return; // FIXED: inline preview typing waits for the editor commit instead of creating ghost dirty state.
     if (!event.target.dataset.templateField && !event.target.dataset.containerField) return;
     const id = currentTemplateId();
     const template = collectTemplate();
-    if (id && template) hold(id, template); // FIXED: typing immediately shows the shared unsaved bar.
+    if (id && template) hold(id, template); // FIXED: typing immediately shows the shared unsaved bar only for real changes.
   }, true);
 
   document.addEventListener('click', (event) => {
@@ -369,7 +511,7 @@
     if (tab && tab.dataset.tab !== 'messages' && pending.size > 0) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      window.alert('You have changes to save. Please click Save changes before switching tabs.'); // FIXED: blocks tab switches until saved.
+      window.alert('You have changes to save. Please click Save changes before switching tabs.'); // FIXED: blocks tab switches only while real message edits are pending.
       return;
     }
 
