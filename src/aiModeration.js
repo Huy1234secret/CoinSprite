@@ -253,9 +253,9 @@ async function analyzeWithOpenAI(content, context = {}) {
             required: ['flagged', 's', 'rules', 'reason'],
             properties: {
               flagged: { type: 'boolean' },
-              s: { type: 'number', minimum: 0, maximum: 10 },
+              s: { type: 'number' },
               rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
-              reason: { type: 'string', maxLength: 96 },
+              reason: { type: 'string' },
             },
           },
         },
