@@ -382,7 +382,7 @@
 
   function renderList() {
     const query = view.query.trim().toLowerCase();
-    const templates = view.templates.filter((item) => !query || `${item.name} ${item.id}`.toLowerCase().includes(query));
+    const templates = view.templates.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
     root.innerHTML = `<div class="message-list-head">
         <div><h3>Message templates</h3><p>Create reusable Discord Components V2 messages for this server.</p></div>
         <button class="button primary" type="button" data-message-action="create">Create template</button>
@@ -530,7 +530,7 @@
       view.noticeType = 'pending';
       render();
       scheduleSave();
-    } else if (action === 'open') { view.selectedId = button.dataset.id; view.tab = 'edit'; view.notice = ''; render(); }
+    } else if (action === 'open') { const item = view.templates.find((entry) => entry.id === button.dataset.id); if (item?.type === 'folder') return; view.selectedId = button.dataset.id; view.tab = 'edit'; view.notice = ''; render(); }
     else if (action === 'back') { await saveSelected(); view.selectedId = ''; render(); }
     else if (action === 'tab') { view.tab = button.dataset.value === 'use' ? 'use' : 'edit'; render(); }
     else if (action === 'add-container') { selected().containers.push(newContainer()); render(); scheduleSave(); }
@@ -759,10 +759,10 @@
     folderState.rendering = true;
     try {
       const all = await templates();
-      const defaults = all.filter((item) => item.botDefault || item.defaultLocked);
+      const defaults = all.filter((item) => item.botDefault || item.defaultLocked || String(item.id || '').startsWith('default-'));
       const folders = all.filter((item) => item.type === 'folder' && !item.botDefault);
       const folder = folders.find((item) => item.id === folderState.folderId) || null;
-      const userTemplates = all.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && (folderState.folderId ? item.folderId === folderState.folderId : !item.folderId));
+      const userTemplates = all.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && !String(item.id || '').startsWith('default-') && (folderState.folderId ? item.folderId === folderState.folderId : !item.folderId));
       const shown = folderState.mode === 'defaults' ? defaults : userTemplates;
       const signature = JSON.stringify({ mode: folderState.mode, folderId: folderState.folderId, items: all.map((item) => [item.id, item.name, item.folderId, item.botDefault, item.defaultLocked, item.type]) });
       const alreadyEnhanced = Boolean(root.querySelector('.message-section-tabs'));
@@ -779,7 +779,7 @@
         ${folderState.mode === 'templates' && !folderState.folderId ? folders.map((item) => card(item, 'folder')).join('') : ''}
         ${shown.map((item) => card(item)).join('')}
       </div>
-      ${folders.length || shown.length ? '' : '<div class="empty-state">No message templates found.</div>'}`;
+      ${shown.length || (folderState.mode === 'templates' && !folderState.folderId && folders.length) ? '' : `<div class="empty-state">${folderState.mode === 'defaults' ? 'No default messages found.' : 'No message templates found.'}</div>`}`;
     } catch {
     } finally {
       folderState.rendering = false;
@@ -851,6 +851,7 @@
     if (event.target.closest('[data-message-action="back"]')) folderState.lockedDefaultId = '';
   }, true);
   new MutationObserver(() => requestAnimationFrame(() => { renderList(); lockDefaultEditor(); })).observe(root, { childList: true, subtree: true });
+  requestAnimationFrame(() => renderList(true));
 })();
 
 (() => {
