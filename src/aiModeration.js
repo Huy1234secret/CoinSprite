@@ -1,9 +1,11 @@
 'use strict';
 
+const moderationKeywords = require('../data/moderation-keywords.json');
 const { recordUsage } = require('./aiTokenUsageStats');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_MAX_AI_CHARS = 1500;
 const RULE_LABELS = Object.freeze({
   '1.1': '1.1┆🤝 Be Respectful',
   '1.5': '1.5┆🗣️ No Political or Religious Discussions',
@@ -22,14 +24,8 @@ const CATEGORY_RULES = Object.freeze({
   rule_3_3_sexual_misconduct: '3.3',
 });
 const SERVER_RULE_SUMMARY = [
-  'Server rules:',
-  `${RULE_LABELS['1.1']}: Swearing is allowed, but excessive swearing, targeted insults, provocation, harassment, or disruptive arguments are not allowed.`,
-  `${RULE_LABELS['1.5']}: Political or religious discussions are prohibited.`,
-  `${RULE_LABELS['2.4']}: Public e-dating, romantic roleplay, or seeking romantic partners is prohibited.`,
-  `${RULE_LABELS['3.1']}: NSFW, explicit sexual, gory, or highly inappropriate content is banned.`,
-  `${RULE_LABELS['3.2']}: Hate speech, bullying, discrimination, targeted abuse, and threats are zero tolerance.`,
-  `${RULE_LABELS['3.3']}: Sexual conversations, sexual roleplay, or inappropriate advances toward members are prohibited.`,
-  'Use the rules to decide whether the message really breaks policy. Do not flag casual non-targeted swearing by itself.',
+  'Rules: swearing is allowed unless targeted, excessive, sexual, hateful, threatening, disruptive, or intentionally obfuscated.',
+  'No politics/religion, public e-dating or romantic roleplay, NSFW/gore, hate speech, bullying, discrimination, threats, sexual conversations, sexual roleplay, or inappropriate advances.',
 ].join(' ');
 const FALLBACK_TERMS = [
   'kill yourself', 'kys', 'nigger', 'faggot', 'retard',
@@ -50,6 +46,12 @@ const FALLBACK_TRANSLATIONS = [
   { pattern: /\beres\s+estupido\b/i, english: 'you are stupid' },
   { pattern: /\beres\s+estupida\b/i, english: 'you are stupid' },
 ];
+const URL_PATTERN = /(?:https?:\/\/|www\.)\S+|\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/\S+/i;
+const DISCORD_INVITE_PATTERN = /\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
+const NON_ASCII_PATTERN = /[^\x00-\x7F]/;
+const CAPS_SPAM_PATTERN = /[A-Z]{12,}/;
+const REPEATED_SYMBOL_PATTERN = /([!?@#$%^&*])\1{5,}/;
+const SAFE_SHORT_PATTERN = /^[\w\s.,!?'-]{1,160}$/;
 
 function compactWhitespace(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -82,13 +84,47 @@ function normalizeRawForPattern(value) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function compileKeywordRules() {
+  const rules = [];
+  for (const severity of ['minor', 'major', 'severe']) {
+    for (const entry of moderationKeywords?.[severity] || []) {
+      const patterns = (entry.patterns || []).map((pattern) => {
+        try { return new RegExp(pattern, 'i'); } catch { return null; }
+      }).filter(Boolean);
+      rules.push({ ...entry, severity, patterns });
+    }
+  }
+  return rules;
+}
+
+const KEYWORD_RULES = compileKeywordRules();
+
+function keywordMatches(content) {
+  const raw = normalizeRawForPattern(content);
+  return KEYWORD_RULES.filter((entry) => entry.patterns.some((pattern) => pattern.test(raw)));
+}
+
+function shouldUseAiModeration(content, context = {}) {
+  const text = compactWhitespace(content);
+  if (!text) return false;
+  const maxInputChars = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
+  if (text.length > maxInputChars) return true;
+  if (URL_PATTERN.test(text) || DISCORD_INVITE_PATTERN.test(text)) return true;
+  if (NON_ASCII_PATTERN.test(text)) return true;
+  if (CAPS_SPAM_PATTERN.test(text) || REPEATED_SYMBOL_PATTERN.test(text)) return true;
+  const matches = keywordMatches(text);
+  if (matches.length) return matches.some((entry) => entry.aiRequired !== false) || matches.some((entry) => entry.severity !== 'severe');
+  return !SAFE_SHORT_PATTERN.test(text);
+}
+
 function matchedFallbackTerms(content, normalized) {
   const terms = FALLBACK_TERMS.filter((term) => normalized.includes(term));
   const raw = normalizeRawForPattern(content);
   for (const entry of OBFUSCATED_FALLBACK_PATTERNS) {
     if (entry.pattern.test(raw)) terms.push(entry.term);
   }
-  return [...new Set(terms)];
+  for (const entry of keywordMatches(content)) terms.push(entry.term);
+  return [...new Set(terms.map(String).filter(Boolean))];
 }
 
 function fallbackEnglish(content, normalized) {
@@ -100,14 +136,15 @@ function fallbackEnglish(content, normalized) {
 
 function fallbackLanguage(normalized) {
   if (/\b(eres|idiota|estupido|estupida|tonto|tonta|imbecil)\b/i.test(normalized)) return 'Spanish';
+  if (/\b(aishitemasu|aishiteru|suki\s*desu|daisuki)\b/i.test(normalized)) return 'Japanese romanized';
   return 'unknown';
 }
 
 function defaultScoreForSeverity(severity, flagged = false) {
   if (!flagged) return 0;
-  if (severity === 'critical') return 9;
+  if (severity === 'critical' || severity === 'severe') return 9;
   if (severity === 'high') return 6.5;
-  if (severity === 'medium') return 3.5;
+  if (severity === 'medium' || severity === 'major') return 3.5;
   return 1.25;
 }
 
@@ -141,18 +178,19 @@ function brokenRulesFromCategories(categories = []) {
   return [...new Set(keys)].map((key) => RULE_LABELS[key]).filter(Boolean);
 }
 
-function fallbackRules(matchedTerms) {
+function fallbackRules(matchedTerms, categories = []) {
   const terms = new Set(matchedTerms);
-  const rules = new Set();
-  const respectTerms = ['fuck', 'fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot', 'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil'];
-  const hateTerms = ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'];
-  const sexualTerms = ['cock'];
+  const rules = new Set(brokenRulesFromCategories(categories).map((label) => Object.keys(RULE_LABELS).find((key) => RULE_LABELS[key] === label)).filter(Boolean));
+  const respectTerms = ['fuck', 'fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot', 'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil', 'targeted profanity', 'idiot', 'obfuscated profanity'];
+  const hateTerms = ['kill yourself', 'kys', 'nigger', 'faggot', 'retard', 'self harm command', 'racial slur', 'anti-gay slur', 'ableist slur', 'threat language'];
+  const sexualTerms = ['cock', 'sexual terms'];
   if ([...terms].some((term) => respectTerms.includes(term) || hateTerms.includes(term))) rules.add('1.1');
   if ([...terms].some((term) => hateTerms.includes(term))) rules.add('3.2');
   if ([...terms].some((term) => sexualTerms.includes(term))) {
     rules.add('3.1');
     rules.add('3.3');
   }
+  if ([...terms].some((term) => term === 'romanized affection')) rules.add('2.4');
   if (!rules.size && terms.size) rules.add('1.1');
   return [...rules].map((key) => RULE_LABELS[key]);
 }
@@ -160,26 +198,28 @@ function fallbackRules(matchedTerms) {
 function fallbackAnalyze(content) {
   const normalized = normalizeForScan(content);
   const matchedTerms = matchedFallbackTerms(content, normalized);
-  const severe = matchedTerms.some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'].includes(term));
-  const sexual = matchedTerms.some((term) => ['cock'].includes(term));
+  const matches = keywordMatches(content);
+  const categories = [...new Set(matches.map((entry) => entry.category).filter(Boolean))];
+  const severe = matchedTerms.some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard', 'self harm command', 'racial slur', 'anti-gay slur', 'ableist slur'].includes(term));
+  const sexual = matchedTerms.some((term) => ['cock', 'sexual terms'].includes(term));
   const severity = severe ? 'high' : sexual || matchedTerms.length > 1 ? 'medium' : matchedTerms.length ? 'low' : 'none';
   return {
     flagged: matchedTerms.length > 0,
     severity,
     severityScore: matchedTerms.length ? (severe ? 6.5 : sexual || matchedTerms.length > 1 ? 3.5 : 1.25) : 0,
     categories: matchedTerms.length
-      ? (severe
+      ? (categories.length ? categories : severe
         ? ['rule_1_1_respect', 'rule_3_2_hate_harassment']
         : sexual
           ? ['rule_3_1_nsfw', 'rule_3_3_sexual_misconduct']
           : ['rule_1_1_respect'])
       : [],
-    brokenRules: matchedTerms.length ? fallbackRules(matchedTerms) : [],
+    brokenRules: matchedTerms.length ? fallbackRules(matchedTerms, categories) : [],
     matchedTerms,
     originalLanguage: matchedTerms.length ? fallbackLanguage(normalized) : 'unknown',
     englishTranslation: fallbackEnglish(content, normalized),
     reason: matchedTerms.length
-      ? 'Fallback moderation scan matched abusive, sexual, hateful, or obfuscated wording. Configure OPENAI_API_KEY for full rule-aware review.'
+      ? 'Local moderation scan matched abusive, sexual, hateful, romantic, or obfuscated wording.'
       : '',
     source: 'fallback',
   };
@@ -235,6 +275,7 @@ async function analyzeWithOpenAI(content, context = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey || typeof fetch !== 'function') return null;
   const model = process.env.OPENAI_MODERATION_MODEL || DEFAULT_MODEL;
+  const maxInputChars = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
 
   const response = await fetch(OPENAI_API_URL, {
     method: 'POST',
@@ -248,19 +289,15 @@ async function analyzeWithOpenAI(content, context = {}) {
         {
           role: 'system',
           content: [
-            'You are a Discord moderation classifier for CoinSprite.',
+            'You are CoinSprite Discord moderation JSON classifier.',
             SERVER_RULE_SUMMARY,
-            'Review only the single message provided by the user. Do not use or request previous messages for context.',
-            'Translate non-English text to English before judging.',
-            'Treat obvious bypass spellings, leetspeak, inserted spaces, punctuation, or symbols as the intended word when judging. Obfuscated profanity can be flagged as bypass even when the unobfuscated casual word would normally be allowed.',
-            'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, disruptive, or intentionally obfuscated to bypass moderation.',
-            'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, severityScore number from 0 to 10, brokenRules array, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
-            'severityScore examples: low 1.25, medium 3.5, high 6.5, critical 9.0. Use decimals when useful.',
-            `brokenRules must contain exact labels from this list only: ${Object.values(RULE_LABELS).join('; ')}. Include multiple labels if multiple rules are broken.`,
-            'Use category values like rule_1_1_respect, rule_1_5_politics_religion, rule_2_4_edating, rule_3_1_nsfw, rule_3_2_hate_harassment, rule_3_3_sexual_misconduct.',
+            'Judge only the single provided message. Translate non-English or romanized text before judging.',
+            'Treat obvious bypass spellings, leetspeak, inserted spaces, punctuation, or symbols as intended words.',
+            'Return compact JSON: flagged, severity low|medium|high|critical, severityScore 0-10, brokenRules, categories, matchedTerms, originalLanguage, englishTranslation, reason.',
+            `Use exact brokenRules labels only: ${Object.values(RULE_LABELS).join('; ')}.`,
           ].join(' '),
         },
-        { role: 'user', content: String(content || '').slice(0, 4000) },
+        { role: 'user', content: String(content || '').slice(0, maxInputChars) },
       ],
       text: { format: { type: 'json_object' } },
     }),
@@ -282,17 +319,20 @@ async function analyzeWithOpenAI(content, context = {}) {
 async function analyzeModerationMessage(content, context = {}) {
   const text = compactWhitespace(content);
   if (!text) return normalizeResult({ flagged: false, severity: 'none' }, 'empty');
+  const fallback = fallbackAnalyze(text);
+  const needsAi = shouldUseAiModeration(text, context);
+  const localOnly = fallback.flagged && !keywordMatches(text).some((entry) => entry.aiRequired !== false) && fallback.severityScore >= 3.5;
+  if (!needsAi || localOnly) return fallback.flagged ? fallback : normalizeResult({ flagged: false, severity: 'none' }, 'local-skip');
   try {
     const aiResult = await analyzeWithOpenAI(text, context);
     if (aiResult) return aiResult;
   } catch (error) {
-    const fallback = fallbackAnalyze(text);
     fallback.reason = fallback.flagged
       ? `${fallback.reason}\nAI check failed: ${error.message}`.trim()
       : `AI check failed: ${error.message}`;
     return fallback;
   }
-  return fallbackAnalyze(text);
+  return fallback;
 }
 
-module.exports = { analyzeModerationMessage, fallbackAnalyze };
+module.exports = { analyzeModerationMessage, fallbackAnalyze, shouldUseAiModeration };
