@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "notes": "Curated moderation terms and patterns used for local pre-checks before AI moderation. This is intentionally not an exhaustive dictionary.",
+  "minor": [
+    {
+      "term": "obfuscated profanity",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": ["\\bf[\\W_]*@[\\W_]*c[\\W_]*k\\b", "\\bs[\\W_]*h[\\W_]*[i1!|][\\W_]*t\\b"],
+      "notes": "Bypass spellings of casual profanity; AI should decide if context makes it disruptive.",
+      "aiRequired": true
+    },
+    {
+      "term": "idiot",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": ["\\b(?:idiot|stupid|dumb|moron|dumbass)\\b"],
+      "notes": "Low-grade insults; AI checks whether they are targeted or playful.",
+      "aiRequired": true
+    },
+    {
+      "term": "romanized affection",
+      "category": "rule_2_4_edating",
+      "severity": "minor",
+      "patterns": ["\\b(?:aishitemasu|aishiteru|suki\\s*desu|daisuki)\\b"],
+      "notes": "Romanized Japanese romantic phrases that may indicate e-dating or romantic roleplay.",
+      "aiRequired": true
+    }
+  ],
+  "major": [
+    {
+      "term": "targeted profanity",
+      "category": "rule_1_1_respect",
+      "severity": "major",
+      "patterns": ["\\bf[\\W_]*[u@][\\W_]*c[\\W_]*k[\\W_]+(?:y[\\W_]*[o0][\\W_]*u|u)\\b", "\\byou(?:'| a)?re\\s+(?:a\\s+)?(?:bitch|idiot|moron|loser)\\b", "\\byou\\s+are\\s+(?:a\\s+)?(?:bitch|idiot|moron|loser)\\b"],
+      "notes": "Direct targeted abuse.",
+      "aiRequired": false
+    },
+    {
+      "term": "sexual terms",
+      "category": "rule_3_1_nsfw",
+      "severity": "major",
+      "patterns": ["\\bc[\\W_]*[o0][\\W_]*c[\\W_]*k\\b", "\\bd[\\W_]*[i1!|][\\W_]*c[\\W_]*k\\b", "\\bp[\\W_]*u[\\W_]*s[\\W_]*s[\\W_]*y\\b", "\\bsex(?:ual)?\\b", "\\bnudes?\\b"],
+      "notes": "Sexual content or bypass spellings.",
+      "aiRequired": true
+    },
+    {
+      "term": "threat language",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": ["\\bi\\s+will\\s+(?:hurt|kill|beat)\\s+you\\b", "\\b(?:hurt|kill|beat)\\s+yourself\\b"],
+      "notes": "Threatening or self-harm adjacent language.",
+      "aiRequired": true
+    }
+  ],
+  "severe": [
+    {
+      "term": "self harm command",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": ["\\bkill\\s+yourself\\b", "\\bkys\\b"],
+      "notes": "Self-harm command; local fallback can flag immediately.",
+      "aiRequired": false
+    },
+    {
+      "term": "racial slur",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": ["\\bn[\\W_]*[i1!|][\\W_]*g(?:[\\W_]*g[\\W_]*[e3][\\W_]*r)?\\b"],
+      "notes": "Severe hate speech and common bypass spelling.",
+      "aiRequired": false
+    },
+    {
+      "term": "anti-gay slur",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": ["\\bf[\\W_]*[@a4][\\W_]*g[\\W_]*g[\\W_]*[o0][\\W_]*t\\b"],
+      "notes": "Severe hate speech and common bypass spelling.",
+      "aiRequired": false
+    },
+    {
+      "term": "ableist slur",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": ["\\br[\\W_]*[e3][\\W_]*t[\\W_]*[@a4][\\W_]*r[\\W_]*d\\b"],
+      "notes": "Severe harassment/slur and common bypass spelling.",
+      "aiRequired": false
+    }
+  ]
+}
