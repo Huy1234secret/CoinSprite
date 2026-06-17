@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const manager = require('../src/levelingManager');
+const { syncMemberLevelRoles } = require('../src/levelRoleManager');
 
 const NERF_STORE_PATH = path.join(__dirname, '..', 'data', 'level-panel-xp-nerfs.json');
 const XP_LOGS_DIR = path.join(__dirname, '..', 'logs', 'xp log');
@@ -130,10 +133,6 @@ async function applyNerfCorrection(message) {
   if (member) await syncMemberLevelRoles(message.guild, member).catch(() => null);
   markApplied(active.state, message.guild.id, message.author.id, message.id);
 }
-
-const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
-const manager = require('../src/levelingManager');
-const { syncMemberLevelRoles } = require('../src/levelRoleManager');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
