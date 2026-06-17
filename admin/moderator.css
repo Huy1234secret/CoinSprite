@@ -58,6 +58,89 @@
   display: none !important;
 }
 
+.message-section-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.message-section-tabs button {
+  min-height: 42px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.message-section-tabs button:last-child {
+  border-right: 0;
+}
+
+.message-section-tabs button.active {
+  color: #fff;
+  background: var(--primary);
+}
+
+.message-create-wrap {
+  position: relative;
+}
+
+.message-create-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 180px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+.message-create-menu button {
+  min-height: 42px;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  padding: 0 14px;
+  font-weight: 750;
+}
+
+.message-create-menu button:last-child {
+  border-bottom: 0;
+}
+
+.message-create-menu button:hover {
+  background: var(--surface-3);
+}
+
+.message-folder-head {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 420px) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.message-folder-card .message-template-symbol {
+  font-size: 24px;
+}
+
+.message-default-card .message-template-symbol {
+  font-size: 22px;
+}
+
 .moderator-shell {
   display: grid;
   gap: 16px;
@@ -187,7 +270,8 @@
     max-height: 22px;
   }
 
-  .automod-action-row {
+  .automod-action-row,
+  .message-folder-head {
     grid-template-columns: 1fr;
   }
 }
