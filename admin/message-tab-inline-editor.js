@@ -221,6 +221,16 @@
     });
   }
 
+  function installGuard(root) {
+    if (!root || root.__coinSpriteMessageTabEditorGuard) return;
+    root.__coinSpriteMessageTabEditorGuard = true;
+    root.addEventListener('click', (event) => {
+      if (!event.target.closest?.('.message-inline-surface')) return;
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }, true);
+  }
+
   document.addEventListener('pointerdown', (event) => {
     if (!activeEditor || activeEditor.preview.contains(event.target)) return;
     finish(true);
@@ -237,4 +247,7 @@
     event.stopImmediatePropagation?.();
     start(host, source, preview);
   }, true);
+
+  installGuard(document.querySelector('#messageTemplatesRoot'));
+  new MutationObserver(() => installGuard(document.querySelector('#messageTemplatesRoot'))).observe(document.body, { childList: true, subtree: true });
 })();
