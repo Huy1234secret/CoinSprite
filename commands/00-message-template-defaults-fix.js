@@ -31,8 +31,10 @@ const LINK_AUTO_MODERATION_TEMPLATE = Object.freeze({
   updatedAt: new Date(0).toISOString(),
 });
 
+const ADMIN_INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const ADMIN_MESSAGES_PATH = path.join(__dirname, '..', 'admin', 'messages.js');
 const ADMIN_PATCH_MARKER = '__coinSpriteDefaultMessagesCreateFix';
+const HOTFIX_SCRIPT = '  <script src="/admin/message-template-defaults-fix.js?v=defaults-create-2" defer></script>';
 const nativeReadFile = fs.readFile.bind(fs);
 const nativeReadFileSync = fs.readFileSync.bind(fs);
 
@@ -106,14 +108,22 @@ function clientDefaultObjectSource() {
     .replace(/\n      \}/, '\n    }');
 }
 
+function patchAdminIndex(source) {
+  const text = String(source || '');
+  if (text.includes('/admin/message-template-defaults-fix.js')) return text;
+  return text.replace('</body>', `${HOTFIX_SCRIPT}\n</body>`);
+}
+
 function patchAdminMessages(source) {
   let text = String(source || '');
   if (text.includes(ADMIN_PATCH_MARKER)) return text;
 
-  text = text.replace(
-    '  ];\n  let popover = null;',
-    `,\n${clientDefaultObjectSource()}\n  ];\n  let popover = null;`,
-  );
+  if (!text.includes(LINK_AUTO_MODERATION_TEMPLATE.id)) {
+    text = text.replace(
+      '  ];\n  let popover = null;',
+      `,\n${clientDefaultObjectSource()}\n  ];\n  let popover = null;`,
+    );
+  }
   text = text.replace(
     'data-message-action="create-open">Create template</button>',
     'data-message-action="create-message">Create template</button>',
@@ -121,14 +131,18 @@ function patchAdminMessages(source) {
   return `${text}\n;(() => { window.${ADMIN_PATCH_MARKER} = true; })();\n`;
 }
 
-function isAdminMessagesPath(filePath) {
-  return path.resolve(String(filePath || '')) === path.resolve(ADMIN_MESSAGES_PATH);
+function patchAdminFile(filePath, source) {
+  const resolved = path.resolve(String(filePath || ''));
+  if (resolved === path.resolve(ADMIN_INDEX_PATH)) return patchAdminIndex(source);
+  if (resolved === path.resolve(ADMIN_MESSAGES_PATH)) return patchAdminMessages(source);
+  return source;
 }
 
 function patchReadData(filePath, data, options) {
-  if (!isAdminMessagesPath(filePath)) return data;
   const encoding = typeof options === 'string' ? options : options?.encoding;
-  const patched = patchAdminMessages(Buffer.isBuffer(data) ? data.toString('utf8') : data);
+  const originalText = Buffer.isBuffer(data) ? data.toString('utf8') : String(data || '');
+  const patched = patchAdminFile(filePath, originalText);
+  if (patched === originalText) return data;
   return encoding ? patched : Buffer.from(patched, 'utf8');
 }
 
