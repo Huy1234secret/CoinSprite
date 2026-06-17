@@ -1,8 +1,8 @@
 'use strict';
 
 // Compatibility shim for existing event hooks. The invite rewards system has been removed.
-function removedFeatureHook() {
-  return Promise.resolve(null); // FIXED: always return a Promise so legacy callers can safely append .catch().
+async function removedFeatureHook() {
+  return null; // FIXED: async hook always returns a Promise so legacy callers can safely append .catch().
 }
 
 module.exports = {
