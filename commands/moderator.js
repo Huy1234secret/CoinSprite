@@ -7,7 +7,6 @@ const { renderMessageScreenshot } = require('../src/messageScreenshot');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
 const DEFAULT_MAX_AI_CHARS = 600;
-const cooldowns = new Map();
 
 function uniqueIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
@@ -92,19 +91,6 @@ function hasExcludedRole(message, settings) {
   return settings.excludeRoleIds.some((roleId) => roles.has(roleId));
 }
 
-function cooldownKey(message) {
-  return `${message.guildId}:${message.author.id}`;
-}
-
-function inCooldown(message) {
-  const key = cooldownKey(message);
-  const now = Date.now();
-  const until = cooldowns.get(key) || 0;
-  if (until > now) return true;
-  cooldowns.set(key, now + 2500);
-  return false;
-}
-
 async function screenshotFiles(message, result) {
   try {
     return [await renderMessageScreenshot(message, result)];
@@ -167,7 +153,7 @@ module.exports = {
   },
 
   async handleMessageCreate(message) {
-    if (shouldSkipMessage(message) || inCooldown(message)) return;
+    if (shouldSkipMessage(message)) return;
     const settings = moderationConfig(message.guildId);
     if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings) || hasExcludedRole(message, settings)) return;
 
