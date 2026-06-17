@@ -1,55 +1,292 @@
 {
-  "version": 1,
-  "notes": "Curated moderation terms and patterns used for local pre-checks before AI moderation. This is intentionally not an exhaustive dictionary.",
+  "version": 2,
+  "notes": "Expanded moderation terms and regex patterns used for local pre-checks before AI moderation. The list is broad and grouped by severity, but intentionally still uses AI for context-heavy minor and major matches.",
   "minor": [
     {
-      "term": "obfuscated profanity",
+      "term": "obfuscated casual profanity",
       "category": "rule_1_1_respect",
       "severity": "minor",
-      "patterns": ["\\bf[\\W_]*@[\\W_]*c[\\W_]*k\\b", "\\bs[\\W_]*h[\\W_]*[i1!|][\\W_]*t\\b"],
-      "notes": "Bypass spellings of casual profanity; AI should decide if context makes it disruptive.",
+      "patterns": [
+        "\\bf[\\W_]*[@a4u][\\W_]*c[\\W_]*k\\b",
+        "\\bs[\\W_]*h[\\W_]*[i1!|][\\W_]*t\\b",
+        "\\bb[\\W_]*[i1!|][\\W_]*t[\\W_]*c[\\W_]*h\\b",
+        "\\ba[\\W_]*s[\\W_]*s[\\W_]*h[\\W_]*[o0][\\W_]*l[\\W_]*[e3]\\b",
+        "\\bd[\\W_]*[@a4][\\W_]*m[\\W_]*n\\b"
+      ],
+      "notes": "Bypass spellings of casual profanity; AI should decide whether context makes it disruptive or targeted.",
       "aiRequired": true
     },
     {
-      "term": "idiot",
+      "term": "low-grade insults",
       "category": "rule_1_1_respect",
       "severity": "minor",
-      "patterns": ["\\b(?:idiot|stupid|dumb|moron|dumbass)\\b"],
-      "notes": "Low-grade insults; AI checks whether they are targeted or playful.",
+      "patterns": [
+        "\\b(?:idiot|stupid|dumb|dummy|dumbo|moron|dumbass|loser|clown|bozo|fool|foolish|lame|pathetic|trash|garbage|bad|awful|terrible|annoying|weird|cringe|cringey|gross|nasty|ugly|silly|ridiculous|useless|worthless|brainlet|smoothbrain|airhead|blockhead|bonehead|meathead|nitwit|dimwit|halfwit|doofus|dork|jerk|tool|twerp|twit|goof|goofy|brat|pest|pendejo|idiota|estupido|estupida|tonto|tonta|imbecil|burro|baka|aho|bobo|gago|bodoh)\\b"
+      ],
+      "notes": "Low-grade insults; AI checks whether they are targeted, playful, or disruptive.",
       "aiRequired": true
     },
     {
-      "term": "romanized affection",
+      "term": "dismissive toxic phrasing",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:shut up|shutup|stfu|be quiet|nobody asked|who asked|no one asked|dont care|do not care|cry about it|keep crying|stay mad|get lost|get over it|skill issue|cope|seethe|mald|ratio|touch grass|go outside|leave chat|stop talking|stop yapping|yap harder|yapper|muted|ignored|blocked)\\b"
+      ],
+      "notes": "Dismissive or baiting phrasing that can be harmless or hostile depending on context.",
+      "aiRequired": true
+    },
+    {
+      "term": "drama bait and provocation",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:drama|bait|ragebait|flamebait|trolling|troll|toxic|toxicity|salty|salted|mad cuz bad|stay salty|ez clap|ez win|too easy|get owned|get rekt|rekt|owned|folded|cooked|washed|trash talk|trash-talk|trashtalk|clapped|destroyed you|free win|free kill)\\b"
+      ],
+      "notes": "Competitive or drama phrases that may need AI context.",
+      "aiRequired": true
+    },
+    {
+      "term": "spam and disruption terms",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:spam|spamming|flood|flooding|ping spam|mass ping|mass mention|everyone ping|ghost ping|copypasta|copy pasta|chain message|chainmail|raid ping|advertise|advertising|self promo|self-promo|promote my|join my server|join my discord|follow my|sub to me|subscribe to me|free robux|free nitro|nitro drop|giveaway scam)\\b",
+        "(?:[@!?.#$%^&*])\\1{5,}",
+        "\\b[A-Z]{12,}\\b"
+      ],
+      "notes": "Disruptive language, spam indicators, and repeated symbols/caps.",
+      "aiRequired": true
+    },
+    {
+      "term": "soft e-dating and romantic roleplay",
       "category": "rule_2_4_edating",
       "severity": "minor",
-      "patterns": ["\\b(?:aishitemasu|aishiteru|suki\\s*desu|daisuki)\\b"],
-      "notes": "Romanized Japanese romantic phrases that may indicate e-dating or romantic roleplay.",
+      "patterns": [
+        "\\b(?:date me|dating|edate|e-date|edating|e-dating|boyfriend|girlfriend|bf|gf|babe|baby girl|babygirl|babyboy|hubby|wifey|wife me|marry me|love you|ily|i love you|luv u|kiss me|kissing|cuddle|cuddling|hug me|hold hands|romance|romantic|rizz|rizzing|flirt|flirting|crush on you|my crush|valentine|sweetheart|darling|dear lover|aishitemasu|aishiteru|suki desu|daisuki|te amo|mi amor|mahal kita|saranghae)\\b"
+      ],
+      "notes": "Romantic wording can be normal or e-dating depending on context.",
+      "aiRequired": true
+    },
+    {
+      "term": "soft sexual innuendo",
+      "category": "rule_3_1_nsfw",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:sus|sussy|down bad|horny|thirsty|thirst trap|hot pics|spicy pic|spicy pictures|send pic|send pics|body count|smash or pass|would smash|rizz me|mommy|daddy|step bro|step sis|ayo pause|pause that|freaky|freaky ahh|gyatt|cake|cheeks|booty|booba|milkies)\\b"
+      ],
+      "notes": "Soft NSFW slang should be judged by AI because context varies.",
+      "aiRequired": true
+    },
+    {
+      "term": "politics discussion markers",
+      "category": "rule_1_5_politics_religion",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:politics|political|election|vote for|voting for|president|prime minister|congress|senate|parliament|government|democrat|republican|liberal|conservative|leftist|right wing|left wing|communist|socialist|capitalist|fascist|marxist|maga|biden|trump|obama|putin|zelensky|israel|palestine|gaza|ukraine war|culture war|abortion debate|gun control|immigration debate)\\b"
+      ],
+      "notes": "Political topics are routed to AI to distinguish casual mention from prohibited discussion.",
+      "aiRequired": true
+    },
+    {
+      "term": "religion discussion markers",
+      "category": "rule_1_5_politics_religion",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:religion|religious|god|jesus|christ|christian|christianity|catholic|protestant|islam|muslim|allah|quran|koran|muhammad|jewish|judaism|torah|bible|hindu|hinduism|buddha|buddhist|atheist|atheism|satan|satanist|church|mosque|temple|pray|prayer|worship|sin|sinner|heaven|hell|convert to|holy war)\\b"
+      ],
+      "notes": "Religious terms are routed to AI to separate ordinary reference from debate or harassment.",
+      "aiRequired": true
+    },
+    {
+      "term": "mild identity insults",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:weirdo|creep|creepy|psycho|crazy|insane|mental|schizo|delusional|autistic as insult|sped|special ed|slow kid|short bus|npc|bot behavior|fatherless|motherless|orphan behavior|no life|nolife|basement dweller|neckbeard|incel|simp|white knight)\\b"
+      ],
+      "notes": "Identity-adjacent insults should be context checked.",
+      "aiRequired": true
+    },
+    {
+      "term": "foreign low-grade insults",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": [
+        "\\b(?:puta|puto|cabron|cabrón|pendeja|pendejo|mierda|imbécil|idiote|connard|conne|merde|scheisse|arsch|arschloch|dummkopf|kuso|shine|baka|boke|pabo|joder|carajo|boludo|gilipollas|culero|tanga|ulol|gago|bobo|bodoh|anjing|bangsat)\\b"
+      ],
+      "notes": "Common insults in multiple languages; AI can translate and judge severity.",
+      "aiRequired": true
+    },
+    {
+      "term": "mild bypass spacing",
+      "category": "rule_1_1_respect",
+      "severity": "minor",
+      "patterns": [
+        "\\bi[\\W_]*d[\\W_]*[i1!|][\\W_]*[o0][\\W_]*t\\b",
+        "\\bs[\\W_]*t[\\W_]*[u@][\\W_]*p[\\W_]*[i1!|][\\W_]*d\\b",
+        "\\bd[\\W_]*[u@][\\W_]*m[\\W_]*b\\b",
+        "\\bm[\\W_]*[o0][\\W_]*r[\\W_]*[o0][\\W_]*n\\b",
+        "\\bl[\\W_]*[o0][\\W_]*s[\\W_]*[e3][\\W_]*r\\b"
+      ],
+      "notes": "Obfuscated low-grade insults.",
       "aiRequired": true
     }
   ],
   "major": [
     {
-      "term": "targeted profanity",
+      "term": "targeted profanity and abuse",
       "category": "rule_1_1_respect",
       "severity": "major",
-      "patterns": ["\\bf[\\W_]*[u@][\\W_]*c[\\W_]*k[\\W_]+(?:y[\\W_]*[o0][\\W_]*u|u)\\b", "\\byou(?:'| a)?re\\s+(?:a\\s+)?(?:bitch|idiot|moron|loser)\\b", "\\byou\\s+are\\s+(?:a\\s+)?(?:bitch|idiot|moron|loser)\\b"],
-      "notes": "Direct targeted abuse.",
-      "aiRequired": false
-    },
-    {
-      "term": "sexual terms",
-      "category": "rule_3_1_nsfw",
-      "severity": "major",
-      "patterns": ["\\bc[\\W_]*[o0][\\W_]*c[\\W_]*k\\b", "\\bd[\\W_]*[i1!|][\\W_]*c[\\W_]*k\\b", "\\bp[\\W_]*u[\\W_]*s[\\W_]*s[\\W_]*y\\b", "\\bsex(?:ual)?\\b", "\\bnudes?\\b"],
-      "notes": "Sexual content or bypass spellings.",
+      "patterns": [
+        "\\bf[\\W_]*[u@][\\W_]*c[\\W_]*k[\\W_]+(?:y[\\W_]*[o0][\\W_]*u|u|off)\\b",
+        "\\b(?:you(?:'| a)?re|you are|ur|u are)\\s+(?:a\\s+)?(?:bitch|idiot|moron|loser|clown|trash|garbage|pathetic|worthless|useless|dumbass|asshole|failure|mistake|embarrassment|disgrace|waste of space|waste of oxygen)\\b",
+        "\\b(?:shut the fuck up|stupid ass|dumb ass|bitch ass|punk ass|trash ass|get the fuck out|go fuck yourself|go away forever|nobody likes you|everyone hates you)\\b"
+      ],
+      "notes": "Direct targeted abuse. AI checks context and severity before enforcement.",
       "aiRequired": true
     },
     {
-      "term": "threat language",
+      "term": "harassment and bullying phrases",
       "category": "rule_3_2_hate_harassment",
       "severity": "major",
-      "patterns": ["\\bi\\s+will\\s+(?:hurt|kill|beat)\\s+you\\b", "\\b(?:hurt|kill|beat)\\s+yourself\\b"],
-      "notes": "Threatening or self-harm adjacent language.",
+      "patterns": [
+        "\\b(?:bully|bullying|harass|harassing|harassment|stalk|stalking|stalker|dogpile|dogpiling|target them|mass report|mass-report|witch hunt|witchhunt|pile on|jump him|jump her|jump them|make fun of|mock them|laugh at them|humiliate|humiliated|embarrass them|ruin their day|make them cry|keep bullying|keep harassing|follow them around)\\b"
+      ],
+      "notes": "Harassment coordination and bullying language.",
+      "aiRequired": true
+    },
+    {
+      "term": "sexual vocabulary",
+      "category": "rule_3_1_nsfw",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:sex|sexual|porn|porno|pornography|hentai|rule34|r34|nsfw|nude|nudes|naked|lewd|erotic|fetish|kink|bdsm|boobs|breasts|tits|titties|nipples|ass cheeks|butt|booty|thighs|thicc|cleavage|dick|penis|cock|balls|testicles|pussy|vagina|clit|cum|semen|sperm|orgasm|masturbate|masturbation|jerk off|jacking off|fap|fapping|blowjob|handjob|rimjob|anal|oral sex|deepthroat|penetrate|penetration|moan|moaning|69|threesome|strip|stripping|stripper|onlyfans|fansly)\\b",
+        "\\bc[\\W_]*[o0][\\W_]*c[\\W_]*k\\b",
+        "\\bd[\\W_]*[i1!|][\\W_]*c[\\W_]*k\\b",
+        "\\bp[\\W_]*[u@][\\W_]*s[\\W_]*s[\\W_]*y\\b"
+      ],
+      "notes": "Explicit sexual content or bypass spellings.",
+      "aiRequired": true
+    },
+    {
+      "term": "sexual solicitation",
+      "category": "rule_3_3_sexual_misconduct",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:send nudes|send nude|send pics|send body pic|send lewds|send feet|dm nudes|trade nudes|show me your body|show your body|show boobs|show tits|show ass|show pussy|show dick|rate my body|rate my dick|rate my boobs|horny dm|sex chat|sext|sexting|dirty talk|roleplay sex|erp|erping|do you moan|are you a virgin|body reveal|face reveal for nudes|nudes for nitro|nudes for robux)\\b"
+      ],
+      "notes": "Requests or offers for sexual content.",
+      "aiRequired": true
+    },
+    {
+      "term": "public e-dating escalation",
+      "category": "rule_2_4_edating",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:be my girlfriend|be my boyfriend|be my gf|be my bf|looking for gf|looking for bf|need a girlfriend|need a boyfriend|single and looking|discord dating|dating server|edating server|date in dms|dm me to date|kiss you|make out|sleep with me|cuddle in vc|romantic rp|relationship rp|couple rp|marry me in game|online girlfriend|online boyfriend)\\b"
+      ],
+      "notes": "Direct e-dating or romantic roleplay prompts.",
+      "aiRequired": true
+    },
+    {
+      "term": "threatening language",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:i will hurt you|i will beat you|i will find you|i will jump you|i will smack you|i will slap you|i will punch you|i will destroy you|watch your back|sleep with one eye open|you are dead|youre dead|dead man walking|catch these hands|pull up on you|run your pockets|beat your ass|knock you out|break your jaw|break your face)\\b"
+      ],
+      "notes": "Threats or intimidation. AI should judge credibility and context.",
+      "aiRequired": true
+    },
+    {
+      "term": "self-harm adjacent phrasing",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:hurt yourself|harm yourself|end yourself|delete yourself|uninstall life|go disappear|no reason to live|you should disappear|nobody would miss you|world better without you|jump off|drink bleach|cut yourself|hang yourself)\\b"
+      ],
+      "notes": "Self-harm adjacent or coded phrasing.",
+      "aiRequired": true
+    },
+    {
+      "term": "discriminatory attacks",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:go back to your country|go back where you came from|speak english only|illegal alien|dirty immigrant|terrorist muslim|all muslims are|all jews are|all christians are|all gays are|all women are|all men are|all black people|all white people|all asian people|all trans people|all disabled people|you people are|your kind is|your race is|your religion is|because you are gay|because youre gay|because you are trans|because youre trans)\\b"
+      ],
+      "notes": "Protected-class harassment and stereotyping.",
+      "aiRequired": true
+    },
+    {
+      "term": "political or religious attacks",
+      "category": "rule_1_5_politics_religion",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:libtard|magat|trumptard|commie scum|nazi voter|fascist pig|religion is cancer|your god is fake|burn the bible|burn the quran|burn the koran|all atheists are evil|all christians are stupid|all muslims are terrorists|all jews control|convert or die|infidel dog|heretic|heathen trash)\\b"
+      ],
+      "notes": "Political/religious hostility or slurs.",
+      "aiRequired": true
+    },
+    {
+      "term": "privacy invasion and doxxing hints",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:dox|doxx|doxing|doxxing|leak your address|leak his address|leak her address|leak their address|drop address|drop your address|post your address|find your ip|grab your ip|ip grab|ip logger|ip pull|pull your ip|track your location|find where you live|send your address|what is your address|real name leak|phone number leak)\\b"
+      ],
+      "notes": "Doxxing or privacy-invasive language.",
+      "aiRequired": true
+    },
+    {
+      "term": "gore and violent imagery",
+      "category": "rule_3_1_nsfw",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:gore|gory|blood everywhere|decapitate|decapitation|dismember|dismemberment|mutilate|mutilation|corpse|dead body|beheading|execution video|snuff|torture video|graphic death|graphic injury|brains blown|bloodbath|massacre footage)\\b"
+      ],
+      "notes": "Graphic violence and gore references.",
+      "aiRequired": true
+    },
+    {
+      "term": "scam and malware language",
+      "category": "rule_1_1_respect",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:token grabber|token logger|account stealer|cookie logger|cookie stealer|password grabber|password stealer|malware|rat tool|remote access trojan|keylogger|grabify|phishing link|phish link|fake login|fake nitro|free nitro generator|robux generator|steam gift scam|wallet drainer|crypto drainer|seed phrase|recovery phrase|send your password|give me your password|login for you)\\b"
+      ],
+      "notes": "Scam or malware indicators that may need moderation review.",
+      "aiRequired": true
+    },
+    {
+      "term": "minor safety risk language",
+      "category": "rule_3_3_sexual_misconduct",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:how old are you|are you underage|are you a minor|age check|you sound young|young girl|young boy|teen girl|teen boy|loli|shota|jailbait|minor gf|minor girlfriend|minor boyfriend|underage gf|underage girlfriend|underage boyfriend)\\b"
+      ],
+      "notes": "Minor-safety terms are routed to AI because context matters.",
+      "aiRequired": true
+    },
+    {
+      "term": "raiding and brigading",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:raid this server|server raid|raid them|raid it|nuke server|nuke this server|mass dm|mass ping them|mass report them|brigade|brigading|spam their chat|flood their chat|join and spam|crash the server|destroy the server|delete channels|delete all channels|ban everyone|kick everyone)\\b"
+      ],
+      "notes": "Raid, brigading, or server disruption coordination.",
+      "aiRequired": true
+    },
+    {
+      "term": "blackmail and coercion",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "major",
+      "patterns": [
+        "\\b(?:blackmail|extort|extortion|expose you|expose your dms|leak your dms|leak your pics|leak your photos|send money or|pay me or|do this or i leak|i will leak|i will expose|i have screenshots|i have your pics|i have your address|i have your ip)\\b"
+      ],
+      "notes": "Coercion or blackmail language.",
       "aiRequired": true
     }
   ],
@@ -58,32 +295,154 @@
       "term": "self harm command",
       "category": "rule_3_2_hate_harassment",
       "severity": "severe",
-      "patterns": ["\\bkill\\s+yourself\\b", "\\bkys\\b"],
-      "notes": "Self-harm command; local fallback can flag immediately.",
+      "patterns": [
+        "\\bkill\\s+yourself\\b",
+        "\\bkys\\b",
+        "\\bk\\s*y\\s*s\\b",
+        "\\bend\\s+your\\s+life\\b",
+        "\\bcommit\\s+suicide\\b",
+        "\\boff\\s+yourself\\b",
+        "\\bdelete\\s+yourself\\b"
+      ],
+      "notes": "Direct self-harm command; local fallback can flag immediately.",
       "aiRequired": false
     },
     {
-      "term": "racial slur",
+      "term": "credible violent threats",
       "category": "rule_3_2_hate_harassment",
       "severity": "severe",
-      "patterns": ["\\bn[\\W_]*[i1!|][\\W_]*g(?:[\\W_]*g[\\W_]*[e3][\\W_]*r)?\\b"],
-      "notes": "Severe hate speech and common bypass spelling.",
+      "patterns": [
+        "\\b(?:i am going to kill you|im going to kill you|i will kill you|ill kill you|i'm gonna kill you|i will murder you|i am going to murder you|i will shoot you|i am going to shoot you|i will stab you|i am going to stab you|i will bomb|shoot up|school shooter|bring a gun|plant a bomb|bomb threat|death threat|execute you|slit your throat|cut your throat|burn you alive)\\b"
+      ],
+      "notes": "Clear threats of serious physical harm.",
       "aiRequired": false
     },
     {
-      "term": "anti-gay slur",
+      "term": "racial and ethnic slurs",
       "category": "rule_3_2_hate_harassment",
       "severity": "severe",
-      "patterns": ["\\bf[\\W_]*[@a4][\\W_]*g[\\W_]*g[\\W_]*[o0][\\W_]*t\\b"],
-      "notes": "Severe hate speech and common bypass spelling.",
+      "patterns": [
+        "\\bn[\\W_]*[i1!|][\\W_]*g(?:[\\W_]*g[\\W_]*[e3][\\W_]*r)?\\b",
+        "\\b(?:chink|gook|spic|wetback|beaner|coon|jigaboo|porch monkey|sand nigger|raghead|towelhead|gypsy slur|zipperhead|cracker as slur|whitey as slur|monkey as racial insult|ape as racial insult)\\b"
+      ],
+      "notes": "Severe racial or ethnic hate speech and common bypass spellings.",
       "aiRequired": false
     },
     {
-      "term": "ableist slur",
+      "term": "anti-lgbtq slurs",
       "category": "rule_3_2_hate_harassment",
       "severity": "severe",
-      "patterns": ["\\br[\\W_]*[e3][\\W_]*t[\\W_]*[@a4][\\W_]*r[\\W_]*d\\b"],
-      "notes": "Severe harassment/slur and common bypass spelling.",
+      "patterns": [
+        "\\bf[\\W_]*[@a4][\\W_]*g[\\W_]*g[\\W_]*[o0][\\W_]*t\\b",
+        "\\b(?:fag|dyke|tranny|shemale|he-she|heshe|troon|queer as slur|homo as slur|no gays allowed|kill all gays|kill trans people)\\b"
+      ],
+      "notes": "Severe anti-LGBTQ harassment and slurs.",
+      "aiRequired": false
+    },
+    {
+      "term": "ableist slurs and dehumanization",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\br[\\W_]*[e3][\\W_]*t[\\W_]*[@a4][\\W_]*r[\\W_]*d\\b",
+        "\\b(?:retard|tard|spaz|cripple as insult|mongoloid|downie|autist as insult|sped as slur|vegetable as insult|subhuman|not human|vermin|parasite people|inferior race)\\b"
+      ],
+      "notes": "Severe ableist or dehumanizing harassment.",
+      "aiRequired": false
+    },
+    {
+      "term": "religious hate and antisemitic terms",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:kike|yid as slur|heeb|zionist pig|gas the jews|jewish conspiracy|holocaust was fake|holocaust deserved|dirty jew|dirty muslim|muslim terrorist|islamic dog|christian dog|burn all muslims|burn all jews|burn all christians|kill all muslims|kill all jews|kill all christians)\\b"
+      ],
+      "notes": "Religious hate speech and extremist dehumanization.",
+      "aiRequired": false
+    },
+    {
+      "term": "sexual assault and coercion",
+      "category": "rule_3_3_sexual_misconduct",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:rape|raped|raping|rapist|sexual assault|sexually assault|molest|molested|molesting|force yourself|force her|force him|force them|drug her|drug him|drug them|roofy|roofie|nonconsensual|non-consensual|without consent|revenge porn|leak her nudes|leak his nudes|leak their nudes)\\b"
+      ],
+      "notes": "Sexual violence, coercion, or non-consensual sexual content.",
+      "aiRequired": false
+    },
+    {
+      "term": "underage sexualization",
+      "category": "rule_3_3_sexual_misconduct",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:underage nudes|minor nudes|child nudes|kid nudes|teen nudes|loli nudes|shota nudes|cp link|child porn|child pornography|csam|sexualize minors|minor sex|underage sex|young teen sex|preteen|middle school girl hot|middle school boy hot)\\b"
+      ],
+      "notes": "Minor sexualization and child-safety violations.",
+      "aiRequired": false
+    },
+    {
+      "term": "doxxing and swatting",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:swat you|swatting you|call swat|call the cops on your house|send police to your house|i have your address|i found your address|your address is|your ip is|leak your address|drop your dox|full dox|doxbin|paste your address|post your phone number|post your real name|post your school|post your workplace)\\b"
+      ],
+      "notes": "Direct doxxing or swatting threats.",
+      "aiRequired": false
+    },
+    {
+      "term": "extortion and blackmail threats",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:pay me or i leak|send money or i leak|give me money or|give me nitro or i leak|i will leak your nudes|i will leak your address|i will expose your family|i will ruin your life|i will ruin you|i will get you fired|i will tell your school|i will tell your parents)\\b"
+      ],
+      "notes": "Direct blackmail or extortion threats.",
+      "aiRequired": false
+    },
+    {
+      "term": "extreme gore and torture",
+      "category": "rule_3_1_nsfw",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:send gore|post gore|gore video|gore gif|real gore|beheading video|execution video|torture video|snuff film|dead body pic|corpse pic|animal torture|graphic suicide|graphic murder|mass shooting video|cartel video)\\b"
+      ],
+      "notes": "Requests or sharing language for graphic gore or torture media.",
+      "aiRequired": false
+    },
+    {
+      "term": "server destruction and credential theft",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:steal your token|token grab your account|token log you|steal your account|steal your password|steal your cookies|cookie log you|rat your pc|install my rat|install malware|run this grabber|download my grabber|nuke your server|delete every channel|ban every member|wipe the server|destroy this server)\\b"
+      ],
+      "notes": "Credential theft, malware, or destructive server abuse.",
+      "aiRequired": false
+    },
+    {
+      "term": "mass hate or extermination rhetoric",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\b(?:kill all women|kill all men|kill all gays|kill all trans|kill all muslims|kill all jews|kill all christians|kill all black people|kill all white people|kill all asians|exterminate them|wipe them out|genocide them|gas them all|hang them all|shoot them all|they should all die)\\b"
+      ],
+      "notes": "Mass violence or extermination rhetoric targeting groups.",
+      "aiRequired": false
+    },
+    {
+      "term": "obfuscated severe slurs",
+      "category": "rule_3_2_hate_harassment",
+      "severity": "severe",
+      "patterns": [
+        "\\bf[\\W_]*[@a4][\\W_]*g[\\W_]*[o0][\\W_]*t\\b",
+        "\\bch[\\W_]*[i1!|][\\W_]*n[\\W_]*k\\b",
+        "\\bg[\\W_]*[o0][\\W_]*[o0][\\W_]*k\\b",
+        "\\bsp[\\W_]*[i1!|][\\W_]*c\\b",
+        "\\bk[\\W_]*[i1!|][\\W_]*k[\\W_]*[e3]\\b",
+        "\\bt[\\W_]*r[\\W_]*[@a4][\\W_]*n[\\W_]*n[\\W_]*y\\b"
+      ],
+      "notes": "Obfuscated severe hate terms.",
       "aiRequired": false
     }
   ]
