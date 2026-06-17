@@ -73,7 +73,7 @@ function applyModerationPlaceholders(template, message, result) {
 }
 
 function shouldSkipMessage(message) {
-  return !message?.guild || message.author?.bot || !message.content?.trim();
+  return !message?.guild || message.__coinSpriteAutoModerated || message.author?.bot || !message.content?.trim();
 }
 
 function shouldScanChannel(message, settings) {
