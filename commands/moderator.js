@@ -2,10 +2,11 @@ const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('disc
 const { analyzeModerationMessage } = require('../src/aiModeration');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
+const { renderMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
-const DEFAULT_MAX_AI_CHARS = 1500;
+const DEFAULT_MAX_AI_CHARS = 600;
 const cooldowns = new Map();
 
 function uniqueIds(value) {
@@ -42,15 +43,16 @@ function formatSeverityScore(value) {
 }
 
 function moderationValues(message, result) {
+  const ruleIds = Array.isArray(result.brokenRules) ? result.brokenRules : [];
   return new Map([
-    ['severity', result.severity || 'medium'],
+    ['severity', formatSeverityScore(result.severityScore)],
     ['severity-tier', formatSeverityScore(result.severityScore)],
-    ['broken-rules', listLines(result.brokenRules)],
-    ['moderation-reason', result.reason || 'Flagged by moderation policy.'],
+    ['broken-rules', listLines(ruleIds)],
+    ['moderation-reason', result.reason || 'Rule violation.'],
     ['matched-terms', listText(result.matchedTerms)],
     ['moderation-categories', listText(result.categories)],
-    ['original-language', result.originalLanguage || 'unknown'],
-    ['english-translation', result.englishTranslation || message.content || '-'],
+    ['original-language', result.originalLanguage || ''],
+    ['english-translation', result.englishTranslation || ''],
     ['message-link', message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`],
     ['moderation-source', result.source || 'ai'],
   ]);
@@ -103,23 +105,33 @@ function inCooldown(message) {
   return false;
 }
 
+async function screenshotFiles(message, result) {
+  try {
+    return [await renderMessageScreenshot(message, result)];
+  } catch (error) {
+    console.error('Moderation screenshot render failed:', error);
+    return [];
+  }
+}
+
 async function sendModerationAlert(message, result, settings) {
   const channel = message.guild.channels.cache.get(settings.logChannelId)
     || await message.guild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
+  const files = await screenshotFiles(message, result);
   const template = findTemplate(message.guildId, settings.alertTemplateId) || findTemplate(message.guildId, DEFAULT_ALERT_TEMPLATE_ID);
   if (!template) {
     await channel.send({
       content: [
         `AI moderation alert for ${message.author} in ${message.channel}`,
-        `Severity: ${result.severity} ${formatSeverityScore(result.severityScore)}/10`,
+        `Severity: ${formatSeverityScore(result.severityScore)}/10`,
         `Broken rules:\n${listLines(result.brokenRules)}`,
-        `Reason: ${result.reason || 'Flagged by moderation policy.'}`,
-        `English: ${result.englishTranslation || message.content}`,
+        `Reason: ${result.reason || 'Rule violation.'}`,
         message.url,
       ].join('\n').slice(0, 2000),
       allowedMentions: { parse: [], users: [message.author.id] },
+      files,
     }).catch(() => null);
     return;
   }
@@ -130,7 +142,7 @@ async function sendModerationAlert(message, result, settings) {
     user: message.author,
     member: message.member,
   });
-  await channel.send(payload).catch(() => null);
+  await channel.send({ ...payload, files }).catch(() => null);
 }
 
 module.exports = {
@@ -147,8 +159,8 @@ module.exports = {
         `Scan channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
-        `AI max input: ${settings.maxInputChars} characters`,
-        `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI' : 'fallback scan only'}`,
+        `AI input sent: up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
+        `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI every message' : 'fallback scan only'}`,
       ].join('\n'),
       flags: EPHEMERAL_FLAG,
     });
