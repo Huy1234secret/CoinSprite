@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const originalReadFile = fs.readFile.bind(fs);
+const ADMIN_APP_JS = path.resolve(__dirname, '..', 'admin', 'app.js');
 
 const OPTION_FIX_SCRIPT = `
 (() => {
@@ -146,7 +147,7 @@ fs.readFile = function patchedWorkflowOptionRead(filePath, ...args) {
       callback?.(error, data);
       return;
     }
-    if (path.resolve(String(filePath)) !== ADMIN_FIXES_JS) {
+    if (path.resolve(String(filePath)) !== ADMIN_APP_JS) {
       callback(null, data);
       return;
     }

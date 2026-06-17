@@ -161,9 +161,10 @@ function browserScript() {
 }
 
 const previousReadFile = fs.readFile.bind(fs);
+const ADMIN_APP_JS = path.resolve(__dirname, '..', 'admin', 'app.js');
 fs.readFile = function patchedReadFile(filePath, ...args) {
   const callback = args[args.length - 1];
-  if (path.resolve(String(filePath)) !== path.resolve(ADMIN_FIXES_JS) || typeof callback !== 'function') return previousReadFile(filePath, ...args);
+  if (path.resolve(String(filePath)) !== path.resolve(ADMIN_APP_JS) || typeof callback !== 'function') return previousReadFile(filePath, ...args);
   args[args.length - 1] = (error, data) => {
     if (error) return callback(error, data);
     callback(null, (Buffer.isBuffer(data) ? data.toString('utf8') : String(data)) + browserScript());
