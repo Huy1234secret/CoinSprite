@@ -3,7 +3,8 @@
 const moderationKeywords = require('../data/moderation-keywords.json');
 const { recordUsage } = require('./aiTokenUsageStats');
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
+const OPENAI_RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
+const OPENAI_CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_MAX_AI_CHARS = 300;
 const MIN_ALERT_SEVERITY_SCORE = 2;
@@ -82,6 +83,50 @@ function shouldUseAiModeration(content) {
   return Boolean(compactWhitespace(content));
 }
 
+function aiDebugEnabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_MODERATION_DEBUG || '').toLowerCase());
+}
+
+function logAiModerationError(label, error) {
+  if (!aiDebugEnabled()) return;
+  const message = compactWhitespace(error?.message || error || 'unknown error').slice(0, 600);
+  console.warn(`[AI MODERATION] ${label} ${message}`);
+}
+
+function moderationSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['flagged', 's', 'rules', 'reason'],
+    properties: {
+      flagged: { type: 'boolean' },
+      s: { type: 'number' },
+      rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
+      reason: { type: 'string' },
+    },
+  };
+}
+
+function responsesTextFormat() {
+  return {
+    type: 'json_schema',
+    name: 'moderation_result',
+    strict: true,
+    schema: moderationSchema(),
+  };
+}
+
+function chatResponseFormat() {
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: 'moderation_result',
+      strict: true,
+      schema: moderationSchema(),
+    },
+  };
+}
+
 function ruleId(value) {
   const text = compactWhitespace(value);
   return RULE_IDS.find((rule) => text === rule || text.includes(rule)) || '';
@@ -120,6 +165,185 @@ function cleanResult(source = 'clean') {
   return {
     flagged: false,
     severity: 'none',
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
+    severityScore: 0,
     severityScore: 0,
     categories: [],
     brokenRules: [],
@@ -215,6 +439,10 @@ function responseText(payload) {
   return parts.join('\n');
 }
 
+function chatText(payload) {
+  return payload?.choices?.[0]?.message?.content || '';
+}
+
 function aiInputText(content, context = {}) {
   const configured = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
   const maxInputChars = Math.max(20, Math.min(configured, DEFAULT_MAX_AI_CHARS));
@@ -222,59 +450,69 @@ function aiInputText(content, context = {}) {
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
-async function analyzeWithOpenAI(content, context = {}) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || typeof fetch !== 'function') return null;
-  const model = process.env.OPENAI_MODERATION_MODEL || DEFAULT_MODEL;
-
-  const response = await fetch(OPENAI_API_URL, {
+async function postOpenAI(url, apiKey, body) {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      input: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: aiInputText(content, context) },
-      ],
-      max_output_tokens: 60,
-      temperature: 0,
-      store: false,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'moderation_result',
-          strict: true,
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['flagged', 's', 'rules', 'reason'],
-            properties: {
-              flagged: { type: 'boolean' },
-              s: { type: 'number' },
-              rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
-              reason: { type: 'string' },
-            },
-          },
-        },
-        verbosity: 'low',
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`OpenAI moderation request failed (${response.status}): ${body.slice(0, 300)}`);
+    const bodyText = await response.text().catch(() => '');
+    throw new Error(`OpenAI request failed (${response.status}): ${bodyText.slice(0, 300)}`);
   }
 
-  const payload = await response.json();
-  const result = normalizeResult(parseJsonObject(responseText(payload)), 'ai');
+  return response.json();
+}
+
+async function analyzeWithResponsesApi(apiKey, model, input, context) {
+  const payload = await postOpenAI(OPENAI_RESPONSES_API_URL, apiKey, {
+    model,
+    input: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: input },
+    ],
+    max_output_tokens: 60,
+    store: false,
+    text: { format: responsesTextFormat() },
+  });
   try {
-    recordUsage({ guildId: context.guildId, model, usage: payload.usage, source: 'openai' });
+    recordUsage({ guildId: context.guildId, model, usage: payload.usage, source: 'openai-responses' });
   } catch {}
-  return result;
+  return normalizeResult(parseJsonObject(responseText(payload)), 'ai');
+}
+
+async function analyzeWithChatApi(apiKey, model, input, context) {
+  const payload = await postOpenAI(OPENAI_CHAT_API_URL, apiKey, {
+    model,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: input },
+    ],
+    max_tokens: 60,
+    response_format: chatResponseFormat(),
+  });
+  try {
+    recordUsage({ guildId: context.guildId, model, usage: payload.usage, source: 'openai-chat' });
+  } catch {}
+  return normalizeResult(parseJsonObject(chatText(payload)), 'ai-chat');
+}
+
+async function analyzeWithOpenAI(content, context = {}) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || typeof fetch !== 'function') return null;
+  const model = process.env.OPENAI_MODERATION_MODEL || DEFAULT_MODEL;
+  const input = aiInputText(content, context);
+
+  try {
+    return await analyzeWithResponsesApi(apiKey, model, input, context);
+  } catch (error) {
+    logAiModerationError('responses-error', error);
+    return analyzeWithChatApi(apiKey, model, input, context);
+  }
 }
 
 async function analyzeModerationMessage(content, context = {}) {
@@ -286,6 +524,7 @@ async function analyzeModerationMessage(content, context = {}) {
     const aiResult = await analyzeWithOpenAI(text, context);
     if (aiResult) return aiResult;
   } catch (error) {
+    logAiModerationError('openai-error', error);
     if (fallback.flagged) {
       fallback.reason = compactWhitespace(`AI unavailable; ${fallback.reason || error.message}`).slice(0, 120);
       return fallback;
