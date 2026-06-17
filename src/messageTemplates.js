@@ -15,6 +15,9 @@ function cleanText(value, fallback = '', max = 4000) {
   const text = String(value ?? '').trim();
   return (text || fallback).slice(0, max);
 }
+function cleanOptionalText(value, max = 4000) {
+  return String(value ?? '').trim().slice(0, max);
+}
 function cleanUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
@@ -29,6 +32,10 @@ function cleanColor(value) {
 }
 function cleanId(value, fallback = 'template') {
   return String(value || fallback).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || fallback;
+}
+function cleanOptionalId(value) {
+  const text = String(value || '').trim();
+  return text ? cleanId(text, '') : '';
 }
 function cleanEmoji(value) {
   return String(value || '').trim().slice(0, 100);
@@ -45,6 +52,8 @@ function clampInteger(value, min, max, fallback) {
 function defaultTemplate(index = 1) {
   return {
     id: `message-${Date.now().toString(36)}-${index}`,
+    type: 'template',
+    folderId: '',
     name: `Message template ${index}`,
     content: '',
     containers: [{
@@ -55,6 +64,8 @@ function defaultTemplate(index = 1) {
       imageUrl: '',
     }],
     componentRows: [],
+    botDefault: false,
+    defaultLocked: false,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -63,7 +74,7 @@ function sanitizeContainer(value, index) {
   return {
     id: cleanId(value?.id, `container-${index + 1}`),
     accentColor: cleanColor(value?.accentColor),
-    text: cleanText(value?.text, 'Add your message here.', 4000),
+    text: cleanOptionalText(value?.text, 4000),
     thumbnailUrl: cleanUrl(value?.thumbnailUrl),
     imageUrl: cleanUrl(value?.imageUrl),
   };
@@ -166,15 +177,36 @@ function sanitizeComponentRow(value, index) {
 
 function sanitizeTemplate(value, index = 0) {
   const source = value && typeof value === 'object' ? value : {};
+  const type = source.type === 'folder' ? 'folder' : 'template';
+  const botDefault = Boolean(source.botDefault);
+  const defaultLocked = Boolean(source.defaultLocked || botDefault);
+  if (type === 'folder') {
+    return {
+      id: cleanId(source.id, `folder-${index + 1}`),
+      type: 'folder',
+      folderId: '',
+      name: cleanText(source.name, `Folder ${index + 1}`, 80),
+      content: '',
+      containers: [],
+      componentRows: [],
+      botDefault: false,
+      defaultLocked: false,
+      updatedAt: new Date().toISOString(),
+    };
+  }
   const hasContainerList = Array.isArray(source.containers);
   const containers = (hasContainerList ? source.containers : []).slice(0, 8).map(sanitizeContainer);
   const componentRows = (Array.isArray(source.componentRows) ? source.componentRows : []).slice(0, 5).map(sanitizeComponentRow);
   return {
     id: cleanId(source.id, `message-${index + 1}`),
+    type: 'template',
+    folderId: cleanOptionalId(source.folderId),
     name: cleanText(source.name, `Message template ${index + 1}`, 80),
     content: String(source.content || '').slice(0, 2000),
     containers: hasContainerList ? containers : defaultTemplate(index + 1).containers,
     componentRows,
+    botDefault,
+    defaultLocked,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -198,21 +230,23 @@ function saveTemplate(guildId, value) {
   const template = sanitizeTemplate(value, list.length);
   const index = list.findIndex((item) => item.id === template.id);
   if (index === -1) list.push(template); else list[index] = template;
-  state[guildId] = list.slice(0, 100);
+  state[guildId] = list.slice(0, 140);
   saveAll(state);
   return clone(template);
 }
 function deleteTemplate(guildId, templateId) {
   const state = loadAll();
   const list = state[guildId] || [];
-  const next = list.filter((item) => item.id !== templateId);
+  const target = list.find((item) => item.id === templateId);
+  if (target?.defaultLocked || target?.botDefault) return false;
+  const next = list.filter((item) => item.id !== templateId && item.folderId !== templateId);
   if (next.length === list.length) return false;
   state[guildId] = next;
   saveAll(state);
   return true;
 }
 function findTemplate(guildId, templateId) {
-  return listTemplates(guildId).find((item) => item.id === templateId) || null;
+  return listTemplates(guildId).find((item) => item.id === templateId && item.type !== 'folder') || null;
 }
 
 function placeholderValues(context = {}) {
@@ -313,7 +347,7 @@ function buildMessagePayload(value, context = {}) {
   template.containers.forEach((container) => {
     const children = textComponents(container.text, container.thumbnailUrl, context);
     if (container.imageUrl) children.push({ type: 12, items: [{ media: { url: container.imageUrl } }] });
-    components.push({ type: 17, accent_color: Number.parseInt(container.accentColor.slice(1), 16), components: children });
+    if (children.length) components.push({ type: 17, accent_color: Number.parseInt(container.accentColor.slice(1), 16), components: children });
   });
   template.componentRows.forEach((row) => components.push(buildComponentRow(template, row)));
   return { flags: COMPONENTS_V2_FLAG, allowedMentions: allowedMentions(context), components };
@@ -394,6 +428,7 @@ function withEphemeralFlag(payload) {
 }
 
 async function sendInteractionMessage(interaction, payload, alreadyReplied) {
+  if (!payload?.components?.length && !payload?.content) return false;
   if (alreadyReplied) {
     await interaction.followUp(payload);
     return true;
@@ -421,7 +456,12 @@ async function runComponentActions(interaction, actions, context) {
         textResponses.push('The selected message template no longer exists.');
         continue;
       }
-      templatePayloads.push(buildMessagePayload(responseTemplate, context));
+      const payload = buildMessagePayload(responseTemplate, context);
+      if (!payload.components.length) {
+        textResponses.push('The selected message template is empty and was not sent.');
+        continue;
+      }
+      templatePayloads.push(payload);
     }
   }
 
@@ -439,7 +479,7 @@ async function runComponentActions(interaction, actions, context) {
         ...(nextPayload.components || []),
       ];
     }
-    replied = await sendInteractionMessage(interaction, nextPayload, replied);
+    replied = await sendInteractionMessage(interaction, nextPayload, replied) || replied;
   }
 
   if (textResponses.length) {
@@ -448,7 +488,7 @@ async function runComponentActions(interaction, actions, context) {
       content,
       flags: EPHEMERAL_FLAG,
       allowedMentions: allowedMentions(context),
-    }, replied);
+    }, replied) || replied;
   }
 }
 
