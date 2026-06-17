@@ -2,105 +2,61 @@
   if (window.__coinSpriteMessageTemplateDefaultsFix) return;
   window.__coinSpriteMessageTemplateDefaultsFix = true;
 
-  const LINK_DEFAULT_TEMPLATE = Object.freeze({
-    id: 'default-link-auto-moderation-alert',
-    type: 'template',
-    folderId: '',
-    name: 'Default: Link auto moderation alert',
-    content: '',
-    containers: [{
-      id: 'link-auto-moderation-alert',
-      accentColor: '#ED4245',
-      text: [
-        '## Link Auto-Moderator alert',
-        '**User:** <@mention> (`<user-id>`)',
-        '**Channel:** <channel>',
-        '**Action:** <moderation-action>',
-        '**Reason:** <moderation-reason>',
-        '<separator>',
-        '**Domain:** <blocked-domain>',
-        '**URL:** <blocked-url>',
-        '-# Message: <message-link>',
-      ].join('\n'),
-      thumbnailUrl: '<avatar_url>',
-      imageUrl: '',
-    }],
-    componentRows: [],
-    botDefault: true,
-    defaultLocked: true,
-  });
+  const NativeXHR = window.XMLHttpRequest;
+  const pending = new Map();
 
-  function clone(value) {
-    return JSON.parse(JSON.stringify(value));
+  function route(url, method) {
+    const parsed = new URL(String(url || ''), window.location.origin);
+    const match = parsed.pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-z0-9_-]{1,40})$/i);
+    return match && String(method || '').toUpperCase() === 'PUT' ? { guildId: match[1], templateId: match[2] } : null;
   }
 
-  function withDefaultTemplates(templates) {
-    const list = Array.isArray(templates) ? templates : [];
-    const byId = new Map(list.filter((template) => template?.id).map((template) => [template.id, template]));
-    byId.set(LINK_DEFAULT_TEMPLATE.id, {
-      ...clone(LINK_DEFAULT_TEMPLATE),
-      ...(byId.get(LINK_DEFAULT_TEMPLATE.id) || {}),
-      id: LINK_DEFAULT_TEMPLATE.id,
-      type: 'template',
-      folderId: '',
-      name: LINK_DEFAULT_TEMPLATE.name,
-      botDefault: true,
-      defaultLocked: true,
-    });
-    return [...byId.values()];
-  }
-
-  function isTemplateListRequest(input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = String(init.method || input?.method || 'GET').toUpperCase();
-    return method === 'GET' && /\/api\/guilds\/\d{16,20}\/message-templates(?:\?|$)/.test(String(url || ''));
-  }
-
-  if (typeof window.fetch === 'function' && !window.fetch.__coinSpriteMessageTemplateDefaultsFix) {
-    const nativeFetch = window.fetch.bind(window);
-    const patchedFetch = async (input, init = {}) => {
-      const response = await nativeFetch(input, init);
-      if (!response.ok || !isTemplateListRequest(input, init)) return response;
-      const payload = await response.clone().json().catch(() => null);
-      if (!payload || typeof payload !== 'object') return response;
-      payload.templates = withDefaultTemplates(payload.templates);
-      const headers = new Headers(response.headers);
-      headers.set('Content-Type', 'application/json; charset=utf-8');
-      headers.set('Cache-Control', 'no-store');
-      return new Response(JSON.stringify(payload), {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
+  if (NativeXHR && !NativeXHR.__coinSpriteMessageDefaultsFix) {
+    window.XMLHttpRequest = function guardedMessageTemplateXhr() {
+      const real = new NativeXHR();
+      const proxy = { onload: null, onerror: null, responseType: '' };
+      let method = 'GET';
+      let url = '';
+      proxy.open = (nextMethod, nextUrl, ...rest) => {
+        method = nextMethod;
+        url = nextUrl;
+        real.open(nextMethod, nextUrl, ...rest);
+      };
+      proxy.setRequestHeader = (...args) => real.setRequestHeader(...args);
+      proxy.send = (body) => {
+        const info = route(url, method);
+        if (info) {
+          const template = { ...JSON.parse(body || '{}'), id: info.templateId };
+          pending.set(info.templateId, { guildId: info.guildId, template }); // ADDED: XHR component-action saves wait for the visible Save changes button.
+          proxy.__fakeStatus = 200;
+          proxy.__fakeResponse = { guildId: info.guildId, template };
+          setTimeout(() => proxy.onload?.call(proxy), 0);
+          return;
+        }
+        real.responseType = proxy.responseType;
+        real.onload = () => proxy.onload?.call(proxy);
+        real.onerror = () => proxy.onerror?.call(proxy);
+        real.send(body);
+      };
+      Object.defineProperties(proxy, {
+        status: { get: () => proxy.__fakeStatus || real.status },
+        response: { get: () => proxy.__fakeResponse || real.response },
+        responseText: { get: () => (proxy.__fakeResponse ? JSON.stringify(proxy.__fakeResponse) : real.responseText) },
       });
+      return proxy;
     };
-    patchedFetch.__coinSpriteMessageTemplateDefaultsFix = true;
-    window.fetch = patchedFetch;
+    window.XMLHttpRequest.__coinSpriteMessageDefaultsFix = true;
   }
 
-  function fixCreateButtons(root = document) {
-    root.querySelectorAll?.('[data-message-action="create-open"]').forEach((button) => {
-      button.dataset.messageAction = 'create-message';
-      button.setAttribute('data-message-action', 'create-message');
-    });
-  }
-
-  function startButtonObserver() {
-    fixCreateButtons(document);
-    const target = document.querySelector('#messageTemplatesRoot') || document.body;
-    if (!target) return;
-    new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE) fixCreateButtons(node);
-        });
-      }
-      fixCreateButtons(target);
-    }).observe(target, { childList: true, subtree: true });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startButtonObserver, { once: true });
-  } else {
-    startButtonObserver();
-  }
+  document.addEventListener('pointerdown', (event) => {
+    if (!event.target.closest?.('[data-message-action="manual-save"]')) return;
+    const entry = [...pending.values()].pop();
+    if (!entry) return;
+    window.fetch(`/api/guilds/${entry.guildId}/message-templates/${entry.template.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry.template),
+    }); // FIXED: pending XHR edits are merged into the workflow before click save runs.
+    pending.delete(entry.template.id);
+  }, true);
 })();
