@@ -25,6 +25,11 @@ function clampSeconds(value, fallback = 300) {
   return Math.max(0, Math.min(2419200, Number(value) || fallback));
 }
 
+function normalizeDomainMode(value, whitelist = []) {
+  if (value === 'whitelist' || value === 'blacklist') return value;
+  return whitelist.length ? 'whitelist' : 'blacklist';
+}
+
 function normalizeAction(action) {
   const type = String(typeof action === 'string' ? action : action?.type || '').trim().toLowerCase();
   if (!ACTION_TYPES.includes(type)) return null;
@@ -42,13 +47,14 @@ function normalizeAction(action) {
 function linkSettings(guildId) {
   const config = getGuildConfig(guildId);
   const link = config?.moderation?.auto?.link || {};
+  const domainWhitelist = uniqueStrings(link.domainWhitelist).map(cleanDomain).filter(Boolean);
   return {
     enabled: Boolean(link.enabled),
     blockDiscordInvites: link.blockDiscordInvites !== false,
     allowedInviteGuildIds: uniqueStrings(link.allowedInviteGuildIds),
-    allowedInviteCodes: uniqueStrings(link.allowedInviteCodes).map((item) => item.toLowerCase()),
+    domainMode: normalizeDomainMode(link.domainMode, domainWhitelist),
     domainBlacklist: uniqueStrings(link.domainBlacklist).map(cleanDomain).filter(Boolean),
-    domainWhitelist: uniqueStrings(link.domainWhitelist).map(cleanDomain).filter(Boolean),
+    domainWhitelist,
     scanChannelIds: uniqueStrings(link.scanChannelIds),
     excludeChannelIds: uniqueStrings(link.excludeChannelIds),
     excludeRoleIds: uniqueStrings(link.excludeRoleIds),
@@ -95,7 +101,6 @@ function inviteCode(rawUrl) {
 
 async function inviteAllowed(message, code, settings, client) {
   if (!code) return false;
-  if (settings.allowedInviteCodes.includes(code)) return true;
   try {
     const invite = await client.fetchInvite(code);
     const guildId = invite?.guild?.id || invite?.guildId || '';
@@ -114,10 +119,10 @@ async function blockedLinkReason(message, settings, client) {
     if (code && settings.blockDiscordInvites && !(await inviteAllowed(message, code, settings, client))) {
       return { reason: 'Blocked Discord invite', url: rawUrl, domain, inviteCode: code };
     }
-    if (settings.domainBlacklist.some((rule) => domainMatches(domain, rule))) {
+    if (settings.domainMode === 'blacklist' && settings.domainBlacklist.some((rule) => domainMatches(domain, rule))) {
       return { reason: 'Blocked blacklisted domain', url: rawUrl, domain, inviteCode: code };
     }
-    if (settings.domainWhitelist.length && !settings.domainWhitelist.some((rule) => domainMatches(domain, rule))) {
+    if (settings.domainMode === 'whitelist' && !settings.domainWhitelist.some((rule) => domainMatches(domain, rule))) {
       return { reason: 'Blocked non-whitelisted domain', url: rawUrl, domain, inviteCode: code };
     }
   }
@@ -180,8 +185,9 @@ module.exports = {
       content: [
         `Link Auto-Moderator: **${settings.enabled ? 'enabled' : 'disabled'}**`,
         `Discord invites: **${settings.blockDiscordInvites ? 'blocked' : 'allowed'}**`,
-        `Domain blacklist: ${settings.domainBlacklist.length || 0}`,
-        `Domain whitelist: ${settings.domainWhitelist.length || 0}`,
+        `Domain filter: **${settings.domainMode === 'whitelist' ? 'block except allowed domains' : 'allow except blocked domains'}**`,
+        `Blocked domains: ${settings.domainBlacklist.length || 0}`,
+        `Allowed domains: ${settings.domainWhitelist.length || 0}`,
         `Actions: ${settings.actions.map((action) => action.type).join(', ') || 'none'}`,
       ].join('\n'),
       ephemeral: true,
