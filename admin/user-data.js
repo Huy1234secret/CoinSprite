@@ -45,7 +45,7 @@
     meta: document.querySelector('#userDataMeta'),
     summary: document.querySelector('#userDataSummary'),
     level: document.querySelector('#userDataLevel'),
-    totalXp: document.querySelector('#userDataTotalXp'),
+    totalXp: document.querySelector('#userDataTotalXp') || document.querySelector('#userDataXp'),
     messages: document.querySelector('#userDataMessages'),
     reactions: document.querySelector('#userDataReactions'),
     punishTier: document.querySelector('#userDataPunishTier'),
@@ -97,6 +97,23 @@
     });
   }
 
+  function numericValue(field, fallback = 0) {
+    const value = Number(field?.value);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function checkedValue(field) {
+    return field?.checked === true;
+  }
+
+  function setInputValue(field, value) {
+    if (field) field.value = value ?? '';
+  }
+
+  function setChecked(field, value) {
+    if (field) field.checked = Boolean(value);
+  }
+
   function formatDate(ms) {
     const numeric = Number(ms);
     if (!Number.isFinite(numeric) || numeric <= 0) return 'Not set';
@@ -138,6 +155,7 @@
   }
 
   function renderSummary(payload) {
+    if (!els.summary) return;
     const data = payload.data || {};
     const active = data.activePunishment;
     const inGuild = payload.member?.inGuild;
@@ -157,24 +175,24 @@
   function fill(payload) {
     const data = payload.data || {};
     loadedUserId = payload.userId || cleanUserId();
-    els.editor.hidden = false;
+    if (els.editor) els.editor.hidden = false;
     if (els.avatar) {
       els.avatar.hidden = !payload.user?.avatarUrl;
       if (payload.user?.avatarUrl) els.avatar.src = payload.user.avatarUrl;
     }
     const name = payload.member?.displayName || payload.user?.globalName || payload.user?.username || `User ${loadedUserId}`;
-    els.title.textContent = name;
-    els.meta.textContent = `ID ${loadedUserId} • ${payload.member?.inGuild ? 'Currently in guild' : 'Not currently in guild / left guild'}${payload.found ? '' : ' • No saved data yet'}`;
-    els.level.value = data.level ?? 1;
-    els.totalXp.value = data.totalXp ?? 0;
-    els.messages.value = data.messages ?? 0;
-    els.reactions.value = data.reactions ?? 0;
-    els.punishTier.value = data.punishTier ?? 0;
-    els.activePunishTier.value = data.activePunishment?.tier ?? 0;
-    els.punishEndsAt.value = toDatetimeLocal(data.activePunishment?.endsAt);
-    els.expLocked.checked = data.expLocked === true;
-    els.expLockReason.value = data.expLockReason || '';
-    if (els.ticketBlacklisted) els.ticketBlacklisted.checked = data.ticketBlacklisted === true;
+    if (els.title) els.title.textContent = name;
+    if (els.meta) els.meta.textContent = `ID ${loadedUserId} • ${payload.member?.inGuild ? 'Currently in guild' : 'Not currently in guild / left guild'}${payload.found ? '' : ' • No saved data yet'}`;
+    setInputValue(els.level, data.level ?? 1);
+    setInputValue(els.totalXp, data.totalXp ?? 0);
+    setInputValue(els.messages, data.messages ?? 0);
+    setInputValue(els.reactions, data.reactions ?? 0);
+    setInputValue(els.punishTier, data.punishTier ?? 0);
+    setInputValue(els.activePunishTier, data.activePunishment?.tier ?? 0);
+    setInputValue(els.punishEndsAt, toDatetimeLocal(data.activePunishment?.endsAt));
+    setChecked(els.expLocked, data.expLocked === true);
+    setInputValue(els.expLockReason, data.expLockReason || '');
+    setChecked(els.ticketBlacklisted, data.ticketBlacklisted === true);
     setXpMode('xp');
     renderSummary(payload);
   }
@@ -203,21 +221,21 @@
   }
 
   function collectPatch() {
-    const activeTier = Math.max(0, Math.min(5, Math.floor(Number(els.activePunishTier.value) || 0)));
+    const activeTier = Math.max(0, Math.min(5, Math.floor(numericValue(els.activePunishTier, 0))));
     return {
       xpMode: getXpMode(),
-      level: Math.max(1, Math.floor(Number(els.level.value) || 1)),
-      totalXp: Math.max(0, Number(els.totalXp.value) || 0),
-      messages: Math.max(0, Math.floor(Number(els.messages.value) || 0)),
-      reactions: Math.max(0, Math.floor(Number(els.reactions.value) || 0)),
-      punishTier: Math.max(0, Math.min(5, Math.floor(Number(els.punishTier.value) || 0))),
+      level: Math.max(1, Math.floor(numericValue(els.level, 1))),
+      totalXp: Math.max(0, numericValue(els.totalXp, 0)),
+      messages: Math.max(0, Math.floor(numericValue(els.messages, 0))),
+      reactions: Math.max(0, Math.floor(numericValue(els.reactions, 0))),
+      punishTier: Math.max(0, Math.min(5, Math.floor(numericValue(els.punishTier, 0)))),
       activePunishment: {
         tier: activeTier,
-        endsAt: activeTier > 0 ? fromDatetimeLocal(els.punishEndsAt.value) : null,
+        endsAt: activeTier > 0 ? fromDatetimeLocal(els.punishEndsAt?.value) : null,
       },
-      expLocked: els.expLocked.checked,
-      expLockReason: String(els.expLockReason.value || '').trim(),
-      ticketBlacklisted: els.ticketBlacklisted?.checked === true,
+      expLocked: checkedValue(els.expLocked),
+      expLockReason: String(els.expLockReason?.value || '').trim(),
+      ticketBlacklisted: checkedValue(els.ticketBlacklisted),
     };
   }
 
@@ -246,7 +264,7 @@
 
   function clearLoadedUser() {
     loadedUserId = '';
-    els.editor.hidden = true;
+    if (els.editor) els.editor.hidden = true;
     setStatus('Enter a user ID to load stored level, punishment, and ticket blacklist data.');
   }
 
@@ -263,8 +281,8 @@
   document.querySelectorAll('input[name="userDataXpMode"]').forEach((field) => {
     field.addEventListener('change', () => {
       const isLevel = getXpMode() === 'level';
-      els.level.classList.toggle('emphasis-input', isLevel);
-      els.totalXp.classList.toggle('emphasis-input', !isLevel);
+      els.level?.classList.toggle('emphasis-input', isLevel);
+      els.totalXp?.classList.toggle('emphasis-input', !isLevel);
     });
   });
 })();
