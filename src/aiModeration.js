@@ -5,7 +5,8 @@ const { recordUsage } = require('./aiTokenUsageStats');
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses';
 const DEFAULT_MODEL = 'gpt-4o-mini';
-const DEFAULT_MAX_AI_CHARS = 600;
+const DEFAULT_MAX_AI_CHARS = 300;
+const MIN_ALERT_SEVERITY_SCORE = 2;
 const RULE_IDS = Object.freeze(['1.1', '1.5', '2.4', '3.1', '3.2', '3.3']);
 const CATEGORY_RULES = Object.freeze({
   rule_1_1_respect: '1.1',
@@ -16,13 +17,13 @@ const CATEGORY_RULES = Object.freeze({
   rule_3_2_hate_harassment: '3.2',
   rule_3_3_sexual_misconduct: '3.3',
 });
-const RULE_GUIDE = [
-  '1.1 respect: targeted abuse, disruptive profanity, bullying, harassment.',
-  '1.5 politics/religion: political or religious discussion or attacks.',
-  '2.4 e-dating: public dating, romantic roleplay, relationship seeking.',
-  '3.1 NSFW/gore: sexual content, nudity, porn, gore, graphic violence.',
-  '3.2 hate/harassment: slurs, threats, discrimination, doxxing, self-harm commands.',
-  '3.3 sexual misconduct: sexual coercion, advances, minors, non-consensual content.',
+const RULE_GUIDE = '1.1 abuse/bullying/disruptive profanity; 1.5 politics/religion; 2.4 public dating/romance; 3.1 NSFW/gore; 3.2 hate/threats/dox/self-harm; 3.3 sexual misconduct/minors/coercion.';
+const SYSTEM_PROMPT = [
+  'Return JSON only.',
+  'Clean or severity under 2: {"flagged":false,"s":0,"rules":[],"reason":""}.',
+  'Violation severity 2-10: {"flagged":true,"s":2,"rules":["1.1"],"reason":"short"}.',
+  'Rules must be numbers only; reason max 8 words.',
+  RULE_GUIDE,
 ].join(' ');
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
 
@@ -109,11 +110,25 @@ function normalizeScore(value, fallback = 0) {
 }
 
 function severityFromScore(score, flagged = false) {
-  if (!flagged || score <= 0) return 'none';
+  if (!flagged || score < MIN_ALERT_SEVERITY_SCORE) return 'none';
   if (score >= 8) return 'critical';
   if (score >= 5) return 'high';
-  if (score >= 2) return 'medium';
-  return 'low';
+  return 'medium';
+}
+
+function cleanResult(source = 'clean') {
+  return {
+    flagged: false,
+    severity: 'none',
+    severityScore: 0,
+    categories: [],
+    brokenRules: [],
+    matchedTerms: [],
+    originalLanguage: '',
+    englishTranslation: '',
+    reason: '',
+    source,
+  };
 }
 
 function fallbackScore(matches = []) {
@@ -123,20 +138,22 @@ function fallbackScore(matches = []) {
 function fallbackAnalyze(content) {
   const text = compactWhitespace(content);
   const matches = keywordMatches(text);
-  const flagged = matches.length > 0;
-  const score = flagged ? fallbackScore(matches) : 0;
+  const score = matches.length ? fallbackScore(matches) : 0;
+  const flagged = score >= MIN_ALERT_SEVERITY_SCORE;
+  if (!flagged) return cleanResult(matches.length ? 'fallback-low' : 'fallback');
+
   const categories = [...new Set(matches.map((entry) => entry.category).filter(Boolean))];
   const matchedTerms = [...new Set(matches.map((entry) => entry.term).filter(Boolean))].slice(0, 10);
   return {
-    flagged,
-    severity: severityFromScore(score, flagged),
+    flagged: true,
+    severity: severityFromScore(score, true),
     severityScore: score,
-    categories: flagged ? categories : [],
-    brokenRules: flagged ? rulesFromMatches(matches) : [],
-    matchedTerms: flagged ? matchedTerms : [],
+    categories,
+    brokenRules: rulesFromMatches(matches),
+    matchedTerms,
     originalLanguage: '',
     englishTranslation: '',
-    reason: flagged ? 'Local rule match.' : '',
+    reason: 'Local rule match.',
     source: 'fallback',
   };
 }
@@ -154,10 +171,11 @@ function parseJsonObject(value) {
 }
 
 function normalizeResult(value = {}, source = 'ai') {
-  const flagged = Boolean(value.flagged);
-  const score = flagged
-    ? normalizeScore(value.s ?? value.score ?? value.severityScore ?? value.severity_score, 5)
+  const score = Boolean(value.flagged)
+    ? normalizeScore(value.s ?? value.score ?? value.severityScore ?? value.severity_score, 0)
     : 0;
+  if (!value.flagged || score < MIN_ALERT_SEVERITY_SCORE) return cleanResult(source);
+
   const ruleSource = Array.isArray(value.rules)
     ? value.rules
     : Array.isArray(value.ruleIds)
@@ -170,16 +188,17 @@ function normalizeResult(value = {}, source = 'ai') {
     ...ruleSource.map(ruleId).filter(Boolean),
     ...rulesFromCategories(categories),
   ])].slice(0, 6);
+
   return {
-    flagged,
-    severity: severityFromScore(score, flagged),
+    flagged: true,
+    severity: severityFromScore(score, true),
     severityScore: score,
-    brokenRules: flagged ? brokenRules : [],
-    categories: flagged ? categories : [],
+    brokenRules,
+    categories,
     matchedTerms: [],
     originalLanguage: '',
     englishTranslation: '',
-    reason: flagged ? compactWhitespace(value.reason || 'Rule violation.').slice(0, 160) : '',
+    reason: compactWhitespace(value.reason || 'Rule violation.').slice(0, 120),
     source,
   };
 }
@@ -198,7 +217,7 @@ function responseText(payload) {
 
 function aiInputText(content, context = {}) {
   const configured = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
-  const maxInputChars = Math.max(80, Math.min(configured, DEFAULT_MAX_AI_CHARS));
+  const maxInputChars = Math.max(20, Math.min(configured, DEFAULT_MAX_AI_CHARS));
   const text = String(content || '').trim();
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
@@ -217,21 +236,10 @@ async function analyzeWithOpenAI(content, context = {}) {
     body: JSON.stringify({
       model,
       input: [
-        {
-          role: 'system',
-          content: [
-            'Discord moderation classifier. Return JSON only.',
-            'Clean message: {"flagged":false,"s":0,"rules":[],"reason":""}.',
-            'Rule break: {"flagged":true,"s":0-10,"rules":["1.1"],"reason":"short"}.',
-            's is severity points only. rules must be rule numbers only. reason <= 12 words.',
-            'No categories, translation, matched words, markdown, or extra text.',
-            'Swearing is allowed unless targeted, excessive, sexual, hateful, threatening, disruptive, or obfuscated.',
-            RULE_GUIDE,
-          ].join(' '),
-        },
+        { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: aiInputText(content, context) },
       ],
-      max_output_tokens: 100,
+      max_output_tokens: 60,
       temperature: 0,
       store: false,
       text: {
@@ -245,9 +253,9 @@ async function analyzeWithOpenAI(content, context = {}) {
             required: ['flagged', 's', 'rules', 'reason'],
             properties: {
               flagged: { type: 'boolean' },
-              s: { type: 'number' },
+              s: { type: 'number', minimum: 0, maximum: 10 },
               rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
-              reason: { type: 'string' },
+              reason: { type: 'string', maxLength: 96 },
             },
           },
         },
@@ -271,7 +279,7 @@ async function analyzeWithOpenAI(content, context = {}) {
 
 async function analyzeModerationMessage(content, context = {}) {
   const text = compactWhitespace(content);
-  if (!text) return normalizeResult({ flagged: false }, 'empty');
+  if (!text) return cleanResult('empty');
 
   const fallback = fallbackAnalyze(text);
   try {
@@ -279,13 +287,13 @@ async function analyzeModerationMessage(content, context = {}) {
     if (aiResult) return aiResult;
   } catch (error) {
     if (fallback.flagged) {
-      fallback.reason = compactWhitespace(`AI unavailable; ${fallback.reason || error.message}`).slice(0, 160);
+      fallback.reason = compactWhitespace(`AI unavailable; ${fallback.reason || error.message}`).slice(0, 120);
       return fallback;
     }
-    return normalizeResult({ flagged: false }, 'ai-error');
+    return cleanResult('ai-error');
   }
 
-  return fallback.flagged ? fallback : normalizeResult({ flagged: false }, 'local-skip');
+  return fallback.flagged ? fallback : cleanResult('local-skip');
 }
 
 module.exports = { analyzeModerationMessage, fallbackAnalyze, shouldUseAiModeration };
