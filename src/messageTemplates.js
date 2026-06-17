@@ -86,6 +86,7 @@ function cleanOptionalText(value, max = 4000) {
 function cleanUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
+  if (/^<[@a-z0-9_-]+>$/i.test(text)) return text.slice(0, 1000);
   try {
     const url = new URL(text);
     return ['http:', 'https:'].includes(url.protocol) ? url.toString().slice(0, 1000) : '';
@@ -358,12 +359,20 @@ function findTemplate(guildId, templateId) {
   return listTemplates(guildId).find((item) => item.id === templateId && item.type !== 'folder') || null;
 }
 
+function userAvatarUrl(user) {
+  if (!user) return '';
+  if (typeof user.displayAvatarURL === 'function') return user.displayAvatarURL({ extension: 'png', size: 128 });
+  if (typeof user.avatarURL === 'function') return user.avatarURL({ extension: 'png', size: 128 });
+  return String(user.avatarUrl || user.avatarURL || '');
+}
+
 function placeholderValues(context = {}) {
   const guild = context.guild || context.member?.guild || null;
   const channel = context.channel || null;
   const user = context.user || context.member?.user || null;
   const member = context.member || null;
   const displayName = member?.displayName || user?.globalName || user?.displayName || user?.username || 'Unknown user';
+  const avatarUrl = userAvatarUrl(user);
   return new Map([
     ['guild-name', guild?.name || 'Unknown server'],
     ['server-name', guild?.name || 'Unknown server'],
@@ -380,6 +389,8 @@ function placeholderValues(context = {}) {
     ['display_name', displayName],
     ['user-id', user?.id || ''],
     ['user_id', user?.id || ''],
+    ['avatar-url', avatarUrl],
+    ['avatar_url', avatarUrl],
   ]);
 }
 
@@ -454,8 +465,10 @@ function buildMessagePayload(value, context = {}) {
   const components = [];
   if (template.content.trim()) components.push({ type: 10, content: formatPlaceholders(template.content.trim(), context) });
   template.containers.forEach((container) => {
-    const children = textComponents(container.text, container.thumbnailUrl, context);
-    if (container.imageUrl) children.push({ type: 12, items: [{ media: { url: container.imageUrl } }] });
+    const thumbnailUrl = cleanUrl(formatPlaceholders(container.thumbnailUrl, context));
+    const imageUrl = cleanUrl(formatPlaceholders(container.imageUrl, context));
+    const children = textComponents(container.text, thumbnailUrl, context);
+    if (imageUrl) children.push({ type: 12, items: [{ media: { url: imageUrl } }] });
     if (children.length) components.push({ type: 17, accent_color: Number.parseInt(container.accentColor.slice(1), 16), components: children });
   });
   template.componentRows.forEach((row) => components.push(buildComponentRow(template, row)));
