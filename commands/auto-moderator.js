@@ -1,10 +1,12 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig } = require('../src/serverConfig');
+const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/[^\s<>()]+/gi;
 const INVITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
 const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
 const DEFAULT_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
+const DEFAULT_LINK_AUTO_MODERATION_TEMPLATE_ID = 'default-link-auto-moderation-alert';
 const COMPONENTS_V2_FLAG = 32768; // ADDED: render Auto-Moderator logs inside Discord Components v2 containers.
 const AUTO_MOD_REPORT_COLOR = 0xED4245; // ADDED: consistent danger accent for blocked-link reports.
 
@@ -42,6 +44,9 @@ function normalizeAction(action) {
   }
   if (type === 'timeout') {
     normalized.durationSeconds = clampSeconds(action?.durationSeconds, 300);
+  }
+  if (type === 'report' || type === 'log') {
+    normalized.reportChannelId = String(action?.reportChannelId || action?.channelId || '').trim();
   }
   return normalized;
 }
@@ -134,11 +139,11 @@ async function blockedLinkReason(message, settings, client) {
 function limitText(value, max = 900) {
   const text = String(value ?? '').trim();
   if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1))}…`;
+  return `${text.slice(0, Math.max(0, max - 1))}...`;
 }
 
 function safeInline(value, fallback = '-') {
-  return limitText(value || fallback, 950).replace(/`/g, 'ˋ');
+  return limitText(value || fallback, 950).replace(/`/g, "'");
 }
 
 function safeCodeBlock(value, max = 1200) {
@@ -200,12 +205,55 @@ function buildAutoModerationReportPayload(message, details, actionName) {
   };
 }
 
-async function logAutoModeration(message, settings, details, actionName) {
-  const channelId = settings.logChannelId;
+function autoModerationValues(message, details, actionName) {
+  return new Map([
+    ['moderation-action', actionName || 'log'],
+    ['moderation-reason', details.reason || 'Blocked link'],
+    ['blocked-domain', details.domain || '-'],
+    ['blocked-url', details.url ? `<${details.url}>` : '`-`'],
+    ['invite-code', details.inviteCode || '-'],
+    ['message-link', messageJumpUrl(message)],
+    ['message-content', limitText(message.content || '[empty message]', 1200).replace(/```/g, '``\u200b`')],
+  ]);
+}
+
+function replaceAutoModerationPlaceholders(value, replacements) {
+  return String(value || '').replace(/<([a-z0-9_-]+)>/gi, (match, token) => replacements.get(token.toLowerCase()) ?? match);
+}
+
+function applyAutoModerationPlaceholders(template, message, details, actionName) {
+  const replacements = autoModerationValues(message, details, actionName);
+  const copy = JSON.parse(JSON.stringify(template));
+  copy.content = replaceAutoModerationPlaceholders(copy.content, replacements);
+  copy.containers = (copy.containers || []).map((container) => ({
+    ...container,
+    text: replaceAutoModerationPlaceholders(container.text, replacements),
+    thumbnailUrl: replaceAutoModerationPlaceholders(container.thumbnailUrl, replacements),
+    imageUrl: replaceAutoModerationPlaceholders(container.imageUrl, replacements),
+  }));
+  return copy;
+}
+
+function autoModerationTemplatePayload(message, details, actionName) {
+  const template = findTemplate(message.guildId, DEFAULT_LINK_AUTO_MODERATION_TEMPLATE_ID);
+  if (!template) return null;
+  return buildMessagePayload(applyAutoModerationPlaceholders(template, message, details, actionName), {
+    guild: message.guild,
+    channel: message.channel,
+    user: message.author,
+    member: message.member,
+  });
+}
+
+async function logAutoModeration(message, settings, details, action) {
+  const actionName = typeof action === 'string' ? action : action?.type;
+  const channelId = String((typeof action === 'object' && action?.reportChannelId) || settings.logChannelId || '').trim();
   if (!channelId) return;
   const channel = message.guild.channels.cache.get(channelId) || await message.guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
-  await channel.send(buildAutoModerationReportPayload(message, details, actionName)).catch(() => null); // FIXED: send a polished container report without pinging mentioned users or roles.
+  const payload = autoModerationTemplatePayload(message, details, actionName)
+    || buildAutoModerationReportPayload(message, details, actionName);
+  await channel.send(payload).catch(() => null); // FIXED: send a polished container report without pinging mentioned users or roles.
 }
 
 async function warnUser(message, action) {
@@ -229,7 +277,7 @@ async function runActions(message, settings, details) {
     } else if (action.type === 'timeout') {
       await timeoutMember(message, action);
     } else if (action.type === 'log' || action.type === 'report') {
-      await logAutoModeration(message, settings, details, action.type);
+      await logAutoModeration(message, settings, details, action);
     }
   }
 }
