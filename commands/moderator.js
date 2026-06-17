@@ -6,7 +6,7 @@ const { renderMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
-const DEFAULT_MAX_AI_CHARS = 600;
+const DEFAULT_MAX_AI_CHARS = 300;
 
 function uniqueIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
@@ -23,6 +23,54 @@ function moderationConfig(guildId) {
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
     maxInputChars: Number(ai.maxInputChars) || DEFAULT_MAX_AI_CHARS,
   };
+}
+
+function collectionValues(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value.values === 'function') return [...value.values()];
+  return [];
+}
+
+function messageModerationText(message) {
+  const parts = [];
+  const content = String(message?.content || '').trim();
+  if (content) parts.push(content);
+
+  for (const sticker of collectionValues(message?.stickers)) {
+    const name = String(sticker?.name || '').trim();
+    if (name) parts.push(`Sticker: ${name}`);
+  }
+
+  for (const attachment of collectionValues(message?.attachments)) {
+    const details = [attachment?.name || attachment?.filename, attachment?.contentType, attachment?.description]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    parts.push(details ? `Attachment: ${details}` : 'Attachment');
+  }
+
+  for (const embed of collectionValues(message?.embeds)) {
+    const details = [embed?.title, embed?.description, embed?.url]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    if (details) parts.push(`Embed: ${details}`);
+  }
+
+  return parts.join('\n').trim();
+}
+
+function moderationDebugEnabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_MODERATION_DEBUG || '').toLowerCase());
+}
+
+function debugModeration(message, status, detail = '') {
+  if (!moderationDebugEnabled()) return;
+  const suffix = detail ? ` ${detail}` : '';
+  console.info(
+    `[AI MODERATION] ${status} guild=${message.guildId || 'unknown'} channel=${message.channelId || 'unknown'} user=${message.author?.id || 'unknown'}${suffix}`,
+  );
 }
 
 function listText(value) {
@@ -74,8 +122,8 @@ function applyModerationPlaceholders(template, message, result) {
   return copy;
 }
 
-function shouldSkipMessage(message) {
-  return !message?.guild || message.__coinSpriteAutoModerated || message.author?.bot || !message.content?.trim();
+function shouldSkipMessage(message, moderationText) {
+  return !message?.guild || message.__coinSpriteAutoModerated || message.author?.bot || !String(moderationText || '').trim();
 }
 
 function shouldScanChannel(message, settings) {
@@ -142,28 +190,56 @@ module.exports = {
     await interaction.reply({
       content: [
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
-        `Scan channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
+        'AI input: message text, stickers, attachments, and embeds',
+        'Minimum alert severity: 2/10',
+        `Alert channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
         `AI input sent: up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI every message' : 'fallback scan only'}`,
+        `Debug logs: ${moderationDebugEnabled() ? 'enabled' : 'off'}`,
       ].join('\n'),
       flags: EPHEMERAL_FLAG,
     });
   },
 
   async handleMessageCreate(message) {
-    if (shouldSkipMessage(message)) return;
-    const settings = moderationConfig(message.guildId);
-    if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings) || hasExcludedRole(message, settings)) return;
+    const moderationText = messageModerationText(message);
+    if (shouldSkipMessage(message, moderationText)) return;
 
-    const result = await analyzeModerationMessage(message.content, {
+    const settings = moderationConfig(message.guildId);
+    if (!settings.enabled) {
+      debugModeration(message, 'skip', 'reason=disabled');
+      return;
+    }
+
+    debugModeration(message, 'check', `chars=${moderationText.length}`);
+    const result = await analyzeModerationMessage(moderationText, {
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
       maxInputChars: settings.maxInputChars,
     });
+    debugModeration(
+      message,
+      'result',
+      `flagged=${Boolean(result.flagged)} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
+    );
+
     if (!result.flagged) return;
+    if (!settings.logChannelId) {
+      debugModeration(message, 'alert-skip', 'reason=no-log-channel');
+      return;
+    }
+    if (!shouldScanChannel(message, settings)) {
+      debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
+      return;
+    }
+    if (hasExcludedRole(message, settings)) {
+      debugModeration(message, 'alert-skip', 'reason=excluded-role');
+      return;
+    }
+
     await sendModerationAlert(message, result, settings);
   },
 };
