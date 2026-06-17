@@ -18,7 +18,6 @@ if (!fs.__coinSpriteMessageTabEditorAsset) {
       '</body>',
       [
         '  <script src="/admin/message-tab-inline-editor.js" defer></script>',
-        '  <script src="/admin/message-tab-inline-editor-guard.js" defer></script>',
         '</body>',
       ].join('\n'),
     );
