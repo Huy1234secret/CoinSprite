@@ -5,6 +5,10 @@
   const nativeFetch = window.fetch.bind(window);
   const templates = new Map();
   const pending = new Map();
+  const DEFAULT_TEMPLATE_FALLBACKS = [
+    { id: 'default-ai-moderation-alert', type: 'template', folderId: '', name: 'Default: AI moderation alert', containers: [{ id: 'ai-moderation-alert', accentColor: '#9B59B6', text: '## AI moderation alert' }], componentRows: [], botDefault: true, defaultLocked: true }, // FIXED: default cards have a local fallback when the rendered grid is empty.
+    { id: 'default-ai-moderation-user-warning', type: 'template', folderId: '', name: 'Default: AI moderation user warning', containers: [{ id: 'ai-moderation-user-warning', accentColor: '#9B59B6', text: '## Message flagged' }], componentRows: [], botDefault: true, defaultLocked: true }, // FIXED: default cards have a local fallback when the rendered grid is empty.
+  ];
   let selectedId = '';
   let guildId = '';
   let bypass = false;
@@ -16,6 +20,15 @@
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function activeGuildId() {
@@ -228,8 +241,8 @@
     if (document.querySelector('#messageTemplateWorkflowStyle')) return;
     const style = document.createElement('style');
     style.id = 'messageTemplateWorkflowStyle';
-    style.textContent = '.message-template-card{position:relative}.message-card-folder-button{position:absolute;right:42px;bottom:10px;display:none;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font-size:11px;font-weight:800}.message-template-card:hover .message-card-folder-button{display:inline-flex}.message-card-folder-button:hover{border-color:var(--primary);background:var(--surface-3)}.message-save-state,.message-manual-save{display:none!important}.message-create-wrap{position:relative}.message-create-menu{position:absolute;z-index:90;top:calc(100% + 8px);right:0;min-width:190px;display:grid;gap:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#0b0d11;box-shadow:0 18px 40px rgba(0,0,0,.45)}.message-create-menu[hidden]{display:none!important}.message-create-menu button{min-height:38px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:800;text-align:left;padding:0 12px}.unsaved-bar{justify-content:center!important;width:auto!important;min-width:316px!important;padding:12px!important}.unsaved-bar>div:first-child{display:none!important}.unsaved-actions{gap:10px!important}.unsaved-bar .message-global-save-button{min-height:44px!important;border:0!important;border-radius:10px!important;background:#23c483!important;color:#fff!important;padding:0 24px!important;font-weight:850!important}.unsaved-bar .message-global-save-button:hover{background:#1fb176!important}';
-    document.head.append(style); // ADDED: shared bar style removes text and updates the Save changes button.
+    style.textContent = '.message-template-card{position:relative}.message-card-folder-button{position:absolute;right:42px;bottom:10px;display:none;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font-size:11px;font-weight:800}.message-template-card:hover .message-card-folder-button{display:inline-flex}.message-card-folder-button:hover{border-color:var(--primary);background:var(--surface-3)}.message-save-state,.message-manual-save{display:none!important}.message-create-wrap{position:relative}.message-create-menu{position:absolute;z-index:90;top:calc(100% + 8px);right:0;min-width:190px;display:grid;gap:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#0b0d11;box-shadow:0 18px 40px rgba(0,0,0,.45)}.message-create-menu[hidden]{display:none!important}.message-create-menu button{min-height:38px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:800;text-align:left;padding:0 12px}.message-template-grid .message-default-card{display:grid!important;min-height:92px!important;visibility:visible!important;opacity:1!important}.message-template-grid .message-default-card[hidden]{display:grid!important}.unsaved-bar{justify-content:center!important;width:auto!important;min-width:316px!important;padding:12px!important}.unsaved-bar>div:first-child{display:none!important}.unsaved-actions{gap:10px!important}.unsaved-bar .message-global-save-button{min-height:44px!important;border:0!important;border-radius:10px!important;background:#23c483!important;color:#fff!important;padding:0 24px!important;font-weight:850!important}.unsaved-bar .message-global-save-button:hover{background:#1fb176!important}';
+    document.head.append(style); // FIXED: shared bar style also forces default message cards to stay visible.
   }
 
   function decorateFolderButtons(host) {
@@ -243,6 +256,34 @@
       button.textContent = 'Folder';
       button.title = 'Move to folder';
       card.append(button); // ADDED: templates show a folder move button on hover.
+    });
+  }
+
+  function isDefaultTemplate(template) {
+    return Boolean(template?.botDefault || template?.defaultLocked || String(template?.id || '').startsWith('default-'));
+  }
+
+  function defaultTemplates() {
+    const fromApi = [...templates.values()].filter((template) => isDefaultTemplate(template) && template.type !== 'folder');
+    return fromApi.length ? fromApi : DEFAULT_TEMPLATE_FALLBACKS; // FIXED: defaults tab never depends on an already-rendered card list.
+  }
+
+  function defaultCard(template) {
+    const count = Array.isArray(template.containers) ? template.containers.length : 0;
+    return `<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="${escapeHtml(template.id)}"><span class="message-template-symbol">📄</span><span><strong>${escapeHtml(template.name || template.id)}</strong><small>${count} container${count === 1 ? '' : 's'}</small></span><span class="message-card-arrow">›</span></button>`;
+  }
+
+  function ensureDefaultMessages(host) {
+    const title = host.querySelector?.('.message-list-head h3')?.textContent?.trim().toLowerCase();
+    if (title !== 'default messages') return;
+    const grid = host.querySelector('.message-template-grid');
+    if (!grid) return;
+    const defaults = defaultTemplates();
+    for (const template of defaults) templates.set(template.id, templates.get(template.id) || clone(template)); // FIXED: fallback default cards still open through the main message editor.
+    const missing = defaults.filter((template) => !grid.querySelector(`[data-id="${CSS.escape(template.id)}"]`));
+    if (missing.length) grid.insertAdjacentHTML('beforeend', missing.map(defaultCard).join('')); // FIXED: repopulates the empty Defaults tab.
+    host.querySelectorAll('.empty-state').forEach((node) => {
+      if (/no default messages/i.test(node.textContent || '')) node.remove(); // FIXED: removes stale empty state after defaults are restored.
     });
   }
 
@@ -301,6 +342,7 @@
     fixCreateButtons(host);
     host.querySelectorAll?.('[data-message-action="manual-save"], .message-manual-save').forEach((button) => button.remove()); // FIXED: removes the extra message save button.
     decorateFolderButtons(host);
+    ensureDefaultMessages(host); // FIXED: restores bot default cards when the Defaults tab renders empty.
     hideOldSaveState();
     syncSaveBar();
   }
