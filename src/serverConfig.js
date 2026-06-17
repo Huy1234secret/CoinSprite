@@ -96,6 +96,7 @@ const DEFAULT_GUILD_CONFIG = {
       enabled: false,
       logChannelId: '',
       scanChannelIds: [],
+      excludeRoleIds: [],
       alertTemplateId: 'default-ai-moderation-alert',
       maxInputChars: 1500,
     },

@@ -476,7 +476,7 @@
 
   function renderList() {
     const query = view.query.trim().toLowerCase();
-    const defaults = view.templates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder' && matchesQuery(item, query));
+    const defaults = view.templates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
     const folders = view.templates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
     const folder = folders.find((item) => item.id === view.folderId) || null;
     const userTemplates = view.templates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
@@ -595,7 +595,14 @@
   root.addEventListener('input', (event) => {
     const template = selected();
     if (!template) {
-      if (event.target.id === 'messageTemplateSearch') { view.query = event.target.value; renderList(); root.querySelector('#messageTemplateSearch')?.focus(); }
+      if (event.target.id === 'messageTemplateSearch') {
+        const cursor = event.target.selectionStart ?? event.target.value.length;
+        view.query = event.target.value;
+        renderList();
+        const nextSearch = root.querySelector('#messageTemplateSearch');
+        nextSearch?.focus({ preventScroll: true });
+        nextSearch?.setSelectionRange?.(cursor, cursor);
+      }
       return;
     }
     if (event.target.dataset.templateField) template[event.target.dataset.templateField] = event.target.value;
@@ -624,8 +631,8 @@
     }
     if (action === 'preview-text') { event.preventDefault(); openTextEditor(button.closest('.message-preview-container'), Number(button.dataset.index)); return; }
     if (action === 'preview-root-text') { event.preventDefault(); openTextEditor(button.closest('.message-root-content'), 0, true); return; }
-    if (action === 'section-templates') { view.section = 'templates'; view.folderId = ''; render(); return; }
-    if (action === 'section-defaults') { view.section = 'defaults'; view.folderId = ''; render(); return; }
+    if (action === 'section-templates') { view.section = 'templates'; view.folderId = ''; view.query = ''; render(); return; }
+    if (action === 'section-defaults') { view.section = 'defaults'; view.folderId = ''; view.query = ''; render(); return; }
     if (action === 'create-open') { root.querySelector('#messageCreateMenu')?.toggleAttribute('hidden'); return; }
     if (action === 'create-message') {
       const template = newTemplate();

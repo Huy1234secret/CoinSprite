@@ -19,6 +19,7 @@ function moderationConfig(guildId) {
     enabled: Boolean(ai.enabled),
     logChannelId: String(ai.logChannelId || ''),
     scanChannelIds: uniqueIds(ai.scanChannelIds),
+    excludeRoleIds: uniqueIds(ai.excludeRoleIds),
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
     maxInputChars: Number(ai.maxInputChars) || DEFAULT_MAX_AI_CHARS,
   };
@@ -82,6 +83,13 @@ function shouldScanChannel(message, settings) {
   return allowed.has(message.channelId) || allowed.has(message.channel?.parentId);
 }
 
+function hasExcludedRole(message, settings) {
+  if (!settings.excludeRoleIds.length) return false;
+  const roles = message.member?.roles?.cache;
+  if (!roles) return false;
+  return settings.excludeRoleIds.some((roleId) => roles.has(roleId));
+}
+
 function cooldownKey(message) {
   return `${message.guildId}:${message.author.id}`;
 }
@@ -137,6 +145,7 @@ module.exports = {
       content: [
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
         `Scan channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
+        `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
         `AI max input: ${settings.maxInputChars} characters`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI' : 'fallback scan only'}`,
@@ -148,7 +157,7 @@ module.exports = {
   async handleMessageCreate(message) {
     if (shouldSkipMessage(message) || inCooldown(message)) return;
     const settings = moderationConfig(message.guildId);
-    if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings)) return;
+    if (!settings.enabled || !settings.logChannelId || !shouldScanChannel(message, settings) || hasExcludedRole(message, settings)) return;
 
     const result = await analyzeModerationMessage(message.content, {
       guildId: message.guildId,

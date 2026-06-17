@@ -11,6 +11,7 @@
     enabled: false,
     logChannelId: '',
     scanChannelIds: [],
+    excludeRoleIds: [],
     alertTemplateId: DEFAULT_ALERT_TEMPLATE_ID,
     maxInputChars: 1500,
     auto: {
@@ -116,6 +117,7 @@
       enabled: Boolean(ai.enabled),
       logChannelId: String(ai.logChannelId || ''),
       scanChannelIds: uniqueIds(ai.scanChannelIds),
+      excludeRoleIds: uniqueIds(ai.excludeRoleIds),
       alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
       maxInputChars: Number(ai.maxInputChars) || 1500,
       auto: {
@@ -162,6 +164,7 @@
         <div class="settings-grid">
           <div class="picker-field"><span class="field-label">Scan channels</span><div id="moderationScanChannelsMount"></div></div>
           <div class="picker-field"><span class="field-label">Log channel</span><div id="moderationLogChannelMount"></div></div>
+          <div class="picker-field"><span class="field-label">Exclude roles</span><div id="moderationExcludeRolesMount"></div></div>
           <label>AI max input characters <input id="moderationMaxInputChars" type="number" min="250" max="4000" step="50" value="${moderatorState.maxInputChars}"></label>
         </div>
         <div class="moderator-template-note">If no scan channels are selected, AI moderation checks every text channel. It uses <strong>Default: AI moderation alert</strong> from the Message tab for staff alerts.</div>
@@ -259,6 +262,15 @@
         onChange: (value) => setAndDirty(() => { moderatorState.logChannelId = value; }),
       });
     }
+    const excludeRoles = root.querySelector('#moderationExcludeRolesMount');
+    if (excludeRoles) {
+      renderPicker(excludeRoles, roleOptions(), moderatorState.excludeRoleIds, {
+        multiple: true,
+        type: 'role',
+        placeholder: 'No excluded roles',
+        onChange: (value) => setAndDirty(() => { moderatorState.excludeRoleIds = uniqueIds(value); }),
+      });
+    }
   }
 
   function mountLinkPickers(root) {
@@ -302,6 +314,7 @@
       enabled: Boolean(moderatorState.enabled),
       logChannelId: moderatorState.logChannelId || '',
       scanChannelIds: uniqueIds(moderatorState.scanChannelIds),
+      excludeRoleIds: uniqueIds(moderatorState.excludeRoleIds),
       alertTemplateId: moderatorState.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID,
       maxInputChars: Math.max(250, Math.min(4000, Number(moderatorState.maxInputChars) || 1500)),
     };
