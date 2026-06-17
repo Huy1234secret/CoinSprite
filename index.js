@@ -378,7 +378,7 @@ client.once(Events.ClientReady, async () => {
   for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   startAdminServer(client);
   await initCommandModules();
-  await inviteRewardsManager.init(client).catch((error) => {
+  await Promise.resolve(inviteRewardsManager.init(client)).catch((error) => { // FIXED: legacy removed invite hook can return nothing without crashing startup.
     console.error('Invite rewards init failed:', error);
     logCommandSystem(`Invite rewards init failed: ${error?.message ?? 'unknown error'}`);
   });
@@ -400,22 +400,22 @@ client.on(Events.GuildDelete, (guild) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   if (!isGuildEnabled(member.guild?.id)) return;
-  await inviteRewardsManager.onGuildMemberAdd(member).catch(() => null);
+  await Promise.resolve(inviteRewardsManager.onGuildMemberAdd(member)).catch(() => null); // FIXED: legacy sync invite hook no longer causes event crashes.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!isGuildEnabled(newMember.guild?.id)) return;
-  await inviteRewardsManager.onGuildMemberUpdate(oldMember, newMember).catch(() => null);
+  await Promise.resolve(inviteRewardsManager.onGuildMemberUpdate(oldMember, newMember)).catch(() => null); // FIXED: legacy sync invite hook no longer causes event crashes.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
 client.on(Events.InviteCreate, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
-  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
+  await Promise.resolve(inviteRewardsManager.onInviteCreateOrDelete(invite)).catch(() => null); // FIXED: legacy sync invite hook no longer causes event crashes.
   for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
 client.on(Events.InviteDelete, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
-  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
+  await Promise.resolve(inviteRewardsManager.onInviteCreateOrDelete(invite)).catch(() => null); // FIXED: legacy sync invite hook no longer causes event crashes.
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
@@ -425,7 +425,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
-  await inviteRewardsManager.onMessageCreate(message).catch(() => null);
+  await Promise.resolve(inviteRewardsManager.onMessageCreate(message)).catch(() => null); // FIXED: legacy sync invite hook no longer throws undefined.catch on every message.
   for (const command of client.commands.values()) {
     if (typeof command.handleMessageCreate !== 'function') continue;
     try {
