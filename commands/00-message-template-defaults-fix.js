@@ -12,15 +12,21 @@ const LINK_AUTO_MODERATION_TEMPLATE = Object.freeze({
     id: 'link-auto-moderation-alert',
     accentColor: '#ED4245',
     text: [
-      '## Link Auto-Moderator alert',
+      '## Link Auto-Moderator report',
       '**User:** <@mention> (`<user-id>`)',
       '**Channel:** <channel>',
       '**Action:** <moderation-action>',
       '**Reason:** <moderation-reason>',
       '<separator>',
-      '**Domain:** <blocked-domain>',
+      '**Domain:** `<blocked-domain>`',
       '**URL:** <blocked-url>',
-      '-# Message: <message-link>',
+      '**Invite code:** `<invite-code>`',
+      '**Message:** <message-link>',
+      '<separator>',
+      '**Blocked message**',
+      '```',
+      '<message-content>',
+      '```',
     ].join('\n'),
     thumbnailUrl: '<avatar_url>',
     imageUrl: '',
@@ -34,7 +40,7 @@ const LINK_AUTO_MODERATION_TEMPLATE = Object.freeze({
 const ADMIN_INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const ADMIN_MESSAGES_PATH = path.join(__dirname, '..', 'admin', 'messages.js');
 const ADMIN_PATCH_MARKER = '__coinSpriteDefaultMessagesCreateFix';
-const HOTFIX_SCRIPT = '  <script src="/admin/message-template-defaults-fix.js?v=defaults-create-2" defer></script>';
+const HOTFIX_SCRIPT = '  <script src="/admin/message-template-defaults-fix.js?v=defaults-create-3" defer></script>';
 const nativeReadFile = fs.readFile.bind(fs);
 const nativeReadFileSync = fs.readFileSync.bind(fs);
 
