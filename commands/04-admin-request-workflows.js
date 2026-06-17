@@ -7,6 +7,8 @@ const { getGuildWorkflows, saveGuildWorkflows } = require('../src/requestControl
 
 const previousCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
+const ADMIN_APP_PATH = path.join(__dirname, '..', 'admin', 'app.js');
+const ADMIN_STYLE_PATH = path.join(__dirname, '..', 'admin', 'style.css');
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 let clientRef = null;
 
@@ -342,8 +344,8 @@ function servePatched(res, filePath, contentType, append) {
 }
 async function handle(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (req.method === 'GET' && url.pathname === '/admin/admin-fixes.js') { servePatched(res, ADMIN_FIXES_PATH, 'application/javascript; charset=utf-8', browserScript()); return true; }
-  if (req.method === 'GET' && url.pathname === '/admin/admin-fixes.css') { servePatched(res, ADMIN_CSS_PATH, 'text/css; charset=utf-8', browserCss()); return true; }
+  if (req.method === 'GET' && url.pathname === '/admin/app.js') { servePatched(res, ADMIN_APP_PATH, 'application/javascript; charset=utf-8', browserScript()); return true; }
+  if (req.method === 'GET' && url.pathname === '/admin/style.css') { servePatched(res, ADMIN_STYLE_PATH, 'text/css; charset=utf-8', browserCss()); return true; }
   const match = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/request-control-workflows$/);
   if (!match) return false;
   if (!await requireAdmin(req, res, match[1])) return true;

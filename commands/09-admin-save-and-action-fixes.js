@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const ADMIN_APP_JS = path.join(__dirname, '..', 'admin', 'app.js');
+
 
 const requestActionValueScript = String.raw`
 ;(() => {
@@ -118,15 +120,13 @@ fs.readFile = function patchedReadFile(filePath, ...args) {
   const callback = args[args.length - 1];
   if (typeof callback !== 'function') return previousReadFile(filePath, ...args);
   const resolved = path.resolve(String(filePath));
-  if (resolved !== path.resolve(ADMIN_FIXES_JS) && resolved !== path.resolve(TICKET_UI_JS)) {
+  if (resolved !== path.resolve(ADMIN_APP_JS)) {
     return previousReadFile(filePath, ...args);
   }
   args[args.length - 1] = (error, data) => {
     if (error) return callback(error, data);
     const source = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
-    callback(null, resolved === path.resolve(ADMIN_FIXES_JS)
-      ? source + requestActionValueScript
-      : patchTicketUi(source));
+    callback(null, `${patchTicketUi(source)}\n${requestActionValueScript}`);
   };
   return previousReadFile(filePath, ...args);
 };

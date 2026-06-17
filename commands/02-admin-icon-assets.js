@@ -180,10 +180,8 @@ function patchTicketUpgradeCss(source) {
 
 const BUNDLED_ADMIN_SCRIPTS = [
   ['tickets.js'],
-  ['app.js', patchAppScript],
+  ['app.js', (source) => patchTicketUpgradeScript(patchAppScript(source))],
   ['user-data.js'],
-  ['admin-fixes.js'],
-  ['ticket-ui-upgrade.js', patchTicketUpgradeScript],
   ['emoji-picker.js'],
   ['message-inline-editor.js'],
   ['message-edit-shortcuts.js'],
@@ -193,9 +191,8 @@ const BUNDLED_ADMIN_SCRIPTS = [
 const TEXT_ASSETS = new Map([
   ['/admin/index.html', { file: 'index.html', type: 'text/html; charset=utf-8', patch: patchAdminIndex }],
   ['/admin/messages.js', { file: 'messages.js', type: 'application/javascript; charset=utf-8', patch: patchMessagesScript }],
-  ['/admin/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8', patch: patchAppScript }],
-  ['/admin/ticket-ui-upgrade.js', { file: 'ticket-ui-upgrade.js', type: 'application/javascript; charset=utf-8', patch: patchTicketUpgradeScript }],
-  ['/admin/ticket-ui-upgrade.css', { file: 'ticket-ui-upgrade.css', type: 'text/css; charset=utf-8', patch: patchTicketUpgradeCss }],
+  ['/admin/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8', patch: (source) => patchTicketUpgradeScript(patchAppScript(source)) }],
+  ['/admin/style.css', { file: 'style.css', type: 'text/css; charset=utf-8', patch: patchTicketUpgradeCss }],
 ]);
 
 function serveAdminBundle(res) {

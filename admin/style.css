@@ -1776,7 +1776,7 @@ textarea:focus,
   }
 }
 
-/* Merged admin-fixes.css */
+/* Merged legacy admin interaction styles */
 .mini-tabs,
 .message-editor-head {
   z-index: 90 !important;
@@ -1976,7 +1976,7 @@ textarea:focus,
   }
 }
 
-/* Merged preview-fixes.css */
+/* Merged preview reset styles */
 .preview-thumbnail,
 .preview-image,
 .message-preview-thumb,
@@ -2380,7 +2380,7 @@ textarea:focus,
   }
 }
 
-/* Merged ticket-ui-upgrade.css */
+/* Merged ticket dashboard styles */
 .ticket-modal {
   width: min(640px, 100%);
   min-height: 0;

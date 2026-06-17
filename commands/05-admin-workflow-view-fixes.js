@@ -3,7 +3,8 @@ const path = require('path');
 
 const originalReadFile = fs.readFile.bind(fs);
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
-const ADMIN_FIXES_CSS = path.resolve(ADMIN_DIR, 'admin-fixes.css');
+const ADMIN_APP_JS = path.resolve(ADMIN_DIR, 'app.js');
+const ADMIN_STYLE_CSS = path.resolve(ADMIN_DIR, 'style.css');
 
 const VIEW_FIX_SCRIPT = `
 (() => {
@@ -103,12 +104,12 @@ fs.readFile = function patchedAdminReadFile(filePath, ...args) {
       return;
     }
     const resolved = path.resolve(String(filePath));
-    if (resolved !== ADMIN_FIXES_JS && resolved !== ADMIN_FIXES_CSS) {
+    if (resolved !== ADMIN_APP_JS && resolved !== ADMIN_STYLE_CSS) {
       callback(null, data);
       return;
     }
     const source = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
-    callback(null, `${source}\n${resolved === ADMIN_FIXES_JS ? VIEW_FIX_SCRIPT : VIEW_FIX_CSS}`);
+    callback(null, `${source}\n${resolved === ADMIN_APP_JS ? VIEW_FIX_SCRIPT : VIEW_FIX_CSS}`);
   });
 };
 
