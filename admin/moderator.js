@@ -18,7 +18,7 @@
         enabled: false,
         blockDiscordInvites: true,
         allowedInviteGuildIds: [],
-        allowedInviteCodes: [],
+        domainMode: 'blacklist',
         domainBlacklist: [],
         domainWhitelist: [],
         scanChannelIds: [],
@@ -85,6 +85,11 @@
     return ACTION_TYPES.includes(value) ? value : 'log';
   }
 
+  function normalizeDomainMode(value, whitelist = []) {
+    if (value === 'whitelist' || value === 'blacklist') return value;
+    return whitelist.length ? 'whitelist' : 'blacklist';
+  }
+
   function actionDefaults(type, source = {}) {
     const actionType = normalizeActionType(type);
     const next = { type: actionType };
@@ -106,6 +111,7 @@
   function normalizeModeration(config = {}) {
     const ai = config.moderation?.ai || {};
     const link = config.moderation?.auto?.link || {};
+    const domainWhitelist = uniqueIds(link.domainWhitelist);
     return {
       enabled: Boolean(ai.enabled),
       logChannelId: String(ai.logChannelId || ''),
@@ -117,9 +123,9 @@
           enabled: Boolean(link.enabled),
           blockDiscordInvites: link.blockDiscordInvites !== false,
           allowedInviteGuildIds: uniqueIds(link.allowedInviteGuildIds),
-          allowedInviteCodes: uniqueIds(link.allowedInviteCodes),
+          domainMode: normalizeDomainMode(link.domainMode, domainWhitelist),
           domainBlacklist: uniqueIds(link.domainBlacklist),
-          domainWhitelist: uniqueIds(link.domainWhitelist),
+          domainWhitelist,
           scanChannelIds: uniqueIds(link.scanChannelIds),
           excludeChannelIds: uniqueIds(link.excludeChannelIds),
           excludeRoleIds: uniqueIds(link.excludeRoleIds),
@@ -191,11 +197,15 @@
 
   function renderLinkPanel() {
     const link = moderatorState.auto.link;
+    const domainMode = normalizeDomainMode(link.domainMode, link.domainWhitelist);
+    const domainRules = domainMode === 'whitelist' ? link.domainWhitelist : link.domainBlacklist;
+    const domainLabel = domainMode === 'whitelist' ? 'Allowed domains' : 'Blocked domains';
+    const domainPlaceholder = domainMode === 'whitelist' ? 'youtube.com\ntwitch.tv\ngithub.com' : 'scam.example\nphishing.example';
     return `<div class="automod-detail">
       <div class="panel moderator-ai-panel">
         <div class="panel-heading">
           <h3>Link Auto-Moderator</h3>
-          <p>Block Discord invites, scam domains, or any link outside an allowed domain list.</p>
+          <p>Block Discord invites, scam domains, or every link outside an allowed domain list.</p>
         </div>
         <label class="checkline"><input id="linkAutoEnabled" type="checkbox" ${link.enabled ? 'checked' : ''}> Enable Link Auto-Moderator</label>
         <label class="checkline"><input id="linkBlockInvites" type="checkbox" ${link.blockDiscordInvites ? 'checked' : ''}> Block Discord invites</label>
@@ -206,9 +216,13 @@
         </div>
         <div class="grid compact-grid automod-textareas">
           <label>Allowed invite guild IDs <textarea id="allowedInviteGuildIds" rows="4" spellcheck="false" placeholder="123456789012345678">${escapeHtml(lines(link.allowedInviteGuildIds))}</textarea></label>
-          <label>Allowed invite codes <textarea id="allowedInviteCodes" rows="4" spellcheck="false" placeholder="abc123">${escapeHtml(lines(link.allowedInviteCodes))}</textarea></label>
-          <label>Domain blacklist <textarea id="domainBlacklist" rows="4" spellcheck="false" placeholder="scam.example">${escapeHtml(lines(link.domainBlacklist))}</textarea></label>
-          <label>Domain whitelist <textarea id="domainWhitelist" rows="4" spellcheck="false" placeholder="youtube.com&#10;twitch.tv&#10;github.com">${escapeHtml(lines(link.domainWhitelist))}</textarea></label>
+          <label class="automod-domain-mode">Domain filter
+            <select id="domainMode">
+              <option value="blacklist" ${domainMode === 'blacklist' ? 'selected' : ''}>Allow all links except blocked domains</option>
+              <option value="whitelist" ${domainMode === 'whitelist' ? 'selected' : ''}>Block all links except allowed domains</option>
+            </select>
+          </label>
+          <label>${domainLabel} <textarea id="domainRules" rows="4" spellcheck="false" placeholder="${escapeHtml(domainPlaceholder)}">${escapeHtml(lines(domainRules))}</textarea></label>
         </div>
         <div class="automod-action-head"><h3>Actions</h3><button class="button small" type="button" data-moderator-action="add-link-action">Add action</button></div>
         <div class="automod-action-list">${link.actions.map(actionRow).join('')}</div>
@@ -295,14 +309,15 @@
 
   function autoSnapshot() {
     const link = moderatorState.auto.link;
+    const domainMode = normalizeDomainMode(link.domainMode, link.domainWhitelist);
     return {
       link: {
         enabled: Boolean(link.enabled),
         blockDiscordInvites: link.blockDiscordInvites !== false,
         allowedInviteGuildIds: uniqueIds(link.allowedInviteGuildIds),
-        allowedInviteCodes: uniqueIds(link.allowedInviteCodes),
-        domainBlacklist: uniqueIds(link.domainBlacklist),
-        domainWhitelist: uniqueIds(link.domainWhitelist),
+        domainMode,
+        domainBlacklist: domainMode === 'blacklist' ? uniqueIds(link.domainBlacklist) : [],
+        domainWhitelist: domainMode === 'whitelist' ? uniqueIds(link.domainWhitelist) : [],
         scanChannelIds: uniqueIds(link.scanChannelIds),
         excludeChannelIds: uniqueIds(link.excludeChannelIds),
         excludeRoleIds: uniqueIds(link.excludeRoleIds),
@@ -343,9 +358,10 @@
     const link = moderatorState.auto.link;
     if (event.target.id === 'moderationMaxInputChars') moderatorState.maxInputChars = Number(event.target.value) || 1500;
     if (event.target.id === 'allowedInviteGuildIds') link.allowedInviteGuildIds = lineValues(event.target.value);
-    if (event.target.id === 'allowedInviteCodes') link.allowedInviteCodes = lineValues(event.target.value);
-    if (event.target.id === 'domainBlacklist') link.domainBlacklist = lineValues(event.target.value);
-    if (event.target.id === 'domainWhitelist') link.domainWhitelist = lineValues(event.target.value);
+    if (event.target.id === 'domainRules') {
+      if (normalizeDomainMode(link.domainMode, link.domainWhitelist) === 'whitelist') link.domainWhitelist = lineValues(event.target.value);
+      else link.domainBlacklist = lineValues(event.target.value);
+    }
     const actionField = event.target.dataset.linkActionField;
     if (actionField && actionField !== 'type') {
       const index = Number(event.target.closest('[data-action-index]')?.dataset.actionIndex);
@@ -362,6 +378,7 @@
     if (event.target.id === 'moderationAiEnabled') moderatorState.enabled = Boolean(event.target.checked);
     if (event.target.id === 'linkAutoEnabled') link.enabled = Boolean(event.target.checked);
     if (event.target.id === 'linkBlockInvites') link.blockDiscordInvites = Boolean(event.target.checked);
+    if (event.target.id === 'domainMode') link.domainMode = normalizeDomainMode(event.target.value, link.domainWhitelist);
     const actionField = event.target.dataset.linkActionField;
     if (actionField) {
       const index = Number(event.target.closest('[data-action-index]')?.dataset.actionIndex);
@@ -371,7 +388,7 @@
       }
     }
     refreshDirtyState();
-    if (['moderationAiEnabled', 'linkAutoEnabled', 'linkBlockInvites'].includes(event.target.id) || actionField === 'type') renderModerator();
+    if (['moderationAiEnabled', 'linkAutoEnabled', 'linkBlockInvites', 'domainMode'].includes(event.target.id) || actionField === 'type') renderModerator();
   });
 
   const nativeApplyTabFromConfig = applyTabFromConfig;
