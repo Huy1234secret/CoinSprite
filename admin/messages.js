@@ -78,7 +78,7 @@
   }
 
   function withBuiltInDefaults(items) {
-    const byId = new Map((Array.isArray(items) ? items : []).map((item) => [item.id, item]));
+    const byId = new Map((Array.isArray(items) ? items : []).filter((item) => item && item.id).map((item) => [item.id, item]));
     for (const template of BUILT_IN_DEFAULT_TEMPLATES) {
       const saved = byId.get(template.id) || {};
       byId.set(template.id, {
@@ -476,13 +476,16 @@
 
   function renderList() {
     const query = view.query.trim().toLowerCase();
-    const defaults = view.templates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
-    const folders = view.templates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
+    const allTemplates = withBuiltInDefaults(view.templates);
+    if (allTemplates.length !== view.templates.length) view.templates = allTemplates;
+    const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
+    const folders = allTemplates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
     const folder = folders.find((item) => item.id === view.folderId) || null;
-    const userTemplates = view.templates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
+    const userTemplates = allTemplates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
     const showingDefaults = view.section === 'defaults';
     const shown = showingDefaults ? defaults : userTemplates;
     root.dataset.folderEnhanced = 'true';
+    root.dataset.defaultTemplateCount = String(defaults.length);
     root.innerHTML = `<div class="message-list-head">
           <div><h3>${showingDefaults ? 'Default messages' : folder ? escapeHtml(folder.name) : 'Message templates'}</h3><p>${showingDefaults ? 'Bot defaults can be edited, but not renamed or deleted.' : 'Create reusable messages and organize them in folders.'}</p></div>
           ${showingDefaults ? '' : '<div class="message-create-wrap"><button class="button primary" type="button" data-message-action="create-open">Create template</button>' + createMenu() + '</div>'}
