@@ -4,8 +4,17 @@
 .message-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
 .message-list-head p { margin-top: 5px; color: var(--muted); }
 .message-search { margin-bottom: 14px; max-width: 520px; }
-.message-template-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-.message-template-card { display: grid; grid-template-columns: 46px minmax(0,1fr) 24px; align-items: center; gap: 12px; min-height: 92px; padding: 14px; color: var(--text); text-align: left; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); cursor: pointer; }
+.message-create-wrap { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.message-create-menu { position: absolute; z-index: 45; top: calc(100% + 8px); right: 0; min-width: 190px; display: grid; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0b0d11; box-shadow: 0 18px 40px rgba(0,0,0,.45); }
+.message-create-menu[hidden] { display: none !important; }
+.message-create-menu button { min-height: 38px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--text); cursor: pointer; font-weight: 800; text-align: left; padding: 0 12px; }
+.message-create-menu button:hover { border-color: var(--primary); background: var(--surface-3); }
+.message-template-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; min-height: 104px; }
+.message-template-card,
+.message-default-card,
+.bot-default-template-card { display: grid !important; visibility: visible !important; opacity: 1 !important; }
+.message-template-grid:empty::before { content: 'No message templates rendered. Refresh the tab if this stays empty.'; display: block; grid-column: 1 / -1; border: 1px dashed var(--line); border-radius: 7px; padding: 18px; color: var(--muted-2); text-align: center; }
+.message-template-card { grid-template-columns: 46px minmax(0,1fr) 24px; align-items: center; gap: 12px; min-height: 92px; padding: 14px; color: var(--text); text-align: left; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); cursor: pointer; }
 .message-template-card:hover { border-color: var(--primary); background: var(--surface-2); }
 .message-template-symbol { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 9px; background: var(--input); border: 1px solid var(--line-soft); }
 .message-template-symbol img { width: 30px; height: 30px; object-fit: contain; }
