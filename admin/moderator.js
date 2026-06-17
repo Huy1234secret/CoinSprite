@@ -4,6 +4,7 @@
 
   const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
   const MODERATOR_TAB_HTML = '<span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/images/moderator.png" alt=""></span><span>Moderator</span>';
+  const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
   const DEFAULT_LINK_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
   const moderatorState = {
     view: 'ai',
@@ -76,14 +77,30 @@
     return uniqueIds(String(value || '').split(/[\n,]+/));
   }
 
+  function clampSeconds(value, fallback = 300) {
+    return Math.max(0, Math.min(2419200, Number(value) || fallback));
+  }
+
+  function normalizeActionType(value) {
+    return ACTION_TYPES.includes(value) ? value : 'log';
+  }
+
+  function actionDefaults(type, source = {}) {
+    const actionType = normalizeActionType(type);
+    const next = { type: actionType };
+    if (actionType === 'warn') {
+      next.message = String(source.message || 'Your message was blocked by Auto-Moderator.').slice(0, 500);
+      next.durationSeconds = clampSeconds(source.durationSeconds, 300);
+    }
+    if (actionType === 'timeout') {
+      next.durationSeconds = clampSeconds(source.durationSeconds, 300);
+    }
+    return next;
+  }
+
   function normalizeActions(actions) {
     const source = Array.isArray(actions) && actions.length ? actions : DEFAULT_LINK_ACTIONS;
-    return source.map((action) => ({
-      type: ['delete', 'warn', 'timeout', 'report', 'log'].includes(action?.type) ? action.type : 'log',
-      message: String(action?.message || 'Your message was blocked by Auto-Moderator.').slice(0, 500),
-      delivery: ['dm', 'reply'].includes(action?.delivery) ? action.delivery : 'reply',
-      durationSeconds: Math.max(0, Math.min(2419200, Number(action?.durationSeconds) || 300)),
-    }));
+    return source.map((action) => actionDefaults(normalizeActionType(action?.type), action));
   }
 
   function normalizeModeration(config = {}) {
@@ -146,18 +163,28 @@
     `;
   }
 
+  function actionFields(action) {
+    if (action.type === 'warn') {
+      return `
+        <label class="automod-warn-field">Warn text <input data-link-action-field="message" type="text" maxlength="500" value="${escapeHtml(action.message || '')}"></label>
+        <label class="automod-duration-field">Warn duration seconds <input data-link-action-field="durationSeconds" type="number" min="0" max="2419200" step="1" value="${Number(action.durationSeconds) || 300}"></label>
+      `;
+    }
+    if (action.type === 'timeout') {
+      return `<label class="automod-duration-field">Timeout seconds <input data-link-action-field="durationSeconds" type="number" min="1" max="2419200" step="1" value="${Number(action.durationSeconds) || 300}"></label>`;
+    }
+    return '';
+  }
+
   function actionRow(action, index) {
-    return `<div class="automod-action-row" data-action-index="${index}">
+    const normalized = actionDefaults(action.type, action);
+    return `<div class="automod-action-row" data-action-index="${index}" data-action-type="${normalized.type}">
       <label>Action
         <select data-link-action-field="type">
-          ${['delete', 'warn', 'timeout', 'report', 'log'].map((type) => `<option value="${type}" ${action.type === type ? 'selected' : ''}>${type}</option>`).join('')}
+          ${ACTION_TYPES.map((type) => `<option value="${type}" ${normalized.type === type ? 'selected' : ''}>${type}</option>`).join('')}
         </select>
       </label>
-      <label class="automod-warn-field">Warn text <input data-link-action-field="message" type="text" maxlength="500" value="${escapeHtml(action.message || '')}"></label>
-      <label class="automod-delivery-field">Delivery
-        <select data-link-action-field="delivery"><option value="reply" ${action.delivery !== 'dm' ? 'selected' : ''}>Reply</option><option value="dm" ${action.delivery === 'dm' ? 'selected' : ''}>DM</option></select>
-      </label>
-      <label class="automod-timeout-field">Timeout seconds <input data-link-action-field="durationSeconds" type="number" min="1" max="2419200" step="1" value="${Number(action.durationSeconds) || 300}"></label>
+      ${actionFields(normalized)}
       <button class="button small danger" type="button" data-moderator-action="remove-link-action">Remove</button>
     </div>`;
   }
@@ -298,14 +325,14 @@
     if (!event.target.closest('#moderatorRoot')) return;
     const link = moderatorState.auto.link;
     if (action === 'add-link-action') {
-      link.actions.push({ type: 'log', message: 'Your message was blocked by Auto-Moderator.', delivery: 'reply', durationSeconds: 300 });
+      link.actions.push(actionDefaults('log'));
       renderModerator();
       refreshDirtyState();
     }
     if (action === 'remove-link-action') {
       const index = Number(event.target.closest('[data-action-index]')?.dataset.actionIndex);
       if (Number.isFinite(index)) link.actions.splice(index, 1);
-      if (!link.actions.length) link.actions.push({ type: 'log' });
+      if (!link.actions.length) link.actions.push(actionDefaults('log'));
       renderModerator();
       refreshDirtyState();
     }
@@ -320,7 +347,7 @@
     if (event.target.id === 'domainBlacklist') link.domainBlacklist = lineValues(event.target.value);
     if (event.target.id === 'domainWhitelist') link.domainWhitelist = lineValues(event.target.value);
     const actionField = event.target.dataset.linkActionField;
-    if (actionField) {
+    if (actionField && actionField !== 'type') {
       const index = Number(event.target.closest('[data-action-index]')?.dataset.actionIndex);
       if (link.actions[index]) {
         link.actions[index][actionField] = actionField === 'durationSeconds' ? Number(event.target.value) || 300 : event.target.value;
@@ -338,7 +365,10 @@
     const actionField = event.target.dataset.linkActionField;
     if (actionField) {
       const index = Number(event.target.closest('[data-action-index]')?.dataset.actionIndex);
-      if (link.actions[index]) link.actions[index][actionField] = actionField === 'durationSeconds' ? Number(event.target.value) || 300 : event.target.value;
+      if (link.actions[index]) {
+        if (actionField === 'type') link.actions[index] = actionDefaults(event.target.value, link.actions[index]);
+        else link.actions[index][actionField] = actionField === 'durationSeconds' ? Number(event.target.value) || 300 : event.target.value;
+      }
     }
     refreshDirtyState();
     if (['moderationAiEnabled', 'linkAutoEnabled', 'linkBlockInvites'].includes(event.target.id) || actionField === 'type') renderModerator();
