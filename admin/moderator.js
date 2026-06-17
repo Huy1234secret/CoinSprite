@@ -411,6 +411,7 @@
       moderatorState.enabled = next.enabled;
       moderatorState.logChannelId = next.logChannelId;
       moderatorState.scanChannelIds = next.scanChannelIds;
+      moderatorState.excludeRoleIds = next.excludeRoleIds;
       moderatorState.alertTemplateId = next.alertTemplateId;
       moderatorState.maxInputChars = next.maxInputChars;
       moderatorState.auto = next.auto;
