@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { createCanvas } = require('@napi-rs/canvas');
 
 const WIDTH = 900;
@@ -9,6 +11,9 @@ const CONTENT_X = PADDING + AVATAR_SIZE + 16;
 const CONTENT_WIDTH = WIDTH - CONTENT_X - PADDING;
 const LINE_HEIGHT = 25;
 const MAX_LINES = 18;
+const SCREENSHOT_DIR = process.env.MODERATION_SCREENSHOT_DIR
+  ? path.resolve(process.env.MODERATION_SCREENSHOT_DIR)
+  : path.join(__dirname, '..', 'data', 'moderation-screenshots');
 
 function cleanText(value, max = 1600) {
   return String(value || '')
@@ -16,6 +21,31 @@ function cleanText(value, max = 1600) {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
     .trim()
     .slice(0, max);
+}
+
+function safePathPart(value, fallback = 'unknown', max = 48) {
+  const text = cleanText(value, max)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, max);
+  return text || fallback;
+}
+
+function screenshotDirectory(message) {
+  return path.join(
+    SCREENSHOT_DIR,
+    safePathPart(message.guildId || message.guild?.id, 'dm', 24),
+    safePathPart(message.channelId || message.channel?.id, 'channel', 24),
+  );
+}
+
+function screenshotFilename(message) {
+  const created = message.createdAt instanceof Date ? message.createdAt : new Date(Number(message.createdTimestamp) || Date.now());
+  const timestamp = created.toISOString().replace(/[:.]/g, '-');
+  const user = safePathPart(message.author?.username || message.author?.id, 'user', 32);
+  const id = safePathPart(message.id || Date.now(), 'message', 32);
+  return `${timestamp}-${user}-${id}.png`;
 }
 
 function displayName(message) {
@@ -194,8 +224,16 @@ async function renderMessageScreenshot(message, moderation = {}) {
   drawPill(ctx, scoreText, CONTENT_X, footerY, '#ED4245');
   drawPill(ctx, `Rule ${rules}`, CONTENT_X + 140, footerY, '#5865F2');
 
-  const filename = `moderation-message-${message.id || Date.now()}.png`;
-  return { attachment: await canvas.encode('png'), name: filename };
+  return { attachment: await canvas.encode('png'), name: screenshotFilename(message) };
 }
 
-module.exports = { renderMessageScreenshot };
+async function saveMessageScreenshot(message, moderation = {}) {
+  const screenshot = await renderMessageScreenshot(message, moderation);
+  const directory = screenshotDirectory(message);
+  fs.mkdirSync(directory, { recursive: true });
+  const filePath = path.join(directory, screenshot.name);
+  fs.writeFileSync(filePath, screenshot.attachment);
+  return { ...screenshot, path: filePath };
+}
+
+module.exports = { renderMessageScreenshot, saveMessageScreenshot };
