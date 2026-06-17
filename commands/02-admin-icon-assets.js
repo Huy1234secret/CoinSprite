@@ -8,6 +8,7 @@ const previousLoad = Module._load;
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const IMAGE_DIR = process.env.ADMIN_IMAGE_DIR || path.join(__dirname, '..', 'images');
 const EMOJI_PICKER_URL = 'https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js';
+const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
 const ICONS = new Map([
   ['/admin/images/leveling.png', path.join(IMAGE_DIR, 'leveling.png')],
   ['/admin/images/ticket.png', path.join(IMAGE_DIR, 'ticket.png')],
@@ -18,6 +19,13 @@ let clientRef = null;
 function notFound(res) {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not found');
+}
+
+function patchAdminIndex(source) {
+  return source.replace(
+    /\n\s*<script src="\/admin\/tickets\.js" defer><\/script>[\s\S]*?<script src="\/admin\/owner-panel\.js\?v=owner-tokens-1" defer><\/script>/,
+    '\n  <script src="/admin/admin.bundle.js" defer></script>',
+  );
 }
 
 function patchMessagesScript(source) {
@@ -84,7 +92,7 @@ function emojiPickerFunction() {
     pop.append(picker);
     wrap.append(button, pop);
   }
-`;
+ `;
 }
 
 function adminInteractionFixes() {
@@ -125,7 +133,7 @@ function adminInteractionFixes() {
   new MutationObserver(schedulePunishmentRoleCleanup).observe(document.body, { childList: true, subtree: true });
   schedulePunishmentRoleCleanup();
 })();
-`;
+ `;
 }
 
 function patchTicketUpgradeScript(source) {
@@ -167,15 +175,43 @@ function patchTicketUpgradeCss(source) {
   --button-active-background: #2b3040;
   --indicator-color: #5865f2;
 }
-`;
+ `;
 }
 
+const BUNDLED_ADMIN_SCRIPTS = [
+  ['tickets.js'],
+  ['app.js', patchAppScript],
+  ['user-data.js'],
+  ['admin-fixes.js'],
+  ['ticket-ui-upgrade.js', patchTicketUpgradeScript],
+  ['emoji-picker.js'],
+  ['message-inline-editor.js'],
+  ['message-edit-shortcuts.js'],
+  ['owner-panel.js'],
+];
+
 const TEXT_ASSETS = new Map([
+  ['/admin/index.html', { file: 'index.html', type: 'text/html; charset=utf-8', patch: patchAdminIndex }],
   ['/admin/messages.js', { file: 'messages.js', type: 'application/javascript; charset=utf-8', patch: patchMessagesScript }],
   ['/admin/app.js', { file: 'app.js', type: 'application/javascript; charset=utf-8', patch: patchAppScript }],
   ['/admin/ticket-ui-upgrade.js', { file: 'ticket-ui-upgrade.js', type: 'application/javascript; charset=utf-8', patch: patchTicketUpgradeScript }],
   ['/admin/ticket-ui-upgrade.css', { file: 'ticket-ui-upgrade.css', type: 'text/css; charset=utf-8', patch: patchTicketUpgradeCss }],
 ]);
+
+function serveAdminBundle(res) {
+  try {
+    const output = BUNDLED_ADMIN_SCRIPTS.map(([fileName, patch]) => {
+      const source = fs.readFileSync(path.join(ADMIN_DIR, fileName), 'utf8');
+      const code = typeof patch === 'function' ? patch(source) : source;
+      return `;\n/* admin/${fileName} */\n${code}\n//# sourceURL=/admin/${fileName}`;
+    }).join('\n');
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(output);
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(`console.error(${JSON.stringify(`Admin bundle failed: ${error.message}`)});`);
+  }
+}
 
 function serveTextAsset(res, asset) {
   fs.readFile(path.join(ADMIN_DIR, asset.file), 'utf8', (error, source) => {
@@ -201,7 +237,11 @@ function redirectBotAvatar(res) {
 http.createServer = function adminAssetServer(listener) {
   return previousCreateServer((req, res) => {
     const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
-    const textAsset = TEXT_ASSETS.get(pathname);
+    if (pathname === ADMIN_BUNDLE_PATH) {
+      serveAdminBundle(res);
+      return;
+    }
+    const textAsset = TEXT_ASSETS.get(pathname === '/' || pathname === '/admin' ? '/admin/index.html' : pathname);
     if (textAsset) {
       serveTextAsset(res, textAsset);
       return;
