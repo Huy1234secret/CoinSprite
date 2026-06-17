@@ -3,6 +3,46 @@
   if (!root) return;
 
   const PALETTE = ['#FFFFFF', '#5865F2', '#57F287', '#FEE75C', '#ED4245', '#EB459E', '#9B59B6', '#2B2D31', '#3498DB', '#1ABC9C', '#E67E22', '#99AAB5'];
+  const BUILT_IN_DEFAULT_TEMPLATES = [
+    {
+      "id": "default-ai-moderation-alert",
+      "type": "template",
+      "folderId": "",
+      "name": "Default: AI moderation alert",
+      "content": "",
+      "containers": [
+        {
+          "id": "ai-moderation-alert",
+          "accentColor": "#9B59B6",
+          "text": "## AI moderation alert\n**User:** <@mention> (<user-id>)\n**Channel:** <channel>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n<separator>\n**Reason**\n<moderation-reason>\n<separator>\n**English translation**\n<english-translation>\n<separator>\n-# Original language: <original-language>\n-# Matched terms: <matched-terms>\n-# Message: <message-link>",
+          "thumbnailUrl": "<avatar_url>",
+          "imageUrl": ""
+        }
+      ],
+      "componentRows": [],
+      "botDefault": true,
+      "defaultLocked": true
+    },
+    {
+      "id": "default-ai-moderation-user-warning",
+      "type": "template",
+      "folderId": "",
+      "name": "Default: AI moderation user warning",
+      "content": "",
+      "containers": [
+        {
+          "id": "ai-moderation-user-warning",
+          "accentColor": "#9B59B6",
+          "text": "## Message flagged\n<@mention>, your message in <channel> was flagged by AI moderation.\n<separator>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n**Reason:** <moderation-reason>\n-# If this was a mistake, please contact staff.",
+          "thumbnailUrl": "",
+          "imageUrl": ""
+        }
+      ],
+      "componentRows": [],
+      "botDefault": true,
+      "defaultLocked": true
+    }
+  ];
   let popover = null;
   const view = {
     guildId: '',
@@ -15,6 +55,8 @@
     saveTimer: null,
     notice: '',
     noticeType: '',
+    section: 'templates',
+    folderId: '',
   };
 
   const selected = () => view.templates.find((item) => item.id === view.selectedId) || null;
@@ -31,6 +73,28 @@
     return /^[0-9a-f]{6}$/i.test(clean) ? `#${clean.toUpperCase()}` : '';
   };
 
+  function cloneTemplate(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function withBuiltInDefaults(items) {
+    const byId = new Map((Array.isArray(items) ? items : []).map((item) => [item.id, item]));
+    for (const template of BUILT_IN_DEFAULT_TEMPLATES) {
+      const saved = byId.get(template.id) || {};
+      byId.set(template.id, {
+        ...cloneTemplate(template),
+        ...saved,
+        id: template.id,
+        type: 'template',
+        folderId: '',
+        name: template.name,
+        botDefault: true,
+        defaultLocked: true,
+      });
+    }
+    return [...byId.values()];
+  }
+
   async function request(url, options = {}) {
     const response = await fetch(url, {
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
@@ -45,6 +109,8 @@
     const stamp = Date.now().toString(36);
     return {
       id: `message-${stamp}`,
+      type: 'template',
+      folderId: view.folderId,
       name: `Message template ${view.templates.length + 1}`,
       content: '',
       containers: [{
@@ -76,7 +142,7 @@
     root.innerHTML = '<div class="message-loading">Loading message templates...</div>';
     try {
       const payload = await request(`/api/guilds/${view.guildId}/message-templates`);
-      view.templates = payload.templates || [];
+      view.templates = withBuiltInDefaults(payload.templates || []);
       render();
     } catch (error) {
       root.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
@@ -380,19 +446,55 @@
     requestAnimationFrame(() => editor.focus({ preventScroll: true }));
   }
 
+  function templateCard(item, kind = 'template') {
+    const isFolder = kind === 'folder' || item.type === 'folder';
+    const icon = isFolder ? '📁' : item.botDefault || item.defaultLocked ? '📄' : '<img src="/admin/images/message.png" alt="" aria-hidden="true">';
+    const action = isFolder ? 'folder-open' : 'open';
+    const meta = isFolder ? 'Folder' : `${(item.containers || []).length} container${(item.containers || []).length === 1 ? '' : 's'}`;
+    return `<button class="message-template-card ${isFolder ? 'message-folder-card' : ''}${item.botDefault || item.defaultLocked ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">
+        <span class="message-template-symbol">${icon}</span>
+        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span><span class="message-card-arrow">›</span>
+      </button>`;
+  }
+
+  function folderHeader(folder) {
+    if (!folder) return '';
+    return `<div class="message-folder-head"><button class="button subtle" type="button" data-message-action="folder-back">Back</button><input id="messageFolderName" type="text" maxlength="80" value="${escapeHtml(folder.name)}"><button class="button danger" type="button" data-message-action="folder-delete">Delete folder</button></div>`;
+  }
+
+  function createMenu() {
+    return '<div class="message-create-menu" id="messageCreateMenu" hidden><button type="button" data-message-action="create-message">Message</button><button type="button" data-message-action="create-folder">Folder</button></div>';
+  }
+
+  function matchesQuery(item, query) {
+    return !query || `${item.name || ''} ${item.id || ''}`.toLowerCase().includes(query);
+  }
+
+  function isDefaultTemplate(item) {
+    return Boolean(item.botDefault || item.defaultLocked || String(item.id || '').startsWith('default-'));
+  }
+
   function renderList() {
     const query = view.query.trim().toLowerCase();
-    const templates = view.templates.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && (!query || `${item.name} ${item.id}`.toLowerCase().includes(query)));
+    const defaults = view.templates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder' && matchesQuery(item, query));
+    const folders = view.templates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
+    const folder = folders.find((item) => item.id === view.folderId) || null;
+    const userTemplates = view.templates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
+    const showingDefaults = view.section === 'defaults';
+    const shown = showingDefaults ? defaults : userTemplates;
+    root.dataset.folderEnhanced = 'true';
     root.innerHTML = `<div class="message-list-head">
-        <div><h3>Message templates</h3><p>Create reusable Discord Components V2 messages for this server.</p></div>
-        <button class="button primary" type="button" data-message-action="create">Create template</button>
-      </div>
-      <div class="message-search"><input id="messageTemplateSearch" type="search" placeholder="Search templates" value="${escapeHtml(view.query)}"></div>
-      <div class="message-template-grid">${templates.map((item) => `<button class="message-template-card" type="button" data-message-action="open" data-id="${escapeHtml(item.id)}">
-        <span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span>
-        <span><strong>${escapeHtml(item.name)}</strong><small>${item.containers.length} container${item.containers.length === 1 ? '' : 's'}</small></span><span class="message-card-arrow">›</span>
-      </button>`).join('')}</div>
-      ${templates.length ? '' : '<div class="empty-state">No message templates found.</div>'}`;
+          <div><h3>${showingDefaults ? 'Default messages' : folder ? escapeHtml(folder.name) : 'Message templates'}</h3><p>${showingDefaults ? 'Bot defaults can be edited, but not renamed or deleted.' : 'Create reusable messages and organize them in folders.'}</p></div>
+          ${showingDefaults ? '' : '<div class="message-create-wrap"><button class="button primary" type="button" data-message-action="create-open">Create template</button>' + createMenu() + '</div>'}
+        </div>
+        <nav class="message-section-tabs"><button type="button" class="${showingDefaults ? '' : 'active'}" data-message-action="section-templates">Templates</button><button type="button" class="${showingDefaults ? 'active' : ''}" data-message-action="section-defaults">Defaults</button></nav>
+        <div class="message-search"><input id="messageTemplateSearch" type="search" placeholder="Search ${showingDefaults ? 'defaults' : 'templates'}" value="${escapeHtml(view.query)}"></div>
+        ${showingDefaults ? '' : folderHeader(folder)}
+        <div class="message-template-grid">
+          ${!showingDefaults && !view.folderId ? folders.map((item) => templateCard(item, 'folder')).join('') : ''}
+          ${shown.map((item) => templateCard(item)).join('')}
+        </div>
+        ${shown.length || (!showingDefaults && !view.folderId && folders.length) ? '' : `<div class="empty-state">${showingDefaults ? 'No default messages found.' : 'No message templates found.'}</div>`}`;
   }
 
   function renderContainer(container, index) {
@@ -456,14 +558,15 @@
   function renderEditor() {
     const template = selected();
     if (!template) return renderList();
+    const locked = Boolean(template.botDefault || template.defaultLocked || String(template.id || '').startsWith('default-'));
     root.innerHTML = `<div class="message-editor-head">
-        <button class="icon-button" type="button" data-message-action="back" title="Back">←</button>
-        <label>Template name <input type="text" maxlength="80" value="${escapeHtml(template.name)}" data-template-field="name"></label>
-        <span id="messageSaveState" class="message-save-state ${view.noticeType}">${escapeHtml(view.notice)}</span>
-        <button class="button danger" type="button" data-message-action="delete">Delete</button>
-      </div>
-      <nav class="message-editor-tabs">${[['edit', 'Edit'], ['use', 'Use']].map(([value, label]) => `<button type="button" class="${view.tab === value ? 'active' : ''}" data-message-action="tab" data-value="${value}">${label}</button>`).join('')}</nav>
-      <div class="message-editor-body">${view.tab === 'use' ? renderUse(template) : renderEdit(template)}</div>`;
+          <button class="icon-button" type="button" data-message-action="back" title="Back">←</button>
+          <label>Template name <input type="text" maxlength="80" value="${escapeHtml(template.name)}" data-template-field="name" ${locked ? 'disabled title="Default templates cannot be renamed."' : ''}></label>
+          <span id="messageSaveState" class="message-save-state ${view.noticeType}">${escapeHtml(view.notice)}</span>
+          ${locked ? '' : '<button class="button danger" type="button" data-message-action="delete">Delete</button>'}
+        </div>
+        <nav class="message-editor-tabs">${[['edit', 'Edit'], ['use', 'Use']].map(([value, label]) => `<button type="button" class="${view.tab === value ? 'active' : ''}" data-message-action="tab" data-value="${value}">${label}</button>`).join('')}</nav>
+        <div class="message-editor-body">${view.tab === 'use' ? renderUse(template) : renderEdit(template)}</div>`;
     mountUsePicker();
   }
 
@@ -521,6 +624,38 @@
     }
     if (action === 'preview-text') { event.preventDefault(); openTextEditor(button.closest('.message-preview-container'), Number(button.dataset.index)); return; }
     if (action === 'preview-root-text') { event.preventDefault(); openTextEditor(button.closest('.message-root-content'), 0, true); return; }
+    if (action === 'section-templates') { view.section = 'templates'; view.folderId = ''; render(); return; }
+    if (action === 'section-defaults') { view.section = 'defaults'; view.folderId = ''; render(); return; }
+    if (action === 'create-open') { root.querySelector('#messageCreateMenu')?.toggleAttribute('hidden'); return; }
+    if (action === 'create-message') {
+      const template = newTemplate();
+      view.templates.push(template);
+      view.selectedId = template.id;
+      view.tab = 'edit';
+      view.notice = 'Unsaved changes';
+      view.noticeType = 'pending';
+      render();
+      scheduleSave();
+      return;
+    }
+    if (action === 'create-folder') {
+      const stamp = Date.now().toString(36);
+      const folder = { id: `folder-${stamp}`, type: 'folder', folderId: '', name: 'New folder', content: '', containers: [], componentRows: [] };
+      view.templates.push(folder);
+      await request(`/api/guilds/${view.guildId}/message-templates/${folder.id}`, { method: 'PUT', body: JSON.stringify(folder) });
+      render();
+      return;
+    }
+    if (action === 'folder-open') { view.folderId = button.dataset.id; view.section = 'templates'; render(); return; }
+    if (action === 'folder-back') { view.folderId = ''; render(); return; }
+    if (action === 'folder-delete') {
+      if (!view.folderId || !window.confirm('Delete this folder and its templates?')) return;
+      await request(`/api/guilds/${view.guildId}/message-templates/${view.folderId}`, { method: 'DELETE' });
+      view.templates = view.templates.filter((item) => item.id !== view.folderId && item.folderId !== view.folderId);
+      view.folderId = '';
+      render();
+      return;
+    }
     if (action === 'create') {
       const template = newTemplate();
       view.templates.push(template);
@@ -531,12 +666,13 @@
       render();
       scheduleSave();
     } else if (action === 'open') { const item = view.templates.find((entry) => entry.id === button.dataset.id); if (item?.type === 'folder') return; view.selectedId = button.dataset.id; view.tab = 'edit'; view.notice = ''; render(); }
-    else if (action === 'back') { await saveSelected(); view.selectedId = ''; render(); }
+    else if (action === 'back') { await saveSelected(); view.selectedId = ''; renderList(); }
     else if (action === 'tab') { view.tab = button.dataset.value === 'use' ? 'use' : 'edit'; render(); }
     else if (action === 'add-container') { selected().containers.push(newContainer()); render(); scheduleSave(); }
-    else if (action === 'remove-container') { if (selected().containers.length > 1) selected().containers.splice(Number(button.dataset.index), 1); render(); scheduleSave(); }
+    else if (action === 'remove-container') { selected().containers.splice(Number(button.dataset.index), 1); render(); scheduleSave(); }
     else if (action === 'delete') {
       const template = selected();
+      if (template.botDefault || template.defaultLocked || String(template.id || '').startsWith('default-')) return;
       if (!window.confirm(`Delete "${template.name}"?`)) return;
       await request(`/api/guilds/${view.guildId}/message-templates/${template.id}`, { method: 'DELETE' });
       view.templates = view.templates.filter((item) => item.id !== template.id);
@@ -703,155 +839,6 @@
   }, true);
   new MutationObserver(() => requestAnimationFrame(() => sync().catch(() => null))).observe(root, { childList: true, subtree: true });
   sync().catch(() => null);
-})();
-
-(() => {
-  if (window.__coinSpriteMessageFolderEnhancement) return;
-  window.__coinSpriteMessageFolderEnhancement = true;
-
-  const root = document.querySelector('#messageTemplatesRoot');
-  if (!root) return;
-  const folderState = { mode: 'templates', folderId: '', lockedDefaultId: '', rendering: false, signature: '' };
-
-  function guildId() { return document.querySelector('#guildSelect')?.value || ''; }
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
-  }
-  function stamp() { return Date.now().toString(36); }
-  async function request(method, url, body) {
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: body == null ? undefined : JSON.stringify(body),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
-    return payload;
-  }
-  async function templates() {
-    const id = guildId();
-    if (!id) return [];
-    return (await request('GET', `/api/guilds/${id}/message-templates`)).templates || [];
-  }
-  function refreshNative() {
-    document.querySelector('#guildSelect')?.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-  function card(item, kind = 'template') {
-    const icon = kind === 'folder' ? '📁' : item.botDefault ? '📄' : '<img src="/admin/images/message.png" alt="" aria-hidden="true">';
-    const action = kind === 'folder' ? 'folder-open' : 'open';
-    const meta = kind === 'folder' ? 'Folder' : `${(item.containers || []).length} container${(item.containers || []).length === 1 ? '' : 's'}`;
-    return `<button class="message-template-card ${kind === 'folder' ? 'message-folder-card' : ''}${item.botDefault ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">
-      <span class="message-template-symbol">${icon}</span>
-      <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span><span class="message-card-arrow">›</span>
-    </button>`;
-  }
-  function header(folder) {
-    if (!folder) return '';
-    return `<div class="message-folder-head"><button class="button subtle" type="button" data-folder-action="folder-back">Back</button><input id="messageFolderName" type="text" maxlength="80" value="${escapeHtml(folder.name)}"><button class="button danger" type="button" data-folder-action="folder-delete">Delete folder</button></div>`;
-  }
-  function createMenu() {
-    return '<div class="message-create-menu" id="messageCreateMenu" hidden><button type="button" data-folder-action="create-message">Message</button><button type="button" data-folder-action="create-folder">Folder</button></div>';
-  }
-  async function renderList(force = false) {
-    if (folderState.rendering || root.querySelector('.message-editor-head') || root.querySelector('.message-loading')) return;
-    const grid = root.querySelector('.message-template-grid');
-    if (!grid || !guildId()) return;
-    folderState.rendering = true;
-    try {
-      const all = await templates();
-      const defaults = all.filter((item) => item.botDefault || item.defaultLocked || String(item.id || '').startsWith('default-'));
-      const folders = all.filter((item) => item.type === 'folder' && !item.botDefault);
-      const folder = folders.find((item) => item.id === folderState.folderId) || null;
-      const userTemplates = all.filter((item) => item.type !== 'folder' && !item.botDefault && !item.defaultLocked && !String(item.id || '').startsWith('default-') && (folderState.folderId ? item.folderId === folderState.folderId : !item.folderId));
-      const shown = folderState.mode === 'defaults' ? defaults : userTemplates;
-      const signature = JSON.stringify({ mode: folderState.mode, folderId: folderState.folderId, items: all.map((item) => [item.id, item.name, item.folderId, item.botDefault, item.defaultLocked, item.type]) });
-      const alreadyEnhanced = Boolean(root.querySelector('.message-section-tabs'));
-      if (!force && alreadyEnhanced && signature === folderState.signature) return;
-      folderState.signature = signature;
-      root.dataset.folderEnhanced = 'true';
-      root.innerHTML = `<div class="message-list-head">
-        <div><h3>${folderState.mode === 'defaults' ? 'Default messages' : folder ? escapeHtml(folder.name) : 'Message templates'}</h3><p>${folderState.mode === 'defaults' ? 'Bot defaults can be edited, but not renamed or deleted.' : 'Create reusable messages and organize them in folders.'}</p></div>
-        ${folderState.mode === 'templates' ? '<div class="message-create-wrap"><button class="button primary" type="button" data-folder-action="create-open">Create template</button>' + createMenu() + '</div>' : ''}
-      </div>
-      <nav class="message-section-tabs"><button type="button" class="${folderState.mode === 'templates' ? 'active' : ''}" data-folder-action="mode-templates">Templates</button><button type="button" class="${folderState.mode === 'defaults' ? 'active' : ''}" data-folder-action="mode-defaults">Defaults</button></nav>
-      ${folderState.mode === 'templates' ? header(folder) : ''}
-      <div class="message-template-grid">
-        ${folderState.mode === 'templates' && !folderState.folderId ? folders.map((item) => card(item, 'folder')).join('') : ''}
-        ${shown.map((item) => card(item)).join('')}
-      </div>
-      ${shown.length || (folderState.mode === 'templates' && !folderState.folderId && folders.length) ? '' : `<div class="empty-state">${folderState.mode === 'defaults' ? 'No default messages found.' : 'No message templates found.'}</div>`}`;
-    } catch {
-    } finally {
-      folderState.rendering = false;
-    }
-  }
-  async function createTemplate(type) {
-    const id = type === 'folder' ? `folder-${stamp()}` : `message-${stamp()}`;
-    const body = type === 'folder'
-      ? { id, type: 'folder', name: 'New folder' }
-      : { id, type: 'template', folderId: folderState.folderId, name: 'New message template', content: '', containers: [{ id: `container-${stamp()}`, accentColor: '#5865F2', text: '## New message\nWrite your Discord message here.', thumbnailUrl: '', imageUrl: '' }], componentRows: [] };
-    await request('PUT', `/api/guilds/${guildId()}/message-templates/${id}`, body);
-    folderState.signature = '';
-    refreshNative();
-    setTimeout(() => renderList(true), 500);
-  }
-  function lockDefaultEditor() {
-    const name = root.querySelector('[data-template-field="name"]');
-    const del = root.querySelector('[data-message-action="delete"]');
-    if (!name || !folderState.lockedDefaultId) return;
-    name.disabled = true;
-    name.title = 'Default templates cannot be renamed.';
-    if (del) del.hidden = true;
-  }
-
-  root.addEventListener('click', async (event) => {
-    const custom = event.target.closest('[data-folder-action]');
-    if (!custom) {
-      const cardNode = event.target.closest('.message-default-card[data-id]');
-      if (cardNode) folderState.lockedDefaultId = cardNode.dataset.id;
-      return;
-    }
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const action = custom.dataset.folderAction;
-    if (action === 'create-open') root.querySelector('#messageCreateMenu')?.toggleAttribute('hidden');
-    if (action === 'mode-templates') { folderState.mode = 'templates'; folderState.folderId = ''; folderState.signature = ''; await renderList(true); }
-    if (action === 'mode-defaults') { folderState.mode = 'defaults'; folderState.folderId = ''; folderState.signature = ''; await renderList(true); }
-    if (action === 'folder-back') { folderState.folderId = ''; folderState.signature = ''; await renderList(true); }
-    if (action === 'folder-delete' && folderState.folderId && window.confirm('Delete this folder and its templates?')) {
-      await request('DELETE', `/api/guilds/${guildId()}/message-templates/${folderState.folderId}`);
-      folderState.folderId = '';
-      folderState.signature = '';
-      refreshNative();
-      setTimeout(() => renderList(true), 500);
-    }
-    if (action === 'create-message') await createTemplate('template');
-    if (action === 'create-folder') await createTemplate('folder');
-  }, true);
-  root.addEventListener('click', (event) => {
-    const folder = event.target.closest('[data-message-action="folder-open"]');
-    if (!folder) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    folderState.folderId = folder.dataset.id;
-    folderState.signature = '';
-    renderList(true);
-  }, true);
-  root.addEventListener('change', async (event) => {
-    if (event.target.id !== 'messageFolderName' || !folderState.folderId) return;
-    const all = await templates();
-    const folder = all.find((item) => item.id === folderState.folderId);
-    if (!folder) return;
-    folder.name = event.target.value || 'Folder';
-    await request('PUT', `/api/guilds/${guildId()}/message-templates/${folder.id}`, folder);
-    folderState.signature = '';
-    refreshNative();
-  }, true);
-  root.addEventListener('click', (event) => {
-    if (event.target.closest('[data-message-action="back"]')) folderState.lockedDefaultId = '';
-  }, true);
-  new MutationObserver(() => requestAnimationFrame(() => { renderList(); lockDefaultEditor(); })).observe(root, { childList: true, subtree: true });
-  requestAnimationFrame(() => renderList(true));
 })();
 
 (() => {
