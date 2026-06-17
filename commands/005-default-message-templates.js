@@ -5,6 +5,8 @@ const messageTemplates = require('../src/messageTemplates');
 const DEFAULT_BOT_TEMPLATES = Object.freeze([
   {
     id: 'default-ai-moderation-alert',
+    type: 'template',
+    folderId: '',
     name: 'Default: AI moderation alert',
     content: '',
     containers: [{
@@ -33,10 +35,13 @@ const DEFAULT_BOT_TEMPLATES = Object.freeze([
     }],
     componentRows: [],
     botDefault: true,
+    defaultLocked: true,
     updatedAt: new Date(0).toISOString(),
   },
   {
     id: 'default-ai-moderation-user-warning',
+    type: 'template',
+    folderId: '',
     name: 'Default: AI moderation user warning',
     content: '',
     containers: [{
@@ -57,6 +62,7 @@ const DEFAULT_BOT_TEMPLATES = Object.freeze([
     }],
     componentRows: [],
     botDefault: true,
+    defaultLocked: true,
     updatedAt: new Date(0).toISOString(),
   },
 ]);
@@ -74,10 +80,23 @@ function defaultTemplateById(templateId) {
   return DEFAULT_BOT_TEMPLATES.find((template) => template.id === templateId) || null;
 }
 
+function mergeDefaultTemplate(baseDefault, saved) {
+  return {
+    ...clone(baseDefault),
+    ...(saved || {}),
+    id: baseDefault.id,
+    type: 'template',
+    folderId: '',
+    name: baseDefault.name,
+    botDefault: true,
+    defaultLocked: true,
+  };
+}
+
 function mergeDefaults(savedTemplates) {
   const byId = new Map((savedTemplates || []).map((template) => [template.id, template]));
   for (const template of DEFAULT_BOT_TEMPLATES) {
-    if (!byId.has(template.id)) byId.set(template.id, clone(template));
+    byId.set(template.id, mergeDefaultTemplate(template, byId.get(template.id)));
   }
   return [...byId.values()];
 }
@@ -87,15 +106,19 @@ messageTemplates.listTemplates = function listTemplatesWithDefaults(guildId) {
 };
 
 messageTemplates.findTemplate = function findTemplateWithDefaults(guildId, templateId) {
-  return nativeFindTemplate(guildId, templateId) || clone(defaultTemplateById(templateId));
+  const defaultTemplate = defaultTemplateById(templateId);
+  if (defaultTemplate) return mergeDefaultTemplate(defaultTemplate, nativeFindTemplate(guildId, templateId));
+  return nativeFindTemplate(guildId, templateId);
 };
 
 messageTemplates.saveTemplate = function saveTemplateWithDefaults(guildId, value) {
-  return nativeSaveTemplate(guildId, value);
+  const defaultTemplate = defaultTemplateById(value?.id);
+  if (!defaultTemplate) return nativeSaveTemplate(guildId, value);
+  return nativeSaveTemplate(guildId, mergeDefaultTemplate(defaultTemplate, value));
 };
 
 messageTemplates.deleteTemplate = function deleteTemplateWithDefaults(guildId, templateId) {
-  if (defaultTemplateById(templateId) && !nativeFindTemplate(guildId, templateId)) return false;
+  if (defaultTemplateById(templateId)) return false;
   return nativeDeleteTemplate(guildId, templateId);
 };
 
