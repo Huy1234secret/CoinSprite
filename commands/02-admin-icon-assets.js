@@ -28,13 +28,133 @@ function patchAdminIndex(source) {
   );
 }
 
-function patchMessagesScript(source) {
+function patchDefaultMessageList(source) {
   return source
+    .replace(
+      `  function withBuiltInDefaults(items) {
+    const byId = new Map((Array.isArray(items) ? items : []).filter((item) => item && item.id).map((item) => [item.id, item]));
+    for (const template of BUILT_IN_DEFAULT_TEMPLATES) {
+      const saved = byId.get(template.id) || {};
+      byId.set(template.id, {
+        ...cloneTemplate(template),
+        ...saved,
+        id: template.id,
+        type: 'template',
+        folderId: '',
+        name: template.name,
+        botDefault: true,
+        defaultLocked: true,
+      });
+    }
+    return [...byId.values()];
+  }`,
+      `  function withBuiltInDefaults(items) {
+    const byId = new Map((Array.isArray(items) ? items : []).filter((item) => item && item.id).map((item) => [item.id, item]));
+    for (const template of BUILT_IN_DEFAULT_TEMPLATES) {
+      const fallback = cloneTemplate(template); // FIXED: defaults always keep their built-in message body available.
+      const saved = byId.get(template.id) || {};
+      const containers = Array.isArray(saved.containers) && saved.containers.length ? saved.containers : fallback.containers; // FIXED: empty saved default records no longer render as blank defaults.
+      const componentRows = Array.isArray(saved.componentRows) ? saved.componentRows : fallback.componentRows; // FIXED: default component rows stay stable when the API omits them.
+      byId.set(template.id, {
+        ...fallback,
+        ...saved,
+        id: template.id,
+        type: 'template',
+        folderId: '',
+        name: template.name,
+        containers,
+        componentRows,
+        botDefault: true,
+        defaultLocked: true,
+      });
+    }
+    return [...byId.values()];
+  }`,
+    )
+    .replace(
+      `    const allTemplates = withBuiltInDefaults(view.templates);
+    if (allTemplates.length !== view.templates.length) view.templates = allTemplates;
+    const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
+    const folders = allTemplates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
+    const folder = folders.find((item) => item.id === view.folderId) || null;
+    const userTemplates = allTemplates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
+    const showingDefaults = view.section === 'defaults';
+    const shown = showingDefaults ? defaults : userTemplates;`,
+      `    const allTemplates = withBuiltInDefaults(view.templates);
+    view.templates = allTemplates; // FIXED: default cards and click handlers use the same rebuilt template list.
+    const defaultTemplates = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
+    const folders = allTemplates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
+    const folder = folders.find((item) => item.id === view.folderId) || null;
+    const userTemplates = allTemplates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));
+    const showingDefaults = view.section === 'defaults';
+    const defaults = defaultTemplates.filter((item) => matchesQuery(item, query)); // FIXED: Defaults search uses the same filtering behavior as Templates search.
+    const shown = showingDefaults ? defaults : userTemplates;`,
+    );
+}
+
+function defaultMessageListGuard() {
+  return `
+(() => {
+  if (window.__coinSpriteDefaultMessageListGuard) return;
+  window.__coinSpriteDefaultMessageListGuard = true;
+  const defaults = ${JSON.stringify([
+    {
+      id: 'default-ai-moderation-alert',
+      type: 'template',
+      folderId: '',
+      name: 'Default: AI moderation alert',
+      containers: [{ id: 'ai-moderation-alert', accentColor: '#9B59B6', text: '## AI moderation alert' }],
+      botDefault: true,
+      defaultLocked: true,
+    },
+    {
+      id: 'default-ai-moderation-user-warning',
+      type: 'template',
+      folderId: '',
+      name: 'Default: AI moderation user warning',
+      containers: [{ id: 'ai-moderation-user-warning', accentColor: '#9B59B6', text: '## Message flagged' }],
+      botDefault: true,
+      defaultLocked: true,
+    },
+  ])};
+  const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;');
+  const active = (root) => root?.querySelector('.message-list-head h3')?.textContent?.trim() === 'Default messages';
+  const matches = (item, query) => !query || \`\${item.name || ''} \${item.id || ''}\`.toLowerCase().includes(query);
+  const card = (item) => {
+    const count = Array.isArray(item.containers) ? item.containers.length : 0;
+    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol">📄</span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
+  };
+  function repair() {
+    const root = document.querySelector('#messageTemplatesRoot');
+    if (!active(root)) return;
+    const grid = root.querySelector('.message-template-grid');
+    if (!grid) return;
+    const query = (root.querySelector('#messageTemplateSearch')?.value || '').trim().toLowerCase();
+    const visible = defaults.filter((item) => matches(item, query));
+    grid.innerHTML = visible.map(card).join(''); // FIXED: Defaults tab is repopulated when the main renderer leaves the grid visually empty.
+    const emptyState = root.querySelector('.empty-state');
+    if (visible.length) emptyState?.remove();
+    if (!visible.length && !emptyState) grid.insertAdjacentHTML('afterend', '<div class="empty-state">No default messages found.</div>'); // FIXED: Defaults search shows the same no-results state as Templates search.
+  }
+  document.addEventListener('input', (event) => {
+    if (event.target?.id === 'messageTemplateSearch') requestAnimationFrame(repair); // FIXED: default search blank state is repaired after each typed query.
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (event.target.closest?.('[data-message-action="section-defaults"]')) setTimeout(repair, 0); // FIXED: opening Defaults always rechecks the default card list.
+  }, true);
+  new MutationObserver(() => requestAnimationFrame(repair)).observe(document.documentElement, { childList: true, subtree: true });
+  repair();
+})();
+`;
+}
+
+function patchMessagesScript(source) {
+  return `${patchDefaultMessageList(source)
     .replace('if (selected().containers.length > 1) selected().containers.splice', 'selected().containers.splice')
     .replace(
       '<div class="message-bot-avatar">CS</div>',
       '<img class="message-bot-avatar" src="/admin/bot-avatar.png" alt="CoinSprite bot avatar">',
-    );
+    )}\n${defaultMessageListGuard()}`;
 }
 
 function patchAppScript(source) {
