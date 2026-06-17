@@ -32,8 +32,8 @@ const LINK_AUTO_MODERATION_TEMPLATE = Object.freeze({
   defaultLocked: true,
   updatedAt: new Date(0).toISOString(),
 });
+
 const ADMIN_MESSAGES_PATH = path.join(__dirname, '..', 'admin', 'messages.js');
-const ADMIN_PATCH_MARKER = '__coinSpriteDashboardTemplateDefaultsFix';
 const nativeReadFile = fs.readFile.bind(fs);
 const nativeReadFileSync = fs.readFileSync.bind(fs);
 
@@ -41,11 +41,14 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function defaultTemplates() {
-  const sourceDefaults = Array.isArray(messageTemplates.DEFAULT_BOT_TEMPLATES) ? messageTemplates.DEFAULT_BOT_TEMPLATES : [];
-  const byId = new Map(sourceDefaults.filter((template) => template?.id).map((template) => [template.id, template]));
-  byId.set(LINK_AUTO_MODERATION_TEMPLATE.id, LINK_AUTO_MODERATION_TEMPLATE); // ADDED: guarantee the third bot default exists even when older loaders omit it.
+function allDefaultTemplates() {
+  const byId = new Map((Array.isArray(messageTemplates.DEFAULT_BOT_TEMPLATES) ? messageTemplates.DEFAULT_BOT_TEMPLATES : []).filter((template) => template?.id).map((template) => [template.id, template]));
+  byId.set(LINK_AUTO_MODERATION_TEMPLATE.id, LINK_AUTO_MODERATION_TEMPLATE); // ADDED: preserve the third default template everywhere.
   return [...byId.values()];
+}
+
+function defaultTemplateById(templateId) {
+  return allDefaultTemplates().find((template) => template.id === templateId) || null;
 }
 
 function mergeDefaultTemplate(baseDefault, saved) {
@@ -73,15 +76,9 @@ function mergeDefaultTemplate(baseDefault, saved) {
   return merged;
 }
 
-function defaultTemplateById(templateId) {
-  return defaultTemplates().find((template) => template.id === templateId) || null;
-}
-
 function withDefaultTemplates(templates) {
   const byId = new Map((Array.isArray(templates) ? templates : []).filter((template) => template?.id).map((template) => [template.id, template]));
-  for (const template of defaultTemplates()) {
-    byId.set(template.id, mergeDefaultTemplate(template, byId.get(template.id))); // FIXED: dashboards and APIs always include all three default templates.
-  }
+  for (const template of allDefaultTemplates()) byId.set(template.id, mergeDefaultTemplate(template, byId.get(template.id))); // FIXED: empty guild lists still contain all defaults.
   return [...byId.values()];
 }
 
@@ -91,22 +88,17 @@ function patchMessageTemplateExports(exportsObject) {
   const nativeFindTemplate = exportsObject.findTemplate.bind(exportsObject);
   const nativeSaveTemplate = exportsObject.saveTemplate.bind(exportsObject);
   const nativeDeleteTemplate = exportsObject.deleteTemplate.bind(exportsObject);
-
-  exportsObject.DEFAULT_BOT_TEMPLATES = Object.freeze(withDefaultTemplates(exportsObject.DEFAULT_BOT_TEMPLATES)); // FIXED: command-side default metadata now exposes all seeded templates.
+  exportsObject.DEFAULT_BOT_TEMPLATES = Object.freeze(withDefaultTemplates(exportsObject.DEFAULT_BOT_TEMPLATES)); // FIXED: shared default metadata now has three templates.
   exportsObject.DEFAULT_LINK_AUTO_MODERATION_TEMPLATE = LINK_AUTO_MODERATION_TEMPLATE;
-  exportsObject.listTemplates = (guildId) => withDefaultTemplates(nativeListTemplates(guildId)); // FIXED: empty guild storage still returns bot defaults.
-  exportsObject.findTemplate = (guildId, templateId) => {
-    if (defaultTemplateById(templateId)) return exportsObject.listTemplates(guildId).find((template) => template.id === templateId && template.type !== 'folder') || null; // FIXED: link default is findable before it has been saved.
-    return nativeFindTemplate(guildId, templateId);
-  };
+  exportsObject.listTemplates = (guildId) => withDefaultTemplates(nativeListTemplates(guildId)); // FIXED: API responses include bot defaults for every guild.
+  exportsObject.findTemplate = (guildId, templateId) => defaultTemplateById(templateId)
+    ? exportsObject.listTemplates(guildId).find((template) => template.id === templateId && template.type !== 'folder') || null
+    : nativeFindTemplate(guildId, templateId);
   exportsObject.saveTemplate = (guildId, value) => {
     const baseDefault = defaultTemplateById(value?.id);
-    return nativeSaveTemplate(guildId, baseDefault ? mergeDefaultTemplate(baseDefault, value) : value); // FIXED: edited defaults remain locked and keep their canonical names.
+    return nativeSaveTemplate(guildId, baseDefault ? mergeDefaultTemplate(baseDefault, value) : value); // FIXED: edited defaults stay locked and canonical.
   };
-  exportsObject.deleteTemplate = (guildId, templateId) => {
-    if (defaultTemplateById(templateId)) return false; // FIXED: seeded defaults cannot be deleted from the dashboard.
-    return nativeDeleteTemplate(guildId, templateId);
-  };
+  exportsObject.deleteTemplate = (guildId, templateId) => defaultTemplateById(templateId) ? false : nativeDeleteTemplate(guildId, templateId); // FIXED: default templates cannot be deleted.
   Object.defineProperty(exportsObject, '__coinSpriteDashboardDefaultsPatched', { value: true });
   return exportsObject;
 }
@@ -119,38 +111,19 @@ function clientDefaultObjectSource() {
 
 function patchAdminMessages(source) {
   let text = String(source || '');
-  if (text.includes(ADMIN_PATCH_MARKER)) return text;
-
   if (!text.includes(LINK_AUTO_MODERATION_TEMPLATE.id)) {
-    text = text.replace('  ];\n  let popover = null;', `,\n${clientDefaultObjectSource()}\n  ];\n  let popover = null;`); // FIXED: browser-side fallback now has the same third default as the bot.
+    text = text.replace('  ];\n  let popover = null;', `,\n${clientDefaultObjectSource()}\n  ];\n  let popover = null;`); // FIXED: client fallback default list has all three bot defaults.
   }
-
-  text = text.replace(
-    "          ${showingDefaults ? '' : '<div class=\"message-create-wrap\"><button class=\"button primary\" type=\"button\" data-message-action=\"create-open\">Create template</button>' + createMenu() + '</div>'}",
-    "          ${showingDefaults ? '' : '<div class=\"message-create-wrap\"><button class=\"button primary\" type=\"button\" data-message-action=\"create-message\">Create template</button><button class=\"button subtle\" type=\"button\" data-message-action=\"create-folder\">New folder</button></div>'} // FIXED: main create button now creates a template immediately.",
-  );
-  text = text.replace(
-    "    const shown = showingDefaults ? defaults : userTemplates;",
-    "    const shown = showingDefaults ? (defaults.length ? defaults : withBuiltInDefaults([]).filter((item) => isDefaultTemplate(item) && item.type !== 'folder')) : userTemplates; // FIXED: defaults tab never renders empty when the API omits seeded templates.",
-  );
-  text = text.replace(
-    "    if (action === 'create-open') { root.querySelector('#messageCreateMenu')?.toggleAttribute('hidden'); return; }",
-    "    if (action === 'create-open') { button.dataset.messageAction = 'create-message'; button.click(); return; } // FIXED: cached dashboard markup falls back to direct template creation.",
-  );
-  return `${text}\n;(() => { window.${ADMIN_PATCH_MARKER} = true; })();\n`;
-}
-
-function patchAdminFile(filePath, source) {
-  const resolved = path.resolve(String(filePath || ''));
-  if (resolved === path.resolve(ADMIN_MESSAGES_PATH)) return patchAdminMessages(source);
-  return source;
+  text = text.replace('data-message-action="create-open">Create template</button>', 'data-message-action="create-message">Create template</button>'); // FIXED: Create template works as a direct create action.
+  return text;
 }
 
 function patchReadData(filePath, data, options) {
+  const resolved = path.resolve(String(filePath || ''));
+  if (resolved !== path.resolve(ADMIN_MESSAGES_PATH)) return data;
   const encoding = typeof options === 'string' ? options : options?.encoding;
   const originalText = Buffer.isBuffer(data) ? data.toString('utf8') : String(data || '');
-  const patched = patchAdminFile(filePath, originalText);
-  if (patched === originalText) return data;
+  const patched = patchAdminMessages(originalText);
   return encoding ? patched : Buffer.from(patched, 'utf8');
 }
 
@@ -168,17 +141,12 @@ fs.readFile = function readFileWithDashboardTemplateFix(filePath, options, callb
       if (typeof done === 'function') done(error, data);
       return;
     }
-    try {
-      done(null, patchReadData(filePath, data, readOptions));
-    } catch (patchError) {
-      done(patchError);
-    }
+    done(null, patchReadData(filePath, data, readOptions));
   });
 };
 
 fs.readFileSync = function readFileSyncWithDashboardTemplateFix(filePath, options) {
-  const data = nativeReadFileSync(filePath, options);
-  return patchReadData(filePath, data, options); // FIXED: synchronous admin reads receive the same dashboard patch.
+  return patchReadData(filePath, nativeReadFileSync(filePath, options), options); // FIXED: sync admin reads match async patched assets.
 };
 
 module.exports = {};
