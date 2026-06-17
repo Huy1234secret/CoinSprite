@@ -18,6 +18,10 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function activeGuildId() {
+    return guildId || document.querySelector('#guildSelect')?.value || window.state?.guildId || ''; // ADDED: create-menu fallback can resolve the active guild without waiting for a fetch.
+  }
+
   function route(input, method = 'GET') {
     const urlText = typeof input === 'string' ? input : input?.url;
     if (!urlText) return null;
@@ -43,12 +47,22 @@
     status.className = `message-save-state ${kind}`;
   }
 
+  function keepPendingState(templateId) {
+    const restore = () => {
+      if (pending.has(templateId)) setSaveState('Unsaved changes', 'pending'); // FIXED: core autosave success text is reverted until Save changes is pressed.
+    };
+    setTimeout(restore, 0); // FIXED: beats the original autosave success microtask.
+    setTimeout(restore, 75); // FIXED: keeps the manual-save state visible after delayed UI updates.
+    setTimeout(restore, 300); // FIXED: prevents the old autosave label from coming back after component saves.
+  }
+
   function hold(templateId, template) {
     if (!templateId || !template) return;
     pending.set(templateId, clone(template)); // ADDED: autosave attempts are held until Save changes is pressed.
     templates.set(templateId, clone(template));
     selectedId = templateId;
     setSaveState('Unsaved changes', 'pending');
+    keepPendingState(templateId); // FIXED: saved/auto-saved status no longer replaces the pending manual-save status.
     decorateSoon();
   }
 
@@ -142,11 +156,36 @@
     }
   }
 
+  function createMenu() {
+    const menu = document.createElement('div');
+    menu.className = 'message-create-menu';
+    menu.id = 'messageCreateMenu';
+    menu.hidden = true;
+    menu.innerHTML = '<button type="button" data-message-action="create-message">Message</button><button type="button" data-message-action="create-folder">Folder</button>'; // ADDED: menu fallback always exposes Message and Folder choices.
+    return menu;
+  }
+
   function fixCreateButtons(scope = document) {
-    scope.querySelectorAll?.('[data-message-action="create-message"].button.primary').forEach((button) => {
+    scope.querySelectorAll?.('[data-message-action="create-message"].button.primary, [data-message-action="create"].button.primary').forEach((button) => {
       button.dataset.messageAction = 'create-open'; // FIXED: main Create template button opens the Message/Folder menu.
       button.setAttribute('data-message-action', 'create-open');
     });
+    scope.querySelectorAll?.('[data-message-action="create-open"].button.primary').forEach((button) => {
+      const wrap = button.closest('.message-create-wrap') || button.parentElement;
+      if (wrap && !wrap.querySelector('#messageCreateMenu')) wrap.append(createMenu()); // FIXED: deployed older markup gets the missing Message/Folder menu.
+    });
+  }
+
+  function toggleCreateMenu(button) {
+    const host = root();
+    if (!host || !button) return;
+    fixCreateButtons(host);
+    const wrap = button.closest('.message-create-wrap') || button.parentElement;
+    const menu = wrap?.querySelector('#messageCreateMenu') || host.querySelector('#messageCreateMenu');
+    if (!menu) return;
+    const willOpen = menu.hidden;
+    host.querySelectorAll('#messageCreateMenu').forEach((item) => { if (item !== menu) item.hidden = true; });
+    menu.hidden = !willOpen; // FIXED: Create template click reliably toggles Message/Folder options.
   }
 
   function ensureSaveButton(host) {
@@ -164,8 +203,8 @@
     if (document.querySelector('#messageTemplateWorkflowStyle')) return;
     const style = document.createElement('style');
     style.id = 'messageTemplateWorkflowStyle';
-    style.textContent = '.message-template-card{position:relative}.message-card-folder-button{position:absolute;right:42px;bottom:10px;display:none;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font-size:11px;font-weight:800}.message-template-card:hover .message-card-folder-button{display:inline-flex}.message-card-folder-button:hover{border-color:var(--primary);background:var(--surface-3)}.message-manual-save{white-space:nowrap}';
-    document.head.append(style); // ADDED: folder move controls stay hidden until hover.
+    style.textContent = '.message-template-card{position:relative}.message-card-folder-button{position:absolute;right:42px;bottom:10px;display:none;padding:5px 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);font-size:11px;font-weight:800}.message-template-card:hover .message-card-folder-button{display:inline-flex}.message-card-folder-button:hover{border-color:var(--primary);background:var(--surface-3)}.message-manual-save{white-space:nowrap}.message-create-wrap{position:relative}.message-create-menu{position:absolute;z-index:90;top:calc(100% + 8px);right:0;min-width:190px;display:grid;gap:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:#0b0d11;box-shadow:0 18px 40px rgba(0,0,0,.45)}.message-create-menu[hidden]{display:none!important}.message-create-menu button{min-height:38px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:800;text-align:left;padding:0 12px}';
+    document.head.append(style); // ADDED: folder move controls stay hidden until hover and create menu stays visible above the page.
   }
 
   function decorateFolderButtons(host) {
@@ -191,7 +230,7 @@
     const index = Number(choice);
     if (!Number.isInteger(index) || index < 0 || index > folders.length) return;
     template.folderId = index === 0 ? '' : folders[index - 1].id; // ADDED: chosen folder is saved after confirmation.
-    if (!guildId) guildId = document.querySelector('#guildSelect')?.value || window.state?.guildId || '';
+    guildId = activeGuildId();
     if (!guildId) return;
     bypass = true;
     const response = await nativeFetch(`/api/guilds/${guildId}/message-templates/${template.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(template) }).catch(() => null);
@@ -204,6 +243,7 @@
 
   function decorate() {
     const host = root() || document;
+    guildId = activeGuildId(); // ADDED: manual save and create controls keep the latest selected server.
     injectCss();
     fixCreateButtons(host);
     ensureSaveButton(host);
@@ -223,7 +263,16 @@
     const card = event.target.closest?.('.message-template-card[data-id]');
     if (card) selectedId = card.dataset.id;
     const action = event.target.closest?.('[data-message-action]');
-    if (!action) return;
+    if (!action) {
+      root()?.querySelectorAll('#messageCreateMenu').forEach((menu) => { menu.hidden = true; }); // ADDED: clicking outside closes the create options.
+      return;
+    }
+    if (action.dataset.messageAction === 'create-open') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toggleCreateMenu(action); // FIXED: Create template now opens Message and Folder instead of doing nothing.
+      return;
+    }
     if (action.dataset.messageAction === 'manual-save') {
       event.preventDefault();
       saveSelected();
@@ -233,6 +282,10 @@
       event.stopPropagation();
       moveTemplate(action.dataset.id);
     }
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') root()?.querySelectorAll('#messageCreateMenu').forEach((menu) => { menu.hidden = true; }); // ADDED: Escape closes the create options.
   }, true);
 
   new MutationObserver(decorateSoon).observe(document.documentElement, { childList: true, subtree: true });
