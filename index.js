@@ -372,16 +372,25 @@ async function registerSlashCommands() {
   }
 }
 
+async function runInviteRewardHook(hookName, ...args) {
+  const hook = inviteRewardsManager?.[hookName];
+  if (typeof hook !== 'function') return null; // FIXED: missing legacy invite hooks now no-op instead of crashing.
+  try {
+    return await Promise.resolve(hook(...args)); // FIXED: non-Promise hook results are normalized before awaiting.
+  } catch (error) {
+    console.error(`Invite rewards ${hookName} failed:`, error);
+    logCommandSystem(`Invite rewards ${hookName} failed: ${error?.message ?? 'unknown error'}`);
+    return null;
+  }
+}
+
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logCommandSystem(`Bot ready as ${client.user.tag}`);
   for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   startAdminServer(client);
   await initCommandModules();
-  await inviteRewardsManager.init(client).catch((error) => {
-    console.error('Invite rewards init failed:', error);
-    logCommandSystem(`Invite rewards init failed: ${error?.message ?? 'unknown error'}`);
-  });
+  await runInviteRewardHook('init', client); // FIXED: avoids calling .catch() on undefined legacy hook output.
   await registerSlashCommands();
 });
 
@@ -400,22 +409,22 @@ client.on(Events.GuildDelete, (guild) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   if (!isGuildEnabled(member.guild?.id)) return;
-  await inviteRewardsManager.onGuildMemberAdd(member).catch(() => null);
+  await runInviteRewardHook('onGuildMemberAdd', member); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!isGuildEnabled(newMember.guild?.id)) return;
-  await inviteRewardsManager.onGuildMemberUpdate(oldMember, newMember).catch(() => null);
+  await runInviteRewardHook('onGuildMemberUpdate', oldMember, newMember); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
 client.on(Events.InviteCreate, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
-  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
+  await runInviteRewardHook('onInviteCreateOrDelete', invite); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
 client.on(Events.InviteDelete, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
-  await inviteRewardsManager.onInviteCreateOrDelete(invite).catch(() => null);
+  await runInviteRewardHook('onInviteCreateOrDelete', invite); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
@@ -425,7 +434,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (prefixCommand) {
     logCommandUse({ userId: message.author.id, command: prefixCommand, channelId: message.channelId ?? 'unknown' });
   }
-  await inviteRewardsManager.onMessageCreate(message).catch(() => null);
+  await runInviteRewardHook('onMessageCreate', message); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) {
     if (typeof command.handleMessageCreate !== 'function') continue;
     try {
