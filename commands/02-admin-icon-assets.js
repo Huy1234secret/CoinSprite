@@ -14,6 +14,11 @@ const ICONS = new Map([
   ['/admin/images/ticket.png', path.join(IMAGE_DIR, 'ticket.png')],
   ['/admin/images/message.png', path.join(IMAGE_DIR, 'message.png')],
 ]);
+const FALLBACK_ICON_SVGS = new Map([
+  ['/admin/images/leveling.png', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#10141d"/><path d="M16 44h32M20 40V28m12 12V18m12 22V24" stroke="#57f287" stroke-width="5" stroke-linecap="round"/><path d="M18 26l9-8 9 7 10-12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>'], // FIXED: fallback prevents missing PNG assets from causing dashboard 404s.
+  ['/admin/images/ticket.png', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#10141d"/><path d="M18 22a6 6 0 0 0 6-6h16a6 6 0 0 0 6 6v20a6 6 0 0 0-6 6H24a6 6 0 0 0-6-6z" fill="none" stroke="#ff5c5c" stroke-width="5" stroke-linejoin="round"/><path d="M28 24h10M26 32h14M28 40h8" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>'], // FIXED: fallback prevents missing PNG assets from causing dashboard 404s.
+  ['/admin/images/message.png', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#10141d"/><path d="M16 19h32a6 6 0 0 1 6 6v17a6 6 0 0 1-6 6H28l-10 8v-8h-2a6 6 0 0 1-6-6V25a6 6 0 0 1 6-6z" fill="none" stroke="#55acee" stroke-width="5" stroke-linejoin="round"/><path d="M22 30h20M22 38h13" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>'], // FIXED: fallback prevents missing PNG assets from causing dashboard 404s.
+]);
 let clientRef = null;
 
 function notFound(res) {
@@ -30,11 +35,23 @@ function patchAdminIndex(source) {
 
 function patchMessagesScript(source) {
   return source
+    .split("const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');")
+    .join("const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder' && matchesQuery(item, query)); // FIXED: default search now uses the same result/empty-state behavior as templates.")
+    .split("const icon = isFolder ? '📁' : item.botDefault || item.defaultLocked ? '📄' : '<img src=\"/admin/images/message.png\" alt=\"\" aria-hidden=\"true\">';")
+    .join("const icon = isFolder ? '📁' : '📄'; // FIXED: message cards no longer request a missing PNG icon.")
     .replace('if (selected().containers.length > 1) selected().containers.splice', 'selected().containers.splice')
     .replace(
       '<div class="message-bot-avatar">CS</div>',
       '<img class="message-bot-avatar" src="/admin/bot-avatar.png" alt="CoinSprite bot avatar">',
     );
+}
+
+function patchInlineMessageEditorScript(source) {
+  const safeMessageTabIcon = '<span class="tab-icon" aria-hidden="true">💬</span><span>Messages</span>'; // FIXED: the Messages sidebar tab no longer depends on a PNG file that can 404.
+  return source.replace(
+    '<img class="tab-icon" src="/admin/images/message.png" alt="" aria-hidden="true"><span>Messages</span>',
+    safeMessageTabIcon,
+  );
 }
 
 function patchAppScript(source) {
@@ -183,7 +200,7 @@ const BUNDLED_ADMIN_SCRIPTS = [
   ['app.js', (source) => patchTicketUpgradeScript(patchAppScript(source))],
   ['user-data.js'],
   ['emoji-picker.js'],
-  ['message-inline-editor.js'],
+  ['message-inline-editor.js', patchInlineMessageEditorScript],
   ['message-edit-shortcuts.js'],
   ['owner-panel.js'],
 ];
@@ -231,6 +248,16 @@ function redirectBotAvatar(res) {
   res.end();
 }
 
+function serveFallbackIcon(res, pathname) {
+  const svg = FALLBACK_ICON_SVGS.get(pathname);
+  if (!svg) {
+    notFound(res);
+    return;
+  }
+  res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+  res.end(svg); // FIXED: missing local PNG icons now return a valid icon instead of a 404.
+}
+
 http.createServer = function adminAssetServer(listener) {
   return previousCreateServer((req, res) => {
     const pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
@@ -254,7 +281,7 @@ http.createServer = function adminAssetServer(listener) {
     }
     fs.readFile(filePath, (error, data) => {
       if (error) {
-        notFound(res);
+        serveFallbackIcon(res, pathname); // FIXED: icon requests no longer log 404 when PNG files are absent.
         return;
       }
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' });
