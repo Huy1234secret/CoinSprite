@@ -49,6 +49,22 @@ const INVITE_REWARD_TIERS = [
   },
 ];
 
+const DEFAULT_LINK_AUTOMOD = {
+  enabled: false,
+  blockDiscordInvites: true,
+  allowedInviteGuildIds: [],
+  allowedInviteCodes: [],
+  domainBlacklist: [],
+  domainWhitelist: [],
+  scanChannelIds: [],
+  excludeChannelIds: [],
+  excludeRoleIds: [],
+  actions: [
+    { type: 'delete' },
+    { type: 'log' },
+  ],
+};
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
   channels: {
@@ -81,6 +97,10 @@ const DEFAULT_GUILD_CONFIG = {
       logChannelId: '',
       scanChannelIds: [],
       alertTemplateId: 'default-ai-moderation-alert',
+      maxInputChars: 1500,
+    },
+    auto: {
+      link: DEFAULT_LINK_AUTOMOD,
     },
   },
   xp: {
