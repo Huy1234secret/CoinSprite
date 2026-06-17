@@ -3,7 +3,6 @@ const path = require('path');
 
 const originalReadFile = fs.readFile.bind(fs);
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
-const ADMIN_FIXES_JS = path.resolve(ADMIN_DIR, 'admin-fixes.js');
 const ADMIN_FIXES_CSS = path.resolve(ADMIN_DIR, 'admin-fixes.css');
 
 const VIEW_FIX_SCRIPT = `

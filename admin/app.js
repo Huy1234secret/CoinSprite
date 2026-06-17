@@ -1101,3 +1101,831 @@ window.addEventListener('beforeunload', (event) => {
 setActiveTab('leveling');
 setActiveLevelingTab('xp');
 loadSession();
+
+(() => {
+  const pickerMenus = new Set();
+  const requestIds = new Set();
+  const REQUEST_ACTIONS = [
+    ['accept', 'Accept request'],
+    ['deny', 'Deny request'],
+    ['dm_message', 'DM message'],
+    ['role_add', 'Role add'],
+    ['blacklist', 'Blacklist author'],
+  ];
+  const REQUEST_ACTION_TEXT = new Map([
+    ['accept', 'accept'], ['accept request', 'accept'], ['close', 'accept'], ['close ticket', 'accept'],
+    ['deny', 'deny'], ['deny request', 'deny'], ['delete', 'deny'], ['delete channel', 'deny'],
+    ['dm', 'dm_message'], ['dm message', 'dm_message'], ['transcript', 'dm_message'], ['save transcript', 'dm_message'],
+    ['role_add', 'role_add'], ['role add', 'role_add'], ['role-add', 'role_add'], ['move_to', 'role_add'], ['move to ticket type', 'role_add'],
+    ['blacklist', 'blacklist'], ['blacklist author', 'blacklist'], ['blacklist user', 'blacklist'],
+  ]);
+  const REQUEST_SAVE_ACTIONS = {
+    accept: 'close',
+    deny: 'delete',
+    dm_message: 'transcript',
+    dm: 'transcript',
+    role_add: 'move_to',
+    'role-add': 'move_to',
+    blacklist: 'blacklist',
+    close: 'close',
+    delete: 'delete',
+    transcript: 'transcript',
+    move_to: 'move_to',
+  };
+  let allowNativeAdd = false;
+  let pendingRequest = false;
+  let uiFixScheduled = false;
+
+  function installInlineSurfaceTextPatch() {
+    if (HTMLElement.prototype.__coinSpriteInlineTextPatch) return;
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText');
+    if (!descriptor?.get || !descriptor?.set) return;
+    Object.defineProperty(HTMLElement.prototype, 'innerText', {
+      configurable: true,
+      enumerable: descriptor.enumerable,
+      get() {
+        if (this.classList?.contains('message-inline-surface')) {
+          const lines = [...this.children]
+            .filter((child) => child.classList?.contains('message-inline-line'))
+            .map((line) => String(line.textContent || '').replace(/\u200b/g, '').replace(/\u00a0/g, ' '));
+          if (lines.length) return lines.join('\n').replace(/\n+$/g, '');
+        }
+        return descriptor.get.call(this);
+      },
+      set(value) {
+        descriptor.set.call(this, value);
+      },
+    });
+    HTMLElement.prototype.__coinSpriteInlineTextPatch = true;
+  }
+
+  function cleanTabIcons() {
+    document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
+    const sources = {
+      leveling: '/admin/images/leveling.png',
+      tickets: '/admin/images/ticket.png',
+      messages: '/admin/images/message.png',
+    };
+    Object.entries(sources).forEach(([tab, source]) => {
+      const button = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (!button) return;
+      let image = button.querySelector('.tab-icon');
+      if (!image) {
+        image = document.createElement('img');
+        image.className = 'tab-icon';
+        image.alt = '';
+        image.setAttribute('aria-hidden', 'true');
+        button.prepend(image);
+      }
+      if (image.getAttribute('src') !== source) image.src = source;
+    });
+  }
+
+  function closePickerMenus(except = null) {
+    pickerMenus.forEach((menu) => menu.classList.toggle('open', menu === except));
+    document.querySelectorAll('.picker-button.open').forEach((button) => {
+      button.classList.toggle('open', Boolean(except && button.dataset.menuId === except.dataset.menuId));
+    });
+  }
+
+  function placeMenu(button, menu) {
+    const rect = button.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 280), window.innerWidth - 24);
+    const roomBelow = window.innerHeight - rect.bottom - 12;
+    const top = roomBelow >= 220 ? rect.bottom + 6 : Math.max(12, rect.top - Math.min(420, window.innerHeight - 24) - 6);
+    menu.style.width = `${width}px`;
+    menu.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - width - 12)}px`;
+    menu.style.top = `${top}px`;
+  }
+
+  renderPicker = function fixedPicker(mount, options, selectedValue, settings) {
+    const { multiple = false, type = 'channel', placeholder = 'Select', onChange } = settings;
+    const selected = new Set(multiple ? selectedValue || [] : selectedValue ? [selectedValue] : []);
+    if (mount._pickerMenu) {
+      pickerMenus.delete(mount._pickerMenu);
+      mount._pickerMenu.remove();
+    }
+    mount.replaceChildren();
+    const picker = document.createElement('div');
+    picker.className = 'picker';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'picker-button';
+    button.dataset.menuId = `picker-${Math.random().toString(36).slice(2)}`;
+    const selectedWrap = document.createElement('span');
+    selectedWrap.className = 'selected-wrap';
+    const selectedOptions = [...selected].map((id) => optionById(options, id, type));
+    if (!selectedOptions.length) {
+      const empty = document.createElement('span');
+      empty.className = 'placeholder';
+      empty.textContent = placeholder;
+      selectedWrap.append(empty);
+    } else {
+      selectedOptions.slice(0, multiple ? 5 : 1).forEach((option) => selectedWrap.append(makeToken(option, type)));
+      if (selectedOptions.length > 5) {
+        const more = document.createElement('span');
+        more.className = 'token';
+        more.textContent = `+${selectedOptions.length - 5}`;
+        selectedWrap.append(more);
+      }
+    }
+    const chevron = document.createElement('span');
+    chevron.className = 'chevron';
+    chevron.textContent = 'v';
+    button.append(selectedWrap, chevron);
+    const menu = document.createElement('div');
+    menu.className = 'picker-menu picker-portal-menu';
+    menu.dataset.menuId = button.dataset.menuId;
+    const search = document.createElement('input');
+    search.className = 'picker-search';
+    search.placeholder = 'Search by name or ID';
+    search.autocomplete = 'off';
+    const list = document.createElement('div');
+    list.className = 'option-list';
+    menu.append(search, list);
+
+    function draw() {
+      const query = search.value.trim().toLowerCase();
+      const filtered = options.filter((option) => !query || (option.searchText || `${option.label} ${option.id}`.toLowerCase()).includes(query));
+      list.replaceChildren();
+      if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-option';
+        empty.textContent = 'No results';
+        list.append(empty);
+        return;
+      }
+      filtered.forEach((option) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = `option ${type === 'role' ? 'role-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
+        if (type === 'role') row.style.setProperty('--role-color', option.color || '#99aab5');
+        const main = document.createElement('span');
+        main.className = 'option-main';
+        main.append(makeToken(option, type));
+        const check = document.createElement('span');
+        check.className = 'check-mark';
+        check.textContent = selected.has(option.id) ? 'Selected' : '';
+        row.append(main, check);
+        row.addEventListener('click', () => {
+          if (multiple) {
+            if (selected.has(option.id)) selected.delete(option.id); else selected.add(option.id);
+            onChange([...selected]);
+          } else onChange(selected.has(option.id) ? '' : option.id);
+          closePickerMenus();
+          refreshDirtyState();
+        });
+        list.append(row);
+      });
+    }
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const opening = !menu.classList.contains('open');
+      closePickerMenus(opening ? menu : null);
+      if (opening) {
+        draw();
+        placeMenu(button, menu);
+        search.focus();
+      }
+    });
+    menu.addEventListener('click', (event) => event.stopPropagation());
+    search.addEventListener('input', draw);
+    picker.append(button);
+    mount.append(picker);
+    document.body.append(menu);
+    pickerMenus.add(menu);
+    mount._pickerMenu = menu;
+  };
+
+  function wordChainOptions() {
+    return channelOptions().filter((option) => !['category', 'voice', 'forum'].includes(option.optionType));
+  }
+
+  function ensureLevelUpOutsideField() {
+    const content = document.querySelector('#levelUpContent');
+    if (!content) return null;
+    let field = document.querySelector('#levelUpOutsideContent');
+    if (!field) {
+      field = document.createElement('textarea');
+      field.id = 'levelUpOutsideContent';
+      field.name = 'xp.levelUpMessage.outsideContent';
+      field.hidden = true;
+      field.className = 'message-source-hidden';
+      content.after(field);
+      field.addEventListener('input', renderLevelUpRootPreview);
+      field.addEventListener('change', renderLevelUpRootPreview);
+    }
+    return field;
+  }
+
+  function levelUpRootHtml(value) {
+    const context = typeof previewContext === 'function' ? previewContext() : {};
+    const rendered = typeof renderPreviewTemplate === 'function'
+      ? renderPreviewTemplate(value, context)
+      : String(value || '');
+    const clean = String(rendered || '').trim();
+    if (!clean) return '';
+    return typeof previewMarkdown === 'function'
+      ? previewMarkdown(clean)
+      : clean.replace(/[&<>]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[char]));
+  }
+
+  function levelUpHasContainer() {
+    const content = document.querySelector('#levelUpContent')?.value.trim() || '';
+    const thumb = document.querySelector('[name="xp.levelUpMessage.thumbnailUrl"]')?.value.trim() || '';
+    const image = document.querySelector('[name="xp.levelUpMessage.imageUrl"]')?.value.trim() || '';
+    return Boolean(content || thumb || image);
+  }
+
+  function renderLevelUpRootPreview() {
+    const field = ensureLevelUpOutsideField();
+    const preview = document.querySelector('#levelUpPreview');
+    const container = document.querySelector('#levelUpPreviewContainer');
+    if (!field || !preview || !container) return;
+    let root = document.querySelector('#levelUpRootContent');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'levelUpRootContent';
+      container.before(root);
+    }
+    const html = levelUpRootHtml(field.value);
+    root.className = `message-root-content${html ? '' : ' message-root-empty'}`;
+    root.innerHTML = html || 'Add text outside the container';
+    container.hidden = !levelUpHasContainer();
+    let add = document.querySelector('#levelUpAddContainer');
+    if (!add) {
+      add = document.createElement('button');
+      add.id = 'levelUpAddContainer';
+      add.type = 'button';
+      add.className = 'button subtle message-add-container';
+      add.textContent = '+ Add container';
+      preview.append(add);
+    }
+    add.hidden = levelUpHasContainer();
+  }
+
+  function startLevelUpRootEditor(root) {
+    const field = ensureLevelUpOutsideField();
+    if (!field || root.querySelector('[contenteditable="true"]')) return;
+    const original = field.value || '';
+    root.classList.add('message-inline-edit-host', 'is-inline-editing');
+    const editor = document.createElement('div');
+    editor.className = 'message-inline-surface';
+    editor.contentEditable = 'true';
+    editor.spellcheck = true;
+    editor.textContent = original;
+    root.replaceChildren(editor);
+    const finish = (commit) => {
+      field.value = commit ? String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ').replace(/\n+$/g, '') : original;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+      root.classList.remove('message-inline-edit-host', 'is-inline-editing');
+      renderLevelUpRootPreview();
+      refreshDirtyState();
+    };
+    editor.addEventListener('input', () => {
+      field.value = String(editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ');
+      refreshDirtyState();
+    });
+    editor.addEventListener('blur', () => finish(true), { once: true });
+    editor.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); editor.blur(); }
+      if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+    });
+    editor.focus({ preventScroll: true });
+  }
+
+  function setLevelUpContainerStarter() {
+    const field = document.querySelector('#levelUpContent');
+    if (!field) return;
+    field.value = '## Container message\nWrite your container message here.';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    renderLevelUpRootPreview();
+  }
+
+  function ensureWordChainTools() {
+    const gamesPanel = document.querySelector('[data-panel="games"] .panel');
+    const grid = gamesPanel?.querySelector('.grid.three');
+    if (!gamesPanel || !grid) return;
+    let tools = gamesPanel.querySelector('.word-chain-tools');
+    if (!tools) {
+      tools = document.createElement('div');
+      tools.className = 'word-chain-tools settings-grid';
+      tools.innerHTML = '<div class="picker-field"><span class="field-label">Word chain game channel</span><div id="wordChainChannelMount"></div></div><div class="picker-field" id="wordChainRoleMount"><span class="field-label">Punishment role</span></div>';
+      gamesPanel.insertBefore(tools, grid);
+    }
+    const channelMount = tools.querySelector('#wordChainChannelMount');
+    if (channelMount && !channelMount.querySelector('.picker')) {
+      renderPicker(channelMount, wordChainOptions(), state.channelValues.wordChain, {
+        type: 'channel', placeholder: 'Select word chain channel',
+        onChange: (value) => { state.channelValues.wordChain = value; ensureWordChainTools(); },
+      });
+    }
+    const roleMount = tools.querySelector('#wordChainRoleMount');
+    const roleField = [...document.querySelectorAll('#rolesGrid .picker-field')]
+      .find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Word Chain Punishment');
+    if (roleMount && roleField) {
+      const picker = roleField.querySelector('.picker');
+      if (picker) roleMount.append(picker);
+      roleField.remove();
+    }
+  }
+
+  function isRequestType(type) {
+    return Boolean(type && (String(type.id || '').startsWith('request-') || type.workflow === 'request_role_crew_member_plus'));
+  }
+
+  function requestActionValue(value) {
+    return REQUEST_ACTION_TEXT.get(String(value || '').trim().toLowerCase()) || String(value || '').trim();
+  }
+
+  function requestActionLabel(value) {
+    const normalized = requestActionValue(value);
+    return REQUEST_ACTIONS.find(([action]) => action === normalized)?.[1] || value;
+  }
+
+  function requestActionSaveValue(value) {
+    return REQUEST_SAVE_ACTIONS[requestActionValue(value)] || REQUEST_SAVE_ACTIONS[value] || value;
+  }
+
+  function showTicketKindDialog(nativeButton) {
+    document.querySelector('.ticket-kind-dialog')?.remove();
+    const backdrop = document.createElement('div');
+    backdrop.className = 'ticket-modal-backdrop ticket-kind-dialog';
+    backdrop.innerHTML = '<section class="ticket-modal ticket-kind-modal" role="dialog" aria-modal="true"><div class="ticket-modal-head"><div><h3>Create ticket type</h3><p>Choose how members submit this ticket.</p></div><button class="icon-button" type="button" data-kind="cancel">×</button></div><div class="ticket-kind-grid"><button type="button" data-kind="channel"><strong>Channel Ticket</strong><span>Create a private Discord channel for the member and staff.</span></button><button type="button" data-kind="request"><strong>Request Ticket</strong><span>Send a request card to staff for approval or denial.</span></button></div></section>';
+    backdrop.addEventListener('click', (event) => {
+      const kind = event.target.closest('[data-kind]')?.dataset.kind;
+      if (!kind && event.target !== backdrop) return;
+      backdrop.remove();
+      if (!kind || kind === 'cancel') return;
+      pendingRequest = kind === 'request';
+      setTimeout(() => {
+        if (!nativeButton.isConnected) return;
+        allowNativeAdd = true;
+        nativeButton.click();
+        allowNativeAdd = false;
+        requestAnimationFrame(decorateTicketEditor);
+      }, 0);
+    });
+    document.body.append(backdrop);
+  }
+
+  function setText(node, text) {
+    if (node && node.textContent !== text) node.textContent = text;
+  }
+
+  function controlActionsFromCard(card) {
+    return [...card.querySelectorAll('.sequence-item strong')].map((node) => requestActionValue(node.textContent)).filter(Boolean);
+  }
+
+  function controlIndexFromCard(card) {
+    return card.querySelector('[data-control-index]')?.dataset.controlIndex
+      || card.querySelector('[data-index]')?.dataset.index
+      || '0';
+  }
+
+  function dispatchInput(node) {
+    node.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function decorateRequestRoleField(card, actions) {
+    const existing = card.querySelector('.request-role-add-field');
+    const nativeMoveLabel = card.querySelector('select[data-control-field="moveToTicketTypeId"]')?.closest('label');
+    if (!actions.includes('role_add')) {
+      existing?.remove();
+      if (nativeMoveLabel) nativeMoveLabel.hidden = false;
+      return;
+    }
+    if (nativeMoveLabel) nativeMoveLabel.hidden = true;
+    const controlIndex = controlIndexFromCard(card);
+    let field = existing;
+    if (!field) {
+      field = document.createElement('label');
+      field.className = 'request-role-add-field';
+      field.innerHTML = '<span class="field-label">Role to add</span><input type="hidden" data-request-role-value><div data-request-role-picker></div><span class="request-action-note">This role is added to the request author when this control runs.</span>';
+      card.querySelector('.action-sequence')?.append(field);
+    }
+    const hidden = field.querySelector('[data-request-role-value]');
+    const nativeSelect = card.querySelector('select[data-control-field="moveToTicketTypeId"]');
+    hidden.dataset.controlIndex = controlIndex;
+    hidden.dataset.controlField = 'moveToTicketTypeId';
+    if (!hidden.value && nativeSelect?.value) hidden.value = nativeSelect.value;
+    const mount = field.querySelector('[data-request-role-picker]');
+    if (mount && !mount.querySelector('.picker')) {
+      renderPicker(mount, roleOptions(), hidden.value, {
+        type: 'role',
+        placeholder: 'Select role to add',
+        onChange: (value) => {
+          hidden.value = value;
+          dispatchInput(hidden);
+          refreshDirtyState();
+        },
+      });
+    }
+  }
+
+  function decorateRequestDmField(card, actions) {
+    const descriptionInput = card.querySelector('[data-control-field="description"]');
+    const descriptionLabel = descriptionInput?.closest('label');
+    const existing = card.querySelector('.request-dm-field');
+    if (!actions.includes('dm_message')) {
+      existing?.remove();
+      if (descriptionLabel) descriptionLabel.firstChild.textContent = 'Description ';
+      return;
+    }
+    if (descriptionLabel) {
+      descriptionLabel.firstChild.textContent = 'DM message ';
+      return;
+    }
+    const controlIndex = controlIndexFromCard(card);
+    let field = existing;
+    if (!field) {
+      field = document.createElement('label');
+      field.className = 'request-dm-field';
+      field.innerHTML = '<span class="field-label">DM message</span><textarea rows="3" maxlength="100" data-request-dm-value placeholder="Your <ticket_name> request was reviewed."></textarea><span class="request-action-note">Use &lt;ticket_name&gt; and &lt;reason&gt; in this message.</span>';
+      card.querySelector('.action-sequence')?.append(field);
+    }
+    const textarea = field.querySelector('[data-request-dm-value]');
+    textarea.dataset.controlIndex = controlIndex;
+    textarea.dataset.controlField = 'description';
+  }
+
+  function decorateRequestAdminPanel(root) {
+    if (!root.dataset.requestEditor) return;
+    root.querySelectorAll('.action-sequence').forEach((sequence) => {
+      const hint = sequence.querySelector('.sequence-head span:last-child');
+      setText(hint, 'Request actions run in the order shown.');
+      const card = sequence.closest('.ticket-control-card');
+      sequence.querySelectorAll('.sequence-item strong').forEach((label) => setText(label, requestActionLabel(label.textContent)));
+      const actions = card ? controlActionsFromCard(card) : [];
+      const select = sequence.querySelector('select[data-action-select]');
+      if (select) {
+        const signature = actions.join('|');
+        if (select.dataset.requestOptionsSignature !== signature) {
+          const available = REQUEST_ACTIONS.filter(([value]) => !actions.includes(value));
+          select.replaceChildren(...available.map(([value, label]) => new Option(label, value)));
+          select.dataset.requestOptionsSignature = signature;
+        }
+      }
+      if (card) {
+        decorateRequestDmField(card, actions);
+        decorateRequestRoleField(card, actions);
+      }
+    });
+  }
+
+  function decorateTicketEditor() {
+    const root = document.querySelector('#ticketEditorRoot');
+    if (!root) return;
+    root.querySelectorAll('.ticket-type-card').forEach((card) => {
+      const id = card.dataset.ticketId || '';
+      if (id.startsWith('request-') || id === 'request_role_crew_member_plus') requestIds.add(id);
+      const request = requestIds.has(id) || id === 'request_role_crew_member_plus';
+      let badge = card.querySelector('.ticket-kind-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'ticket-kind-badge';
+        card.querySelector('.ticket-type-copy')?.append(badge);
+      }
+      const className = `ticket-kind-badge ${request ? 'request' : 'channel'}`;
+      if (badge.className !== className) badge.className = className;
+      setText(badge, `Type: ${request ? 'Request' : 'Channel'}`);
+    });
+    if (pendingRequest && root.querySelector('.ticket-type-section')) {
+      root.dataset.requestEditor = 'true';
+      const heading = root.querySelector('.ticket-editor-head h3')?.textContent || '';
+      root.dataset.pendingRequestName = heading;
+      root.querySelectorAll('.ticket-type-tabs .mini-tab').forEach((tab) => {
+        if (tab.textContent.trim() === 'Ticket message') setText(tab, 'Request message');
+      });
+      const settings = root.querySelector('.ticket-type-section');
+      const category = [...settings.querySelectorAll('.picker-field')].find((field) => field.querySelector('.field-label')?.textContent.trim() === 'Category override');
+      if (category && !category.hidden) category.hidden = true;
+      settings.querySelector('.permission-buttons')?.setAttribute('hidden', '');
+      const transcript = [...settings.querySelectorAll('.panel')].find((panel) => panel.querySelector('h3')?.textContent.trim() === 'Transcript' || panel.querySelector('h3')?.textContent.trim() === 'Request channel');
+      if (transcript) {
+        setText(transcript.querySelector('h3'), 'Request channel');
+        setText(transcript.querySelector('.panel-heading p'), 'Choose where staff receive and review this request.');
+        const checkline = transcript.querySelector('.checkline');
+        if (checkline && !checkline.hidden) checkline.hidden = true;
+        setText(transcript.querySelector('.field-label'), 'Request review channel');
+      }
+      const phase = root.querySelector('.form-phase-switch');
+      if (phase) {
+        phase.querySelectorAll('[data-value="close"]').forEach((button) => button.remove());
+        setText(phase.querySelector('p'), 'Sent to the request author before the request is submitted.');
+      }
+    }
+    decorateRequestAdminPanel(root);
+  }
+
+  function defaultRequestControls() {
+    return [
+      { id: 'accept', name: 'Accept', emoji: '✅', description: '', buttonStyle: 'success', url: '', actions: ['close'], moveToTicketTypeId: '' },
+      { id: 'deny', name: 'Deny', emoji: '❌', description: '', buttonStyle: 'danger', url: '', actions: ['delete'], moveToTicketTypeId: '' },
+      { id: 'dm-message', name: 'DM Message', emoji: '📩', description: 'Your <ticket_name> request was reviewed.', buttonStyle: 'secondary', url: '', actions: ['transcript'], moveToTicketTypeId: '' },
+      { id: 'role-add', name: 'Role Add', emoji: '➕', description: '', buttonStyle: 'success', url: '', actions: ['move_to'], moveToTicketTypeId: '' },
+      { id: 'blacklist', name: 'Blacklist', emoji: '🚫', description: '', buttonStyle: 'danger', url: '', actions: ['blacklist'], moveToTicketTypeId: '' },
+    ];
+  }
+
+  function normalizeRequestControl(control, index) {
+    const actions = [...new Set((control.actions || []).map(requestActionSaveValue).filter(Boolean))];
+    if (!actions.length) actions.push(index === 0 ? 'close' : 'delete');
+    if (control.dmMessage) control.description = control.dmMessage;
+    if (control.roleId) control.moveToTicketTypeId = control.roleId;
+    control.url = '';
+    control.actions = actions;
+    return control;
+  }
+
+  function normalizeRequestTypeForSave(type, index) {
+    if (!String(type.id || '').startsWith('request-')) type.id = `request-${type.id || `ticket-${index + 1}`}`.slice(0, 40);
+    requestIds.add(type.id);
+    type.transcriptEnabled = true;
+    type.authorPermissions = ['UseApplicationCommands'];
+    const controls = type.adminPanel?.controls || [];
+    if (!controls.length || (controls.length === 1 && controls[0].name === 'Close Ticket')) {
+      type.adminPanel = { enabled: true, style: 'buttons', controls: defaultRequestControls() };
+    } else {
+      type.adminPanel = {
+        ...(type.adminPanel || {}),
+        enabled: type.adminPanel?.enabled !== false,
+        controls: controls.map(normalizeRequestControl),
+      };
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    const addContainer = event.target.closest('#levelUpAddContainer');
+    if (addContainer) {
+      event.preventDefault();
+      setLevelUpContainerStarter();
+      return;
+    }
+    const levelRoot = event.target.closest('#levelUpRootContent');
+    if (levelRoot && !event.target.closest('button,input,select,textarea,a,[contenteditable="true"]')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      startLevelUpRootEditor(levelRoot);
+      return;
+    }
+    const add = event.target.closest('#ticketEditorRoot [data-action="add-ticket"]');
+    if (add && !allowNativeAdd) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showTicketKindDialog(add);
+      return;
+    }
+    const card = event.target.closest('.ticket-type-card');
+    if (card) pendingRequest = requestIds.has(card.dataset.ticketId) || card.dataset.ticketId === 'request_role_crew_member_plus';
+    if (event.target.closest('[data-action="back-list"]')) pendingRequest = false;
+  }, true);
+
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (/\/api\/guilds\/\d{16,20}\/config$/.test(url) && String(init.method || 'GET').toUpperCase() === 'PATCH' && init.body) {
+      const body = JSON.parse(init.body);
+      const outside = ensureLevelUpOutsideField();
+      if (body.xp?.levelUpMessage && outside) body.xp.levelUpMessage.outsideContent = outside.value.trim();
+      const types = body.tickets?.types || [];
+      types.forEach((type, index) => {
+        const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
+        if (!marked) return;
+        normalizeRequestTypeForSave(type, index);
+      });
+      init = { ...init, body: JSON.stringify(body) };
+    }
+    return nativeFetch(input, init);
+  };
+
+  const originalApply = applyTabFromConfig;
+  applyTabFromConfig = function fixedApply(tabName, config) {
+    originalApply(tabName, config);
+    if (tabName === 'leveling') {
+      const outside = ensureLevelUpOutsideField();
+      if (outside) outside.value = config.xp?.levelUpMessage?.outsideContent || '';
+      renderLevelUpRootPreview();
+    }
+    if (tabName === 'games') {
+      state.channelValues.wordChain = config.channels?.wordChain || '';
+      ensureWordChainTools();
+    }
+    if (tabName === 'roles') queueMicrotask(ensureWordChainTools);
+    if (tabName === 'tickets') {
+      (config.tickets?.types || []).filter(isRequestType).forEach((type) => requestIds.add(type.id));
+      queueMicrotask(decorateTicketEditor);
+    }
+  };
+  const originalCollect = collectTabState;
+  collectTabState = function fixedCollect(tabName) {
+    const value = originalCollect(tabName);
+    if (tabName === 'leveling') return { ...value, outsideContent: ensureLevelUpOutsideField()?.value.trim() || '' };
+    return tabName === 'games' ? { ...value, wordChainChannel: state.channelValues.wordChain || '', wordChainPunishmentRole: state.roleValues.wordChainPunishment || '' } : value;
+  };
+  const originalPatch = collectPatch;
+  collectPatch = function fixedPatch() {
+    const patch = originalPatch();
+    patch.channels = { ...patch.channels, wordChain: state.channelValues.wordChain || '' };
+    if (patch.xp?.levelUpMessage) patch.xp.levelUpMessage.outsideContent = ensureLevelUpOutsideField()?.value.trim() || '';
+    return patch;
+  };
+  const originalLevelPreview = renderLevelUpPreview;
+  renderLevelUpPreview = function fixedLevelPreview() {
+    originalLevelPreview();
+    renderLevelUpRootPreview();
+  };
+  const originalSetTab = setActiveTab;
+  setActiveTab = function fixedSetTab(tabName) {
+    originalSetTab(tabName);
+    if (tabName === 'leveling') queueMicrotask(renderLevelUpRootPreview);
+    if (tabName === 'games') queueMicrotask(ensureWordChainTools);
+    if (tabName === 'tickets') queueMicrotask(decorateTicketEditor);
+  };
+
+  function scheduleUiFixes() {
+    if (uiFixScheduled) return;
+    uiFixScheduled = true;
+    requestAnimationFrame(() => {
+      uiFixScheduled = false;
+      cleanTabIcons();
+      renderLevelUpRootPreview();
+      ensureWordChainTools();
+      decorateTicketEditor();
+    });
+  }
+
+  installInlineSurfaceTextPatch();
+  new MutationObserver(scheduleUiFixes).observe(document.body, { childList: true, subtree: true });
+  window.addEventListener('resize', () => closePickerMenus());
+  elements.configForm.addEventListener('scroll', () => closePickerMenus(), { passive: true });
+  scheduleUiFixes();
+})();
+
+(function dashboardUpgrade() {
+  const nativeFetch = window.fetch.bind(window);
+  const state = {
+    directory: { channels: [], categories: [] },
+    xpIds: [], savedXpIds: [], gameChannel: '', savedGameChannel: '',
+    gameEnabled: false, savedGameEnabled: false, dirty: false, reloaded: false,
+  };
+  const EMOJI_CATEGORIES = {
+    recent: { icon: '☺', label: 'Frequently used', emojis: ['✅','❌','⚠️','🎫','🎟️','🔒','📩','📢','🔔','🎁','🏆','🔥','✨','👍','❤️'] },
+    faces: { icon: '😀', label: 'Smileys and emotion', emojis: ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🫡','🤭','🫢','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🤢','🤮','🤧','😷','🤒','🤕','😈','👿','💀','☠️','👻','👽','🤖','💩','😺','😸','😹','😻','😼','😽','🙀','😿','😾','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝'] },
+    people: { icon: '👋', label: 'People and body', emojis: ['👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦵','🦶','👂','👃','🧠','🫀','🫁','🦷','👀','👁️','👅','👄','🫦','👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵','🙍','🙎','🙅','🙆','💁','🙋','🧏','🙇','🤦','🤷','👮','👷','💂','🕵️','👩‍⚕️','👩‍🎓','👩‍🏫','👩‍⚖️','👩‍🌾','👩‍🍳','👩‍🔧','👩‍💻','👩‍🎤','👩‍🎨','👩‍✈️','👩‍🚀','👩‍🚒','🥷','🦸','🦹','🧙','🧚','🧛','🧜','🧝','🧞','🧟'] },
+    nature: { icon: '🌿', label: 'Animals and nature', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐒','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪰','🪲','🪳','🕷️','🦂','🐢','🐍','🦎','🐙','🦑','🦐','🦞','🦀','🐠','🐟','🐡','🐬','🐳','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🐘','🦛','🦏','🐪','🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐐','🦌','🐕','🐈','🪶','🌵','🎄','🌲','🌳','🌴','🪴','🌱','🌿','☘️','🍀','🎍','🪹','🍄','🌾','💐','🌷','🌹','🥀','🌺','🌸','🌼','🌻','☀️','🌤️','⛅','🌧️','⛈️','🌈','❄️','☃️','💨','💧','🌊'] },
+    food: { icon: '🍜', label: 'Food and drink', emojis: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🫒','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','☕','🍵','🧃','🥤','🧋','🍺','🍻','🥂','🍷','🍸','🍹'] },
+    activities: { icon: '🎮', label: 'Activities', emojis: ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🏑','🥍','🏏','🪃','🥅','⛳','🪁','🏹','🎣','🤿','🥊','🥋','🎽','🛹','🛼','🛷','⛸️','🥌','🎿','⛷️','🏂','🏋️','🤼','🤸','⛹️','🤺','🤾','🏌️','🏇','🧘','🏄','🏊','🚣','🧗','🚵','🚴','🏆','🥇','🥈','🥉','🏅','🎖️','🏵️','🎗️','🎫','🎟️','🎪','🤹','🎭','🩰','🎨','🎬','🎤','🎧','🎼','🎹','🥁','🎷','🎺','🪗','🎸','🪕','🎻','🎲','♟️','🎯','🎳','🎮','🕹️','🧩'] },
+    travel: { icon: '🚲', label: 'Travel and places', emojis: ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🦯','🦽','🛴','🚲','🛵','🏍️','🛺','🚨','🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️','🛫','🛬','🛩️','💺','🛰️','🚀','🛸','🚁','🛶','⛵','🚤','🛥️','🛳️','⛴️','🚢','⚓','🛟','⛽','🚧','🚦','🗺️','🗿','🗽','🗼','🏰','🏯','🏟️','🎡','🎢','🎠','⛲','⛺','🌁','🌃','🏙️','🌄','🌅','🌆','🌇','🌉','♨️'] },
+    objects: { icon: '🛠️', label: 'Objects', emojis: ['⌚','📱','📲','💻','⌨️','🖥️','🖨️','🖱️','🖲️','🕹️','🗜️','💽','💾','💿','📀','📼','📷','📸','📹','🎥','📽️','🎞️','📞','☎️','📟','📠','📺','📻','🎙️','🎚️','⏱️','⏲️','⏰','🕰️','⌛','⏳','📡','🔋','🪫','🔌','💡','🔦','🕯️','🧯','🛢️','💸','💵','💴','💶','💷','🪙','💰','💳','💎','⚖️','🪜','🧰','🪛','🔧','🔨','⚒️','🛠️','⛏️','🪚','🔩','⚙️','⛓️','🧲','🔫','💣','🧨','🪓','🔪','🗡️','🛡️','🔮','📿','💈','⚗️','🔭','🔬','🕳️','🩹','🩺','💊','💉','🩸','🚪','🪞','🪟','🛏️','🪑','🚿','🛁','🧹','🧺','🧻','🪣','🧼','🫧','🪥','🧽','🧯','🛒','🎁','🎈','🎀','🪄','🪅','🎊','🎉','✉️','📩','📨','📧','💌','📥','📤','📦','🏷️','📪','📫','📬','📭','📮','📜','📃','📄','📑','🧾','📊','📈','📉','🗒️','🗓️','📆','📅','🗑️','📇','🗃️','🗳️','🗄️','📋','📁','📂','🗂️','🗞️','📰','📓','📔','📒','📕','📗','📘','📙','📚','📖','🔖','🧷','🔗','📎','🖇️','📐','📏','📌','📍','✂️','🖊️','🖋️','✒️','🖌️','🖍️','📝','✏️','🔍','🔎','🔏','🔐','🔒','🔓'] },
+    symbols: { icon: '♥', label: 'Symbols', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','☢️','☣️','📴','📳','🈶','🈚','🈸','🈺','🈷️','✴️','🆚','💮','🉐','㊙️','㊗️','🈴','🈵','🈹','🈲','🅰️','🅱️','🆎','🆑','🅾️','🆘','❌','⭕','🛑','⛔','📛','🚫','💯','💢','♨️','🚷','🚯','🚳','🚱','🔞','📵','❗','❕','❓','❔','‼️','⁉️','🔅','🔆','〽️','⚠️','🚸','🔱','⚜️','🔰','♻️','✅','🈯','💹','❇️','✳️','❎','🌐','💠','Ⓜ️','🌀','💤','🏧','🚾','♿','🅿️','🛗','🚹','🚺','🚼','🚻','🚮','🎦','📶','🈁','🔣','ℹ️','🔤','🔡','🔠','🆖','🆗','🆙','🆒','🆕','🆓','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','#️⃣','*️⃣','⏏️','▶️','⏸️','⏯️','⏹️','⏺️','⏭️','⏮️','⏩','⏪','🔀','🔁','🔂','◀️','🔼','🔽','➡️','⬅️','⬆️','⬇️','↗️','↘️','↙️','↖️','↕️','↔️','↪️','↩️','⤴️','⤵️','🔃','🔄','🔙','🔚','🔛','🔜','🔝'] },
+    flags: { icon: '🏳️', label: 'Flags', emojis: ['🏁','🚩','🎌','🏴','🏳️','🏳️‍🌈','🏳️‍⚧️','🏴‍☠️','🇺🇳','🇺🇸','🇨🇦','🇲🇽','🇧🇷','🇦🇷','🇬🇧','🇮🇪','🇫🇷','🇩🇪','🇪🇸','🇮🇹','🇵🇹','🇳🇱','🇧🇪','🇨🇭','🇦🇹','🇸🇪','🇳🇴','🇩🇰','🇫🇮','🇵🇱','🇺🇦','🇷🇺','🇹🇷','🇸🇦','🇦🇪','🇮🇳','🇵🇰','🇧🇩','🇱🇰','🇨🇳','🇭🇰','🇹🇼','🇯🇵','🇰🇷','🇸🇬','🇲🇾','🇹🇭','🇻🇳','🇵🇭','🇮🇩','🇦🇺','🇳🇿','🇿🇦','🇪🇬','🇳🇬','🇰🇪'] },
+  };
+
+  function splitXp(config) {
+    const xp = config?.xp || {};
+    const minXp = Number(xp.messageXpMin) || 0;
+    const maxXp = Math.max(minXp, Number(xp.messageXpMax) || minXp);
+    const cooldownMs = Math.max(0, Number(xp.messageCooldownMs) || 0);
+    const normalize = (raw) => {
+      const channelId = String(typeof raw === 'string' ? raw : raw?.channelId || raw?.id || '');
+      return channelId ? { channelId, minXp: Number(raw?.minXp ?? minXp), maxXp: Number(raw?.maxXp ?? maxXp), cooldownMs: Number(raw?.cooldownMs ?? cooldownMs) } : null;
+    };
+    const overrides = Array.isArray(xp.channelOverrides) ? xp.channelOverrides.map(normalize).filter(Boolean) : (xp.channels || []).map((raw) => ({ raw, rule: normalize(raw) })).filter(({ raw, rule }) => rule && typeof raw !== 'string' && (rule.minXp !== minXp || rule.maxXp !== maxXp || rule.cooldownMs !== cooldownMs)).map(({ rule }) => rule);
+    const overrideIds = new Set(overrides.map((rule) => rule.channelId));
+    return { ids: [...new Set((xp.channels || []).map((raw) => normalize(raw)?.channelId).filter((id) => id && !overrideIds.has(id)))], overrides };
+  }
+  function responseWithJson(response, value) {
+    const headers = new Headers(response.headers); headers.delete('content-length'); headers.delete('content-encoding');
+    return new Response(JSON.stringify(value), { status: response.status, statusText: response.statusText, headers });
+  }
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    const method = String(init.method || 'GET').toUpperCase();
+    const configRequest = /\/api\/guilds\/\d{16,20}\/config$/.test(url);
+    let options = init;
+    if (configRequest && method === 'PATCH' && init.body) {
+      const body = JSON.parse(init.body);
+      const overrides = Array.isArray(body.xp?.channels) ? body.xp.channels : [];
+      body.xp.channels = [...state.xpIds, ...overrides.filter((rule) => rule?.channelId && !state.xpIds.includes(String(rule.channelId)))];
+      delete body.xp.channelOverrides;
+      body.channels.wordChain = state.gameEnabled ? state.gameChannel : '';
+      delete body.inviteRewards;
+      options = { ...init, body: JSON.stringify(body) };
+    }
+    const response = await nativeFetch(input, options);
+    if (!response.ok) return response;
+    if (/\/directory$/.test(url)) {
+      const payload = await response.json(); state.directory = payload.directory || state.directory; setTimeout(renderDashboard, 0); return responseWithJson(response, payload);
+    }
+    if (configRequest) {
+      const payload = await response.json(); const split = splitXp(payload.config);
+      state.xpIds = split.ids; state.savedXpIds = [...split.ids];
+      state.gameChannel = String(payload.config?.channels?.wordChain || ''); state.savedGameChannel = state.gameChannel;
+      state.gameEnabled = Boolean(payload.config?.wordChain?.enabled ?? state.gameChannel); state.savedGameEnabled = state.gameEnabled; state.dirty = false;
+      payload.config.xp.channels = split.overrides; setTimeout(renderDashboard, 0); return responseWithJson(response, payload);
+    }
+    return response;
+  };
+  function syncDirty() {
+    state.dirty = state.gameEnabled !== state.savedGameEnabled || state.gameChannel !== state.savedGameChannel || JSON.stringify([...state.xpIds].sort()) !== JSON.stringify([...state.savedXpIds].sort());
+    if (!state.dirty) return;
+    const bar = document.querySelector('#unsavedBar'); const save = document.querySelector('#saveButton'); const label = document.querySelector('#savedState');
+    if (bar) bar.hidden = false; if (save) save.disabled = false; if (label) label.textContent = 'Unsaved changes';
+  }
+  function channelItems(mode) {
+    return [...(state.directory.categories || []), ...(state.directory.channels || [])].filter((item) => mode === 'xp' ? item.kind !== 'voice' : ['text','announcement','thread'].includes(item.kind));
+  }
+  function badge(item) {
+    const tag = document.createElement('span'); tag.className = `tag ${item.kind || 'text'}`;
+    tag.textContent = item.kind === 'category' ? 'CAT' : item.kind === 'thread' ? 'THR' : item.kind === 'announcement' ? 'ANN' : item.kind === 'forum' ? 'FOR' : '#';
+    return tag;
+  }
+  function token(item) {
+    const chip = document.createElement('span'); chip.className = 'token'; chip.append(badge(item));
+    const name = document.createElement('span'); name.textContent = `${item.parentName ? `${item.parentName} / ` : ''}${item.name}`; chip.append(name); return chip;
+  }
+  function picker(mode, multiple, current, change) {
+    const options = channelItems(mode); const selected = new Set(current.filter(Boolean).map(String));
+    const root = document.createElement('div'); root.className = 'picker';
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'picker-button';
+    const selectedWrap = document.createElement('span'); selectedWrap.className = 'selected-wrap';
+    const chevron = document.createElement('span'); chevron.className = 'chevron'; chevron.textContent = 'v';
+    const menu = document.createElement('div'); menu.className = 'picker-menu';
+    const search = document.createElement('input'); search.className = 'picker-search'; search.type = 'search'; search.placeholder = 'Search by name or ID'; search.autocomplete = 'off';
+    const list = document.createElement('div'); list.className = 'option-list'; menu.append(search, list); button.append(selectedWrap, chevron); root.append(button, menu);
+    const find = (id) => options.find((item) => item.id === id) || { id, name: id, kind: 'text', parentName: '' };
+    function drawButton() {
+      selectedWrap.replaceChildren(); const values = [...selected].map(find);
+      if (!values.length) { const empty = document.createElement('span'); empty.className = 'placeholder'; empty.textContent = 'Select a channel'; selectedWrap.append(empty); return; }
+      values.slice(0, multiple ? 5 : 1).forEach((item) => selectedWrap.append(token(item)));
+      if (values.length > 5) { const more = document.createElement('span'); more.className = 'token'; more.textContent = `+${values.length - 5}`; selectedWrap.append(more); }
+    }
+    function drawList() {
+      const query = search.value.trim().toLowerCase(); list.replaceChildren();
+      const filtered = options.filter((item) => !query || `${item.name} ${item.id} ${item.parentName || ''}`.toLowerCase().includes(query));
+      if (!filtered.length) { const empty = document.createElement('div'); empty.className = 'empty-option'; empty.textContent = 'No results'; list.append(empty); return; }
+      filtered.forEach((item) => {
+        const row = document.createElement('button'); row.type = 'button'; row.className = `option${selected.has(item.id) ? ' selected' : ''}`;
+        const main = document.createElement('span'); main.className = 'option-main'; main.append(token(item));
+        const check = document.createElement('span'); check.className = 'check-mark'; check.textContent = selected.has(item.id) ? 'Selected' : ''; row.append(main, check);
+        row.onclick = (event) => { event.stopPropagation(); if (multiple) { if (selected.has(item.id)) selected.delete(item.id); else selected.add(item.id); } else { selected.clear(); selected.add(item.id); } change([...selected]); drawButton(); drawList(); if (!multiple) closeMenu(); setTimeout(syncDirty, 0); };
+        list.append(row);
+      });
+    }
+    function closeMenu() { menu.classList.remove('open'); button.classList.remove('open'); }
+    button.onclick = (event) => { event.stopPropagation(); const open = !menu.classList.contains('open'); document.querySelectorAll('.picker-menu.open').forEach((node) => node.classList.remove('open')); document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open')); menu.classList.toggle('open', open); button.classList.toggle('open', open); if (open) { drawList(); search.focus(); requestAnimationFrame(() => positionPicker(menu)); } };
+    search.oninput = drawList; drawButton(); return root;
+  }
+  function positionPicker(menu) {
+    const button = menu.closest('.picker')?.querySelector('.picker-button'); if (!button || !menu.classList.contains('open')) return;
+    const rect = button.getBoundingClientRect(); const gap = 6; const pad = 12; const below = innerHeight - rect.bottom - pad - gap; const above = rect.top - pad - gap; const up = below < 220 && above > below;
+    const width = Math.min(Math.max(rect.width, 320), innerWidth - pad * 2); const height = Math.min(420, Math.max(170, up ? above : below));
+    menu.style.width = `${width}px`; menu.style.maxHeight = `${height}px`; menu.style.left = `${Math.min(Math.max(pad, rect.left), innerWidth - width - pad)}px`; menu.style.right = 'auto';
+    if (up) { menu.style.top = 'auto'; menu.style.bottom = `${innerHeight - rect.top + gap}px`; } else { menu.style.top = `${rect.bottom + gap}px`; menu.style.bottom = 'auto'; }
+  }
+  function installTabIcon(tabName, filename, label) {
+    const tab = document.querySelector(`.tab[data-tab="${tabName}"]`); if (!tab) return;
+    tab.querySelector('.tab-image-icon')?.remove(); const image = document.createElement('img'); image.className = 'tab-image-icon'; image.src = `/images/${filename}`; image.alt = ''; image.title = label; tab.prepend(image);
+  }
+  function renderDashboard() {
+    document.querySelector('[data-tab="invites"]')?.remove(); document.querySelector('[data-panel="invites"]')?.remove();
+    installTabIcon('leveling', 'leveling.png', 'Leveling'); installTabIcon('tickets', 'ticket.png', 'Tickets');
+    const xpPanel = document.querySelector('[data-leveling-panel="xp"] .panel'); let xpMount = document.querySelector('#xpDefaultChannelsMount');
+    if (xpPanel && !xpMount) { const field = document.createElement('div'); field.className = 'picker-field default-xp-destinations'; field.innerHTML = '<span class="field-label">XP channels</span><p>Only messages sent in these channels, categories, or forum threads earn the default XP values.</p><div id="xpDefaultChannelsMount"></div>'; xpPanel.querySelector('.grid')?.before(field); xpMount = field.querySelector('div'); }
+    if (xpMount) xpMount.replaceChildren(picker('xp', true, state.xpIds, (ids) => { state.xpIds = ids; }));
+    const empty = document.querySelector('#xpEmptyState'); if (empty) empty.textContent = 'No channel overrides. Add one only when a destination should use different XP values.';
+    const gamePanel = document.querySelector('[data-panel="games"] .panel'); let controls = document.querySelector('.word-chain-controls');
+    if (gamePanel && !controls) { controls = document.createElement('div'); controls.className = 'word-chain-controls'; controls.innerHTML = '<label class="switch-control"><input id="wordChainEnabled" type="checkbox"><span class="switch-track"><span class="switch-thumb"></span></span><span>Enabled</span></label><div class="picker-field"><span class="field-label">Game channel</span><div id="wordChainChannelMount"></div></div>'; gamePanel.querySelector('.panel-heading')?.after(controls); }
+    const toggle = document.querySelector('#wordChainEnabled'); if (toggle) { toggle.checked = state.gameEnabled; toggle.onchange = (event) => { event.stopPropagation(); state.gameEnabled = toggle.checked; setTimeout(syncDirty, 0); }; }
+    const gameMount = document.querySelector('#wordChainChannelMount'); if (gameMount) gameMount.replaceChildren(picker('game', false, [state.gameChannel], (ids) => { state.gameChannel = ids[0] || ''; }));
+    document.querySelectorAll('#channelsGrid .picker-field').forEach((field) => { if (/word chain/i.test(field.textContent)) field.hidden = true; }); syncDirty();
+  }
+  function permissions(scope = document) {
+    scope.querySelectorAll('.ticket-modal-head p').forEach((item) => item.remove());
+    scope.querySelectorAll('.permission-item:not([data-upgraded])').forEach((item) => { const input = item.querySelector('input[data-permission]'); const title = item.querySelector('span')?.textContent?.trim(); if (!input || !title) return; item.dataset.upgraded = 'true'; const name = document.createElement('span'); name.className = 'permission-name'; name.textContent = title; const buttons = document.createElement('span'); buttons.className = 'permission-state'; buttons.innerHTML = '<button type="button" class="permission-deny" disabled>X</button><button type="button" class="permission-neutral">/</button><button type="button" class="permission-allow">✓</button>'; const refresh = () => { buttons.children[1].classList.toggle('active', !input.checked); buttons.children[2].classList.toggle('active', input.checked); }; buttons.children[1].onclick = () => { input.checked = false; input.dispatchEvent(new Event('input',{bubbles:true})); refresh(); }; buttons.children[2].onclick = () => { input.checked = true; input.dispatchEvent(new Event('input',{bubbles:true})); refresh(); }; item.replaceChildren(input, name, buttons); refresh(); });
+  }
+  function emoji(input) {
+    if (input.dataset.emojiPicker) return; input.dataset.emojiPicker = 'true';
+    const wrap = document.createElement('span'); wrap.className = 'emoji-field'; input.parentNode.insertBefore(wrap,input); wrap.append(input);
+    const button = document.createElement('button'); button.type='button'; button.className='emoji-picker-button'; button.textContent='☺'; button.title='Choose emoji';
+    const pop = document.createElement('span'); pop.className='emoji-popover'; const side = document.createElement('span'); side.className='emoji-categories';
+    const browser = document.createElement('span'); browser.className='emoji-browser'; const search = document.createElement('input'); search.type='search'; search.placeholder='Search emoji'; const grid = document.createElement('span'); grid.className='emoji-grid'; browser.append(search,grid); pop.append(side,browser);
+    let active = 'recent';
+    function drawCategories() { side.replaceChildren(); Object.entries(EMOJI_CATEGORIES).forEach(([key, category]) => { const item=document.createElement('button'); item.type='button'; item.textContent=category.icon; item.title=category.label; item.classList.toggle('active',key===active); item.onclick=()=>{active=key; search.value=''; drawCategories(); draw();}; side.append(item); }); }
+    function draw() { const q=search.value.trim().toLowerCase(); grid.replaceChildren(); const categories=q ? Object.values(EMOJI_CATEGORIES) : [EMOJI_CATEGORIES[active]]; [...new Set(categories.flatMap((category)=>category.emojis))].forEach((value)=>{ if(q && !value.includes(q) && !categories.some((category)=>category.label.toLowerCase().includes(q))) return; const option=document.createElement('button'); option.type='button'; option.textContent=value; option.onclick=()=>{input.value=value; input.dispatchEvent(new Event('input',{bubbles:true})); input.dispatchEvent(new Event('change',{bubbles:true})); pop.classList.remove('open');}; grid.append(option); }); }
+    button.onclick=(event)=>{event.stopPropagation(); document.querySelectorAll('.emoji-popover.open').forEach((node)=>{if(node!==pop)node.classList.remove('open');}); pop.classList.toggle('open'); if(pop.classList.contains('open')){drawCategories();draw();positionEmoji(pop,button);search.focus();}}; search.oninput=draw; wrap.append(button,pop);
+  }
+  function positionEmoji(pop,button){const rect=button.getBoundingClientRect();const width=Math.min(430,innerWidth-24);const height=Math.min(470,innerHeight-24);pop.style.width=`${width}px`;pop.style.maxHeight=`${height}px`;pop.style.left=`${Math.min(Math.max(12,rect.right-width),innerWidth-width-12)}px`;if(innerHeight-rect.bottom<height&&rect.top>innerHeight-rect.bottom){pop.style.top='auto';pop.style.bottom=`${innerHeight-rect.top+6}px`;}else{pop.style.top=`${rect.bottom+6}px`;pop.style.bottom='auto';}}
+  function upgradeDynamic(){permissions();document.querySelectorAll('input[data-ticket-field="emoji"],input[data-control-field="emoji"],input[data-option-field="emoji"]').forEach(emoji);}
+  new MutationObserver(upgradeDynamic).observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('click',(event)=>{if(!event.target.closest('.picker')){document.querySelectorAll('.picker-menu.open').forEach((menu)=>menu.classList.remove('open'));document.querySelectorAll('.picker-button.open').forEach((node)=>node.classList.remove('open'));}if(!event.target.closest('.emoji-field'))document.querySelectorAll('.emoji-popover.open').forEach((pop)=>pop.classList.remove('open'));});
+  document.addEventListener('scroll',()=>{document.querySelectorAll('.picker-menu.open').forEach(positionPicker);document.querySelectorAll('.emoji-popover.open').forEach((pop)=>positionEmoji(pop,pop.closest('.emoji-field').querySelector('.emoji-picker-button')));},true);
+  window.addEventListener('resize',()=>{document.querySelectorAll('.picker-menu.open').forEach(positionPicker);document.querySelectorAll('.emoji-popover.open').forEach((pop)=>positionEmoji(pop,pop.closest('.emoji-field').querySelector('.emoji-picker-button')));});
+  document.querySelector('#resetTabButton')?.addEventListener('click',()=>{if(!state.dirty)return;state.xpIds=[...state.savedXpIds];state.gameChannel=state.savedGameChannel;state.gameEnabled=state.savedGameEnabled;state.dirty=false;setTimeout(renderDashboard,0);},true);
+  window.addEventListener('beforeunload',(event)=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
+  const timer=setInterval(()=>{const select=document.querySelector('#guildSelect');if(state.reloaded||!select?.value||select.disabled||document.querySelector('#editor')?.hidden)return;state.reloaded=true;select.dispatchEvent(new Event('change',{bubbles:true}));clearInterval(timer);},250);
+  upgradeDynamic(); renderDashboard();
+}());

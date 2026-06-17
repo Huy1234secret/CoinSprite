@@ -7,8 +7,6 @@ const { getGuildWorkflows, saveGuildWorkflows } = require('../src/requestControl
 
 const previousCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
-const ADMIN_FIXES_PATH = path.join(__dirname, '..', 'admin', 'admin-fixes.js');
-const ADMIN_CSS_PATH = path.join(__dirname, '..', 'admin', 'admin-fixes.css');
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 let clientRef = null;
 

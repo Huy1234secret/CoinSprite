@@ -19,8 +19,6 @@ if (!fs.__coinSpriteMessageComponentActionAsset) {
         '</body>',
         [
           '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
-          '  <script src="/admin/message-action-persistence-fix.js?v=action-save-3" defer></script>',
-          '  <script src="/admin/emoji-picker-upgrade.js" defer></script>',
           '</body>',
         ].join('\n'),
       );

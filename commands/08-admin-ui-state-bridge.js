@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const ADMIN_FIXES_JS = path.join(__dirname, '..', 'admin', 'admin-fixes.js');
 
 const bridgeScript = String.raw`
 ;(() => {

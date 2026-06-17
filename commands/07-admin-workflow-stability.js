@@ -4,7 +4,6 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const ADMIN_FIXES_JS = path.join(__dirname, '..', 'admin', 'admin-fixes.js');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ICON_ALIASES = new Map([
   ['/images/leveling.png', path.join(IMAGE_DIR, 'leveling.png')],

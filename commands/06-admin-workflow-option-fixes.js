@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 
 const originalReadFile = fs.readFile.bind(fs);
-const ADMIN_FIXES_JS = path.resolve(__dirname, '..', 'admin', 'admin-fixes.js');
 
 const OPTION_FIX_SCRIPT = `
 (() => {
