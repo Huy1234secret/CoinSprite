@@ -54,6 +54,10 @@
   box-shadow: none;
 }
 
+.word-chain-tools .picker-field:has(#wordChainChannelMount) {
+  display: none !important;
+}
+
 .moderator-shell {
   display: grid;
   gap: 16px;
