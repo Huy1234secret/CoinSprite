@@ -2,11 +2,14 @@ const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('disc
 const { analyzeModerationMessage } = require('../src/aiModeration');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
-const { renderMessageScreenshot } = require('../src/messageScreenshot');
+const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
 const DEFAULT_MAX_AI_CHARS = 300;
+const LOW_AI_LOG_CHANNEL_ID = '1516856053751353464';
+const SEVERE_AI_LOG_CHANNEL_ID = '1516855502749962420';
+const SEVERE_AI_THRESHOLD = 8;
 
 function uniqueIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
@@ -89,7 +92,11 @@ function formatSeverityScore(value) {
   return String(Math.max(0, Math.min(10, Math.round(score * 100) / 100)));
 }
 
-function moderationValues(message, result) {
+function isSevereModerationResult(result) {
+  return Number(result?.severityScore) >= SEVERE_AI_THRESHOLD;
+}
+
+function moderationValues(message, result, screenshot = null) {
   const ruleIds = Array.isArray(result.brokenRules) ? result.brokenRules : [];
   return new Map([
     ['severity', formatSeverityScore(result.severityScore)],
@@ -101,6 +108,8 @@ function moderationValues(message, result) {
     ['original-language', result.originalLanguage || ''],
     ['english-translation', result.englishTranslation || ''],
     ['message-link', message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`],
+    ['message-screenshot', screenshot?.name ? `attachment://${screenshot.name}` : ''],
+    ['message-screenshot-path', screenshot?.path || ''],
     ['moderation-source', result.source || 'ai'],
   ]);
 }
@@ -109,8 +118,8 @@ function replaceModerationPlaceholders(value, replacements) {
   return String(value || '').replace(/<([a-z0-9_-]+)>/gi, (match, token) => replacements.get(token.toLowerCase()) ?? match);
 }
 
-function applyModerationPlaceholders(template, message, result) {
-  const replacements = moderationValues(message, result);
+function applyModerationPlaceholders(template, message, result, screenshot = null) {
+  const replacements = moderationValues(message, result, screenshot);
   const copy = JSON.parse(JSON.stringify(template));
   copy.content = replaceModerationPlaceholders(copy.content, replacements);
   copy.containers = (copy.containers || []).map((container) => ({
@@ -139,22 +148,30 @@ function hasExcludedRole(message, settings) {
   return settings.excludeRoleIds.some((roleId) => roles.has(roleId));
 }
 
-async function screenshotFiles(message, result) {
+async function moderationScreenshot(message, result) {
   try {
-    return [await renderMessageScreenshot(message, result)];
+    return await saveMessageScreenshot(message, result);
   } catch (error) {
     console.error('Moderation screenshot render failed:', error);
-    return [];
+    return null;
   }
 }
 
-async function sendModerationAlert(message, result, settings) {
-  const channel = message.guild.channels.cache.get(settings.logChannelId)
-    || await message.guild.channels.fetch(settings.logChannelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
+function screenshotFiles(screenshot) {
+  return screenshot?.attachment && screenshot?.name
+    ? [{ attachment: screenshot.attachment, name: screenshot.name }]
+    : [];
+}
 
-  const files = await screenshotFiles(message, result);
-  const template = findTemplate(message.guildId, settings.alertTemplateId) || findTemplate(message.guildId, DEFAULT_ALERT_TEMPLATE_ID);
+async function sendModerationAlertToChannel(message, result, templateId, channelId, screenshot) {
+  const targetChannelId = String(channelId || '').trim();
+  if (!targetChannelId) return false;
+  const channel = message.guild.channels.cache.get(targetChannelId)
+    || await message.guild.channels.fetch(targetChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return false;
+
+  const files = screenshotFiles(screenshot);
+  const template = findTemplate(message.guildId, templateId) || findTemplate(message.guildId, DEFAULT_ALERT_TEMPLATE_ID);
   if (!template) {
     await channel.send({
       content: [
@@ -162,21 +179,38 @@ async function sendModerationAlert(message, result, settings) {
         `Severity: ${formatSeverityScore(result.severityScore)}/10`,
         `Broken rules:\n${listLines(result.brokenRules)}`,
         `Reason: ${result.reason || 'Rule violation.'}`,
+        screenshot?.path ? `Screenshot saved: ${screenshot.path}` : '',
         message.url,
-      ].join('\n').slice(0, 2000),
+      ].filter(Boolean).join('\n').slice(0, 2000),
       allowedMentions: { parse: [], users: [message.author.id] },
       files,
     }).catch(() => null);
-    return;
+    return true;
   }
 
-  const payload = buildMessagePayload(applyModerationPlaceholders(template, message, result), {
+  const payload = buildMessagePayload(applyModerationPlaceholders(template, message, result, screenshot), {
     guild: message.guild,
     channel: message.channel,
     user: message.author,
     member: message.member,
   });
   await channel.send({ ...payload, files }).catch(() => null);
+  return true;
+}
+
+async function sendModerationAlert(message, result, settings) {
+  const screenshot = await moderationScreenshot(message, result);
+  const sent = new Set();
+  const configuredChannelId = String(settings.logChannelId || '').trim();
+  if (configuredChannelId) {
+    sent.add(configuredChannelId);
+    await sendModerationAlertToChannel(message, result, settings.alertTemplateId, configuredChannelId, screenshot);
+  }
+
+  const fixedChannelId = isSevereModerationResult(result) ? SEVERE_AI_LOG_CHANNEL_ID : LOW_AI_LOG_CHANNEL_ID;
+  if (fixedChannelId && !sent.has(fixedChannelId)) {
+    await sendModerationAlertToChannel(message, result, settings.alertTemplateId, fixedChannelId, screenshot);
+  }
 }
 
 module.exports = {
@@ -195,6 +229,8 @@ module.exports = {
         `Alert channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
+        `AI reports below 8/10: <#${LOW_AI_LOG_CHANNEL_ID}>`,
+        `AI severe reports 8-10/10: <#${SEVERE_AI_LOG_CHANNEL_ID}>`,
         `AI input sent: up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI every message' : 'fallback scan only'}`,
         `Debug logs: ${moderationDebugEnabled() ? 'enabled' : 'off'}`,
@@ -228,8 +264,7 @@ module.exports = {
 
     if (!result.flagged) return;
     if (!settings.logChannelId) {
-      debugModeration(message, 'alert-skip', 'reason=no-log-channel');
-      return;
+      debugModeration(message, 'alert-route', `reason=no-configured-log-channel fixed=${isSevereModerationResult(result) ? SEVERE_AI_LOG_CHANNEL_ID : LOW_AI_LOG_CHANNEL_ID}`);
     }
     if (!shouldScanChannel(message, settings)) {
       debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
