@@ -256,6 +256,15 @@
   min-width: 0;
 }
 
+.automod-action-row [data-moderator-action="remove-link-action"] {
+  width: auto;
+  min-width: 86px;
+  max-width: 110px;
+  justify-self: end;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
 @media (max-width: 1100px) {
   .automod-action-row,
   .automod-action-row[data-action-type="warn"],
@@ -289,5 +298,9 @@
   .automod-action-row[data-action-type="timeout"],
   .message-folder-head {
     grid-template-columns: 1fr;
+  }
+
+  .automod-action-row [data-moderator-action="remove-link-action"] {
+    justify-self: start;
   }
 }
