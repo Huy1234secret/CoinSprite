@@ -5,6 +5,7 @@ const { buildMessagePayload, findTemplate } = require('../src/messageTemplates')
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
+const DEFAULT_MAX_AI_CHARS = 1500;
 const cooldowns = new Map();
 
 function uniqueIds(value) {
@@ -19,6 +20,7 @@ function moderationConfig(guildId) {
     logChannelId: String(ai.logChannelId || ''),
     scanChannelIds: uniqueIds(ai.scanChannelIds),
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
+    maxInputChars: Number(ai.maxInputChars) || DEFAULT_MAX_AI_CHARS,
   };
 }
 
@@ -136,6 +138,7 @@ module.exports = {
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
         `Scan channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
+        `AI max input: ${settings.maxInputChars} characters`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI' : 'fallback scan only'}`,
       ].join('\n'),
       flags: EPHEMERAL_FLAG,
@@ -151,6 +154,7 @@ module.exports = {
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
+      maxInputChars: settings.maxInputChars,
     });
     if (!result.flagged) return;
     await sendModerationAlert(message, result, settings);
