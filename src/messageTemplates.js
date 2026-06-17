@@ -10,6 +10,71 @@ const COMPONENT_CUSTOM_ID_PREFIX = 'message-template:';
 const ACTION_TYPES = new Set(['send_message', 'give_role', 'legacy_response']);
 const DEFAULT_COMPONENT_RESPONSES = new Set(['Thanks, <@mention>!', 'You selected this option, <@mention>.']);
 
+const DEFAULT_BOT_TEMPLATES = Object.freeze([
+  {
+    id: 'default-ai-moderation-alert',
+    type: 'template',
+    folderId: '',
+    name: 'Default: AI moderation alert',
+    content: '',
+    containers: [{
+      id: 'ai-moderation-alert',
+      accentColor: '#9B59B6',
+      text: [
+        '## AI moderation alert',
+        '**User:** <@mention> (`<user-id>`)',
+        '**Channel:** <channel>',
+        '**Severity:** <severity> <severity-tier>/10',
+        '**Broken rule(s):**',
+        '<broken-rules>',
+        '<separator>',
+        '**Reason**',
+        '<moderation-reason>',
+        '<separator>',
+        '**English translation**',
+        '<english-translation>',
+        '<separator>',
+        '-# Original language: <original-language>',
+        '-# Matched terms: <matched-terms>',
+        '-# Message: <message-link>',
+      ].join('\n'),
+      thumbnailUrl: '<avatar_url>',
+      imageUrl: '',
+    }],
+    componentRows: [],
+    botDefault: true,
+    defaultLocked: true,
+    updatedAt: new Date(0).toISOString(),
+  },
+  {
+    id: 'default-ai-moderation-user-warning',
+    type: 'template',
+    folderId: '',
+    name: 'Default: AI moderation user warning',
+    content: '',
+    containers: [{
+      id: 'ai-moderation-user-warning',
+      accentColor: '#9B59B6',
+      text: [
+        '## Message flagged',
+        '<@mention>, your message in <channel> was flagged by AI moderation.',
+        '<separator>',
+        '**Severity:** <severity> <severity-tier>/10',
+        '**Broken rule(s):**',
+        '<broken-rules>',
+        '**Reason:** <moderation-reason>',
+        '-# If this was a mistake, please contact staff.',
+      ].join('\n'),
+      thumbnailUrl: '',
+      imageUrl: '',
+    }],
+    componentRows: [],
+    botDefault: true,
+    defaultLocked: true,
+    updatedAt: new Date(0).toISOString(),
+  },
+]);
+
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function cleanText(value, fallback = '', max = 4000) {
   const text = String(value ?? '').trim();
@@ -68,6 +133,45 @@ function defaultTemplate(index = 1) {
     defaultLocked: false,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function defaultTemplateById(templateId) {
+  return DEFAULT_BOT_TEMPLATES.find((template) => template.id === templateId) || null;
+}
+
+function mergeDefaultTemplate(baseDefault, saved) {
+  const merged = {
+    ...clone(baseDefault),
+    ...(saved || {}),
+    id: baseDefault.id,
+    type: 'template',
+    folderId: '',
+    name: baseDefault.name,
+    botDefault: true,
+    defaultLocked: true,
+  };
+  const rootContent = String(merged.content || '').trim();
+  merged.content = '';
+  if (rootContent) {
+    const containers = Array.isArray(merged.containers) && merged.containers.length
+      ? merged.containers
+      : clone(baseDefault.containers);
+    containers[0] = {
+      ...clone(baseDefault.containers[0]),
+      ...(containers[0] || {}),
+      text: String(containers[0]?.text || '').trim() || rootContent,
+    };
+    merged.containers = containers;
+  }
+  return merged;
+}
+
+function mergeDefaultTemplates(savedTemplates) {
+  const byId = new Map((savedTemplates || []).map((template) => [template.id, template]));
+  for (const template of DEFAULT_BOT_TEMPLATES) {
+    byId.set(template.id, mergeDefaultTemplate(template, byId.get(template.id)));
+  }
+  return [...byId.values()];
 }
 
 function sanitizeContainer(value, index) {
@@ -221,13 +325,17 @@ function saveAll(state) {
   fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
   fs.writeFileSync(DATA_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
-function listTemplates(guildId) {
+function listStoredTemplates(guildId) {
   return clone((loadAll()[guildId] || []).map(sanitizeTemplate));
+}
+function listTemplates(guildId) {
+  return mergeDefaultTemplates(listStoredTemplates(guildId)).map((template, index) => sanitizeTemplate(template, index));
 }
 function saveTemplate(guildId, value) {
   const state = loadAll();
   const list = state[guildId] || [];
-  const template = sanitizeTemplate(value, list.length);
+  const defaultTemplateValue = defaultTemplateById(value?.id);
+  const template = sanitizeTemplate(defaultTemplateValue ? mergeDefaultTemplate(defaultTemplateValue, value) : value, list.length);
   const index = list.findIndex((item) => item.id === template.id);
   if (index === -1) list.push(template); else list[index] = template;
   state[guildId] = list.slice(0, 140);
@@ -235,6 +343,7 @@ function saveTemplate(guildId, value) {
   return clone(template);
 }
 function deleteTemplate(guildId, templateId) {
+  if (defaultTemplateById(templateId)) return false;
   const state = loadAll();
   const list = state[guildId] || [];
   const target = list.find((item) => item.id === templateId);
@@ -514,6 +623,7 @@ function parseDiscordMessageLink(value, guildId) {
 }
 
 module.exports = {
+  DEFAULT_BOT_TEMPLATES,
   buildMessagePayload,
   defaultTemplate,
   deleteTemplate,
