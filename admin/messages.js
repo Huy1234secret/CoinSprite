@@ -1,4 +1,7 @@
 (() => {
+  if (window.__coinSpriteMessagesApp) return;
+  window.__coinSpriteMessagesApp = true;
+
   const root = document.querySelector('#messageTemplatesRoot');
   if (!root) return;
 
@@ -133,10 +136,20 @@
     };
   }
 
+  function activeGuildId() {
+    return document.querySelector('#guildSelect')?.value
+      || (typeof state !== 'undefined' ? state.guildId : '')
+      || '';
+  }
+
   async function loadTemplates(force = false) {
-    if (!state.guildId) return;
-    if (!force && view.guildId === state.guildId) return;
-    view.guildId = state.guildId;
+    const guildId = activeGuildId();
+    if (!guildId) {
+      root.innerHTML = '<div class="empty-state">Select a server to manage message templates.</div>';
+      return;
+    }
+    if (!force && view.guildId === guildId && root.childElementCount) return;
+    view.guildId = guildId;
     view.selectedId = '';
     view.notice = '';
     root.innerHTML = '<div class="message-loading">Loading message templates...</div>';
@@ -693,12 +706,13 @@
   });
 
   document.querySelector('#tabList')?.addEventListener('click', (event) => {
-    if (event.target.closest('[data-tab="messages"]')) loadTemplates();
+    if (event.target.closest('[data-tab="messages"]')) loadTemplates(true);
   });
   document.querySelector('#guildSelect')?.addEventListener('change', () => setTimeout(() => loadTemplates(true), 0));
   setInterval(() => {
     if (document.querySelector('[data-panel="messages"]')?.classList.contains('active')) loadTemplates();
   }, 800);
+  if (document.querySelector('[data-panel="messages"]')?.classList.contains('active')) loadTemplates(true);
 })();
 
 (() => {

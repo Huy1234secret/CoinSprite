@@ -47,7 +47,9 @@
       panel.innerHTML = '<div id="messageTemplatesRoot"></div>';
       (qs('[data-panel="tickets"]', form) || form.lastElementChild)?.after(panel);
     }
-    if (qs('#messageTemplatesRoot') && !qs('script[src="/admin/messages.js"]')) {
+    const messagesScriptScheduled = window.__coinSpriteMessageScriptsScheduled
+      || qs('script[src^="/admin/messages.js"]');
+    if (qs('#messageTemplatesRoot') && !messagesScriptScheduled) {
       const script = document.createElement('script');
       script.src = '/admin/messages.js';
       document.body.append(script);
