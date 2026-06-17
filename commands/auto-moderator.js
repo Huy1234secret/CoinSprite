@@ -3,6 +3,7 @@ const { getGuildConfig } = require('../src/serverConfig');
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/[^\s<>()]+/gi;
 const INVITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
+const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
 const DEFAULT_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
 
 function uniqueStrings(value) {
@@ -20,16 +21,22 @@ function cleanDomain(value) {
   }
 }
 
+function clampSeconds(value, fallback = 300) {
+  return Math.max(0, Math.min(2419200, Number(value) || fallback));
+}
+
 function normalizeAction(action) {
-  if (typeof action === 'string') return { type: action };
-  const type = String(action?.type || '').trim().toLowerCase();
-  if (!['delete', 'warn', 'timeout', 'report', 'log'].includes(type)) return null;
-  return {
-    type,
-    message: String(action.message || 'Your message was blocked by Auto-Moderator.').slice(0, 500),
-    delivery: ['dm', 'reply'].includes(action.delivery) ? action.delivery : 'reply',
-    durationSeconds: Math.max(0, Math.min(2419200, Number(action.durationSeconds) || 300)),
-  };
+  const type = String(typeof action === 'string' ? action : action?.type || '').trim().toLowerCase();
+  if (!ACTION_TYPES.includes(type)) return null;
+  const normalized = { type };
+  if (type === 'warn') {
+    normalized.message = String(action?.message || 'Your message was blocked by Auto-Moderator.').slice(0, 500);
+    normalized.durationSeconds = clampSeconds(action?.durationSeconds, 300);
+  }
+  if (type === 'timeout') {
+    normalized.durationSeconds = clampSeconds(action?.durationSeconds, 300);
+  }
+  return normalized;
 }
 
 function linkSettings(guildId) {
@@ -137,10 +144,6 @@ async function logAutoModeration(message, settings, details, actionName) {
 
 async function warnUser(message, action) {
   const text = action.message || 'Your message was blocked by Auto-Moderator.';
-  if (action.delivery === 'dm') {
-    await message.author.send(text).catch(() => null);
-    return;
-  }
   await message.reply({ content: text, allowedMentions: { users: [message.author.id], roles: [], parse: [] } }).catch(() => null);
 }
 
