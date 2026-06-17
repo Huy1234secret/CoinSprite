@@ -40,6 +40,7 @@ const OBFUSCATED_FALLBACK_PATTERNS = [
   { term: 'nigger', pattern: /\bn[\W_]*[i1!|][\W_]*g(?:[\W_]*g[\W_]*[e3][\W_]*r)?\b/i },
   { term: 'faggot', pattern: /\bf[\W_]*[@a4][\W_]*g[\W_]*g[\W_]*[o0][\W_]*t\b/i },
   { term: 'retard', pattern: /\br[\W_]*[e3][\W_]*t[\W_]*[@a4][\W_]*r[\W_]*d\b/i },
+  { term: 'fuck', pattern: /\bf[\W_]*@[\W_]*c[\W_]*k\b/i },
   { term: 'fuck you', pattern: /\bf[\W_]*[u@][\W_]*c[\W_]*k[\W_]+(?:y[\W_]*[o0][\W_]*u|u)\b/i },
   { term: 'cock', pattern: /\bc[\W_]*[o0][\W_]*c[\W_]*k\b/i },
 ];
@@ -143,7 +144,7 @@ function brokenRulesFromCategories(categories = []) {
 function fallbackRules(matchedTerms) {
   const terms = new Set(matchedTerms);
   const rules = new Set();
-  const respectTerms = ['fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot', 'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil'];
+  const respectTerms = ['fuck', 'fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot', 'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil'];
   const hateTerms = ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'];
   const sexualTerms = ['cock'];
   if ([...terms].some((term) => respectTerms.includes(term) || hateTerms.includes(term))) rules.add('1.1');
@@ -251,8 +252,8 @@ async function analyzeWithOpenAI(content, context = {}) {
             SERVER_RULE_SUMMARY,
             'Review only the single message provided by the user. Do not use or request previous messages for context.',
             'Translate non-English text to English before judging.',
-            'Treat obvious bypass spellings, leetspeak, inserted spaces, punctuation, or symbols as the intended word when judging.',
-            'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, or disruptive.',
+            'Treat obvious bypass spellings, leetspeak, inserted spaces, punctuation, or symbols as the intended word when judging. Obfuscated profanity can be flagged as bypass even when the unobfuscated casual word would normally be allowed.',
+            'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, disruptive, or intentionally obfuscated to bypass moderation.',
             'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, severityScore number from 0 to 10, brokenRules array, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
             'severityScore examples: low 1.25, medium 3.5, high 6.5, critical 9.0. Use decimals when useful.',
             `brokenRules must contain exact labels from this list only: ${Object.values(RULE_LABELS).join('; ')}. Include multiple labels if multiple rules are broken.`,
