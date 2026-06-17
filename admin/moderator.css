@@ -213,6 +213,11 @@
   font-size: 13px;
 }
 
+.automod-textareas {
+  grid-template-columns: minmax(260px, 0.85fr) minmax(360px, 1.4fr);
+  align-items: stretch;
+}
+
 .automod-textareas textarea {
   min-height: 98px;
   resize: vertical;
@@ -220,8 +225,33 @@
   font-size: 13px;
 }
 
+.automod-domain-mode,
+.automod-textareas label:has(#domainRules) {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 138px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
 .automod-domain-mode select {
   min-height: 44px;
+  align-self: start;
+}
+
+.automod-textareas label:has(#allowedInviteGuildIds) {
+  grid-row: span 2;
+}
+
+.automod-textareas label:has(#domainRules) {
+  grid-row: span 2;
+}
+
+.automod-textareas #domainRules {
+  min-height: 106px;
 }
 
 .automod-action-head {
@@ -274,8 +304,14 @@
 }
 
 @media (max-width: 820px) {
-  .moderator-status-grid {
+  .moderator-status-grid,
+  .automod-textareas {
     grid-template-columns: 1fr;
+  }
+
+  .automod-textareas label:has(#allowedInviteGuildIds),
+  .automod-textareas label:has(#domainRules) {
+    grid-row: auto;
   }
 }
 
