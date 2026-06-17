@@ -36,6 +36,13 @@ const FALLBACK_TERMS = [
   'fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot',
   'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil',
 ];
+const OBFUSCATED_FALLBACK_PATTERNS = [
+  { term: 'nigger', pattern: /\bn[\W_]*[i1!|][\W_]*g(?:[\W_]*g[\W_]*[e3][\W_]*r)?\b/i },
+  { term: 'faggot', pattern: /\bf[\W_]*[@a4][\W_]*g[\W_]*g[\W_]*[o0][\W_]*t\b/i },
+  { term: 'retard', pattern: /\br[\W_]*[e3][\W_]*t[\W_]*[@a4][\W_]*r[\W_]*d\b/i },
+  { term: 'fuck you', pattern: /\bf[\W_]*[u@][\W_]*c[\W_]*k[\W_]+(?:y[\W_]*[o0][\W_]*u|u)\b/i },
+  { term: 'cock', pattern: /\bc[\W_]*[o0][\W_]*c[\W_]*k\b/i },
+];
 const FALLBACK_TRANSLATIONS = [
   { pattern: /\beres\s+un\s+idiota\b/i, english: 'you are an idiot' },
   { pattern: /\beres\s+una\s+idiota\b/i, english: 'you are an idiot' },
@@ -52,7 +59,35 @@ function normalizeForScan(value) {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[@$!|]/g, (char) => ({ '@': 'a', '$': 's', '!': 'i', '|': 'i' }[char] || char));
+    .replace(/[@$!|013457+]/g, (char) => ({
+      '@': 'a',
+      '$': 's',
+      '!': 'i',
+      '|': 'i',
+      '0': 'o',
+      '1': 'i',
+      '3': 'e',
+      '4': 'a',
+      '5': 's',
+      '7': 't',
+      '+': 't',
+    }[char] || char));
+}
+
+function normalizeRawForPattern(value) {
+  return compactWhitespace(value)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function matchedFallbackTerms(content, normalized) {
+  const terms = FALLBACK_TERMS.filter((term) => normalized.includes(term));
+  const raw = normalizeRawForPattern(content);
+  for (const entry of OBFUSCATED_FALLBACK_PATTERNS) {
+    if (entry.pattern.test(raw)) terms.push(entry.term);
+  }
+  return [...new Set(terms)];
 }
 
 function fallbackEnglish(content, normalized) {
@@ -107,27 +142,43 @@ function brokenRulesFromCategories(categories = []) {
 
 function fallbackRules(matchedTerms) {
   const terms = new Set(matchedTerms);
-  const rules = new Set(['1.1']);
-  if ([...terms].some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'].includes(term))) rules.add('3.2');
+  const rules = new Set();
+  const respectTerms = ['fuck you', 'you are a bitch', 'youre a bitch', 'you are an idiot', 'youre an idiot', 'idiota', 'dumbass', 'moron', 'imbecile', 'estupido', 'estupida', 'imbecil'];
+  const hateTerms = ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'];
+  const sexualTerms = ['cock'];
+  if ([...terms].some((term) => respectTerms.includes(term) || hateTerms.includes(term))) rules.add('1.1');
+  if ([...terms].some((term) => hateTerms.includes(term))) rules.add('3.2');
+  if ([...terms].some((term) => sexualTerms.includes(term))) {
+    rules.add('3.1');
+    rules.add('3.3');
+  }
+  if (!rules.size && terms.size) rules.add('1.1');
   return [...rules].map((key) => RULE_LABELS[key]);
 }
 
 function fallbackAnalyze(content) {
   const normalized = normalizeForScan(content);
-  const matchedTerms = FALLBACK_TERMS.filter((term) => normalized.includes(term));
+  const matchedTerms = matchedFallbackTerms(content, normalized);
   const severe = matchedTerms.some((term) => ['kill yourself', 'kys', 'nigger', 'faggot', 'retard'].includes(term));
-  const severity = severe ? 'high' : matchedTerms.length > 1 ? 'medium' : matchedTerms.length ? 'low' : 'none';
+  const sexual = matchedTerms.some((term) => ['cock'].includes(term));
+  const severity = severe ? 'high' : sexual || matchedTerms.length > 1 ? 'medium' : matchedTerms.length ? 'low' : 'none';
   return {
     flagged: matchedTerms.length > 0,
     severity,
-    severityScore: matchedTerms.length ? (severe ? 6.5 : matchedTerms.length > 1 ? 3.5 : 1.25) : 0,
-    categories: matchedTerms.length ? (severe ? ['rule_1_1_respect', 'rule_3_2_hate_harassment'] : ['rule_1_1_respect']) : [],
+    severityScore: matchedTerms.length ? (severe ? 6.5 : sexual || matchedTerms.length > 1 ? 3.5 : 1.25) : 0,
+    categories: matchedTerms.length
+      ? (severe
+        ? ['rule_1_1_respect', 'rule_3_2_hate_harassment']
+        : sexual
+          ? ['rule_3_1_nsfw', 'rule_3_3_sexual_misconduct']
+          : ['rule_1_1_respect'])
+      : [],
     brokenRules: matchedTerms.length ? fallbackRules(matchedTerms) : [],
     matchedTerms,
     originalLanguage: matchedTerms.length ? fallbackLanguage(normalized) : 'unknown',
     englishTranslation: fallbackEnglish(content, normalized),
     reason: matchedTerms.length
-      ? 'Fallback moderation scan matched targeted abusive wording. Configure OPENAI_API_KEY for full rule-aware review.'
+      ? 'Fallback moderation scan matched abusive, sexual, hateful, or obfuscated wording. Configure OPENAI_API_KEY for full rule-aware review.'
       : '',
     source: 'fallback',
   };
@@ -198,7 +249,9 @@ async function analyzeWithOpenAI(content, context = {}) {
           content: [
             'You are a Discord moderation classifier for CoinSprite.',
             SERVER_RULE_SUMMARY,
+            'Review only the single message provided by the user. Do not use or request previous messages for context.',
             'Translate non-English text to English before judging.',
+            'Treat obvious bypass spellings, leetspeak, inserted spaces, punctuation, or symbols as the intended word when judging.',
             'Flag only if the message violates a listed rule. Swearing alone is allowed when not targeted, excessive, sexual, hateful, threatening, or disruptive.',
             'Return only compact JSON with keys: flagged boolean, severity low|medium|high|critical, severityScore number from 0 to 10, brokenRules array, categories array, matchedTerms array, originalLanguage string, englishTranslation string, reason string.',
             'severityScore examples: low 1.25, medium 3.5, high 6.5, critical 9.0. Use decimals when useful.',
