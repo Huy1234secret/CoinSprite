@@ -5,6 +5,8 @@ const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:discord\.gg|discord(?:
 const INVITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
 const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
 const DEFAULT_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
+const COMPONENTS_V2_FLAG = 32768; // ADDED: render Auto-Moderator logs inside Discord Components v2 containers.
+const AUTO_MOD_REPORT_COLOR = 0xED4245; // ADDED: consistent danger accent for blocked-link reports.
 
 function uniqueStrings(value) {
   return [...new Set((Array.isArray(value) ? value : []).map((item) => String(item || '').trim()).filter(Boolean))];
@@ -129,22 +131,81 @@ async function blockedLinkReason(message, settings, client) {
   return null;
 }
 
+function limitText(value, max = 900) {
+  const text = String(value ?? '').trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1))}…`;
+}
+
+function safeInline(value, fallback = '-') {
+  return limitText(value || fallback, 950).replace(/`/g, 'ˋ');
+}
+
+function safeCodeBlock(value, max = 1200) {
+  const text = limitText(value || '[empty message]', max).replace(/```/g, '``\u200b`');
+  return `\`\`\`\n${text}\n\`\`\``;
+}
+
+function messageJumpUrl(message) {
+  return message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`;
+}
+
+function textDisplay(content) {
+  return { type: 10, content: String(content || '').slice(0, 4000) };
+}
+
+function authorAvatarUrl(author) {
+  if (typeof author?.displayAvatarURL === 'function') return author.displayAvatarURL({ extension: 'png', size: 128 });
+  if (typeof author?.avatarURL === 'function') return author.avatarURL({ extension: 'png', size: 128 });
+  return '';
+}
+
+function reportIntroComponent(message, details, actionName) {
+  const content = [
+    '## Auto-Moderator report',
+    `**Action:** ${safeInline(actionName || 'log')}`,
+    `**Reason:** ${safeInline(details.reason)}`,
+  ].join('\n');
+  const avatarUrl = authorAvatarUrl(message.author);
+  if (!avatarUrl) return textDisplay(content);
+  return { type: 9, components: [textDisplay(content)], accessory: { type: 11, media: { url: avatarUrl } } }; // ADDED: user avatar stays inside the report container.
+}
+
+function buildAutoModerationReportPayload(message, details, actionName) {
+  const targetDetails = [
+    `**User:** ${message.author} (\`${message.author.id}\`)`,
+    `**Channel:** ${message.channel}`,
+    `**Domain:** \`${safeInline(details.domain)}\``,
+    `**URL:** ${details.url ? `<${safeInline(details.url)}>` : '`-`'}`,
+    `**Message:** <${messageJumpUrl(message)}>`,
+  ].join('\n');
+  const messageDetails = [
+    '**Blocked message**',
+    safeCodeBlock(message.content),
+  ].join('\n');
+  return {
+    flags: COMPONENTS_V2_FLAG, // FIXED: report is sent as a Discord container instead of loose plain text.
+    allowedMentions: { parse: [] },
+    components: [{
+      type: 17,
+      accent_color: AUTO_MOD_REPORT_COLOR,
+      components: [
+        reportIntroComponent(message, details, actionName),
+        { type: 14, divider: true, spacing: 1 },
+        textDisplay(targetDetails),
+        { type: 14, divider: true, spacing: 1 },
+        textDisplay(messageDetails),
+      ],
+    }],
+  };
+}
+
 async function logAutoModeration(message, settings, details, actionName) {
   const channelId = settings.logChannelId;
   if (!channelId) return;
   const channel = message.guild.channels.cache.get(channelId) || await message.guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased()) return;
-  await channel.send({
-    content: [
-      `Auto-Moderator ${actionName || 'log'}: ${details.reason}`,
-      `User: ${message.author} (${message.author.id})`,
-      `Channel: ${message.channel}`,
-      `Domain: ${details.domain || '-'}`,
-      `URL: ${details.url || '-'}`,
-      `Message: ${message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`}`,
-    ].join('\n').slice(0, 2000),
-    allowedMentions: { parse: [] },
-  }).catch(() => null);
+  await channel.send(buildAutoModerationReportPayload(message, details, actionName)).catch(() => null); // FIXED: send a polished container report without pinging mentioned users or roles.
 }
 
 async function warnUser(message, action) {
