@@ -163,6 +163,14 @@ function screenshotFiles(screenshot) {
     : [];
 }
 
+function attachScreenshotToPayload(payload, screenshot) {
+  if (!screenshot?.name || !Array.isArray(payload?.components)) return payload;
+  const container = payload.components.find((component) => component?.type === 17 && Array.isArray(component.components));
+  if (!container) return payload;
+  container.components.push({ type: 12, items: [{ media: { url: `attachment://${screenshot.name}` } }] });
+  return payload;
+}
+
 async function sendModerationAlertToChannel(message, result, templateId, channelId, screenshot) {
   const targetChannelId = String(channelId || '').trim();
   if (!targetChannelId) return false;
@@ -188,12 +196,12 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
     return true;
   }
 
-  const payload = buildMessagePayload(applyModerationPlaceholders(template, message, result, screenshot), {
+  const payload = attachScreenshotToPayload(buildMessagePayload(applyModerationPlaceholders(template, message, result, screenshot), {
     guild: message.guild,
     channel: message.channel,
     user: message.author,
     member: message.member,
-  });
+  }), screenshot);
   await channel.send({ ...payload, files }).catch(() => null);
   return true;
 }
