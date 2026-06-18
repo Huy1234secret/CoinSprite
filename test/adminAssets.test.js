@@ -81,17 +81,21 @@ test('dashboard scripts inline icon bytes instead of requiring browser image req
   assert.match(source, /data:image\/(?:png|svg\+xml);base64,/);
 });
 
-test('dashboard style gives every image tab a colored square', async () => {
+test('dashboard style replaces broken tab images with stable symbols', async () => {
   const response = await fetch(`${origin}/admin/style.css`);
   assert.equal(response.status, 200);
   const source = await response.text();
   assert.match(source, /Runtime tab icon loading fixes/);
-  assert.match(source, /\.tab\[data-tab="moderator"\] \.tab-icon/);
+  assert.match(source, /\.tab\[data-tab="moderator"\]::before/);
+  assert.match(source, /content:\s*var\(--tab-icon-symbol/);
+  assert.match(source, /> img\.tab-icon/);
+  assert.match(source, /display:\s*none !important/);
+  assert.match(source, /--tab-icon-symbol:\s*"🛡"/);
   assert.match(source, /rgba\(188, 120, 255, 0\.72\)/);
-  assert.match(source, /grid-template-columns:\s*none/);
+  assert.doesNotMatch(source, /content:\s*none !important/);
 });
 
-test('dashboard selects runtime custom images without an extra frame', () => {
+test('dashboard keeps runtime image handlers but renders symbol tab icons', () => {
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   const handler = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
@@ -106,5 +110,8 @@ test('dashboard selects runtime custom images without an extra frame', () => {
   assert.match(adminServer, /'\/images\/', '\/CoinSprite\/images\/', '\/admin\/images\/'/);
   assert.match(runtimeIcons, /path\.join\(ROOT_DIR, 'images'\)/);
   assert.match(runtimeIcons, /path\.join\(ROOT_DIR, 'image'\)/);
-  assert.match(runtimeIcons, /rgba\(188, 120, 255, 0\.72\)/);
+  assert.match(runtimeIcons, /--tab-icon-symbol: "★"/);
+  assert.match(runtimeIcons, /--tab-icon-symbol: "🛡"/);
+  assert.match(runtimeIcons, /> img\.tab-icon/);
+  assert.doesNotMatch(runtimeIcons, /content: none !important/);
 });
