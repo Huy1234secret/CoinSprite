@@ -7,9 +7,9 @@ const path = require('path');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',
-  'messages.png': 'messages.png',
-  'message.png': 'messages.png',
-  'message.svg': 'messages.png',
+  'message.png': 'message.png',
+  'message.png': 'message.png',
+  'message.svg': 'message.png',
   'ticket.png': 'ticket.png',
   'moderator.png': 'moderator.png',
   'moderator.svg': 'moderator.png',
