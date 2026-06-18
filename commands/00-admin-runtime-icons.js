@@ -144,64 +144,95 @@ ${TAB_ICON_CSS_MARKER}
   gap: 12px !important;
 }
 
+.tab[data-tab="leveling"] > img.tab-icon,
+.tab[data-tab="data"] > img.tab-icon,
+.tab[data-tab="tickets"] > img.tab-icon,
+.tab[data-tab="moderator"] > img.tab-icon,
+.tab[data-tab="messages"] > img.tab-icon,
+.tab-image-icon,
+.message-tab-icon {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  flex: 0 0 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .tab[data-tab="leveling"]::before,
 .tab[data-tab="data"]::before,
 .tab[data-tab="tickets"]::before,
 .tab[data-tab="moderator"]::before,
 .tab[data-tab="messages"]::before {
-  content: none !important;
-  display: none !important;
-}
-
-.tab .tab-icon {
+  content: var(--tab-icon-symbol, "•") !important;
   width: 30px !important;
   height: 30px !important;
   flex: 0 0 30px !important;
   box-sizing: border-box !important;
-  display: block !important;
-  padding: 3px !important;
+  display: grid !important;
+  place-items: center !important;
   border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important;
   border-radius: 9px !important;
-  object-fit: contain !important;
-  object-position: center !important;
-  image-rendering: auto !important;
   background: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important;
+  color: var(--tab-icon-color, #dfe8ff) !important;
+  font-family: "Segoe UI Symbol", "Apple Color Emoji", "Segoe UI Emoji", system-ui, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  text-align: center !important;
   box-shadow: none !important;
   filter: none !important;
   transform: none !important;
 }
 
-.tab[data-tab="leveling"] .tab-icon {
-  --tab-icon-bg: rgba(87, 242, 135, 0.18) !important;
-  --tab-icon-border: rgba(87, 242, 135, 0.72) !important;
+.tab[data-tab="leveling"] {
+  --tab-icon-symbol: "★";
+  --tab-icon-bg: rgba(87, 242, 135, 0.18);
+  --tab-icon-border: rgba(87, 242, 135, 0.72);
+  --tab-icon-color: #8bffad;
 }
 
-.tab[data-tab="tickets"] .tab-icon {
-  --tab-icon-bg: rgba(255, 76, 96, 0.18) !important;
-  --tab-icon-border: rgba(255, 76, 96, 0.72) !important;
+.tab[data-tab="tickets"] {
+  --tab-icon-symbol: "🎫";
+  --tab-icon-bg: rgba(255, 76, 96, 0.18);
+  --tab-icon-border: rgba(255, 76, 96, 0.72);
+  --tab-icon-color: #ff9aa8;
 }
 
-.tab[data-tab="messages"] .tab-icon {
-  --tab-icon-bg: rgba(72, 149, 239, 0.20) !important;
-  --tab-icon-border: rgba(99, 184, 255, 0.72) !important;
+.tab[data-tab="messages"] {
+  --tab-icon-symbol: "✉";
+  --tab-icon-bg: rgba(72, 149, 239, 0.20);
+  --tab-icon-border: rgba(99, 184, 255, 0.72);
+  --tab-icon-color: #9fd4ff;
 }
 
-.tab[data-tab="data"] .tab-icon {
-  --tab-icon-bg: rgba(185, 195, 210, 0.14) !important;
-  --tab-icon-border: rgba(205, 215, 230, 0.72) !important;
+.tab[data-tab="data"] {
+  --tab-icon-symbol: "◆";
+  --tab-icon-bg: rgba(185, 195, 210, 0.14);
+  --tab-icon-border: rgba(205, 215, 230, 0.72);
+  --tab-icon-color: #d8e0ec;
 }
 
-.tab[data-tab="moderator"] .tab-icon {
-  --tab-icon-bg: rgba(155, 89, 182, 0.18) !important;
-  --tab-icon-border: rgba(188, 120, 255, 0.72) !important;
+.tab[data-tab="moderator"] {
+  --tab-icon-symbol: "🛡";
+  --tab-icon-bg: rgba(155, 89, 182, 0.18);
+  --tab-icon-border: rgba(188, 120, 255, 0.72);
+  --tab-icon-color: #d9b7ff;
 }
 
 @media (max-width: 700px) {
-  .tab .tab-icon {
+  .tab[data-tab="leveling"]::before,
+  .tab[data-tab="data"]::before,
+  .tab[data-tab="tickets"]::before,
+  .tab[data-tab="moderator"]::before,
+  .tab[data-tab="messages"]::before {
     width: 26px !important;
     height: 26px !important;
     flex-basis: 26px !important;
-    padding: 2px !important;
+    font-size: 14px !important;
   }
 }
 `;
