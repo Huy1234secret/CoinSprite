@@ -66,6 +66,21 @@ function iconNameFromRequest(pathname) {
   return '';
 }
 
+function iconNameFromImagePath(filePath, imageDir) {
+  const resolved = path.resolve(String(filePath));
+  const resolvedImageDir = path.resolve(imageDir);
+  if (resolved !== resolvedImageDir && !resolved.startsWith(`${resolvedImageDir}${path.sep}`)) return '';
+  return safeIconName(path.relative(resolvedImageDir, resolved));
+}
+
+function iconNameFromAdminImagePath(filePath) {
+  return iconNameFromImagePath(filePath, ADMIN_IMAGE_DIR);
+}
+
+function iconNameFromRootImagePath(filePath) {
+  return iconNameFromImagePath(filePath, ROOT_IMAGE_DIR);
+}
+
 function candidateIconFiles(iconName) {
   const candidates = [];
   const rootName = ICON_FILES[iconName];
@@ -73,13 +88,6 @@ function candidateIconFiles(iconName) {
   const fallbackName = ADMIN_FALLBACK_FILES[iconName] || iconName;
   candidates.push(path.join(ADMIN_IMAGE_DIR, fallbackName));
   return candidates;
-}
-
-function iconNameFromAdminImagePath(filePath) {
-  const resolved = path.resolve(String(filePath));
-  const imageDir = path.resolve(ADMIN_IMAGE_DIR);
-  if (resolved !== imageDir && !resolved.startsWith(`${imageDir}${path.sep}`)) return '';
-  return safeIconName(path.relative(imageDir, resolved));
 }
 
 function readFirstAvailable(files, callback, index = 0) {
@@ -100,6 +108,7 @@ function rewriteIconUrls(source) {
     .replace(/\/CoinSprite\/images\/moderator\.svg\?v=custom-icons-1/g, '/CoinSprite/images/moderator.png?v=custom-icons-1')
     .replace(/\/CoinSprite\/images\/message\.svg\?v=custom-icons-1/g, '/CoinSprite/images/messages.png?v=custom-icons-1')
     .replace(/\/admin\/images\/message\.svg/g, '/admin/images/messages.png')
+    .replace(/\/admin\/images\/message\.png/g, '/admin/images/messages.png')
     .replace(/\/admin\/images\/moderator\.svg/g, '/admin/images/moderator.png')
     .replace(/\/admin\/images\/data\.svg/g, '/admin/images/data.png');
 }
@@ -123,9 +132,13 @@ function patchTextAsset(filePath, data) {
 if (!fs.__coinSpriteNativeReadFile) fs.__coinSpriteNativeReadFile = fs.readFile.bind(fs);
 if (!fs.__coinSpriteNativeReadFileSync) fs.__coinSpriteNativeReadFileSync = fs.readFileSync.bind(fs);
 
+function iconNameFromFilePath(filePath) {
+  return iconNameFromAdminImagePath(filePath) || iconNameFromRootImagePath(filePath);
+}
+
 fs.readFile = function coinSpriteReadFile(filePath, ...args) {
   const callback = args[args.length - 1];
-  const iconName = iconNameFromAdminImagePath(filePath);
+  const iconName = iconNameFromFilePath(filePath);
   if (iconName && ICON_FILES[iconName] && typeof callback === 'function') {
     readFirstAvailable(candidateIconFiles(iconName), (error, data) => callback(error, data));
     return;
@@ -142,7 +155,7 @@ fs.readFile = function coinSpriteReadFile(filePath, ...args) {
 };
 
 fs.readFileSync = function coinSpriteReadFileSync(filePath, ...args) {
-  const iconName = iconNameFromAdminImagePath(filePath);
+  const iconName = iconNameFromFilePath(filePath);
   if (iconName && ICON_FILES[iconName]) {
     for (const candidate of candidateIconFiles(iconName)) {
       try { return fs.__coinSpriteNativeReadFileSync(candidate, ...args); }
