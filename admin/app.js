@@ -1164,7 +1164,7 @@ loadSession();
     const sources = {
       leveling: '/admin/images/leveling.png',
       tickets: '/admin/images/ticket.png',
-      messages: '/admin/images/message.png',
+
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);
