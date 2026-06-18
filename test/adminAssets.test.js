@@ -51,8 +51,8 @@ test('dashboard selects the committed custom images without an extra frame', () 
   const handler = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
 
-  assert.match(app, /leveling: '\/CoinSprite\/images\/leveling\.png\?v=custom-icons-1'/);
-  assert.match(app, /tickets: '\/CoinSprite\/images\/ticket\.png\?v=custom-icons-1'/);
+  assert.match(app, /leveling: '\/images\/leveling\.png\?v=custom-icons-2'/);
+  assert.match(app, /tickets: '\/images\/ticket\.png\?v=custom-icons-2'/);
   assert.doesNotMatch(handler, /TAB_ICON_FRAME_STYLE|tab-icon-frame/);
   assert.doesNotMatch(index, /tab-icon-frame/);
 });
