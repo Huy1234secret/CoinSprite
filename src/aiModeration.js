@@ -20,10 +20,10 @@ const CATEGORY_RULES = Object.freeze({
 });
 const RULE_GUIDE = '1.1 abuse/bullying/disruptive profanity; 1.5 politics/religion; 2.4 public dating/romance; 3.1 NSFW/gore; 3.2 hate/threats/dox/self-harm; 3.3 sexual misconduct/minors/coercion.';
 const SYSTEM_PROMPT = [
-  'Return JSON only.',
-  'Clean or severity under 2: {"flagged":false,"s":0,"rules":[],"reason":""}.',
-  'Violation severity 2-10: {"flagged":true,"s":2,"rules":["1.1"],"reason":"short"}.',
-  'Rules must be numbers only; reason max 8 words.',
+  'Review the target message in its recent conversation context.',
+  'Return JSON only: {"flagged":boolean,"s":0-10,"rules":["1.1"],"englishTranslation":""}.',
+  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',
+  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',
   RULE_GUIDE,
 ].join(' ');
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
@@ -77,12 +77,12 @@ function moderationSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['flagged', 's', 'rules', 'reason'],
+    required: ['flagged', 's', 'rules', 'englishTranslation'],
     properties: {
       flagged: { type: 'boolean' },
       s: { type: 'number' },
       rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
-      reason: { type: 'string' },
+      englishTranslation: { type: 'string' },
     },
   };
 }
@@ -185,7 +185,7 @@ function fallbackAnalyze(content) {
 
 function parseJsonObject(value) {
   const text = String(value || '').trim();
-  if (!text) return { flagged: false, s: 0, rules: [], reason: '' };
+  if (!text) return { flagged: false, s: 0, rules: [], englishTranslation: '' };
   try {
     return JSON.parse(text);
   } catch {
@@ -222,8 +222,8 @@ function normalizeResult(value = {}, source = 'ai') {
     categories,
     matchedTerms: [],
     originalLanguage: '',
-    englishTranslation: '',
-    reason: compactWhitespace(value.reason || 'Rule violation.').slice(0, 120),
+    englishTranslation: compactWhitespace(value.englishTranslation ?? value.english_translation ?? '').slice(0, 300),
+    reason: '',
     source,
   };
 }
@@ -247,7 +247,11 @@ function chatText(payload) {
 function aiInputText(content, context = {}) {
   const configured = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
   const maxInputChars = Math.max(20, Math.min(configured, DEFAULT_MAX_AI_CHARS));
-  const text = String(content || '').trim();
+  const target = compactWhitespace(content);
+  const recentContext = compactWhitespace(context.recentContext);
+  const text = recentContext
+    ? `Target message: ${target}\nRecent context: ${recentContext}`
+    : `Target message: ${target}`;
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
@@ -276,7 +280,7 @@ async function analyzeWithResponsesApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_output_tokens: 60,
+    max_output_tokens: 100,
     store: false,
     text: { format: responsesTextFormat() },
   });
@@ -293,7 +297,7 @@ async function analyzeWithChatApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_tokens: 60,
+    max_tokens: 100,
     response_format: chatResponseFormat(),
   });
   try {

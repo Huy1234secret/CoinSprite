@@ -1801,30 +1801,27 @@ textarea:focus,
 .tab:not(:has(.tab-icon)) { padding-left: 10px; }
 
 .tab-icon {
-  --tab-icon-glow: rgba(255, 255, 255, 0.45);
-  --tab-icon-bg: rgba(255, 255, 255, 0.06);
-  --tab-icon-border: rgba(255, 255, 255, 0.16);
-  width: 34px;
-  height: 34px;
-  flex: 0 0 34px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
   box-sizing: border-box;
-  padding: 5px;
-  border: 1px solid var(--tab-icon-border);
-  border-radius: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
   object-fit: contain;
   object-position: center;
   image-rendering: auto;
-  background: radial-gradient(circle at 50% 45%, var(--tab-icon-bg), rgba(255, 255, 255, 0.015) 72%), rgba(15, 17, 23, 0.58);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025) inset, 0 0 13px var(--tab-icon-glow);
-  filter: drop-shadow(0 0 7px var(--tab-icon-glow));
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  transition: none;
 }
 
 .tab:hover .tab-icon,
 .tab.active .tab-icon {
-  transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.035) inset, 0 0 18px var(--tab-icon-glow);
-  filter: drop-shadow(0 0 10px var(--tab-icon-glow));
+  transform: none;
+  box-shadow: none;
+  filter: none;
 }
 
 .tab[data-tab="leveling"] .tab-icon {
@@ -1945,7 +1942,7 @@ textarea:focus,
     width: 30px;
     height: 30px;
     flex-basis: 30px;
-    padding: 4px;
+    padding: 0;
   }
   .tab:not(:has(.tab-icon))::before { width: 30px; height: 30px; }
   .ticket-kind-grid { grid-template-columns: 1fr; }

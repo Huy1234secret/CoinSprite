@@ -19,18 +19,15 @@ const nativeReadFile = fs.readFile.bind(fs);
 const nativeReadFileSync = fs.readFileSync.bind(fs);
 
 const AI_ALERT_LINES = [
-  '## AI moderation alert',
+  '## AI moderation report',
   '**User:** <@mention> (`<user-id>`)',
   '**Channel:** <channel>',
-  '**Severity:** <severity>/10 (<severity-tier>)',
-  '**Broken rule(s):**',
+  '**Severity:** <severity>/10',
+  '**Rules:**',
   '<broken-rules>',
+  '<translation-section>',
   '<separator>',
-  '**Reason**',
-  '<moderation-reason>',
-  '<separator>',
-  '-# User message: “<message-content>”',
-  '-# Message: <message-link>',
+  'Message: <message-link> “<message-content>”',
 ];
 
 const OLD_AI_ALERT_LINES = [
@@ -75,10 +72,9 @@ const USER_WARNING_LINES = [
   '## Message flagged',
   '<@mention>, your message in <channel> was flagged by AI moderation.',
   '<separator>',
-  '**Severity:** <severity>/10 (<severity-tier>)',
-  '**Broken rule(s):**',
+  '**Severity:** <severity>/10',
+  '**Rules:**',
   '<broken-rules>',
-  '**Reason:** <moderation-reason>',
   '-# If this was a mistake, please contact staff.',
 ];
 
@@ -188,45 +184,30 @@ function patchDefaultTemplateText(source) {
   return text;
 }
 
+function moderationPromptSource() {
+  return [
+    'const SYSTEM_PROMPT = [',
+    "  'Review the target message in its recent conversation context.',",
+    "  'Return JSON only: {\"flagged\":boolean,\"s\":0-10,\"rules\":[\"1.1\"],\"englishTranslation\":\"\"}.',",
+    "  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',",
+    "  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',",
+    '  RULE_GUIDE,',
+    "].join(' ');",
+  ].join('\n');
+}
+
 function patchAiModeration(source) {
   let text = String(source || '');
-  const prompt = `const SYSTEM_PROMPT = [
-  'Return JSON only.',
-  'Clean or severity under 2: {"flagged":false,"s":0,"rules":[],"reason":""}.',
-  'Violation severity 2-10: {"flagged":true,"s":2.2,"rules":["1.1"],"reason":"Clear one-sentence explanation for staff."}.',
-  'Use decimal severity when useful. Rules must be numbers only. Reason must explain the specific problem in under 160 chars; never return generic one-word reasons like "short".',
-  RULE_GUIDE,
-].join(' ');`;
-  text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, prompt);
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 120');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 120');
-  text = replaceOnce(
-    text,
-    "reason: 'Local rule match.',",
-    "reason: matchedTerms.length ? `Matched local moderation term(s): ${matchedTerms.slice(0, 3).join(', ')}.` : 'Matched local moderation rules.',",
-  );
-  if (!text.includes('function normalizeModerationReason(')) {
-    const helper = [
-      'function normalizeModerationReason(value, brokenRules = [], categories = []) {',
-      '  const reason = compactWhitespace(value);',
-      '  const lower = reason.toLowerCase();',
-      "  const generic = new Set(['short', 'bad', 'rude', 'abuse', 'violation', 'rule violation']);",
-      '  if (!reason || reason.length < 12 || generic.has(lower)) {',
-      "    const ruleText = brokenRules.length ? 'rule ' + brokenRules.join(', ') : 'server conduct rules';",
-      "    const categoryText = categories.length ? ' (' + categories.slice(0, 2).join(', ') + ')' : '';",
-      "    return ('Message appears to violate ' + ruleText + categoryText + '; staff should review the wording and context.').slice(0, 180);",
-      '  }',
-      '  return reason.slice(0, 180);',
-      '}',
-      '',
-    ].join('\n');
-    text = replaceOnce(text, "function normalizeResult(value = {}, source = 'ai') {", `${helper}function normalizeResult(value = {}, source = 'ai') {`);
-  }
-  text = replaceOnce(
-    text,
-    "reason: compactWhitespace(value.reason || 'Rule violation.').slice(0, 120),",
-    "reason: normalizeModerationReason(value.reason, brokenRules, categories),",
-  );
+  text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, moderationPromptSource());
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 100');
+  text = replaceAll(text, 'store: true', 'store: false');
   return text;
 }
 
@@ -240,29 +221,7 @@ function patchMessageTemplates(source) {
 
 function patchModeratorCommand(source) {
   let text = patchDefaultTemplateText(source);
-  if (!text.includes('function moderationMessagePreview(')) {
-    const helper = [
-      'function moderationMessagePreview(message, max = 900) {',
-      "  const text = String(message?.content || '').replace(/\\s+/g, ' ').trim();",
-      "  if (!text) return '[no text content]';",
-      "  const safe = text.replace(/[`*_~|>]/g, '').replace(/\"/g, \"'\");",
-      "  return safe.length > max ? safe.slice(0, Math.max(0, max - 3)) + '...' : safe;",
-      '}',
-      '',
-    ].join('\n');
-    text = replaceOnce(text, 'function moderationValues(message, result, screenshot = null) {', `${helper}function moderationValues(message, result, screenshot = null) {`);
-  }
-  text = replaceOnce(
-    text,
-    "['severity-tier', formatSeverityScore(result.severityScore)],",
-    "['severity-tier', result.severity || 'medium'],",
-  );
-  text = replaceOnce(
-    text,
-    "['moderation-reason', result.reason || 'Rule violation.'],",
-    "['moderation-reason', result.reason || 'Rule violation.'],\n    ['message-content', moderationMessagePreview(message)],",
-  );
-  text = replaceOnce(text, 'const screenshot = await moderationScreenshot(message, result);', 'const screenshot = null;');
+  text = replaceAll(text, 'const screenshot = await moderationScreenshot(message, result);', 'const screenshot = null;');
   return text;
 }
 

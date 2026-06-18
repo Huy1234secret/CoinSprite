@@ -20,19 +20,14 @@ const nativeReadFile = fs.readFile.bind(fs);
 const nativeReadFileSync = fs.readFileSync.bind(fs);
 
 const AI_ALERT_LINES = [
-  '## AI moderation alert',
+  '## AI moderation report',
   '**User:** <@mention> (`<user-id>`)',
   '**Channel:** <channel>',
   '**Severity:** <severity>/10',
-  '**Broken rule(s):**',
+  '**Rules:**',
   '<broken-rules>',
+  '<translation-section>',
   '<separator>',
-  '**Reason**',
-  '<moderation-reason>',
-  '<separator>',
-  'English translation: “<english-translation>”',
-  'Original language: <original-language>',
-  'Matched terms: “<matched-terms>”',
   'Message: <message-link> “<message-content>”',
 ];
 
@@ -41,9 +36,8 @@ const USER_WARNING_LINES = [
   '<@mention>, your message in <channel> was flagged by AI moderation.',
   '<separator>',
   '**Severity:** <severity>/10',
-  '**Broken rule(s):**',
+  '**Rules:**',
   '<broken-rules>',
-  '**Reason:** <moderation-reason>',
   '-# If this was a mistake, please contact staff.',
 ];
 
@@ -275,14 +269,13 @@ function patchDefaultTemplateText(source) {
 function moderationPromptSource() {
   return [
     'const SYSTEM_PROMPT = [',
-    "  'Return JSON only.'",
-    "  'Clean or severity under 2: {\"flagged\":false,\"s\":0,\"rules\":[],\"reason\":\"\",\"originalLanguage\":\"\",\"englishTranslation\":\"\",\"matchedTerms\":[]}.'",
-    "  'Violation severity 2-10: {\"flagged\":true,\"s\":2.2,\"rules\":[\"1.1\"],\"reason\":\"The message contains direct profanity or harassment that breaks the respect rule.\",\"originalLanguage\":\"English\",\"englishTranslation\":\"same text in English\",\"matchedTerms\":[\"exact offending term\"]}.'",
-    "  'Use decimal severity when useful. Rules must be numbers only. Reason must be a clear staff-facing sentence; never return one-word reasons like short.'",
-    "  'originalLanguage must be a human language name. englishTranslation must be English, or the original text when already English. matchedTerms must list exact offending words or phrases.'",
+    "  'Review the target message in its recent conversation context.',",
+    "  'Return JSON only: {\"flagged\":boolean,\"s\":0-10,\"rules\":[\"1.1\"],\"englishTranslation\":\"\"}.',",
+    "  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',",
+    "  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',",
     '  RULE_GUIDE,',
     "].join(' ');",
-  ].join('\n').replace(/'$/m, "',");
+  ].join('\n');
 }
 
 function normalizeReasonHelperSource() {
@@ -319,47 +312,15 @@ function normalizeFieldHelperSource() {
 function patchAiModeration(source) {
   let text = String(source || '');
   text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, moderationPromptSource());
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 180');
-  text = replaceAll(text, 'store: false', 'store: true');
-  text = replaceOnce(
-    text,
-    "reason: 'Local rule match.',",
-    "reason: matchedTerms.length ? `Matched local moderation term(s): ${matchedTerms.slice(0, 3).join(', ')}.` : 'Matched local moderation rules.',",
-  );
-  text = replaceOnce(
-    text,
-    "matchedTerms,\n    originalLanguage: '',\n    englishTranslation: '',\n    reason:",
-    "matchedTerms,\n    originalLanguage: 'Unknown',\n    englishTranslation: text,\n    reason:",
-  );
-  text = text.replace(
-    /required: \[[^\]]*'reason'[^\]]*\],/,
-    "required: ['flagged', 's', 'rules', 'reason', 'originalLanguage', 'englishTranslation', 'matchedTerms'],",
-  );
-  if (!text.includes("originalLanguage: { type: 'string' }")) {
-    text = replaceOnce(
-      text,
-      "reason: { type: 'string' },",
-      "reason: { type: 'string' },\n      originalLanguage: { type: 'string' },\n      englishTranslation: { type: 'string' },\n      matchedTerms: { type: 'array', items: { type: 'string' } },",
-    );
-  }
-  if (!text.includes('function normalizeModerationReason(')) {
-    text = replaceOnce(text, "function normalizeResult(value = {}, source = 'ai') {", normalizeReasonHelperSource() + "function normalizeResult(value = {}, source = 'ai') {");
-  }
-  if (!text.includes('function normalizeModerationField(')) {
-    text = replaceOnce(text, "function normalizeResult(value = {}, source = 'ai') {", normalizeFieldHelperSource() + "function normalizeResult(value = {}, source = 'ai') {");
-  }
-  text = replaceOnce(
-    text,
-    "reason: compactWhitespace(value.reason || 'Rule violation.').slice(0, 120),",
-    "reason: normalizeModerationReason(value.reason, brokenRules, categories),",
-  );
-  text = text.replace(
-    /(  return \{\n    flagged: true,\n    severity: severityFromScore\(score, true\),\n    severityScore: score,\n    brokenRules,\n    categories,\n)    matchedTerms: \[\],\n    originalLanguage: '',\n    englishTranslation: '',\n    reason:/,
-    "$1    matchedTerms: normalizeModerationTerms(value.matchedTerms ?? value.matched_terms ?? value.terms),\n    originalLanguage: normalizeModerationField(value.originalLanguage ?? value.original_language ?? value.language, 'Unknown'),\n    englishTranslation: normalizeModerationField(value.englishTranslation ?? value.english_translation ?? value.translation, ''),\n    reason:",
-  );
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 100');
+  text = replaceAll(text, 'store: true', 'store: false');
   return text;
 }
 
@@ -377,19 +338,6 @@ function moderationMessagePreviewHelper() {
 
 function patchModeratorCommand(source) {
   let text = patchDefaultTemplateText(source);
-  if (!text.includes('function moderationMessagePreview(')) {
-    text = replaceOnce(text, 'function moderationValues(message, result, screenshot = null) {', moderationMessagePreviewHelper() + 'function moderationValues(message, result, screenshot = null) {');
-  }
-  text = replaceAll(text, "['severity-tier', formatSeverityScore(result.severityScore)],", "['severity-tier', result.severity || 'medium'],");
-  if (!text.includes("['message-content',")) {
-    text = replaceOnce(
-      text,
-      "['moderation-reason', result.reason || 'Rule violation.'],",
-      "['moderation-reason', result.reason || 'Rule violation.'],\n    ['message-content', moderationMessagePreview(message)],",
-    );
-  }
-  text = replaceAll(text, "['original-language', result.originalLanguage || ''],", "['original-language', result.originalLanguage || 'Unknown'],");
-  text = replaceAll(text, "['english-translation', result.englishTranslation || ''],", "['english-translation', result.englishTranslation || moderationMessagePreview(message)],");
   text = replaceAll(text, 'const screenshot = await moderationScreenshot(message, result);', 'const screenshot = null;');
   return text;
 }

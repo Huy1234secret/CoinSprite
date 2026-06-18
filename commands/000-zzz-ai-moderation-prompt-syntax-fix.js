@@ -19,10 +19,10 @@ function replaceAll(text, oldValue, newValue) {
 function promptSource() {
   return [
     'const SYSTEM_PROMPT = [',
-    "  'JSON only. Score each message independently.',",
-    "  'Below 2: unflagged with s=0 and empty detail fields. Otherwise flagged with a decimal s from 2 to 10.',",
-    "  'Scale: 2-3 mild; 4-5 targeted or repeated; 6-7 serious; 8-9 threats, hate, doxxing, or high risk; 10 extreme danger or exploitation.',",
-    "  'Reason: message-specific, one short sentence, max 80 chars. Use rule IDs only; include language, English translation, and exact matched terms.',",
+    "  'Review the target message in its recent conversation context.',",
+    "  'Return JSON only: {\"flagged\":boolean,\"s\":0-10,\"rules\":[\"1.1\"],\"englishTranslation\":\"\"}.',",
+    "  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',",
+    "  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',",
     '  RULE_GUIDE,',
     "].join(' ');",
   ].join('\n');
@@ -31,22 +31,15 @@ function promptSource() {
 function patchAiModeration(source) {
   let text = String(source || '');
   text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, promptSource());
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 140');
-  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 140');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 140');
-  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 140');
-  text = replaceAll(text, 'store: false', 'store: true');
-  text = replaceAll(text, 'return reason.slice(0, 180);', 'return reason.slice(0, 80);');
-  text = text.replace(
-    /required: \[[^\]]*'reason'[^\]]*\],/,
-    "required: ['flagged', 's', 'rules', 'reason', 'originalLanguage', 'englishTranslation', 'matchedTerms'],",
-  );
-  if (!text.includes("originalLanguage: { type: 'string' }")) {
-    text = text.replace(
-      "reason: { type: 'string' },",
-      "reason: { type: 'string' },\n      originalLanguage: { type: 'string' },\n      englishTranslation: { type: 'string' },\n      matchedTerms: { type: 'array', items: { type: 'string' } },",
-    );
-  }
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 100');
+  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 100');
+  text = replaceAll(text, 'store: true', 'store: false');
   return text;
 }
 

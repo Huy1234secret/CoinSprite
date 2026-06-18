@@ -64,6 +64,29 @@ function messageModerationText(message) {
   return parts.join('\n').trim();
 }
 
+async function recentModerationContext(message, limit = 5) {
+  const fetchMessages = message?.channel?.messages?.fetch;
+  if (typeof fetchMessages !== 'function') return '';
+  const fetched = await fetchMessages.call(message.channel.messages, { before: message.id, limit }).catch(() => null);
+  return collectionValues(fetched)
+    .sort((left, right) => Number(left?.createdTimestamp || 0) - Number(right?.createdTimestamp || 0))
+    .map((entry) => {
+      const text = messageModerationText(entry);
+      if (!text) return '';
+      const author = String(entry?.member?.displayName || entry?.author?.username || 'User').replace(/\s+/g, ' ').trim();
+      return `${author}: ${text}`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function moderationMessagePreview(message, max = 900) {
+  const text = String(message?.content || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '[no text content]';
+  const safe = text.replace(/[`*_~|>]/g, '').replace(/"/g, "'");
+  return safe.length > max ? `${safe.slice(0, Math.max(0, max - 3))}...` : safe;
+}
+
 function moderationDebugEnabled() {
   return ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_MODERATION_DEBUG || '').toLowerCase());
 }
@@ -106,15 +129,18 @@ function moderationLogChannelId(result, settings) {
 
 function moderationValues(message, result, screenshot = null) {
   const ruleIds = Array.isArray(result.brokenRules) ? result.brokenRules : [];
+  const englishTranslation = String(result.englishTranslation || '').trim();
   return new Map([
     ['severity', formatSeverityScore(result.severityScore)],
-    ['severity-tier', formatSeverityScore(result.severityScore)],
+    ['severity-tier', result.severity || 'medium'],
     ['broken-rules', listLines(ruleIds)],
     ['moderation-reason', result.reason || 'Rule violation.'],
     ['matched-terms', listText(result.matchedTerms)],
     ['moderation-categories', listText(result.categories)],
     ['original-language', result.originalLanguage || ''],
-    ['english-translation', result.englishTranslation || ''],
+    ['english-translation', englishTranslation],
+    ['translation-section', englishTranslation ? `<separator>\n**English translation**\n${englishTranslation}` : ''],
+    ['message-content', moderationMessagePreview(message)],
     ['message-link', message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`],
     ['message-screenshot', screenshot?.name ? `attachment://${screenshot.name}` : ''],
     ['message-screenshot-path', screenshot?.path || ''],
@@ -193,8 +219,9 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
       content: [
         `AI moderation alert for ${message.author} in ${message.channel}`,
         `Severity: ${formatSeverityScore(result.severityScore)}/10`,
-        `Broken rules:\n${listLines(result.brokenRules)}`,
-        `Reason: ${result.reason || 'Rule violation.'}`,
+        `Rules:\n${listLines(result.brokenRules)}`,
+        result.englishTranslation ? `English translation: ${result.englishTranslation}` : '',
+        `Message: ${moderationMessagePreview(message)}`,
         screenshot?.path ? `Screenshot saved: ${screenshot.path}` : '',
         message.url,
       ].filter(Boolean).join('\n').slice(0, 2000),
@@ -232,7 +259,7 @@ module.exports = {
     await interaction.reply({
       content: [
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
-        'AI input: message text, stickers, attachments, and embeds',
+        'AI input: target message plus recent channel context, stickers, attachments, and embeds',
         'Minimum alert severity: 2/10',
         `Alert channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
@@ -256,12 +283,14 @@ module.exports = {
       return;
     }
 
-    debugModeration(message, 'check', `chars=${moderationText.length}`);
+    const recentContext = await recentModerationContext(message);
+    debugModeration(message, 'check', `chars=${moderationText.length} contextChars=${recentContext.length}`);
     const result = await analyzeModerationMessage(moderationText, {
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
       maxInputChars: settings.maxInputChars,
+      recentContext,
     });
     debugModeration(
       message,

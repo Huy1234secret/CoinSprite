@@ -17,7 +17,7 @@
         {
           "id": "ai-moderation-alert",
           "accentColor": "#9B59B6",
-          "text": "## AI moderation alert\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Broken rule(s):**\n<broken-rules>\n<separator>\n**Reason**\n<moderation-reason>\n<separator>\nEnglish translation: “<english-translation>”\nOriginal language: <original-language>\nMatched terms: “<matched-terms>”\nMessage: <message-link> “<message-content>”",
+          "text": "## AI moderation report\\n**User:** <@mention> (`<user-id>`)\\n**Channel:** <channel>\\n**Severity:** <severity>/10\\n**Rules:**\\n<broken-rules>\\n<translation-section>\\n<separator>\\nMessage: <message-link> “<message-content>”",
           "thumbnailUrl": "<avatar_url>",
           "imageUrl": ""
         }
@@ -36,7 +36,7 @@
         {
           "id": "ai-moderation-user-warning",
           "accentColor": "#9B59B6",
-          "text": "## Message flagged\n<@mention>, your message in <channel> was flagged by AI moderation.\n<separator>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n**Reason:** <moderation-reason>\n-# If this was a mistake, please contact staff.",
+          "text": "## Message flagged\\n<@mention>, your message in <channel> was flagged by AI moderation.\\n<separator>\\n**Severity:** <severity>/10\\n**Rules:**\\n<broken-rules>\\n-# If this was a mistake, please contact staff.",
           "thumbnailUrl": "",
           "imageUrl": ""
         }
