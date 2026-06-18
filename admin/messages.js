@@ -44,6 +44,25 @@
       "componentRows": [],
       "botDefault": true,
       "defaultLocked": true
+    },
+    {
+      "id": "default-link-auto-moderation-alert",
+      "type": "template",
+      "folderId": "",
+      "name": "Default: Link Auto-Moderator alert",
+      "content": "",
+      "containers": [
+        {
+          "id": "link-auto-moderation-alert",
+          "accentColor": "#ED4245",
+          "text": "## Link Auto-Moderator report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Action taken:** <moderation-action>\n**Reason:** <moderation-reason>\n<separator>\n**Blocked link**\n- Domain: `<blocked-domain>`\n- URL: <blocked-url>\n- Invite code: `<invite-code>`\n<separator>\n-# User message: “<message-content>”\n-# Report link: <message-link>",
+          "thumbnailUrl": "<avatar_url>",
+          "imageUrl": ""
+        }
+      ],
+      "componentRows": [],
+      "botDefault": true,
+      "defaultLocked": true
     }
   ];
   let popover = null;
@@ -273,31 +292,38 @@
     </button>`;
   }
 
-  function renderContainerPreview(container, index) {
+  function renderContainerPreview(container, index, options = {}) {
     const sections = String(container.text || '').split(/<separator>/gi).map((section) => section.trim()).filter(Boolean);
-    return `<div class="message-preview-container message-direct-ready" data-preview-container-index="${index}" style="--container-color:${escapeHtml(container.accentColor)};--preview-accent:${escapeHtml(container.accentColor)}">
+    const containerId = index === 0 && options.containerId ? ` id="${escapeHtml(options.containerId)}"` : '';
+    const bodyId = index === 0 && options.bodyId ? ` id="${escapeHtml(options.bodyId)}"` : '';
+    const extraClass = options.containerClass ? ` ${escapeHtml(options.containerClass)}` : '';
+    return `<div${containerId} class="message-preview-container preview-container message-direct-ready${extraClass}" data-preview-container-index="${index}" style="--container-color:${escapeHtml(container.accentColor)};--preview-accent:${escapeHtml(container.accentColor)}">
       <button class="preview-accent-picker" type="button" data-message-action="preview-color" data-index="${index}" aria-label="Change container color" style="--preview-accent:${escapeHtml(container.accentColor)}"></button>
       ${mediaControl(container, index, 'thumbnailUrl', 'thumbnail')}
-      <div class="message-preview-text" data-message-action="preview-text" data-index="${index}">
+      <div${bodyId} class="message-preview-text" data-message-action="preview-text" data-index="${index}">
         ${sections.map((section, sectionIndex) => `${sectionIndex ? '<div class="message-preview-separator"></div>' : ''}${renderMarkdown(section)}`).join('') || '<div class="message-preview-line message-preview-empty">Write your message here.</div>'}
       </div>
       ${mediaControl(container, index, 'imageUrl', 'image')}
     </div>`;
   }
 
-  function messagePreview(template) {
+  function messagePreview(template, options = {}) {
     const rootEmpty = !String(template.content || '').trim();
-    return `<div class="message-discord-preview">
+    const root = options.hideEmptyRoot && rootEmpty ? '' : `<div class="message-root-content${rootEmpty ? ' message-root-empty' : ''}" data-message-action="preview-root-text">${rootMessageHtml(template.content)}</div>`;
+    return `<div class="message-discord-preview shared-message-preview">
       <div class="message-discord-message">
         <div class="message-bot-avatar">CS</div>
         <div class="message-discord-body">
           <div class="message-author"><strong>CoinSprite</strong><span>APP</span></div>
-          <div class="message-root-content${rootEmpty ? ' message-root-empty' : ''}" data-message-action="preview-root-text">${rootMessageHtml(template.content)}</div>
-          ${template.containers.map(renderContainerPreview).join('')}
+          ${root}
+          ${template.containers.map((container, index) => renderContainerPreview(container, index, options)).join('')}
         </div>
       </div>
     </div>`;
   }
+
+  window.CoinSpriteMessageEditor = Object.freeze({ renderPreview: messagePreview });
+  window.dispatchEvent(new CustomEvent('coinsprite:message-editor-ready'));
 
   function closePopover() {
     popover?.remove();
@@ -461,12 +487,15 @@
 
   function templateCard(item, kind = 'template') {
     const isFolder = kind === 'folder' || item.type === 'folder';
-    const icon = isFolder ? '📁' : item.botDefault || item.defaultLocked ? '📄' : '<img src="/admin/images/message.png" alt="" aria-hidden="true">';
+    const isDefault = Boolean(item.botDefault || item.defaultLocked);
+    const icon = isFolder ? '📁' : '<img src="/admin/images/message.png" alt="" aria-hidden="true">';
     const action = isFolder ? 'folder-open' : 'open';
     const meta = isFolder ? 'Folder' : `${(item.containers || []).length} container${(item.containers || []).length === 1 ? '' : 's'}`;
-    return `<button class="message-template-card ${isFolder ? 'message-folder-card' : ''}${item.botDefault || item.defaultLocked ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">
+    return `<button class="message-template-card ${isFolder ? 'message-folder-card' : ''}${isDefault ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">
         <span class="message-template-symbol">${icon}</span>
-        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span><span class="message-card-arrow">›</span>
+        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(meta)}</small></span>
+        ${isDefault ? '<span class="message-card-folder-button message-card-edit-button">Edit</span>' : ''}
+        <span class="message-card-arrow">›</span>
       </button>`;
   }
 
