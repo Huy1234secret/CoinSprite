@@ -29,7 +29,7 @@ const AI_ALERT_LINES = [
   '**Reason**',
   '<moderation-reason>',
   '<separator>',
-  '-# User message: "<message-content>"',
+  '-# User message: “<message-content>”',
   '-# Message: <message-link>',
 ];
 
@@ -105,7 +105,7 @@ const LINK_ALERT_LINES = [
   '- URL: <blocked-url>',
   '- Invite code: `<invite-code>`',
   '<separator>',
-  '-# User message: "<message-content>"',
+  '-# User message: “<message-content>”',
   '-# Report link: <message-link>',
 ];
 
