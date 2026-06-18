@@ -1,7 +1,7 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { analyzeModerationBatch } = require('../src/aiModeration');
 const { getGuildConfig } = require('../src/serverConfig');
-const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
+const { buildMessagePayload, findTemplate, formatPlaceholders } = require('../src/messageTemplates');
 const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -253,6 +253,81 @@ async function sendModerationAlert(message, result, settings) {
   return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId, screenshot);
 }
 
+function moderationTemplateContext(message) {
+  return {
+    guild: message.guild,
+    channel: message.channel,
+    user: message.author,
+    member: message.member,
+  };
+}
+
+function moderationReportSection(template, message, result) {
+  const applied = applyModerationPlaceholders(template, message, result, null);
+  const container = (applied.containers || [])[0] || {};
+  return formatPlaceholders(container.text || '', moderationTemplateContext(message))
+    .replace(/^\s*## AI moderation report\s*/i, '')
+    .trim();
+}
+
+async function sendCombinedModerationAlerts(targetMessages, results, settings) {
+  const groups = new Map();
+  for (const result of results) {
+    if (!result.flagged) continue;
+    const message = targetMessages[result.batchIndex - 1];
+    if (!message || hasExcludedRole(message, settings)) continue;
+    const channelId = moderationLogChannelId(result, settings);
+    if (!channelId) {
+      debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
+      continue;
+    }
+    const entries = groups.get(channelId) || [];
+    entries.push({ message, result });
+    groups.set(channelId, entries);
+  }
+
+  for (const [channelId, entries] of groups) {
+    const first = entries[0].message;
+    const channel = first.guild.channels.cache.get(channelId)
+      || await first.guild.channels.fetch(channelId).catch(() => null);
+    if (!channel?.isTextBased()) continue;
+
+    const template = findTemplate(first.guildId, settings.alertTemplateId)
+      || findTemplate(first.guildId, DEFAULT_ALERT_TEMPLATE_ID);
+    if (!template) continue;
+
+    const base = JSON.parse(JSON.stringify(template));
+    const firstContainer = (base.containers || [])[0] || {
+      id: 'ai-moderation-alert',
+      accentColor: '#9B59B6',
+      text: '',
+      thumbnailUrl: '',
+      imageUrl: '',
+    };
+    const sections = entries.map(({ message, result }) => moderationReportSection(template, message, result));
+    firstContainer.text = [
+      '## AI moderation report',
+      ...sections.flatMap((section, index) => index ? ['<separator>', section] : [section]),
+    ].join('\n');
+    firstContainer.thumbnailUrl = formatPlaceholders(firstContainer.thumbnailUrl || '', moderationTemplateContext(first));
+    firstContainer.imageUrl = '';
+    base.content = '';
+    base.containers = [firstContainer];
+    base.componentRows = [];
+
+    const payload = buildMessagePayload(base, moderationTemplateContext(first));
+    await channel.send(payload).catch(() => null);
+
+    for (const { message, result } of entries) {
+      debugModeration(
+        message,
+        'batch-result',
+        `index=${result.batchIndex} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
+      );
+    }
+  }
+}
+
 async function processModerationBatch(targetMessages) {
   if (targetMessages.length !== MODERATION_BATCH_SIZE) return;
   const firstMessage = targetMessages[0];
@@ -276,21 +351,7 @@ async function processModerationBatch(targetMessages) {
     },
   );
 
-  for (const result of results) {
-    const message = targetMessages[result.batchIndex - 1];
-    if (!message || !result.flagged || hasExcludedRole(message, settings)) continue;
-    const logChannelId = moderationLogChannelId(result, settings);
-    if (!logChannelId) {
-      debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
-      continue;
-    }
-    debugModeration(
-      message,
-      'batch-result',
-      `index=${result.batchIndex} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
-    );
-    await sendModerationAlert(message, result, settings);
-  }
+  await sendCombinedModerationAlerts(targetMessages, results, settings);
 }
 
 async function drainModerationBatchQueue(key, state) {
