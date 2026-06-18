@@ -28,31 +28,8 @@ function moderationConfig(guildId) {
   };
 }
 
-function collectionValues(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value.values === 'function') return [...value.values()];
-  return [];
-}
-
 function messageModerationText(message) {
   return String(message?.content || '').trim();
-}
-
-async function recentModerationContext(message, limit = 10) {
-  const fetchMessages = message?.channel?.messages?.fetch;
-  if (typeof fetchMessages !== 'function') return '';
-  const fetched = await fetchMessages.call(message.channel.messages, { before: message.id, limit }).catch(() => null);
-  return collectionValues(fetched)
-    .sort((left, right) => Number(left?.createdTimestamp || 0) - Number(right?.createdTimestamp || 0))
-    .map((entry) => {
-      const text = messageModerationText(entry);
-      if (!text) return '';
-      const author = String(entry?.member?.displayName || entry?.author?.username || 'User').replace(/\s+/g, ' ').trim();
-      return `- ${author}: ${text.replace(/\s+/g, ' ').trim()}`;
-    })
-    .filter(Boolean)
-    .join('\n');
 }
 
 function moderationMessagePreview(message, max = 900) {
@@ -69,19 +46,15 @@ function moderationDebugEnabled() {
 function debugModeration(message, status, detail = '') {
   if (!moderationDebugEnabled()) return;
   const suffix = detail ? ` ${detail}` : '';
-  console.info(
-    `[AI MODERATION] ${status} guild=${message.guildId || 'unknown'} channel=${message.channelId || 'unknown'} user=${message.author?.id || 'unknown'}${suffix}`,
-  );
+  console.info(`[AI MODERATION] ${status} guild=${message.guildId || 'unknown'} channel=${message.channelId || 'unknown'} user=${message.author?.id || 'unknown'}${suffix}`);
 }
 
 function listText(value) {
-  if (Array.isArray(value) && value.length) return value.join(', ');
-  return '-';
+  return Array.isArray(value) && value.length ? value.join(', ') : '-';
 }
 
 function listLines(value) {
-  if (!Array.isArray(value) || !value.length) return '-';
-  return value.map((entry) => `- ${entry}`).join('\n');
+  return Array.isArray(value) && value.length ? value.map((entry) => `- ${entry}`).join('\n') : '-';
 }
 
 function formatSeverityScore(value) {
@@ -95,23 +68,18 @@ function isSevereModerationResult(result) {
 }
 
 function moderationLogChannelId(result, settings) {
-  return String(
-    isSevereModerationResult(result)
-      ? settings.severeLogChannelId
-      : settings.lowSeverityLogChannelId,
-  ).trim();
+  return String(isSevereModerationResult(result) ? settings.severeLogChannelId : settings.lowSeverityLogChannelId).trim();
 }
 
 function moderationValues(message, result, screenshot = null) {
-  const ruleIds = Array.isArray(result.brokenRules) ? result.brokenRules : [];
   const englishTranslation = String(result.englishTranslation || '').trim();
   const moderationCase = String(result.case || result.categories?.[0] || 'Rule violation').trim();
   return new Map([
     ['severity', formatSeverityScore(result.severityScore)],
     ['severity-tier', result.severity || 'medium'],
-    ['broken-rules', listLines(ruleIds)],
+    ['broken-rules', listLines(result.brokenRules)],
     ['moderation-case', moderationCase],
-    ['moderation-reason', result.reason || 'The message breaks a server rule.'],
+    ['moderation-reason', result.reason || 'The message was flagged by moderation.'],
     ['matched-terms', listText(result.matchedTerms)],
     ['moderation-categories', listText(result.categories)],
     ['original-language', result.originalLanguage || ''],
@@ -136,9 +104,7 @@ function applyModerationPlaceholders(template, message, result, screenshot = nul
   copy.containers = (copy.containers || []).map((container) => {
     let text = replaceModerationPlaceholders(container.text, replacements);
     const translation = replacements.get('translation-section');
-    if (container.id === 'ai-moderation-alert' && translation && !text.includes(translation)) {
-      text = `${text}\n${translation}`;
-    }
+    if (container.id === 'ai-moderation-alert' && translation && !text.includes(translation)) text = `${text}\n${translation}`;
     return {
       ...container,
       text,
@@ -160,42 +126,34 @@ function shouldScanChannel(message, settings) {
 }
 
 function hasExcludedRole(message, settings) {
-  if (!settings.excludeRoleIds.length) return false;
   const roles = message.member?.roles?.cache;
-  if (!roles) return false;
-  return settings.excludeRoleIds.some((roleId) => roles.has(roleId));
+  return Boolean(settings.excludeRoleIds.length && roles && settings.excludeRoleIds.some((roleId) => roles.has(roleId)));
 }
 
 async function moderationScreenshot(message, result) {
-  try {
-    return await saveMessageScreenshot(message, result);
-  } catch (error) {
+  try { return await saveMessageScreenshot(message, result); }
+  catch (error) {
     console.error('Moderation screenshot render failed:', error);
     return null;
   }
 }
 
 function screenshotFiles(screenshot) {
-  return screenshot?.attachment && screenshot?.name
-    ? [{ attachment: screenshot.attachment, name: screenshot.name }]
-    : [];
+  return screenshot?.attachment && screenshot?.name ? [{ attachment: screenshot.attachment, name: screenshot.name }] : [];
 }
 
 function attachScreenshotToPayload(payload, screenshot) {
   if (!screenshot?.name || !Array.isArray(payload?.components)) return payload;
   const container = payload.components.find((component) => component?.type === 17 && Array.isArray(component.components));
-  if (!container) return payload;
-  container.components.push({ type: 12, items: [{ media: { url: `attachment://${screenshot.name}` } }] });
+  if (container) container.components.push({ type: 12, items: [{ media: { url: `attachment://${screenshot.name}` } }] });
   return payload;
 }
 
 async function sendModerationAlertToChannel(message, result, templateId, channelId, screenshot) {
   const targetChannelId = String(channelId || '').trim();
   if (!targetChannelId) return false;
-  const channel = message.guild.channels.cache.get(targetChannelId)
-    || await message.guild.channels.fetch(targetChannelId).catch(() => null);
+  const channel = message.guild.channels.cache.get(targetChannelId) || await message.guild.channels.fetch(targetChannelId).catch(() => null);
   if (!channel?.isTextBased()) return false;
-
   const files = screenshotFiles(screenshot);
   const template = findTemplate(message.guildId, templateId) || findTemplate(message.guildId, DEFAULT_ALERT_TEMPLATE_ID);
   if (!template) {
@@ -204,7 +162,7 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
         `AI moderation alert for ${message.author} in ${message.channel}`,
         `Severity: ${formatSeverityScore(result.severityScore)}/10`,
         `Case: ${result.case || result.categories?.[0] || 'Rule violation'}`,
-        `Reason: ${result.reason || 'The message breaks a server rule.'}`,
+        `Reason: ${result.reason || 'The message was flagged by moderation.'}`,
         `Message: ${moderationMessagePreview(message)}`,
         screenshot?.path ? `Screenshot saved: ${screenshot.path}` : '',
         message.url,
@@ -214,7 +172,6 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
     }).catch(() => null);
     return true;
   }
-
   const payload = attachScreenshotToPayload(buildMessagePayload(applyModerationPlaceholders(template, message, result, screenshot), {
     guild: message.guild,
     channel: message.channel,
@@ -243,13 +200,13 @@ module.exports = {
     await interaction.reply({
       content: [
         `AI moderation: **${settings.enabled ? 'enabled' : 'disabled'}**`,
-        'AI input: target message plus recent channel context, stickers, attachments, and embeds',
+        'AI input: target message only; channel context, stickers, attachments, and embeds are not sent to OpenAI',
         'Minimum alert severity: 2/10',
         `Alert channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
         `AI reports below 8/10: ${settings.lowSeverityLogChannelId ? `<#${settings.lowSeverityLogChannelId}>` : 'not set'}`,
         `AI severe reports 8-10/10: ${settings.severeLogChannelId ? `<#${settings.severeLogChannelId}>` : 'not set'}`,
-        `AI input sent: up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
+        `AI input sent: one message, up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI every message' : 'fallback scan only'}`,
         `Debug logs: ${moderationDebugEnabled() ? 'enabled' : 'off'}`,
       ].join('\n'),
@@ -259,8 +216,10 @@ module.exports = {
 
   async handleMessageCreate(message) {
     const moderationText = messageModerationText(message);
-    if (shouldSkipMessage(message, moderationText)) return;
-
+    if (shouldSkipMessage(message, moderationText)) {
+      debugModeration(message, 'skip', `reason=basic-filter textChars=${moderationText.length}`);
+      return;
+    }
     const settings = moderationConfig(message.guildId);
     if (!settings.enabled) {
       debugModeration(message, 'skip', 'reason=disabled');
@@ -270,29 +229,20 @@ module.exports = {
       debugModeration(message, 'skip', 'reason=excluded-role-before-ai');
       return;
     }
-
-    const recentContext = await recentModerationContext(message);
-    debugModeration(message, 'check', `chars=${moderationText.length} contextChars=${recentContext.length}`);
+    debugModeration(message, 'check', `chars=${moderationText.length}`);
     const result = await analyzeModerationMessage(moderationText, {
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
       maxInputChars: settings.maxInputChars,
-      recentContext,
     });
-    debugModeration(
-      message,
-      'result',
-      `flagged=${Boolean(result.flagged)} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
-    );
-
+    debugModeration(message, 'result', `flagged=${Boolean(result.flagged)} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`);
     if (!result.flagged) return;
     const logChannelId = moderationLogChannelId(result, settings);
     if (!logChannelId) {
       debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
       return;
     }
-    debugModeration(message, 'alert-route', `channel=${logChannelId} severity=${formatSeverityScore(result.severityScore)}`);
     if (!shouldScanChannel(message, settings)) {
       debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
       return;
