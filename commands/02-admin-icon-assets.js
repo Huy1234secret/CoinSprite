@@ -10,9 +10,13 @@ const IMAGE_DIR = process.env.ADMIN_IMAGE_DIR || path.join(__dirname, '..', 'ima
 const EMOJI_PICKER_URL = 'https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js';
 const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
 const ICONS = new Map([
-  ['/admin/images/leveling.png', path.join(IMAGE_DIR, 'leveling.png')],
-  ['/admin/images/ticket.png', path.join(IMAGE_DIR, 'ticket.png')],
-  ['/admin/images/message.png', path.join(IMAGE_DIR, 'message.png')],
+  ['/admin/images/leveling.png', { file: path.join(ADMIN_DIR, 'images', 'leveling.png'), type: 'image/png' }],
+  ['/admin/images/ticket.png', { file: path.join(ADMIN_DIR, 'images', 'ticket.png'), type: 'image/png' }],
+  ['/admin/images/data.png', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/data.svg', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/moderator.svg', { file: path.join(ADMIN_DIR, 'images', 'moderator.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/message.png', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/message.svg', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
 ]);
 let clientRef = null;
 
@@ -267,18 +271,7 @@ function adminInteractionFixes() {
 }
 
 function patchTicketUpgradeScript(source) {
-  let patched = source;
-  const categoriesStart = patched.indexOf('  const EMOJI_CATEGORIES = {');
-  const categoriesEnd = patched.indexOf('\n  function splitXp', categoriesStart);
-  if (categoriesStart >= 0 && categoriesEnd > categoriesStart) {
-    patched = `${patched.slice(0, categoriesStart)}${patched.slice(categoriesEnd + 1)}`;
-  }
-  const emojiStart = patched.indexOf('  function emoji(input) {');
-  const positionStart = patched.indexOf('  function positionEmoji', emojiStart);
-  if (emojiStart >= 0 && positionStart > emojiStart) {
-    patched = `${patched.slice(0, emojiStart)}${emojiPickerFunction()}${patched.slice(positionStart)}`;
-  }
-  return `${patched}\n${adminInteractionFixes()}`;
+  return `${source}\n${adminInteractionFixes()}`;
 }
 
 function patchTicketUpgradeCss(source) {
@@ -377,17 +370,17 @@ http.createServer = function adminAssetServer(listener) {
       redirectBotAvatar(res);
       return;
     }
-    const filePath = ICONS.get(pathname);
-    if (!filePath) {
+    const icon = ICONS.get(pathname);
+    if (!icon) {
       listener(req, res);
       return;
     }
-    fs.readFile(filePath, (error, data) => {
+    fs.readFile(icon.file, (error, data) => {
       if (error) {
         notFound(res);
         return;
       }
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' });
+      res.writeHead(200, { 'Content-Type': icon.type, 'Cache-Control': 'public, max-age=3600' });
       res.end(data);
     });
   });
