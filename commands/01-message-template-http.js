@@ -18,6 +18,10 @@ const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
+const IMAGE_ALIASES = new Map([
+  ['moderator.png', 'moderator.svg'],
+  ['messages.png', 'message.svg'],
+]);
 let clientRef = null;
 
 function sendJson(res, status, payload) {
@@ -48,7 +52,9 @@ function serveImageAsset(res, imagePath) {
     return;
   }
 
-  const filePath = path.join(IMAGE_DIR, normalized);
+  const publicImagePath = normalized.replace(/\\/g, '/');
+  const localImagePath = IMAGE_ALIASES.get(publicImagePath) || normalized;
+  const filePath = path.join(IMAGE_DIR, localImagePath);
   const resolvedImageDir = path.resolve(IMAGE_DIR);
   const resolvedFile = path.resolve(filePath);
   if (resolvedFile !== resolvedImageDir && !resolvedFile.startsWith(`${resolvedImageDir}${path.sep}`)) {
@@ -188,10 +194,10 @@ function applyComponentActions(guildId, templateId, body = {}) {
 
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-6">\n</head>');
+  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-7">\n</head>');
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/admin/images/moderator.svg" alt=""></span><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.svg" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/CoinSprite/images/moderator.png" alt=""></span><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/CoinSprite/images/messages.png" alt=""></span><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
@@ -213,6 +219,10 @@ function injectedIndex() {
 
 async function handleTemplateRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'GET' && url.pathname.startsWith('/CoinSprite/images/')) {
+    serveImageAsset(res, url.pathname.slice('/CoinSprite/images/'.length));
+    return true;
+  }
   if (req.method === 'GET' && url.pathname.startsWith('/images/')) {
     serveImageAsset(res, url.pathname.slice('/images/'.length));
     return true;
