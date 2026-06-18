@@ -20,7 +20,7 @@ const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const IMAGE_ALIASES = new Map([
   ['leveling.png', 'leveling.png'],
-  ['message.png', 'message.png'],
+  ['messages.png', 'message.png'],
   ['message.png', 'message.png'],
   ['message.svg', 'message.png'],
   ['ticket.png', 'ticket.png'],
