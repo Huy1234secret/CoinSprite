@@ -349,7 +349,7 @@ http.createServer = function patchedCreateServer(listener) {
 };
 
 Module._load = function captureTicketClient(request, parent, isMain) {
-  const exported = previousLoad.call(this, parent, isMain);
+  const exported = previousLoad.call(this, request, parent, isMain);
   if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__messageClientCapture) return exported;
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => {
