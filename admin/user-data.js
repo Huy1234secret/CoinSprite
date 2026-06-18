@@ -15,7 +15,7 @@
       image.setAttribute('aria-hidden', 'true');
       button.prepend(image);
     }
-    if (image.getAttribute('src') !== '/images/data.png?v=custom-icons-2') image.src = '/images/data.png?v=custom-icons-2';
+    if (image.getAttribute('src') !== '/images/data.png?v=custom-icons-3') image.src = '/images/data.png?v=custom-icons-3';
   }
 
   function ensureTicketBlacklistField() {
