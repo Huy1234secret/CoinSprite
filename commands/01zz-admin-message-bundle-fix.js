@@ -18,15 +18,15 @@ const CURRENT_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
 
 const FIXED_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
   ['tickets.js'],
-  ['app.js', (source) => patchTicketUpgradeScript(patchAppScript(source))],
-  ['user-data.js'],
-  ['emoji-picker.js'],
   ['message-inline-editor.js'],
   ['message-template-workflow.js'],
   ['messages.js', patchMessagesScript],
   ['message-components.js'],
   ['message-component-actions.js'],
   ['message-tab-inline-editor.js'],
+  ['app.js', (source) => patchTicketUpgradeScript(patchAppScript(source))],
+  ['user-data.js'],
+  ['emoji-picker.js'],
   ['message-edit-shortcuts.js'],
   ['owner-panel.js'],
 ];`;
