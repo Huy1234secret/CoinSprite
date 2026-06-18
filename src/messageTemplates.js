@@ -73,6 +73,38 @@ const DEFAULT_BOT_TEMPLATES = Object.freeze([
     defaultLocked: true,
     updatedAt: new Date(0).toISOString(),
   },
+  {
+    id: 'default-link-auto-moderation-alert',
+    type: 'template',
+    folderId: '',
+    name: 'Default: Link Auto-Moderator alert',
+    content: '',
+    containers: [{
+      id: 'link-auto-moderation-alert',
+      accentColor: '#ED4245',
+      text: [
+        '## Link Auto-Moderator report',
+        '**User:** <@mention> (`<user-id>`)',
+        '**Channel:** <channel>',
+        '**Action taken:** <moderation-action>',
+        '**Reason:** <moderation-reason>',
+        '<separator>',
+        '**Blocked link**',
+        '- Domain: `<blocked-domain>`',
+        '- URL: <blocked-url>',
+        '- Invite code: `<invite-code>`',
+        '<separator>',
+        '-# User message: “<message-content>”',
+        '-# Report link: <message-link>',
+      ].join('\n'),
+      thumbnailUrl: '<avatar_url>',
+      imageUrl: '',
+    }],
+    componentRows: [],
+    botDefault: true,
+    defaultLocked: true,
+    updatedAt: new Date(0).toISOString(),
+  },
 ]);
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
