@@ -1587,7 +1587,12 @@ loadSession();
         const signature = actions.join('|');
         if (select.dataset.requestOptionsSignature !== signature) {
           const available = REQUEST_ACTIONS.filter(([value]) => !actions.includes(value));
-          select.replaceChildren(...available.map(([value, label]) => new Option(label, value)));
+          const workflowOptions = [...select.options].filter((option) =>
+            option.textContent.trim() === 'Condition' || String(option.value).startsWith('condition_'));
+          select.replaceChildren(
+            ...available.map(([value, label]) => new Option(label, value)),
+            ...workflowOptions,
+          );
           select.dataset.requestOptionsSignature = signature;
         }
       }
@@ -1716,7 +1721,7 @@ loadSession();
       const types = body.tickets?.types || [];
       types.forEach((type, index) => {
         const marked = requestIds.has(type.id) || isRequestType(type) || (pendingRequest && index === types.length - 1);
-        if (!marked) return;
+        if (!marked || type.workflow === 'request_role_crew_member_plus') return;
         normalizeRequestTypeForSave(type, index);
       });
       init = { ...init, body: JSON.stringify(body) };
