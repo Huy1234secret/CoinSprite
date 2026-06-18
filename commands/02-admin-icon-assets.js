@@ -6,8 +6,6 @@ const Module = require('module');
 const previousCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
-const IMAGE_DIR = process.env.ADMIN_IMAGE_DIR || path.join(__dirname, '..', 'images');
-const EMOJI_PICKER_URL = 'https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js';
 const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
 const ICONS = new Map([
   ['/admin/images/leveling.png', { file: path.join(ADMIN_DIR, 'images', 'leveling.png'), type: 'image/png' }],
@@ -15,7 +13,7 @@ const ICONS = new Map([
   ['/admin/images/data.png', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
   ['/admin/images/data.svg', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
   ['/admin/images/moderator.svg', { file: path.join(ADMIN_DIR, 'images', 'moderator.svg'), type: 'image/svg+xml' }],
-  ['/admin/images/message.png', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/message.svg', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
   ['/admin/images/message.svg', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
 ]);
 let clientRef = null;
@@ -135,7 +133,7 @@ function defaultMessageListGuard() {
   const matches = (item, query) => !query || \`\${item.name || ''} \${item.id || ''}\`.toLowerCase().includes(query);
   const card = (item) => {
     const count = Array.isArray(item.containers) ? item.containers.length : 0;
-    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
+    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol"><img src="/admin/images/message.svg" alt="" aria-hidden="true"></span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
   };
   function repair() {
     const root = document.querySelector('#messageTemplatesRoot');
@@ -184,49 +182,6 @@ function patchAppScript(source) {
       "elements.configForm.addEventListener('change', (event) => {\n  refreshDirtyState();",
       "elements.configForm.addEventListener('change', (event) => {\n  if (event.target !== elements.levelUpPreviewLevel) refreshDirtyState();",
     );
-}
-
-function emojiPickerFunction() {
-  return `  function emoji(input) {
-    if (input.dataset.emojiPicker) return;
-    input.dataset.emojiPicker = 'true';
-    void import('${EMOJI_PICKER_URL}').catch(() => {});
-    const wrap = document.createElement('span');
-    wrap.className = 'emoji-field';
-    input.parentNode.insertBefore(wrap, input);
-    wrap.append(input);
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'emoji-picker-button';
-    button.textContent = '\\u263a';
-    button.title = 'Choose emoji';
-    const pop = document.createElement('span');
-    pop.className = 'emoji-popover emoji-component-popover';
-    const picker = document.createElement('emoji-picker');
-    picker.className = 'dark';
-    picker.addEventListener('emoji-click', (event) => {
-      const value = event.detail?.unicode;
-      if (!value) return;
-      const start = input.selectionStart ?? input.value.length;
-      const end = input.selectionEnd ?? start;
-      input.setRangeText(value, start, end, 'end');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      pop.classList.remove('open');
-      input.focus();
-    });
-    button.onclick = (event) => {
-      event.stopPropagation();
-      document.querySelectorAll('.emoji-popover.open').forEach((node) => {
-        if (node !== pop) node.classList.remove('open');
-      });
-      pop.classList.toggle('open');
-      if (pop.classList.contains('open')) positionEmoji(pop, button);
-    };
-    pop.append(picker);
-    wrap.append(button, pop);
-  }
- `;
 }
 
 function adminInteractionFixes() {
