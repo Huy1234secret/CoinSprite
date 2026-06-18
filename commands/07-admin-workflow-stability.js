@@ -4,7 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const IMAGE_DIR = path.join(__dirname, '..', 'images');
+const IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
 const LEGACY_IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
 const ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',

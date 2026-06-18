@@ -1805,13 +1805,13 @@ textarea:focus,
   height: 30px;
   flex: 0 0 30px;
   box-sizing: border-box;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
+  padding: 3px;
+  border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72));
+  border-radius: 9px;
   object-fit: contain;
   object-position: center;
   image-rendering: auto;
-  background: transparent;
+  background: var(--tab-icon-bg, rgba(80, 110, 150, 0.14));
   box-shadow: none;
   filter: none;
   transition: none;
@@ -1827,19 +1827,29 @@ textarea:focus,
 .tab[data-tab="leveling"] .tab-icon {
   --tab-icon-glow: rgba(93, 255, 151, 0.68);
   --tab-icon-bg: rgba(87, 242, 135, 0.18);
-  --tab-icon-border: rgba(87, 242, 135, 0.36);
+  --tab-icon-border: rgba(87, 242, 135, 0.72);
 }
 
 .tab[data-tab="tickets"] .tab-icon {
   --tab-icon-glow: rgba(255, 84, 104, 0.7);
   --tab-icon-bg: rgba(255, 76, 96, 0.18);
-  --tab-icon-border: rgba(255, 76, 96, 0.38);
+  --tab-icon-border: rgba(255, 76, 96, 0.72);
 }
 
 .tab[data-tab="messages"] .tab-icon {
   --tab-icon-glow: rgba(99, 184, 255, 0.72);
   --tab-icon-bg: rgba(72, 149, 239, 0.2);
-  --tab-icon-border: rgba(99, 184, 255, 0.4);
+  --tab-icon-border: rgba(99, 184, 255, 0.72);
+}
+
+.tab[data-tab="moderator"] .tab-icon {
+  --tab-icon-bg: rgba(155, 89, 182, 0.18);
+  --tab-icon-border: rgba(188, 120, 255, 0.72);
+}
+
+.tab[data-tab="data"] .tab-icon {
+  --tab-icon-bg: rgba(185, 195, 210, 0.14);
+  --tab-icon-border: rgba(205, 215, 230, 0.72);
 }
 
 .message-tab-icon,

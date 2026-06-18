@@ -1185,11 +1185,11 @@ loadSession();
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
-      leveling: '/images/leveling.png?v=custom-icons-2',
-      data: '/images/data.png?v=custom-icons-2',
-      tickets: '/images/ticket.png?v=custom-icons-2',
-      moderator: '/images/moderator.png?v=custom-icons-2',
-      messages: '/images/message.png?v=custom-icons-2',
+      leveling: '/images/leveling.png?v=custom-icons-3',
+      data: '/images/data.png?v=custom-icons-3',
+      tickets: '/images/ticket.png?v=custom-icons-3',
+      moderator: '/images/moderator.png?v=custom-icons-3',
+      messages: '/images/message.png?v=custom-icons-3',
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);

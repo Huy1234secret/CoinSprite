@@ -17,7 +17,7 @@ const originalCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
-const IMAGE_DIR = path.join(__dirname, '..', 'images');
+const IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
 const IMAGE_ALIASES = new Map([
   ['leveling.png', 'leveling.png'],
   ['messages.png', 'message.png'],
@@ -32,7 +32,7 @@ const IMAGE_ALIASES = new Map([
 const TAB_ICON_STYLE = [
   '  <style>',
   '    .tab[data-tab="leveling"], .tab[data-tab="data"], .tab[data-tab="tickets"], .tab[data-tab="moderator"], .tab[data-tab="messages"] { display: flex; align-items: center; gap: 12px; }',
-  '    .tab .tab-icon { width: 30px; height: 30px; max-width: 30px; max-height: 30px; flex: 0 0 30px; display: block; object-fit: contain; object-position: center; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; filter: none !important; outline: 0 !important; padding: 0 !important; transform: none !important; clip-path: none !important; }',
+  '    .tab .tab-icon { width: 30px; height: 30px; max-width: 30px; max-height: 30px; flex: 0 0 30px; display: block; object-fit: contain; object-position: center; border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important; border-radius: 9px !important; background: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important; box-shadow: none !important; filter: none !important; outline: 0 !important; padding: 0 !important; transform: none !important; clip-path: none !important; }',
   '    .tab:hover .tab-icon, .tab.active .tab-icon { transform: none !important; box-shadow: none !important; filter: none !important; }',
   '    @media (max-width: 700px) { .tab .tab-icon { width: 26px; height: 26px; max-width: 26px; max-height: 26px; flex-basis: 26px; } }',
   '  </style>',
@@ -219,7 +219,7 @@ function injectedIndex() {
   ].join('\n'));
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/images/moderator.png?v=custom-icons-2" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/images/message.png?v=custom-icons-2" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/images/moderator.png?v=custom-icons-3" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/images/message.png?v=custom-icons-3" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
