@@ -21,7 +21,7 @@ function promptSource() {
     'const SYSTEM_PROMPT = [',
     "  'Review the target Message using its Context and decide whether it clearly violates rules commonly enforced in most Discord communities.',",
     "  'Infer the most appropriate violation category yourself; do not invent a violation when the message is harmless or ambiguous.',",
-    "  'Return JSON only: {\"flagged\":false,\"s\":0,\"case\":\"\",\"reason\":\"\"}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining what in the message and context caused the violation.',",
+    "  'Detect deliberate bypass spelling, leetspeak, phonetic misspellings, inserted punctuation or spaces, homoglyphs, and abbreviated slurs or sexual terms. If the target Message is not English, return a natural English translation in translated; otherwise translated must be empty. Return JSON only: {\"flagged\":false,\"s\":0,\"case\":\"\",\"reason\":\"\",\"translated\":\"\"}. When flagged, use s=2-10 and give a specific 1-3 sentence reason.',",
     "].join(' ');",
   ].join('\n');
 }
@@ -29,14 +29,14 @@ function promptSource() {
 function patchAiModeration(source) {
   let text = String(source || '');
   text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, promptSource());
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 180');
-  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 180');
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 240');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 240');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 240');
+  text = replaceAll(text, 'max_output_tokens: 240', 'max_output_tokens: 240');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 240');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 240');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 240');
+  text = replaceAll(text, 'max_tokens: 240', 'max_tokens: 240');
   text = replaceAll(text, 'store: false', 'store: true');
   return text;
 }
