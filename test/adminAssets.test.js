@@ -81,22 +81,30 @@ test('dashboard scripts inline icon bytes instead of requiring browser image req
   assert.match(source, /data:image\/(?:png|svg\+xml);base64,/);
 });
 
-test('dashboard style replaces broken tab images with stable symbols', async () => {
+test('dashboard style shows real tab images inside colored squares', async () => {
   const response = await fetch(`${origin}/admin/style.css`);
   assert.equal(response.status, 200);
   const source = await response.text();
   assert.match(source, /Runtime tab icon loading fixes/);
-  assert.match(source, /\.tab\[data-tab="moderator"\]::before/);
-  assert.match(source, /content:\s*var\(--tab-icon-symbol/);
   assert.match(source, /> img\.tab-icon/);
-  assert.match(source, /display:\s*none !important/);
-  assert.match(source, /--tab-icon-symbol:\s*"🛡"/);
-  assert.match(source, /\.tab\[data-tab="moderator"\]::before\s*{[^}]*content:\s*"🛡"/s);
+  assert.match(source, /display:\s*block !important/);
+  assert.match(source, /object-fit:\s*contain !important/);
+  assert.match(source, /content:\s*none !important/);
+  assert.doesNotMatch(source, /--tab-icon-symbol/);
   assert.match(source, /rgba\(188, 120, 255, 0\.72\)/);
-  assert.doesNotMatch(source, /content:\s*none !important/);
 });
 
-test('dashboard keeps runtime image handlers but renders symbol tab icons', () => {
+test('dashboard removes icon auto check while keeping normal image paths', async () => {
+  const response = await fetch(`${origin}/admin/app.js`);
+  assert.equal(response.status, 200);
+  const source = await response.text();
+  assert.match(source, /leveling:\s*'\/admin\/images\/leveling\.png\?v=custom-icons-4'/);
+  assert.match(source, /tickets:\s*'\/admin\/images\/ticket\.png\?v=custom-icons-4'/);
+  assert.doesNotMatch(source, /scheduleUiFixes\)\.observe\(document\.body/);
+  assert.doesNotMatch(source, /cleanTabIcons\(\);\s*renderLevelUpRootPreview\(\);/);
+});
+
+test('dashboard keeps runtime image handlers and renders image tab icons', () => {
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   const handler = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
@@ -111,15 +119,15 @@ test('dashboard keeps runtime image handlers but renders symbol tab icons', () =
   assert.match(adminServer, /'\/images\/', '\/CoinSprite\/images\/', '\/admin\/images\/'/);
   assert.match(runtimeIcons, /path\.join\(ROOT_DIR, 'images'\)/);
   assert.match(runtimeIcons, /path\.join\(ROOT_DIR, 'image'\)/);
-  assert.match(runtimeIcons, /--tab-icon-symbol: "★"/);
-  assert.match(runtimeIcons, /--tab-icon-symbol: "🛡"/);
+  assert.match(runtimeIcons, /patchAdminApp/);
+  assert.match(runtimeIcons, /content: none !important/);
   assert.match(runtimeIcons, /> img\.tab-icon/);
-  assert.doesNotMatch(runtimeIcons, /content: none !important/);
+  assert.doesNotMatch(runtimeIcons, /--tab-icon-symbol|repairTabIcons|ensureModeratorSymbolSquare/);
 });
 
-test('tab icon fixes stay in the main runtime file without browser icon watchers', () => {
+test('tab icon fixes stay in the main runtime file without extra fix files', () => {
   const runtimeIcons = fs.readFileSync(path.join(root, 'commands', '00-admin-runtime-icons.js'), 'utf8');
   assert.equal(fs.existsSync(path.join(root, 'commands', '08-admin-root-icon-assets.js')), false);
   assert.equal(fs.existsSync(path.join(root, 'commands', '09-admin-moderator-symbol-square.js')), false);
-  assert.doesNotMatch(runtimeIcons, /MutationObserver|repairTabIcons|ensureModeratorSymbolSquare/);
+  assert.doesNotMatch(runtimeIcons, /repairTabIcons|ensureModeratorSymbolSquare|--tab-icon-symbol/);
 });
