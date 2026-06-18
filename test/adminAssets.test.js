@@ -5,11 +5,24 @@ const path = require('node:path');
 const { after, before, test } = require('node:test');
 
 const root = path.resolve(__dirname, '..');
+const rootImageDir = path.join(root, 'images');
+const rootIconBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const rootIconFiles = ['leveling.png', 'messages.png', 'ticket.png', 'moderator.png', 'data.png'];
+const createdRootIcons = [];
 let server;
 let origin;
 
 before(async () => {
+  fs.mkdirSync(rootImageDir, { recursive: true });
+  for (const fileName of rootIconFiles) {
+    const filePath = path.join(rootImageDir, fileName);
+    if (fs.existsSync(filePath)) continue;
+    fs.writeFileSync(filePath, rootIconBytes);
+    createdRootIcons.push(filePath);
+  }
+
   const nativeCreateServer = http.createServer;
+  require('../commands/08-admin-root-icon-assets');
   require('../commands/01-message-template-http');
   require('../commands/07-admin-workflow-stability');
   const createAdminServer = http.createServer;
@@ -25,34 +38,36 @@ before(async () => {
 
 after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
+  for (const filePath of createdRootIcons) fs.rmSync(filePath, { force: true });
 });
 
-test('custom tab image assets are served from every public prefix', async () => {
+test('custom tab image assets are served from /root/CoinSprite/images on every public prefix', async () => {
   const icons = [
-    ['leveling.png', 'image/png'],
-    ['ticket.png', 'image/png'],
-    ['data.svg', 'image/svg+xml'],
-    ['moderator.svg', 'image/svg+xml'],
-    ['message.svg', 'image/svg+xml'],
+    'leveling.png',
+    'ticket.png',
+    'data.png',
+    'moderator.png',
+    'messages.png',
   ];
 
   for (const prefix of ['/CoinSprite/images/', '/admin/images/', '/images/']) {
-    for (const [filename, contentType] of icons) {
+    for (const filename of icons) {
       const response = await fetch(`${origin}${prefix}${filename}?v=test`);
       assert.equal(response.status, 200, `${prefix}${filename}`);
-      assert.match(response.headers.get('content-type') || '', new RegExp(`^${contentType.replace('+', '\\+')}`));
-      assert.ok((await response.arrayBuffer()).byteLength > 0, `${prefix}${filename}`);
+      assert.match(response.headers.get('content-type') || '', /^image\/png/);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), rootIconBytes, `${prefix}${filename}`);
     }
   }
 });
 
-test('dashboard selects the committed custom images without an extra frame', () => {
+test('dashboard rewrites icon sources to the committed root-image filenames', () => {
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
-  const handler = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
 
   assert.match(app, /leveling: '\/CoinSprite\/images\/leveling\.png\?v=custom-icons-1'/);
   assert.match(app, /tickets: '\/CoinSprite\/images\/ticket\.png\?v=custom-icons-1'/);
-  assert.doesNotMatch(handler, /TAB_ICON_FRAME_STYLE|tab-icon-frame/);
-  assert.doesNotMatch(index, /tab-icon-frame/);
+  assert.match(app, /data: '\/CoinSprite\/images\/data\.png\?v=custom-icons-1'/);
+  assert.match(app, /moderator: '\/CoinSprite\/images\/moderator\.png\?v=custom-icons-1'/);
+  assert.match(app, /messages: '\/CoinSprite\/images\/messages\.png\?v=custom-icons-1'/);
+  assert.doesNotMatch(index, /\/CoinSprite\/images\/(data|moderator|message)\.svg\?v=custom-icons-1/);
 });
