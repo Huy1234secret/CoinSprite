@@ -55,139 +55,91 @@ function sendIcon(res, fileName) {
   });
 }
 
-const tabIconImageScript = String.raw`
-;(() => {
-  if (window.__coinSpriteTabIconImageFix) return;
-  window.__coinSpriteTabIconImageFix = true;
-
-  const ICON_BASE = '/CoinSprite/images/';
-  const TAB_ICONS = {
-    leveling: 'leveling.png',
-    data: 'data.svg',
-    tickets: 'ticket.png',
-    moderator: 'moderator.svg',
-    messages: 'message.svg',
-  };
-
-  const style = document.createElement('style');
-  style.textContent = `
-    .tab {
-      display: flex !important;
-      align-items: center !important;
-      gap: 12px !important;
-    }
-    .tab .tab-icon,
-    .tab[data-tab="moderator"] .tab-icon {
-      width: 30px !important;
-      height: 30px !important;
-      max-width: 30px !important;
-      max-height: 30px !important;
-      flex: 0 0 30px !important;
-      display: block !important;
-      box-sizing: border-box !important;
-      object-fit: contain !important;
-      object-position: center !important;
-      padding: 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      outline: 0 !important;
-      filter: none !important;
-      transform: none !important;
-      image-rendering: auto !important;
-    }
-    .tab .tab-icon-frame,
-    .tab[data-tab="moderator"] .tab-icon-frame {
-      display: contents !important;
-      width: auto !important;
-      height: auto !important;
-      flex: initial !important;
-      overflow: visible !important;
-      padding: 0 !important;
-      border: 0 !important;
-      border-radius: 0 !important;
-      background: transparent !important;
-      box-shadow: none !important;
-    }
-    .tab .tab-image-icon,
-    .tab .message-tab-icon {
-      display: none !important;
-    }
-    @media (max-width: 740px) {
-      .tab .tab-icon,
-      .tab[data-tab="moderator"] .tab-icon {
-        width: 26px !important;
-        height: 26px !important;
-        max-width: 26px !important;
-        max-height: 26px !important;
-        flex-basis: 26px !important;
-      }
-    }
-  `;
-  document.head.append(style);
-
-  function imageSource(fileName) {
-    return `${ICON_BASE}${fileName}`;
-  }
-
-  function unwrapIconFrame(button) {
-    const frame = button.querySelector('.tab-icon-frame');
-    const image = frame?.querySelector('img.tab-icon');
-    if (frame && image) button.prepend(image);
-    frame?.remove();
-  }
-
-  function ensureTabIcon(tabName, fileName) {
-    const button = document.querySelector(`.tab[data-tab="${CSS.escape(tabName)}"]`);
-    if (!button) return;
-
-    unwrapIconFrame(button);
-    button.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((node) => node.remove());
-
-    let image = button.querySelector('img.tab-icon');
-    if (!image) {
-      image = document.createElement('img');
-      button.prepend(image);
-    } else if (image.parentElement !== button || button.firstElementChild !== image) {
-      button.prepend(image);
-    }
-
-    if (image.className !== 'tab-icon') image.className = 'tab-icon';
-    if (image.getAttribute('alt') !== '') image.alt = '';
-    if (image.getAttribute('aria-hidden') !== 'true') image.setAttribute('aria-hidden', 'true');
-
-    const expectedSource = imageSource(fileName);
-    if (image.getAttribute('src') !== expectedSource) image.src = expectedSource;
-  }
-
-  let scheduled = false;
-  function repairTabIcons() {
-    scheduled = false;
-    for (const [tabName, fileName] of Object.entries(TAB_ICONS)) ensureTabIcon(tabName, fileName);
-  }
-
-  function scheduleRepair() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(repairTabIcons);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', repairTabIcons, { once: true });
-  } else {
-    repairTabIcons();
-  }
-
-  new MutationObserver(scheduleRepair).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['src', 'class'],
-  });
-  scheduleRepair();
-})();
-`;
+const tabIconImageScript = [
+  ';(() => {',
+  '  if (window.__coinSpriteTabIconImageFix) return;',
+  '  window.__coinSpriteTabIconImageFix = true;',
+  '',
+  "  const ICON_BASE = '/CoinSprite/images/';",
+  '  const TAB_ICONS = {',
+  "    leveling: 'leveling.png',",
+  "    data: 'data.svg',",
+  "    tickets: 'ticket.png',",
+  "    moderator: 'moderator.svg',",
+  "    messages: 'message.svg',",
+  '  };',
+  '',
+  "  const style = document.createElement('style');",
+  '  style.textContent = [',
+  "    '.tab { display: flex !important; align-items: center !important; gap: 12px !important; }',",
+  "    '.tab .tab-icon, .tab[data-tab=\"moderator\"] .tab-icon { width: 30px !important; height: 30px !important; max-width: 30px !important; max-height: 30px !important; flex: 0 0 30px !important; display: block !important; box-sizing: border-box !important; object-fit: contain !important; object-position: center !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0 !important; filter: none !important; transform: none !important; image-rendering: auto !important; }',",
+  "    '.tab .tab-icon-frame, .tab[data-tab=\"moderator\"] .tab-icon-frame { display: contents !important; width: auto !important; height: auto !important; flex: initial !important; overflow: visible !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }',",
+  "    '.tab .tab-image-icon, .tab .message-tab-icon { display: none !important; }',",
+  "    '@media (max-width: 740px) { .tab .tab-icon, .tab[data-tab=\"moderator\"] .tab-icon { width: 26px !important; height: 26px !important; max-width: 26px !important; max-height: 26px !important; flex-basis: 26px !important; } }',",
+  "  ].join('');",
+  '  document.head.append(style);',
+  '',
+  '  function imageSource(fileName) {',
+  '    return ICON_BASE + fileName;',
+  '  }',
+  '',
+  '  function unwrapIconFrame(button) {',
+  "    const frame = button.querySelector('.tab-icon-frame');",
+  "    const image = frame && frame.querySelector('img.tab-icon');",
+  '    if (frame && image) button.prepend(image);',
+  '    if (frame) frame.remove();',
+  '  }',
+  '',
+  '  function ensureTabIcon(tabName, fileName) {',
+  "    const button = document.querySelector('.tab[data-tab=\"' + CSS.escape(tabName) + '\"]');",
+  '    if (!button) return;',
+  '',
+  '    unwrapIconFrame(button);',
+  "    button.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((node) => node.remove());",
+  '',
+  "    let image = button.querySelector('img.tab-icon');",
+  '    if (!image) {',
+  "      image = document.createElement('img');",
+  '      button.prepend(image);',
+  '    } else if (image.parentElement !== button || button.firstElementChild !== image) {',
+  '      button.prepend(image);',
+  '    }',
+  '',
+  "    if (image.className !== 'tab-icon') image.className = 'tab-icon';",
+  "    if (image.getAttribute('alt') !== '') image.alt = '';",
+  "    if (image.getAttribute('aria-hidden') !== 'true') image.setAttribute('aria-hidden', 'true');",
+  '',
+  '    const expectedSource = imageSource(fileName);',
+  "    if (image.getAttribute('src') !== expectedSource) image.src = expectedSource;",
+  '  }',
+  '',
+  '  let scheduled = false;',
+  '  function repairTabIcons() {',
+  '    scheduled = false;',
+  '    for (const entry of Object.entries(TAB_ICONS)) ensureTabIcon(entry[0], entry[1]);',
+  '  }',
+  '',
+  '  function scheduleRepair() {',
+  '    if (scheduled) return;',
+  '    scheduled = true;',
+  '    requestAnimationFrame(repairTabIcons);',
+  '  }',
+  '',
+  "  if (document.readyState === 'loading') {",
+  "    document.addEventListener('DOMContentLoaded', repairTabIcons, { once: true });",
+  '  } else {',
+  '    repairTabIcons();',
+  '  }',
+  '',
+  '  new MutationObserver(scheduleRepair).observe(document.documentElement, {',
+  '    childList: true,',
+  '    subtree: true,',
+  '    attributes: true,',
+  "    attributeFilter: ['src', 'class'],",
+  '  });',
+  '  scheduleRepair();',
+  '})();',
+].join('\n');
 
 function appendTabIconFix(source) {
   const text = String(source);
