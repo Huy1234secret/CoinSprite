@@ -6,7 +6,7 @@ const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
-const DEFAULT_MAX_AI_CHARS = 300;
+const DEFAULT_MAX_AI_CHARS = 4000;
 const SEVERE_AI_THRESHOLD = 8;
 
 function uniqueIds(value) {
@@ -64,7 +64,7 @@ function messageModerationText(message) {
   return parts.join('\n').trim();
 }
 
-async function recentModerationContext(message, limit = 5) {
+async function recentModerationContext(message, limit = 10) {
   const fetchMessages = message?.channel?.messages?.fetch;
   if (typeof fetchMessages !== 'function') return '';
   const fetched = await fetchMessages.call(message.channel.messages, { before: message.id, limit }).catch(() => null);
@@ -74,7 +74,7 @@ async function recentModerationContext(message, limit = 5) {
       const text = messageModerationText(entry);
       if (!text) return '';
       const author = String(entry?.member?.displayName || entry?.author?.username || 'User').replace(/\s+/g, ' ').trim();
-      return `${author}: ${text}`;
+      return `- ${author}: ${text.replace(/\s+/g, ' ').trim()}`;
     })
     .filter(Boolean)
     .join('\n');
