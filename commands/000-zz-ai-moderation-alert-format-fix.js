@@ -30,10 +30,10 @@ const AI_ALERT_LINES = [
   '**Reason**',
   '<moderation-reason>',
   '<separator>',
-  'English translation: "<english-translation>"',
+  'English translation: “<english-translation>”',
   'Original language: <original-language>',
-  'Matched terms: "<matched-terms>"',
-  'Message: <message-link> "<message-content>"',
+  'Matched terms: “<matched-terms>”',
+  'Message: <message-link> “<message-content>”',
 ];
 
 const USER_WARNING_LINES = [
@@ -59,7 +59,7 @@ const LINK_ALERT_LINES = [
   '- URL: <blocked-url>',
   '- Invite code: `<invite-code>`',
   '<separator>',
-  '-# User message: "<message-content>"',
+  '-# User message: “<message-content>”',
   '-# Report link: <message-link>',
 ];
 
