@@ -501,13 +501,6 @@
         preview.append(mediaButton(field, kind));
       }
     }
-    const panel = preview.closest('.preview-panel');
-    if (panel && !qs('.message-live-hint', panel)) {
-      const hint = document.createElement('p');
-      hint.className = 'message-live-hint';
-      hint.textContent = 'Edit text directly in the preview. The color bar, thumbnail, and image controls remain clickable.';
-      qs('.panel-heading', panel)?.append(hint);
-    }
   }
 
   function decorateMessageTemplatePreview() {
