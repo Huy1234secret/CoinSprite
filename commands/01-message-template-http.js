@@ -22,6 +22,20 @@ const IMAGE_ALIASES = new Map([
   ['moderator.png', 'moderator.svg'],
   ['messages.png', 'message.svg'],
 ]);
+const TAB_ICON_FRAME_STYLE = [
+  '  <style>',
+  '    .tab[data-tab="leveling"], .tab[data-tab="data"], .tab[data-tab="tickets"], .tab[data-tab="moderator"], .tab[data-tab="messages"] { display: flex; align-items: center; gap: 12px; }',
+  '    .tab .tab-icon-frame { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center; overflow: hidden; border: 2px solid var(--tab-icon-border, var(--line)); border-radius: 8px; background: var(--tab-icon-bg, rgba(255,255,255,.04)); box-shadow: none; }',
+  '    .tab[data-tab="leveling"] .tab-icon-frame { --tab-icon-border: #37f287; --tab-icon-bg: rgba(55,242,135,.08); --tab-icon-border-active: #64ff9f; --tab-icon-bg-active: rgba(55,242,135,.18); }',
+  '    .tab[data-tab="data"] .tab-icon-frame { --tab-icon-border: #e5e7eb; --tab-icon-bg: rgba(255,255,255,.055); --tab-icon-border-active: #fff; --tab-icon-bg-active: rgba(255,255,255,.12); }',
+  '    .tab[data-tab="tickets"] .tab-icon-frame { --tab-icon-border: #ff3b5c; --tab-icon-bg: rgba(255,59,92,.08); --tab-icon-border-active: #ff7089; --tab-icon-bg-active: rgba(255,59,92,.18); }',
+  '    .tab[data-tab="moderator"] .tab-icon-frame { --tab-icon-border: #9b59ff; --tab-icon-bg: rgba(155,89,255,.08); --tab-icon-border-active: #b56cff; --tab-icon-bg-active: rgba(155,89,255,.18); }',
+  '    .tab[data-tab="messages"] .tab-icon-frame { --tab-icon-border: #3ba7ff; --tab-icon-bg: rgba(59,167,255,.08); --tab-icon-border-active: #6dbdff; --tab-icon-bg-active: rgba(59,167,255,.18); }',
+  '    .tab .tab-icon { width: 24px; height: 24px; max-width: 24px; max-height: 24px; display: block; object-fit: contain; object-position: center; border: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0 !important; padding: 0 !important; transform: none !important; clip-path: none !important; }',
+  '    .tab:hover .tab-icon-frame, .tab.active .tab-icon-frame { border-color: var(--tab-icon-border-active, var(--tab-icon-border, var(--line))); background: var(--tab-icon-bg-active, var(--tab-icon-bg, rgba(255,255,255,.08))); }',
+  '    @media (max-width: 700px) { .tab .tab-icon-frame { width: 30px; height: 30px; flex-basis: 30px; } .tab .tab-icon { width: 22px; height: 22px; max-width: 22px; max-height: 22px; } }',
+  '  </style>',
+].join('\n');
 let clientRef = null;
 
 function sendJson(res, status, payload) {
@@ -194,7 +208,14 @@ function applyComponentActions(guildId, templateId, body = {}) {
 
 function injectedIndex() {
   let html = fs.readFileSync(INDEX_PATH, 'utf8');
-  html = html.replace('</head>', '  <link rel="stylesheet" href="/admin/messages.css">\n  <link rel="stylesheet" href="/admin/message-components.css">\n  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">\n  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-7">\n</head>');
+  html = html.replace('</head>', [
+    '  <link rel="stylesheet" href="/admin/messages.css">',
+    '  <link rel="stylesheet" href="/admin/message-components.css">',
+    '  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">',
+    '  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-7">',
+    TAB_ICON_FRAME_STYLE,
+    '</head>',
+  ].join('\n'));
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
     '<button class="tab" type="button" data-tab="moderator"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/CoinSprite/images/moderator.png" alt=""></span><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><span class="tab-icon-frame" aria-hidden="true"><img class="tab-icon" src="/CoinSprite/images/messages.png" alt=""></span><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
@@ -328,7 +349,7 @@ http.createServer = function patchedCreateServer(listener) {
 };
 
 Module._load = function captureTicketClient(request, parent, isMain) {
-  const exported = previousLoad.call(this, request, parent, isMain);
+  const exported = previousLoad.call(this, parent, isMain);
   if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__messageClientCapture) return exported;
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => {
