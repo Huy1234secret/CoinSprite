@@ -9,7 +9,7 @@ const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoute
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
-const RUNTIME_IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
+const RUNTIME_IMAGE_DIR = path.join(__dirname, '..', 'images');
 const RUNTIME_ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',
   'ticket.png': 'ticket.png',
@@ -20,13 +20,6 @@ const RUNTIME_ICON_FILES = Object.freeze({
   'message.png': 'message.png',
   'messages.png': 'message.png',
   'message.svg': 'message.png',
-});
-const FALLBACK_ICON_FILES = Object.freeze({
-  'leveling.png': 'leveling.png',
-  'ticket.png': 'ticket.png',
-  'moderator.png': 'moderator.svg',
-  'data.png': 'data.svg',
-  'message.png': 'message.svg',
 });
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
@@ -171,35 +164,15 @@ function contentTypeFor(filePath) {
   return 'application/octet-stream';
 }
 
-function isPngData(data) {
-  return Buffer.isBuffer(data)
-    && data.length >= 8
-    && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-}
-
 function runtimeIconDataUrl(requestedName) {
   const runtimeName = RUNTIME_ICON_FILES[String(requestedName || '').toLowerCase()];
   if (!runtimeName) return '';
   if (iconDataUrlCache.has(runtimeName)) return iconDataUrlCache.get(runtimeName);
-
-  let data;
-  let mime = 'image/png';
+  let value = '';
   try {
-    const runtimeData = fs.readFileSync(path.join(RUNTIME_IMAGE_DIR, runtimeName));
-    if (isPngData(runtimeData)) data = runtimeData;
+    const data = fs.readFileSync(path.join(RUNTIME_IMAGE_DIR, runtimeName));
+    value = `data:image/png;base64,${data.toString('base64')}`;
   } catch {}
-
-  if (!data) {
-    const fallbackName = FALLBACK_ICON_FILES[runtimeName];
-    if (fallbackName) {
-      try {
-        data = fs.readFileSync(path.join(ADMIN_DIR, 'images', fallbackName));
-        mime = fallbackName.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
-      } catch {}
-    }
-  }
-
-  const value = data ? `data:${mime};base64,${data.toString('base64')}` : '';
   iconDataUrlCache.set(runtimeName, value);
   return value;
 }
@@ -251,30 +224,14 @@ function serveRuntimeIcon(res, requestedPath) {
   }
 
   const runtimePath = path.join(RUNTIME_IMAGE_DIR, runtimeName);
-  fs.readFile(runtimePath, (runtimeError, runtimeData) => {
-    if (!runtimeError && isPngData(runtimeData)) {
-      send(res, 200, runtimeData, {
-        'Content-Type': contentTypeFor(runtimePath),
-        'Cache-Control': 'public, max-age=300',
-      });
+  fs.readFile(runtimePath, (error, data) => {
+    if (error) {
+      send(res, 404, 'Icon not found');
       return;
     }
-
-    const fallbackName = FALLBACK_ICON_FILES[runtimeName];
-    if (!fallbackName) {
-      send(res, 404, 'Not found');
-      return;
-    }
-    const fallbackPath = path.join(ADMIN_DIR, 'images', fallbackName);
-    fs.readFile(fallbackPath, (fallbackError, fallbackData) => {
-      if (fallbackError) {
-        send(res, 404, 'Not found');
-        return;
-      }
-      send(res, 200, fallbackData, {
-        'Content-Type': contentTypeFor(fallbackPath),
-        'Cache-Control': 'public, max-age=300',
-      });
+    send(res, 200, data, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=300',
     });
   });
 }
