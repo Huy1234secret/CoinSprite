@@ -9,7 +9,8 @@
   const moderatorState = {
     view: 'ai',
     enabled: false,
-    logChannelId: '',
+    lowSeverityLogChannelId: '',
+    severeLogChannelId: '',
     scanChannelIds: [],
     excludeRoleIds: [],
     alertTemplateId: DEFAULT_ALERT_TEMPLATE_ID,
@@ -113,9 +114,11 @@
     const ai = config.moderation?.ai || {};
     const link = config.moderation?.auto?.link || {};
     const domainWhitelist = uniqueIds(link.domainWhitelist);
+    const legacyLogChannelId = String(ai.logChannelId || '');
     return {
       enabled: Boolean(ai.enabled),
-      logChannelId: String(ai.logChannelId || ''),
+      lowSeverityLogChannelId: String(ai.lowSeverityLogChannelId || legacyLogChannelId),
+      severeLogChannelId: String(ai.severeLogChannelId || legacyLogChannelId),
       scanChannelIds: uniqueIds(ai.scanChannelIds),
       excludeRoleIds: uniqueIds(ai.excludeRoleIds),
       alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
@@ -163,7 +166,8 @@
         <label class="checkline"><input id="moderationAiEnabled" type="checkbox" ${moderatorState.enabled ? 'checked' : ''}> Enable AI moderation checks</label>
         <div class="settings-grid">
           <div class="picker-field"><span class="field-label">Scan channels</span><div id="moderationScanChannelsMount"></div></div>
-          <div class="picker-field"><span class="field-label">Log channel</span><div id="moderationLogChannelMount"></div></div>
+          <div class="picker-field"><span class="field-label">Log channel (severity &lt; 8)</span><div id="moderationLowSeverityLogChannelMount"></div></div>
+          <div class="picker-field"><span class="field-label">Log channel (severity ≥ 8)</span><div id="moderationSevereLogChannelMount"></div></div>
           <div class="picker-field"><span class="field-label">Exclude roles</span><div id="moderationExcludeRolesMount"></div></div>
           <label>AI max input characters <input id="moderationMaxInputChars" type="number" min="250" max="4000" step="50" value="${moderatorState.maxInputChars}"></label>
         </div>
@@ -254,12 +258,20 @@
         onChange: (value) => setAndDirty(() => { moderatorState.scanChannelIds = uniqueIds(value); }),
       });
     }
-    const logMount = root.querySelector('#moderationLogChannelMount');
-    if (logMount) {
-      renderPicker(logMount, textChannelOptions(), moderatorState.logChannelId, {
+    const lowSeverityLogMount = root.querySelector('#moderationLowSeverityLogChannelMount');
+    if (lowSeverityLogMount) {
+      renderPicker(lowSeverityLogMount, textChannelOptions(), moderatorState.lowSeverityLogChannelId, {
         type: 'channel',
-        placeholder: 'Select staff alert channel',
-        onChange: (value) => setAndDirty(() => { moderatorState.logChannelId = value; }),
+        placeholder: 'Select channel for severity below 8',
+        onChange: (value) => setAndDirty(() => { moderatorState.lowSeverityLogChannelId = value; }),
+      });
+    }
+    const severeLogMount = root.querySelector('#moderationSevereLogChannelMount');
+    if (severeLogMount) {
+      renderPicker(severeLogMount, textChannelOptions(), moderatorState.severeLogChannelId, {
+        type: 'channel',
+        placeholder: 'Select channel for severity 8 or higher',
+        onChange: (value) => setAndDirty(() => { moderatorState.severeLogChannelId = value; }),
       });
     }
     const excludeRoles = root.querySelector('#moderationExcludeRolesMount');
@@ -312,7 +324,8 @@
   function moderationSnapshot() {
     return {
       enabled: Boolean(moderatorState.enabled),
-      logChannelId: moderatorState.logChannelId || '',
+      lowSeverityLogChannelId: moderatorState.lowSeverityLogChannelId || '',
+      severeLogChannelId: moderatorState.severeLogChannelId || '',
       scanChannelIds: uniqueIds(moderatorState.scanChannelIds),
       excludeRoleIds: uniqueIds(moderatorState.excludeRoleIds),
       alertTemplateId: moderatorState.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID,
@@ -409,7 +422,8 @@
     if (tabName === 'moderator') {
       const next = normalizeModeration(config);
       moderatorState.enabled = next.enabled;
-      moderatorState.logChannelId = next.logChannelId;
+      moderatorState.lowSeverityLogChannelId = next.lowSeverityLogChannelId;
+      moderatorState.severeLogChannelId = next.severeLogChannelId;
       moderatorState.scanChannelIds = next.scanChannelIds;
       moderatorState.excludeRoleIds = next.excludeRoleIds;
       moderatorState.alertTemplateId = next.alertTemplateId;
