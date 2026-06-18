@@ -4,8 +4,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
-const LEGACY_IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',
   'messages.png': 'message.png',
@@ -16,13 +15,6 @@ const ICON_FILES = Object.freeze({
   'moderator.svg': 'moderator.png',
   'data.png': 'data.png',
   'data.svg': 'data.png',
-});
-const LEGACY_ICON_FILES = Object.freeze({
-  'leveling.png': 'leveling.png',
-  'message.png': 'message.svg',
-  'ticket.png': 'ticket.png',
-  'moderator.png': 'moderator.svg',
-  'data.png': 'data.svg',
 });
 const ICON_ALIASES = new Map(
   ['/CoinSprite/images/', '/admin/images/', '/images/'].flatMap((prefix) => (
@@ -209,27 +201,13 @@ http.createServer = function patchedCreateServer(listener) {
     const iconPath = ICON_ALIASES.get(pathname);
     if (!iconPath) return listener(request, response);
     fs.readFile(iconPath, (error, data) => {
-      if (!error) {
-        response.writeHead(200, { 'Content-Type': iconContentType(iconPath), 'Cache-Control': 'public, max-age=300' });
-        response.end(data);
-        return;
-      }
-      const legacyName = LEGACY_ICON_FILES[path.basename(iconPath)];
-      const legacyPath = legacyName ? path.join(LEGACY_IMAGE_DIR, legacyName) : '';
-      if (!legacyPath) {
+      if (error) {
         response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
         response.end('Icon not found');
         return;
       }
-      fs.readFile(legacyPath, (legacyError, legacyData) => {
-        if (legacyError) {
-          response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-          response.end('Icon not found');
-          return;
-        }
-        response.writeHead(200, { 'Content-Type': iconContentType(legacyPath), 'Cache-Control': 'public, max-age=300' });
-        response.end(legacyData);
-      });
+      response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
+      response.end(data);
     });
   });
 };
