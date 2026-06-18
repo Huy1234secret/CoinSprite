@@ -17,7 +17,7 @@
         {
           "id": "ai-moderation-alert",
           "accentColor": "#9B59B6",
-          "text": "## AI moderation alert\n**User:** <@mention> (<user-id>)\n**Channel:** <channel>\n**Severity:** <severity> <severity-tier>/10\n**Broken rule(s):**\n<broken-rules>\n<separator>\n**Reason**\n<moderation-reason>\n<separator>\n**English translation**\n<english-translation>\n<separator>\n-# Original language: <original-language>\n-# Matched terms: <matched-terms>\n-# Message: <message-link>",
+          "text": "## AI moderation alert\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Broken rule(s):**\n<broken-rules>\n<separator>\n**Reason**\n<moderation-reason>\n<separator>\nEnglish translation: \"<english-translation>\"\nOriginal language: <original-language>\nMatched terms: \"<matched-terms>\"\nMessage: <message-link> \"<message-content>\"",
           "thumbnailUrl": "<avatar_url>",
           "imageUrl": ""
         }
