@@ -7,6 +7,7 @@ const { getGuildWorkflows, saveGuildWorkflows } = require('../src/requestControl
 
 const previousCreateServer = http.createServer.bind(http);
 const previousReadFile = fs.readFile.bind(fs);
+const previousReadFileSync = fs.readFileSync.bind(fs);
 const previousLoad = Module._load;
 const ADMIN_APP_PATH = path.resolve(__dirname, '..', 'admin', 'app.js');
 const ADMIN_STYLE_PATH = path.resolve(__dirname, '..', 'admin', 'style.css');
@@ -366,6 +367,19 @@ async function handle(req, res) {
   return true;
 }
 
+function patchAdminAssetData(filePath, data) {
+  const resolved = path.resolve(String(filePath));
+  const isBuffer = Buffer.isBuffer(data);
+  let source = isBuffer ? data.toString('utf8') : String(data);
+  if (resolved === ADMIN_APP_PATH && !source.includes(ADMIN_BROWSER_MARKER)) {
+    source += `\n${browserScript()}`;
+  }
+  if (resolved === ADMIN_STYLE_PATH && !source.includes(ADMIN_STYLE_MARKER)) {
+    source += `\n/* ${ADMIN_STYLE_MARKER} */\n${browserCss()}`;
+  }
+  return isBuffer ? Buffer.from(source, 'utf8') : source;
+}
+
 fs.readFile = function requestWorkflowAdminRead(filePath, ...args) {
   const callback = args[args.length - 1];
   if (typeof callback !== 'function') return previousReadFile(filePath, ...args);
@@ -374,18 +388,13 @@ fs.readFile = function requestWorkflowAdminRead(filePath, ...args) {
       callback(error, data);
       return;
     }
-    const resolved = path.resolve(String(filePath));
-    const isBuffer = Buffer.isBuffer(data);
-    let source = isBuffer ? data.toString('utf8') : String(data);
-    if (resolved === ADMIN_APP_PATH && !source.includes(ADMIN_BROWSER_MARKER)) {
-      source += `\n${browserScript()}`;
-    }
-    if (resolved === ADMIN_STYLE_PATH && !source.includes(ADMIN_STYLE_MARKER)) {
-      source += `\n/* ${ADMIN_STYLE_MARKER} */\n${browserCss()}`;
-    }
-    callback(null, isBuffer ? Buffer.from(source, 'utf8') : source);
+    callback(null, patchAdminAssetData(filePath, data));
   };
   return previousReadFile(filePath, ...args);
+};
+
+fs.readFileSync = function requestWorkflowAdminReadSync(filePath, ...args) {
+  return patchAdminAssetData(filePath, previousReadFileSync(filePath, ...args));
 };
 
 http.createServer = function requestWorkflowServer(listener) {
