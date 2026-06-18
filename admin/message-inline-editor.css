@@ -613,3 +613,32 @@
 .message-card-edit-button { display: none; }
 .message-default-card:hover .message-card-edit-button,
 .message-default-card:focus-visible .message-card-edit-button { display: inline-flex; }
+
+
+/* External message editors use the exact Messages-tab preview shell. */
+.message-builder.inline-message-mode .message-sticky-preview,
+.ticket-message-builder.inline-message-mode .message-sticky-preview {
+  order: 1;
+  position: static;
+  top: auto;
+  width: 100%;
+  max-width: none;
+}
+
+.external-message-sticky-preview {
+  position: static;
+  width: 100%;
+  max-width: none;
+}
+
+.external-message-sticky-preview .message-root-content.message-root-empty {
+  display: none !important;
+}
+
+.external-message-sticky-preview > #levelUpPreview {
+  width: 100%;
+}
+
+.external-message-sticky-preview .shared-message-preview {
+  min-height: 360px;
+}
