@@ -576,3 +576,40 @@
     flex-direction: column-reverse;
   }
 }
+
+
+/* One message editor surface across Messages, leveling, tickets, and requests. */
+.shared-message-editor-panel {
+  width: 100%;
+  max-width: none !important;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.shared-message-preview {
+  width: 100%;
+  min-height: 300px;
+}
+
+.ticket-message-builder.inline-message-mode,
+.message-builder.inline-message-mode,
+.ticket-message-builder.inline-message-mode .preview-panel,
+.message-builder.inline-message-mode .preview-panel {
+  width: 100%;
+  max-width: none;
+}
+
+.ticket-message-builder.inline-message-mode .message-editor,
+.message-builder.inline-message-mode .message-editor {
+  width: 100%;
+  max-width: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.message-card-edit-button { display: none; }
+.message-default-card:hover .message-card-edit-button,
+.message-default-card:focus-visible .message-card-edit-button { display: inline-flex; }
