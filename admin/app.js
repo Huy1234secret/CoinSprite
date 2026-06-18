@@ -1957,3 +1957,43 @@ loadSession();
   const timer=setInterval(()=>{const select=document.querySelector('#guildSelect');if(state.reloaded||!select?.value||select.disabled||document.querySelector('#editor')?.hidden)return;state.reloaded=true;select.dispatchEvent(new Event('change',{bubbles:true}));clearInterval(timer);},250);
   upgradeDynamic(); renderDashboard();
 }());
+
+
+;(() => {
+  if (window.__coinSpriteFormFieldIdentity) return;
+  window.__coinSpriteFormFieldIdentity = true;
+  const selector = 'input:not([id]):not([name]),select:not([id]):not([name]),textarea:not([id]):not([name])';
+  let sequence = 0;
+
+  function identify(field) {
+    if (!field?.matches?.(selector)) return;
+    sequence += 1;
+    const hint = [
+      field.dataset?.ticketField,
+      field.dataset?.controlField,
+      field.dataset?.messageField,
+      field.dataset?.workflowField,
+      field.dataset?.conditionActionField,
+      field.type,
+      field.tagName,
+    ].find(Boolean) || 'field';
+    const cleanHint = String(hint).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'field';
+    const identity = `coinsprite-${cleanHint}-${sequence}`;
+    field.id = identity;
+    field.name = identity;
+  }
+
+  function scan(root) {
+    if (root?.matches?.(selector)) identify(root);
+    root?.querySelectorAll?.(selector).forEach(identify);
+  }
+
+  new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+      }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  scan(document);
+})();
