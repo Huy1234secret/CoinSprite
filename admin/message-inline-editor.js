@@ -537,7 +537,7 @@
     qsa('.message-editor .grid').forEach((grid) => {
       if (qs('[data-message-field="accentColor"],[data-message-field="thumbnailUrl"],[data-message-field="imageUrl"],input[name="xp.levelUpMessage.accentColor"],input[name="xp.levelUpMessage.thumbnailUrl"],input[name="xp.levelUpMessage.imageUrl"]', grid)) grid.classList.add('message-source-hidden');
     });
-    qsa('.ticket-message-builder .preview-container.ticket-preview,#levelUpPreviewContainer').forEach(decoratePreview);
+    qsa('.ticket-message-builder .message-preview-container.ticket-preview,#levelUpPreviewContainer').forEach(decoratePreview);
     decorateMessageTemplatePreview();
   }
 
@@ -576,9 +576,14 @@
     if (!action) return false;
     const name = action.dataset.messageAction;
     stop(event);
-    if (name === 'preview-color') openNativeColor(messageTemplateField(action, 'accentColor'), action);
-    else if (name === 'preview-media') openMedia(messageTemplateField(action, action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
-    else if (name === 'preview-media-clear') { finishEditor(true); setField(messageTemplateField(action, action.dataset.field), ''); }
+    const preview = action.closest('.message-preview-container');
+    const externalFields = action.closest('#messageTemplatesRoot') ? null : fields(preview);
+    const source = (field) => externalFields
+      ? field === 'accentColor' ? externalFields.color : field === 'thumbnailUrl' ? externalFields.thumb : externalFields.image
+      : messageTemplateField(action, field);
+    if (name === 'preview-color') openNativeColor(source('accentColor'), action);
+    else if (name === 'preview-media') openMedia(source(action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
+    else if (name === 'preview-media-clear') { finishEditor(true); setField(source(action.dataset.field), ''); }
     return true;
   }
 
@@ -592,11 +597,16 @@
     if (templateAction(event) || inlineAction(event)) return;
     const templateText = event.target.closest?.('.message-preview-text,.message-root-content');
     if (templateText && !event.target.closest('button,input,select,textarea,a,[contenteditable="true"]')) {
+      const preview = templateText.closest('.message-preview-container') || templateText;
       const rootText = templateText.classList.contains('message-root-content');
-      const source = messageTemplateField(templateText, rootText ? 'content' : 'text');
-      stop(event);
-      startEditor(templateText, source, templateText.closest('.message-preview-container') || templateText);
-      return;
+      const source = templateText.closest('#messageTemplatesRoot')
+        ? messageTemplateField(templateText, rootText ? 'content' : 'text')
+        : fields(preview).content;
+      if (source) {
+        stop(event);
+        startEditor(templateText, source, preview);
+        return;
+      }
     }
     const preview = event.target.closest?.('.preview-container.message-direct-ready,.preview-container.ticket-preview,#levelUpPreviewContainer');
     if (preview && !event.target.closest('button,input,select,textarea,a,[contenteditable="true"],.message-media-popover,.message-native-color-input')) {
