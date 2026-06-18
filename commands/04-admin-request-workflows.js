@@ -89,6 +89,18 @@ function browserScript() {
     workflows[ticketId][controlId].conditions ||= [];
     return workflows[ticketId][controlId];
   };
+  function repairLegacyRequestType(config) {
+    const canonicalId = 'request_role_crew_member_plus';
+    const prefixedId = 'request-' + canonicalId;
+    const legacyWorkflows = workflows[prefixedId];
+    if (legacyWorkflows) {
+      workflows[canonicalId] = { ...legacyWorkflows, ...(workflows[canonicalId] || {}) };
+      delete workflows[prefixedId];
+    }
+    (config?.tickets?.types || []).forEach((type) => {
+      if (type?.workflow === canonicalId && type.id === prefixedId) type.id = canonicalId;
+    });
+  }
   function overlayWorkflowSequences(config) {
     (config?.tickets?.types || []).filter(isRequest).forEach((type) => {
       (type.adminPanel?.controls || []).forEach((control) => {
@@ -268,12 +280,14 @@ function browserScript() {
       ]);
       workflows = metaResponse.ok ? (await metaResponse.json()).workflows || {} : {};
       templates = templateResponse.ok ? (await templateResponse.json()).templates || [] : [];
+      repairLegacyRequestType(payload.config);
       overlayWorkflowSequences(payload.config);
       savedWorkflows = copy(workflows);
       return responseWithJson(response, payload);
     }
     if (configMatch && method === 'PATCH' && init.body) {
       const body = JSON.parse(init.body);
+      repairLegacyRequestType(body);
       (body.tickets?.types || []).filter(isRequest).forEach((type) => {
         const keptControlIds = new Set();
         const controls = (type.adminPanel?.controls || []).filter((control) => {
@@ -296,11 +310,12 @@ function browserScript() {
       });
       const response = await previousFetch(input, { ...init, body: JSON.stringify(body) });
       if (!response.ok) return response;
+      const payload = await response.json();
+      repairLegacyRequestType(payload.config);
       const metaResponse = await previousFetch('/api/guilds/' + configMatch[1] + '/request-control-workflows', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(workflows) });
       if (!metaResponse.ok) return new Response(JSON.stringify({ error: 'Ticket settings saved, but request workflows failed to save.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       workflows = (await metaResponse.json()).workflows || {};
       savedWorkflows = copy(workflows);
-      const payload = await response.json();
       overlayWorkflowSequences(payload.config);
       return responseWithJson(response, payload);
     }
