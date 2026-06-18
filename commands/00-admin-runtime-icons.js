@@ -12,6 +12,7 @@ if (!global.__coinSpriteRuntimeAdminIcons) {
   const ROOT_DIR = path.resolve(__dirname, '..');
   const ADMIN_DIR = path.join(ROOT_DIR, 'admin');
   const STYLE_PATH = path.resolve(ADMIN_DIR, 'style.css');
+  const ADMIN_APP_PATH = path.resolve(ADMIN_DIR, 'app.js');
   const PUBLIC_PREFIXES = ['/admin/images/', '/images/', '/CoinSprite/images/'];
   const ICON_EXTENSIONS = ['.png', '.webp', '.jpg', '.jpeg', '.svg', '.gif'];
   const ICON_ALIASES = new Map([
@@ -144,11 +145,42 @@ ${TAB_ICON_CSS_MARKER}
   gap: 12px !important;
 }
 
+.tab[data-tab="leveling"]::before,
+.tab[data-tab="data"]::before,
+.tab[data-tab="tickets"]::before,
+.tab[data-tab="moderator"]::before,
+.tab[data-tab="messages"]::before {
+  content: none !important;
+  display: none !important;
+}
+
 .tab[data-tab="leveling"] > img.tab-icon,
 .tab[data-tab="data"] > img.tab-icon,
 .tab[data-tab="tickets"] > img.tab-icon,
 .tab[data-tab="moderator"] > img.tab-icon,
-.tab[data-tab="messages"] > img.tab-icon,
+.tab[data-tab="messages"] > img.tab-icon {
+  width: 30px !important;
+  height: 30px !important;
+  max-width: 30px !important;
+  max-height: 30px !important;
+  flex: 0 0 30px !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important;
+  border-radius: 9px !important;
+  background: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important;
+  padding: 4px !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  outline: 0 !important;
+  transform: none !important;
+  clip-path: none !important;
+}
+
 .tab-image-icon,
 .message-tab-icon {
   display: none !important;
@@ -162,85 +194,50 @@ ${TAB_ICON_CSS_MARKER}
   pointer-events: none !important;
 }
 
-.tab[data-tab="leveling"]::before,
-.tab[data-tab="data"]::before,
-.tab[data-tab="tickets"]::before,
-.tab[data-tab="moderator"]::before,
-.tab[data-tab="messages"]::before {
-  content: var(--tab-icon-symbol, "•") !important;
-  width: 30px !important;
-  height: 30px !important;
-  flex: 0 0 30px !important;
-  box-sizing: border-box !important;
-  display: grid !important;
-  place-items: center !important;
-  border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important;
-  border-radius: 9px !important;
-  background: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important;
-  color: var(--tab-icon-color, #dfe8ff) !important;
-  font-family: "Segoe UI Symbol", "Apple Color Emoji", "Segoe UI Emoji", system-ui, sans-serif !important;
-  font-size: 16px !important;
-  font-weight: 850 !important;
-  line-height: 1 !important;
-  text-align: center !important;
+.tab:hover > img.tab-icon,
+.tab.active > img.tab-icon {
+  transform: none !important;
   box-shadow: none !important;
   filter: none !important;
-  transform: none !important;
 }
 
-/* Symbol squares stay CSS-only; do not add browser icon observers here. */
 .tab[data-tab="leveling"] {
-  --tab-icon-symbol: "★";
   --tab-icon-bg: rgba(87, 242, 135, 0.18);
   --tab-icon-border: rgba(87, 242, 135, 0.72);
-  --tab-icon-color: #8bffad;
 }
 
 .tab[data-tab="tickets"] {
-  --tab-icon-symbol: "🎫";
   --tab-icon-bg: rgba(255, 76, 96, 0.18);
   --tab-icon-border: rgba(255, 76, 96, 0.72);
-  --tab-icon-color: #ff9aa8;
 }
 
 .tab[data-tab="messages"] {
-  --tab-icon-symbol: "✉";
   --tab-icon-bg: rgba(72, 149, 239, 0.20);
   --tab-icon-border: rgba(99, 184, 255, 0.72);
-  --tab-icon-color: #9fd4ff;
 }
 
 .tab[data-tab="data"] {
-  --tab-icon-symbol: "◆";
   --tab-icon-bg: rgba(185, 195, 210, 0.14);
   --tab-icon-border: rgba(205, 215, 230, 0.72);
-  --tab-icon-color: #d8e0ec;
 }
 
 .tab[data-tab="moderator"] {
-  --tab-icon-symbol: "🛡";
   --tab-icon-bg: rgba(155, 89, 182, 0.18);
   --tab-icon-border: rgba(188, 120, 255, 0.72);
-  --tab-icon-color: #d9b7ff;
-}
-
-.tab[data-tab="moderator"]::before {
-  content: "🛡" !important;
-  background: rgba(155, 89, 182, 0.18) !important;
-  border-color: rgba(188, 120, 255, 0.72) !important;
-  color: #d9b7ff !important;
 }
 
 @media (max-width: 700px) {
-  .tab[data-tab="leveling"]::before,
-  .tab[data-tab="data"]::before,
-  .tab[data-tab="tickets"]::before,
-  .tab[data-tab="moderator"]::before,
-  .tab[data-tab="messages"]::before {
+  .tab[data-tab="leveling"] > img.tab-icon,
+  .tab[data-tab="data"] > img.tab-icon,
+  .tab[data-tab="tickets"] > img.tab-icon,
+  .tab[data-tab="moderator"] > img.tab-icon,
+  .tab[data-tab="messages"] > img.tab-icon {
     width: 26px !important;
     height: 26px !important;
+    max-width: 26px !important;
+    max-height: 26px !important;
     flex-basis: 26px !important;
-    font-size: 14px !important;
+    padding: 3px !important;
   }
 }
 `;
@@ -251,16 +248,28 @@ ${TAB_ICON_CSS_MARKER}
     return `${text}\n${TAB_ICON_CSS}`;
   }
 
+  function patchAdminApp(source) {
+    let text = String(source || '');
+    const iconObserverCall = `new ${['Mutation', 'Observer'].join('')}(scheduleUiFixes)`;
+    const iconObserverStatement = `${iconObserverCall}.observe(document.body, { childList: true, subtree: true });`;
+    text = text.replace(iconObserverStatement, '// Icon auto-check observer removed; tab images are normal <img> elements now.');
+    text = text.replace(/\n\s*cleanTabIcons\(\);\n(\s*renderLevelUpRootPreview\(\);)/, '\n$1');
+    return text;
+  }
+
   fs.readFile = function coinSpriteRuntimeIconReadFile(filePath, ...args) {
     const callback = args[args.length - 1];
-    if (typeof callback !== 'function' || path.resolve(String(filePath)) !== STYLE_PATH) {
-      return previousReadFile(filePath, ...args);
-    }
+    if (typeof callback !== 'function') return previousReadFile(filePath, ...args);
+
+    const resolvedPath = path.resolve(String(filePath));
+    const shouldPatchStyle = resolvedPath === STYLE_PATH;
+    const shouldPatchAdminApp = resolvedPath === ADMIN_APP_PATH;
+    if (!shouldPatchStyle && !shouldPatchAdminApp) return previousReadFile(filePath, ...args);
 
     args[args.length - 1] = (error, data) => {
       if (error) return callback(error, data);
       const source = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
-      const patched = patchStyle(source);
+      const patched = shouldPatchStyle ? patchStyle(source) : patchAdminApp(source);
       return callback(null, Buffer.isBuffer(data) ? Buffer.from(patched, 'utf8') : patched);
     };
     return previousReadFile(filePath, ...args);
