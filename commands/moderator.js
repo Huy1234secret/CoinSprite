@@ -36,32 +36,7 @@ function collectionValues(value) {
 }
 
 function messageModerationText(message) {
-  const parts = [];
-  const content = String(message?.content || '').trim();
-  if (content) parts.push(content);
-
-  for (const sticker of collectionValues(message?.stickers)) {
-    const name = String(sticker?.name || '').trim();
-    if (name) parts.push(`Sticker: ${name}`);
-  }
-
-  for (const attachment of collectionValues(message?.attachments)) {
-    const details = [attachment?.name || attachment?.filename, attachment?.contentType, attachment?.description]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .join(' ');
-    parts.push(details ? `Attachment: ${details}` : 'Attachment');
-  }
-
-  for (const embed of collectionValues(message?.embeds)) {
-    const details = [embed?.title, embed?.description, embed?.url]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .join(' ');
-    if (details) parts.push(`Embed: ${details}`);
-  }
-
-  return parts.join('\n').trim();
+  return String(message?.content || '').trim();
 }
 
 async function recentModerationContext(message, limit = 10) {
