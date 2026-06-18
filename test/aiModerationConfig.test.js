@@ -5,26 +5,28 @@ const { test } = require('node:test');
 
 const root = path.resolve(__dirname, '..');
 
-test('AI moderation uses the concise context-aware schema', () => {
+test('AI moderation uses the concise case-and-reason schema', () => {
   const ai = fs.readFileSync(path.join(root, 'src', 'aiModeration.js'), 'utf8');
   const prompt = ai.match(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/)?.[0] || '';
 
-  assert.match(prompt, /recent conversation context/);
-  assert.match(prompt, /flagged.*s.*rules.*englishTranslation/s);
-  assert.doesNotMatch(prompt, /matchedTerms|originalLanguage|reason/);
-  assert.match(ai, /required: \['flagged', 's', 'rules', 'englishTranslation'\]/);
-  assert.match(ai, /Target message:.*Recent context:/s);
+  assert.match(prompt, /Judge Message using Context/);
+  assert.match(prompt, /flagged.*s.*case.*reason/s);
+  assert.doesNotMatch(prompt, /matchedTerms|originalLanguage|englishTranslation/);
+  assert.match(ai, /required: \['flagged', 's', 'case', 'reason'\]/);
+  assert.match(ai, /Message:.*Context:/s);
+  assert.equal((ai.match(/store: true/g) || []).length, 2);
 });
 
-test('moderation report omits matched terms and reason', () => {
+test('AI report contains the requested fields and only sends flagged results', () => {
   const moderator = fs.readFileSync(path.join(root, 'commands', 'moderator.js'), 'utf8');
   const templates = fs.readFileSync(path.join(root, 'src', 'messageTemplates.js'), 'utf8');
   const report = templates.match(/id: 'ai-moderation-alert',[\s\S]*?componentRows:/)?.[0] || '';
 
-  assert.match(moderator, /recentModerationContext/);
-  assert.match(moderator, /translation-section/);
-  assert.match(report, /AI moderation report/);
-  assert.match(report, /\*\*Rules:\*\*/);
-  assert.match(report, /<translation-section>/);
-  assert.doesNotMatch(report, /matched-terms|moderation-reason|original-language/);
+  for (const field of ['User', 'Channel', 'Severity', 'Case', 'Reason', 'Message']) {
+    assert.match(report, new RegExp(`\\*\\*${field}:\\*\\*`));
+  }
+  assert.doesNotMatch(report, /\*\*Rules:\*\*|translation-section|matched-terms|original-language/);
+  assert.match(moderator, /\['moderation-case', moderationCase\]/);
+  assert.match(moderator, /if \(!result\.flagged\) return;/);
+  assert.match(moderator, /moderationLogChannelId\(result, settings\)/);
 });

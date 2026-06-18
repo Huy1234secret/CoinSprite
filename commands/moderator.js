@@ -130,11 +130,13 @@ function moderationLogChannelId(result, settings) {
 function moderationValues(message, result, screenshot = null) {
   const ruleIds = Array.isArray(result.brokenRules) ? result.brokenRules : [];
   const englishTranslation = String(result.englishTranslation || '').trim();
+  const moderationCase = String(result.case || result.categories?.[0] || 'Rule violation').trim();
   return new Map([
     ['severity', formatSeverityScore(result.severityScore)],
     ['severity-tier', result.severity || 'medium'],
     ['broken-rules', listLines(ruleIds)],
-    ['moderation-reason', result.reason || 'Rule violation.'],
+    ['moderation-case', moderationCase],
+    ['moderation-reason', result.reason || 'The message breaks a server rule.'],
     ['matched-terms', listText(result.matchedTerms)],
     ['moderation-categories', listText(result.categories)],
     ['original-language', result.originalLanguage || ''],
@@ -219,8 +221,8 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
       content: [
         `AI moderation alert for ${message.author} in ${message.channel}`,
         `Severity: ${formatSeverityScore(result.severityScore)}/10`,
-        `Rules:\n${listLines(result.brokenRules)}`,
-        result.englishTranslation ? `English translation: ${result.englishTranslation}` : '',
+        `Case: ${result.case || result.categories?.[0] || 'Rule violation'}`,
+        `Reason: ${result.reason || 'The message breaks a server rule.'}`,
         `Message: ${moderationMessagePreview(message)}`,
         screenshot?.path ? `Screenshot saved: ${screenshot.path}` : '',
         message.url,

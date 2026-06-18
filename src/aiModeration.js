@@ -20,10 +20,8 @@ const CATEGORY_RULES = Object.freeze({
 });
 const RULE_GUIDE = '1.1 abuse/bullying/disruptive profanity; 1.5 politics/religion; 2.4 public dating/romance; 3.1 NSFW/gore; 3.2 hate/threats/dox/self-harm; 3.3 sexual misconduct/minors/coercion.';
 const SYSTEM_PROMPT = [
-  'Review the target message in its recent conversation context.',
-  'Return JSON only: {"flagged":boolean,"s":0-10,"rules":["1.1"],"englishTranslation":""}.',
-  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',
-  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',
+  'Judge Message using Context and the server rules.',
+  'JSON only: {"flagged":false,"s":0,"case":"","reason":""}. Flag only a rule violation; if flagged, use s=2-10, a short case label such as NSFW, and a short reason.',
   RULE_GUIDE,
 ].join(' ');
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
@@ -77,12 +75,12 @@ function moderationSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['flagged', 's', 'rules', 'englishTranslation'],
+    required: ['flagged', 's', 'case', 'reason'],
     properties: {
       flagged: { type: 'boolean' },
       s: { type: 'number' },
-      rules: { type: 'array', items: { type: 'string', enum: RULE_IDS } },
-      englishTranslation: { type: 'string' },
+      case: { type: 'string' },
+      reason: { type: 'string' },
     },
   };
 }
@@ -128,6 +126,19 @@ function rulesFromMatches(matches = []) {
   return matches.length ? ['1.1'] : [];
 }
 
+const RULE_CASES = Object.freeze({
+  '1.1': 'Abuse or disruption',
+  '1.5': 'Politics or religion',
+  '2.4': 'Public dating or romance',
+  '3.1': 'NSFW or gore',
+  '3.2': 'Harassment or high-risk harm',
+  '3.3': 'Sexual misconduct',
+});
+
+function moderationCaseLabel(rules = []) {
+  return RULE_CASES[String(rules[0] || '')] || 'Rule violation';
+}
+
 function normalizeScore(value, fallback = 0) {
   const score = Number(value);
   const safe = Number.isFinite(score) ? score : fallback;
@@ -151,6 +162,7 @@ function cleanResult(source = 'clean') {
     matchedTerms: [],
     originalLanguage: '',
     englishTranslation: '',
+    case: '',
     reason: '',
     source,
   };
@@ -169,23 +181,25 @@ function fallbackAnalyze(content) {
 
   const categories = [...new Set(matches.map((entry) => entry.category).filter(Boolean))];
   const matchedTerms = [...new Set(matches.map((entry) => entry.term).filter(Boolean))].slice(0, 10);
+  const brokenRules = rulesFromMatches(matches);
   return {
     flagged: true,
     severity: severityFromScore(score, true),
     severityScore: score,
     categories,
-    brokenRules: rulesFromMatches(matches),
+    brokenRules,
     matchedTerms,
     originalLanguage: '',
     englishTranslation: '',
-    reason: 'Local rule match.',
+    case: moderationCaseLabel(brokenRules),
+    reason: 'Matched a local server-rule pattern.',
     source: 'fallback',
   };
 }
 
 function parseJsonObject(value) {
   const text = String(value || '').trim();
-  if (!text) return { flagged: false, s: 0, rules: [], englishTranslation: '' };
+  if (!text) return { flagged: false, s: 0, case: '', reason: '' };
   try {
     return JSON.parse(text);
   } catch {
@@ -201,29 +215,19 @@ function normalizeResult(value = {}, source = 'ai') {
     : 0;
   if (!value.flagged || score < MIN_ALERT_SEVERITY_SCORE) return cleanResult(source);
 
-  const ruleSource = Array.isArray(value.rules)
-    ? value.rules
-    : Array.isArray(value.ruleIds)
-      ? value.ruleIds
-      : Array.isArray(value.brokenRules || value.broken_rules)
-        ? (value.brokenRules || value.broken_rules)
-        : [];
-  const categories = Array.isArray(value.categories) ? value.categories.map(String).slice(0, 8) : [];
-  const brokenRules = [...new Set([
-    ...ruleSource.map(ruleId).filter(Boolean),
-    ...rulesFromCategories(categories),
-  ])].slice(0, 6);
-
+  const moderationCase = compactWhitespace(value.case ?? value.category ?? value.label).slice(0, 80);
+  const reason = compactWhitespace(value.reason).slice(0, 180);
   return {
     flagged: true,
     severity: severityFromScore(score, true),
     severityScore: score,
-    brokenRules,
-    categories,
+    brokenRules: [],
+    categories: moderationCase ? [moderationCase] : [],
     matchedTerms: [],
     originalLanguage: '',
-    englishTranslation: compactWhitespace(value.englishTranslation ?? value.english_translation ?? '').slice(0, 300),
-    reason: '',
+    englishTranslation: '',
+    case: moderationCase || 'Rule violation',
+    reason: reason || 'The message breaks a server rule.',
     source,
   };
 }
@@ -250,8 +254,8 @@ function aiInputText(content, context = {}) {
   const target = compactWhitespace(content);
   const recentContext = compactWhitespace(context.recentContext);
   const text = recentContext
-    ? `Target message: ${target}\nRecent context: ${recentContext}`
-    : `Target message: ${target}`;
+    ? `Message: ${target}\nContext: ${recentContext}`
+    : `Message: ${target}`;
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
@@ -280,8 +284,8 @@ async function analyzeWithResponsesApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_output_tokens: 100,
-    store: false,
+    max_output_tokens: 80,
+    store: true,
     text: { format: responsesTextFormat() },
   });
   try {
@@ -297,7 +301,8 @@ async function analyzeWithChatApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_tokens: 100,
+    max_tokens: 80,
+    store: true,
     response_format: chatResponseFormat(),
   });
   try {

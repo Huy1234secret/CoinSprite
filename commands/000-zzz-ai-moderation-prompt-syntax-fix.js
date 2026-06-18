@@ -19,10 +19,8 @@ function replaceAll(text, oldValue, newValue) {
 function promptSource() {
   return [
     'const SYSTEM_PROMPT = [',
-    "  'Review the target message in its recent conversation context.',",
-    "  'Return JSON only: {\"flagged\":boolean,\"s\":0-10,\"rules\":[\"1.1\"],\"englishTranslation\":\"\"}.',",
-    "  'If no rule is broken, use flagged=false, s=0, and rules=[]. Otherwise use flagged=true, a severity from 2 to 10, and only broken rule IDs.',",
-    "  'Translate the target message to English only when it is not English; otherwise leave englishTranslation empty.',",
+    "  'Judge Message using Context and the server rules.',",
+    "  'JSON only: {\"flagged\":false,\"s\":0,\"case\":\"\",\"reason\":\"\"}. Flag only a rule violation; if flagged, use s=2-10, a short case label such as NSFW, and a short reason.',",
     '  RULE_GUIDE,',
     "].join(' ');",
   ].join('\n');
@@ -31,15 +29,15 @@ function promptSource() {
 function patchAiModeration(source) {
   let text = String(source || '');
   text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, promptSource());
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 100');
-  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 100');
-  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 100');
-  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 100');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 100');
-  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 100');
-  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 100');
-  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 100');
-  text = replaceAll(text, 'store: true', 'store: false');
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 80');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 80');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 80');
+  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 80');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 80');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 80');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 80');
+  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 80');
+  text = replaceAll(text, 'store: false', 'store: true');
   return text;
 }
 
