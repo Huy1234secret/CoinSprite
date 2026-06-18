@@ -46,6 +46,13 @@ test('custom tab image assets are served from every public prefix', async () => 
   }
 });
 
+test('dashboard scripts inline icon bytes instead of requiring browser image requests', async () => {
+  const response = await fetch(`${origin}/admin/app.js`);
+  assert.equal(response.status, 200);
+  const source = await response.text();
+  assert.match(source, /data:image\/(?:png|svg\+xml);base64,/);
+});
+
 test('dashboard selects the committed custom images without an extra frame', () => {
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   const handler = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
