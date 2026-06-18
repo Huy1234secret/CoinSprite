@@ -27,7 +27,11 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-test('custom tab image assets are served from every public prefix', async () => {
+test('custom tab image assets are served from every public prefix', async (t) => {
+  if (!fs.existsSync(path.join(root, 'images'))) {
+    t.skip('Runtime images are host-only and are not stored in GitHub.');
+    return;
+  }
   const icons = [
     ['leveling.png', 'image/png'],
     ['ticket.png', 'image/png'],
@@ -46,7 +50,11 @@ test('custom tab image assets are served from every public prefix', async () => 
   }
 });
 
-test('dashboard scripts inline icon bytes instead of requiring browser image requests', async () => {
+test('dashboard scripts inline icon bytes instead of requiring browser image requests', async (t) => {
+  if (!fs.existsSync(path.join(root, 'images'))) {
+    t.skip('Runtime images are host-only and are not stored in GitHub.');
+    return;
+  }
   const response = await fetch(`${origin}/admin/app.js`);
   assert.equal(response.status, 200);
   const source = await response.text();
@@ -63,6 +71,6 @@ test('dashboard selects the committed custom images without an extra frame', () 
   assert.match(app, /tickets: '\/admin\/images\/ticket\.png\?v=custom-icons-4'/);
   assert.doesNotMatch(handler, /TAB_ICON_FRAME_STYLE|tab-icon-frame/);
   assert.doesNotMatch(index, /tab-icon-frame/);
-  assert.match(adminServer, /COINSPRITE_IMAGE_DIR \|\| '\/root\/CoinSprite\/images'/);
+  assert.match(adminServer, /path\.join\(__dirname, '\.\.', 'images'\)/);
   assert.match(adminServer, /'\/images\/', '\/CoinSprite\/images\/', '\/admin\/images\/'/);
 });
