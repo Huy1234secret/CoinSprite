@@ -40,7 +40,24 @@
       componentRows: [],
       botDefault: true,
       defaultLocked: true,
-    }, // FIXED: full default card body is available for no-change comparisons.
+    },
+    {
+      id: 'default-link-auto-moderation-alert',
+      type: 'template',
+      folderId: '',
+      name: 'Default: Link Auto-Moderator alert',
+      content: '',
+      containers: [{
+        id: 'link-auto-moderation-alert',
+        accentColor: '#ED4245',
+        text: '## Link Auto-Moderator report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Action taken:** <moderation-action>\n**Reason:** <moderation-reason>\n<separator>\n**Blocked link**\n- Domain: `<blocked-domain>`\n- URL: <blocked-url>\n- Invite code: `<invite-code>`\n<separator>\n-# User message: “<message-content>”\n-# Report link: <message-link>',
+        thumbnailUrl: '<avatar_url>',
+        imageUrl: '',
+      }],
+      componentRows: [],
+      botDefault: true,
+      defaultLocked: true,
+    }, // ADDED: canonical link auto-moderation fallback.
   ];
   let selectedId = '';
   let guildId = '';
@@ -406,7 +423,7 @@
 
   function defaultCard(template) {
     const count = Array.isArray(template.containers) ? template.containers.length : 0;
-    return `<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="${escapeHtml(template.id)}"><span class="message-template-symbol">📄</span><span><strong>${escapeHtml(template.name || template.id)}</strong><small>${count} container${count === 1 ? '' : 's'}</small></span><span class="message-card-arrow">›</span></button>`;
+    return `<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="${escapeHtml(template.id)}"><span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span><span><strong>${escapeHtml(template.name || template.id)}</strong><small>${count} container${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>`;
   }
 
   function ensureDefaultMessages(host) {
