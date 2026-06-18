@@ -6,7 +6,7 @@ const { recordUsage } = require('./aiTokenUsageStats');
 const OPENAI_RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
-const DEFAULT_MAX_AI_CHARS = 300;
+const DEFAULT_MAX_AI_CHARS = 4000;
 const MIN_ALERT_SEVERITY_SCORE = 2;
 const RULE_IDS = Object.freeze(['1.1', '1.5', '2.4', '3.1', '3.2', '3.3']);
 const CATEGORY_RULES = Object.freeze({
@@ -20,9 +20,9 @@ const CATEGORY_RULES = Object.freeze({
 });
 const RULE_GUIDE = '1.1 abuse/bullying/disruptive profanity; 1.5 politics/religion; 2.4 public dating/romance; 3.1 NSFW/gore; 3.2 hate/threats/dox/self-harm; 3.3 sexual misconduct/minors/coercion.';
 const SYSTEM_PROMPT = [
-  'Judge Message using Context and the server rules.',
-  'JSON only: {"flagged":false,"s":0,"case":"","reason":""}. Flag only a rule violation; if flagged, use s=2-10, a short case label such as NSFW, and a short reason.',
-  RULE_GUIDE,
+  'Review the target Message using its Context and decide whether it clearly violates rules commonly enforced in most Discord communities.',
+  'Infer the most appropriate violation category yourself; do not invent a violation when the message is harmless or ambiguous.',
+  'Return JSON only: {"flagged":false,"s":0,"case":"","reason":""}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining what in the message and context caused the violation.',
 ].join(' ');
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
 
@@ -216,7 +216,7 @@ function normalizeResult(value = {}, source = 'ai') {
   if (!value.flagged || score < MIN_ALERT_SEVERITY_SCORE) return cleanResult(source);
 
   const moderationCase = compactWhitespace(value.case ?? value.category ?? value.label).slice(0, 80);
-  const reason = compactWhitespace(value.reason).slice(0, 180);
+  const reason = compactWhitespace(value.reason).slice(0, 320);
   return {
     flagged: true,
     severity: severityFromScore(score, true),
@@ -250,12 +250,12 @@ function chatText(payload) {
 
 function aiInputText(content, context = {}) {
   const configured = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
-  const maxInputChars = Math.max(20, Math.min(configured, DEFAULT_MAX_AI_CHARS));
-  const target = compactWhitespace(content);
-  const recentContext = compactWhitespace(context.recentContext);
+  const maxInputChars = Math.max(250, Math.min(configured, DEFAULT_MAX_AI_CHARS));
+  const target = String(content || '').trim();
+  const recentContext = String(context.recentContext || '').trim();
   const text = recentContext
-    ? `Message: ${target}\nContext: ${recentContext}`
-    : `Message: ${target}`;
+    ? `Message: ${target}\nContext:\n${recentContext}`
+    : `Message: ${target}\nContext:\n- No previous messages available`;
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
@@ -284,7 +284,7 @@ async function analyzeWithResponsesApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_output_tokens: 80,
+    max_output_tokens: 180,
     store: true,
     text: { format: responsesTextFormat() },
   });
@@ -301,7 +301,7 @@ async function analyzeWithChatApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_tokens: 80,
+    max_tokens: 180,
     store: true,
     response_format: chatResponseFormat(),
   });

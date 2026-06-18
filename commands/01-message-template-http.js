@@ -17,10 +17,17 @@ const originalCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
-const IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const IMAGE_ALIASES = new Map([
-  ['moderator.png', 'moderator.svg'],
-  ['messages.png', 'message.svg'],
+  ['leveling.png', 'leveling.png'],
+  ['messages.png', 'messages.png'],
+  ['message.png', 'messages.png'],
+  ['message.svg', 'messages.png'],
+  ['ticket.png', 'ticket.png'],
+  ['moderator.png', 'moderator.png'],
+  ['moderator.svg', 'moderator.png'],
+  ['data.png', 'data.png'],
+  ['data.svg', 'data.png'],
 ]);
 const TAB_ICON_STYLE = [
   '  <style>',

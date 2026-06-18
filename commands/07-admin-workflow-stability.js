@@ -4,17 +4,17 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',
+  'messages.png': 'messages.png',
+  'message.png': 'messages.png',
+  'message.svg': 'messages.png',
   'ticket.png': 'ticket.png',
-  'data.png': 'data.svg',
-  'data.svg': 'data.svg',
-  'moderator.png': 'moderator.svg',
-  'moderator.svg': 'moderator.svg',
-  'messages.png': 'message.svg',
-  'message.png': 'message.svg',
-  'message.svg': 'message.svg',
+  'moderator.png': 'moderator.png',
+  'moderator.svg': 'moderator.png',
+  'data.png': 'data.png',
+  'data.svg': 'data.png',
 });
 const ICON_ALIASES = new Map(
   ['/CoinSprite/images/', '/admin/images/', '/images/'].flatMap((prefix) => (

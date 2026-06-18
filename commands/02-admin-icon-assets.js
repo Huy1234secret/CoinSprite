@@ -6,15 +6,18 @@ const Module = require('module');
 const previousCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
 const ICONS = new Map([
-  ['/admin/images/leveling.png', { file: path.join(ADMIN_DIR, 'images', 'leveling.png'), type: 'image/png' }],
-  ['/admin/images/ticket.png', { file: path.join(ADMIN_DIR, 'images', 'ticket.png'), type: 'image/png' }],
-  ['/admin/images/data.png', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
-  ['/admin/images/data.svg', { file: path.join(ADMIN_DIR, 'images', 'data.svg'), type: 'image/svg+xml' }],
-  ['/admin/images/moderator.svg', { file: path.join(ADMIN_DIR, 'images', 'moderator.svg'), type: 'image/svg+xml' }],
-  ['/admin/images/message.svg', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
-  ['/admin/images/message.svg', { file: path.join(ADMIN_DIR, 'images', 'message.svg'), type: 'image/svg+xml' }],
+  ['/admin/images/leveling.png', { file: path.join(IMAGE_DIR, 'leveling.png'), type: 'image/png' }],
+  ['/admin/images/messages.png', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
+  ['/admin/images/message.png', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
+  ['/admin/images/message.svg', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
+  ['/admin/images/ticket.png', { file: path.join(IMAGE_DIR, 'ticket.png'), type: 'image/png' }],
+  ['/admin/images/moderator.png', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
+  ['/admin/images/moderator.svg', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
+  ['/admin/images/data.png', { file: path.join(IMAGE_DIR, 'data.png'), type: 'image/png' }],
+  ['/admin/images/data.svg', { file: path.join(IMAGE_DIR, 'data.png'), type: 'image/png' }],
 ]);
 let clientRef = null;
 
