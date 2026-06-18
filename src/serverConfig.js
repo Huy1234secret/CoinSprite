@@ -94,7 +94,9 @@ const DEFAULT_GUILD_CONFIG = {
   moderation: {
     ai: {
       enabled: false,
-      logChannelId: '',
+      logChannelId: '', // Legacy fallback for configurations saved before severity routing.
+      lowSeverityLogChannelId: '',
+      severeLogChannelId: '',
       scanChannelIds: [],
       excludeRoleIds: [],
       alertTemplateId: 'default-ai-moderation-alert',
@@ -178,6 +180,14 @@ const DEFAULT_COINSPRITE_GUILD_CONFIG = {
     wordChain: '1512480152410525958',
     giveawayAnnouncement: '1493927942546259969',
     commandLogThread: '1495783372591730750',
+  },
+  moderation: {
+    ...DEFAULT_GUILD_CONFIG.moderation,
+    ai: {
+      ...DEFAULT_GUILD_CONFIG.moderation.ai,
+      lowSeverityLogChannelId: '1516856053751353464',
+      severeLogChannelId: '1516855502749962420',
+    },
   },
   roles: {
     staff: '1494993523064443065',
