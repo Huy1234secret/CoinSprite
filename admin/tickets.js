@@ -294,7 +294,7 @@
       <div class="panel preview-panel shared-message-editor-panel">
         <div class="panel-heading">
           <h3>Live preview</h3>
-          <p>Edit directly in the preview. Color, thumbnail, and image use the same controls as Messages.</p>
+          <p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p>
         </div>
         ${sharedPreview || `<div class="discord-preview"><div class="preview-container ticket-preview" style="--preview-accent:${escapeHtml(message.accentColor)}">${sections.map((section, index) => `${index ? '<div class="preview-separator"></div>' : ''}<div class="ticket-preview-text">${renderDiscordMarkdown(section)}</div>`).join('')}</div></div>`}
       </div>
