@@ -212,7 +212,7 @@ function injectedIndex() {
   ].join('\n'));
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/CoinSprite/images/moderator.png" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/CoinSprite/images/messages.png" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/CoinSprite/images/moderator.svg?v=custom-icons-1" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/CoinSprite/images/message.svg?v=custom-icons-1" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',

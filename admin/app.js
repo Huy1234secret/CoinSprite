@@ -1185,9 +1185,11 @@ loadSession();
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
-      leveling: '/admin/images/leveling.png',
-      tickets: '/admin/images/ticket.png',
-      messages: '/admin/images/message.svg',
+      leveling: '/CoinSprite/images/leveling.png?v=custom-icons-1',
+      data: '/CoinSprite/images/data.svg?v=custom-icons-1',
+      tickets: '/CoinSprite/images/ticket.png?v=custom-icons-1',
+      moderator: '/CoinSprite/images/moderator.svg?v=custom-icons-1',
+      messages: '/CoinSprite/images/message.svg?v=custom-icons-1',
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);

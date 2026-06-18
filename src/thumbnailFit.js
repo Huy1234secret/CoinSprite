@@ -2,7 +2,10 @@ const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const THUMBNAIL_SIZE = 160;
 const MAX_THUMBNAIL_BYTES = 8 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 2200;
+const FETCH_TIMEOUT_MS = 5000;
+const FAILED_RETRY_MS = 5 * 60 * 1000;
+const MAX_FAILED_URLS = 500;
+const thumbnailFailureUntil = new Map();
 
 function isRemoteImageUrl(value) {
   try {
@@ -52,6 +55,24 @@ async function fetchImageBuffer(url) {
   }
 }
 
+function isAbortError(error) {
+  return error?.name === 'AbortError' || /operation was aborted|aborted due to timeout/i.test(String(error?.message || error || ''));
+}
+
+function skipFailedThumbnail(url) {
+  const retryAt = thumbnailFailureUntil.get(url);
+  if (!retryAt) return false;
+  if (retryAt > Date.now()) return true;
+  thumbnailFailureUntil.delete(url);
+  return false;
+}
+
+function rememberThumbnailFailure(url) {
+  thumbnailFailureUntil.set(url, Date.now() + FAILED_RETRY_MS);
+  if (thumbnailFailureUntil.size <= MAX_FAILED_URLS) return;
+  thumbnailFailureUntil.delete(thumbnailFailureUntil.keys().next().value);
+}
+
 async function squareThumbnailAttachment(url, index) {
   const source = await fetchImageBuffer(url);
   const image = await loadImage(source);
@@ -91,13 +112,18 @@ async function fitMessageThumbnailSquares(payload) {
   const files = payload.files ? (Array.isArray(payload.files) ? [...payload.files] : [payload.files]) : [];
   let converted = 0;
   for (const media of mediaItems) {
+    const sourceUrl = String(media.url || '');
+    if (skipFailedThumbnail(sourceUrl)) continue;
     try {
-      const file = await squareThumbnailAttachment(media.url, files.length + converted + 1);
+      const file = await squareThumbnailAttachment(sourceUrl, files.length + converted + 1);
       files.push(file);
       media.url = `attachment://${file.name}`;
       converted += 1;
     } catch (error) {
-      console.warn(`Could not fit thumbnail into a square: ${error?.message || error}`);
+      rememberThumbnailFailure(sourceUrl);
+      if (!isAbortError(error)) {
+        console.warn(`Could not fit thumbnail into a square: ${error?.message || error}`);
+      }
     }
   }
 

@@ -4,12 +4,32 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
-const IMAGE_DIR = path.join(__dirname, '..', 'images');
-const ICON_ALIASES = new Map([
-  ['/images/leveling.png', path.join(IMAGE_DIR, 'leveling.png')],
-  ['/images/ticket.png', path.join(IMAGE_DIR, 'ticket.png')],
-  ['/images/message.png', path.join(IMAGE_DIR, 'message.png')],
-]);
+const IMAGE_DIR = path.join(__dirname, '..', 'admin', 'images');
+const ICON_FILES = Object.freeze({
+  'leveling.png': 'leveling.png',
+  'ticket.png': 'ticket.png',
+  'data.png': 'data.svg',
+  'data.svg': 'data.svg',
+  'moderator.png': 'moderator.svg',
+  'moderator.svg': 'moderator.svg',
+  'messages.png': 'message.svg',
+  'message.png': 'message.svg',
+  'message.svg': 'message.svg',
+});
+const ICON_ALIASES = new Map(
+  ['/CoinSprite/images/', '/admin/images/', '/images/'].flatMap((prefix) => (
+    Object.entries(ICON_FILES).map(([publicName, fileName]) => [
+      `${prefix}${publicName}`,
+      path.join(IMAGE_DIR, fileName),
+    ])
+  )),
+);
+
+function iconContentType(filePath) {
+  return path.extname(filePath).toLowerCase() === '.svg'
+    ? 'image/svg+xml; charset=utf-8'
+    : 'image/png';
+}
 
 function browserScript() {
   return String.raw`
@@ -186,7 +206,7 @@ http.createServer = function patchedCreateServer(listener) {
         response.end('Icon not found');
         return;
       }
-      response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
+      response.writeHead(200, { 'Content-Type': iconContentType(iconPath), 'Cache-Control': 'public, max-age=300' });
       response.end(data);
     });
   });
