@@ -18,11 +18,11 @@ const CATEGORY_RULES = Object.freeze({
   rule_3_2_hate_harassment: '3.2',
   rule_3_3_sexual_misconduct: '3.3',
 });
-const RULE_GUIDE = '1.1 abuse/bullying/disruptive profanity; 1.5 politics/religion; 2.4 public dating/romance; 3.1 NSFW/gore; 3.2 hate/threats/dox/self-harm; 3.3 sexual misconduct/minors/coercion.';
 const SYSTEM_PROMPT = [
   'Review the target Message using its Context and decide whether it clearly violates rules commonly enforced in most Discord communities.',
-  'Infer the most appropriate violation category yourself; do not invent a violation when the message is harmless or ambiguous.',
-  'Return JSON only: {"flagged":false,"s":0,"case":"","reason":""}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining what in the message and context caused the violation.',
+  'Infer the violation category yourself. Detect deliberate bypass spelling, leetspeak, phonetic misspellings, inserted punctuation or spaces, homoglyphs, and abbreviated slurs or sexual terms; judge intent from context instead of relying only on exact keywords.',
+  'If the target Message is not English, translate it into natural English using Context to resolve slang. If it is already English, translated must be an empty string.',
+  'Return JSON only: {"flagged":false,"s":0,"case":"","reason":"","translated":""}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining the violation.',
 ].join(' ');
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
 
@@ -34,7 +34,15 @@ function normalizeRawForPattern(value) {
   return compactWhitespace(value)
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[\u0300-\u036f\u200b-\u200f\u2060\ufeff]/g, '')
+    .replace(/[01345789@!|$]/g, (character) => ({
+      '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's',
+      '7': 't', '8': 'b', '9': 'g', '@': 'a', '!': 'i',
+      '|': 'i', '$': 's',
+    })[character] || character)
+    .replace(/\bf[._\-\s]*(?:a|u)[._\-\s]*[ckq]+\b/g, 'fuck')
+    .replace(/\bd[._\-\s]*(?:i|ee)[._\-\s]*[ckq]+\b/g, 'dick')
+    .replace(/\bn[._\-\s]*(?:i|e)[._\-\s]*g+[._\-\s]*(?:a|er)?\b/g, 'nig');
 }
 
 function compileKeywordRules() {
@@ -75,12 +83,13 @@ function moderationSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['flagged', 's', 'case', 'reason'],
+    required: ['flagged', 's', 'case', 'reason', 'translated'],
     properties: {
       flagged: { type: 'boolean' },
       s: { type: 'number' },
       case: { type: 'string' },
       reason: { type: 'string' },
+      translated: { type: 'string' },
     },
   };
 }
@@ -199,7 +208,7 @@ function fallbackAnalyze(content) {
 
 function parseJsonObject(value) {
   const text = String(value || '').trim();
-  if (!text) return { flagged: false, s: 0, case: '', reason: '' };
+  if (!text) return { flagged: false, s: 0, case: '', reason: '', translated: '' };
   try {
     return JSON.parse(text);
   } catch {
@@ -217,6 +226,7 @@ function normalizeResult(value = {}, source = 'ai') {
 
   const moderationCase = compactWhitespace(value.case ?? value.category ?? value.label).slice(0, 80);
   const reason = compactWhitespace(value.reason).slice(0, 320);
+  const englishTranslation = compactWhitespace(value.translated ?? value.englishTranslation).slice(0, 500);
   return {
     flagged: true,
     severity: severityFromScore(score, true),
@@ -225,7 +235,7 @@ function normalizeResult(value = {}, source = 'ai') {
     categories: moderationCase ? [moderationCase] : [],
     matchedTerms: [],
     originalLanguage: '',
-    englishTranslation: '',
+    englishTranslation,
     case: moderationCase || 'Rule violation',
     reason: reason || 'The message breaks a server rule.',
     source,
@@ -252,10 +262,14 @@ function aiInputText(content, context = {}) {
   const configured = Number(context.maxInputChars) || DEFAULT_MAX_AI_CHARS;
   const maxInputChars = Math.max(250, Math.min(configured, DEFAULT_MAX_AI_CHARS));
   const target = String(content || '').trim();
+  const normalizedTarget = normalizeRawForPattern(target);
+  const normalizationHint = normalizedTarget && normalizedTarget !== compactWhitespace(target).toLowerCase()
+    ? `\nObfuscation-normalized hint: ${normalizedTarget}`
+    : '';
   const recentContext = String(context.recentContext || '').trim();
   const text = recentContext
-    ? `Message: ${target}\nContext:\n${recentContext}`
-    : `Message: ${target}\nContext:\n- No previous messages available`;
+    ? `Message: ${target}${normalizationHint}\nContext:\n${recentContext}`
+    : `Message: ${target}${normalizationHint}\nContext:\n- No previous messages available`;
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
@@ -284,7 +298,7 @@ async function analyzeWithResponsesApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_output_tokens: 180,
+    max_output_tokens: 240,
     store: true,
     text: { format: responsesTextFormat() },
   });
@@ -301,7 +315,7 @@ async function analyzeWithChatApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_tokens: 180,
+    max_tokens: 240,
     store: true,
     response_format: chatResponseFormat(),
   });

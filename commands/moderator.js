@@ -36,32 +36,7 @@ function collectionValues(value) {
 }
 
 function messageModerationText(message) {
-  const parts = [];
-  const content = String(message?.content || '').trim();
-  if (content) parts.push(content);
-
-  for (const sticker of collectionValues(message?.stickers)) {
-    const name = String(sticker?.name || '').trim();
-    if (name) parts.push(`Sticker: ${name}`);
-  }
-
-  for (const attachment of collectionValues(message?.attachments)) {
-    const details = [attachment?.name || attachment?.filename, attachment?.contentType, attachment?.description]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .join(' ');
-    parts.push(details ? `Attachment: ${details}` : 'Attachment');
-  }
-
-  for (const embed of collectionValues(message?.embeds)) {
-    const details = [embed?.title, embed?.description, embed?.url]
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .join(' ');
-    if (details) parts.push(`Embed: ${details}`);
-  }
-
-  return parts.join('\n').trim();
+  return String(message?.content || '').trim();
 }
 
 async function recentModerationContext(message, limit = 10) {
@@ -141,7 +116,7 @@ function moderationValues(message, result, screenshot = null) {
     ['moderation-categories', listText(result.categories)],
     ['original-language', result.originalLanguage || ''],
     ['english-translation', englishTranslation],
-    ['translation-section', englishTranslation ? `<separator>\n**English translation**\n${englishTranslation}` : ''],
+    ['translation-section', englishTranslation ? `-# Translated: "${englishTranslation.replace(/"/g, "'")}"` : ''],
     ['message-content', moderationMessagePreview(message)],
     ['message-link', message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`],
     ['message-screenshot', screenshot?.name ? `attachment://${screenshot.name}` : ''],
@@ -158,12 +133,19 @@ function applyModerationPlaceholders(template, message, result, screenshot = nul
   const replacements = moderationValues(message, result, screenshot);
   const copy = JSON.parse(JSON.stringify(template));
   copy.content = replaceModerationPlaceholders(copy.content, replacements);
-  copy.containers = (copy.containers || []).map((container) => ({
-    ...container,
-    text: replaceModerationPlaceholders(container.text, replacements),
-    thumbnailUrl: replaceModerationPlaceholders(container.thumbnailUrl, replacements),
-    imageUrl: replaceModerationPlaceholders(container.imageUrl, replacements),
-  }));
+  copy.containers = (copy.containers || []).map((container) => {
+    let text = replaceModerationPlaceholders(container.text, replacements);
+    const translation = replacements.get('translation-section');
+    if (container.id === 'ai-moderation-alert' && translation && !text.includes(translation)) {
+      text = `${text}\n${translation}`;
+    }
+    return {
+      ...container,
+      text,
+      thumbnailUrl: replaceModerationPlaceholders(container.thumbnailUrl, replacements),
+      imageUrl: replaceModerationPlaceholders(container.imageUrl, replacements),
+    };
+  });
   return copy;
 }
 

@@ -17,7 +17,7 @@
         {
           "id": "ai-moderation-alert",
           "accentColor": "#9B59B6",
-          "text": "## AI moderation report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Case:** <moderation-case>\n**Reason:** <moderation-reason>\n**Message:** <message-link> “<message-content>”",
+          "text": "## AI moderation report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Case:** <moderation-case>\n**Reason:** <moderation-reason>\n**Message:** <message-link> “<message-content>”\n<translation-section>",
           "thumbnailUrl": "<avatar_url>",
           "imageUrl": ""
         }
@@ -488,7 +488,7 @@
   function templateCard(item, kind = 'template') {
     const isFolder = kind === 'folder' || item.type === 'folder';
     const isDefault = Boolean(item.botDefault || item.defaultLocked);
-    const icon = isFolder ? '📁' : '<img src="/admin/images/message.svg" alt="" aria-hidden="true">';
+    const icon = isFolder ? '📁' : '<img src="/images/message.png?v=custom-icons-2" alt="" aria-hidden="true">';
     const action = isFolder ? 'folder-open' : 'open';
     const meta = isFolder ? 'Folder' : `${(item.containers || []).length} container${(item.containers || []).length === 1 ? '' : 's'}`;
     return `<button class="message-template-card ${isFolder ? 'message-folder-card' : ''}${isDefault ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">

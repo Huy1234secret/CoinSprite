@@ -20,9 +20,9 @@ const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const IMAGE_ALIASES = new Map([
   ['leveling.png', 'leveling.png'],
-  ['messages.png', 'messages.png'],
-  ['message.png', 'messages.png'],
-  ['message.svg', 'messages.png'],
+  ['messages.png', 'message.png'],
+  ['message.png', 'message.png'],
+  ['message.svg', 'message.png'],
   ['ticket.png', 'ticket.png'],
   ['moderator.png', 'moderator.png'],
   ['moderator.svg', 'moderator.png'],
@@ -219,7 +219,7 @@ function injectedIndex() {
   ].join('\n'));
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/CoinSprite/images/moderator.svg?v=custom-icons-1" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/CoinSprite/images/message.svg?v=custom-icons-1" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/images/moderator.png?v=custom-icons-2" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/images/message.png?v=custom-icons-2" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
