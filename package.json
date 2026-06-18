@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node -r ./commands/08-admin-root-icon-assets index.js",
+    "start": "node index.js",
     "test": "node --test"
   },
   "keywords": [
