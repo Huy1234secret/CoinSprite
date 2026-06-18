@@ -9,6 +9,25 @@ const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoute
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
+const RUNTIME_IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
+const RUNTIME_ICON_FILES = Object.freeze({
+  'leveling.png': 'leveling.png',
+  'ticket.png': 'ticket.png',
+  'moderator.png': 'moderator.png',
+  'moderator.svg': 'moderator.png',
+  'data.png': 'data.png',
+  'data.svg': 'data.png',
+  'message.png': 'message.png',
+  'messages.png': 'message.png',
+  'message.svg': 'message.png',
+});
+const FALLBACK_ICON_FILES = Object.freeze({
+  'leveling.png': 'leveling.png',
+  'ticket.png': 'ticket.png',
+  'moderator.png': 'moderator.svg',
+  'data.png': 'data.svg',
+  'message.png': 'message.svg',
+});
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -165,6 +184,54 @@ function serveAdminAsset(res, assetPath) {
     send(res, 200, data, {
       'Content-Type': contentTypeFor(resolvedFile),
       'Cache-Control': resolvedFile.endsWith('.html') ? 'no-store' : 'public, max-age=300',
+    });
+  });
+}
+
+function serveRuntimeIcon(res, requestedPath) {
+  let requestedName;
+  try {
+    requestedName = decodeURIComponent(String(requestedPath || '')).replace(/^\/+/, '');
+  } catch {
+    send(res, 400, 'Bad request');
+    return;
+  }
+  if (!requestedName || requestedName !== path.posix.basename(requestedName)) {
+    send(res, 404, 'Not found');
+    return;
+  }
+
+  const runtimeName = RUNTIME_ICON_FILES[requestedName.toLowerCase()];
+  if (!runtimeName) {
+    send(res, 404, 'Not found');
+    return;
+  }
+
+  const runtimePath = path.join(RUNTIME_IMAGE_DIR, runtimeName);
+  fs.readFile(runtimePath, (runtimeError, runtimeData) => {
+    if (!runtimeError) {
+      send(res, 200, runtimeData, {
+        'Content-Type': contentTypeFor(runtimePath),
+        'Cache-Control': 'public, max-age=300',
+      });
+      return;
+    }
+
+    const fallbackName = FALLBACK_ICON_FILES[runtimeName];
+    if (!fallbackName) {
+      send(res, 404, 'Not found');
+      return;
+    }
+    const fallbackPath = path.join(ADMIN_DIR, 'images', fallbackName);
+    fs.readFile(fallbackPath, (fallbackError, fallbackData) => {
+      if (fallbackError) {
+        send(res, 404, 'Not found');
+        return;
+      }
+      send(res, 200, fallbackData, {
+        'Content-Type': contentTypeFor(fallbackPath),
+        'Cache-Control': 'public, max-age=300',
+      });
     });
   });
 }
@@ -377,6 +444,11 @@ async function handleAuthCallback(req, res, env, url) {
 
 async function routeRequest(req, res, env, client) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (req.method === 'GET') {
+    for (const prefix of ['/images/', '/CoinSprite/images/', '/admin/images/']) {
+      if (url.pathname.startsWith(prefix)) return serveRuntimeIcon(res, url.pathname.slice(prefix.length));
+    }
+  }
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) return serveAdminAsset(res, 'index.html');
   if (req.method === 'GET' && url.pathname.startsWith('/admin/')) return serveAdminAsset(res, url.pathname.slice('/admin/'.length));
   if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env);
