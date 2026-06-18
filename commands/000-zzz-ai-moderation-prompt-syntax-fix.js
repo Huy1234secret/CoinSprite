@@ -36,7 +36,7 @@ function patchAiModeration(source) {
   text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 140');
   text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 140');
   text = replaceAll(text, 'store: false', 'store: true');
-  text = replaceAll(text, 'return reason.slice(0, 180);', 'return reason.slice(0, 120);');
+  text = replaceAll(text, 'return reason.slice(0, 180);', 'return reason.slice(0, 80);');
   text = text.replace(
     /required: \[[^\]]*'reason'[^\]]*\],/,
     "required: ['flagged', 's', 'rules', 'reason', 'originalLanguage', 'englishTranslation', 'matchedTerms'],",
