@@ -138,9 +138,10 @@ function defaultMessageListGuard() {
     if (!active(root)) return;
     const grid = root.querySelector('.message-template-grid');
     if (!grid) return;
+    if (grid.querySelector('.message-template-card')) return; // FIXED: fallback repair is idempotent and cannot trigger its own mutation loop.
     const query = (root.querySelector('#messageTemplateSearch')?.value || '').trim().toLowerCase();
     const visible = defaults.filter((item) => matches(item, query));
-    grid.innerHTML = visible.map(card).join(''); // FIXED: Defaults tab is repopulated when the main renderer leaves the grid visually empty.
+    if (visible.length) grid.innerHTML = visible.map(card).join('');
     const emptyState = root.querySelector('.empty-state');
     if (visible.length) emptyState?.remove();
     if (!visible.length && !emptyState) grid.insertAdjacentHTML('afterend', '<div class="empty-state">No default messages found.</div>'); // FIXED: Defaults search shows the same no-results state as Templates search.
