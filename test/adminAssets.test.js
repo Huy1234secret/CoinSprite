@@ -8,6 +8,7 @@ let origin;
 before(async () => {
   const nativeCreateServer = http.createServer;
   require('../commands/01-message-template-http');
+  require('../commands/09-admin-tab-icon-images');
   const createAdminServer = http.createServer;
   http.createServer = nativeCreateServer;
 
@@ -25,6 +26,11 @@ after(async () => {
 
 test('admin tab icons are served from their public URLs', async () => {
   const icons = [
+    ['/CoinSprite/images/leveling.png', 'image/png'],
+    ['/CoinSprite/images/ticket.png', 'image/png'],
+    ['/CoinSprite/images/data.svg', 'image/svg+xml'],
+    ['/CoinSprite/images/moderator.svg', 'image/svg+xml'],
+    ['/CoinSprite/images/message.svg', 'image/svg+xml'],
     ['/admin/images/leveling.png', 'image/png'],
     ['/admin/images/ticket.png', 'image/png'],
     ['/admin/images/data.svg', 'image/svg+xml'],
