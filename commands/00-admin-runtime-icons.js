@@ -188,6 +188,7 @@ ${TAB_ICON_CSS_MARKER}
   transform: none !important;
 }
 
+/* Symbol squares stay CSS-only; do not add browser icon observers here. */
 .tab[data-tab="leveling"] {
   --tab-icon-symbol: "★";
   --tab-icon-bg: rgba(87, 242, 135, 0.18);
@@ -221,6 +222,13 @@ ${TAB_ICON_CSS_MARKER}
   --tab-icon-bg: rgba(155, 89, 182, 0.18);
   --tab-icon-border: rgba(188, 120, 255, 0.72);
   --tab-icon-color: #d9b7ff;
+}
+
+.tab[data-tab="moderator"]::before {
+  content: "🛡" !important;
+  background: rgba(155, 89, 182, 0.18) !important;
+  border-color: rgba(188, 120, 255, 0.72) !important;
+  color: #d9b7ff !important;
 }
 
 @media (max-width: 700px) {
