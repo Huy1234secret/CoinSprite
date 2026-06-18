@@ -44,7 +44,7 @@ test('custom tab image assets are served from every public prefix', async (t) =>
     for (const [filename, contentType] of icons) {
       const response = await fetch(`${origin}${prefix}${filename}?v=test`);
       assert.equal(response.status, 200, `${prefix}${filename}`);
-      assert.match(response.headers.get('content-type') || '', new RegExp(`^${contentType.replace('+', '\\+')}`));
+      assert.ok((response.headers.get('content-type') || '').startsWith(contentType), `${prefix}${filename}`);
       assert.ok((await response.arrayBuffer()).byteLength > 0, `${prefix}${filename}`);
     }
   }
