@@ -281,18 +281,22 @@
     let content = message.content || '';
     for (const [token, value] of Object.entries(replacements)) content = content.split(token).join(value);
     const sections = content.split(/<separator>/gi).map((part) => part.trim()).filter(Boolean);
+    const sharedPreview = window.CoinSpriteMessageEditor?.renderPreview({
+      content: '',
+      containers: [{
+        accentColor: message.accentColor,
+        text: content,
+        thumbnailUrl: message.thumbnailUrl,
+        imageUrl: message.imageUrl,
+      }],
+    }, { hideEmptyRoot: true, containerClass: 'ticket-preview' });
     return `
-      <div class="panel preview-panel">
+      <div class="panel preview-panel shared-message-editor-panel">
         <div class="panel-heading">
           <h3>Live preview</h3>
-          <p>Preview your message as it will appear in Discord.</p>
+          <p>Edit directly in the preview. Color, thumbnail, and image use the same controls as Messages.</p>
         </div>
-        <div class="discord-preview">
-          <div class="preview-container ticket-preview" style="--preview-accent:${escapeHtml(message.accentColor)}">
-            ${sections.map((section, index) => `${index ? '<div class="preview-separator"></div>' : ''}<div class="ticket-preview-text">${renderDiscordMarkdown(section)}</div>`).join('')}
-            ${message.imageUrl ? `<div class="ticket-preview-media">Image</div>` : ''}
-          </div>
-        </div>
+        ${sharedPreview || `<div class="discord-preview"><div class="preview-container ticket-preview" style="--preview-accent:${escapeHtml(message.accentColor)}">${sections.map((section, index) => `${index ? '<div class="preview-separator"></div>' : ''}<div class="ticket-preview-text">${renderDiscordMarkdown(section)}</div>`).join('')}</div></div>`}
       </div>
     `;
   }
