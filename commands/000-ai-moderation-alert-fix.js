@@ -184,9 +184,9 @@ function patchDefaultTemplateText(source) {
 function moderationPromptSource() {
   return [
     'const SYSTEM_PROMPT = [',
-    "  'Judge Message using Context and the server rules.',",
-    "  'JSON only: {\"flagged\":false,\"s\":0,\"case\":\"\",\"reason\":\"\"}. Flag only a rule violation; if flagged, use s=2-10, a short case label such as NSFW, and a short reason.',",
-    '  RULE_GUIDE,',
+    "  'Review the target Message using its Context and decide whether it clearly violates rules commonly enforced in most Discord communities.',",
+    "  'Infer the most appropriate violation category yourself; do not invent a violation when the message is harmless or ambiguous.',",
+    "  'Return JSON only: {\"flagged\":false,\"s\":0,\"case\":\"\",\"reason\":\"\"}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining what in the message and context caused the violation.',",
     "].join(' ');",
   ].join('\n');
 }
@@ -194,14 +194,14 @@ function moderationPromptSource() {
 function patchAiModeration(source) {
   let text = String(source || '');
   text = text.replace(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/, moderationPromptSource());
-  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 80');
-  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 80');
-  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 80');
-  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 80');
-  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 80');
-  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 80');
-  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 80');
-  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 80');
+  text = replaceAll(text, 'max_output_tokens: 60', 'max_output_tokens: 180');
+  text = replaceAll(text, 'max_output_tokens: 120', 'max_output_tokens: 180');
+  text = replaceAll(text, 'max_output_tokens: 140', 'max_output_tokens: 180');
+  text = replaceAll(text, 'max_output_tokens: 180', 'max_output_tokens: 180');
+  text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 180');
+  text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 180');
+  text = replaceAll(text, 'max_tokens: 140', 'max_tokens: 180');
+  text = replaceAll(text, 'max_tokens: 180', 'max_tokens: 180');
   text = replaceAll(text, 'store: false', 'store: true');
   return text;
 }
