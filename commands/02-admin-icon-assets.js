@@ -21,6 +21,50 @@ const ICONS = new Map([
 ]);
 let clientRef = null;
 
+const ICON_DATA_URL_CACHE = new Map();
+
+function isPngData(data) {
+  return Buffer.isBuffer(data)
+    && data.length >= 8
+    && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+}
+
+function iconDataUrl(name) {
+  const runtimeName = name === 'messages' ? 'message' : name;
+  if (ICON_DATA_URL_CACHE.has(runtimeName)) return ICON_DATA_URL_CACHE.get(runtimeName);
+  let data;
+  let mime = 'image/png';
+  try {
+    const runtimeData = fs.readFileSync(path.join(IMAGE_DIR, `${runtimeName}.png`));
+    if (isPngData(runtimeData)) data = runtimeData;
+  } catch {}
+  if (!data) {
+    const fallbackName = {
+      leveling: 'leveling.png',
+      ticket: 'ticket.png',
+      moderator: 'moderator.svg',
+      data: 'data.svg',
+      message: 'message.svg',
+    }[runtimeName];
+    if (fallbackName) {
+      try {
+        data = fs.readFileSync(path.join(ADMIN_DIR, 'images', fallbackName));
+        mime = fallbackName.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+      } catch {}
+    }
+  }
+  const value = data ? `data:${mime};base64,${data.toString('base64')}` : '';
+  ICON_DATA_URL_CACHE.set(runtimeName, value);
+  return value;
+}
+
+function inlineIconUrls(source) {
+  return String(source || '').replace(
+    /\/(?:admin\/)?images\/(leveling|ticket|moderator|data|messages?)\.(?:png|svg)(?:\?v=[^"'\s<)]*)?/gi,
+    (match, name) => iconDataUrl(name.toLowerCase()) || match,
+  );
+}
+
 function notFound(res) {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Not found');
@@ -280,7 +324,7 @@ function serveAdminBundle(res) {
   try {
     const output = BUNDLED_ADMIN_SCRIPTS.map(([fileName, patch]) => {
       const source = fs.readFileSync(path.join(ADMIN_DIR, fileName), 'utf8');
-      const code = typeof patch === 'function' ? patch(source) : source;
+      const code = inlineIconUrls(typeof patch === 'function' ? patch(source) : source);
       return `;\n/* admin/${fileName} */\n${code}\n//# sourceURL=/admin/${fileName}`;
     }).join('\n');
     res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -298,7 +342,7 @@ function serveTextAsset(res, asset) {
       return;
     }
     res.writeHead(200, { 'Content-Type': asset.type, 'Cache-Control': 'no-store' });
-    res.end(asset.patch(source));
+    res.end(inlineIconUrls(asset.patch(source)));
   });
 }
 
@@ -334,7 +378,7 @@ http.createServer = function adminAssetServer(listener) {
       return;
     }
     fs.readFile(icon.file, (error, data) => {
-      if (error) {
+      if (error || (icon.type === 'image/png' && !isPngData(data))) {
         notFound(res);
         return;
       }
