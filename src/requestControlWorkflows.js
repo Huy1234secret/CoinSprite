@@ -103,7 +103,16 @@ function saveGuildWorkflows(guildId, value) {
   return clone(state[String(guildId)]);
 }
 function getControlWorkflow(guildId, ticketId, controlId) {
-  return getGuildWorkflows(guildId)?.[ticketId]?.[controlId] || null;
+  const workflows = getGuildWorkflows(guildId);
+  const id = String(ticketId || '');
+  const aliases = id.startsWith('request-')
+    ? [id, id.slice('request-'.length)]
+    : [id, `request-${id}`];
+  for (const alias of aliases) {
+    const workflow = workflows?.[alias]?.[controlId];
+    if (workflow) return workflow;
+  }
+  return null;
 }
 
 module.exports = { getControlWorkflow, getGuildWorkflows, saveGuildWorkflows, sanitizeGuild };
