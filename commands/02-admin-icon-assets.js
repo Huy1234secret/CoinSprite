@@ -116,13 +116,22 @@ function defaultMessageListGuard() {
       botDefault: true,
       defaultLocked: true,
     },
+    {
+      id: 'default-link-auto-moderation-alert',
+      type: 'template',
+      folderId: '',
+      name: 'Default: Link Auto-Moderator alert',
+      containers: [{ id: 'link-auto-moderation-alert', accentColor: '#ED4245', text: '## Link Auto-Moderator report' }],
+      botDefault: true,
+      defaultLocked: true,
+    },
   ])};
   const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#039;');
   const active = (root) => root?.querySelector('.message-list-head h3')?.textContent?.trim() === 'Default messages';
   const matches = (item, query) => !query || \`\${item.name || ''} \${item.id || ''}\`.toLowerCase().includes(query);
   const card = (item) => {
     const count = Array.isArray(item.containers) ? item.containers.length : 0;
-    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol">📄</span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
+    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
   };
   function repair() {
     const root = document.querySelector('#messageTemplatesRoot');
