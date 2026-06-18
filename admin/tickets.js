@@ -239,7 +239,7 @@
     </div>`;
   }
 
-  function messageEditor(message, scope, title, description, placeholders) {
+  function messageEditor(message, scope, title, description, placeholders, ticketType = null) {
     return `
       <div class="message-builder ticket-message-builder">
         <div class="panel message-editor">
@@ -260,23 +260,47 @@
           </div>
           <p class="condition-help">Discord Markdown is supported. Use <code>&lt;separator&gt;</code> when you want a divider between sections.</p>
         </div>
-        ${messagePreview(message, scope)}
+        ${messagePreview(message, scope, ticketType)}
       </div>
     `;
   }
 
-    function messagePreview(message, scope) {
+  function previewFormAnswers(ticketType) {
+    const questions = (ticketType?.forms?.create || [])
+      .filter((question) => question?.type !== 'text_display');
+    return questions.map((question, index) => {
+      let answer = 'Example answer';
+      if (['string_select', 'radio_group', 'checkbox_group'].includes(question.type)) {
+        answer = question.options?.[0]?.name || 'Example option';
+      } else if (question.type === 'checkbox') {
+        answer = 'Checked';
+      } else if (question.type === 'file_upload') {
+        answer = 'example-file.png';
+      } else if (question.type === 'user_select') {
+        answer = '@Member';
+      } else if (question.type === 'role_select') {
+        answer = '@Role';
+      } else if (question.type === 'channel_select') {
+        answer = '#channel';
+      }
+      return `**${index + 1}# ${question.question || `Question ${index + 1}`}**\n${String(answer).split('\n').map((line) => `-# ${line}`).join('\n')}`;
+    }).join('\n\n');
+  }
+
+  function messagePreview(message, scope, ticketType = null) {
+    const ticketName = String(ticketType?.name || 'Support');
+    const channelName = `#${slug(ticketName)}-42`;
     const replacements = {
       '<@mention>': '@Member',
       '<username>': 'member',
       '<display_name>': 'Member',
       '<user_id>': '123456789012345678',
-      '<ticket_name>': 'Support',
+      '<ticket_name>': ticketName,
       '<ticket_id>': '42',
-      '<channel>': '#support-42',
+      '<channel>': channelName,
       '<server>': 'CoinSprite',
       '<avatar_url>': '',
-      '<form-answer>': '**1# What do you need help with?**\n-# Example answer',
+      '<form-answer>': previewFormAnswers(ticketType),
     };
     let content = message.content || '';
     for (const [token, value] of Object.entries(replacements)) content = content.split(token).join(value);
@@ -350,7 +374,7 @@
       const message = scope === 'launcher' ? editorState.config.launcherMessage : ticketType?.message;
       const textarea = root.querySelector(`textarea[data-message-scope="${scope}"]`);
       const preview = textarea?.closest('.ticket-message-builder')?.querySelector('.message-sticky-preview, .preview-panel');
-      if (message && preview) preview.outerHTML = messagePreview(message, scope);
+      if (message && preview) preview.outerHTML = messagePreview(message, scope, scope === 'ticket' ? ticketType : null);
     }
 
     function renderTypeList() {
@@ -632,6 +656,7 @@
             'Message inside the ticket',
             'Sent when the channel is created. Form answers are rendered in numbered Discord Markdown sections; uploaded files appear as links.',
             ['<@mention>', '<username>', '<display_name>', '<user_id>', '<ticket_name>', '<ticket_id>', '<channel>', '<server>', '<avatar_url>', '<form-answer>', '<separator>'],
+            ticketType,
           ) : ''}
           ${section === 'admin' ? renderAdminPanel(ticketType) : ''}
           ${section === 'forms' ? renderForms(ticketType) : ''}
