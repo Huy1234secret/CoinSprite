@@ -224,30 +224,14 @@ function serveRuntimeIcon(res, requestedPath) {
   }
 
   const runtimePath = path.join(RUNTIME_IMAGE_DIR, runtimeName);
-  fs.readFile(runtimePath, (runtimeError, runtimeData) => {
-    if (!runtimeError && isPngData(runtimeData)) {
-      send(res, 200, runtimeData, {
-        'Content-Type': contentTypeFor(runtimePath),
-        'Cache-Control': 'public, max-age=300',
-      });
+  fs.readFile(runtimePath, (error, data) => {
+    if (error) {
+      send(res, 404, 'Icon not found');
       return;
     }
-
-    const fallbackName = FALLBACK_ICON_FILES[runtimeName];
-    if (!fallbackName) {
-      send(res, 404, 'Not found');
-      return;
-    }
-    const fallbackPath = path.join(ADMIN_DIR, 'images', fallbackName);
-    fs.readFile(fallbackPath, (fallbackError, fallbackData) => {
-      if (fallbackError) {
-        send(res, 404, 'Not found');
-        return;
-      }
-      send(res, 200, fallbackData, {
-        'Content-Type': contentTypeFor(fallbackPath),
-        'Cache-Control': 'public, max-age=300',
-      });
+    send(res, 200, data, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=300',
     });
   });
 }
