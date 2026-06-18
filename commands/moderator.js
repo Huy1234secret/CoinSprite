@@ -266,6 +266,10 @@ module.exports = {
       debugModeration(message, 'skip', 'reason=disabled');
       return;
     }
+    if (hasExcludedRole(message, settings)) {
+      debugModeration(message, 'skip', 'reason=excluded-role-before-ai');
+      return;
+    }
 
     const recentContext = await recentModerationContext(message);
     debugModeration(message, 'check', `chars=${moderationText.length} contextChars=${recentContext.length}`);
@@ -293,11 +297,6 @@ module.exports = {
       debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
       return;
     }
-    if (hasExcludedRole(message, settings)) {
-      debugModeration(message, 'alert-skip', 'reason=excluded-role');
-      return;
-    }
-
     await sendModerationAlert(message, result, settings);
   },
 };
