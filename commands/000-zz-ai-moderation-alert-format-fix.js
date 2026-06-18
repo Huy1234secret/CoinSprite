@@ -146,6 +146,10 @@ function escaped(lines) {
   return lines.join('\\n');
 }
 
+function escapedReplacement(lines) {
+  return lines.map((line) => line.replace(/"/g, '\\"')).join('\\n');
+}
+
 function replaceAll(text, oldValue, newValue) {
   return oldValue ? String(text).split(oldValue).join(newValue) : String(text);
 }
@@ -244,11 +248,11 @@ function sourceArrayLines(lines, indent) {
 
 function patchDefaultTemplateText(source) {
   let text = String(source || '');
-  text = replaceAll(text, escaped(OLD_AI_ALERT_LINES), escaped(AI_ALERT_LINES));
-  text = replaceAll(text, escaped(OLD_AI_ALERT_LINES_NO_TICKS), escaped(AI_ALERT_LINES));
-  text = replaceAll(text, escaped(SIMPLIFIED_AI_ALERT_LINES), escaped(AI_ALERT_LINES));
-  text = replaceAll(text, escaped(OLD_USER_WARNING_LINES), escaped(USER_WARNING_LINES));
-  text = replaceAll(text, escaped(SIMPLIFIED_USER_WARNING_LINES), escaped(USER_WARNING_LINES));
+  text = replaceAll(text, escaped(OLD_AI_ALERT_LINES), escapedReplacement(AI_ALERT_LINES));
+  text = replaceAll(text, escaped(OLD_AI_ALERT_LINES_NO_TICKS), escapedReplacement(AI_ALERT_LINES));
+  text = replaceAll(text, escaped(SIMPLIFIED_AI_ALERT_LINES), escapedReplacement(AI_ALERT_LINES));
+  text = replaceAll(text, escaped(OLD_USER_WARNING_LINES), escapedReplacement(USER_WARNING_LINES));
+  text = replaceAll(text, escaped(SIMPLIFIED_USER_WARNING_LINES), escapedReplacement(USER_WARNING_LINES));
   text = replaceAll(text, '**Severity:** <severity>/10 (<severity-tier>)', '**Severity:** <severity>/10');
   text = replaceAll(text, '**Severity:** <severity> <severity-tier>/10', '**Severity:** <severity>/10');
   text = replaceAll(text, '**Action:** <moderation-action>', '**Action taken:** <moderation-action>');
