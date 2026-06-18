@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Messages">
+  <path d="M10 10h44v34H28L16 55V44h-6V10Z" fill="#60a5fa"/>
+  <path d="M19 21h26M19 31h20" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+</svg>
