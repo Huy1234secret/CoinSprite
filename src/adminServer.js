@@ -37,6 +37,7 @@ const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
 
 const sessions = new Map();
 const directoryCache = new Map();
+const iconDataUrlCache = new Map();
 let serverRef = null;
 
 function getEnv() {
@@ -170,6 +171,46 @@ function contentTypeFor(filePath) {
   return 'application/octet-stream';
 }
 
+function isPngData(data) {
+  return Buffer.isBuffer(data)
+    && data.length >= 8
+    && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+}
+
+function runtimeIconDataUrl(requestedName) {
+  const runtimeName = RUNTIME_ICON_FILES[String(requestedName || '').toLowerCase()];
+  if (!runtimeName) return '';
+  if (iconDataUrlCache.has(runtimeName)) return iconDataUrlCache.get(runtimeName);
+
+  let data;
+  let mime = 'image/png';
+  try {
+    const runtimeData = fs.readFileSync(path.join(RUNTIME_IMAGE_DIR, runtimeName));
+    if (isPngData(runtimeData)) data = runtimeData;
+  } catch {}
+
+  if (!data) {
+    const fallbackName = FALLBACK_ICON_FILES[runtimeName];
+    if (fallbackName) {
+      try {
+        data = fs.readFileSync(path.join(ADMIN_DIR, 'images', fallbackName));
+        mime = fallbackName.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+      } catch {}
+    }
+  }
+
+  const value = data ? `data:${mime};base64,${data.toString('base64')}` : '';
+  iconDataUrlCache.set(runtimeName, value);
+  return value;
+}
+
+function inlineRuntimeIconUrls(source) {
+  return String(source || '').replace(
+    /\/(?:admin\/)?images\/(leveling|ticket|moderator|data|messages?)\.(?:png|svg)(?:\?v=[^"'\s<)]*)?/gi,
+    (match, name) => runtimeIconDataUrl(`${name}.png`) || match,
+  );
+}
+
 function serveAdminAsset(res, assetPath) {
   const normalized = path.normalize(assetPath).replace(/^(\.\.[/\\])+/, '');
   const filePath = path.join(ADMIN_DIR, normalized);
@@ -181,9 +222,11 @@ function serveAdminAsset(res, assetPath) {
   }
   fs.readFile(resolvedFile, (error, data) => {
     if (error) return send(res, 404, 'Not found');
-    send(res, 200, data, {
+    const isTextAsset = resolvedFile.endsWith('.html') || resolvedFile.endsWith('.js');
+    const body = isTextAsset ? inlineRuntimeIconUrls(data.toString('utf8')) : data;
+    send(res, 200, body, {
       'Content-Type': contentTypeFor(resolvedFile),
-      'Cache-Control': resolvedFile.endsWith('.html') ? 'no-store' : 'public, max-age=300',
+      'Cache-Control': isTextAsset ? 'no-store' : 'public, max-age=300',
     });
   });
 }
@@ -209,7 +252,7 @@ function serveRuntimeIcon(res, requestedPath) {
 
   const runtimePath = path.join(RUNTIME_IMAGE_DIR, runtimeName);
   fs.readFile(runtimePath, (runtimeError, runtimeData) => {
-    if (!runtimeError) {
+    if (!runtimeError && isPngData(runtimeData)) {
       send(res, 200, runtimeData, {
         'Content-Type': contentTypeFor(runtimePath),
         'Cache-Control': 'public, max-age=300',
