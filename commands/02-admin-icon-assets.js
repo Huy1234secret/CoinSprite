@@ -10,9 +10,9 @@ const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
 const ICONS = new Map([
   ['/admin/images/leveling.png', { file: path.join(IMAGE_DIR, 'leveling.png'), type: 'image/png' }],
-  ['/admin/images/messages.png', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
-  ['/admin/images/message.png', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
-  ['/admin/images/message.svg', { file: path.join(IMAGE_DIR, 'messages.png'), type: 'image/png' }],
+  ['/admin/images/messages.png', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
+  ['/admin/images/message.png', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
+  ['/admin/images/message.svg', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
   ['/admin/images/ticket.png', { file: path.join(IMAGE_DIR, 'ticket.png'), type: 'image/png' }],
   ['/admin/images/moderator.png', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
   ['/admin/images/moderator.svg', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
@@ -136,7 +136,7 @@ function defaultMessageListGuard() {
   const matches = (item, query) => !query || \`\${item.name || ''} \${item.id || ''}\`.toLowerCase().includes(query);
   const card = (item) => {
     const count = Array.isArray(item.containers) ? item.containers.length : 0;
-    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol"><img src="/admin/images/message.svg" alt="" aria-hidden="true"></span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
+    return \`<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="\${escapeHtml(item.id)}" style="display:grid!important;visibility:visible!important;opacity:1!important"><span class="message-template-symbol"><img src="/images/message.png?v=custom-icons-2" alt="" aria-hidden="true"></span><span><strong>\${escapeHtml(item.name)}</strong><small>\${count} container\${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>\`; // FIXED: fallback default cards cannot be hidden by stale card styling.
   };
   function repair() {
     const root = document.querySelector('#messageTemplatesRoot');
