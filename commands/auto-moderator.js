@@ -283,6 +283,7 @@ async function runActions(message, settings, details) {
 }
 
 module.exports = {
+  allowTextlessMessages: true, // Link-only messages must reach the URL detector.
   data: new SlashCommandBuilder()
     .setName('auto-moderator')
     .setDescription('Show Auto-Moderator status.')
