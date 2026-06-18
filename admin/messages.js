@@ -661,6 +661,19 @@
     }
   });
 
+  root.addEventListener('click', (event) => {
+    const section = event.target.closest('[data-message-action="section-templates"], [data-message-action="section-defaults"]');
+    if (!section) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const nextSection = section.dataset.messageAction === 'section-defaults' ? 'defaults' : 'templates';
+    if (view.section === nextSection && !view.folderId && !view.query) return;
+    view.section = nextSection;
+    view.folderId = '';
+    view.query = '';
+    render();
+  }, true);
+
   root.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-message-action]');
     if (!button) return;
