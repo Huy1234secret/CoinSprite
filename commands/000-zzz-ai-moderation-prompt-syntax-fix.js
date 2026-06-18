@@ -1,3 +1,4 @@
+
 'use strict';
 
 const fs = require('fs');
@@ -20,7 +21,10 @@ function promptSource() {
     'const SYSTEM_PROMPT = [',
     "  'Return JSON only.',",
     "  'Clean or severity under 2: {\"flagged\":false,\"s\":0,\"rules\":[],\"reason\":\"\",\"originalLanguage\":\"\",\"englishTranslation\":\"\",\"matchedTerms\":[]}.',",
-    "  'Violation severity 2-10: {\"flagged\":true,\"s\":2.2,\"rules\":[\"1.1\"],\"reason\":\"The message contains direct profanity or harassment that breaks the respect rule.\",\"originalLanguage\":\"English\",\"englishTranslation\":\"same text in English\",\"matchedTerms\":[\"exact offending term\"]}.',",
+    "  'For every flagged message, independently calculate s as a decimal from 2 through 10. Never reuse a sample or default score.',",
+    "  'Severity rubric: 2-3 mild isolated profanity or insult; 4-5 targeted or repeated abuse; 6-7 serious harassment, explicit sexual or violent content, or credible self-harm concern; 8-9 threats, hate, doxxing, severe sexual misconduct, or high real-world risk; 10 immediate extreme danger, exploitation, or the most severe misconduct.',",
+    "  'Adjust the score for targeting, repetition, intent, context, vulnerability, and real-world risk. Use the full scale and do not anchor scores to one value.',",
+    "  'Generate reason from the actual message and context. Keep it specific and short: one sentence, at most 120 characters. Never use a preset reason.',",
     "  'Use decimal severity when useful. Rules must be numbers only. Reason must be a clear staff-facing sentence; never return one-word reasons like short.',",
     "  'originalLanguage must be a human language name. englishTranslation must be English, or the original text when already English. matchedTerms must list exact offending words or phrases.',",
     '  RULE_GUIDE,',
@@ -36,6 +40,7 @@ function patchAiModeration(source) {
   text = replaceAll(text, 'max_tokens: 60', 'max_tokens: 180');
   text = replaceAll(text, 'max_tokens: 120', 'max_tokens: 180');
   text = replaceAll(text, 'store: false', 'store: true');
+  text = replaceAll(text, 'return reason.slice(0, 180);', 'return reason.slice(0, 120);');
   text = text.replace(
     /required: \[[^\]]*'reason'[^\]]*\],/,
     "required: ['flagged', 's', 'rules', 'reason', 'originalLanguage', 'englishTranslation', 'matchedTerms'],",
@@ -82,3 +87,4 @@ fs.readFileSync = function readFileSyncWithAiPromptSyntaxFix(filePath, options) 
 };
 
 module.exports = {};
+
