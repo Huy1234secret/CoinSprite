@@ -333,6 +333,7 @@
   const DEFAULTS = [
     ['default-ai-moderation-alert', 'Default: AI moderation alert', '1 container'],
     ['default-ai-moderation-user-warning', 'Default: AI moderation user warning', '1 container'],
+    ['default-link-auto-moderation-alert', 'Default: Link Auto-Moderator alert', '1 container'],
   ];
 
   function defaultsActive(root) {
@@ -343,7 +344,7 @@
   function card([id, name, meta]) {
     return `<button class="message-template-card bot-default-template-card" type="button" data-message-action="open" data-id="${id}">
       <span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span>
-      <span><strong>${name}</strong><small>${meta}</small></span><span class="message-card-arrow">›</span>
+      <span><strong>${name}</strong><small>${meta}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span>
     </button>`;
   }
 
