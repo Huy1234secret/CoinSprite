@@ -1,5 +1,5 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
-const { analyzeModerationMessage } = require('../src/aiModeration');
+const { analyzeModerationBatch } = require('../src/aiModeration');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
 const { saveMessageScreenshot } = require('../src/messageScreenshot');
@@ -8,6 +8,9 @@ const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
 const DEFAULT_MAX_AI_CHARS = 4000;
 const SEVERE_AI_THRESHOLD = 8;
+const MODERATION_BATCH_SIZE = 10;
+const MODERATION_CONTEXT_SIZE = 20;
+const moderationBatchQueues = new Map();
 
 function uniqueIds(value) {
   return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
@@ -39,20 +42,38 @@ function messageModerationText(message) {
   return String(message?.content || '').trim();
 }
 
-async function recentModerationContext(message, limit = 10) {
-  const fetchMessages = message?.channel?.messages?.fetch;
-  if (typeof fetchMessages !== 'function') return '';
-  const fetched = await fetchMessages.call(message.channel.messages, { before: message.id, limit }).catch(() => null);
+function moderationAuthor(message) {
+  return String(message?.member?.displayName || message?.author?.username || 'User')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function numberedModerationLine(kind, index, message) {
+  const text = messageModerationText(message).replace(/\s+/g, ' ').trim();
+  return `${kind} ${index}# ${moderationAuthor(message)}: ${text}`;
+}
+
+async function previousModerationContext(firstMessage) {
+  const fetchMessages = firstMessage?.channel?.messages?.fetch;
+  if (typeof fetchMessages !== 'function') return [];
+  const fetched = await fetchMessages.call(firstMessage.channel.messages, {
+    before: firstMessage.id,
+    limit: 50,
+  }).catch(() => null);
   return collectionValues(fetched)
+    .filter((entry) => !entry?.author?.bot && messageModerationText(entry))
     .sort((left, right) => Number(left?.createdTimestamp || 0) - Number(right?.createdTimestamp || 0))
-    .map((entry) => {
-      const text = messageModerationText(entry);
-      if (!text) return '';
-      const author = String(entry?.member?.displayName || entry?.author?.username || 'User').replace(/\s+/g, ' ').trim();
-      return `- ${author}: ${text.replace(/\s+/g, ' ').trim()}`;
-    })
-    .filter(Boolean)
-    .join('\n');
+    .slice(-MODERATION_CONTEXT_SIZE);
+}
+
+function moderationBatchInput(contextMessages, targetMessages) {
+  return [
+    `Context (previous ${contextMessages.length}; reference only, do not judge):`,
+    ...contextMessages.map((message, index) => numberedModerationLine('Context', index + 1, message)),
+    '',
+    'Messages to check (judge only these ten):',
+    ...targetMessages.map((message, index) => numberedModerationLine('Message', index + 1, message)),
+  ].join('\n');
 }
 
 function moderationMessagePreview(message, max = 900) {
@@ -232,6 +253,72 @@ async function sendModerationAlert(message, result, settings) {
   return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId, screenshot);
 }
 
+async function processModerationBatch(targetMessages) {
+  if (targetMessages.length !== MODERATION_BATCH_SIZE) return;
+  const firstMessage = targetMessages[0];
+  const settings = moderationConfig(firstMessage.guildId);
+  if (!settings.enabled || !shouldScanChannel(firstMessage, settings)) return;
+
+  const contextMessages = await previousModerationContext(firstMessage);
+  const batchInput = moderationBatchInput(contextMessages, targetMessages);
+  debugModeration(
+    firstMessage,
+    'batch-check',
+    `targets=${targetMessages.length} context=${contextMessages.length} chars=${batchInput.length}`,
+  );
+
+  const results = await analyzeModerationBatch(
+    targetMessages.map((message) => messageModerationText(message)),
+    {
+      guildId: firstMessage.guildId,
+      channelId: firstMessage.channelId,
+      batchInput,
+    },
+  );
+
+  for (const result of results) {
+    const message = targetMessages[result.batchIndex - 1];
+    if (!message || !result.flagged || hasExcludedRole(message, settings)) continue;
+    const logChannelId = moderationLogChannelId(result, settings);
+    if (!logChannelId) {
+      debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
+      continue;
+    }
+    debugModeration(
+      message,
+      'batch-result',
+      `index=${result.batchIndex} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
+    );
+    await sendModerationAlert(message, result, settings);
+  }
+}
+
+async function drainModerationBatchQueue(key, state) {
+  if (state.processing) return;
+  state.processing = true;
+  try {
+    while (state.pending.length >= MODERATION_BATCH_SIZE) {
+      const batch = state.pending.splice(0, MODERATION_BATCH_SIZE);
+      await processModerationBatch(batch);
+    }
+  } catch (error) {
+    console.error('AI moderation batch failed:', error);
+  } finally {
+    state.processing = false;
+    if (!state.pending.length) moderationBatchQueues.delete(key);
+    else if (state.pending.length >= MODERATION_BATCH_SIZE) void drainModerationBatchQueue(key, state);
+  }
+}
+
+function enqueueModerationMessage(message) {
+  const key = `${message.guildId}:${message.channelId}`;
+  const state = moderationBatchQueues.get(key) || { pending: [], processing: false };
+  if (!moderationBatchQueues.has(key)) moderationBatchQueues.set(key, state);
+  state.pending.push(message);
+  if (state.pending.length >= MODERATION_BATCH_SIZE) return drainModerationBatchQueue(key, state);
+  return Promise.resolve();
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('moderator')
@@ -266,38 +353,12 @@ module.exports = {
       debugModeration(message, 'skip', 'reason=disabled');
       return;
     }
-
-    const recentContext = await recentModerationContext(message);
-    debugModeration(message, 'check', `chars=${moderationText.length} contextChars=${recentContext.length}`);
-    const result = await analyzeModerationMessage(moderationText, {
-      guildId: message.guildId,
-      channelId: message.channelId,
-      userId: message.author.id,
-      maxInputChars: settings.maxInputChars,
-      recentContext,
-    });
-    debugModeration(
-      message,
-      'result',
-      `flagged=${Boolean(result.flagged)} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`,
-    );
-
-    if (!result.flagged) return;
-    const logChannelId = moderationLogChannelId(result, settings);
-    if (!logChannelId) {
-      debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
-      return;
-    }
-    debugModeration(message, 'alert-route', `channel=${logChannelId} severity=${formatSeverityScore(result.severityScore)}`);
     if (!shouldScanChannel(message, settings)) {
-      debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
-      return;
-    }
-    if (hasExcludedRole(message, settings)) {
-      debugModeration(message, 'alert-skip', 'reason=excluded-role');
+      debugModeration(message, 'skip', 'reason=outside-channel-scope');
       return;
     }
 
-    await sendModerationAlert(message, result, settings);
+    debugModeration(message, 'queue', `batch-size=${MODERATION_BATCH_SIZE}`);
+    await enqueueModerationMessage(message);
   },
 };
