@@ -612,6 +612,8 @@
   window.addEventListener('scroll', closePopover, true);
   qs('#saveButton')?.addEventListener('mousedown', () => finishEditor(true), true);
   qs('#resetTabButton')?.addEventListener('mousedown', () => { finishEditor(false); closePopover(); }, true);
+  window.__coinSpriteMessagesTabSyncInit = true;
+  ensureMessagesTab();
   new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
   schedule();
 })();
