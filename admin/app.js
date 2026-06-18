@@ -62,6 +62,7 @@ const elements = {
   levelUpTokens: document.querySelector('#levelUpTokens'),
   levelUpContent: document.querySelector('#levelUpContent'),
   levelUpPreviewLevel: document.querySelector('#levelUpPreviewLevel'),
+  levelUpPreview: document.querySelector('#levelUpPreview'),
   levelUpPreviewContainer: document.querySelector('#levelUpPreviewContainer'),
   levelUpPreviewBody: document.querySelector('#levelUpPreviewBody'),
   levelUpPreviewImage: document.querySelector('#levelUpPreviewImage'),
@@ -589,6 +590,27 @@ function renderLevelUpPreview() {
   const context = previewContext();
   const content = renderPreviewTemplate(getField('xp.levelUpMessage.content'), context);
   const thumbnailUrl = safePreviewMediaUrl(getField('xp.levelUpMessage.thumbnailUrl'), context);
+  const imageUrl = safePreviewMediaUrl(getField('xp.levelUpMessage.imageUrl'), context);
+  if (elements.levelUpPreview && window.CoinSpriteMessageEditor?.renderPreview) {
+    elements.levelUpPreview.innerHTML = window.CoinSpriteMessageEditor.renderPreview({
+      content: '',
+      containers: [{
+        accentColor: getField('xp.levelUpMessage.accentColor') || '#57f287',
+        text: content,
+        thumbnailUrl,
+        imageUrl,
+      }],
+    }, {
+      hideEmptyRoot: true,
+      containerClass: 'level-up-message-preview',
+      containerId: 'levelUpPreviewContainer',
+      bodyId: 'levelUpPreviewBody',
+    });
+    elements.levelUpPreviewContainer = elements.levelUpPreview.querySelector('#levelUpPreviewContainer');
+    elements.levelUpPreviewBody = elements.levelUpPreview.querySelector('#levelUpPreviewBody');
+    elements.levelUpPreviewImage = null;
+    return;
+  }
   const rawSections = content.split(/<separator>/gi).map((section) => section.trim()).filter(Boolean);
   const sections = rawSections.length > 18
     ? [...rawSections.slice(0, 17), rawSections.slice(17).join('\n\n')]
@@ -615,10 +637,11 @@ function renderLevelUpPreview() {
     elements.levelUpPreviewBody.append(row);
   });
   elements.levelUpPreviewContainer.style.setProperty('--preview-accent', getField('xp.levelUpMessage.accentColor') || '#57f287');
-  const imageUrl = safePreviewMediaUrl(getField('xp.levelUpMessage.imageUrl'), context);
   elements.levelUpPreviewImage.hidden = !imageUrl;
   if (imageUrl) elements.levelUpPreviewImage.src = imageUrl;
 }
+
+window.addEventListener('coinsprite:message-editor-ready', renderLevelUpPreview);
 
 function renderBoostRows() {
   const options = roleOptions();
