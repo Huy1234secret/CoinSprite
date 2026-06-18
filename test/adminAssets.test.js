@@ -91,6 +91,7 @@ test('dashboard style replaces broken tab images with stable symbols', async () 
   assert.match(source, /> img\.tab-icon/);
   assert.match(source, /display:\s*none !important/);
   assert.match(source, /--tab-icon-symbol:\s*"🛡"/);
+  assert.match(source, /\.tab\[data-tab="moderator"\]::before\s*{[^}]*content:\s*"🛡"/s);
   assert.match(source, /rgba\(188, 120, 255, 0\.72\)/);
   assert.doesNotMatch(source, /content:\s*none !important/);
 });
@@ -114,4 +115,11 @@ test('dashboard keeps runtime image handlers but renders symbol tab icons', () =
   assert.match(runtimeIcons, /--tab-icon-symbol: "🛡"/);
   assert.match(runtimeIcons, /> img\.tab-icon/);
   assert.doesNotMatch(runtimeIcons, /content: none !important/);
+});
+
+test('tab icon fixes stay in the main runtime file without browser icon watchers', () => {
+  const runtimeIcons = fs.readFileSync(path.join(root, 'commands', '00-admin-runtime-icons.js'), 'utf8');
+  assert.equal(fs.existsSync(path.join(root, 'commands', '08-admin-root-icon-assets.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'commands', '09-admin-moderator-symbol-square.js')), false);
+  assert.doesNotMatch(runtimeIcons, /MutationObserver|repairTabIcons|ensureModeratorSymbolSquare/);
 });
