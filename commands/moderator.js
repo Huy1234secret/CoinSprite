@@ -7,8 +7,6 @@ const { saveMessageScreenshot } = require('../src/messageScreenshot');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
 const DEFAULT_MAX_AI_CHARS = 300;
-const LOW_AI_LOG_CHANNEL_ID = '1516856053751353464';
-const SEVERE_AI_LOG_CHANNEL_ID = '1516855502749962420';
 const SEVERE_AI_THRESHOLD = 8;
 
 function uniqueIds(value) {
@@ -18,9 +16,11 @@ function uniqueIds(value) {
 function moderationConfig(guildId) {
   const config = getGuildConfig(guildId);
   const ai = config?.moderation?.ai || {};
+  const legacyLogChannelId = String(ai.logChannelId || '');
   return {
     enabled: Boolean(ai.enabled),
-    logChannelId: String(ai.logChannelId || ''),
+    lowSeverityLogChannelId: String(ai.lowSeverityLogChannelId || legacyLogChannelId),
+    severeLogChannelId: String(ai.severeLogChannelId || legacyLogChannelId),
     scanChannelIds: uniqueIds(ai.scanChannelIds),
     excludeRoleIds: uniqueIds(ai.excludeRoleIds),
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
@@ -94,6 +94,14 @@ function formatSeverityScore(value) {
 
 function isSevereModerationResult(result) {
   return Number(result?.severityScore) >= SEVERE_AI_THRESHOLD;
+}
+
+function moderationLogChannelId(result, settings) {
+  return String(
+    isSevereModerationResult(result)
+      ? settings.severeLogChannelId
+      : settings.lowSeverityLogChannelId,
+  ).trim();
 }
 
 function moderationValues(message, result, screenshot = null) {
@@ -207,18 +215,10 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
 }
 
 async function sendModerationAlert(message, result, settings) {
+  const channelId = moderationLogChannelId(result, settings);
+  if (!channelId) return false;
   const screenshot = await moderationScreenshot(message, result);
-  const sent = new Set();
-  const configuredChannelId = String(settings.logChannelId || '').trim();
-  if (configuredChannelId) {
-    sent.add(configuredChannelId);
-    await sendModerationAlertToChannel(message, result, settings.alertTemplateId, configuredChannelId, screenshot);
-  }
-
-  const fixedChannelId = isSevereModerationResult(result) ? SEVERE_AI_LOG_CHANNEL_ID : LOW_AI_LOG_CHANNEL_ID;
-  if (fixedChannelId && !sent.has(fixedChannelId)) {
-    await sendModerationAlertToChannel(message, result, settings.alertTemplateId, fixedChannelId, screenshot);
-  }
+  return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId, screenshot);
 }
 
 module.exports = {
@@ -236,9 +236,8 @@ module.exports = {
         'Minimum alert severity: 2/10',
         `Alert channels: ${settings.scanChannelIds.length ? settings.scanChannelIds.map((id) => `<#${id}>`).join(', ') : 'all text channels'}`,
         `Excluded roles: ${settings.excludeRoleIds.length ? settings.excludeRoleIds.map((id) => `<@&${id}>`).join(', ') : 'none'}`,
-        `Log channel: ${settings.logChannelId ? `<#${settings.logChannelId}>` : 'not set'}`,
-        `AI reports below 8/10: <#${LOW_AI_LOG_CHANNEL_ID}>`,
-        `AI severe reports 8-10/10: <#${SEVERE_AI_LOG_CHANNEL_ID}>`,
+        `AI reports below 8/10: ${settings.lowSeverityLogChannelId ? `<#${settings.lowSeverityLogChannelId}>` : 'not set'}`,
+        `AI severe reports 8-10/10: ${settings.severeLogChannelId ? `<#${settings.severeLogChannelId}>` : 'not set'}`,
         `AI input sent: up to ${settings.maxInputChars} characters, capped at ${DEFAULT_MAX_AI_CHARS}`,
         `AI provider: ${process.env.OPENAI_API_KEY ? 'OpenAI every message' : 'fallback scan only'}`,
         `Debug logs: ${moderationDebugEnabled() ? 'enabled' : 'off'}`,
@@ -271,9 +270,12 @@ module.exports = {
     );
 
     if (!result.flagged) return;
-    if (!settings.logChannelId) {
-      debugModeration(message, 'alert-route', `reason=no-configured-log-channel fixed=${isSevereModerationResult(result) ? SEVERE_AI_LOG_CHANNEL_ID : LOW_AI_LOG_CHANNEL_ID}`);
+    const logChannelId = moderationLogChannelId(result, settings);
+    if (!logChannelId) {
+      debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
+      return;
     }
+    debugModeration(message, 'alert-route', `channel=${logChannelId} severity=${formatSeverityScore(result.severityScore)}`);
     if (!shouldScanChannel(message, settings)) {
       debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
       return;
