@@ -6,9 +6,12 @@ const { PermissionFlagsBits } = require('discord.js');
 const { getGuildWorkflows, saveGuildWorkflows } = require('../src/requestControlWorkflows');
 
 const previousCreateServer = http.createServer.bind(http);
+const previousReadFile = fs.readFile.bind(fs);
 const previousLoad = Module._load;
-const ADMIN_APP_PATH = path.join(__dirname, '..', 'admin', 'app.js');
-const ADMIN_STYLE_PATH = path.join(__dirname, '..', 'admin', 'style.css');
+const ADMIN_APP_PATH = path.resolve(__dirname, '..', 'admin', 'app.js');
+const ADMIN_STYLE_PATH = path.resolve(__dirname, '..', 'admin', 'style.css');
+const ADMIN_BROWSER_MARKER = '__coinSpriteRequestWorkflowEditor';
+const ADMIN_STYLE_MARKER = '__coinSpriteRequestWorkflowEditorStyles';
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 let clientRef = null;
 
@@ -50,7 +53,9 @@ async function readBody(req) {
 
 function browserScript() {
   return String.raw`
-(() => {
+;(() => {
+  if (window.__coinSpriteRequestWorkflowEditor) return;
+  window.__coinSpriteRequestWorkflowEditor = true;
   let workflowGuildId = '';
   let workflows = {};
   let savedWorkflows = {};
@@ -350,17 +355,8 @@ function browserCss() {
 @media(max-width:760px){.request-condition-grid,.condition-action{grid-template-columns:1fr}.condition-actions .sequence-head{align-items:flex-start;flex-direction:column}}
 `;
 }
-function servePatched(res, filePath, contentType, append) {
-  fs.readFile(filePath, 'utf8', (error, source) => {
-    if (error) { sendJson(res, 404, { error: 'Not found.' }); return; }
-    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
-    res.end(`${source}\n${append}`);
-  });
-}
 async function handle(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (req.method === 'GET' && url.pathname === '/admin/app.js') { servePatched(res, ADMIN_APP_PATH, 'application/javascript; charset=utf-8', browserScript()); return true; }
-  if (req.method === 'GET' && url.pathname === '/admin/style.css') { servePatched(res, ADMIN_STYLE_PATH, 'text/css; charset=utf-8', browserCss()); return true; }
   const match = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/request-control-workflows$/);
   if (!match) return false;
   if (!await requireAdmin(req, res, match[1])) return true;
@@ -369,6 +365,28 @@ async function handle(req, res) {
   sendJson(res, 405, { error: 'Method not allowed.' });
   return true;
 }
+
+fs.readFile = function requestWorkflowAdminRead(filePath, ...args) {
+  const callback = args[args.length - 1];
+  if (typeof callback !== 'function') return previousReadFile(filePath, ...args);
+  args[args.length - 1] = (error, data) => {
+    if (error) {
+      callback(error, data);
+      return;
+    }
+    const resolved = path.resolve(String(filePath));
+    const isBuffer = Buffer.isBuffer(data);
+    let source = isBuffer ? data.toString('utf8') : String(data);
+    if (resolved === ADMIN_APP_PATH && !source.includes(ADMIN_BROWSER_MARKER)) {
+      source += `\n${browserScript()}`;
+    }
+    if (resolved === ADMIN_STYLE_PATH && !source.includes(ADMIN_STYLE_MARKER)) {
+      source += `\n/* ${ADMIN_STYLE_MARKER} */\n${browserCss()}`;
+    }
+    callback(null, isBuffer ? Buffer.from(source, 'utf8') : source);
+  };
+  return previousReadFile(filePath, ...args);
+};
 
 http.createServer = function requestWorkflowServer(listener) {
   return previousCreateServer((req, res) => {
