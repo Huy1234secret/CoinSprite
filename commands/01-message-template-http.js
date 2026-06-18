@@ -17,7 +17,7 @@ const originalCreateServer = http.createServer.bind(http);
 const previousLoad = Module._load;
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const INDEX_PATH = path.join(__dirname, '..', 'admin', 'index.html');
-const IMAGE_DIR = path.resolve(process.env.COINSPRITE_IMAGE_DIR || '/root/CoinSprite/images');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const IMAGE_ALIASES = new Map([
   ['leveling.png', 'leveling.png'],
   ['messages.png', 'message.png'],
