@@ -44,12 +44,13 @@
       const panel = document.createElement('section');
       panel.className = 'tab-panel';
       panel.dataset.panel = 'messages';
-      panel.innerHTML = '<div id="messageTemplatesRoot"></div>';
+      panel.innerHTML = '<div id="messageTemplatesRoot"><div class="message-editor"><div class="message-editor-head"><label><div class="message-template-symbol">💬</div><div><h3>Messages</h3><p>Manage message-related bot settings and templates.</p></div></label></div><div class="empty-state">Loading message templates...</div></div></div>';
       (qs('[data-panel="tickets"]', form) || form.lastElementChild)?.after(panel);
     }
     const messagesScriptScheduled = window.__coinSpriteMessageScriptsScheduled
       || qs('script[src^="/admin/messages.js"]');
     if (qs('#messageTemplatesRoot') && !messagesScriptScheduled) {
+      window.__coinSpriteMessageScriptsScheduled = true;
       const script = document.createElement('script');
       script.src = '/admin/messages.js';
       document.body.append(script);
