@@ -291,13 +291,13 @@
       }],
     }, { hideEmptyRoot: true, containerClass: 'ticket-preview' });
     return `
-      <div class="panel preview-panel shared-message-editor-panel">
+      <aside class="message-sticky-preview external-message-sticky-preview">
         <div class="panel-heading">
           <h3>Live preview</h3>
           <p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p>
         </div>
-        ${sharedPreview || `<div class="discord-preview"><div class="preview-container ticket-preview" style="--preview-accent:${escapeHtml(message.accentColor)}">${sections.map((section, index) => `${index ? '<div class="preview-separator"></div>' : ''}<div class="ticket-preview-text">${renderDiscordMarkdown(section)}</div>`).join('')}</div></div>`}
-      </div>
+        ${sharedPreview || `<div class="message-discord-preview"><div class="preview-container ticket-preview" style="--preview-accent:${escapeHtml(message.accentColor)}">${sections.map((section, index) => `${index ? '<div class="preview-separator"></div>' : ''}<div class="ticket-preview-text">${renderDiscordMarkdown(section)}</div>`).join('')}</div></div>`}
+      </aside>
     `;
   }
 
@@ -349,7 +349,7 @@
       const ticketType = currentType();
       const message = scope === 'launcher' ? editorState.config.launcherMessage : ticketType?.message;
       const textarea = root.querySelector(`textarea[data-message-scope="${scope}"]`);
-      const preview = textarea?.closest('.ticket-message-builder')?.querySelector('.preview-panel');
+      const preview = textarea?.closest('.ticket-message-builder')?.querySelector('.message-sticky-preview, .preview-panel');
       if (message && preview) preview.outerHTML = messagePreview(message, scope);
     }
 
