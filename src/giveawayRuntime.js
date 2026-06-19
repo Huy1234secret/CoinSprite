@@ -425,8 +425,18 @@ async function hydrateGiveaways() {
         continue;
       }
 
-      if (activeRound.expiresAt <= now()) await handleClaimWindowExpiry(giveaway.id, activeRound.roundNumber);
-      else scheduleRoundExpiry(giveaway, activeRound);
+      if (activeRound.expiresAt <= now()) {
+        try {
+          await handleClaimWindowExpiry(giveaway.id, activeRound.roundNumber);
+        } catch (error) {
+          console.error(`Overdue giveaway ${giveaway.id} recovery failed; retrying.`, error);
+          scheduleAt(claimTimerKey(giveaway.id, activeRound.roundNumber), now() + GIVEAWAY_RETRY_DELAY_MS, async () => {
+            await handleClaimWindowExpiry(giveaway.id, activeRound.roundNumber);
+          });
+        }
+      } else {
+        scheduleRoundExpiry(giveaway, activeRound);
+      }
     }
   }
 }
