@@ -16,24 +16,15 @@
       .tabs .tab[data-tab="tickets"],
       .tabs .tab[data-tab="moderator"],
       .tabs .tab[data-tab="messages"] { display: flex !important; align-items: center !important; gap: 12px !important; }
-      .tabs .tab[data-tab="leveling"] > img.tab-icon,
-      .tabs .tab[data-tab="data"] > img.tab-icon,
-      .tabs .tab[data-tab="tickets"] > img.tab-icon,
-      .tabs .tab[data-tab="moderator"] > img.tab-icon,
-      .tabs .tab[data-tab="messages"] > img.tab-icon,
-      .tabs .tab-image-icon,
-      .tabs .message-tab-icon { display: none !important; width: 0 !important; height: 0 !important; flex: 0 0 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; opacity: 0 !important; pointer-events: none !important; }
-      .tabs .tab[data-tab="leveling"]::before,
-      .tabs .tab[data-tab="data"]::before,
-      .tabs .tab[data-tab="tickets"]::before,
-      .tabs .tab[data-tab="moderator"]::before,
-      .tabs .tab[data-tab="messages"]::before { content: '' !important; display: block !important; width: 30px !important; height: 30px !important; flex: 0 0 30px !important; box-sizing: border-box !important; border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important; border-radius: 9px !important; background-color: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important; background-image: var(--tab-icon-image) !important; background-position: center !important; background-repeat: no-repeat !important; background-size: calc(100% - 8px) calc(100% - 8px) !important; }
-      .tabs .tab[data-tab="leveling"] { --tab-icon-bg: rgba(87, 242, 135, 0.18); --tab-icon-border: rgba(87, 242, 135, 0.72); --tab-icon-image: url('/admin/images/leveling.png?v=custom-icons-6'); }
-      .tabs .tab[data-tab="tickets"] { --tab-icon-bg: rgba(255, 76, 96, 0.18); --tab-icon-border: rgba(255, 76, 96, 0.72); --tab-icon-image: url('/admin/images/ticket.png?v=custom-icons-6'); }
-      .tabs .tab[data-tab="messages"] { --tab-icon-bg: rgba(72, 149, 239, 0.20); --tab-icon-border: rgba(99, 184, 255, 0.72); --tab-icon-image: url('/admin/images/message.png?v=custom-icons-6'); }
-      .tabs .tab[data-tab="data"] { --tab-icon-bg: rgba(185, 195, 210, 0.14); --tab-icon-border: rgba(205, 215, 230, 0.72); --tab-icon-image: url('/admin/images/data.png?v=custom-icons-6'); }
-      .tabs .tab[data-tab="moderator"] { --tab-icon-bg: rgba(155, 89, 182, 0.18); --tab-icon-border: rgba(188, 120, 255, 0.72); --tab-icon-image: url('/admin/images/moderator.png?v=custom-icons-6'); }
-      @media (max-width: 700px) { .tabs .tab[data-tab="leveling"]::before, .tabs .tab[data-tab="data"]::before, .tabs .tab[data-tab="tickets"]::before, .tabs .tab[data-tab="moderator"]::before, .tabs .tab[data-tab="messages"]::before { width: 26px !important; height: 26px !important; flex-basis: 26px !important; } }
+      .tabs .tab > img.tab-icon,
+      .tabs .tab > img.tab-image-icon,
+      .tabs .tab > img.message-tab-icon { display: block !important; width: 30px !important; height: 30px !important; max-width: 30px !important; max-height: 30px !important; flex: 0 0 30px !important; box-sizing: border-box !important; object-fit: contain !important; object-position: center !important; border: 2px solid var(--tab-icon-border, rgba(120, 150, 190, 0.72)) !important; border-radius: 9px !important; background-color: var(--tab-icon-bg, rgba(80, 110, 150, 0.14)) !important; box-shadow: none !important; filter: none !important; opacity: 1 !important; padding: 3px !important; transform: none !important; }
+      .tabs .tab[data-tab="leveling"] { --tab-icon-bg: rgba(87, 242, 135, 0.18); --tab-icon-border: rgba(87, 242, 135, 0.72); }
+      .tabs .tab[data-tab="tickets"] { --tab-icon-bg: rgba(255, 76, 96, 0.18); --tab-icon-border: rgba(255, 76, 96, 0.72); }
+      .tabs .tab[data-tab="messages"] { --tab-icon-bg: rgba(72, 149, 239, 0.20); --tab-icon-border: rgba(99, 184, 255, 0.72); }
+      .tabs .tab[data-tab="data"] { --tab-icon-bg: rgba(185, 195, 210, 0.14); --tab-icon-border: rgba(205, 215, 230, 0.72); }
+      .tabs .tab[data-tab="moderator"] { --tab-icon-bg: rgba(155, 89, 182, 0.18); --tab-icon-border: rgba(188, 120, 255, 0.72); }
+      @media (max-width: 700px) { .tabs .tab > img.tab-icon, .tabs .tab > img.tab-image-icon, .tabs .tab > img.message-tab-icon { width: 26px !important; height: 26px !important; max-width: 26px !important; max-height: 26px !important; flex-basis: 26px !important; } }
     `;
     document.head.append(style);
   }
