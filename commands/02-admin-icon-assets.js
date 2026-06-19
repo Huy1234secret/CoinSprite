@@ -8,17 +8,25 @@ const previousLoad = Module._load;
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ADMIN_BUNDLE_PATH = '/admin/admin.bundle.js';
-const ICONS = new Map([
-  ['/admin/images/leveling.png', { file: path.join(IMAGE_DIR, 'leveling.png'), type: 'image/png' }],
-  ['/admin/images/messages.png', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
-  ['/admin/images/message.png', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
-  ['/admin/images/message.svg', { file: path.join(IMAGE_DIR, 'message.png'), type: 'image/png' }],
-  ['/admin/images/ticket.png', { file: path.join(IMAGE_DIR, 'ticket.png'), type: 'image/png' }],
-  ['/admin/images/moderator.png', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
-  ['/admin/images/moderator.svg', { file: path.join(IMAGE_DIR, 'moderator.png'), type: 'image/png' }],
-  ['/admin/images/data.png', { file: path.join(IMAGE_DIR, 'data.png'), type: 'image/png' }],
-  ['/admin/images/data.svg', { file: path.join(IMAGE_DIR, 'data.png'), type: 'image/png' }],
-]);
+const ICON_FILES = Object.freeze({
+  'leveling.png': 'leveling.png',
+  'messages.png': 'message.png',
+  'message.png': 'message.png',
+  'message.svg': 'message.png',
+  'ticket.png': 'ticket.png',
+  'moderator.png': 'moderator.png',
+  'moderator.svg': 'moderator.png',
+  'data.png': 'data.png',
+  'data.svg': 'data.png',
+});
+const ICONS = new Map(
+  ['/CoinSprite/images/', '/admin/images/', '/images/'].flatMap((prefix) => (
+    Object.entries(ICON_FILES).map(([publicName, fileName]) => [
+      `${prefix}${publicName}`,
+      { file: path.join(IMAGE_DIR, fileName), type: 'image/png' },
+    ])
+  )),
+);
 let clientRef = null;
 
 function notFound(res) {
