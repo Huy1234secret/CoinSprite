@@ -488,7 +488,7 @@
   function templateCard(item, kind = 'template') {
     const isFolder = kind === 'folder' || item.type === 'folder';
     const isDefault = Boolean(item.botDefault || item.defaultLocked);
-    const icon = isFolder ? '📁' : '<img src="/admin/images/message.png?v=custom-icons-4" alt="" aria-hidden="true">';
+    const icon = isFolder ? '📁' : '<img src="/admin/images/message.png" alt="" aria-hidden="true">';
     const action = isFolder ? 'folder-open' : 'open';
     const meta = isFolder ? 'Folder' : `${(item.containers || []).length} container${(item.containers || []).length === 1 ? '' : 's'}`;
     return `<button class="message-template-card ${isFolder ? 'message-folder-card' : ''}${isDefault ? ' message-default-card' : ''}" type="button" data-message-action="${action}" data-id="${escapeHtml(item.id)}">

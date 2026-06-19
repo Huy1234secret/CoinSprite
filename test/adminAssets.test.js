@@ -73,9 +73,9 @@ test('admin HTML keeps direct CoinSprite image URLs', async () => {
   const response = await fetch(`${origin}/admin`);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /src="\/CoinSprite\/images\/leveling\.png\?v=custom-icons-7/);
-  assert.match(html, /src="\/CoinSprite\/images\/data\.png\?v=custom-icons-7/);
-  assert.match(html, /src="\/CoinSprite\/images\/ticket\.png\?v=custom-icons-7/);
+  assert.match(html, /src="\/CoinSprite\/images\/leveling\.png/);
+  assert.match(html, /src="\/CoinSprite\/images\/data\.png/);
+  assert.match(html, /src="\/CoinSprite\/images\/ticket\.png/);
   assert.doesNotMatch(html, /CoinSpritedata:image/);
 });
 
@@ -84,6 +84,23 @@ test('icon assets are not rewritten into data URLs', () => {
   const adminServer = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
   assert.doesNotMatch(iconAssets, /inlineIconUrls|data:image\/png;base64/);
   assert.doesNotMatch(adminServer, /inlineRuntimeIconUrls|data:image\/png;base64/);
+});
+
+test('tab images use exact repository file paths without custom query suffixes', () => {
+  const sources = [
+    'admin/index.html',
+    'admin/app.js',
+    'admin/user-data.js',
+    'admin/moderator.js',
+    'admin/messages.js',
+    'admin/message-inline-editor.js',
+    'commands/01-message-template-http.js',
+    'commands/02-admin-icon-assets.js',
+  ];
+  for (const relativePath of sources) {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    assert.doesNotMatch(source, /\?v=custom-icons-/i, relativePath);
+  }
 });
 
 test('bootstrap displays image-backed tab icons instead of placeholder squares', () => {
