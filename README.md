@@ -70,7 +70,7 @@ Use these in a guild text channel:
 ## Console-style `!` Commands (Discord message commands)
 Use in a guild channel with Administrator permission:
 - `!RI {userID}` (or `!IR {userID}`)
-- `!DM {userID} {message} {yes/no}`
+- `!DM [userID1,userID2,...] {message} {yes/no}` - Sends the message to up to 25 users; `yes` mentions each recipient and `no` sends plain text. A single unbracketed user ID remains supported.
 - `!add/remove {userID} {item} {amount}`
 - `!blacklist add/remove {userID} {reason}`
 - `!invitee-blacklist add/remove {userID} {reason}`
