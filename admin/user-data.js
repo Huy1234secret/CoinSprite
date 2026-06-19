@@ -15,7 +15,7 @@
       image.setAttribute('aria-hidden', 'true');
       button.prepend(image);
     }
-    if (image.getAttribute('src') !== '/CoinSprite/images/data.png') image.src = '/CoinSprite/images/data.png';
+    if (image.getAttribute('src') !== 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/data.png') image.src = 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/data.png';
   }
 
   function ensureTicketBlacklistField() {
