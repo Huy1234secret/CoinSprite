@@ -1,5 +1,6 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { analyzeModerationMessage } = require('../src/aiModeration');
+const { moderationIgnoreReason } = require('../src/moderationMessageFilter');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
 const { saveMessageScreenshot } = require('../src/messageScreenshot');
@@ -115,8 +116,8 @@ function applyModerationPlaceholders(template, message, result, screenshot = nul
   return copy;
 }
 
-function shouldSkipMessage(message, moderationText) {
-  return !message?.guild || message.__coinSpriteAutoModerated || message.author?.bot || !String(moderationText || '').trim();
+function shouldSkipMessage(message) {
+  return !message?.guild || message.__coinSpriteAutoModerated || message.author?.bot;
 }
 
 function shouldScanChannel(message, settings) {
@@ -216,8 +217,13 @@ module.exports = {
 
   async handleMessageCreate(message) {
     const moderationText = messageModerationText(message);
-    if (shouldSkipMessage(message, moderationText)) {
+    if (shouldSkipMessage(message)) {
       debugModeration(message, 'skip', `reason=basic-filter textChars=${moderationText.length}`);
+      return;
+    }
+    const ignoreReason = moderationIgnoreReason(message, moderationText);
+    if (ignoreReason) {
+      debugModeration(message, 'skip', `reason=${ignoreReason} textChars=${moderationText.length}`);
       return;
     }
     const settings = moderationConfig(message.guildId);
