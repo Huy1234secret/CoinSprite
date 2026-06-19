@@ -52,3 +52,10 @@ test('reroll closes the old round only after its replacement message exists', ()
   assert.ok(reroll.indexOf('await createClaimRound(giveaway, winnerIds);') >= 0);
   assert.ok(reroll.lastIndexOf("round.status = 'rerolled';") > reroll.indexOf('await createClaimRound(giveaway, winnerIds);'));
 });
+
+
+test('overdue giveaway recovery retries after startup failures', () => {
+  const runtime = fs.readFileSync(path.join(root, 'src', 'giveawayRuntime.js'), 'utf8');
+  assert.match(runtime, /Overdue giveaway \$\{giveaway\.id\} recovery failed; retrying/);
+  assert.match(runtime, /scheduleAt\(claimTimerKey\(giveaway\.id, activeRound\.roundNumber\), now\(\) \+ GIVEAWAY_RETRY_DELAY_MS/);
+});
