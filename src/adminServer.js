@@ -211,15 +211,19 @@ function serveRuntimeIcon(res, requestedPath) {
   }
 
   const runtimePath = path.join(RUNTIME_IMAGE_DIR, runtimeName);
-  fs.readFile(runtimePath, (error, data) => {
-    if (error) {
-      send(res, 404, 'Icon not found');
-      return;
-    }
-    send(res, 200, data, {
+  const stream = fs.createReadStream(runtimePath);
+  let opened = false;
+  stream.once('open', () => {
+    opened = true;
+    res.writeHead(200, {
       'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'no-store',
     });
+    stream.pipe(res);
+  });
+  stream.once('error', () => {
+    if (!opened && !res.headersSent) send(res, 404, 'Icon not found');
+    else res.destroy();
   });
 }
 
