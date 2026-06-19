@@ -67,12 +67,29 @@ test('bootstrap displays image-backed tab icons instead of placeholder squares',
   const bootstrap = fs.readFileSync(path.join(root, 'admin', 'bootstrap.js'), 'utf8');
   assert.match(bootstrap, /coinSpriteTabImageStyle/);
   assert.match(bootstrap, /data-tab="moderator"/);
-  assert.match(bootstrap, /> img\\.tab-icon/);
+  assert.match(bootstrap, /> img\.tab-icon/);
   assert.match(bootstrap, /display:\\s*block !important/);
   assert.doesNotMatch(bootstrap, /display:\\s*none !important/);
   assert.doesNotMatch(bootstrap, /background-image:\\s*var\\(--tab-icon-image\\)/);
   assert.match(bootstrap, /object-fit:\\s*contain !important/);
   assert.match(bootstrap, /rgba\\(188, 120, 255, 0\\.72\\)/);
+});
+
+test('sidebar icons use the CoinSprite image route and define a favicon', () => {
+  const iconSources = [
+    'admin/index.html',
+    'admin/app.js',
+    'admin/user-data.js',
+    'admin/moderator.js',
+    'admin/message-inline-editor.js',
+  ];
+  for (const relativePath of iconSources) {
+    const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
+    assert.doesNotMatch(source, /\/admin\/images\//, relativePath);
+    assert.match(source, /\/CoinSprite\/images\//, relativePath);
+  }
+  const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
+  assert.match(index, /<link rel="icon" href="data:image\/svg\+xml,/);
 });
 
 test('old runtime icon patch stays disabled', () => {
