@@ -1185,11 +1185,11 @@ loadSession();
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
-      leveling: '/admin/images/leveling.png?v=custom-icons-4',
-      data: '/admin/images/data.png?v=custom-icons-4',
-      tickets: '/admin/images/ticket.png?v=custom-icons-4',
-      moderator: '/admin/images/moderator.png?v=custom-icons-4',
-      messages: '/admin/images/message.png?v=custom-icons-4',
+      leveling: '/CoinSprite/images/leveling.png?v=custom-icons-4',
+      data: '/CoinSprite/images/data.png?v=custom-icons-4',
+      tickets: '/CoinSprite/images/ticket.png?v=custom-icons-4',
+      moderator: '/CoinSprite/images/moderator.png?v=custom-icons-4',
+      messages: '/CoinSprite/images/message.png?v=custom-icons-4',
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);
@@ -1918,7 +1918,7 @@ loadSession();
   }
   function installTabIcon(tabName, filename, label) {
     const tab = document.querySelector(`.tab[data-tab="${tabName}"]`); if (!tab) return;
-    tab.querySelector('.tab-image-icon')?.remove(); const image = document.createElement('img'); image.className = 'tab-image-icon'; image.src = `/admin/images/${filename}`; image.alt = ''; image.title = label; tab.prepend(image);
+    tab.querySelector('.tab-image-icon')?.remove(); const image = document.createElement('img'); image.className = 'tab-image-icon'; image.src = `/CoinSprite/images/${filename}`; image.alt = ''; image.title = label; tab.prepend(image);
   }
   function renderDashboard() {
     document.querySelector('[data-tab="invites"]')?.remove(); document.querySelector('[data-panel="invites"]')?.remove();
