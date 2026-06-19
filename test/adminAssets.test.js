@@ -58,9 +58,18 @@ test('custom tab image assets are served from every public prefix', async () => 
       const response = await fetch(`${origin}${prefix}${filename}?v=test`);
       assert.equal(response.status, 200, `${prefix}${filename}`);
       assert.ok((response.headers.get('content-type') || '').startsWith('image/'), `${prefix}${filename}`);
-      assert.ok((await response.arrayBuffer()).byteLength > 0, `${prefix}${filename}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      assert.ok(bytes.byteLength > 0, `${prefix}${filename}`);
+      assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], `${prefix}${filename} PNG signature`);
     }
   }
+});
+
+test('image routes stream original files without patched fs.readFile', () => {
+  const iconAssets = fs.readFileSync(path.join(root, 'commands', '02-admin-icon-assets.js'), 'utf8');
+  const adminServer = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
+  assert.match(iconAssets, /fs\.createReadStream\(icon\.file\)/);
+  assert.match(adminServer, /fs\.createReadStream\(runtimePath\)/);
 });
 
 test('primary admin asset layer owns the CoinSprite image prefix', () => {
