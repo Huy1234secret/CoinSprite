@@ -7,26 +7,53 @@ function canUseDmCommand(member) {
   return Boolean(member?.permissions?.has(PermissionFlagsBits.Administrator));
 }
 
-function parsePrefixDm(content) {
-  const match = String(content || '').match(/^!dm\s+(\d{16,20})\s+([\s\S]+)$/i);
-  if (!match) return null;
-  let text = match[2].trim();
-  let deleteInvoker = false;
-  const flag = text.match(/\s+(yes|no)$/i);
-  if (flag) {
-    deleteInvoker = flag[1].toLowerCase() === 'yes';
-    text = text.slice(0, flag.index).trim();
-  }
-  return { userId: match[1], text, deleteInvoker };
+const MAX_PREFIX_RECIPIENTS = 25;
+
+function prefixDmUsage() {
+  return 'Usage: `!DM [userId1,userId2] message yes|no` (`yes` mentions each recipient).';
 }
 
-async function sendDm(client, userId, text) {
+function parsePrefixDm(content) {
+  const command = String(content || '').trim();
+  if (!/^!dm(?:\s|$)/i.test(command)) return null;
+
+  const match = command.match(/^!dm\s+(\[[^\]]*\]|\S+)\s+([\s\S]*?)\s+(yes|no)$/i);
+  if (!match) return { error: prefixDmUsage() };
+
+  const recipientToken = match[1];
+  const rawIds = recipientToken.startsWith('[') && recipientToken.endsWith(']')
+    ? recipientToken.slice(1, -1).split(',').map((value) => value.trim())
+    : [recipientToken.trim()];
+  const userIds = [...new Set(rawIds.filter(Boolean))];
+  const invalidIds = userIds.filter((userId) => !USER_ID_PATTERN.test(userId));
+  if (!userIds.length) return { error: 'At least one Discord user ID is required.' };
+  if (invalidIds.length) return { error: `Invalid Discord user ID(s): ${invalidIds.join(', ')}` };
+  if (userIds.length > MAX_PREFIX_RECIPIENTS) {
+    return { error: `You can DM at most ${MAX_PREFIX_RECIPIENTS} users at once.` };
+  }
+
+  const text = match[2].trim();
+  if (!text) return { error: 'Message text is required.' };
+  return {
+    userIds,
+    text,
+    mentionUsers: match[3].toLowerCase() === 'yes',
+  };
+}
+
+async function sendDm(client, userId, text, mentionUser = false) {
   if (!USER_ID_PATTERN.test(String(userId || ''))) throw new Error('Invalid user ID.');
   const clean = String(text || '').trim();
   if (!clean) throw new Error('Message text is required.');
+
+  const prefix = mentionUser ? `<@${userId}> ` : '';
+  if (prefix.length + clean.length > 2000) throw new Error('Message is too long for Discord.');
   const user = await client.users.fetch(userId).catch(() => null);
   if (!user) throw new Error('Could not find that Discord user.');
-  await user.send({ content: clean.slice(0, 2000), allowedMentions: { parse: [] } });
+  await user.send({
+    content: `${prefix}${clean}`,
+    allowedMentions: mentionUser ? { parse: [], users: [userId] } : { parse: [] },
+  });
   return user;
 }
 
@@ -67,14 +94,28 @@ module.exports = {
       await message.reply({ content: 'Only administrators can use `!DM`.' }).catch(() => null);
       return;
     }
-    try {
-      const user = await sendDm(client, parsed.userId, parsed.text);
-      await message.reply({ content: `DM sent to ${user.tag || user.username}.` }).catch(() => null);
-      if (parsed.deleteInvoker) await message.delete().catch(() => null);
-    } catch (error) {
-      await message.reply({ content: error?.message || 'Failed to send DM.' }).catch(() => null);
+    if (parsed.error) {
+      await message.reply({ content: parsed.error }).catch(() => null);
+      return;
     }
+
+    const sent = [];
+    const failed = [];
+    for (const userId of parsed.userIds) {
+      try {
+        const user = await sendDm(client, userId, parsed.text, parsed.mentionUsers);
+        sent.push(user.tag || user.username || userId);
+      } catch (error) {
+        failed.push(`${userId}: ${error?.message || 'Failed to send DM.'}`);
+      }
+    }
+
+    const summary = [
+      sent.length ? `DM sent to ${sent.length} user(s): ${sent.join(', ')}` : '',
+      failed.length ? `Failed (${failed.length}): ${failed.join('; ')}` : '',
+    ].filter(Boolean).join('\n');
+    await message.reply({ content: summary.slice(0, 2000) }).catch(() => null);
   },
 
-  __test: { parsePrefixDm },
+  __test: { parsePrefixDm, sendDm },
 };
