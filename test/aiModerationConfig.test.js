@@ -9,12 +9,12 @@ test('AI moderation uses the concise case-and-reason schema', () => {
   const ai = fs.readFileSync(path.join(root, 'src', 'aiModeration.js'), 'utf8');
   const prompt = ai.match(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/)?.[0] || '';
 
-  assert.match(prompt, /Judge Message using Context/);
+  assert.match(prompt, /Review only the target Message/);
   assert.match(prompt, /every language.*Burmese.*non-Latin scripts/i);
   assert.match(prompt, /flagged.*s.*case.*reason/s);
   assert.doesNotMatch(prompt, /matchedTerms|originalLanguage|englishTranslation/);
-  assert.match(ai, /required: \['flagged', 's', 'case', 'reason'\]/);
-  assert.match(ai, /Message:.*Context:/s);
+  assert.match(ai, /required: \['flagged', 's', 'case', 'reason', 'translated'\]/);
+  assert.match(ai, /const text = `Message: \$\{target\}/);
   assert.equal((ai.match(/store: true/g) || []).length, 2);
 });
 
