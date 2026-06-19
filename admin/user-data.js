@@ -15,7 +15,7 @@
       image.setAttribute('aria-hidden', 'true');
       button.prepend(image);
     }
-    if (image.getAttribute('src') !== '/CoinSprite/images/data.png?v=custom-icons-7') image.src = '/CoinSprite/images/data.png?v=custom-icons-7';
+    if (image.getAttribute('src') !== '/CoinSprite/images/data.png') image.src = '/CoinSprite/images/data.png';
   }
 
   function ensureTicketBlacklistField() {
