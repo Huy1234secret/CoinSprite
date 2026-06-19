@@ -63,13 +63,19 @@ test('custom tab image assets are served from every public prefix', async () => 
   }
 });
 
+test('primary admin asset layer owns the CoinSprite image prefix', () => {
+  const iconAssets = fs.readFileSync(path.join(root, 'commands', '02-admin-icon-assets.js'), 'utf8');
+  assert.match(iconAssets, /'\/CoinSprite\/images\/'/);
+  assert.match(iconAssets, /path\.join\(IMAGE_DIR, fileName\)/);
+});
+
 test('admin HTML keeps direct CoinSprite image URLs', async () => {
   const response = await fetch(`${origin}/admin`);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /src="\/CoinSprite\/images\/leveling\.png/);
-  assert.match(html, /src="\/CoinSprite\/images\/data\.png/);
-  assert.match(html, /src="\/CoinSprite\/images\/ticket\.png/);
+  assert.match(html, /src="\/CoinSprite\/images\/leveling\.png\?v=custom-icons-7/);
+  assert.match(html, /src="\/CoinSprite\/images\/data\.png\?v=custom-icons-7/);
+  assert.match(html, /src="\/CoinSprite\/images\/ticket\.png\?v=custom-icons-7/);
   assert.doesNotMatch(html, /CoinSpritedata:image/);
 });
 

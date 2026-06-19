@@ -37,7 +37,7 @@
       tab.className = 'tab';
       tab.type = 'button';
       tab.dataset.tab = 'messages';
-      tab.innerHTML = '<img class="tab-icon" src="/CoinSprite/images/message.png" alt="" aria-hidden="true"><span>Messages</span>';
+      tab.innerHTML = '<img class="tab-icon" src="/CoinSprite/images/message.png?v=custom-icons-7" alt="" aria-hidden="true"><span>Messages</span>';
       (qs('[data-tab="tickets"]', tabs) || tabs.lastElementChild)?.after(tab);
     }
     if (form && !qs('[data-panel="messages"]', form)) {

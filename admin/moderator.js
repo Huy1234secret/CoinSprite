@@ -3,7 +3,7 @@
   window.__coinSpriteModeratorTab = true;
 
   const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
-  const MODERATOR_TAB_HTML = '<img class="tab-icon" src="/CoinSprite/images/moderator.png?v=custom-icons-4" alt="" aria-hidden="true"><span>Moderator</span>';
+  const MODERATOR_TAB_HTML = '<img class="tab-icon" src="/CoinSprite/images/moderator.png?v=custom-icons-7" alt="" aria-hidden="true"><span>Moderator</span>';
   const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
   const DEFAULT_LINK_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
   const moderatorState = {
