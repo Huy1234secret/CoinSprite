@@ -10,6 +10,7 @@ test('AI moderation uses the concise case-and-reason schema', () => {
   const prompt = ai.match(/const SYSTEM_PROMPT = \[[\s\S]*?\]\.join\(' '\);/)?.[0] || '';
 
   assert.match(prompt, /Judge Message using Context/);
+  assert.match(prompt, /every language.*Burmese.*non-Latin scripts/i);
   assert.match(prompt, /flagged.*s.*case.*reason/s);
   assert.doesNotMatch(prompt, /matchedTerms|originalLanguage|englishTranslation/);
   assert.match(ai, /required: \['flagged', 's', 'case', 'reason'\]/);
