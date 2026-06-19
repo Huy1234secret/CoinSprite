@@ -423,7 +423,7 @@
 
   function defaultCard(template) {
     const count = Array.isArray(template.containers) ? template.containers.length : 0;
-    return `<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="${escapeHtml(template.id)}"><span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span><span><strong>${escapeHtml(template.name || template.id)}</strong><small>${count} container${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>`;
+    return `<button class="message-template-card message-default-card" type="button" data-message-action="open" data-id="${escapeHtml(template.id)}"><span class="message-template-symbol"><img src="https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/message.png" alt="" aria-hidden="true"></span><span><strong>${escapeHtml(template.name || template.id)}</strong><small>${count} container${count === 1 ? '' : 's'}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span></button>`;
   }
 
   function ensureDefaultMessages(host) {

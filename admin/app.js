@@ -1185,11 +1185,11 @@ loadSession();
   function cleanTabIcons() {
     document.querySelectorAll('.tab-image-icon, .message-tab-icon').forEach((image) => image.remove());
     const sources = {
-      leveling: '/CoinSprite/images/leveling.png',
-      data: '/CoinSprite/images/data.png',
-      tickets: '/CoinSprite/images/ticket.png',
-      moderator: '/CoinSprite/images/moderator.png',
-      messages: '/CoinSprite/images/message.png',
+      leveling: 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/leveling.png',
+      data: 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/data.png',
+      tickets: 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/ticket.png',
+      moderator: 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/moderator.png',
+      messages: 'https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/message.png',
     };
     Object.entries(sources).forEach(([tab, source]) => {
       const button = document.querySelector(`.tab[data-tab="${tab}"]`);

@@ -343,7 +343,7 @@
 
   function card([id, name, meta]) {
     return `<button class="message-template-card bot-default-template-card" type="button" data-message-action="open" data-id="${id}">
-      <span class="message-template-symbol"><img src="/admin/images/message.png" alt="" aria-hidden="true"></span>
+      <span class="message-template-symbol"><img src="https://raw.githubusercontent.com/Huy1234secret/CoinSprite/main/images/message.png" alt="" aria-hidden="true"></span>
       <span><strong>${name}</strong><small>${meta}</small></span><span class="message-card-folder-button message-card-edit-button">Edit</span><span class="message-card-arrow">›</span>
     </button>`;
   }
