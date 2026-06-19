@@ -16,6 +16,7 @@ test('AI moderation ignores only content-free message shapes', () => {
 
 test('AI moderation checks Burmese and mixed-content messages', () => {
   assert.equal(moderationIgnoreReason({}, 'စောက်ပေါပါကွာ'), '');
+  assert.equal(moderationIgnoreReason({}, 'do u guys think they will do a collaboration with hanimne in utdx'), '');
   assert.equal(moderationIgnoreReason({}, 'hello 😀'), '');
   assert.equal(moderationIgnoreReason({}, '<@123456789012345678> stop'), '');
   assert.equal(moderationIgnoreReason({}, 'https://example.com context'), '');
