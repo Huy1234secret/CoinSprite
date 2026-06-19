@@ -219,7 +219,7 @@ function injectedIndex() {
   ].join('\n'));
   html = html.replace(
     '<button class="tab" type="button" data-tab="games"><span>Games</span></button>',
-    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/admin/images/moderator.png?v=custom-icons-4" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/admin/images/message.png?v=custom-icons-4" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
+    '<button class="tab" type="button" data-tab="moderator"><img class="tab-icon" src="/CoinSprite/images/moderator.png?v=custom-icons-4" alt="" aria-hidden="true"><span>Moderator</span></button>\n        <button class="tab" type="button" data-tab="messages"><img class="tab-icon" src="/CoinSprite/images/message.png?v=custom-icons-4" alt="" aria-hidden="true"><span>Messages</span></button>\n        <button class="tab" type="button" data-tab="games"><span>Games</span></button>',
   );
   html = html.replace(
     '<section class="tab-panel" data-panel="games">',
@@ -249,8 +249,8 @@ async function handleTemplateRequest(req, res) {
     serveImageAsset(res, url.pathname.slice('/images/'.length));
     return true;
   }
-  if (req.method === 'GET' && url.pathname.startsWith('/admin/images/')) {
-    serveImageAsset(res, url.pathname.slice('/admin/images/'.length));
+  if (req.method === 'GET' && url.pathname.startsWith('/CoinSprite/images/')) {
+    serveImageAsset(res, url.pathname.slice('/CoinSprite/images/'.length));
     return true;
   }
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
