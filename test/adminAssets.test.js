@@ -63,14 +63,16 @@ test('custom tab image assets are served from every public prefix', async () => 
   }
 });
 
-test('bootstrap owns stable image-backed tab squares', () => {
+test('bootstrap displays image-backed tab icons instead of placeholder squares', () => {
   const bootstrap = fs.readFileSync(path.join(root, 'admin', 'bootstrap.js'), 'utf8');
   assert.match(bootstrap, /coinSpriteTabImageStyle/);
   assert.match(bootstrap, /data-tab="moderator"/);
-  assert.match(bootstrap, /moderator\.png\?v=custom-icons-6/);
-  assert.match(bootstrap, /display:\s*none !important/);
-  assert.match(bootstrap, /background-image:\s*var\(--tab-icon-image\) !important/);
-  assert.match(bootstrap, /rgba\(188, 120, 255, 0\.72\)/);
+  assert.match(bootstrap, /> img\\.tab-icon/);
+  assert.match(bootstrap, /display:\\s*block !important/);
+  assert.doesNotMatch(bootstrap, /display:\\s*none !important/);
+  assert.doesNotMatch(bootstrap, /background-image:\\s*var\\(--tab-icon-image\\)/);
+  assert.match(bootstrap, /object-fit:\\s*contain !important/);
+  assert.match(bootstrap, /rgba\\(188, 120, 255, 0\\.72\\)/);
 });
 
 test('old runtime icon patch stays disabled', () => {
