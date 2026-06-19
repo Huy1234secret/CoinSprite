@@ -7,6 +7,9 @@ const OPENAI_RESPONSES_API_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_CHAT_API_URL = 'https://api.openai.com/v1/chat/completions';
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_MAX_AI_CHARS = 4000;
+const DEFAULT_OPENAI_TIMEOUT_MS = 15000;
+const DEFAULT_OPENAI_MAX_ATTEMPTS = 2;
+const RETRYABLE_OPENAI_STATUSES = new Set([408, 409, 429, 500, 502, 503, 504]);
 const MIN_ALERT_SEVERITY_SCORE = 2;
 const SEVERITY_POINTS = Object.freeze({ minor: 2, major: 5, severe: 9 });
 const RULE_CASES = Object.freeze({
@@ -83,10 +86,20 @@ function aiDebugEnabled() {
   return ['1', 'true', 'yes', 'on'].includes(String(process.env.AI_MODERATION_DEBUG || '').toLowerCase());
 }
 
+let lastFinalAiErrorLogAt = 0;
+
 function logAiModerationError(label, error) {
   if (!aiDebugEnabled()) return;
   const message = compactWhitespace(error?.message || error || 'unknown error').slice(0, 600);
   console.warn(`[AI MODERATION] ${label} ${message}`);
+}
+
+function logFinalAiModerationError(error) {
+  const now = Date.now();
+  if (!aiDebugEnabled() && now - lastFinalAiErrorLogAt < 60000) return;
+  lastFinalAiErrorLogAt = now;
+  const message = compactWhitespace(error?.message || error || 'unknown error').slice(0, 600);
+  console.warn(`[AI MODERATION] OpenAI check failed; using local fallback. ${message}`);
 }
 
 function moderationSchema() {
@@ -249,17 +262,62 @@ function aiInputText(content, context = {}) {
   return text.length > maxInputChars ? text.slice(0, maxInputChars) : text;
 }
 
+function configuredOpenAiTimeoutMs() {
+  const configured = Number(process.env.OPENAI_MODERATION_TIMEOUT_MS);
+  if (!Number.isFinite(configured)) return DEFAULT_OPENAI_TIMEOUT_MS;
+  return Math.max(1000, Math.min(30000, configured));
+}
+
+function configuredOpenAiMaxAttempts() {
+  const configured = Number(process.env.OPENAI_MODERATION_MAX_ATTEMPTS);
+  if (!Number.isFinite(configured)) return DEFAULT_OPENAI_MAX_ATTEMPTS;
+  return Math.max(1, Math.min(3, Math.floor(configured)));
+}
+
+function isRetryableOpenAiError(error) {
+  if (RETRYABLE_OPENAI_STATUSES.has(Number(error?.status))) return true;
+  return error?.name === 'AbortError' || error instanceof TypeError;
+}
+
+function retryDelay(attempt) {
+  return new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+}
+
 async function postOpenAI(url, apiKey, body) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const bodyText = await response.text().catch(() => '');
-    throw new Error(`OpenAI request failed (${response.status}): ${bodyText.slice(0, 300)}`);
+  const maxAttempts = configuredOpenAiMaxAttempts();
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), configuredOpenAiTimeoutMs());
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const bodyText = await response.text().catch(() => '');
+        const error = new Error(`OpenAI request failed (${response.status}): ${bodyText.slice(0, 300)}`);
+        error.status = response.status;
+        throw error;
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error?.name === 'AbortError'
+        ? new Error(`OpenAI request timed out after ${configuredOpenAiTimeoutMs()}ms.`)
+        : error;
+      if (error?.name === 'AbortError') lastError.name = 'AbortError';
+      if (attempt >= maxAttempts || !isRetryableOpenAiError(lastError)) throw lastError;
+      logAiModerationError('retry', `attempt=${attempt} reason=${lastError.message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    await retryDelay(attempt);
   }
-  return response.json();
+
+  throw lastError || new Error('OpenAI request failed.');
 }
 
 async function analyzeWithResponsesApi(apiKey, model, input, context) {
@@ -313,6 +371,7 @@ async function analyzeModerationMessage(content, context = {}) {
     if (aiResult) return aiResult;
   } catch (error) {
     logAiModerationError('openai-error', error);
+    logFinalAiModerationError(error);
     if (fallback.flagged) {
       fallback.reason = compactWhitespace(`AI unavailable; ${fallback.reason || error.message}`).slice(0, 120);
       return fallback;
@@ -322,4 +381,9 @@ async function analyzeModerationMessage(content, context = {}) {
   return fallback.flagged ? fallback : cleanResult('local-skip');
 }
 
-module.exports = { analyzeModerationMessage, fallbackAnalyze, shouldUseAiModeration };
+module.exports = {
+  analyzeModerationMessage,
+  fallbackAnalyze,
+  shouldUseAiModeration,
+  __test: { isRetryableOpenAiError, postOpenAI },
+};
