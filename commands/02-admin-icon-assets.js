@@ -341,13 +341,16 @@ http.createServer = function adminAssetServer(listener) {
       listener(req, res);
       return;
     }
-    fs.readFile(icon.file, (error, data) => {
-      if (error) {
-        notFound(res);
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': icon.type, 'Cache-Control': 'public, max-age=3600' });
-      res.end(data);
+    const stream = fs.createReadStream(icon.file);
+    let opened = false;
+    stream.once('open', () => {
+      opened = true;
+      res.writeHead(200, { 'Content-Type': icon.type, 'Cache-Control': 'no-store' });
+      stream.pipe(res);
+    });
+    stream.once('error', () => {
+      if (!opened && !res.headersSent) notFound(res);
+      else res.destroy();
     });
   });
 };
