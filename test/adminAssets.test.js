@@ -63,6 +63,23 @@ test('custom tab image assets are served from every public prefix', async () => 
   }
 });
 
+test('admin HTML keeps direct CoinSprite image URLs', async () => {
+  const response = await fetch(`${origin}/admin`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /src="\/CoinSprite\/images\/leveling\.png/);
+  assert.match(html, /src="\/CoinSprite\/images\/data\.png/);
+  assert.match(html, /src="\/CoinSprite\/images\/ticket\.png/);
+  assert.doesNotMatch(html, /CoinSpritedata:image/);
+});
+
+test('icon assets are not rewritten into data URLs', () => {
+  const iconAssets = fs.readFileSync(path.join(root, 'commands', '02-admin-icon-assets.js'), 'utf8');
+  const adminServer = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
+  assert.doesNotMatch(iconAssets, /inlineIconUrls|data:image\/png;base64/);
+  assert.doesNotMatch(adminServer, /inlineRuntimeIconUrls|data:image\/png;base64/);
+});
+
 test('bootstrap displays image-backed tab icons instead of placeholder squares', () => {
   const bootstrap = fs.readFileSync(path.join(root, 'admin', 'bootstrap.js'), 'utf8');
   assert.match(bootstrap, /coinSpriteTabImageStyle/);
@@ -75,7 +92,7 @@ test('bootstrap displays image-backed tab icons instead of placeholder squares',
   assert.match(bootstrap, /rgba\(188, 120, 255, 0\.72\)/);
 });
 
-test('sidebar icons use the CoinSprite image route and define a favicon', () => {
+test('sidebar icons use CoinSprite images while branding uses the bot profile', () => {
   const iconSources = [
     'admin/index.html',
     'admin/app.js',
@@ -89,7 +106,8 @@ test('sidebar icons use the CoinSprite image route and define a favicon', () => 
     assert.match(source, /\/CoinSprite\/images\//, relativePath);
   }
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
-  assert.match(index, /<link rel="icon" href="data:image\/svg\+xml,/);
+  assert.match(index, /<link rel="icon" type="image\/png" href="\/bot-avatar\.png">/);
+  assert.match(index, /<img class="brand-mark" src="\/bot-avatar\.png"/);
 });
 
 test('old runtime icon patch stays disabled', () => {
