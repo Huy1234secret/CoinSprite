@@ -7,6 +7,7 @@ const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
+const DEFAULT_USER_WARNING_TEMPLATE_ID = 'default-ai-moderation-user-warning';
 const DEFAULT_MAX_AI_CHARS = 4000;
 const SEVERE_AI_THRESHOLD = 8;
 
@@ -190,6 +191,38 @@ async function sendModerationAlert(message, result, settings) {
   return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId, screenshot);
 }
 
+async function sendSevereUserWarning(message, result) {
+  if (!isSevereModerationResult(result) || typeof message?.reply !== 'function') return false;
+  const template = findTemplate(message.guildId, DEFAULT_USER_WARNING_TEMPLATE_ID);
+  try {
+    if (!template) {
+      await message.reply({
+        content: [
+          `${message.author}, your message was flagged by AI moderation.`,
+          `Severity: ${formatSeverityScore(result.severityScore)}/10`,
+          `Case: ${result.case || result.categories?.[0] || 'Rule violation'}`,
+          `Reason: ${result.reason || 'The message was flagged by moderation.'}`,
+        ].join('\n').slice(0, 2000),
+        allowedMentions: { parse: [], users: [message.author.id] },
+        failIfNotExists: false,
+      });
+      return true;
+    }
+
+    const payload = buildMessagePayload(applyModerationPlaceholders(template, message, result), {
+      guild: message.guild,
+      channel: message.channel,
+      user: message.author,
+      member: message.member,
+    });
+    await message.reply({ ...payload, failIfNotExists: false });
+    return true;
+  } catch (error) {
+    console.error('Severe AI moderation user warning failed:', error);
+    return false;
+  }
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('moderator')
@@ -244,15 +277,22 @@ module.exports = {
     });
     debugModeration(message, 'result', `flagged=${Boolean(result.flagged)} source=${result.source || 'unknown'} severity=${formatSeverityScore(result.severityScore)}`);
     if (!result.flagged) return;
+    if (!shouldScanChannel(message, settings)) {
+      debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
+      return;
+    }
+
+    if (isSevereModerationResult(result)) {
+      const warned = await sendSevereUserWarning(message, result);
+      debugModeration(message, warned ? 'user-warning' : 'user-warning-failed', `severity=${formatSeverityScore(result.severityScore)}`);
+    }
+
     const logChannelId = moderationLogChannelId(result, settings);
     if (!logChannelId) {
       debugModeration(message, 'alert-skip', `reason=no-configured-log-channel severity=${formatSeverityScore(result.severityScore)}`);
       return;
     }
-    if (!shouldScanChannel(message, settings)) {
-      debugModeration(message, 'alert-skip', 'reason=outside-alert-channel-scope');
-      return;
-    }
     await sendModerationAlert(message, result, settings);
   },
+  __test: { isSevereModerationResult, sendSevereUserWarning },
 };
