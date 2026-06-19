@@ -30,7 +30,6 @@ const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
 
 const sessions = new Map();
 const directoryCache = new Map();
-const iconDataUrlCache = new Map();
 let serverRef = null;
 
 function getEnv() {
@@ -154,6 +153,15 @@ function redirect(res, location) {
   send(res, 302, '', { Location: location });
 }
 
+function redirectBotAvatar(res, client) {
+  const avatarUrl = client?.user?.displayAvatarURL?.({ extension: 'png', size: 128 });
+  if (!avatarUrl) {
+    send(res, 404, 'Bot avatar not available');
+    return;
+  }
+  send(res, 302, '', { Location: avatarUrl, 'Cache-Control': 'no-store' });
+}
+
 function contentTypeFor(filePath) {
   if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
   if (filePath.endsWith('.js')) return 'application/javascript; charset=utf-8';
@@ -162,26 +170,6 @@ function contentTypeFor(filePath) {
   if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) return 'image/jpeg';
   if (filePath.endsWith('.svg')) return 'image/svg+xml';
   return 'application/octet-stream';
-}
-
-function runtimeIconDataUrl(requestedName) {
-  const runtimeName = RUNTIME_ICON_FILES[String(requestedName || '').toLowerCase()];
-  if (!runtimeName) return '';
-  if (iconDataUrlCache.has(runtimeName)) return iconDataUrlCache.get(runtimeName);
-  let value = '';
-  try {
-    const data = fs.readFileSync(path.join(RUNTIME_IMAGE_DIR, runtimeName));
-    value = `data:image/png;base64,${data.toString('base64')}`;
-  } catch {}
-  iconDataUrlCache.set(runtimeName, value);
-  return value;
-}
-
-function inlineRuntimeIconUrls(source) {
-  return String(source || '').replace(
-    /\/(?:admin\/)?images\/(leveling|ticket|moderator|data|messages?)\.(?:png|svg)(?:\?v=[^"'\s<)]*)?/gi,
-    (match, name) => runtimeIconDataUrl(`${name}.png`) || match,
-  );
 }
 
 function serveAdminAsset(res, assetPath) {
@@ -196,8 +184,7 @@ function serveAdminAsset(res, assetPath) {
   fs.readFile(resolvedFile, (error, data) => {
     if (error) return send(res, 404, 'Not found');
     const isTextAsset = resolvedFile.endsWith('.html') || resolvedFile.endsWith('.js');
-    const body = isTextAsset ? inlineRuntimeIconUrls(data.toString('utf8')) : data;
-    send(res, 200, body, {
+    send(res, 200, data, {
       'Content-Type': contentTypeFor(resolvedFile),
       'Cache-Control': isTextAsset ? 'no-store' : 'public, max-age=300',
     });
@@ -449,6 +436,7 @@ async function routeRequest(req, res, env, client) {
       if (url.pathname.startsWith(prefix)) return serveRuntimeIcon(res, url.pathname.slice(prefix.length));
     }
   }
+  if (req.method === 'GET' && url.pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) return serveAdminAsset(res, 'index.html');
   if (req.method === 'GET' && url.pathname.startsWith('/admin/')) return serveAdminAsset(res, url.pathname.slice('/admin/'.length));
   if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env);
