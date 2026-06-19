@@ -68,11 +68,11 @@ test('bootstrap displays image-backed tab icons instead of placeholder squares',
   assert.match(bootstrap, /coinSpriteTabImageStyle/);
   assert.match(bootstrap, /data-tab="moderator"/);
   assert.match(bootstrap, /> img\.tab-icon/);
-  assert.match(bootstrap, /display:\\s*block !important/);
-  assert.doesNotMatch(bootstrap, /display:\\s*none !important/);
-  assert.doesNotMatch(bootstrap, /background-image:\\s*var\\(--tab-icon-image\\)/);
-  assert.match(bootstrap, /object-fit:\\s*contain !important/);
-  assert.match(bootstrap, /rgba\\(188, 120, 255, 0\\.72\\)/);
+  assert.match(bootstrap, /display:\s*block !important/);
+  assert.doesNotMatch(bootstrap, /display:\s*none !important/);
+  assert.doesNotMatch(bootstrap, /background-image:\s*var\(--tab-icon-image\)/);
+  assert.match(bootstrap, /object-fit:\s*contain !important/);
+  assert.match(bootstrap, /rgba\(188, 120, 255, 0\.72\)/);
 });
 
 test('sidebar icons use the CoinSprite image route and define a favicon', () => {
