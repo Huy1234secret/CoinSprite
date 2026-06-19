@@ -42,5 +42,13 @@ test('giveaway end state is persisted only after the claim round exists', () => 
   const runtime = fs.readFileSync(path.join(root, 'src', 'giveawayRuntime.js'), 'utf8');
   const endGiveaway = runtime.match(/async function endGiveaway[\s\S]*?\n\}/)?.[0] || '';
   assert.ok(endGiveaway.indexOf('await createClaimRound(giveaway, winners);') >= 0);
-  assert.ok(endGiveaway.indexOf('persistState(state);') > endGiveaway.indexOf('await createClaimRound(giveaway, winners);'));
+  assert.ok(endGiveaway.lastIndexOf('persistState(state);') > endGiveaway.indexOf('await createClaimRound(giveaway, winners);'));
+});
+
+
+test('reroll closes the old round only after its replacement message exists', () => {
+  const runtime = fs.readFileSync(path.join(root, 'src', 'giveawayRuntime.js'), 'utf8');
+  const reroll = runtime.match(/async function startNextReroll[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(reroll.indexOf('await createClaimRound(giveaway, winnerIds);') >= 0);
+  assert.ok(reroll.lastIndexOf("round.status = 'rerolled';") > reroll.indexOf('await createClaimRound(giveaway, winnerIds);'));
 });
