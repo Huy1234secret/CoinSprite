@@ -140,6 +140,8 @@ test('sidebar icons use CoinSprite images while branding uses the bot profile', 
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
   assert.match(index, /<link rel="icon" type="image\/png" href="\/bot-avatar\.png">/);
   assert.match(index, /<img class="brand-mark" src="\/bot-avatar\.png"/);
+  const style = fs.readFileSync(path.join(root, 'admin', 'style.css'), 'utf8');
+  assert.match(style, /\.brand-mark\s*\{[^}]*background:\s*transparent !important/s);
 });
 
 test('old runtime icon patch stays disabled', () => {
