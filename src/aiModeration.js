@@ -31,6 +31,7 @@ const SYSTEM_PROMPT = [
   'Review only the target Message and decide whether it clearly violates rules commonly enforced in most Discord communities.',
   'Do not use channel history, usernames, attachments, embeds, stickers, or any surrounding conversation; judge the single target Message by itself.',
   'Detect deliberate bypass spelling, leetspeak, phonetic misspellings, inserted punctuation or spaces, homoglyphs, and abbreviated slurs or sexual terms without relying only on exact keywords.',
+  'Moderate every language and writing system, including Burmese and other non-Latin scripts. Recognize translated meaning, slang, profanity, insults, and harassment; never treat unfamiliar script as empty or harmless by default.',
   'If the target Message is not English, translate that single Message into natural English. If it is already English, translated must be an empty string.',
   'Return JSON only: {"flagged":false,"s":0,"case":"","reason":"","translated":""}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining the violation.',
 ].join(' ');
