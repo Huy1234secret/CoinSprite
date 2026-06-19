@@ -2065,6 +2065,7 @@ body::before {
   width: 38px !important;
   height: 38px !important;
   border-radius: 11px !important;
+  background: transparent !important;
 }
 
 .layout,
