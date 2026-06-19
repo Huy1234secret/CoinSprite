@@ -71,11 +71,21 @@ function container(accent, components) {
   };
 }
 
+function withoutComponentEmojis(value) {
+  if (Array.isArray(value)) return value.map(withoutComponentEmojis);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== 'emoji')
+      .map(([key, child]) => [key, withoutComponentEmojis(child)]),
+  );
+}
+
 function toV2Payload(components, extra = {}) {
   return {
     ...extra,
     flags: ('flags' in extra ? extra.flags : 0) | COMPONENTS_V2_FLAG,
-    components,
+    components: withoutComponentEmojis(components),
   };
 }
 
@@ -321,4 +331,5 @@ module.exports = {
   separator,
   text,
   toV2Payload,
+  withoutComponentEmojis,
 };
