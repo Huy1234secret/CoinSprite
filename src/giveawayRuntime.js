@@ -20,6 +20,7 @@ const {
 
 let schedulerClient = null;
 const timerHandles = new Map();
+const GIVEAWAY_RETRY_DELAY_MS = 30_000;
 
 function endTimerKey(giveawayId) {
   return `giveaway:end:${giveawayId}`;
@@ -27,6 +28,10 @@ function endTimerKey(giveawayId) {
 
 function claimTimerKey(giveawayId, roundNumber) {
   return `giveaway:claim:${giveawayId}:${roundNumber}`;
+}
+
+function recoveryTimerKey(giveawayId) {
+  return `giveaway:recover:${giveawayId}`;
 }
 
 function getState() {
@@ -55,7 +60,12 @@ function scheduleAt(key, executeAt, callback) {
       return;
     }
     timerHandles.delete(key);
-    await callback().catch(() => null);
+    try {
+      await callback();
+    } catch (error) {
+      console.error(`Giveaway timer ${key} failed; retrying in ${GIVEAWAY_RETRY_DELAY_MS / 1000}s.`, error);
+      scheduleAt(key, now() + GIVEAWAY_RETRY_DELAY_MS, callback);
+    }
   }, delay);
   if (typeof handle.unref === 'function') handle.unref();
   timerHandles.set(key, handle);
@@ -210,6 +220,9 @@ async function sendNoMoreUsersMessageAndFinalize(giveaway) {
 }
 
 async function createClaimRound(giveaway, winnerIds) {
+  giveaway.rounds = Array.isArray(giveaway.rounds) ? giveaway.rounds : [];
+  giveaway.rolledUserIds = Array.isArray(giveaway.rolledUserIds) ? giveaway.rolledUserIds : [];
+  const originalRolledLength = giveaway.rolledUserIds.length;
   const round = {
     roundNumber: giveaway.rounds.length,
     winnerIds,
@@ -223,7 +236,12 @@ async function createClaimRound(giveaway, winnerIds) {
   giveaway.rolledUserIds.push(...winnerIds);
   giveaway.updatedAt = now();
   const message = await sendReplyToGiveaway(giveaway, buildClaimRoundPayload(giveaway, round));
-  if (message) round.messageId = message.id;
+  if (!message) {
+    if (giveaway.rounds[giveaway.rounds.length - 1] === round) giveaway.rounds.pop();
+    giveaway.rolledUserIds.splice(originalRolledLength);
+    throw new Error(`Failed to create claim message for giveaway ${giveaway.id} round ${round.roundNumber}.`);
+  }
+  round.messageId = message.id;
   scheduleRoundExpiry(giveaway, round);
   return round;
 }
@@ -258,23 +276,23 @@ async function startNextReroll(giveawayId, sourceRoundNumber) {
   if (!round || round.status !== 'active') return;
 
   const remainingSlots = round.winnerIds.length - round.claimedIds.length;
-  round.status = 'rerolled';
-  giveaway.updatedAt = now();
-  persistState(state);
-
-  await editMessageSafely(giveaway.guildId, giveaway.channelId, round.messageId, buildClaimRoundClosedPayload(giveaway, round, remainingSlots));
-
   const rerollPool = getEligibleRerollPool(giveaway);
   if (rerollPool.length === 0) {
+    round.status = 'rerolled';
+    giveaway.updatedAt = now();
+    persistState(state);
+    await editMessageSafely(giveaway.guildId, giveaway.channelId, round.messageId, buildClaimRoundClosedPayload(giveaway, round, remainingSlots));
     await sendNoMoreUsersMessageAndFinalize(giveaway);
     return;
   }
 
-  const refreshedState = getState();
-  const refreshedGiveaway = getGiveaway(refreshedState, giveawayId);
-  if (!refreshedGiveaway) return;
-  await createClaimRound(refreshedGiveaway, pickRandomUsers(rerollPool, Math.min(remainingSlots, rerollPool.length)));
-  persistState(refreshedState);
+  const winnerIds = pickRandomUsers(rerollPool, Math.min(remainingSlots, rerollPool.length));
+  await createClaimRound(giveaway, winnerIds);
+
+  round.status = 'rerolled';
+  giveaway.updatedAt = now();
+  persistState(state);
+  await editMessageSafely(giveaway.guildId, giveaway.channelId, round.messageId, buildClaimRoundClosedPayload(giveaway, round, remainingSlots));
 }
 
 async function handleClaimWindowExpiry(giveawayId, roundNumber) {
@@ -357,7 +375,6 @@ async function endGiveaway(giveawayId) {
   giveaway.status = 'claiming';
   giveaway.endedAt = now();
   giveaway.updatedAt = now();
-  persistState(state);
   clearTimer(endTimerKey(giveaway.id));
 
   await updateGiveawayMessage(giveaway, buildLiveGiveawayPayload(giveaway, {
@@ -369,15 +386,13 @@ async function endGiveaway(giveawayId) {
 
   const winners = pickRandomUsers(giveaway.entrantIds, Math.min(giveaway.winnerCount, giveaway.entrantIds.length));
   if (winners.length === 0) {
+    persistState(state);
     await sendNoMoreUsersMessageAndFinalize(giveaway);
     return;
   }
 
-  const refreshedState = getState();
-  const refreshedGiveaway = getGiveaway(refreshedState, giveawayId);
-  if (!refreshedGiveaway) return;
-  await createClaimRound(refreshedGiveaway, winners);
-  persistState(refreshedState);
+  await createClaimRound(giveaway, winners);
+  persistState(state);
 }
 
 async function hydrateGiveaways() {
@@ -396,6 +411,16 @@ async function hydrateGiveaways() {
       if (!activeRound) {
         if (giveaway.claimedUserIds.length >= giveaway.winnerCount || getEligibleRerollPool(giveaway).length === 0) {
           await finalizeGiveaway(giveaway.id);
+        } else {
+          try {
+            await forceRerollGiveaway(giveaway.id);
+          } catch (error) {
+            console.error(`Giveaway ${giveaway.id} recovery failed; retrying.`, error);
+            scheduleAt(recoveryTimerKey(giveaway.id), now() + GIVEAWAY_RETRY_DELAY_MS, async () => {
+              const result = await forceRerollGiveaway(giveaway.id);
+              if (!result.ok) throw new Error(`Giveaway recovery failed: ${result.reason}`);
+            });
+          }
         }
         continue;
       }
