@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "guilds": {
     "1493901002519347290": {
@@ -28,6 +28,42 @@
         "onboarding": "1494397171045503129",
         "giveawayBlacklist": "1498405208969973840",
         "wordChainPunishment": "1512488707461091420"
+      },
+      "moderation": {
+        "ai": {
+          "enabled": false,
+          "lowSeverityLogChannelId": "",
+          "severeLogChannelId": "",
+          "scanChannelIds": [],
+          "excludeRoleIds": [],
+          "alertTemplateId": "default-ai-moderation-alert",
+          "maxInputChars": 1500
+        },
+        "auto": {
+          "link": {
+            "enabled": false,
+            "blockDiscordInvites": true,
+            "allowedInviteGuildIds": [],
+            "domainBlacklist": [],
+            "domainWhitelist": [],
+            "scanChannelIds": [],
+            "excludeChannelIds": [],
+            "excludeRoleIds": [],
+            "actions": [{ "type": "delete" }, { "type": "log" }]
+          }
+        },
+        "warnings": {
+          "enabled": false,
+          "defaultExpiryDays": 90,
+          "fallbackChannelId": "",
+          "staffLogChannelId": "",
+          "escalationRules": [
+            { "threshold": 3, "action": "timeout", "durationSeconds": 3600, "enabled": true },
+            { "threshold": 5, "action": "timeout", "durationSeconds": 86400, "enabled": true },
+            { "threshold": 8, "action": "timeout", "durationSeconds": 604800, "enabled": true },
+            { "threshold": 10, "action": "staff_alert", "durationSeconds": 0, "enabled": true }
+          ]
+        }
       },
       "xp": {
         "channels": [
