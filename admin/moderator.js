@@ -402,6 +402,7 @@ async function loadWarningCases() {
   } catch (error) {
     console.error(error);
     moderatorState.cases = [];
+    moderatorState.casesLoaded = true;
   } finally {
     moderatorState.casesLoading = false;
     renderModerator();
