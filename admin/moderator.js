@@ -341,6 +341,7 @@ function renderWarningsPanel() {
       <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>
     </div>
     <label>Reason <textarea id="warningCreateReason" rows="3" maxlength="1000"></textarea></label>
+    <label>Private staff notes <textarea id="warningCreateStaffNotes" rows="2" maxlength="1000"></textarea></label>
     <button class="button primary" type="button" data-moderator-action="create-warning">Create warning</button>
     <span id="warningCreateStatus"></span>
   </div>`;
@@ -360,6 +361,9 @@ function renderCasesPanel() {
       <label>Reason <input data-case-field="reason" maxlength="1000" value="${escapeHtml(record.reason)}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
       <label>Points <input data-case-field="points" type="number" min="1" max="10" value="${record.points}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
       <label>Evidence <input data-case-field="evidence" value="${escapeHtml(record.evidence || '')}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
+      <label>New expiry <input data-case-field="expires" data-case-optional="true" placeholder="Leave unchanged, or enter 30d/never" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
+      <label>Private staff notes <input data-case-field="staffNotes" value="${escapeHtml(record.staffNotes || '')}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
+      <span>Delivery: ${escapeHtml(record.delivery?.status || 'unknown')} · enforcement events: ${record.enforcementEvents?.length || 0}</span>
       ${record.status === 'pardoned' ? `<span>Pardoned: ${escapeHtml(record.pardonReason || '')}</span>` : '<button class="button small" type="button" data-moderator-action="save-case">Save</button><button class="button small danger" type="button" data-moderator-action="pardon-case">Pardon</button>'}
     </div>`).join('') || '<p>No matching cases.</p>'}</div>
   </div>`;
@@ -580,6 +584,7 @@ function mountWarningPickers(root) {
             expires: document.querySelector('#warningCreateExpires')?.value || '',
             evidence: document.querySelector('#warningCreateEvidence')?.value || '',
             reason: document.querySelector('#warningCreateReason')?.value || '',
+            staffNotes: document.querySelector('#warningCreateStaffNotes')?.value || '',
           }),
         });
         const payload = await response.json();
@@ -595,7 +600,10 @@ function mountWarningPickers(root) {
     if (action === 'save-case') {
       const row = event.target.closest('[data-case-id]');
       const patch = {};
-      row.querySelectorAll('[data-case-field]').forEach((field) => { patch[field.dataset.caseField] = field.type === 'number' ? Number(field.value) : field.value; });
+      row.querySelectorAll('[data-case-field]').forEach((field) => {
+        if (field.dataset.caseOptional === 'true' && !field.value.trim()) return;
+        patch[field.dataset.caseField] = field.type === 'number' ? Number(field.value) : field.value;
+      });
       const response = await fetch(`/api/guilds/${guildId}/moderation/cases/${row.dataset.caseId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
       });
