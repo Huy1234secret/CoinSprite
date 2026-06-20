@@ -44,6 +44,17 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - Administrator-only message context menu command for replying with the bot without copying or entering a message ID.
   - Right-click or long-press the target message, choose Apps, choose `Reply with Bot Message`, then type the bot reply in the modal.
 
+## Warning System
+- `/warn member points reason [expires] [evidence]` creates a persistent point-based warning case.
+- `/warnings [member]` shows sanitized warning history; staff can inspect other members.
+- `/case view|edit|pardon` manages auditable cases without deleting history.
+- Administrators and the configured staff role can manage warnings.
+- Active points can trigger configurable timeout, kick, ban, or staff-alert thresholds.
+- New guilds default to 3 points = 1 hour, 5 = 24 hours, 8 = 7 days, and 10 = staff alert.
+- Auto-Moderator `warn` actions create cases when the warning system is enabled. AI moderation never assigns points.
+- Cases are stored in `data/moderation-cases.json`; expired and pardoned cases remain in history.
+- The web Moderator area contains Overview, Warnings, AutoMod, AI Moderation, Cases & Logs, and Settings tabs.
+
 ## Invite Reward System
 - Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).
 - Tracks invite usage and awards rewards only when:

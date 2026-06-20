@@ -7,6 +7,8 @@ const { ensureGuildConfig, getEnabledGuildIds, getGuildConfig, getGuildConfigRaw
 const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
+const moderationCases = require('./moderationCaseStore');
+const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const RUNTIME_IMAGE_DIR = path.join(__dirname, '..', 'images');
@@ -367,6 +369,26 @@ async function requireAdmin(req, res, env, client, guildId = null) {
   return session;
 }
 
+async function requireModerator(req, res, env, client, guildId) {
+  const { session } = getSession(req, res, env);
+  if (!session.user?.id) {
+    sendJson(res, 401, { error: 'Not logged in.' });
+    return null;
+  }
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild || !getGuildConfig(guildId)) {
+    sendJson(res, 404, { error: 'Guild is not configured or unavailable.' });
+    return null;
+  }
+  if (isOwnerSession(session, client)) return { session, guild, member: null };
+  const member = await guild.members.fetch(session.user.id).catch(() => null);
+  if (!canManageWarnings(member)) {
+    sendJson(res, 403, { error: 'Administrator permission or the configured staff role is required.' });
+    return null;
+  }
+  return { session, guild, member };
+}
+
 async function requireOwner(req, res, env, client) {
   const session = await requireAdmin(req, res, env, client);
   if (!session) return null;
@@ -493,6 +515,68 @@ async function routeRequest(req, res, env, client) {
   }
   if (userDataMatch && req.method === 'PATCH') {
     return handleUserDataPatch(req, res, env, client, userDataMatch[1], userDataMatch[2], { requireAdmin, readJsonBody, sendJson });
+  }
+
+  const moderationCasesMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/moderation\/cases$/);
+  if (moderationCasesMatch) {
+    const guildId = moderationCasesMatch[1];
+    const auth = await requireModerator(req, res, env, client, guildId);
+    if (!auth) return;
+    if (req.method === 'GET') {
+      const filters = {
+        memberId: url.searchParams.get('memberId') || '',
+        status: url.searchParams.get('status') || '',
+        source: url.searchParams.get('source') || '',
+        query: url.searchParams.get('query') || '',
+      };
+      const cases = moderationCases.listCases(guildId, filters);
+      return sendJson(res, 200, { cases, total: cases.length });
+    }
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const member = await auth.guild.members.fetch(String(body.memberId || '')).catch(() => null);
+        const result = await createWarning({
+          guild: auth.guild,
+          member,
+          moderatorId: auth.session.user.id,
+          source: 'dashboard',
+          reason: body.reason,
+          points: body.points,
+          expires: body.expires,
+          evidence: body.evidence,
+          staffNotes: body.staffNotes,
+        });
+        return sendJson(res, 201, result);
+      } catch (error) {
+        return sendJson(res, 400, { error: error?.message || 'Could not create warning.' });
+      }
+    }
+  }
+
+  const moderationCaseMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/moderation\/cases\/([A-Za-z0-9-]+)(\/pardon)?$/);
+  if (moderationCaseMatch) {
+    const guildId = moderationCaseMatch[1];
+    const caseId = moderationCaseMatch[2];
+    const auth = await requireModerator(req, res, env, client, guildId);
+    if (!auth) return;
+    try {
+      if (req.method === 'GET' && !moderationCaseMatch[3]) {
+        const record = moderationCases.getCase(guildId, caseId);
+        return record ? sendJson(res, 200, { case: record }) : sendJson(res, 404, { error: 'Warning case was not found.' });
+      }
+      if (req.method === 'PATCH' && !moderationCaseMatch[3]) {
+        const result = await editWarning({ guild: auth.guild, caseId, patch: await readJsonBody(req) });
+        return sendJson(res, 200, result);
+      }
+      if (req.method === 'POST' && moderationCaseMatch[3] === '/pardon') {
+        const body = await readJsonBody(req);
+        const result = await pardonWarning({ guild: auth.guild, caseId, moderatorId: auth.session.user.id, reason: body.reason });
+        return sendJson(res, 200, result);
+      }
+    } catch (error) {
+      return sendJson(res, 400, { error: error?.message || 'Could not manage warning case.' });
+    }
   }
 
   const configMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/config$/);

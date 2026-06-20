@@ -1,6 +1,7 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
+const { createWarning, warningConfig } = require('../src/warningService');
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/[^\s<>()]+/gi;
 const INVITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
@@ -41,6 +42,7 @@ function normalizeAction(action) {
   if (type === 'warn') {
     normalized.message = String(action?.message || 'Your message was blocked by Auto-Moderator.').slice(0, 500);
     normalized.durationSeconds = clampSeconds(action?.durationSeconds, 300);
+    normalized.points = Math.max(1, Math.min(10, Math.round(Number(action?.points) || 1)));
   }
   if (type === 'timeout') {
     normalized.durationSeconds = clampSeconds(action?.durationSeconds, 300);
@@ -256,9 +258,29 @@ async function logAutoModeration(message, settings, details, action) {
   await channel.send(payload).catch(() => null); // FIXED: send a polished container report without pinging mentioned users or roles.
 }
 
-async function warnUser(message, action) {
+async function warnUser(message, action, details) {
   const text = action.message || 'Your message was blocked by Auto-Moderator.';
-  await message.reply({ content: text, allowedMentions: { users: [message.author.id], roles: [], parse: [] } }).catch(() => null);
+  if (!warningConfig(message.guildId).enabled) {
+    await message.reply({ content: text, allowedMentions: { users: [message.author.id], roles: [], parse: [] } }).catch(() => null);
+    return null;
+  }
+  const expiresAt = Number(action.durationSeconds) > 0 ? Date.now() + Number(action.durationSeconds) * 1000 : null;
+  return createWarning({
+    guild: message.guild,
+    member: message.member,
+    memberId: message.author.id,
+    moderatorId: message.client?.user?.id || '',
+    source: 'automod_link',
+    reason: text + (details?.domain ? ' Domain: ' + details.domain + '.' : ''),
+    points: action.points || 1,
+    expiresAt,
+    evidence: message.url || '',
+    sourceChannelId: message.channelId,
+    sourceMessageId: message.id,
+  }).catch((error) => {
+    console.error('Auto-Moderator warning case failed:', error);
+    return null;
+  });
 }
 
 async function timeoutMember(message, action) {
@@ -273,7 +295,7 @@ async function runActions(message, settings, details) {
     if (action.type === 'delete') {
       if (message.deletable) await message.delete().catch(() => null);
     } else if (action.type === 'warn') {
-      await warnUser(message, action);
+      await warnUser(message, action, details);
     } else if (action.type === 'timeout') {
       await timeoutMember(message, action);
     } else if (action.type === 'log' || action.type === 'report') {
