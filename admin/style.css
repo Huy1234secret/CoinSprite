@@ -2585,3 +2585,32 @@ textarea:focus,
   .permission-state { width: 108px; }
   .emoji-grid { grid-template-columns: repeat(5,minmax(32px,1fr)); }
 }
+
+
+/* Moderation hub */
+.moderator-shell > .mini-tabs {
+  flex-wrap: wrap;
+}
+
+.moderator-shell .automod-action-row {
+  align-items: end;
+}
+
+.moderator-shell [data-case-id] {
+  grid-template-columns: minmax(90px, auto) minmax(220px, 1fr);
+}
+
+.moderator-shell [data-case-id] label {
+  min-width: 160px;
+}
+
+@media (max-width: 760px) {
+  .moderator-shell > .mini-tabs {
+    position: static;
+    margin-top: 0;
+  }
+
+  .moderator-shell [data-case-id] {
+    grid-template-columns: 1fr;
+  }
+}
