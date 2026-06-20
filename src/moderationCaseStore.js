@@ -72,8 +72,15 @@ function writeState(state) {
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
   const next = normalizeState(state);
   const temporary = STORE_PATH + '.tmp';
-  fs.writeFileSync(temporary, JSON.stringify(next, null, 2) + '\n', 'utf8');
-  fs.renameSync(temporary, STORE_PATH);
+  const serialized = JSON.stringify(next, null, 2) + '\n';
+  fs.writeFileSync(temporary, serialized, 'utf8');
+  try {
+    fs.renameSync(temporary, STORE_PATH);
+  } catch {
+    // Windows cannot always replace an existing destination with renameSync.
+    fs.writeFileSync(STORE_PATH, serialized, 'utf8');
+    try { fs.unlinkSync(temporary); } catch {}
+  }
 }
 
 function guildState(state, guildId) {
