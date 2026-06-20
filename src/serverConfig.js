@@ -65,6 +65,13 @@ const DEFAULT_LINK_AUTOMOD = {
   ],
 };
 
+const DEFAULT_WARNING_RULES = [
+  { threshold: 3, action: 'timeout', durationSeconds: 60 * 60, enabled: true },
+  { threshold: 5, action: 'timeout', durationSeconds: 24 * 60 * 60, enabled: true },
+  { threshold: 8, action: 'timeout', durationSeconds: 7 * 24 * 60 * 60, enabled: true },
+  { threshold: 10, action: 'staff_alert', durationSeconds: 0, enabled: true },
+];
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
   channels: {
@@ -104,6 +111,13 @@ const DEFAULT_GUILD_CONFIG = {
     },
     auto: {
       link: DEFAULT_LINK_AUTOMOD,
+    },
+    warnings: {
+      enabled: false,
+      defaultExpiryDays: 90,
+      fallbackChannelId: '',
+      staffLogChannelId: '',
+      escalationRules: DEFAULT_WARNING_RULES,
     },
   },
   xp: {
@@ -306,6 +320,19 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   delete merged.xp.levelFunMessages;
   merged.enabled = guildConfig?.enabled === false ? false : true;
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
+  const warnings = merged.moderation.warnings;
+  warnings.enabled = Boolean(warnings.enabled);
+  warnings.defaultExpiryDays = Math.max(0, Math.min(3650, Number(warnings.defaultExpiryDays) || 90));
+  warnings.fallbackChannelId = String(warnings.fallbackChannelId || '');
+  warnings.staffLogChannelId = String(warnings.staffLogChannelId || '');
+  warnings.escalationRules = (Array.isArray(warnings.escalationRules) ? warnings.escalationRules : DEFAULT_WARNING_RULES)
+    .map((rule) => ({
+      threshold: Math.max(1, Math.min(100, Math.round(Number(rule?.threshold) || 1))),
+      action: ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule?.action) ? rule.action : 'staff_alert',
+      durationSeconds: Math.max(0, Math.min(2419200, Number(rule?.durationSeconds) || 0)),
+      enabled: rule?.enabled !== false,
+    }))
+    .sort((a, b) => a.threshold - b.threshold);
   merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
   merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
   merged.wordChain.xpRewardFormula = sanitizeWordChainXpFormula(merged.wordChain.xpRewardFormula);
@@ -481,6 +508,7 @@ function isGuildEnabled(guildId) {
 
 module.exports = {
   DEFAULT_GUILD_CONFIG,
+  DEFAULT_WARNING_RULES,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
