@@ -1,0 +1,54 @@
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { canManageWarnings, createWarning } = require('../src/warningService');
+
+const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('warn')
+    .setDescription('Issue warning points to a server member.')
+    .addUserOption((option) => option.setName('member').setDescription('Member to warn').setRequired(true))
+    .addIntegerOption((option) => option.setName('points').setDescription('Warning points (1-10)').setMinValue(1).setMaxValue(10).setRequired(true))
+    .addStringOption((option) => option.setName('reason').setDescription('Reason for the warning').setMaxLength(1000).setRequired(true))
+    .addStringOption((option) => option.setName('expires').setDescription('Expiry such as 7d, 4w, or never').setMaxLength(30))
+    .addStringOption((option) => option.setName('evidence').setDescription('Evidence or Discord message URL').setMaxLength(1000)),
+
+  async execute(interaction) {
+    if (!canManageWarnings(interaction.member)) {
+      await interaction.reply({ content: 'Only administrators or the configured staff role can issue warnings.', flags: EPHEMERAL });
+      return;
+    }
+    await interaction.deferReply({ flags: EPHEMERAL });
+    try {
+      const user = interaction.options.getUser('member', true);
+      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!member) throw new Error('That user is not a member of this server.');
+      if (user.bot) throw new Error('Bots cannot receive warning cases.');
+      const result = await createWarning({
+        guild: interaction.guild,
+        member,
+        moderatorId: interaction.user.id,
+        source: 'manual',
+        reason: interaction.options.getString('reason', true),
+        points: interaction.options.getInteger('points', true),
+        expires: interaction.options.getString('expires') || '',
+        evidence: interaction.options.getString('evidence') || '',
+        sourceChannelId: interaction.channelId,
+      });
+      const actions = result.enforcementEvents.length
+        ? result.enforcementEvents.map((event) => event.action + (event.success ? ' ✓' : ' failed')).join(', ')
+        : 'none';
+      await interaction.editReply({
+        content: [
+          'Created warning **' + result.case.id + '** for <@' + user.id + '>.',
+          'Active points: **' + result.points + '**',
+          'Notice delivery: **' + result.delivery + '**',
+          'Threshold actions: **' + actions + '**',
+        ].join('\n'),
+        allowedMentions: { parse: [] },
+      });
+    } catch (error) {
+      await interaction.editReply({ content: 'Could not create warning: ' + (error?.message || 'Unknown error.') });
+    }
+  },
+};
