@@ -9,7 +9,7 @@ const manager = require('../src/levelingManager');
 const { getEligibleRoleIds } = require('../src/levelRoleRewards');
 const { buildLevelUpPayload } = require('../src/levelUpMessage');
 const { canEarnXpInChannel, getXpChannelRule } = require('../src/xpChannels');
-const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 
 const execFileAsync = promisify(execFile);
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -378,7 +378,8 @@ async function saveUploadedBackground(interaction, upload) {
 }
 
 async function logBackgroundUpload(interaction, filePath, optimized) {
-  const backgroundLogThreadId = getLevelConfig(interaction.guildId).channels.backgroundLogThread;
+  const config = getLevelConfig(interaction.guildId);
+  const backgroundLogThreadId = resolveLoggingChannelId(config, 'background', '', config.channels.backgroundLogThread);
   const channel = backgroundLogThreadId ? await interaction.guild.channels.fetch(backgroundLogThreadId).catch(() => null) : null;
   if (!channel?.isTextBased()) return;
   await channel.send({
