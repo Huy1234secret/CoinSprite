@@ -29,7 +29,53 @@
     document.head.append(style);
   }
 
+  function installModeratorCaseLayoutStyle() {
+    if (document.getElementById('coinSpriteModeratorCaseLayoutStabilizer')) return;
+    const style = document.createElement('style');
+    style.id = 'coinSpriteModeratorCaseLayoutStabilizer';
+    style.textContent = `
+      body #moderatorRoot .case-layout-v3.case-detail { display: grid !important; gap: 12px !important; max-width: 980px !important; font-size: 14px !important; line-height: 1.35 !important; color: var(--text, #f2f5fb) !important; }
+      body #moderatorRoot .case-layout-v3, body #moderatorRoot .case-layout-v3 * { box-sizing: border-box !important; }
+      body #moderatorRoot .case-layout-v3 .panel { width: 100% !important; min-width: 0 !important; border: 1px solid rgba(255,255,255,.085) !important; border-radius: 9px !important; background: #2b3139 !important; box-shadow: none !important; }
+      body #moderatorRoot .case-layout-v3 .case-actions-bar { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 12px !important; min-height: 44px !important; padding: 7px 12px 7px 18px !important; overflow: visible !important; }
+      body #moderatorRoot .case-layout-v3 .case-actions-bar h3, body #moderatorRoot .case-layout-v3 .case-panel-title h3 { margin: 0 !important; font-size: 18px !important; line-height: 1.1 !important; font-weight: 900 !important; }
+      body #moderatorRoot .case-layout-v3 .case-actions-bar > div { display: flex !important; flex-wrap: wrap !important; justify-content: flex-end !important; gap: 7px !important; }
+      body #moderatorRoot .case-layout-v3 .button.small { width: auto !important; min-height: 30px !important; padding: 6px 11px !important; white-space: nowrap !important; }
+      body #moderatorRoot .case-layout-v3 #caseDetailForm.case-layout-stack { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; width: 100% !important; min-width: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-panel, body #moderatorRoot .case-layout-v3 .case-notes-panel, body #moderatorRoot .case-layout-v3 .case-edit-panel, body #moderatorRoot .case-layout-v3 .case-history-panel { padding: 16px 18px !important; }
+      body #moderatorRoot .case-layout-v3 .case-panel-title { display: flex !important; align-items: flex-start !important; gap: 12px !important; margin: 0 0 13px !important; }
+      body #moderatorRoot .case-layout-v3 .case-panel-title > span:first-child { width: 22px !important; min-width: 22px !important; height: 22px !important; display: grid !important; place-items: center !important; font-size: 15px !important; line-height: 1 !important; }
+      body #moderatorRoot .case-layout-v3 .case-panel-title p { margin: 3px 0 0 !important; max-width: 720px !important; color: var(--muted, #b7bdc8) !important; font-size: 12px !important; line-height: 1.35 !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-panel dl { display: grid !important; margin: 0 !important; padding: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row { display: grid !important; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) !important; gap: 18px !important; align-items: center !important; min-height: 36px !important; padding: 9px 0 !important; border-bottom: 1px solid rgba(255,255,255,.095) !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row:last-child { border-bottom: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dt { margin: 0 !important; color: #fff !important; font-size: 13px !important; font-weight: 900 !important; line-height: 1.25 !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dd { display: grid !important; gap: 2px !important; min-width: 0 !important; margin: 0 !important; color: #f2f5fb !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dd > div { min-width: 0 !important; overflow-wrap: anywhere !important; word-break: normal !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row small, body #moderatorRoot .case-layout-v3 .case-muted-text { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; line-height: 1.25 !important; }
+      body #moderatorRoot .case-layout-v3 strong, body #moderatorRoot .case-layout-v3 code { color: #fff !important; font-weight: 850 !important; }
+      body #moderatorRoot .case-layout-v3 .case-linkish { color: #00b0f4 !important; font-weight: 800 !important; overflow-wrap: anywhere !important; }
+      body #moderatorRoot .case-layout-v3 .case-state-line { display: inline-flex !important; align-items: center !important; gap: 7px !important; width: fit-content !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-chip { display: grid !important; grid-template-columns: 32px minmax(0, 1fr) !important; align-items: center !important; gap: 9px !important; max-width: 100% !important; min-width: 0 !important; width: fit-content !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-chip img, body #moderatorRoot .case-layout-v3 .case-user-chip > .case-user-fallback { width: 32px !important; height: 32px !important; max-width: 32px !important; max-height: 32px !important; border-radius: 50% !important; object-fit: cover !important; display: block !important; flex: 0 0 32px !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 1px !important; min-width: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy strong { max-width: 260px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy small, body #moderatorRoot .case-layout-v3 .case-ref-chip small { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; overflow-wrap: anywhere !important; }
+      body #moderatorRoot .case-layout-v3 .case-ref-chip { display: grid !important; gap: 2px !important; min-width: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-ref-chip strong { color: #00b0f4 !important; font-size: 13px !important; }
+      body #moderatorRoot .case-layout-v3 .case-field-block, body #moderatorRoot .case-layout-v3 .case-edit-panel label { display: grid !important; gap: 7px !important; min-width: 0 !important; }
+      body #moderatorRoot .case-layout-v3 .case-notes-panel textarea, body #moderatorRoot .case-layout-v3 .case-edit-panel input, body #moderatorRoot .case-layout-v3 .case-edit-panel textarea { width: 100% !important; min-width: 0 !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,.13) !important; background: rgba(9,13,20,.78) !important; color: var(--text, #f2f5fb) !important; }
+      body #moderatorRoot .case-layout-v3 .case-notes-panel textarea { min-height: 138px !important; resize: vertical !important; }
+      body #moderatorRoot .case-layout-v3 .case-edit-panel { display: grid !important; gap: 12px !important; }
+      body #moderatorRoot .case-layout-v3 .case-edit-panel textarea { min-height: 112px !important; resize: vertical !important; }
+      body #moderatorRoot .case-layout-v3 .case-edit-grid { display: grid !important; grid-template-columns: minmax(110px, .34fr) minmax(220px, .66fr) !important; gap: 12px !important; margin: 0 !important; }
+      @media (max-width: 760px) { body #moderatorRoot .case-layout-v3.case-detail { max-width: none !important; } body #moderatorRoot .case-layout-v3 .case-actions-bar, body #moderatorRoot .case-layout-v3 .case-history-panel summary { align-items: stretch !important; flex-direction: column !important; } body #moderatorRoot .case-layout-v3 .case-actions-bar > div { justify-content: flex-start !important; } body #moderatorRoot .case-layout-v3 .case-info-row, body #moderatorRoot .case-layout-v3 .case-edit-grid, body #moderatorRoot .case-layout-v3 .case-history-panel li { grid-template-columns: minmax(0, 1fr) !important; gap: 6px !important; align-items: start !important; } body #moderatorRoot .case-layout-v3 .case-user-chip { width: 100% !important; } body #moderatorRoot .case-layout-v3 .case-user-copy strong { max-width: 100% !important; } }
+    `;
+    document.head.append(style);
+  }
+
   installTabIconStyle();
+  installModeratorCaseLayoutStyle();
 
   function fieldHint(field) {
     const dataHint = Object.entries(field.dataset || {})
@@ -88,7 +134,7 @@
 
   const replaceChild = Node.prototype.replaceChild;
   Node.prototype.replaceChild = function patchedReplaceChild(node, oldNode) {
-    return replaceChild.call(this, identifyFields(node), oldNode);
+    return replaceChild.call(this, identifyFields(node));
   };
 
   for (const methodName of ['append', 'prepend', 'before', 'after', 'replaceWith', 'replaceChildren']) {
@@ -104,6 +150,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     installTabIconStyle();
+    installModeratorCaseLayoutStyle();
     identifyFields(document);
   }, { once: true });
 })();
