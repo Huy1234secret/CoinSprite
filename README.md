@@ -52,8 +52,14 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
 - Active points can trigger configurable timeout, kick, ban, or staff-alert thresholds.
 - New guilds default to 3 points = 1 hour, 5 = 24 hours, 8 = 7 days, and 10 = staff alert.
 - Auto-Moderator `warn` actions create cases when the warning system is enabled. AI moderation never assigns points.
-- Cases are stored in `data/moderation-cases.json`; expired and pardoned cases remain in history.
-- The web Moderator area contains Overview, Warnings, AutoMod, AI Moderation, Cases & Logs, and Settings tabs.
+- Cases use schema v2 in `data/moderation-cases.json`: generic type/target/author fields, structured details, Discord message references, and append-only audit events.
+- Schema v1 is backed up once before migration; invalid JSON is logged and left untouched instead of being reset.
+- `/warn`, `/warnings`, and `/case` share Discord Components V2 response builders.
+- The Cases API performs server-side filtering and pagination and hydrates target/author profiles.
+- The web Moderator area has two workspaces: Auto Moderation (AI and links) and Moderation (warnings and cases), with a list/detail case workflow.
+- Output channels route through `logging.categories.<category>` and event overrides; operational channels remain with their owning feature.
+- File-backed configuration and moderation data use serialized atomic replacement writes with migration backups and recovery logs.
+- AI moderation input context, character caps, and output token caps are unchanged.
 
 ## Invite Reward System
 - Status: **disabled in code** (`INVITATION_REWARDS_ENABLED = false` in `src/inviteRewardsManager.js`).

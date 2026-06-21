@@ -444,11 +444,11 @@
     });
   }
 
-  function moveTemplate(templateId) {
+  async function moveTemplate(templateId) {
     const template = clone(templates.get(templateId));
     if (!template || template.botDefault || template.defaultLocked) return;
     const folders = [...templates.values()].filter((item) => item.type === 'folder' && !item.botDefault && !item.defaultLocked);
-    const choice = window.prompt(['Move template to folder:', '0: Root', ...folders.map((folder, index) => `${index + 1}: ${folder.name}`)].join('\n'), '0');
+    const choice = await window.coinSpriteUi.prompt(['Move template to folder:', '0: Root', ...folders.map((folder, index) => `${index + 1}: ${folder.name}`)].join('\n'), '0');
     if (choice == null) return;
     const index = Number(choice);
     if (!Number.isInteger(index) || index < 0 || index > folders.length) return;
@@ -471,7 +471,7 @@
         try {
           await savePendingTemplates(); // FIXED: existing Save changes saves message templates too.
         } catch (error) {
-          window.alert(error.message || 'Save failed.');
+          void window.coinSpriteUi.alert(error.message || 'Save failed.', 'Save failed');
         } finally {
           save.disabled = false;
           save.textContent = original || 'Save changes';
@@ -528,7 +528,7 @@
     if (tab && tab.dataset.tab !== 'messages' && pending.size > 0) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      window.alert('You have changes to save. Please click Save changes before switching tabs.'); // FIXED: blocks tab switches only while real message edits are pending.
+      void window.coinSpriteUi.alert('You have changes to save. Please click Save changes before switching tabs.', 'Unsaved changes'); // FIXED: blocks tab switches only while real message edits are pending.
       return;
     }
 

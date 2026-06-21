@@ -7,9 +7,12 @@
   const ACTION_TYPES = ['delete', 'warn', 'timeout', 'report', 'log'];
   const DEFAULT_LINK_ACTIONS = [{ type: 'delete' }, { type: 'log' }];
   const moderatorState = {
-    view: 'overview',
+    workspace: 'auto',
+    view: 'ai',
     cases: [],
-    caseQuery: '',
+    selectedCaseId: '',
+    caseFilters: { query: '', status: '', type: '' },
+    casePagination: { page: 1, pageSize: 20, total: 0, totalPages: 1, hasPrevious: false, hasNext: false },
     casesLoading: false,
     casesLoaded: false,
     enabled: false,
@@ -133,6 +136,8 @@
     const domainWhitelist = uniqueIds(link.domainWhitelist);
     const legacyLogChannelId = String(ai.logChannelId || '');
     const warnings = config.moderation?.warnings || {};
+    const moderationLogs = config.logging?.categories?.moderation || {};
+    const logOverrides = moderationLogs.eventOverrides || {};
     const defaultRules = [
       { threshold: 3, action: 'timeout', durationSeconds: 3600, enabled: true },
       { threshold: 5, action: 'timeout', durationSeconds: 86400, enabled: true },
@@ -141,8 +146,8 @@
     ];
     return {
       enabled: Boolean(ai.enabled),
-      lowSeverityLogChannelId: String(ai.lowSeverityLogChannelId || legacyLogChannelId),
-      severeLogChannelId: String(ai.severeLogChannelId || legacyLogChannelId),
+      lowSeverityLogChannelId: String(logOverrides.ai_low || moderationLogs.defaultChannelId || ai.lowSeverityLogChannelId || legacyLogChannelId),
+      severeLogChannelId: String(logOverrides.ai_severe || moderationLogs.defaultChannelId || ai.severeLogChannelId || legacyLogChannelId),
       scanChannelIds: uniqueIds(ai.scanChannelIds),
       excludeRoleIds: uniqueIds(ai.excludeRoleIds),
       alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
@@ -151,7 +156,7 @@
         enabled: Boolean(warnings.enabled),
         defaultExpiryDays: Math.max(0, Math.min(3650, Number(warnings.defaultExpiryDays) || 90)),
         fallbackChannelId: String(warnings.fallbackChannelId || ''),
-        staffLogChannelId: String(warnings.staffLogChannelId || ''),
+        staffLogChannelId: String(logOverrides.warning || moderationLogs.defaultChannelId || warnings.staffLogChannelId || ''),
         escalationRules: (Array.isArray(warnings.escalationRules) ? warnings.escalationRules : defaultRules).map((rule) => ({
           threshold: Math.max(1, Math.min(100, Math.round(Number(rule.threshold) || 1))),
           action: ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule.action) ? rule.action : 'staff_alert',
@@ -347,34 +352,124 @@ function renderWarningsPanel() {
   </div>`;
 }
 
-function renderCasesPanel() {
-  const rows = moderatorState.cases.filter((record) => {
-    const query = moderatorState.caseQuery.toLowerCase();
-    return !query || [record.id, record.memberId, record.reason, record.status, record.source].some((value) => String(value || '').toLowerCase().includes(query));
-  });
-  return `<div class="panel">
-    <div class="panel-heading"><h3>Cases & logs</h3><p>Search, edit, or pardon warning cases without deleting their audit history.</p></div>
-    <label>Search cases <input id="warningCaseSearch" value="${escapeHtml(moderatorState.caseQuery)}" placeholder="Case ID, member, reason, source"></label>
-    <div class="automod-action-list">${moderatorState.casesLoading ? '<p>Loading cases...</p>' : rows.map((record) => `<div class="automod-action-row" data-case-id="${escapeHtml(record.id)}">
-      <strong>${escapeHtml(record.id)}</strong>
-      <span>Member ${escapeHtml(record.memberId)} · ${record.points} point(s) · ${escapeHtml(record.status)} · ${escapeHtml(record.source)}</span>
-      <label>Reason <input data-case-field="reason" maxlength="1000" value="${escapeHtml(record.reason)}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
-      <label>Points <input data-case-field="points" type="number" min="1" max="10" value="${record.points}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
-      <label>Evidence <input data-case-field="evidence" value="${escapeHtml(record.evidence || '')}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
-      <label>New expiry <input data-case-field="expires" data-case-optional="true" placeholder="Leave unchanged, or enter 30d/never" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
-      <label>Private staff notes <input data-case-field="staffNotes" value="${escapeHtml(record.staffNotes || '')}" ${record.status === 'pardoned' ? 'disabled' : ''}></label>
-      <span>Delivery: ${escapeHtml(record.delivery?.status || 'unknown')} · enforcement events: ${record.enforcementEvents?.length || 0}</span>
-      ${record.status === 'pardoned' ? `<span>Pardoned: ${escapeHtml(record.pardonReason || '')}</span>` : '<button class="button small" type="button" data-moderator-action="save-case">Save</button><button class="button small danger" type="button" data-moderator-action="pardon-case">Pardon</button>'}
-    </div>`).join('') || '<p>No matching cases.</p>'}</div>
-  </div>`;
+function caseProfile(profile, fallbackId) {
+  const value = profile || {};
+  return {
+    id: value.id || fallbackId || '',
+    name: value.displayName || value.username || 'Unknown user',
+    username: value.username || 'Unknown user',
+    avatarUrl: value.avatarUrl || '',
+  };
 }
 
-function renderSettingsPanel() {
-  return `<div class="panel"><div class="panel-heading"><h3>Moderation settings</h3><p>Shared behavior for moderation staff and warning records.</p></div>
-    <p>Dashboard and case APIs accept server administrators. Discord warning commands also accept the configured staff role.</p>
-    <p>Warning notification and log channels are configured in the Warnings tab. AI-specific channels remain in AI Moderation.</p>
-    <p>Case IDs are permanent and reserved for a future appeals workflow.</p>
-  </div>`;
+function renderCaseDetail(record) {
+  const target = caseProfile(record.profiles?.target, record.targetUserId);
+  const author = caseProfile(record.profiles?.author, record.authorId);
+  const notification = record.references?.notification || {};
+  const staffLog = record.references?.staffLog || {};
+  const editable = record.status !== 'pardoned';
+  const avatar = target.avatarUrl
+    ? '<img src="' + escapeHtml(target.avatarUrl) + '" alt="">'
+    : '<span class="case-avatar-fallback" aria-hidden="true">?</span>';
+  const actions = editable
+    ? '<div class="case-actions"><button class="button primary" type="button" data-moderator-action="save-case">Save case</button><button class="button danger" type="button" data-moderator-action="pardon-case">Pardon</button></div>'
+    : '<p class="case-pardon-note">Pardoned: ' + escapeHtml(record.pardonReason || 'No reason recorded.') + '</p>';
+  const events = [...(record.events || [])].reverse().map((event) => [
+    '<li><span>', new Date(event.createdAt).toLocaleString(), '</span><strong>',
+    escapeHtml(event.type), '</strong><span>', event.actorId ? 'Actor ' + escapeHtml(event.actorId) : 'System', '</span></li>',
+  ].join('')).join('') || '<li>No audit events.</li>';
+  return '<div class="case-detail">'
+    + '<button class="button small case-back" type="button" data-moderator-action="back-to-cases">← Back to cases</button>'
+    + '<div class="panel case-detail-hero"><div class="case-profile">' + avatar + '<div><span class="field-label">Target</span><strong>' + escapeHtml(target.name) + '</strong><span>@' + escapeHtml(target.username) + ' · ' + escapeHtml(target.id) + '</span></div></div>'
+    + '<div class="case-detail-heading"><span class="case-status ' + escapeHtml(record.status) + '">' + escapeHtml(record.status) + '</span><h2>' + escapeHtml(record.id) + '</h2><p>' + escapeHtml(record.type) + ' · ' + escapeHtml(record.source) + ' · created ' + new Date(record.createdAt).toLocaleString() + '</p></div></div>'
+    + '<div id="caseDetailError" class="inline-error" role="alert" hidden></div>'
+    + '<div id="caseDetailForm" class="case-detail-grid" data-case-id="' + escapeHtml(record.id) + '"><div class="panel">'
+    + '<div class="panel-heading"><h3>Case details</h3><p>Edits append an actor-aware audit event.</p></div>'
+    + '<label>Reason <textarea data-case-field="reason" maxlength="1000" rows="4" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.reason) + '</textarea></label>'
+    + '<div class="settings-grid"><label>Points <input data-case-field="points" type="number" min="1" max="10" value="' + Number(record.points) + '" ' + (editable ? '' : 'disabled') + '></label>'
+    + '<label>New expiry <input data-case-field="expires" data-case-optional="true" placeholder="Leave unchanged, or use 30d/never" ' + (editable ? '' : 'disabled') + '></label></div>'
+    + '<label>Evidence <input data-case-field="evidence" value="' + escapeHtml(record.evidence || '') + '" ' + (editable ? '' : 'disabled') + '></label>'
+    + '<label>Private staff notes <textarea data-case-field="staffNotes" maxlength="1000" rows="3" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'
+    + '<aside class="panel case-reference-panel"><div class="panel-heading"><h3>References</h3><p>Delivery and log messages retained on the case.</p></div><dl class="case-reference-list">'
+    + '<dt>Author</dt><dd>' + escapeHtml(author.name) + ' · ' + escapeHtml(author.id) + '</dd>'
+    + '<dt>Notice</dt><dd>' + escapeHtml(notification.status || 'pending') + ' · channel ' + escapeHtml(notification.channelId || 'not recorded') + ' · message ' + escapeHtml(notification.messageId || 'not recorded') + '</dd>'
+    + '<dt>Staff log</dt><dd>channel ' + escapeHtml(staffLog.channelId || 'not recorded') + ' · message ' + escapeHtml(staffLog.messageId || 'not recorded') + '</dd>'
+    + '<dt>Source</dt><dd>channel ' + escapeHtml(record.references?.source?.channelId || 'not recorded') + ' · message ' + escapeHtml(record.references?.source?.messageId || 'not recorded') + '</dd></dl></aside></div>'
+    + '<div class="panel case-audit-panel"><div class="panel-heading"><h3>Audit trail</h3><p>Append-only lifecycle and action events.</p></div><ol class="case-audit-list">' + events + '</ol></div></div>';
+}
+
+function renderCasesPanel() {
+  const selected = moderatorState.cases.find((record) => record.id === moderatorState.selectedCaseId);
+  if (selected) return renderCaseDetail(selected);
+  const page = moderatorState.casePagination;
+  const rows = moderatorState.cases.map((record) => {
+    const target = caseProfile(record.profiles?.target, record.targetUserId);
+    return '<button class="case-row" type="button" role="row" data-moderator-action="select-case" data-case-id="' + escapeHtml(record.id) + '">'
+      + '<strong>' + escapeHtml(record.id) + '<small>' + escapeHtml(record.type) + '</small></strong>'
+      + '<span>' + escapeHtml(target.name) + '<small>' + escapeHtml(target.id) + '</small></span>'
+      + '<span>' + escapeHtml(record.reason) + '</span><span class="case-status ' + escapeHtml(record.status) + '">' + escapeHtml(record.status) + '</span>'
+      + '<time>' + new Date(record.createdAt).toLocaleDateString() + '</time></button>';
+  }).join('');
+  const statusOptions = ['active', 'expired', 'pardoned'].map((value) => '<option value="' + value + '" ' + (moderatorState.caseFilters.status === value ? 'selected' : '') + '>' + value + '</option>').join('');
+  const typeOptions = ['warning', 'automod_warning', 'note', 'appeal'].map((value) => '<option value="' + value + '" ' + (moderatorState.caseFilters.type === value ? 'selected' : '') + '>' + value.replace('_', ' ') + '</option>').join('');
+  return '<div class="panel case-list-panel"><div class="panel-heading"><h3>Cases</h3><p>Server-filtered records. Select a row for its audit and edit workflow.</p></div>'
+    + '<div class="case-filter-bar"><label>Search <input id="warningCaseSearch" value="' + escapeHtml(moderatorState.caseFilters.query) + '" placeholder="Case, user, reason, source"></label>'
+    + '<label>Status <select id="warningCaseStatus"><option value="">All statuses</option>' + statusOptions + '</select></label>'
+    + '<label>Type <select id="warningCaseType"><option value="">All types</option>' + typeOptions + '</select></label></div>'
+    + '<div class="case-table" role="table" aria-label="Moderation cases"><div class="case-table-head" role="row"><span>Case</span><span>Target</span><span>Reason</span><span>Status</span><span>Created</span></div>'
+    + (moderatorState.casesLoading ? '<p class="case-empty">Loading cases…</p>' : rows || '<p class="case-empty">No matching cases.</p>') + '</div>'
+    + '<div class="case-pagination"><span>Page ' + page.page + ' of ' + page.totalPages + ' · ' + page.total + ' cases</span><div>'
+    + '<button class="button small" type="button" data-moderator-action="previous-case-page" ' + (page.hasPrevious ? '' : 'disabled') + '>Previous</button>'
+    + '<button class="button small" type="button" data-moderator-action="next-case-page" ' + (page.hasNext ? '' : 'disabled') + '>Next</button></div></div></div>';
+}
+
+let caseSearchTimer = null;
+
+function showModeratorToast(message, tone = 'success') {
+  let region = document.querySelector('#moderatorToastRegion');
+  if (!region) {
+    region = document.createElement('div');
+    region.id = 'moderatorToastRegion';
+    region.className = 'toast-region';
+    region.setAttribute('aria-live', 'polite');
+    document.body.append(region);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'app-toast ' + tone;
+  toast.textContent = String(message || '');
+  region.append(toast);
+  setTimeout(() => toast.remove(), 4200);
+}
+
+function closeModeratorModal() {
+  document.querySelector('#moderatorModalBackdrop')?.remove();
+}
+
+function openPardonModal(caseId) {
+  closeModeratorModal();
+  const backdrop = document.createElement('div');
+  backdrop.id = 'moderatorModalBackdrop';
+  backdrop.className = 'app-modal-backdrop';
+  backdrop.innerHTML = '<form class="app-modal" role="dialog" aria-modal="true" aria-labelledby="pardonModalTitle">'
+    + '<h2 id="pardonModalTitle">Pardon ' + escapeHtml(caseId) + '</h2>'
+    + '<p>The case remains in history and an audit event records this action.</p>'
+    + '<label>Reason <textarea id="pardonReason" maxlength="1000" rows="4" required></textarea></label>'
+    + '<div id="pardonModalError" class="inline-error" role="alert" hidden></div>'
+    + '<div class="app-modal-actions"><button class="button" type="button" data-moderator-action="close-modal">Cancel</button>'
+    + '<button class="button danger" type="submit" data-moderator-action="confirm-pardon" data-case-id="' + escapeHtml(caseId) + '">Pardon case</button></div></form>';
+  document.body.append(backdrop);
+  const dialog = backdrop.querySelector('.app-modal');
+  backdrop.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); closeModeratorModal(); return; }
+    if (event.key !== 'Tab') return;
+    const nodes = [...dialog.querySelectorAll('button, textarea, input, select')].filter((node) => !node.disabled);
+    if (!nodes.length) return;
+    const first = nodes[0], last = nodes[nodes.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeModeratorModal(); });
+  backdrop.querySelector('#pardonReason')?.focus();
 }
 
 function warningSnapshot() {
@@ -392,21 +487,29 @@ function warningSnapshot() {
   };
 }
 
-async function loadWarningCases() {
+async function loadWarningCases(force = false) {
   const guildId = document.querySelector('#guildSelect')?.value;
-  if (!guildId || moderatorState.casesLoading || moderatorState.casesLoaded) return;
+  if (!guildId || moderatorState.casesLoading || (!force && moderatorState.casesLoaded)) return;
   moderatorState.casesLoading = true;
-  renderModerator();
+  if (!force) renderModerator();
   try {
-    const response = await fetch(`/api/guilds/${guildId}/moderation/cases`, { cache: 'no-store' });
+    const params = new URLSearchParams({
+      page: String(moderatorState.casePagination.page || 1),
+      pageSize: String(moderatorState.casePagination.pageSize || 20),
+    });
+    for (const [key, value] of Object.entries(moderatorState.caseFilters)) if (value) params.set(key, value);
+    const response = await fetch('/api/guilds/' + guildId + '/moderation/cases?' + params, { cache: 'no-store' });
     const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || 'Could not load warning cases.');
+    if (!response.ok) throw new Error(payload.error || 'Could not load moderation cases.');
     moderatorState.cases = payload.cases || [];
+    moderatorState.casePagination = payload.pagination || { page: 1, pageSize: 20, total: payload.total || 0, totalPages: 1, hasPrevious: false, hasNext: false };
     moderatorState.casesLoaded = true;
+    if (moderatorState.selectedCaseId && !moderatorState.cases.some((record) => record.id === moderatorState.selectedCaseId)) moderatorState.selectedCaseId = '';
   } catch (error) {
     console.error(error);
     moderatorState.cases = [];
     moderatorState.casesLoaded = true;
+    showModeratorToast(error.message, 'error');
   } finally {
     moderatorState.casesLoading = false;
     renderModerator();
@@ -487,33 +590,27 @@ function mountWarningPickers(root) {
     ensureModeratorTab();
     const root = document.querySelector('#moderatorRoot');
     if (!root) return;
-    const tabs = [
-      ['overview', 'Overview'],
-      ['warnings', 'Warnings'],
-      ['auto', 'AutoMod'],
-      ['ai', 'AI Moderation'],
-      ['cases', 'Cases & Logs'],
-      ['settings', 'Settings'],
-    ];
-    let panel = renderOverviewPanel();
-    if (moderatorState.view === 'warnings') panel = renderWarningsPanel();
-    if (moderatorState.view === 'auto') panel = renderAutoPanel();
-    if (moderatorState.view === 'ai') panel = renderAiPanel();
-    if (moderatorState.view === 'cases') panel = renderCasesPanel();
-    if (moderatorState.view === 'settings') panel = renderSettingsPanel();
-    root.innerHTML = `<div class="moderator-shell">
-      <nav class="mini-tabs" aria-label="Moderator settings">
-        ${tabs.map(([value, label]) => `<button class="mini-tab ${moderatorState.view === value ? 'active' : ''}" type="button" data-moderator-view="${value}">${label}</button>`).join('')}
-      </nav>
-      ${panel}
-    </div>`;
+    const autoTabs = [['ai', 'AI Moderation'], ['auto', 'Link Moderation']];
+    const moderationTabs = [['warnings', 'Warn System'], ['cases', 'Cases']];
+    const tabs = moderatorState.workspace === 'auto' ? autoTabs : moderationTabs;
+    if (!tabs.some(([value]) => value === moderatorState.view)) moderatorState.view = tabs[0][0];
+    let panel = moderatorState.view === 'ai' ? renderAiPanel()
+      : moderatorState.view === 'auto' ? renderAutoPanel()
+        : moderatorState.view === 'warnings' ? renderWarningsPanel()
+          : renderCasesPanel();
+    root.innerHTML = '<div class="moderator-shell"><nav class="moderator-workspace-tabs" aria-label="Moderator workspace">'
+      + '<button class="moderator-workspace-tab ' + (moderatorState.workspace === 'auto' ? 'active' : '') + '" type="button" data-moderator-workspace="auto"><strong>Auto Moderation</strong><span>AI and link controls</span></button>'
+      + '<button class="moderator-workspace-tab ' + (moderatorState.workspace === 'moderation' ? 'active' : '') + '" type="button" data-moderator-workspace="moderation"><strong>Moderation</strong><span>Warnings and cases</span></button></nav>'
+      + '<nav class="mini-tabs" aria-label="Workspace sections">'
+      + tabs.map(([value, label]) => '<button class="mini-tab ' + (moderatorState.view === value ? 'active' : '') + '" type="button" data-moderator-view="' + value + '">' + label + '</button>').join('')
+      + '</nav>' + panel + '</div>';
     if (moderatorState.view === 'auto') mountLinkPickers(root);
     if (moderatorState.view === 'ai') mountAiPickers(root);
     if (moderatorState.view === 'warnings') mountWarningPickers(root);
-    if ((moderatorState.view === 'overview' || moderatorState.view === 'cases') && !moderatorState.casesLoaded) queueMicrotask(loadWarningCases);
+    if (moderatorState.view === 'cases' && !moderatorState.casesLoaded) queueMicrotask(loadWarningCases);
   }
 
-  function moderationSnapshot() {
+function moderationSnapshot() {
     return {
       enabled: Boolean(moderatorState.enabled),
       lowSeverityLogChannelId: moderatorState.lowSeverityLogChannelId || '',
@@ -547,9 +644,16 @@ function mountWarningPickers(root) {
   ensureModeratorTab();
 
   document.addEventListener('click', async (event) => {
+    const workspace = event.target.closest('[data-moderator-workspace]')?.dataset.moderatorWorkspace;
+    if (workspace) {
+      moderatorState.workspace = workspace === 'moderation' ? 'moderation' : 'auto';
+      moderatorState.view = moderatorState.workspace === 'moderation' ? 'warnings' : 'ai';
+      renderModerator();
+      return;
+    }
     const view = event.target.closest('[data-moderator-view]')?.dataset.moderatorView;
     if (view) {
-      moderatorState.view = ['overview', 'warnings', 'auto', 'ai', 'cases', 'settings'].includes(view) ? view : 'overview';
+      moderatorState.view = ['warnings', 'auto', 'ai', 'cases'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : 'warnings');
       renderModerator();
       return;
     }
@@ -558,6 +662,26 @@ function mountWarningPickers(root) {
     if (!event.target.closest('#moderatorRoot')) return;
     const link = moderatorState.auto.link;
     const guildId = document.querySelector('#guildSelect')?.value;
+    if (action === 'select-case') {
+      moderatorState.selectedCaseId = event.target.closest('[data-case-id]')?.dataset.caseId || '';
+      renderModerator();
+      return;
+    }
+    if (action === 'back-to-cases') {
+      moderatorState.selectedCaseId = '';
+      renderModerator();
+      return;
+    }
+    if (action === 'previous-case-page' || action === 'next-case-page') {
+      moderatorState.casePagination.page += action === 'next-case-page' ? 1 : -1;
+      moderatorState.casesLoaded = false;
+      await loadWarningCases(true);
+      return;
+    }
+    if (action === 'close-modal') {
+      closeModeratorModal();
+      return;
+    }
     if (action === 'add-warning-rule') {
       moderatorState.warnings.escalationRules.push({ threshold: 10, action: 'staff_alert', durationSeconds: 0, enabled: true });
       renderModerator();
@@ -598,34 +722,59 @@ function mountWarningPickers(root) {
       return;
     }
     if (action === 'save-case') {
-      const row = event.target.closest('[data-case-id]');
+      const form = document.querySelector('#caseDetailForm');
+      const errorNode = document.querySelector('#caseDetailError');
       const patch = {};
-      row.querySelectorAll('[data-case-field]').forEach((field) => {
+      form?.querySelectorAll('[data-case-field]').forEach((field) => {
         if (field.dataset.caseOptional === 'true' && !field.value.trim()) return;
         patch[field.dataset.caseField] = field.type === 'number' ? Number(field.value) : field.value;
       });
-      const response = await fetch(`/api/guilds/${guildId}/moderation/cases/${row.dataset.caseId}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
-      });
-      const payload = await response.json();
-      if (!response.ok) return window.alert(payload.error || 'Could not update case.');
-      moderatorState.casesLoaded = false;
-      await loadWarningCases();
+      try {
+        const response = await fetch('/api/guilds/' + guildId + '/moderation/cases/' + form.dataset.caseId, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Could not update case.');
+        moderatorState.casesLoaded = false;
+        await loadWarningCases(true);
+        moderatorState.selectedCaseId = payload.case.id;
+        showModeratorToast('Case ' + payload.case.id + ' updated.');
+      } catch (error) {
+        if (errorNode) { errorNode.textContent = error.message; errorNode.hidden = false; }
+      }
       return;
     }
     if (action === 'pardon-case') {
-      const row = event.target.closest('[data-case-id]');
-      const reason = window.prompt('Reason for pardoning this case:');
-      if (!reason) return;
-      const response = await fetch(`/api/guilds/${guildId}/moderation/cases/${row.dataset.caseId}/pardon`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
-      });
-      const payload = await response.json();
-      if (!response.ok) return window.alert(payload.error || 'Could not pardon case.');
-      moderatorState.casesLoaded = false;
-      await loadWarningCases();
+      const caseId = document.querySelector('#caseDetailForm')?.dataset.caseId;
+      if (caseId) openPardonModal(caseId);
       return;
     }
+    if (action === 'confirm-pardon') {
+      event.preventDefault();
+      const caseId = event.target.dataset.caseId;
+      const reason = document.querySelector('#pardonReason')?.value.trim();
+      const errorNode = document.querySelector('#pardonModalError');
+      if (!reason) {
+        if (errorNode) { errorNode.textContent = 'A pardon reason is required.'; errorNode.hidden = false; }
+        return;
+      }
+      try {
+        const response = await fetch('/api/guilds/' + guildId + '/moderation/cases/' + caseId + '/pardon', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Could not pardon case.');
+        closeModeratorModal();
+        moderatorState.casesLoaded = false;
+        await loadWarningCases(true);
+        moderatorState.selectedCaseId = payload.case.id;
+        showModeratorToast('Case ' + payload.case.id + ' pardoned.');
+      } catch (error) {
+        if (errorNode) { errorNode.textContent = error.message; errorNode.hidden = false; }
+      }
+      return;
+    }
+
     if (action === 'add-link-action') {
       link.actions.push(actionDefaults('log'));
       renderModerator();
@@ -646,11 +795,13 @@ function mountWarningPickers(root) {
     if (event.target.id === 'moderationMaxInputChars') moderatorState.maxInputChars = Number(event.target.value) || 1500;
     if (event.target.id === 'warningDefaultExpiryDays') moderatorState.warnings.defaultExpiryDays = Number(event.target.value) || 90;
     if (event.target.id === 'warningCaseSearch') {
-      moderatorState.caseQuery = event.target.value;
-      renderModerator();
-      const search = document.querySelector('#warningCaseSearch');
-      search?.focus();
-      search?.setSelectionRange?.(search.value.length, search.value.length);
+      moderatorState.caseFilters.query = event.target.value;
+      clearTimeout(caseSearchTimer);
+      caseSearchTimer = setTimeout(() => {
+        moderatorState.casePagination.page = 1;
+        moderatorState.casesLoaded = false;
+        loadWarningCases(true);
+      }, 300);
       return;
     }
     const warningRuleField = event.target.dataset.warningRuleField;
@@ -679,6 +830,14 @@ function mountWarningPickers(root) {
     const link = moderatorState.auto.link;
     if (event.target.id === 'moderationAiEnabled') moderatorState.enabled = Boolean(event.target.checked);
     if (event.target.id === 'warningsEnabled') moderatorState.warnings.enabled = Boolean(event.target.checked);
+    if (event.target.id === 'warningCaseStatus' || event.target.id === 'warningCaseType') {
+      const key = event.target.id === 'warningCaseStatus' ? 'status' : 'type';
+      moderatorState.caseFilters[key] = event.target.value;
+      moderatorState.casePagination.page = 1;
+      moderatorState.casesLoaded = false;
+      loadWarningCases(true);
+      return;
+    }
     const warningRuleField = event.target.dataset.warningRuleField;
     if (warningRuleField) {
       const index = Number(event.target.closest('[data-warning-rule-index]')?.dataset.warningRuleIndex);
@@ -717,6 +876,8 @@ function mountWarningPickers(root) {
       moderatorState.warnings = next.warnings;
       moderatorState.auto = next.auto;
       moderatorState.cases = [];
+      moderatorState.selectedCaseId = '';
+      moderatorState.casePagination.page = 1;
       moderatorState.casesLoaded = false;
       renderModerator();
       return;
@@ -738,6 +899,20 @@ function mountWarningPickers(root) {
       ai: moderationSnapshot(),
       auto: autoSnapshot(),
       warnings: warningSnapshot(),
+    };
+    patch.logging = {
+      ...(patch.logging || {}),
+      categories: {
+        ...(patch.logging?.categories || {}),
+        moderation: {
+          defaultChannelId: '',
+          eventOverrides: {
+            ai_low: moderatorState.lowSeverityLogChannelId || '',
+            ai_severe: moderatorState.severeLogChannelId || '',
+            warning: moderatorState.warnings.staffLogChannelId || '',
+          },
+        },
+      },
     };
     return patch;
   };

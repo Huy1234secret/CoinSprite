@@ -714,7 +714,7 @@
     if (action === 'folder-open') { view.folderId = button.dataset.id; view.section = 'templates'; render(); return; }
     if (action === 'folder-back') { view.folderId = ''; render(); return; }
     if (action === 'folder-delete') {
-      if (!view.folderId || !window.confirm('Delete this folder and its templates?')) return;
+      if (!view.folderId || !await window.coinSpriteUi.confirm('Delete this folder and its templates?', 'Delete folder?')) return;
       await request(`/api/guilds/${view.guildId}/message-templates/${view.folderId}`, { method: 'DELETE' });
       view.templates = view.templates.filter((item) => item.id !== view.folderId && item.folderId !== view.folderId);
       view.folderId = '';
@@ -738,7 +738,7 @@
     else if (action === 'delete') {
       const template = selected();
       if (template.botDefault || template.defaultLocked || String(template.id || '').startsWith('default-')) return;
-      if (!window.confirm(`Delete "${template.name}"?`)) return;
+      if (!await window.coinSpriteUi.confirm(`Delete "${template.name}"?`, 'Delete template?')) return;
       await request(`/api/guilds/${view.guildId}/message-templates/${template.id}`, { method: 'DELETE' });
       view.templates = view.templates.filter((item) => item.id !== template.id);
       view.selectedId = '';

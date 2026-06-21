@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
 const { DEFAULT_LEVEL_UP_MESSAGE, sanitizeLevelUpMessage } = require('./levelUpMessage');
 const {
   DEFAULT_TICKETS_CONFIG,
@@ -10,7 +11,7 @@ const {
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
@@ -72,6 +73,19 @@ const DEFAULT_WARNING_RULES = [
   { threshold: 10, action: 'staff_alert', durationSeconds: 0, enabled: true },
 ];
 
+const DEFAULT_LOGGING = {
+  categories: {
+    moderation: { defaultChannelId: '', eventOverrides: { ai_low: '', ai_severe: '', warning: '' } },
+    commands: { defaultChannelId: '', eventOverrides: {} },
+    requests: { defaultChannelId: '', eventOverrides: { role_review: '', giveaway_review: '' } },
+    invites: { defaultChannelId: '', eventOverrides: {} },
+    transcripts: { defaultChannelId: '', eventOverrides: {} },
+    background: { defaultChannelId: '', eventOverrides: {} },
+  },
+};
+
+function cloneLogging(value) { return JSON.parse(JSON.stringify(value)); }
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
   channels: {
@@ -90,6 +104,7 @@ const DEFAULT_GUILD_CONFIG = {
     giveawayAnnouncement: '',
     commandLogThread: '',
   },
+  logging: cloneLogging(DEFAULT_LOGGING),
   roles: {
     staff: '',
     crewMemberPlus: '',
@@ -194,6 +209,29 @@ const DEFAULT_COINSPRITE_GUILD_CONFIG = {
     wordChain: '1512480152410525958',
     giveawayAnnouncement: '1493927942546259969',
     commandLogThread: '1495783372591730750',
+  },
+  logging: {
+    categories: {
+      moderation: {
+        defaultChannelId: '',
+        eventOverrides: {
+          ai_low: '1516856053751353464',
+          ai_severe: '1516855502749962420',
+          warning: '',
+        },
+      },
+      commands: { defaultChannelId: '1495783372591730750', eventOverrides: {} },
+      requests: {
+        defaultChannelId: '',
+        eventOverrides: {
+          role_review: '1495714584437329940',
+          giveaway_review: '1498546607686291558',
+        },
+      },
+      invites: { defaultChannelId: '1493915942047059999', eventOverrides: {} },
+      transcripts: { defaultChannelId: '1495788766600757418', eventOverrides: {} },
+      background: { defaultChannelId: '1502296881395536033', eventOverrides: {} },
+    },
   },
   moderation: {
     ...DEFAULT_GUILD_CONFIG.moderation,
@@ -306,9 +344,57 @@ function mergeConfig(defaultValue, overrideValue) {
 
 function ensureStoreFile() {
   fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  if (!fs.existsSync(STORE_PATH)) {
-    fs.writeFileSync(STORE_PATH, `${JSON.stringify(DEFAULT_STATE, null, 2)}\n`, 'utf8');
+  if (!fs.existsSync(STORE_PATH)) writeJsonAtomic(STORE_PATH, DEFAULT_STATE);
+}
+
+function cleanChannelId(value) {
+  const text = String(value || '').trim();
+  return /^\d{16,20}$/.test(text) ? text : '';
+}
+
+function normalizeLogging(rawLogging, legacyChannels = {}, legacyModeration = {}, defaults = DEFAULT_LOGGING) {
+  const merged = mergeConfig(defaults, rawLogging);
+  const categories = merged.categories || {};
+  const explicit = rawLogging?.categories || {};
+  const fallback = {
+    moderation: {
+      defaultChannelId: legacyModeration?.warnings?.staffLogChannelId,
+      eventOverrides: {
+        ai_low: legacyModeration?.ai?.lowSeverityLogChannelId || legacyModeration?.ai?.logChannelId,
+        ai_severe: legacyModeration?.ai?.severeLogChannelId || legacyModeration?.ai?.logChannelId,
+        warning: legacyModeration?.warnings?.staffLogChannelId,
+      },
+    },
+    commands: { defaultChannelId: legacyChannels.commandLogThread, eventOverrides: {} },
+    requests: {
+      defaultChannelId: '',
+      eventOverrides: {
+        role_review: legacyChannels.roleRequestReview,
+        giveaway_review: legacyChannels.giveawayRequestReview,
+      },
+    },
+    invites: { defaultChannelId: legacyChannels.inviteLog, eventOverrides: {} },
+    transcripts: { defaultChannelId: legacyChannels.transcript, eventOverrides: {} },
+    background: { defaultChannelId: legacyChannels.backgroundLogThread, eventOverrides: {} },
+  };
+  for (const [category, value] of Object.entries(categories)) {
+    const configured = explicit[category] || {};
+    value.defaultChannelId = cleanChannelId(configured.defaultChannelId || fallback[category]?.defaultChannelId || value.defaultChannelId);
+    value.eventOverrides ||= {};
+    const keys = new Set([...Object.keys(value.eventOverrides), ...Object.keys(fallback[category]?.eventOverrides || {})]);
+    for (const event of keys) {
+      value.eventOverrides[event] = cleanChannelId(
+        configured.eventOverrides?.[event] || fallback[category]?.eventOverrides?.[event] || value.eventOverrides[event],
+      );
+    }
   }
+  return { categories };
+}
+
+function resolveLoggingChannelId(configOrGuildId, category, event = '', legacyFallback = '') {
+  const config = typeof configOrGuildId === 'string' ? getGuildConfig(configOrGuildId) : configOrGuildId;
+  const route = config?.logging?.categories?.[category] || {};
+  return cleanChannelId(route.eventOverrides?.[event] || route.defaultChannelId || legacyFallback);
 }
 
 function normalizeGuildConfig(guildId, guildConfig, defaults) {
@@ -319,6 +405,7 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   delete merged.xp.lowXpAmount;
   delete merged.xp.levelFunMessages;
   merged.enabled = guildConfig?.enabled === false ? false : true;
+  merged.logging = normalizeLogging(guildConfig?.logging, merged.channels, merged.moderation, defaults.logging || DEFAULT_LOGGING);
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
   const warnings = merged.moderation.warnings;
   warnings.enabled = Boolean(warnings.enabled);
@@ -358,16 +445,9 @@ function normalizeDisabledGuilds(value) {
 
 function normalizeState(rawState) {
   const rawGuilds = isPlainObject(rawState?.guilds) ? rawState.guilds : {};
-  const rawSchemaVersion = Number(rawState?.meta?.schemaVersion) || 0;
-  const resetNonPrimaryGuilds = rawSchemaVersion < SCHEMA_VERSION;
   const guilds = {};
 
   for (const [guildId, guildConfig] of Object.entries(rawGuilds)) {
-    if (guildId !== DEFAULT_GUILD_ID && resetNonPrimaryGuilds) {
-      guilds[guildId] = clone(DEFAULT_GUILD_CONFIG);
-      continue;
-    }
-
     const defaults = guildId === DEFAULT_GUILD_ID
       ? DEFAULT_COINSPRITE_GUILD_CONFIG
       : DEFAULT_GUILD_CONFIG;
@@ -396,22 +476,19 @@ function normalizeState(rawState) {
 }
 
 function writeState(state) {
-  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  fs.writeFileSync(STORE_PATH, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  writeJsonAtomic(STORE_PATH, state);
 }
 
 function loadState() {
   ensureStoreFile();
-  try {
-    const rawState = JSON.parse(fs.readFileSync(STORE_PATH, 'utf8') || '{}');
-    const normalized = normalizeState(rawState);
-    if (JSON.stringify(rawState) !== JSON.stringify(normalized)) writeState(normalized);
-    return normalized;
-  } catch {
-    const fallback = clone(DEFAULT_STATE);
-    writeState(fallback);
-    return fallback;
+  const rawState = readJsonFile(STORE_PATH, { label: 'Server configuration' });
+  const sourceVersion = Number(rawState?.meta?.schemaVersion) || 0;
+  const normalized = normalizeState(rawState);
+  if (JSON.stringify(rawState) !== JSON.stringify(normalized)) {
+    if (sourceVersion < SCHEMA_VERSION) backupFileOnce(STORE_PATH, STORE_PATH + '.v' + sourceVersion + '.bak');
+    writeState(normalized);
   }
+  return normalized;
 }
 
 function saveState(state) {
@@ -508,6 +585,7 @@ function isGuildEnabled(guildId) {
 
 module.exports = {
   DEFAULT_GUILD_CONFIG,
+  DEFAULT_LOGGING,
   DEFAULT_WARNING_RULES,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -524,6 +602,8 @@ module.exports = {
   getGuildConfigValue,
   isGuildEnabled,
   loadState,
+  normalizeLogging,
+  resolveLoggingChannelId,
   saveState,
   setGuildEnabled,
 };

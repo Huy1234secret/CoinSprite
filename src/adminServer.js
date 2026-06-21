@@ -412,6 +412,32 @@ function mergePlain(base, patch) {
   return result;
 }
 
+function caseUserProfile(member, userId) {
+  const user = member?.user || null;
+  return {
+    id: String(userId || ''),
+    username: user?.username || 'Unknown user',
+    displayName: member?.displayName || user?.globalName || user?.username || 'Unknown user',
+    avatarUrl: typeof user?.displayAvatarURL === 'function' ? user.displayAvatarURL({ extension: 'png', size: 128 }) : '',
+  };
+}
+
+async function hydrateCaseProfiles(guild, records) {
+  const ids = [...new Set(records.flatMap((record) => [record.targetUserId, record.authorId]).filter(Boolean))];
+  const entries = await Promise.all(ids.map(async (id) => {
+    const member = guild.members?.cache?.get(id) || await guild.members?.fetch?.(id).catch(() => null);
+    return [id, caseUserProfile(member, id)];
+  }));
+  const profiles = Object.fromEntries(entries);
+  return records.map((record) => ({
+    ...record,
+    profiles: {
+      target: profiles[record.targetUserId] || caseUserProfile(null, record.targetUserId),
+      author: profiles[record.authorId] || caseUserProfile(null, record.authorId),
+    },
+  }));
+}
+
 function updateGuildConfig(guildId, patch) {
   const state = loadState();
   const current = state.guilds[guildId];
@@ -524,13 +550,18 @@ async function routeRequest(req, res, env, client) {
     if (!auth) return;
     if (req.method === 'GET') {
       const filters = {
-        memberId: url.searchParams.get('memberId') || '',
+        targetUserId: url.searchParams.get('targetUserId') || url.searchParams.get('memberId') || '',
+        authorId: url.searchParams.get('authorId') || '',
+        type: url.searchParams.get('type') || '',
         status: url.searchParams.get('status') || '',
         source: url.searchParams.get('source') || '',
         query: url.searchParams.get('query') || '',
+        page: url.searchParams.get('page') || 1,
+        pageSize: url.searchParams.get('pageSize') || 25,
       };
-      const cases = moderationCases.listCases(guildId, filters);
-      return sendJson(res, 200, { cases, total: cases.length });
+      const result = moderationCases.queryCases(guildId, filters);
+      const cases = await hydrateCaseProfiles(auth.guild, result.cases);
+      return sendJson(res, 200, { cases, pagination: result.pagination, total: result.pagination.total });
     }
     if (req.method === 'POST') {
       try {
@@ -563,10 +594,17 @@ async function routeRequest(req, res, env, client) {
     try {
       if (req.method === 'GET' && !moderationCaseMatch[3]) {
         const record = moderationCases.getCase(guildId, caseId);
-        return record ? sendJson(res, 200, { case: record }) : sendJson(res, 404, { error: 'Warning case was not found.' });
+        if (!record) return sendJson(res, 404, { error: 'Warning case was not found.' });
+        const [hydrated] = await hydrateCaseProfiles(auth.guild, [record]);
+        return sendJson(res, 200, { case: hydrated });
       }
       if (req.method === 'PATCH' && !moderationCaseMatch[3]) {
-        const result = await editWarning({ guild: auth.guild, caseId, patch: await readJsonBody(req) });
+        const result = await editWarning({
+          guild: auth.guild,
+          caseId,
+          moderatorId: auth.session.user.id,
+          patch: await readJsonBody(req),
+        });
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && moderationCaseMatch[3] === '/pardon') {
