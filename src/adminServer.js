@@ -524,7 +524,9 @@ async function routeRequest(req, res, env, client) {
     if (!auth) return;
     if (req.method === 'GET') {
       const filters = {
-        memberId: url.searchParams.get('memberId') || '',
+        targetUserId: url.searchParams.get('targetUserId') || url.searchParams.get('memberId') || '',
+        authorId: url.searchParams.get('authorId') || '',
+        type: url.searchParams.get('type') || '',
         status: url.searchParams.get('status') || '',
         source: url.searchParams.get('source') || '',
         query: url.searchParams.get('query') || '',
@@ -566,7 +568,12 @@ async function routeRequest(req, res, env, client) {
         return record ? sendJson(res, 200, { case: record }) : sendJson(res, 404, { error: 'Warning case was not found.' });
       }
       if (req.method === 'PATCH' && !moderationCaseMatch[3]) {
-        const result = await editWarning({ guild: auth.guild, caseId, patch: await readJsonBody(req) });
+        const result = await editWarning({
+          guild: auth.guild,
+          caseId,
+          moderatorId: auth.session.user.id,
+          patch: await readJsonBody(req),
+        });
         return sendJson(res, 200, result);
       }
       if (req.method === 'POST' && moderationCaseMatch[3] === '/pardon') {
