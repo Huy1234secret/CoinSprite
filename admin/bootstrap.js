@@ -47,20 +47,23 @@
       body #moderatorRoot .case-layout-v3 .case-panel-title > span:first-child { width: 22px !important; min-width: 22px !important; height: 22px !important; display: grid !important; place-items: center !important; font-size: 15px !important; line-height: 1 !important; }
       body #moderatorRoot .case-layout-v3 .case-panel-title p { margin: 3px 0 0 !important; max-width: 720px !important; color: var(--muted, #b7bdc8) !important; font-size: 12px !important; line-height: 1.35 !important; }
       body #moderatorRoot .case-layout-v3 .case-info-panel dl { display: grid !important; margin: 0 !important; padding: 0 !important; }
-      body #moderatorRoot .case-layout-v3 .case-info-row { display: grid !important; grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) !important; gap: 18px !important; align-items: center !important; min-height: 36px !important; padding: 9px 0 !important; border-bottom: 1px solid rgba(255,255,255,.095) !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row { display: grid !important; grid-template-columns: minmax(84px, 112px) minmax(0, 1fr) !important; gap: 14px !important; align-items: center !important; min-height: 36px !important; padding: 9px 0 !important; border-bottom: 1px solid rgba(255,255,255,.095) !important; }
       body #moderatorRoot .case-layout-v3 .case-info-row:last-child { border-bottom: 0 !important; }
       body #moderatorRoot .case-layout-v3 .case-info-row dt { margin: 0 !important; color: #fff !important; font-size: 13px !important; font-weight: 900 !important; line-height: 1.25 !important; }
-      body #moderatorRoot .case-layout-v3 .case-info-row dd { display: grid !important; gap: 2px !important; min-width: 0 !important; margin: 0 !important; color: #f2f5fb !important; }
-      body #moderatorRoot .case-layout-v3 .case-info-row dd > div { min-width: 0 !important; overflow-wrap: anywhere !important; word-break: normal !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dd { display: grid !important; gap: 2px !important; min-width: 0 !important; margin: 0 !important; color: #f2f5fb !important; overflow: hidden !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dd > div { min-width: 0 !important; word-break: normal !important; }
+      body #moderatorRoot .case-layout-v3 .case-info-row dd > div:not(.case-user-chip) { overflow-wrap: anywhere !important; }
       body #moderatorRoot .case-layout-v3 .case-info-row small, body #moderatorRoot .case-layout-v3 .case-muted-text { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; line-height: 1.25 !important; }
       body #moderatorRoot .case-layout-v3 strong, body #moderatorRoot .case-layout-v3 code { color: #fff !important; font-weight: 850 !important; }
       body #moderatorRoot .case-layout-v3 .case-linkish { color: #00b0f4 !important; font-weight: 800 !important; overflow-wrap: anywhere !important; }
       body #moderatorRoot .case-layout-v3 .case-state-line { display: inline-flex !important; align-items: center !important; gap: 7px !important; width: fit-content !important; }
-      body #moderatorRoot .case-layout-v3 .case-user-chip { display: grid !important; grid-template-columns: 32px minmax(0, 1fr) !important; align-items: center !important; gap: 9px !important; max-width: 100% !important; min-width: 0 !important; width: fit-content !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-chip { display: grid !important; grid-template-columns: 32px minmax(0, 1fr) !important; align-items: center !important; gap: 9px !important; width: min(100%, 560px) !important; max-width: 100% !important; min-width: 0 !important; overflow: hidden !important; overflow-wrap: normal !important; word-break: normal !important; }
       body #moderatorRoot .case-layout-v3 .case-user-chip img, body #moderatorRoot .case-layout-v3 .case-user-chip > .case-user-fallback { width: 32px !important; height: 32px !important; max-width: 32px !important; max-height: 32px !important; border-radius: 50% !important; object-fit: cover !important; display: block !important; flex: 0 0 32px !important; }
-      body #moderatorRoot .case-layout-v3 .case-user-copy { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 1px !important; min-width: 0 !important; }
-      body #moderatorRoot .case-layout-v3 .case-user-copy strong { max-width: 260px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-      body #moderatorRoot .case-layout-v3 .case-user-copy small, body #moderatorRoot .case-layout-v3 .case-ref-chip small { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; overflow-wrap: anywhere !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: 1px !important; min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; overflow-wrap: normal !important; word-break: normal !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy strong,
+      body #moderatorRoot .case-layout-v3 .case-user-copy small { display: block !important; max-width: 100% !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; overflow-wrap: normal !important; word-break: normal !important; }
+      body #moderatorRoot .case-layout-v3 .case-user-copy small { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; line-height: 1.2 !important; }
+      body #moderatorRoot .case-layout-v3 .case-ref-chip small { color: var(--muted, #b7bdc8) !important; font-size: 11px !important; overflow-wrap: anywhere !important; }
       body #moderatorRoot .case-layout-v3 .case-ref-chip { display: grid !important; gap: 2px !important; min-width: 0 !important; }
       body #moderatorRoot .case-layout-v3 .case-ref-chip strong { color: #00b0f4 !important; font-size: 13px !important; }
       body #moderatorRoot .case-layout-v3 .case-field-block, body #moderatorRoot .case-layout-v3 .case-edit-panel label { display: grid !important; gap: 7px !important; min-width: 0 !important; }
@@ -134,7 +137,7 @@
 
   const replaceChild = Node.prototype.replaceChild;
   Node.prototype.replaceChild = function patchedReplaceChild(node, oldNode) {
-    return replaceChild.call(this, identifyFields(node));
+    return replaceChild.call(this, identifyFields(node), oldNode);
   };
 
   for (const methodName of ['append', 'prepend', 'before', 'after', 'replaceWith', 'replaceChildren']) {
