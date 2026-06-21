@@ -1,7 +1,7 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { analyzeModerationMessage } = require('../src/aiModeration');
 const { moderationIgnoreReason } = require('../src/moderationMessageFilter');
-const { getGuildConfig } = require('../src/serverConfig');
+const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
 const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
@@ -21,8 +21,8 @@ function moderationConfig(guildId) {
   const legacyLogChannelId = String(ai.logChannelId || '');
   return {
     enabled: Boolean(ai.enabled),
-    lowSeverityLogChannelId: String(ai.lowSeverityLogChannelId || legacyLogChannelId),
-    severeLogChannelId: String(ai.severeLogChannelId || legacyLogChannelId),
+    lowSeverityLogChannelId: resolveLoggingChannelId(config, 'moderation', 'ai_low', ai.lowSeverityLogChannelId || legacyLogChannelId),
+    severeLogChannelId: resolveLoggingChannelId(config, 'moderation', 'ai_severe', ai.severeLogChannelId || legacyLogChannelId),
     scanChannelIds: uniqueIds(ai.scanChannelIds),
     excludeRoleIds: uniqueIds(ai.excludeRoleIds),
     alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
