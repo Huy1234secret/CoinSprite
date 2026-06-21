@@ -49,7 +49,14 @@
             "scanChannelIds": [],
             "excludeChannelIds": [],
             "excludeRoleIds": [],
-            "actions": [{ "type": "delete" }, { "type": "log" }]
+            "actions": [
+              {
+                "type": "delete"
+              },
+              {
+                "type": "log"
+              }
+            ]
           }
         },
         "warnings": {
@@ -58,26 +65,101 @@
           "fallbackChannelId": "",
           "staffLogChannelId": "",
           "escalationRules": [
-            { "threshold": 3, "action": "timeout", "durationSeconds": 3600, "enabled": true },
-            { "threshold": 5, "action": "timeout", "durationSeconds": 86400, "enabled": true },
-            { "threshold": 8, "action": "timeout", "durationSeconds": 604800, "enabled": true },
-            { "threshold": 10, "action": "staff_alert", "durationSeconds": 0, "enabled": true }
+            {
+              "threshold": 3,
+              "action": "timeout",
+              "durationSeconds": 3600,
+              "enabled": true
+            },
+            {
+              "threshold": 5,
+              "action": "timeout",
+              "durationSeconds": 86400,
+              "enabled": true
+            },
+            {
+              "threshold": 8,
+              "action": "timeout",
+              "durationSeconds": 604800,
+              "enabled": true
+            },
+            {
+              "threshold": 10,
+              "action": "staff_alert",
+              "durationSeconds": 0,
+              "enabled": true
+            }
           ]
         }
       },
       "xp": {
         "channels": [
-          { "channelId": "1493906607166328872", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1495676540875182212", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1493907879328088064", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1493907677284139099", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1493908074669543544", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1496256300655317092", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1495375260642705488", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1507985673871687823", "minXp": 1, "maxXp": 3, "cooldownMs": 0 },
-          { "channelId": "1503763557421154447", "minXp": 0.5, "maxXp": 0.5, "cooldownMs": 0 },
-          { "channelId": "1498299976781135893", "minXp": 0.5, "maxXp": 0.5, "cooldownMs": 0 },
-          { "channelId": "1498299950235390156", "minXp": 0.5, "maxXp": 0.5, "cooldownMs": 0 }
+          {
+            "channelId": "1493906607166328872",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1495676540875182212",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1493907879328088064",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1493907677284139099",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1493908074669543544",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1496256300655317092",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1495375260642705488",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1507985673871687823",
+            "minXp": 1,
+            "maxXp": 3,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1503763557421154447",
+            "minXp": 0.5,
+            "maxXp": 0.5,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1498299976781135893",
+            "minXp": 0.5,
+            "maxXp": 0.5,
+            "cooldownMs": 0
+          },
+          {
+            "channelId": "1498299950235390156",
+            "minXp": 0.5,
+            "maxXp": 0.5,
+            "cooldownMs": 0
+          }
         ],
         "messageXpMin": 1,
         "messageXpMax": 3,
@@ -90,23 +172,68 @@
           "imageUrl": ""
         },
         "boosts": [
-          { "roleId": "1502905486645788713", "xpPercent": 10 },
-          { "roleId": "1502905217945964596", "xpPercent": 5 },
-          { "roleId": "1493911895634084042", "xpPercent": 25 }
+          {
+            "roleId": "1502905486645788713",
+            "xpPercent": 10
+          },
+          {
+            "roleId": "1502905217945964596",
+            "xpPercent": 5
+          },
+          {
+            "roleId": "1493911895634084042",
+            "xpPercent": 25
+          }
         ],
         "levelRoleRewards": [
-          { "level": 5, "roleId": "1493906016570572801" },
-          { "level": 10, "roleId": "1493906102990147654" },
-          { "level": 15, "roleId": "1493906169054625792" },
-          { "level": 20, "roleId": "1493906220065619988" },
-          { "level": 30, "roleId": "1493906329465655376" },
-          { "level": 40, "roleId": "1496480275352391680" },
-          { "level": 50, "roleId": "1502908550253510756" },
-          { "level": 60, "roleId": "1513347125910442055" },
-          { "level": 70, "roleId": "1513347126208364655" },
-          { "level": 80, "roleId": "1513347126518616064" },
-          { "level": 90, "roleId": "1513347127038705745" },
-          { "level": 100, "roleId": "1513347127810719866" }
+          {
+            "level": 5,
+            "roleId": "1493906016570572801"
+          },
+          {
+            "level": 10,
+            "roleId": "1493906102990147654"
+          },
+          {
+            "level": 15,
+            "roleId": "1493906169054625792"
+          },
+          {
+            "level": 20,
+            "roleId": "1493906220065619988"
+          },
+          {
+            "level": 30,
+            "roleId": "1493906329465655376"
+          },
+          {
+            "level": 40,
+            "roleId": "1496480275352391680"
+          },
+          {
+            "level": 50,
+            "roleId": "1502908550253510756"
+          },
+          {
+            "level": 60,
+            "roleId": "1513347125910442055"
+          },
+          {
+            "level": 70,
+            "roleId": "1513347126208364655"
+          },
+          {
+            "level": 80,
+            "roleId": "1513347126518616064"
+          },
+          {
+            "level": 90,
+            "roleId": "1513347127038705745"
+          },
+          {
+            "level": 100,
+            "roleId": "1513347127810719866"
+          }
         ],
         "punishmentDurationsMs": {
           "1": 86400000,
@@ -128,19 +255,31 @@
             "minMembers": 50,
             "maxMembers": null,
             "label": "50+",
-            "rewards": { "clanRerolls": 1000, "raceRerolls": 150, "traitRerolls": 150 }
+            "rewards": {
+              "clanRerolls": 1000,
+              "raceRerolls": 150,
+              "traitRerolls": 150
+            }
           },
           {
             "minMembers": 30,
             "maxMembers": 49,
             "label": "30 - 49",
-            "rewards": { "clanRerolls": 500, "raceRerolls": 135, "traitRerolls": 135 }
+            "rewards": {
+              "clanRerolls": 500,
+              "raceRerolls": 135,
+              "traitRerolls": 135
+            }
           },
           {
             "minMembers": 0,
             "maxMembers": 29,
             "label": "0 - 29",
-            "rewards": { "clanRerolls": 250, "raceRerolls": 120, "traitRerolls": 120 }
+            "rewards": {
+              "clanRerolls": 250,
+              "raceRerolls": 120,
+              "traitRerolls": 120
+            }
           }
         ]
       },
@@ -172,8 +311,14 @@
         }
       },
       "emojis": {
-        "giveawayRequestAccept": { "id": "1498173245981986869", "name": "Y_" },
-        "giveawayRequestDeny": { "id": "1498173244031631400", "name": "N_" }
+        "giveawayRequestAccept": {
+          "id": "1498173245981986869",
+          "name": "Y_"
+        },
+        "giveawayRequestDeny": {
+          "id": "1498173244031631400",
+          "name": "N_"
+        }
       },
       "tickets": {
         "enabled": true,
@@ -185,6 +330,41 @@
           "imageUrl": ""
         },
         "types": []
+      },
+      "logging": {
+        "categories": {
+          "moderation": {
+            "defaultChannelId": "",
+            "eventOverrides": {
+              "ai_low": "",
+              "ai_severe": "",
+              "warning": ""
+            }
+          },
+          "commands": {
+            "defaultChannelId": "1495783372591730750",
+            "eventOverrides": {}
+          },
+          "requests": {
+            "defaultChannelId": "",
+            "eventOverrides": {
+              "role_review": "1495714584437329940",
+              "giveaway_review": "1498546607686291558"
+            }
+          },
+          "invites": {
+            "defaultChannelId": "1493915942047059999",
+            "eventOverrides": {}
+          },
+          "transcripts": {
+            "defaultChannelId": "1495788766600757418",
+            "eventOverrides": {}
+          },
+          "background": {
+            "defaultChannelId": "1502296881395536033",
+            "eventOverrides": {}
+          }
+        }
       }
     }
   }
