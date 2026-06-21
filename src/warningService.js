@@ -1,6 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { getGuildConfig } = require('./serverConfig');
 const store = require('./moderationCaseStore');
+const { moderationErrorContainer, moderationSuccessContainer, warningNoticeContainer } = require('./moderationComponents');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -59,18 +60,6 @@ function safeReason(value) {
   return reason.slice(0, 1000);
 }
 
-function warningText(record, points) {
-  const expiry = record.expiresAt ? '<t:' + Math.floor(record.expiresAt / 1000) + ':R>' : 'never';
-  return [
-    'You received a warning in **' + (record.guildName || 'this server') + '**.',
-    '**Case:** ' + record.id,
-    '**Reason:** ' + record.reason,
-    '**Points:** +' + record.points + ' (' + points + ' active total)',
-    '**Expires:** ' + expiry,
-    record.evidence ? '**Evidence:** ' + record.evidence : '',
-  ].filter(Boolean).join('\n');
-}
-
 async function textChannel(guild, channelId) {
   if (!channelId) return null;
   return guild.channels?.cache?.get(channelId) || await guild.channels?.fetch?.(channelId).catch(() => null);
@@ -78,36 +67,54 @@ async function textChannel(guild, channelId) {
 
 async function notifyMember(guild, member, record, config) {
   const points = store.activePoints(guild.id, member.id);
-  const text = warningText({ ...record, guildName: guild.name }, points);
   try {
-    await member.send({ content: text, allowedMentions: { parse: [] } });
-    store.updateDelivery(guild.id, record.id, { status: 'dm', channelId: '' });
+    const message = await member.send(warningNoticeContainer({ record, points, guildName: guild.name }));
+    store.updateDelivery(guild.id, record.id, { status: 'dm', channelId: message.channelId || '', messageId: message.id || '' });
     return 'dm';
   } catch (error) {
     const fallback = await textChannel(guild, config.fallbackChannelId);
     if (fallback?.isTextBased?.()) {
       try {
-        await fallback.send({
-          content: '<@' + member.id + '> ' + text,
-          allowedMentions: { parse: [], users: [member.id] },
+        const message = await fallback.send(warningNoticeContainer({
+          record,
+          points,
+          guildName: guild.name,
+          mentionUserId: member.id,
+        }));
+        store.updateDelivery(guild.id, record.id, {
+          status: 'fallback',
+          channelId: fallback.id,
+          messageId: message.id || '',
+          error: String(error?.message || ''),
         });
-        store.updateDelivery(guild.id, record.id, { status: 'fallback', channelId: fallback.id, error: String(error?.message || '') });
         return 'fallback';
       } catch (fallbackError) {
-        store.updateDelivery(guild.id, record.id, { status: 'failed', channelId: fallback.id, error: String(fallbackError?.message || '') });
+        store.updateDelivery(guild.id, record.id, {
+          status: 'failed',
+          channelId: fallback.id,
+          messageId: '',
+          error: String(fallbackError?.message || ''),
+        });
         return 'failed';
       }
     }
-    store.updateDelivery(guild.id, record.id, { status: 'failed', channelId: '', error: String(error?.message || '') });
+    store.updateDelivery(guild.id, record.id, {
+      status: 'failed',
+      channelId: '',
+      messageId: '',
+      error: String(error?.message || ''),
+    });
     return 'failed';
   }
 }
 
-async function logToStaff(guild, config, text) {
+async function logToStaff(guild, config, text, error = false) {
   const channel = await textChannel(guild, config.staffLogChannelId);
-  if (!channel?.isTextBased?.()) return false;
-  await channel.send({ content: String(text).slice(0, 2000), allowedMentions: { parse: [] } }).catch(() => null);
-  return true;
+  if (!channel?.isTextBased?.()) return null;
+  const payload = error
+    ? moderationErrorContainer('Moderation log', String(text).slice(0, 3500))
+    : moderationSuccessContainer('Moderation log', String(text).slice(0, 3500));
+  return channel.send(payload).catch(() => null);
 }
 
 async function executeRule(guild, member, record, rule, points, config) {
@@ -129,7 +136,7 @@ async function executeRule(guild, member, record, rule, points, config) {
     event.detail = rule.action === 'timeout' ? rule.durationSeconds + ' seconds' : 'completed';
   } catch (error) {
     event.detail = String(error?.message || error || 'Unknown enforcement error').slice(0, 500);
-    await logToStaff(guild, config, 'Warning enforcement failed for <@' + member.id + '> at threshold ' + rule.threshold + ': ' + event.detail);
+    await logToStaff(guild, config, 'Warning enforcement failed for <@' + member.id + '> at threshold ' + rule.threshold + ': ' + event.detail, true);
   }
   store.appendEnforcement(guild.id, record.id, event);
   return event;
@@ -159,8 +166,9 @@ async function createWarning(input) {
     : parseDuration(input.expires, config.defaultExpiryDays);
   const record = store.createCase({
     guildId: guild.id,
-    memberId: member.id,
-    moderatorId: String(input.moderatorId || ''),
+    type: /^automod(?:_|$)/.test(String(input.source || '')) ? 'automod_warning' : 'warning',
+    targetUserId: member.id,
+    authorId: String(input.moderatorId || ''),
     source: String(input.source || 'manual'),
     reason: safeReason(input.reason),
     staffNotes: String(input.staffNotes || ''),
@@ -172,7 +180,8 @@ async function createWarning(input) {
   });
   const delivery = await notifyMember(guild, member, record, config);
   const evaluation = await evaluateMember(guild, member, record, config);
-  await logToStaff(guild, config, 'Warning ' + record.id + ': <@' + member.id + '> received ' + points + ' point(s) from ' + record.source + '. Active total: ' + evaluation.points + '.');
+  const staffLog = await logToStaff(guild, config, 'Warning ' + record.id + ': <@' + member.id + '> received ' + points + ' point(s) from ' + record.source + '. Active total: ' + evaluation.points + '.');
+  if (staffLog) store.updateStaffLog(guild.id, record.id, { channelId: staffLog.channelId || config.staffLogChannelId, messageId: staffLog.id || '' });
   return { case: store.getCase(guild.id, record.id), points: evaluation.points, delivery, enforcementEvents: evaluation.events };
 }
 
@@ -186,7 +195,7 @@ async function editWarning(input) {
     patch.expiresAt = parseDuration(patch.expires, warningConfig(input.guild.id).defaultExpiryDays);
     delete patch.expires;
   }
-  const record = store.updateCase(input.guild.id, input.caseId, patch);
+  const record = store.updateCase(input.guild.id, input.caseId, patch, input.moderatorId);
   const member = await input.guild.members.fetch(record.memberId).catch(() => null);
   const evaluation = member ? await evaluateMember(input.guild, member, record) : { points: store.activePoints(input.guild.id, record.memberId), events: [] };
   return { case: store.getCase(input.guild.id, record.id), points: evaluation.points, enforcementEvents: evaluation.events };
