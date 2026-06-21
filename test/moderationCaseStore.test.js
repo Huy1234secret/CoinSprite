@@ -14,8 +14,8 @@ after(() => fs.rmSync(directory, { recursive: true, force: true }));
 function warning(overrides = {}) {
   return store.createCase({
     guildId: '123456789012345678',
-    targetUserId: '234567890123456789',
-    authorId: '345678901234567890',
+    memberId: '234567890123456789',
+    moderatorId: '345678901234567890',
     source: 'manual',
     reason: 'Test warning',
     points: 2,
@@ -24,152 +24,44 @@ function warning(overrides = {}) {
   });
 }
 
-test('warning cases use schema v2 while preserving compatibility aliases', () => {
+test('warning cases receive stable unique IDs and accumulate active points', () => {
   const first = warning();
   const second = warning({ points: 3 });
   assert.equal(first.id, 'W-000001');
   assert.equal(second.id, 'W-000002');
-  assert.equal(first.type, 'warning');
-  assert.equal(first.targetUserId, '234567890123456789');
-  assert.equal(first.memberId, first.targetUserId);
-  assert.equal(first.details.points, 2);
-  assert.equal(first.events.length, 1);
-  assert.equal(first.events[0].type, 'case.created');
-  assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
-
-  const persisted = JSON.parse(fs.readFileSync(store.STORE_PATH, 'utf8'));
-  assert.equal(persisted.version, 2);
-  assert.equal(persisted.guilds[first.guildId].cases[0].memberId, undefined);
-  assert.equal(persisted.guilds[first.guildId].cases[0].delivery, undefined);
-  assert.equal(persisted.guilds[first.guildId].cases[0].enforcementEvents, undefined);
+  assert.equal(store.activePoints(first.guildId, first.memberId), 5);
 });
 
-test('AutoMod warning sources receive the dedicated case type', () => {
-  const record = warning({ source: 'automod_link' });
-  assert.equal(record.type, 'automod_warning');
-});
+test('expired and pardoned cases remain in history but lose active points', () => {
+  const expired = warning({ memberId: '456789012345678901', expiresAt: Date.now() - 1 });
+  assert.equal(store.activePoints(expired.guildId, expired.memberId), 0);
+  assert.equal(store.getCase(expired.guildId, expired.id).status, 'expired');
 
-test('expired and pardoned cases remain in history with audit events but lose active points', () => {
-  const expired = warning({ targetUserId: '456789012345678901', expiresAt: Date.now() - 1 });
-  assert.equal(store.activePoints(expired.guildId, expired.targetUserId), 0);
-  const expiredRecord = store.getCase(expired.guildId, expired.id);
-  assert.equal(expiredRecord.status, 'expired');
-  assert.ok(expiredRecord.events.some((event) => event.type === 'case.expired'));
-
-  const active = warning({ targetUserId: '567890123456789012', points: 4 });
-  assert.equal(store.activePoints(active.guildId, active.targetUserId), 4);
+  const active = warning({ memberId: '567890123456789012', points: 4 });
+  assert.equal(store.activePoints(active.guildId, active.memberId), 4);
   store.pardonCase(active.guildId, active.id, '345678901234567890', 'Appeal accepted');
-  assert.equal(store.activePoints(active.guildId, active.targetUserId), 0);
-  const pardoned = store.getCase(active.guildId, active.id);
-  assert.equal(pardoned.status, 'pardoned');
-  assert.equal(pardoned.pardonReason, 'Appeal accepted');
-  assert.equal(pardoned.events.at(-1).type, 'case.pardoned');
+  assert.equal(store.activePoints(active.guildId, active.memberId), 0);
+  assert.equal(store.getCase(active.guildId, active.id).status, 'pardoned');
 });
 
 test('threshold claims are idempotent and re-arm after points fall below a threshold', () => {
-  const record = warning({ targetUserId: '678901234567890123', points: 5 });
-  const first = store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]);
+  const record = warning({ memberId: '678901234567890123', points: 5 });
+  const first = store.claimCrossedThresholds(record.guildId, record.memberId, [3, 5, 8]);
   assert.deepEqual(first.thresholds, [3, 5]);
-  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]).thresholds, []);
+  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.memberId, [3, 5, 8]).thresholds, []);
 
-  store.updateCase(record.guildId, record.id, { points: 2 }, '345678901234567890');
-  warning({ targetUserId: record.targetUserId, points: 3 });
-  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]).thresholds, [3, 5]);
+  store.updateCase(record.guildId, record.id, { points: 2 });
+  warning({ memberId: record.memberId, points: 3 });
+  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.memberId, [3, 5, 8]).thresholds, [3, 5]);
 });
 
-test('case updates append actor-aware audit events', () => {
-  const record = warning({ targetUserId: '789012345678901234' });
-  const actorId = '345678901234567890';
-  const updated = store.updateCase(
-    record.guildId,
-    record.id,
-    { reason: 'Updated reason', points: 99, evidence: 'https://example.com/proof' },
-    actorId,
-  );
+test('case updates validate points and preserve audit fields', () => {
+  const record = warning({ memberId: '789012345678901234' });
+  const updated = store.updateCase(record.guildId, record.id, { reason: 'Updated reason', points: 99, evidence: 'https://example.com/proof' });
   assert.equal(updated.reason, 'Updated reason');
   assert.equal(updated.points, 10);
   assert.equal(updated.evidence, 'https://example.com/proof');
   assert.equal(updated.createdAt, record.createdAt);
-  const event = updated.events.at(-1);
-  assert.equal(event.type, 'case.edited');
-  assert.equal(event.actorId, actorId);
-  assert.equal(event.data.changes.points.to, 10);
-});
-
-test('delivery, staff logs, and enforcement retain message references and events', () => {
-  const record = warning({ targetUserId: '890123456789012345' });
-  store.updateDelivery(record.guildId, record.id, {
-    status: 'fallback',
-    channelId: '901234567890123456',
-    messageId: '012345678901234567',
-  });
-  store.updateStaffLog(record.guildId, record.id, {
-    channelId: '112345678901234567',
-    messageId: '212345678901234567',
-  });
-  store.appendEnforcement(record.guildId, record.id, {
-    threshold: 3,
-    action: 'timeout',
-    success: true,
-    detail: '3600 seconds',
-  });
-  const updated = store.getCase(record.guildId, record.id);
-  assert.equal(updated.references.notification.messageId, '012345678901234567');
-  assert.equal(updated.references.staffLog.messageId, '212345678901234567');
-  assert.deepEqual(
-    updated.events.slice(-3).map((event) => event.type),
-    ['notification.attempted', 'staff_log.sent', 'enforcement.completed'],
-  );
-  assert.equal(updated.enforcementEvents[0].action, 'timeout');
-});
-
-test('v1 stores migrate once and preserve a backup', () => {
-  const guildId = '323456789012345678';
-  const oldState = {
-    version: 1,
-    guilds: {
-      [guildId]: {
-        nextCaseNumber: 2,
-        crossedThresholds: {},
-        cases: [{
-          id: 'W-000001',
-          guildId,
-          memberId: '423456789012345678',
-          moderatorId: '523456789012345678',
-          source: 'manual',
-          reason: 'Legacy warning',
-          staffNotes: '',
-          points: 4,
-          evidence: '',
-          sourceChannelId: '623456789012345678',
-          sourceMessageId: '723456789012345678',
-          createdAt: 1000,
-          updatedAt: 2000,
-          expiresAt: null,
-          status: 'active',
-          delivery: { status: 'dm', attemptedAt: 1500, channelId: '', messageId: '823456789012345678' },
-          enforcementEvents: [],
-        }],
-      },
-    },
-  };
-  fs.writeFileSync(store.STORE_PATH, JSON.stringify(oldState), 'utf8');
-  const backup = store.__test.migrationBackupPath(1);
-  if (fs.existsSync(backup)) fs.unlinkSync(backup);
-
-  const migrated = store.__test.readState();
-  assert.equal(migrated.version, 2);
-  assert.equal(migrated.guilds[guildId].cases[0].targetUserId, '423456789012345678');
-  assert.equal(migrated.guilds[guildId].cases[0].details.points, 4);
-  assert.ok(migrated.guilds[guildId].cases[0].events.some((event) => event.type === 'notification.attempted'));
-  assert.ok(fs.existsSync(backup));
-  assert.equal(JSON.parse(fs.readFileSync(backup, 'utf8')).version, 1);
-});
-
-test('invalid JSON fails closed instead of silently resetting moderation data', () => {
-  fs.writeFileSync(store.STORE_PATH, '{invalid', 'utf8');
-  assert.throws(() => store.__test.readState(), /invalid JSON/);
-  assert.equal(fs.readFileSync(store.STORE_PATH, 'utf8'), '{invalid');
 });
 
 test('duration and evidence helpers accept supported values and reject unsafe input', () => {

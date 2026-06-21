@@ -1,15 +1,24 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const store = require('../src/moderationCaseStore');
 const { canManageWarnings, editWarning, pardonWarning } = require('../src/warningService');
-const {
-  COMPONENTS_V2_FLAG,
-  caseDetailContainer,
-  moderationErrorContainer,
-  moderationSuccessContainer,
-} = require('../src/moderationComponents');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
-const RESPONSE_FLAGS = EPHEMERAL | COMPONENTS_V2_FLAG;
+
+function describe(record) {
+  const expiry = record.expiresAt ? '<t:' + Math.floor(record.expiresAt / 1000) + ':F>' : 'never';
+  return [
+    '**Case ' + record.id + '**',
+    'Member: <@' + record.memberId + '>',
+    'Status: **' + record.status + '**',
+    'Points: **' + record.points + '**',
+    'Source: **' + record.source + '**',
+    'Reason: ' + record.reason,
+    'Expires: ' + expiry,
+    record.evidence ? 'Evidence: ' + record.evidence : '',
+    'Delivery: **' + (record.delivery?.status || 'unknown') + '**',
+    'Enforcement events: **' + record.enforcementEvents.length + '**',
+  ].filter(Boolean).join('\n');
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,20 +44,17 @@ module.exports = {
 
   async execute(interaction) {
     if (!canManageWarnings(interaction.member)) {
-      await interaction.reply({
-        ...moderationErrorContainer('Case unavailable', 'Only administrators or the configured staff role can manage cases.'),
-        flags: RESPONSE_FLAGS,
-      });
+      await interaction.reply({ content: 'Only administrators or the configured staff role can manage cases.', flags: EPHEMERAL });
       return;
     }
-    await interaction.deferReply({ flags: RESPONSE_FLAGS });
+    await interaction.deferReply({ flags: EPHEMERAL });
     const subcommand = interaction.options.getSubcommand();
     const caseId = interaction.options.getString('case_id', true);
     try {
       if (subcommand === 'view') {
         const record = store.getCase(interaction.guildId, caseId);
         if (!record) throw new Error('Warning case was not found.');
-        await interaction.editReply(caseDetailContainer(record));
+        await interaction.editReply({ content: describe(record), allowedMentions: { parse: [] } });
         return;
       }
       if (subcommand === 'pardon') {
@@ -58,10 +64,7 @@ module.exports = {
           moderatorId: interaction.user.id,
           reason: interaction.options.getString('reason', true),
         });
-        await interaction.editReply(moderationSuccessContainer(
-          'Case pardoned',
-          '**' + result.case.id + '** was pardoned. The member now has **' + result.points + '** active point(s).',
-        ));
+        await interaction.editReply({ content: 'Pardoned **' + result.case.id + '**. Member now has **' + result.points + '** active point(s).' });
         return;
       }
       const patch = {};
@@ -72,18 +75,10 @@ module.exports = {
       const points = interaction.options.getInteger('points');
       if (points !== null) patch.points = points;
       if (!Object.keys(patch).length) throw new Error('Provide at least one field to edit.');
-      const result = await editWarning({
-        guild: interaction.guild,
-        caseId,
-        moderatorId: interaction.user.id,
-        patch,
-      });
-      await interaction.editReply(moderationSuccessContainer(
-        'Case updated',
-        '**' + result.case.id + '** was updated. The member now has **' + result.points + '** active point(s).',
-      ));
+      const result = await editWarning({ guild: interaction.guild, caseId, patch });
+      await interaction.editReply({ content: 'Updated **' + result.case.id + '**. Member now has **' + result.points + '** active point(s).' });
     } catch (error) {
-      await interaction.editReply(moderationErrorContainer('Case action failed', error?.message || 'Unknown error.'));
+      await interaction.editReply({ content: 'Could not manage case: ' + (error?.message || 'Unknown error.') });
     }
   },
 };
