@@ -136,7 +136,7 @@ async function executeRule(guild, member, record, rule, points, config) {
     event.detail = rule.action === 'timeout' ? rule.durationSeconds + ' seconds' : 'completed';
   } catch (error) {
     event.detail = String(error?.message || error || 'Unknown enforcement error').slice(0, 500);
-    await logToStaff(guild, config, 'Warning enforcement failed for <@' + member.id + '> at threshold ' + rule.threshold + ': ' + event.detail);
+    await logToStaff(guild, config, 'Warning enforcement failed for <@' + member.id + '> at threshold ' + rule.threshold + ': ' + event.detail, true);
   }
   store.appendEnforcement(guild.id, record.id, event);
   return event;
@@ -166,7 +166,7 @@ async function createWarning(input) {
     : parseDuration(input.expires, config.defaultExpiryDays);
   const record = store.createCase({
     guildId: guild.id,
-    type: input.source === 'automod' ? 'automod_warning' : 'warning',
+    type: /^automod(?:_|$)/.test(String(input.source || '')) ? 'automod_warning' : 'warning',
     targetUserId: member.id,
     authorId: String(input.moderatorId || ''),
     source: String(input.source || 'manual'),
