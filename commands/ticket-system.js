@@ -13,7 +13,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { loadState, saveState } = require('../src/ticketSystemStore');
-const { DEFAULT_GUILD_CONFIG, getGuildConfig } = require('../src/serverConfig');
+const { DEFAULT_GUILD_CONFIG, getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const {
   DEFAULT_AUTHOR_PERMISSIONS,
   DEFAULT_STAFF_PERMISSIONS,
@@ -1040,7 +1040,7 @@ async function sendConfiguredTranscript(interaction, channel, ticketRecord, tick
     if (answerText) fs.appendFileSync(transcriptPath, `\nClosing form\n\n${answerText}\n`, 'utf8');
   }
   const guildConfig = getTicketConfig(interaction.guildId);
-  const transcriptChannelId = ticketType.transcriptChannelId || guildConfig.channels.transcript || TRANSCRIPT_CHANNEL_ID;
+  const transcriptChannelId = ticketType.transcriptChannelId || resolveLoggingChannelId(guildConfig, 'transcripts', '', guildConfig.channels.transcript || TRANSCRIPT_CHANNEL_ID);
   const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
   if (transcriptChannel?.isTextBased()) {
     await transcriptChannel.send({
@@ -1192,7 +1192,7 @@ async function submitConfiguredCrewRoleRequest(interaction, questionAnswerPairs)
   saveState(state);
 
   const files = getUploadedEvidenceFiles(uploadedEvidence);
-  const reviewChannelId = getTicketConfig(interaction.guildId).channels.roleRequestReview || ROLE_REQUEST_REVIEW_CHANNEL_ID;
+  const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'role_review', ROLE_REQUEST_REVIEW_CHANNEL_ID);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
   if (!reviewChannel?.isTextBased()) {
     await interaction.editReply({ content: 'The role request review channel is unavailable.' }).catch(() => null);
@@ -1366,7 +1366,7 @@ async function handleTicketAction(interaction) {
     closedBy: interaction.user.id,
     closeAction: action,
   });
-  const transcriptChannelId = getTicketConfig(interaction.guildId).channels.transcript || TRANSCRIPT_CHANNEL_ID;
+  const transcriptChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'transcripts', '', TRANSCRIPT_CHANNEL_ID);
   const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
   if (transcriptChannel?.isTextBased()) {
     await transcriptChannel
@@ -1652,7 +1652,7 @@ module.exports = {
 
       const files = getUploadedEvidenceFiles(uploadedEvidence);
 
-      const reviewChannelId = getTicketConfig(interaction.guildId).channels.roleRequestReview || ROLE_REQUEST_REVIEW_CHANNEL_ID;
+      const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'role_review', ROLE_REQUEST_REVIEW_CHANNEL_ID);
       const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
       if (!reviewChannel?.isTextBased()) {
         const payload = {
@@ -1848,7 +1848,7 @@ module.exports = {
       state.giveawayRequests[requestId] = request;
       saveState(state);
 
-      const reviewChannelId = getTicketConfig(interaction.guildId).channels.giveawayRequestReview || GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID;
+      const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'giveaway_review', GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID);
       const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
       if (reviewChannel?.isTextBased()) {
         const files = getUploadedEvidenceFiles(claimEvidence);
