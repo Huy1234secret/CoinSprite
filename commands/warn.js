@@ -1,7 +1,13 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { canManageWarnings, createWarning } = require('../src/warningService');
+const {
+  COMPONENTS_V2_FLAG,
+  moderationErrorContainer,
+  moderationSuccessContainer,
+} = require('../src/moderationComponents');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
+const RESPONSE_FLAGS = EPHEMERAL | COMPONENTS_V2_FLAG;
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,10 +21,13 @@ module.exports = {
 
   async execute(interaction) {
     if (!canManageWarnings(interaction.member)) {
-      await interaction.reply({ content: 'Only administrators or the configured staff role can issue warnings.', flags: EPHEMERAL });
+      await interaction.reply({
+        ...moderationErrorContainer('Warning not created', 'Only administrators or the configured staff role can issue warnings.'),
+        flags: RESPONSE_FLAGS,
+      });
       return;
     }
-    await interaction.deferReply({ flags: EPHEMERAL });
+    await interaction.deferReply({ flags: RESPONSE_FLAGS });
     try {
       const user = interaction.options.getUser('member', true);
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
@@ -38,17 +47,15 @@ module.exports = {
       const actions = result.enforcementEvents.length
         ? result.enforcementEvents.map((event) => event.action + (event.success ? ' ✓' : ' failed')).join(', ')
         : 'none';
-      await interaction.editReply({
-        content: [
-          'Created warning **' + result.case.id + '** for <@' + user.id + '>.',
-          'Active points: **' + result.points + '**',
-          'Notice delivery: **' + result.delivery + '**',
-          'Threshold actions: **' + actions + '**',
-        ].join('\n'),
-        allowedMentions: { parse: [] },
-      });
+      await interaction.editReply(moderationSuccessContainer('Warning created', [
+        '**Case:** ' + result.case.id,
+        '**Member:** <@' + user.id + '>',
+        '**Active points:** ' + result.points,
+        '**Notice delivery:** ' + result.delivery,
+        '**Threshold actions:** ' + actions,
+      ].join('\n')));
     } catch (error) {
-      await interaction.editReply({ content: 'Could not create warning: ' + (error?.message || 'Unknown error.') });
+      await interaction.editReply(moderationErrorContainer('Warning not created', error?.message || 'Unknown error.'));
     }
   },
 };
