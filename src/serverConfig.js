@@ -10,7 +10,7 @@ const {
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
@@ -72,6 +72,78 @@ const DEFAULT_WARNING_RULES = [
   { threshold: 10, action: 'staff_alert', durationSeconds: 0, enabled: true },
 ];
 
+const LOGGING_CATEGORIES = Object.freeze(['moderation', 'tickets', 'requests', 'invites', 'system']);
+const DEFAULT_LOGGING = Object.freeze({
+  categories: {
+    moderation: { defaultChannelId: '', eventOverrides: {} },
+    tickets: { defaultChannelId: '', eventOverrides: {} },
+    requests: { defaultChannelId: '', eventOverrides: {} },
+    invites: { defaultChannelId: '', eventOverrides: {} },
+    system: { defaultChannelId: '', eventOverrides: {} },
+  },
+});
+
+function cleanChannelId(value) {
+  const text = String(value || '').trim();
+  return /^\d{16,20}$/.test(text) ? text : '';
+}
+
+function legacyLoggingOverrides(config = {}) {
+  const channels = config.channels || {};
+  const moderation = config.moderation || {};
+  const ai = moderation.ai || {};
+  const warnings = moderation.warnings || {};
+  const link = moderation.auto?.link || {};
+  const ticketTypes = Array.isArray(config.tickets?.types) ? config.tickets.types : [];
+  const ticketOverrides = { transcript: cleanChannelId(channels.transcript) };
+  for (const ticketType of ticketTypes) {
+    const id = String(ticketType?.id || '').trim().replace(/[^a-z0-9_-]/gi, '').slice(0, 80);
+    const channelId = cleanChannelId(ticketType?.transcriptChannelId);
+    if (id && channelId) ticketOverrides[`transcript:${id}`] = channelId;
+  }
+  return {
+    moderation: {
+      warningCreated: cleanChannelId(warnings.staffLogChannelId),
+      warningEnforcement: cleanChannelId(warnings.staffLogChannelId),
+      aiLow: cleanChannelId(ai.lowSeverityLogChannelId || ai.logChannelId),
+      aiSevere: cleanChannelId(ai.severeLogChannelId || ai.logChannelId),
+      linkBlocked: cleanChannelId(link.logChannelId || ai.logChannelId),
+    },
+    tickets: ticketOverrides,
+    requests: {
+      roleReview: cleanChannelId(channels.roleRequestReview),
+      giveawayReview: cleanChannelId(channels.giveawayRequestReview),
+    },
+    invites: { activity: cleanChannelId(channels.inviteLog) },
+    system: {
+      commandAudit: cleanChannelId(channels.commandLogThread),
+      background: cleanChannelId(channels.backgroundLogThread),
+    },
+  };
+}
+
+function sanitizeLogging(value, legacyConfig = {}) {
+  const source = isPlainObject(value) ? value : {};
+  const sourceCategories = isPlainObject(source.categories) ? source.categories : {};
+  const legacy = legacyLoggingOverrides(legacyConfig);
+  const categories = {};
+  for (const category of LOGGING_CATEGORIES) {
+    const raw = isPlainObject(sourceCategories[category]) ? sourceCategories[category] : {};
+    const rawOverrides = isPlainObject(raw.eventOverrides) ? raw.eventOverrides : {};
+    const eventOverrides = {};
+    for (const [event, channelId] of Object.entries({ ...(legacy[category] || {}), ...rawOverrides })) {
+      const safeEvent = String(event || '').trim().replace(/[^a-z0-9:_-]/gi, '').slice(0, 120);
+      const safeChannelId = cleanChannelId(channelId);
+      if (safeEvent && safeChannelId) eventOverrides[safeEvent] = safeChannelId;
+    }
+    categories[category] = {
+      defaultChannelId: cleanChannelId(raw.defaultChannelId),
+      eventOverrides,
+    };
+  }
+  return { categories };
+}
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
   channels: {
@@ -98,6 +170,7 @@ const DEFAULT_GUILD_CONFIG = {
     giveawayBlacklist: '',
     wordChainPunishment: '',
   },
+  logging: DEFAULT_LOGGING,
   moderation: {
     ai: {
       enabled: false,
@@ -320,6 +393,7 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   delete merged.xp.levelFunMessages;
   merged.enabled = guildConfig?.enabled === false ? false : true;
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
+  merged.logging = sanitizeLogging(guildConfig?.logging, merged);
   const warnings = merged.moderation.warnings;
   warnings.enabled = Boolean(warnings.enabled);
   warnings.defaultExpiryDays = Math.max(0, Math.min(3650, Number(warnings.defaultExpiryDays) || 90));
@@ -508,6 +582,7 @@ function isGuildEnabled(guildId) {
 
 module.exports = {
   DEFAULT_GUILD_CONFIG,
+  DEFAULT_LOGGING,
   DEFAULT_WARNING_RULES,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -525,5 +600,6 @@ module.exports = {
   isGuildEnabled,
   loadState,
   saveState,
+  sanitizeLogging,
   setGuildEnabled,
 };
