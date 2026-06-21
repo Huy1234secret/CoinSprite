@@ -816,7 +816,7 @@
       }
     });
 
-    root.addEventListener('click', (event) => {
+    root.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-action]');
       if (!button) return;
       if (button.classList.contains('ticket-modal-backdrop') && event.target !== button) return;
@@ -847,7 +847,7 @@
         editorState.activeTypeSection = 'settings';
         renderEditor();
       } else if (action === 'delete-ticket' && ticketType) {
-        if (!window.confirm(`Delete the "${ticketType.name}" ticket type?`)) return;
+        if (!await window.coinSpriteUi.confirm(`Delete the "${ticketType.name}" ticket type?`, 'Delete ticket type?')) return;
         editorState.config.types = editorState.config.types.filter((type) => type.id !== ticketType.id);
         editorState.selectedTypeId = '';
         editorState.view = 'list';
