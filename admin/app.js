@@ -923,13 +923,46 @@ function collectPatch() {
   };
 }
 
+function showAppModal(options) {
+  const title = options.title, message = options.message, mode = options.mode || 'alert', defaultValue = options.defaultValue || '';
+  document.querySelector('#appGlobalModalBackdrop')?.remove();
+  return new Promise((resolve) => {
+    const backdrop = document.createElement('div'); backdrop.id = 'appGlobalModalBackdrop'; backdrop.className = 'app-modal-backdrop';
+    const form = document.createElement('form'); form.className = 'app-modal'; form.setAttribute('role', 'dialog'); form.setAttribute('aria-modal', 'true'); form.setAttribute('aria-labelledby', 'appGlobalModalTitle');
+    const heading = document.createElement('h2'); heading.id = 'appGlobalModalTitle'; heading.textContent = title || 'CoinSprite';
+    const copy = document.createElement('p'); copy.textContent = String(message || ''); form.append(heading, copy);
+    let input = null;
+    if (mode === 'prompt') { input = document.createElement('input'); input.value = String(defaultValue); input.setAttribute('aria-label', title || 'Value'); form.append(input); }
+    const actions = document.createElement('div'); actions.className = 'app-modal-actions';
+    if (mode !== 'alert') { const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'button'; cancel.dataset.modalValue = 'cancel'; cancel.textContent = 'Cancel'; actions.append(cancel); }
+    const accept = document.createElement('button'); accept.type = 'submit'; accept.className = 'button ' + (mode === 'confirm' ? 'danger' : 'primary'); accept.textContent = mode === 'confirm' ? 'Continue' : 'OK'; actions.append(accept); form.append(actions); backdrop.append(form);
+    const finish = (value) => { backdrop.remove(); resolve(value); };
+    form.addEventListener('submit', (event) => { event.preventDefault(); finish(mode === 'prompt' ? input.value : true); });
+    backdrop.addEventListener('click', (event) => { if (event.target === backdrop || event.target.closest('[data-modal-value="cancel"]')) finish(mode === 'prompt' ? null : false); });
+    backdrop.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); finish(mode === 'prompt' ? null : false); return; }
+      if (event.key !== 'Tab') return;
+      const nodes = [...form.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')], first = nodes[0], last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    document.body.append(backdrop); (input || form.querySelector('button'))?.focus();
+  });
+}
+
+window.coinSpriteUi = {
+  alert: (message, title = 'CoinSprite') => showAppModal({ title, message, mode: 'alert' }),
+  confirm: (message, title = 'Confirm action') => showAppModal({ title, message, mode: 'confirm' }),
+  prompt: (message, defaultValue = '', title = 'Enter a value') => showAppModal({ title, message, mode: 'prompt', defaultValue }),
+};
+
 function confirmDiscard(message) {
-  return state.dirtyTabs.size === 0 || window.confirm(message);
+  return state.dirtyTabs.size === 0 ? Promise.resolve(true) : window.coinSpriteUi.confirm(message, 'Discard unsaved changes?');
 }
 
 async function loadGuild(guildId) {
   if (!guildId) return;
-  if (!confirmDiscard('You have unsaved changes. Switch servers and discard them?')) {
+  if (!await confirmDiscard('You have unsaved changes. Switch servers and discard them?')) {
     elements.guildSelect.value = state.guildId;
     return;
   }
@@ -1057,7 +1090,7 @@ elements.guildSelect.addEventListener('change', () => {
 });
 
 elements.logoutButton.addEventListener('click', async () => {
-  if (!confirmDiscard('You have unsaved changes. Log out and discard them?')) return;
+  if (!await confirmDiscard('You have unsaved changes. Log out and discard them?')) return;
   await api('/auth/logout', { method: 'POST' }).catch(() => null);
   window.location.href = '/admin';
 });
