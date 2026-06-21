@@ -347,6 +347,56 @@ function ensureStoreFile() {
   if (!fs.existsSync(STORE_PATH)) writeJsonAtomic(STORE_PATH, DEFAULT_STATE);
 }
 
+function cleanChannelId(value) {
+  const text = String(value || '').trim();
+  return /^\d{16,20}$/.test(text) ? text : '';
+}
+
+function normalizeLogging(rawLogging, legacyChannels = {}, legacyModeration = {}, defaults = DEFAULT_LOGGING) {
+  const merged = mergeConfig(defaults, rawLogging);
+  const categories = merged.categories || {};
+  const explicit = rawLogging?.categories || {};
+  const fallback = {
+    moderation: {
+      defaultChannelId: legacyModeration?.warnings?.staffLogChannelId,
+      eventOverrides: {
+        ai_low: legacyModeration?.ai?.lowSeverityLogChannelId || legacyModeration?.ai?.logChannelId,
+        ai_severe: legacyModeration?.ai?.severeLogChannelId || legacyModeration?.ai?.logChannelId,
+        warning: legacyModeration?.warnings?.staffLogChannelId,
+      },
+    },
+    commands: { defaultChannelId: legacyChannels.commandLogThread, eventOverrides: {} },
+    requests: {
+      defaultChannelId: '',
+      eventOverrides: {
+        role_review: legacyChannels.roleRequestReview,
+        giveaway_review: legacyChannels.giveawayRequestReview,
+      },
+    },
+    invites: { defaultChannelId: legacyChannels.inviteLog, eventOverrides: {} },
+    transcripts: { defaultChannelId: legacyChannels.transcript, eventOverrides: {} },
+    background: { defaultChannelId: legacyChannels.backgroundLogThread, eventOverrides: {} },
+  };
+  for (const [category, value] of Object.entries(categories)) {
+    const configured = explicit[category] || {};
+    value.defaultChannelId = cleanChannelId(configured.defaultChannelId || fallback[category]?.defaultChannelId || value.defaultChannelId);
+    value.eventOverrides ||= {};
+    const keys = new Set([...Object.keys(value.eventOverrides), ...Object.keys(fallback[category]?.eventOverrides || {})]);
+    for (const event of keys) {
+      value.eventOverrides[event] = cleanChannelId(
+        configured.eventOverrides?.[event] || fallback[category]?.eventOverrides?.[event] || value.eventOverrides[event],
+      );
+    }
+  }
+  return { categories };
+}
+
+function resolveLoggingChannelId(configOrGuildId, category, event = '', legacyFallback = '') {
+  const config = typeof configOrGuildId === 'string' ? getGuildConfig(configOrGuildId) : configOrGuildId;
+  const route = config?.logging?.categories?.[category] || {};
+  return cleanChannelId(route.eventOverrides?.[event] || route.defaultChannelId || legacyFallback);
+}
+
 function normalizeGuildConfig(guildId, guildConfig, defaults) {
   const merged = mergeConfig(defaults, guildConfig);
   delete merged.channels.lowXpCategory;
