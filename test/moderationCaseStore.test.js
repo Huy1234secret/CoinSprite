@@ -33,6 +33,7 @@ test('warning cases use schema v2 while preserving compatibility aliases', () =>
   assert.equal(first.targetUserId, '234567890123456789');
   assert.equal(first.memberId, first.targetUserId);
   assert.equal(first.details.points, 2);
+  assert.equal(first.events.length, 1);
   assert.equal(first.events[0].type, 'case.created');
   assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
 
@@ -41,6 +42,11 @@ test('warning cases use schema v2 while preserving compatibility aliases', () =>
   assert.equal(persisted.guilds[first.guildId].cases[0].memberId, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].delivery, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].enforcementEvents, undefined);
+});
+
+test('AutoMod warning sources receive the dedicated case type', () => {
+  const record = warning({ source: 'automod_link' });
+  assert.equal(record.type, 'automod_warning');
 });
 
 test('expired and pardoned cases remain in history with audit events but lose active points', () => {
