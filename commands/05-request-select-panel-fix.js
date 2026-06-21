@@ -9,7 +9,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { getGuildConfig } = require('../src/serverConfig');
+const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { loadState, saveState } = require('../src/ticketSystemStore');
 const { buildTicketMessagePayload, discordEmoji, formatFormAnswers } = require('../src/ticketConfig');
 const { findTemplate, buildMessagePayload } = require('../src/messageTemplates');
@@ -346,7 +346,7 @@ async function submitRequest(interaction, type, answers) {
     await interaction.editReply({ content: 'You are not allowed to create this request.' });
     return true;
   }
-  const reviewChannelId = type.transcriptChannelId || config.channels?.roleRequestReview;
+  const reviewChannelId = type.transcriptChannelId || resolveLoggingChannelId(config, 'requests', 'role_review', config.channels?.roleRequestReview);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
   if (!reviewChannel?.isTextBased()) {
     await interaction.editReply({ content: 'The request review channel is unavailable. Ask an administrator to configure it.' });
