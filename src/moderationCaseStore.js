@@ -276,7 +276,7 @@ function createCase(input) {
   expireCases(guild);
   const number = guild.nextCaseNumber++;
   const now = Date.now();
-  const type = CASE_TYPES.has(input?.type) ? input.type : input?.source === 'automod' ? 'automod_warning' : 'warning';
+  const type = CASE_TYPES.has(input?.type) ? input.type : /^automod(?:_|$)/.test(String(input?.source || '')) ? 'automod_warning' : 'warning';
   const prefix = ['warning', 'automod_warning'].includes(type) ? 'W' : 'C';
   const record = normalizeCase({
     id: prefix + '-' + String(number).padStart(6, '0'),
@@ -286,7 +286,14 @@ function createCase(input) {
     authorId: input.authorId || input.moderatorId,
     source: input.source,
     status: ACTIVE,
-    details: { ...input.details, reason: input.reason, staffNotes: input.staffNotes, points: input.points, evidence: input.evidence, expiresAt: input.expiresAt },
+    details: {
+      ...input.details,
+      reason: input.reason ?? input.details?.reason,
+      staffNotes: input.staffNotes ?? input.details?.staffNotes,
+      points: input.points ?? input.details?.points,
+      evidence: input.evidence ?? input.details?.evidence,
+      expiresAt: input.expiresAt ?? input.details?.expiresAt,
+    },
     references: {
       source: { channelId: input.sourceChannelId, messageId: input.sourceMessageId },
       notification: { status: 'pending', attemptedAt: null, channelId: '', messageId: '' },
@@ -296,7 +303,7 @@ function createCase(input) {
     updatedAt: now,
     events: [],
   });
-  appendAuditEvent(record, 'case.created', record.authorId, { source: record.source, type: record.type }, now);
+  record.events[0].data = { source: record.source, type: record.type };
   guild.cases.push(record);
   rearmThresholds(guild, record.targetUserId);
   writeState(state);
@@ -353,7 +360,7 @@ function activePoints(guildId, targetUserId) {
 function updateCase(guildId, caseId, patch, actorId = '') {
   const state = readState();
   const guild = guildState(state, guildId);
-  expireCases(guild);
+  const expired = expireCases(guild);
   const record = guild.cases.find((item) => item.id.toLowerCase() === String(caseId || '').toLowerCase());
   if (!record) return null;
   if (record.status === PARDONED) throw new Error('Pardoned cases cannot be edited.');
@@ -373,7 +380,13 @@ function updateCase(guildId, caseId, patch, actorId = '') {
     setDetail('expiresAt', Number.isFinite(expiry) ? expiry : null);
     record.status = record.details.expiresAt && record.details.expiresAt <= Date.now() ? EXPIRED : ACTIVE;
   }
-  if (!Object.keys(changes).length) return publicCase(record);
+  if (!Object.keys(changes).length) {
+    if (expired) {
+      rearmThresholds(guild, record.targetUserId);
+      writeState(state);
+    }
+    return publicCase(record);
+  }
 
   record.updatedAt = Date.now();
   appendAuditEvent(record, 'case.edited', actorId, { changes }, record.updatedAt);
