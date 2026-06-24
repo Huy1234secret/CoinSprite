@@ -28,7 +28,7 @@ function adminCaseListDefaultMessageTypePolish() {
   ]);
 
   function installStyles() {
-    document.getElementById(styleId)?.remove();
+    if (document.getElementById(styleId)) return;
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = [
