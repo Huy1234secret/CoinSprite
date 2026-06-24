@@ -33,8 +33,10 @@ test('warning cases use schema v2 while preserving compatibility aliases', () =>
   assert.equal(first.targetUserId, '234567890123456789');
   assert.equal(first.memberId, first.targetUserId);
   assert.equal(first.details.points, 2);
+  assert.equal(first.warningCount, 1);
   assert.equal(first.events.length, 1);
   assert.equal(first.events[0].type, 'case.created');
+  assert.equal(store.activeWarningCount(first.guildId, first.targetUserId), 2);
   assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
 
   const persisted = JSON.parse(fs.readFileSync(store.STORE_PATH, 'utf8'));
@@ -49,16 +51,19 @@ test('AutoMod warning sources receive the dedicated case type', () => {
   assert.equal(record.type, 'automod_warning');
 });
 
-test('expired and pardoned cases remain in history with audit events but lose active points', () => {
+test('expired and pardoned cases remain in history with audit events but lose active warning count', () => {
   const expired = warning({ targetUserId: '456789012345678901', expiresAt: Date.now() - 1 });
+  assert.equal(store.activeWarningCount(expired.guildId, expired.targetUserId), 0);
   assert.equal(store.activePoints(expired.guildId, expired.targetUserId), 0);
   const expiredRecord = store.getCase(expired.guildId, expired.id);
   assert.equal(expiredRecord.status, 'expired');
   assert.ok(expiredRecord.events.some((event) => event.type === 'case.expired'));
 
   const active = warning({ targetUserId: '567890123456789012', points: 4 });
+  assert.equal(store.activeWarningCount(active.guildId, active.targetUserId), 1);
   assert.equal(store.activePoints(active.guildId, active.targetUserId), 4);
   store.pardonCase(active.guildId, active.id, '345678901234567890', 'Appeal accepted');
+  assert.equal(store.activeWarningCount(active.guildId, active.targetUserId), 0);
   assert.equal(store.activePoints(active.guildId, active.targetUserId), 0);
   const pardoned = store.getCase(active.guildId, active.id);
   assert.equal(pardoned.status, 'pardoned');
@@ -66,18 +71,29 @@ test('expired and pardoned cases remain in history with audit events but lose ac
   assert.equal(pardoned.events.at(-1).type, 'case.pardoned');
 });
 
-test('threshold claims are idempotent and re-arm after points fall below a threshold', () => {
-  const record = warning({ targetUserId: '678901234567890123', points: 5 });
-  const first = store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]);
-  assert.deepEqual(first.thresholds, [3, 5]);
-  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]).thresholds, []);
+test('threshold claims are idempotent and re-arm after warning count falls below a threshold', () => {
+  const targetUserId = '678901234567890123';
+  const firstWarning = warning({ targetUserId, points: 5 });
+  warning({ targetUserId, points: 1 });
+  warning({ targetUserId, points: 1 });
 
-  store.updateCase(record.guildId, record.id, { points: 2 }, '345678901234567890');
-  warning({ targetUserId: record.targetUserId, points: 3 });
-  assert.deepEqual(store.claimCrossedThresholds(record.guildId, record.targetUserId, [3, 5, 8]).thresholds, [3, 5]);
+  const first = store.claimCrossedThresholds(firstWarning.guildId, targetUserId, [3, 5, 8]);
+  assert.equal(first.warnings, 3);
+  assert.deepEqual(first.thresholds, [3]);
+  assert.deepEqual(store.claimCrossedThresholds(firstWarning.guildId, targetUserId, [3, 5, 8]).thresholds, []);
+
+  store.pardonCase(firstWarning.guildId, firstWarning.id, '345678901234567890', 'Appeal accepted');
+  assert.equal(store.activeWarningCount(firstWarning.guildId, targetUserId), 2);
+  warning({ targetUserId, points: 10 });
+  assert.deepEqual(store.claimCrossedThresholds(firstWarning.guildId, targetUserId, [3, 5, 8]).thresholds, [3]);
+
+  warning({ targetUserId });
+  warning({ targetUserId });
+  assert.equal(store.activeWarningCount(firstWarning.guildId, targetUserId), 5);
+  assert.deepEqual(store.claimCrossedThresholds(firstWarning.guildId, targetUserId, [3, 5, 8]).thresholds, [5]);
 });
 
-test('case updates append actor-aware audit events', () => {
+test('case updates append actor-aware audit events and keep legacy point compatibility', () => {
   const record = warning({ targetUserId: '789012345678901234' });
   const actorId = '345678901234567890';
   const updated = store.updateCase(
@@ -88,6 +104,7 @@ test('case updates append actor-aware audit events', () => {
   );
   assert.equal(updated.reason, 'Updated reason');
   assert.equal(updated.points, 10);
+  assert.equal(store.activeWarningCount(updated.guildId, updated.targetUserId), 1);
   assert.equal(updated.evidence, 'https://example.com/proof');
   assert.equal(updated.createdAt, record.createdAt);
   const event = updated.events.at(-1);
@@ -110,6 +127,8 @@ test('delivery, staff logs, and enforcement retain message references and events
   store.appendEnforcement(record.guildId, record.id, {
     threshold: 3,
     action: 'timeout',
+    reason: 'Reached 3 active warnings.',
+    warningCount: 3,
     success: true,
     detail: '3600 seconds',
   });
@@ -121,6 +140,7 @@ test('delivery, staff logs, and enforcement retain message references and events
     ['notification.attempted', 'staff_log.sent', 'enforcement.completed'],
   );
   assert.equal(updated.enforcementEvents[0].action, 'timeout');
+  assert.equal(updated.enforcementEvents[0].warningCount, 3);
 });
 
 test('v1 stores migrate once and preserve a backup', () => {
