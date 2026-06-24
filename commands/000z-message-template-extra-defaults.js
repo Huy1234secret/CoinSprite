@@ -3,6 +3,15 @@
 const messageTemplates = require('../src/messageTemplates');
 
 const UPDATED_AT = new Date(0).toISOString();
+const EXCLUDED_DEFAULT_TEMPLATE_IDS = new Set([
+  'default-level-up-message',
+  'default-ticket-launcher-message',
+  'default-ticket-open-message',
+  'default-ticket-transcript-saving',
+  'default-ticket-transcript-saved',
+  'default-giveaway-transcript-proof-saved',
+  'default-ticket-deleting',
+]);
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -30,71 +39,6 @@ function makeDefaultTemplate({ id, name, accentColor, lines, thumbnailUrl = '', 
 }
 
 const EXTRA_DEFAULT_BOT_TEMPLATES = Object.freeze([
-  makeDefaultTemplate({
-    id: 'default-level-up-message',
-    name: 'Default: Level-up message',
-    accentColor: '#57F287',
-    thumbnailUrl: '<avatar_url>',
-    lines: [
-      '## Level up!',
-      '<@mention> reached **Level <level>** in **<server>**.',
-      '<separator>',
-      '<if<level>==5,"Bro discovered the chat button.","">',
-      '<if<level>==10,"Double digits. The grind begins.","">',
-      '<if<level>==25,"Quarter century of yapping.","">',
-      '<if<level>==50,"Halfway to the big 100. Respect.","">',
-      '<if<level>==100,"Someone give them grass... or a trophy.","">',
-    ],
-  }),
-  makeDefaultTemplate({
-    id: 'default-ticket-launcher-message',
-    name: 'Default: Ticket launcher',
-    accentColor: '#FFFFFF',
-    lines: [
-      '## Support Ticket',
-      'Choose the ticket type that best matches your request.',
-      '<separator>',
-      '-# Please do not open joke, false, or duplicate tickets.',
-      '-# Staff will respond as soon as they are available.',
-    ],
-  }),
-  makeDefaultTemplate({
-    id: 'default-ticket-open-message',
-    name: 'Default: Ticket opened message',
-    accentColor: '#FFFFFF',
-    thumbnailUrl: '<avatar_url>',
-    lines: [
-      '<@mention> Welcome!',
-      '## <ticket_name> ticket',
-      'Our staff will be with you soon. Please provide the information needed to help us resolve your request.',
-      '<separator>',
-      '<form-answer>',
-    ],
-  }),
-  makeDefaultTemplate({
-    id: 'default-ticket-transcript-saving',
-    name: 'Default: Ticket transcript saving',
-    accentColor: '#FFF200',
-    lines: ['Transcript saving!...'],
-  }),
-  makeDefaultTemplate({
-    id: 'default-ticket-transcript-saved',
-    name: 'Default: Ticket transcript saved',
-    accentColor: '#00FF00',
-    lines: ['Transcript saved!'],
-  }),
-  makeDefaultTemplate({
-    id: 'default-giveaway-transcript-proof-saved',
-    name: 'Default: Giveaway transcript proof saved',
-    accentColor: '#00FF00',
-    lines: ['Transcript saved with winner claim evidence attached to the transcript message!'],
-  }),
-  makeDefaultTemplate({
-    id: 'default-ticket-deleting',
-    name: 'Default: Ticket deleting',
-    accentColor: '#FF0000',
-    lines: ['Deleting ticket...'],
-  }),
   makeDefaultTemplate({
     id: 'default-auto-moderator-user-warning',
     name: 'Default: Auto-Moderator user warning',
@@ -289,6 +233,14 @@ const EXTRA_DEFAULT_BOT_TEMPLATES = Object.freeze([
 
 const EXTRA_DEFAULTS_BY_ID = new Map(EXTRA_DEFAULT_BOT_TEMPLATES.map((template) => [template.id, template]));
 
+function isExcludedDefault(templateId) {
+  return EXCLUDED_DEFAULT_TEMPLATE_IDS.has(String(templateId || ''));
+}
+
+function withoutExcludedDefaults(templates) {
+  return (Array.isArray(templates) ? templates : []).filter((template) => !isExcludedDefault(template?.id));
+}
+
 function mergeDefaultTemplate(baseDefault, saved) {
   const merged = {
     ...clone(baseDefault),
@@ -317,7 +269,7 @@ function mergeDefaultTemplate(baseDefault, saved) {
 }
 
 function withExtraDefaults(templates) {
-  const byId = new Map((Array.isArray(templates) ? templates : []).filter((item) => item?.id).map((item) => [item.id, item]));
+  const byId = new Map(withoutExcludedDefaults(templates).filter((item) => item?.id).map((item) => [item.id, item]));
   for (const base of EXTRA_DEFAULT_BOT_TEMPLATES) {
     byId.set(base.id, mergeDefaultTemplate(base, byId.get(base.id)));
   }
@@ -332,19 +284,21 @@ function patchMessageTemplateExports(exportsObject) {
   const nativeFindTemplate = exportsObject.findTemplate.bind(exportsObject);
   const nativeSaveTemplate = exportsObject.saveTemplate.bind(exportsObject);
   const nativeDeleteTemplate = exportsObject.deleteTemplate.bind(exportsObject);
-  const combinedDefaults = new Map(nativeDefaults.filter((item) => item?.id).map((item) => [item.id, item]));
+  const combinedDefaults = new Map(withoutExcludedDefaults(nativeDefaults).filter((item) => item?.id).map((item) => [item.id, item]));
 
   for (const base of EXTRA_DEFAULT_BOT_TEMPLATES) combinedDefaults.set(base.id, base);
 
   exportsObject.DEFAULT_BOT_TEMPLATES = Object.freeze([...combinedDefaults.values()].map(clone));
   exportsObject.listTemplates = (guildId) => withExtraDefaults(nativeListTemplates(guildId));
   exportsObject.findTemplate = (guildId, templateId) => {
+    if (isExcludedDefault(templateId)) return null;
     if (EXTRA_DEFAULTS_BY_ID.has(templateId)) {
       return exportsObject.listTemplates(guildId).find((template) => template.id === templateId && template.type !== 'folder') || null;
     }
     return nativeFindTemplate(guildId, templateId);
   };
   exportsObject.saveTemplate = (guildId, value) => {
+    if (isExcludedDefault(value?.id)) return nativeSaveTemplate(guildId, value);
     const baseDefault = EXTRA_DEFAULTS_BY_ID.get(value?.id);
     if (!baseDefault) return nativeSaveTemplate(guildId, value);
     return mergeDefaultTemplate(baseDefault, nativeSaveTemplate(guildId, mergeDefaultTemplate(baseDefault, value)));
