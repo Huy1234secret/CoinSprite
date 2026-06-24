@@ -147,13 +147,17 @@ function adminCaseListDefaultMessageTypePolish() {
       && !child.classList.contains('message-card-arrow')) || null;
   }
 
+  function labelForContainer(container) {
+    return Array.from(container.children).find((child) => child.classList.contains('message-default-type')) || null;
+  }
+
   function annotateDefaultCards(root = document) {
     root.querySelectorAll?.('#messageTemplatesRoot .message-template-card.message-default-card[data-id]').forEach((card) => {
       const type = defaultMessageType(card.dataset.id);
       if (!type) return;
       const container = labelContainerForCard(card);
       if (!container) return;
-      let label = container.querySelector(':scope > .message-default-type');
+      let label = labelForContainer(container);
       if (!label) {
         label = document.createElement('small');
         label.className = 'message-default-type';
@@ -168,25 +172,26 @@ function adminCaseListDefaultMessageTypePolish() {
     annotateDefaultCards(document);
   }
 
+  function scheduleRefresh(delay = 0) {
+    window.setTimeout(refresh, delay);
+  }
+
+  function scheduleAfterMessageUiChange(event) {
+    if (!event.target?.closest?.('#messageTemplatesRoot')) return;
+    scheduleRefresh(0);
+    scheduleRefresh(120);
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', refresh, { once: true });
   } else {
     refresh();
   }
 
-  const observer = new MutationObserver((mutations) => {
-    let shouldRefresh = false;
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList' && mutation.addedNodes.length) {
-        shouldRefresh = true;
-        break;
-      }
-    }
-    if (shouldRefresh) queueMicrotask(refresh);
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  setTimeout(refresh, 0);
-  setTimeout(refresh, 250);
+  document.addEventListener('click', scheduleAfterMessageUiChange, true);
+  document.addEventListener('input', scheduleAfterMessageUiChange, true);
+  document.addEventListener('change', scheduleAfterMessageUiChange, true);
+  [0, 250, 750, 1500].forEach(scheduleRefresh);
 }
 
 const BOOTSTRAP_PATCH = `\n\n;(${adminCaseListDefaultMessageTypePolish.toString()})();\n`;
