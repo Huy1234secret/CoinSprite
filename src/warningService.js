@@ -244,17 +244,17 @@ async function executeRule(guild, member, record, rule, warningCount, config) {
   const actionReason = rule.reason + ' (' + record.id + ')';
   try {
     if (rule.action === 'timeout') {
-      await sendActionNotice(guild, member, record, rule, warningCount);
       if (!member.moderatable || typeof member.timeout !== 'function') throw new Error('Member is not moderatable.');
       await member.timeout(rule.durationSeconds * 1000, actionReason);
-    } else if (rule.action === 'kick') {
       await sendActionNotice(guild, member, record, rule, warningCount);
+    } else if (rule.action === 'kick') {
       if (!member.kickable || typeof member.kick !== 'function') throw new Error('Member is not kickable.');
       await member.kick(actionReason);
-    } else if (rule.action === 'ban') {
       await sendActionNotice(guild, member, record, rule, warningCount);
+    } else if (rule.action === 'ban') {
       if (!member.bannable || typeof member.ban !== 'function') throw new Error('Member is not bannable.');
       await member.ban({ reason: actionReason });
+      await sendActionNotice(guild, member, record, rule, warningCount);
     } else {
       await logToStaff(guild, config, 'Warning threshold alert: <@' + member.id + '> reached **' + warningCount + ' active warnings** at threshold ' + rule.threshold + ' (case ' + record.id + '). Reason: ' + rule.reason);
     }
