@@ -66,11 +66,18 @@ const DEFAULT_LINK_AUTOMOD = {
   ],
 };
 
+function warningRuleReason(threshold, action, value = '') {
+  const saved = String(value || '').trim();
+  if (saved) return saved.slice(0, 500);
+  const actionLabel = action === 'timeout' ? 'mute' : action === 'staff_alert' ? 'staff alert' : action;
+  return ('Reached ' + threshold + ' active warnings. Action: ' + actionLabel + '.').slice(0, 500);
+}
+
 const DEFAULT_WARNING_RULES = [
-  { threshold: 3, action: 'timeout', durationSeconds: 60 * 60, enabled: true },
-  { threshold: 5, action: 'timeout', durationSeconds: 24 * 60 * 60, enabled: true },
-  { threshold: 8, action: 'timeout', durationSeconds: 7 * 24 * 60 * 60, enabled: true },
-  { threshold: 10, action: 'staff_alert', durationSeconds: 0, enabled: true },
+  { threshold: 3, action: 'timeout', durationSeconds: 60 * 60, reason: warningRuleReason(3, 'timeout'), enabled: true },
+  { threshold: 5, action: 'timeout', durationSeconds: 24 * 60 * 60, reason: warningRuleReason(5, 'timeout'), enabled: true },
+  { threshold: 8, action: 'timeout', durationSeconds: 7 * 24 * 60 * 60, reason: warningRuleReason(8, 'timeout'), enabled: true },
+  { threshold: 10, action: 'staff_alert', durationSeconds: 0, reason: warningRuleReason(10, 'staff_alert'), enabled: true },
 ];
 
 const DEFAULT_LOGGING = {
@@ -413,12 +420,17 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   warnings.fallbackChannelId = String(warnings.fallbackChannelId || '');
   warnings.staffLogChannelId = String(warnings.staffLogChannelId || '');
   warnings.escalationRules = (Array.isArray(warnings.escalationRules) ? warnings.escalationRules : DEFAULT_WARNING_RULES)
-    .map((rule) => ({
-      threshold: Math.max(1, Math.min(100, Math.round(Number(rule?.threshold) || 1))),
-      action: ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule?.action) ? rule.action : 'staff_alert',
-      durationSeconds: Math.max(0, Math.min(2419200, Number(rule?.durationSeconds) || 0)),
-      enabled: rule?.enabled !== false,
-    }))
+    .map((rule) => {
+      const threshold = Math.max(1, Math.min(100, Math.round(Number(rule?.threshold) || 1)));
+      const action = ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule?.action) ? rule.action : 'staff_alert';
+      return {
+        threshold,
+        action,
+        durationSeconds: Math.max(0, Math.min(2419200, Number(rule?.durationSeconds) || 0)),
+        reason: warningRuleReason(threshold, action, rule?.reason),
+        enabled: rule?.enabled !== false,
+      };
+    })
     .sort((a, b) => a.threshold - b.threshold);
   merged.wordChain.repeatedWordAction = merged.wordChain.repeatedWordAction === 'warn' ? 'warn' : 'punish';
   merged.wordChain.wrongStartAction = merged.wordChain.wrongStartAction === 'warn' ? 'warn' : 'punish';
