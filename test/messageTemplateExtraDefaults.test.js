@@ -15,14 +15,22 @@ const EXCLUDED_DEFAULT_IDS = [
   'default-ticket-deleting',
 ];
 
+const WARNING_ACTION_DEFAULT_IDS = [
+  'default-warning-timeout-notice',
+  'default-warning-kick-notice',
+  'default-warning-ban-notice',
+];
+
 test('exposes extra bot defaults without excluded categories', () => {
   const expectedIds = EXTRA_DEFAULT_BOT_TEMPLATES.map((template) => template.id);
   const defaults = listTemplates('extra-defaults-test').filter((template) => template.botDefault);
   const defaultIds = new Set(defaults.map((template) => template.id));
 
   for (const id of expectedIds) assert.ok(defaultIds.has(id), `${id} is listed as a bot default`);
+  for (const id of WARNING_ACTION_DEFAULT_IDS) assert.ok(defaultIds.has(id), `${id} is listed as a warning action default`);
   for (const id of EXCLUDED_DEFAULT_IDS) assert.equal(defaultIds.has(id), false, `${id} is not listed as a bot default`);
   assert.ok(DEFAULT_BOT_TEMPLATES.some((template) => template.id === 'default-warning-notice'));
+  assert.ok(DEFAULT_BOT_TEMPLATES.some((template) => template.id === 'default-warning-timeout-notice'));
 
   const forbiddenDefaults = defaults.filter((template) => {
     const haystack = JSON.stringify({ id: template.id, name: template.name, containers: template.containers }).toLowerCase();
@@ -37,4 +45,5 @@ test('exposes extra bot defaults without excluded categories', () => {
 
 test('keeps remaining extra bot defaults locked against deletion', () => {
   assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-notice'), false);
+  assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-timeout-notice'), false);
 });
