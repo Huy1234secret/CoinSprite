@@ -201,6 +201,7 @@ function publicCase(record) {
     reason: result.details.reason,
     staffNotes: result.details.staffNotes,
     points: result.details.points,
+    warningCount: 1,
     evidence: result.details.evidence,
     expiresAt: result.details.expiresAt,
     sourceChannelId: result.references.source.channelId,
@@ -227,17 +228,27 @@ function expireCases(guild) {
   return changed;
 }
 
+function isActiveWarning(record, targetUserId) {
+  return record.targetUserId === String(targetUserId)
+    && record.status === ACTIVE
+    && ['warning', 'automod_warning'].includes(record.type);
+}
+
 function activePointsFromGuild(guild, targetUserId) {
   return guild.cases
-    .filter((record) => record.targetUserId === String(targetUserId) && record.status === ACTIVE && ['warning', 'automod_warning'].includes(record.type))
+    .filter((record) => isActiveWarning(record, targetUserId))
     .reduce((total, record) => total + record.details.points, 0);
+}
+
+function activeWarningCountFromGuild(guild, targetUserId) {
+  return guild.cases.filter((record) => isActiveWarning(record, targetUserId)).length;
 }
 
 function rearmThresholds(guild, targetUserId) {
   const id = String(targetUserId);
-  const points = activePointsFromGuild(guild, id);
+  const warningCount = activeWarningCountFromGuild(guild, id);
   const crossed = Array.isArray(guild.crossedThresholds[id]) ? guild.crossedThresholds[id] : [];
-  guild.crossedThresholds[id] = crossed.filter((threshold) => Number(threshold) <= points);
+  guild.crossedThresholds[id] = crossed.filter((threshold) => Number(threshold) <= warningCount);
 }
 
 function createCase(input) {
@@ -341,6 +352,12 @@ function activePoints(guildId, targetUserId) {
     .reduce((sum, record) => sum + record.details.points, 0);
 }
 
+function activeWarningCount(guildId, targetUserId) {
+  return listCases(guildId, { targetUserId })
+    .filter((record) => record.status === ACTIVE && ['warning', 'automod_warning'].includes(record.type))
+    .length;
+}
+
 function updateCase(guildId, caseId, patch, actorId = '') {
   const state = readState();
   const guild = guildState(state, guildId);
@@ -441,13 +458,13 @@ function claimCrossedThresholds(guildId, targetUserId, thresholds) {
   expireCases(guild);
   const id = String(targetUserId);
   rearmThresholds(guild, id);
-  const points = activePointsFromGuild(guild, id);
+  const warningCount = activeWarningCountFromGuild(guild, id);
   const crossed = new Set((guild.crossedThresholds[id] || []).map(Number));
-  const eligible = [...new Set((thresholds || []).map(Number).filter((value) => Number.isFinite(value) && value > 0 && value <= points))].sort((a, b) => a - b);
+  const eligible = [...new Set((thresholds || []).map(Number).filter((value) => Number.isFinite(value) && value > 0 && value <= warningCount))].sort((a, b) => a - b);
   const newlyCrossed = eligible.filter((threshold) => !crossed.has(threshold));
   guild.crossedThresholds[id] = [...new Set([...crossed, ...eligible])].sort((a, b) => a - b);
   writeState(state);
-  return { points, thresholds: newlyCrossed };
+  return { warnings: warningCount, points: warningCount, thresholds: newlyCrossed };
 }
 
 module.exports = {
@@ -457,6 +474,7 @@ module.exports = {
   STORE_PATH,
   VERSION,
   activePoints,
+  activeWarningCount,
   appendEnforcement,
   appendEvent,
   claimCrossedThresholds,
