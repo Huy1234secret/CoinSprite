@@ -422,20 +422,34 @@ function caseUserProfile(member, userId) {
   };
 }
 
+function systemCaseProfile(label = 'System') {
+  return { id: '', username: label, displayName: label, avatarUrl: '' };
+}
+
+function closingActorId(record) {
+  const events = Array.isArray(record?.events) ? [...record.events].reverse() : [];
+  const closeEvent = events.find((event) => /pardon|expire|close/i.test(String(event?.type || '')));
+  return String(closeEvent?.actorId || record?.closedById || '');
+}
+
 async function hydrateCaseProfiles(guild, records) {
-  const ids = [...new Set(records.flatMap((record) => [record.targetUserId, record.authorId]).filter(Boolean))];
+  const ids = [...new Set(records.flatMap((record) => [record.targetUserId, record.authorId, closingActorId(record)]).filter(Boolean))];
   const entries = await Promise.all(ids.map(async (id) => {
     const member = guild.members?.cache?.get(id) || await guild.members?.fetch?.(id).catch(() => null);
     return [id, caseUserProfile(member, id)];
   }));
   const profiles = Object.fromEntries(entries);
-  return records.map((record) => ({
-    ...record,
-    profiles: {
-      target: profiles[record.targetUserId] || caseUserProfile(null, record.targetUserId),
-      author: profiles[record.authorId] || caseUserProfile(null, record.authorId),
-    },
-  }));
+  return records.map((record) => {
+    const closedById = closingActorId(record);
+    return {
+      ...record,
+      profiles: {
+        target: profiles[record.targetUserId] || caseUserProfile(null, record.targetUserId),
+        author: profiles[record.authorId] || caseUserProfile(null, record.authorId),
+        closedBy: closedById ? profiles[closedById] || caseUserProfile(null, closedById) : systemCaseProfile(),
+      },
+    };
+  });
 }
 
 function updateGuildConfig(guildId, patch) {
