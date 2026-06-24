@@ -104,23 +104,25 @@ function renderOverviewPanel() {`);
     () => "recent.length ? recent.map((record) => `<div class=\"automod-action-row\"><strong>${escapeHtml(record.id)}</strong><span>&lt;@${escapeHtml(record.memberId)}&gt; - warning - ${escapeHtml(record.status)}</span><span>${escapeHtml(record.reason)}</span></div>`).join('') : '<p>No warning cases yet.</p>'",
   );
 
-  text = text.replace(/function warningRuleRow\(rule, index\) \{[\s\S]*?\n\}\n\nfunction renderWarningsPanel\(\) \{/, () => `function warningRuleRow(rule, index) {
-  const action = ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule.action) ? rule.action : 'staff_alert';
-  const threshold = Math.max(1, Math.min(100, Math.round(Number(rule.threshold) || 1)));
-  const reason = warningRuleReason({ ...rule, threshold, action });
-  return `<div class="automod-action-row warning-rule-row" data-warning-rule-index="${index}">
-    <label>Warnings <input data-warning-rule-field="threshold" type="number" min="1" max="100" value="${threshold}"></label>
-    <label>Action <select data-warning-rule-field="action">
-      ${['timeout', 'kick', 'ban', 'staff_alert'].map((item) => `<option value="${item}" ${action === item ? 'selected' : ''}>${item.replace('_', ' ')}</option>`).join('')}
-    </select></label>
-    ${action === 'timeout' ? `<label>Duration seconds <input data-warning-rule-field="durationSeconds" type="number" min="1" max="2419200" value="${rule.durationSeconds || 3600}"></label>` : '<span></span>'}
-    <label class="warning-rule-reason">Reason <input data-warning-rule-field="reason" type="text" maxlength="500" value="${escapeHtml(reason)}" placeholder="Reason used for this action"></label>
-    <label class="checkline warning-rule-enabled"><input data-warning-rule-field="enabled" type="checkbox" ${rule.enabled !== false ? 'checked' : ''}> Enabled</label>
-    <button class="button small danger ghost" type="button" data-moderator-action="remove-warning-rule">Remove</button>
-  </div>`;
-}
-
-function renderWarningsPanel() {`);
+  text = text.replace(/function warningRuleRow\(rule, index\) \{[\s\S]*?\n\}\n\nfunction renderWarningsPanel\(\) \{/, () => [
+    'function warningRuleRow(rule, index) {',
+    "  const action = ['timeout', 'kick', 'ban', 'staff_alert'].includes(rule.action) ? rule.action : 'staff_alert';",
+    '  const threshold = Math.max(1, Math.min(100, Math.round(Number(rule.threshold) || 1)));',
+    '  const reason = warningRuleReason({ ...rule, threshold, action });',
+    '  return \'<div class="automod-action-row warning-rule-row" data-warning-rule-index="\' + index + \'">\'',
+    '    + \'<label>Warnings <input data-warning-rule-field="threshold" type="number" min="1" max="100" value="\' + threshold + \'"></label>\'',
+    '    + \'<label>Action <select data-warning-rule-field="action">\'',
+    "    + ['timeout', 'kick', 'ban', 'staff_alert'].map((item) => '<option value=\"' + item + '\" ' + (action === item ? 'selected' : '') + '>' + item.replace('_', ' ') + '</option>').join('')",
+    "    + '</select></label>'",
+    "    + (action === 'timeout' ? '<label>Duration seconds <input data-warning-rule-field=\"durationSeconds\" type=\"number\" min=\"1\" max=\"2419200\" value=\"' + (rule.durationSeconds || 3600) + '\"></label>' : '<span></span>')",
+    "    + '<label class=\"warning-rule-reason\">Reason <input data-warning-rule-field=\"reason\" type=\"text\" maxlength=\"500\" value=\"' + escapeHtml(reason) + '\" placeholder=\"Reason used for this action\"></label>'",
+    "    + '<label class=\"checkline warning-rule-enabled\"><input data-warning-rule-field=\"enabled\" type=\"checkbox\" ' + (rule.enabled !== false ? 'checked' : '') + '> Enabled</label>'",
+    "    + '<button class=\"button small danger ghost\" type=\"button\" data-moderator-action=\"remove-warning-rule\">Remove</button>'",
+    "    + '</div>';",
+    '}',
+    '',
+    'function renderWarningsPanel() {',
+  ].join('\n'));
 
   text = text.replace('Point-based warnings', 'Warning-count warnings');
   text = text.replace(
