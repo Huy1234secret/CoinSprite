@@ -157,7 +157,7 @@
     const description = field.description ? '<small>' + escapeHtml(field.description) + '</small>' : '';
     if (field.type === 'text') return '<label>' + label + description + '<textarea rows="' + (field.style === 'short' ? 1 : 4) + '" placeholder="' + escapeHtml(field.placeholder || '') + '"></textarea></label>';
     if (field.type === 'number') return '<label>' + label + description + '<input type="number" placeholder="' + escapeHtml(field.placeholder || '') + '"></label>';
-    if (field.type === 'choice' || field.type === 'checkbox') return '<fieldset><legend>' + label + '</legend>' + description + optionsFor(field).map((option) => '<label class="appeal-preview-option"><input disabled type="' + (field.type === 'checkbox' || !field.multiple ? 'checkbox' : 'checkbox') + '" ' + (field.defaultOptionId === option.id ? 'checked' : '') + '> ' + escapeHtml(option.label) + '</label>').join('') + '</fieldset>';
+    if (field.type === 'choice' || field.type === 'checkbox') return '<fieldset><legend>' + label + '</legend>' + description + optionsFor(field).map((option) => '<label class="appeal-preview-option"><input disabled type="' + (field.type === 'checkbox' ? 'checkbox' : field.multiple ? 'checkbox' : 'radio') + '" ' + (field.defaultOptionId === option.id ? 'checked' : '') + '> ' + escapeHtml(option.label) + '</label>').join('') + '</fieldset>';
     return '<label>' + label + description + '<input disabled type="file"></label>';
   }
 
