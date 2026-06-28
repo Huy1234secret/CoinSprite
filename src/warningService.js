@@ -2,6 +2,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
+const { attachmentRecord, persistEvidence } = require('./moderationActionService');
 const {
   moderationActionNoticeContainer,
   moderationErrorContainer,
@@ -290,7 +291,8 @@ async function createWarning(input) {
   const expiresAt = input.expiresAt !== undefined
     ? input.expiresAt
     : parseDuration(input.expires, config.defaultExpiryDays);
-  const record = store.createCase({
+  const initialAttachment = attachmentRecord(input.attachment);
+  let record = store.createCase({
     guildId: guild.id,
     type: /^automod(?:_|$)/.test(String(input.source || '')) ? 'automod_warning' : 'warning',
     targetUserId: member.id,
@@ -298,12 +300,25 @@ async function createWarning(input) {
     source: String(input.source || 'manual'),
     reason: safeReason(input.reason),
     staffNotes: String(input.staffNotes || ''),
+    publicNote: String(input.publicNote || ''),
     points,
-    evidence: validateEvidence(input.evidence),
+    evidence: initialAttachment?.url || validateEvidence(input.evidence),
+    attachments: initialAttachment ? [initialAttachment] : [],
+    appealable: Boolean(input.appealable),
     sourceChannelId: String(input.sourceChannelId || ''),
     sourceMessageId: String(input.sourceMessageId || ''),
     expiresAt,
   });
+  if (input.attachment) {
+    try {
+      const saved = await persistEvidence(guild.id, record.id, input.attachment);
+      if (saved) record = store.updateCase(guild.id, record.id, { attachments: [saved] }, input.moderatorId);
+      store.appendEvent(guild.id, record.id, 'evidence.saved', input.moderatorId, { name: saved?.name || initialAttachment?.name || '' });
+    } catch (error) {
+      store.appendEvent(guild.id, record.id, 'evidence.failed', input.moderatorId, { error: String(error?.message || error).slice(0, 500) });
+      throw error;
+    }
+  }
   const delivery = await notifyMember(guild, member, record, config);
   const evaluation = await evaluateMember(guild, member, record, config);
   const staffLog = await logToStaff(guild, config, 'Warning ' + record.id + ': <@' + member.id + '> received a warning from ' + record.source + '. Active warnings: ' + evaluation.warnings + '.');
