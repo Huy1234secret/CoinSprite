@@ -185,6 +185,18 @@ async function handleAppealApi(req, res, url, env, client, deps) {
     return true;
   }
 
+  const detail = url.pathname.match(/^\/api\/appeal\/guilds\/(\d{16,20})\/cases\/([^/]+)$/);
+  if (detail && req.method === 'GET') {
+    const cases = await caseList(client, session.user.id);
+    const record = cases.find((item) => item.guildId === detail[1] && item.case.id.toLowerCase() === decodeURIComponent(detail[2]).toLowerCase());
+    if (!record) {
+      deps.sendJson(res, 404, { error: 'Moderation case was not found.' });
+      return true;
+    }
+    deps.sendJson(res, 200, { case: record });
+    return true;
+  }
+
   const submit = url.pathname.match(/^\/api\/appeal\/guilds\/(\d{16,20})\/cases\/([^/]+)\/submissions$/);
   if (submit && req.method === 'POST') {
     if (!requireCsrf(req, res, session, deps)) return true;
