@@ -33,8 +33,18 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
 
   const community = fs.readFileSync(path.join(__dirname, '..', 'admin', 'community-messages.js'), 'utf8');
   assert.match(community, /CoinSpriteRichEditor/);
+  assert.match(community, /communityCollectPatch/);
+  assert.doesNotMatch(community, /communityMessageSave|Save messages/);
+  const inlineEditor = fs.readFileSync(path.join(__dirname, '..', 'admin', 'message-inline-editor.js'), 'utf8');
+  assert.match(inlineEditor, /root\?\.querySelector\?/);
+  assert.match(inlineEditor, /CoinSpriteInlineMessageEditor/);
+  const richEditor = fs.readFileSync(path.join(__dirname, '..', 'admin', 'rich-message-editor.js'), 'utf8');
+  assert.match(richEditor, /rich-preview-stage/);
   const appeals = fs.readFileSync(path.join(__dirname, '..', 'admin', 'appeals.js'), 'utf8');
   assert.match(appeals, /appeal-settings/);
   assert.match(appeals, /appeal-form/);
   assert.match(appeals, /appeal-message/);
+  assert.match(appeals, /appeal-form-designer/);
+  assert.match(appeals, /appealCollectPatch/);
+  assert.doesNotMatch(appeals, /id="appealSave"|Save appeal settings/);
 });
