@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CoinSprite Appeals</title>
+  <link rel="stylesheet" href="/appeal/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/appeal"><img src="/bot-avatar.png" alt=""><span>CoinSprite Appeals</span></a>
+    <div id="account"></div>
+  </header>
+  <main>
+    <section id="login" class="login-panel" hidden>
+      <h1>Moderation appeals</h1>
+      <p>Sign in with Discord to view your cases.</p>
+      <a class="button primary" href="/auth/discord?returnTo=/appeal">Continue with Discord</a>
+    </section>
+    <section id="app" hidden>
+      <div class="page-head">
+        <div><h1>Your cases</h1><p id="case-count"></p></div>
+      </div>
+      <div class="workspace">
+        <div id="case-list" class="case-list"></div>
+        <div id="case-detail" class="case-detail"><div class="empty">Select a case</div></div>
+      </div>
+    </section>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </main>
+  <script src="/appeal/app.js"></script>
+</body>
+</html>
