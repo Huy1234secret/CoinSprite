@@ -18,6 +18,11 @@ const { canManageWarnings, pardonWarning } = require('./warningService');
 const APPEALABLE_TYPES = new Set(['warning', 'automod_warning', 'mute', 'kick', 'ban']);
 const COMPONENTS_V2_FLAG = 32768;
 const DECISION_PREFIX = 'appeal:decision:';
+const MIME_BY_EXTENSION = Object.freeze({
+  png: ['image/png'], jpg: ['image/jpeg', 'image/jpg'], jpeg: ['image/jpeg', 'image/jpg'],
+  gif: ['image/gif'], webp: ['image/webp'], pdf: ['application/pdf'],
+  txt: ['text/plain'], json: ['application/json', 'text/json'],
+});
 const BUTTON_PREFIX = 'appeal:review:';
 
 function publicBaseUrl() {
@@ -77,6 +82,11 @@ function validateSubmission(config, rawAnswers, files) {
         const extension = appealFiles.extensionOf(file.name);
         if (field.allowedExtensions.length && !field.allowedExtensions.includes(extension)) {
           throw new Error(field.label + ' only accepts: ' + field.allowedExtensions.join(', ') + '.');
+        }
+        const contentType = String(file.contentType || '').toLowerCase();
+        const expectedTypes = MIME_BY_EXTENSION[extension];
+        if (expectedTypes && contentType && contentType !== 'application/octet-stream' && !expectedTypes.includes(contentType)) {
+          throw new Error(field.label + ' contains a file whose MIME type does not match its extension.');
         }
       }
       answers.push({ fieldId: field.id, label: field.label, type: field.type, value: uploads.map((file) => file.name) });
