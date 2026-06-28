@@ -11,7 +11,7 @@ const {
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
@@ -50,6 +50,37 @@ const INVITE_REWARD_TIERS = [
   },
 ];
 
+const DEFAULT_SPAM_AUTOMOD = {
+  enabled: false,
+  messages: { enabled: true, count: 6, durationSeconds: 5 },
+  lines: { enabled: true, maxLines: 12 },
+  mentions: { enabled: true, maxMentions: 6 },
+  deleteMessage: true,
+  action: 'timeout',
+  timeoutSeconds: 300,
+  excludeChannelIds: [],
+  excludeRoleIds: [],
+  logChannelId: '',
+};
+
+const DEFAULT_COMMUNITY_MESSAGES = {
+  welcome: {
+    enabled: false,
+    channelId: '',
+    message: 'Welcome <@mention> to **<server-name>**! You are member **<member-count>**.',
+  },
+  goodbye: {
+    enabled: false,
+    channelId: '',
+    message: '**<display-name>** has left **<server-name>**.',
+  },
+  booster: {
+    enabled: false,
+    channelId: '',
+    message: 'Thank you <@mention> for boosting **<server-name>**!',
+  },
+};
+
 const DEFAULT_LINK_AUTOMOD = {
   enabled: false,
   blockDiscordInvites: true,
@@ -82,7 +113,7 @@ const DEFAULT_WARNING_RULES = [
 
 const DEFAULT_LOGGING = {
   categories: {
-    moderation: { defaultChannelId: '', eventOverrides: { ai_low: '', ai_severe: '', warning: '' } },
+    moderation: { defaultChannelId: '', eventOverrides: { ai_low: '', ai_severe: '', warning: '', spam: '' } },
     commands: { defaultChannelId: '', eventOverrides: {} },
     requests: { defaultChannelId: '', eventOverrides: { role_review: '', giveaway_review: '' } },
     invites: { defaultChannelId: '', eventOverrides: {} },
@@ -133,6 +164,7 @@ const DEFAULT_GUILD_CONFIG = {
     },
     auto: {
       link: DEFAULT_LINK_AUTOMOD,
+      spam: DEFAULT_SPAM_AUTOMOD,
     },
     warnings: {
       enabled: false,
@@ -142,6 +174,7 @@ const DEFAULT_GUILD_CONFIG = {
       escalationRules: DEFAULT_WARNING_RULES,
     },
   },
+  communityMessages: DEFAULT_COMMUNITY_MESSAGES,
   xp: {
     channels: [],
     messageXpMin: 1,
@@ -414,6 +447,37 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   merged.enabled = guildConfig?.enabled === false ? false : true;
   merged.logging = normalizeLogging(guildConfig?.logging, merged.channels, merged.moderation, defaults.logging || DEFAULT_LOGGING);
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
+  const spam = merged.moderation.auto.spam || {};
+  spam.enabled = Boolean(spam.enabled);
+  spam.messages = {
+    enabled: spam.messages?.enabled !== false,
+    count: Math.max(2, Math.min(50, Math.round(Number(spam.messages?.count) || 6))),
+    durationSeconds: Math.max(1, Math.min(120, Math.round(Number(spam.messages?.durationSeconds) || 5))),
+  };
+  spam.lines = {
+    enabled: spam.lines?.enabled !== false,
+    maxLines: Math.max(2, Math.min(100, Math.round(Number(spam.lines?.maxLines) || 12))),
+  };
+  spam.mentions = {
+    enabled: spam.mentions?.enabled !== false,
+    maxMentions: Math.max(2, Math.min(100, Math.round(Number(spam.mentions?.maxMentions) || 6))),
+  };
+  spam.deleteMessage = spam.deleteMessage !== false;
+  spam.action = ['none', 'warn', 'timeout'].includes(spam.action) ? spam.action : 'timeout';
+  spam.timeoutSeconds = Math.max(60, Math.min(2419200, Math.round(Number(spam.timeoutSeconds) || 300)));
+  spam.excludeChannelIds = [...new Set((Array.isArray(spam.excludeChannelIds) ? spam.excludeChannelIds : []).map(cleanChannelId).filter(Boolean))];
+  spam.excludeRoleIds = [...new Set((Array.isArray(spam.excludeRoleIds) ? spam.excludeRoleIds : []).map((value) => String(value || '').trim()).filter((value) => /^\d{16,20}$/.test(value)))];
+  spam.logChannelId = cleanChannelId(spam.logChannelId);
+
+  const communityDefaults = defaults.communityMessages || DEFAULT_COMMUNITY_MESSAGES;
+  for (const eventName of ['welcome', 'goodbye', 'booster']) {
+    const event = merged.communityMessages[eventName] || {};
+    event.enabled = Boolean(event.enabled);
+    event.channelId = cleanChannelId(event.channelId);
+    event.message = String(event.message || communityDefaults[eventName].message).trim().slice(0, 2000);
+    merged.communityMessages[eventName] = event;
+  }
+
   const warnings = merged.moderation.warnings;
   warnings.enabled = Boolean(warnings.enabled);
   warnings.defaultExpiryDays = Math.max(0, Math.min(3650, Number(warnings.defaultExpiryDays) || 90));
@@ -596,8 +660,10 @@ function isGuildEnabled(guildId) {
 }
 
 module.exports = {
+  DEFAULT_COMMUNITY_MESSAGES,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_LOGGING,
+  DEFAULT_SPAM_AUTOMOD,
   DEFAULT_WARNING_RULES,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
