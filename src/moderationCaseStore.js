@@ -3,7 +3,7 @@ const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileSto
 
 const STORE_PATH = process.env.MODERATION_CASE_STORE_PATH
   || path.join(__dirname, '..', 'data', 'moderation-cases.json');
-const VERSION = 3;
+const VERSION = 4;
 const ACTIVE = 'active';
 const EXPIRED = 'expired';
 const PARDONED = 'pardoned';
@@ -38,6 +38,7 @@ function normalizeDetails(record) {
   return {
     reason: boundedString(source.reason || 'No reason provided.'),
     staffNotes: boundedString(source.staffNotes),
+    publicNote: boundedString(source.publicNote),
     points: Math.max(1, Math.min(10, Math.round(Number(source.points) || 1))),
     evidence: boundedString(source.evidence),
     attachments: (Array.isArray(source.attachments) ? source.attachments : []).slice(0, 10).map(normalizeAttachment),
@@ -213,6 +214,7 @@ function publicCase(record) {
     moderatorId: result.authorId,
     reason: result.details.reason,
     staffNotes: result.details.staffNotes,
+    publicNote: result.details.publicNote,
     points: result.details.points,
     warningCount: 1,
     evidence: result.details.evidence,
@@ -292,6 +294,7 @@ function createCase(input) {
       ...input.details,
       reason: input.reason ?? input.details?.reason,
       staffNotes: input.staffNotes ?? input.details?.staffNotes,
+      publicNote: input.publicNote ?? input.details?.publicNote,
       points: input.points ?? input.details?.points,
       evidence: input.evidence ?? input.details?.evidence,
       attachments: input.attachments ?? input.details?.attachments,
@@ -336,6 +339,7 @@ function filteredCases(guild, filters = {}) {
       record.details.reason,
       record.details.evidence,
       record.details.staffNotes,
+      record.details.publicNote,
       record.details.appealable ? 'appealable' : 'not appealable',
       ...record.details.attachments.flatMap((attachment) => [attachment.name, attachment.url]),
     ].some((value) => String(value).toLowerCase().includes(query)))
@@ -403,6 +407,7 @@ function updateCase(guildId, caseId, patch, actorId = '') {
   if (patch.attachments !== undefined) setDetail('attachments', (Array.isArray(patch.attachments) ? patch.attachments : []).slice(0, 10).map(normalizeAttachment));
   if (patch.appealable !== undefined) setDetail('appealable', Boolean(patch.appealable));
   if (patch.staffNotes !== undefined) setDetail('staffNotes', boundedString(String(patch.staffNotes || '').trim()));
+  if (patch.publicNote !== undefined) setDetail('publicNote', boundedString(String(patch.publicNote || '').trim()));
   if (patch.expiresAt !== undefined) {
     const expiry = patch.expiresAt == null ? null : Number(patch.expiresAt);
     setDetail('expiresAt', Number.isFinite(expiry) ? expiry : null);
