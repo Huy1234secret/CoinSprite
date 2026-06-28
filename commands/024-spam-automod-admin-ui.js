@@ -96,13 +96,49 @@ function patchModeratorJs(source) {
 
   function renderAutoPanel() {
     const link = moderatorState.auto.link;
-    const spam = moderatorState.auto.spam;
     return '<div class="automod-grid">'
       + '<div class="automod-module-card active"><strong>Link</strong><span>' + (link.enabled ? 'Enabled' : 'Disabled') + ' · ' + (link.actions.map((action) => action.type).join(', ') || 'no actions') + '</span></div>'
+      + renderLinkPanel() + '</div>';
+  }
+
+  function renderTextPanel() {
+    const spam = moderatorState.auto.spam;
+    return '<div class="automod-grid">'
       + '<div class="automod-module-card active"><strong>Spam</strong><span>' + (spam.enabled ? 'Enabled' : 'Disabled') + ' · burst, lines, mentions</span></div>'
-      + renderLinkPanel() + renderSpamPanel() + '</div>';
+      + renderSpamPanel() + '</div>';
   }`;
   text = text.slice(0, start) + render + text.slice(end);
+
+  text = replaceRequired(
+    text,
+    "    const autoTabs = [['ai', 'AI Moderation'], ['auto', 'Link Moderation']];",
+    "    const autoTabs = [['ai', 'AI Moderation'], ['auto', 'Link'], ['text', 'Text']];",
+  );
+
+  text = replaceRequired(
+    text,
+    "    let panel = moderatorState.view === 'ai' ? renderAiPanel()\n"
+      + "      : moderatorState.view === 'auto' ? renderAutoPanel()\n"
+      + "        : moderatorState.view === 'warnings' ? renderWarningsPanel()\n"
+      + "          : renderCasesPanel();",
+    "    let panel = moderatorState.view === 'ai' ? renderAiPanel()\n"
+      + "      : moderatorState.view === 'auto' ? renderAutoPanel()\n"
+      + "        : moderatorState.view === 'text' ? renderTextPanel()\n"
+      + "          : moderatorState.view === 'warnings' ? renderWarningsPanel()\n"
+      + "            : renderCasesPanel();",
+  );
+
+  text = replaceRequired(
+    text,
+    "moderatorState.view = ['warnings', 'auto', 'ai', 'cases'].includes(view)",
+    "moderatorState.view = ['warnings', 'auto', 'text', 'ai', 'cases'].includes(view)",
+  );
+
+  text = replaceRequired(
+    text,
+    '<strong>Auto Moderation</strong><span>AI and link controls</span>',
+    '<strong>Auto Moderation</strong><span>AI, link, and text controls</span>',
+  );
 
   const snapshotStart = text.indexOf('  function autoSnapshot() {');
   const snapshotEnd = text.indexOf('\n  ensureModeratorTab();', snapshotStart);
