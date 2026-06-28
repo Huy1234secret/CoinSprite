@@ -122,6 +122,9 @@ function validateSubmission(config, rawAnswers, files) {
       if (!Number.isFinite(number)) throw new Error(field.label + ' must be a number.');
       if (field.minimum != null && number < field.minimum) throw new Error(field.label + ' is below its minimum.');
       if (field.maximum != null && number > field.maximum) throw new Error(field.label + ' is above its maximum.');
+      const stepBase = field.minimum == null ? 0 : field.minimum;
+      const stepUnits = (number - stepBase) / field.step;
+      if (Math.abs(stepUnits - Math.round(stepUnits)) > 1e-9) throw new Error(field.label + ' does not match its required step.');
       answers.push({ fieldId: field.id, label: field.label, type: field.type, value: number });
       continue;
     }
