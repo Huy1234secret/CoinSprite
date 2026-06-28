@@ -77,7 +77,7 @@ function patchModeratorJs(source) {
 function patchIndex(source) {
   const text = String(source || '');
   if (text.includes('/admin/appeals.js')) return text;
-  return text.replace('</body>', '  <script src="/admin/appeals.js?v=appeals-1" defer></script>\n</body>');
+  return text.replace('</body>', '  <script src="/admin/appeals.js?v=appeals-2" defer></script>\n</body>');
 }
 
 function patchData(filePath, data, options) {
