@@ -145,9 +145,11 @@ function answerText(appeal, config) {
   return appeal.answers.map((answer) => {
     const field = fields.get(answer.fieldId);
     let value = answer.value;
-    if (answer.type === 'choice') {
+    if (answer.type === 'choice' || answer.type === 'checkbox') {
       const labels = new Map((field?.options || []).map((option) => [option.id, option.label]));
-      value = (Array.isArray(value) ? value : []).map((item) => labels.get(item) || item).join(', ');
+      value = Array.isArray(value)
+        ? value.map((item) => labels.get(item) || item).join(', ')
+        : labels.get(String(value || '')) || value;
     } else if (Array.isArray(value)) value = value.join(', ');
     else if (typeof value === 'boolean') value = value ? 'Yes' : 'No';
     return '**' + answer.label + ':** ' + (String(value || '').slice(0, 800) || 'Not provided');
