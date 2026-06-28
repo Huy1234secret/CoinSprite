@@ -78,13 +78,13 @@ test('primary admin asset layer owns the CoinSprite image prefix', () => {
   assert.match(iconAssets, /path\.join\(IMAGE_DIR, fileName\)/);
 });
 
-test('admin HTML uses raw repository image URLs', async () => {
+test('admin HTML uses local image routes', async () => {
   const response = await fetch(`${origin}/admin`);
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /src="https:\/\/raw\.githubusercontent\.com\/Huy1234secret\/CoinSprite\/main\/images\/leveling\.png/);
-  assert.match(html, /src="https:\/\/raw\.githubusercontent\.com\/Huy1234secret\/CoinSprite\/main\/images\/data\.png/);
-  assert.match(html, /src="https:\/\/raw\.githubusercontent\.com\/Huy1234secret\/CoinSprite\/main\/images\/ticket\.png/);
+  assert.match(html, /src="\/images\/leveling\.png/);
+  assert.match(html, /src="\/images\/data\.png/);
+  assert.match(html, /src="\/images\/ticket\.png/);
   assert.doesNotMatch(html, /CoinSpritedata:image/);
 });
 
@@ -95,10 +95,10 @@ test('icon assets are not rewritten into data URLs', () => {
   assert.doesNotMatch(adminServer, /inlineRuntimeIconUrls|data:image\/png;base64/);
 });
 
-test('all five tab images reference their uploaded repository PNGs', () => {
+test('all five tab images reference local PNG routes', () => {
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   for (const filename of ['leveling.png', 'data.png', 'ticket.png', 'moderator.png', 'message.png']) {
-    assert.match(app, new RegExp(`https://raw\\.githubusercontent\\.com/Huy1234secret/CoinSprite/main/images/${filename.replace('.', '\\.')}`));
+    assert.match(app, new RegExp(`/images/${filename.replace('.', '\\.')}`));
   }
 });
 
@@ -131,7 +131,7 @@ test('bootstrap displays image-backed tab icons instead of placeholder squares',
   assert.match(bootstrap, /rgba\(188, 120, 255, 0\.72\)/);
 });
 
-test('sidebar icons use raw CoinSprite repository images while branding uses the bot profile', () => {
+test('sidebar icons use local CoinSprite routes while branding uses the bot profile', () => {
   const iconSources = [
     'admin/index.html',
     'admin/app.js',
@@ -141,8 +141,8 @@ test('sidebar icons use raw CoinSprite repository images while branding uses the
   ];
   for (const relativePath of iconSources) {
     const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
-    assert.doesNotMatch(source, /\/admin\/images\//, relativePath);
-    assert.match(source, /https:\/\/raw\.githubusercontent\.com\/Huy1234secret\/CoinSprite\/main\/images\//, relativePath);
+    assert.doesNotMatch(source, /raw\.githubusercontent\.com/, relativePath);
+    assert.match(source, /\/images\//, relativePath);
   }
   const index = fs.readFileSync(path.join(root, 'admin', 'index.html'), 'utf8');
   assert.match(index, /<link rel="icon" type="image\/png" href="\/bot-avatar\.png">/);
