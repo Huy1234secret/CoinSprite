@@ -329,8 +329,27 @@ async function editWarning(input) {
 }
 
 async function pardonWarning(input) {
+  const current = store.getCase(input.guild.id, input.caseId);
+  if (!current) throw new Error('Moderation case was not found.');
+  if (current.status === store.ACTIVE && current.type === 'mute') {
+    const member = await input.guild.members.fetch(current.memberId).catch(() => null);
+    if (!member?.moderatable || typeof member.timeout !== 'function') {
+      throw new Error('The mute could not be reversed because the member is not moderatable.');
+    }
+    await member.timeout(null, 'Case pardoned (' + current.id + ')');
+    store.appendEvent(input.guild.id, current.id, 'enforcement.reversed', input.moderatorId, {
+      action: 'unmute',
+      success: true,
+    });
+  }
+  if (current.status === store.ACTIVE && current.type === 'ban') {
+    await input.guild.bans.remove(current.memberId, 'Case pardoned (' + current.id + ')');
+    store.appendEvent(input.guild.id, current.id, 'enforcement.reversed', input.moderatorId, {
+      action: 'unban',
+      success: true,
+    });
+  }
   const record = store.pardonCase(input.guild.id, input.caseId, input.moderatorId, safeReason(input.reason));
-  if (!record) throw new Error('Warning case was not found.');
   const warnings = store.activeWarningCount(input.guild.id, record.memberId);
   return { case: record, warnings, points: warnings };
 }
