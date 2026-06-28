@@ -26,7 +26,7 @@ test('unsaved-change flow uses an accessible modal instead of browser confirm', 
 
 test('server config migrations preserve guilds and expose centralized logging routes', () => {
   const script = source('src/serverConfig.js');
-  assert.match(script, /SCHEMA_VERSION = 3/);
+  assert.match(script, /SCHEMA_VERSION = 4/);
   assert.match(script, /resolveLoggingChannelId/);
   assert.match(script, /backupFileOnce/);
   assert.doesNotMatch(script, /resetNonPrimaryGuilds/);
