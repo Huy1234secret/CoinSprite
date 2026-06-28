@@ -9,8 +9,8 @@
   let colorInput = null;
   let activeEditor = null;
 
-  const qs = (selector, root = document) => root.querySelector(selector);
-  const qsa = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const qs = (selector, root = document) => root?.querySelector?.(selector) || null;
+  const qsa = (selector, root = document) => root?.querySelectorAll ? [...root.querySelectorAll(selector)] : [];
   const normalize = (value) => String(value || '').replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ');
   const hex = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '').trim()) ? String(value).trim().toUpperCase() : '#FFFFFF';
 
@@ -92,8 +92,8 @@
     };
   }
 
-  function messageTemplateField(anchor, fieldName) {
-    const root = qs('#messageTemplatesRoot');
+  function scopedTemplateField(anchor, fieldName) {
+    const root = anchor?.closest?.('.rich-template-editor') || qs('#messageTemplatesRoot');
     if (!root) return null;
     if (fieldName === 'content') return qs('[data-template-field="content"]', root);
     const index = Number(anchor?.dataset?.index ?? anchor?.closest?.('[data-preview-container-index]')?.dataset?.previewContainerIndex);
@@ -310,6 +310,7 @@
     if (imageControl) host.insertBefore(editor, imageControl);
     else host.append(editor);
     activeEditor = { host, source, preview, editor, original: source.value || '' };
+    window.__coinSpriteInlineMessageSource = source;
 
     editor.addEventListener('input', () => {
       if (editor.dataset.syncing === 'true') return;
@@ -359,6 +360,32 @@
       selection.removeAllRanges();
       selection.addRange(range);
     });
+  }
+
+  function insertToken(token, scope) {
+    const value = String(token || '');
+    if (!value) return false;
+    if (activeEditor && (!scope || scope.contains(activeEditor.source))) {
+      const selection = window.getSelection();
+      if (selection?.rangeCount) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        const node = document.createTextNode(value);
+        range.insertNode(node);
+        range.setStartAfter(node);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        activeEditor.editor.dispatchEvent(new Event('input', { bubbles: true }));
+        activeEditor.editor.focus({ preventScroll: true });
+        return true;
+      }
+    }
+    const source = window.__coinSpriteInlineMessageSource;
+    if (!source || (scope && !scope.contains(source))) return false;
+    source.value = String(source.value || '') + value;
+    emit(source);
+    return true;
   }
 
   function openNativeColor(field, anchor) {
@@ -532,6 +559,7 @@
     });
     qsa('.ticket-message-builder .message-preview-container.ticket-preview,#levelUpPreviewContainer').forEach(decoratePreview);
     decorateMessageTemplatePreview();
+    qsa('.rich-template-editor .message-preview-container,.rich-template-editor .message-root-content').forEach((preview) => preview.classList.add('message-direct-ready'));
   }
 
   function schedule() {
@@ -570,10 +598,11 @@
     const name = action.dataset.messageAction;
     stop(event);
     const preview = action.closest('.message-preview-container');
-    const externalFields = action.closest('#messageTemplatesRoot') ? null : fields(preview);
-    const source = (field) => externalFields
-      ? field === 'accentColor' ? externalFields.color : field === 'thumbnailUrl' ? externalFields.thumb : externalFields.image
-      : messageTemplateField(action, field);
+    const richRoot = action.closest('.rich-template-editor');
+    const externalFields = !richRoot && !action.closest('#messageTemplatesRoot') ? fields(preview) : null;
+    const source = (field) => richRoot || action.closest('#messageTemplatesRoot')
+      ? scopedTemplateField(action, field)
+      : field === 'accentColor' ? externalFields?.color : field === 'thumbnailUrl' ? externalFields?.thumb : externalFields?.image;
     if (name === 'preview-color') openNativeColor(source('accentColor'), action);
     else if (name === 'preview-media') openMedia(source(action.dataset.field), action, action.dataset.field === 'thumbnailUrl' ? 'thumb' : 'image');
     else if (name === 'preview-media-clear') { finishEditor(true); setField(source(action.dataset.field), ''); }
@@ -582,7 +611,7 @@
 
   document.addEventListener('pointerdown', (event) => {
     if (!activeEditor) return;
-    if (activeEditor.preview?.contains(event.target) || activeEditor.host.contains(event.target) || event.target.closest?.('.message-media-popover,.message-native-color-input')) return;
+    if (activeEditor.preview?.contains(event.target) || activeEditor.host.contains(event.target) || event.target.closest?.('.message-media-popover,.message-native-color-input,[data-rich-token]')) return;
     finishEditor(true);
   }, true);
 
@@ -592,8 +621,8 @@
     if (templateText && !event.target.closest('button,input,select,textarea,a,[contenteditable="true"]')) {
       const preview = templateText.closest('.message-preview-container') || templateText;
       const rootText = templateText.classList.contains('message-root-content');
-      const source = templateText.closest('#messageTemplatesRoot')
-        ? messageTemplateField(templateText, rootText ? 'content' : 'text')
+      const source = templateText.closest('#messageTemplatesRoot,.rich-template-editor')
+        ? scopedTemplateField(templateText, rootText ? 'content' : 'text')
         : fields(preview).content;
       if (source) {
         stop(event);
@@ -611,6 +640,7 @@
     if (!event.target.closest?.('.message-media-popover,.message-native-color-input,.preview-accent-picker,.preview-media-edit')) closePopover();
   }, true);
 
+  window.CoinSpriteInlineMessageEditor = Object.freeze({ finish: finishEditor, insertToken });
   window.addEventListener('resize', closePopover);
   window.addEventListener('scroll', closePopover, true);
   qs('#saveButton')?.addEventListener('mousedown', () => finishEditor(true), true);
