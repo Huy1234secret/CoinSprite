@@ -51,11 +51,20 @@ function patchModeratorJs(source) {
     "moderatorState.view = ['warnings', 'auto', 'text', 'ai', 'cases'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : 'warnings');",
     "moderatorState.view = ['warnings', 'auto', 'text', 'ai', 'cases', 'appeal-settings', 'appeal-form', 'appeal-message'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : moderatorState.workspace === 'appeal' ? 'appeal-settings' : 'warnings');",
   );
-  text = required(
-    text,
-    "+ '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'",
-    "+ '<label>Public moderator note <textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label>'\n    + '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'",
-  );
+  const basicNotesAnchor = "+ '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'";
+  if (text.includes(basicNotesAnchor)) {
+    text = text.replace(
+      basicNotesAnchor,
+      "+ '<label>Public moderator note <textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label>'\\n    + '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'",
+    );
+  } else {
+    const composedNotesAnchor = "    + '<section class=\"panel case-notes-panel\">";
+    text = required(
+      text,
+      composedNotesAnchor,
+      "    + '<section class=\"panel case-notes-panel\"><div class=\"case-panel-title\"><span>◎</span><div><h3>Public moderator note</h3></div></div><label class=\"case-field-block\"><span>Note</span><textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"4\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label></section>'\\n" + composedNotesAnchor,
+    );
+  }
   text = text.replace('<h3>Point-based warnings</h3>', '<h3>Warning system</h3>');
   text = text.replace('      <label>Points <input id="warningCreatePoints" type="number" min="1" max="10" value="1"></label>\n', '');
   text = text.replace('<label>Expires <input id="warningCreateExpires" placeholder="90d, 4w, or never"></label>', '<label>Time <input id="warningCreateExpires" required placeholder="30m, 7d, 4w, or never"></label>');
