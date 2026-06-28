@@ -5,8 +5,8 @@ const path = require('path');
 
 const TARGET = path.join(__dirname, '..', 'admin', 'index.html');
 const SCRIPT = [
-  '  <script src="/admin/rich-message-editor.js?v=rich-editor-1" defer></script>',
-  '  <script src="/admin/community-messages.js?v=community-messages-2" defer></script>',
+  '  <script src="/admin/rich-message-editor.js?v=rich-editor-2" defer></script>',
+  '  <script src="/admin/community-messages.js?v=community-messages-3" defer></script>',
 ].join('\\n');
 const previousReadFile = fs.readFile.bind(fs);
 const previousReadFileSync = fs.readFileSync.bind(fs);
