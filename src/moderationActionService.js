@@ -305,8 +305,10 @@ function initSanctionService(client) {
 module.exports = {
   EVIDENCE_ROOT,
   executeSanction,
+  attachmentRecord,
   evidencePath,
   formatDuration,
+  persistEvidence,
   initSanctionService,
   parseActionDuration,
 };
