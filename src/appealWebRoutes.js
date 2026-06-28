@@ -5,6 +5,8 @@ const path = require('path');
 const appealFiles = require('./appealFileStore');
 const appealService = require('./appealService');
 const appealStore = require('./appealStore');
+const { sanitizeAppealConfig } = require('./appealConfig');
+const { getGuildConfig } = require('./serverConfig');
 const moderationCases = require('./moderationCaseStore');
 
 const MAX_MULTIPART_BYTES = appealFiles.SUBMISSION_LIMIT_BYTES + 1024 * 1024;
@@ -160,6 +162,7 @@ async function caseList(client, userId) {
         avatarUrl: author.displayAvatarURL?.({ size: 128 }) || '',
       } : null },
       eligibility: row.eligibility,
+      form: sanitizeAppealConfig(getGuildConfig(row.guildId)?.moderation?.appeals).questions,
       appeals: row.appeals.map(publicAppeal),
     };
   }));
