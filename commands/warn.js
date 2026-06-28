@@ -12,12 +12,13 @@ const RESPONSE_FLAGS = EPHEMERAL | COMPONENTS_V2_FLAG;
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('warn')
-    .setDescription('Issue warning points to a server member.')
-    .addUserOption((option) => option.setName('member').setDescription('Member to warn').setRequired(true))
-    .addIntegerOption((option) => option.setName('points').setDescription('Warning points (1-10)').setMinValue(1).setMaxValue(10).setRequired(true))
+    .setDescription('Issue a warning to a server member.')
+    .addUserOption((option) => option.setName('user').setDescription('Member to warn').setRequired(true))
     .addStringOption((option) => option.setName('reason').setDescription('Reason for the warning').setMaxLength(1000).setRequired(true))
-    .addStringOption((option) => option.setName('expires').setDescription('Expiry such as 7d, 4w, or never').setMaxLength(30))
-    .addStringOption((option) => option.setName('evidence').setDescription('Evidence or Discord message URL').setMaxLength(1000)),
+    .addStringOption((option) => option.setName('time').setDescription('Duration such as 30m, 7d, 4w, or never').setMaxLength(30).setRequired(true))
+    .addAttachmentOption((option) => option.setName('attachment').setDescription('Evidence file'))
+    .addBooleanOption((option) => option.setName('appealable').setDescription('Allow the user to appeal this warning')),
+
 
   async execute(interaction) {
     if (!canManageWarnings(interaction.member)) {
@@ -29,7 +30,7 @@ module.exports = {
     }
     await interaction.deferReply({ flags: RESPONSE_FLAGS });
     try {
-      const user = interaction.options.getUser('member', true);
+      const user = interaction.options.getUser('user', true);
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) throw new Error('That user is not a member of this server.');
       if (user.bot) throw new Error('Bots cannot receive warning cases.');
@@ -39,9 +40,9 @@ module.exports = {
         moderatorId: interaction.user.id,
         source: 'manual',
         reason: interaction.options.getString('reason', true),
-        points: interaction.options.getInteger('points', true),
-        expires: interaction.options.getString('expires') || '',
-        evidence: interaction.options.getString('evidence') || '',
+        expires: interaction.options.getString('time', true),
+        attachment: interaction.options.getAttachment('attachment'),
+        appealable: interaction.options.getBoolean('appealable') ?? false,
         sourceChannelId: interaction.channelId,
       });
       const actions = result.enforcementEvents.length
@@ -50,7 +51,7 @@ module.exports = {
       await interaction.editReply(moderationSuccessContainer('Warning created', [
         '**Case:** ' + result.case.id,
         '**Member:** <@' + user.id + '>',
-        '**Active points:** ' + result.points,
+        '**Active warnings:** ' + result.warnings,
         '**Notice delivery:** ' + result.delivery,
         '**Threshold actions:** ' + actions,
       ].join('\n')));
