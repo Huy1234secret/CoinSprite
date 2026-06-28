@@ -3,11 +3,11 @@ const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileSto
 
 const STORE_PATH = process.env.MODERATION_CASE_STORE_PATH
   || path.join(__dirname, '..', 'data', 'moderation-cases.json');
-const VERSION = 2;
+const VERSION = 3;
 const ACTIVE = 'active';
 const EXPIRED = 'expired';
 const PARDONED = 'pardoned';
-const CASE_TYPES = new Set(['warning', 'automod_warning', 'note', 'appeal']);
+const CASE_TYPES = new Set(['warning', 'automod_warning', 'mute', 'kick', 'ban', 'note', 'appeal']);
 
 function emptyState() {
   return { version: VERSION, guilds: {} };
@@ -21,6 +21,17 @@ function boundedString(value, maximum = 1000) {
   return String(value || '').slice(0, maximum);
 }
 
+function normalizeAttachment(value, index = 0) {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    name: boundedString(source.name || source.filename || `evidence-${index + 1}`, 200),
+    contentType: boundedString(source.contentType || source.content_type, 120),
+    size: Math.max(0, Number(source.size) || 0),
+    url: boundedString(source.url, 2000),
+    storedName: boundedString(source.storedName, 240),
+  };
+}
+
 function normalizeDetails(record) {
   const source = record?.details && typeof record.details === 'object' ? record.details : record || {};
   const expiresAt = source.expiresAt == null ? null : Number(source.expiresAt);
@@ -29,6 +40,8 @@ function normalizeDetails(record) {
     staffNotes: boundedString(source.staffNotes),
     points: Math.max(1, Math.min(10, Math.round(Number(source.points) || 1))),
     evidence: boundedString(source.evidence),
+    attachments: (Array.isArray(source.attachments) ? source.attachments : []).slice(0, 10).map(normalizeAttachment),
+    appealable: Boolean(source.appealable),
     expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
   };
 }
@@ -203,6 +216,8 @@ function publicCase(record) {
     points: result.details.points,
     warningCount: 1,
     evidence: result.details.evidence,
+    attachments: clone(result.details.attachments),
+    appealable: result.details.appealable,
     expiresAt: result.details.expiresAt,
     sourceChannelId: result.references.source.channelId,
     sourceMessageId: result.references.source.messageId,
@@ -258,7 +273,13 @@ function createCase(input) {
   const number = guild.nextCaseNumber++;
   const now = Date.now();
   const type = CASE_TYPES.has(input?.type) ? input.type : /^automod(?:_|$)/.test(String(input?.source || '')) ? 'automod_warning' : 'warning';
-  const prefix = ['warning', 'automod_warning'].includes(type) ? 'W' : 'C';
+  const prefix = {
+    warning: 'W',
+    automod_warning: 'W',
+    mute: 'M',
+    kick: 'K',
+    ban: 'B',
+  }[type] || 'C';
   const record = normalizeCase({
     id: prefix + '-' + String(number).padStart(6, '0'),
     guildId: input.guildId,
@@ -273,6 +294,8 @@ function createCase(input) {
       staffNotes: input.staffNotes ?? input.details?.staffNotes,
       points: input.points ?? input.details?.points,
       evidence: input.evidence ?? input.details?.evidence,
+      attachments: input.attachments ?? input.details?.attachments,
+      appealable: input.appealable ?? input.details?.appealable,
       expiresAt: input.expiresAt ?? input.details?.expiresAt,
     },
     references: {
@@ -313,6 +336,8 @@ function filteredCases(guild, filters = {}) {
       record.details.reason,
       record.details.evidence,
       record.details.staffNotes,
+      record.details.appealable ? 'appealable' : 'not appealable',
+      ...record.details.attachments.flatMap((attachment) => [attachment.name, attachment.url]),
     ].some((value) => String(value).toLowerCase().includes(query)))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -375,6 +400,8 @@ function updateCase(guildId, caseId, patch, actorId = '') {
   if (patch.reason !== undefined) setDetail('reason', boundedString(String(patch.reason || '').trim() || record.details.reason));
   if (patch.points !== undefined) setDetail('points', Math.max(1, Math.min(10, Math.round(Number(patch.points) || record.details.points))));
   if (patch.evidence !== undefined) setDetail('evidence', boundedString(String(patch.evidence || '').trim()));
+  if (patch.attachments !== undefined) setDetail('attachments', (Array.isArray(patch.attachments) ? patch.attachments : []).slice(0, 10).map(normalizeAttachment));
+  if (patch.appealable !== undefined) setDetail('appealable', Boolean(patch.appealable));
   if (patch.staffNotes !== undefined) setDetail('staffNotes', boundedString(String(patch.staffNotes || '').trim()));
   if (patch.expiresAt !== undefined) {
     const expiry = patch.expiresAt == null ? null : Number(patch.expiresAt);
