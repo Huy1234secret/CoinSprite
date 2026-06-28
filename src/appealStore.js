@@ -193,6 +193,17 @@ function updateRecord(guildId, appealId, callback) {
   return publicAppeal(record);
 }
 
+function updateAttachments(guildId, appealId, attachments) {
+  const state = readState();
+  const record = guildState(state, guildId).appeals
+    .find((item) => item.id.toLowerCase() === String(appealId || '').toLowerCase());
+  if (!record) return null;
+  record.attachments = (Array.isArray(attachments) ? attachments : []).slice(0, 50).map(normalizeAttachment);
+  appendEvent(record, 'appeal.files_saved', record.userId, { count: record.attachments.length });
+  writeState(state);
+  return publicAppeal(record);
+}
+
 function updateLogReference(guildId, appealId, reference) {
   return updateRecord(guildId, appealId, (record) => {
     record.logReference = {
@@ -254,6 +265,7 @@ module.exports = {
   getAppeal,
   listAppeals,
   removeAppeal,
+  updateAttachments,
   updateLogReference,
   __test: { emptyState, normalizeAppeal, normalizeState, readState, writeState },
 };
