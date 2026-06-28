@@ -16,6 +16,10 @@ test('runtime admin assets include sanction cases, Spam AutoMod, and community m
   assert.match(moderator, /caseLayoutEvidence/);
   assert.match(moderator, /Appealable/);
   assert.match(moderator, /spamMessageCount/);
+  assert.match(moderator, /\['auto', 'Link'\], \['text', 'Text'\]/);
+  assert.doesNotMatch(moderator, /Link Moderation/);
+  const linkRenderer = moderator.match(/function renderAutoPanel\(\) \{[\s\S]*?function renderTextPanel\(\)/)?.[0] || '';
+  assert.doesNotMatch(linkRenderer, /renderSpamPanel\(\)/);
   assert.match(moderator, /'mute', 'kick', 'ban'/);
 
   const index = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
