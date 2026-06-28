@@ -2,49 +2,29 @@
 
 const { Events, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig } = require('../src/serverConfig');
+const { defaultTemplate, sanitizeCommunityMessages } = require('../src/communityMessageConfig');
+const { buildMessagePayload } = require('../src/messageTemplates');
 
-const DEFAULT_MESSAGES = Object.freeze({
-  welcome: 'Welcome <@mention> to **<server-name>**! You are member **<member-count>**.',
-  goodbye: '**<display-name>** has left **<server-name>**.',
-  booster: 'Thank you <@mention> for boosting **<server-name>**!',
-});
 let removeListenerInstalled = false;
 
 function eventSettings(guildId, eventName) {
-  const value = getGuildConfig(guildId)?.communityMessages?.[eventName] || {};
-  return {
-    enabled: Boolean(value.enabled),
-    channelId: String(value.channelId || ''),
-    message: String(value.message || DEFAULT_MESSAGES[eventName] || '').slice(0, 2000),
-  };
-}
-
-function replaceMessagePlaceholders(template, member) {
-  const user = member.user || member;
-  const values = {
-    mention: '<@' + user.id + '>',
-    username: user.username || user.id,
-    'display-name': member.displayName || user.globalName || user.username || user.id,
-    'user-id': user.id,
-    'server-name': member.guild?.name || 'this server',
-    'member-count': String(member.guild?.memberCount || 0),
-  };
-  return String(template || '').replace(/<@mention>/gi, values.mention).replace(/<([a-z0-9_-]+)>/gi, (match, token) => (
-    Object.prototype.hasOwnProperty.call(values, token.toLowerCase()) ? values[token.toLowerCase()] : match
-  ));
+  const messages = sanitizeCommunityMessages(getGuildConfig(guildId)?.communityMessages);
+  return messages[eventName] || { enabled: false, channelId: '', messageTemplate: defaultTemplate(eventName) };
 }
 
 async function sendCommunityMessage(member, eventName) {
   if (!member?.guild || member.user?.bot) return false;
   const settings = eventSettings(member.guild.id, eventName);
-  if (!settings.enabled || !settings.channelId || !settings.message) return false;
+  if (!settings.enabled || !settings.channelId) return false;
   const channel = member.guild.channels.cache.get(settings.channelId)
     || await member.guild.channels.fetch(settings.channelId).catch(() => null);
   if (!channel?.isTextBased?.()) return false;
-  await channel.send({
-    content: replaceMessagePlaceholders(settings.message, member),
-    allowedMentions: { users: [member.id], roles: [], parse: [] },
-  });
+  await channel.send(buildMessagePayload(settings.messageTemplate, {
+    guild: member.guild,
+    channel,
+    user: member.user,
+    member,
+  }));
   return true;
 }
 
@@ -81,5 +61,5 @@ module.exports = {
     if (!wasBoosting && isBoosting) await sendCommunityMessage(newMember, 'booster');
   },
 
-  __test: { eventSettings, replaceMessagePlaceholders, sendCommunityMessage },
+  __test: { eventSettings, sendCommunityMessage },
 };
