@@ -9,9 +9,11 @@ const {
   sanitizeTicketsConfig,
 } = require('./ticketConfig');
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
+const { DEFAULT_APPEAL_CONFIG, sanitizeAppealConfig } = require('./appealConfig');
+const { sanitizeCommunityMessages } = require('./communityMessageConfig');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
@@ -63,7 +65,7 @@ const DEFAULT_SPAM_AUTOMOD = {
   logChannelId: '',
 };
 
-const DEFAULT_COMMUNITY_MESSAGES = {
+const DEFAULT_COMMUNITY_MESSAGE_TEXT = {
   welcome: {
     enabled: false,
     channelId: '',
@@ -80,6 +82,8 @@ const DEFAULT_COMMUNITY_MESSAGES = {
     message: 'Thank you <@mention> for boosting **<server-name>**!',
   },
 };
+
+const DEFAULT_COMMUNITY_MESSAGES = sanitizeCommunityMessages(DEFAULT_COMMUNITY_MESSAGE_TEXT);
 
 const DEFAULT_LINK_AUTOMOD = {
   enabled: false,
@@ -173,6 +177,7 @@ const DEFAULT_GUILD_CONFIG = {
       staffLogChannelId: '',
       escalationRules: DEFAULT_WARNING_RULES,
     },
+    appeals: DEFAULT_APPEAL_CONFIG,
   },
   communityMessages: DEFAULT_COMMUNITY_MESSAGES,
   xp: {
@@ -469,14 +474,8 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   spam.excludeRoleIds = [...new Set((Array.isArray(spam.excludeRoleIds) ? spam.excludeRoleIds : []).map((value) => String(value || '').trim()).filter((value) => /^\d{16,20}$/.test(value)))];
   spam.logChannelId = cleanChannelId(spam.logChannelId);
 
-  const communityDefaults = defaults.communityMessages || DEFAULT_COMMUNITY_MESSAGES;
-  for (const eventName of ['welcome', 'goodbye', 'booster']) {
-    const event = merged.communityMessages[eventName] || {};
-    event.enabled = Boolean(event.enabled);
-    event.channelId = cleanChannelId(event.channelId);
-    event.message = String(event.message || communityDefaults[eventName].message).trim().slice(0, 2000);
-    merged.communityMessages[eventName] = event;
-  }
+  merged.communityMessages = sanitizeCommunityMessages(merged.communityMessages);
+  merged.moderation.appeals = sanitizeAppealConfig(merged.moderation.appeals);
 
   const warnings = merged.moderation.warnings;
   warnings.enabled = Boolean(warnings.enabled);
