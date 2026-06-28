@@ -27,6 +27,9 @@ function adminCaseListDefaultMessageTypePolish() {
     'default-warning-timeout-notice',
     'default-warning-kick-notice',
     'default-warning-ban-notice',
+    'default-moderation-mute-notice',
+    'default-moderation-kick-notice',
+    'default-moderation-ban-notice',
     'default-giveaway-hoster-dm',
   ]);
 
