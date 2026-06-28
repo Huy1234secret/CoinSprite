@@ -7,7 +7,7 @@ function source(file) {
   return fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 }
 
-test('moderator dashboard uses two workspaces, server pagination, and list/detail cases', () => {
+test('moderator dashboard uses moderation workspaces, server pagination, and list/detail cases', () => {
   const script = source('admin/moderator.js');
   assert.match(script, /Auto Moderation/);
   assert.match(script, /Warn System/);
@@ -26,7 +26,7 @@ test('unsaved-change flow uses an accessible modal instead of browser confirm', 
 
 test('server config migrations preserve guilds and expose centralized logging routes', () => {
   const script = source('src/serverConfig.js');
-  assert.match(script, /SCHEMA_VERSION = 4/);
+  assert.match(script, /SCHEMA_VERSION = 5/);
   assert.match(script, /resolveLoggingChannelId/);
   assert.match(script, /backupFileOnce/);
   assert.doesNotMatch(script, /resetNonPrimaryGuilds/);
