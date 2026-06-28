@@ -18,6 +18,7 @@ function publicCase(record, guildId) {
     status: record.status,
     authorId: record.moderatorId,
     reason: record.reason,
+    evidenceUrl: /^https:\/\//i.test(String(record.evidence || '')) ? String(record.evidence) : '',
     publicNote: record.publicNote || '',
     appealable: record.appealable,
     createdAt: record.createdAt,
@@ -89,7 +90,7 @@ async function parseMultipart(req) {
   const files = [];
   for (const [name, value] of form.entries()) {
     if (!name.startsWith('file:') || typeof value.arrayBuffer !== 'function') continue;
-    if (!value.name || /[\0\r\n]/.test(value.name)) {
+    if (!value.name || path.basename(value.name) !== value.name || /[\\/\0\r\n]/.test(value.name)) {
       const error = new Error('An uploaded filename is invalid.');
       error.statusCode = 400;
       throw error;
@@ -129,7 +130,7 @@ async function canReadOwnedResource(req, res, env, client, guildId, ownerId, dep
     return false;
   }
   if (session.user.id === ownerId) return true;
-  return Boolean(await deps.requireAdmin(req, res, env, client, guildId));
+  return Boolean(await deps.requireModerator(req, res, env, client, guildId));
 }
 
 async function sendPrivateFile(res, filePath, metadata, deps) {
