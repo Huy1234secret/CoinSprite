@@ -653,6 +653,8 @@ async function routeRequest(req, res, env, client) {
           points: body.points,
           expires: body.expires,
           evidence: body.evidence,
+          appealable: Boolean(body.appealable),
+          publicNote: body.publicNote,
           staffNotes: body.staffNotes,
         });
         return sendJson(res, 201, result);
