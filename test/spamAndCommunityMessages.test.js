@@ -41,18 +41,25 @@ test('Spam AutoMod detects bursts, excessive lines, and mass mentions', () => {
   assert.equal(mentions.kind, 'mass_mention');
 });
 
-test('community messages replace member and server placeholders', () => {
+test('community messages use private rich templates with member placeholders', async () => {
+  const sent = [];
   const member = {
     id: '234567890123456789',
     displayName: 'Display Name',
-    user: { id: '234567890123456789', username: 'someone', globalName: 'Someone' },
-    guild: { name: 'CoinSprite', memberCount: 42 },
+    user: { id: '234567890123456789', username: 'someone', globalName: 'Someone', bot: false },
+    guild: {
+      id: '123456789012345678',
+      name: 'CoinSprite',
+      memberCount: 42,
+      channels: {
+        cache: new Map([['345678901234567890', { isTextBased: () => true, send: async (payload) => sent.push(payload) }]]),
+        fetch: async () => null,
+      },
+    },
   };
-  const result = community.__test.replaceMessagePlaceholders(
-    '<@mention> <username> <display-name> <user-id> <server-name> <member-count>',
-    member,
-  );
-  assert.equal(result, '<@234567890123456789> someone Display Name 234567890123456789 CoinSprite 42');
+  const template = DEFAULT_COMMUNITY_MESSAGES.welcome.messageTemplate;
+  assert.equal(template.componentRows.length, 0);
+  assert.match(template.containers[0].text, /<@mention>/);
   assert.equal(DEFAULT_SPAM_AUTOMOD.messages.count, 6);
-  assert.match(DEFAULT_COMMUNITY_MESSAGES.welcome.message, /<@mention>/);
+  assert.ok(community.__test.eventSettings);
 });
