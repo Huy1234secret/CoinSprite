@@ -24,7 +24,7 @@ function warning(overrides = {}) {
   });
 }
 
-test('warning cases use schema v3 while preserving compatibility aliases', () => {
+test('warning cases use schema v4 while preserving compatibility aliases', () => {
   const first = warning();
   const second = warning({ points: 3 });
   assert.equal(first.id, 'W-000001');
@@ -40,7 +40,7 @@ test('warning cases use schema v3 while preserving compatibility aliases', () =>
   assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
 
   const persisted = JSON.parse(fs.readFileSync(store.STORE_PATH, 'utf8'));
-  assert.equal(persisted.version, 3);
+  assert.equal(persisted.version, 4);
   assert.equal(persisted.guilds[first.guildId].cases[0].memberId, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].delivery, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].enforcementEvents, undefined);
@@ -229,7 +229,7 @@ test('v1 stores migrate once and preserve a backup', () => {
   if (fs.existsSync(backup)) fs.unlinkSync(backup);
 
   const migrated = store.__test.readState();
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.guilds[guildId].cases[0].targetUserId, '423456789012345678');
   assert.equal(migrated.guilds[guildId].cases[0].details.points, 4);
   assert.ok(migrated.guilds[guildId].cases[0].events.some((event) => event.type === 'notification.attempted'));
