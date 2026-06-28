@@ -313,11 +313,12 @@ async function decideAppeal(interaction, client, parsed) {
     await interaction.reply({ content: 'A denial reason is required.', flags: 64 });
     return true;
   }
-  const claimed = appealStore.beginDecision(parsed.guildId, parsed.appealId, interaction.user.id);
-  if (!claimed) {
+  const claim = appealStore.beginDecision(parsed.guildId, parsed.appealId, interaction.user.id, parsed.action);
+  if (!claim.ok) {
     await interaction.reply({ content: 'This appeal is already being reviewed or resolved.', flags: 64 });
     return true;
   }
+  const claimed = claim.appeal;
   await interaction.deferReply({ flags: 64 });
   try {
     const guild = interaction.guild || client.guilds.cache.get(parsed.guildId) || await client.guilds.fetch(parsed.guildId);
@@ -334,8 +335,8 @@ async function decideAppeal(interaction, client, parsed) {
     const decided = appealStore.finishDecision(
       parsed.guildId,
       parsed.appealId,
-      parsed.action === 'accept' ? 'accepted' : 'denied',
       interaction.user.id,
+      parsed.action === 'accept' ? 'accepted' : 'denied',
       reason,
     );
     const config = sanitizeAppealConfig(getGuildConfig(parsed.guildId)?.moderation?.appeals);
