@@ -24,7 +24,7 @@ function warning(overrides = {}) {
   });
 }
 
-test('warning cases use schema v2 while preserving compatibility aliases', () => {
+test('warning cases use schema v3 while preserving compatibility aliases', () => {
   const first = warning();
   const second = warning({ points: 3 });
   assert.equal(first.id, 'W-000001');
@@ -40,10 +40,36 @@ test('warning cases use schema v2 while preserving compatibility aliases', () =>
   assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
 
   const persisted = JSON.parse(fs.readFileSync(store.STORE_PATH, 'utf8'));
-  assert.equal(persisted.version, 2);
+  assert.equal(persisted.version, 3);
   assert.equal(persisted.guilds[first.guildId].cases[0].memberId, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].delivery, undefined);
   assert.equal(persisted.guilds[first.guildId].cases[0].enforcementEvents, undefined);
+});
+
+test('sanction cases preserve evidence and appealability without affecting warning counts', () => {
+  const record = store.createCase({
+    guildId: '123456789012345678',
+    type: 'ban',
+    targetUserId: '934567890123456789',
+    authorId: '345678901234567890',
+    source: 'manual',
+    reason: 'Repeated abuse',
+    appealable: true,
+    attachments: [{
+      name: 'proof.png',
+      contentType: 'image/png',
+      size: 123,
+      url: 'https://cdn.discordapp.com/proof.png',
+      storedName: 'proof.png',
+    }],
+    expiresAt: Date.now() + 86400000,
+  });
+  assert.match(record.id, /^B-/);
+  assert.equal(record.type, 'ban');
+  assert.equal(record.appealable, true);
+  assert.equal(record.attachments[0].storedName, 'proof.png');
+  assert.equal(store.activeWarningCount(record.guildId, record.memberId), 0);
+  assert.equal(store.queryCases(record.guildId, { type: 'ban' }).cases[0].id, record.id);
 });
 
 test('AutoMod warning sources receive the dedicated case type', () => {
@@ -178,7 +204,7 @@ test('v1 stores migrate once and preserve a backup', () => {
   if (fs.existsSync(backup)) fs.unlinkSync(backup);
 
   const migrated = store.__test.readState();
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.equal(migrated.guilds[guildId].cases[0].targetUserId, '423456789012345678');
   assert.equal(migrated.guilds[guildId].cases[0].details.points, 4);
   assert.ok(migrated.guilds[guildId].cases[0].events.some((event) => event.type === 'notification.attempted'));
