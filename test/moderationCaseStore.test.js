@@ -7,7 +7,7 @@ const { after, test } = require('node:test');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-warnings-'));
 process.env.MODERATION_CASE_STORE_PATH = path.join(directory, 'moderation-cases.json');
 const store = require('../src/moderationCaseStore');
-const { parseDuration, validateEvidence } = require('../src/warningService');
+const { parseDuration, pardonWarning, validateEvidence } = require('../src/warningService');
 
 after(() => fs.rmSync(directory, { recursive: true, force: true }));
 
@@ -70,6 +70,31 @@ test('sanction cases preserve evidence and appealability without affecting warni
   assert.equal(record.attachments[0].storedName, 'proof.png');
   assert.equal(store.activeWarningCount(record.guildId, record.memberId), 0);
   assert.equal(store.queryCases(record.guildId, { type: 'ban' }).cases[0].id, record.id);
+});
+
+test('pardoning an active ban reverses enforcement before closing the case', async () => {
+  const record = store.createCase({
+    guildId: '123456789012345678',
+    type: 'ban',
+    targetUserId: '944567890123456789',
+    authorId: '345678901234567890',
+    source: 'manual',
+    reason: 'Temporary ban',
+    expiresAt: null,
+  });
+  let removedUserId = '';
+  const result = await pardonWarning({
+    guild: {
+      id: record.guildId,
+      bans: { remove: async (userId) => { removedUserId = userId; } },
+    },
+    caseId: record.id,
+    moderatorId: '345678901234567890',
+    reason: 'Appeal accepted',
+  });
+  assert.equal(removedUserId, record.memberId);
+  assert.equal(result.case.status, 'pardoned');
+  assert.ok(result.case.events.some((event) => event.type === 'enforcement.reversed' && event.data.action === 'unban'));
 });
 
 test('AutoMod warning sources receive the dedicated case type', () => {
