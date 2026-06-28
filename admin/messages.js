@@ -275,6 +275,7 @@
   function previewUrl(value) {
     const raw = String(value || '').trim();
     if (!raw) return '';
+    if (raw.startsWith('/')) return raw;
     try {
       const url = new URL(raw);
       return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
