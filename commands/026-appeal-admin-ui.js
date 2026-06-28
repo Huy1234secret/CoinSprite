@@ -55,14 +55,14 @@ function patchModeratorJs(source) {
   if (text.includes(basicNotesAnchor)) {
     text = text.replace(
       basicNotesAnchor,
-      "+ '<label>Public moderator note <textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label>'\\n    + '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'",
+      "+ '<label>Public moderator note <textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label>'\n    + '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'",
     );
   } else {
     const composedNotesAnchor = "    + '<section class=\"panel case-notes-panel\">";
     text = required(
       text,
       composedNotesAnchor,
-      "    + '<section class=\"panel case-notes-panel\"><div class=\"case-panel-title\"><span>◎</span><div><h3>Public moderator note</h3></div></div><label class=\"case-field-block\"><span>Note</span><textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"4\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label></section>'\\n" + composedNotesAnchor,
+      "    + '<section class=\"panel case-notes-panel\"><div class=\"case-panel-title\"><span>◎</span><div><h3>Public moderator note</h3></div></div><label class=\"case-field-block\"><span>Note</span><textarea data-case-field=\"publicNote\" maxlength=\"1000\" rows=\"4\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.publicNote || '') + '</textarea></label></section>'\n" + composedNotesAnchor,
     );
   }
   text = text.replace('<h3>Point-based warnings</h3>', '<h3>Warning system</h3>');
