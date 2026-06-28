@@ -323,33 +323,45 @@
   }
 
   styles();
-  const nativeApplyTab = applyTabFromConfig;
-  applyTabFromConfig = function appealApplyTab(tabName, config) {
-    nativeApplyTab(tabName, config);
-    if (tabName !== 'moderator') return;
-    data = normalize(config.moderation?.appeals);
-    selectedField = Math.min(selectedField, data.questions.length - 1);
-    if (root) render();
-  };
-
-  const nativeCollectTab = collectTabState;
-  collectTabState = function appealCollectTab(tabName) {
-    const snapshot = nativeCollectTab(tabName);
-    return tabName === 'moderator' ? { ...snapshot, appeals: clone(data) } : snapshot;
-  };
-
-  const nativeCollectPatch = collectPatch;
-  collectPatch = function appealCollectPatch() {
-    const patch = nativeCollectPatch();
-    patch.moderation = { ...(patch.moderation || {}), appeals: clone(data) };
-    return patch;
-  };
-
-  if (state.savedConfig) {
-    data = normalize(state.savedConfig.moderation?.appeals);
-    captureSavedSnapshots();
-    refreshDirtyState();
-  }
-
   window.CoinSpriteAppealAdmin = Object.freeze({ version: 2, mount });
+
+  let integrated = false;
+  function installMainSaveIntegration() {
+    if (integrated) return;
+    if (!window.__coinSpriteModeratorTab) {
+      setTimeout(installMainSaveIntegration, 0);
+      return;
+    }
+    integrated = true;
+    const nativeApplyTab = applyTabFromConfig;
+    applyTabFromConfig = function appealApplyTab(tabName, config) {
+      nativeApplyTab(tabName, config);
+      if (tabName !== 'moderator') return;
+      data = normalize(config.moderation?.appeals);
+      selectedField = Math.min(selectedField, data.questions.length - 1);
+      if (root) render();
+    };
+
+    const nativeCollectTab = collectTabState;
+    collectTabState = function appealCollectTab(tabName) {
+      const snapshot = nativeCollectTab(tabName);
+      return tabName === 'moderator' ? { ...snapshot, appeals: clone(data) } : snapshot;
+    };
+
+    const nativeCollectPatch = collectPatch;
+    collectPatch = function appealCollectPatch() {
+      const patch = nativeCollectPatch();
+      patch.moderation = { ...(patch.moderation || {}), appeals: clone(data) };
+      return patch;
+    };
+
+    if (state.savedConfig) {
+      data = normalize(state.savedConfig.moderation?.appeals);
+      captureSavedSnapshots();
+      refreshDirtyState();
+      if (root) render();
+    }
+  }
+  setTimeout(installMainSaveIntegration, 0);
+
 })();
