@@ -277,7 +277,8 @@ function parseDecisionId(customId) {
 }
 
 async function reviewerMember(interaction) {
-  return interaction.guild?.members?.fetch?.(interaction.user.id).catch(() => interaction.member) || interaction.member;
+  if (!interaction.guild?.members?.fetch) return interaction.member;
+  return await interaction.guild.members.fetch(interaction.user.id).catch(() => interaction.member);
 }
 
 async function showDecisionModal(interaction, parsed) {
@@ -353,11 +354,15 @@ async function decideAppeal(interaction, client, parsed) {
       reason,
     );
     const config = sanitizeAppealConfig(getGuildConfig(parsed.guildId)?.moderation?.appeals);
-    const user = await client.users.fetch(decided.userId);
+    const user = await client.users.fetch(decided.userId).catch(() => ({
+      id: decided.userId,
+      username: decided.userId,
+      displayAvatarURL: () => '',
+    }));
     const channel = guild.channels.cache.get(decided.logReference.channelId) || await guild.channels.fetch(decided.logReference.channelId).catch(() => null);
     const message = channel?.messages?.fetch ? await channel.messages.fetch(decided.logReference.messageId).catch(() => null) : null;
     if (message) await message.edit(logPayload(guild, user, record, decided, config, true, decided)).catch(() => null);
-    await notifyDecision(client, decided, record);
+    await notifyDecision(client, decided, record).catch(() => null);
     await interaction.editReply('Appeal ' + decided.id + ' was ' + decided.status + '.');
   } catch (error) {
     appealStore.failDecision(parsed.guildId, parsed.appealId, interaction.user.id, error?.message || String(error));
