@@ -132,7 +132,13 @@ function sanitizeQuestion(value, index) {
       ? integer(source.maxSelections, base.options.length, Math.max(1, base.minSelections), base.options.length)
       : 1;
   } else if (type === 'checkbox') {
-    base.default = Boolean(source.default);
+    base.options = sanitizeOptions(source.options);
+    const requestedDefault = cleanOptional(source.defaultOptionId, 60);
+    base.defaultOptionId = base.options.some((option) => option.id === requestedDefault)
+      ? requestedDefault
+      : source.default === true
+        ? base.options[0].id
+        : '';
   } else if (type === 'file') {
     base.maxFiles = integer(source.maxFiles, 1, 1, 5);
     base.maxFileSizeMb = integer(source.maxFileSizeMb, 10, 1, 10);
