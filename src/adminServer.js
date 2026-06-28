@@ -413,8 +413,8 @@ function mergePlain(base, patch) {
   return result;
 }
 
-function caseUserProfile(member, userId) {
-  const user = member?.user || null;
+function caseUserProfile(member, userId, fallbackUser = null) {
+  const user = member?.user || fallbackUser || null;
   return {
     id: String(userId || ''),
     username: user?.username || 'Unknown user',
@@ -437,7 +437,10 @@ async function hydrateCaseProfiles(guild, records) {
   const ids = [...new Set(records.flatMap((record) => [record.targetUserId, record.authorId, closingActorId(record)]).filter(Boolean))];
   const entries = await Promise.all(ids.map(async (id) => {
     const member = guild.members?.cache?.get(id) || await guild.members?.fetch?.(id).catch(() => null);
-    return [id, caseUserProfile(member, id)];
+    const user = member?.user
+      || guild.client?.users?.cache?.get(id)
+      || await guild.client?.users?.fetch?.(id).catch(() => null);
+    return [id, caseUserProfile(member, id, user)];
   }));
   const profiles = Object.fromEntries(entries);
   return records.map((record) => {
