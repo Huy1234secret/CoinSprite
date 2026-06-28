@@ -66,9 +66,11 @@ test('appeal store enforces pending, cooldown, maximum, and atomic decisions', (
   const userId = '234567890123456789';
   const first = appealStore.createAppeal({ guildId, caseId: 'W-000001', userId, answers: [], formSnapshot: [] });
   assert.equal(appealStore.eligibility(guildId, first.caseId, userId, {}).code, 'pending');
-  assert.equal(appealStore.beginDecision(guildId, first.id, '345678901234567890').status, 'processing');
-  assert.equal(appealStore.beginDecision(guildId, first.id, '345678901234567890'), null);
-  appealStore.finishDecision(guildId, first.id, 'denied', '345678901234567890', 'Insufficient context');
+  const claim = appealStore.beginDecision(guildId, first.id, '345678901234567890', 'deny');
+  assert.equal(claim.ok, true);
+  assert.equal(claim.appeal.status, 'processing');
+  assert.equal(appealStore.beginDecision(guildId, first.id, '345678901234567890', 'deny').ok, false);
+  appealStore.finishDecision(guildId, first.id, '345678901234567890', 'denied', 'Insufficient context');
   assert.equal(appealStore.eligibility(guildId, first.caseId, userId, { maxSubmissionsPerCase: 1 }).code, 'maximum');
   const cooldown = appealStore.eligibility(guildId, first.caseId, userId, { cooldownSeconds: 60 }, first.createdAt + 1000);
   assert.equal(cooldown.code, 'cooldown');
