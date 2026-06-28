@@ -557,6 +557,7 @@ async function routeRequest(req, res, env, client) {
     const handled = await handleAppealApi(req, res, url, env, client, {
       getSession,
       requireAdmin,
+      requireModerator,
       send,
       sendJson,
     });
