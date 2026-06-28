@@ -4,68 +4,71 @@
 
   const EVENTS = ['welcome', 'goodbye', 'booster'];
   const LABELS = { welcome: 'Welcome', goodbye: 'Goodbye', booster: 'Booster' };
-  const DEFAULTS = {
-    welcome: { enabled: false, channelId: '', message: 'Welcome <@mention> to **<server-name>**! You are member **<member-count>**.' },
-    goodbye: { enabled: false, channelId: '', message: '**<display-name>** has left **<server-name>**.' },
-    booster: { enabled: false, channelId: '', message: 'Thank you <@mention> for boosting **<server-name>**!' },
+  const COLORS = { welcome: '#57F287', goodbye: '#ED4245', booster: '#FF73FA' };
+  const TEXT = {
+    welcome: '## Welcome <@mention>\nWelcome to **<server-name>**! You are member **<member-count>**.',
+    goodbye: '## Member left\n**<display-name>** has left **<server-name>**.',
+    booster: '## Server boosted\nThank you <@mention> for boosting **<server-name>**!',
   };
-  const TOKENS = ['<@mention>', '<username>', '<display-name>', '<user-id>', '<server-name>', '<member-count>'];
+  const TOKENS = ['<@mention>', '<username>', '<display-name>', '<user-id>', '<server-name>', '<member-count>', '<avatar_url>'];
+  const PREVIEW = {
+    '@mention': '@someone', mention: '@someone', username: 'someone', 'display-name': 'Someone',
+    'user-id': '123456789012345678', 'server-name': 'CoinSprite', 'member-count': '1,234',
+    avatar_url: '/bot-avatar.png',
+  };
   let activeEvent = 'welcome';
-  let values = JSON.parse(JSON.stringify(DEFAULTS));
+  let values = defaults();
   let channels = [];
   let loadedGuildId = '';
   let loading = false;
   let dirty = false;
+  let editor = null;
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+  })[char]);
+
+  function template(eventName) {
+    return {
+      id: 'community-' + eventName,
+      name: eventName + ' message',
+      content: '',
+      containers: [{
+        id: eventName + '-container',
+        accentColor: COLORS[eventName],
+        text: TEXT[eventName],
+        thumbnailUrl: '<avatar_url>',
+        imageUrl: '',
+      }],
+      componentRows: [],
+    };
   }
 
-  function currentGuildId() {
-    return document.querySelector('#guildSelect')?.value || '';
+  function defaults() {
+    return Object.fromEntries(EVENTS.map((eventName) => [eventName, {
+      enabled: false,
+      channelId: '',
+      messageTemplate: template(eventName),
+    }]));
   }
 
-  function normalizeConfig(config = {}) {
+  function normalize(config = {}) {
     const saved = config.communityMessages || {};
     return Object.fromEntries(EVENTS.map((eventName) => {
       const source = saved[eventName] || {};
       return [eventName, {
         enabled: Boolean(source.enabled),
         channelId: String(source.channelId || ''),
-        message: String(source.message || DEFAULTS[eventName].message).slice(0, 2000),
+        messageTemplate: window.CoinSpriteRichEditor?.normalize(source.messageTemplate || template(eventName)) || source.messageTemplate || template(eventName),
       }];
     }));
   }
 
-  function installStyles() {
-    if (document.querySelector('#communityMessagesStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'communityMessagesStyles';
-    style.textContent = [
-      '.community-message-shell { display: grid; gap: 14px; }',
-      '.community-message-shell .panel, .community-message-shell .message-sticky-preview { padding: 16px; border-radius: 8px; }',
-      '.community-message-delivery { display: grid; gap: 14px; }',
-      '.community-message-delivery-grid { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.5fr); gap: 14px; align-items: end; }',
-      '.community-message-delivery-grid label { display: grid; gap: 7px; }',
-      '.community-message-delivery-grid .checkline { display: flex; }',
-      '.community-message-builder { align-items: start; }',
-      '.community-message-builder .message-editor { padding: 16px; }',
-      '.community-message-editor { min-height: 260px; resize: vertical; }',
-      '.community-message-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }',
-      '.community-message-status { margin-right: auto; color: var(--muted, #b7bdc8); }',
-      '.community-message-preview-fallback { min-height: 300px; }',
-      '@media (max-width: 760px) { .community-message-delivery-grid, .community-message-builder { grid-template-columns: minmax(0, 1fr); } }',
-    ].join('\n');
-    document.head.append(style);
+  function guildId() {
+    return document.querySelector('#guildSelect')?.value || '';
   }
 
-  function ensureTab() {
-    installStyles();
+  function ensureUi() {
     const tabs = document.querySelector('#tabList');
     if (tabs && !tabs.querySelector('[data-tab="community-messages"]')) {
       const button = document.createElement('button');
@@ -73,7 +76,7 @@
       button.type = 'button';
       button.dataset.tab = 'community-messages';
       button.innerHTML = '<span>Welcome messages</span>';
-      (tabs.querySelector('[data-tab="messages"]') || tabs.querySelector('[data-tab="games"]') || tabs.lastElementChild)?.before(button);
+      (tabs.querySelector('[data-tab="messages"]') || tabs.lastElementChild)?.before(button);
     }
     const form = document.querySelector('#configForm');
     if (form && !form.querySelector('[data-panel="community-messages"]')) {
@@ -83,113 +86,92 @@
       panel.innerHTML = '<div id="communityMessagesRoot"></div>';
       form.append(panel);
     }
-  }
-
-  function channelOptions(selectedId) {
-    const options = channels
-      .filter((channel) => !['category', 'voice'].includes(channel.kind))
-      .map((channel) => {
-        const label = (channel.parentName ? channel.parentName + ' / ' : '') + '#' + channel.name;
-        return '<option value="' + escapeHtml(channel.id) + '" ' + (channel.id === selectedId ? 'selected' : '') + '>' + escapeHtml(label) + '</option>';
-      });
-    if (selectedId && !channels.some((channel) => channel.id === selectedId)) {
-      options.unshift('<option value="' + escapeHtml(selectedId) + '" selected>Unavailable (' + escapeHtml(selectedId) + ')</option>');
+    if (!document.querySelector('#communityMessagesStyles')) {
+      const style = document.createElement('style');
+      style.id = 'communityMessagesStyles';
+      style.textContent = '.community-shell{display:grid;gap:14px}.community-delivery{display:grid;grid-template-columns:180px minmax(240px,1fr);gap:14px;align-items:end;border:1px solid var(--border,#30394a);border-radius:8px;padding:16px}.community-delivery label{display:grid;gap:7px}.community-delivery .checkline{display:flex;align-items:center}.community-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center}.community-status{margin-right:auto;color:var(--muted,#aeb7c5)}@media(max-width:700px){.community-delivery{grid-template-columns:1fr}}';
+      document.head.append(style);
     }
-    return '<option value="">Select a channel</option>' + options.join('');
   }
 
-  function previewMessage(message) {
-    return String(message || '')
-      .replace(/<@mention>/gi, '@someone')
-      .replace(/<username>/gi, 'someone')
-      .replace(/<display-name>/gi, 'Someone')
-      .replace(/<user-id>/gi, '123456789012345678')
-      .replace(/<server-name>/gi, 'CoinSprite')
-      .replace(/<member-count>/gi, '1,234');
+  function channelOptions(selected) {
+    const items = channels.filter((channel) => !['category', 'voice'].includes(channel.kind)).map((channel) => {
+      const label = (channel.parentName ? channel.parentName + ' / ' : '') + '#' + channel.name;
+      return '<option value="' + escapeHtml(channel.id) + '" ' + (channel.id === selected ? 'selected' : '') + '>' + escapeHtml(label) + '</option>';
+    });
+    if (selected && !channels.some((channel) => channel.id === selected)) items.unshift('<option selected value="' + escapeHtml(selected) + '">Unavailable channel</option>');
+    return '<option value="">Select channel</option>' + items.join('');
   }
 
-  function messagePreview(message) {
-    const content = previewMessage(message);
-    const editor = window.CoinSpriteMessageEditor;
-    if (typeof editor?.renderPreview === 'function') {
-      return editor.renderPreview({ content, containers: [] }, { hideEmptyRoot: false });
-    }
-    return '<div class="message-discord-preview shared-message-preview community-message-preview-fallback">'
-      + '<div class="message-discord-message"><div class="message-bot-avatar">CS</div><div class="message-discord-body">'
-      + '<div class="message-author"><strong>CoinSprite</strong><span>APP</span></div>'
-      + '<div class="message-root-content">' + escapeHtml(content || 'Write your message here.').replace(/\n/g, '<br>') + '</div>'
-      + '</div></div></div>';
-  }
-
-  function updatePreview() {
-    const preview = document.querySelector('#communityMessagePreview');
-    if (preview) preview.innerHTML = messagePreview(values[activeEvent].message);
+  function markDirty() {
+    dirty = true;
+    const status = document.querySelector('#communityStatus');
+    if (status) status.textContent = 'Unsaved changes';
   }
 
   function render() {
-    ensureTab();
+    ensureUi();
     const root = document.querySelector('#communityMessagesRoot');
     if (!root) return;
     const current = values[activeEvent];
-    root.innerHTML = '<div class="community-message-shell">'
-      + '<nav class="mini-tabs" aria-label="Community message type">'
-      + EVENTS.map((eventName) => '<button class="mini-tab ' + (activeEvent === eventName ? 'active' : '') + '" type="button" data-community-event="' + eventName + '">' + LABELS[eventName] + '</button>').join('')
-      + '</nav><section class="panel community-message-delivery"><div class="panel-heading"><h3>' + LABELS[activeEvent] + ' delivery</h3><p>Choose when this message is enabled and where the bot sends it.</p></div>'
-      + '<div class="community-message-delivery-grid"><label class="checkline"><input id="communityMessageEnabled" type="checkbox" ' + (current.enabled ? 'checked' : '') + '> Enabled</label>'
-      + '<label>Channel<select id="communityMessageChannel">' + channelOptions(current.channelId) + '</select></label></div></section>'
-      + '<div class="message-builder community-message-builder"><div class="panel message-editor">'
-      + '<div class="panel-heading"><h3>' + LABELS[activeEvent] + ' message</h3><p>Edit the message and use placeholders for member and server details.</p></div>'
-      + '<div class="template-tokens community-message-tokens" aria-label="Message placeholders">'
-      + TOKENS.map((token) => '<button type="button" data-community-token="' + escapeHtml(token) + '">' + escapeHtml(token) + '</button>').join('')
-      + '</div><label>Message<textarea id="communityMessageText" class="community-message-editor" maxlength="2000" rows="11" spellcheck="true">' + escapeHtml(current.message) + '</textarea></label></div>'
-      + '<aside class="message-sticky-preview external-message-sticky-preview"><div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type.</p></div>'
-      + '<div id="communityMessagePreview">' + messagePreview(current.message) + '</div></aside></div>'
-      + '<div class="community-message-actions"><span class="community-message-status" id="communityMessageStatus">' + (dirty ? 'Unsaved changes' : 'All changes saved') + '</span>'
-      + '<button class="button subtle" id="communityMessageReset" type="button">Reset</button>'
-      + '<button class="button success" id="communityMessageSave" type="button">Save messages</button></div></div>';
+    root.innerHTML = '<div class="community-shell"><nav class="mini-tabs">'
+      + EVENTS.map((name) => '<button class="mini-tab ' + (name === activeEvent ? 'active' : '') + '" type="button" data-event="' + name + '">' + LABELS[name] + '</button>').join('')
+      + '</nav><section class="community-delivery"><label class="checkline"><input id="communityEnabled" type="checkbox" ' + (current.enabled ? 'checked' : '') + '> Enabled</label>'
+      + '<label>Channel<select id="communityChannel">' + channelOptions(current.channelId) + '</select></label></section>'
+      + '<div id="communityRichEditor"></div><div class="community-actions"><span id="communityStatus" class="community-status">' + (dirty ? 'Unsaved changes' : 'All changes saved') + '</span>'
+      + '<button type="button" id="communityReset">Reset</button><button type="button" class="button success" id="communitySave">Save messages</button></div></div>';
+    const editorRoot = document.querySelector('#communityRichEditor');
+    editor = window.CoinSpriteRichEditor?.mount(editorRoot, {
+      value: current.messageTemplate,
+      tokens: TOKENS,
+      previewTokens: PREVIEW,
+      onChange(next) {
+        values[activeEvent].messageTemplate = next;
+        markDirty();
+      },
+    }) || null;
   }
 
-  async function loadGuild(force = false) {
-    const guildId = currentGuildId();
-    if (!guildId || loading || (!force && loadedGuildId === guildId)) return;
+  async function load(force = false) {
+    const id = guildId();
+    if (!id || loading || (!force && id === loadedGuildId)) return;
     loading = true;
-    const status = document.querySelector('#communityMessageStatus');
-    if (status) status.textContent = 'Loading...';
     try {
       const [configResponse, directoryResponse] = await Promise.all([
-        fetch('/api/guilds/' + guildId + '/config'),
-        fetch('/api/guilds/' + guildId + '/directory'),
+        fetch('/api/guilds/' + id + '/config'),
+        fetch('/api/guilds/' + id + '/directory'),
       ]);
       const configPayload = await configResponse.json();
       const directoryPayload = await directoryResponse.json();
       if (!configResponse.ok) throw new Error(configPayload.error || 'Could not load messages.');
       if (!directoryResponse.ok) throw new Error(directoryPayload.error || 'Could not load channels.');
-      values = normalizeConfig(configPayload.config);
+      values = normalize(configPayload.config);
       channels = Array.isArray(directoryPayload.directory?.channels) ? directoryPayload.directory.channels : [];
-      loadedGuildId = guildId;
+      loadedGuildId = id;
       dirty = false;
       render();
     } catch (error) {
+      const status = document.querySelector('#communityStatus');
       if (status) status.textContent = error.message;
     } finally {
       loading = false;
     }
   }
 
-  async function saveGuild() {
-    const guildId = currentGuildId();
-    const status = document.querySelector('#communityMessageStatus');
-    if (!guildId) return;
+  async function save() {
+    const id = guildId();
+    const status = document.querySelector('#communityStatus');
+    if (!id) return;
     if (status) status.textContent = 'Saving...';
     try {
-      const response = await fetch('/api/guilds/' + guildId + '/config', {
+      const response = await fetch('/api/guilds/' + id + '/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ communityMessages: values }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Could not save messages.');
-      values = normalizeConfig(payload.config);
+      values = normalize(payload.config);
       dirty = false;
       render();
     } catch (error) {
@@ -197,89 +179,55 @@
     }
   }
 
-  function activateTab() {
-    ensureTab();
+  function activate() {
+    ensureUi();
     document.querySelectorAll('#tabList .tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === 'community-messages'));
     document.querySelectorAll('#configForm > .tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === 'community-messages'));
     const title = document.querySelector('#guildTitle');
     const subtitle = document.querySelector('#guildSubtitle');
     if (title) title.textContent = 'Welcome messages';
-    if (subtitle) subtitle.textContent = 'Configure welcome, goodbye, and server booster messages.';
-    const unsavedBar = document.querySelector('#unsavedBar');
-    if (unsavedBar) unsavedBar.hidden = true;
+    if (subtitle) subtitle.textContent = 'Welcome, goodbye, and booster delivery';
+    const unsaved = document.querySelector('#unsavedBar');
+    if (unsaved) unsaved.hidden = true;
     render();
-    loadGuild();
+    load();
   }
 
   document.addEventListener('click', (event) => {
-    const mainTab = event.target.closest?.('[data-tab="community-messages"]');
-    if (mainTab) {
+    const main = event.target.closest?.('[data-tab="community-messages"]');
+    if (main) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      activateTab();
+      activate();
       return;
     }
-    const otherTab = event.target.closest?.('#tabList .tab:not([data-tab="community-messages"])');
-    if (otherTab) document.querySelector('[data-panel="community-messages"]')?.classList.remove('active');
-
-    const root = event.target.closest?.('#communityMessagesRoot');
-    if (!root) return;
-    const eventName = event.target.closest('[data-community-event]')?.dataset.communityEvent;
+    if (event.target.closest?.('#tabList .tab:not([data-tab="community-messages"])')) document.querySelector('[data-panel="community-messages"]')?.classList.remove('active');
+    if (!event.target.closest?.('#communityMessagesRoot')) return;
+    const eventName = event.target.closest('[data-event]')?.dataset.event;
     if (EVENTS.includes(eventName)) {
+      values[activeEvent].messageTemplate = editor?.getValue() || values[activeEvent].messageTemplate;
       activeEvent = eventName;
       render();
-      return;
-    }
-    const token = event.target.closest('[data-community-token]')?.dataset.communityToken;
-    if (token) {
-      const textarea = document.querySelector('#communityMessageText');
-      const start = textarea.selectionStart || 0;
-      const end = textarea.selectionEnd || start;
-      textarea.value = textarea.value.slice(0, start) + token + textarea.value.slice(end);
-      textarea.selectionStart = textarea.selectionEnd = start + token.length;
-      values[activeEvent].message = textarea.value;
-      dirty = true;
-      document.querySelector('#communityMessageStatus').textContent = 'Unsaved changes';
-      updatePreview();
-      textarea.focus();
-      return;
-    }
-    if (event.target.id === 'communityMessageReset') {
-      values[activeEvent] = JSON.parse(JSON.stringify(DEFAULTS[activeEvent]));
-      dirty = true;
+    } else if (event.target.id === 'communityReset') {
+      values[activeEvent] = { enabled: false, channelId: '', messageTemplate: template(activeEvent) };
+      markDirty();
       render();
-      return;
-    }
-    if (event.target.id === 'communityMessageSave') saveGuild();
+    } else if (event.target.id === 'communitySave') save();
   }, true);
-
-  document.addEventListener('input', (event) => {
-    if (!event.target.closest?.('#communityMessagesRoot')) return;
-    if (event.target.id === 'communityMessageText') {
-      values[activeEvent].message = event.target.value;
-      updatePreview();
-    }
-    dirty = true;
-    const status = document.querySelector('#communityMessageStatus');
-    if (status) status.textContent = 'Unsaved changes';
-  });
 
   document.addEventListener('change', (event) => {
     if (event.target.id === 'guildSelect') {
       loadedGuildId = '';
-      if (document.querySelector('[data-tab="community-messages"]')?.classList.contains('active')) loadGuild(true);
+      if (document.querySelector('[data-tab="community-messages"]')?.classList.contains('active')) load(true);
       return;
     }
     if (!event.target.closest?.('#communityMessagesRoot')) return;
-    if (event.target.id === 'communityMessageEnabled') values[activeEvent].enabled = Boolean(event.target.checked);
-    if (event.target.id === 'communityMessageChannel') values[activeEvent].channelId = event.target.value;
-    dirty = true;
-    const status = document.querySelector('#communityMessageStatus');
-    if (status) status.textContent = 'Unsaved changes';
+    if (event.target.id === 'communityEnabled') values[activeEvent].enabled = event.target.checked;
+    if (event.target.id === 'communityChannel') values[activeEvent].channelId = event.target.value;
+    if (['communityEnabled', 'communityChannel'].includes(event.target.id)) markDirty();
   });
 
-  window.addEventListener('coinsprite:message-editor-ready', updatePreview);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureTab, { once: true });
-  else ensureTab();
-  [0, 250, 750].forEach((delay) => setTimeout(ensureTab, delay));
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureUi, { once: true });
+  else ensureUi();
+  [0, 250, 750].forEach((delay) => setTimeout(ensureUi, delay));
 })();
