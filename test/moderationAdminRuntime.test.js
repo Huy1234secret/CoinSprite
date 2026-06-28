@@ -24,4 +24,9 @@ test('runtime admin assets include sanction cases, Spam AutoMod, and community m
 
   const index = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
   assert.match(index, /\/admin\/community-messages\.js/);
+
+  const community = fs.readFileSync(path.join(__dirname, '..', 'admin', 'community-messages.js'), 'utf8');
+  assert.match(community, /message-builder community-message-builder/);
+  assert.match(community, /external-message-sticky-preview/);
+  assert.match(community, /CoinSpriteMessageEditor/);
 });
