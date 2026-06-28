@@ -7,6 +7,7 @@ const { ensureGuildConfig, getEnabledGuildIds, getGuildConfig, getGuildConfigRaw
 const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
+const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
 
@@ -555,6 +556,21 @@ async function routeRequest(req, res, env, client) {
   }
   if (userDataMatch && req.method === 'PATCH') {
     return handleUserDataPatch(req, res, env, client, userDataMatch[1], userDataMatch[2], { requireAdmin, readJsonBody, sendJson });
+  }
+
+  const moderationEvidenceMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/moderation\/evidence\/([A-Za-z0-9-]+)\/([^/]+)$/);
+  if (moderationEvidenceMatch && req.method === 'GET') {
+    const guildId = moderationEvidenceMatch[1];
+    const auth = await requireModerator(req, res, env, client, guildId);
+    if (!auth) return;
+    return handleModerationEvidence(
+      req,
+      res,
+      guildId,
+      moderationEvidenceMatch[2],
+      moderationEvidenceMatch[3],
+      { send, sendJson },
+    );
   }
 
   const moderationCasesMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/moderation\/cases$/);
