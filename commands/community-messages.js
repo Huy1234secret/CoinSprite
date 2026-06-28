@@ -29,7 +29,7 @@ function replaceMessagePlaceholders(template, member) {
     'server-name': member.guild?.name || 'this server',
     'member-count': String(member.guild?.memberCount || 0),
   };
-  return String(template || '').replace(/<([a-z0-9_-]+)>/gi, (match, token) => (
+  return String(template || '').replace(/<@mention>/gi, values.mention).replace(/<([a-z0-9_-]+)>/gi, (match, token) => (
     Object.prototype.hasOwnProperty.call(values, token.toLowerCase()) ? values[token.toLowerCase()] : match
   ));
 }
