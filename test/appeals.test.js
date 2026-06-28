@@ -48,17 +48,19 @@ test('submission validation enforces required fields, choices, and file limits',
     questions: [
       { id: 'reason', type: 'text', label: 'Reason', required: true, minLength: 3, maxLength: 20 },
       { id: 'kind', type: 'choice', label: 'Kind', required: true, options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
+      { id: 'score', type: 'number', label: 'Score', required: true, minimum: 1, maximum: 9, step: 2 },
       { id: 'proof', type: 'file', label: 'Proof', required: true, maxFiles: 1, maxFileSizeMb: 1, allowedExtensions: ['png'] },
       { id: 'confirm', type: 'checkbox', label: 'Confirm', required: true },
     ],
   });
   const files = [{ fieldId: 'proof', name: 'proof.png', contentType: 'image/png', buffer: Buffer.from('png') }];
-  const answers = validateSubmission(config, { reason: 'Valid reason', kind: 'a', confirm: true }, files);
-  assert.equal(answers.length, 4);
-  assert.throws(() => validateSubmission(config, { reason: 'no', kind: 'a', confirm: true }, files), /too short/);
-  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'x', confirm: true }, files), /invalid choice/);
-  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'a', confirm: false }, files), /must be checked/);
-  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'a', confirm: true }, [{ ...files[0], name: 'proof.exe' }]), /only accepts/);
+  const answers = validateSubmission(config, { reason: 'Valid reason', kind: 'a', score: 3, confirm: true }, files);
+  assert.equal(answers.length, 5);
+  assert.throws(() => validateSubmission(config, { reason: 'no', kind: 'a', score: 3, confirm: true }, files), /too short/);
+  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'x', score: 3, confirm: true }, files), /invalid choice/);
+  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'a', score: 2, confirm: true }, files), /required step/);
+  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'a', score: 3, confirm: false }, files), /must be checked/);
+  assert.throws(() => validateSubmission(config, { reason: 'Valid', kind: 'a', score: 3, confirm: true }, [{ ...files[0], name: 'proof.exe' }]), /only accepts/);
 });
 
 test('appeal store enforces pending, cooldown, maximum, and atomic decisions', () => {
