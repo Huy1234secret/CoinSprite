@@ -19,6 +19,9 @@ const WARNING_ACTION_DEFAULT_IDS = [
   'default-warning-timeout-notice',
   'default-warning-kick-notice',
   'default-warning-ban-notice',
+  'default-moderation-mute-notice',
+  'default-moderation-kick-notice',
+  'default-moderation-ban-notice',
 ];
 
 test('exposes extra bot defaults without excluded categories', () => {
@@ -46,4 +49,5 @@ test('exposes extra bot defaults without excluded categories', () => {
 test('keeps remaining extra bot defaults locked against deletion', () => {
   assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-notice'), false);
   assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-timeout-notice'), false);
+  assert.equal(deleteTemplate('extra-defaults-test', 'default-moderation-ban-notice'), false);
 });
