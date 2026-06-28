@@ -474,7 +474,7 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   spam.excludeRoleIds = [...new Set((Array.isArray(spam.excludeRoleIds) ? spam.excludeRoleIds : []).map((value) => String(value || '').trim()).filter((value) => /^\d{16,20}$/.test(value)))];
   spam.logChannelId = cleanChannelId(spam.logChannelId);
 
-  merged.communityMessages = sanitizeCommunityMessages(merged.communityMessages);
+  merged.communityMessages = sanitizeCommunityMessages(guildConfig?.communityMessages ?? merged.communityMessages);
   merged.moderation.appeals = sanitizeAppealConfig(merged.moderation.appeals);
 
   const warnings = merged.moderation.warnings;
