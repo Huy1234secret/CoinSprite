@@ -94,9 +94,11 @@ function validateSubmission(config, rawAnswers, files) {
     }
 
     if (field.type === 'checkbox') {
-      const checked = raw === true || raw === 'true' || raw === 1 || raw === '1' || raw === 'on';
-      if (field.required && !checked) throw new Error(field.label + ' must be checked.');
-      answers.push({ fieldId: field.id, label: field.label, type: field.type, value: checked });
+      const selected = raw == null ? '' : String(raw);
+      const allowed = new Set(field.options.map((option) => option.id));
+      if (selected && !allowed.has(selected)) throw new Error(field.label + ' contains an invalid choice.');
+      if (field.required && !selected) throw new Error(field.label + ' requires one choice.');
+      answers.push({ fieldId: field.id, label: field.label, type: field.type, value: selected });
       continue;
     }
 
