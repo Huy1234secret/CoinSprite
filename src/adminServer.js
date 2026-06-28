@@ -8,10 +8,12 @@ const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
+const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
+const APPEAL_DIR = path.join(__dirname, '..', 'appeal');
 const RUNTIME_IMAGE_DIR = path.join(__dirname, '..', 'images');
 const RUNTIME_ICON_FILES = Object.freeze({
   'leveling.png': 'leveling.png',
@@ -124,6 +126,10 @@ function getSession(req, res, env) {
     const expiresAt = Number(session?.expiresAt);
     if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
       session.touchedAt = Date.now();
+      if (!session.csrfToken) {
+        session.csrfToken = crypto.randomBytes(24).toString('base64url');
+        saveSessions();
+      }
       return { sessionId, session };
     }
     sessions.delete(sessionId);
@@ -133,7 +139,15 @@ function getSession(req, res, env) {
 
   const newSessionId = createSessionId(env.sessionSecret);
   const now = Date.now();
-  const session = { createdAt: now, touchedAt: now, expiresAt: now + SESSION_TTL_MS, user: null, oauthState: null };
+  const session = {
+    createdAt: now,
+    touchedAt: now,
+    expiresAt: now + SESSION_TTL_MS,
+    user: null,
+    oauthState: null,
+    authReturnTo: '/admin',
+    csrfToken: crypto.randomBytes(24).toString('base64url'),
+  };
   sessions.set(newSessionId, session);
   saveSessions();
   setSessionCookie(res, newSessionId, env);
@@ -190,6 +204,21 @@ function serveAdminAsset(res, assetPath) {
     send(res, 200, data, {
       'Content-Type': contentTypeFor(resolvedFile),
       'Cache-Control': isTextAsset ? 'no-store' : 'public, max-age=300',
+    });
+  });
+}
+
+function serveAppealAsset(res, assetPath) {
+  const normalized = path.normalize(assetPath || 'index.html').replace(/^(\.\.[/\\])+/, '');
+  const filePath = path.join(APPEAL_DIR, normalized);
+  const root = path.resolve(APPEAL_DIR);
+  const resolved = path.resolve(filePath);
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) return send(res, 404, 'Not found');
+  fs.readFile(resolved, (error, data) => {
+    if (error) return send(res, 404, 'Not found');
+    send(res, 200, data, {
+      'Content-Type': contentTypeFor(resolved),
+      'Cache-Control': resolved.endsWith('.html') || resolved.endsWith('.js') ? 'no-store' : 'public, max-age=300',
     });
   });
 }
@@ -465,15 +494,16 @@ function updateGuildConfig(guildId, patch) {
   return getGuildConfigRaw(guildId);
 }
 
-async function handleAuthStart(req, res, env) {
+async function handleAuthStart(req, res, env, requestUrl) {
   const { session } = getSession(req, res, env);
   const state = crypto.randomBytes(24).toString('base64url');
   session.oauthState = state;
+  session.authReturnTo = requestUrl?.searchParams?.get('returnTo') === '/appeal' ? '/appeal' : '/admin';
   saveSessions();
   const url = new URL('https://discord.com/oauth2/authorize');
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', env.clientId);
-  url.searchParams.set('scope', 'identify guilds');
+  url.searchParams.set('scope', session.authReturnTo === '/appeal' ? 'identify' : 'identify guilds');
   url.searchParams.set('redirect_uri', env.redirectUri);
   url.searchParams.set('state', state);
   redirect(res, url.toString());
@@ -492,7 +522,10 @@ async function handleAuthCallback(req, res, env, url) {
     session.expiresAt = Date.now() + SESSION_TTL_MS;
     saveSessions();
     setSessionCookie(res, sessionId, env);
-    redirect(res, '/admin');
+    const returnTo = session.authReturnTo === '/appeal' ? '/appeal' : '/admin';
+    session.authReturnTo = '/admin';
+    saveSessions();
+    redirect(res, returnTo);
   } catch (error) {
     logCommandSystem(`Admin OAuth callback failed: ${error?.message ?? 'unknown error'}`);
     send(res, 502, 'Discord login failed.');
@@ -509,7 +542,9 @@ async function routeRequest(req, res, env, client) {
   if (req.method === 'GET' && url.pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) return serveAdminAsset(res, 'index.html');
   if (req.method === 'GET' && url.pathname.startsWith('/admin/')) return serveAdminAsset(res, url.pathname.slice('/admin/'.length));
-  if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env);
+  if (req.method === 'GET' && (url.pathname === '/appeal' || url.pathname === '/appeal/')) return serveAppealAsset(res, 'index.html');
+  if (req.method === 'GET' && url.pathname.startsWith('/appeal/')) return serveAppealAsset(res, url.pathname.slice('/appeal/'.length));
+  if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env, url);
   if (req.method === 'GET' && url.pathname === '/auth/discord/callback') return handleAuthCallback(req, res, env, url);
   if (req.method === 'POST' && url.pathname === '/auth/logout') {
     const { sessionId } = getSession(req, res, env);
@@ -517,6 +552,15 @@ async function routeRequest(req, res, env, client) {
     saveSessions();
     clearSessionCookie(res, env);
     return sendJson(res, 200, { ok: true });
+  }
+  if (url.pathname.startsWith('/api/appeal/')) {
+    const handled = await handleAppealApi(req, res, url, env, client, {
+      getSession,
+      requireAdmin,
+      send,
+      sendJson,
+    });
+    if (handled) return;
   }
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const session = await requireAdmin(req, res, env, client);
