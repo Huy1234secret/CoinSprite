@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const TARGET = path.join(__dirname, '..', 'admin', 'index.html');
-const SCRIPT = '  <script src="/admin/community-messages.js?v=community-messages-1" defer></script>';
+const SCRIPT = [
+  '  <script src="/admin/rich-message-editor.js?v=rich-editor-1" defer></script>',
+  '  <script src="/admin/community-messages.js?v=community-messages-2" defer></script>',
+].join('\\n');
 const previousReadFile = fs.readFile.bind(fs);
 const previousReadFileSync = fs.readFileSync.bind(fs);
 
@@ -14,7 +17,7 @@ function samePath(left, right) {
 
 function patchIndex(source) {
   const text = String(source || '');
-  if (text.includes('/admin/community-messages.js')) return text;
+  if (text.includes('/admin/rich-message-editor.js') && text.includes('/admin/community-messages.js')) return text;
   return text.replace('</body>', SCRIPT + '\n</body>');
 }
 
