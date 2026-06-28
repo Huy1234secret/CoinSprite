@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+
+require('../commands/017-moderator-case-style-fix');
+require('../commands/021-warning-count-admin-ui');
+require('../commands/023-moderation-sanction-case-ui');
+require('../commands/024-spam-automod-admin-ui');
+require('../commands/025-community-messages-admin');
+
+test('runtime admin assets include sanction cases, Spam AutoMod, and community messages', () => {
+  const moderator = fs.readFileSync(path.join(__dirname, '..', 'admin', 'moderator.js'), 'utf8');
+  assert.match(moderator, /coinSpriteSanctionCaseUiV1/);
+  assert.match(moderator, /coinSpriteSpamAutoModAdminV1/);
+  assert.match(moderator, /caseLayoutEvidence/);
+  assert.match(moderator, /Appealable/);
+  assert.match(moderator, /spamMessageCount/);
+  assert.match(moderator, /'mute', 'kick', 'ban'/);
+
+  const index = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  assert.match(index, /\/admin\/community-messages\.js/);
+});
