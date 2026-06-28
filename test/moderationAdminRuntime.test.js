@@ -8,8 +8,9 @@ require('../commands/021-warning-count-admin-ui');
 require('../commands/023-moderation-sanction-case-ui');
 require('../commands/024-spam-automod-admin-ui');
 require('../commands/025-community-messages-admin');
+require('../commands/026-appeal-admin-ui');
 
-test('runtime admin assets include sanction cases, Spam AutoMod, and community messages', () => {
+test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and appeals', () => {
   const moderator = fs.readFileSync(path.join(__dirname, '..', 'admin', 'moderator.js'), 'utf8');
   assert.match(moderator, /coinSpriteSanctionCaseUiV1/);
   assert.match(moderator, /coinSpriteSpamAutoModAdminV1/);
@@ -23,10 +24,17 @@ test('runtime admin assets include sanction cases, Spam AutoMod, and community m
   assert.match(moderator, /'mute', 'kick', 'ban'/);
 
   const index = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  assert.match(index, /\/admin\/rich-message-editor\.js/);
   assert.match(index, /\/admin\/community-messages\.js/);
+  assert.match(index, /\/admin\/appeals\.js/);
+  assert.match(moderator, /data-moderator-workspace="appeal"/);
+  assert.match(moderator, /data-case-field="publicNote"/);
+  assert.doesNotMatch(moderator, /warningCreatePoints/);
 
   const community = fs.readFileSync(path.join(__dirname, '..', 'admin', 'community-messages.js'), 'utf8');
-  assert.match(community, /message-builder community-message-builder/);
-  assert.match(community, /external-message-sticky-preview/);
-  assert.match(community, /CoinSpriteMessageEditor/);
+  assert.match(community, /CoinSpriteRichEditor/);
+  const appeals = fs.readFileSync(path.join(__dirname, '..', 'admin', 'appeals.js'), 'utf8');
+  assert.match(appeals, /appeal-settings/);
+  assert.match(appeals, /appeal-form/);
+  assert.match(appeals, /appeal-message/);
 });
