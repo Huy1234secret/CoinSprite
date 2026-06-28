@@ -46,5 +46,7 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(appeals, /appeal-message/);
   assert.match(appeals, /appeal-form-designer/);
   assert.match(appeals, /appealCollectPatch/);
+  assert.match(appeals, /installMainSaveIntegration/);
+  assert.match(appeals, /__coinSpriteModeratorTab/);
   assert.doesNotMatch(appeals, /id="appealSave"|Save appeal settings/);
 });
