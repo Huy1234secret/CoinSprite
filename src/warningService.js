@@ -64,7 +64,7 @@ function canManageWarnings(member) {
 
 function parseDuration(value, defaultDays = 90, now = Date.now()) {
   const text = String(value || '').trim().toLowerCase();
-  if (!text) return defaultDays > 0 ? now + defaultDays * DAY_MS : null;
+  if (!text) return null;
   if (['never', 'none', 'permanent'].includes(text)) return null;
   const match = text.match(/^(\d+)\s*(m|h|d|w)$/);
   if (!match) throw new Error('Expiry must use formats such as 30m, 12h, 7d, 4w, or never.');
@@ -250,12 +250,12 @@ async function executeRule(guild, member, record, rule, warningCount, config) {
       await sendActionNotice(guild, member, record, rule, warningCount);
     } else if (rule.action === 'kick') {
       if (!member.kickable || typeof member.kick !== 'function') throw new Error('Member is not kickable.');
-      await member.kick(actionReason);
       await sendActionNotice(guild, member, record, rule, warningCount);
+      await member.kick(actionReason);
     } else if (rule.action === 'ban') {
       if (!member.bannable || typeof member.ban !== 'function') throw new Error('Member is not bannable.');
-      await member.ban({ reason: actionReason });
       await sendActionNotice(guild, member, record, rule, warningCount);
+      await member.ban({ reason: actionReason });
     } else {
       await logToStaff(guild, config, 'Warning threshold alert: <@' + member.id + '> reached **' + warningCount + ' active warnings** at threshold ' + rule.threshold + ' (case ' + record.id + '). Reason: ' + rule.reason);
     }
