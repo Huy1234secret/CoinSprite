@@ -49,13 +49,15 @@ test('sanction durations support temporary and permanent actions', () => {
 
 function sanctionFixture() {
   const events = [];
+  const notices = [];
   const user = {
     id: '234567890123456789',
     bot: false,
     username: 'target',
     displayAvatarURL: () => '',
-    send: async () => {
+    send: async (payload) => {
       events.push('dm');
+      notices.push(payload);
       return { channelId: '345678901234567890', id: '456789012345678901' };
     },
   };
@@ -80,7 +82,7 @@ function sanctionFixture() {
       fetch: async () => null,
     },
   };
-  return { events, guild, member, user };
+  return { events, guild, member, notices, user };
 }
 
 test('kick and ban notices are sent before the member leaves the guild', async () => {
@@ -97,6 +99,10 @@ test('kick and ban notices are sent before the member leaves the guild', async (
     });
     assert.equal(result.delivery, 'dm');
     assert.deepEqual(fixture.events, ['dm', action]);
+    const appealRow = fixture.notices[0].components.at(-1);
+    assert.equal(appealRow.components[0].style, 5);
+    assert.equal(appealRow.components[0].disabled, false);
+    assert.equal(result.case.appealable, true);
   }
 });
 
@@ -113,13 +119,13 @@ test('a blank mute duration applies a renewable Discord timeout and records perm
   });
   assert.equal(result.durationMs, null);
   assert.equal(result.delivery, 'dm');
-  assert.deepEqual(fixture.events, ['mute:' + DISCORD_MAX_TIMEOUT_MS, 'dm']);
+  assert.deepEqual(fixture.events, ['dm', 'mute:' + DISCORD_MAX_TIMEOUT_MS]);
   assert.equal(result.case.expiresAt, null);
 
   await maintainSanctions({ guilds: { cache: new Map([[fixture.guild.id, fixture.guild]]) } });
   assert.deepEqual(fixture.events, [
-    'mute:' + DISCORD_MAX_TIMEOUT_MS,
     'dm',
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
     'mute:' + DISCORD_MAX_TIMEOUT_MS,
   ]);
   assert.ok(result.case.expiresAt == null);
