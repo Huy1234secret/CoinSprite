@@ -2,7 +2,8 @@ const { PermissionFlagsBits } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
-const { attachmentRecord, persistEvidence } = require('./moderationActionService');
+const { attachmentRecord, logSanction, persistEvidence } = require('./moderationActionService');
+const { withAppealButton } = require('./appealLinks');
 const {
   moderationActionNoticeContainer,
   moderationErrorContainer,
@@ -159,22 +160,21 @@ async function sendActionNotice(guild, member, record, rule, warningCount) {
   const durationText = rule.action === 'timeout' ? formatDuration(rule.durationSeconds) : '';
   try {
     const template = messageTemplates.findTemplate(guild.id, templateId);
-    if (template) {
-      const payload = messageTemplates.buildMessagePayload(
+    const payload = template
+      ? messageTemplates.buildMessagePayload(
         applyActionNoticePlaceholders(template, actionNoticeValues(guild, member, record, rule, warningCount)),
         { guild, user: member.user, member },
-      );
-      await member.send(payload);
-    } else {
-      await member.send(moderationActionNoticeContainer({
+      )
+      : moderationActionNoticeContainer({
         action: rule.action,
         guildName: guild.name,
         reason: rule.reason,
         caseId: record.id,
         warningCount,
         durationText,
-      }));
-    }
+      });
+    withAppealButton(payload, record);
+    await member.send(payload);
     return true;
   } catch {
     return false;
@@ -184,19 +184,23 @@ async function sendActionNotice(guild, member, record, rule, warningCount) {
 async function notifyMember(guild, member, record, config) {
   const warningCount = store.activeWarningCount(guild.id, member.id);
   try {
-    const message = await member.send(warningNoticeContainer({ record, warningCount, guildName: guild.name }));
+    const payload = warningNoticeContainer({ record, warningCount, guildName: guild.name });
+    withAppealButton(payload, record);
+    const message = await member.send(payload);
     store.updateDelivery(guild.id, record.id, { status: 'dm', channelId: message.channelId || '', messageId: message.id || '' });
     return 'dm';
   } catch (error) {
     const fallback = await textChannel(guild, config.fallbackChannelId);
     if (fallback?.isTextBased?.()) {
       try {
-        const message = await fallback.send(warningNoticeContainer({
+        const payload = warningNoticeContainer({
           record,
           warningCount,
           guildName: guild.name,
           mentionUserId: member.id,
-        }));
+        });
+        withAppealButton(payload, record);
+        const message = await fallback.send(payload);
         store.updateDelivery(guild.id, record.id, {
           status: 'fallback',
           channelId: fallback.id,
@@ -246,8 +250,8 @@ async function executeRule(guild, member, record, rule, warningCount, config) {
   try {
     if (rule.action === 'timeout') {
       if (!member.moderatable || typeof member.timeout !== 'function') throw new Error('Member is not moderatable.');
-      await member.timeout(rule.durationSeconds * 1000, actionReason);
       await sendActionNotice(guild, member, record, rule, warningCount);
+      await member.timeout(rule.durationSeconds * 1000, actionReason);
     } else if (rule.action === 'kick') {
       if (!member.kickable || typeof member.kick !== 'function') throw new Error('Member is not kickable.');
       await sendActionNotice(guild, member, record, rule, warningCount);
@@ -258,6 +262,16 @@ async function executeRule(guild, member, record, rule, warningCount, config) {
       await member.ban({ reason: actionReason });
     } else {
       await logToStaff(guild, config, 'Warning threshold alert: <@' + member.id + '> reached **' + warningCount + ' active warnings** at threshold ' + rule.threshold + ' (case ' + record.id + '). Reason: ' + rule.reason);
+    }
+    if (['timeout', 'kick', 'ban'].includes(rule.action)) {
+      await logSanction(
+        guild,
+        store.getCase(guild.id, record.id),
+        rule.action,
+        record.authorId || record.moderatorId || '',
+        rule.action === 'timeout' ? rule.durationSeconds * 1000 : null,
+        member.user,
+      );
     }
     event.success = true;
     event.detail = rule.action === 'timeout' ? rule.durationSeconds + ' seconds' : 'completed';
@@ -304,7 +318,7 @@ async function createWarning(input) {
     points,
     evidence: initialAttachment?.url || validateEvidence(input.evidence),
     attachments: initialAttachment ? [initialAttachment] : [],
-    appealable: Boolean(input.appealable),
+    appealable: input.appealable !== false,
     sourceChannelId: String(input.sourceChannelId || ''),
     sourceMessageId: String(input.sourceMessageId || ''),
     expiresAt,
