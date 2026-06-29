@@ -654,7 +654,7 @@ async function routeRequest(req, res, env, client) {
           points: body.points,
           expires: body.expires,
           evidence: body.evidence,
-          appealable: Boolean(body.appealable),
+          appealable: body.appealable !== false,
           publicNote: body.publicNote,
           staffNotes: body.staffNotes,
         });
