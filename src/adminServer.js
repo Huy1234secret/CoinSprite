@@ -8,6 +8,7 @@ const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
+const { handleUserModerationAction } = require('./adminModerationActionRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
@@ -606,6 +607,19 @@ async function routeRequest(req, res, env, client) {
     return handleUserDataPatch(req, res, env, client, userDataMatch[1], userDataMatch[2], { requireAdmin, readJsonBody, sendJson });
   }
 
+  const userModerationMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/users\/(\d{16,20})\/moderation-actions$/);
+  if (userModerationMatch && req.method === 'POST') {
+    return handleUserModerationAction(
+      req,
+      res,
+      env,
+      client,
+      userModerationMatch[1],
+      userModerationMatch[2],
+      { requireAdmin, sendJson },
+    );
+  }
+
   const moderationEvidenceMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/moderation\/evidence\/([A-Za-z0-9-]+)\/([^/]+)$/);
   if (moderationEvidenceMatch && req.method === 'GET') {
     const guildId = moderationEvidenceMatch[1];
@@ -654,7 +668,7 @@ async function routeRequest(req, res, env, client) {
           points: body.points,
           expires: body.expires,
           evidence: body.evidence,
-          appealable: Boolean(body.appealable),
+          appealable: body.appealable !== false,
           publicNote: body.publicNote,
           staffNotes: body.staffNotes,
         });
