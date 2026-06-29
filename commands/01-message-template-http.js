@@ -77,12 +77,19 @@ function serveImageAsset(res, imagePath) {
     return;
   }
 
-  fs.readFile(resolvedFile, (error, data) => {
-    if (error) {
-      sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
-      return;
-    }
-    sendAsset(res, 200, data, imageContentType(resolvedFile));
+  const stream = fs.createReadStream(resolvedFile);
+  let opened = false;
+  stream.once('open', () => {
+    opened = true;
+    res.writeHead(200, {
+      'Content-Type': imageContentType(resolvedFile),
+      'Cache-Control': 'public, max-age=300',
+    });
+    stream.pipe(res);
+  });
+  stream.once('error', () => {
+    if (!opened && !res.headersSent) sendAsset(res, 404, 'Not found', 'text/plain; charset=utf-8', 'no-store');
+    else res.destroy();
   });
 }
 

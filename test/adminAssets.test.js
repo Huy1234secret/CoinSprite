@@ -66,10 +66,28 @@ test('custom tab image assets are served from every public prefix', async () => 
 });
 
 test('image routes stream original files without patched fs.readFile', () => {
+  const templateHttp = fs.readFileSync(path.join(root, 'commands', '01-message-template-http.js'), 'utf8');
   const iconAssets = fs.readFileSync(path.join(root, 'commands', '02-admin-icon-assets.js'), 'utf8');
   const adminServer = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
+  assert.match(templateHttp, /fs\.createReadStream\(resolvedFile\)/);
   assert.match(iconAssets, /fs\.createReadStream\(icon\.file\)/);
   assert.match(adminServer, /fs\.createReadStream\(runtimePath\)/);
+});
+
+test('the first image-route interceptor works while fs.readFile is patched', async () => {
+  const patchedReadFile = fs.readFile;
+  fs.readFile = () => {
+    throw new Error('patched fs.readFile must not handle PNG assets');
+  };
+  try {
+    const response = await fetch(`${origin}/images/leveling.png?v=patched-read-file`);
+    assert.equal(response.status, 200);
+    assert.ok((response.headers.get('content-type') || '').startsWith('image/png'));
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  } finally {
+    fs.readFile = patchedReadFile;
+  }
 });
 
 test('primary admin asset layer owns the CoinSprite image prefix', () => {

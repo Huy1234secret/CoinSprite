@@ -247,6 +247,7 @@ test('duration and evidence helpers accept supported values and reject unsafe in
   const now = 1000;
   assert.equal(parseDuration('30m', 90, now), now + 30 * 60000);
   assert.equal(parseDuration('never', 90, now), null);
+  assert.equal(parseDuration('', 90, now), null);
   assert.equal(validateEvidence('https://discord.com/channels/1/2/3'), 'https://discord.com/channels/1/2/3');
   assert.throws(() => parseDuration('tomorrow', 90, now), /Expiry/);
   assert.throws(() => validateEvidence('javascript:alert(1)'), /http or https/);

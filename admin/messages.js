@@ -521,7 +521,7 @@
     const query = view.query.trim().toLowerCase();
     const allTemplates = withBuiltInDefaults(view.templates);
     if (allTemplates.length !== view.templates.length) view.templates = allTemplates;
-    const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder');
+    const defaults = allTemplates.filter((item) => isDefaultTemplate(item) && item.type !== 'folder' && matchesQuery(item, query));
     const folders = allTemplates.filter((item) => item.type === 'folder' && !isDefaultTemplate(item) && matchesQuery(item, query));
     const folder = folders.find((item) => item.id === view.folderId) || null;
     const userTemplates = allTemplates.filter((item) => item.type !== 'folder' && !isDefaultTemplate(item) && (view.folderId ? item.folderId === view.folderId : !item.folderId) && matchesQuery(item, query));

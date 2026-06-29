@@ -15,7 +15,7 @@ module.exports = {
     .setDescription('Issue a warning to a server member.')
     .addUserOption((option) => option.setName('user').setDescription('Member to warn').setRequired(true))
     .addStringOption((option) => option.setName('reason').setDescription('Reason for the warning').setMaxLength(1000).setRequired(true))
-    .addStringOption((option) => option.setName('time').setDescription('Duration such as 30m, 7d, 4w, or never').setMaxLength(30).setRequired(true))
+    .addStringOption((option) => option.setName('time').setDescription('Duration such as 30m, 7d, or 4w; leave blank for permanent').setMaxLength(30).setRequired(false))
     .addAttachmentOption((option) => option.setName('attachment').setDescription('Evidence file'))
     .addBooleanOption((option) => option.setName('appealable').setDescription('Allow the user to appeal this warning')),
 
@@ -40,7 +40,7 @@ module.exports = {
         moderatorId: interaction.user.id,
         source: 'manual',
         reason: interaction.options.getString('reason', true),
-        expires: interaction.options.getString('time', true),
+        expires: interaction.options.getString('time'),
         attachment: interaction.options.getAttachment('attachment'),
         appealable: interaction.options.getBoolean('appealable') ?? false,
         sourceChannelId: interaction.channelId,

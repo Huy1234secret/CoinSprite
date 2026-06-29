@@ -7,6 +7,8 @@ const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
 
 const COMPONENTS_V2_FLAG = 32768;
+const DISCORD_MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
+const PERMANENT_MUTE_REFRESH_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 const MAX_EVIDENCE_BYTES = 25 * 1024 * 1024;
 const EVIDENCE_ROOT = process.env.MODERATION_EVIDENCE_PATH
   || path.join(__dirname, '..', 'data', 'moderation-evidence');
@@ -19,7 +21,7 @@ let cleanupTimer = null;
 
 function parseActionDuration(value, options = {}) {
   const text = String(value || '').trim().toLowerCase();
-  if (options.allowPermanent && ['permanent', 'perm', 'never'].includes(text)) return null;
+  if (options.allowPermanent && (!text || ['permanent', 'perm', 'never'].includes(text))) return null;
   const match = text.match(/^(\d+)\s*(m|h|d|w)$/);
   if (!match) {
     const suffix = options.allowPermanent ? ', or permanent' : '';
@@ -211,8 +213,8 @@ async function executeSanction(input) {
   const durationMs = action === 'kick'
     ? null
     : parseActionDuration(input.time, {
-      allowPermanent: action === 'ban',
-      maximumMs: action === 'mute' ? 28 * 86400000 : 10 * 365 * 86400000,
+      allowPermanent: action !== 'kick',
+      maximumMs: action === 'mute' ? DISCORD_MAX_TIMEOUT_MS : 10 * 365 * 86400000,
     });
   const expiresAt = durationMs == null ? null : Date.now() + durationMs;
   const initialAttachment = attachmentRecord(input.attachment);
@@ -242,8 +244,14 @@ async function executeSanction(input) {
   }
 
   const auditReason = reason + ' (' + record.id + ')';
+  const enforcementDurationMs = action === 'mute' && durationMs == null ? DISCORD_MAX_TIMEOUT_MS : durationMs;
+  let delivery = 'pending';
+  if (action === 'kick' || action === 'ban') {
+    record = store.getCase(guild.id, record.id);
+    delivery = await sendNotice(guild, user, record, action, durationMs);
+  }
   try {
-    if (action === 'mute') await member.timeout(durationMs, auditReason);
+    if (action === 'mute') await member.timeout(enforcementDurationMs, auditReason);
     else if (action === 'kick') await member.kick(auditReason);
     else await guild.members.ban(user.id, { reason: auditReason });
     store.appendEnforcement(guild.id, record.id, {
@@ -263,14 +271,14 @@ async function executeSanction(input) {
   }
 
   record = store.getCase(guild.id, record.id);
-  const delivery = await sendNotice(guild, user, record, action, durationMs);
+  if (delivery === 'pending') delivery = await sendNotice(guild, user, record, action, durationMs);
   await logSanction(guild, record, action, moderatorId);
   return { case: store.getCase(guild.id, record.id), delivery, durationMs };
 }
 
-function hasSuccessfulUnban(record) {
+function hasSuccessfulReversal(record, action) {
   return (record.events || []).some((event) => (
-    event.type === 'enforcement.reversed' && event.data?.action === 'unban' && event.data?.success !== false
+    event.type === 'enforcement.reversed' && event.data?.action === action && event.data?.success !== false
   ));
 }
 
@@ -279,7 +287,7 @@ async function cleanupTemporaryBans(client) {
   for (const guild of client.guilds.cache.values()) {
     const cases = store.listCases(guild.id, { type: 'ban' });
     for (const record of cases) {
-      if (!record.expiresAt || record.expiresAt > now || hasSuccessfulUnban(record)) continue;
+      if (!record.expiresAt || record.expiresAt > now || hasSuccessfulReversal(record, 'unban')) continue;
       try {
         await guild.bans.remove(record.memberId, 'Temporary ban expired (' + record.id + ')');
         store.appendEvent(guild.id, record.id, 'enforcement.reversed', '', { action: 'unban', success: true });
@@ -293,16 +301,47 @@ async function cleanupTemporaryBans(client) {
   }
 }
 
+async function refreshPermanentMutes(client) {
+  const now = Date.now();
+  for (const guild of client.guilds.cache.values()) {
+    const cases = store.listCases(guild.id, { type: 'mute', status: 'active' });
+    for (const record of cases) {
+      if (record.expiresAt != null || hasSuccessfulReversal(record, 'unmute')) continue;
+      const member = await guild.members.fetch(record.memberId).catch(() => null);
+      if (!member?.moderatable || typeof member.timeout !== 'function') continue;
+      const disabledUntil = Number(member.communicationDisabledUntilTimestamp)
+        || Number(member.communicationDisabledUntil?.getTime?.())
+        || 0;
+      if (disabledUntil > now + PERMANENT_MUTE_REFRESH_THRESHOLD_MS) continue;
+      try {
+        await member.timeout(DISCORD_MAX_TIMEOUT_MS, 'Refreshing permanent mute (' + record.id + ')');
+        store.appendEvent(guild.id, record.id, 'enforcement.refreshed', '', {
+          action: 'mute',
+          durationMs: DISCORD_MAX_TIMEOUT_MS,
+        });
+      } catch (error) {
+        console.error('Permanent mute refresh failed for ' + record.id + ':', error);
+      }
+    }
+  }
+}
+
+async function maintainSanctions(client) {
+  await cleanupTemporaryBans(client);
+  await refreshPermanentMutes(client);
+}
+
 function initSanctionService(client) {
   if (cleanupTimer) return;
-  cleanupTemporaryBans(client).catch((error) => console.error('Temporary ban cleanup failed:', error));
+  maintainSanctions(client).catch((error) => console.error('Sanction maintenance failed:', error));
   cleanupTimer = setInterval(() => {
-    cleanupTemporaryBans(client).catch((error) => console.error('Temporary ban cleanup failed:', error));
+    maintainSanctions(client).catch((error) => console.error('Sanction maintenance failed:', error));
   }, 60000);
   cleanupTimer.unref?.();
 }
 
 module.exports = {
+  DISCORD_MAX_TIMEOUT_MS,
   EVIDENCE_ROOT,
   executeSanction,
   attachmentRecord,
@@ -310,5 +349,6 @@ module.exports = {
   formatDuration,
   persistEvidence,
   initSanctionService,
+  maintainSanctions,
   parseActionDuration,
 };
