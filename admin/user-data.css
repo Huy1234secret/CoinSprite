@@ -107,3 +107,230 @@
     width: 100%;
   }
 }
+
+.user-data-card {
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(30, 40, 58, 0.96), rgba(20, 28, 42, 0.98));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+}
+
+.user-data-head {
+  padding: 4px 2px 18px;
+}
+
+.user-data-head h3 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.user-data-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.user-data-summary {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.data-chip {
+  min-height: 70px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
+}
+
+.user-moderation-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid rgba(88, 101, 242, 0.34);
+  border-radius: 14px;
+  background: rgba(7, 12, 22, 0.48);
+}
+
+.user-moderation-head,
+.user-moderation-submit,
+.user-case-main,
+.user-case-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.user-moderation-head {
+  align-items: flex-start;
+}
+
+.user-moderation-head h3 {
+  margin: 2px 0 5px;
+  font-size: 19px;
+}
+
+.user-moderation-head p {
+  max-width: 650px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.section-kicker {
+  color: #8f98ff;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.data-count-badge,
+.user-case-type {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid rgba(125, 135, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(88, 101, 242, 0.15);
+  color: #cfd3ff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.data-count-badge {
+  min-height: 28px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.user-moderation-action-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) minmax(150px, 0.6fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.user-moderation-action-grid > label {
+  display: grid;
+  gap: 7px;
+}
+
+.user-moderation-action-grid .user-moderation-reason {
+  grid-column: 1 / -1;
+}
+
+.user-moderation-action-grid textarea {
+  min-height: 96px;
+}
+
+.user-moderation-appealable {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.user-moderation-appealable input {
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0;
+}
+
+.user-moderation-submit {
+  min-height: 44px;
+}
+
+#userModerationStatus {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.user-case-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.user-case-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  padding: 15px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.user-case-main {
+  grid-column: 1 / -1;
+}
+
+.user-case-main > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.user-case-type {
+  padding: 3px 8px;
+  text-transform: capitalize;
+}
+
+.user-case-card p {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.user-case-card > button {
+  align-self: center;
+}
+
+.user-case-meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.user-case-meta span + span::before {
+  content: "•";
+  margin-right: 12px;
+  color: #5865f2;
+}
+
+.user-case-empty {
+  padding: 28px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 780px) {
+  .user-moderation-panel {
+    padding: 16px;
+  }
+
+  .user-moderation-head,
+  .user-moderation-submit {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-moderation-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-moderation-action-grid .user-moderation-reason {
+    grid-column: auto;
+  }
+
+  .user-case-card {
+    grid-template-columns: 1fr;
+  }
+
+  .user-case-card > button {
+    width: 100%;
+  }
+}
