@@ -2,7 +2,7 @@ const { PermissionFlagsBits } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
-const { attachmentRecord, persistEvidence } = require('./moderationActionService');
+const { attachmentRecord, logSanction, persistEvidence } = require('./moderationActionService');
 const { withAppealButton } = require('./appealLinks');
 const {
   moderationActionNoticeContainer,
@@ -323,8 +323,13 @@ async function createWarning(input) {
   }
   const delivery = await notifyMember(guild, member, record, config);
   const evaluation = await evaluateMember(guild, member, record, config);
-  const staffLog = await logToStaff(guild, config, 'Warning ' + record.id + ': <@' + member.id + '> received a warning from ' + record.source + '. Active warnings: ' + evaluation.warnings + '.');
-  if (staffLog) store.updateStaffLog(guild.id, record.id, { channelId: staffLog.channelId || config.staffLogChannelId, messageId: staffLog.id || '' });
+  await logSanction(
+    guild,
+    store.getCase(guild.id, record.id),
+    'warning',
+    String(input.moderatorId || ''),
+    member.user,
+  );
   return { case: store.getCase(guild.id, record.id), warnings: evaluation.warnings, points: evaluation.warnings, delivery, enforcementEvents: evaluation.events };
 }
 
