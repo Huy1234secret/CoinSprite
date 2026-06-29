@@ -6,6 +6,7 @@ const { after, test } = require('node:test');
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-sanctions-'));
 process.env.MODERATION_CASE_STORE_PATH = path.join(directory, 'moderation-cases.json');
+process.env.PUBLIC_WEB_BASE_URL = 'https://appeals.example.com';
 
 const {
   DISCORD_MAX_TIMEOUT_MS,
