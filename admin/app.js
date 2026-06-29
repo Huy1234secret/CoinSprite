@@ -855,6 +855,7 @@ function refreshDirtyState() {
   elements.unsavedBar.hidden = !hasChanges;
   elements.savedState.textContent = hasChanges ? `${state.dirtyTabs.size} section${state.dirtyTabs.size === 1 ? '' : 's'} changed` : 'All changes saved';
   elements.savedState.classList.toggle('dirty', hasChanges);
+  document.body.classList.toggle('has-unsaved-changes', hasChanges);
   elements.resetTabButton.disabled = !state.dirtyTabs.has(state.activeTab);
   const dirtyNames = [...state.dirtyTabs].map((tabName) => TAB_NAMES[tabName]);
   elements.unsavedDetail.textContent = dirtyNames.length ? `Changed: ${dirtyNames.join(', ')}` : '';
@@ -962,8 +963,9 @@ function confirmDiscard(message) {
 
 async function loadGuild(guildId) {
   if (!guildId) return;
-  if (!await confirmDiscard('You have unsaved changes. Switch servers and discard them?')) {
+  if (state.dirtyTabs.size > 0 && guildId !== state.guildId) {
     elements.guildSelect.value = state.guildId;
+    showUnsavedNavigationBlock();
     return;
   }
   state.guildId = guildId;
@@ -1013,19 +1015,29 @@ function renderSession() {
 }
 
 function setActiveTab(tabName) {
+  if (state.dirtyTabs.size > 0 && tabName !== state.activeTab) {
+    showUnsavedNavigationBlock();
+    return false;
+  }
   state.activeTab = tabName;
   document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === tabName));
   document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tabName));
   elements.resetTabButton.disabled = !state.dirtyTabs.has(tabName);
   elements.configForm.scrollTop = 0;
+  return true;
 }
 
 function setActiveLevelingTab(tabName) {
+  if (state.dirtyTabs.size > 0 && tabName !== state.activeLevelingTab) {
+    showUnsavedNavigationBlock();
+    return false;
+  }
   state.activeLevelingTab = tabName;
   document.querySelectorAll('[data-leveling-tab]').forEach((tab) => tab.classList.toggle('active', tab.dataset.levelingTab === tabName));
   document.querySelectorAll('[data-leveling-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.levelingPanel === tabName));
   elements.configForm.scrollTop = 0;
   if (tabName === 'message') renderLevelUpPreview();
+  return true;
 }
 
 async function loadSession() {
@@ -1055,6 +1067,43 @@ elements.configForm.addEventListener('change', (event) => {
   refreshDirtyState();
   if (event.target.name?.startsWith('xp.levelUpMessage.') || event.target === elements.levelUpPreviewLevel) renderLevelUpPreview();
 });
+
+function showUnsavedNavigationBlock() {
+  setStatus('Save changes or reset the current tab before navigating.', 'error');
+  elements.unsavedBar?.classList.add('navigation-blocked');
+  window.setTimeout(() => elements.unsavedBar?.classList.remove('navigation-blocked'), 480);
+}
+
+function unsavedNavigationTarget(target) {
+  return target?.closest?.([
+    '.tab',
+    '.mini-tab',
+    '.moderator-workspace-tab',
+    '.message-section-tabs button',
+    '.message-editor-tabs button',
+    '[data-message-action="back"]',
+    '.message-template-card',
+  ].join(','));
+}
+
+document.addEventListener('click', (event) => {
+  if (state.dirtyTabs.size === 0) return;
+  const target = unsavedNavigationTarget(event.target);
+  if (!target || target.classList.contains('active')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showUnsavedNavigationBlock();
+}, true);
+
+document.addEventListener('keydown', (event) => {
+  if (state.dirtyTabs.size === 0) return;
+  const refreshKey = event.key === 'F5'
+    || ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'r');
+  if (!refreshKey) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showUnsavedNavigationBlock();
+}, true);
 
 elements.tabList.addEventListener('click', (event) => {
   const tab = event.target.closest('.tab');
@@ -1086,11 +1135,19 @@ elements.levelUpPreviewImage.addEventListener('error', () => {
 });
 
 elements.guildSelect.addEventListener('change', () => {
+  if (state.dirtyTabs.size > 0 && elements.guildSelect.value !== state.guildId) {
+    elements.guildSelect.value = state.guildId;
+    showUnsavedNavigationBlock();
+    return;
+  }
   loadGuild(elements.guildSelect.value).catch((error) => setStatus(error.message, 'error'));
 });
 
 elements.logoutButton.addEventListener('click', async () => {
-  if (!await confirmDiscard('You have unsaved changes. Log out and discard them?')) return;
+  if (state.dirtyTabs.size > 0) {
+    showUnsavedNavigationBlock();
+    return;
+  }
   await api('/auth/logout', { method: 'POST' }).catch(() => null);
   window.location.href = '/admin';
 });
