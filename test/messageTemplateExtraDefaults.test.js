@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 require('../commands/000-zz-ai-moderation-alert-format-fix');
 const { EXTRA_DEFAULT_BOT_TEMPLATES } = require('../commands/000z-message-template-extra-defaults');
@@ -50,4 +52,9 @@ test('keeps remaining extra bot defaults locked against deletion', () => {
   assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-notice'), false);
   assert.equal(deleteTemplate('extra-defaults-test', 'default-warning-timeout-notice'), false);
   assert.equal(deleteTemplate('extra-defaults-test', 'default-moderation-ban-notice'), false);
+});
+
+test('default-message search applies the same query filter as custom templates', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'admin', 'messages.js'), 'utf8');
+  assert.match(source, /const defaults = allTemplates\.filter\(\(item\) => isDefaultTemplate\(item\) && item\.type !== 'folder' && matchesQuery\(item, query\)\);/);
 });
