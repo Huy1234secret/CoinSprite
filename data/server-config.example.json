@@ -336,6 +336,7 @@
           "moderation": {
             "defaultChannelId": "",
             "eventOverrides": {
+              "action": "",
               "ai_low": "",
               "ai_severe": "",
               "warning": ""
