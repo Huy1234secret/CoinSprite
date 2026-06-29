@@ -112,7 +112,7 @@ function replacePlaceholders(value, values) {
 function noticeValues(guild, user, record, action, durationMs) {
   return {
     'moderation-action': action,
-    'moderation-action-label': action === 'mute' ? 'muted' : action === 'kick' ? 'kicked' : 'banned',
+    'moderation-action-label': action === 'warning' ? 'warned' : action === 'mute' ? 'muted' : action === 'kick' ? 'kicked' : 'banned',
     'moderation-reason': record.reason,
     'case-id': record.id,
     duration: formatDuration(durationMs),
@@ -238,10 +238,11 @@ async function logSanction(guild, record, action, moderatorId, user, durationMs 
   const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
   if (!channel?.isTextBased?.()) return null;
 
-  const targetUser = user || await guild.client?.users?.fetch?.(record.memberId).catch(() => null) || {
-    id: record.memberId,
-    username: record.memberId,
-  };
+  let targetUser = user || null;
+  if (!targetUser && guild.client?.users?.fetch) {
+    targetUser = await guild.client.users.fetch(record.memberId).catch(() => null);
+  }
+  targetUser ||= { id: record.memberId, username: record.memberId };
   const template = messageTemplates.findTemplate(guild.id, 'default-moderation-action-log');
   const values = moderationLogValues(guild, targetUser, record, action, durationMs, moderatorId);
   let payload;
@@ -297,7 +298,7 @@ async function executeSanction(input) {
     type: action,
     targetUserId: user.id,
     authorId: moderatorId,
-    source: 'manual',
+    source: String(input.source || 'manual'),
     reason,
     evidence: initialAttachment?.url || '',
     attachments: initialAttachment ? [initialAttachment] : [],
