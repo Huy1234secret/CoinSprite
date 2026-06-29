@@ -40,6 +40,8 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(inlineEditor, /CoinSpriteInlineMessageEditor/);
   const richEditor = fs.readFileSync(path.join(__dirname, '..', 'admin', 'rich-message-editor.js'), 'utf8');
   assert.match(richEditor, /rich-preview-stage/);
+  assert.match(richEditor, /\.rich-container-tools\{position:static/);
+  assert.doesNotMatch(richEditor, /\.rich-container-tools\{position:absolute/);
   const appeals = fs.readFileSync(path.join(__dirname, '..', 'admin', 'appeals.js'), 'utf8');
   assert.match(appeals, /appeal-settings/);
   assert.match(appeals, /appeal-form/);
@@ -49,4 +51,16 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(appeals, /installMainSaveIntegration/);
   assert.match(appeals, /__coinSpriteModeratorTab/);
   assert.doesNotMatch(appeals, /id="appealSave"|Save appeal settings/);
+  assert.match(appeals, /--appeal-surface/);
+  assert.match(moderator, /moderationActionLogChannelMount/);
+
+  const userData = fs.readFileSync(path.join(__dirname, '..', 'admin', 'user-data.js'), 'utf8');
+  assert.match(index, /id="userModerationAction"/);
+  assert.match(index, /id="userModerationCases"/);
+  assert.match(userData, /applyModerationAction/);
+  assert.match(userData, /loadModerationCases/);
+
+  const adminServer = fs.readFileSync(path.join(__dirname, '..', 'src', 'adminServer.js'), 'utf8');
+  assert.match(adminServer, /executeSanction/);
+  assert.match(adminServer, /action === 'warn'/);
 });
