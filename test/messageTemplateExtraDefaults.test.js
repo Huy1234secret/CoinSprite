@@ -21,6 +21,7 @@ const WARNING_ACTION_DEFAULT_IDS = [
   'default-warning-timeout-notice',
   'default-warning-kick-notice',
   'default-warning-ban-notice',
+  'default-moderation-action-log',
   'default-moderation-mute-notice',
   'default-moderation-kick-notice',
   'default-moderation-ban-notice',
