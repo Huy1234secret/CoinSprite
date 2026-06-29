@@ -8,6 +8,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { sanitizeAppealConfig } = require('./appealConfig');
+const { publicBaseUrl } = require('./appealLinks');
 const appealFiles = require('./appealFileStore');
 const appealStore = require('./appealStore');
 const caseStore = require('./moderationCaseStore');
@@ -24,17 +25,6 @@ const MIME_BY_EXTENSION = Object.freeze({
   txt: ['text/plain'], json: ['application/json', 'text/json'],
 });
 const BUTTON_PREFIX = 'appeal:review:';
-
-function publicBaseUrl() {
-  const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/, '');
-  if (configured) return configured;
-  try {
-    const redirect = new URL(process.env.DISCORD_REDIRECT_URI || '');
-    return redirect.origin;
-  } catch {
-    return '';
-  }
-}
 
 function caseEligibility(guildId, record, userId, config) {
   if (!record || record.memberId !== String(userId)) return { allowed: false, code: 'not_found' };
