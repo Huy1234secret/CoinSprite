@@ -670,6 +670,16 @@ function moderationSnapshot() {
 
   ensureModeratorTab();
 
+  document.addEventListener('click', (event) => {
+    const loggingTab = event.target.closest?.('[data-moderator-view="logging"]');
+    if (!loggingTab) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    moderatorState.workspace = 'moderation';
+    moderatorState.view = 'logging';
+    renderModerator();
+  }, true);
+
   document.addEventListener('click', async (event) => {
     const workspace = event.target.closest('[data-moderator-workspace]')?.dataset.moderatorWorkspace;
     if (workspace) {
