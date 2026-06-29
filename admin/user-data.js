@@ -2,6 +2,10 @@
   const root = document.querySelector('#userDataRoot');
   if (!root) return;
 
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+  })[char]);
+
   function ensurePreviewPolishAssets() {}
 
   function ensureDataTabIcon() {
@@ -54,6 +58,15 @@
     expLocked: document.querySelector('#userDataExpLocked'),
     expLockReason: document.querySelector('#userDataExpLockReason'),
     ticketBlacklisted: document.querySelector('#userDataTicketBlacklisted'),
+    moderationAction: document.querySelector('#userModerationAction'),
+    moderationTime: document.querySelector('#userModerationTime'),
+    moderationTimeLabel: document.querySelector('#userModerationTimeLabel'),
+    moderationAppealable: document.querySelector('#userModerationAppealable'),
+    moderationReason: document.querySelector('#userModerationReason'),
+    moderationApply: document.querySelector('#userModerationApply'),
+    moderationStatus: document.querySelector('#userModerationStatus'),
+    moderationCases: document.querySelector('#userModerationCases'),
+    moderationCaseCount: document.querySelector('#userModerationCaseCount'),
   };
 
   let loadedUserId = '';
@@ -92,7 +105,7 @@
 
   function setBusy(isBusy) {
     loading = isBusy;
-    [els.searchButton, els.reloadButton, els.saveButton].forEach((button) => {
+    [els.searchButton, els.reloadButton, els.saveButton, els.moderationApply].forEach((button) => {
       if (button) button.disabled = isBusy;
     });
   }
@@ -212,9 +225,110 @@
     try {
       const payload = await api(`/api/guilds/${guildId()}/users/${userId}/data`);
       fill(payload);
+      await loadModerationCases(loadedUserId);
       setStatus(payload.found ? 'User data loaded.' : 'No saved data found. Saving will create this user record.', payload.found ? 'ok' : '');
     } catch (error) {
       setStatus(error.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function moderationActionCopy() {
+    const action = els.moderationAction?.value || 'warn';
+    if (els.moderationTimeLabel) {
+      els.moderationTimeLabel.firstChild.textContent = action === 'warn' ? 'Expiry ' : 'Duration ';
+      els.moderationTime.hidden = action === 'kick';
+      els.moderationTime.disabled = action === 'kick';
+      els.moderationTime.placeholder = action === 'kick' ? 'Not applicable' : 'Leave blank for permanent';
+    }
+    if (els.moderationApply) {
+      els.moderationApply.textContent = action === 'warn'
+        ? 'Issue warning'
+        : action === 'mute'
+          ? 'Mute user'
+          : action === 'kick'
+            ? 'Kick user'
+            : 'Ban user';
+    }
+  }
+
+  function renderModerationCases(cases = []) {
+    if (els.moderationCaseCount) els.moderationCaseCount.textContent = cases.length + ' case' + (cases.length === 1 ? '' : 's');
+    if (!els.moderationCases) return;
+    if (!cases.length) {
+      els.moderationCases.innerHTML = '<div class="user-case-empty">No moderation cases for this user.</div>';
+      return;
+    }
+    els.moderationCases.innerHTML = cases.map((record) => {
+      const notification = record.references?.notification || record.delivery || {};
+      const canPardon = record.status === 'active';
+      return '<article class="user-case-card">'
+        + '<div class="user-case-main"><div><span class="user-case-type">' + escapeHtml(String(record.type || 'case').replace('_', ' ')) + '</span>'
+        + '<strong>' + escapeHtml(record.id) + '</strong></div><span class="case-status ' + escapeHtml(record.status) + '">' + escapeHtml(record.status) + '</span></div>'
+        + '<p>' + escapeHtml(record.reason || 'No reason recorded.') + '</p>'
+        + '<div class="user-case-meta"><span>' + escapeHtml(formatDate(record.createdAt)) + '</span><span>Notice: ' + escapeHtml(notification.status || 'pending') + '</span><span>' + (record.appealable ? 'Appealable' : 'Unappealable') + '</span></div>'
+        + (canPardon ? '<button class="button subtle small" type="button" data-user-case-pardon="' + escapeHtml(record.id) + '">Pardon</button>' : '')
+        + '</article>';
+    }).join('');
+  }
+
+  async function loadModerationCases(userId = loadedUserId) {
+    if (!isSnowflake(userId) || !guildId()) return;
+    const params = new URLSearchParams({ targetUserId: userId, pageSize: '50' });
+    const payload = await api('/api/guilds/' + guildId() + '/moderation/cases?' + params);
+    renderModerationCases(payload.cases || []);
+  }
+
+  async function applyModerationAction() {
+    if (loading || !isSnowflake(loadedUserId)) return;
+    const action = els.moderationAction?.value || 'warn';
+    const reason = String(els.moderationReason?.value || '').trim();
+    if (!reason) {
+      if (els.moderationStatus) els.moderationStatus.textContent = 'A reason is required.';
+      els.moderationReason?.focus();
+      return;
+    }
+    setBusy(true);
+    if (els.moderationStatus) els.moderationStatus.textContent = 'Applying ' + action + '...';
+    try {
+      const time = String(els.moderationTime?.value || '').trim();
+      const body = {
+        action,
+        memberId: loadedUserId,
+        reason,
+        appealable: els.moderationAppealable?.checked !== false,
+        ...(action === 'warn' ? { expires: time } : { time }),
+      };
+      const result = await api('/api/guilds/' + guildId() + '/moderation/cases', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (els.moderationReason) els.moderationReason.value = '';
+      if (els.moderationStatus) {
+        els.moderationStatus.textContent = 'Created ' + result.case.id + '. Notice: ' + (result.delivery || 'recorded') + '.';
+      }
+      await loadModerationCases(loadedUserId);
+    } catch (error) {
+      if (els.moderationStatus) els.moderationStatus.textContent = error.message;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function pardonCase(caseId) {
+    const reason = await window.coinSpriteUi?.prompt?.('Reason for pardoning ' + caseId, '', 'Pardon moderation case');
+    if (reason === null || reason === undefined) return;
+    setBusy(true);
+    try {
+      await api('/api/guilds/' + guildId() + '/moderation/cases/' + encodeURIComponent(caseId) + '/pardon', {
+        method: 'POST',
+        body: JSON.stringify({ reason: String(reason || '').trim() || 'Pardoned from user profile' }),
+      });
+      if (els.moderationStatus) els.moderationStatus.textContent = caseId + ' was pardoned.';
+      await loadModerationCases(loadedUserId);
+    } catch (error) {
+      if (els.moderationStatus) els.moderationStatus.textContent = error.message;
     } finally {
       setBusy(false);
     }
@@ -265,8 +379,18 @@
   function clearLoadedUser() {
     loadedUserId = '';
     if (els.editor) els.editor.hidden = true;
+    if (els.moderationCases) els.moderationCases.innerHTML = '';
+    if (els.moderationCaseCount) els.moderationCaseCount.textContent = '0 cases';
     setStatus('Enter a user ID to load stored level, punishment, and ticket blacklist data.');
   }
+
+  els.moderationAction?.addEventListener('change', moderationActionCopy);
+  els.moderationApply?.addEventListener('click', applyModerationAction);
+  els.moderationCases?.addEventListener('click', (event) => {
+    const caseId = event.target.closest('[data-user-case-pardon]')?.dataset.userCasePardon;
+    if (caseId) pardonCase(caseId);
+  });
+  moderationActionCopy();
 
   els.searchButton?.addEventListener('click', () => loadUser());
   els.reloadButton?.addEventListener('click', () => loadUser(loadedUserId || cleanUserId()));
