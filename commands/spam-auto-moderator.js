@@ -3,6 +3,7 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { createWarning, warningConfig } = require('../src/warningService');
+const { formatDuration } = require('../src/moderationActionService');
 
 const messageWindows = new Map();
 const cooldowns = new Map();
@@ -144,7 +145,16 @@ async function applyViolation(message, settings, violation) {
   } else if (settings.action === 'timeout') {
     const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
     if (member?.moderatable) {
-      await member.timeout(settings.timeoutSeconds * 1000, 'Spam Auto-Moderator: ' + violation.reason).catch(() => null);
+      const durationMs = settings.timeoutSeconds * 1000;
+      const reason = 'Spam Auto-Moderator: ' + violation.reason;
+      const applied = await member.timeout(durationMs, reason).then(() => true).catch(() => false);
+      if (applied) {
+        await message.author.send([
+          'You were muted in **' + message.guild.name + '**.',
+          '**Duration:** ' + formatDuration(durationMs),
+          '**Reason:** ' + reason,
+        ].join('\n')).catch(() => null);
+      }
     }
   }
   await logViolation(message, settings, violation);
