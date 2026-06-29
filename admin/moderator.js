@@ -22,6 +22,7 @@
     excludeRoleIds: [],
     alertTemplateId: DEFAULT_ALERT_TEMPLATE_ID,
     maxInputChars: 1500,
+    actionLogChannelId: '',
     warnings: {
       enabled: false,
       defaultExpiryDays: 90,
@@ -152,6 +153,7 @@
       excludeRoleIds: uniqueIds(ai.excludeRoleIds),
       alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
       maxInputChars: Number(ai.maxInputChars) || 1500,
+      actionLogChannelId: String(logOverrides.action || moderationLogs.defaultChannelId || ''),
       warnings: {
         enabled: Boolean(warnings.enabled),
         defaultExpiryDays: Math.max(0, Math.min(3650, Number(warnings.defaultExpiryDays) || 90)),
@@ -327,7 +329,11 @@ function warningRuleRow(rule, index) {
 
 function renderWarningsPanel() {
   const warnings = moderatorState.warnings;
-  return `<div class="panel moderator-ai-panel">
+  return `<div class="panel moderator-log-panel">
+    <div class="panel-heading"><h3>Moderation action logging</h3><p>Send every warn escalation, mute, kick, and ban to one staff channel using <strong>Default: Moderation action log</strong>.</p></div>
+    <div class="picker-field"><span class="field-label">Action log channel</span><div id="moderationActionLogChannelMount"></div></div>
+  </div>
+  <div class="panel moderator-ai-panel">
     <div class="panel-heading"><h3>Point-based warnings</h3><p>Cases remain auditable after they expire or are pardoned.</p></div>
     <label class="checkline"><input id="warningsEnabled" type="checkbox" ${warnings.enabled ? 'checked' : ''}> Enable persistent warning cases</label>
     <div class="settings-grid">
@@ -342,11 +348,12 @@ function renderWarningsPanel() {
     <div class="settings-grid">
       <label>Member ID <input id="warningCreateMember" inputmode="numeric" placeholder="123456789012345678"></label>
       <label>Points <input id="warningCreatePoints" type="number" min="1" max="10" value="1"></label>
-      <label>Expires <input id="warningCreateExpires" placeholder="90d, 4w, or never"></label>
+      <label>Expires <input id="warningCreateExpires" placeholder="Leave blank for permanent"></label>
       <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>
     </div>
     <label>Reason <textarea id="warningCreateReason" rows="3" maxlength="1000"></textarea></label>
     <label>Private staff notes <textarea id="warningCreateStaffNotes" rows="2" maxlength="1000"></textarea></label>
+    <label class="checkline"><input id="warningCreateAppealable" type="checkbox" checked> Allow this warning to be appealed</label>
     <button class="button primary" type="button" data-moderator-action="create-warning">Create warning</button>
     <span id="warningCreateStatus"></span>
   </div>`;
@@ -518,6 +525,11 @@ async function loadWarningCases(force = false) {
 
 function mountWarningPickers(root) {
   const warnings = moderatorState.warnings;
+  const actionLog = root.querySelector('#moderationActionLogChannelMount');
+  if (actionLog) renderPicker(actionLog, textChannelOptions(), moderatorState.actionLogChannelId, {
+    type: 'channel', placeholder: 'No action log channel',
+    onChange: (value) => setAndDirty(() => { moderatorState.actionLogChannelId = value; }),
+  });
   const fallback = root.querySelector('#warningFallbackChannelMount');
   if (fallback) renderPicker(fallback, textChannelOptions(), warnings.fallbackChannelId, {
     type: 'channel', placeholder: 'No fallback channel',
@@ -709,6 +721,7 @@ function moderationSnapshot() {
             evidence: document.querySelector('#warningCreateEvidence')?.value || '',
             reason: document.querySelector('#warningCreateReason')?.value || '',
             staffNotes: document.querySelector('#warningCreateStaffNotes')?.value || '',
+            appealable: document.querySelector('#warningCreateAppealable')?.checked !== false,
           }),
         });
         const payload = await response.json();
@@ -873,6 +886,7 @@ function moderationSnapshot() {
       moderatorState.excludeRoleIds = next.excludeRoleIds;
       moderatorState.alertTemplateId = next.alertTemplateId;
       moderatorState.maxInputChars = next.maxInputChars;
+      moderatorState.actionLogChannelId = next.actionLogChannelId;
       moderatorState.warnings = next.warnings;
       moderatorState.auto = next.auto;
       moderatorState.cases = [];
@@ -887,7 +901,7 @@ function moderationSnapshot() {
 
   const nativeCollectTabState = collectTabState;
   collectTabState = function moderatorCollectTab(tabName) {
-    if (tabName === 'moderator') return { ai: moderationSnapshot(), auto: autoSnapshot(), warnings: warningSnapshot() };
+    if (tabName === 'moderator') return { ai: moderationSnapshot(), auto: autoSnapshot(), warnings: warningSnapshot(), actionLogChannelId: moderatorState.actionLogChannelId || '' };
     return nativeCollectTabState(tabName);
   };
 
@@ -907,6 +921,7 @@ function moderationSnapshot() {
         moderation: {
           defaultChannelId: '',
           eventOverrides: {
+            action: moderatorState.actionLogChannelId || '',
             ai_low: moderatorState.lowSeverityLogChannelId || '',
             ai_severe: moderatorState.severeLogChannelId || '',
             warning: moderatorState.warnings.staffLogChannelId || '',
