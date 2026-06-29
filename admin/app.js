@@ -1095,6 +1095,16 @@ document.addEventListener('click', (event) => {
   showUnsavedNavigationBlock();
 }, true);
 
+document.addEventListener('keydown', (event) => {
+  if (state.dirtyTabs.size === 0) return;
+  const refreshKey = event.key === 'F5'
+    || ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'r');
+  if (!refreshKey) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  showUnsavedNavigationBlock();
+}, true);
+
 elements.tabList.addEventListener('click', (event) => {
   const tab = event.target.closest('.tab');
   if (tab) setActiveTab(tab.dataset.tab);
