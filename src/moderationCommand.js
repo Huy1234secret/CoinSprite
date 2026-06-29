@@ -66,7 +66,7 @@ function buildModerationCommand(action) {
           reason: interaction.options.getString('reason', true),
           time: action === 'kick' ? '' : interaction.options.getString('time'),
           attachment: interaction.options.getAttachment('attachment'),
-          appealable: interaction.options.getBoolean('appealable') ?? false,
+          appealable: interaction.options.getBoolean('appealable') ?? true,
           sourceChannelId: interaction.channelId,
         });
         const details = [
