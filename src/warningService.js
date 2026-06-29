@@ -334,9 +334,15 @@ async function createWarning(input) {
     }
   }
   const delivery = await notifyMember(guild, member, record, config);
+  await logSanction(
+    guild,
+    store.getCase(guild.id, record.id),
+    'warn',
+    input.moderatorId || '',
+    record.expiresAt ? Math.max(0, record.expiresAt - Date.now()) : null,
+    member.user,
+  );
   const evaluation = await evaluateMember(guild, member, record, config);
-  const staffLog = await logToStaff(guild, config, 'Warning ' + record.id + ': <@' + member.id + '> received a warning from ' + record.source + '. Active warnings: ' + evaluation.warnings + '.');
-  if (staffLog) store.updateStaffLog(guild.id, record.id, { channelId: staffLog.channelId || config.staffLogChannelId, messageId: staffLog.id || '' });
   return { case: store.getCase(guild.id, record.id), warnings: evaluation.warnings, points: evaluation.warnings, delivery, enforcementEvents: evaluation.events };
 }
 
