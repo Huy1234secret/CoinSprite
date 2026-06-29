@@ -3,6 +3,7 @@ const { getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
 const { attachmentRecord, persistEvidence } = require('./moderationActionService');
+const { withAppealButton } = require('./appealLinks');
 const {
   moderationActionNoticeContainer,
   moderationErrorContainer,
@@ -164,7 +165,7 @@ async function sendActionNotice(guild, member, record, rule, warningCount) {
         applyActionNoticePlaceholders(template, actionNoticeValues(guild, member, record, rule, warningCount)),
         { guild, user: member.user, member },
       );
-      await member.send(payload);
+      await member.send(withAppealButton(payload, record));
     } else {
       await member.send(moderationActionNoticeContainer({
         action: rule.action,
@@ -173,6 +174,7 @@ async function sendActionNotice(guild, member, record, rule, warningCount) {
         caseId: record.id,
         warningCount,
         durationText,
+        record,
       }));
     }
     return true;
@@ -246,8 +248,8 @@ async function executeRule(guild, member, record, rule, warningCount, config) {
   try {
     if (rule.action === 'timeout') {
       if (!member.moderatable || typeof member.timeout !== 'function') throw new Error('Member is not moderatable.');
-      await member.timeout(rule.durationSeconds * 1000, actionReason);
       await sendActionNotice(guild, member, record, rule, warningCount);
+      await member.timeout(rule.durationSeconds * 1000, actionReason);
     } else if (rule.action === 'kick') {
       if (!member.kickable || typeof member.kick !== 'function') throw new Error('Member is not kickable.');
       await sendActionNotice(guild, member, record, rule, warningCount);
@@ -304,7 +306,7 @@ async function createWarning(input) {
     points,
     evidence: initialAttachment?.url || validateEvidence(input.evidence),
     attachments: initialAttachment ? [initialAttachment] : [],
-    appealable: Boolean(input.appealable),
+    appealable: input.appealable !== false,
     sourceChannelId: String(input.sourceChannelId || ''),
     sourceMessageId: String(input.sourceMessageId || ''),
     expiresAt,
