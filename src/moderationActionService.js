@@ -275,7 +275,7 @@ async function executeSanction(input) {
     type: action,
     targetUserId: user.id,
     authorId: moderatorId,
-    source: 'manual',
+    source: String(input.source || 'manual'),
     reason,
     evidence: initialAttachment?.url || '',
     attachments: initialAttachment ? [initialAttachment] : [],
