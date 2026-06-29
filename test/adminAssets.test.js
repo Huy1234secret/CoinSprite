@@ -170,6 +170,18 @@ test('sidebar icons use local CoinSprite routes while branding uses the bot prof
   assert.match(style, /\.brand-mark\s*\{[^}]*background:\s*transparent !important/s);
 });
 
+test('admin layout uses the full workspace and locks unsaved navigation', () => {
+  const design = fs.readFileSync(path.join(root, 'admin', 'unified-design.css'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
+  assert.match(design, /\.workspace \.config-scroll[\s\S]*max-width: none !important/);
+  assert.match(design, /body \.appeal-fixed-actions[\s\S]*position: static !important/);
+  assert.match(design, /appeal-check input\[type="checkbox"\][\s\S]*width: 18px !important/);
+  assert.match(app, /function showUnsavedNavigationBlock/);
+  assert.match(app, /event\.stopImmediatePropagation\(\)/);
+  assert.match(app, /has-unsaved-changes/);
+  assert.match(app, /beforeunload/);
+});
+
 test('old runtime icon patch stays disabled', () => {
   const runtimeIcons = fs.readFileSync(path.join(root, 'commands', '00-admin-runtime-icons.js'), 'utf8');
   assert.doesNotMatch(runtimeIcons, /MutationObserver|scheduleUiFixes|repairTabIcons|ensureModeratorSymbolSquare/);
