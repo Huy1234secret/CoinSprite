@@ -1,4 +1,5 @@
 const { MessageFlags } = require('discord.js');
+const { withAppealButton } = require('./appealLinks');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const COLORS = Object.freeze({
@@ -48,12 +49,12 @@ function warningNoticeContainer({ record, warningCount, points, guildName, menti
     '**Expires:** ' + expiry,
     record.evidence ? '**Evidence:** ' + record.evidence : '',
   ].filter(Boolean).join('\n');
-  return textContainer(COLORS.warning, 'Warning notice', body, {
+  return withAppealButton(textContainer(COLORS.warning, 'Warning notice', body, {
     allowedMentions: mentionUserId ? { parse: [], users: [mentionUserId] } : { parse: [] },
-  });
+  }), record);
 }
 
-function moderationActionNoticeContainer({ action, guildName, reason, caseId, warningCount, durationText = '' }) {
+function moderationActionNoticeContainer({ action, guildName, reason, caseId, warningCount, durationText = '', record = null }) {
   const actionLabel = action === 'timeout' ? 'muted' : action === 'kick' ? 'kicked' : action === 'ban' ? 'banned' : 'moderated';
   const title = action === 'timeout' ? 'You were muted' : action === 'kick' ? 'You were kicked' : action === 'ban' ? 'You were banned' : 'Moderation action';
   const body = [
@@ -65,7 +66,10 @@ function moderationActionNoticeContainer({ action, guildName, reason, caseId, wa
     '**Active warnings:** ' + (Number(warningCount) || 0),
     '-# If you believe this was a mistake, please contact staff through the proper appeal channel.',
   ].filter(Boolean).join('\n');
-  return textContainer(action === 'timeout' ? COLORS.warning : COLORS.danger, title, body);
+  return withAppealButton(textContainer(action === 'timeout' ? COLORS.warning : COLORS.danger, title, body), record || {
+    id: caseId,
+    appealable: true,
+  });
 }
 
 function caseHistoryContainer({ target, cases, activePoints, activeWarnings }) {

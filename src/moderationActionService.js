@@ -2,9 +2,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getGuildConfig } = require('./serverConfig');
+const { getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 const store = require('./moderationCaseStore');
 const messageTemplates = require('./messageTemplates');
+const { withAppealButton } = require('./appealLinks');
 
 const COMPONENTS_V2_FLAG = 32768;
 const DISCORD_MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000;
@@ -66,11 +67,15 @@ function attachmentRecord(attachment) {
 
 async function persistEvidence(guildId, caseId, attachment) {
   const record = attachmentRecord(attachment);
-  if (!record?.url) return null;
+  const suppliedBuffer = Buffer.isBuffer(attachment?.buffer) ? attachment.buffer : null;
+  if (!record?.url && !suppliedBuffer) return null;
   if (record.size > MAX_EVIDENCE_BYTES) throw new Error('Evidence files must be 25 MB or smaller.');
-  const response = await fetch(record.url);
-  if (!response.ok) throw new Error('The evidence upload could not be downloaded.');
-  const data = Buffer.from(await response.arrayBuffer());
+  let data = suppliedBuffer;
+  if (!data) {
+    const response = await fetch(record.url);
+    if (!response.ok) throw new Error('The evidence upload could not be downloaded.');
+    data = Buffer.from(await response.arrayBuffer());
+  }
   if (data.length > MAX_EVIDENCE_BYTES) throw new Error('Evidence files must be 25 MB or smaller.');
   const storedName = safeFilename(record.name);
   const directory = path.join(EVIDENCE_ROOT, String(guildId), String(caseId));
@@ -107,7 +112,7 @@ function replacePlaceholders(value, values) {
 function noticeValues(guild, user, record, action, durationMs) {
   return {
     'moderation-action': action,
-    'moderation-action-label': action === 'mute' ? 'muted' : action === 'kick' ? 'kicked' : 'banned',
+    'moderation-action-label': action === 'warning' ? 'warned' : action === 'mute' ? 'muted' : action === 'kick' ? 'kicked' : 'banned',
     'moderation-reason': record.reason,
     'case-id': record.id,
     duration: formatDuration(durationMs),
@@ -164,7 +169,7 @@ async function sendNotice(guild, user, record, action, durationMs) {
     const payload = template
       ? messageTemplates.buildMessagePayload(applyNoticeValues(template, noticeValues(guild, user, record, action, durationMs)), { guild, user })
       : fallbackNotice(guild, record, action, durationMs);
-    const message = await user.send(payload);
+    const message = await user.send(withAppealButton(payload, record));
     store.updateDelivery(guild.id, record.id, {
       status: 'dm',
       channelId: message.channelId || '',
@@ -180,26 +185,96 @@ async function sendNotice(guild, user, record, action, durationMs) {
   }
 }
 
-async function logSanction(guild, record, action, moderatorId) {
+function moderationLogValues(guild, user, record, action, durationMs, moderatorId) {
+  return {
+    ...noticeValues(guild, user, record, action, durationMs),
+    'moderator-id': moderatorId,
+    moderator: '<@' + moderatorId + '>',
+    'case-type': record.type,
+    'case-status': record.status,
+    evidence: record.attachments?.length
+      ? record.attachments.map((item) => item.name).join(', ')
+      : record.evidence || 'None',
+  };
+}
+
+function addEvidenceGallery(payload, guildId, record) {
+  const files = [];
+  const images = [];
+  const otherFiles = [];
+  for (const [index, attachment] of (record.attachments || []).slice(0, 10).entries()) {
+    const name = safeFilename(attachment.name || attachment.storedName || ('evidence-' + (index + 1)));
+    let mediaUrl = String(attachment.url || '');
+    if (attachment.storedName) {
+      const storedPath = evidencePath(guildId, record.id, attachment.storedName);
+      if (storedPath && fs.existsSync(storedPath)) {
+        files.push({ attachment: storedPath, name });
+        mediaUrl = 'attachment://' + name;
+      }
+    }
+    if (!mediaUrl) continue;
+    if (/^image\//i.test(String(attachment.contentType || ''))) {
+      images.push({ media: { url: mediaUrl }, description: attachment.name || name });
+    } else if (mediaUrl.startsWith('attachment://')) {
+      otherFiles.push({ type: 13, file: { url: mediaUrl } });
+    }
+  }
+  if (images.length) payload.components.push({ type: 12, items: images });
+  payload.components.push(...otherFiles);
+  if (files.length) payload.files = files;
+  return payload;
+}
+
+async function logSanction(guild, record, action, moderatorId, user, durationMs = null) {
   const config = getGuildConfig(guild.id);
-  const channelId = config?.logging?.categories?.moderation?.defaultChannelId
-    || config?.moderation?.warnings?.staffLogChannelId
-    || '';
-  if (!channelId) return;
+  const event = action === 'warning' ? 'warning' : 'action';
+  const channelId = resolveLoggingChannelId(
+    config,
+    'moderation',
+    event,
+    config?.moderation?.warnings?.staffLogChannelId || '',
+  );
+  if (!channelId) return null;
   const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
-  if (!channel?.isTextBased?.()) return;
-  const message = await channel.send({
-    content: [
-      '**Moderation action:** ' + action,
-      '**Case:** `' + record.id + '`',
-      '**User:** <@' + record.memberId + '> (`' + record.memberId + '`)',
-      '**Moderator:** <@' + moderatorId + '>',
-      '**Reason:** ' + record.reason,
-      '**Appealable:** ' + (record.appealable ? 'Yes' : 'No'),
-    ].join('\n'),
-    allowedMentions: { parse: [] },
-  }).catch(() => null);
-  if (message) store.updateStaffLog(guild.id, record.id, { channelId: message.channelId, messageId: message.id });
+  if (!channel?.isTextBased?.()) return null;
+
+  let targetUser = user || null;
+  if (!targetUser && guild.client?.users?.fetch) {
+    targetUser = await guild.client.users.fetch(record.memberId).catch(() => null);
+  }
+  targetUser ||= { id: record.memberId, username: record.memberId };
+  const template = messageTemplates.findTemplate(guild.id, 'default-moderation-action-log');
+  const values = moderationLogValues(guild, targetUser, record, action, durationMs, moderatorId);
+  let payload;
+  if (template) {
+    payload = messageTemplates.buildMessagePayload(applyNoticeValues(template, values), { guild, user: targetUser });
+  } else {
+    payload = {
+      flags: COMPONENTS_V2_FLAG,
+      allowedMentions: { parse: [] },
+      components: [{
+        type: 17,
+        accent_color: action === 'warning' ? 0xfee75c : 0xed4245,
+        components: [{
+          type: 10,
+          content: [
+            '## Moderation action',
+            '**Action:** ' + action,
+            '**Case:** `' + record.id + '`',
+            '**User:** <@' + record.memberId + '> (`' + record.memberId + '`)',
+            '**Moderator:** <@' + moderatorId + '>',
+            '**Reason:** ' + record.reason,
+            '**Appealable:** ' + (record.appealable ? 'Yes' : 'No'),
+          ].join('\n'),
+        }],
+      }],
+    };
+  }
+  addEvidenceGallery(payload, guild.id, record);
+  const message = await channel.send(payload).catch(() => null);
+  if (!message) return null;
+  store.updateStaffLog(guild.id, record.id, { channelId: message.channelId, messageId: message.id });
+  return message;
 }
 
 async function executeSanction(input) {
@@ -223,11 +298,11 @@ async function executeSanction(input) {
     type: action,
     targetUserId: user.id,
     authorId: moderatorId,
-    source: 'manual',
+    source: String(input.source || 'manual'),
     reason,
     evidence: initialAttachment?.url || '',
     attachments: initialAttachment ? [initialAttachment] : [],
-    appealable: Boolean(input.appealable),
+    appealable: input.appealable !== false,
     expiresAt,
     sourceChannelId: input.sourceChannelId || '',
   });
@@ -245,11 +320,8 @@ async function executeSanction(input) {
 
   const auditReason = reason + ' (' + record.id + ')';
   const enforcementDurationMs = action === 'mute' && durationMs == null ? DISCORD_MAX_TIMEOUT_MS : durationMs;
-  let delivery = 'pending';
-  if (action === 'kick' || action === 'ban') {
-    record = store.getCase(guild.id, record.id);
-    delivery = await sendNotice(guild, user, record, action, durationMs);
-  }
+  record = store.getCase(guild.id, record.id);
+  const delivery = await sendNotice(guild, user, record, action, durationMs);
   try {
     if (action === 'mute') await member.timeout(enforcementDurationMs, auditReason);
     else if (action === 'kick') await member.kick(auditReason);
@@ -271,8 +343,7 @@ async function executeSanction(input) {
   }
 
   record = store.getCase(guild.id, record.id);
-  if (delivery === 'pending') delivery = await sendNotice(guild, user, record, action, durationMs);
-  await logSanction(guild, record, action, moderatorId);
+  await logSanction(guild, record, action, moderatorId, user, durationMs);
   return { case: store.getCase(guild.id, record.id), delivery, durationMs };
 }
 
@@ -349,6 +420,7 @@ module.exports = {
   formatDuration,
   persistEvidence,
   initSanctionService,
+  logSanction,
   maintainSanctions,
   parseActionDuration,
 };

@@ -42,7 +42,7 @@ module.exports = {
         reason: interaction.options.getString('reason', true),
         expires: interaction.options.getString('time'),
         attachment: interaction.options.getAttachment('attachment'),
-        appealable: interaction.options.getBoolean('appealable') ?? false,
+        appealable: interaction.options.getBoolean('appealable') ?? true,
         sourceChannelId: interaction.channelId,
       });
       const actions = result.enforcementEvents.length

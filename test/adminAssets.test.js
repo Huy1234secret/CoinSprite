@@ -103,6 +103,7 @@ test('admin HTML uses local image routes', async () => {
   assert.match(html, /src="\/images\/leveling\.png/);
   assert.match(html, /src="\/images\/data\.png/);
   assert.match(html, /src="\/images\/ticket\.png/);
+  assert.match(html, /\/admin\/unified-design\.css/);
   assert.doesNotMatch(html, /CoinSpritedata:image/);
 });
 

@@ -42,7 +42,7 @@ function normalizeDetails(record) {
     points: Math.max(1, Math.min(10, Math.round(Number(source.points) || 1))),
     evidence: boundedString(source.evidence),
     attachments: (Array.isArray(source.attachments) ? source.attachments : []).slice(0, 10).map(normalizeAttachment),
-    appealable: Boolean(source.appealable),
+    appealable: source.appealable !== false,
     expiresAt: Number.isFinite(expiresAt) ? expiresAt : null,
   };
 }

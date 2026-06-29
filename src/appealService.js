@@ -8,6 +8,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { sanitizeAppealConfig } = require('./appealConfig');
+const { publicBaseUrl } = require('./appealLinks');
 const appealFiles = require('./appealFileStore');
 const appealStore = require('./appealStore');
 const caseStore = require('./moderationCaseStore');
@@ -24,17 +25,6 @@ const MIME_BY_EXTENSION = Object.freeze({
   txt: ['text/plain'], json: ['application/json', 'text/json'],
 });
 const BUTTON_PREFIX = 'appeal:review:';
-
-function publicBaseUrl() {
-  const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/, '');
-  if (configured) return configured;
-  try {
-    const redirect = new URL(process.env.DISCORD_REDIRECT_URI || '');
-    return redirect.origin;
-  } catch {
-    return '';
-  }
-}
 
 function caseEligibility(guildId, record, userId, config) {
   if (!record || record.memberId !== String(userId)) return { allowed: false, code: 'not_found' };
@@ -184,6 +174,46 @@ function decisionButtons(guildId, appealId, disabled = false) {
   };
 }
 
+function uploadName(value, fallback) {
+  return String(value || fallback || 'evidence')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/^\.+/, '')
+    .slice(0, 180) || fallback || 'evidence';
+}
+
+function addEvidenceGallery(payload, record, appeal) {
+  const files = [];
+  const images = [];
+  const otherFiles = [];
+  const candidates = [
+    ...(record.attachments || []).map((item) => ({ ...item, source: 'case' })),
+    ...(appeal.attachments || []).map((item) => ({ ...item, source: 'appeal' })),
+  ].slice(0, 10);
+  candidates.forEach((attachment, index) => {
+    const name = uploadName(attachment.source + '-' + (attachment.name || attachment.storedName), 'evidence-' + (index + 1));
+    let mediaUrl = String(attachment.url || '');
+    if (attachment.storedName) {
+      const storedPath = attachment.source === 'appeal'
+        ? appealFiles.appealFilePath(appeal.guildId, appeal.id, attachment.storedName)
+        : require('./moderationActionService').evidencePath(record.guildId, record.id, attachment.storedName);
+      if (storedPath) {
+        files.push({ attachment: storedPath, name });
+        mediaUrl = 'attachment://' + name;
+      }
+    }
+    if (!mediaUrl) return;
+    if (/^image\//i.test(String(attachment.contentType || ''))) {
+      images.push({ media: { url: mediaUrl }, description: attachment.name || name });
+    } else if (mediaUrl.startsWith('attachment://')) {
+      otherFiles.push({ type: 13, file: { url: mediaUrl } });
+    }
+  });
+  if (images.length) payload.components.push({ type: 12, items: images });
+  payload.components.push(...otherFiles);
+  if (files.length) payload.files = files;
+  return payload;
+}
+
 function logPayload(guild, user, record, appeal, config, disabled = false, decision = null) {
   const evidence = record.attachments?.length
     ? record.attachments.map((item) => item.name).join(', ')
@@ -209,6 +239,7 @@ function logPayload(guild, user, record, appeal, config, disabled = false, decis
       components: [{ type: 10, content: '**Decision:** ' + decision.status.toUpperCase() + '\n**Reviewer:** <@' + decision.decidedBy + '>\n**Reason:** ' + (decision.decisionReason || 'No note provided.') }],
     });
   }
+  addEvidenceGallery(payload, record, appeal);
   payload.components.push(decisionButtons(guild.id, appeal.id, disabled));
   payload.flags = COMPONENTS_V2_FLAG;
   return payload;
