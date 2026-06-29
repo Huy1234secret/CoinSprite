@@ -193,7 +193,12 @@ async function sendNotice(guild, user, record, action, durationMs) {
 
 function appendEvidenceGallery(payload, record) {
   const items = (Array.isArray(record.attachments) ? record.attachments : [])
-    .filter((attachment) => /^(?:image|video)\//i.test(String(attachment.contentType || '')) && /^https?:\/\//i.test(String(attachment.url || '')))
+    .filter((attachment) => {
+      const url = String(attachment.url || '');
+      const mediaType = /^(?:image|video)\//i.test(String(attachment.contentType || ''));
+      const mediaExtension = /\.(?:png|jpe?g|gif|webp|mp4|webm)(?:\?|$)/i.test(url);
+      return (mediaType || mediaExtension) && /^https?:\/\//i.test(url);
+    })
     .slice(0, 10)
     .map((attachment) => ({
       media: { url: attachment.url },
