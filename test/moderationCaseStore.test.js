@@ -36,6 +36,7 @@ test('warning cases use schema v4 while preserving compatibility aliases', () =>
   assert.equal(first.warningCount, 1);
   assert.equal(first.events.length, 1);
   assert.equal(first.events[0].type, 'case.created');
+  assert.equal(first.appealable, true);
   assert.equal(store.activeWarningCount(first.guildId, first.targetUserId), 2);
   assert.equal(store.activePoints(first.guildId, first.targetUserId), 5);
 
