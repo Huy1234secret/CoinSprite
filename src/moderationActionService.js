@@ -397,6 +397,7 @@ module.exports = {
   DISCORD_MAX_TIMEOUT_MS,
   EVIDENCE_ROOT,
   executeSanction,
+  __test: { appendEvidenceGallery },
   attachmentRecord,
   evidencePath,
   formatDuration,
