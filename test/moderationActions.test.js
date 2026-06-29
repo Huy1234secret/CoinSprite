@@ -6,9 +6,11 @@ const { after, test } = require('node:test');
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-sanctions-'));
 process.env.MODERATION_CASE_STORE_PATH = path.join(directory, 'moderation-cases.json');
+process.env.PUBLIC_WEB_BASE_URL = 'https://moderation.example';
 
 const {
   DISCORD_MAX_TIMEOUT_MS,
+  __test,
   executeSanction,
   formatDuration,
   maintainSanctions,
@@ -49,12 +51,14 @@ test('sanction durations support temporary and permanent actions', () => {
 
 function sanctionFixture() {
   const events = [];
+  const payloads = [];
   const user = {
     id: '234567890123456789',
     bot: false,
     username: 'target',
     displayAvatarURL: () => '',
-    send: async () => {
+    send: async (payload) => {
+      payloads.push(payload);
       events.push('dm');
       return { channelId: '345678901234567890', id: '456789012345678901' };
     },
@@ -80,7 +84,7 @@ function sanctionFixture() {
       fetch: async () => null,
     },
   };
-  return { events, guild, member, user };
+  return { events, guild, member, payloads, user };
 }
 
 test('kick and ban notices are sent before the member leaves the guild', async () => {
@@ -96,7 +100,12 @@ test('kick and ban notices are sent before the member leaves the guild', async (
       time: '',
     });
     assert.equal(result.delivery, 'dm');
+    assert.equal(result.case.appealable, true);
     assert.deepEqual(fixture.events, ['dm', action]);
+    const appealButton = fixture.payloads[0].components.at(-1).components[0];
+    assert.equal(appealButton.style, 5);
+    assert.equal(appealButton.disabled, false);
+    assert.match(appealButton.url, new RegExp('case=' + result.case.id));
   }
 });
 
@@ -113,14 +122,28 @@ test('a blank mute duration applies a renewable Discord timeout and records perm
   });
   assert.equal(result.durationMs, null);
   assert.equal(result.delivery, 'dm');
-  assert.deepEqual(fixture.events, ['mute:' + DISCORD_MAX_TIMEOUT_MS, 'dm']);
+  assert.deepEqual(fixture.events, ['dm', 'mute:' + DISCORD_MAX_TIMEOUT_MS]);
   assert.equal(result.case.expiresAt, null);
+  assert.equal(result.case.appealable, true);
 
   await maintainSanctions({ guilds: { cache: new Map([[fixture.guild.id, fixture.guild]]) } });
   assert.deepEqual(fixture.events, [
-    'mute:' + DISCORD_MAX_TIMEOUT_MS,
     'dm',
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
     'mute:' + DISCORD_MAX_TIMEOUT_MS,
   ]);
   assert.ok(result.case.expiresAt == null);
+});
+
+test('moderation action logs append image evidence as a media gallery', () => {
+  const payload = { components: [{ type: 17, components: [{ type: 10, content: 'Case' }] }] };
+  __test.appendEvidenceGallery(payload, {
+    attachments: [
+      { name: 'proof.png', contentType: 'image/png', url: 'https://cdn.example/proof.png' },
+      { name: 'notes.pdf', contentType: 'application/pdf', url: 'https://cdn.example/notes.pdf' },
+    ],
+  });
+  const gallery = payload.components[0].components.find((component) => component.type === 12);
+  assert.equal(gallery.items.length, 1);
+  assert.equal(gallery.items[0].media.url, 'https://cdn.example/proof.png');
 });
