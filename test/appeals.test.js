@@ -10,6 +10,7 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-appeals-'));
 process.env.MODERATION_APPEAL_STORE_PATH = path.join(directory, 'appeals.json');
 
 const { sanitizeAppealConfig } = require('../src/appealConfig');
+const { appealButtonRow, appealCaseUrl } = require('../src/appealLinks');
 const appealStore = require('../src/appealStore');
 const { validateSubmission } = require('../src/appealService');
 const { sanitizeCommunityMessages } = require('../src/communityMessageConfig');
@@ -92,11 +93,30 @@ test('legacy community strings migrate into private rich templates', () => {
   assert.deepEqual(config.welcome.messageTemplate.componentRows, []);
 });
 
-test('/warn requires time and exposes one Discord attachment without points', () => {
+test('/warn keeps time optional and exposes one Discord attachment without points', () => {
   const json = warn.data.toJSON();
   const names = json.options.map((option) => option.name);
   assert.deepEqual(names, ['user', 'reason', 'time', 'attachment', 'appealable']);
-  assert.equal(json.options.find((option) => option.name === 'time').required, true);
+  assert.equal(json.options.find((option) => option.name === 'time').required, false);
   assert.equal(json.options.find((option) => option.name === 'attachment').type, 11);
   assert.equal(names.includes('points'), false);
+});
+
+test('moderation appeal buttons deep-link to a case and disable unappealable cases', () => {
+  const previous = process.env.PUBLIC_WEB_BASE_URL;
+  process.env.PUBLIC_WEB_BASE_URL = 'https://moderation.example';
+  try {
+    const record = { guildId: '123456789012345678', id: 'W-000001', appealable: true };
+    assert.equal(appealCaseUrl(record), 'https://moderation.example/appeal?guild=123456789012345678&case=W-000001');
+    const enabled = appealButtonRow(record).components[0];
+    assert.equal(enabled.style, 5);
+    assert.equal(enabled.disabled, false);
+    assert.match(enabled.url, /case=W-000001/);
+    const disabled = appealButtonRow({ ...record, appealable: false }).components[0];
+    assert.equal(disabled.style, 5);
+    assert.equal(disabled.disabled, true);
+  } finally {
+    if (previous === undefined) delete process.env.PUBLIC_WEB_BASE_URL;
+    else process.env.PUBLIC_WEB_BASE_URL = previous;
+  }
 });
