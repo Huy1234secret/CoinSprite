@@ -11,6 +11,7 @@ const {
   DISCORD_MAX_TIMEOUT_MS,
   executeSanction,
   formatDuration,
+  maintainSanctions,
   parseActionDuration,
 } = require('../src/moderationActionService');
 const mute = require('../commands/mute');
@@ -114,4 +115,12 @@ test('a blank mute duration applies a renewable Discord timeout and records perm
   assert.equal(result.delivery, 'dm');
   assert.deepEqual(fixture.events, ['mute:' + DISCORD_MAX_TIMEOUT_MS, 'dm']);
   assert.equal(result.case.expiresAt, null);
+
+  await maintainSanctions({ guilds: { cache: new Map([[fixture.guild.id, fixture.guild]]) } });
+  assert.deepEqual(fixture.events, [
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
+    'dm',
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
+  ]);
+  assert.ok(result.case.expiresAt == null);
 });
