@@ -9,6 +9,7 @@
   const moderatorState = {
     workspace: 'auto',
     view: 'ai',
+    actionLogChannelId: '',
     cases: [],
     selectedCaseId: '',
     caseFilters: { query: '', status: '', type: '' },
@@ -148,6 +149,7 @@
       enabled: Boolean(ai.enabled),
       lowSeverityLogChannelId: String(logOverrides.ai_low || moderationLogs.defaultChannelId || ai.lowSeverityLogChannelId || legacyLogChannelId),
       severeLogChannelId: String(logOverrides.ai_severe || moderationLogs.defaultChannelId || ai.severeLogChannelId || legacyLogChannelId),
+      actionLogChannelId: String(logOverrides.action || moderationLogs.defaultChannelId || ''),
       scanChannelIds: uniqueIds(ai.scanChannelIds),
       excludeRoleIds: uniqueIds(ai.excludeRoleIds),
       alertTemplateId: String(ai.alertTemplateId || DEFAULT_ALERT_TEMPLATE_ID),
@@ -322,6 +324,17 @@ function warningRuleRow(rule, index) {
     ${rule.action === 'timeout' ? `<label>Duration seconds <input data-warning-rule-field="durationSeconds" type="number" min="1" max="2419200" value="${rule.durationSeconds || 3600}"></label>` : ''}
     <label class="checkline"><input data-warning-rule-field="enabled" type="checkbox" ${rule.enabled ? 'checked' : ''}> Enabled</label>
     <button class="button small danger" type="button" data-moderator-action="remove-warning-rule">Remove</button>
+  </div>`;
+}
+
+function renderLoggingPanel() {
+  return `<div class="panel moderator-ai-panel moderation-logging-panel">
+    <div class="panel-heading"><h3>Moderation channel logging</h3><p>Route manual warnings, mutes, kicks, and bans to staff channels. Logs use <strong>Default: Moderation action log</strong> from Messages and include an evidence gallery when files are attached.</p></div>
+    <div class="settings-grid">
+      <div class="picker-field"><span class="field-label">Action log channel</span><div id="moderationActionLogChannelMount"></div></div>
+      <div class="picker-field"><span class="field-label">Warning log channel</span><div id="warningLoggingChannelMount"></div></div>
+    </div>
+    <div class="moderator-template-note">The action log covers mute, kick, and ban. Warning logs may use a separate channel. Leave either field empty to disable that event log.</div>
   </div>`;
 }
 
@@ -516,6 +529,19 @@ async function loadWarningCases(force = false) {
   }
 }
 
+function mountLoggingPickers(root) {
+  const actionLog = root.querySelector('#moderationActionLogChannelMount');
+  if (actionLog) renderPicker(actionLog, textChannelOptions(), moderatorState.actionLogChannelId, {
+    type: 'channel', placeholder: 'No action log channel',
+    onChange: (value) => setAndDirty(() => { moderatorState.actionLogChannelId = value; }),
+  });
+  const warningLog = root.querySelector('#warningLoggingChannelMount');
+  if (warningLog) renderPicker(warningLog, textChannelOptions(), moderatorState.warnings.staffLogChannelId, {
+    type: 'channel', placeholder: 'No warning log channel',
+    onChange: (value) => setAndDirty(() => { moderatorState.warnings.staffLogChannelId = value; }),
+  });
+}
+
 function mountWarningPickers(root) {
   const warnings = moderatorState.warnings;
   const fallback = root.querySelector('#warningFallbackChannelMount');
@@ -607,6 +633,7 @@ function mountWarningPickers(root) {
     if (moderatorState.view === 'auto') mountLinkPickers(root);
     if (moderatorState.view === 'ai') mountAiPickers(root);
     if (moderatorState.view === 'warnings') mountWarningPickers(root);
+    if (moderatorState.view === 'logging') mountLoggingPickers(root);
     if (moderatorState.view === 'cases' && !moderatorState.casesLoaded) queueMicrotask(loadWarningCases);
   }
 
@@ -869,6 +896,7 @@ function moderationSnapshot() {
       moderatorState.enabled = next.enabled;
       moderatorState.lowSeverityLogChannelId = next.lowSeverityLogChannelId;
       moderatorState.severeLogChannelId = next.severeLogChannelId;
+      moderatorState.actionLogChannelId = next.actionLogChannelId;
       moderatorState.scanChannelIds = next.scanChannelIds;
       moderatorState.excludeRoleIds = next.excludeRoleIds;
       moderatorState.alertTemplateId = next.alertTemplateId;
@@ -887,7 +915,7 @@ function moderationSnapshot() {
 
   const nativeCollectTabState = collectTabState;
   collectTabState = function moderatorCollectTab(tabName) {
-    if (tabName === 'moderator') return { ai: moderationSnapshot(), auto: autoSnapshot(), warnings: warningSnapshot() };
+    if (tabName === 'moderator') return { ai: moderationSnapshot(), auto: autoSnapshot(), warnings: warningSnapshot(), actionLogChannelId: moderatorState.actionLogChannelId };
     return nativeCollectTabState(tabName);
   };
 
@@ -910,6 +938,7 @@ function moderationSnapshot() {
             ai_low: moderatorState.lowSeverityLogChannelId || '',
             ai_severe: moderatorState.severeLogChannelId || '',
             warning: moderatorState.warnings.staffLogChannelId || '',
+            action: moderatorState.actionLogChannelId || '',
           },
         },
       },
