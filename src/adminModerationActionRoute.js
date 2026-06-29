@@ -97,6 +97,7 @@ async function handleUserModerationAction(req, res, env, client, guildId, userId
       user,
       member,
       moderatorId: session.user.id,
+      source: 'dashboard',
       reason: input.reason,
       time: input.action === 'kick' ? '' : input.time,
       attachment: input.attachment,
