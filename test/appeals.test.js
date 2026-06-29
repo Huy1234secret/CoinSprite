@@ -92,11 +92,11 @@ test('legacy community strings migrate into private rich templates', () => {
   assert.deepEqual(config.welcome.messageTemplate.componentRows, []);
 });
 
-test('/warn requires time and exposes one Discord attachment without points', () => {
+test('/warn keeps time optional and exposes one Discord attachment without points', () => {
   const json = warn.data.toJSON();
   const names = json.options.map((option) => option.name);
   assert.deepEqual(names, ['user', 'reason', 'time', 'attachment', 'appealable']);
-  assert.equal(json.options.find((option) => option.name === 'time').required, true);
+  assert.equal(json.options.find((option) => option.name === 'time').required, false);
   assert.equal(json.options.find((option) => option.name === 'attachment').type, 11);
   assert.equal(names.includes('points'), false);
 });
