@@ -4,6 +4,8 @@ const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { createWarning, warningConfig } = require('../src/warningService');
 const { formatDuration } = require('../src/moderationActionService');
+const { moderationActionNoticeContainer } = require('../src/moderationComponents');
+const { withAppealButton } = require('../src/appealLinks');
 
 const messageWindows = new Map();
 const cooldowns = new Map();
@@ -147,14 +149,17 @@ async function applyViolation(message, settings, violation) {
     if (member?.moderatable) {
       const durationMs = settings.timeoutSeconds * 1000;
       const reason = 'Spam Auto-Moderator: ' + violation.reason;
-      const applied = await member.timeout(durationMs, reason).then(() => true).catch(() => false);
-      if (applied) {
-        await message.author.send([
-          'You were muted in **' + message.guild.name + '**.',
-          '**Duration:** ' + formatDuration(durationMs),
-          '**Reason:** ' + reason,
-        ].join('\n')).catch(() => null);
-      }
+      const payload = moderationActionNoticeContainer({
+        action: 'timeout',
+        guildName: message.guild.name,
+        reason,
+        caseId: 'Automatic action',
+        warningCount: 0,
+        durationText: formatDuration(durationMs),
+      });
+      withAppealButton(payload, { appealable: false });
+      await message.author.send(payload).catch(() => null);
+      await member.timeout(durationMs, reason).catch(() => null);
     }
   }
   await logViolation(message, settings, violation);
