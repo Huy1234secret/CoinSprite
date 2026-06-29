@@ -2,6 +2,7 @@ const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { getGuildConfig } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
 const { createWarning, warningConfig } = require('../src/warningService');
+const { formatDuration } = require('../src/moderationActionService');
 
 const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:discord\.gg|discord(?:app)?\.com\/invite)\/[^\s<>()]+/gi;
 const INVITE_PATTERN = /(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([a-z0-9-]+)/i;
@@ -287,7 +288,15 @@ async function timeoutMember(message, action) {
   const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
   if (!member?.moderatable || typeof member.timeout !== 'function') return;
   const durationMs = Math.max(1000, Number(action.durationSeconds || 300) * 1000);
-  await member.timeout(durationMs, 'Auto-Moderator blocked link').catch(() => null);
+  const reason = 'Auto-Moderator blocked link';
+  const applied = await member.timeout(durationMs, reason).then(() => true).catch(() => false);
+  if (applied) {
+    await message.author.send([
+      'You were muted in **' + message.guild.name + '**.',
+      '**Duration:** ' + formatDuration(durationMs),
+      '**Reason:** ' + reason,
+    ].join('\n')).catch(() => null);
+  }
 }
 
 async function runActions(message, settings, details) {
