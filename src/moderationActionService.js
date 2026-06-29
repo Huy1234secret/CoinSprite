@@ -112,6 +112,7 @@ function noticeValues(guild, user, record, action, durationMs) {
   return {
     'moderation-action': normalizedAction,
     'moderation-action-label': actionLabel,
+    'moderation-action-title': normalizedAction[0].toUpperCase() + normalizedAction.slice(1),
     'moderation-reason': record.reason,
     'case-id': record.id,
     duration: normalizedAction === 'kick' ? 'N/A' : formatDuration(durationMs),
