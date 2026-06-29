@@ -30,6 +30,8 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(moderator, /data-moderator-workspace="appeal"/);
   assert.match(moderator, /\['logging', 'Logging'\]/);
   assert.match(moderator, /moderationActionLogChannelMount/);
+  assert.match(moderator, /data-moderator-view="logging"/);
+  assert.match(moderator, /loggingTab[\s\S]*stopImmediatePropagation/);
   assert.match(moderator, /data-case-field="publicNote"/);
   assert.doesNotMatch(moderator, /warningCreatePoints/);
 
