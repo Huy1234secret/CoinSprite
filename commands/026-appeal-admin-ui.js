@@ -24,12 +24,12 @@ function patchModeratorJs(source) {
   text = required(
     text,
     "    const moderationTabs = [['warnings', 'Warn System'], ['cases', 'Cases']];\n    const tabs = moderatorState.workspace === 'auto' ? autoTabs : moderationTabs;",
-    "    const moderationTabs = [['warnings', 'Warn System'], ['cases', 'Cases']];\n    const appealTabs = [['appeal-settings', 'Settings'], ['appeal-form', 'Form'], ['appeal-message', 'Message']];\n    const tabs = moderatorState.workspace === 'auto' ? autoTabs : moderatorState.workspace === 'appeal' ? appealTabs : moderationTabs; /* " + MARKER + " */",
+    "    const moderationTabs = [['warnings', 'Warn System'], ['logging', 'Logging'], ['cases', 'Cases']];\n    const appealTabs = [['appeal-settings', 'Settings'], ['appeal-form', 'Form'], ['appeal-message', 'Message']];\n    const tabs = moderatorState.workspace === 'auto' ? autoTabs : moderatorState.workspace === 'appeal' ? appealTabs : moderationTabs; /* " + MARKER + " */",
   );
   text = required(
     text,
     "    let panel = moderatorState.view === 'ai' ? renderAiPanel()\n      : moderatorState.view === 'auto' ? renderAutoPanel()\n        : moderatorState.view === 'text' ? renderTextPanel()\n          : moderatorState.view === 'warnings' ? renderWarningsPanel()\n            : renderCasesPanel();",
-    "    let panel = moderatorState.workspace === 'appeal' ? '<div id=\"appealAdminRoot\"></div>'\n      : moderatorState.view === 'ai' ? renderAiPanel()\n        : moderatorState.view === 'auto' ? renderAutoPanel()\n          : moderatorState.view === 'text' ? renderTextPanel()\n            : moderatorState.view === 'warnings' ? renderWarningsPanel()\n              : renderCasesPanel();",
+    "    let panel = moderatorState.workspace === 'appeal' ? '<div id=\"appealAdminRoot\"></div>'\n      : moderatorState.view === 'ai' ? renderAiPanel()\n        : moderatorState.view === 'auto' ? renderAutoPanel()\n          : moderatorState.view === 'text' ? renderTextPanel()\n            : moderatorState.view === 'warnings' ? renderWarningsPanel()\n            : moderatorState.view === 'logging' ? renderLoggingPanel()\n              : renderCasesPanel();",
   );
   text = required(
     text,
@@ -49,7 +49,7 @@ function patchModeratorJs(source) {
   text = required(
     text,
     "moderatorState.view = ['warnings', 'auto', 'text', 'ai', 'cases'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : 'warnings');",
-    "moderatorState.view = ['warnings', 'auto', 'text', 'ai', 'cases', 'appeal-settings', 'appeal-form', 'appeal-message'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : moderatorState.workspace === 'appeal' ? 'appeal-settings' : 'warnings');",
+    "moderatorState.view = ['warnings', 'logging', 'auto', 'text', 'ai', 'cases', 'appeal-settings', 'appeal-form', 'appeal-message'].includes(view) ? view : (moderatorState.workspace === 'auto' ? 'ai' : moderatorState.workspace === 'appeal' ? 'appeal-settings' : 'warnings');",
   );
   const basicNotesAnchor = "+ '<label>Private staff notes <textarea data-case-field=\"staffNotes\" maxlength=\"1000\" rows=\"3\" ' + (editable ? '' : 'disabled') + '>' + escapeHtml(record.staffNotes || '') + '</textarea></label>' + actions + '</div>'";
   if (text.includes(basicNotesAnchor)) {
@@ -67,8 +67,8 @@ function patchModeratorJs(source) {
   }
   text = text.replace('<h3>Point-based warnings</h3>', '<h3>Warning system</h3>');
   text = text.replace('      <label>Points <input id="warningCreatePoints" type="number" min="1" max="10" value="1"></label>\n', '');
-  text = text.replace('<label>Expires <input id="warningCreateExpires" placeholder="90d, 4w, or never"></label>', '<label>Time <input id="warningCreateExpires" required placeholder="30m, 7d, 4w, or never"></label>');
-  text = text.replace('      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>', '      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>\n      <label class="checkline"><input id="warningCreateAppealable" type="checkbox"> Appealable</label>');
+  text = text.replace('<label>Expires <input id="warningCreateExpires" placeholder="90d, 4w, or never"></label>', '<label>Time <input id="warningCreateExpires" placeholder="30m, 7d, 4w, or permanent"></label>');
+  text = text.replace('      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>', '      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>\n      <label class="checkline"><input id="warningCreateAppealable" type="checkbox" checked> Appealable</label>');
   text = text.replace("            points: Number(document.querySelector('#warningCreatePoints')?.value) || 1,\n", '');
   text = text.replace("            evidence: document.querySelector('#warningCreateEvidence')?.value || '',", "            evidence: document.querySelector('#warningCreateEvidence')?.value || '',\n            appealable: Boolean(document.querySelector('#warningCreateAppealable')?.checked),");
   return text;
