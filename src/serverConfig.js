@@ -117,7 +117,7 @@ const DEFAULT_WARNING_RULES = [
 
 const DEFAULT_LOGGING = {
   categories: {
-    moderation: { defaultChannelId: '', eventOverrides: { ai_low: '', ai_severe: '', warning: '', spam: '' } },
+    moderation: { defaultChannelId: '', eventOverrides: { action: '', ai_low: '', ai_severe: '', warning: '', spam: '' } },
     commands: { defaultChannelId: '', eventOverrides: {} },
     requests: { defaultChannelId: '', eventOverrides: { role_review: '', giveaway_review: '' } },
     invites: { defaultChannelId: '', eventOverrides: {} },
@@ -262,6 +262,7 @@ const DEFAULT_COINSPRITE_GUILD_CONFIG = {
         eventOverrides: {
           ai_low: '1516856053751353464',
           ai_severe: '1516855502749962420',
+          action: '',
           warning: '',
         },
       },
