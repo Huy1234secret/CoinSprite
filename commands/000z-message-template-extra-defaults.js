@@ -146,6 +146,23 @@ const EXTRA_DEFAULT_BOT_TEMPLATES = Object.freeze([
     ],
   }),
   makeDefaultTemplate({
+    id: 'default-moderation-action-log',
+    name: 'Default: Moderation action log',
+    accentColor: '#ED4245',
+    thumbnailUrl: '<avatar_url>',
+    lines: [
+      '## <moderation-action-title> · <case-id>',
+      '**User:** <@mention> (`<user-id>`)',
+      '**Reason:** <moderation-reason>',
+      '**Duration:** <duration>',
+      '**Moderator:** <moderator-mention>',
+      '**Appealable:** <appealable-status>',
+      '<separator>',
+      '**Evidence:** <evidence>',
+      '-# Logged <timestamp>',
+    ],
+  }),
+  makeDefaultTemplate({
     id: 'default-moderation-mute-notice',
     name: 'Default: Manual mute notice',
     accentColor: '#FEE75C',
