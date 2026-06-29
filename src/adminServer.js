@@ -11,6 +11,7 @@ const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
+const { executeSanction } = require('./moderationActionService');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const APPEAL_DIR = path.join(__dirname, '..', 'appeal');
@@ -644,20 +645,37 @@ async function routeRequest(req, res, env, client) {
     if (req.method === 'POST') {
       try {
         const body = await readJsonBody(req);
-        const member = await auth.guild.members.fetch(String(body.memberId || '')).catch(() => null);
-        const result = await createWarning({
-          guild: auth.guild,
-          member,
-          moderatorId: auth.session.user.id,
-          source: 'dashboard',
-          reason: body.reason,
-          points: body.points,
-          expires: body.expires,
-          evidence: body.evidence,
-          appealable: body.appealable !== false,
-          publicNote: body.publicNote,
-          staffNotes: body.staffNotes,
-        });
+        const action = ['mute', 'kick', 'ban'].includes(String(body.action || '').toLowerCase())
+          ? String(body.action).toLowerCase()
+          : 'warn';
+        const userId = String(body.memberId || '');
+        const member = await auth.guild.members.fetch(userId).catch(() => null);
+        const user = member?.user || await client.users.fetch(userId).catch(() => null);
+        const result = action === 'warn'
+          ? await createWarning({
+            guild: auth.guild,
+            member,
+            moderatorId: auth.session.user.id,
+            source: 'dashboard',
+            reason: body.reason,
+            expires: body.expires,
+            evidence: body.evidence,
+            appealable: body.appealable !== false,
+            publicNote: body.publicNote,
+            staffNotes: body.staffNotes,
+          })
+          : await executeSanction({
+            action,
+            guild: auth.guild,
+            user,
+            member,
+            moderatorId: auth.session.user.id,
+            source: 'dashboard',
+            reason: body.reason,
+            time: action === 'kick' ? '' : body.time,
+            appealable: body.appealable !== false,
+            sourceChannelId: '',
+          });
         return sendJson(res, 201, result);
       } catch (error) {
         return sendJson(res, 400, { error: error?.message || 'Could not create warning.' });
