@@ -108,7 +108,12 @@ function replacePlaceholders(value, values) {
 
 function noticeValues(guild, user, record, action, durationMs) {
   const normalizedAction = action === 'timeout' ? 'mute' : action;
-  const actionLabel = normalizedAction === 'mute' ? 'muted' : normalizedAction === 'kick' ? 'kicked' : 'banned';
+  const actionLabel = {
+    warn: 'warned',
+    mute: 'muted',
+    kick: 'kicked',
+    ban: 'banned',
+  }[normalizedAction] || 'moderated';
   return {
     'moderation-action': normalizedAction,
     'moderation-action-label': actionLabel,
