@@ -26,9 +26,9 @@ function buildData(action) {
   if (action !== 'kick') {
     builder.addStringOption((option) => option
       .setName('time')
-      .setDescription(action === 'ban' ? 'Duration such as 7d, 4w, or permanent' : 'Duration such as 30m, 12h, or 7d')
+      .setDescription(action === 'ban' ? 'Duration such as 7d or 4w; leave blank for permanent' : 'Duration such as 30m or 7d; leave blank for permanent')
       .setMaxLength(30)
-      .setRequired(true));
+      .setRequired(false));
   }
   return builder
     .addAttachmentOption((option) => option.setName('attachment').setDescription('Evidence file saved with the case'))
@@ -64,7 +64,7 @@ function buildModerationCommand(action) {
           member,
           moderatorId: interaction.user.id,
           reason: interaction.options.getString('reason', true),
-          time: action === 'kick' ? '' : interaction.options.getString('time', true),
+          time: action === 'kick' ? '' : interaction.options.getString('time'),
           attachment: interaction.options.getAttachment('attachment'),
           appealable: interaction.options.getBoolean('appealable') ?? false,
           sourceChannelId: interaction.channelId,
