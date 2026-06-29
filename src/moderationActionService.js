@@ -114,7 +114,7 @@ function noticeValues(guild, user, record, action, durationMs) {
     'moderation-action-label': actionLabel,
     'moderation-reason': record.reason,
     'case-id': record.id,
-    duration: formatDuration(durationMs),
+    duration: normalizedAction === 'kick' ? 'N/A' : formatDuration(durationMs),
     expires: record.expiresAt ? '<t:' + Math.floor(record.expiresAt / 1000) + ':R>' : 'N/A',
     appealable: record.appealable ? 'Yes' : 'No',
     'appealable-status': record.appealable ? 'Yes' : 'No',
