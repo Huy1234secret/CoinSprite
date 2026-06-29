@@ -1,5 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
+
+process.env.PUBLIC_WEB_BASE_URL = 'https://appeals.example.com';
 const {
   COMPONENTS_V2_FLAG,
   caseDetailContainer,
@@ -37,7 +39,8 @@ test('warning notices preserve the existing warning information limits', () => {
   const text = contentOf(payload);
   assert.match(text, /W-000001/);
   assert.match(text, /Repeated harassment/);
-  assert.match(text, /5 active total/);
+  assert.match(text, /Active warnings:\*\* 5/);
+  assert.equal(payload.components.at(-1).components[0].style, 5);
   assert.ok(text.length <= 3900);
 });
 
