@@ -235,7 +235,7 @@ function injectedIndex() {
   html = html.replace(
     '</body>',
     [
-      '  <script src="/admin/moderator.js?v=moderator-6" defer></script>',
+      '  <script src="/admin/moderator.js?v=moderator-7" defer></script>',
       '  <script src="/admin/messages.js?v=folders-3" defer></script>',
       '  <script src="/admin/message-components.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
