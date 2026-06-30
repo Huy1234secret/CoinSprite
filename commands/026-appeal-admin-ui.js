@@ -1,3 +1,4 @@
+
 'use strict';
 
 const fs = require('fs');
@@ -71,6 +72,20 @@ function patchModeratorJs(source) {
   text = text.replace('      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>', '      <label>Evidence URL <input id="warningCreateEvidence" type="url" placeholder="https://discord.com/channels/..."></label>\n      <label class="checkline"><input id="warningCreateAppealable" type="checkbox" checked> Appealable</label>');
   text = text.replace("            points: Number(document.querySelector('#warningCreatePoints')?.value) || 1,\n", '');
   text = text.replace("            evidence: document.querySelector('#warningCreateEvidence')?.value || '',", "            evidence: document.querySelector('#warningCreateEvidence')?.value || '',\n            appealable: Boolean(document.querySelector('#warningCreateAppealable')?.checked),");
+  if (!text.includes('function renderLoggingPanel()')) {
+    const warningsAnchor = 'function renderWarningsPanel() {';
+    const loggingRenderer = `function renderLoggingPanel() {
+  return \`<div class="panel moderator-ai-panel moderation-logging-panel">
+    <div class="panel-heading"><h3>Moderation channel logging</h3><p>Route manual warnings, mutes, kicks, and bans to staff channels. Logs use <strong>Default: Moderation action log</strong> from Messages and include an evidence gallery when files are attached.</p></div>
+    <div class="settings-grid">
+      <div class="picker-field"><span class="field-label">Action log channel</span><div id="moderationActionLogChannelMount"></div></div>
+      <div class="picker-field"><span class="field-label">Warning log channel</span><div id="warningLoggingChannelMount"></div></div>
+    </div>
+    <div class="moderator-template-note">The action log covers mute, kick, and ban. Warning logs may use a separate channel. Leave either field empty to disable that event log.</div>
+  </div>\`;
+}`;
+    text = required(text, warningsAnchor, loggingRenderer + '\n\n' + warningsAnchor);
+  }
   return text;
 }
 
