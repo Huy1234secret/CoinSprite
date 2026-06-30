@@ -1,5 +1,5 @@
 (() => {
-  if (window.CoinSpriteRichEditor?.version >= 2) return;
+  if (window.CoinSpriteRichEditor?.version >= 3) return;
 
   const clone = (value) => JSON.parse(JSON.stringify(value || {}));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -43,15 +43,17 @@
       '.rich-format-bar{border:1px solid var(--border,#30394a);background:var(--panel,#111827);border-radius:8px;padding:14px 16px}',
       '.rich-format-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.rich-format-head h3{margin:0;font-size:16px}',
       '.rich-format-tokens{display:flex;flex-wrap:wrap;gap:7px}.rich-format-tokens button{min-height:32px;padding:5px 9px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}',
-      '.rich-live-panel{border:1px solid var(--border,#30394a);background:var(--panel,#111827);border-radius:8px;padding:18px;min-width:0}',
-      '.rich-live-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.rich-live-head h3{margin:0;font-size:16px}',
-      '.rich-preview-stage{min-height:300px;border:1px solid var(--border,#30394a);border-radius:8px;background:#25272d;padding:22px;overflow:auto}',
-      '.rich-preview-stage .message-discord-preview{min-height:250px}.rich-source-fields{display:none!important}',
-      '.rich-container-tools{position:absolute;right:8px;top:8px;display:flex;gap:5px;z-index:5;opacity:0;transition:opacity .15s}.message-preview-container:hover>.rich-container-tools,.message-preview-container:focus-within>.rich-container-tools{opacity:1}',
-      '.rich-container-tools button{width:30px;height:30px;min-height:30px;padding:0;border-radius:5px;background:#11151dcc}',
+      '.rich-live-panel{border:1px solid var(--border,#30394a);background:var(--panel,#111827);border-radius:10px;padding:16px;min-width:0}',
+      '.rich-live-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.rich-live-head h3{margin:0;font-size:16px}.rich-live-head span{color:var(--muted,#93a4bc);font-size:12px}',
+      '.rich-preview-stage{border:1px solid var(--border,#30394a);border-radius:10px;background:#25272d;padding:20px;overflow:auto}',
+      '.rich-preview-stage .message-discord-preview{min-height:220px;padding:20px}.rich-preview-stage .message-discord-body{width:100%;max-width:920px}.rich-source-fields{display:none!important}',
+      '.rich-container-frame{width:min(100%,840px);margin:12px 0 0}.rich-container-frame>.message-preview-container{width:100%;max-width:none;margin:0}',
+      '.rich-container-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;margin-bottom:7px;padding:0 2px;color:var(--muted,#93a4bc);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}',
+      '.rich-container-tools{display:flex;gap:6px}.rich-container-tools button{display:grid;width:32px;height:32px;min-height:32px;place-items:center;padding:0;border:1px solid var(--border,#30394a);border-radius:7px;background:#11151d;color:#f2f3f5;line-height:1}.rich-container-tools button:hover:not(:disabled){border-color:var(--primary,#7c83ff);background:#1b2434}.rich-container-tools button:disabled{opacity:.35;cursor:not-allowed}',
+      '.rich-template-editor .preview-media-edit.image:not(.has-value){width:auto;min-width:150px;min-height:42px;padding:0 12px}.rich-template-editor .preview-media-edit.image:not(.has-value) .preview-media-empty{flex-direction:row;gap:7px;padding:0}.rich-template-editor .preview-media-edit.image:not(.has-value) .preview-media-empty span:last-child{display:none}',
       '.rich-add-container{width:100%;min-height:42px;border-style:dashed;margin-top:12px}',
       '.rich-template-editor .message-preview-container{position:relative}.rich-template-editor .message-root-content,.rich-template-editor .message-preview-text{cursor:text}',
-      '@media(max-width:700px){.rich-format-head,.rich-live-head{align-items:flex-start;flex-direction:column}.rich-preview-stage{padding:12px}.rich-container-tools{opacity:1;position:static;justify-content:flex-end;margin-bottom:6px}}',
+      '@media(max-width:700px){.rich-format-head,.rich-live-head{align-items:flex-start;flex-direction:column}.rich-preview-stage{padding:10px}.rich-preview-stage .message-discord-preview{min-height:0;padding:14px}.rich-container-frame{width:100%}.rich-container-toolbar{align-items:flex-start}}',
     ].join('\n');
     document.head.append(style);
   }
@@ -93,10 +95,18 @@
 
     function decorateContainers() {
       root.querySelectorAll('[data-rich-preview] .message-preview-container').forEach((container, index) => {
+        const frame = document.createElement('div');
+        frame.className = 'rich-container-frame';
+        const toolbar = document.createElement('div');
+        toolbar.className = 'rich-container-toolbar';
+        const label = document.createElement('span');
+        label.textContent = 'Container ' + (index + 1);
         const controls = document.createElement('div');
         controls.className = 'rich-container-tools';
-        controls.innerHTML = '<button type="button" data-rich-action="up" data-index="' + index + '" title="Move up">↑</button><button type="button" data-rich-action="down" data-index="' + index + '" title="Move down">↓</button><button type="button" data-rich-action="remove" data-index="' + index + '" title="Remove">×</button>';
-        container.prepend(controls);
+        controls.innerHTML = '<button type="button" data-rich-action="up" data-index="' + index + '" title="Move container up" aria-label="Move container up" ' + (index === 0 ? 'disabled' : '') + '>↑</button><button type="button" data-rich-action="down" data-index="' + index + '" title="Move container down" aria-label="Move container down" ' + (index === value.containers.length - 1 ? 'disabled' : '') + '>↓</button><button type="button" data-rich-action="remove" data-index="' + index + '" title="Remove container" aria-label="Remove container">×</button>';
+        toolbar.append(label, controls);
+        container.before(frame);
+        frame.append(toolbar, container);
       });
     }
 
@@ -157,6 +167,6 @@
     };
   }
 
-  window.CoinSpriteRichEditor = Object.freeze({ version: 2, mount, normalize });
+  window.CoinSpriteRichEditor = Object.freeze({ version: 3, mount, normalize });
   window.dispatchEvent(new Event('coinsprite:rich-editor-ready'));
 })();
