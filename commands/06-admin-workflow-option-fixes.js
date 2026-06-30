@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const path = require('path');
 
@@ -6,9 +7,12 @@ const ADMIN_APP_JS = path.resolve(__dirname, '..', 'admin', 'app.js');
 
 const OPTION_FIX_SCRIPT = `
 (() => {
+  if (window.__coinSpriteWorkflowOptionFixV2) return;
+  window.__coinSpriteWorkflowOptionFixV2 = true;
   let scheduled = false;
   let loadedGuildId = '';
   let loadingGuildId = '';
+  let retryAfter = 0;
   let templates = [];
   let workflowValues = {};
 
@@ -40,7 +44,7 @@ const OPTION_FIX_SCRIPT = `
 
   async function loadGuildData() {
     const guildId = String(state.guildId || '');
-    if (!guildId || guildId === loadedGuildId || guildId === loadingGuildId) return;
+    if (!guildId || guildId === loadedGuildId || guildId === loadingGuildId || Date.now() < retryAfter) return;
     loadingGuildId = guildId;
     try {
       const [templateResponse, workflowResponse] = await Promise.all([
@@ -50,6 +54,10 @@ const OPTION_FIX_SCRIPT = `
       templates = templateResponse.ok ? (await templateResponse.json()).templates || [] : [];
       workflowValues = workflowResponse.ok ? (await workflowResponse.json()).workflows || {} : {};
       loadedGuildId = guildId;
+      retryAfter = 0;
+    } catch (error) {
+      retryAfter = Date.now() + 5000;
+      console.warn('Request workflow options could not be loaded:', error);
     } finally {
       loadingGuildId = '';
     }
@@ -87,10 +95,13 @@ const OPTION_FIX_SCRIPT = `
   }
 
   async function repairWorkflowOptions() {
-    scheduled = false;
-    document.querySelectorAll('#ticketEditorRoot select[data-action-select]').forEach(hideDuplicateConditionOptions);
-    await loadGuildData();
-    ensureDmTemplateFields();
+    try {
+      document.querySelectorAll('#ticketEditorRoot select[data-action-select]').forEach(hideDuplicateConditionOptions);
+      await loadGuildData();
+      ensureDmTemplateFields();
+    } finally {
+      scheduled = false;
+    }
   }
 
   function scheduleRepair() {
