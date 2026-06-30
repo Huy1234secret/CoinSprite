@@ -340,16 +340,36 @@ async function showDecisionModal(interaction, parsed) {
   return true;
 }
 
+function decisionPayload(guild, user, appeal, record) {
+  const accepted = appeal.status === 'accepted';
+  const templateId = accepted ? 'default-appeal-accepted-notice' : 'default-appeal-denied-notice';
+  const template = messageTemplates.findTemplate(appeal.guildId, templateId);
+  if (!template) throw new Error('The appeal decision message template is unavailable.');
+  const baseUrl = publicBaseUrl();
+  const appealUrl = baseUrl
+    ? baseUrl + '/appeal?guild=' + encodeURIComponent(appeal.guildId) + '&case=' + encodeURIComponent(record.id)
+    : 'Appeal portal unavailable';
+  return messageTemplates.buildMessagePayload(applyTokens(template, {
+    'appeal-id': appeal.id,
+    'case-id': record.id,
+    'appeal-status': appeal.status,
+    reviewer: appeal.decidedBy ? '<@' + appeal.decidedBy + '>' : 'Staff',
+    'reviewer-note': appeal.decisionReason || 'No reviewer note was provided.',
+    'appeal-url': appealUrl,
+    'server-name': guild?.name || 'this server',
+    mention: '<@' + user.id + '>',
+    'user-id': user.id,
+    username: user.username || user.id,
+    avatar_url: user.displayAvatarURL?.({ size: 256 }) || '',
+  }), { guild, user });
+}
+
 async function notifyDecision(client, appeal, record) {
   const user = await client.users.fetch(appeal.userId).catch(() => null);
   if (!user) return;
-  const url = publicBaseUrl();
-  const text = [
-    'Your appeal for case ' + record.id + ' was **' + appeal.status + '**.',
-    appeal.decisionReason ? 'Reviewer note: ' + appeal.decisionReason : '',
-    url ? 'View the decision: ' + url + '/appeal' : '',
-  ].filter(Boolean).join('\n');
-  await user.send(text).catch(() => null);
+  const guild = client.guilds.cache.get(appeal.guildId)
+    || await client.guilds.fetch(appeal.guildId).catch(() => null);
+  await user.send(decisionPayload(guild, user, appeal, record)).catch(() => null);
 }
 
 async function decideAppeal(interaction, client, parsed) {
@@ -426,5 +446,5 @@ module.exports = {
   publicBaseUrl,
   submitAppeal,
   validateSubmission,
-  __test: { answerText, applyTokens, decisionButtons, logPayload, parseDecisionId, parseReviewId },
+  __test: { answerText, applyTokens, decisionButtons, decisionPayload, logPayload, parseDecisionId, parseReviewId },
 };
