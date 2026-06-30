@@ -31,7 +31,9 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(moderator, /\['logging', 'Logging'\]/);
   assert.match(moderator, /moderationActionLogChannelMount/);
   assert.match(moderator, /data-moderator-view="logging"/);
-  assert.match(moderator, /loggingTab[\s\S]*stopImmediatePropagation/);
+  assert.match(moderator, /moderatorState\.view === 'logging' \? renderLoggingPanel\(\)/);
+  assert.match(moderator, /function setAndDirty[\s\S]*refreshDirtyState\(\);[\s\S]*queueMicrotask\(renderModerator\)/);
+  assert.doesNotMatch(moderator, /loggingTab[\s\S]*stopImmediatePropagation/);
   assert.match(moderator, /data-case-field="publicNote"/);
   assert.doesNotMatch(moderator, /warningCreatePoints/);
 
@@ -44,6 +46,9 @@ test('runtime admin assets include sanctions, Spam AutoMod, rich messages, and a
   assert.match(inlineEditor, /CoinSpriteInlineMessageEditor/);
   const richEditor = fs.readFileSync(path.join(__dirname, '..', 'admin', 'rich-message-editor.js'), 'utf8');
   assert.match(richEditor, /rich-preview-stage/);
+  assert.match(richEditor, /version: 3/);
+  assert.match(richEditor, /rich-container-frame/);
+  assert.match(richEditor, /preview-media-edit\.image:not\(\.has-value\)/);
   const appeals = fs.readFileSync(path.join(__dirname, '..', 'admin', 'appeals.js'), 'utf8');
   assert.match(appeals, /appeal-settings/);
   assert.match(appeals, /appeal-form/);

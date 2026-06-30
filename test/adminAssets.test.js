@@ -180,6 +180,8 @@ test('admin layout uses the full workspace and locks unsaved navigation', () => 
   assert.match(app, /event\.stopImmediatePropagation\(\)/);
   assert.match(app, /has-unsaved-changes/);
   assert.match(app, /beforeunload/);
+  assert.match(app, /function isTransientDataEvent/);
+  assert.match(app, /if \(tabName === 'data'\) return null/);
 });
 
 test('old runtime icon patch stays disabled', () => {

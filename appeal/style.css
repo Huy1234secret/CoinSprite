@@ -148,8 +148,14 @@ h3 {
 }
 
 .case-card {
+  display: grid;
   width: 100%;
+  min-width: 0;
   min-height: 112px;
+  align-content: start;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0;
   padding: 15px;
   border: 1px solid transparent;
   border-radius: 12px;
@@ -192,9 +198,31 @@ h3 {
 }
 
 .guild {
-  margin-top: 5px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 7px;
   color: var(--muted);
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.case-card-top,
+.case-meta {
+  width: 100%;
+  min-width: 0;
+}
+
+.case-card-top .badge {
+  flex: 0 0 auto;
+}
+
+.case-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.case-meta span:last-child {
+  text-align: right;
 }
 
 .case-meta {
@@ -525,5 +553,7 @@ button:disabled {
   .detail-head,
   .case-meta,
   .section-heading { flex-direction: column; }
+  .case-meta { gap: 4px; }
+  .case-meta span:last-child { text-align: left; }
   .submit-appeal { width: 100%; justify-self: stretch; }
 }
