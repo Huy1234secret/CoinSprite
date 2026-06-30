@@ -11,7 +11,8 @@ process.env.MODERATION_APPEAL_STORE_PATH = path.join(directory, 'appeals.json');
 
 const { sanitizeAppealConfig } = require('../src/appealConfig');
 const appealStore = require('../src/appealStore');
-const { validateSubmission } = require('../src/appealService');
+const { __test: appealTest, validateSubmission } = require('../src/appealService');
+const messageTemplates = require('../src/messageTemplates');
 const { sanitizeCommunityMessages } = require('../src/communityMessageConfig');
 const warn = require('../commands/warn');
 
@@ -80,6 +81,43 @@ test('appeal store enforces pending, cooldown, maximum, and atomic decisions', (
   const cooldown = appealStore.eligibility(guildId, first.caseId, userId, { cooldownSeconds: 60 }, first.createdAt + 1000);
   assert.equal(cooldown.code, 'cooldown');
   assert.equal(appealStore.eligibility(guildId, first.caseId, userId, { cooldownSeconds: 60 }, first.createdAt + 61000).allowed, true);
+});
+
+test('appeal decisions use customizable container defaults', () => {
+  const ids = messageTemplates.DEFAULT_BOT_TEMPLATES.map((template) => template.id);
+  assert.ok(ids.includes('default-appeal-accepted-notice'));
+  assert.ok(ids.includes('default-appeal-denied-notice'));
+  const guild = { id: '123456789012345678', name: 'CoinSprite' };
+  const user = { id: '234567890123456789', username: 'member', displayAvatarURL: () => 'https://example.com/avatar.png' };
+  const record = { id: 'W-000006' };
+  const accepted = appealTest.decisionPayload(guild, user, {
+    id: 'A-000006',
+    guildId: guild.id,
+    userId: user.id,
+    status: 'accepted',
+    decidedBy: '345678901234567890',
+    decisionReason: 'Evidence reviewed.',
+  }, record);
+  const denied = appealTest.decisionPayload(guild, user, {
+    id: 'A-000007',
+    guildId: guild.id,
+    userId: user.id,
+    status: 'denied',
+    decidedBy: '345678901234567890',
+    decisionReason: 'Decision upheld.',
+  }, record);
+  assert.equal(accepted.components[0].type, 17);
+  assert.equal(accepted.components[0].accent_color, 0x57f287);
+  assert.equal(denied.components[0].type, 17);
+  assert.equal(denied.components[0].accent_color, 0xed4245);
+  assert.match(JSON.stringify(accepted.components), /Appeal accepted/);
+  assert.match(JSON.stringify(denied.components), /Appeal denied/);
+});
+
+test('appeal case cards keep their content in a vertical grid', () => {
+  const style = fs.readFileSync(path.join(__dirname, '..', 'appeal', 'style.css'), 'utf8');
+  assert.match(style, /\.case-card\s*\{[\s\S]*display:\s*grid/);
+  assert.match(style, /\.case-card-top,[\s\S]*\.case-meta\s*\{[\s\S]*width:\s*100%/);
 });
 
 test('legacy community strings migrate into private rich templates', () => {
