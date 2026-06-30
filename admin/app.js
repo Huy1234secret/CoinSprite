@@ -782,6 +782,7 @@ function applyTabFromConfig(tabName, config) {
 }
 
 function collectTabState(tabName) {
+  if (tabName === 'data') return null;
   if (tabName === 'leveling') {
     return {
       messageXpMin: Number(getField('xp.messageXpMin')),
@@ -1059,12 +1060,16 @@ async function loadSession() {
   }
 }
 
+function isTransientDataEvent(event) {
+  return Boolean(event.target.closest?.('[data-panel="data"]'));
+}
+
 elements.configForm.addEventListener('input', (event) => {
-  refreshDirtyState();
+  if (!isTransientDataEvent(event)) refreshDirtyState();
   if (event.target.name?.startsWith('xp.levelUpMessage.') || event.target === elements.levelUpPreviewLevel) renderLevelUpPreview();
 });
 elements.configForm.addEventListener('change', (event) => {
-  refreshDirtyState();
+  if (!isTransientDataEvent(event)) refreshDirtyState();
   if (event.target.name?.startsWith('xp.levelUpMessage.') || event.target === elements.levelUpPreviewLevel) renderLevelUpPreview();
 });
 
