@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { normalizeDeleteAmount } = require('./channelMessageDeletion');
 
 const CONTEXT_TYPES = Object.freeze([
   'text',
@@ -60,7 +61,10 @@ function normalizeAction(value = {}) {
   if (!ACTION_TYPES.has(type)) return null;
   const action = { type };
 
-  if (type === 'delete') action.reason = cleanReason(value.reason);
+  if (type === 'delete') {
+    action.reason = cleanReason(value.reason);
+    action.amount = normalizeDeleteAmount(value.amount);
+  }
   if (type === 'report') {
     action.reason = cleanReason(value.reason);
     action.reportChannelId = cleanId(value.reportChannelId || value.channelId);

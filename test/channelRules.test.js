@@ -87,6 +87,21 @@ test('keeps long channel mute durations and uses blank for permanent', () => {
   assert.deepEqual(rule.actions.map((action) => action.time), ['', '365d', '28d']);
 });
 
+test('normalizes delete amounts from one through one hundred', () => {
+  const [rule] = normalizeRules([{
+    channelIds: ['1234567890123456'],
+    contexts: ['text'],
+    actions: [
+      { type: 'delete', amount: '' },
+      { type: 'delete', amount: 0 },
+      { type: 'delete', amount: 12 },
+      { type: 'delete', amount: 101 },
+    ],
+  }]);
+
+  assert.deepEqual(rule.actions.map((action) => action.amount), [1, 1, 12, 100]);
+});
+
 test('persists normalized rules per guild', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-channel-rules-'));
   process.env.CHANNEL_RULES_STORE_PATH = path.join(directory, 'rules.json');
