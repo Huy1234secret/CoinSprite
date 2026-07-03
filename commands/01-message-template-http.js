@@ -221,6 +221,7 @@ function injectedIndex() {
     '  <link rel="stylesheet" href="/admin/message-components.css">',
     '  <link rel="stylesheet" href="/admin/message-component-actions.css?v=action-save-3">',
     '  <link rel="stylesheet" href="/admin/moderator.css?v=moderator-7">',
+    '  <link rel="stylesheet" href="/admin/channel-rules.css?v=channel-rules-1">',
     TAB_ICON_STYLE,
     '</head>',
   ].join('\n'));
@@ -236,6 +237,7 @@ function injectedIndex() {
     '</body>',
     [
       '  <script src="/admin/moderator.js?v=moderator-7" defer></script>',
+      '  <script src="/admin/channel-rules.js?v=channel-rules-1" defer></script>',
       '  <script src="/admin/messages.js?v=folders-3" defer></script>',
       '  <script src="/admin/message-components.js?v=action-save-3" defer></script>',
       '  <script src="/admin/message-component-actions.js?v=action-save-3" defer></script>',
