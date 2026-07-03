@@ -56,6 +56,7 @@ test('finds and deletes the newest matching user messages across history pages',
   assert.equal(requests[0].limit, 100);
   assert.equal(typeof requests[1].before, 'string');
 
+  requests.length = 0;
   const result = await deleteRecentUserMessages(trigger, 3);
   assert.deepEqual(result, { requested: 3, found: 3, deleted: 3 });
   assert.deepEqual(deletedIds, ['trigger', 'recent', 'older']);
