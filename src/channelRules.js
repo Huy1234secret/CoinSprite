@@ -52,7 +52,7 @@ function cleanMuteTime(value) {
   if (!match) return '10m';
   const units = { m: 60000, h: 3600000, d: 86400000, w: 604800000 };
   const durationMs = Number(match[1]) * units[match[2]];
-  return durationMs > 28 * 86400000 ? '' : text;
+  return durationMs > 10 * 365 * 86400000 ? '' : text;
 }
 
 function normalizeAction(value = {}) {
