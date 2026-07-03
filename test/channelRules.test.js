@@ -73,6 +73,20 @@ test('normalizes channels, contexts, and action-specific settings', () => {
   ]);
 });
 
+test('uses permanent mute mode for blank or over-limit channel mutes', () => {
+  const [rule] = normalizeRules([{
+    channelIds: ['1234567890123456'],
+    contexts: ['text'],
+    actions: [
+      { type: 'mute', time: '' },
+      { type: 'mute', time: '365d' },
+      { type: 'mute', time: '28d' },
+    ],
+  }]);
+
+  assert.deepEqual(rule.actions.map((action) => action.time), ['', '', '28d']);
+});
+
 test('persists normalized rules per guild', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-channel-rules-'));
   process.env.CHANNEL_RULES_STORE_PATH = path.join(directory, 'rules.json');
