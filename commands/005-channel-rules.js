@@ -16,6 +16,7 @@ const {
   saveGuildRules,
 } = require('../src/channelRules');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
+const { addReportAttachments, buildReportEvidenceText } = require('../src/channelReportEvidence');
 const { deleteRecentUserMessages } = require('../src/channelMessageDeletion');
 const { enforceOutstandingMuteForMessage, executeSanction } = require('../src/moderationActionService');
 
@@ -143,7 +144,7 @@ function applyPlaceholders(template, replacements) {
   return copy;
 }
 
-function templateValues(message, rule, reason, actionName) {
+function templateValues(message, rule, reason, actionName, options = {}) {
   return {
     'moderation-action': actionName,
     'moderation-action-label': actionName,
@@ -155,7 +156,7 @@ function templateValues(message, rule, reason, actionName) {
     expires: 'N/A',
     appealable: 'Yes',
     'appealable-status': 'Yes',
-    evidence: messageUrl(message),
+    evidence: buildReportEvidenceText(message, options),
     'message-link': messageUrl(message),
     'message-content': String(message.content || '[attachment]').slice(0, 1200),
     'server-name': message.guild?.name || 'this server',
@@ -172,8 +173,7 @@ function templateValues(message, rule, reason, actionName) {
   };
 }
 
-async function sendTemplate(template, message, replacements, destination) {
-  if (!template || !destination) return false;
+function createTemplatePayload(template, message, replacements) {
   const payload = buildMessagePayload(applyPlaceholders(template, replacements), {
     guild: message.guild,
     channel: message.channel,
@@ -181,7 +181,12 @@ async function sendTemplate(template, message, replacements, destination) {
     member: message.member,
   });
   payload.allowedMentions = { parse: [], users: [message.author.id], roles: [] };
-  await destination.send(payload);
+  return payload;
+}
+
+async function sendTemplate(template, message, replacements, destination) {
+  if (!template || !destination) return false;
+  await destination.send(createTemplatePayload(template, message, replacements));
   return true;
 }
 
@@ -193,7 +198,18 @@ async function reportMessage(message, rule, action) {
   const reason = action.reason || ('Channel rule violation: ' + rule.name);
   const template = findTemplate(message.guildId, DEFAULT_REPORT_TEMPLATE_ID);
   if (template) {
-    await sendTemplate(template, message, templateValues(message, rule, reason, 'report'), channel).catch(() => null);
+    const copiedPayload = createTemplatePayload(template, message, templateValues(message, rule, reason, 'report'));
+    addReportAttachments(copiedPayload, message, { copyAttachments: true });
+    const copied = await channel.send(copiedPayload).then(() => true).catch(() => false);
+    if (copied) return;
+
+    const fallbackPayload = createTemplatePayload(
+      template,
+      message,
+      templateValues(message, rule, reason, 'report', { includeAttachmentLinks: true }),
+    );
+    addReportAttachments(fallbackPayload, message, { copyAttachments: false });
+    await channel.send(fallbackPayload).catch(() => null);
     return;
   }
   await channel.send({
