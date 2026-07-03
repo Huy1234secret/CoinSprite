@@ -91,3 +91,14 @@ test('persists normalized rules per guild', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('channel editor preserves the native moderator shell and shared save bar', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'admin', 'channel-rules.js'), 'utf8');
+  assert.match(source, /function nativeChannelLayout\(\)/);
+  assert.match(source, /channel-rules-content/);
+  assert.match(source, /querySelector\('#saveButton'\)/);
+  assert.match(source, /querySelector\('#resetTabButton'\)/);
+  assert.doesNotMatch(source, /AI, link, and channel controls/);
+  assert.doesNotMatch(source, /Save Channel Rules/);
+});
