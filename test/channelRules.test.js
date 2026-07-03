@@ -73,6 +73,20 @@ test('normalizes channels, contexts, and action-specific settings', () => {
   ]);
 });
 
+test('uses permanent mute mode for blank or over-limit channel mutes', () => {
+  const [rule] = normalizeRules([{
+    channelIds: ['1234567890123456'],
+    contexts: ['text'],
+    actions: [
+      { type: 'mute', time: '' },
+      { type: 'mute', time: '365d' },
+      { type: 'mute', time: '28d' },
+    ],
+  }]);
+
+  assert.deepEqual(rule.actions.map((action) => action.time), ['', '', '28d']);
+});
+
 test('persists normalized rules per guild', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-channel-rules-'));
   process.env.CHANNEL_RULES_STORE_PATH = path.join(directory, 'rules.json');
@@ -90,4 +104,15 @@ test('persists normalized rules per guild', () => {
     delete process.env.CHANNEL_RULES_STORE_PATH;
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test('channel editor preserves the native moderator shell and shared save bar', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'admin', 'channel-rules.js'), 'utf8');
+  assert.match(source, /function nativeChannelLayout\(\)/);
+  assert.match(source, /channel-rules-content/);
+  assert.match(source, /querySelector\('#saveButton'\)/);
+  assert.match(source, /querySelector\('#resetTabButton'\)/);
+  assert.doesNotMatch(source, /AI, link, and channel controls/);
+  assert.doesNotMatch(source, /Save Channel Rules/);
 });
