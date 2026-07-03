@@ -1,5 +1,7 @@
-.channel-rules-shell[hidden] {
-  display: none !important;
+.channel-rules-content {
+  display: grid;
+  gap: 14px;
+  padding-top: 26px;
 }
 
 .channel-rule-subtabs {
@@ -66,7 +68,7 @@
 
 .channel-rule-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
 }
 
