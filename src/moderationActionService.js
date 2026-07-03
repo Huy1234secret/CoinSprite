@@ -289,7 +289,7 @@ async function executeSanction(input) {
     ? null
     : parseActionDuration(input.time, {
       allowPermanent: action !== 'kick',
-      maximumMs: action === 'mute' ? DISCORD_MAX_TIMEOUT_MS : 10 * 365 * 86400000,
+      maximumMs: 10 * 365 * 86400000,
     });
   const expiresAt = durationMs == null ? null : Date.now() + durationMs;
   const initialAttachment = attachmentRecord(input.attachment);
@@ -319,7 +319,9 @@ async function executeSanction(input) {
   }
 
   const auditReason = reason + ' (' + record.id + ')';
-  const enforcementDurationMs = action === 'mute' && durationMs == null ? DISCORD_MAX_TIMEOUT_MS : durationMs;
+  const enforcementDurationMs = action === 'mute'
+    ? Math.min(durationMs == null ? DISCORD_MAX_TIMEOUT_MS : durationMs, DISCORD_MAX_TIMEOUT_MS)
+    : durationMs;
   record = store.getCase(guild.id, record.id);
   const delivery = await sendNotice(guild, user, record, action, durationMs);
   try {
@@ -372,34 +374,88 @@ async function cleanupTemporaryBans(client) {
   }
 }
 
-async function refreshPermanentMutes(client) {
+function selectOutstandingMute(guildId, memberId, now = Date.now()) {
+  const records = store.listCases(guildId, { type: 'mute', status: 'active', memberId })
+    .filter((record) => !hasSuccessfulReversal(record, 'unmute'))
+    .filter((record) => record.expiresAt == null || Number(record.expiresAt) > now);
+  return records.reduce((selected, record) => {
+    if (!selected || record.expiresAt == null) return record;
+    if (selected.expiresAt == null) return selected;
+    return Number(record.expiresAt) > Number(selected.expiresAt) ? record : selected;
+  }, null);
+}
+
+function remainingMuteDuration(record, now = Date.now()) {
+  if (!record) return 0;
+  if (record.expiresAt == null) return DISCORD_MAX_TIMEOUT_MS;
+  return Math.max(0, Math.min(DISCORD_MAX_TIMEOUT_MS, Number(record.expiresAt) - now));
+}
+
+async function applyMuteSegment(guild, member, record, now = Date.now(), source = 'maintenance') {
+  const durationMs = remainingMuteDuration(record, now);
+  if (!durationMs || !member?.moderatable || typeof member.timeout !== 'function') return false;
+  try {
+    await member.timeout(durationMs, 'Continuing mute (' + record.id + ')');
+    store.appendEvent(guild.id, record.id, 'enforcement.refreshed', '', {
+      action: 'mute',
+      durationMs,
+      source,
+      remainingMs: record.expiresAt == null ? null : Math.max(0, Number(record.expiresAt) - now),
+    });
+    return true;
+  } catch (error) {
+    console.error('Mute refresh failed for ' + record.id + ':', error);
+    return false;
+  }
+}
+
+async function enforceOutstandingMuteForMessage(message) {
+  if (!message?.guild || !message.author?.id || message.author.bot) return false;
+  const now = Date.now();
+  const record = selectOutstandingMute(message.guild.id, message.author.id, now);
+  if (!record) return false;
+
+  if (message.deletable) await message.delete().catch(() => null);
+  const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!member) return true;
+
+  const disabledUntil = Number(member.communicationDisabledUntilTimestamp)
+    || Number(member.communicationDisabledUntil?.getTime?.())
+    || 0;
+  if (disabledUntil <= now + 1000) {
+    await applyMuteSegment(message.guild, member, record, now, 'message_guard');
+  }
+  return true;
+}
+
+async function refreshOutstandingMutes(client) {
   const now = Date.now();
   for (const guild of client.guilds.cache.values()) {
-    const cases = store.listCases(guild.id, { type: 'mute', status: 'active' });
-    for (const record of cases) {
-      if (record.expiresAt != null || hasSuccessfulReversal(record, 'unmute')) continue;
+    const records = store.listCases(guild.id, { type: 'mute', status: 'active' })
+      .filter((record) => !hasSuccessfulReversal(record, 'unmute'));
+    const strongestByMember = new Map();
+    for (const record of records) {
+      const selected = strongestByMember.get(record.memberId);
+      if (!selected || record.expiresAt == null || (selected.expiresAt != null && Number(record.expiresAt) > Number(selected.expiresAt))) {
+        strongestByMember.set(record.memberId, record);
+      }
+    }
+
+    for (const record of strongestByMember.values()) {
       const member = await guild.members.fetch(record.memberId).catch(() => null);
       if (!member?.moderatable || typeof member.timeout !== 'function') continue;
       const disabledUntil = Number(member.communicationDisabledUntilTimestamp)
         || Number(member.communicationDisabledUntil?.getTime?.())
         || 0;
       if (disabledUntil > now + PERMANENT_MUTE_REFRESH_THRESHOLD_MS) continue;
-      try {
-        await member.timeout(DISCORD_MAX_TIMEOUT_MS, 'Refreshing permanent mute (' + record.id + ')');
-        store.appendEvent(guild.id, record.id, 'enforcement.refreshed', '', {
-          action: 'mute',
-          durationMs: DISCORD_MAX_TIMEOUT_MS,
-        });
-      } catch (error) {
-        console.error('Permanent mute refresh failed for ' + record.id + ':', error);
-      }
+      await applyMuteSegment(guild, member, record, now, 'maintenance');
     }
   }
 }
 
 async function maintainSanctions(client) {
   await cleanupTemporaryBans(client);
-  await refreshPermanentMutes(client);
+  await refreshOutstandingMutes(client);
 }
 
 function initSanctionService(client) {
@@ -415,6 +471,7 @@ module.exports = {
   DISCORD_MAX_TIMEOUT_MS,
   EVIDENCE_ROOT,
   executeSanction,
+  enforceOutstandingMuteForMessage,
   attachmentRecord,
   evidencePath,
   formatDuration,
@@ -423,4 +480,6 @@ module.exports = {
   logSanction,
   maintainSanctions,
   parseActionDuration,
+  remainingMuteDuration,
+  selectOutstandingMute,
 };
