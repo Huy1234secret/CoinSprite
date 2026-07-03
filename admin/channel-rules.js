@@ -25,6 +25,7 @@
   const state = {
     guildId: '',
     rules: [],
+    savedRules: [],
     templates: [],
     contexts: Object.keys(CONTEXT_LABELS),
     activeId: '',
@@ -41,6 +42,10 @@
 
   function unique(value) {
     return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
+  }
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
   }
 
   function newRule() {
@@ -81,6 +86,7 @@
   function setDirty() {
     state.dirty = true;
     setStatus('Unsaved channel rule changes.');
+    if (typeof refreshDirtyState === 'function') refreshDirtyState();
   }
 
   function textChannelOptions() {
@@ -154,8 +160,7 @@
       + '<p>Punishments use the bot\'s existing default alert messages. Reports use the default moderation action report.</p></div>'
       + '<button class="button small" type="button" data-channel-rule-action="add-action">Add action</button></div>'
       + '<div class="channel-rule-actions">' + rule.actions.map(actionRow).join('') + '</div></div>'
-      + '<div class="channel-rule-footer"><button class="button danger" type="button" data-channel-rule-action="remove-rule">Delete channel rule</button>'
-      + '<button class="button success" type="button" data-channel-rule-action="save">Save Channel Rules</button></div>'
+      + '<div class="channel-rule-footer"><button class="button danger" type="button" data-channel-rule-action="remove-rule">Delete channel rule</button></div>'
       + '<div class="status compact" id="channelRulesStatus" role="status">' + escapeHtml(state.status) + '</div></div>';
   }
 
@@ -255,6 +260,7 @@
       const templatePayload = await templateResponse.json();
       if (!rulesResponse.ok) throw new Error(rulesPayload.error || 'Could not load channel rules.');
       state.rules = Array.isArray(rulesPayload.rules) ? rulesPayload.rules : [];
+      state.savedRules = clone(state.rules);
       state.contexts = Array.isArray(rulesPayload.contextTypes) ? rulesPayload.contextTypes : Object.keys(CONTEXT_LABELS);
       state.templates = templateResponse.ok && Array.isArray(templatePayload.templates) ? templatePayload.templates : [];
       state.activeId = state.rules[0]?.id || '';
@@ -265,6 +271,7 @@
     } finally {
       state.loading = false;
       render();
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
     }
   }
 
@@ -280,14 +287,71 @@
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Could not save channel rules.');
       state.rules = payload.rules || [];
+      state.savedRules = clone(state.rules);
       if (!state.rules.some((rule) => rule.id === state.activeId)) state.activeId = state.rules[0]?.id || '';
       state.dirty = false;
       state.status = 'Channel rules saved.';
       render();
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
+      return true;
     } catch (error) {
       setStatus(error.message, true);
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
+      return false;
     }
   }
+
+  function applyChannelDirtyState() {
+    if (!state.dirty) return;
+    const unsavedBar = document.querySelector('#unsavedBar');
+    const savedState = document.querySelector('#savedState');
+    const resetButton = document.querySelector('#resetTabButton');
+    const detail = document.querySelector('#unsavedDetail');
+    if (unsavedBar) unsavedBar.hidden = false;
+    if (savedState) {
+      savedState.textContent = 'Unsaved changes';
+      savedState.classList.add('dirty');
+    }
+    if (resetButton) resetButton.disabled = !state.open;
+    if (detail) detail.textContent = 'Changed: Channel rules';
+    document.body.classList.add('has-unsaved-changes');
+  }
+
+  const nativeRefreshDirtyState = typeof refreshDirtyState === 'function' ? refreshDirtyState : null;
+  if (nativeRefreshDirtyState) {
+    refreshDirtyState = function channelRulesRefreshDirtyState() {
+      nativeRefreshDirtyState();
+      applyChannelDirtyState();
+    };
+  }
+
+  const defaultSaveButton = document.querySelector('#saveButton');
+  defaultSaveButton?.addEventListener('click', async (event) => {
+    if (!state.dirty || defaultSaveButton.dataset.channelRulesForwarding === 'true') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    defaultSaveButton.disabled = true;
+    defaultSaveButton.textContent = 'Saving...';
+    const saved = await save();
+    defaultSaveButton.disabled = false;
+    defaultSaveButton.textContent = 'Save changes';
+    if (!saved) return;
+    defaultSaveButton.dataset.channelRulesForwarding = 'true';
+    defaultSaveButton.click();
+    delete defaultSaveButton.dataset.channelRulesForwarding;
+  }, true);
+
+  document.querySelector('#resetTabButton')?.addEventListener('click', (event) => {
+    if (!state.open || !state.dirty) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    state.rules = clone(state.savedRules);
+    state.activeId = state.rules.some((rule) => rule.id === state.activeId) ? state.activeId : (state.rules[0]?.id || '');
+    state.dirty = false;
+    state.status = 'Channel rules reset to the last saved values.';
+    render();
+    if (typeof refreshDirtyState === 'function') refreshDirtyState();
+  }, true);
 
   function ensureChannelTab() {
     const root = document.querySelector('#moderatorRoot');
@@ -328,6 +392,12 @@
       return;
     }
     if (state.open && event.target.closest('#moderatorRoot [data-moderator-view], #moderatorRoot [data-moderator-workspace]')) {
+      if (state.dirty) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (typeof showUnsavedNavigationBlock === 'function') showUnsavedNavigationBlock();
+        return;
+      }
       deactivateChannelRules();
       return;
     }
@@ -361,8 +431,6 @@
       if (Number.isInteger(index)) rule.actions.splice(index, 1);
       setDirty();
       render();
-    } else if (actionName === 'save') {
-      save();
     }
   }, true);
 
@@ -413,6 +481,7 @@
   document.querySelector('#guildSelect')?.addEventListener('change', () => {
     state.guildId = '';
     state.rules = [];
+    state.savedRules = [];
     state.templates = [];
     state.activeId = '';
     if (state.open) load();
