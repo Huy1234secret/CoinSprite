@@ -16,6 +16,7 @@ const {
   saveGuildRules,
 } = require('../src/channelRules');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
+const { deleteRecentUserMessages } = require('../src/channelMessageDeletion');
 const { enforceOutstandingMuteForMessage, executeSanction } = require('../src/moderationActionService');
 
 const previousCreateServer = http.createServer.bind(http);
@@ -231,9 +232,8 @@ async function runRuleActions(message, rule) {
   for (const action of rule.actions) {
     const reason = action.reason || ('Channel rule violation: ' + rule.name);
     if (action.type === 'delete') {
-      if (message.deletable) {
-        deleted = await message.delete().then(() => true).catch(() => false);
-      }
+      const result = await deleteRecentUserMessages(message, action.amount);
+      deleted = result.deleted > 0 || deleted;
     } else if (action.type === 'report') {
       await reportMessage(message, rule, action);
     } else if (action.type === 'send_message') {
