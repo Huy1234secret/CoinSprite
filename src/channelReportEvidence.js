@@ -44,7 +44,14 @@ function evidenceAttachments(message) {
   })).filter((attachment) => attachment.url);
 }
 
-function buildReportEvidenceText(message, options = {}) {
+function attachmentLink(attachment) {
+  const label = attachment.originalName.replace(/[\\[\]\\]/g, '\\function buildReportEvidenceText(message, options = {}) {');
+  let url = attachment.url;
+  try { url = encodeURI(url); } catch {}
+  return '[' + label + '](' + url + ')';
+}
+
+function buildReportEvidenceText(message) {
   const attachments = evidenceAttachments(message);
   const lines = [
     messageUrl(message) || 'Message link unavailable',
@@ -55,9 +62,7 @@ function buildReportEvidenceText(message, options = {}) {
   if (attachments.length) {
     lines.push('', '**Attachments**');
     for (const attachment of attachments) {
-      lines.push(options.includeAttachmentLinks
-        ? '- [' + attachment.originalName + '](' + attachment.url + ')'
-        : '- ' + attachment.originalName);
+      lines.push('- ' + attachmentLink(attachment));
     }
   }
   return lines.join('\n');
@@ -78,7 +83,7 @@ function addReportAttachments(payload, message, options = {}) {
     container.components.push({
       type: 12,
       items: media.map((attachment) => ({
-        media: { url: copyAttachments ? 'attachment://' + attachment.copiedName : attachment.url },
+        media: { url: attachment.url },
         description: attachment.originalName.slice(0, 1024),
       })),
     });
@@ -101,6 +106,7 @@ function addReportAttachments(payload, message, options = {}) {
 module.exports = {
   MAX_EVIDENCE_ATTACHMENTS,
   addReportAttachments,
+  attachmentLink,
   buildReportEvidenceText,
   evidenceAttachments,
   mediaKind,
