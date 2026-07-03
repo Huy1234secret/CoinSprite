@@ -10,6 +10,7 @@ process.env.PUBLIC_WEB_BASE_URL = 'https://appeals.example.com';
 
 const {
   DISCORD_MAX_TIMEOUT_MS,
+  enforceOutstandingMuteForMessage,
   executeSanction,
   formatDuration,
   maintainSanctions,
@@ -48,11 +49,14 @@ test('sanction durations support temporary and permanent actions', () => {
   assert.throws(() => parseActionDuration('29d', { maximumMs: 28 * 86400000 }), /between/);
 });
 
+let fixtureSequence = 0;
+
 function sanctionFixture() {
+  fixtureSequence += 1;
   const events = [];
   const notices = [];
   const user = {
-    id: '234567890123456789',
+    id: (234567890123456789n + BigInt(fixtureSequence)).toString(),
     bot: false,
     username: 'target',
     displayAvatarURL: () => '',
@@ -71,7 +75,7 @@ function sanctionFixture() {
     kick: async () => events.push('kick'),
   };
   const guild = {
-    id: '567890123456789012',
+    id: (567890123456789012n + BigInt(fixtureSequence)).toString(),
     name: 'Test guild',
     ownerId: '678901234567890123',
     members: {
@@ -130,4 +134,47 @@ test('a blank mute duration applies a renewable Discord timeout and records perm
     'mute:' + DISCORD_MAX_TIMEOUT_MS,
   ]);
   assert.ok(result.case.expiresAt == null);
+});
+
+
+test('long mutes retain their full expiry and silently roll the remaining timeout on message', async () => {
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    const fixture = sanctionFixture();
+    const result = await executeSanction({
+      action: 'mute',
+      guild: fixture.guild,
+      user: fixture.user,
+      member: fixture.member,
+      moderatorId: '789012345678901234',
+      reason: 'Long mute',
+      time: '50d',
+    });
+
+    assert.equal(result.durationMs, 50 * 86400000);
+    assert.equal(result.case.expiresAt, now + 50 * 86400000);
+    assert.deepEqual(fixture.events, ['dm', 'mute:' + DISCORD_MAX_TIMEOUT_MS]);
+
+    now += 46 * 86400000;
+    fixture.member.communicationDisabledUntilTimestamp = 0;
+    const message = {
+      guild: fixture.guild,
+      member: fixture.member,
+      author: fixture.user,
+      deletable: true,
+      delete: async () => fixture.events.push('delete'),
+    };
+    assert.equal(await enforceOutstandingMuteForMessage(message), true);
+    assert.deepEqual(fixture.events, [
+      'dm',
+      'mute:' + DISCORD_MAX_TIMEOUT_MS,
+      'delete',
+      'mute:' + (4 * 86400000),
+    ]);
+    assert.equal(fixture.notices.length, 1);
+  } finally {
+    Date.now = realNow;
+  }
 });
