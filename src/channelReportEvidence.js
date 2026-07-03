@@ -45,7 +45,7 @@ function evidenceAttachments(message) {
 }
 
 function attachmentLink(attachment) {
-  const label = attachment.originalName.replace(/[\\[\]\\]/g, '\\function buildReportEvidenceText(message, options = {}) {');
+  const label = attachment.originalName.replace(/[\\[\]\\]/g, (character) => '\\' + character);
   let url = attachment.url;
   try { url = encodeURI(url); } catch {}
   return '[' + label + '](' + url + ')';
