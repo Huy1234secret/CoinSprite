@@ -16,7 +16,7 @@ const {
   saveGuildRules,
 } = require('../src/channelRules');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
-const { executeSanction } = require('../src/moderationActionService');
+const { enforceOutstandingMuteForMessage, executeSanction } = require('../src/moderationActionService');
 
 const previousCreateServer = http.createServer.bind(http);
 const SESSION_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -287,6 +287,10 @@ module.exports = {
 
   async handleMessageCreate(message) {
     if (!message?.guild || message.author?.bot || message.webhookId || message.__coinSpriteChannelRuleHandled) return;
+    if (await enforceOutstandingMuteForMessage(message)) {
+      message.__coinSpriteChannelRuleHandled = true;
+      return;
+    }
     const types = classifyMessage(message);
     const rule = getGuildRules(message.guildId).find((item) => (
       item.enabled && item.channelIds.length && item.actions.length && ruleMatchesChannel(item, message) && isRuleViolation(item, types)
