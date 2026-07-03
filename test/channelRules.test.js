@@ -73,7 +73,7 @@ test('normalizes channels, contexts, and action-specific settings', () => {
   ]);
 });
 
-test('uses permanent mute mode for blank or over-limit channel mutes', () => {
+test('keeps long channel mute durations and uses blank for permanent', () => {
   const [rule] = normalizeRules([{
     channelIds: ['1234567890123456'],
     contexts: ['text'],
@@ -84,7 +84,7 @@ test('uses permanent mute mode for blank or over-limit channel mutes', () => {
     ],
   }]);
 
-  assert.deepEqual(rule.actions.map((action) => action.time), ['', '', '28d']);
+  assert.deepEqual(rule.actions.map((action) => action.time), ['', '365d', '28d']);
 });
 
 test('persists normalized rules per guild', () => {
