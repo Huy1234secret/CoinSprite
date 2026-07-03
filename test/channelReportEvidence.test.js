@@ -30,12 +30,12 @@ test('evidence includes the jump link and exact message content', () => {
   assert.ok(text.startsWith(message.url));
   assert.ok(text.includes(message.content));
   assert.ok(text.indexOf(message.content) > text.indexOf(message.url));
-  assert.ok(text.includes('proof image.png'));
-  assert.ok(text.includes('proof.mp4'));
-  assert.ok(text.includes('notes.txt'));
+  assert.ok(text.includes('[proof image.png](https://cdn.example/proof.png)'));
+  assert.ok(text.includes('[proof.mp4](https://cdn.example/proof.mp4)'));
+  assert.ok(text.includes('[notes.txt](https://cdn.example/notes.txt)'));
 });
 
-test('copies media into a gallery and other attachments into the report container', () => {
+test('uses direct media links in the gallery while retaining copied backup files', () => {
   const message = fixture();
   const payload = { components: [{ type: 17, components: [{ type: 10, content: 'Report' }] }] };
   addReportAttachments(payload, message, { copyAttachments: true });
@@ -47,7 +47,10 @@ test('copies media into a gallery and other attachments into the report containe
   const container = payload.components[0];
   const gallery = container.components.find((component) => component.type === 12);
   assert.equal(gallery.items.length, 2);
-  assert.ok(gallery.items.every((item) => item.media.url.startsWith('attachment://')));
+  assert.deepEqual(gallery.items.map((item) => item.media.url), [
+    'https://cdn.example/proof.png',
+    'https://cdn.example/proof.mp4',
+  ]);
   const file = container.components.find((component) => component.type === 13);
   assert.ok(file.file.url.endsWith(attachments[2].copiedName));
 });
