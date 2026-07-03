@@ -45,6 +45,16 @@ function cleanTime(value, fallback) {
   return /^(?:\d+\s*[mhdw]|permanent|perm|never)$/.test(text) ? text : fallback;
 }
 
+function cleanMuteTime(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text || ['permanent', 'perm', 'never'].includes(text)) return '';
+  const match = text.match(/^(\d+)\s*([mhdw])$/);
+  if (!match) return '10m';
+  const units = { m: 60000, h: 3600000, d: 86400000, w: 604800000 };
+  const durationMs = Number(match[1]) * units[match[2]];
+  return durationMs > 28 * 86400000 ? '' : text;
+}
+
 function normalizeAction(value = {}) {
   const type = String(typeof value === 'string' ? value : value.type || '').trim().toLowerCase();
   if (!ACTION_TYPES.has(type)) return null;
@@ -57,7 +67,7 @@ function normalizeAction(value = {}) {
   }
   if (type === 'mute') {
     action.reason = cleanReason(value.reason);
-    action.time = cleanTime(value.time, '10m');
+    action.time = cleanMuteTime(value.time);
   }
   if (type === 'kick') action.reason = cleanReason(value.reason);
   if (type === 'ban') {
