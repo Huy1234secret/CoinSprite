@@ -16,7 +16,7 @@ const {
   saveGuildRules,
 } = require('../src/channelRules');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
-const { addReportAttachments, buildReportEvidenceText } = require('../src/channelReportEvidence');
+const { addReportAttachments, buildReportEvidenceText, uploadedAttachmentUrls } = require('../src/channelReportEvidence');
 const { deleteRecentUserMessages } = require('../src/channelMessageDeletion');
 const { enforceOutstandingMuteForMessage, executeSanction } = require('../src/moderationActionService');
 
@@ -198,16 +198,27 @@ async function reportMessage(message, rule, action) {
   const reason = action.reason || ('Channel rule violation: ' + rule.name);
   const template = findTemplate(message.guildId, DEFAULT_REPORT_TEMPLATE_ID);
   if (template) {
-    const copiedPayload = createTemplatePayload(template, message, templateValues(message, rule, reason, 'report'));
-    addReportAttachments(copiedPayload, message, { copyAttachments: true });
-    const copied = await channel.send(copiedPayload).then(() => true).catch(() => false);
-    if (copied) return;
+    const uploadPayload = createTemplatePayload(template, message, templateValues(message, rule, reason, 'report'));
+    addReportAttachments(uploadPayload, message, { copyAttachments: true, includeGallery: false });
+    const sent = await channel.send(uploadPayload).catch(() => null);
+    if (sent) {
+      const attachmentUrls = uploadedAttachmentUrls(sent);
+      if (attachmentUrls.size && typeof sent.edit === 'function') {
+        const finalPayload = createTemplatePayload(
+          template,
+          message,
+          templateValues(message, rule, reason, 'report', { attachmentUrls }),
+        );
+        addReportAttachments(finalPayload, message, { copyAttachments: false, attachmentUrls });
+        await sent.edit({
+          components: finalPayload.components,
+          allowedMentions: finalPayload.allowedMentions,
+        }).catch(() => null);
+      }
+      return;
+    }
 
-    const fallbackPayload = createTemplatePayload(
-      template,
-      message,
-      templateValues(message, rule, reason, 'report', { includeAttachmentLinks: true }),
-    );
+    const fallbackPayload = createTemplatePayload(template, message, templateValues(message, rule, reason, 'report'));
     addReportAttachments(fallbackPayload, message, { copyAttachments: false });
     await channel.send(fallbackPayload).catch(() => null);
     return;
@@ -245,13 +256,18 @@ async function sendDeleteNotice(message, rule, reason) {
 async function runRuleActions(message, rule) {
   let deleted = false;
   let sanctioned = false;
+
+  for (const action of rule.actions.filter((item) => item.type === 'report')) {
+    await reportMessage(message, rule, action);
+  }
+
   for (const action of rule.actions) {
     const reason = action.reason || ('Channel rule violation: ' + rule.name);
     if (action.type === 'delete') {
       const result = await deleteRecentUserMessages(message, action.amount);
       deleted = result.deleted > 0 || deleted;
     } else if (action.type === 'report') {
-      await reportMessage(message, rule, action);
+      continue;
     } else if (action.type === 'send_message') {
       await sendConfiguredMessage(message, rule, action);
     } else if (['mute', 'kick', 'ban'].includes(action.type)) {

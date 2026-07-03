@@ -7,6 +7,7 @@ const {
   addReportAttachments,
   buildReportEvidenceText,
   evidenceAttachments,
+  uploadedAttachmentUrls,
 } = require('../src/channelReportEvidence');
 
 function fixture() {
@@ -35,29 +36,51 @@ test('evidence includes the jump link and exact message content', () => {
   assert.ok(text.includes('[notes.txt](https://cdn.example/notes.txt)'));
 });
 
-test('uses direct media links in the gallery while retaining copied backup files', () => {
+test('uploads copied evidence before rendering its gallery', () => {
   const message = fixture();
   const payload = { components: [{ type: 17, components: [{ type: 10, content: 'Report' }] }] };
-  addReportAttachments(payload, message, { copyAttachments: true });
+  addReportAttachments(payload, message, { copyAttachments: true, includeGallery: false });
 
   const attachments = evidenceAttachments(message);
   assert.equal(payload.files.length, 3);
   assert.deepEqual(payload.files.map((file) => file.name), attachments.map((item) => item.copiedName));
-
-  const container = payload.components[0];
-  const gallery = container.components.find((component) => component.type === 12);
-  assert.equal(gallery.items.length, 2);
-  assert.deepEqual(gallery.items.map((item) => item.media.url), [
-    'https://cdn.example/proof.png',
-    'https://cdn.example/proof.mp4',
-  ]);
-  const file = container.components.find((component) => component.type === 13);
-  assert.ok(file.file.url.endsWith(attachments[2].copiedName));
+  assert.equal(payload.components[0].components.some((component) => component.type === 12), false);
 });
 
-test('fallback evidence uses attachment links and remote gallery media', () => {
+test('uses report-owned attachment URLs for links and gallery media', () => {
   const message = fixture();
-  const text = buildReportEvidenceText(message, { includeAttachmentLinks: true });
+  const attachments = evidenceAttachments(message);
+  const sentReport = {
+    attachments: new Map(attachments.map((attachment) => [
+      attachment.copiedName,
+      {
+        name: attachment.copiedName,
+        url: 'https://cdn.discordapp.com/report-evidence/' + attachment.copiedName,
+      },
+    ])),
+  };
+  const attachmentUrls = uploadedAttachmentUrls(sentReport);
+  assert.equal(attachmentUrls.size, 3);
+
+  const text = buildReportEvidenceText(message, { attachmentUrls });
+  assert.ok(text.includes('[proof image.png](https://cdn.discordapp.com/report-evidence/01-proof_image.png)'));
+  assert.ok(text.includes('[proof.mp4](https://cdn.discordapp.com/report-evidence/02-proof.mp4)'));
+  assert.ok(text.includes('[notes.txt](https://cdn.discordapp.com/report-evidence/03-notes.txt)'));
+  assert.equal(text.includes('https://cdn.example/proof.png'), false);
+
+  const payload = { components: [{ type: 17, components: [] }] };
+  addReportAttachments(payload, message, { copyAttachments: false, attachmentUrls });
+  assert.equal(payload.files, undefined);
+  const gallery = payload.components[0].components.find((component) => component.type === 12);
+  assert.deepEqual(gallery.items.map((item) => item.media.url), [
+    'https://cdn.discordapp.com/report-evidence/01-proof_image.png',
+    'https://cdn.discordapp.com/report-evidence/02-proof.mp4',
+  ]);
+});
+
+test('falls back to original attachment links if preserving evidence fails', () => {
+  const message = fixture();
+  const text = buildReportEvidenceText(message);
   assert.ok(text.includes('[proof image.png](https://cdn.example/proof.png)'));
 
   const payload = { components: [{ type: 17, components: [] }] };
