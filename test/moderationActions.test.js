@@ -133,6 +133,23 @@ test('a blank mute duration applies a renewable Discord timeout and records perm
     'mute:' + DISCORD_MAX_TIMEOUT_MS,
     'mute:' + DISCORD_MAX_TIMEOUT_MS,
   ]);
+
+  const message = {
+    guild: fixture.guild,
+    member: fixture.member,
+    author: fixture.user,
+    deletable: true,
+    delete: async () => fixture.events.push('delete'),
+  };
+  assert.equal(await enforceOutstandingMuteForMessage(message), true);
+  assert.deepEqual(fixture.events, [
+    'dm',
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
+    'delete',
+    'mute:' + DISCORD_MAX_TIMEOUT_MS,
+  ]);
+  assert.equal(fixture.notices.length, 1);
   assert.ok(result.case.expiresAt == null);
 });
 
