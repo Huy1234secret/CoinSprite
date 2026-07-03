@@ -57,7 +57,7 @@
       channelIds: [],
       mode: 'allowed',
       contexts: ['text'],
-      actions: [{ type: 'delete', reason: 'This content is not permitted in this channel.' }],
+      actions: [{ type: 'delete', reason: 'This content is not permitted in this channel.', amount: 1 }],
     };
   }
 
@@ -67,7 +67,7 @@
     if (type === 'kick') return { type, reason: 'Channel rule violation.' };
     if (type === 'ban') return { type, reason: 'Channel rule violation.', time: 'permanent' };
     if (type === 'send_message') return { type, templateId: '', ephemeral: false };
-    return { type: 'delete', reason: 'This content is not permitted in this channel.' };
+    return { type: 'delete', reason: 'This content is not permitted in this channel.', amount: 1 };
   }
 
   function selectedRule() {
@@ -113,6 +113,10 @@
     }
     let fields = '<label class="channel-rule-wide">Reason<input data-channel-action-field="reason" maxlength="1000" value="'
       + escapeHtml(action.reason || '') + '"></label>';
+    if (action.type === 'delete') {
+      fields += '<label>Amount<input data-channel-action-field="amount" type="number" min="1" max="100" step="1" value="'
+        + escapeHtml(action.amount ?? 1) + '" placeholder="1"></label>';
+    }
     if (action.type === 'mute' || action.type === 'ban') {
       const defaultTime = action.type === 'mute' ? '10m' : 'permanent';
       const timeValue = action.time == null ? defaultTime : action.time;
