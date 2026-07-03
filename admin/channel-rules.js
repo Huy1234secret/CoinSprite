@@ -25,6 +25,7 @@
   const state = {
     guildId: '',
     rules: [],
+    savedRules: [],
     templates: [],
     contexts: Object.keys(CONTEXT_LABELS),
     activeId: '',
@@ -41,6 +42,10 @@
 
   function unique(value) {
     return [...new Set((Array.isArray(value) ? value : []).map(String).filter(Boolean))];
+  }
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
   }
 
   function newRule() {
@@ -81,6 +86,7 @@
   function setDirty() {
     state.dirty = true;
     setStatus('Unsaved channel rule changes.');
+    if (typeof refreshDirtyState === 'function') refreshDirtyState();
   }
 
   function textChannelOptions() {
@@ -108,8 +114,10 @@
     let fields = '<label class="channel-rule-wide">Reason<input data-channel-action-field="reason" maxlength="1000" value="'
       + escapeHtml(action.reason || '') + '"></label>';
     if (action.type === 'mute' || action.type === 'ban') {
-      fields += '<label>Time<input data-channel-action-field="time" value="' + escapeHtml(action.time || (action.type === 'mute' ? '10m' : 'permanent'))
-        + '" placeholder="' + (action.type === 'mute' ? '10m, 12h, 7d' : '7d or permanent') + '"></label>';
+      const defaultTime = action.type === 'mute' ? '10m' : 'permanent';
+      const timeValue = action.time == null ? defaultTime : action.time;
+      fields += '<label>Time (empty = permanent)<input data-channel-action-field="time" value="' + escapeHtml(timeValue)
+        + '" placeholder="' + (action.type === 'mute' ? '10m, 12h, 7d; maximum 28d' : '7d or permanent') + '"></label>';
     }
     if (action.type === 'report') {
       fields += '<div class="picker-field channel-rule-wide"><span class="field-label">Report channel</span>'
@@ -154,39 +162,64 @@
       + '<p>Punishments use the bot\'s existing default alert messages. Reports use the default moderation action report.</p></div>'
       + '<button class="button small" type="button" data-channel-rule-action="add-action">Add action</button></div>'
       + '<div class="channel-rule-actions">' + rule.actions.map(actionRow).join('') + '</div></div>'
-      + '<div class="channel-rule-footer"><button class="button danger" type="button" data-channel-rule-action="remove-rule">Delete channel rule</button>'
-      + '<button class="button success" type="button" data-channel-rule-action="save">Save Channel Rules</button></div>'
+      + '<div class="channel-rule-footer"><button class="button danger" type="button" data-channel-rule-action="remove-rule">Delete channel rule</button></div>'
       + '<div class="status compact" id="channelRulesStatus" role="status">' + escapeHtml(state.status) + '</div></div>';
   }
 
-  function render() {
+  function nativeChannelLayout() {
     const root = document.querySelector('#moderatorRoot');
-    if (!root || !state.open) return;
-    const nativeShell = root.querySelector('.moderator-shell:not(.channel-rules-shell)');
-    if (nativeShell) nativeShell.hidden = true;
-    let shell = root.querySelector('.channel-rules-shell');
-    if (!shell) {
-      shell = document.createElement('div');
-      shell.className = 'moderator-shell channel-rules-shell';
-      root.appendChild(shell);
+    const shell = root?.querySelector('.moderator-shell');
+    const tabs = shell?.querySelector('.mini-tabs');
+    return { root, shell, tabs };
+  }
+
+  function setNativePanelHidden(shell, tabs, hidden) {
+    if (!shell || !tabs) return;
+    let afterTabs = false;
+    [...shell.children].forEach((child) => {
+      if (child === tabs) {
+        afterTabs = true;
+        return;
+      }
+      if (!afterTabs || child.classList.contains('channel-rules-content')) return;
+      if (hidden) {
+        if (!child.hasAttribute('data-channel-rules-was-hidden')) {
+          child.dataset.channelRulesWasHidden = child.hidden ? 'true' : 'false';
+        }
+        child.hidden = true;
+      } else if (child.hasAttribute('data-channel-rules-was-hidden')) {
+        child.hidden = child.dataset.channelRulesWasHidden === 'true';
+        delete child.dataset.channelRulesWasHidden;
+      }
+    });
+  }
+
+  function render() {
+    if (!state.open) return;
+    const { shell, tabs } = nativeChannelLayout();
+    if (!shell || !tabs) return;
+    setNativePanelHidden(shell, tabs, true);
+
+    const channelTab = tabs.querySelector('[data-channel-rules-open]');
+    tabs.querySelectorAll('.mini-tab').forEach((button) => button.classList.toggle('active', button === channelTab));
+
+    let content = shell.querySelector('.channel-rules-content');
+    if (!content) {
+      content = document.createElement('div');
+      content.className = 'channel-rules-content';
+      tabs.insertAdjacentElement('afterend', content);
     }
+
     const rule = selectedRule();
     if (rule && !state.activeId) state.activeId = rule.id;
-    shell.innerHTML = '<nav class="moderator-workspace-tabs" aria-label="Moderator workspace">'
-      + '<button class="moderator-workspace-tab active" type="button"><strong>Auto Moderation</strong><span>AI, link, and channel controls</span></button>'
-      + '<button class="moderator-workspace-tab" type="button" data-channel-rule-exit="warnings"><strong>Moderation</strong><span>Warnings and cases</span></button></nav>'
-      + '<nav class="mini-tabs" aria-label="Auto moderation sections">'
-      + '<button class="mini-tab" type="button" data-channel-rule-exit="ai">AI Moderation</button>'
-      + '<button class="mini-tab" type="button" data-channel-rule-exit="auto">Link Moderation</button>'
-      + '<button class="mini-tab active" type="button">Channel</button></nav>'
-      + '<div class="channel-rule-subtabs"><button class="button small primary" type="button" data-channel-rule-action="add-rule">Add channel</button>'
+    content.innerHTML = '<div class="channel-rule-subtabs"><button class="button small primary" type="button" data-channel-rule-action="add-rule">Add channel</button>'
       + state.rules.map((item) => '<button class="mini-tab ' + (item.id === state.activeId ? 'active' : '')
         + '" type="button" data-channel-rule-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</button>').join('')
       + '</div>'
       + (state.loading ? '<div class="panel empty-state">Loading channel rules...</div>' : ruleEditor(rule));
 
     if (!rule || state.loading) return;
-    const channelMount = shell.querySelector('#channelRuleChannelsMount');
+    const channelMount = content.querySelector('#channelRuleChannelsMount');
     if (channelMount && typeof renderPicker === 'function') {
       renderPicker(channelMount, textChannelOptions(), rule.channelIds, {
         multiple: true,
@@ -198,7 +231,7 @@
         },
       });
     }
-    shell.querySelectorAll('[data-channel-report-mount]').forEach((mount) => {
+    content.querySelectorAll('[data-channel-report-mount]').forEach((mount) => {
       const index = Number(mount.dataset.channelReportMount);
       const action = rule.actions[index];
       if (!action || typeof renderPicker !== 'function') return;
@@ -229,6 +262,7 @@
       const templatePayload = await templateResponse.json();
       if (!rulesResponse.ok) throw new Error(rulesPayload.error || 'Could not load channel rules.');
       state.rules = Array.isArray(rulesPayload.rules) ? rulesPayload.rules : [];
+      state.savedRules = clone(state.rules);
       state.contexts = Array.isArray(rulesPayload.contextTypes) ? rulesPayload.contextTypes : Object.keys(CONTEXT_LABELS);
       state.templates = templateResponse.ok && Array.isArray(templatePayload.templates) ? templatePayload.templates : [];
       state.activeId = state.rules[0]?.id || '';
@@ -239,6 +273,7 @@
     } finally {
       state.loading = false;
       render();
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
     }
   }
 
@@ -254,17 +289,73 @@
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Could not save channel rules.');
       state.rules = payload.rules || [];
+      state.savedRules = clone(state.rules);
       if (!state.rules.some((rule) => rule.id === state.activeId)) state.activeId = state.rules[0]?.id || '';
       state.dirty = false;
       state.status = 'Channel rules saved.';
       render();
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
+      return true;
     } catch (error) {
       setStatus(error.message, true);
+      if (typeof refreshDirtyState === 'function') refreshDirtyState();
+      return false;
     }
   }
 
+  function applyChannelDirtyState() {
+    if (!state.dirty) return;
+    const unsavedBar = document.querySelector('#unsavedBar');
+    const savedState = document.querySelector('#savedState');
+    const resetButton = document.querySelector('#resetTabButton');
+    const detail = document.querySelector('#unsavedDetail');
+    if (unsavedBar) unsavedBar.hidden = false;
+    if (savedState) {
+      savedState.textContent = 'Unsaved changes';
+      savedState.classList.add('dirty');
+    }
+    if (resetButton) resetButton.disabled = !state.open;
+    if (detail) detail.textContent = 'Changed: Channel rules';
+    document.body.classList.add('has-unsaved-changes');
+  }
+
+  const nativeRefreshDirtyState = typeof refreshDirtyState === 'function' ? refreshDirtyState : null;
+  if (nativeRefreshDirtyState) {
+    refreshDirtyState = function channelRulesRefreshDirtyState() {
+      nativeRefreshDirtyState();
+      applyChannelDirtyState();
+    };
+  }
+
+  const defaultSaveButton = document.querySelector('#saveButton');
+  defaultSaveButton?.addEventListener('click', async (event) => {
+    if (!state.dirty || defaultSaveButton.dataset.channelRulesForwarding === 'true') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    defaultSaveButton.disabled = true;
+    defaultSaveButton.textContent = 'Saving...';
+    const saved = await save();
+    defaultSaveButton.disabled = false;
+    defaultSaveButton.textContent = 'Save changes';
+    if (!saved) return;
+    defaultSaveButton.dataset.channelRulesForwarding = 'true';
+    defaultSaveButton.click();
+    delete defaultSaveButton.dataset.channelRulesForwarding;
+  }, true);
+
+  document.querySelector('#resetTabButton')?.addEventListener('click', (event) => {
+    if (!state.open || !state.dirty) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    state.rules = clone(state.savedRules);
+    state.activeId = state.rules.some((rule) => rule.id === state.activeId) ? state.activeId : (state.rules[0]?.id || '');
+    state.dirty = false;
+    state.status = 'Channel rules reset to the last saved values.';
+    render();
+    if (typeof refreshDirtyState === 'function') refreshDirtyState();
+  }, true);
+
   function ensureChannelTab() {
-    if (state.open) return;
     const root = document.querySelector('#moderatorRoot');
     const shell = root?.querySelector('.moderator-shell');
     if (!shell || !root.querySelector('[data-moderator-workspace="auto"].active')) return;
@@ -286,15 +377,11 @@
     if (guildId !== state.guildId || !state.rules.length) await load();
   }
 
-  function exitChannelRules(view) {
-    const root = document.querySelector('#moderatorRoot');
-    root?.querySelector('.channel-rules-shell')?.remove();
-    const nativeShell = root?.querySelector('.moderator-shell');
-    if (nativeShell) nativeShell.hidden = false;
+  function deactivateChannelRules() {
+    const { shell, tabs } = nativeChannelLayout();
+    shell?.querySelector('.channel-rules-content')?.remove();
+    setNativePanelHidden(shell, tabs, false);
     state.open = false;
-    const workspace = view === 'warnings' ? 'moderation' : 'auto';
-    root?.querySelector('[data-moderator-workspace="' + workspace + '"]')?.click();
-    if (workspace === 'auto') queueMicrotask(() => root?.querySelector('[data-moderator-view="' + view + '"]')?.click());
     queueMicrotask(ensureChannelTab);
   }
 
@@ -306,14 +393,17 @@
       openChannelRules();
       return;
     }
-    const exit = event.target.closest('[data-channel-rule-exit]');
-    if (exit) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      exitChannelRules(exit.dataset.channelRuleExit);
+    if (state.open && event.target.closest('#moderatorRoot [data-moderator-view], #moderatorRoot [data-moderator-workspace]')) {
+      if (state.dirty) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (typeof showUnsavedNavigationBlock === 'function') showUnsavedNavigationBlock();
+        return;
+      }
+      deactivateChannelRules();
       return;
     }
-    if (!event.target.closest('.channel-rules-shell')) return;
+    if (!event.target.closest('.channel-rules-content')) return;
     const ruleId = event.target.closest('[data-channel-rule-id]')?.dataset.channelRuleId;
     if (ruleId) {
       state.activeId = ruleId;
@@ -343,13 +433,11 @@
       if (Number.isInteger(index)) rule.actions.splice(index, 1);
       setDirty();
       render();
-    } else if (actionName === 'save') {
-      save();
     }
   }, true);
 
   document.addEventListener('input', (event) => {
-    if (!event.target.closest('.channel-rules-shell')) return;
+    if (!event.target.closest('.channel-rules-content')) return;
     const rule = selectedRule();
     if (!rule) return;
     if (event.target.id === 'channelRuleName') {
@@ -366,7 +454,7 @@
   }, true);
 
   document.addEventListener('change', (event) => {
-    if (!event.target.closest('.channel-rules-shell')) return;
+    if (!event.target.closest('.channel-rules-content')) return;
     const rule = selectedRule();
     if (!rule) return;
     if (event.target.id === 'channelRuleEnabled') rule.enabled = Boolean(event.target.checked);
@@ -395,6 +483,7 @@
   document.querySelector('#guildSelect')?.addEventListener('change', () => {
     state.guildId = '';
     state.rules = [];
+    state.savedRules = [];
     state.templates = [];
     state.activeId = '';
     if (state.open) load();
