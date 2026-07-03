@@ -44,14 +44,19 @@ function evidenceAttachments(message) {
   })).filter((attachment) => attachment.url);
 }
 
-function attachmentLink(attachment) {
+function resolvedAttachmentUrl(attachment, options = {}) {
+  const urls = options.attachmentUrls;
+  return String(urls?.get?.(attachment.copiedName) || urls?.[attachment.copiedName] || attachment.url || '');
+}
+
+function attachmentLink(attachment, options = {}) {
   const label = attachment.originalName.replace(/[\\[\]\\]/g, (character) => '\\' + character);
-  let url = attachment.url;
+  let url = resolvedAttachmentUrl(attachment, options);
   try { url = encodeURI(url); } catch {}
   return '[' + label + '](' + url + ')';
 }
 
-function buildReportEvidenceText(message) {
+function buildReportEvidenceText(message, options = {}) {
   const attachments = evidenceAttachments(message);
   const lines = [
     messageUrl(message) || 'Message link unavailable',
@@ -62,7 +67,7 @@ function buildReportEvidenceText(message) {
   if (attachments.length) {
     lines.push('', '**Attachments**');
     for (const attachment of attachments) {
-      lines.push('- ' + attachmentLink(attachment));
+      lines.push('- ' + attachmentLink(attachment, options));
     }
   }
   return lines.join('\n');
@@ -79,11 +84,11 @@ function addReportAttachments(payload, message, options = {}) {
 
   const copyAttachments = options.copyAttachments !== false;
   const media = attachments.filter((attachment) => attachment.kind);
-  if (media.length) {
+  if (media.length && options.includeGallery !== false) {
     container.components.push({
       type: 12,
       items: media.map((attachment) => ({
-        media: { url: attachment.url },
+        media: { url: resolvedAttachmentUrl(attachment, options) },
         description: attachment.originalName.slice(0, 1024),
       })),
     });
@@ -103,6 +108,12 @@ function addReportAttachments(payload, message, options = {}) {
   return payload;
 }
 
+function uploadedAttachmentUrls(message) {
+  return new Map(collectionValues(message?.attachments)
+    .filter((attachment) => attachment?.name && attachment?.url)
+    .map((attachment) => [String(attachment.name), String(attachment.url)]));
+}
+
 module.exports = {
   MAX_EVIDENCE_ATTACHMENTS,
   addReportAttachments,
@@ -111,5 +122,7 @@ module.exports = {
   evidenceAttachments,
   mediaKind,
   messageUrl,
+  resolvedAttachmentUrl,
   safeFilename,
+  uploadedAttachmentUrls,
 };
