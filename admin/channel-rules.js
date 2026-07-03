@@ -117,7 +117,7 @@
       const defaultTime = action.type === 'mute' ? '10m' : 'permanent';
       const timeValue = action.time == null ? defaultTime : action.time;
       fields += '<label>Time (empty = permanent)<input data-channel-action-field="time" value="' + escapeHtml(timeValue)
-        + '" placeholder="' + (action.type === 'mute' ? '10m, 12h, 7d; maximum 28d' : '7d or permanent') + '"></label>';
+        + '" placeholder="' + (action.type === 'mute' ? '10m, 12h, 50d; empty = permanent' : '7d or permanent') + '"></label>';
     }
     if (action.type === 'report') {
       fields += '<div class="picker-field channel-rule-wide"><span class="field-label">Report channel</span>'
