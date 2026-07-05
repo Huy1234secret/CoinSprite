@@ -197,15 +197,18 @@
   }
 
   function removeEscapedNewlineArtifacts(root = document) {
-    for (const scope of root.querySelectorAll?.('.sidebar,.topbar,#ownerPanel') || []) {
-      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
-      const remove = [];
-      while (walker.nextNode()) {
-        const text = String(walker.currentNode.nodeValue || '').trim();
-        if (text && /^(?:\\n)+$/.test(text)) remove.push(walker.currentNode);
-      }
-      remove.forEach((node) => node.remove());
+    const scope = root instanceof Document ? root.body : root;
+    if (!scope) return;
+
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    const remove = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.parentElement?.closest('script,style,textarea,pre,code')) continue;
+      const text = String(node.nodeValue || '').trim();
+      if (text && /^(?:\\n)+$/.test(text)) remove.push(node);
     }
+    remove.forEach((node) => node.remove());
   }
 
   function containerFromLegacyFields() {
