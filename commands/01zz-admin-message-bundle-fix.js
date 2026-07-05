@@ -14,7 +14,6 @@ const CURRENT_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
   ['message-inline-editor.js'],
   ['message-edit-shortcuts.js'],
   ['owner-panel.js'],
-  ['dashboard-ui-enhancements.js'],
 ];`;
 
 const FIXED_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
@@ -31,6 +30,7 @@ const FIXED_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
   ['emoji-picker.js'],
   ['message-edit-shortcuts.js'],
   ['owner-panel.js'],
+  ['dashboard-ui-enhancements.js'],
 ];`;
 
 function samePath(left, right) {
