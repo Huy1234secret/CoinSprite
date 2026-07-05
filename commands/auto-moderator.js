@@ -170,7 +170,7 @@ function authorAvatarUrl(author) {
 
 function reportIntroComponent(message, details, actionName) {
   const content = [
-    '## Auto-Moderator report',
+    '## Link Auto-Moderator report',
     `**Action:** ${safeInline(actionName || 'log')}`,
     `**Reason:** ${safeInline(details.reason)}`,
   ].join('\n');
@@ -216,7 +216,7 @@ function autoModerationValues(message, details, actionName) {
     ['blocked-url', details.url ? `<${details.url}>` : '`-`'],
     ['invite-code', details.inviteCode || '-'],
     ['message-link', messageJumpUrl(message)],
-    ['message-content', limitText(message.content || '[empty message]', 1200).replace(/```/g, '``\u200b`')],
+    ['message-content', safeInline(String(message.content || '[empty message]').replace(/\s+/g, ' '), '[empty message]')],
   ]);
 }
 
