@@ -14,10 +14,12 @@ const CURRENT_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
   ['message-inline-editor.js'],
   ['message-edit-shortcuts.js'],
   ['owner-panel.js'],
+  ['dashboard-ui-enhancements.js'],
 ];`;
 
 const FIXED_BUNDLE_LIST = `const BUNDLED_ADMIN_SCRIPTS = [
   ['tickets.js'],
+  ['rich-message-editor.js'],
   ['message-inline-editor.js'],
   ['message-template-workflow.js'],
   ['messages.js', patchMessagesScript],
