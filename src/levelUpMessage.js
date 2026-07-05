@@ -22,6 +22,7 @@ const DEFAULT_LEVEL_UP_MESSAGE = Object.freeze({
   accentColor: '#57F287',
   thumbnailUrl: '<avatar_url>',
   imageUrl: '',
+  containers: [],
 });
 
 const PLACEHOLDER_ALIASES = {
@@ -55,13 +56,35 @@ function sanitizeAccentColor(value, fallback = DEFAULT_LEVEL_UP_MESSAGE.accentCo
 function sanitizeLevelUpMessage(value, fallback = DEFAULT_LEVEL_UP_MESSAGE) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const base = fallback && typeof fallback === 'object' ? fallback : DEFAULT_LEVEL_UP_MESSAGE;
-  return {
-    enabled: 'enabled' in source ? Boolean(source.enabled) : Boolean(base.enabled),
-    outsideContent: editableString(source, 'outsideContent', base.outsideContent || '', 2000),
-    content: editableString(source, 'content', base.content || DEFAULT_LEVEL_UP_MESSAGE.content, 4000),
+  const legacyContainer = {
+    id: 'level-up-container',
+    text: editableString(source, 'content', base.content || DEFAULT_LEVEL_UP_MESSAGE.content, 4000),
     accentColor: sanitizeAccentColor(source.accentColor, sanitizeAccentColor(base.accentColor)),
     thumbnailUrl: optionalString(source.thumbnailUrl, base.thumbnailUrl, 1000),
     imageUrl: optionalString(source.imageUrl, base.imageUrl, 1000),
+  };
+  const suppliedContainers = Object.prototype.hasOwnProperty.call(source, 'containers')
+    ? (Array.isArray(source.containers) ? source.containers : [])
+    : [legacyContainer];
+  const containers = suppliedContainers.slice(0, 8).map((item, index) => {
+    const container = item && typeof item === 'object' ? item : {};
+    return {
+      id: String(container.id || 'level-up-container-' + (index + 1)).slice(0, 80),
+      text: optionalString(container.text, index === 0 ? legacyContainer.text : '', 4000),
+      accentColor: sanitizeAccentColor(container.accentColor, index === 0 ? legacyContainer.accentColor : '#5865F2'),
+      thumbnailUrl: optionalString(container.thumbnailUrl, index === 0 ? legacyContainer.thumbnailUrl : '', 1000),
+      imageUrl: optionalString(container.imageUrl, index === 0 ? legacyContainer.imageUrl : '', 1000),
+    };
+  });
+  const first = containers[0] || legacyContainer;
+  return {
+    enabled: 'enabled' in source ? Boolean(source.enabled) : Boolean(base.enabled),
+    outsideContent: editableString(source, 'outsideContent', base.outsideContent || '', 2000),
+    content: first.text,
+    accentColor: first.accentColor,
+    thumbnailUrl: first.thumbnailUrl,
+    imageUrl: first.imageUrl,
+    containers,
   };
 }
 
@@ -294,15 +317,16 @@ function buildLevelUpPayload(configValue, context) {
   const outsideContent = renderLevelUpTemplate(config.outsideContent, context);
   if (outsideContent) components.push({ type: 10, content: outsideContent });
 
-  const containerContent = renderLevelUpTemplate(config.content, context);
-  const thumbnailUrl = mediaUrlFromTemplate(config.thumbnailUrl, context);
-  const imageUrl = mediaUrlFromTemplate(config.imageUrl, context);
-  const containerComponents = buildTextComponents(containerContent, thumbnailUrl);
-  if (imageUrl) containerComponents.push({ type: 12, items: [{ media: { url: imageUrl } }] });
-  if (containerComponents.length) {
+  for (const container of config.containers) {
+    const containerContent = renderLevelUpTemplate(container.text, context);
+    const thumbnailUrl = mediaUrlFromTemplate(container.thumbnailUrl, context);
+    const imageUrl = mediaUrlFromTemplate(container.imageUrl, context);
+    const containerComponents = buildTextComponents(containerContent, thumbnailUrl);
+    if (imageUrl) containerComponents.push({ type: 12, items: [{ media: { url: imageUrl } }] });
+    if (!containerComponents.length) continue;
     components.push({
       type: 17,
-      accent_color: Number.parseInt(config.accentColor.slice(1), 16),
+      accent_color: Number.parseInt(container.accentColor.slice(1), 16),
       components: containerComponents,
     });
   }
