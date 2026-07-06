@@ -483,3 +483,59 @@ module.exports = {
   remainingMuteDuration,
   selectOutstandingMute,
 };
+
+
+// Consolidated command runtime fixes. These execute with their original virtual
+// filenames so relative imports and module hooks retain their established behavior.
+;(function installConsolidatedCommandFixes() {
+  const ConsolidatedFixModule = require('module');
+  const fixes = [
+    ["004-channel-rule-explicit-reports.js", function (module, exports, require, __filename, __dirname) {
+'use strict';
+
+const sanctions = require('../src/moderationActionService');
+
+const PATCH_MARKER = Symbol.for('coinsprite.channelRuleExplicitReports');
+
+function guildWithoutStaffLogChannels(guild) {
+  if (!guild?.channels) return guild;
+  const shadow = Object.create(guild);
+  Object.defineProperty(shadow, 'channels', {
+    configurable: true,
+    enumerable: true,
+    value: {
+      cache: new Map(),
+      fetch: async () => null,
+    },
+  });
+  return shadow;
+}
+
+if (!sanctions.executeSanction?.[PATCH_MARKER]) {
+  const nativeExecuteSanction = sanctions.executeSanction;
+  const executeSanction = async (input) => {
+    if (input?.source !== 'channel_rule') return nativeExecuteSanction(input);
+    return nativeExecuteSanction({
+      ...input,
+      guild: guildWithoutStaffLogChannels(input.guild),
+    });
+  };
+  Object.defineProperty(executeSanction, PATCH_MARKER, { value: true });
+  sanctions.executeSanction = executeSanction;
+}
+
+module.exports = {
+  guildWithoutStaffLogChannels,
+};
+    }],
+  ];
+  for (const [name, factory] of fixes) {
+    const filename = require('path').join(__dirname, '..', 'commands', name);
+    const fixModule = new ConsolidatedFixModule(filename, module);
+    fixModule.filename = filename;
+    fixModule.paths = ConsolidatedFixModule._nodeModulePaths(require('path').dirname(filename));
+    require.cache[filename] = fixModule;
+    factory.call(fixModule.exports, fixModule, fixModule.exports, fixModule.require.bind(fixModule), filename, require('path').dirname(filename));
+    fixModule.loaded = true;
+  }
+})();
