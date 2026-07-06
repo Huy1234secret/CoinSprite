@@ -478,7 +478,7 @@ module.exports = {};
     }],
   ];
   for (const [name, factory] of fixes) {
-    const filename = require('path').join(__dirname, '..', 'commands', name);
+    const filename = require('path').join(__dirname, 'commands', name);
     const fixModule = new ConsolidatedFixModule(filename, module);
     fixModule.filename = filename;
     fixModule.paths = ConsolidatedFixModule._nodeModulePaths(require('path').dirname(filename));
