@@ -329,7 +329,11 @@ client.commands = new Collection();
 setLogClient(client);
 
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js')).sort();
+const discoveredCommandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js')).sort();
+const commandFiles = [
+  ...discoveredCommandFiles.filter((file) => file.startsWith('runtime-')),
+  ...discoveredCommandFiles.filter((file) => !file.startsWith('runtime-')),
+];
 for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
   if (command.data && command.execute) client.commands.set(command.data.name, command);
