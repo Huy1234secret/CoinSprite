@@ -757,6 +757,7 @@ function startAdminServer(client) {
 
 module.exports = { startAdminServer };
 
+const consolidatedAdminCommands = [];
 
 // Consolidated command runtime fixes. These execute with their original virtual
 // filenames so relative imports and module hooks retain their established behavior.
@@ -2620,5 +2621,17 @@ module.exports = {};
     require.cache[filename] = fixModule;
     factory.call(fixModule.exports, fixModule, fixModule.exports, fixModule.require.bind(fixModule), filename, require('path').dirname(filename));
     fixModule.loaded = true;
+    if (fixModule.exports?.data && typeof fixModule.exports.execute === 'function') {
+      consolidatedAdminCommands.push(fixModule.exports);
+    }
   }
 })();
+
+function registerConsolidatedAdminCommands(client) {
+  if (!client?.commands?.set) return;
+  for (const command of consolidatedAdminCommands) {
+    client.commands.set(command.data.name, command);
+  }
+}
+
+module.exports.registerConsolidatedAdminCommands = registerConsolidatedAdminCommands;
