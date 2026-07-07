@@ -10,7 +10,7 @@ function source(file) {
 }
 
 test('dashboard bundle loads the shared rich editor and UI enhancements', () => {
-  const bundle = source('commands/01zz-admin-message-bundle-fix.js');
+  const bundle = source('src/adminServer.js');
   assert.match(bundle, /rich-message-editor\.js/);
   assert.match(bundle, /dashboard-ui-enhancements\.js/);
   assert.ok(bundle.indexOf('rich-message-editor.js') < bundle.indexOf('dashboard-ui-enhancements.js'));
@@ -22,17 +22,25 @@ test('live previews share container controls, root text, and complete placeholde
   assert.match(script, /rich-add-container/);
   assert.match(script, /message-root-content\.message-root-empty/);
   assert.match(script, /dashboard-placeholder-reference/);
-  for (const token of ['<server>', '<channel>', '<@mention>', '<level>', '<ticket_id>', '<appeal-id>', '<moderation-action>', '<separator>']) {
+  for (const token of ['<server>', '<channel>', '<@mention>', '<level>', '<ticket_id>', '<appeal-id>', '<moderation-action>', '<moderator-id>', '<notice-delivery>', '<separator>']) {
     assert.ok(script.includes(token), 'missing placeholder ' + token);
   }
   assert.match(script, /collectPatch = wrapped/);
   assert.match(script, /containers: current\.containers/);
+  assert.match(script, /Supported operators/);
+  assert.match(script, /&gt;=/);
+  assert.match(script, /&lt;=/);
 });
 
-test('dashboard section tabs are sticky and owner escaped-newline artifacts are removed', () => {
+test('dashboard section tabs stay in normal flow and owner escaped-newline artifacts are removed', () => {
   const script = source('admin/dashboard-ui-enhancements.js');
-  assert.match(script, /dashboard-sticky-tabs/);
-  assert.match(script, /position: sticky/);
+  const baseStyles = source('admin/style.css');
+  const bootstrap = source('admin/bootstrap.js');
+  assert.match(script, /dashboard-section-tabs/);
+  assert.match(script, /position: static !important/);
+  assert.doesNotMatch(script, /dashboard-sticky-tabs|position: sticky/);
+  assert.match(baseStyles, /\.mini-tabs\s*\{[\s\S]*?position: static/);
+  assert.doesNotMatch(bootstrap, /position: sticky/);
   assert.match(script, /removeEscapedNewlineArtifacts/);
   assert.match(script, /\\\\n/);
 });
