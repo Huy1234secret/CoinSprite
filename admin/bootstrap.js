@@ -17,7 +17,9 @@
     '<reviewer>', '<reviewer-note>', '<ticket_name>', '<reason>', '<status>', '<status-note>', '<uploaded-file-list>',
     '<roblox-username>', '<game>', '<giveaway-prize>', '<winner-count>', '<winner-list>', '<claim-time>', '<claimed-count>',
     '<claimed-users>', '<unclaimed-count>', '<reroll-time>', '<giveaway-host>', '<host-id>', '<giveaway-description>',
-    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<separator>', '<if<level>==10,"shown","hidden">',
+    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<notice-delivery>',
+    '<notification-message-id>', '<staff-log-message-id>', '<moderator>', '<moderator-id>', '<separator>',
+    '<if<level>==10,"shown","hidden">',
   ];
   let fieldSequence = 0;
   let decorateScheduled = false;
@@ -82,7 +84,7 @@
       .message-editor-tabs,
       .ticket-type-tabs,
       .moderator-workspace-tabs,
-      .message-template-tabs { position: sticky !important; top: 0 !important; z-index: 30 !important; display: flex !important; flex-wrap: wrap !important; gap: 8px !important; align-items: center !important; padding: 10px 8px !important; margin: -10px -8px 14px !important; border: 1px solid rgba(118, 136, 170, 0.18) !important; border-radius: 18px !important; background: rgba(12, 18, 29, 0.86) !important; backdrop-filter: blur(14px) !important; box-shadow: 0 14px 26px rgba(0, 0, 0, 0.20) !important; }
+      .message-template-tabs { position: static !important; inset: auto !important; z-index: auto !important; display: flex !important; flex-wrap: wrap !important; gap: 8px !important; align-items: center !important; padding: 10px 8px !important; margin: 0 0 14px !important; border: 1px solid rgba(118, 136, 170, 0.18) !important; border-radius: 18px !important; background: rgba(12, 18, 29, 0.72) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.045) !important; }
       .mini-tabs button,
       .mini-tab,
       .message-section-tabs button,
@@ -111,7 +113,7 @@
       .external-message-sticky-preview { overflow: visible !important; }
       .message-preview-container,
       .preview-container { position: relative !important; overflow: visible !important; }
-      .message-preview-remove-container { position: absolute !important; z-index: 7 !important; top: -10px !important; right: -18px !important; display: grid !important; place-items: center !important; width: 24px !important; height: 24px !important; border: 1px solid rgba(190, 203, 225, 0.48) !important; border-radius: 8px !important; background: transparent !important; color: #dfe7f5 !important; font-size: 17px !important; line-height: 1 !important; font-weight: 900 !important; cursor: pointer !important; box-shadow: none !important; padding: 0 !important; }
+      .message-preview-remove-container { position: absolute !important; z-index: 7 !important; top: -10px !important; right: -42px !important; display: grid !important; place-items: center !important; width: 24px !important; height: 24px !important; border: 1px solid rgba(190, 203, 225, 0.48) !important; border-radius: 8px !important; background: transparent !important; color: #dfe7f5 !important; font-size: 17px !important; line-height: 1 !important; font-weight: 900 !important; cursor: pointer !important; box-shadow: none !important; padding: 0 !important; }
       .message-preview-remove-container:hover,
       .message-preview-remove-container:focus-visible { border-color: rgba(250, 119, 112, 0.95) !important; color: #fa7770 !important; background: transparent !important; outline: none !important; }
       .message-root-content.message-root-empty { min-height: 1.45rem !important; display: block !important; margin: 0 0 7px !important; padding: 2px 0 !important; color: rgba(185, 195, 215, 0.45) !important; cursor: text !important; }
@@ -228,7 +230,7 @@
     });
     const usage = document.createElement('div');
     usage.className = 'message-token-usage';
-    usage.innerHTML = '<strong>Usage:</strong> Type a token inside any message box. <code>&lt;separator&gt;</code> creates a divider; conditions use <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>.';
+    usage.innerHTML = '<strong>Condition format:</strong> <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>.';
     help.append(list, usage);
     return help;
   }
