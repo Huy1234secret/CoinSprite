@@ -579,6 +579,7 @@
         <div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>
         ${messagePreview(template)}
         <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>
+        ${window.CoinSpriteMessageSyntax?.markup?.() || ''}
       </aside>
     </div>`;
   }
@@ -637,7 +638,7 @@
 
   function refreshPreview(template) {
     const preview = root.querySelector('.message-sticky-preview');
-    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>${messagePreview(template)}<button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>`;
+    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>${messagePreview(template)}<button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>${window.CoinSpriteMessageSyntax?.markup?.() || ''}`;
   }
 
   root.addEventListener('input', (event) => {

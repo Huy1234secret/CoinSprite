@@ -28,9 +28,10 @@ test('live previews share container controls, root text, and complete placeholde
   assert.doesNotMatch(messages, /<strong>Add message<\/strong>/);
   assert.match(messages, /message-preview-remove-container/);
   assert.match(messages, />Add Container<\/button>/);
-  assert.match(script, /dashboard-placeholder-reference/);
+  assert.match(richEditor, /message-syntax-reference/);
+  assert.match(messages, /CoinSpriteMessageSyntax\?\.markup/);
   for (const token of ['<server>', '<channel>', '<@mention>', '<level>', '<ticket_id>', '<appeal-id>', '<moderation-action>', '<moderator-id>', '<notice-delivery>', '<severity-tier>', '<channel-rule>', '<separator>']) {
-    assert.ok(script.includes(token), 'missing placeholder ' + token);
+    assert.ok(richEditor.includes(token), 'missing placeholder ' + token);
   }
   assert.match(script, /collectPatch = wrapped/);
   assert.match(script, /containers: current\.containers/);
@@ -41,11 +42,28 @@ test('live previews share container controls, root text, and complete placeholde
 
 test('old message placeholder palette is removed in favor of shared compact syntax help', () => {
   const components = source('admin/message-components.js');
-  const enhancements = source('admin/dashboard-ui-enhancements.js');
+  const richEditor = source('admin/rich-message-editor.js');
   assert.doesNotMatch(components, /tokenPalette|data-placeholder-token|Message formats/);
-  assert.match(enhancements, /\.message-placeholder-palette/);
-  assert.match(enhancements, /dashboard-placeholder-token-row/);
-  assert.match(enhancements, /dashboard-placeholder-usage/);
+  assert.doesNotMatch(richEditor, /rich-format-bar|rich-format-tokens|Message formats/);
+  assert.match(richEditor, /message-syntax-token-row/);
+  assert.match(richEditor, /message-syntax-usage/);
+  assert.match(richEditor, /Condition format/);
+});
+
+test('ticket, request, welcome, leveling, and template editors use the same live-only UI', () => {
+  const tickets = source('admin/tickets.js');
+  const community = source('admin/community-messages.js');
+  const enhancements = source('admin/dashboard-ui-enhancements.js');
+  const messages = source('admin/messages.js');
+  const ticketEditor = tickets.match(/function messageEditor[\s\S]*?\n  \}/)?.[0] || '';
+
+  assert.match(ticketEditor, /ticket-message-live-only/);
+  assert.doesNotMatch(ticketEditor, /message-builder|panel-heading|Message formats/);
+  assert.match(tickets, /CoinSpriteRichEditor\.mount/);
+  assert.match(community, /CoinSpriteRichEditor\?\.mount/);
+  assert.match(enhancements, /mountLevelEditor/);
+  assert.match(messages, /botDefault \|\| template\.defaultLocked/);
+  assert.match(messages, /message-syntax-reference|CoinSpriteMessageSyntax/);
 });
 
 test('dashboard section tabs stay in normal flow and owner escaped-newline artifacts are removed', () => {

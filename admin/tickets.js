@@ -275,16 +275,8 @@
     </div>`;
   }
 
-  function messageEditor(message, scope, title, description) {
-    return `
-      <div class="message-builder ticket-message-builder">
-        <div class="panel-heading">
-          <h3>${escapeHtml(title)}</h3>
-          <p>${escapeHtml(description)}</p>
-        </div>
-        <div class="ticket-rich-message-editor" data-rich-message-scope="${scope}"></div>
-      </div>
-    `;
+  function messageEditor(message, scope) {
+    return `<div class="ticket-rich-message-editor ticket-message-live-only" data-rich-message-scope="${scope}"></div>`;
   }
 
   function previewFormAnswers(ticketType) {
