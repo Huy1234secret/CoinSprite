@@ -51,6 +51,7 @@
         top: 8px !important;
         z-index: 120;
         display: flex !important;
+        flex-wrap: nowrap !important;
         align-items: center;
         gap: 8px;
         width: max-content;
