@@ -632,7 +632,8 @@
 }
 
 .external-message-sticky-preview .message-root-content.message-root-empty {
-  display: none !important;
+  display: block !important;
+  min-height: 20px !important;
 }
 
 .external-message-sticky-preview > #levelUpPreview {

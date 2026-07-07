@@ -2,24 +2,7 @@
   if (window.__coinSpriteDashboardUiEnhancements) return;
   window.__coinSpriteDashboardUiEnhancements = true;
 
-  const TOKENS = Object.freeze([
-    '<@mention>', '<mention>', '<username>', '<display_name>', '<display-name>', '<user-id>', '<user_id>',
-    '<avatar_url>', '<avatar-url>', '<server>', '<server-name>', '<guild-name>', '<server-id>', '<guild-id>',
-    '<member-count>', '<channel>', '<channel-name>', '<channel-id>', '<level>', '<previous-level>', '<previous_level>',
-    '<displayname>', '<userid>', '<channel_id>', '<previouslevel>', '<currenlevel>', '<currentlevel>', '<current_level>',
-    '<message-link>', '<message-content>', '<moderation-case>', '<moderation-reason>',
-    '<moderation-action>', '<moderation-action-label>', '<moderation-categories>', '<moderation-source>', '<severity>',
-    '<severity-tier>', '<broken-rules>', '<matched-terms>', '<original-language>', '<english-translation>', '<translation-section>', '<blocked-domain>',
-    '<blocked-url>', '<invite-code>', '<case-id>', '<case-type>', '<case-status>', '<case-source>', '<case-reason>',
-    '<case-audit-events>', '<warning-count>', '<active-warnings>', '<warning-case-list>', '<threshold>', '<expires>',
-    '<duration>', '<evidence>', '<appealable>', '<appealable-status>', '<appeal-id>', '<appeal-url>', '<reviewer>',
-    '<reviewer-note>', '<ticket_name>', '<ticket_id>', '<form-answer>', '<form_answer>', '<form-answers>', '<punishment>',
-    '<public-note>', '<reason>', '<status>', '<status-note>', '<uploaded-file-list>', '<roblox-username>', '<game>',
-    '<giveaway-prize>', '<winner-count>', '<winner-list>', '<claim-time>', '<claimed-count>', '<claimed-users>',
-    '<unclaimed-count>', '<reroll-time>', '<giveaway-host>', '<host-id>', '<giveaway-description>',
-    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<notice-delivery>',
-    '<notification-message-id>', '<staff-log-message-id>', '<moderator>', '<moderator-id>', '<channel-rule>', '<separator>',
-  ]);
+  const TOKENS = Object.freeze([...(window.CoinSpriteMessageSyntax?.tokens || [])]);
   const PREVIEW_TOKENS = Object.freeze({
     '@mention': '@CoinSprite User', mention: '@CoinSprite User', username: 'CoinSpriteUser',
     'display-name': 'CoinSprite User', display_name: 'CoinSprite User', 'user-id': '123456789012345678',
@@ -178,7 +161,7 @@
     node.setAttribute('aria-label', 'Available message placeholders');
     node.innerHTML = '<div class="dashboard-placeholder-token-row">'
       + TOKENS.map((token) => '<button class="dashboard-placeholder-token" type="button" data-dashboard-token="' + escapeHtml(token) + '">' + escapeHtml(token) + '</button>').join('')
-      + '</div><div class="dashboard-placeholder-usage"><strong>Condition format:</strong> <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>. Click a syntax to insert it; use <code>&lt;separator&gt;</code> for a divider.</div>';
+      + '</div><div class="dashboard-placeholder-usage"><strong>Condition format:</strong> <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>.</div>';
     return node;
   }
 
@@ -192,7 +175,7 @@
     root.querySelectorAll?.('.message-token-help').forEach((node) => node.remove());
     const candidates = root.querySelectorAll?.('.rich-live-panel,.message-sticky-preview,.external-message-sticky-preview,.preview-panel') || [];
     for (const panel of candidates) {
-      if (!isLivePreviewPanel(panel) || panel.querySelector(':scope > .dashboard-placeholder-reference')) continue;
+      if (!isLivePreviewPanel(panel) || panel.querySelector(':scope > .message-syntax-reference, :scope > .dashboard-placeholder-reference')) continue;
       panel.append(placeholderReference());
     }
     root.querySelectorAll?.('.template-tokens,#levelUpTokens,.rich-format-bar').forEach((node) => {
