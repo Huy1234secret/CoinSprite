@@ -141,12 +141,46 @@
   }
 
   function createMessage(value, fallback = DEFAULT_MESSAGE) {
-    return {
-      content: value?.content || fallback.content,
-      accentColor: value?.accentColor || fallback.accentColor,
-      thumbnailUrl: value?.thumbnailUrl || '',
-      imageUrl: value?.imageUrl || '',
+    const source = value || {};
+    const base = fallback || DEFAULT_MESSAGE;
+    const fallbackContainer = {
+      id: 'container-1',
+      text: String(source.content ?? base.content ?? ''),
+      accentColor: source.accentColor || base.accentColor || '#FFFFFF',
+      thumbnailUrl: source.thumbnailUrl || base.thumbnailUrl || '',
+      imageUrl: source.imageUrl || base.imageUrl || '',
     };
+    const containers = (Array.isArray(source.containers) ? source.containers : [fallbackContainer])
+      .slice(0, 8)
+      .map((container, index) => ({
+        id: String(container?.id || `container-${index + 1}`),
+        text: String(container?.text ?? (index === 0 ? fallbackContainer.text : '')),
+        accentColor: container?.accentColor || (index === 0 ? fallbackContainer.accentColor : '#5865F2'),
+        thumbnailUrl: String(container?.thumbnailUrl || ''),
+        imageUrl: String(container?.imageUrl || ''),
+      }));
+    const first = containers[0] || fallbackContainer;
+    return {
+      content: first.text,
+      outsideContent: String(source.outsideContent || '').slice(0, 2000),
+      accentColor: first.accentColor,
+      thumbnailUrl: first.thumbnailUrl,
+      imageUrl: first.imageUrl,
+      containers,
+    };
+  }
+
+  function richMessageValue(message) {
+    const normalized = createMessage(message);
+    return { content: normalized.outsideContent, containers: normalized.containers };
+  }
+
+  function applyRichMessage(message, next) {
+    const normalized = createMessage({
+      outsideContent: next?.content,
+      containers: next?.containers,
+    });
+    Object.assign(message, normalized);
   }
 
   function createTicketType(index) {
@@ -209,7 +243,9 @@
         thumbnailUrl: '',
         imageUrl: '',
       }),
-      types: Array.isArray(source.types) ? clone(source.types) : [],
+      types: Array.isArray(source.types)
+        ? clone(source.types).map((ticketType) => ({ ...ticketType, message: createMessage(ticketType.message) }))
+        : [],
     };
   }
 
@@ -239,28 +275,14 @@
     </div>`;
   }
 
-  function messageEditor(message, scope, title, description, placeholders, ticketType = null) {
+  function messageEditor(message, scope, title, description) {
     return `
       <div class="message-builder ticket-message-builder">
-        <div class="panel message-editor">
-          <div class="panel-heading">
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(description)}</p>
-          </div>
-          <div class="template-tokens">
-            ${placeholders.map((token) => `<button type="button" data-action="insert-token" data-scope="${scope}" data-token="${escapeHtml(token)}">${escapeHtml(token)}</button>`).join('')}
-          </div>
-          <label>Message
-            <textarea rows="10" maxlength="4000" data-message-scope="${scope}" data-message-field="content">${escapeHtml(message.content)}</textarea>
-          </label>
-          <div class="grid">
-            <label>Container color <input type="color" value="${escapeHtml(message.accentColor)}" data-message-scope="${scope}" data-message-field="accentColor"></label>
-            <label>Thumbnail URL <input type="text" maxlength="1000" value="${escapeHtml(message.thumbnailUrl)}" data-message-scope="${scope}" data-message-field="thumbnailUrl"></label>
-            <label>Image URL <input type="url" maxlength="1000" value="${escapeHtml(message.imageUrl)}" data-message-scope="${scope}" data-message-field="imageUrl"></label>
-          </div>
-          <p class="condition-help">Discord Markdown is supported. Use <code>&lt;separator&gt;</code> when you want a divider between sections.</p>
+        <div class="panel-heading">
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(description)}</p>
         </div>
-        ${messagePreview(message, scope, ticketType)}
+        <div class="ticket-rich-message-editor" data-rich-message-scope="${scope}"></div>
       </div>
     `;
   }
@@ -682,6 +704,26 @@
     }
 
     function mountPickers(ticketType) {
+      root.querySelectorAll('[data-rich-message-scope]').forEach((host) => {
+        const scope = host.dataset.richMessageScope;
+        const message = scope === 'launcher' ? editorState.config.launcherMessage : ticketType?.message;
+        if (!message || !window.CoinSpriteRichEditor) return;
+        window.CoinSpriteRichEditor.mount(host, {
+          value: richMessageValue(message),
+          tokens: [],
+          previewTokens: {
+            '@mention': '@Member', mention: '@Member', username: 'member',
+            display_name: 'Member', 'display-name': 'Member', user_id: '123456789012345678',
+            'user-id': '123456789012345678', ticket_name: ticketType?.name || 'Support',
+            ticket_id: '42', channel: `#${slug(ticketType?.name || 'support')}-42`,
+            server: 'CoinSprite', avatar_url: '', 'form-answer': previewFormAnswers(ticketType),
+          },
+          onChange(next) {
+            applyRichMessage(message, next);
+            changed();
+          },
+        });
+      });
       const channels = channelOptions();
       const roles = roleOptions();
       const mountPicker = (id, list, selected, settings) => {

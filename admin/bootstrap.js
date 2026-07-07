@@ -290,7 +290,6 @@
       ensureRootGap(preview);
       ensureAddContainerButton(preview);
       ensurePreviewRemoveButtons(preview);
-      ensurePreviewTokenHelp(preview);
     });
   }
 

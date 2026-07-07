@@ -1,5 +1,5 @@
 (() => {
-  if (window.CoinSpriteRichEditor?.version >= 3) return;
+  if (window.CoinSpriteRichEditor?.version >= 4) return;
 
   const clone = (value) => JSON.parse(JSON.stringify(value || {}));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -167,6 +167,6 @@
     };
   }
 
-  window.CoinSpriteRichEditor = Object.freeze({ version: 3, mount, normalize });
+  window.CoinSpriteRichEditor = Object.freeze({ version: 4, mount, normalize });
   window.dispatchEvent(new Event('coinsprite:rich-editor-ready'));
 })();
