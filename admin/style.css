@@ -428,13 +428,11 @@ textarea:focus,
 }
 
 .mini-tabs {
-  position: sticky;
-  z-index: 12;
-  top: -18px;
+  position: static;
   display: flex;
   gap: 4px;
-  margin: -18px 0 14px;
-  padding: 12px 0 10px;
+  margin: 0 0 14px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line-soft);
   background: var(--bg);
 }
