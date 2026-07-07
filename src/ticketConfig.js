@@ -641,7 +641,17 @@ function buildTicketMessagePayload(messageValue, context = {}, extraComponents =
     (total, component) => total + componentCount(component),
     0,
   );
-  while (messageComponents.length > 1 && totalCount() > 40) messageComponents.pop();
+  while (totalCount() > 40) {
+    const last = messageComponents.at(-1);
+    if (last?.type === 17 && Array.isArray(last.components) && last.components.length > 1) {
+      last.components.pop();
+      if (last.components.at(-1)?.type === 14) last.components.pop();
+    } else if (messageComponents.length > 1) {
+      messageComponents.pop();
+    } else {
+      break;
+    }
+  }
 
   return {
     allowedMentions: context.userId ? { parse: [], users: [context.userId] } : { parse: [] },
