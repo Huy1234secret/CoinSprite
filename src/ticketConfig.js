@@ -312,11 +312,33 @@ function sanitizeHttpUrl(value, fallback = '', maxLength = 1000) {
 function sanitizeTicketMessage(value, fallback = DEFAULT_TICKET_MESSAGE) {
   const source = isObject(value) ? value : {};
   const base = isObject(fallback) ? fallback : DEFAULT_TICKET_MESSAGE;
-  return {
-    content: boundedString(source.content, base.content || DEFAULT_TICKET_MESSAGE.content, 4000),
+  const fallbackContainer = {
+    id: 'container-1',
+    text: boundedString(source.content, base.content || DEFAULT_TICKET_MESSAGE.content, 4000),
     accentColor: sanitizeAccentColor(source.accentColor, sanitizeAccentColor(base.accentColor)),
     thumbnailUrl: sanitizeHttpUrl(source.thumbnailUrl, base.thumbnailUrl, 1000),
     imageUrl: sanitizeHttpUrl(source.imageUrl, base.imageUrl, 1000),
+  };
+  const rawContainers = Array.isArray(source.containers) ? source.containers : [fallbackContainer];
+  const containers = rawContainers.slice(0, 8).map((value, index) => {
+    const container = isObject(value) ? value : {};
+    const legacy = index === 0 ? fallbackContainer : {};
+    return {
+      id: boundedString(container.id, `container-${index + 1}`, 80),
+      text: boundedString(container.text, legacy.text || '', 4000),
+      accentColor: sanitizeAccentColor(container.accentColor, legacy.accentColor || '#5865F2'),
+      thumbnailUrl: sanitizeHttpUrl(container.thumbnailUrl, legacy.thumbnailUrl || '', 1000),
+      imageUrl: sanitizeHttpUrl(container.imageUrl, legacy.imageUrl || '', 1000),
+    };
+  });
+  const first = containers[0] || fallbackContainer;
+  return {
+    content: first.text,
+    outsideContent: optionalString(source.outsideContent, '', 2000),
+    accentColor: first.accentColor,
+    thumbnailUrl: first.thumbnailUrl,
+    imageUrl: first.imageUrl,
+    containers,
   };
 }
 
@@ -577,16 +599,34 @@ function buildTextComponents(content, thumbnailUrl) {
 
 function buildTicketMessagePayload(messageValue, context = {}, extraComponents = []) {
   const message = sanitizeTicketMessage(messageValue);
-  const rendered = renderTicketTemplate(message.content, context).trim()
-    || renderTicketTemplate(DEFAULT_TICKET_MESSAGE.content, context).trim();
-  const components = buildTextComponents(rendered, mediaUrlFromTemplate(message.thumbnailUrl, context));
-  const imageUrl = mediaUrlFromTemplate(message.imageUrl, context);
-  if (imageUrl) components.push({ type: 12, items: [{ media: { url: imageUrl } }] });
-  const payloadComponents = [{
-    type: 17,
-    accent_color: Number.parseInt(message.accentColor.slice(1), 16),
-    components,
-  }, ...extraComponents];
+  const messageComponents = [];
+  const outsideContent = renderTicketTemplate(message.outsideContent, context).trim();
+  if (outsideContent) messageComponents.push(...buildTextComponents(outsideContent, null));
+
+  for (const container of message.containers) {
+    const rendered = renderTicketTemplate(container.text, context).trim();
+    const components = rendered
+      ? buildTextComponents(rendered, mediaUrlFromTemplate(container.thumbnailUrl, context))
+      : [];
+    const imageUrl = mediaUrlFromTemplate(container.imageUrl, context);
+    if (imageUrl) components.push({ type: 12, items: [{ media: { url: imageUrl } }] });
+    if (components.length) {
+      messageComponents.push({
+        type: 17,
+        accent_color: Number.parseInt(container.accentColor.slice(1), 16),
+        components,
+      });
+    }
+  }
+
+  if (!messageComponents.length) {
+    const rendered = renderTicketTemplate(DEFAULT_TICKET_MESSAGE.content, context).trim();
+    messageComponents.push({
+      type: 17,
+      accent_color: Number.parseInt(DEFAULT_TICKET_MESSAGE.accentColor.slice(1), 16),
+      components: buildTextComponents(rendered, mediaUrlFromTemplate(DEFAULT_TICKET_MESSAGE.thumbnailUrl, context)),
+    });
+  }
 
   function componentCount(component) {
     if (!component || typeof component !== 'object') return 0;
@@ -597,18 +637,16 @@ function buildTicketMessagePayload(messageValue, context = {}, extraComponents =
     return 1 + children + accessory;
   }
 
-  const countPayloadComponents = () => payloadComponents.reduce(
+  const totalCount = () => [...messageComponents, ...extraComponents].reduce(
     (total, component) => total + componentCount(component),
     0,
   );
-  while (components.length > 1 && countPayloadComponents() > 40) {
-    components.pop();
-    if (components.at(-1)?.type === 14) components.pop();
-  }
+  while (messageComponents.length > 1 && totalCount() > 40) messageComponents.pop();
+
   return {
     allowedMentions: context.userId ? { parse: [], users: [context.userId] } : { parse: [] },
     flags: COMPONENTS_V2_FLAG,
-    components: payloadComponents,
+    components: [...messageComponents, ...extraComponents],
   };
 }
 
