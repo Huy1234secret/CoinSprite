@@ -444,7 +444,7 @@ const { shouldIgnoreTextlessMessage } = require('../src/messageContentFilter');
 function guarded(handler) {
   if (typeof handler !== 'function' || handler.__coinSpriteTextlessGuard) return handler;
   const next = function messageHookWithTextGuard(message, ...args) {
-    if (shouldIgnoreTextlessMessage(message)) return undefined; // ADDED: command message hooks ignore emoji/link/media-only posts.
+    if (shouldIgnoreTextlessMessage(message)) return Promise.resolve(); // Ignored hooks still satisfy Promise-based callers.
     return handler.call(this, message, ...args);
   };
   Object.defineProperty(next, '__coinSpriteTextlessGuard', { value: true });
