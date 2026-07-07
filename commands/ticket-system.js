@@ -3115,7 +3115,8 @@ const { MessageFlags } = require('discord.js');
 const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { loadState, saveState } = require('../src/ticketSystemStore');
 const { buildTicketMessagePayload, formatFormAnswers } = require('../src/ticketConfig');
-const requestSelectPatch = require('./05-request-select-panel-fix');
+const path = require('path');
+const requestSelectPatch = Module._cache[path.join(__dirname, '05-request-select-panel-fix.js')]?.exports || {};
 
 const previousLoad = Module._load;
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
