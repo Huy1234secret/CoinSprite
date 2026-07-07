@@ -11,9 +11,10 @@ test('AI moderation uses the concise case-and-reason schema', () => {
 
   assert.match(prompt, /Review only the target Message/);
   assert.match(prompt, /every language.*Burmese.*non-Latin scripts/i);
-  assert.match(prompt, /flagged.*s.*case.*reason/s);
+  assert.match(prompt, /severity rating.*case label.*reason/i);
   assert.doesNotMatch(prompt, /matchedTerms|originalLanguage|englishTranslation/);
-  assert.match(ai, /required: \['flagged', 's', 'case', 'reason', 'translated'\]/);
+  assert.match(ai, /required: \['s', 'case', 'reason'\]/);
+  assert.doesNotMatch(ai.match(/function moderationSchema\(\) \{[\s\S]*?\n\}/)?.[0] || '', /flagged|translated/);
   assert.match(ai, /const text = `Message: \$\{target\}/);
   assert.equal((ai.match(/store: true/g) || []).length, 2);
 });
@@ -30,4 +31,5 @@ test('AI report contains the requested fields and only sends flagged results', (
   assert.match(moderator, /\['moderation-case', moderationCase\]/);
   assert.match(moderator, /if \(!result\.flagged\) return;/);
   assert.match(moderator, /moderationLogChannelId\(result, settings\)/);
+  assert.doesNotMatch(moderator, /messageScreenshot|moderationScreenshot|attachScreenshotToPayload/);
 });

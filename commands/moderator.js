@@ -3,7 +3,6 @@ const { analyzeModerationMessage } = require('../src/aiModeration');
 const { moderationIgnoreReason } = require('../src/moderationMessageFilter');
 const { getGuildConfig, resolveLoggingChannelId } = require('../src/serverConfig');
 const { buildMessagePayload, findTemplate } = require('../src/messageTemplates');
-const { saveMessageScreenshot } = require('../src/messageScreenshot');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_ALERT_TEMPLATE_ID = 'default-ai-moderation-alert';
@@ -73,7 +72,7 @@ function moderationLogChannelId(result, settings) {
   return String(isSevereModerationResult(result) ? settings.severeLogChannelId : settings.lowSeverityLogChannelId).trim();
 }
 
-function moderationValues(message, result, screenshot = null) {
+function moderationValues(message, result) {
   const englishTranslation = String(result.englishTranslation || '').trim();
   const moderationCase = String(result.case || result.categories?.[0] || 'Rule violation').trim();
   return new Map([
@@ -89,8 +88,6 @@ function moderationValues(message, result, screenshot = null) {
     ['translation-section', englishTranslation ? `-# Translated: "${englishTranslation.replace(/"/g, "'")}"` : ''],
     ['message-content', moderationMessagePreview(message)],
     ['message-link', message.url || `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`],
-    ['message-screenshot', screenshot?.name ? `attachment://${screenshot.name}` : ''],
-    ['message-screenshot-path', screenshot?.path || ''],
     ['moderation-source', result.source || 'ai'],
   ]);
 }
@@ -99,21 +96,16 @@ function replaceModerationPlaceholders(value, replacements) {
   return String(value || '').replace(/<([a-z0-9_-]+)>/gi, (match, token) => replacements.get(token.toLowerCase()) ?? match);
 }
 
-function applyModerationPlaceholders(template, message, result, screenshot = null) {
-  const replacements = moderationValues(message, result, screenshot);
+function applyModerationPlaceholders(template, message, result) {
+  const replacements = moderationValues(message, result);
   const copy = JSON.parse(JSON.stringify(template));
   copy.content = replaceModerationPlaceholders(copy.content, replacements);
-  copy.containers = (copy.containers || []).map((container) => {
-    let text = replaceModerationPlaceholders(container.text, replacements);
-    const translation = replacements.get('translation-section');
-    if (container.id === 'ai-moderation-alert' && translation && !text.includes(translation)) text = `${text}\n${translation}`;
-    return {
-      ...container,
-      text,
-      thumbnailUrl: replaceModerationPlaceholders(container.thumbnailUrl, replacements),
-      imageUrl: replaceModerationPlaceholders(container.imageUrl, replacements),
-    };
-  });
+  copy.containers = (copy.containers || []).map((container) => ({
+    ...container,
+    text: replaceModerationPlaceholders(container.text, replacements),
+    thumbnailUrl: replaceModerationPlaceholders(container.thumbnailUrl, replacements),
+    imageUrl: replaceModerationPlaceholders(container.imageUrl, replacements),
+  }));
   return copy;
 }
 
@@ -132,31 +124,11 @@ function hasExcludedRole(message, settings) {
   return Boolean(settings.excludeRoleIds.length && roles && settings.excludeRoleIds.some((roleId) => roles.has(roleId)));
 }
 
-async function moderationScreenshot(message, result) {
-  try { return await saveMessageScreenshot(message, result); }
-  catch (error) {
-    console.error('Moderation screenshot render failed:', error);
-    return null;
-  }
-}
-
-function screenshotFiles(screenshot) {
-  return screenshot?.attachment && screenshot?.name ? [{ attachment: screenshot.attachment, name: screenshot.name }] : [];
-}
-
-function attachScreenshotToPayload(payload, screenshot) {
-  if (!screenshot?.name || !Array.isArray(payload?.components)) return payload;
-  const container = payload.components.find((component) => component?.type === 17 && Array.isArray(component.components));
-  if (container) container.components.push({ type: 12, items: [{ media: { url: `attachment://${screenshot.name}` } }] });
-  return payload;
-}
-
-async function sendModerationAlertToChannel(message, result, templateId, channelId, screenshot) {
+async function sendModerationAlertToChannel(message, result, templateId, channelId) {
   const targetChannelId = String(channelId || '').trim();
   if (!targetChannelId) return false;
   const channel = message.guild.channels.cache.get(targetChannelId) || await message.guild.channels.fetch(targetChannelId).catch(() => null);
   if (!channel?.isTextBased()) return false;
-  const files = screenshotFiles(screenshot);
   const template = findTemplate(message.guildId, templateId) || findTemplate(message.guildId, DEFAULT_ALERT_TEMPLATE_ID);
   if (!template) {
     await channel.send({
@@ -166,29 +138,26 @@ async function sendModerationAlertToChannel(message, result, templateId, channel
         `Case: ${result.case || result.categories?.[0] || 'Rule violation'}`,
         `Reason: ${result.reason || 'The message was flagged by moderation.'}`,
         `Message: ${moderationMessagePreview(message)}`,
-        screenshot?.path ? `Screenshot saved: ${screenshot.path}` : '',
         message.url,
       ].filter(Boolean).join('\n').slice(0, 2000),
       allowedMentions: { parse: [], users: [message.author.id] },
-      files,
     }).catch(() => null);
     return true;
   }
-  const payload = attachScreenshotToPayload(buildMessagePayload(applyModerationPlaceholders(template, message, result, screenshot), {
+  const payload = buildMessagePayload(applyModerationPlaceholders(template, message, result), {
     guild: message.guild,
     channel: message.channel,
     user: message.author,
     member: message.member,
-  }), screenshot);
-  await channel.send({ ...payload, files }).catch(() => null);
+  });
+  await channel.send(payload).catch(() => null);
   return true;
 }
 
 async function sendModerationAlert(message, result, settings) {
   const channelId = moderationLogChannelId(result, settings);
   if (!channelId) return false;
-  const screenshot = await moderationScreenshot(message, result);
-  return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId, screenshot);
+  return sendModerationAlertToChannel(message, result, settings.alertTemplateId, channelId);
 }
 
 async function sendSevereUserWarning(message, result) {

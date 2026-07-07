@@ -5,18 +5,6 @@
   const templates = new Map();
   const root = document.querySelector('#messageTemplatesRoot');
   const nativeFetch = window.fetch.bind(window);
-  const PLACEHOLDERS = [
-    ['<guild-name>', 'Server name'],
-    ['<guild-id>', 'Server ID'],
-    ['<member-count>', 'Member count'],
-    ['<channel>', 'Channel mention'],
-    ['<channel-name>', 'Channel name'],
-    ['<channel-id>', 'Channel ID'],
-    ['<@mention>', 'User mention'],
-    ['<username>', 'Username'],
-    ['<display-name>', 'Display name'],
-    ['<user-id>', 'User ID'],
-  ];
   let selectedId = '';
   let queued = false;
   let saveTimer = null;
@@ -127,35 +115,6 @@
     }
   }
 
-  function tokenPalette() {
-    return `<div class="message-placeholder-palette">
-      <div><strong>Message formats</strong><span>Click a format to insert it into the active message or response field.</span></div>
-      <div class="message-placeholder-list">${PLACEHOLDERS.map(([token, label]) => `<button type="button" data-placeholder-token="${escapeHtml(token)}" title="${escapeHtml(label)}">${escapeHtml(token)}</button>`).join('')}</div>
-    </div>`;
-  }
-
-  function insertToken(token) {
-    const active = document.activeElement;
-    if (active?.matches?.('input[type="text"],input[type="url"],textarea')) {
-      const start = active.selectionStart ?? active.value.length;
-      const end = active.selectionEnd ?? start;
-      active.setRangeText(token, start, end, 'end');
-      active.dispatchEvent(new Event('input', { bubbles: true }));
-      active.focus({ preventScroll: true });
-      return;
-    }
-    if (active?.isContentEditable) {
-      document.execCommand('insertText', false, token);
-      active.dispatchEvent(new Event('input', { bubbles: true }));
-      active.focus({ preventScroll: true });
-      return;
-    }
-    const source = root?.querySelector('[data-template-field="content"]');
-    if (!source) return;
-    source.value = `${source.value || ''}${source.value ? ' ' : ''}${token}`;
-    source.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
   function buttonEditor(button, rowIndex, buttonIndex) {
     const responseField = button.style === 'link'
       ? `<label>URL <input type="url" value="${escapeHtml(button.url || '')}" data-component-field="url" data-row-index="${rowIndex}" data-item-index="${buttonIndex}" placeholder="https://..."></label>`
@@ -242,8 +201,6 @@
 
   function decorate() {
     if (!root) return;
-    const tabs = root.querySelector('.message-editor-tabs');
-    if (tabs && !root.querySelector('.message-placeholder-palette')) tabs.insertAdjacentHTML('beforebegin', tokenPalette());
     const template = currentTemplate();
     if (template && root.querySelector('.message-sticky-preview') && !root.querySelector('.message-components-editor')) renderEditor(template);
   }
@@ -265,13 +222,6 @@
     const card = event.target.closest('.message-template-card[data-id]');
     if (card) selectedId = card.dataset.id;
     if (event.target.closest('[data-message-action="back"]')) selectedId = '';
-
-    const token = event.target.closest('[data-placeholder-token]');
-    if (token) {
-      event.preventDefault();
-      insertToken(token.dataset.placeholderToken);
-      return;
-    }
 
     const action = event.target.closest('[data-component-action]');
     if (!action) return;

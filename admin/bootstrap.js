@@ -247,7 +247,7 @@
       add.id = 'levelUpAddContainer';
       add.type = 'button';
       add.className = 'button subtle message-add-container';
-      add.textContent = '+ Add container';
+      add.textContent = 'Add Container';
       levelPreview.append(add);
     }
     if (preview.closest('#messageTemplatesRoot') && !rootChildrenHaveAction(preview, 'add-container')) {
@@ -255,7 +255,7 @@
       add.type = 'button';
       add.className = 'button subtle message-add-container';
       add.dataset.messageAction = 'add-container';
-      add.textContent = '+ Add container';
+      add.textContent = 'Add Container';
       preview.append(add);
     }
   }

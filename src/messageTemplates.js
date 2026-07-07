@@ -28,7 +28,6 @@ const DEFAULT_BOT_TEMPLATES = Object.freeze([
         '**Case:** <moderation-case>',
         '**Reason:** <moderation-reason>',
         '**Message:** <message-link> “<message-content>”',
-        '<translation-section>',
       ].join('\n'),
       thumbnailUrl: '<avatar_url>',
       imageUrl: '',
