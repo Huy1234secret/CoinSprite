@@ -15,7 +15,8 @@
     '<public-note>', '<reason>', '<status>', '<status-note>', '<uploaded-file-list>', '<roblox-username>', '<game>',
     '<giveaway-prize>', '<winner-count>', '<winner-list>', '<claim-time>', '<claimed-count>', '<claimed-users>',
     '<unclaimed-count>', '<reroll-time>', '<giveaway-host>', '<host-id>', '<giveaway-description>',
-    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<separator>',
+    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<notice-delivery>',
+    '<notification-message-id>', '<staff-log-message-id>', '<moderator>', '<moderator-id>', '<separator>',
   ]);
   const PREVIEW_TOKENS = Object.freeze({
     '@mention': '@CoinSprite User', mention: '@CoinSprite User', username: 'CoinSpriteUser',
@@ -46,10 +47,10 @@
     const style = document.createElement('style');
     style.id = 'dashboardUiEnhancementStyles';
     style.textContent = `
-      .dashboard-sticky-tabs {
-        position: sticky !important;
-        top: 8px !important;
-        z-index: 120;
+      .dashboard-section-tabs {
+        position: static !important;
+        inset: auto !important;
+        z-index: auto !important;
         display: flex !important;
         flex-wrap: nowrap !important;
         align-items: center;
@@ -61,20 +62,17 @@
         overflow-x: auto;
         border: 1px solid rgba(148,163,184,.2) !important;
         border-radius: 14px !important;
-        background: rgba(7,11,19,.92) !important;
-        box-shadow: 0 12px 34px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.035);
-        backdrop-filter: blur(18px);
+        background: rgba(7,11,19,.72) !important;
+        box-shadow: inset 0 1px rgba(255,255,255,.035);
         scrollbar-width: thin;
       }
-      .config-scroll { scroll-padding-top: 82px; }
-      .tab-panel.active, .ticket-main-content, .ticket-type-section { overflow: visible !important; }
-      .dashboard-sticky-tabs > button {
+      .dashboard-section-tabs > button {
         min-height: 42px;
         border-radius: 999px !important;
         font-weight: 800;
         transition: transform .15s ease, border-color .15s ease, background .15s ease;
       }
-      .dashboard-sticky-tabs > button:hover { transform: translateY(-1px); }
+      .dashboard-section-tabs > button:hover { transform: translateY(-1px); }
       .dashboard-placeholder-reference {
         display: grid;
         gap: 8px;
@@ -162,8 +160,8 @@
       .level-up-rich-host #levelUpPreview { width: 100%; }
       .level-up-rich-host .rich-live-panel { border: 0; padding: 0; background: transparent; }
       @media (max-width: 760px) {
-        .dashboard-sticky-tabs { top: 6px !important; width: 100%; padding: 7px !important; overflow-x: auto; }
-        .dashboard-sticky-tabs > button { flex: 0 0 auto; }
+        .dashboard-section-tabs { width: 100%; padding: 7px !important; overflow-x: auto; }
+        .dashboard-section-tabs > button { flex: 0 0 auto; }
         .rich-preview-stage { padding-right: 46px !important; }
         .rich-container-tools [data-rich-action="remove"],
         .message-preview-container > .preview-container-remove { right: -36px !important; }
@@ -178,7 +176,7 @@
     node.setAttribute('aria-label', 'Available message placeholders');
     node.innerHTML = '<div class="dashboard-placeholder-token-row">'
       + TOKENS.map((token) => '<button class="dashboard-placeholder-token" type="button" data-dashboard-token="' + escapeHtml(token) + '">' + escapeHtml(token) + '</button>').join('')
-      + '</div><div class="dashboard-placeholder-usage"><strong>Usage:</strong> click a syntax to insert it into the active message. Use <code>&lt;separator&gt;</code> for a divider. Conditional example: <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;&quot;&gt;</code>.</div>';
+      + '</div><div class="dashboard-placeholder-usage"><strong>Condition format:</strong> <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>. Click a syntax to insert it; use <code>&lt;separator&gt;</code> for a divider.</div>';
     return node;
   }
 
@@ -200,17 +198,17 @@
     });
   }
 
-  function markStickyTabs(root = document) {
+  function markSectionTabs(root = document) {
     const selectors = [
       '.mini-tabs', '.ticket-main-tabs', '.ticket-type-tabs', '.message-editor-tabs',
       '.moderator-workspace-tabs', '.community-message-tabs', '.appeal-settings-tabs',
       '.leveling-tabs', '.welcome-message-tabs', '.request-message-tabs',
     ].join(',');
     root.querySelectorAll?.(selectors).forEach((tabs) => {
-      if (!tabs.closest('.sidebar') && tabs.querySelector(':scope > button')) tabs.classList.add('dashboard-sticky-tabs');
+      if (!tabs.closest('.sidebar') && tabs.querySelector(':scope > button')) tabs.classList.add('dashboard-section-tabs');
     });
     root.querySelectorAll?.('.tab-panel nav').forEach((tabs) => {
-      if (!tabs.closest('.sidebar') && tabs.querySelectorAll(':scope > button').length > 1) tabs.classList.add('dashboard-sticky-tabs');
+      if (!tabs.closest('.sidebar') && tabs.querySelectorAll(':scope > button').length > 1) tabs.classList.add('dashboard-section-tabs');
     });
   }
 
@@ -370,7 +368,7 @@
     installStyles();
     mountLevelEditor();
     installLevelStateBridges();
-    markStickyTabs(root);
+    markSectionTabs(root);
     addPlaceholderReferences(root);
     removeEscapedNewlineArtifacts(root);
   }
