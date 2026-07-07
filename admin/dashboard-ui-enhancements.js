@@ -3,13 +3,19 @@
   window.__coinSpriteDashboardUiEnhancements = true;
 
   const TOKENS = Object.freeze([
-    '<@mention>', '<mention>', '<username>', '<display-name>', '<display_name>', '<user-id>', '<user_id>', '<avatar_url>',
-    '<server>', '<server-name>', '<guild-name>', '<guild-id>', '<channel>', '<channel-name>', '<channel-id>', '<member-count>',
-    '<level>', '<previous_level>', '<ticket_id>', '<ticket_name>', '<form-answer>', '<appeal-id>', '<case-id>', '<case-reason>',
-    '<punishment>', '<public-note>', '<form-answers>', '<evidence>', '<moderation-action>', '<moderation-action-label>',
-    '<moderation-reason>', '<moderation-case>', '<severity>', '<message-link>', '<message-content>', '<duration>', '<expires>',
-    '<appealable>', '<appealable-status>', '<warning-count>', '<active-warnings>', '<threshold>', '<blocked-domain>',
-    '<blocked-url>', '<invite-code>', '<translation-section>', '<separator>',
+    '<@mention>', '<mention>', '<username>', '<display_name>', '<display-name>', '<user-id>', '<user_id>',
+    '<avatar_url>', '<avatar-url>', '<server>', '<server-name>', '<guild-name>', '<server-id>', '<guild-id>',
+    '<member-count>', '<channel>', '<channel-name>', '<channel-id>', '<level>', '<previous-level>', '<previous_level>',
+    '<currentlevel>', '<current_level>', '<message-link>', '<message-content>', '<moderation-case>', '<moderation-reason>',
+    '<moderation-action>', '<moderation-action-label>', '<severity>', '<translation-section>', '<blocked-domain>',
+    '<blocked-url>', '<invite-code>', '<case-id>', '<case-type>', '<case-status>', '<case-source>', '<case-reason>',
+    '<case-audit-events>', '<warning-count>', '<active-warnings>', '<warning-case-list>', '<threshold>', '<expires>',
+    '<duration>', '<evidence>', '<appealable>', '<appealable-status>', '<appeal-id>', '<appeal-url>', '<reviewer>',
+    '<reviewer-note>', '<ticket_name>', '<ticket_id>', '<form-answer>', '<form-answers>', '<punishment>',
+    '<public-note>', '<reason>', '<status>', '<status-note>', '<uploaded-file-list>', '<roblox-username>', '<game>',
+    '<giveaway-prize>', '<winner-count>', '<winner-list>', '<claim-time>', '<claimed-count>', '<claimed-users>',
+    '<unclaimed-count>', '<reroll-time>', '<giveaway-host>', '<host-id>', '<giveaway-description>',
+    '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<separator>',
   ]);
   const PREVIEW_TOKENS = Object.freeze({
     '@mention': '@CoinSprite User', mention: '@CoinSprite User', username: 'CoinSpriteUser',
@@ -42,16 +48,25 @@
     style.textContent = `
       .dashboard-sticky-tabs {
         position: sticky !important;
-        top: 0;
-        z-index: 70;
+        top: 8px !important;
+        z-index: 120;
+        display: flex !important;
+        align-items: center;
+        gap: 8px;
+        width: max-content;
+        max-width: 100%;
         margin: 0 0 18px !important;
-        padding: 10px !important;
+        padding: 8px !important;
+        overflow-x: auto;
         border: 1px solid rgba(148,163,184,.2) !important;
         border-radius: 14px !important;
         background: rgba(7,11,19,.92) !important;
         box-shadow: 0 12px 34px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.035);
         backdrop-filter: blur(18px);
+        scrollbar-width: thin;
       }
+      .config-scroll { scroll-padding-top: 82px; }
+      .tab-panel.active, .ticket-main-content, .ticket-type-section { overflow: visible !important; }
       .dashboard-sticky-tabs > button {
         min-height: 42px;
         border-radius: 999px !important;
@@ -146,7 +161,7 @@
       .level-up-rich-host #levelUpPreview { width: 100%; }
       .level-up-rich-host .rich-live-panel { border: 0; padding: 0; background: transparent; }
       @media (max-width: 760px) {
-        .dashboard-sticky-tabs { top: 0; padding: 7px !important; overflow-x: auto; }
+        .dashboard-sticky-tabs { top: 6px !important; width: 100%; padding: 7px !important; overflow-x: auto; }
         .dashboard-sticky-tabs > button { flex: 0 0 auto; }
         .rich-preview-stage { padding-right: 46px !important; }
         .rich-container-tools [data-rich-action="remove"],
@@ -173,6 +188,7 @@
   }
 
   function addPlaceholderReferences(root = document) {
+    root.querySelectorAll?.('.message-token-help').forEach((node) => node.remove());
     const candidates = root.querySelectorAll?.('.rich-live-panel,.message-sticky-preview,.external-message-sticky-preview,.preview-panel') || [];
     for (const panel of candidates) {
       if (!isLivePreviewPanel(panel) || panel.querySelector(':scope > .dashboard-placeholder-reference')) continue;
@@ -187,6 +203,7 @@
     const selectors = [
       '.mini-tabs', '.ticket-main-tabs', '.ticket-type-tabs', '.message-editor-tabs',
       '.moderator-workspace-tabs', '.community-message-tabs', '.appeal-settings-tabs',
+      '.leveling-tabs', '.welcome-message-tabs', '.request-message-tabs',
     ].join(',');
     root.querySelectorAll?.(selectors).forEach((tabs) => {
       if (!tabs.closest('.sidebar') && tabs.querySelector(':scope > button')) tabs.classList.add('dashboard-sticky-tabs');
