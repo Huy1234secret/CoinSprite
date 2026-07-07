@@ -11,7 +11,7 @@ const { rememberCommandReply, rejectIfExpired, resetActionTimer, refreshMessageA
 const { loadState, saveState } = require('./src/ticketSystemStore');
 const inviteRewardsManager = require('./src/inviteRewardsManager');
 const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
-const { startAdminServer } = require('./src/adminServer');
+const { registerConsolidatedAdminCommands, startAdminServer } = require('./src/adminServer');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
@@ -493,6 +493,7 @@ for (const file of commandFiles) {
   const command = require(path.join(commandsPath, file));
   if (command.data && command.execute) client.commands.set(command.data.name, command);
 }
+registerConsolidatedAdminCommands(client);
 
 async function initCommandModules() {
   for (const command of client.commands.values()) {
