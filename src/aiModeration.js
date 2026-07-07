@@ -35,8 +35,7 @@ const SYSTEM_PROMPT = [
   'Do not use channel history, usernames, attachments, embeds, stickers, or any surrounding conversation; judge the single target Message by itself.',
   'Detect deliberate bypass spelling, leetspeak, phonetic misspellings, inserted punctuation or spaces, homoglyphs, and abbreviated slurs or sexual terms without relying only on exact keywords.',
   'Moderate every language and writing system, including Burmese and other non-Latin scripts. Recognize translated meaning, slang, profanity, insults, and harassment; never treat unfamiliar script as empty or harmless by default.',
-  'If the target Message is not English, translate that single Message into natural English. If it is already English, translated must be an empty string.',
-  'Return JSON only: {"flagged":false,"s":0,"case":"","reason":"","translated":""}. When flagged, use s=2-10, a concise case label such as NSFW, and a specific 1-3 sentence reason explaining the violation.',
+  'Return JSON only with your severity rating, your case label, and your reason: {"s":0,"case":"","reason":""}. Use s=0-1 for a compliant message and s=2-10 for a violation. Keep case concise, such as NSFW, and give a specific 1-3 sentence reason.',
 ].join(' ');
 
 function compactWhitespace(value) {
@@ -106,13 +105,11 @@ function moderationSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['flagged', 's', 'case', 'reason', 'translated'],
+    required: ['s', 'case', 'reason'],
     properties: {
-      flagged: { type: 'boolean' },
       s: { type: 'number' },
       case: { type: 'string' },
       reason: { type: 'string' },
-      translated: { type: 'string' },
     },
   };
 }
@@ -202,7 +199,7 @@ function fallbackAnalyze(content) {
 
 function parseJsonObject(value) {
   const text = String(value || '').trim();
-  if (!text) return { flagged: false, s: 0, case: '', reason: '', translated: '' };
+  if (!text) return { s: 0, case: '', reason: '' };
   try { return JSON.parse(text); }
   catch {
     const match = text.match(/\{[\s\S]*\}/);
@@ -212,13 +209,10 @@ function parseJsonObject(value) {
 }
 
 function normalizeResult(value = {}, source = 'ai') {
-  const score = Boolean(value.flagged)
-    ? normalizeScore(value.s ?? value.score ?? value.severityScore ?? value.severity_score, 0)
-    : 0;
-  if (!value.flagged || score < MIN_ALERT_SEVERITY_SCORE) return cleanResult(source);
+  const score = normalizeScore(value.s ?? value.score ?? value.severityScore ?? value.severity_score, 0);
+  if (score < MIN_ALERT_SEVERITY_SCORE) return cleanResult(source);
   const moderationCase = compactWhitespace(value.case ?? value.category ?? value.label).slice(0, 80);
   const reason = compactWhitespace(value.reason).slice(0, 320);
-  const englishTranslation = compactWhitespace(value.translated ?? value.englishTranslation).slice(0, 500);
   return {
     flagged: true,
     severity: severityFromScore(score, true),
@@ -227,7 +221,7 @@ function normalizeResult(value = {}, source = 'ai') {
     categories: moderationCase ? [moderationCase] : [],
     matchedTerms: [],
     originalLanguage: '',
-    englishTranslation,
+    englishTranslation: '',
     case: moderationCase || 'Rule violation',
     reason: reason || 'The message breaks a server rule.',
     source,
@@ -327,7 +321,7 @@ async function analyzeWithResponsesApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_output_tokens: 240,
+    max_output_tokens: 180,
     store: true,
     text: { format: responsesTextFormat() },
   });
@@ -342,7 +336,7 @@ async function analyzeWithChatApi(apiKey, model, input, context) {
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: input },
     ],
-    max_tokens: 240,
+    max_tokens: 180,
     store: true,
     response_format: chatResponseFormat(),
   });

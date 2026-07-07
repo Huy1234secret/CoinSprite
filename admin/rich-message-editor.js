@@ -1,5 +1,5 @@
 (() => {
-  if (window.CoinSpriteRichEditor?.version >= 4) return;
+  if (window.CoinSpriteRichEditor?.version >= 5) return;
 
   const clone = (value) => JSON.parse(JSON.stringify(value || {}));
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -49,7 +49,7 @@
       '.rich-preview-stage .message-discord-preview{min-height:220px;padding:20px}.rich-preview-stage .message-discord-body{width:100%;max-width:920px}.rich-source-fields{display:none!important}',
       '.rich-container-frame{width:min(100%,840px);margin:12px 0 0}.rich-container-frame>.message-preview-container{width:100%;max-width:none;margin:0}',
       '.rich-container-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:36px;margin-bottom:7px;padding:0 2px;color:var(--muted,#93a4bc);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}',
-      '.rich-container-tools{display:flex;gap:6px}.rich-container-tools button{display:grid;width:32px;height:32px;min-height:32px;place-items:center;padding:0;border:1px solid var(--border,#30394a);border-radius:7px;background:#11151d;color:#f2f3f5;line-height:1}.rich-container-tools button:hover:not(:disabled){border-color:var(--primary,#7c83ff);background:#1b2434}.rich-container-tools button:disabled{opacity:.35;cursor:not-allowed}',
+      '.rich-container-tools{display:flex;gap:6px}.rich-container-tools button,.rich-container-remove{display:grid;width:32px;height:32px;min-height:32px;place-items:center;padding:0;border:1px solid var(--border,#30394a);border-radius:7px;background:#11151d;color:#f2f3f5;line-height:1}.rich-container-tools button:hover:not(:disabled){border-color:var(--primary,#7c83ff);background:#1b2434}.rich-container-tools button:disabled{opacity:.35;cursor:not-allowed}.rich-container-remove{position:absolute;z-index:8;top:0;right:-42px;background:transparent;font-size:20px;cursor:pointer}.rich-container-remove:hover{border-color:var(--danger,#fb7185);color:var(--danger,#fb7185)}',
       '.rich-template-editor .preview-media-edit.image:not(.has-value){width:auto;min-width:150px;min-height:42px;padding:0 12px}.rich-template-editor .preview-media-edit.image:not(.has-value) .preview-media-empty{flex-direction:row;gap:7px;padding:0}.rich-template-editor .preview-media-edit.image:not(.has-value) .preview-media-empty span:last-child{display:none}',
       '.rich-add-container{width:100%;min-height:42px;border-style:dashed;margin-top:12px}',
       '.rich-template-editor .message-preview-container{position:relative}.rich-template-editor .message-root-content,.rich-template-editor .message-preview-text{cursor:text}',
@@ -69,7 +69,7 @@
       + tokens.map((token) => '<button type="button" data-rich-token="' + escapeHtml(token) + '">' + escapeHtml(token) + '</button>').join('')
       + '<button type="button" data-rich-token="<separator>">&lt;separator&gt;</button></div></section>'
       + '<section class="rich-live-panel"><div class="rich-live-head"><h3>Live preview</h3><span>Click the message, color, thumbnail, or image to edit.</span></div><div class="rich-preview-stage" data-rich-preview></div>'
-      + '<button class="rich-add-container" type="button" data-rich-action="add">+ Add container</button></section><div class="rich-source-fields" data-rich-sources></div>';
+      + '<button class="rich-add-container" type="button" data-rich-action="add">Add Container</button></section><div class="rich-source-fields" data-rich-sources></div>';
 
     function sourceMarkup() {
       return '<textarea data-template-field="content" maxlength="2000">' + escapeHtml(value.content) + '</textarea>'
@@ -103,10 +103,19 @@
         label.textContent = 'Container ' + (index + 1);
         const controls = document.createElement('div');
         controls.className = 'rich-container-tools';
-        controls.innerHTML = '<button type="button" data-rich-action="up" data-index="' + index + '" title="Move container up" aria-label="Move container up" ' + (index === 0 ? 'disabled' : '') + '>↑</button><button type="button" data-rich-action="down" data-index="' + index + '" title="Move container down" aria-label="Move container down" ' + (index === value.containers.length - 1 ? 'disabled' : '') + '>↓</button><button type="button" data-rich-action="remove" data-index="' + index + '" title="Remove container" aria-label="Remove container">×</button>';
+        controls.innerHTML = '<button type="button" data-rich-action="up" data-index="' + index + '" title="Move container up" aria-label="Move container up" ' + (index === 0 ? 'disabled' : '') + '>↑</button><button type="button" data-rich-action="down" data-index="' + index + '" title="Move container down" aria-label="Move container down" ' + (index === value.containers.length - 1 ? 'disabled' : '') + '>↓</button>';
+        const remove = document.createElement('button');
+        remove.className = 'rich-container-remove';
+        remove.type = 'button';
+        remove.dataset.richAction = 'remove';
+        remove.dataset.index = String(index);
+        remove.title = 'Remove container';
+        remove.setAttribute('aria-label', 'Remove container');
+        remove.textContent = '×';
         toolbar.append(label, controls);
         container.before(frame);
         frame.append(toolbar, container);
+        container.append(remove);
       });
     }
 
@@ -114,7 +123,7 @@
       const preview = root.querySelector('[data-rich-preview]');
       const rendered = previewValue(value, options.previewTokens || {});
       preview.innerHTML = window.CoinSpriteMessageEditor?.renderPreview
-        ? window.CoinSpriteMessageEditor.renderPreview(rendered, { hideEmptyRoot: false })
+        ? window.CoinSpriteMessageEditor.renderPreview(rendered, { hideEmptyRoot: false, showContainerControls: false })
         : '<pre>' + escapeHtml(JSON.stringify(rendered, null, 2)) + '</pre>';
       decorateContainers();
       root.querySelector('[data-rich-action="add"]').disabled = value.containers.length >= 8;
@@ -167,6 +176,6 @@
     };
   }
 
-  window.CoinSpriteRichEditor = Object.freeze({ version: 4, mount, normalize });
+  window.CoinSpriteRichEditor = Object.freeze({ version: 5, mount, normalize });
   window.dispatchEvent(new Event('coinsprite:rich-editor-ready'));
 })();

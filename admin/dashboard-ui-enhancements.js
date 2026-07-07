@@ -6,17 +6,19 @@
     '<@mention>', '<mention>', '<username>', '<display_name>', '<display-name>', '<user-id>', '<user_id>',
     '<avatar_url>', '<avatar-url>', '<server>', '<server-name>', '<guild-name>', '<server-id>', '<guild-id>',
     '<member-count>', '<channel>', '<channel-name>', '<channel-id>', '<level>', '<previous-level>', '<previous_level>',
-    '<currentlevel>', '<current_level>', '<message-link>', '<message-content>', '<moderation-case>', '<moderation-reason>',
-    '<moderation-action>', '<moderation-action-label>', '<severity>', '<translation-section>', '<blocked-domain>',
+    '<displayname>', '<userid>', '<channel_id>', '<previouslevel>', '<currenlevel>', '<currentlevel>', '<current_level>',
+    '<message-link>', '<message-content>', '<moderation-case>', '<moderation-reason>',
+    '<moderation-action>', '<moderation-action-label>', '<moderation-categories>', '<moderation-source>', '<severity>',
+    '<severity-tier>', '<broken-rules>', '<matched-terms>', '<original-language>', '<english-translation>', '<translation-section>', '<blocked-domain>',
     '<blocked-url>', '<invite-code>', '<case-id>', '<case-type>', '<case-status>', '<case-source>', '<case-reason>',
     '<case-audit-events>', '<warning-count>', '<active-warnings>', '<warning-case-list>', '<threshold>', '<expires>',
     '<duration>', '<evidence>', '<appealable>', '<appealable-status>', '<appeal-id>', '<appeal-url>', '<reviewer>',
-    '<reviewer-note>', '<ticket_name>', '<ticket_id>', '<form-answer>', '<form-answers>', '<punishment>',
+    '<reviewer-note>', '<ticket_name>', '<ticket_id>', '<form-answer>', '<form_answer>', '<form-answers>', '<punishment>',
     '<public-note>', '<reason>', '<status>', '<status-note>', '<uploaded-file-list>', '<roblox-username>', '<game>',
     '<giveaway-prize>', '<winner-count>', '<winner-list>', '<claim-time>', '<claimed-count>', '<claimed-users>',
     '<unclaimed-count>', '<reroll-time>', '<giveaway-host>', '<host-id>', '<giveaway-description>',
     '<giveaway-requirement>', '<giveaway-ends>', '<giveaway-list>', '<notice-delivery>',
-    '<notification-message-id>', '<staff-log-message-id>', '<moderator>', '<moderator-id>', '<separator>',
+    '<notification-message-id>', '<staff-log-message-id>', '<moderator>', '<moderator-id>', '<channel-rule>', '<separator>',
   ]);
   const PREVIEW_TOKENS = Object.freeze({
     '@mention': '@CoinSprite User', mention: '@CoinSprite User', username: 'CoinSpriteUser',
@@ -108,10 +110,10 @@
         line-height: 1.45;
       }
       .dashboard-placeholder-usage code { color: #dce4ff; }
-      .dashboard-legacy-token-list, .rich-template-editor > .rich-format-bar { display: none !important; }
+      .dashboard-legacy-token-list, .message-placeholder-palette, .rich-template-editor > .rich-format-bar { display: none !important; }
       .rich-preview-stage { padding-right: 54px !important; }
       .rich-container-frame { position: relative; }
-      .rich-container-tools [data-rich-action="remove"],
+      .rich-container-remove,
       .message-preview-container > .preview-container-remove {
         position: absolute !important;
         top: 0 !important;
@@ -127,7 +129,7 @@
         color: #aeb9ca !important;
         box-shadow: none !important;
       }
-      .rich-container-tools [data-rich-action="remove"]:hover,
+      .rich-container-remove:hover,
       .message-preview-container > .preview-container-remove:hover {
         border-color: var(--danger,#fb7185) !important;
         color: var(--danger,#fb7185) !important;
@@ -163,7 +165,7 @@
         .dashboard-section-tabs { width: 100%; padding: 7px !important; overflow-x: auto; }
         .dashboard-section-tabs > button { flex: 0 0 auto; }
         .rich-preview-stage { padding-right: 46px !important; }
-        .rich-container-tools [data-rich-action="remove"],
+        .rich-container-remove,
         .message-preview-container > .preview-container-remove { right: -36px !important; }
       }
     `;

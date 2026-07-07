@@ -17,7 +17,7 @@
         {
           "id": "ai-moderation-alert",
           "accentColor": "#9B59B6",
-          "text": "## AI moderation report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Case:** <moderation-case>\n**Reason:** <moderation-reason>\n**Message:** <message-link> “<message-content>”\n<translation-section>",
+          "text": "## AI moderation report\n**User:** <@mention> (`<user-id>`)\n**Channel:** <channel>\n**Severity:** <severity>/10\n**Case:** <moderation-case>\n**Reason:** <moderation-reason>\n**Message:** <message-link> “<message-content>”",
           "thumbnailUrl": "<avatar_url>",
           "imageUrl": ""
         }
@@ -269,7 +269,7 @@
   function rootMessageHtml(content) {
     const value = String(content || '').trim();
     if (value) return renderMarkdown(value);
-    return '<button class="message-add-root" type="button" data-message-action="preview-root-text"><span class="message-add-root-plus">+</span><strong>Add message</strong><span>Outside container</span></button>';
+    return '<div class="message-preview-line message-preview-empty message-root-gap-line" aria-hidden="true">&nbsp;</div>';
   }
 
   function previewUrl(value) {
@@ -298,7 +298,9 @@
     const containerId = index === 0 && options.containerId ? ` id="${escapeHtml(options.containerId)}"` : '';
     const bodyId = index === 0 && options.bodyId ? ` id="${escapeHtml(options.bodyId)}"` : '';
     const extraClass = options.containerClass ? ` ${escapeHtml(options.containerClass)}` : '';
+    const remove = options.showContainerControls === false ? '' : `<button class="message-preview-remove-container" type="button" data-message-action="remove-container" data-index="${index}" title="Remove container" aria-label="Remove container">×</button>`;
     return `<div${containerId} class="message-preview-container preview-container message-direct-ready${extraClass}" data-preview-container-index="${index}" style="--container-color:${escapeHtml(container.accentColor)};--preview-accent:${escapeHtml(container.accentColor)}">
+      ${remove}
       <button class="preview-accent-picker" type="button" data-message-action="preview-color" data-index="${index}" aria-label="Change container color" style="--preview-accent:${escapeHtml(container.accentColor)}"></button>
       ${mediaControl(container, index, 'thumbnailUrl', 'thumbnail')}
       <div${bodyId} class="message-preview-text" data-message-action="preview-text" data-index="${index}">
@@ -571,12 +573,12 @@
           <textarea class="message-discord-input root-input" rows="5" maxlength="2000" spellcheck="true" data-template-field="content" placeholder="Optional Discord Markdown shown above the containers">${escapeHtml(template.content)}</textarea>
         </section>
         <div class="message-container-list">${template.containers.map(renderContainer).join('')}</div>
-        <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>
+        <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>
       </div>
       <aside class="message-sticky-preview">
         <div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>
         ${messagePreview(template)}
-        <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>
+        <button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>
       </aside>
     </div>`;
   }
@@ -635,7 +637,7 @@
 
   function refreshPreview(template) {
     const preview = root.querySelector('.message-sticky-preview');
-    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>${messagePreview(template)}<button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>+ Add container</button>`;
+    if (preview) preview.innerHTML = `<div class="panel-heading"><h3>Live preview</h3><p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p></div>${messagePreview(template)}<button class="button subtle message-add-container" type="button" data-message-action="add-container" ${template.containers.length >= 8 ? 'disabled' : ''}>Add Container</button>`;
   }
 
   root.addEventListener('input', (event) => {
