@@ -1,6 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 const levelingManager = require('./levelingManager');
+const wordChainEventManager = require('./wordChainEventManager');
 const { loadState, saveState } = require('./wordChainStore');
 const { DEFAULT_GUILD_CONFIG, DEFAULT_GUILD_ID, getEnabledGuildIds, getGuildConfig } = require('./serverConfig');
 const { calculateWordChainXp, sanitizeWordChainXpFormula } = require('./wordChainFormula');
@@ -11,7 +12,6 @@ const MAX_WORD_LENGTH = DEFAULT_GUILD_CONFIG.wordChain.maxWordLength;
 const STARTING_HEARTS = DEFAULT_GUILD_CONFIG.wordChain.startingHearts;
 const TURN_TIMEOUT_MS = DEFAULT_GUILD_CONFIG.wordChain.turnTimeoutMs;
 const PUNISHMENT_MS = DEFAULT_GUILD_CONFIG.wordChain.punishmentMs;
-const PUNISHMENT_ROLE_ID = DEFAULT_GUILD_CONFIG.roles.wordChainPunishment;
 const GAME_COOLDOWN_MS = DEFAULT_GUILD_CONFIG.wordChain.gameCooldownMs;
 const DICTIONARY_LOOKUP_TIMEOUT_MS = 5000;
 const DICTIONARY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -33,6 +33,7 @@ let currentGame = null;
 let turnTimer = null;
 let cooldownTimer = null;
 let cooldownEndsAt = 0;
+let restrictions = {};
 let initStarted = false;
 
 function getConfig(guildId) {
@@ -68,10 +69,6 @@ function getWordChainSettings(guildId) {
 
 function getWordChainChannelId(guildId) {
   return getConfig(getGameGuildId(guildId)).channels.wordChain || WORD_CHAIN_CHANNEL_ID;
-}
-
-function getPunishmentRoleId(guildId) {
-  return getConfig(guildId).roles.wordChainPunishment || PUNISHMENT_ROLE_ID;
 }
 
 function serializeGame(game) {
@@ -121,6 +118,7 @@ function persistState() {
   saveState({
     game: serializeGame(currentGame),
     cooldownEndsAt,
+    restrictions,
   });
 }
 
@@ -128,6 +126,7 @@ function restoreState() {
   const state = loadState();
   currentGame = hydrateGame(state.game);
   cooldownEndsAt = Number(state.cooldownEndsAt) || 0;
+  restrictions = state.restrictions || {};
   if (!currentGame && cooldownEndsAt <= Date.now()) cooldownEndsAt = 0;
   persistState();
 }
@@ -193,6 +192,17 @@ function getStreakLine() {
   return currentGame ? `Streak: **${currentGame.streak || 0} words**` : null;
 }
 
+function getEventLuckLine() {
+  return wordChainEventManager.getCurrentLuckLine(currentGame?.streak || 0, currentGame?.guildId);
+}
+
+function formatRestrictionDuration(guildId) {
+  const totalSeconds = Math.max(1, Math.ceil(getWordChainSettings(guildId).punishmentMs / 1000));
+  if (totalSeconds === 60) return '1 minute';
+  if (totalSeconds % 60 === 0) return `${totalSeconds / 60} minutes`;
+  return `${totalSeconds} seconds`;
+}
+
 function awardCorrectWordXp(message) {
   if (!message.guild?.id || !message.author?.id || !currentGame) return null;
   const settings = getWordChainSettings(message.guild.id);
@@ -221,12 +231,14 @@ function getGameLine(guildId) {
     `Channel: <#${wordChainChannelId}>`,
     `Word length: **${currentGame.wordLength} letters**`,
     `Streak: **${currentGame.streak || 0} words**`,
+    getEventLuckLine(),
     `Server hearts: **${currentGame.hearts}/${settings.startingHearts}**`,
+    `Incorrect words cause a **${formatRestrictionDuration(resolvedGuildId)} Word Chain restriction**.`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
     previous,
     lastPlayer,
     required,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 async function sendToGameChannel(content, accentColor, guildId = null) {
@@ -300,6 +312,7 @@ async function startGame(reason = 'auto', guildId = null) {
   };
   persistState();
   scheduleTurnTimer();
+  await wordChainEventManager.refreshAnnouncement(0);
 
   await sendToGameChannel(`${getGameLine(resolvedGuildId)}\n\nGame started${reason === 'auto' ? ' automatically' : ''}.`, 0x57f287, resolvedGuildId);
   return currentGame;
@@ -324,6 +337,7 @@ async function endGame(reason) {
   clearTurnTimer();
   currentGame = null;
   persistState();
+  await wordChainEventManager.refreshAnnouncement(0);
   await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + settings.gameCooldownMs)}.`, 0xed4245, guildId);
   scheduleNextGame(guildId);
 }
@@ -333,6 +347,7 @@ async function loseHeart(reason) {
   currentGame.hearts -= 1;
   currentGame.streak = 0;
   persistState();
+  await wordChainEventManager.refreshAnnouncement(0);
 
   const guildId = getGameGuildId();
   const settings = getWordChainSettings(guildId);
@@ -350,78 +365,44 @@ async function handleTurnTimeout() {
   await loseHeart('Countdown ran out.');
 }
 
-async function fetchBotMember(guild) {
-  return guild.members.me || await guild.members.fetchMe().catch(() => null);
-}
-
-async function getPunishmentRole(guild) {
-  const punishmentRoleId = getPunishmentRoleId(guild.id);
-  return guild.roles.cache.get(punishmentRoleId)
-    || await guild.roles.fetch(punishmentRoleId).catch(() => null);
-}
-
-function canBotManageRole(botMember, role) {
-  if (!botMember || !role) return false;
-  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return false;
-  return botMember.roles.highest.position > role.position;
-}
-
-async function muteMemberInGameChannel(message, reason) {
-  const member = await message.guild.members.fetch(message.author.id).catch(() => message.member || null);
-  const channel = message.channel;
-  const result = {
-    muted: false,
-    roleAdded: false,
-    roleAlreadyPresent: false,
-    roleError: null,
-  };
-  if (!member || !channel?.permissionOverwrites?.edit) {
-    result.roleError = 'Could not fetch the member or channel.';
-    return result;
+function getRestrictionEnd(userId) {
+  const expiresAt = Number(restrictions[userId]) || 0;
+  if (expiresAt > Date.now()) return expiresAt;
+  if (restrictions[userId]) {
+    delete restrictions[userId];
+    persistState();
   }
+  return 0;
+}
 
-  const currentOverwrite = channel.permissionOverwrites.cache.get(member.id);
-  let previousSendMessages = null;
-  if (currentOverwrite?.allow?.has(PermissionFlagsBits.SendMessages)) previousSendMessages = true;
-  if (currentOverwrite?.deny?.has(PermissionFlagsBits.SendMessages)) previousSendMessages = false;
+function restrictPlayer(message) {
+  const expiresAt = Date.now() + getWordChainSettings(message.guild.id).punishmentMs;
+  restrictions[message.author.id] = expiresAt;
+  persistState();
+  return expiresAt;
+}
 
-  result.muted = await channel.permissionOverwrites.edit(member.id, { SendMessages: false }, { reason }).then(() => true).catch((error) => {
-    logCommandSystem(`Word Chain mute failed for ${message.author.id}: ${error?.message ?? 'unknown error'}`);
-    return false;
-  });
+async function sendRestrictionNotice(message, expiresAt) {
+  const content = `-# You are currently being restricted in **Word Chain**, try again ${formatCountdown(expiresAt)}`;
+  await message.delete().catch(() => null);
 
-  const punishmentRole = await getPunishmentRole(message.guild);
-  const punishmentRoleId = getPunishmentRoleId(message.guild.id);
-  const botMember = await fetchBotMember(message.guild);
-  result.roleAlreadyPresent = member.roles.cache.has(punishmentRoleId);
-  if (!punishmentRole) {
-    result.roleError = `Role ${punishmentRoleId} was not found.`;
-  } else if (result.roleAlreadyPresent) {
-    result.roleAdded = true;
-  } else if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-    result.roleError = 'Bot is missing Manage Roles permission.';
-  } else if (!canBotManageRole(botMember, punishmentRole)) {
-    result.roleError = `Bot role must be above <@&${punishmentRoleId}>.`;
-  } else {
-    result.roleAdded = await member.roles.add(punishmentRole, reason).then(() => true).catch((error) => {
-      result.roleError = error?.message || 'Discord rejected the role add.';
-      logCommandSystem(`Word Chain punishment role add failed for ${message.author.id}: ${result.roleError}`);
-      return false;
-    });
+  const sentPrivately = typeof message.author.send === 'function'
+    ? await message.author.send({
+      ...buildPanel(content, 0xed4245),
+      allowedMentions: NO_MENTIONS,
+    }).then(() => true).catch(() => false)
+    : false;
+  if (sentPrivately) return;
+
+  const notice = typeof message.channel.send === 'function'
+    ? await message.channel.send({
+      ...buildPanel(content, 0xed4245),
+      allowedMentions: NO_MENTIONS,
+    }).catch(() => null)
+    : null;
+  if (notice?.delete) {
+    setTimeout(() => notice.delete().catch(() => null), 10_000);
   }
-
-  setTimeout(() => {
-    channel.permissionOverwrites.edit(member.id, { SendMessages: previousSendMessages }, { reason: `Word Chain punishment expired for ${member.id}` }).catch((error) => {
-      logCommandSystem(`Word Chain unmute failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
-    });
-    if (result.roleAdded && !result.roleAlreadyPresent) {
-      member.roles.remove(punishmentRoleId, `Word Chain punishment expired for ${member.id}`).catch((error) => {
-        logCommandSystem(`Word Chain punishment role remove failed for ${member.id}: ${error?.message ?? 'unknown error'}`);
-      });
-    }
-  }, getWordChainSettings(message.guild.id).punishmentMs);
-
-  return result;
 }
 
 function isDictionaryCacheFresh(entry) {
@@ -515,39 +496,25 @@ async function validateWord(word) {
   return null;
 }
 
-function formatPunishmentLine(message, result) {
-  const muteText = result?.muted ? 'muted in this channel' : 'not muted because channel permissions could not be updated';
-  const durationSeconds = Math.max(1, Math.ceil(getWordChainSettings(message.guild.id).punishmentMs / 1000));
-  const durationText = durationSeconds === 60 ? '1 minute' : `${durationSeconds} seconds`;
-  if (result?.roleAdded) {
-    const punishmentRoleId = getPunishmentRoleId(message.guild.id);
-    const roleText = result.roleAlreadyPresent ? `already had <@&${punishmentRoleId}>` : `given <@&${punishmentRoleId}>`;
-    return `They are ${muteText} and ${roleText} for ${durationText}.`;
-  }
-
-  const roleError = result?.roleError || 'unknown role add error';
-  return `They are ${muteText} for ${durationText}. Role was not added: ${roleError}`;
-}
-
 async function punishInvalidWord(message, word, reason) {
-  const punishment = await muteMemberInGameChannel(message, `Word Chain invalid word: ${reason}`);
+  const restrictionEndsAt = restrictPlayer(message);
   if (currentGame) {
     currentGame.streak = 0;
     persistState();
   }
   await message.react('\u274c').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\n${formatPunishmentLine(message, punishment)}`, 0xed4245, message.guild.id);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word || 'invalid'}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nThey are restricted from Word Chain until ${formatCountdown(restrictionEndsAt)}.`, 0xed4245, message.guild.id);
   await loseHeart('Invalid word penalty.');
 }
 
 async function rejectTemporaryValidationIssue(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**, but ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no restriction was applied.`, 0xfee75c, message.guild.id);
 }
 
 async function warnInvalidWord(message, word, reason) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nWarning only: no heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
+  await sendToGameChannel(`<@${message.author.id}> submitted **${word}**: ${reason}\n${getWordLengthLine()}\n${getStreakLine()}\nWarning only: no heart was lost and no restriction was applied.`, 0xfee75c, message.guild.id);
 }
 
 async function handleConfiguredViolation(message, word, reason, action) {
@@ -560,7 +527,7 @@ async function handleConfiguredViolation(message, word, reason, action) {
 
 async function rejectRepeatedPlayer(message) {
   await message.react('\u26a0\ufe0f').catch(() => null);
-  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no mute was applied.`, 0xfee75c, message.guild.id);
+  await sendToGameChannel(`<@${message.author.id}> must wait for another player before replying again.\n${getWordLengthLine()}\n${getStreakLine()}\nNo heart was lost and no restriction was applied.`, 0xfee75c, message.guild.id);
 }
 
 async function acceptWord(message, word) {
@@ -571,10 +538,24 @@ async function acceptWord(message, word) {
   currentGame.requiredFirstLetter = word.at(-1);
   currentGame.streak = (currentGame.streak || 0) + 1;
   const xpResult = awardCorrectWordXp(message);
+  const eventResult = await wordChainEventManager.awardCorrectWord(message, word, currentGame.streak);
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
   const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
-  await sendToGameChannel(`<@${message.author.id}> accepted: **${word}**\n${getWordLengthLine()}\n${getStreakLine()}\n${xpLine}\nNext starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.\nCountdown reset: ${formatCountdown(currentGame.expiresAt)}`, 0x57f287, message.guild.id);
+  const eventLuckLine = eventResult.active ? `Event luck: **+${eventResult.luckBonusPercent}%**` : null;
+  const prizeLine = eventResult.awards.length
+    ? `Event prize${eventResult.awards.length === 1 ? '' : 's'} won: **${eventResult.awards.map((award) => award.prizeName).join(', ')}**`
+    : null;
+  await sendToGameChannel([
+    `<@${message.author.id}> accepted: **${word}**`,
+    getWordLengthLine(),
+    getStreakLine(),
+    eventLuckLine,
+    prizeLine,
+    xpLine,
+    `Next starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.`,
+    `Countdown reset: ${formatCountdown(currentGame.expiresAt)}`,
+  ].filter(Boolean).join('\n'), 0x57f287, message.guild.id);
 }
 
 async function init(client) {
@@ -583,6 +564,7 @@ async function init(client) {
   initStarted = true;
   restoreState();
   await getGameChannel(getGameGuildId());
+  await wordChainEventManager.init(client, currentGame?.streak || 0);
   if (currentGame) {
     scheduleTurnTimer();
     logCommandSystem(`Word Chain restored active game for guild ${getGameGuildId()}; no public restore message sent.`);
@@ -602,6 +584,11 @@ async function init(client) {
 
 async function handleMessageCreate(message) {
   if (message.author?.bot || !message.guild || message.channelId !== getWordChainChannelId(message.guild.id)) return;
+  const restrictionEndsAt = getRestrictionEnd(message.author.id);
+  if (restrictionEndsAt) {
+    await sendRestrictionNotice(message, restrictionEndsAt);
+    return;
+  }
   if (!currentGame) {
     if (cooldownEndsAt > Date.now()) return;
     await startGame('auto', message.guild.id);
