@@ -8,6 +8,7 @@ const {
   buildAnnouncementPayload,
   calculateLuckBonusPercent,
   formatChancePercent,
+  formatPrizeAwardLine,
   getAdjustedChance,
   isEventActive,
   rollAvailablePrizes,
@@ -29,9 +30,10 @@ test('Word Chain event luck increases every 40 streak and caps at 100 percent', 
   assert.equal(calculateLuckBonusPercent(1000), 100);
 
   const prize = { chanceDenominator: 10_000 };
-  assert.equal(getAdjustedChance(prize, 0), 0.0001);
-  assert.equal(getAdjustedChance(prize, 400), 0.0002);
-  assert.equal(formatChancePercent(getAdjustedChance(prize, 40)), '0.011%');
+  assert.equal(getAdjustedChance(prize, 0), 0.0005);
+  assert.equal(getAdjustedChance(prize, 400), 0.001);
+  assert.equal(formatChancePercent(getAdjustedChance(prize, 40)), '0.055%');
+  assert.equal(formatPrizeAwardLine([{ prizeName: 'Mushroom' }]), '🎁 Event prize won: **Mushroom**');
 });
 
 test('Word Chain event rolls every in-stock prize independently and never oversells', () => {
@@ -70,8 +72,9 @@ test('Word Chain event announcement uses one green Components V2 prize panel', (
   assert.equal(container.components.filter((component) => component.type === 14).length, 2);
   assert.match(rendered, /## Word Chain event/);
   assert.match(rendered, /<#1512480152410525958>/);
-  assert.match(rendered, /Unicorn `0\.011%` - 1/);
-  assert.match(rendered, /Mushroom `4\.4%` - 105/);
+  assert.match(rendered, /Unicorn `0\.055%` - 1/);
+  assert.match(rendered, /Mushroom `22%` - 105/);
+  assert.match(rendered, /Prize chances are boosted \*\*5x\*\*/);
   assert.match(rendered, /Every 40 streak = \+10% luck/);
 });
 
