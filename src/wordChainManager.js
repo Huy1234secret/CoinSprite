@@ -543,9 +543,7 @@ async function acceptWord(message, word) {
   await message.react('\u2705').catch(() => null);
   const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
   const eventLuckLine = eventResult.active ? `Event luck: **+${eventResult.luckBonusPercent}%**` : null;
-  const prizeLine = eventResult.awards.length
-    ? `Event prize${eventResult.awards.length === 1 ? '' : 's'} won: **${eventResult.awards.map((award) => award.prizeName).join(', ')}**`
-    : null;
+  const prizeLine = wordChainEventManager.formatPrizeAwardLine(eventResult.awards);
   await sendToGameChannel([
     `<@${message.author.id}> accepted: **${word}**`,
     getWordLengthLine(),

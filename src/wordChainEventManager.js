@@ -7,6 +7,7 @@ const GREEN = 0x57f287;
 const LUCK_STREAK_INTERVAL = 40;
 const LUCK_STEP_PERCENT = 10;
 const MAX_LUCK_PERCENT = 100;
+const BASE_CHANCE_MULTIPLIER = 5;
 
 let clientRef = null;
 let eventState = null;
@@ -32,8 +33,13 @@ function calculateLuckBonusPercent(streak) {
 
 function getAdjustedChance(prize, streak) {
   const denominator = Math.max(1, Number(prize?.chanceDenominator) || 1);
-  const multiplier = 1 + (calculateLuckBonusPercent(streak) / 100);
+  const multiplier = BASE_CHANCE_MULTIPLIER * (1 + (calculateLuckBonusPercent(streak) / 100));
   return Math.min(1, multiplier / denominator);
+}
+
+function formatPrizeAwardLine(awards) {
+  if (!Array.isArray(awards) || !awards.length) return null;
+  return `🎁 Event prize${awards.length === 1 ? '' : 's'} won: **${awards.map((award) => award.prizeName).join(', ')}**`;
 }
 
 function formatChancePercent(chance) {
@@ -78,7 +84,7 @@ function buildAnnouncementPayload(state = eventState, streak = 0, now = Date.now
           { type: 14, divider: true, spacing: 1 },
           {
             type: 10,
-            content: '### Note:\n* Every 40 streak = +10% luck `[cap 100%]`\n* Incorrect words restrict that player from Word Chain until their restriction expires.',
+            content: '### Note:\n* Prize chances are boosted **5x**.\n* Every 40 streak = +10% luck `[cap 100%]`\n* Incorrect words restrict that player from Word Chain until their restriction expires.',
           },
         ],
       },
@@ -220,6 +226,7 @@ module.exports = {
   buildAnnouncementPayload,
   calculateLuckBonusPercent,
   formatChancePercent,
+  formatPrizeAwardLine,
   getAdjustedChance,
   getCurrentLuckLine,
   init,
