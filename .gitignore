@@ -8,5 +8,6 @@ data/*
 !data/.gitkeep
 !data/milestone-state.json
 !data/server-config.example.json
+!data/word-chain-event.json
 
 User card background/

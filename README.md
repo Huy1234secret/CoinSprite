@@ -35,8 +35,10 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - The streak counts accepted chained words in the current match and resets to 0 after a timeout or invalid word penalty.
   - Accepted words award XP equal to the current word length, from 3x to 10x.
   - A player cannot submit two accepted words in a row; they must wait for another player.
-  - Repeated, unknown, misspelled, wrong-length, or wrong-chain words mute the player in that channel and add role `1512488707461091420` for 1 minute.
-  - The bot needs `Manage Roles`, and its highest role must be above role `1512488707461091420`, for the punishment role to be applied.
+  - Repeated, unknown, misspelled, wrong-length, or wrong-chain words restrict the player from Word Chain for the configured punishment duration without muting them in Discord.
+  - Restricted attempts are deleted when possible and receive a private red restriction notice; if DMs are closed, the bot posts a short auto-deleting channel notice because Discord does not support ephemeral responses to regular messages.
+  - The limited Word Chain mini event runs through July 11, 2026 at 22:00 UTC+7. Each accepted word independently rolls every in-stock prize, with +10% relative luck per 40 streak (capped at +100%).
+  - Event inventory, award history, timing, and the reusable announcement message ID are stored in `data/word-chain-event.json`.
   - English words are checked across DictionaryAPI.dev, Wiktionary, and Datamuse, then cached in memory; a small fallback list covers valid words missing from those APIs, and temporary dictionary lookup failures do not punish the player.
 
 ## Message Context Menu Commands
