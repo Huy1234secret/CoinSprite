@@ -6,6 +6,7 @@ const test = require('node:test');
 
 const {
   buildAnnouncementPayload,
+  buildPrizeSummary,
   calculateLuckBonusPercent,
   formatChancePercent,
   formatPrizeAwardLine,
@@ -52,12 +53,30 @@ test('Word Chain event rolls every in-stock prize independently and never overse
   const awards = rollAvailablePrizes(state, context, () => 0, now);
   assert.equal(awards.length, state.prizes.length);
   assert.equal(state.awards.length, state.prizes.length);
+  assert.equal(state.prizeSummary[context.userId].Mushroom, 1);
+  assert.equal(state.prizeSummary[context.userId].Unicorn, 1);
   assert.equal(state.prizes.find((prize) => prize.id === 'unicorn').amountLeft, 0);
   assert.equal(state.prizes.find((prize) => prize.id === 'venus_fly_trap').amountLeft, 1);
 
   const secondAwards = rollAvailablePrizes(state, { ...context, messageId: '345678901234567890' }, () => 0, now + 1);
   assert.equal(secondAwards.some((award) => award.prizeId === 'unicorn'), false);
   assert.equal(state.prizes.find((prize) => prize.id === 'venus_fly_trap').amountLeft, 0);
+  assert.equal(state.prizeSummary[context.userId]['Venus Fly Trap'], 2);
+  assert.equal(state.prizeSummary[context.userId].Unicorn, 1);
+});
+
+test('Word Chain event rebuilds a per-user summary from the retained award log', () => {
+  const awards = [
+    { userId: '123456789012345678', prizeName: 'Mushroom' },
+    { userId: '123456789012345678', prizeName: 'Mushroom' },
+    { userId: '123456789012345678', prizeName: 'Golden Seed' },
+    { userId: '234567890123456789', prizeName: 'Unicorn' },
+  ];
+
+  assert.deepEqual(buildPrizeSummary(awards), {
+    '123456789012345678': { Mushroom: 2, 'Golden Seed': 1 },
+    '234567890123456789': { Unicorn: 1 },
+  });
 });
 
 test('Word Chain event announcement uses one green Components V2 prize panel', () => {

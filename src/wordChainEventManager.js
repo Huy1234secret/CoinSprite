@@ -42,6 +42,27 @@ function formatPrizeAwardLine(awards) {
   return `🎁 Event prize${awards.length === 1 ? '' : 's'} won: **${awards.map((award) => award.prizeName).join(', ')}**`;
 }
 
+function buildPrizeSummary(awards) {
+  const summary = {};
+  for (const award of Array.isArray(awards) ? awards : []) {
+    const userId = String(award?.userId || '').trim();
+    const prizeName = String(award?.prizeName || '').trim();
+    if (!userId || !prizeName) continue;
+    summary[userId] ||= {};
+    summary[userId][prizeName] = (Number(summary[userId][prizeName]) || 0) + 1;
+  }
+  return summary;
+}
+
+function refreshPrizeSummary(state) {
+  if (!state || typeof state !== 'object') return false;
+  const summary = buildPrizeSummary(state?.awards);
+  const changed = !Object.prototype.hasOwnProperty.call(state, 'prizeSummary')
+    || JSON.stringify(state.prizeSummary || {}) !== JSON.stringify(summary);
+  state.prizeSummary = summary;
+  return changed;
+}
+
 function formatChancePercent(chance) {
   return (Math.max(0, Number(chance) || 0) * 100)
     .toFixed(6)
@@ -118,6 +139,8 @@ function rollAvailablePrizes(state, context, random = Math.random, now = Date.no
     awards.push(award);
   }
 
+  if (awards.length) refreshPrizeSummary(state);
+
   return awards;
 }
 
@@ -190,6 +213,7 @@ async function init(client, streak = 0) {
     logCommandSystem('Word Chain event data is missing; event disabled.');
     return;
   }
+  if (refreshPrizeSummary(eventState)) saveEventState(eventState);
   await refreshAnnouncement(streak, true);
   scheduleExpiryRefresh();
 }
@@ -224,6 +248,7 @@ function getCurrentLuckLine(streak, guildId = null) {
 module.exports = {
   awardCorrectWord,
   buildAnnouncementPayload,
+  buildPrizeSummary,
   calculateLuckBonusPercent,
   formatChancePercent,
   formatPrizeAwardLine,
