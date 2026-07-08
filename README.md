@@ -37,7 +37,7 @@ A Discord bot for milestone giveaway tracking and invite-based rewards.
   - A player cannot submit two accepted words in a row; they must wait for another player.
   - Repeated, unknown, misspelled, wrong-length, or wrong-chain words restrict the player from Word Chain for the configured punishment duration without muting them in Discord.
   - Restricted attempts are deleted when possible and receive a private red restriction notice; if DMs are closed, the bot posts a short auto-deleting channel notice because Discord does not support ephemeral responses to regular messages.
-  - The limited Word Chain mini event runs through July 11, 2026 at 22:00 UTC+7. Each accepted word independently rolls every in-stock prize at 5x the original chance, with +10% relative luck per 40 streak (capped at +100%).
+  - The limited Word Chain mini event runs through July 11, 2026 at 22:00 UTC+7. Each accepted word independently rolls every in-stock prize at 10x the original chance, with +10% relative luck per 40 streak (capped at +100%).
   - Event inventory, award history, timing, and the reusable announcement message ID are stored in `data/word-chain-event.json`.
   - English words are checked across DictionaryAPI.dev, Wiktionary, and Datamuse, then cached in memory; a small fallback list covers valid words missing from those APIs, and temporary dictionary lookup failures do not punish the player.
 

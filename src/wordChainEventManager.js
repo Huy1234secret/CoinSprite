@@ -7,7 +7,7 @@ const GREEN = 0x57f287;
 const LUCK_STREAK_INTERVAL = 40;
 const LUCK_STEP_PERCENT = 10;
 const MAX_LUCK_PERCENT = 100;
-const BASE_CHANCE_MULTIPLIER = 5;
+const BASE_CHANCE_MULTIPLIER = 10;
 
 let clientRef = null;
 let eventState = null;
@@ -84,7 +84,7 @@ function buildAnnouncementPayload(state = eventState, streak = 0, now = Date.now
           { type: 14, divider: true, spacing: 1 },
           {
             type: 10,
-            content: '### Note:\n* Prize chances are boosted **5x**.\n* Every 40 streak = +10% luck `[cap 100%]`\n* Incorrect words restrict that player from Word Chain until their restriction expires.',
+            content: '### Note:\n* Prize chances are boosted **10x**.\n* Every 40 streak = +10% luck `[cap 100%]`\n* Incorrect words restrict that player from Word Chain until their restriction expires.',
           },
         ],
       },
