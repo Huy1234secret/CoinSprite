@@ -67,6 +67,13 @@ function getTicketConfig(guildId) {
   return getGuildConfig(guildId) || DEFAULT_GUILD_CONFIG;
 }
 
+function isTextBasedChannel(channel) {
+  if (!channel) return false;
+  if (typeof channel.isTextBased === 'function') return channel.isTextBased();
+  if (typeof channel.isTextBased === 'boolean') return channel.isTextBased;
+  return Boolean(channel.messages?.fetch && channel.send);
+}
+
 function getCrewMemberPlusRoleIdForGame(game, guildId) {
   const roles = getTicketConfig(guildId).roles;
   const normalizedGame = String(game || '').trim().toLowerCase();
@@ -760,7 +767,7 @@ async function ensurePanelMessage(guild, clientUserId) {
   const savedChannelId = state.panelChannelIdByGuild?.[guild.id];
   if (savedId && savedChannelId && savedChannelId !== panelChannelId) {
     const previousChannel = await guild.channels.fetch(savedChannelId).catch(() => null);
-    const previousMessage = previousChannel?.isTextBased()
+    const previousMessage = isTextBasedChannel(previousChannel)
       ? await previousChannel.messages.fetch(savedId).catch(() => null)
       : null;
     if (previousMessage) await previousMessage.delete().catch(() => null);
@@ -770,7 +777,7 @@ async function ensurePanelMessage(guild, clientUserId) {
   if (!guildConfig.tickets?.enabled) {
     const existingChannelId = savedChannelId || panelChannelId;
     const existingChannel = await guild.channels.fetch(existingChannelId).catch(() => null);
-    const existingMessage = existingChannel?.isTextBased() && savedId
+    const existingMessage = isTextBasedChannel(existingChannel) && savedId
       ? await existingChannel.messages.fetch(savedId).catch(() => null)
       : null;
     if (existingMessage) await existingMessage.delete().catch(() => null);
@@ -781,7 +788,7 @@ async function ensurePanelMessage(guild, clientUserId) {
   }
 
   const channel = await guild.channels.fetch(panelChannelId).catch(() => null);
-  if (!channel?.isTextBased()) {
+  if (!isTextBasedChannel(channel)) {
     saveState(state);
     return;
   }
@@ -1042,7 +1049,7 @@ async function sendConfiguredTranscript(interaction, channel, ticketRecord, tick
   const guildConfig = getTicketConfig(interaction.guildId);
   const transcriptChannelId = ticketType.transcriptChannelId || resolveLoggingChannelId(guildConfig, 'transcripts', '', guildConfig.channels.transcript || TRANSCRIPT_CHANNEL_ID);
   const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
-  if (transcriptChannel?.isTextBased()) {
+  if (isTextBasedChannel(transcriptChannel)) {
     await transcriptChannel.send({
       content: `Transcript for #${channel.name} (${channel.id})`,
       files: [transcriptPath],
@@ -1085,7 +1092,7 @@ async function executeConfiguredAdminActions(interaction, channelId, controlId, 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => null);
   const channel = interaction.guild.channels.cache.get(channelId)
     || await interaction.guild.channels.fetch(channelId).catch(() => null);
-  if (!channel?.isTextBased()) {
+  if (!isTextBasedChannel(channel)) {
     await interaction.editReply({ content: 'The ticket channel is unavailable.' }).catch(() => null);
     return true;
   }
@@ -1194,7 +1201,7 @@ async function submitConfiguredCrewRoleRequest(interaction, questionAnswerPairs)
   const files = getUploadedEvidenceFiles(uploadedEvidence);
   const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'role_review', ROLE_REQUEST_REVIEW_CHANNEL_ID);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-  if (!reviewChannel?.isTextBased()) {
+  if (!isTextBasedChannel(reviewChannel)) {
     await interaction.editReply({ content: 'The role request review channel is unavailable.' }).catch(() => null);
     return true;
   }
@@ -1333,7 +1340,7 @@ async function handleTicketAction(interaction) {
 
   const action = interaction.values[0];
   const channel = interaction.channel;
-  if (!channel?.isTextBased()) {
+  if (!isTextBasedChannel(channel)) {
     await interaction.reply({ content: 'Invalid channel.', flags: MessageFlags.Ephemeral });
     return true;
   }
@@ -1368,7 +1375,7 @@ async function handleTicketAction(interaction) {
   });
   const transcriptChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'transcripts', '', TRANSCRIPT_CHANNEL_ID);
   const transcriptChannel = await interaction.guild.channels.fetch(transcriptChannelId).catch(() => null);
-  if (transcriptChannel?.isTextBased()) {
+  if (isTextBasedChannel(transcriptChannel)) {
     await transcriptChannel
       .send({
         content: `Transcript for #${channel.name} (${channel.id})`,
@@ -1654,7 +1661,7 @@ module.exports = {
 
       const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'role_review', ROLE_REQUEST_REVIEW_CHANNEL_ID);
       const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-      if (!reviewChannel?.isTextBased()) {
+      if (!isTextBasedChannel(reviewChannel)) {
         const payload = {
           ...container(0xffffff, 'Request channel is not available right now.'),
           flags: COMPONENTS_V2_FLAG,
@@ -1850,7 +1857,7 @@ module.exports = {
 
       const reviewChannelId = resolveLoggingChannelId(getTicketConfig(interaction.guildId), 'requests', 'giveaway_review', GIVEAWAY_REQUEST_REVIEW_CHANNEL_ID);
       const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-      if (reviewChannel?.isTextBased()) {
+      if (isTextBasedChannel(reviewChannel)) {
         const files = getUploadedEvidenceFiles(claimEvidence);
 
         await reviewChannel.send({
@@ -2052,7 +2059,7 @@ async function submitRequest(interaction, type, answers) {
   }
   const reviewChannelId = type.transcriptChannelId || resolveLoggingChannelId(config, 'requests', 'role_review', config.channels?.roleRequestReview);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-  if (!reviewChannel?.isTextBased()) {
+  if (!isTextBasedChannel(reviewChannel)) {
     await interaction.editReply({ content: 'The request review channel is unavailable. Ask an administrator to configure it.' });
     return true;
   }
@@ -2743,7 +2750,7 @@ async function submitRequest(interaction, type, answers) {
   }
   const reviewChannelId = type.transcriptChannelId || resolveLoggingChannelId(config, 'requests', 'role_review', config.channels?.roleRequestReview);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-  if (!reviewChannel?.isTextBased()) {
+  if (!isTextBasedChannel(reviewChannel)) {
     await interaction.editReply({ content: 'The request review channel is unavailable. Ask an administrator to configure it.' });
     return true;
   }
@@ -3317,7 +3324,7 @@ async function submitRequest(interaction, type, answers) {
 
   const reviewChannelId = type.transcriptChannelId || resolveLoggingChannelId(config, 'requests', 'role_review', config.channels?.roleRequestReview);
   const reviewChannel = await interaction.guild.channels.fetch(reviewChannelId).catch(() => null);
-  if (!reviewChannel?.isTextBased()) {
+  if (!isTextBasedChannel(reviewChannel)) {
     await interaction.editReply({ content: 'The request review channel is unavailable. Ask an administrator to configure it.' });
     return true;
   }

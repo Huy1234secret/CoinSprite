@@ -1,6 +1,8 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const { buildTicketMessagePayload, sanitizeTicketMessage } = require('../src/ticketConfig');
@@ -37,4 +39,12 @@ test('legacy ticket message fields migrate to the first rich container', () => {
   assert.equal(message.containers.length, 1);
   assert.equal(message.containers[0].text, 'Legacy content');
   assert.equal(message.containers[0].accentColor, '#57F287');
+});
+
+test('ticket panel channel checks tolerate non-function isTextBased values', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'commands', 'ticket-system.js'), 'utf8');
+  assert.match(source, /function isTextBasedChannel\(channel\)/);
+  assert.match(source, /typeof channel\.isTextBased === 'function'/);
+  assert.match(source, /typeof channel\.isTextBased === 'boolean'/);
+  assert.doesNotMatch(source, /\?\.isTextBased\(\)/);
 });

@@ -82,11 +82,21 @@ test('dashboard section tabs stay in normal flow and owner escaped-newline artif
 test('dashboard feature gating keeps non-GAG2 tabs hidden for limited servers', () => {
   const app = source('admin/app.js');
   const server = source('src/adminServer.js');
+  const styles = source('admin/style.css');
   assert.match(app, /state\.visibleTabs = fullBot \? null : new Set\(\['gag2Stock'\]\)/);
   assert.match(app, /state\.featureVisibilityObserver = new MutationObserver/);
+  assert.match(app, /state\.featureVisibilityQueued/);
+  assert.match(app, /scheduleFeatureVisibilityEnforce/);
+  assert.doesNotMatch(app, /applyFeatureVisibility\(state\.savedConfig\)/);
+  assert.match(app, /function trackedTabNames\(\)/);
+  assert.match(app, /trackedTabNames\(\)/);
   assert.match(app, /state\.featureVisibilityObserver\.observe\(document\.body, \{ childList: true, subtree: true \}\)/);
   assert.match(app, /if \(state\.visibleTabs && !state\.visibleTabs\.has\(tabName\)\) return false/);
   assert.match(app, /panel\.hidden = !visible/);
+  assert.match(app, /tab\.style\.display = visible \? '' : 'none'/);
+  assert.match(app, /document\.body\.classList\.toggle\('gag2-stock-only'/);
+  assert.match(styles, /body\.gag2-stock-only \.tab\[data-tab\]:not\(\[data-tab="gag2Stock"\]\)/);
+  assert.match(styles, /body\.gag2-stock-only \.tab-panel\[data-panel\]:not\(\[data-panel="gag2Stock"\]\)/);
   assert.match(server, /currentConfig\?\.features\?\.fullBot !== true/);
 });
 
