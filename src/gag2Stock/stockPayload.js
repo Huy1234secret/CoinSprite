@@ -2,9 +2,21 @@ const {
   CATEGORY_LABELS,
   COMPONENTS_V2_FLAG,
   GREEN,
-  RARITY_RANK,
   RED,
 } = require('./config');
+const {
+  SELL_BONUS_COLORS,
+  colorForType,
+  customEmojiImageUrl,
+  displayNameForType,
+  emojiForType,
+  highestRarityColor,
+  normalizeKey,
+  roleKeyForType,
+  sellBonusRoleForEntry,
+  sellMultiplierBucket,
+  sortItemsForType,
+} = require('./catalog');
 
 const NO_MENTIONS = { parse: [], roles: [], users: [] };
 
@@ -20,16 +32,7 @@ function parseBoundaryMs(value) {
 }
 
 function slugKey(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/['’]/g, '')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-function getRarityRank(rarity) {
-  return RARITY_RANK[String(rarity || '').toLowerCase()] || 0;
+  return normalizeKey(value);
 }
 
 function normalizeItem(item) {
@@ -45,14 +48,9 @@ function normalizeItem(item) {
 
 function normalizeCategory(entry) {
   const category = String(entry?.category || '').trim().toLowerCase();
-  const items = (Array.isArray(entry?.items) ? entry.items : [])
+  const items = sortItemsForType(category, (Array.isArray(entry?.items) ? entry.items : [])
     .map(normalizeItem)
-    .filter((item) => item.name && item.quantity > 0)
-    .sort((left, right) => (
-      getRarityRank(right.rarity) - getRarityRank(left.rarity)
-      || right.quantity - left.quantity
-      || left.name.localeCompare(right.name)
-    ));
+    .filter((item) => item.name && item.quantity > 0));
 
   return {
     type: category,
@@ -130,12 +128,11 @@ function parseSellPayload(payload) {
       multiplier: Number(entry?.multiplier),
       tier: String(entry?.tier || '').trim(),
     }))
-    .filter((entry) => entry.name && Number.isFinite(entry.multiplier))
-    .sort((left, right) => right.multiplier - left.multiplier || left.name.localeCompare(right.name));
+    .filter((entry) => entry.name && Number.isFinite(entry.multiplier));
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
     fetchedAtMs: parseDateMs(payload?.fetchedAt) || Date.now(),
-    entries: normalized,
+    entries: sortItemsForType('sell', normalized),
   };
 }
 
@@ -191,9 +188,19 @@ function formatTimestamp(ms, style = 'R') {
   return Number.isFinite(ms) ? `<t:${Math.floor(ms / 1000)}:${style}>` : 'unknown';
 }
 
-function roleMention(roleIds, item) {
-  const roleId = roleIds?.[item.key] || roleIds?.[slugKey(item.name)];
+function roleIdForItem(roleIds, item, type = '') {
+  const catalogKey = roleKeyForType(type || item?.type || '', item);
+  return roleIds?.[catalogKey] || roleIds?.[item?.key] || roleIds?.[slugKey(item?.name)];
+}
+
+function roleMention(roleIds, item, type = '') {
+  const roleId = roleIdForItem(roleIds, item, type);
   return roleId ? ` <@&${roleId}>` : '';
+}
+
+function roleDisplay(roleIds, item, type = '') {
+  const mention = roleMention(roleIds, item, type).trim();
+  return mention || `**${displayNameForType(type || item?.type || '', item)}**`;
 }
 
 function allowedMentionsForRoles(roleIds = {}) {
@@ -204,9 +211,13 @@ function allowedMentionsForRoles(roleIds = {}) {
   };
 }
 
-function formatItem(item, roleIds = {}) {
-  const emoji = item.emoji ? `${item.emoji} ` : '';
-  return `* ${emoji}**${item.name}** x${item.quantity} - ${item.rarity}${roleMention(roleIds, item)}`;
+function emojiPrefix(type, item) {
+  const emoji = emojiForType(type, item);
+  return emoji ? `${emoji} ` : '';
+}
+
+function formatItem(type, item, roleIds = {}) {
+  return `* ${emojiPrefix(type, item)}${roleDisplay(roleIds, item, type)} x${item.quantity}`;
 }
 
 function formatStockCategory(entry, roleIds = {}) {
@@ -214,7 +225,7 @@ function formatStockCategory(entry, roleIds = {}) {
     `## GAG2 ${entry.label}`,
     `* Next restock: ${formatTimestamp(entry.nextRestockAtMs)}`,
     '',
-    entry.items.length ? entry.items.map((item) => formatItem(item, roleIds)).join('\n') : '* Nothing listed right now.',
+    entry.items.length ? entry.items.map((item) => formatItem(entry.category, item, roleIds)).join('\n') : '* Nothing listed right now.',
   ].join('\n');
 }
 
@@ -223,39 +234,53 @@ function formatWeather(entry, roleIds = {}) {
   if (!current) {
     return '## GAG2 Weather\n* No current weather listed right now.';
   }
-  const emoji = current.emoji ? `${current.emoji} ` : '';
   const lines = [
     '## GAG2 Weather',
-    `* Current: ${emoji}**${current.name}**${roleMention(roleIds, current)}`,
+    `* Current: ${emojiPrefix('weather', current)}${roleDisplay(roleIds, current, 'weather')}`,
   ];
   if (current.endsAtMs) lines.push(`* Ends: ${formatTimestamp(current.endsAtMs)}`);
   if (current.blurb) lines.push('', current.blurb);
   if (entry.recent?.length) {
     lines.push('', '### Recent');
     for (const item of entry.recent.slice(0, 8)) {
-      lines.push(`* ${item.name}${item.lastSeenAtMs ? ` - ${formatTimestamp(item.lastSeenAtMs)}` : ''}${roleMention(roleIds, item)}`);
+      lines.push(`* ${emojiPrefix('weather', item)}**${displayNameForType('weather', item)}**${item.lastSeenAtMs ? ` - ${formatTimestamp(item.lastSeenAtMs)}` : ''}`);
     }
   }
   return lines.join('\n');
 }
 
-function formatMoon(entry, roleIds = {}) {
+function formatMoon(entry) {
   const lines = ['## GAG2 Moon Prediction'];
   if (!entry.upcomingMoons?.length) {
     lines.push('* No moon predictions listed right now.');
     return lines.join('\n');
   }
   for (const item of entry.upcomingMoons.slice(0, 12)) {
-    lines.push(`* **${item.name}** - ${formatTimestamp(item.boundaryMs, 'F')} (${formatTimestamp(item.boundaryMs)})${roleMention(roleIds, item)}`);
+    lines.push(`* ${emojiPrefix('moon', item)}**${displayNameForType('moon', item)}** - ${formatTimestamp(item.boundaryMs, 'F')} (${formatTimestamp(item.boundaryMs)})`);
   }
   return lines.join('\n');
+}
+
+function formatMultiplier(multiplier) {
+  const value = Number(multiplier);
+  return Number.isFinite(value) ? value.toFixed(2) : '0.00';
+}
+
+function bonusRoleMentionForSellItem(roleIds, item) {
+  const bonusRole = sellBonusRoleForEntry(item);
+  return bonusRole ? roleMention(roleIds, bonusRole, 'sell') : '';
+}
+
+function formatSellLine(item, roleIds = {}, options = {}) {
+  const tier = item.tier ? ` - ${item.tier}` : '';
+  const bonus = options.includeBonusRole ? bonusRoleMentionForSellItem(roleIds, item) : '';
+  return `## ${emojiPrefix('sell', item)}${roleDisplay(roleIds, item, 'sell')} x${formatMultiplier(item.multiplier)}${tier}${bonus}`;
 }
 
 function formatSell(entry, roleIds = {}) {
   const lines = ['## GAG2 Sell Price Track'];
   for (const item of (entry.entries || []).slice(0, 25)) {
-    const tier = item.tier ? ` - ${item.tier}` : '';
-    lines.push(`* **${item.name}** x${item.multiplier.toFixed(2)}${tier}${roleMention(roleIds, item)}`);
+    lines.push(formatSellLine(item, roleIds));
   }
   if (lines.length === 1) lines.push('* No sell price entries listed right now.');
   return lines.join('\n');
@@ -269,20 +294,59 @@ function contentForType(type, entry, roleIds = {}) {
   return `## GAG2 Stock\n* Unknown stock type: ${type}`;
 }
 
+function textComponentForType(type, entry, roleIds = {}) {
+  const content = contentForType(type, entry, roleIds);
+  if (type !== 'weather') return { type: 10, content };
+  const thumbnailUrl = customEmojiImageUrl(emojiForType('weather', entry?.current));
+  if (!thumbnailUrl) return { type: 10, content };
+  return {
+    type: 9,
+    components: [{ type: 10, content }],
+    accessory: { type: 11, media: { url: thumbnailUrl } },
+  };
+}
+
+function accentColorForType(type, entry) {
+  if (['seed', 'gear', 'crate'].includes(type)) return highestRarityColor(type, entry?.items || [], GREEN);
+  if (type === 'weather') return colorForType('weather', entry?.current) || GREEN;
+  if (type === 'moon') return colorForType('moon', entry?.upcomingMoons?.[0]) || GREEN;
+  if (type === 'sell') {
+    const buckets = new Set((entry?.entries || []).map((item) => sellMultiplierBucket(item.multiplier)));
+    if (buckets.has('4x')) return SELL_BONUS_COLORS['4x'];
+    if (buckets.has('2x')) return SELL_BONUS_COLORS['2x'];
+    return highestRarityColor('sell', entry?.entries || [], GREEN);
+  }
+  return GREEN;
+}
+
+function sellBonusContainers(entry, roleIds = {}) {
+  const entries = (entry?.entries || []).filter((item) => sellMultiplierBucket(item.multiplier));
+  const buckets = ['4x', '2x'].filter((bucket) => entries.some((item) => sellMultiplierBucket(item.multiplier) === bucket));
+  return buckets.map((bucket) => {
+    const title = bucket === '4x' ? '## Diamond 4x Sell Price' : '## Gold 2x Sell Price';
+    const lines = entries
+      .filter((item) => sellMultiplierBucket(item.multiplier) === bucket)
+      .map((item) => formatSellLine(item, roleIds, { includeBonusRole: true }));
+    return {
+      type: 17,
+      accent_color: SELL_BONUS_COLORS[bucket],
+      components: [{ type: 10, content: [title, ...lines].join('\n') }],
+    };
+  });
+}
+
 function buildTypePayload(type, entry, options = {}) {
   const roleIds = options.roleIds || {};
   return {
     allowedMentions: allowedMentionsForRoles(roleIds),
     flags: COMPONENTS_V2_FLAG,
     components: [
+      ...((type === 'sell') ? sellBonusContainers(entry, roleIds) : []),
       {
         type: 17,
-        accent_color: GREEN,
+        accent_color: accentColorForType(type, entry),
         components: [
-          {
-            type: 10,
-            content: contentForType(type, entry, roleIds),
-          },
+          textComponentForType(type, entry, roleIds),
         ],
       },
     ],

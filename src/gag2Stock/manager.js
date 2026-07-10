@@ -22,8 +22,8 @@ const {
   buildTypePayload,
   buildTypePostKey,
   buildUnavailablePayload,
-  slugKey,
 } = require('./stockPayload');
+const { roleSpecsForType } = require('./catalog');
 const { loadState, saveState } = require('./stateStore');
 
 function cleanChannelId(value) {
@@ -45,70 +45,24 @@ function unavailableBucket(state, guildId, type) {
   return state.unavailable[guildId][type];
 }
 
-function roleName(name) {
-  const clean = String(name || '').replace(/\s+/g, ' ').trim() || 'Unknown';
-  return clean.slice(0, 100);
+function roleColor(spec) {
+  return Number.isInteger(spec?.color) ? spec.color : undefined;
 }
 
-function uniqueSpecs(specs) {
-  const map = new Map();
-  for (const spec of specs) {
-    const key = slugKey(spec?.key || spec?.name);
-    const name = String(spec?.name || '').trim();
-    if (!key || !name || map.has(key)) continue;
-    map.set(key, { key, name, roleName: roleName(name) });
-  }
-  return [...map.values()].sort((left, right) => left.name.localeCompare(right.name));
+async function updateRoleColorIfNeeded(role, spec, guildId) {
+  const color = roleColor(spec);
+  if (!Number.isInteger(color) || !role || role.color === color || role.editable === false || typeof role.edit !== 'function') return;
+  await role.edit({
+    color,
+    reason: 'CoinSprite GAG2 notification role color sync',
+  }).catch((error) => {
+    logCommandSystem(`GAG2 role color update failed in guild ${guildId} (${spec.roleName}): ${error?.message || 'unknown error'}`);
+  });
 }
 
-function weatherSpecs(weatherPayload, mode) {
-  const source = [];
-  if (weatherPayload?.current) source.push(weatherPayload.current);
-  if (Array.isArray(weatherPayload?.recent)) source.push(...weatherPayload.recent);
-  if (mode === 'moon') {
-    source.push(...(weatherPayload?.upcomingMoons || []));
-    return uniqueSpecs(source.filter((item) => /moon/i.test(`${item?.key || ''} ${item?.name || ''}`)));
-  }
-  return uniqueSpecs(source.filter((item) => !/moon/i.test(`${item?.key || ''} ${item?.name || ''}`)));
-}
-
-async function roleSpecsForTypes(types, fetchers) {
+async function roleSpecsForTypes(types) {
   const specsByType = Object.fromEntries(STOCK_TYPES.map((type) => [type, []]));
-  const needItems = types.some((type) => STOCK_TYPE_GROUPS.stock.includes(type)) || types.includes('sell');
-  const needWeather = types.some((type) => STOCK_TYPE_GROUPS.weather.includes(type));
-  const needSell = types.includes('sell');
-
-  const [items, weather, sell] = await Promise.all([
-    needItems ? fetchers.fetchItemsPayload().catch((error) => {
-      logCommandSystem(`GAG2 item role source failed: ${error?.message || 'unknown error'}`);
-      return [];
-    }) : [],
-    needWeather ? fetchers.fetchWeatherPayload().catch((error) => {
-      logCommandSystem(`GAG2 weather role source failed: ${error?.message || 'unknown error'}`);
-      return null;
-    }) : null,
-    needSell ? fetchers.fetchSellPayload().catch((error) => {
-      logCommandSystem(`GAG2 sell role source failed: ${error?.message || 'unknown error'}`);
-      return null;
-    }) : null,
-  ]);
-
-  if (needItems) {
-    for (const type of STOCK_TYPE_GROUPS.stock) {
-      specsByType[type] = uniqueSpecs(items.filter((item) => item.type === type));
-    }
-  }
-  if (weather) {
-    specsByType.weather = weatherSpecs(weather, 'weather');
-    specsByType.moon = weatherSpecs(weather, 'moon');
-  }
-  if (sell) {
-    specsByType.sell = uniqueSpecs([
-      { key: 'sell_price', name: 'Sell Price' },
-      ...items.filter((item) => item.type === 'fruit'),
-      ...(sell.entries || []),
-    ]);
-  }
+  for (const type of types) specsByType[type] = roleSpecsForType(type);
   return specsByType;
 }
 
@@ -253,12 +207,23 @@ class Gag2StockPoster {
   async postEntry(state, target, entry) {
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
-    if (bucket.lastPostedKey === postKey && bucket.channelId === target.channelId) return null;
+    const samePost = bucket.lastPostedKey === postKey && bucket.channelId === target.channelId;
+    if (samePost && target.type !== 'moon') return null;
 
     const channel = await getSendableChannel(this.client, target.channelId);
     if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
 
-    const message = await channel.send(buildTypePayload(target.type, entry, { roleIds: target.roleIds }));
+    const payload = buildTypePayload(target.type, entry, { roleIds: target.roleIds });
+    let message = null;
+    if (target.type === 'moon' && bucket.lastMessageId) {
+      const existing = await channel.messages?.fetch?.(bucket.lastMessageId).catch(() => null);
+      if (samePost && existing) return null;
+      message = await existing?.edit?.(payload).catch((error) => {
+        logCommandSystem(`GAG2 moon prediction edit failed in guild ${target.guildId}: ${error?.message || 'unknown error'}`);
+        return null;
+      });
+    }
+    if (!message) message = await channel.send(payload);
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
@@ -317,18 +282,24 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
     const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
     for (const spec of specsByType[type] || []) {
       const existingId = roleIds[spec.key];
-      if (existingId && roles.has(existingId)) continue;
+      if (existingId && roles.has(existingId)) {
+        await updateRoleColorIfNeeded(roles.get(existingId), spec, guild.id);
+        continue;
+      }
       let role = byName.get(spec.roleName.toLowerCase()) || null;
       if (!role) {
         if (roles.size >= 250) {
           logCommandSystem(`GAG2 role sync stopped for guild ${guild.id}: Discord role limit reached.`);
           break;
         }
-        role = await guild.roles.create({
+        const createOptions = {
           name: spec.roleName,
           mentionable: true,
           reason: `CoinSprite GAG2 ${type} notification role`,
-        }).catch((error) => {
+        };
+        const color = roleColor(spec);
+        if (Number.isInteger(color)) createOptions.color = color;
+        role = await guild.roles.create(createOptions).catch((error) => {
           logCommandSystem(`GAG2 role create failed in guild ${guild.id} (${spec.roleName}): ${error?.message || 'unknown error'}`);
           return null;
         });
@@ -336,6 +307,7 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
         roles.set(role.id, role);
         byName.set(role.name.toLowerCase(), role);
       }
+      await updateRoleColorIfNeeded(role, spec, guild.id);
       roleIds[spec.key] = role.id;
     }
     updateGuildGag2StockRoleIds(guild.id, type, roleIds);

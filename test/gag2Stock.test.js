@@ -11,6 +11,7 @@ const {
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
+const { roleSpecsForType } = require('../src/gag2Stock/catalog');
 
 function fixture() {
   return {
@@ -45,12 +46,12 @@ function fixture() {
   };
 }
 
-test('GAG2 stock payload normalizes API stock and sorts by rarity', () => {
+test('GAG2 stock payload normalizes API stock and sorts by catalog order', () => {
   const parsed = parseStockPayload(fixture());
 
   assert.equal(parsed.stock.length, 3);
   assert.equal(parsed.stock[0].category, 'seed');
-  assert.deepEqual(parsed.stock[0].items.map((item) => item.name), ['Grape', 'Carrot']);
+  assert.deepEqual(parsed.stock[0].items.map((item) => item.name), ['Carrot', 'Grape']);
   assert.match(buildPostKey(parsed), /^seed:/);
 });
 
@@ -68,8 +69,10 @@ test('GAG2 stock payload builds a Components V2 container without source footer 
   assert.match(content, /## GAG2 Seed stock/);
   assert.match(content, /## GAG2 Gear/);
   assert.match(content, /## GAG2 Crate stock/);
-  assert.match(content, /Grape/);
-  assert.match(content, /Bench Crate/);
+  assert.match(content, /<:grape:1525195212236914779> \*\*Grape\*\* x1/);
+  assert.match(content, /<:bench_crate:1525201076276433056> \*\*Bench\*\* x2/);
+  assert.doesNotMatch(content, / - Epic/);
+  assert.doesNotMatch(content, / - Common/);
   assert.doesNotMatch(content, /Source:/);
   assert.doesNotMatch(content, /Third-party live stock feeds/);
 });
@@ -82,8 +85,9 @@ test('GAG2 stock type payload builds one separate message for one category', () 
 
   assert.match(buildTypePostKey('seed', seed), /^seed:/);
   assert.match(content, /## GAG2 Seed stock/);
-  assert.match(content, /Grape/);
+  assert.match(content, /<:grape:1525195212236914779> <@&123456789012345678> x1/);
   assert.doesNotMatch(content, /Trowel/);
+  assert.doesNotMatch(content, / - Epic/);
   assert.doesNotMatch(content, /Source:/);
   assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
@@ -107,9 +111,17 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
 
   assert.equal(weather.current.name, 'Rain');
   assert.equal(weather.upcomingMoons[0].name, 'Mega Moon');
-  assert.equal(sell.entries[0].name, 'Mushroom');
-  assert.match(buildTypePayload('moon', weather).components[0].components[0].content, /Mega Moon/);
-  assert.match(buildTypePayload('sell', sell).components[0].components[0].content, /Mushroom/);
+  assert.equal(sell.entries[0].name, 'Tomato');
+  const weatherPayload = buildTypePayload('weather', weather, { roleIds: { rain: '123456789012345678' } });
+  assert.equal(weatherPayload.components[0].accent_color, 0x4A90E2);
+  assert.equal(weatherPayload.components[0].components[0].type, 9);
+  assert.match(weatherPayload.components[0].components[0].components[0].content, /<:rain:1525203824376156390> <@&123456789012345678>/);
+  assert.match(buildTypePayload('moon', weather).components[0].components[0].content, /<:mega_moon:1525203817686106172>.*Mega Moon/);
+  const sellPayload = buildTypePayload('sell', sell);
+  assert.equal(sellPayload.components[0].accent_color, 0xE2AB0F);
+  assert.match(sellPayload.components[0].components[0].content, /Gold 2x Sell Price/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /## <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10 - normal/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /## <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
 });
 
 test('GAG2 stock unavailable payload is a red Components V2 container', () => {
@@ -118,4 +130,20 @@ test('GAG2 stock unavailable payload is a red Components V2 container', () => {
   assert.equal(payload.flags, 32768);
   assert.equal(payload.components[0].accent_color, 0xed4245);
   assert.match(payload.components[0].components[0].content, /source unavailable/);
+});
+
+test('GAG2 role specs use requested names and colors', () => {
+  const seeds = roleSpecsForType('seed');
+  const gear = roleSpecsForType('gear');
+  const sell = roleSpecsForType('sell');
+
+  assert.deepEqual(seeds.slice(0, 3).map((spec) => spec.roleName), ['Carrot', 'Strawberry', 'Blueberry']);
+  assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').roleName, 'Dragon’s Breath');
+  assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').color, 0xB71E99);
+  assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');
+  assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').roleName, 'Common 2x');
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').color, 0xE2AB0F);
+  assert.equal(sell.find((spec) => spec.key === 'super_4x').roleName, 'Super 4x');
+  assert.equal(sell.find((spec) => spec.key === 'super_4x').color, 0x7DE3FF);
 });
