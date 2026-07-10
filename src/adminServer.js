@@ -12,7 +12,7 @@ const { handleUserModerationAction } = require('./adminModerationActionRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
-const { syncGag2StockGuildSetup } = require('./gag2Stock/manager');
+const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2Stock/manager');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const APPEAL_DIR = path.join(__dirname, '..', 'appeal');
@@ -733,7 +733,7 @@ async function routeRequest(req, res, env, client) {
     let patch = await readJsonBody(req);
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) patch = {};
     delete patch.features;
-    if (!isOwnerSession(session, client) && currentConfig?.features?.fullBot === false) {
+    if (!isOwnerSession(session, client) && currentConfig?.features?.fullBot !== true) {
       patch = patch?.gag2Stock ? { gag2Stock: patch.gag2Stock } : {};
     }
     const config = updateGuildConfig(guildId, patch);
@@ -743,10 +743,20 @@ async function routeRequest(req, res, env, client) {
       await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
     }
     if (guild && config?.enabled !== false) {
-      syncGag2StockGuildSetup(client, guildId).catch((error) => logCommandSystem(`GAG2 stock setup sync failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
+      syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId }).catch((error) => {
+        logCommandSystem(`GAG2 stock setup sync failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
+      });
     }
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
-    return sendJson(res, 200, { guildId, config });
+    return sendJson(res, 200, { guildId, config, roleProgress: getGag2StockSetupProgress(guildId) });
+  }
+
+  const gag2ProgressMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/gag2-stock\/setup-progress$/);
+  if (gag2ProgressMatch && req.method === 'GET') {
+    const guildId = gag2ProgressMatch[1];
+    const session = await requireAdmin(req, res, env, client, guildId);
+    if (!session) return;
+    return sendJson(res, 200, { guildId, progress: getGag2StockSetupProgress(guildId) });
   }
 
   return sendJson(res, 404, { error: 'Not found.' });

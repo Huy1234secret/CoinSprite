@@ -16,6 +16,14 @@ const GAG2_STOCK_CHANNELS = [
   ['moon', 'Moon prediction', 'gag2MoonChannelMount'],
   ['sell', 'Sell price track', 'gag2SellChannelMount'],
 ];
+const GAG2_STOCK_ROLE_COUNTS = {
+  seed: 29,
+  gear: 23,
+  crate: 17,
+  weather: 11,
+  moon: 11,
+  sell: 43,
+};
 
 const state = {
   me: null,
@@ -32,6 +40,9 @@ const state = {
   gag2StockChannels: {},
   activeTab: 'leveling',
   activeLevelingTab: 'xp',
+  visibleTabs: null,
+  featureVisibilityObserver: null,
+  gag2RoleProgressTimer: null,
   ticketEditor: null,
   dirtyTabs: new Set(),
   saving: false,
@@ -750,9 +761,92 @@ function renderGag2StockPickers() {
       onChange: (value) => {
         state.gag2StockChannels[key] = value;
         renderGag2StockPickers();
+        renderPendingGag2RoleChange();
+        refreshDirtyState();
       },
     });
   }
+}
+
+function gag2RoleStatusElement() {
+  let element = document.querySelector('#gag2RoleSyncStatus');
+  if (element) return element;
+  const heading = document.querySelector('[data-panel="gag2Stock"] .panel-heading');
+  if (!heading) return null;
+  element = document.createElement('p');
+  element.id = 'gag2RoleSyncStatus';
+  element.className = 'hint gag2-role-sync-status';
+  element.hidden = true;
+  heading.append(element);
+  return element;
+}
+
+function roleCountLabel(count) {
+  const amount = Math.max(0, Number(count) || 0);
+  return `${amount} role${amount === 1 ? '' : 's'}`;
+}
+
+function setGag2RoleStatus(text, kind = '') {
+  const element = gag2RoleStatusElement();
+  if (!element) return;
+  element.textContent = text || '';
+  element.hidden = !text;
+  element.dataset.kind = kind;
+}
+
+function renderPendingGag2RoleChange() {
+  if (!state.savedConfig || state.saving) return;
+  const saved = state.savedConfig?.gag2Stock?.channels || {};
+  let adding = 0;
+  let removing = 0;
+  for (const [key] of GAG2_STOCK_CHANNELS) {
+    const before = Boolean(saved[key]);
+    const after = Boolean(state.gag2StockChannels[key]);
+    if (!before && after) adding += GAG2_STOCK_ROLE_COUNTS[key] || 0;
+    if (before && !after) removing += GAG2_STOCK_ROLE_COUNTS[key] || 0;
+  }
+  const parts = [];
+  if (adding) parts.push(`Adding ${roleCountLabel(adding)}`);
+  if (removing) parts.push(`Removing ${roleCountLabel(removing)}`);
+  setGag2RoleStatus(parts.join(' / '), parts.length ? 'pending' : '');
+}
+
+function renderGag2RoleProgress(progress) {
+  if (!progress || progress.status === 'idle') {
+    renderPendingGag2RoleChange();
+    return;
+  }
+  const action = progress.action === 'removing' ? 'Removing'
+    : progress.action === 'adding' ? 'Adding'
+      : 'Syncing';
+  if (progress.status === 'running') {
+    setGag2RoleStatus(`${action} ${roleCountLabel(progress.remaining)}`, 'running');
+    return;
+  }
+  if (progress.status === 'error') {
+    setGag2RoleStatus(progress.message || 'Role sync failed.', 'error');
+    return;
+  }
+  if (progress.total > 0) {
+    setGag2RoleStatus('Role sync complete.', 'ok');
+    return;
+  }
+  setGag2RoleStatus('', '');
+}
+
+function pollGag2RoleProgress(initialProgress = null) {
+  if (state.gag2RoleProgressTimer) window.clearTimeout(state.gag2RoleProgressTimer);
+  if (initialProgress) renderGag2RoleProgress(initialProgress);
+  const running = initialProgress?.status === 'running';
+  if (!state.guildId || !running) return;
+  state.gag2RoleProgressTimer = window.setTimeout(async () => {
+    try {
+      const payload = await api(`/api/guilds/${state.guildId}/gag2-stock/setup-progress`);
+      pollGag2RoleProgress(payload.progress);
+    } catch (error) {
+      setGag2RoleStatus(error.message, 'error');
+    }
+  }, 1000);
 }
 
 function setDurationFields(config) {
@@ -900,19 +994,31 @@ function refreshDirtyState() {
 
 function applyFeatureVisibility(config) {
   const fullBot = config?.features?.fullBot === true;
-  const allTabs = [...document.querySelectorAll('.tab')].map((tab) => tab.dataset.tab).filter(Boolean);
-  const visibleTabs = new Set(fullBot ? allTabs : ['gag2Stock']);
+  state.visibleTabs = fullBot ? null : new Set(['gag2Stock']);
+  const visibleTabs = state.visibleTabs;
   document.querySelectorAll('.tab').forEach((tab) => {
-    tab.hidden = !visibleTabs.has(tab.dataset.tab);
+    const visible = !visibleTabs || visibleTabs.has(tab.dataset.tab);
+    tab.hidden = !visible;
+    tab.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    if (!visible) tab.tabIndex = -1;
+    else tab.removeAttribute('tabindex');
   });
   document.querySelectorAll('.tab-panel').forEach((panel) => {
-    if (!visibleTabs.has(panel.dataset.panel)) panel.classList.remove('active');
+    const visible = !visibleTabs || visibleTabs.has(panel.dataset.panel);
+    panel.hidden = !visible;
+    if (!visible) panel.classList.remove('active');
   });
-  if (!visibleTabs.has(state.activeTab)) {
+  if (visibleTabs && !visibleTabs.has(state.activeTab)) {
     state.activeTab = 'gag2Stock';
     document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === state.activeTab));
     document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === state.activeTab));
     elements.configForm.scrollTop = 0;
+  }
+  if (!state.featureVisibilityObserver && typeof MutationObserver === 'function') {
+    state.featureVisibilityObserver = new MutationObserver(() => {
+      if (state.savedConfig) applyFeatureVisibility(state.savedConfig);
+    });
+    state.featureVisibilityObserver.observe(document.body, { childList: true, subtree: true });
   }
   elements.guildSubtitle.textContent = fullBot
     ? 'Changes apply to this Discord server only.'
@@ -927,6 +1033,7 @@ function fillConfig(config) {
   applyFeatureVisibility(config);
   captureSavedSnapshots();
   refreshDirtyState();
+  renderPendingGag2RoleChange();
 }
 
 function flattenXpGroups() {
@@ -1037,14 +1144,16 @@ async function loadGuild(guildId) {
   elements.serverMeta.textContent = guild ? `Guild ID ${guild.id}` : '';
   elements.editor.hidden = false;
   setStatus('Loading server data...');
-  const [directoryPayload, configPayload] = await Promise.all([
-    api(`/api/guilds/${guildId}/directory`),
-    api(`/api/guilds/${guildId}/config`),
-  ]);
-  state.directory = directoryPayload.directory || { channels: [], categories: [], roles: [] };
-  fillConfig(configPayload.config);
-  setStatus(`Loaded ${state.directory.channels.length} channels and threads.`, 'ok');
-}
+    const [directoryPayload, configPayload, progressPayload] = await Promise.all([
+      api(`/api/guilds/${guildId}/directory`),
+      api(`/api/guilds/${guildId}/config`),
+      api(`/api/guilds/${guildId}/gag2-stock/setup-progress`).catch(() => null),
+    ]);
+    state.directory = directoryPayload.directory || { channels: [], categories: [], roles: [] };
+    fillConfig(configPayload.config);
+    if (progressPayload?.progress) pollGag2RoleProgress(progressPayload.progress);
+    setStatus(`Loaded ${state.directory.channels.length} channels and threads.`, 'ok');
+  }
 
 function avatarUrl(user) {
   if (user?.avatar) return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64`;
@@ -1077,6 +1186,7 @@ function renderSession() {
 }
 
 function setActiveTab(tabName) {
+  if (state.visibleTabs && !state.visibleTabs.has(tabName)) return false;
   if (state.dirtyTabs.size > 0 && tabName !== state.activeTab) {
     showUnsavedNavigationBlock();
     return false;
@@ -1260,6 +1370,7 @@ elements.saveButton.addEventListener('click', async () => {
       body: JSON.stringify(collectPatch()),
     });
     fillConfig(payload.config);
+    if (payload.roleProgress) pollGag2RoleProgress(payload.roleProgress);
     setStatus('Changes saved.', 'ok');
   } catch (error) {
     setStatus(error.message, 'error');

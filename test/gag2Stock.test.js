@@ -116,12 +116,52 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.equal(weatherPayload.components[0].accent_color, 0x4A90E2);
   assert.equal(weatherPayload.components[0].components[0].type, 9);
   assert.match(weatherPayload.components[0].components[0].components[0].content, /<:rain:1525203824376156390> <@&123456789012345678>/);
-  assert.match(buildTypePayload('moon', weather).components[0].components[0].content, /<:mega_moon:1525203817686106172>.*Mega Moon/);
-  const sellPayload = buildTypePayload('sell', sell);
+  const moonPayload = buildTypePayload('moon', weather, { roleIds: { mega_moon: '678901234567890123' } });
+  assert.deepEqual(moonPayload.allowedMentions.roles, []);
+  assert.match(moonPayload.components[0].components[0].content, /<:mega_moon:1525203817686106172> <@&678901234567890123>/);
+  assert.doesNotMatch(moonPayload.components[0].components[0].content, /\*\*Mega Moon\*\* <@&678901234567890123>/);
+  const sellPayload = buildTypePayload('sell', sell, {
+    roleIds: {
+      mushroom: '345678901234567890',
+      tomato: '456789012345678901',
+      epic_2x: '567890123456789012',
+    },
+  });
   assert.equal(sellPayload.components[0].accent_color, 0xE2AB0F);
-  assert.match(sellPayload.components[0].components[0].content, /Gold 2x Sell Price/);
-  assert.match(sellPayload.components.at(-1).components[0].content, /## <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10 - normal/);
-  assert.match(sellPayload.components.at(-1).components[0].content, /## <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
+  assert.match(sellPayload.components[0].components[0].content, /## <@&567890123456789012> Sell Price/);
+  assert.match(sellPayload.components[0].components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
+  assert.equal(sellPayload.components.at(-1).accent_color, 0xFFFFFF);
+  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10 - normal/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
+  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
+});
+
+test('GAG2 current weather uses role mention while recent weather stays plain text', () => {
+  const weather = parseWeatherPayload({
+    weather: {
+      current: { type: 'rainbow', name: 'Rainbow', endsAt: '2026-07-10T16:10:00.000Z' },
+      recent: [
+        { key: 'rainbow', name: 'Rainbow', lastSeenAt: '2026-07-10T16:00:11.143Z' },
+        { key: 'aurora', name: 'Aurora', lastSeenAt: '2026-07-10T15:57:11.143Z' },
+      ],
+    },
+  });
+  const payload = buildTypePayload('weather', weather, {
+    roleIds: {
+      rainbow: '123456789012345678',
+      aurora: '234567890123456789',
+    },
+  });
+  const content = payload.components[0].components[0].components[0].content;
+  const lines = content.split('\n');
+  const currentLine = lines.find((line) => line.includes('Current:'));
+  const recentLines = lines.filter((line) => line.startsWith('* ') && !line.includes('Current:') && !line.includes('Ends:'));
+
+  assert.match(currentLine, /<:rainbow:1525203819775135764> <@&123456789012345678>/);
+  assert.doesNotMatch(currentLine, /\*\*Rainbow\*\*/);
+  assert.match(recentLines.join('\n'), /<:rainbow:1525203819775135764> \*\*Rainbow\*\*/);
+  assert.match(recentLines.join('\n'), /<:aurora:1525203810467840000> \*\*Aurora\*\*/);
+  assert.doesNotMatch(recentLines.join('\n'), /<@&123456789012345678>|<@&234567890123456789>/);
 });
 
 test('GAG2 stock unavailable payload is a red Components V2 container', () => {
@@ -136,6 +176,7 @@ test('GAG2 role specs use requested names and colors', () => {
   const seeds = roleSpecsForType('seed');
   const gear = roleSpecsForType('gear');
   const sell = roleSpecsForType('sell');
+  const weather = roleSpecsForType('weather');
 
   assert.deepEqual(seeds.slice(0, 3).map((spec) => spec.roleName), ['Carrot', 'Strawberry', 'Blueberry']);
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').roleName, 'Dragon’s Breath');
@@ -146,4 +187,17 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(sell.find((spec) => spec.key === 'common_2x').color, 0xE2AB0F);
   assert.equal(sell.find((spec) => spec.key === 'super_4x').roleName, 'Super 4x');
   assert.equal(sell.find((spec) => spec.key === 'super_4x').color, 0x7DE3FF);
+  assert.deepEqual(weather.map((spec) => [spec.key, spec.roleName, spec.color]), [
+    ['lightning', 'Lightning', 0xFFD23F],
+    ['sunburst', 'Sunburst', 0xFF8C42],
+    ['starfall', 'Starfall', 0x8C7CFF],
+    ['snowfall', 'Snowfall', 0xBDEBFF],
+    ['rain', 'Rain', 0x4A90E2],
+    ['rainbow_moon', 'Rainbow Moon', 0xC86BFA],
+    ['rainbow', 'Rainbow', 0xFF5C8A],
+    ['mega_moon', 'Mega Moon', 0xD9D7FF],
+    ['goldmoon', 'Gold Moon', 0xF4C542],
+    ['bloodmoon', 'Blood Moon', 0xB3202A],
+    ['aurora', 'Aurora', 0x35E6A4],
+  ]);
 });
