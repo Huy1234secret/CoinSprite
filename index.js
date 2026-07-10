@@ -13,6 +13,11 @@ const inviteRewardsManager = require('./src/inviteRewardsManager');
 const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
 const { registerConsolidatedAdminCommands, startAdminServer } = require('./src/adminServer');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
+const {
+  isCommandVisibleForGuild,
+  isFullBotFeatureEnabled,
+  slashCommandPayloadsForGuild,
+} = require('./src/featureGate');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
@@ -509,7 +514,7 @@ async function initCommandModules() {
 }
 
 async function registerGuildSlashCommands(guild) {
-  const slashCommands = client.commands.map((command) => command.data.toJSON());
+  const slashCommands = slashCommandPayloadsForGuild(guild.id, client.commands);
   await guild.commands.set(slashCommands);
   logCommandSystem(`Registered ${slashCommands.length} slash commands for guild ${guild.id}.`);
 }
@@ -571,26 +576,31 @@ client.on(Events.GuildDelete, (guild) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   if (!isGuildEnabled(member.guild?.id)) return;
+  if (!isFullBotFeatureEnabled(member.guild?.id)) return;
   await runInviteRewardHook('onGuildMemberAdd', member); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberAdd === 'function') await command.handleGuildMemberAdd(member, client);
 });
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!isGuildEnabled(newMember.guild?.id)) return;
+  if (!isFullBotFeatureEnabled(newMember.guild?.id)) return;
   await runInviteRewardHook('onGuildMemberUpdate', oldMember, newMember); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleGuildMemberUpdate === 'function') await command.handleGuildMemberUpdate(oldMember, newMember, client);
 });
 client.on(Events.InviteCreate, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
+  if (!isFullBotFeatureEnabled(invite.guild?.id)) return;
   await runInviteRewardHook('onInviteCreateOrDelete', invite); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleInviteCreate === 'function') await command.handleInviteCreate(invite, client);
 });
 client.on(Events.InviteDelete, async (invite) => {
   if (!isGuildEnabled(invite.guild?.id)) return;
+  if (!isFullBotFeatureEnabled(invite.guild?.id)) return;
   await runInviteRewardHook('onInviteCreateOrDelete', invite); // FIXED: avoids calling .catch() on undefined legacy hook output.
   for (const command of client.commands.values()) if (typeof command.handleInviteDelete === 'function') await command.handleInviteDelete(invite, client);
 });
 client.on(Events.MessageCreate, async (message) => {
   if (!isGuildEnabled(message.guildId)) return;
+  if (!isFullBotFeatureEnabled(message.guildId)) return;
   dailyMessageStats.recordMessage(message);
   const prefixCommand = message.author?.bot ? null : getPrefixCommandLabel(message);
   if (prefixCommand) {
@@ -610,6 +620,7 @@ client.on(Events.MessageCreate, async (message) => {
 });
 client.on(Events.MessageDelete, async (message) => {
   if (!isGuildEnabled(message.guildId)) return;
+  if (!isFullBotFeatureEnabled(message.guildId)) return;
   for (const command of client.commands.values()) if (typeof command.handleMessageDelete === 'function') await command.handleMessageDelete(message, client);
 });
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -617,6 +628,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!isGuildEnabled(interaction.guildId)) {
       if (interaction.isRepliable()) await interaction.reply({ content: 'This bot only works in the configured server.', flags: EPHEMERAL_FLAG }).catch(() => null);
       return;
+    }
+
+    const fullBotEnabled = isFullBotFeatureEnabled(interaction.guildId);
+    if (!fullBotEnabled) {
+      if (interaction.isAutocomplete?.()) {
+        if (!isCommandVisibleForGuild(interaction.guildId, interaction.commandName)) await interaction.respond([]).catch(() => null);
+        return;
+      }
+      if (!interaction.isChatInputCommand?.() || !isCommandVisibleForGuild(interaction.guildId, interaction.commandName)) {
+        if (interaction.isRepliable()) {
+          await interaction.reply({
+            content: 'This server is limited to GAG2 stock. Ask the bot owner to enable full bot features in the owner panel.',
+            flags: EPHEMERAL_FLAG,
+          }).catch(() => null);
+        }
+        return;
+      }
     }
 
     if (await handleGiveawayCloseProofSubmit(interaction)) return;
@@ -635,6 +663,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName);
       if (command) {
+        if (!isCommandVisibleForGuild(interaction.guildId, command)) {
+          await interaction.reply({
+            content: 'That command is not enabled in this server.',
+            flags: EPHEMERAL_FLAG,
+          });
+          return;
+        }
         const blockReason = getCommandBlockReason(interaction.user.id, interaction.commandName);
         if (blockReason) {
           await interaction.reply({ content: blockReason, flags: EPHEMERAL_FLAG });

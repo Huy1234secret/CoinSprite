@@ -4,14 +4,28 @@ const {
   GREEN,
   RARITY_RANK,
   RED,
-  STOCK_API_URL,
 } = require('./config');
 
-const NO_MENTIONS = { parse: [] };
+const NO_MENTIONS = { parse: [], roles: [], users: [] };
 
 function parseDateMs(value) {
   const parsed = Date.parse(value || '');
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseBoundaryMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return parseDateMs(value);
+  return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+}
+
+function slugKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 function getRarityRank(rarity) {
@@ -21,10 +35,11 @@ function getRarityRank(rarity) {
 function normalizeItem(item) {
   return {
     emoji: String(item?.emoji || '').trim(),
-    key: String(item?.key || item?.name || '').trim(),
+    key: slugKey(item?.key || item?.id || item?.slug || item?.name),
     name: String(item?.name || 'Unknown Item').trim(),
     quantity: Math.max(0, Math.floor(Number(item?.quantity) || 0)),
     rarity: String(item?.rarity || 'Unknown').trim(),
+    type: String(item?.type || '').trim().toLowerCase(),
   };
 }
 
@@ -40,6 +55,7 @@ function normalizeCategory(entry) {
     ));
 
   return {
+    type: category,
     category,
     label: CATEGORY_LABELS[category] || category || 'Stock',
     items,
@@ -63,63 +79,225 @@ function parseStockPayload(payload) {
   };
 }
 
+function normalizeWeatherEvent(event) {
+  if (!event || typeof event !== 'object') return null;
+  return {
+    key: slugKey(event.key || event.type || event.name),
+    type: String(event.type || event.key || '').trim(),
+    name: String(event.name || event.type || 'Unknown weather').trim(),
+    emoji: String(event.emoji || '').trim(),
+    color: String(event.color || '').trim(),
+    blurb: String(event.blurb || '').trim(),
+    boost: event.boost ?? null,
+    startsAtMs: parseDateMs(event.startsAt),
+    endsAtMs: parseDateMs(event.endsAt),
+    lastSeenAtMs: parseDateMs(event.lastSeenAt),
+  };
+}
+
+function parseWeatherPayload(payload) {
+  const source = payload?.weather || payload;
+  if (!source || typeof source !== 'object') throw new Error('invalid GAG2 weather payload');
+  const current = normalizeWeatherEvent(source.current);
+  const upcomingMoons = (Array.isArray(source.upcomingMoons) ? source.upcomingMoons : [])
+    .map((entry) => ({
+      key: slugKey(entry?.key || entry?.name),
+      name: String(entry?.name || 'Unknown moon').trim(),
+      boundaryMs: parseBoundaryMs(entry?.boundary),
+    }))
+    .filter((entry) => entry.name && Number.isFinite(entry.boundaryMs))
+    .sort((left, right) => left.boundaryMs - right.boundaryMs);
+  const recent = (Array.isArray(source.recent) ? source.recent : [])
+    .map(normalizeWeatherEvent)
+    .filter(Boolean)
+    .sort((left, right) => (right.lastSeenAtMs || 0) - (left.lastSeenAtMs || 0));
+
+  return {
+    fetchedAtMs: parseDateMs(payload?.fetchedAt) || Date.now(),
+    current,
+    upcomingMoons,
+    recent,
+  };
+}
+
+function parseSellPayload(payload) {
+  const entries = payload?.sell?.entries || payload?.entries;
+  if (!Array.isArray(entries)) throw new Error('missing GAG2 sell price list');
+  const normalized = entries
+    .map((entry) => ({
+      key: slugKey(entry?.key || entry?.id || entry?.name),
+      name: String(entry?.name || 'Unknown item').trim(),
+      multiplier: Number(entry?.multiplier),
+      tier: String(entry?.tier || '').trim(),
+    }))
+    .filter((entry) => entry.name && Number.isFinite(entry.multiplier))
+    .sort((left, right) => right.multiplier - left.multiplier || left.name.localeCompare(right.name));
+  if (!normalized.length) throw new Error('empty GAG2 sell price list');
+  return {
+    fetchedAtMs: parseDateMs(payload?.fetchedAt) || Date.now(),
+    entries: normalized,
+  };
+}
+
+function parseItemsPayload(payload) {
+  const items = payload?.items || payload;
+  if (!Array.isArray(items)) throw new Error('missing GAG2 item list');
+  return items
+    .map((item) => ({
+      key: slugKey(item?.id || item?.key || item?.slug || item?.name),
+      name: String(item?.name || '').trim(),
+      type: String(item?.type || '').trim().toLowerCase(),
+      rarity: String(item?.rarity || '').trim(),
+    }))
+    .filter((item) => item.key && item.name);
+}
+
+function buildStockCategoryKey(entry) {
+  return [
+    entry.category,
+    entry.restockedAtMs || 'none',
+    entry.nextRestockAtMs || 'none',
+    entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
+  ].join(':');
+}
+
 function buildPostKey(stockPayload) {
-  return stockPayload.stock
-    .map((entry) => [
-      entry.category,
-      entry.restockedAtMs || 'none',
-      entry.nextRestockAtMs || 'none',
-      entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
-    ].join(':'))
-    .join('|');
+  return stockPayload.stock.map(buildStockCategoryKey).join('|');
+}
+
+function buildTypePostKey(type, entry) {
+  if (!entry) return `${type}:empty`;
+  if (['seed', 'gear', 'crate'].includes(type)) return buildStockCategoryKey(entry);
+  if (type === 'weather') {
+    const current = entry.current || {};
+    return [
+      'weather',
+      current.key || 'none',
+      current.startsAtMs || 'none',
+      current.endsAtMs || 'none',
+      entry.recent?.slice(0, 8).map((item) => `${item.key}:${item.lastSeenAtMs || 0}`).join(',') || '',
+    ].join(':');
+  }
+  if (type === 'moon') {
+    return `moon:${(entry.upcomingMoons || []).slice(0, 12).map((item) => `${item.key}:${item.boundaryMs}`).join(',')}`;
+  }
+  if (type === 'sell') {
+    return `sell:${(entry.entries || []).slice(0, 40).map((item) => `${item.key}:${item.multiplier.toFixed(4)}:${item.tier}`).join(',')}`;
+  }
+  return `${type}:${JSON.stringify(entry).slice(0, 500)}`;
 }
 
 function formatTimestamp(ms, style = 'R') {
   return Number.isFinite(ms) ? `<t:${Math.floor(ms / 1000)}:${style}>` : 'unknown';
 }
 
-function formatItem(item) {
-  const emoji = item.emoji ? `${item.emoji} ` : '';
-  return `* ${emoji}**${item.name}** x${item.quantity} - ${item.rarity}`;
+function roleMention(roleIds, item) {
+  const roleId = roleIds?.[item.key] || roleIds?.[slugKey(item.name)];
+  return roleId ? ` <@&${roleId}>` : '';
 }
 
-function formatCategory(entry) {
+function allowedMentionsForRoles(roleIds = {}) {
+  return {
+    parse: [],
+    users: [],
+    roles: [...new Set(Object.values(roleIds).map((roleId) => String(roleId || '').trim()).filter((roleId) => /^\d{16,20}$/.test(roleId)))],
+  };
+}
+
+function formatItem(item, roleIds = {}) {
+  const emoji = item.emoji ? `${item.emoji} ` : '';
+  return `* ${emoji}**${item.name}** x${item.quantity} - ${item.rarity}${roleMention(roleIds, item)}`;
+}
+
+function formatStockCategory(entry, roleIds = {}) {
   return [
-    `### ${entry.label}`,
+    `## GAG2 ${entry.label}`,
     `* Next restock: ${formatTimestamp(entry.nextRestockAtMs)}`,
     '',
-    entry.items.length ? entry.items.map(formatItem).join('\n') : '* Nothing listed right now.',
+    entry.items.length ? entry.items.map((item) => formatItem(item, roleIds)).join('\n') : '* Nothing listed right now.',
   ].join('\n');
 }
 
-function buildStockPayload(stockPayload, options = {}) {
-  const nextRestockAtMs = Math.min(...stockPayload.stock
-    .map((entry) => entry.nextRestockAtMs)
-    .filter(Number.isFinite));
-  const components = [
-    {
-      type: 10,
-      content: [
-        '## GAG2 Stock',
-        `* Next restock: ${formatTimestamp(nextRestockAtMs)}`,
-        `* Source: ${options.sourceUrl || STOCK_API_URL}`,
-      ].join('\n'),
-    },
-    { type: 14, divider: true, spacing: 1 },
-  ];
-
-  for (const entry of stockPayload.stock) {
-    components.push({ type: 10, content: formatCategory(entry) });
-    components.push({ type: 14, divider: true, spacing: 1 });
+function formatWeather(entry, roleIds = {}) {
+  const current = entry.current;
+  if (!current) {
+    return '## GAG2 Weather\n* No current weather listed right now.';
   }
+  const emoji = current.emoji ? `${current.emoji} ` : '';
+  const lines = [
+    '## GAG2 Weather',
+    `* Current: ${emoji}**${current.name}**${roleMention(roleIds, current)}`,
+  ];
+  if (current.endsAtMs) lines.push(`* Ends: ${formatTimestamp(current.endsAtMs)}`);
+  if (current.blurb) lines.push('', current.blurb);
+  if (entry.recent?.length) {
+    lines.push('', '### Recent');
+    for (const item of entry.recent.slice(0, 8)) {
+      lines.push(`* ${item.name}${item.lastSeenAtMs ? ` - ${formatTimestamp(item.lastSeenAtMs)}` : ''}${roleMention(roleIds, item)}`);
+    }
+  }
+  return lines.join('\n');
+}
 
-  components.push({
-    type: 10,
-    content: '-# Stock data from gag2.gg. Third-party live stock feeds are best-effort.',
-  });
+function formatMoon(entry, roleIds = {}) {
+  const lines = ['## GAG2 Moon Prediction'];
+  if (!entry.upcomingMoons?.length) {
+    lines.push('* No moon predictions listed right now.');
+    return lines.join('\n');
+  }
+  for (const item of entry.upcomingMoons.slice(0, 12)) {
+    lines.push(`* **${item.name}** - ${formatTimestamp(item.boundaryMs, 'F')} (${formatTimestamp(item.boundaryMs)})${roleMention(roleIds, item)}`);
+  }
+  return lines.join('\n');
+}
 
+function formatSell(entry, roleIds = {}) {
+  const lines = ['## GAG2 Sell Price Track'];
+  for (const item of (entry.entries || []).slice(0, 25)) {
+    const tier = item.tier ? ` - ${item.tier}` : '';
+    lines.push(`* **${item.name}** x${item.multiplier.toFixed(2)}${tier}${roleMention(roleIds, item)}`);
+  }
+  if (lines.length === 1) lines.push('* No sell price entries listed right now.');
+  return lines.join('\n');
+}
+
+function contentForType(type, entry, roleIds = {}) {
+  if (['seed', 'gear', 'crate'].includes(type)) return formatStockCategory(entry, roleIds);
+  if (type === 'weather') return formatWeather(entry, roleIds);
+  if (type === 'moon') return formatMoon(entry, roleIds);
+  if (type === 'sell') return formatSell(entry, roleIds);
+  return `## GAG2 Stock\n* Unknown stock type: ${type}`;
+}
+
+function buildTypePayload(type, entry, options = {}) {
+  const roleIds = options.roleIds || {};
   return {
-    allowedMentions: NO_MENTIONS,
+    allowedMentions: allowedMentionsForRoles(roleIds),
+    flags: COMPONENTS_V2_FLAG,
+    components: [
+      {
+        type: 17,
+        accent_color: GREEN,
+        components: [
+          {
+            type: 10,
+            content: contentForType(type, entry, roleIds),
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildStockPayload(stockPayload, options = {}) {
+  const combinedRoleIds = Object.assign({}, ...Object.values(options.roleIds || {}));
+  const components = [];
+  for (const entry of stockPayload.stock) {
+    if (components.length) components.push({ type: 14, divider: true, spacing: 1 });
+    components.push({ type: 10, content: contentForType(entry.category, entry, options.roleIds?.[entry.category] || {}) });
+  }
+  return {
+    allowedMentions: allowedMentionsForRoles(combinedRoleIds),
     flags: COMPONENTS_V2_FLAG,
     components: [
       {
@@ -131,7 +309,12 @@ function buildStockPayload(stockPayload, options = {}) {
   };
 }
 
-function buildUnavailablePayload(errorMessage, nowMs = Date.now()) {
+function buildUnavailablePayload(typeOrError, errorOrNow, maybeNow) {
+  const hasType = typeof maybeNow !== 'undefined';
+  const type = hasType ? typeOrError : 'stock';
+  const errorMessage = hasType ? errorOrNow : typeOrError;
+  const nowMs = hasType ? maybeNow : errorOrNow || Date.now();
+  const label = CATEGORY_LABELS[type] || 'Stock';
   return {
     allowedMentions: NO_MENTIONS,
     flags: COMPONENTS_V2_FLAG,
@@ -143,7 +326,7 @@ function buildUnavailablePayload(errorMessage, nowMs = Date.now()) {
           {
             type: 10,
             content: [
-              '## GAG2 Stock',
+              `## GAG2 ${label}`,
               '* Status: **source unavailable**',
               `* Checked: ${formatTimestamp(nowMs, 'F')}`,
               '',
@@ -159,7 +342,13 @@ function buildUnavailablePayload(errorMessage, nowMs = Date.now()) {
 module.exports = {
   buildPostKey,
   buildStockPayload,
+  buildTypePayload,
+  buildTypePostKey,
   buildUnavailablePayload,
-  formatCategory,
+  formatStockCategory,
+  parseItemsPayload,
+  parseSellPayload,
   parseStockPayload,
+  parseWeatherPayload,
+  slugKey,
 };
