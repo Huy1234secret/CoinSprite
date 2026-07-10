@@ -10,22 +10,20 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_UPCOMING_ITEMS = 5;
 const STATE_PATH = path.join(__dirname, '..', '..', 'data', 'gag2-stock-poster.json');
 
-const DATA_SOURCE_URLS = [
-  'https://gag-2-predictor.vercel.app/script.js?v=2',
-  'https://raw.githubusercontent.com/jcgaming-official/GAG-2-Predictor/main/script.js',
+const STOCK_API_URLS = [
+  'https://www.game.guide/api/gag2-stock',
 ];
 
 const CATEGORY_CONFIG = [
-  { key: 'seeds', title: 'Seed', anchorKey: 'seedAnchor' },
-  { key: 'gears', title: 'Gear', anchorKey: 'gearAnchor' },
-  { key: 'crates', title: 'Crate', anchorKey: 'crateAnchor' },
+  { key: 'seeds', title: 'Seed' },
+  { key: 'gears', title: 'Gear' },
+  { key: 'crates', title: 'Crate' },
 ];
 
 module.exports = {
   CATEGORY_CONFIG,
   CHECK_INTERVAL_MS,
   COMPONENTS_V2_FLAG,
-  DATA_SOURCE_URLS,
   GREEN,
   MAX_UPCOMING_ITEMS,
   POST_CHANNEL_ID,
@@ -33,4 +31,5 @@ module.exports = {
   REQUEST_TIMEOUT_MS,
   SOURCE_REFRESH_MS,
   STATE_PATH,
+  STOCK_API_URLS,
 };

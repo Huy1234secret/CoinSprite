@@ -1,7 +1,7 @@
-const { DATA_SOURCE_URLS, REQUEST_TIMEOUT_MS } = require('./config');
-const { parsePredictorScript } = require('./predictor');
+const { REQUEST_TIMEOUT_MS, STOCK_API_URLS } = require('./config');
+const { parseStockApiResponse } = require('./predictor');
 
-async function fetchText(url, options = {}) {
+async function fetchJson(url, options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') {
     throw new Error('global fetch is unavailable in this Node runtime');
@@ -19,21 +19,21 @@ async function fetchText(url, options = {}) {
     if (!response?.ok) {
       throw new Error(`HTTP ${response?.status || 'unknown'}`);
     }
-    return await response.text();
+    return await response.json();
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function loadPredictorData(options = {}) {
-  const urls = Array.isArray(options.urls) && options.urls.length ? options.urls : DATA_SOURCE_URLS;
+async function loadStockData(options = {}) {
+  const urls = Array.isArray(options.urls) && options.urls.length ? options.urls : STOCK_API_URLS;
   const errors = [];
 
   for (const url of urls) {
     try {
-      const script = await fetchText(url, options);
+      const payload = await fetchJson(url, options);
       return {
-        data: parsePredictorScript(script),
+        data: parseStockApiResponse(payload),
         sourceUrl: url,
       };
     } catch (error) {
@@ -41,10 +41,10 @@ async function loadPredictorData(options = {}) {
     }
   }
 
-  throw new Error(`All GAG2 predictor sources failed: ${errors.join('; ')}`);
+  throw new Error(`All GAG2 stock API sources failed: ${errors.join('; ')}`);
 }
 
 module.exports = {
-  fetchText,
-  loadPredictorData,
+  fetchJson,
+  loadStockData,
 };
