@@ -7,6 +7,7 @@ const {
   buildStockSnapshot,
   parseStockApiResponse,
 } = require('../src/gag2Stock/predictor');
+const { fetchJson } = require('../src/gag2Stock/source');
 
 function fixturePayload() {
   return {
@@ -99,4 +100,29 @@ test('GAG2 stock marks stale API data instead of extending old stock', () => {
   assert.equal(snapshot.sourceStale, true);
   assert.match(buildPostKey(snapshot), /^stale:/);
   assert.match(content, /source data stale/);
+});
+
+test('GAG2 stock API fetch retries with fallback request headers after rejection', async () => {
+  const attempts = [];
+  const payload = fixturePayload();
+  const fetchImpl = async (url, options) => {
+    attempts.push({ url, headers: options.headers });
+    if (attempts.length === 1) {
+      return { ok: false, status: 403, json: async () => ({}) };
+    }
+    return { ok: true, status: 200, json: async () => payload };
+  };
+
+  const result = await fetchJson('https://www.game.guide/api/gag2-stock', {
+    fetchImpl,
+    headerProfiles: [
+      { label: 'blocked', headers: { 'user-agent': 'blocked-bot' } },
+      { label: 'browser', headers: { 'user-agent': 'Mozilla/5.0' } },
+    ],
+  });
+
+  assert.equal(result, payload);
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0].headers['user-agent'], 'blocked-bot');
+  assert.equal(attempts[1].headers['user-agent'], 'Mozilla/5.0');
 });

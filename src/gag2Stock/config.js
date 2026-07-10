@@ -14,6 +14,37 @@ const STOCK_API_URLS = [
   'https://www.game.guide/api/gag2-stock',
 ];
 
+const STOCK_API_HEADER_PROFILES = [
+  {
+    label: 'browser',
+    headers: {
+      accept: 'application/json,text/plain,*/*',
+      'accept-language': 'en-US,en;q=0.9',
+      'cache-control': 'no-cache',
+      origin: 'https://www.game.guide',
+      pragma: 'no-cache',
+      referer: 'https://www.game.guide/grow-a-garden-stock',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-origin',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
+    },
+  },
+  {
+    label: 'node-default',
+    headers: {
+      accept: 'application/json,text/plain,*/*',
+    },
+  },
+  {
+    label: 'coinsprite',
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'CoinSprite GAG2 stock poster',
+    },
+  },
+];
+
 const CATEGORY_CONFIG = [
   { key: 'seeds', title: 'Seed' },
   { key: 'gears', title: 'Gear' },
@@ -31,5 +62,6 @@ module.exports = {
   REQUEST_TIMEOUT_MS,
   SOURCE_REFRESH_MS,
   STATE_PATH,
+  STOCK_API_HEADER_PROFILES,
   STOCK_API_URLS,
 };
