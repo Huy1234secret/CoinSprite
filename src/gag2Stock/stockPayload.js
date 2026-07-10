@@ -19,6 +19,7 @@ const {
 } = require('./catalog');
 
 const NO_MENTIONS = { parse: [], roles: [], users: [] };
+const WHITE = 0xFFFFFF;
 
 function parseDateMs(value) {
   const parsed = Date.parse(value || '');
@@ -126,6 +127,7 @@ function parseSellPayload(payload) {
       key: slugKey(entry?.key || entry?.id || entry?.name),
       name: String(entry?.name || 'Unknown item').trim(),
       multiplier: Number(entry?.multiplier),
+      rarity: String(entry?.rarity || '').trim(),
       tier: String(entry?.tier || '').trim(),
     }))
     .filter((entry) => entry.name && Number.isFinite(entry.multiplier));
@@ -249,14 +251,14 @@ function formatWeather(entry, roleIds = {}) {
   return lines.join('\n');
 }
 
-function formatMoon(entry) {
+function formatMoon(entry, roleIds = {}) {
   const lines = ['## GAG2 Moon Prediction'];
   if (!entry.upcomingMoons?.length) {
     lines.push('* No moon predictions listed right now.');
     return lines.join('\n');
   }
   for (const item of entry.upcomingMoons.slice(0, 12)) {
-    lines.push(`* ${emojiPrefix('moon', item)}**${displayNameForType('moon', item)}** - ${formatTimestamp(item.boundaryMs, 'F')} (${formatTimestamp(item.boundaryMs)})`);
+    lines.push(`* ${emojiPrefix('moon', item)}${roleDisplay(roleIds, item, 'moon')} - ${formatTimestamp(item.boundaryMs, 'F')} (${formatTimestamp(item.boundaryMs)})`);
   }
   return lines.join('\n');
 }
@@ -266,15 +268,10 @@ function formatMultiplier(multiplier) {
   return Number.isFinite(value) ? value.toFixed(2) : '0.00';
 }
 
-function bonusRoleMentionForSellItem(roleIds, item) {
-  const bonusRole = sellBonusRoleForEntry(item);
-  return bonusRole ? roleMention(roleIds, bonusRole, 'sell') : '';
-}
-
 function formatSellLine(item, roleIds = {}, options = {}) {
   const tier = item.tier ? ` - ${item.tier}` : '';
-  const bonus = options.includeBonusRole ? bonusRoleMentionForSellItem(roleIds, item) : '';
-  return `## ${emojiPrefix('sell', item)}${roleDisplay(roleIds, item, 'sell')} x${formatMultiplier(item.multiplier)}${tier}${bonus}`;
+  const prefix = options.heading ? '## ' : '* ';
+  return `${prefix}${emojiPrefix('sell', item)}**${displayNameForType('sell', item)}** x${formatMultiplier(item.multiplier)}${tier}`;
 }
 
 function formatSell(entry, roleIds = {}) {
@@ -311,22 +308,25 @@ function accentColorForType(type, entry) {
   if (type === 'weather') return colorForType('weather', entry?.current) || GREEN;
   if (type === 'moon') return colorForType('moon', entry?.upcomingMoons?.[0]) || GREEN;
   if (type === 'sell') {
-    const buckets = new Set((entry?.entries || []).map((item) => sellMultiplierBucket(item.multiplier)));
-    if (buckets.has('4x')) return SELL_BONUS_COLORS['4x'];
-    if (buckets.has('2x')) return SELL_BONUS_COLORS['2x'];
-    return highestRarityColor('sell', entry?.entries || [], GREEN);
+    return WHITE;
   }
   return GREEN;
+}
+
+function bonusRoleDisplayForSellItem(roleIds, item) {
+  const bonusRole = sellBonusRoleForEntry(item);
+  if (!bonusRole) return '';
+  return roleMention(roleIds, bonusRole, 'sell').trim() || bonusRole.roleName;
 }
 
 function sellBonusContainers(entry, roleIds = {}) {
   const entries = (entry?.entries || []).filter((item) => sellMultiplierBucket(item.multiplier));
   const buckets = ['4x', '2x'].filter((bucket) => entries.some((item) => sellMultiplierBucket(item.multiplier) === bucket));
   return buckets.map((bucket) => {
-    const title = bucket === '4x' ? '## Diamond 4x Sell Price' : '## Gold 2x Sell Price';
-    const lines = entries
-      .filter((item) => sellMultiplierBucket(item.multiplier) === bucket)
-      .map((item) => formatSellLine(item, roleIds, { includeBonusRole: true }));
+    const bucketEntries = entries.filter((item) => sellMultiplierBucket(item.multiplier) === bucket);
+    const bonusRoles = [...new Set(bucketEntries.map((item) => bonusRoleDisplayForSellItem(roleIds, item)).filter(Boolean))];
+    const title = `## ${bonusRoles.length ? bonusRoles.join(' ') : bucket} Sell Price`;
+    const lines = bucketEntries.map((item) => formatSellLine(item, roleIds));
     return {
       type: 17,
       accent_color: SELL_BONUS_COLORS[bucket],
@@ -338,7 +338,7 @@ function sellBonusContainers(entry, roleIds = {}) {
 function buildTypePayload(type, entry, options = {}) {
   const roleIds = options.roleIds || {};
   return {
-    allowedMentions: allowedMentionsForRoles(roleIds),
+    allowedMentions: type === 'moon' ? NO_MENTIONS : allowedMentionsForRoles(roleIds),
     flags: COMPONENTS_V2_FLAG,
     components: [
       ...((type === 'sell') ? sellBonusContainers(entry, roleIds) : []),

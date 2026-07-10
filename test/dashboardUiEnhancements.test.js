@@ -78,3 +78,26 @@ test('dashboard section tabs stay in normal flow and owner escaped-newline artif
   assert.match(script, /removeEscapedNewlineArtifacts/);
   assert.match(script, /\\\\n/);
 });
+
+test('dashboard feature gating keeps non-GAG2 tabs hidden for limited servers', () => {
+  const app = source('admin/app.js');
+  const server = source('src/adminServer.js');
+  assert.match(app, /state\.visibleTabs = fullBot \? null : new Set\(\['gag2Stock'\]\)/);
+  assert.match(app, /state\.featureVisibilityObserver = new MutationObserver/);
+  assert.match(app, /state\.featureVisibilityObserver\.observe\(document\.body, \{ childList: true, subtree: true \}\)/);
+  assert.match(app, /if \(state\.visibleTabs && !state\.visibleTabs\.has\(tabName\)\) return false/);
+  assert.match(app, /panel\.hidden = !visible/);
+  assert.match(server, /currentConfig\?\.features\?\.fullBot !== true/);
+});
+
+test('GAG2 stock dashboard shows role sync progress', () => {
+  const app = source('admin/app.js');
+  const server = source('src/adminServer.js');
+  assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
+  assert.match(app, /Adding \$\{roleCountLabel\(adding\)\}/);
+  assert.match(app, /Removing \$\{roleCountLabel\(removing\)\}/);
+  assert.match(app, /gag2-stock\/setup-progress/);
+  assert.match(app, /pollGag2RoleProgress\(payload\.roleProgress\)/);
+  assert.match(server, /getGag2StockSetupProgress/);
+  assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);
+});
