@@ -1,7 +1,7 @@
-const { REQUEST_TIMEOUT_MS, STOCK_API_URLS } = require('./config');
+const { REQUEST_TIMEOUT_MS, STOCK_API_HEADER_PROFILES, STOCK_API_URLS } = require('./config');
 const { parseStockApiResponse } = require('./predictor');
 
-async function fetchJson(url, options = {}) {
+async function requestJson(url, headers, options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') {
     throw new Error('global fetch is unavailable in this Node runtime');
@@ -12,9 +12,7 @@ async function fetchJson(url, options = {}) {
   try {
     const response = await fetchImpl(url, {
       signal: controller.signal,
-      headers: {
-        'user-agent': 'CoinSprite GAG2 stock predictor',
-      },
+      headers,
     });
     if (!response?.ok) {
       throw new Error(`HTTP ${response?.status || 'unknown'}`);
@@ -23,6 +21,23 @@ async function fetchJson(url, options = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchJson(url, options = {}) {
+  const headerProfiles = Array.isArray(options.headerProfiles) && options.headerProfiles.length
+    ? options.headerProfiles
+    : STOCK_API_HEADER_PROFILES;
+  const errors = [];
+
+  for (const profile of headerProfiles) {
+    try {
+      return await requestJson(url, profile.headers || {}, options);
+    } catch (error) {
+      errors.push(`${profile.label || 'headers'}: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  throw new Error(`API request rejected (${errors.join('; ')})`);
 }
 
 async function loadStockData(options = {}) {
@@ -46,5 +61,6 @@ async function loadStockData(options = {}) {
 
 module.exports = {
   fetchJson,
+  requestJson,
   loadStockData,
 };
