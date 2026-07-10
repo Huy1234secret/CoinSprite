@@ -42,6 +42,7 @@ const state = {
   activeLevelingTab: 'xp',
   visibleTabs: null,
   featureVisibilityObserver: null,
+  featureVisibilityQueued: false,
   gag2RoleProgressTimer: null,
   ticketEditor: null,
   dirtyTabs: new Set(),
@@ -970,16 +971,20 @@ function collectTabState(tabName) {
   };
 }
 
+function trackedTabNames() {
+  return Object.keys(TAB_NAMES).filter((tabName) => !state.visibleTabs || state.visibleTabs.has(tabName));
+}
+
 function captureSavedSnapshots() {
   state.savedSnapshots = {};
-  for (const tabName of Object.keys(TAB_NAMES)) {
+  for (const tabName of trackedTabNames()) {
     state.savedSnapshots[tabName] = JSON.stringify(collectTabState(tabName));
   }
 }
 
 function refreshDirtyState() {
   state.dirtyTabs.clear();
-  for (const tabName of Object.keys(TAB_NAMES)) {
+  for (const tabName of trackedTabNames()) {
     if (JSON.stringify(collectTabState(tabName)) !== state.savedSnapshots[tabName]) state.dirtyTabs.add(tabName);
   }
   const hasChanges = state.dirtyTabs.size > 0;
@@ -992,20 +997,25 @@ function refreshDirtyState() {
   elements.unsavedDetail.textContent = dirtyNames.length ? `Changed: ${dirtyNames.join(', ')}` : '';
 }
 
-function applyFeatureVisibility(config) {
-  const fullBot = config?.features?.fullBot === true;
-  state.visibleTabs = fullBot ? null : new Set(['gag2Stock']);
+function enforceFeatureVisibility() {
   const visibleTabs = state.visibleTabs;
+  document.body.classList.toggle('gag2-stock-only', Boolean(visibleTabs));
   document.querySelectorAll('.tab').forEach((tab) => {
     const visible = !visibleTabs || visibleTabs.has(tab.dataset.tab);
     tab.hidden = !visible;
     tab.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    tab.style.display = visible ? '' : 'none';
     if (!visible) tab.tabIndex = -1;
-    else tab.removeAttribute('tabindex');
+    else {
+      tab.removeAttribute('tabindex');
+      tab.style.removeProperty('display');
+    }
   });
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     const visible = !visibleTabs || visibleTabs.has(panel.dataset.panel);
     panel.hidden = !visible;
+    panel.style.display = visible ? '' : 'none';
+    if (visible) panel.style.removeProperty('display');
     if (!visible) panel.classList.remove('active');
   });
   if (visibleTabs && !visibleTabs.has(state.activeTab)) {
@@ -1014,10 +1024,25 @@ function applyFeatureVisibility(config) {
     document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === state.activeTab));
     elements.configForm.scrollTop = 0;
   }
+}
+
+function scheduleFeatureVisibilityEnforce() {
+  if (state.featureVisibilityQueued) return;
+  state.featureVisibilityQueued = true;
+  const run = () => {
+    state.featureVisibilityQueued = false;
+    enforceFeatureVisibility();
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  else window.setTimeout(run, 0);
+}
+
+function applyFeatureVisibility(config) {
+  const fullBot = config?.features?.fullBot === true;
+  state.visibleTabs = fullBot ? null : new Set(['gag2Stock']);
+  enforceFeatureVisibility();
   if (!state.featureVisibilityObserver && typeof MutationObserver === 'function') {
-    state.featureVisibilityObserver = new MutationObserver(() => {
-      if (state.savedConfig) applyFeatureVisibility(state.savedConfig);
-    });
+    state.featureVisibilityObserver = new MutationObserver(scheduleFeatureVisibilityEnforce);
     state.featureVisibilityObserver.observe(document.body, { childList: true, subtree: true });
   }
   elements.guildSubtitle.textContent = fullBot

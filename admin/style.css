@@ -2518,6 +2518,10 @@ textarea:focus,
 
 .tab[data-tab="leveling"],
 .tab[data-tab="tickets"] { display: flex; align-items: center; gap: 12px; }
+body.gag2-stock-only .tab[data-tab]:not([data-tab="gag2Stock"]),
+body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
+  display: none !important;
+}
 .tab[data-tab="leveling"]::before,
 .tab[data-tab="tickets"]::before { content: none !important; display: none !important; }
 .tab[data-tab="leveling"] .tab-icon,
