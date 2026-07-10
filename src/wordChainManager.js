@@ -1,7 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 const levelingManager = require('./levelingManager');
-const wordChainEventManager = require('./wordChainEventManager');
 const { loadState, saveState } = require('./wordChainStore');
 const { DEFAULT_GUILD_CONFIG, DEFAULT_GUILD_ID, getEnabledGuildIds, getGuildConfig } = require('./serverConfig');
 const { calculateWordChainXp, sanitizeWordChainXpFormula } = require('./wordChainFormula');
@@ -192,10 +191,6 @@ function getStreakLine() {
   return currentGame ? `Streak: **${currentGame.streak || 0} words**` : null;
 }
 
-function getEventLuckLine() {
-  return wordChainEventManager.getCurrentLuckLine(currentGame?.streak || 0, currentGame?.guildId);
-}
-
 function formatRestrictionDuration(guildId) {
   const totalSeconds = Math.max(1, Math.ceil(getWordChainSettings(guildId).punishmentMs / 1000));
   if (totalSeconds === 60) return '1 minute';
@@ -231,7 +226,6 @@ function getGameLine(guildId) {
     `Channel: <#${wordChainChannelId}>`,
     `Word length: **${currentGame.wordLength} letters**`,
     `Streak: **${currentGame.streak || 0} words**`,
-    getEventLuckLine(),
     `Server hearts: **${currentGame.hearts}/${settings.startingHearts}**`,
     `Incorrect words cause a **${formatRestrictionDuration(resolvedGuildId)} Word Chain restriction**.`,
     `Countdown: ${formatCountdown(currentGame.expiresAt)}`,
@@ -312,7 +306,6 @@ async function startGame(reason = 'auto', guildId = null) {
   };
   persistState();
   scheduleTurnTimer();
-  await wordChainEventManager.refreshAnnouncement(0);
 
   await sendToGameChannel(`${getGameLine(resolvedGuildId)}\n\nGame started${reason === 'auto' ? ' automatically' : ''}.`, 0x57f287, resolvedGuildId);
   return currentGame;
@@ -337,7 +330,6 @@ async function endGame(reason) {
   clearTurnTimer();
   currentGame = null;
   persistState();
-  await wordChainEventManager.refreshAnnouncement(0);
   await sendToGameChannel(`Word Chain game ended: ${reason}\nA new game will start ${formatCountdown(Date.now() + settings.gameCooldownMs)}.`, 0xed4245, guildId);
   scheduleNextGame(guildId);
 }
@@ -347,7 +339,6 @@ async function loseHeart(reason) {
   currentGame.hearts -= 1;
   currentGame.streak = 0;
   persistState();
-  await wordChainEventManager.refreshAnnouncement(0);
 
   const guildId = getGameGuildId();
   const settings = getWordChainSettings(guildId);
@@ -538,18 +529,13 @@ async function acceptWord(message, word) {
   currentGame.requiredFirstLetter = word.at(-1);
   currentGame.streak = (currentGame.streak || 0) + 1;
   const xpResult = awardCorrectWordXp(message);
-  const eventResult = await wordChainEventManager.awardCorrectWord(message, word, currentGame.streak);
   resetTurnCountdown();
   await message.react('\u2705').catch(() => null);
   const xpLine = xpResult ? `XP earned: **${xpResult.xp} XP** (${currentGame.wordLength}x)` : null;
-  const eventLuckLine = eventResult.active ? `Event luck: **+${eventResult.luckBonusPercent}%**` : null;
-  const prizeLine = wordChainEventManager.formatPrizeAwardLine(eventResult.awards);
   await sendToGameChannel([
     `<@${message.author.id}> accepted: **${word}**`,
     getWordLengthLine(),
     getStreakLine(),
-    eventLuckLine,
-    prizeLine,
     xpLine,
     `Next starts with **${currentGame.requiredFirstLetter.toUpperCase()}**.`,
     `Countdown reset: ${formatCountdown(currentGame.expiresAt)}`,
@@ -562,7 +548,6 @@ async function init(client) {
   initStarted = true;
   restoreState();
   await getGameChannel(getGameGuildId());
-  await wordChainEventManager.init(client, currentGame?.streak || 0);
   if (currentGame) {
     scheduleTurnTimer();
     logCommandSystem(`Word Chain restored active game for guild ${getGameGuildId()}; no public restore message sent.`);
