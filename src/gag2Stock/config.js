@@ -35,6 +35,7 @@ const RARITY_RANK = {
   epic: 4,
   legendary: 5,
   mythic: 6,
+  mythical: 6,
   super: 7,
   divine: 8,
 };
