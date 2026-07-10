@@ -12,8 +12,10 @@ const {
   getGuildConfigRaw,
   loadState,
   setGuildEnabled,
+  setGuildFeatures,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { slashCommandPayloadsForGuild } = require('./featureGate');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
@@ -150,6 +152,7 @@ async function guildSummary(client, guildId, disabledRecords, todayMessages, aiU
     roles: roles?.size || 0,
     configured: Boolean(config),
     enabled: config?.enabled !== false,
+    features: config?.features || { gag2Stock: true, fullBot: false },
     disabled: disabledRecords[guild.id] || null,
     usage,
     storage: {
@@ -250,10 +253,27 @@ async function setGuildEnabledRoute(client, guildId, adminUserId) {
     throw error;
   }
   const result = setGuildEnabled(guild.id, true, {});
-  const slashCommands = client.commands?.map?.((command) => command.data?.toJSON?.()).filter(Boolean) || [];
+  const slashCommands = slashCommandPayloadsForGuild(guild.id, client.commands);
   await guild.commands.set(slashCommands).catch((error) => logCommandSystem(`Failed to restore commands for enabled guild ${guild.id}: ${error?.message ?? 'unknown error'}`));
   logCommandSystem(`Owner ${adminUserId} enabled guild ${guild.id}.`);
   return { guildId: guild.id, config: result.config };
+}
+
+async function setGuildFeaturesRoute(client, guildId, body, adminUserId) {
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) {
+    const error = new Error('Guild is not available to the bot.');
+    error.statusCode = 404;
+    throw error;
+  }
+  const config = setGuildFeatures(guild.id, {
+    gag2Stock: true,
+    fullBot: Boolean(body?.fullBot),
+  });
+  const slashCommands = slashCommandPayloadsForGuild(guild.id, client.commands);
+  await guild.commands.set(slashCommands).catch((error) => logCommandSystem(`Failed to refresh commands for feature update in guild ${guild.id}: ${error?.message ?? 'unknown error'}`));
+  logCommandSystem(`Owner ${adminUserId} updated feature access for guild ${guild.id}: fullBot=${Boolean(config?.features?.fullBot)}.`);
+  return { guildId: guild.id, features: config.features, registeredCommands: slashCommands.length };
 }
 
 async function handleOwnerOverview(req, res, client, deps) {
@@ -271,9 +291,15 @@ async function handleOwnerEnable(req, res, client, guildId, session, deps) {
   deps.sendJson(res, 200, await setGuildEnabledRoute(client, guildId, session.user.id));
 }
 
+async function handleOwnerFeatures(req, res, client, guildId, session, deps) {
+  const body = await deps.readJsonBody(req);
+  deps.sendJson(res, 200, await setGuildFeaturesRoute(client, guildId, body, session.user.id));
+}
+
 module.exports = {
   handleOwnerDisable,
   handleOwnerEnable,
+  handleOwnerFeatures,
   handleOwnerOverview,
   isOwnerSession,
 };

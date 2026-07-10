@@ -4,8 +4,18 @@ const TAB_NAMES = {
   roles: 'Roles',
   tickets: 'Tickets',
   invites: 'Invite rewards',
+  gag2Stock: 'Gag2 stock',
   games: 'Games',
 };
+
+const GAG2_STOCK_CHANNELS = [
+  ['seed', 'Seed stock', 'gag2SeedChannelMount'],
+  ['gear', 'Gear stock', 'gag2GearChannelMount'],
+  ['crate', 'Crate stock', 'gag2CrateChannelMount'],
+  ['weather', 'Weather', 'gag2WeatherChannelMount'],
+  ['moon', 'Moon prediction', 'gag2MoonChannelMount'],
+  ['sell', 'Sell price track', 'gag2SellChannelMount'],
+];
 
 const state = {
   me: null,
@@ -19,6 +29,7 @@ const state = {
   xpGroups: [],
   boosts: [],
   rewards: [],
+  gag2StockChannels: {},
   activeTab: 'leveling',
   activeLevelingTab: 'xp',
   ticketEditor: null,
@@ -58,6 +69,7 @@ const elements = {
   addBoostButton: document.querySelector('#addBoostButton'),
   rewardRows: document.querySelector('#rewardRows'),
   addRewardButton: document.querySelector('#addRewardButton'),
+  gag2StockMounts: Object.fromEntries(GAG2_STOCK_CHANNELS.map(([, , id]) => [id, document.querySelector(`#${id}`)])),
   levelUpChannelMount: document.querySelector('#levelUpChannelMount'),
   levelUpTokens: document.querySelector('#levelUpTokens'),
   levelUpContent: document.querySelector('#levelUpContent'),
@@ -141,6 +153,10 @@ function channelOptions() {
 
 function roleOptions() {
   return state.directory.roles.map((item) => ({ ...item, label: item.name, optionType: 'role' }));
+}
+
+function sendableChannelOptions() {
+  return channelOptions().filter((item) => ['text', 'announcement', 'thread'].includes(item.kind || item.optionType));
 }
 
 function optionById(options, id, type) {
@@ -723,6 +739,22 @@ function renderRewardRows() {
   });
 }
 
+function renderGag2StockPickers() {
+  const options = sendableChannelOptions();
+  for (const [key, label, mountId] of GAG2_STOCK_CHANNELS) {
+    const mount = elements.gag2StockMounts[mountId];
+    if (!mount) continue;
+    renderPicker(mount, options, state.gag2StockChannels[key] || '', {
+      type: 'channel',
+      placeholder: `Select ${label.toLowerCase()} channel`,
+      onChange: (value) => {
+        state.gag2StockChannels[key] = value;
+        renderGag2StockPickers();
+      },
+    });
+  }
+}
+
 function setDurationFields(config) {
   for (const key of ['turnTimeoutMs', 'punishmentMs', 'gameCooldownMs']) {
     setField(`wordChain.${key}`, secondsFromMs(config.wordChain?.[key]));
@@ -770,6 +802,9 @@ function applyTabFromConfig(tabName, config) {
   } else if (tabName === 'invites') {
     setField('inviteRewards.enabled', config.inviteRewards?.enabled);
     setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
+  } else if (tabName === 'gag2Stock') {
+    state.gag2StockChannels = { ...(config.gag2Stock?.channels || {}) };
+    renderGag2StockPickers();
   } else if (tabName === 'games') {
     for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
       setField(`wordChain.${key}`, config.wordChain?.[key]);
@@ -819,6 +854,7 @@ function collectTabState(tabName) {
       inviteCap: Number(getField('inviteRewards.capMembers')),
     };
   }
+  if (tabName === 'gag2Stock') return clone(state.gag2StockChannels);
   return {
     wordChain: {
       minWordLength: Number(getField('wordChain.minWordLength')),
@@ -862,11 +898,33 @@ function refreshDirtyState() {
   elements.unsavedDetail.textContent = dirtyNames.length ? `Changed: ${dirtyNames.join(', ')}` : '';
 }
 
+function applyFeatureVisibility(config) {
+  const fullBot = config?.features?.fullBot === true;
+  const allTabs = [...document.querySelectorAll('.tab')].map((tab) => tab.dataset.tab).filter(Boolean);
+  const visibleTabs = new Set(fullBot ? allTabs : ['gag2Stock']);
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.hidden = !visibleTabs.has(tab.dataset.tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach((panel) => {
+    if (!visibleTabs.has(panel.dataset.panel)) panel.classList.remove('active');
+  });
+  if (!visibleTabs.has(state.activeTab)) {
+    state.activeTab = 'gag2Stock';
+    document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === state.activeTab));
+    document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === state.activeTab));
+    elements.configForm.scrollTop = 0;
+  }
+  elements.guildSubtitle.textContent = fullBot
+    ? 'Changes apply to this Discord server only.'
+    : 'This server currently has GAG2 stock access only. Other features are hidden until the bot owner enables them.';
+}
+
 function fillConfig(config) {
   state.savedConfig = clone(config);
   state.channelValues = { ...(config.channels || {}) };
   state.roleValues = { ...(config.roles || {}) };
   for (const tabName of Object.keys(TAB_NAMES)) applyTabFromConfig(tabName, config);
+  applyFeatureVisibility(config);
   captureSavedSnapshots();
   refreshDirtyState();
 }
@@ -904,6 +962,9 @@ function collectPatch() {
     inviteRewards: {
       enabled: getField('inviteRewards.enabled'),
       capMembers: Number(getField('inviteRewards.capMembers')),
+    },
+    gag2Stock: {
+      channels: { ...state.gag2StockChannels },
     },
     wordChain: {
       minWordLength: Number(getField('wordChain.minWordLength')),

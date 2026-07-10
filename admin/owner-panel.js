@@ -152,15 +152,19 @@
       const usage = guild.usage || {};
       const aiTokens = usage.aiTokens || {};
       const currentAi = aiTokens.current || {};
+      const fullBot = guild.features?.fullBot === true;
+      const featureLabel = fullBot ? 'Full bot' : 'GAG2 stock only';
+      const featureButton = fullBot ? 'Features enabled' : 'Enable features';
       return `<tr class="${disabled ? 'is-disabled' : ''}">
         <td><div class="owner-guild-cell"><span class="owner-guild-icon">${guildIcon(guild)}</span><div><strong>${escapeHtml(guild.name)}</strong><small>${escapeHtml(guild.id)}</small></div></div></td>
         <td>${fmtNumber(guild.totalUsers)}</td>
         <td>${escapeHtml(guild.ownerId || 'Unknown')}</td>
         <td><span class="owner-pill ${guild.enabled ? 'ok' : 'danger'}">${guild.enabled ? 'Enabled' : 'Disabled'}</span></td>
+        <td><span class="owner-pill ${fullBot ? 'ok' : 'warn'}">${featureLabel}</span><small>GAG2 stock is enabled by default</small></td>
         <td><div class="owner-usage-stack"><span>${fmtNumber(usage.todayMessages)} messages today</span><small>${fmtCompactNumber(currentAi.totalTokens)} AI tokens (${fmtUsd(currentAi.estimatedCostUsd)}) this month, ${fmtNumber(currentAi.requests)} checks</small><small>History: ${escapeHtml(tokenHistoryText(aiTokens.history))}</small><small>Last AI use: ${escapeHtml(recentTokenLogText(aiTokens.recent))}</small><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></div></td>
         <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles</small></td>
         <td>${disabled ? `<small>${escapeHtml(disabled.reason || 'No reason')}</small>` : '<small>-</small>'}</td>
-        <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
+        <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button><button type="button" data-owner-action="toggle-features" data-guild-id="${guild.id}">${featureButton}</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
       </tr>`;
     }).join('');
 
@@ -193,7 +197,7 @@
     </section>
     <section class="owner-table-card">
       <div class="owner-table-head"><div><h3>Guilds</h3><p>All guilds currently visible to the bot.</p></div><span id="ownerPanelStatus" class="owner-status">${fmtNumber(payload.guilds?.length)} guilds loaded</span></div>
-      <div class="owner-table-wrap"><table class="owner-guild-table"><thead><tr><th>Guild</th><th>Users</th><th>Owner ID</th><th>Status</th><th>Usage</th><th>Storage</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${guildRows || '<tr><td colspan="8">No guilds found.</td></tr>'}</tbody></table></div>
+      <div class="owner-table-wrap"><table class="owner-guild-table"><thead><tr><th>Guild</th><th>Users</th><th>Owner ID</th><th>Status</th><th>Features</th><th>Usage</th><th>Storage</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${guildRows || '<tr><td colspan="9">No guilds found.</td></tr>'}</tbody></table></div>
     </section>`;
 
     ownerRoot.querySelector('#ownerDisableForm')?.addEventListener('submit', handleDisableSubmit);
@@ -282,6 +286,17 @@
     renderOwnerPanel(await ownerApi('/api/owner/overview'));
   }
 
+  async function toggleGuildFeatures(guildId) {
+    const guild = knownGuild(guildId);
+    const fullBot = guild?.features?.fullBot === true;
+    setOwnerStatus(fullBot ? 'Switching guild to GAG2 stock only...' : 'Enabling full bot features...', 'pending');
+    await ownerApi(`/api/owner/guilds/${guildId}/features`, {
+      method: 'POST',
+      body: JSON.stringify({ fullBot: !fullBot }),
+    });
+    renderOwnerPanel(await ownerApi('/api/owner/overview'));
+  }
+
   async function handleOwnerClick(event) {
     const action = event.target.closest('[data-owner-action]')?.dataset.ownerAction;
     if (!action) return;
@@ -290,6 +305,7 @@
       if (action === 'close') closeOwnerPanel();
       if (action === 'refresh') renderOwnerPanel(await ownerApi('/api/owner/overview'));
       if (action === 'edit-guild') await loadGuildAsOwner(event.target.closest('[data-guild-id]').dataset.guildId);
+      if (action === 'toggle-features') await toggleGuildFeatures(event.target.closest('[data-guild-id]').dataset.guildId);
       if (action === 'disable-row') {
         const guildId = event.target.closest('[data-guild-id]').dataset.guildId;
         ownerRoot.querySelector('#ownerDisableGuildId').value = guildId;

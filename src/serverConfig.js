@@ -13,8 +13,9 @@ const { DEFAULT_APPEAL_CONFIG, sanitizeAppealConfig } = require('./appealConfig'
 const { sanitizeCommunityMessages } = require('./communityMessageConfig');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
+const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
 
 function xpChannel(channelId, minXp = 1, maxXp = 3, cooldownMs = 0) {
   return { channelId, minXp, maxXp, cooldownMs };
@@ -128,8 +129,47 @@ const DEFAULT_LOGGING = {
 
 function cloneLogging(value) { return JSON.parse(JSON.stringify(value)); }
 
+const DEFAULT_FEATURES = {
+  gag2Stock: true,
+  fullBot: false,
+};
+
+const DEFAULT_COINSPRITE_FEATURES = {
+  ...DEFAULT_FEATURES,
+  fullBot: true,
+};
+
+const GAG2_STOCK_CHANNEL_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
+
+function blankGag2StockChannels() {
+  return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, '']));
+}
+
+function blankGag2StockRoleIds() {
+  return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, {}]));
+}
+
+const DEFAULT_GAG2_STOCK_CONFIG = {
+  enabled: true,
+  channels: blankGag2StockChannels(),
+  roleIds: blankGag2StockRoleIds(),
+  rolesSyncedAt: '',
+};
+
+const DEFAULT_COINSPRITE_GAG2_STOCK_CONFIG = {
+  ...DEFAULT_GAG2_STOCK_CONFIG,
+  channels: {
+    ...blankGag2StockChannels(),
+    seed: DEFAULT_GAG2_STOCK_CHANNEL_ID,
+    gear: DEFAULT_GAG2_STOCK_CHANNEL_ID,
+    crate: DEFAULT_GAG2_STOCK_CHANNEL_ID,
+  },
+  roleIds: blankGag2StockRoleIds(),
+};
+
 const DEFAULT_GUILD_CONFIG = {
   enabled: true,
+  features: DEFAULT_FEATURES,
   channels: {
     transcript: '',
     ticketPanel: '',
@@ -235,10 +275,12 @@ const DEFAULT_GUILD_CONFIG = {
     enabled: false,
     types: [],
   },
+  gag2Stock: DEFAULT_GAG2_STOCK_CONFIG,
 };
 
 const DEFAULT_COINSPRITE_GUILD_CONFIG = {
   ...DEFAULT_GUILD_CONFIG,
+  features: DEFAULT_COINSPRITE_FEATURES,
   channels: {
     transcript: '1495788766600757418',
     ticketPanel: '1493971939545583836',
@@ -348,6 +390,7 @@ const DEFAULT_COINSPRITE_GUILD_CONFIG = {
     ...cloneTicketValue(DEFAULT_TICKETS_CONFIG),
     types: cloneTicketValue(LEGACY_DEFAULT_TICKET_TYPES),
   },
+  gag2Stock: DEFAULT_COINSPRITE_GAG2_STOCK_CONFIG,
 };
 
 const DEFAULT_STATE = {
@@ -396,6 +439,48 @@ function ensureStoreFile() {
 function cleanChannelId(value) {
   const text = String(value || '').trim();
   return /^\d{16,20}$/.test(text) ? text : '';
+}
+
+function cleanRoleId(value) {
+  const text = String(value || '').trim();
+  return /^\d{16,20}$/.test(text) ? text : '';
+}
+
+function normalizeFeatures(value, defaults = DEFAULT_FEATURES) {
+  const source = isPlainObject(value) ? value : {};
+  return {
+    gag2Stock: source.gag2Stock === undefined ? defaults.gag2Stock !== false : source.gag2Stock !== false,
+    fullBot: source.fullBot === undefined ? Boolean(defaults.fullBot) : Boolean(source.fullBot),
+  };
+}
+
+function normalizeRoleIdMap(value) {
+  const source = isPlainObject(value) ? value : {};
+  const normalized = {};
+  for (const [key, roleId] of Object.entries(source)) {
+    const cleanKey = String(key || '').trim();
+    const cleanId = cleanRoleId(roleId);
+    if (cleanKey && cleanId) normalized[cleanKey] = cleanId;
+  }
+  return normalized;
+}
+
+function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
+  const source = isPlainObject(value) ? value : {};
+  const defaultChannels = defaults.channels || {};
+  const defaultRoleIds = defaults.roleIds || {};
+  const channels = {};
+  const roleIds = {};
+  for (const key of GAG2_STOCK_CHANNEL_KEYS) {
+    channels[key] = cleanChannelId(source.channels?.[key] ?? defaultChannels[key]);
+    roleIds[key] = normalizeRoleIdMap(source.roleIds?.[key] ?? defaultRoleIds[key]);
+  }
+  return {
+    enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
+    channels,
+    roleIds,
+    rolesSyncedAt: String(source.rolesSyncedAt || ''),
+  };
 }
 
 function normalizeLogging(rawLogging, legacyChannels = {}, legacyModeration = {}, defaults = DEFAULT_LOGGING) {
@@ -451,6 +536,8 @@ function normalizeGuildConfig(guildId, guildConfig, defaults) {
   delete merged.xp.lowXpAmount;
   delete merged.xp.levelFunMessages;
   merged.enabled = guildConfig?.enabled === false ? false : true;
+  merged.features = normalizeFeatures(guildConfig?.features ?? merged.features, defaults.features || DEFAULT_FEATURES);
+  merged.gag2Stock = normalizeGag2StockConfig(guildConfig?.gag2Stock ?? merged.gag2Stock, defaults.gag2Stock || DEFAULT_GAG2_STOCK_CONFIG);
   merged.logging = normalizeLogging(guildConfig?.logging, merged.channels, merged.moderation, defaults.logging || DEFAULT_LOGGING);
   merged.xp.levelUpMessage = sanitizeLevelUpMessage(merged.xp.levelUpMessage, defaults.xp.levelUpMessage);
   const spam = merged.moderation.auto.spam || {};
@@ -659,8 +746,51 @@ function isGuildEnabled(guildId) {
   return Boolean(getGuildConfig(guildId));
 }
 
+function getGuildFeatureFlags(guildId) {
+  return clone((getGuildConfigRaw(guildId) || defaultConfigForGuild(guildId))?.features || DEFAULT_FEATURES);
+}
+
+function setGuildFeatures(guildId, featurePatch = {}) {
+  const id = String(guildId || '').trim();
+  if (!/^\d{16,20}$/.test(id)) return null;
+  const state = loadState();
+  state.guilds[id] ||= defaultConfigForGuild(id);
+  state.guilds[id].features = normalizeFeatures({
+    ...(state.guilds[id].features || {}),
+    ...(isPlainObject(featurePatch) ? featurePatch : {}),
+  }, defaultConfigForGuild(id).features || DEFAULT_FEATURES);
+  saveState(state);
+  return getGuildConfigRaw(id);
+}
+
+function isGuildFullBotEnabled(guildId) {
+  const config = getGuildConfig(guildId);
+  return Boolean(config?.features?.fullBot);
+}
+
+function isGuildGag2StockEnabled(guildId) {
+  const config = getGuildConfig(guildId);
+  return Boolean(config?.features?.gag2Stock && config?.gag2Stock?.enabled !== false);
+}
+
+function updateGuildGag2StockRoleIds(guildId, type, roleIds) {
+  const id = String(guildId || '').trim();
+  const key = String(type || '').trim();
+  if (!/^\d{16,20}$/.test(id) || !GAG2_STOCK_CHANNEL_KEYS.includes(key)) return null;
+  const state = loadState();
+  state.guilds[id] ||= defaultConfigForGuild(id);
+  const defaults = id === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GAG2_STOCK_CONFIG : DEFAULT_GAG2_STOCK_CONFIG;
+  state.guilds[id].gag2Stock = normalizeGag2StockConfig(state.guilds[id].gag2Stock, defaults);
+  state.guilds[id].gag2Stock.roleIds[key] = normalizeRoleIdMap(roleIds);
+  state.guilds[id].gag2Stock.rolesSyncedAt = new Date().toISOString();
+  saveState(state);
+  return getGuildConfigRaw(id);
+}
+
 module.exports = {
   DEFAULT_COMMUNITY_MESSAGES,
+  DEFAULT_FEATURES,
+  DEFAULT_GAG2_STOCK_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_LOGGING,
   DEFAULT_SPAM_AUTOMOD,
@@ -668,6 +798,7 @@ module.exports = {
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
+  GAG2_STOCK_CHANNEL_KEYS,
   SCHEMA_VERSION,
   STORE_PATH,
   deleteGuildConfig,
@@ -675,13 +806,18 @@ module.exports = {
   getConfiguredGuildIds,
   getDisabledGuilds,
   getEnabledGuildIds,
+  getGuildFeatureFlags,
   getGuildConfig,
   getGuildConfigRaw,
   getGuildConfigValue,
   isGuildEnabled,
+  isGuildFullBotEnabled,
+  isGuildGag2StockEnabled,
   loadState,
   normalizeLogging,
   resolveLoggingChannelId,
   saveState,
   setGuildEnabled,
+  setGuildFeatures,
+  updateGuildGag2StockRoleIds,
 };

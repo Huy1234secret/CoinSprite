@@ -6,12 +6,13 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { ensureGuildConfig, getEnabledGuildIds, getGuildConfig, getGuildConfigRaw, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
-const { handleOwnerDisable, handleOwnerEnable, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
+const { handleOwnerDisable, handleOwnerEnable, handleOwnerFeatures, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
 const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
 const { handleUserModerationAction } = require('./adminModerationActionRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
+const { syncGag2StockGuildSetup } = require('./gag2Stock/manager');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const APPEAL_DIR = path.join(__dirname, '..', 'appeal');
@@ -588,6 +589,12 @@ async function routeRequest(req, res, env, client) {
       ? handleOwnerDisable(req, res, client, ownerActionMatch[1], session, deps)
       : handleOwnerEnable(req, res, client, ownerActionMatch[1], session, deps);
   }
+  const ownerFeaturesMatch = url.pathname.match(/^\/api\/owner\/guilds\/(\d{16,20})\/features$/);
+  if (ownerFeaturesMatch && (req.method === 'POST' || req.method === 'PATCH')) {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerFeatures(req, res, client, ownerFeaturesMatch[1], session, { readJsonBody, sendJson });
+  }
 
   const directoryMatch = url.pathname.match(/^\/api\/guilds\/(\d{16,20})\/directory$/);
   if (directoryMatch && req.method === 'GET') {
@@ -722,11 +729,21 @@ async function routeRequest(req, res, env, client) {
     const guildId = configMatch[1];
     const session = await requireAdmin(req, res, env, client, guildId);
     if (!session) return;
-    const config = updateGuildConfig(guildId, await readJsonBody(req));
+    const currentConfig = getGuildConfigRaw(guildId);
+    let patch = await readJsonBody(req);
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) patch = {};
+    delete patch.features;
+    if (!isOwnerSession(session, client) && currentConfig?.features?.fullBot === false) {
+      patch = patch?.gag2Stock ? { gag2Stock: patch.gag2Stock } : {};
+    }
+    const config = updateGuildConfig(guildId, patch);
     const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
     const ticketCommand = client.commands?.get('ticket-panel');
     if (guild && config?.enabled !== false && typeof ticketCommand?.refreshGuild === 'function') {
       await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
+    }
+    if (guild && config?.enabled !== false) {
+      syncGag2StockGuildSetup(client, guildId).catch((error) => logCommandSystem(`GAG2 stock setup sync failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
     }
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config });
