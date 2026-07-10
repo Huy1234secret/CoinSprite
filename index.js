@@ -12,6 +12,7 @@ const { loadState, saveState } = require('./src/ticketSystemStore');
 const inviteRewardsManager = require('./src/inviteRewardsManager');
 const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
 const { registerConsolidatedAdminCommands, startAdminServer } = require('./src/adminServer');
+const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const TICKET_ACTION_SELECT_PREFIX = 'ticket:actions:';
@@ -551,6 +552,7 @@ client.once(Events.ClientReady, async () => {
   startAdminServer(client);
   await initCommandModules();
   await runInviteRewardHook('init', client); // FIXED: avoids calling .catch() on undefined legacy hook output.
+  await startGag2StockPoster(client);
   await registerSlashCommands();
 });
 
