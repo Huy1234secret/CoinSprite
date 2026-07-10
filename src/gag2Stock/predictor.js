@@ -23,83 +23,39 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
-function parsePredictorScript(scriptSource) {
-  if (typeof scriptSource !== 'string' || !scriptSource.trim()) {
-    throw new Error('empty predictor script');
+function parseStockApiResponse(payload) {
+  if (typeof payload === 'string') {
+    return validateStockApiData(JSON.parse(payload));
   }
-
-  const match = scriptSource.match(/let\s+DATA\s*=\s*([\s\S]*?);\s*let\s+PERIOD\b/);
-  if (!match) throw new Error('DATA object not found in predictor script');
-
-  let data;
-  try {
-    data = JSON.parse(match[1]);
-  } catch {
-    data = Function('"use strict"; return (' + match[1] + ');')();
-  }
-
-  return validatePredictorData(data);
+  return validateStockApiData(payload);
 }
 
-function validatePredictorData(data) {
-  if (!data || typeof data !== 'object') throw new Error('invalid predictor data');
+function validateStockApiData(data) {
+  if (!data || typeof data !== 'object') throw new Error('invalid GAG2 stock API payload');
   const period = toNumber(data.period);
-  if (!period || period < 1) throw new Error('invalid predictor period');
+  if (!period || period < 1) throw new Error('invalid GAG2 stock period');
+  if (!data.upcoming || typeof data.upcoming !== 'object') throw new Error('missing GAG2 upcoming stock');
 
   for (const category of CATEGORY_CONFIG) {
-    if (!Array.isArray(data[category.key])) throw new Error(`missing ${category.key} list`);
-    if (!Number.isFinite(toNumber(data[category.anchorKey], NaN))) {
-      throw new Error(`missing ${category.anchorKey}`);
+    const windows = data.upcoming[category.key];
+    if (!Array.isArray(windows)) throw new Error(`missing ${category.key} stock windows`);
+    for (const window of windows) {
+      if (!Number.isFinite(toNumber(window?.time, NaN))) throw new Error(`invalid ${category.key} stock time`);
+      if (!Array.isArray(window?.items)) throw new Error(`invalid ${category.key} stock items`);
     }
   }
 
   return data;
 }
 
-function getCount(data) {
-  const configuredCount = Math.floor(toNumber(data?.count));
-  if (configuredCount > 0) return configuredCount;
-  return Math.max(
-    0,
-    ...CATEGORY_CONFIG.flatMap((category) => (
-      Array.isArray(data?.[category.key])
-        ? data[category.key].map((item) => Array.isArray(item?.q) ? item.q.length : 0)
-        : [0]
-    )),
-  );
-}
-
-function getSourceWindow(data) {
-  const periodSeconds = Math.max(1, Math.floor(toNumber(data?.period, 300)));
-  const count = getCount(data);
-  const anchors = CATEGORY_CONFIG
-    .map((category) => toNumber(data?.[category.anchorKey], NaN))
-    .filter(Number.isFinite);
-  const startSeconds = anchors.length ? Math.min(...anchors) : 0;
-  const endSeconds = anchors.length ? Math.max(...anchors.map((anchor) => anchor + (count * periodSeconds))) : 0;
-
-  return {
-    count,
-    endMs: endSeconds * 1000,
-    periodSeconds,
-    startMs: startSeconds * 1000,
-  };
-}
-
 function getRarityRank(rarity) {
   return RARITY_RANK[String(rarity || '').toLowerCase()] || 0;
 }
 
-function getQuantityAt(item, index) {
-  if (!item || !Array.isArray(item.q) || index < 0 || index >= item.q.length) return 0;
-  return Math.max(0, Math.floor(toNumber(item.q[index])));
-}
-
-function normalizeStockItem(item, quantity, extra = {}) {
+function normalizeStockItem(item, extra = {}) {
   return {
     name: String(item?.name || 'Unknown Item'),
-    price: Math.max(0, Math.floor(toNumber(item?.price))),
-    quantity,
+    quantity: Math.max(0, Math.floor(toNumber(item?.qty ?? item?.quantity))),
     rarity: String(item?.rarity || 'Unknown'),
     ...extra,
   };
@@ -107,38 +63,62 @@ function normalizeStockItem(item, quantity, extra = {}) {
 
 function compareImportantItems(left, right) {
   return getRarityRank(right.rarity) - getRarityRank(left.rarity)
-    || right.price - left.price
+    || right.quantity - left.quantity
     || left.name.localeCompare(right.name);
 }
 
-function getCurrentItems(items, windowIndex) {
-  return items
-    .map((item) => normalizeStockItem(item, getQuantityAt(item, windowIndex)))
+function getSortedWindows(data, categoryKey) {
+  return [...(data?.upcoming?.[categoryKey] || [])]
+    .map((window) => ({
+      timeSeconds: Math.floor(toNumber(window?.time)),
+      items: Array.isArray(window?.items) ? window.items : [],
+    }))
+    .filter((window) => Number.isFinite(window.timeSeconds))
+    .sort((left, right) => left.timeSeconds - right.timeSeconds);
+}
+
+function getSourceWindow(data) {
+  const periodSeconds = Math.max(1, Math.floor(toNumber(data?.period, 300)));
+  const allTimes = CATEGORY_CONFIG
+    .flatMap((category) => getSortedWindows(data, category.key).map((window) => window.timeSeconds));
+  const startSeconds = allTimes.length ? Math.min(...allTimes) : 0;
+  const endSeconds = allTimes.length ? Math.max(...allTimes) + periodSeconds : 0;
+
+  return {
+    endMs: endSeconds * 1000,
+    periodSeconds,
+    startMs: startSeconds * 1000,
+  };
+}
+
+function findCurrentWindow(windows, nowSeconds, periodSeconds) {
+  const exact = windows.find((window) => window.timeSeconds <= nowSeconds && nowSeconds < window.timeSeconds + periodSeconds);
+  if (exact) return exact;
+
+  const latestPast = [...windows].reverse().find((window) => window.timeSeconds <= nowSeconds);
+  if (latestPast && nowSeconds < latestPast.timeSeconds + periodSeconds) return latestPast;
+  return null;
+}
+
+function getCurrentItems(window) {
+  return (window?.items || [])
+    .map((item) => normalizeStockItem(item))
     .filter((item) => item.quantity > 0)
     .sort(compareImportantItems);
 }
 
-function findNextStock(item, startIndex, count, anchorSeconds, periodSeconds) {
-  for (let index = Math.max(0, startIndex); index < count; index += 1) {
-    const quantity = getQuantityAt(item, index);
-    if (quantity > 0) {
-      return {
-        index,
-        quantity,
-        restockAtMs: (anchorSeconds + (index * periodSeconds)) * 1000,
-      };
+function getUpcomingItems(windows, currentWindow, nowSeconds) {
+  const firstSeenByName = new Map();
+  for (const window of windows) {
+    if (window.timeSeconds <= (currentWindow?.timeSeconds ?? nowSeconds)) continue;
+    for (const rawItem of window.items) {
+      const item = normalizeStockItem(rawItem, { restockAtMs: window.timeSeconds * 1000 });
+      if (item.quantity <= 0 || firstSeenByName.has(item.name)) continue;
+      firstSeenByName.set(item.name, item);
     }
   }
-  return null;
-}
 
-function getUpcomingItems(items, windowIndex, count, anchorSeconds, periodSeconds) {
-  return items
-    .map((item) => {
-      const next = findNextStock(item, windowIndex + 1, count, anchorSeconds, periodSeconds);
-      return next ? normalizeStockItem(item, next.quantity, next) : null;
-    })
-    .filter(Boolean)
+  return [...firstSeenByName.values()]
     .sort((left, right) => (
       compareImportantItems(left, right)
       || left.restockAtMs - right.restockAtMs
@@ -146,69 +126,65 @@ function getUpcomingItems(items, windowIndex, count, anchorSeconds, periodSecond
     .slice(0, MAX_UPCOMING_ITEMS);
 }
 
-function buildCategoryPrediction(data, category, nowMs) {
+function buildCategoryStock(data, category, nowMs) {
   const periodSeconds = Math.max(1, Math.floor(toNumber(data.period, 300)));
-  const count = getCount(data);
-  const anchorSeconds = toNumber(data[category.anchorKey]);
   const nowSeconds = Math.floor(nowMs / 1000);
-  const windowIndex = Math.floor((nowSeconds - anchorSeconds) / periodSeconds);
-  const valid = windowIndex >= 0 && windowIndex < count;
-  const nextWindowIndex = nowSeconds < anchorSeconds ? 0 : windowIndex + 1;
-  const nextRestockAtMs = (anchorSeconds + (nextWindowIndex * periodSeconds)) * 1000;
-  const items = Array.isArray(data[category.key]) ? data[category.key] : [];
+  const windows = getSortedWindows(data, category.key);
+  const currentWindow = findCurrentWindow(windows, nowSeconds, periodSeconds);
+  const nextWindow = windows.find((window) => window.timeSeconds > nowSeconds) || null;
 
   return {
     ...category,
-    current: valid ? getCurrentItems(items, windowIndex) : [],
-    nextRestockAtMs,
-    upcoming: valid ? getUpcomingItems(items, windowIndex, count, anchorSeconds, periodSeconds) : [],
-    valid,
-    windowIndex,
+    current: getCurrentItems(currentWindow),
+    currentWindowEndsAtMs: currentWindow ? (currentWindow.timeSeconds + periodSeconds) * 1000 : null,
+    currentWindowTimeMs: currentWindow ? currentWindow.timeSeconds * 1000 : null,
+    nextRestockAtMs: nextWindow ? nextWindow.timeSeconds * 1000 : null,
+    upcoming: getUpcomingItems(windows, currentWindow, nowSeconds),
+    valid: Boolean(currentWindow),
   };
 }
 
-function buildPrediction(data, nowMs = Date.now()) {
+function buildStockSnapshot(data, nowMs = Date.now()) {
   const sourceWindow = getSourceWindow(data);
-  const categories = CATEGORY_CONFIG.map((category) => buildCategoryPrediction(data, category, nowMs));
+  const categories = CATEGORY_CONFIG.map((category) => buildCategoryStock(data, category, nowMs));
   const validCategories = categories.filter((category) => category.valid);
   const nextRestockAtMs = validCategories.length
     ? Math.min(...validCategories.map((category) => category.nextRestockAtMs).filter(Number.isFinite))
     : null;
-  const generatedAtSeconds = toNumber(data?.generatedAt, 0);
+  const currentWindowEndsAtMs = validCategories.length
+    ? Math.min(...validCategories.map((category) => category.currentWindowEndsAtMs).filter(Number.isFinite))
+    : null;
+  const apiNowSeconds = toNumber(data?.now, 0);
 
   return {
+    apiNowMs: apiNowSeconds ? apiNowSeconds * 1000 : null,
     categories,
-    generatedAtMs: generatedAtSeconds ? generatedAtSeconds * 1000 : null,
+    currentWindowEndsAtMs,
     nextRestockAtMs,
     periodSeconds: sourceWindow.periodSeconds,
     sourceEndsAtMs: sourceWindow.endMs,
-    sourceExpired: validCategories.length === 0 && nowMs >= sourceWindow.endMs,
+    sourceStale: validCategories.length === 0 && nowMs >= sourceWindow.endMs,
     sourceStartsAtMs: sourceWindow.startMs,
     sourceWaiting: validCategories.length === 0 && nowMs < sourceWindow.startMs,
   };
 }
 
-function buildPostKey(prediction) {
-  if (!prediction || prediction.sourceExpired) {
-    return `expired:${prediction?.sourceEndsAtMs || 'unknown'}:${prediction?.generatedAtMs || 'unknown'}`;
+function buildPostKey(snapshot) {
+  if (!snapshot || snapshot.sourceStale) {
+    return `stale:${snapshot?.sourceEndsAtMs || 'unknown'}:${snapshot?.apiNowMs || 'unknown'}`;
   }
-  if (prediction.sourceWaiting) {
-    return `waiting:${prediction.sourceStartsAtMs || 'unknown'}:${prediction.generatedAtMs || 'unknown'}`;
+  if (snapshot.sourceWaiting) {
+    return `waiting:${snapshot.sourceStartsAtMs || 'unknown'}:${snapshot.apiNowMs || 'unknown'}`;
   }
-  return `stock:${prediction.generatedAtMs || 'unknown'}:${prediction.categories.map((category) => `${category.key}:${category.windowIndex}`).join('|')}`;
+  return `stock:${snapshot.categories.map((category) => `${category.key}:${category.currentWindowTimeMs || 'none'}`).join('|')}`;
 }
 
 function formatTimestamp(ms, style = 'R') {
   return Number.isFinite(ms) ? `<t:${Math.floor(ms / 1000)}:${style}>` : 'unknown';
 }
 
-function formatMoney(value) {
-  const amount = Math.max(0, Math.floor(toNumber(value)));
-  return `$${amount.toLocaleString('en-US')}`;
-}
-
 function formatStockLine(item) {
-  return `* **${item.name}** x${item.quantity} - ${item.rarity} - ${formatMoney(item.price)}`;
+  return `* **${item.name}** x${item.quantity} - ${item.rarity}`;
 }
 
 function formatUpcomingLine(item) {
@@ -222,21 +198,23 @@ function formatList(items, formatter, fallback) {
 
 function formatCategorySection(category) {
   if (!category.valid) {
-    return `### ${category.title} prediction\n* Prediction unavailable for this category in the current source window.`;
+    return `### ${category.title} stock\n* Stock unavailable for this category in the current API window.`;
   }
 
   return [
-    `### ${category.title} prediction`,
-    '**Predicted now:**',
-    formatList(category.current, formatStockLine, '* None predicted right now.'),
+    `### ${category.title} stock`,
+    `* Window ends: ${formatTimestamp(category.currentWindowEndsAtMs)}`,
+    '',
+    '**In stock now:**',
+    formatList(category.current, formatStockLine, '* None listed right now.'),
     '',
     '**Next notable:**',
-    formatList(category.upcoming, formatUpcomingLine, '* No later stock found in this source window.'),
+    formatList(category.upcoming, formatUpcomingLine, '* No later stock found in this API window.'),
   ].join('\n');
 }
 
-function buildStockPayload(prediction, options = {}) {
-  if (prediction?.sourceExpired) {
+function buildStockPayload(snapshot, options = {}) {
+  if (snapshot?.sourceStale) {
     return {
       allowedMentions: NO_MENTIONS,
       flags: COMPONENTS_V2_FLAG,
@@ -248,12 +226,12 @@ function buildStockPayload(prediction, options = {}) {
             {
               type: 10,
               content: [
-                '## GAG2 Stock Prediction',
-                '* Status: **source data expired**',
-                `* Source valid until: ${formatTimestamp(prediction.sourceEndsAtMs, 'F')}`,
+                '## GAG2 Stock',
+                '* Status: **source data stale**',
+                `* Source valid until: ${formatTimestamp(snapshot.sourceEndsAtMs, 'F')}`,
                 options.sourceUrl ? `* Source: ${options.sourceUrl}` : null,
                 '',
-                '-# No stock prediction was posted because the public predictor data no longer covers the current time.',
+                '-# No stock was posted because the API data no longer covers the current time.',
               ].filter(Boolean).join('\n'),
             },
           ],
@@ -263,9 +241,9 @@ function buildStockPayload(prediction, options = {}) {
   }
 
   const header = [
-    '## GAG2 Stock Prediction',
-    `* Next restock: ${formatTimestamp(prediction?.nextRestockAtMs)}`,
-    `* Source valid until: ${formatTimestamp(prediction?.sourceEndsAtMs, 'F')}`,
+    '## GAG2 Stock',
+    `* Current window ends: ${formatTimestamp(snapshot?.currentWindowEndsAtMs)}`,
+    `* Next restock: ${formatTimestamp(snapshot?.nextRestockAtMs)}`,
   ];
   if (options.sourceUrl) header.push(`* Source: ${options.sourceUrl}`);
 
@@ -274,14 +252,14 @@ function buildStockPayload(prediction, options = {}) {
     { type: 14, divider: true, spacing: 1 },
   ];
 
-  for (const category of prediction?.categories || []) {
+  for (const category of snapshot?.categories || []) {
     components.push({ type: 10, content: formatCategorySection(category) });
     components.push({ type: 14, divider: true, spacing: 1 });
   }
 
   components.push({
     type: 10,
-    content: '-# Prediction only. GAG2 stock is server-sided; this uses the public GAG-2-Predictor dataset.',
+    content: '-# Stock data from game.guide API. GAG2 stock is server-sided, so treat third-party stock feeds as best-effort.',
   });
 
   return {
@@ -309,7 +287,7 @@ function buildUnavailablePayload(errorMessage, nowMs = Date.now()) {
           {
             type: 10,
             content: [
-              '## GAG2 Stock Prediction',
+              '## GAG2 Stock',
               '* Status: **source unavailable**',
               `* Checked: ${formatTimestamp(nowMs, 'F')}`,
               '',
@@ -324,11 +302,11 @@ function buildUnavailablePayload(errorMessage, nowMs = Date.now()) {
 
 module.exports = {
   buildPostKey,
-  buildPrediction,
   buildStockPayload,
+  buildStockSnapshot,
   buildUnavailablePayload,
   formatCategorySection,
   getSourceWindow,
-  parsePredictorScript,
-  validatePredictorData,
+  parseStockApiResponse,
+  validateStockApiData,
 };

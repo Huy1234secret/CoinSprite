@@ -1,18 +1,18 @@
 const { logCommandSystem } = require('../commandLogger');
 const {
   CHECK_INTERVAL_MS,
-  DATA_SOURCE_URLS,
   POST_CHANNEL_ID,
   SOURCE_REFRESH_MS,
   STATE_PATH,
+  STOCK_API_URLS,
 } = require('./config');
 const {
   buildPostKey,
-  buildPrediction,
+  buildStockSnapshot,
   buildStockPayload,
   buildUnavailablePayload,
 } = require('./predictor');
-const { loadPredictorData } = require('./source');
+const { loadStockData } = require('./source');
 const { loadState, saveState } = require('./stateStore');
 
 class Gag2StockPoster {
@@ -21,9 +21,9 @@ class Gag2StockPoster {
     this.channelId = options.channelId || POST_CHANNEL_ID;
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.sourceRefreshMs = options.sourceRefreshMs || SOURCE_REFRESH_MS;
-    this.sourceUrls = options.sourceUrls || DATA_SOURCE_URLS;
+    this.sourceUrls = options.sourceUrls || STOCK_API_URLS;
     this.statePath = options.statePath || STATE_PATH;
-    this.loadPredictorData = options.loadPredictorData || loadPredictorData;
+    this.loadStockData = options.loadStockData || loadStockData;
     this.now = options.now || (() => Date.now());
     this.cachedSource = null;
     this.inFlight = false;
@@ -62,7 +62,7 @@ class Gag2StockPoster {
       return this.cachedSource;
     }
 
-    const source = await this.loadPredictorData({ urls: this.sourceUrls });
+    const source = await this.loadStockData({ urls: this.sourceUrls });
     this.cachedSource = {
       ...source,
       fetchedAtMs: now,
@@ -77,12 +77,12 @@ class Gag2StockPoster {
     try {
       const state = loadState(this.statePath);
       const source = await this.getSource();
-      const prediction = buildPrediction(source.data, this.now());
-      const postKey = buildPostKey(prediction);
+      const snapshot = buildStockSnapshot(source.data, this.now());
+      const postKey = buildPostKey(snapshot);
       if (state.lastPostedKey === postKey) return null;
 
       const channel = await this.getChannel();
-      const message = await channel.send(buildStockPayload(prediction, { sourceUrl: source.sourceUrl }));
+      const message = await channel.send(buildStockPayload(snapshot, { sourceUrl: source.sourceUrl }));
       saveState({
         ...state,
         channelId: this.channelId,
@@ -90,13 +90,13 @@ class Gag2StockPoster {
         lastPostedAt: new Date(this.now()).toISOString(),
         lastPostedKey: postKey,
       }, this.statePath);
-      logCommandSystem(`GAG2 stock prediction posted to ${this.channelId}: ${postKey}`);
+      logCommandSystem(`GAG2 stock posted to ${this.channelId}: ${postKey}`);
       return message;
     } catch (error) {
       await this.postUnavailableOnce(error).catch((postError) => {
         logCommandSystem(`GAG2 stock unavailable notice failed: ${postError?.message || 'unknown error'}`);
       });
-      logCommandSystem(`GAG2 stock prediction failed: ${error?.message || 'unknown error'}`);
+      logCommandSystem(`GAG2 stock failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
       this.inFlight = false;
