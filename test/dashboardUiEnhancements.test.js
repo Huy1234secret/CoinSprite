@@ -114,3 +114,22 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(server, /getGag2StockSetupProgress/);
   assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);
 });
+
+test('dashboard exposes terms and bug reports with owner report review hooks', () => {
+  const html = source('admin/index.html');
+  const sitePages = source('admin/site-pages.js');
+  const ownerPanel = source('admin/owner-panel.js');
+  const ownerRoutes = source('src/ownerPanelRoutes.js');
+  const server = source('src/adminServer.js');
+
+  assert.match(html, /data-site-page="terms-service"/);
+  assert.match(html, /data-site-page="terms-use"/);
+  assert.match(html, /data-site-page="report-bugs"/);
+  assert.match(html, /\/admin\/site-pages\.js/);
+  assert.match(sitePages, /bugReportForm/);
+  assert.match(sitePages, /\/api\/bug-reports/);
+  assert.match(ownerPanel, /data-owner-view="reports"/);
+  assert.match(ownerPanel, /\/api\/owner\/reports/);
+  assert.match(ownerRoutes, /handleBugReportCreate/);
+  assert.match(server, /\/api\/bug-reports/);
+});

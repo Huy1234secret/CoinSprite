@@ -24,6 +24,7 @@ const SELL_BONUS_COLORS = {
   '2x': 0xE2AB0F,
   '4x': 0x7DE3FF,
 };
+const SHECKLES_EMOJI = '<:sheckles:1525368044824825976>';
 
 const RARITY_LABELS = {
   common: 'Common',
@@ -303,7 +304,7 @@ function sellBonusRoleForEntry(entry) {
   return {
     key: `${rarity}_${bucket}`,
     name: `${RARITY_LABELS[rarity]} ${bucket}`,
-    emoji: bucket === '4x' ? '💎' : '💰',
+    emoji: SHECKLES_EMOJI,
     roleName: `${RARITY_LABELS[rarity]} ${bucket}`,
     color: SELL_BONUS_COLORS[bucket],
     bucket,
@@ -315,7 +316,7 @@ function sellBonusRoleSpecs() {
     ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'].map((rarity) => ({
       key: `${rarity}_${bucket}`,
       name: `${RARITY_LABELS[rarity]} ${bucket}`,
-      emoji: bucket === '4x' ? '💎' : '💰',
+      emoji: SHECKLES_EMOJI,
       roleName: `${RARITY_LABELS[rarity]} ${bucket}`,
       color: SELL_BONUS_COLORS[bucket],
     }))
@@ -333,6 +334,7 @@ function roleSpecsForType(type) {
 
 module.exports = {
   SELL_BONUS_COLORS,
+  SHECKLES_EMOJI,
   catalogEntry,
   colorForType,
   customEmojiImageUrl,

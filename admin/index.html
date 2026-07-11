@@ -16,7 +16,14 @@
     <div class="brand">
       <img class="brand-mark" src="/bot-avatar.png" alt="CoinSprite bot profile image">
       <div class="brand-copy">
-        <h1>CoinSprite</h1>
+        <div class="brand-title-row">
+          <h1>CoinSprite</h1>
+          <nav class="site-links" aria-label="Site links">
+            <button type="button" data-site-page="terms-service">Terms of Service</button>
+            <button type="button" data-site-page="terms-use">Terms of Use</button>
+            <button type="button" data-site-page="report-bugs">Report bugs</button>
+          </nav>
+        </div>
         <p>Server administration</p>
       </div>
     </div>
@@ -41,6 +48,8 @@
       <div class="status compact" id="loginStatus" role="status">Checking session...</div>
     </section>
   </main>
+
+  <main class="site-info-page" id="siteInfoPage" hidden></main>
 
   <main class="layout" id="appShell" hidden>
     <aside class="sidebar">
@@ -405,6 +414,7 @@
   <script src="/admin/message-template-workflow.js?v=workflow-1" defer></script><!-- ADDED: fixes message template workflow before the Messages tab loads. -->
   <script src="/admin/message-inline-editor.js" defer></script>
   <script src="/admin/message-edit-shortcuts.js" defer></script>
+  <script src="/admin/site-pages.js?v=site-pages-1" defer></script>
   <script src="/admin/owner-panel.js?v=owner-tokens-1" defer></script>
 </body>
 </html>

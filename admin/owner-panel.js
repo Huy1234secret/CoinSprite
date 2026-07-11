@@ -5,6 +5,9 @@
   const OTHER_VALUE = '__owner_other_guild__';
   let ownerRoot = null;
   let ownerData = null;
+  let ownerView = 'overview';
+  let ownerReports = [];
+  let ownerReportsLoaded = false;
   let installed = false;
   let messageAssetsStarted = false;
 
@@ -127,6 +130,58 @@
     return `<span>${escapeHtml(initials || '?')}</span>`;
   }
 
+  function fmtFileSize(bytes) {
+    const value = Number(bytes) || 0;
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function reportDate(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Unknown time' : date.toLocaleString();
+  }
+
+  function reportAttachmentHtml(report) {
+    const attachment = report?.attachment;
+    if (!attachment?.data) return '<span class="owner-muted">No attachment</span>';
+    const href = `data:${escapeHtml(attachment.type || 'application/octet-stream')};base64,${escapeHtml(attachment.data)}`;
+    return `<a class="owner-report-attachment" download="${escapeHtml(attachment.name || 'attachment')}" href="${href}">${escapeHtml(attachment.name || 'attachment')} (${fmtFileSize(attachment.size)})</a>`;
+  }
+
+  function reportStatusActions(report) {
+    return ['open', 'reviewed', 'closed'].map((status) => (
+      `<button type="button" data-owner-action="report-status" data-report-id="${escapeHtml(report.id)}" data-report-status="${status}" ${report.status === status ? 'disabled' : ''}>${status}</button>`
+    )).join('');
+  }
+
+  function renderReportsPanel() {
+    const rows = ownerReports.map((report) => `<article class="owner-report-card">
+      <div class="owner-report-main">
+        <div><span class="owner-pill ${report.status === 'open' ? 'warn' : report.status === 'closed' ? 'ok' : ''}">${escapeHtml(report.status)}</span><span class="owner-pill">${escapeHtml(report.severity)}</span></div>
+        <h3>${escapeHtml(report.title)}</h3>
+        <p>${escapeHtml(report.description)}</p>
+        ${report.expected ? `<p><strong>Expected:</strong> ${escapeHtml(report.expected)}</p>` : ''}
+        ${report.steps ? `<p><strong>Steps:</strong><br>${escapeHtml(report.steps).replace(/\n/g, '<br>')}</p>` : ''}
+      </div>
+      <div class="owner-report-meta">
+        <span><strong>Category:</strong> ${escapeHtml(report.category || 'Other')}</span>
+        <span><strong>Reporter:</strong> ${escapeHtml(report.reporter?.globalName || report.reporter?.username || report.reporter?.id || 'Unknown')}</span>
+        <span><strong>User ID:</strong> ${escapeHtml(report.reporter?.id || 'Unknown')}</span>
+        <span><strong>Guild ID:</strong> ${escapeHtml(report.guildId || 'N/A')}</span>
+        <span><strong>Contact:</strong> ${escapeHtml(report.contact || 'N/A')}</span>
+        <span><strong>Created:</strong> ${escapeHtml(reportDate(report.createdAt))}</span>
+        <span><strong>Page:</strong> ${escapeHtml(report.pageUrl || 'N/A')}</span>
+        <span><strong>Attachment:</strong> ${reportAttachmentHtml(report)}</span>
+        <div class="owner-row-actions">${reportStatusActions(report)}</div>
+      </div>
+    </article>`).join('');
+    return `<section class="owner-table-card owner-reports-card">
+      <div class="owner-table-head"><div><h3>Reports</h3><p>Bug reports submitted from the dashboard.</p></div><span class="owner-status" data-owner-status>${fmtNumber(ownerReports.length)} reports loaded</span></div>
+      <div class="owner-report-list">${rows || '<div class="owner-empty">No bug reports submitted yet.</div>'}</div>
+    </section>`;
+  }
+
   function ensurePanel() {
     if (ownerRoot) return ownerRoot;
     ownerRoot = document.createElement('main');
@@ -139,7 +194,8 @@
   }
 
   function setOwnerStatus(message, kind = '') {
-    const node = document.querySelector('#ownerPanelStatus');
+    const node = ownerRoot?.querySelector(`.owner-view-panel:not([hidden]) [data-owner-status]`)
+      || ownerRoot?.querySelector('[data-owner-status]');
     if (!node) return;
     node.textContent = message;
     node.className = `owner-status${kind ? ` ${kind}` : ''}`;
@@ -147,6 +203,8 @@
 
   function renderOwnerPanel(payload) {
     ownerData = payload;
+    const overviewHidden = ownerView === 'overview' ? '' : ' hidden';
+    const reportsHidden = ownerView === 'reports' ? '' : ' hidden';
     const guildRows = (payload.guilds || []).map((guild) => {
       const disabled = guild.disabled;
       const usage = guild.usage || {};
@@ -170,8 +228,9 @@
 
     ownerRoot.innerHTML = `<section class="owner-head">
       <div><h2>Owner Panel</h2><p>Bot-wide status, guild inventory, and owner-only guild controls.</p></div>
-      <div class="owner-head-actions"><button class="button subtle" type="button" data-owner-action="refresh">Refresh</button><button class="button" type="button" data-owner-action="close">Back to admin</button></div>
+      <div class="owner-head-actions"><nav class="owner-tabs" aria-label="Owner panel views"><button type="button" data-owner-action="owner-view" data-owner-view="overview" class="${ownerView === 'overview' ? 'active' : ''}">Overview</button><button type="button" data-owner-action="owner-view" data-owner-view="reports" class="${ownerView === 'reports' ? 'active' : ''}">Reports</button></nav><button class="button subtle" type="button" data-owner-action="refresh">Refresh</button><button class="button" type="button" data-owner-action="close">Back to admin</button></div>
     </section>
+    <div class="owner-view-panel" data-owner-view-panel="overview"${overviewHidden}>
     <section class="owner-stat-grid">
       <div class="owner-stat"><span>Bot ping</span><strong>${fmtNumber(payload.bot?.pingMs)} ms</strong></div>
       <div class="owner-stat"><span>Latency</span><strong>${fmtNumber(payload.bot?.latencyMs)} ms</strong></div>
@@ -181,6 +240,7 @@
       <div class="owner-stat"><span>Total users</span><strong>${fmtNumber(payload.bot?.totalUsers)}</strong></div>
       <div class="owner-stat"><span>Heap used</span><strong>${escapeHtml(payload.bot?.memory?.heapUsedLabel || '0 B')}</strong></div>
       <div class="owner-stat"><span>Data storage</span><strong>${escapeHtml(payload.storage?.label || '0 B')}</strong></div>
+      <div class="owner-stat"><span>Open reports</span><strong>${fmtNumber(payload.bugReports?.open)}</strong></div>
     </section>
     <section class="owner-control-grid">
       <form class="owner-control-card" id="ownerDisableForm">
@@ -196,9 +256,11 @@
       </div>
     </section>
     <section class="owner-table-card">
-      <div class="owner-table-head"><div><h3>Guilds</h3><p>All guilds currently visible to the bot.</p></div><span id="ownerPanelStatus" class="owner-status">${fmtNumber(payload.guilds?.length)} guilds loaded</span></div>
+      <div class="owner-table-head"><div><h3>Guilds</h3><p>All guilds currently visible to the bot.</p></div><span id="ownerPanelStatus" class="owner-status" data-owner-status>${fmtNumber(payload.guilds?.length)} guilds loaded</span></div>
       <div class="owner-table-wrap"><table class="owner-guild-table"><thead><tr><th>Guild</th><th>Users</th><th>Owner ID</th><th>Status</th><th>Features</th><th>Usage</th><th>Storage</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${guildRows || '<tr><td colspan="9">No guilds found.</td></tr>'}</tbody></table></div>
-    </section>`;
+    </section>
+    </div>
+    <div class="owner-view-panel" data-owner-view-panel="reports"${reportsHidden}>${renderReportsPanel()}</div>`;
 
     ownerRoot.querySelector('#ownerDisableForm')?.addEventListener('submit', handleDisableSubmit);
   }
@@ -214,6 +276,24 @@
     } catch (error) {
       ownerRoot.innerHTML = `<section class="owner-loading error">${escapeHtml(error.message)}</section>`;
     }
+  }
+
+  async function loadOwnerReports() {
+    ensurePanel();
+    setOwnerStatus('Loading reports...', 'pending');
+    const payload = await ownerApi('/api/owner/reports');
+    ownerReports = payload.reports || [];
+    ownerReportsLoaded = true;
+    renderOwnerPanel(ownerData || await ownerApi('/api/owner/overview'));
+  }
+
+  async function switchOwnerView(view) {
+    ownerView = view === 'reports' ? 'reports' : 'overview';
+    if (ownerView === 'reports' && !ownerReportsLoaded) {
+      await loadOwnerReports();
+      return;
+    }
+    renderOwnerPanel(ownerData || await ownerApi('/api/owner/overview'));
   }
 
   function closeOwnerPanel() {
@@ -303,7 +383,24 @@
     event.preventDefault();
     try {
       if (action === 'close') closeOwnerPanel();
-      if (action === 'refresh') renderOwnerPanel(await ownerApi('/api/owner/overview'));
+      if (action === 'refresh') {
+        ownerData = await ownerApi('/api/owner/overview');
+        if (ownerView === 'reports') ownerReportsLoaded = false;
+        if (ownerView === 'reports') await loadOwnerReports();
+        else renderOwnerPanel(ownerData);
+      }
+      if (action === 'owner-view') await switchOwnerView(event.target.closest('[data-owner-view]')?.dataset.ownerView);
+      if (action === 'report-status') {
+        const button = event.target.closest('[data-report-id]');
+        setOwnerStatus('Updating report...', 'pending');
+        await ownerApi(`/api/owner/reports/${button.dataset.reportId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: button.dataset.reportStatus }),
+        });
+        ownerData = await ownerApi('/api/owner/overview');
+        ownerReportsLoaded = false;
+        await loadOwnerReports();
+      }
       if (action === 'edit-guild') await loadGuildAsOwner(event.target.closest('[data-guild-id]').dataset.guildId);
       if (action === 'toggle-features') await toggleGuildFeatures(event.target.closest('[data-guild-id]').dataset.guildId);
       if (action === 'disable-row') {

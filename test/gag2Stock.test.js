@@ -190,6 +190,7 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(sell.length, 14);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
   assert.equal(sell.find((spec) => spec.key === 'common_2x').roleName, 'Common 2x');
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').emoji, '<:sheckles:1525368044824825976>');
   assert.equal(sell.find((spec) => spec.key === 'common_2x').color, 0xE2AB0F);
   assert.equal(sell.find((spec) => spec.key === 'super_4x').roleName, 'Super 4x');
   assert.equal(sell.find((spec) => spec.key === 'super_4x').color, 0x7DE3FF);

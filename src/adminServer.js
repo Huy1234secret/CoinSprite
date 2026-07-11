@@ -6,7 +6,16 @@ const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { ensureGuildConfig, getEnabledGuildIds, getGuildConfig, getGuildConfigRaw, loadState, saveState } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
-const { handleOwnerDisable, handleOwnerEnable, handleOwnerFeatures, handleOwnerOverview, isOwnerSession } = require('./ownerPanelRoutes');
+const {
+  handleBugReportCreate,
+  handleOwnerDisable,
+  handleOwnerEnable,
+  handleOwnerFeatures,
+  handleOwnerOverview,
+  handleOwnerReportStatus,
+  handleOwnerReports,
+  isOwnerSession,
+} = require('./ownerPanelRoutes');
 const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
 const { handleUserModerationAction } = require('./adminModerationActionRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
@@ -576,10 +585,27 @@ async function routeRequest(req, res, env, client) {
     });
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/bug-reports') {
+    const session = await requireAdmin(req, res, env, client);
+    if (!session) return;
+    return handleBugReportCreate(req, res, client, session, { readJsonBody, sendJson });
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/owner/overview') {
     const session = await requireOwner(req, res, env, client);
     if (!session) return;
     return handleOwnerOverview(req, res, client, { sendJson });
+  }
+  if (req.method === 'GET' && url.pathname === '/api/owner/reports') {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerReports(req, res, client, session, { sendJson });
+  }
+  const ownerReportMatch = url.pathname.match(/^\/api\/owner\/reports\/([A-Za-z0-9_-]{6,80})$/);
+  if (ownerReportMatch && (req.method === 'POST' || req.method === 'PATCH')) {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerReportStatus(req, res, client, ownerReportMatch[1], session, { readJsonBody, sendJson });
   }
   const ownerActionMatch = url.pathname.match(/^\/api\/owner\/guilds\/(\d{16,20})\/(disable|enable)$/);
   if (ownerActionMatch && req.method === 'POST') {

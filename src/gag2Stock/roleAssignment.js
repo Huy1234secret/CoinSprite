@@ -11,6 +11,7 @@ const {
   STATE_PATH,
 } = require('./config');
 const {
+  SHECKLES_EMOJI,
   customEmojiImageUrl,
   emojiForType,
   roleSpecsForType,
@@ -25,7 +26,6 @@ const ROLE_ASSIGN_CHANNEL_KEY = 'roleAssign';
 const ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell'];
 const CUSTOM_ID_PREFIX = 'gag2role';
 const MAX_SELECT_OPTIONS = 25;
-const TWEMOJI_DOLLAR_URL = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4b2.png';
 
 const ROLE_ASSIGN_LABELS = {
   seed: 'Seed',
@@ -95,7 +95,7 @@ function chunkOptions(options) {
 }
 
 function categoryThumbnailUrl(type) {
-  if (type === 'sell') return TWEMOJI_DOLLAR_URL;
+  if (type === 'sell') return customEmojiImageUrl(SHECKLES_EMOJI);
   const [catalogType, key] = THUMBNAIL_KEYS[type] || [];
   return customEmojiImageUrl(emojiForType(catalogType, { key }));
 }

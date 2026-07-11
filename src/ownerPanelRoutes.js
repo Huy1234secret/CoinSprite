@@ -6,6 +6,7 @@ const dailyMessageStats = require('./dailyMessageStats');
 const levelingStore = require('./levelingStore');
 const ticketSystemStore = require('./ticketSystemStore');
 const messageTemplates = require('./messageTemplates');
+const bugReportStore = require('./bugReportStore');
 const {
   getConfiguredGuildIds,
   getDisabledGuilds,
@@ -167,6 +168,7 @@ async function ownerOverview(client) {
   const todayMessages = dailyMessageStats.todayOverview();
   const aiUsage = aiTokenUsageStats.monthlyOverview();
   const disabledRecords = getDisabledGuilds();
+  const bugReports = bugReportStore.listBugReports({ limit: 200 });
   const configuredIds = new Set(getConfiguredGuildIds({ includeDisabled: true }));
   const ids = new Set([...client.guilds.cache.keys(), ...configuredIds]);
   const guilds = (await Promise.all([...ids].map((id) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage)))).filter(Boolean);
@@ -202,6 +204,10 @@ async function ownerOverview(client) {
       total: aiUsage.total,
     },
     storage: globalStorage(),
+    bugReports: {
+      total: bugReports.length,
+      open: bugReports.filter((report) => report.status === 'open').length,
+    },
     disabledGuilds: disabledRecords,
     guilds: guilds.sort((a, b) => a.name.localeCompare(b.name)),
   };
@@ -296,11 +302,39 @@ async function handleOwnerFeatures(req, res, client, guildId, session, deps) {
   deps.sendJson(res, 200, await setGuildFeaturesRoute(client, guildId, body, session.user.id));
 }
 
+async function handleBugReportCreate(req, res, client, session, deps) {
+  try {
+    const report = bugReportStore.createBugReport(await deps.readJsonBody(req), session);
+    logCommandSystem(`Bug report ${report.id} submitted by ${session.user.id}: ${report.title}`);
+    deps.sendJson(res, 201, { report });
+  } catch (error) {
+    deps.sendJson(res, error?.statusCode || 400, { error: error?.message || 'Could not submit bug report.' });
+  }
+}
+
+async function handleOwnerReports(req, res, client, session, deps) {
+  deps.sendJson(res, 200, { reports: bugReportStore.listBugReports({ limit: 200 }) });
+}
+
+async function handleOwnerReportStatus(req, res, client, reportId, session, deps) {
+  try {
+    const body = await deps.readJsonBody(req);
+    const report = bugReportStore.updateBugReportStatus(reportId, body?.status);
+    logCommandSystem(`Owner ${session.user.id} marked bug report ${report.id} as ${report.status}.`);
+    deps.sendJson(res, 200, { report });
+  } catch (error) {
+    deps.sendJson(res, error?.statusCode || 400, { error: error?.message || 'Could not update bug report.' });
+  }
+}
+
 module.exports = {
+  handleBugReportCreate,
   handleOwnerDisable,
   handleOwnerEnable,
   handleOwnerFeatures,
   handleOwnerOverview,
+  handleOwnerReportStatus,
+  handleOwnerReports,
   isOwnerSession,
 };
 

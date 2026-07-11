@@ -125,6 +125,7 @@ test('GAG2 sell price role assignment only lists multiplier roles', async () => 
   const options = selectRows.flatMap((row) => row.components[0].options);
 
   assert.equal(selectRows.length, 1);
+  assert.match(payload.components[0].components[0].accessory.media.url, /1525368044824825976/);
   assert.equal(options.length, 14);
   assert.ok(options.some((option) => option.label === 'Common 2x'));
   assert.ok(options.some((option) => option.label === 'Super 4x'));
