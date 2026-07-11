@@ -93,24 +93,59 @@ async function roleSpecsForTypes(types) {
   return specsByType;
 }
 
-async function clearDisabledTypeRoleIds(guildId, config, enabledTypes, progress) {
-  let remaining = 0;
-  const disabled = STOCK_TYPES.filter((type) => !enabledTypes.includes(type));
-  for (const type of disabled) remaining += Object.keys(config?.gag2Stock?.roleIds?.[type] || {}).length;
-  if (!remaining) return 0;
-
-  const total = remaining;
-  progress?.({ action: 'removing', remaining, total, status: 'running', message: `Removing ${remaining} roles` });
-  for (const type of disabled) {
-    const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
-    for (const key of Object.keys(roleIds)) {
-      delete roleIds[key];
-      remaining -= 1;
-      updateGuildGag2StockRoleIds(guildId, type, roleIds);
-      progress?.({ action: 'removing', remaining, total, status: remaining ? 'running' : 'done', message: `Removing ${remaining} roles` });
+function roleIdsForTypes(config, types) {
+  const ids = new Set();
+  for (const type of types) {
+    for (const roleId of Object.values(config?.gag2Stock?.roleIds?.[type] || {})) {
+      const clean = String(roleId || '').trim();
+      if (clean) ids.add(clean);
     }
   }
-  return total;
+  return ids;
+}
+
+async function clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress) {
+  const disabled = STOCK_TYPES.filter((type) => !enabledTypes.includes(type));
+  const enabledRoleIds = roleIdsForTypes(config, enabledTypes);
+  const deleteCandidates = new Map();
+
+  for (const type of disabled) {
+    for (const roleId of Object.values(config?.gag2Stock?.roleIds?.[type] || {})) {
+      const clean = String(roleId || '').trim();
+      if (!clean || enabledRoleIds.has(clean) || deleteCandidates.has(clean)) continue;
+      const role = roles.get(clean);
+      if (role && typeof role.delete === 'function') deleteCandidates.set(clean, role);
+    }
+  }
+
+  let remaining = deleteCandidates.size;
+  const total = remaining;
+  let removed = 0;
+  let failed = 0;
+  if (remaining) progress?.({ action: 'removing', remaining, total, status: 'running', message: `Removing ${remaining} roles` });
+
+  for (const [roleId, role] of deleteCandidates) {
+    const deleted = await role.delete(`CoinSprite GAG2 category unassigned`).then(() => true).catch((error) => {
+      logCommandSystem(`GAG2 role delete failed in guild ${guild.id} (${role.name || roleId}): ${error?.message || 'unknown error'}`);
+      progress?.({ action: 'removing', remaining, total, status: 'error', message: `Could not remove ${role.name || 'role'}` });
+      return false;
+    });
+    if (deleted) {
+      roles.delete?.(roleId);
+      removed += 1;
+      remaining -= 1;
+      progress?.({ action: 'removing', remaining, total, status: remaining ? 'running' : 'done', message: `Removing ${remaining} roles` });
+    } else {
+      failed += 1;
+    }
+  }
+
+  for (const type of disabled) {
+    const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
+    if (!Object.keys(roleIds).length) continue;
+    updateGuildGag2StockRoleIds(guild.id, type, {});
+  }
+  return { removed, failed, total };
 }
 
 async function getSendableChannel(client, channelId) {
@@ -328,11 +363,6 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
   const config = getGuildConfig(guild.id);
   const enabledTypes = STOCK_TYPES.filter((type) => cleanChannelId(config?.gag2Stock?.channels?.[type]));
-  const removed = await clearDisabledTypeRoleIds(guild.id, config, enabledTypes, progress);
-  if (!enabledTypes.length) {
-    progressGuildId && progress({ action: removed ? 'removing' : 'checking', remaining: 0, total: removed, status: 'done', message: removed ? 'Removed roles' : 'No roles needed' });
-    return { removed, added: 0 };
-  }
 
   const me = guild.members?.me || await guild.members?.fetchMe?.().catch(() => null);
   if (!me?.permissions?.has?.(PermissionFlagsBits.ManageRoles)) {
@@ -342,6 +372,12 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
 
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
+  const removal = await clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress);
+  if (!enabledTypes.length) {
+    if (!removal.failed) progressGuildId && progress({ action: removal.removed ? 'removing' : 'checking', remaining: 0, total: removal.removed, status: 'done', message: removal.removed ? 'Removed roles' : 'No roles needed' });
+    return { removed: removal.removed, failed: removal.failed, added: 0 };
+  }
+
   const byName = new Map([...roles.values()].map((role) => [role.name.toLowerCase(), role]));
   const specsByType = await roleSpecsForTypes(enabledTypes, fetchers);
   const result = {};
@@ -401,8 +437,8 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
     result[type] = Object.keys(roleIds).length;
   }
 
-  if (!addTotal && progressGuildId) progress({ action: removed ? 'removing' : 'checking', remaining: 0, total: removed, status: 'done', message: removed ? 'Removed roles' : 'Roles already synced' });
-  return { ...result, added: addTotal - addRemaining, removed };
+  if (!addTotal && progressGuildId && !removal.failed) progress({ action: removal.removed ? 'removing' : 'checking', remaining: 0, total: removal.removed, status: 'done', message: removal.removed ? 'Removed roles' : 'Roles already synced' });
+  return { ...result, added: addTotal - addRemaining, removed: removal.removed, failed: removal.failed };
 }
 
 async function syncAllGag2StockSetups(client, fetchers) {
