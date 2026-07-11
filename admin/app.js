@@ -23,7 +23,7 @@ const GAG2_STOCK_ROLE_COUNTS = {
   crate: 17,
   weather: 11,
   moon: 11,
-  sell: 43,
+  sell: 14,
   roleAssign: 0,
 };
 

@@ -106,3 +106,28 @@ test('GAG2 category role payload lists assigned roles and splits large role list
   });
   assert.equal(firstSelect.options[0].description, undefined);
 });
+
+test('GAG2 sell price role assignment only lists multiplier roles', async () => {
+  const roleIds = roleIdsForType('sell');
+  const payload = await buildCategoryRolePayload(
+    fakeGuildWithRoles(roleIds),
+    fakeMemberWithRoles([roleIds.common_2x]),
+    configFor({
+      sellChannel: '223456789012345678',
+      roleAssignChannel: '323456789012345678',
+      roleIds: { sell: roleIds },
+    }),
+    'sell',
+    { ephemeral: true },
+  );
+
+  const selectRows = payload.components[0].components.filter((component) => component.type === 1);
+  const options = selectRows.flatMap((row) => row.components[0].options);
+
+  assert.equal(selectRows.length, 1);
+  assert.equal(options.length, 14);
+  assert.ok(options.some((option) => option.label === 'Common 2x'));
+  assert.ok(options.some((option) => option.label === 'Super 4x'));
+  assert.ok(options.every((option) => option.label.endsWith('2x') || option.label.endsWith('4x')));
+  assert.equal(options.find((option) => option.label === 'Moon Bloom'), undefined);
+});

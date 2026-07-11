@@ -327,10 +327,7 @@ function roleSpecsForType(type) {
   if (type === 'gear') return GEAR_ITEMS.map(roleSpecFromItem);
   if (type === 'crate') return CRATE_ITEMS.map(roleSpecFromItem);
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.map(roleSpecFromItem);
-  if (type === 'sell') return [
-    ...SEED_ITEMS.map(roleSpecFromItem),
-    ...sellBonusRoleSpecs(),
-  ];
+  if (type === 'sell') return sellBonusRoleSpecs();
   return [];
 }
 
