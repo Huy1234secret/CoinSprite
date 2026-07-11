@@ -358,6 +358,17 @@ async function fetchGuildDirectory(guild) {
   if (cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
   const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
+  const botUserId = guild.client?.user?.id || '';
+  const botMember = guild.members.me || (botUserId ? await guild.members.fetch(botUserId).catch(() => null) : null);
+  const botPermissions = botMember?.permissions || null;
+  const requiredGag2Permissions = [
+    ['ManageRoles', 'Manage Roles', PermissionFlagsBits.ManageRoles],
+    ['ViewChannel', 'View Channels', PermissionFlagsBits.ViewChannel],
+    ['SendMessages', 'Send Messages', PermissionFlagsBits.SendMessages],
+  ];
+  const missingGag2Permissions = requiredGag2Permissions
+    .filter(([, , flag]) => !botPermissions?.has?.(flag))
+    .map(([key, label]) => ({ key, label }));
   const baseChannels = Array.from(channels.values()).filter((channel) => channel && 'name' in channel);
   const parentNames = new Map(baseChannels.map((channel) => [channel.id, channel.name]));
   const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
@@ -376,6 +387,10 @@ async function fetchGuildDirectory(guild) {
         managed: Boolean(role.managed),
       }))
       .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name)),
+    gag2StockPermissions: {
+      usable: missingGag2Permissions.length === 0,
+      missing: missingGag2Permissions,
+    },
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
   return directory;
