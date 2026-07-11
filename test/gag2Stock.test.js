@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
@@ -129,10 +131,11 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   });
   assert.equal(sellPayload.components[0].accent_color, 0xE2AB0F);
   assert.match(sellPayload.components[0].components[0].content, /## <@&567890123456789012> Sell Price/);
-  assert.match(sellPayload.components[0].components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
+  assert.match(sellPayload.components[0].components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00/);
+  assert.doesNotMatch(sellPayload.components[0].components[0].content, / - big| - normal/);
   assert.equal(sellPayload.components.at(-1).accent_color, 0xFFFFFF);
-  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10 - normal/);
-  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00 - big/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10/);
+  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /Mushroom| - normal| - big/);
   assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
 });
 
@@ -200,4 +203,14 @@ test('GAG2 role specs use requested names and colors', () => {
     ['bloodmoon', 'Blood Moon', 0xB3202A],
     ['aurora', 'Aurora', 0x35E6A4],
   ]);
+});
+
+test('GAG2 role sync deletes unassigned category roles instead of only clearing ids', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.match(source, /async function clearDisabledTypeRoles\(guild, config, enabledTypes, roles, progress\)/);
+  assert.match(source, /const enabledRoleIds = roleIdsForTypes\(config, enabledTypes\)/);
+  assert.match(source, /enabledRoleIds\.has\(clean\)/);
+  assert.match(source, /await role\.delete\(`CoinSprite GAG2 category unassigned`\)/);
+  assert.match(source, /updateGuildGag2StockRoleIds\(guild\.id, type, \{\}\)/);
+  assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
 });

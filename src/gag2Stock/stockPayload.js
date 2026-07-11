@@ -269,17 +269,17 @@ function formatMultiplier(multiplier) {
 }
 
 function formatSellLine(item, roleIds = {}, options = {}) {
-  const tier = item.tier ? ` - ${item.tier}` : '';
   const prefix = options.heading ? '## ' : '* ';
-  return `${prefix}${emojiPrefix('sell', item)}**${displayNameForType('sell', item)}** x${formatMultiplier(item.multiplier)}${tier}`;
+  return `${prefix}${emojiPrefix('sell', item)}**${displayNameForType('sell', item)}** x${formatMultiplier(item.multiplier)}`;
 }
 
 function formatSell(entry, roleIds = {}) {
   const lines = ['## GAG2 Sell Price Track'];
-  for (const item of (entry.entries || []).slice(0, 25)) {
+  const normalEntries = (entry.entries || []).filter((item) => !sellMultiplierBucket(item.multiplier));
+  for (const item of normalEntries.slice(0, 25)) {
     lines.push(formatSellLine(item, roleIds));
   }
-  if (lines.length === 1) lines.push('* No sell price entries listed right now.');
+  if (lines.length === 1) lines.push('* No normal sell price entries listed right now.');
   return lines.join('\n');
 }
 
