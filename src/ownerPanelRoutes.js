@@ -163,14 +163,49 @@ async function guildSummary(client, guildId, disabledRecords, todayMessages, aiU
   };
 }
 
+function addGuildId(ids, value) {
+  const id = typeof value === 'string' ? value : value?.id;
+  if (/^\d{16,20}$/.test(String(id || ''))) ids.add(String(id));
+}
+
+function addGuildIdsFromCollection(ids, value) {
+  if (!value) return;
+  if (typeof value.keys === 'function') {
+    for (const key of value.keys()) addGuildId(ids, key);
+  }
+  if (typeof value.values === 'function') {
+    for (const guild of value.values()) addGuildId(ids, guild);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const guild of value) addGuildId(ids, guild);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const [key, guild] of Object.entries(value)) {
+      addGuildId(ids, key);
+      addGuildId(ids, guild);
+    }
+  }
+}
+
+async function collectOwnerGuildIds(client, configuredIds = []) {
+  const ids = new Set();
+  for (const id of configuredIds) addGuildId(ids, id);
+  addGuildIdsFromCollection(ids, client?.guilds?.cache);
+  const fetchedGuilds = await client?.guilds?.fetch?.().catch(() => null);
+  addGuildIdsFromCollection(ids, fetchedGuilds);
+  addGuildIdsFromCollection(ids, client?.guilds?.cache);
+  return ids;
+}
+
 async function ownerOverview(client) {
-  await client.guilds.fetch().catch(() => null);
   const todayMessages = dailyMessageStats.todayOverview();
   const aiUsage = aiTokenUsageStats.monthlyOverview();
   const disabledRecords = getDisabledGuilds();
   const bugReports = bugReportStore.listBugReports({ limit: 200 });
   const configuredIds = new Set(getConfiguredGuildIds({ includeDisabled: true }));
-  const ids = new Set([...client.guilds.cache.keys(), ...configuredIds]);
+  const ids = await collectOwnerGuildIds(client, configuredIds);
   const guilds = (await Promise.all([...ids].map((id) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage)))).filter(Boolean);
   const delayMeanMs = Number.isFinite(eventLoopDelay.mean) ? eventLoopDelay.mean / 1e6 : 0;
   const fps = delayMeanMs > 0 ? Math.max(1, Math.round(1000 / Math.max(1, delayMeanMs))) : null;
@@ -335,6 +370,7 @@ module.exports = {
   handleOwnerOverview,
   handleOwnerReportStatus,
   handleOwnerReports,
+  collectOwnerGuildIds,
   isOwnerSession,
 };
 
