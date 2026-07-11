@@ -14,6 +14,7 @@ const {
   STALE_STOCK_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
+  TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
 } = require('./config');
 const {
   fetchItemsPayload,
@@ -98,6 +99,24 @@ function unavailableBucket(state, guildId, type) {
   state.unavailable[guildId] ||= {};
   state.unavailable[guildId][type] ||= {};
   return state.unavailable[guildId][type];
+}
+
+function existingPostBucket(state, guildId, type) {
+  return state.posts?.[guildId]?.[type] || null;
+}
+
+function isTransientSourceError(error) {
+  if (error?.gag2Transient) return true;
+  const message = String(error?.message || '');
+  return error?.name === 'AbortError' || /aborted|timed out|timeout|fetch failed|network|socket/i.test(message);
+}
+
+function resetUnavailableFailures(state, target, nowMs) {
+  const bucket = state.unavailable?.[target.guildId]?.[target.type];
+  if (!bucket?.consecutiveFailures) return false;
+  bucket.consecutiveFailures = 0;
+  bucket.lastRecoveredAt = new Date(nowMs).toISOString();
+  return true;
 }
 
 function roleColor(spec) {
@@ -236,6 +255,7 @@ class Gag2StockPoster {
     };
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
+    this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
     this.inFlight = false;
     this.timer = null;
     this.started = false;
@@ -335,6 +355,7 @@ class Gag2StockPoster {
 
         const entry = entries.get(target.type);
         if (!entry) continue;
+        if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
           skippedStaleStock = true;
           continue;
@@ -388,9 +409,23 @@ class Gag2StockPoster {
 
   async postUnavailableOnce(state, target, error) {
     const bucket = unavailableBucket(state, target.guildId, target.type);
+    bucket.consecutiveFailures = (Number(bucket.consecutiveFailures) || 0) + 1;
+    bucket.lastErrorAt = new Date(this.now()).toISOString();
+    bucket.lastErrorMessage = String(error?.message || 'Unknown error').slice(0, 500);
+
+    const hasPreviousGoodPost = Boolean(existingPostBucket(state, target.guildId, target.type)?.lastPostedKey);
+    if (isTransientSourceError(error) && hasPreviousGoodPost && bucket.consecutiveFailures < this.transientUnavailableNoticeFailures) {
+      saveState(state, this.statePath);
+      logCommandSystem(`GAG2 ${target.type} transient source failure ${bucket.consecutiveFailures}/${this.transientUnavailableNoticeFailures}; keeping previous message.`);
+      return null;
+    }
+
     const dayBucket = new Date(this.now()).toISOString().slice(0, 10);
     const postKey = `unavailable:${target.channelId}:${dayBucket}`;
-    if (bucket.lastPostedKey === postKey) return null;
+    if (bucket.lastPostedKey === postKey) {
+      saveState(state, this.statePath);
+      return null;
+    }
 
     const channel = await getSendableChannel(this.client, target.channelId);
     if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
