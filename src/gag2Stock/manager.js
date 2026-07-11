@@ -24,6 +24,7 @@ const {
   buildUnavailablePayload,
 } = require('./stockPayload');
 const { roleSpecsForType } = require('./catalog');
+const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
 const setupProgress = new Map();
@@ -218,7 +219,13 @@ class Gag2StockPoster {
       });
     }, this.checkIntervalMs);
     if (typeof this.timer.unref === 'function') this.timer.unref();
-    setTimeout(() => syncAllGag2StockSetups(this.client, this.fetchers), 5_000).unref?.();
+    setTimeout(() => {
+      syncAllGag2StockSetups(this.client, this.fetchers)
+        .then(() => syncAllGag2RoleAssignmentPanels(this.client))
+        .catch((error) => {
+          logCommandSystem(`GAG2 startup sync failed: ${error?.message || 'unknown error'}`);
+        });
+    }, 5_000).unref?.();
     return this;
   }
 

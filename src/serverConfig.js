@@ -139,14 +139,15 @@ const DEFAULT_COINSPRITE_FEATURES = {
   fullBot: true,
 };
 
-const GAG2_STOCK_CHANNEL_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
+const GAG2_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
+const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_STOCK_ROLE_KEYS, 'roleAssign'];
 
 function blankGag2StockChannels() {
   return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, '']));
 }
 
 function blankGag2StockRoleIds() {
-  return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, {}]));
+  return Object.fromEntries(GAG2_STOCK_ROLE_KEYS.map((key) => [key, {}]));
 }
 
 const DEFAULT_GAG2_STOCK_CONFIG = {
@@ -473,6 +474,8 @@ function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
   const roleIds = {};
   for (const key of GAG2_STOCK_CHANNEL_KEYS) {
     channels[key] = cleanChannelId(source.channels?.[key] ?? defaultChannels[key]);
+  }
+  for (const key of GAG2_STOCK_ROLE_KEYS) {
     roleIds[key] = normalizeRoleIdMap(source.roleIds?.[key] ?? defaultRoleIds[key]);
   }
   return {
@@ -776,7 +779,7 @@ function isGuildGag2StockEnabled(guildId) {
 function updateGuildGag2StockRoleIds(guildId, type, roleIds) {
   const id = String(guildId || '').trim();
   const key = String(type || '').trim();
-  if (!/^\d{16,20}$/.test(id) || !GAG2_STOCK_CHANNEL_KEYS.includes(key)) return null;
+  if (!/^\d{16,20}$/.test(id) || !GAG2_STOCK_ROLE_KEYS.includes(key)) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   const defaults = id === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GAG2_STOCK_CONFIG : DEFAULT_GAG2_STOCK_CONFIG;

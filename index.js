@@ -13,6 +13,7 @@ const inviteRewardsManager = require('./src/inviteRewardsManager');
 const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig, isGuildEnabled } = require('./src/serverConfig');
 const { registerConsolidatedAdminCommands, startAdminServer } = require('./src/adminServer');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
+const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const {
   isCommandVisibleForGuild,
   isFullBotFeatureEnabled,
@@ -629,6 +630,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.isRepliable()) await interaction.reply({ content: 'This bot only works in the configured server.', flags: EPHEMERAL_FLAG }).catch(() => null);
       return;
     }
+
+    if (await handleGag2RoleAssignmentInteraction(interaction)) return;
 
     const fullBotEnabled = isFullBotFeatureEnabled(interaction.guildId);
     if (!fullBotEnabled) {

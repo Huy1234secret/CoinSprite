@@ -282,6 +282,7 @@ function roleSpecFromItem(entry) {
   return {
     key: entry.key,
     name: entry.roleName,
+    emoji: entry.emoji || '',
     roleName: entry.roleName.slice(0, 100),
     color: entry.color || null,
   };
@@ -302,6 +303,7 @@ function sellBonusRoleForEntry(entry) {
   return {
     key: `${rarity}_${bucket}`,
     name: `${RARITY_LABELS[rarity]} ${bucket}`,
+    emoji: bucket === '4x' ? '💎' : '💰',
     roleName: `${RARITY_LABELS[rarity]} ${bucket}`,
     color: SELL_BONUS_COLORS[bucket],
     bucket,
@@ -313,6 +315,7 @@ function sellBonusRoleSpecs() {
     ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'].map((rarity) => ({
       key: `${rarity}_${bucket}`,
       name: `${RARITY_LABELS[rarity]} ${bucket}`,
+      emoji: bucket === '4x' ? '💎' : '💰',
       roleName: `${RARITY_LABELS[rarity]} ${bucket}`,
       color: SELL_BONUS_COLORS[bucket],
     }))
