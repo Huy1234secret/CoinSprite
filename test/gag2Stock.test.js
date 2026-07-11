@@ -71,8 +71,11 @@ test('GAG2 stock payload builds a Components V2 container without source footer 
   assert.match(content, /## GAG2 Seed stock/);
   assert.match(content, /## GAG2 Gear/);
   assert.match(content, /## GAG2 Crate stock/);
+  assert.match(content, /-# Restock <t:\d+:R>/);
+  assert.doesNotMatch(content, /Next restock/);
   assert.match(content, /<:grape:1525195212236914779> \*\*Grape\*\* x1/);
   assert.match(content, /<:bench_crate:1525201076276433056> \*\*Bench\*\* x2/);
+  assert.ok(container.components.some((component) => component.type === 14 && component.divider));
   assert.doesNotMatch(content, / - Epic/);
   assert.doesNotMatch(content, / - Common/);
   assert.doesNotMatch(content, /Source:/);
@@ -83,10 +86,14 @@ test('GAG2 stock type payload builds one separate message for one category', () 
   const parsed = parseStockPayload(fixture());
   const seed = parsed.stock.find((entry) => entry.category === 'seed');
   const payload = buildTypePayload('seed', seed, { roleIds: { grape: '123456789012345678' } });
-  const content = payload.components[0].components[0].content;
+  const innerComponents = payload.components[0].components;
+  const content = innerComponents.filter((component) => component.type === 10).map((component) => component.content).join('\n');
 
   assert.match(buildTypePostKey('seed', seed), /^seed:/);
   assert.match(content, /## GAG2 Seed stock/);
+  assert.match(content, /-# Restock <t:\d+:R>/);
+  assert.doesNotMatch(content, /Next restock/);
+  assert.equal(innerComponents[1].type, 14);
   assert.match(content, /<:grape:1525195212236914779> <@&123456789012345678> x1/);
   assert.doesNotMatch(content, /Trowel/);
   assert.doesNotMatch(content, / - Epic/);
