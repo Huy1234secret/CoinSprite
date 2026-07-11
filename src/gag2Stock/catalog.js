@@ -91,6 +91,11 @@ const SEED_ITEMS = [
   item('moon_bloom', 'Moon Bloom', '<:moon_bloom:1525195223473586196>', 'super'),
   item('hypno_bloom', 'Hypno Bloom', '<:hypno_bloom:1525195218805194752>', 'super'),
   item('dragon_s_breath', 'Dragon’s Breath', '<:dragon_s_breath:1525195207778373814>', 'super'),
+  item('baby_cactus', 'Baby Cactus', '<:baby_cactus:1525390117345427507>', 'rare'),
+  item('horned_melon', 'Horned Melon', '<:horned_melon:1525390123875831919>', 'rare'),
+  item('glow_mushroom', 'Glow Mushroom', '<:glow_mushroom:1525390121929805926>', 'epic'),
+  item('poison_ivy', 'Poison Ivy', '<:poison_ivy:1525390125935366194>', 'legendary'),
+  item('ghost_pepper', 'Ghost Pepper', '<:ghost_pepper:1525390119664750612>', 'mythic'),
 ];
 
 const GEAR_ITEMS = [
