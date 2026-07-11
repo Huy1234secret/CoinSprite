@@ -222,13 +222,32 @@ function formatItem(type, item, roleIds = {}) {
   return `* ${emojiPrefix(type, item)}${roleDisplay(roleIds, item, type)} x${item.quantity}`;
 }
 
-function formatStockCategory(entry, roleIds = {}) {
+function formatStockCategoryHeader(entry) {
   return [
     `## GAG2 ${entry.label}`,
-    `* Next restock: ${formatTimestamp(entry.nextRestockAtMs)}`,
-    '',
-    entry.items.length ? entry.items.map((item) => formatItem(entry.category, item, roleIds)).join('\n') : '* Nothing listed right now.',
+    `-# Restock ${formatTimestamp(entry.nextRestockAtMs)}`,
   ].join('\n');
+}
+
+function formatStockCategoryItems(entry, roleIds = {}) {
+  return entry.items.length
+    ? entry.items.map((item) => formatItem(entry.category, item, roleIds)).join('\n')
+    : '* Nothing listed right now.';
+}
+
+function formatStockCategory(entry, roleIds = {}) {
+  return [
+    formatStockCategoryHeader(entry),
+    formatStockCategoryItems(entry, roleIds),
+  ].join('\n');
+}
+
+function stockCategoryComponents(entry, roleIds = {}) {
+  return [
+    { type: 10, content: formatStockCategoryHeader(entry) },
+    { type: 14, divider: true, spacing: 1 },
+    { type: 10, content: formatStockCategoryItems(entry, roleIds) },
+  ];
 }
 
 function formatWeather(entry, roleIds = {}) {
@@ -303,6 +322,11 @@ function textComponentForType(type, entry, roleIds = {}) {
   };
 }
 
+function componentsForType(type, entry, roleIds = {}) {
+  if (['seed', 'gear', 'crate'].includes(type)) return stockCategoryComponents(entry, roleIds);
+  return [textComponentForType(type, entry, roleIds)];
+}
+
 function accentColorForType(type, entry) {
   if (['seed', 'gear', 'crate'].includes(type)) return highestRarityColor(type, entry?.items || [], GREEN);
   if (type === 'weather') return colorForType('weather', entry?.current) || GREEN;
@@ -345,9 +369,7 @@ function buildTypePayload(type, entry, options = {}) {
       {
         type: 17,
         accent_color: accentColorForType(type, entry),
-        components: [
-          textComponentForType(type, entry, roleIds),
-        ],
+        components: componentsForType(type, entry, roleIds),
       },
     ],
   };
@@ -358,7 +380,7 @@ function buildStockPayload(stockPayload, options = {}) {
   const components = [];
   for (const entry of stockPayload.stock) {
     if (components.length) components.push({ type: 14, divider: true, spacing: 1 });
-    components.push({ type: 10, content: contentForType(entry.category, entry, options.roleIds?.[entry.category] || {}) });
+    components.push(...stockCategoryComponents(entry, options.roleIds?.[entry.category] || {}));
   }
   return {
     allowedMentions: allowedMentionsForRoles(combinedRoleIds),
