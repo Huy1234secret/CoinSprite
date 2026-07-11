@@ -11,6 +11,7 @@ const {
   CHECK_SCHEDULE_SECOND_MS,
   CHECK_SCHEDULE_UTC_OFFSET_MS,
   STATE_PATH,
+  STALE_STOCK_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
 } = require('./config');
@@ -46,6 +47,13 @@ function nextGag2StockTickAtMs(nowMs = Date.now(), options = {}) {
   let nextShifted = slotStart + secondMs;
   if (nextShifted <= shiftedNow) nextShifted += intervalMs;
   return nextShifted - offsetMs;
+}
+
+function isStaleStockEntry(type, entry, nowMs = Date.now()) {
+  if (!STOCK_TYPE_GROUPS.stock.includes(type)) return false;
+  const nextRestockAtMs = Number(entry?.nextRestockAtMs);
+  if (!Number.isFinite(nextRestockAtMs)) return false;
+  return nextRestockAtMs <= finiteNumber(nowMs, Date.now());
 }
 
 function progressSnapshot(value = {}) {
@@ -219,6 +227,7 @@ class Gag2StockPoster {
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
     this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
+    this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
     this.fetchers = {
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
       fetchSellPayload: options.fetchSellPayload || fetchSellPayload,
@@ -230,6 +239,7 @@ class Gag2StockPoster {
     this.inFlight = false;
     this.timer = null;
     this.started = false;
+    this.nextDelayOverrideMs = null;
   }
 
   async start() {
@@ -249,11 +259,15 @@ class Gag2StockPoster {
   scheduleNextTick() {
     if (!this.started) return null;
     const now = this.now();
-    const nextAt = nextGag2StockTickAtMs(now, {
-      intervalMs: this.checkIntervalMs,
-      secondMs: this.checkScheduleSecondMs,
-      offsetMs: this.checkScheduleOffsetMs,
-    });
+    const delayOverrideMs = Number.isFinite(this.nextDelayOverrideMs) ? Math.max(0, this.nextDelayOverrideMs) : null;
+    this.nextDelayOverrideMs = null;
+    const nextAt = delayOverrideMs === null
+      ? nextGag2StockTickAtMs(now, {
+        intervalMs: this.checkIntervalMs,
+        secondMs: this.checkScheduleSecondMs,
+        offsetMs: this.checkScheduleOffsetMs,
+      })
+      : now + delayOverrideMs;
     const delay = Math.max(0, nextAt - now);
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -298,8 +312,10 @@ class Gag2StockPoster {
   async tick() {
     if (this.inFlight) return null;
     this.inFlight = true;
+    let skippedStaleStock = false;
 
     try {
+      const tickStartedAtMs = this.now();
       const targets = this.targets();
       if (!targets.length) return null;
       const state = loadState(this.statePath);
@@ -319,6 +335,10 @@ class Gag2StockPoster {
 
         const entry = entries.get(target.type);
         if (!entry) continue;
+        if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
+          skippedStaleStock = true;
+          continue;
+        }
         const message = await this.postEntry(state, target, entry).catch((postError) => {
           logCommandSystem(`GAG2 ${target.type} post failed in guild ${target.guildId}: ${postError?.message || 'unknown error'}`);
           return null;
@@ -330,6 +350,7 @@ class Gag2StockPoster {
       logCommandSystem(`GAG2 stock failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
+      if (skippedStaleStock) this.nextDelayOverrideMs = this.staleStockRetryMs;
       this.inFlight = false;
     }
   }
@@ -509,6 +530,7 @@ async function startGag2StockPoster(client, options = {}) {
 module.exports = {
   Gag2StockPoster,
   getGag2StockSetupProgress,
+  isStaleStockEntry,
   nextGag2StockTickAtMs,
   roleSpecsForTypes,
   startGag2StockPoster,
