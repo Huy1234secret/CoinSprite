@@ -14,7 +14,7 @@ const {
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
 const { roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function fixture() {
   return {
@@ -227,21 +227,30 @@ test('GAG2 role sync deletes unassigned category roles instead of only clearing 
   assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
 });
 
-test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 3', () => {
+test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
-    '2026-07-10T17:00:03.000Z',
+    '2026-07-10T17:00:05.000Z',
   );
   assert.equal(
-    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:04.000Z'))).toISOString(),
-    '2026-07-10T17:05:03.000Z',
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:06.000Z'))).toISOString(),
+    '2026-07-10T17:05:05.000Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:04:59.000Z'))).toISOString(),
-    '2026-07-10T17:05:03.000Z',
+    '2026-07-10T17:05:05.000Z',
   );
   assert.equal(
-    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:03.000Z'))).toISOString(),
-    '2026-07-10T17:10:03.000Z',
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:05.000Z'))).toISOString(),
+    '2026-07-10T17:10:05.000Z',
   );
+});
+
+test('GAG2 stock poster treats expired restock stock as stale', () => {
+  const now = Date.parse('2026-07-10T17:00:51.000Z');
+  assert.equal(isStaleStockEntry('seed', { nextRestockAtMs: now - 1 }, now), true);
+  assert.equal(isStaleStockEntry('gear', { nextRestockAtMs: now }, now), true);
+  assert.equal(isStaleStockEntry('crate', { nextRestockAtMs: now + 1 }, now), false);
+  assert.equal(isStaleStockEntry('sell', { nextRestockAtMs: now - 1 }, now), false);
+  assert.equal(isStaleStockEntry('weather', { nextRestockAtMs: now - 1 }, now), false);
 });
