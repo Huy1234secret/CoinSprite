@@ -115,6 +115,7 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
       entries: [
         { key: 'mushroom', name: 'Mushroom', multiplier: 2, tier: 'big' },
         { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
+        { key: 'glow_mushroom', name: 'Glow Mushroom', multiplier: 1.05, tier: 'normal' },
       ],
     },
   });
@@ -143,7 +144,8 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.doesNotMatch(sellPayload.components[0].components[0].content, / - big| - normal/);
   assert.equal(sellPayload.components.at(-1).accent_color, 0xFFFFFF);
   assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10/);
-  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /Mushroom| - normal| - big/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:glow_mushroom:1525390121929805926> \*\*Glow Mushroom\*\* x1.05/);
+  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<:mushroom:1525195225511760072>| - normal| - big/);
   assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
 });
 
@@ -193,6 +195,15 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(seeds.find((spec) => spec.key === 'carrot').emoji, '<:carrot:1525195196864925817>');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').roleName, 'Dragon’s Breath');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').color, 0xB71E99);
+  assert.equal(seeds.find((spec) => spec.key === 'poison_ivy').emoji, '<:poison_ivy:1525390125935366194>');
+  assert.equal(seeds.find((spec) => spec.key === 'horned_melon').emoji, '<:horned_melon:1525390123875831919>');
+  assert.equal(seeds.find((spec) => spec.key === 'glow_mushroom').emoji, '<:glow_mushroom:1525390121929805926>');
+  assert.equal(seeds.find((spec) => spec.key === 'ghost_pepper').emoji, '<:ghost_pepper:1525390119664750612>');
+  assert.equal(seeds.find((spec) => spec.key === 'baby_cactus').emoji, '<:baby_cactus:1525390117345427507>');
+  assert.equal(seeds.find((spec) => spec.key === 'baby_cactus').color, 0x3E7EF4);
+  assert.equal(seeds.find((spec) => spec.key === 'glow_mushroom').color, 0x9D3CD2);
+  assert.equal(seeds.find((spec) => spec.key === 'poison_ivy').color, 0xE2AB0F);
+  assert.equal(seeds.find((spec) => spec.key === 'ghost_pepper').color, 0xD62928);
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
   assert.equal(sell.length, 14);
