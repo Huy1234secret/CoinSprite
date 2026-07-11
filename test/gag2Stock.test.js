@@ -14,6 +14,7 @@ const {
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
 const { roleSpecsForType } = require('../src/gag2Stock/catalog');
+const { nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function fixture() {
   return {
@@ -224,4 +225,23 @@ test('GAG2 role sync deletes unassigned category roles instead of only clearing 
   assert.match(source, /await role\.delete\(`CoinSprite GAG2 category unassigned`\)/);
   assert.match(source, /updateGuildGag2StockRoleIds\(guild\.id, type, \{\}\)/);
   assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
+});
+
+test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 3', () => {
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
+    '2026-07-10T17:00:03.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:04.000Z'))).toISOString(),
+    '2026-07-10T17:05:03.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:04:59.000Z'))).toISOString(),
+    '2026-07-10T17:05:03.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:03.000Z'))).toISOString(),
+    '2026-07-10T17:10:03.000Z',
+  );
 });

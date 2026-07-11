@@ -7,7 +7,9 @@ const ITEMS_API_URL = 'https://api.gag2.gg/api/items';
 const COMPONENTS_V2_FLAG = 32768;
 const GREEN = 0x57f287;
 const RED = 0xed4245;
-const CHECK_INTERVAL_MS = 30_000;
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const CHECK_SCHEDULE_SECOND_MS = 3_000;
+const CHECK_SCHEDULE_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const STATE_PATH = path.join(__dirname, '..', '..', 'data', 'gag2-stock-poster.json');
 
@@ -43,6 +45,8 @@ const RARITY_RANK = {
 module.exports = {
   CATEGORY_LABELS,
   CHECK_INTERVAL_MS,
+  CHECK_SCHEDULE_SECOND_MS,
+  CHECK_SCHEDULE_UTC_OFFSET_MS,
   COMPONENTS_V2_FLAG,
   GREEN,
   ITEMS_API_URL,
