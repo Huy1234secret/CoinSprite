@@ -8,6 +8,8 @@ const {
 } = require('../serverConfig');
 const {
   CHECK_INTERVAL_MS,
+  CHECK_SCHEDULE_SECOND_MS,
+  CHECK_SCHEDULE_UTC_OFFSET_MS,
   STATE_PATH,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
@@ -28,6 +30,23 @@ const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
 const setupProgress = new Map();
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function nextGag2StockTickAtMs(nowMs = Date.now(), options = {}) {
+  const intervalMs = Math.max(1_000, finiteNumber(options.intervalMs, CHECK_INTERVAL_MS));
+  const secondMs = Math.max(0, Math.min(intervalMs - 1, finiteNumber(options.secondMs, CHECK_SCHEDULE_SECOND_MS)));
+  const offsetMs = finiteNumber(options.offsetMs, CHECK_SCHEDULE_UTC_OFFSET_MS);
+  const now = finiteNumber(nowMs, Date.now());
+  const shiftedNow = now + offsetMs;
+  const slotStart = Math.floor(shiftedNow / intervalMs) * intervalMs;
+  let nextShifted = slotStart + secondMs;
+  if (nextShifted <= shiftedNow) nextShifted += intervalMs;
+  return nextShifted - offsetMs;
+}
 
 function progressSnapshot(value = {}) {
   return {
@@ -198,6 +217,8 @@ class Gag2StockPoster {
   constructor(client, options = {}) {
     this.client = client;
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
+    this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
+    this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
     this.fetchers = {
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
       fetchSellPayload: options.fetchSellPayload || fetchSellPayload,
@@ -208,17 +229,13 @@ class Gag2StockPoster {
     this.statePath = options.statePath || STATE_PATH;
     this.inFlight = false;
     this.timer = null;
+    this.started = false;
   }
 
   async start() {
-    if (this.timer) return this;
-    await this.tick();
-    this.timer = setInterval(() => {
-      this.tick().catch((error) => {
-        logCommandSystem(`GAG2 stock tick failed: ${error?.message || 'unknown error'}`);
-      });
-    }, this.checkIntervalMs);
-    if (typeof this.timer.unref === 'function') this.timer.unref();
+    if (this.started) return this;
+    this.started = true;
+    this.scheduleNextTick();
     setTimeout(() => {
       syncAllGag2StockSetups(this.client, this.fetchers)
         .then(() => syncAllGag2RoleAssignmentPanels(this.client))
@@ -229,8 +246,32 @@ class Gag2StockPoster {
     return this;
   }
 
+  scheduleNextTick() {
+    if (!this.started) return null;
+    const now = this.now();
+    const nextAt = nextGag2StockTickAtMs(now, {
+      intervalMs: this.checkIntervalMs,
+      secondMs: this.checkScheduleSecondMs,
+      offsetMs: this.checkScheduleOffsetMs,
+    });
+    const delay = Math.max(0, nextAt - now);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.tick()
+        .catch((error) => {
+          logCommandSystem(`GAG2 stock tick failed: ${error?.message || 'unknown error'}`);
+        })
+        .finally(() => {
+          this.scheduleNextTick();
+        });
+    }, delay);
+    if (typeof this.timer.unref === 'function') this.timer.unref();
+    return nextAt;
+  }
+
   stop() {
-    if (this.timer) clearInterval(this.timer);
+    this.started = false;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
 
@@ -468,6 +509,7 @@ async function startGag2StockPoster(client, options = {}) {
 module.exports = {
   Gag2StockPoster,
   getGag2StockSetupProgress,
+  nextGag2StockTickAtMs,
   roleSpecsForTypes,
   startGag2StockPoster,
   syncAllGag2StockSetups,
