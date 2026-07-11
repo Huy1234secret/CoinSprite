@@ -88,6 +88,7 @@ const elements = {
   gag2StockPanel: document.querySelector('#gag2StockPanel'),
   gag2StockPermissionOverlay: document.querySelector('#gag2StockPermissionOverlay'),
   gag2StockPermissionText: document.querySelector('#gag2StockPermissionText'),
+  gag2StockPermissionRefreshButton: document.querySelector('#gag2StockPermissionRefreshButton'),
   levelUpChannelMount: document.querySelector('#levelUpChannelMount'),
   levelUpTokens: document.querySelector('#levelUpTokens'),
   levelUpContent: document.querySelector('#levelUpContent'),
@@ -195,6 +196,29 @@ function renderGag2StockPermissionGate() {
     elements.gag2StockPermissionText.textContent = labels.length
       ? `Missing required bot permission${labels.length === 1 ? '' : 's'}: ${labels.join(', ')}.`
       : 'Give the bot the required permissions before editing GAG2 stock settings.';
+  }
+}
+
+async function refreshGag2StockPermissions() {
+  if (!state.guildId) return;
+  const button = elements.gag2StockPermissionRefreshButton;
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Refreshing...';
+  }
+  try {
+    const payload = await api(`/api/guilds/${state.guildId}/directory?refresh=1`);
+    state.directory = payload.directory || state.directory;
+    state.gag2StockPermissions = state.directory.gag2StockPermissions || { usable: true, missing: [] };
+    renderGag2StockPickers();
+    setStatus(gag2StockPermissionState().usable ? 'Bot permissions refreshed. GAG2 stock can be edited.' : 'Bot permissions refreshed; required permissions are still missing.', gag2StockPermissionState().usable ? 'ok' : 'error');
+  } catch (error) {
+    setStatus(error.message, 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Refresh permissions';
+    }
   }
 }
 
@@ -1373,6 +1397,10 @@ elements.guildSelect.addEventListener('change', () => {
     return;
   }
   loadGuild(elements.guildSelect.value).catch((error) => setStatus(error.message, 'error'));
+});
+
+elements.gag2StockPermissionRefreshButton?.addEventListener('click', () => {
+  refreshGag2StockPermissions();
 });
 
 elements.logoutButton.addEventListener('click', async () => {
