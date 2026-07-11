@@ -103,6 +103,40 @@ p {
   gap: 2px;
 }
 
+.brand-title-row,
+.site-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-title-row {
+  flex-wrap: wrap;
+}
+
+.site-links {
+  flex-wrap: wrap;
+}
+
+.site-links button {
+  min-height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.site-links button:hover {
+  border-color: rgba(111, 121, 255, 0.48);
+  background: rgba(111, 121, 255, 0.14);
+  color: #fff;
+}
+
 .brand-copy p {
   font-size: 12px;
 }
@@ -241,6 +275,73 @@ p {
   display: grid;
   gap: 6px;
 }
+
+.site-info-page {
+  height: calc(100dvh - 68px);
+  overflow: auto;
+  padding: 22px;
+  background: var(--bg);
+}
+
+.site-info-shell {
+  width: min(920px, 100%);
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.site-info-head,
+.site-info-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.site-info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.site-info-head > div {
+  display: grid;
+  gap: 6px;
+}
+
+.site-info-card {
+  display: grid;
+  gap: 14px;
+}
+
+.site-info-card ul,
+.site-info-card ol {
+  margin: 0;
+  padding-left: 22px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.bug-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bug-report-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.bug-report-status {
+  min-height: 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bug-report-status.ok { color: #62d68d; }
+.bug-report-status.error { color: var(--danger); }
 
 .layout {
   height: calc(100dvh - 68px);
@@ -2358,8 +2459,28 @@ textarea:focus,
     gap: 9px !important;
   }
 
+  .brand-title-row {
+    flex-wrap: nowrap !important;
+  }
+
   .brand-copy h1 {
     font-size: 17px !important;
+  }
+
+  .site-links {
+    max-width: min(280px, calc(100vw - 190px));
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .site-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-links button {
+    flex: 0 0 auto;
+    padding-inline: 8px;
   }
 
   .topbar-actions {
@@ -2482,6 +2603,10 @@ textarea:focus,
   .panel,
   .login-box {
     padding: 13px !important;
+  }
+
+  .site-links {
+    max-width: min(190px, calc(100vw - 170px));
   }
 
   .mini-tab,

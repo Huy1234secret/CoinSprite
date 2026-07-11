@@ -43,6 +43,34 @@
   margin-bottom: 16px;
 }
 
+.owner-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--input);
+}
+
+.owner-tabs button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.owner-tabs button.active,
+.owner-tabs button:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
 .owner-head h2,
 .owner-control-card h3,
 .owner-table-card h3 {
@@ -224,6 +252,59 @@
   background: var(--surface-3);
 }
 
+.owner-report-list {
+  display: grid;
+  gap: 12px;
+}
+
+.owner-report-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  gap: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 14px;
+}
+
+.owner-report-main,
+.owner-report-meta {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.owner-report-main h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.owner-report-main p,
+.owner-report-meta span,
+.owner-muted,
+.owner-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.owner-report-main strong,
+.owner-report-meta strong {
+  color: var(--text);
+}
+
+.owner-report-attachment {
+  color: #aab2ff;
+}
+
+.owner-empty {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+}
+
 .owner-status {
   color: var(--muted);
   font-size: 12px;
@@ -325,6 +406,13 @@
   .owner-head,
   .owner-table-head {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .owner-head-actions,
+  .owner-report-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
     flex-direction: column;
   }
 }
