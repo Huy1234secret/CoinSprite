@@ -109,8 +109,11 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /roleAssign/);
   assert.match(html, /gag2AssignRoleChannelMount/);
   assert.match(html, /gag2StockPermissionOverlay/);
+  assert.match(html, /gag2StockPermissionRefreshButton/);
   assert.match(app, /gag2StockPermissionState/);
   assert.match(app, /renderGag2StockPermissionGate/);
+  assert.match(app, /refreshGag2StockPermissions/);
+  assert.match(app, /directory\?refresh=1/);
   assert.match(app, /state\.gag2StockPermissions = state\.directory\.gag2StockPermissions/);
   assert.match(app, /Adding \$\{roleCountLabel\(adding\)\}/);
   assert.match(app, /Removing \$\{roleCountLabel\(removing\)\}/);
@@ -118,6 +121,8 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(styles, /\.gag2-stock-panel\.is-locked \.gag2-stock-grid/);
   assert.match(styles, /filter: blur\(3px\)/);
   assert.match(server, /gag2StockPermissions/);
+  assert.match(server, /guild\.members\.fetch\(\{ user: botUserId, force: true \}\)/);
+  assert.match(server, /fetchGuildDirectory\(guild, \{ force \}\)/);
   assert.match(server, /PermissionFlagsBits\.ManageRoles/);
   assert.match(app, /pollGag2RoleProgress\(payload\.roleProgress\)/);
   assert.match(server, /getGag2StockSetupProgress/);

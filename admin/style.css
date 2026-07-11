@@ -2684,6 +2684,9 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   margin: 0;
   color: var(--muted);
 }
+.gag2-stock-permission-overlay .button {
+  margin-top: 16px;
+}
 .tab[data-tab="leveling"]::before,
 .tab[data-tab="tickets"]::before { content: none !important; display: none !important; }
 .tab[data-tab="leveling"] .tab-icon,
