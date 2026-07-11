@@ -13,8 +13,10 @@ const {
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
+const { REQUEST_TIMEOUT_MS } = require('../src/gag2Stock/config');
+const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { Gag2StockPoster, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function fixture() {
   return {
@@ -269,4 +271,76 @@ test('GAG2 stock poster treats expired restock stock as stale', () => {
   assert.equal(isStaleStockEntry('crate', { nextRestockAtMs: now + 1 }, now), false);
   assert.equal(isStaleStockEntry('sell', { nextRestockAtMs: now - 1 }, now), false);
   assert.equal(isStaleStockEntry('weather', { nextRestockAtMs: now - 1 }, now), false);
+});
+
+test('GAG2 source uses a 5s timeout and retries transient aborts', async () => {
+  let calls = 0;
+  const payload = await fetchJson('https://example.test/gag2', {
+    retryDelayMs: 0,
+    retries: 1,
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      assert.ok(options.signal);
+      if (calls === 1) {
+        const error = new Error('This operation was aborted');
+        error.name = 'AbortError';
+        throw error;
+      }
+      return {
+        ok: true,
+        json: async () => ({ ok: true }),
+      };
+    },
+  });
+
+  assert.equal(REQUEST_TIMEOUT_MS, 5_000);
+  assert.equal(calls, 2);
+  assert.deepEqual(payload, { ok: true });
+});
+
+test('GAG2 poster keeps the previous good message for temporary source failures', async () => {
+  const sent = [];
+  const channel = {
+    isTextBased: () => true,
+    send: async (payload) => {
+      sent.push(payload);
+      return { id: `message-${sent.length}` };
+    },
+  };
+  const client = {
+    channels: {
+      cache: new Map([['1525003375651848263', channel]]),
+      fetch: async () => null,
+    },
+  };
+  const statePath = path.join(__dirname, 'tmp-gag2-transient-state.json');
+  fs.rmSync(statePath, { force: true });
+  const poster = new Gag2StockPoster(client, {
+    now: () => Date.parse('2026-07-11T12:00:00.000Z'),
+    statePath,
+    transientUnavailableNoticeFailures: 3,
+  });
+  const state = {
+    posts: {
+      '1493901002519347290': {
+        sell: { lastPostedKey: 'sell:previous-good-stock' },
+      },
+    },
+  };
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+  };
+  const error = new Error('GAG2 source timed out after 3 attempts (5s each)');
+  error.gag2Transient = true;
+
+  assert.equal(await poster.postUnavailableOnce(state, target, error), null);
+  assert.equal(await poster.postUnavailableOnce(state, target, error), null);
+  const message = await poster.postUnavailableOnce(state, target, error);
+
+  assert.equal(sent.length, 1);
+  assert.equal(message.id, 'message-1');
+  assert.equal(state.unavailable[target.guildId].sell.consecutiveFailures, 3);
+  fs.rmSync(statePath, { force: true });
 });
