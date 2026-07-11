@@ -182,6 +182,7 @@ test('GAG2 role specs use requested names and colors', () => {
   const weather = roleSpecsForType('weather');
 
   assert.deepEqual(seeds.slice(0, 3).map((spec) => spec.roleName), ['Carrot', 'Strawberry', 'Blueberry']);
+  assert.equal(seeds.find((spec) => spec.key === 'carrot').emoji, '<:carrot:1525195196864925817>');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').roleName, 'Dragon’s Breath');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').color, 0xB71E99);
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');

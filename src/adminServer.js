@@ -13,6 +13,7 @@ const { handleAppealApi } = require('./appealWebRoutes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
 const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2Stock/manager');
+const { syncGag2RoleAssignmentPanel } = require('./gag2Stock/roleAssignment');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const APPEAL_DIR = path.join(__dirname, '..', 'appeal');
@@ -743,9 +744,11 @@ async function routeRequest(req, res, env, client) {
       await ticketCommand.refreshGuild(guild, client.user.id).catch((error) => logCommandSystem(`Ticket panel refresh failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`));
     }
     if (guild && config?.enabled !== false) {
-      syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId }).catch((error) => {
-        logCommandSystem(`GAG2 stock setup sync failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
-      });
+      syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId })
+        .then(() => syncGag2RoleAssignmentPanel(client, guildId))
+        .catch((error) => {
+          logCommandSystem(`GAG2 stock setup sync failed for guild ${guildId}: ${error?.message ?? 'unknown error'}`);
+        });
     }
     logCommandSystem(`Admin ${session.user.id} updated server config for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config, roleProgress: getGag2StockSetupProgress(guildId) });

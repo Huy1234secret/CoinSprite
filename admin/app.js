@@ -15,6 +15,7 @@ const GAG2_STOCK_CHANNELS = [
   ['weather', 'Weather', 'gag2WeatherChannelMount'],
   ['moon', 'Moon prediction', 'gag2MoonChannelMount'],
   ['sell', 'Sell price track', 'gag2SellChannelMount'],
+  ['roleAssign', 'Role assignment', 'gag2AssignRoleChannelMount'],
 ];
 const GAG2_STOCK_ROLE_COUNTS = {
   seed: 29,
@@ -23,6 +24,7 @@ const GAG2_STOCK_ROLE_COUNTS = {
   weather: 11,
   moon: 11,
   sell: 43,
+  roleAssign: 0,
 };
 
 const state = {

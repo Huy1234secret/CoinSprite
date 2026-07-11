@@ -7,6 +7,7 @@ function defaultState() {
     version: 2,
     posts: {},
     unavailable: {},
+    roleAssignmentPanels: {},
   };
 }
 

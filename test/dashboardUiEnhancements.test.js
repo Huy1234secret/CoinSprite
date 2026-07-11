@@ -102,8 +102,11 @@ test('dashboard feature gating keeps non-GAG2 tabs hidden for limited servers', 
 
 test('GAG2 stock dashboard shows role sync progress', () => {
   const app = source('admin/app.js');
+  const html = source('admin/index.html');
   const server = source('src/adminServer.js');
   assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
+  assert.match(app, /roleAssign/);
+  assert.match(html, /gag2AssignRoleChannelMount/);
   assert.match(app, /Adding \$\{roleCountLabel\(adding\)\}/);
   assert.match(app, /Removing \$\{roleCountLabel\(removing\)\}/);
   assert.match(app, /gag2-stock\/setup-progress/);
