@@ -19,6 +19,7 @@ const {
 const { handleModerationEvidence } = require('./adminModerationEvidenceRoute');
 const { handleUserModerationAction } = require('./adminModerationActionRoute');
 const { handleAppealApi } = require('./appealWebRoutes');
+const { handleClickSimulatorApi, serveClickSimulatorAsset } = require('./clickSimulator/routes');
 const moderationCases = require('./moderationCaseStore');
 const { canManageWarnings, createWarning, editWarning, pardonWarning } = require('./warningService');
 const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2Stock/manager');
@@ -578,6 +579,9 @@ async function routeRequest(req, res, env, client) {
   if (req.method === 'GET' && url.pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) return serveAdminAsset(res, 'index.html');
   if (req.method === 'GET' && url.pathname.startsWith('/admin/')) return serveAdminAsset(res, url.pathname.slice('/admin/'.length));
+  if (req.method === 'GET' && (url.pathname === '/click-simulator' || url.pathname === '/click-simulator/' || url.pathname.startsWith('/click-simulator/'))) {
+    return serveClickSimulatorAsset(req, res, url);
+  }
   if (req.method === 'GET' && (url.pathname === '/appeal' || url.pathname === '/appeal/')) return serveAppealAsset(res, 'index.html');
   if (req.method === 'GET' && url.pathname.startsWith('/appeal/')) return serveAppealAsset(res, url.pathname.slice('/appeal/'.length));
   if (req.method === 'GET' && url.pathname === '/auth/discord') return handleAuthStart(req, res, env, url);
@@ -598,6 +602,10 @@ async function routeRequest(req, res, env, client) {
       sendJson,
     });
     if (handled) return;
+  }
+  if (url.pathname.startsWith('/api/click-simulator/')) {
+    const handled = await handleClickSimulatorApi(req, res, url, { readJsonBody, sendJson });
+    if (handled !== false) return;
   }
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const session = await requireAdmin(req, res, env, client);
