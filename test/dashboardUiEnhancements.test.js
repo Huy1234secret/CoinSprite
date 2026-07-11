@@ -103,13 +103,22 @@ test('dashboard feature gating keeps non-GAG2 tabs hidden for limited servers', 
 test('GAG2 stock dashboard shows role sync progress', () => {
   const app = source('admin/app.js');
   const html = source('admin/index.html');
+  const styles = source('admin/style.css');
   const server = source('src/adminServer.js');
   assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
   assert.match(app, /roleAssign/);
   assert.match(html, /gag2AssignRoleChannelMount/);
+  assert.match(html, /gag2StockPermissionOverlay/);
+  assert.match(app, /gag2StockPermissionState/);
+  assert.match(app, /renderGag2StockPermissionGate/);
+  assert.match(app, /state\.gag2StockPermissions = state\.directory\.gag2StockPermissions/);
   assert.match(app, /Adding \$\{roleCountLabel\(adding\)\}/);
   assert.match(app, /Removing \$\{roleCountLabel\(removing\)\}/);
   assert.match(app, /gag2-stock\/setup-progress/);
+  assert.match(styles, /\.gag2-stock-panel\.is-locked \.gag2-stock-grid/);
+  assert.match(styles, /filter: blur\(3px\)/);
+  assert.match(server, /gag2StockPermissions/);
+  assert.match(server, /PermissionFlagsBits\.ManageRoles/);
   assert.match(app, /pollGag2RoleProgress\(payload\.roleProgress\)/);
   assert.match(server, /getGag2StockSetupProgress/);
   assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);

@@ -2647,6 +2647,43 @@ body.gag2-stock-only .tab[data-tab]:not([data-tab="gag2Stock"]),
 body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   display: none !important;
 }
+.gag2-stock-panel { position: relative; overflow: hidden; }
+.gag2-stock-panel.is-locked .gag2-stock-grid {
+  filter: blur(3px);
+  opacity: .42;
+  pointer-events: none;
+  user-select: none;
+}
+.gag2-stock-permission-overlay {
+  position: absolute;
+  inset: 70px 16px 16px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 1px solid rgba(237,66,69,.35);
+  border-radius: 18px;
+  background: rgba(15,18,24,.52);
+  backdrop-filter: blur(4px);
+}
+.gag2-stock-permission-overlay[hidden] { display: none !important; }
+.gag2-stock-permission-overlay > div {
+  width: min(520px, 100%);
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  background: rgba(17,19,26,.92);
+  box-shadow: 0 18px 42px rgba(0,0,0,.36);
+}
+.gag2-stock-permission-overlay h4 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 20px;
+}
+.gag2-stock-permission-overlay p {
+  margin: 0;
+  color: var(--muted);
+}
 .tab[data-tab="leveling"]::before,
 .tab[data-tab="tickets"]::before { content: none !important; display: none !important; }
 .tab[data-tab="leveling"] .tab-icon,

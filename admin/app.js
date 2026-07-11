@@ -34,6 +34,7 @@ const state = {
   savedConfig: null,
   savedSnapshots: {},
   directory: { channels: [], categories: [], roles: [] },
+  gag2StockPermissions: { usable: true, missing: [] },
   channelValues: {},
   roleValues: {},
   xpGroups: [],
@@ -84,6 +85,9 @@ const elements = {
   rewardRows: document.querySelector('#rewardRows'),
   addRewardButton: document.querySelector('#addRewardButton'),
   gag2StockMounts: Object.fromEntries(GAG2_STOCK_CHANNELS.map(([, , id]) => [id, document.querySelector(`#${id}`)])),
+  gag2StockPanel: document.querySelector('#gag2StockPanel'),
+  gag2StockPermissionOverlay: document.querySelector('#gag2StockPermissionOverlay'),
+  gag2StockPermissionText: document.querySelector('#gag2StockPermissionText'),
   levelUpChannelMount: document.querySelector('#levelUpChannelMount'),
   levelUpTokens: document.querySelector('#levelUpTokens'),
   levelUpContent: document.querySelector('#levelUpContent'),
@@ -171,6 +175,27 @@ function roleOptions() {
 
 function sendableChannelOptions() {
   return channelOptions().filter((item) => ['text', 'announcement', 'thread'].includes(item.kind || item.optionType));
+}
+
+function gag2StockPermissionState() {
+  const permissions = state.gag2StockPermissions || {};
+  const missing = Array.isArray(permissions.missing) ? permissions.missing : [];
+  return {
+    usable: permissions.usable !== false && missing.length === 0,
+    missing,
+  };
+}
+
+function renderGag2StockPermissionGate() {
+  const { usable, missing } = gag2StockPermissionState();
+  elements.gag2StockPanel?.classList.toggle('is-locked', !usable);
+  if (elements.gag2StockPermissionOverlay) elements.gag2StockPermissionOverlay.hidden = usable;
+  if (elements.gag2StockPermissionText) {
+    const labels = missing.map((permission) => permission.label || permission.key).filter(Boolean);
+    elements.gag2StockPermissionText.textContent = labels.length
+      ? `Missing required bot permission${labels.length === 1 ? '' : 's'}: ${labels.join(', ')}.`
+      : 'Give the bot the required permissions before editing GAG2 stock settings.';
+  }
 }
 
 function optionById(options, id, type) {
@@ -754,6 +779,8 @@ function renderRewardRows() {
 }
 
 function renderGag2StockPickers() {
+  renderGag2StockPermissionGate();
+  const locked = !gag2StockPermissionState().usable;
   const options = sendableChannelOptions();
   for (const [key, label, mountId] of GAG2_STOCK_CHANNELS) {
     const mount = elements.gag2StockMounts[mountId];
@@ -762,6 +789,7 @@ function renderGag2StockPickers() {
       type: 'channel',
       placeholder: `Select ${label.toLowerCase()} channel`,
       onChange: (value) => {
+        if (locked) return;
         state.gag2StockChannels[key] = value;
         renderGag2StockPickers();
         renderPendingGag2RoleChange();
@@ -1177,6 +1205,7 @@ async function loadGuild(guildId) {
       api(`/api/guilds/${guildId}/gag2-stock/setup-progress`).catch(() => null),
     ]);
     state.directory = directoryPayload.directory || { channels: [], categories: [], roles: [] };
+    state.gag2StockPermissions = state.directory.gag2StockPermissions || { usable: true, missing: [] };
     fillConfig(configPayload.config);
     if (progressPayload?.progress) pollGag2RoleProgress(progressPayload.progress);
     setStatus(`Loaded ${state.directory.channels.length} channels and threads.`, 'ok');
