@@ -10,12 +10,15 @@ const {
   CHECK_INTERVAL_MS,
   CHECK_SCHEDULE_SECOND_MS,
   CHECK_SCHEDULE_UTC_OFFSET_MS,
+  SELL_CHECK_INTERVAL_MS,
+  SELL_CHECK_SCHEDULE_SECOND_MS,
+  SELL_UNCHANGED_RETRY_MS,
   STATE_PATH,
   STALE_STOCK_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
   TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
-  LIVE_CHECK_INTERVAL_MS,
+  WEATHER_CHECK_INTERVAL_MS,
 } = require('./config');
 const {
   fetchItemsPayload,
@@ -34,7 +37,8 @@ const { loadState, saveState } = require('./stateStore');
 
 const setupProgress = new Map();
 const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
-const LIVE_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather, ...STOCK_TYPE_GROUPS.sell]);
+const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
+const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -249,10 +253,15 @@ class Gag2StockPoster {
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
     this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
-    const liveInterval = Number(options.liveCheckIntervalMs ?? options.weatherCheckIntervalMs);
-    const liveInitialDelay = Number(options.liveInitialDelayMs ?? options.weatherInitialDelayMs);
-    this.liveCheckIntervalMs = Math.max(5_000, Number.isFinite(liveInterval) ? liveInterval : LIVE_CHECK_INTERVAL_MS);
-    this.liveInitialDelayMs = Math.max(0, Number.isFinite(liveInitialDelay) ? liveInitialDelay : 1_000);
+    const weatherInterval = Number(options.weatherCheckIntervalMs);
+    const weatherInitialDelay = Number(options.weatherInitialDelayMs);
+    const sellInterval = Number(options.sellCheckIntervalMs);
+    const sellScheduleSecond = Number(options.sellCheckScheduleSecondMs);
+    this.weatherCheckIntervalMs = Math.max(5_000, Number.isFinite(weatherInterval) ? weatherInterval : WEATHER_CHECK_INTERVAL_MS);
+    this.weatherInitialDelayMs = Math.max(0, Number.isFinite(weatherInitialDelay) ? weatherInitialDelay : 1_000);
+    this.sellCheckIntervalMs = Math.max(60_000, Number.isFinite(sellInterval) ? sellInterval : SELL_CHECK_INTERVAL_MS);
+    this.sellCheckScheduleSecondMs = Math.max(0, Math.min(this.sellCheckIntervalMs - 1, Number.isFinite(sellScheduleSecond) ? sellScheduleSecond : SELL_CHECK_SCHEDULE_SECOND_MS));
+    this.sellUnchangedRetryMs = Math.max(1_000, Number(options.sellUnchangedRetryMs) || SELL_UNCHANGED_RETRY_MS);
     this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
     this.fetchers = {
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
@@ -265,16 +274,19 @@ class Gag2StockPoster {
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
     this.inFlight = new Set();
     this.timer = null;
-    this.liveTimer = null;
+    this.weatherTimer = null;
+    this.sellTimer = null;
     this.started = false;
     this.nextDelayOverrideMs = null;
+    this.nextSellDelayOverrideMs = null;
   }
 
   async start() {
     if (this.started) return this;
     this.started = true;
     this.scheduleNextTick();
-    this.scheduleLiveTick(this.liveInitialDelayMs);
+    this.scheduleWeatherTick(this.weatherInitialDelayMs);
+    this.scheduleSellTick();
     setTimeout(() => {
       syncAllGag2StockSetups(this.client, this.fetchers)
         .then(() => syncAllGag2RoleAssignmentPanels(this.client))
@@ -312,32 +324,64 @@ class Gag2StockPoster {
     return nextAt;
   }
 
-  scheduleLiveTick(delayOverrideMs = null) {
+  scheduleWeatherTick(delayOverrideMs = null) {
     if (!this.started) return null;
     const now = this.now();
     const override = Number(delayOverrideMs);
-    const delay = Math.max(0, delayOverrideMs !== null && Number.isFinite(override) ? override : this.liveCheckIntervalMs);
+    const delay = Math.max(0, delayOverrideMs !== null && Number.isFinite(override) ? override : this.weatherCheckIntervalMs);
     const nextAt = now + delay;
-    this.liveTimer = setTimeout(() => {
-      this.liveTimer = null;
-      this.tick(LIVE_POST_TYPES, 'live')
+    this.weatherTimer = setTimeout(() => {
+      this.weatherTimer = null;
+      this.tick(WEATHER_POST_TYPES, 'weather')
         .catch((error) => {
-          logCommandSystem(`GAG2 live tick failed: ${error?.message || 'unknown error'}`);
+          logCommandSystem(`GAG2 weather tick failed: ${error?.message || 'unknown error'}`);
         })
         .finally(() => {
-          this.scheduleLiveTick();
+          this.scheduleWeatherTick();
         });
     }, delay);
-    if (typeof this.liveTimer.unref === 'function') this.liveTimer.unref();
+    if (typeof this.weatherTimer.unref === 'function') this.weatherTimer.unref();
+    return nextAt;
+  }
+
+  scheduleSellTick(delayOverrideMs = null) {
+    if (!this.started) return null;
+    const now = this.now();
+    const override = Number.isFinite(this.nextSellDelayOverrideMs)
+      ? Math.max(0, this.nextSellDelayOverrideMs)
+      : delayOverrideMs;
+    this.nextSellDelayOverrideMs = null;
+    const hasOverride = override !== null && override !== undefined && Number.isFinite(Number(override));
+    const nextAt = hasOverride
+      ? now + Math.max(0, Number(override))
+      : nextGag2StockTickAtMs(now, {
+        intervalMs: this.sellCheckIntervalMs,
+        secondMs: this.sellCheckScheduleSecondMs,
+        offsetMs: this.checkScheduleOffsetMs,
+      });
+    const delay = Math.max(0, nextAt - now);
+    this.sellTimer = setTimeout(() => {
+      this.sellTimer = null;
+      this.tick(SELL_POST_TYPES, 'sell')
+        .catch((error) => {
+          logCommandSystem(`GAG2 sell tick failed: ${error?.message || 'unknown error'}`);
+        })
+        .finally(() => {
+          this.scheduleSellTick();
+        });
+    }, delay);
+    if (typeof this.sellTimer.unref === 'function') this.sellTimer.unref();
     return nextAt;
   }
 
   stop() {
     this.started = false;
     if (this.timer) clearTimeout(this.timer);
-    if (this.liveTimer) clearTimeout(this.liveTimer);
+    if (this.weatherTimer) clearTimeout(this.weatherTimer);
+    if (this.sellTimer) clearTimeout(this.sellTimer);
     this.timer = null;
-    this.liveTimer = null;
+    this.weatherTimer = null;
+    this.sellTimer = null;
   }
 
   targets(types = STOCK_TYPES) {
@@ -415,7 +459,10 @@ class Gag2StockPoster {
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
     const samePost = bucket.lastPostedKey === postKey && bucket.channelId === target.channelId;
-    if (samePost && target.type !== 'moon') return null;
+    if (samePost && target.type !== 'moon') {
+      if (target.type === 'sell') this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
+      return null;
+    }
 
     const channel = await getSendableChannel(this.client, target.channelId);
     if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
