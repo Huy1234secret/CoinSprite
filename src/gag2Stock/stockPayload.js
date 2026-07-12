@@ -120,7 +120,8 @@ function parseWeatherPayload(payload) {
 }
 
 function parseSellPayload(payload) {
-  const entries = payload?.sell?.entries || payload?.entries;
+  const source = payload?.sell && typeof payload.sell === 'object' ? payload.sell : payload;
+  const entries = source?.entries;
   if (!Array.isArray(entries)) throw new Error('missing GAG2 sell price list');
   const normalized = entries
     .map((entry) => ({
@@ -133,7 +134,8 @@ function parseSellPayload(payload) {
     .filter((entry) => entry.name && Number.isFinite(entry.multiplier));
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
-    fetchedAtMs: parseDateMs(payload?.fetchedAt) || Date.now(),
+    fetchedAtMs: parseDateMs(source?.fetchedAt) || parseDateMs(payload?.fetchedAt) || Date.now(),
+    nextRefreshAtMs: parseBoundaryMs(source?.nextRefreshUnix ?? source?.nextRefreshAt ?? payload?.nextRefreshUnix ?? payload?.nextRefreshAt),
     entries: sortItemsForType('sell', normalized),
   };
 }
