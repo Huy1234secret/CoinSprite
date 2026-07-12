@@ -15,6 +15,7 @@ const {
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
   TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
+  WEATHER_CHECK_INTERVAL_MS,
 } = require('./config');
 const {
   fetchItemsPayload,
@@ -32,6 +33,7 @@ const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
 const setupProgress = new Map();
+const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock, ...STOCK_TYPE_GROUPS.sell]);
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -246,6 +248,10 @@ class Gag2StockPoster {
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
     this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
+    const weatherInterval = Number(options.weatherCheckIntervalMs);
+    const weatherInitialDelay = Number(options.weatherInitialDelayMs);
+    this.weatherCheckIntervalMs = Math.max(5_000, Number.isFinite(weatherInterval) ? weatherInterval : WEATHER_CHECK_INTERVAL_MS);
+    this.weatherInitialDelayMs = Math.max(0, Number.isFinite(weatherInitialDelay) ? weatherInitialDelay : 1_000);
     this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
     this.fetchers = {
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
@@ -256,8 +262,9 @@ class Gag2StockPoster {
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
-    this.inFlight = false;
+    this.inFlight = new Set();
     this.timer = null;
+    this.weatherTimer = null;
     this.started = false;
     this.nextDelayOverrideMs = null;
   }
@@ -266,6 +273,7 @@ class Gag2StockPoster {
     if (this.started) return this;
     this.started = true;
     this.scheduleNextTick();
+    this.scheduleWeatherTick(this.weatherInitialDelayMs);
     setTimeout(() => {
       syncAllGag2StockSetups(this.client, this.fetchers)
         .then(() => syncAllGag2RoleAssignmentPanels(this.client))
@@ -291,7 +299,7 @@ class Gag2StockPoster {
     const delay = Math.max(0, nextAt - now);
     this.timer = setTimeout(() => {
       this.timer = null;
-      this.tick()
+      this.tick(STOCK_POST_TYPES, 'stock')
         .catch((error) => {
           logCommandSystem(`GAG2 stock tick failed: ${error?.message || 'unknown error'}`);
         })
@@ -303,19 +311,43 @@ class Gag2StockPoster {
     return nextAt;
   }
 
+  scheduleWeatherTick(delayOverrideMs = null) {
+    if (!this.started) return null;
+    const now = this.now();
+    const override = Number(delayOverrideMs);
+    const delay = Math.max(0, delayOverrideMs !== null && Number.isFinite(override) ? override : this.weatherCheckIntervalMs);
+    const nextAt = now + delay;
+    this.weatherTimer = setTimeout(() => {
+      this.weatherTimer = null;
+      this.tick(STOCK_TYPE_GROUPS.weather, 'weather')
+        .catch((error) => {
+          logCommandSystem(`GAG2 weather tick failed: ${error?.message || 'unknown error'}`);
+        })
+        .finally(() => {
+          this.scheduleWeatherTick();
+        });
+    }, delay);
+    if (typeof this.weatherTimer.unref === 'function') this.weatherTimer.unref();
+    return nextAt;
+  }
+
   stop() {
     this.started = false;
     if (this.timer) clearTimeout(this.timer);
+    if (this.weatherTimer) clearTimeout(this.weatherTimer);
     this.timer = null;
+    this.weatherTimer = null;
   }
 
-  targets() {
+  targets(types = STOCK_TYPES) {
+    const allowedTypes = new Set(types);
     const targets = [];
     for (const guildId of getEnabledGuildIds()) {
       if (!isGuildGag2StockEnabled(guildId)) continue;
       const config = getGuildConfig(guildId);
       const channels = config?.gag2Stock?.channels || {};
       for (const type of STOCK_TYPES) {
+        if (!allowedTypes.has(type)) continue;
         const channelId = cleanChannelId(channels[type]);
         if (!channelId) continue;
         targets.push({
@@ -329,14 +361,16 @@ class Gag2StockPoster {
     return targets;
   }
 
-  async tick() {
-    if (this.inFlight) return null;
-    this.inFlight = true;
+  async tick(types = STOCK_TYPES, label = 'stock') {
+    const tickTypes = Array.isArray(types) && types.length ? types : STOCK_TYPES;
+    const lockKey = [...tickTypes].sort().join(',');
+    if (this.inFlight.has(lockKey)) return null;
+    this.inFlight.add(lockKey);
     let skippedStaleStock = false;
 
     try {
       const tickStartedAtMs = this.now();
-      const targets = this.targets();
+      const targets = this.targets(tickTypes);
       if (!targets.length) return null;
       const state = loadState(this.statePath);
       const { entries, errors } = await fetchEntriesForTargets(targets, this.fetchers);
@@ -368,11 +402,11 @@ class Gag2StockPoster {
       }
       return sent;
     } catch (error) {
-      logCommandSystem(`GAG2 stock failed: ${error?.message || 'unknown error'}`);
+      logCommandSystem(`GAG2 ${label} failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
       if (skippedStaleStock) this.nextDelayOverrideMs = this.staleStockRetryMs;
-      this.inFlight = false;
+      this.inFlight.delete(lockKey);
     }
   }
 
