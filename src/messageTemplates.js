@@ -1123,7 +1123,7 @@ function withExtraDefaults(templates) {
 }
 
 function patchMessageTemplateExports(exportsObject) {
-  if (!exportsObject || exportsObject.__coinSpriteExtraBotDefaultsPatched) return exportsObject;
+  if (!exportsObject || Object.prototype.hasOwnProperty.call(exportsObject, '__coinSpriteExtraBotDefaultsPatched')) return exportsObject;
 
   const nativeDefaults = Array.isArray(exportsObject.DEFAULT_BOT_TEMPLATES) ? exportsObject.DEFAULT_BOT_TEMPLATES : [];
   const nativeListTemplates = exportsObject.listTemplates.bind(exportsObject);

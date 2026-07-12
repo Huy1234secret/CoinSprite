@@ -7,6 +7,7 @@ const LOGS_DIR = path.join(__dirname, '..', 'logs');
 const LOG_THREAD_ID = DEFAULT_GUILD_CONFIG.channels.commandLogThread;
 const DISCORD_MESSAGE_LIMIT = 2000;
 const OWNER_CONSOLE_LIMIT = 800;
+const DISCORD_THREAD_LOGGING_ENABLED = /^(1|true|yes)$/i.test(String(process.env.COINSPRITE_DISCORD_THREAD_LOGS || ''));
 
 let loggingClient = null;
 let logThreadPromise = null;
@@ -129,7 +130,7 @@ function appendLogLine(message, now = new Date(), options = {}) {
     now,
     source: options.source || 'bot',
   });
-  void postLogToThread(line.trimEnd());
+  if (DISCORD_THREAD_LOGGING_ENABLED) void postLogToThread(line.trimEnd());
 }
 
 function logCommandUse({ userId, command, channelId }) {

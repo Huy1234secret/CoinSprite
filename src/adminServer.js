@@ -1550,7 +1550,7 @@ http.createServer = function patchedCreateServer(listener) {
 
 Module._load = function captureTicketClient(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__messageClientCapture) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__messageClientCapture')) return exported;
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => {
     clientRef = client;
@@ -1929,7 +1929,7 @@ http.createServer = function adminAssetServer(listener) {
 
 Module._load = function captureAdminClient(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__adminAssetClientCapture) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__adminAssetClientCapture')) return exported;
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => {
     clientRef = client;
@@ -2349,7 +2349,7 @@ http.createServer = function requestWorkflowServer(listener) {
 };
 Module._load = function captureClient(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestWorkflowAdminCapture) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestWorkflowAdminCapture')) return exported;
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => { clientRef = client; if (nativeInit) await nativeInit(client); };
   exported.__requestWorkflowAdminCapture = true;

@@ -833,7 +833,7 @@ function attachMediaGallery(payload, mediaUploads) {
   return payload;
 }
 
-if (!ticketConfig.__coinSpriteTicketFormMediaGalleryPatch) {
+if (!Object.prototype.hasOwnProperty.call(ticketConfig, '__coinSpriteTicketFormMediaGalleryPatch')) {
   const originalFormatFormAnswers = ticketConfig.formatFormAnswers;
   const originalBuildTicketMessagePayload = ticketConfig.buildTicketMessagePayload;
 
