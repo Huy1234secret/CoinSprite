@@ -8,6 +8,7 @@ const { logCommandSystem } = require('./commandLogger');
 const { handleUserDataGet, handleUserDataPatch } = require('./adminUserDataRoutes');
 const {
   handleBugReportCreate,
+  handleOwnerConsole,
   handleOwnerDisable,
   handleOwnerEnable,
   handleOwnerFeatures,
@@ -624,6 +625,11 @@ async function routeRequest(req, res, env, client) {
     const session = await requireOwner(req, res, env, client);
     if (!session) return;
     return handleOwnerReports(req, res, client, session, { sendJson });
+  }
+  if (req.method === 'GET' && url.pathname === '/api/owner/console') {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerConsole(req, res, url, client, session, { sendJson });
   }
   const ownerReportMatch = url.pathname.match(/^\/api\/owner\/reports\/([A-Za-z0-9_-]{6,80})$/);
   if (ownerReportMatch && (req.method === 'POST' || req.method === 'PATCH')) {

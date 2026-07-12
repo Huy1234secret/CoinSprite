@@ -15,7 +15,7 @@ const {
   setGuildEnabled,
   setGuildFeatures,
 } = require('./serverConfig');
-const { logCommandSystem } = require('./commandLogger');
+const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
 const { slashCommandPayloadsForGuild } = require('./featureGate');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
@@ -409,6 +409,12 @@ async function handleOwnerReports(req, res, client, session, deps) {
   deps.sendJson(res, 200, { reports: bugReportStore.listBugReports({ limit: 200 }) });
 }
 
+async function handleOwnerConsole(req, res, url, client, session, deps) {
+  const after = Math.max(0, Number(url.searchParams.get('after')) || 0);
+  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit')) || 250));
+  deps.sendJson(res, 200, getOwnerConsoleEntries({ after, limit }));
+}
+
 async function handleOwnerReportStatus(req, res, client, reportId, session, deps) {
   try {
     const body = await deps.readJsonBody(req);
@@ -422,6 +428,7 @@ async function handleOwnerReportStatus(req, res, client, reportId, session, deps
 
 module.exports = {
   handleBugReportCreate,
+  handleOwnerConsole,
   handleOwnerDisable,
   handleOwnerEnable,
   handleOwnerFeatures,
