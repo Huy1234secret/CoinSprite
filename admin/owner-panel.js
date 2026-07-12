@@ -213,14 +213,15 @@
       const fullBot = guild.features?.fullBot === true;
       const featureLabel = fullBot ? 'Full bot' : 'GAG2 stock only';
       const featureButton = fullBot ? 'Features enabled' : 'Enable features';
-      return `<tr class="${disabled ? 'is-disabled' : ''}">
-        <td><div class="owner-guild-cell"><span class="owner-guild-icon">${guildIcon(guild)}</span><div><strong>${escapeHtml(guild.name)}</strong><small>${escapeHtml(guild.id)}</small></div></div></td>
+      const limitedInfo = guild.limitedInfo ? '<small>Limited info from Discord guild list</small>' : '';
+      return `<tr class="${disabled ? 'is-disabled' : ''}${guild.limitedInfo ? ' is-limited' : ''}">
+        <td><div class="owner-guild-cell"><span class="owner-guild-icon">${guildIcon(guild)}</span><div><strong>${escapeHtml(guild.name)}</strong><small>${escapeHtml(guild.id)}</small>${limitedInfo}</div></div></td>
         <td>${fmtNumber(guild.totalUsers)}</td>
         <td>${escapeHtml(guild.ownerId || 'Unknown')}</td>
         <td><span class="owner-pill ${guild.enabled ? 'ok' : 'danger'}">${guild.enabled ? 'Enabled' : 'Disabled'}</span></td>
         <td><span class="owner-pill ${fullBot ? 'ok' : 'warn'}">${featureLabel}</span><small>GAG2 stock is enabled by default</small></td>
         <td><div class="owner-usage-stack"><span>${fmtNumber(usage.todayMessages)} messages today</span><small>${fmtCompactNumber(currentAi.totalTokens)} AI tokens (${fmtUsd(currentAi.estimatedCostUsd)}) this month, ${fmtNumber(currentAi.requests)} checks</small><small>History: ${escapeHtml(tokenHistoryText(aiTokens.history))}</small><small>Last AI use: ${escapeHtml(recentTokenLogText(aiTokens.recent))}</small><small>${fmtNumber(usage.messagesTracked)} lifetime messages, ${fmtNumber(usage.messageTemplates)} templates</small></div></td>
-        <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles</small></td>
+        <td><span>${escapeHtml(guild.storage?.label || '0 B')}</span><small>${guild.limitedInfo ? 'Channel/role counts unavailable' : `${fmtNumber(guild.channels)} channels, ${fmtNumber(guild.roles)} roles`}</small></td>
         <td>${disabled ? `<small>${escapeHtml(disabled.reason || 'No reason')}</small>` : '<small>-</small>'}</td>
         <td><div class="owner-row-actions"><button type="button" data-owner-action="edit-guild" data-guild-id="${guild.id}">Edit</button><button type="button" data-owner-action="toggle-features" data-guild-id="${guild.id}">${featureButton}</button>${guild.enabled ? `<button type="button" data-owner-action="disable-row" data-guild-id="${guild.id}">Disable</button>` : `<button type="button" data-owner-action="enable-row" data-guild-id="${guild.id}">Enable</button>`}</div></td>
       </tr>`;
