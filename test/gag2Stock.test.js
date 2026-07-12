@@ -14,10 +14,7 @@ const {
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
 const {
-  CHECK_SCHEDULE_UTC_OFFSET_MS,
   REQUEST_TIMEOUT_MS,
-  SELL_CHECK_INTERVAL_MS,
-  SELL_CHECK_SCHEDULE_SECOND_MS,
   SELL_UNCHANGED_RETRY_MS,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('../src/gag2Stock/config');
@@ -121,6 +118,7 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   });
   const sell = parseSellPayload({
     sell: {
+      nextRefreshUnix: 1783857600,
       entries: [
         { key: 'mushroom', name: 'Mushroom', multiplier: 2, tier: 'big' },
         { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
@@ -132,6 +130,7 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.equal(weather.current.name, 'Rain');
   assert.equal(weather.upcomingMoons[0].name, 'Mega Moon');
   assert.equal(sell.entries[0].name, 'Tomato');
+  assert.equal(new Date(sell.nextRefreshAtMs).toISOString(), '2026-07-12T12:00:00.000Z');
   const weatherPayload = buildTypePayload('weather', weather, { roleIds: { rain: '123456789012345678' } });
   assert.equal(weatherPayload.components[0].accent_color, 0x4A90E2);
   assert.equal(weatherPayload.components[0].components[0].type, 9);
@@ -314,46 +313,50 @@ test('GAG2 weather and moon use a separate 5 second polling loop', () => {
   assert.doesNotMatch(source, /LIVE_POST_TYPES|scheduleLiveTick|liveTimer|LIVE_CHECK_INTERVAL_MS/);
 });
 
-test('GAG2 sell uses a ten-minute boundary schedule with a five-second unchanged retry', () => {
+test('GAG2 stock and sell schedules prefer API refresh timestamps', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
-  assert.equal(SELL_CHECK_INTERVAL_MS, 10 * 60 * 1000);
-  assert.equal(SELL_CHECK_SCHEDULE_SECOND_MS, 10_000);
-  assert.equal(SELL_UNCHANGED_RETRY_MS, 5_000);
+  assert.match(source, /scheduleNextTick\(this\.stockInitialDelayMs\)/);
+  assert.match(source, /scheduleSellTick\(this\.sellInitialDelayMs\)/);
+  assert.match(source, /nextStockRefreshAtMs/);
+  assert.match(source, /nextSellRefreshAtMs/);
+  assert.match(source, /nextApiRefreshAtMsForTypes/);
   assert.match(source, /scheduleSellTick\(\)/);
   assert.match(source, /this\.tick\(SELL_POST_TYPES, 'sell'\)/);
   assert.match(source, /const SELL_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
-  assert.match(source, /this\.nextSellDelayOverrideMs = this\.sellUnchangedRetryMs/);
-  assert.match(source, /hasOverride/);
 
+  const now = Date.parse('2026-07-10T17:00:00.000Z');
+  const stockPoster = new Gag2StockPoster({}, { now: () => now });
+  stockPoster.started = true;
+  stockPoster.nextStockRefreshAtMs = Date.parse('2026-07-10T17:04:00.000Z');
   assert.equal(
-    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'), {
-      intervalMs: SELL_CHECK_INTERVAL_MS,
-      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
-      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
-    })).toISOString(),
-    '2026-07-10T17:00:10.000Z',
+    new Date(stockPoster.scheduleNextTick()).toISOString(),
+    '2026-07-10T17:04:00.000Z',
   );
+  stockPoster.stop();
+
+  const sellPoster = new Gag2StockPoster({}, { now: () => now });
+  sellPoster.started = true;
+  sellPoster.nextSellRefreshAtMs = Date.parse('2026-07-10T17:10:00.000Z');
   assert.equal(
-    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:11.000Z'), {
-      intervalMs: SELL_CHECK_INTERVAL_MS,
-      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
-      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
-    })).toISOString(),
-    '2026-07-10T17:10:10.000Z',
+    new Date(sellPoster.scheduleSellTick()).toISOString(),
+    '2026-07-10T17:10:00.000Z',
   );
-  assert.equal(
-    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:09:59.000Z'), {
-      intervalMs: SELL_CHECK_INTERVAL_MS,
-      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
-      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
-    })).toISOString(),
-    '2026-07-10T17:10:10.000Z',
-  );
+  sellPoster.stop();
 });
 
-test('GAG2 sell unchanged post arms the temporary five-second retry', async () => {
-  const sell = parseSellPayload({
+test('GAG2 sell unchanged post only arms the five-second retry when API refresh is due', async () => {
+  const now = Date.parse('2026-07-10T17:00:00.000Z');
+  const dueSell = parseSellPayload({
     sell: {
+      nextRefreshUnix: Math.floor((now - 1_000) / 1000),
+      entries: [
+        { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
+      ],
+    },
+  });
+  const futureSell = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now + 60_000) / 1000),
       entries: [
         { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
       ],
@@ -365,6 +368,7 @@ test('GAG2 sell unchanged post arms the temporary five-second retry', async () =
       fetch: async () => null,
     },
   }, {
+    now: () => now,
     sellUnchangedRetryMs: SELL_UNCHANGED_RETRY_MS,
   });
   const target = {
@@ -377,14 +381,17 @@ test('GAG2 sell unchanged post arms the temporary five-second retry', async () =
       [target.guildId]: {
         sell: {
           channelId: target.channelId,
-          lastPostedKey: buildTypePostKey('sell', sell),
+          lastPostedKey: buildTypePostKey('sell', dueSell),
         },
       },
     },
   };
 
-  assert.equal(await poster.postEntry(state, target, sell), null);
+  assert.equal(await poster.postEntry(state, target, dueSell), null);
   assert.equal(poster.nextSellDelayOverrideMs, SELL_UNCHANGED_RETRY_MS);
+  poster.nextSellDelayOverrideMs = null;
+  assert.equal(await poster.postEntry(state, target, futureSell), null);
+  assert.equal(poster.nextSellDelayOverrideMs, null);
 });
 
 test('GAG2 stock poster treats expired restock stock as stale', () => {
