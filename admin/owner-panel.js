@@ -8,6 +8,10 @@
   let ownerView = 'overview';
   let ownerReports = [];
   let ownerReportsLoaded = false;
+  let ownerConsoleEntries = [];
+  let ownerConsoleAfter = 0;
+  let ownerConsoleTimer = null;
+  let ownerConsolePaused = false;
   let installed = false;
   let messageAssetsStarted = false;
 
@@ -149,6 +153,64 @@
     return `<a class="owner-report-attachment" download="${escapeHtml(attachment.name || 'attachment')}" href="${href}">${escapeHtml(attachment.name || 'attachment')} (${fmtFileSize(attachment.size)})</a>`;
   }
 
+  function safeConsoleLevel(level) {
+    return ['command', 'debug', 'error', 'info', 'log', 'ok', 'system', 'warn'].includes(level) ? level : 'log';
+  }
+
+  function appendOwnerConsoleEntries(entries) {
+    let changed = false;
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      const id = Number(entry?.id) || 0;
+      if (!id || ownerConsoleEntries.some((item) => item.id === id)) continue;
+      ownerConsoleEntries.push({
+        id,
+        at: entry.at || '',
+        time: entry.time || '[--:--:--]',
+        level: safeConsoleLevel(String(entry.level || 'log')),
+        source: String(entry.source || 'bot'),
+        message: String(entry.message || ''),
+      });
+      ownerConsoleAfter = Math.max(ownerConsoleAfter, id);
+      changed = true;
+    }
+    if (ownerConsoleEntries.length > 500) ownerConsoleEntries = ownerConsoleEntries.slice(-500);
+    return changed;
+  }
+
+  function renderConsoleLines() {
+    if (!ownerConsoleEntries.length) return '<div class="owner-console-empty">No console entries yet.</div>';
+    return ownerConsoleEntries.map((entry) => `<div class="owner-console-line level-${safeConsoleLevel(entry.level)}">
+      <span class="owner-console-time">${escapeHtml(entry.time)}</span>
+      <span class="owner-console-source">${escapeHtml(entry.source)}</span>
+      <span class="owner-console-message">${escapeHtml(entry.message)}</span>
+    </div>`).join('');
+  }
+
+  function renderConsolePanel() {
+    return `<section class="owner-table-card owner-console-card">
+      <div class="owner-table-head">
+        <div><h3>Bot console</h3><p>Live owner-only bot activity. Timestamps use <code>[hh:mm:ss]</code>.</p></div>
+        <div class="owner-row-actions">
+          <span class="owner-status" data-owner-console-status>${fmtNumber(ownerConsoleEntries.length)} entries</span>
+          <button type="button" data-owner-action="console-refresh">Refresh</button>
+          <button type="button" data-owner-action="console-pause">${ownerConsolePaused ? 'Resume' : 'Pause'}</button>
+          <button type="button" data-owner-action="console-clear">Clear view</button>
+        </div>
+      </div>
+      <div class="owner-console-output" data-owner-console-output>${renderConsoleLines()}</div>
+    </section>`;
+  }
+
+  function updateConsoleDom() {
+    const output = ownerRoot?.querySelector('[data-owner-console-output]');
+    if (!output) return;
+    const shouldStick = output.scrollTop + output.clientHeight >= output.scrollHeight - 36;
+    output.innerHTML = renderConsoleLines();
+    if (shouldStick) output.scrollTop = output.scrollHeight;
+    const status = ownerRoot?.querySelector('[data-owner-console-status]');
+    if (status) status.textContent = ownerConsolePaused ? 'Paused' : `${fmtNumber(ownerConsoleEntries.length)} entries`;
+  }
+
   function reportStatusActions(report) {
     return ['open', 'reviewed', 'closed'].map((status) => (
       `<button type="button" data-owner-action="report-status" data-report-id="${escapeHtml(report.id)}" data-report-status="${status}" ${report.status === status ? 'disabled' : ''}>${status}</button>`
@@ -204,6 +266,7 @@
   function renderOwnerPanel(payload) {
     ownerData = payload;
     const overviewHidden = ownerView === 'overview' ? '' : ' hidden';
+    const consoleHidden = ownerView === 'console' ? '' : ' hidden';
     const reportsHidden = ownerView === 'reports' ? '' : ' hidden';
     const guildRows = (payload.guilds || []).map((guild) => {
       const disabled = guild.disabled;
@@ -229,7 +292,7 @@
 
     ownerRoot.innerHTML = `<section class="owner-head">
       <div><h2>Owner Panel</h2><p>Bot-wide status, guild inventory, and owner-only guild controls.</p></div>
-      <div class="owner-head-actions"><nav class="owner-tabs" aria-label="Owner panel views"><button type="button" data-owner-action="owner-view" data-owner-view="overview" class="${ownerView === 'overview' ? 'active' : ''}">Overview</button><button type="button" data-owner-action="owner-view" data-owner-view="reports" class="${ownerView === 'reports' ? 'active' : ''}">Reports</button></nav><button class="button subtle" type="button" data-owner-action="refresh">Refresh</button><button class="button" type="button" data-owner-action="close">Back to admin</button></div>
+      <div class="owner-head-actions"><nav class="owner-tabs" aria-label="Owner panel views"><button type="button" data-owner-action="owner-view" data-owner-view="overview" class="${ownerView === 'overview' ? 'active' : ''}">Overview</button><button type="button" data-owner-action="owner-view" data-owner-view="console" class="${ownerView === 'console' ? 'active' : ''}">Console</button><button type="button" data-owner-action="owner-view" data-owner-view="reports" class="${ownerView === 'reports' ? 'active' : ''}">Reports</button></nav><button class="button subtle" type="button" data-owner-action="refresh">Refresh</button><button class="button" type="button" data-owner-action="close">Back to admin</button></div>
     </section>
     <div class="owner-view-panel" data-owner-view-panel="overview"${overviewHidden}>
     <section class="owner-stat-grid">
@@ -261,9 +324,14 @@
       <div class="owner-table-wrap"><table class="owner-guild-table"><thead><tr><th>Guild</th><th>Users</th><th>Owner ID</th><th>Status</th><th>Features</th><th>Usage</th><th>Storage</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${guildRows || '<tr><td colspan="9">No guilds found.</td></tr>'}</tbody></table></div>
     </section>
     </div>
+    <div class="owner-view-panel" data-owner-view-panel="console"${consoleHidden}>${renderConsolePanel()}</div>
     <div class="owner-view-panel" data-owner-view-panel="reports"${reportsHidden}>${renderReportsPanel()}</div>`;
 
     ownerRoot.querySelector('#ownerDisableForm')?.addEventListener('submit', handleDisableSubmit);
+    if (ownerView === 'console') requestAnimationFrame(() => {
+      const output = ownerRoot?.querySelector('[data-owner-console-output]');
+      if (output) output.scrollTop = output.scrollHeight;
+    });
   }
 
   async function loadOwnerPanel() {
@@ -288,8 +356,51 @@
     renderOwnerPanel(ownerData || await ownerApi('/api/owner/overview'));
   }
 
+  async function loadOwnerConsole(options = {}) {
+    ensurePanel();
+    if (options.reset) {
+      ownerConsoleEntries = [];
+      ownerConsoleAfter = 0;
+    }
+    const payload = await ownerApi(`/api/owner/console?after=${ownerConsoleAfter}&limit=${options.reset ? 300 : 100}`);
+    appendOwnerConsoleEntries(payload.entries);
+    if (ownerView === 'console') {
+      renderOwnerPanel(ownerData || await ownerApi('/api/owner/overview'));
+      startOwnerConsolePolling();
+    }
+  }
+
+  async function pollOwnerConsole() {
+    if (ownerView !== 'console' || ownerConsolePaused) return;
+    try {
+      const payload = await ownerApi(`/api/owner/console?after=${ownerConsoleAfter}&limit=100`);
+      if (appendOwnerConsoleEntries(payload.entries)) updateConsoleDom();
+    } catch (error) {
+      const status = ownerRoot?.querySelector('[data-owner-console-status]');
+      if (status) {
+        status.textContent = error.message;
+        status.className = 'owner-status error';
+      }
+    }
+  }
+
+  function startOwnerConsolePolling() {
+    if (ownerConsoleTimer) return;
+    ownerConsoleTimer = setInterval(pollOwnerConsole, 2000);
+  }
+
+  function stopOwnerConsolePolling() {
+    if (ownerConsoleTimer) clearInterval(ownerConsoleTimer);
+    ownerConsoleTimer = null;
+  }
+
   async function switchOwnerView(view) {
-    ownerView = view === 'reports' ? 'reports' : 'overview';
+    ownerView = view === 'reports' ? 'reports' : view === 'console' ? 'console' : 'overview';
+    if (ownerView !== 'console') stopOwnerConsolePolling();
+    if (ownerView === 'console') {
+      await loadOwnerConsole({ reset: ownerConsoleEntries.length === 0 });
+      return;
+    }
     if (ownerView === 'reports' && !ownerReportsLoaded) {
       await loadOwnerReports();
       return;
@@ -298,6 +409,7 @@
   }
 
   function closeOwnerPanel() {
+    stopOwnerConsolePolling();
     ensurePanel().hidden = true;
     if (state?.me?.user) document.querySelector('#appShell')?.removeAttribute('hidden');
   }
@@ -385,12 +497,29 @@
     try {
       if (action === 'close') closeOwnerPanel();
       if (action === 'refresh') {
-        ownerData = await ownerApi('/api/owner/overview');
-        if (ownerView === 'reports') ownerReportsLoaded = false;
-        if (ownerView === 'reports') await loadOwnerReports();
-        else renderOwnerPanel(ownerData);
+        if (ownerView === 'console') {
+          await loadOwnerConsole({ reset: true });
+        } else {
+          ownerData = await ownerApi('/api/owner/overview');
+          if (ownerView === 'reports') ownerReportsLoaded = false;
+          if (ownerView === 'reports') await loadOwnerReports();
+          else renderOwnerPanel(ownerData);
+        }
       }
       if (action === 'owner-view') await switchOwnerView(event.target.closest('[data-owner-view]')?.dataset.ownerView);
+      if (action === 'console-refresh') await loadOwnerConsole({ reset: true });
+      if (action === 'console-pause') {
+        ownerConsolePaused = !ownerConsolePaused;
+        renderOwnerPanel(ownerData || await ownerApi('/api/owner/overview'));
+        if (!ownerConsolePaused) {
+          startOwnerConsolePolling();
+          await pollOwnerConsole();
+        }
+      }
+      if (action === 'console-clear') {
+        ownerConsoleEntries = [];
+        updateConsoleDom();
+      }
       if (action === 'report-status') {
         const button = event.target.closest('[data-report-id]');
         setOwnerStatus('Updating report...', 'pending');

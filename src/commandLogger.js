@@ -1,13 +1,26 @@
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const { DEFAULT_GUILD_CONFIG, getEnabledGuildIds, getGuildConfig, resolveLoggingChannelId } = require('./serverConfig');
 
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
 const LOG_THREAD_ID = DEFAULT_GUILD_CONFIG.channels.commandLogThread;
 const DISCORD_MESSAGE_LIMIT = 2000;
+const OWNER_CONSOLE_LIMIT = 800;
 
 let loggingClient = null;
 let logThreadPromise = null;
+let ownerConsoleSequence = 0;
+let nativeConsolePatched = false;
+const ownerConsoleEntries = [];
+
+const nativeConsole = {
+  debug: console.debug?.bind(console) || console.log.bind(console),
+  error: console.error.bind(console),
+  info: console.info?.bind(console) || console.log.bind(console),
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+};
 
 function padTwo(value) {
   return String(value).padStart(2, '0');
@@ -27,6 +40,13 @@ function getCurrentTime(now = new Date()) {
   return `${minutes}:${hours}`;
 }
 
+function getOwnerConsoleTime(now = new Date()) {
+  const hours = padTwo(now.getHours());
+  const minutes = padTwo(now.getMinutes());
+  const seconds = padTwo(now.getSeconds());
+  return `[${hours}:${minutes}:${seconds}]`;
+}
+
 function getDailyLogPath(now = new Date()) {
   const { day, month, year } = getCurrentDateParts(now);
   // File-system safe variant of "Log dd/mm/yyyy"
@@ -34,23 +54,100 @@ function getDailyLogPath(now = new Date()) {
   return path.join(LOGS_DIR, fileName);
 }
 
-function appendLogLine(message, now = new Date()) {
+function ownerConsoleLevelFromMessage(message, fallback = 'system') {
+  const text = String(message || '').toLowerCase();
+  if (/\b(error|failed|fail|exception|crash|invalid|denied|missing|blocked)\b/.test(text)) return 'error';
+  if (/\b(warn|warning|retry|skipped|unavailable|limited)\b/.test(text)) return 'warn';
+  if (/\b(ready|posted|registered|enabled|created|synced|listening|success)\b/.test(text)) return 'ok';
+  return fallback;
+}
+
+function trimConsoleEntries() {
+  if (ownerConsoleEntries.length > OWNER_CONSOLE_LIMIT) {
+    ownerConsoleEntries.splice(0, ownerConsoleEntries.length - OWNER_CONSOLE_LIMIT);
+  }
+}
+
+function pushOwnerConsoleEntry(level, message, options = {}) {
+  const now = options.now instanceof Date ? options.now : new Date();
+  const entry = {
+    id: ++ownerConsoleSequence,
+    at: now.toISOString(),
+    time: getOwnerConsoleTime(now),
+    level: String(level || 'log').toLowerCase(),
+    source: String(options.source || 'bot').slice(0, 32),
+    message: String(message || '').replace(/\s+$/g, '').slice(0, 2000),
+  };
+  ownerConsoleEntries.push(entry);
+  trimConsoleEntries();
+  return entry;
+}
+
+function formatConsoleArg(value) {
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) return value.stack || value.message;
+  return util.inspect(value, { depth: 4, colors: false, breakLength: 140, maxArrayLength: 30 });
+}
+
+function captureNativeConsole(level, args) {
+  const message = Array.from(args || []).map(formatConsoleArg).join(' ');
+  if (!message.trim()) return;
+  pushOwnerConsoleEntry(level, message, { source: 'console' });
+}
+
+function patchNativeConsole() {
+  if (nativeConsolePatched) return;
+  nativeConsolePatched = true;
+  for (const level of ['debug', 'error', 'info', 'log', 'warn']) {
+    console[level] = (...args) => {
+      try {
+        captureNativeConsole(level, args);
+      } catch {}
+      nativeConsole[level](...args);
+    };
+  }
+}
+
+function getOwnerConsoleEntries(options = {}) {
+  const after = Math.max(0, Number(options.after) || 0);
+  const limit = Math.min(OWNER_CONSOLE_LIMIT, Math.max(1, Number(options.limit) || 250));
+  const entries = ownerConsoleEntries.filter((entry) => entry.id > after).slice(-limit);
+  return {
+    entries,
+    latestId: ownerConsoleSequence,
+    nextAfter: entries.at(-1)?.id || after,
+    totalBuffered: ownerConsoleEntries.length,
+  };
+}
+
+function appendLogLine(message, now = new Date(), options = {}) {
   fs.mkdirSync(LOGS_DIR, { recursive: true });
 
   const line = `${getCurrentTime(now)} // ${message}\n`;
   fs.appendFileSync(getDailyLogPath(now), line, 'utf8');
+  pushOwnerConsoleEntry(options.level || ownerConsoleLevelFromMessage(message), message, {
+    now,
+    source: options.source || 'bot',
+  });
   void postLogToThread(line.trimEnd());
 }
 
 function logCommandUse({ userId, command, channelId }) {
-  appendLogLine(`${userId} executed command ${command} in channel ${channelId}`);
+  appendLogLine(`${userId} executed command ${command} in channel ${channelId}`, new Date(), {
+    level: 'command',
+    source: 'command',
+  });
 }
 
 function logCommandSystem(message) {
-  appendLogLine(`SYSTEM // ${message}`);
+  appendLogLine(`SYSTEM // ${message}`, new Date(), {
+    level: ownerConsoleLevelFromMessage(message),
+    source: 'system',
+  });
 }
 
 function setLogClient(client) {
+  patchNativeConsole();
   loggingClient = client;
   logThreadPromise = null;
 }
@@ -119,6 +216,7 @@ async function postLogToThread(line) {
 }
 
 module.exports = {
+  getOwnerConsoleEntries,
   logCommandUse,
   logCommandSystem,
   setLogClient,
