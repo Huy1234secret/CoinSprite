@@ -1910,7 +1910,7 @@ function wrapThumbnailReplies(interaction) {
 
 Module._load = function registerMessageTemplateInteractions(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__messageTemplateInteractionCapture) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__messageTemplateInteractionCapture')) return exported;
 
   const nativeInit = exported.init?.bind(exported);
   exported.init = async (client) => {
@@ -2191,7 +2191,7 @@ async function handleRequestInteraction(interaction) {
 
 Module._load = function patchedLoad(request, parent, isMain) {
   const exported = originalLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestTicketPatched) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestTicketPatched')) return exported;
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
@@ -2386,7 +2386,7 @@ async function handleWorkflowInteraction(interaction) {
 
 Module._load = function patchedLoad(request, parent, isMain) {
   const exported = originalLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestWorkflowPatched) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestWorkflowPatched')) return exported;
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
@@ -2825,7 +2825,7 @@ async function handleRequestInteraction(interaction) {
 }
 Module._load = function requestSelectPanelPatch(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestSelectPanelPatched) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestSelectPanelPatched')) return exported;
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
@@ -3101,7 +3101,7 @@ async function handleRequestAction(interaction) {
 
 Module._load = function requestDmRuntimePatch(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestDmRuntimePatched) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestDmRuntimePatched')) return exported;
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {
@@ -3367,7 +3367,7 @@ async function handleRequestCreateForm(interaction) {
 
 Module._load = function requestFormAnswerPatch(request, parent, isMain) {
   const exported = previousLoad.call(this, request, parent, isMain);
-  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || exported.__requestFormAnswerPatched) return exported;
+  if (!String(request).replace(/\\/g, '/').endsWith('/ticket-system.js') || Object.prototype.hasOwnProperty.call(exported, '__requestFormAnswerPatched')) return exported;
   const nativeHandle = exported.handleInteraction?.bind(exported);
   if (!nativeHandle) return exported;
   exported.handleInteraction = async (interaction, client) => {

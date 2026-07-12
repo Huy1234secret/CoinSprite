@@ -54,3 +54,9 @@ test('owner panel exposes owner-only console API and UI', () => {
   assert.match(ownerCss, /\.owner-console-line\.level-error/);
   assert.match(ownerCss, /\.owner-console-line\.level-warn/);
 });
+
+test('command logger keeps Discord BOT LOG thread posting disabled by default', () => {
+  const logger = source('src/commandLogger.js');
+  assert.match(logger, /COINSPRITE_DISCORD_THREAD_LOGS/);
+  assert.match(logger, /if \(DISCORD_THREAD_LOGGING_ENABLED\) void postLogToThread/);
+});
