@@ -58,10 +58,13 @@ async function fetchJsonOnce(url, options = {}) {
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(url, {
+      cache: 'no-store',
       signal: controller.signal,
       headers: {
         accept: 'application/json,text/plain,*/*',
+        'cache-control': 'no-cache',
         origin: 'https://www.gag2.gg',
+        pragma: 'no-cache',
         referer: options.referer || 'https://www.gag2.gg/stock',
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
       },

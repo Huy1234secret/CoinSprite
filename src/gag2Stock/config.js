@@ -13,8 +13,11 @@ const CHECK_SCHEDULE_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 const WEATHER_CHECK_INTERVAL_MS = 5_000;
 const SELL_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const SELL_CHECK_SCHEDULE_SECOND_MS = 10_000;
-const SELL_UNCHANGED_RETRY_MS = 5_000;
-const STALE_STOCK_RETRY_MS = 5_000;
+// Once an API-provided refresh time is reached, poll quickly until the new
+// payload appears. Normal stock and sell checks still sleep until the next
+// refresh timestamp, so these retries only run during the short refresh gap.
+const SELL_UNCHANGED_RETRY_MS = 1_000;
+const STALE_STOCK_RETRY_MS = 1_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 const REQUEST_RETRY_COUNT = 2;
 const REQUEST_RETRY_DELAY_MS = 750;

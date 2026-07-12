@@ -16,6 +16,7 @@ const {
 const {
   REQUEST_TIMEOUT_MS,
   SELL_UNCHANGED_RETRY_MS,
+  STALE_STOCK_RETRY_MS,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
@@ -313,6 +314,11 @@ test('GAG2 weather and moon use a separate 5 second polling loop', () => {
   assert.doesNotMatch(source, /LIVE_POST_TYPES|scheduleLiveTick|liveTimer|LIVE_CHECK_INTERVAL_MS/);
 });
 
+test('GAG2 refresh gaps retry every second', () => {
+  assert.equal(SELL_UNCHANGED_RETRY_MS, 1_000);
+  assert.equal(STALE_STOCK_RETRY_MS, 1_000);
+});
+
 test('GAG2 stock and sell schedules prefer API refresh timestamps', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
   assert.match(source, /scheduleNextTick\(this\.stockInitialDelayMs\)/);
@@ -344,7 +350,7 @@ test('GAG2 stock and sell schedules prefer API refresh timestamps', () => {
   sellPoster.stop();
 });
 
-test('GAG2 sell unchanged post only arms the five-second retry when API refresh is due', async () => {
+test('GAG2 sell unchanged post only arms the rapid retry when API refresh is due', async () => {
   const now = Date.parse('2026-07-10T17:00:00.000Z');
   const dueSell = parseSellPayload({
     sell: {
@@ -411,6 +417,9 @@ test('GAG2 source uses a 5s timeout and retries transient aborts', async () => {
     fetchImpl: async (_url, options) => {
       calls += 1;
       assert.ok(options.signal);
+      assert.equal(options.cache, 'no-store');
+      assert.equal(options.headers['cache-control'], 'no-cache');
+      assert.equal(options.headers.pragma, 'no-cache');
       if (calls === 1) {
         const error = new Error('This operation was aborted');
         error.name = 'AbortError';
