@@ -13,7 +13,7 @@ const {
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
-const { REQUEST_TIMEOUT_MS, WEATHER_CHECK_INTERVAL_MS } = require('../src/gag2Stock/config');
+const { LIVE_CHECK_INTERVAL_MS, REQUEST_TIMEOUT_MS } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { Gag2StockPoster, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
@@ -295,14 +295,15 @@ test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
   );
 });
 
-test('GAG2 weather and moon use a separate 15 second polling loop', () => {
+test('GAG2 weather, moon, and sell use a separate 15 second polling loop', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
-  assert.equal(WEATHER_CHECK_INTERVAL_MS, 15_000);
-  assert.match(source, /scheduleWeatherTick\(this\.weatherInitialDelayMs\)/);
-  assert.match(source, /this\.tick\(STOCK_TYPE_GROUPS\.weather, 'weather'\)/);
+  assert.equal(LIVE_CHECK_INTERVAL_MS, 15_000);
+  assert.match(source, /scheduleLiveTick\(this\.liveInitialDelayMs\)/);
+  assert.match(source, /this\.tick\(LIVE_POST_TYPES, 'live'\)/);
   assert.match(source, /this\.tick\(STOCK_POST_TYPES, 'stock'\)/);
   assert.match(source, /delayOverrideMs !== null && Number\.isFinite\(override\)/);
-  assert.match(source, /const STOCK_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.stock, \.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
+  assert.match(source, /const STOCK_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.stock\]\)/);
+  assert.match(source, /const LIVE_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.weather, \.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
 });
 
 test('GAG2 stock poster treats expired restock stock as stale', () => {

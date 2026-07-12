@@ -15,7 +15,7 @@ const {
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
   TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
-  WEATHER_CHECK_INTERVAL_MS,
+  LIVE_CHECK_INTERVAL_MS,
 } = require('./config');
 const {
   fetchItemsPayload,
@@ -33,7 +33,8 @@ const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
 const setupProgress = new Map();
-const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock, ...STOCK_TYPE_GROUPS.sell]);
+const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
+const LIVE_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather, ...STOCK_TYPE_GROUPS.sell]);
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -248,10 +249,10 @@ class Gag2StockPoster {
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
     this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
-    const weatherInterval = Number(options.weatherCheckIntervalMs);
-    const weatherInitialDelay = Number(options.weatherInitialDelayMs);
-    this.weatherCheckIntervalMs = Math.max(5_000, Number.isFinite(weatherInterval) ? weatherInterval : WEATHER_CHECK_INTERVAL_MS);
-    this.weatherInitialDelayMs = Math.max(0, Number.isFinite(weatherInitialDelay) ? weatherInitialDelay : 1_000);
+    const liveInterval = Number(options.liveCheckIntervalMs ?? options.weatherCheckIntervalMs);
+    const liveInitialDelay = Number(options.liveInitialDelayMs ?? options.weatherInitialDelayMs);
+    this.liveCheckIntervalMs = Math.max(5_000, Number.isFinite(liveInterval) ? liveInterval : LIVE_CHECK_INTERVAL_MS);
+    this.liveInitialDelayMs = Math.max(0, Number.isFinite(liveInitialDelay) ? liveInitialDelay : 1_000);
     this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
     this.fetchers = {
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
@@ -264,7 +265,7 @@ class Gag2StockPoster {
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
     this.inFlight = new Set();
     this.timer = null;
-    this.weatherTimer = null;
+    this.liveTimer = null;
     this.started = false;
     this.nextDelayOverrideMs = null;
   }
@@ -273,7 +274,7 @@ class Gag2StockPoster {
     if (this.started) return this;
     this.started = true;
     this.scheduleNextTick();
-    this.scheduleWeatherTick(this.weatherInitialDelayMs);
+    this.scheduleLiveTick(this.liveInitialDelayMs);
     setTimeout(() => {
       syncAllGag2StockSetups(this.client, this.fetchers)
         .then(() => syncAllGag2RoleAssignmentPanels(this.client))
@@ -311,32 +312,32 @@ class Gag2StockPoster {
     return nextAt;
   }
 
-  scheduleWeatherTick(delayOverrideMs = null) {
+  scheduleLiveTick(delayOverrideMs = null) {
     if (!this.started) return null;
     const now = this.now();
     const override = Number(delayOverrideMs);
-    const delay = Math.max(0, delayOverrideMs !== null && Number.isFinite(override) ? override : this.weatherCheckIntervalMs);
+    const delay = Math.max(0, delayOverrideMs !== null && Number.isFinite(override) ? override : this.liveCheckIntervalMs);
     const nextAt = now + delay;
-    this.weatherTimer = setTimeout(() => {
-      this.weatherTimer = null;
-      this.tick(STOCK_TYPE_GROUPS.weather, 'weather')
+    this.liveTimer = setTimeout(() => {
+      this.liveTimer = null;
+      this.tick(LIVE_POST_TYPES, 'live')
         .catch((error) => {
-          logCommandSystem(`GAG2 weather tick failed: ${error?.message || 'unknown error'}`);
+          logCommandSystem(`GAG2 live tick failed: ${error?.message || 'unknown error'}`);
         })
         .finally(() => {
-          this.scheduleWeatherTick();
+          this.scheduleLiveTick();
         });
     }, delay);
-    if (typeof this.weatherTimer.unref === 'function') this.weatherTimer.unref();
+    if (typeof this.liveTimer.unref === 'function') this.liveTimer.unref();
     return nextAt;
   }
 
   stop() {
     this.started = false;
     if (this.timer) clearTimeout(this.timer);
-    if (this.weatherTimer) clearTimeout(this.weatherTimer);
+    if (this.liveTimer) clearTimeout(this.liveTimer);
     this.timer = null;
-    this.weatherTimer = null;
+    this.liveTimer = null;
   }
 
   targets(types = STOCK_TYPES) {
