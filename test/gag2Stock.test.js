@@ -13,7 +13,14 @@ const {
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
-const { LIVE_CHECK_INTERVAL_MS, REQUEST_TIMEOUT_MS } = require('../src/gag2Stock/config');
+const {
+  CHECK_SCHEDULE_UTC_OFFSET_MS,
+  REQUEST_TIMEOUT_MS,
+  SELL_CHECK_INTERVAL_MS,
+  SELL_CHECK_SCHEDULE_SECOND_MS,
+  SELL_UNCHANGED_RETRY_MS,
+  WEATHER_CHECK_INTERVAL_MS,
+} = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { Gag2StockPoster, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
@@ -295,15 +302,89 @@ test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
   );
 });
 
-test('GAG2 weather, moon, and sell use a separate 15 second polling loop', () => {
+test('GAG2 weather and moon use a separate 5 second polling loop', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
-  assert.equal(LIVE_CHECK_INTERVAL_MS, 15_000);
-  assert.match(source, /scheduleLiveTick\(this\.liveInitialDelayMs\)/);
-  assert.match(source, /this\.tick\(LIVE_POST_TYPES, 'live'\)/);
+  assert.equal(WEATHER_CHECK_INTERVAL_MS, 5_000);
+  assert.match(source, /scheduleWeatherTick\(this\.weatherInitialDelayMs\)/);
+  assert.match(source, /this\.tick\(WEATHER_POST_TYPES, 'weather'\)/);
   assert.match(source, /this\.tick\(STOCK_POST_TYPES, 'stock'\)/);
   assert.match(source, /delayOverrideMs !== null && Number\.isFinite\(override\)/);
   assert.match(source, /const STOCK_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.stock\]\)/);
-  assert.match(source, /const LIVE_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.weather, \.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
+  assert.match(source, /const WEATHER_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.weather\]\)/);
+  assert.doesNotMatch(source, /LIVE_POST_TYPES|scheduleLiveTick|liveTimer|LIVE_CHECK_INTERVAL_MS/);
+});
+
+test('GAG2 sell uses a ten-minute boundary schedule with a five-second unchanged retry', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.equal(SELL_CHECK_INTERVAL_MS, 10 * 60 * 1000);
+  assert.equal(SELL_CHECK_SCHEDULE_SECOND_MS, 10_000);
+  assert.equal(SELL_UNCHANGED_RETRY_MS, 5_000);
+  assert.match(source, /scheduleSellTick\(\)/);
+  assert.match(source, /this\.tick\(SELL_POST_TYPES, 'sell'\)/);
+  assert.match(source, /const SELL_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
+  assert.match(source, /this\.nextSellDelayOverrideMs = this\.sellUnchangedRetryMs/);
+  assert.match(source, /hasOverride/);
+
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'), {
+      intervalMs: SELL_CHECK_INTERVAL_MS,
+      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
+      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
+    })).toISOString(),
+    '2026-07-10T17:00:10.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:11.000Z'), {
+      intervalMs: SELL_CHECK_INTERVAL_MS,
+      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
+      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
+    })).toISOString(),
+    '2026-07-10T17:10:10.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:09:59.000Z'), {
+      intervalMs: SELL_CHECK_INTERVAL_MS,
+      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
+      offsetMs: CHECK_SCHEDULE_UTC_OFFSET_MS,
+    })).toISOString(),
+    '2026-07-10T17:10:10.000Z',
+  );
+});
+
+test('GAG2 sell unchanged post arms the temporary five-second retry', async () => {
+  const sell = parseSellPayload({
+    sell: {
+      entries: [
+        { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
+      ],
+    },
+  });
+  const poster = new Gag2StockPoster({
+    channels: {
+      cache: new Map(),
+      fetch: async () => null,
+    },
+  }, {
+    sellUnchangedRetryMs: SELL_UNCHANGED_RETRY_MS,
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+  };
+  const state = {
+    posts: {
+      [target.guildId]: {
+        sell: {
+          channelId: target.channelId,
+          lastPostedKey: buildTypePostKey('sell', sell),
+        },
+      },
+    },
+  };
+
+  assert.equal(await poster.postEntry(state, target, sell), null);
+  assert.equal(poster.nextSellDelayOverrideMs, SELL_UNCHANGED_RETRY_MS);
 });
 
 test('GAG2 stock poster treats expired restock stock as stale', () => {
