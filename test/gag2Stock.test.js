@@ -13,7 +13,7 @@ const {
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
-const { REQUEST_TIMEOUT_MS } = require('../src/gag2Stock/config');
+const { REQUEST_TIMEOUT_MS, WEATHER_CHECK_INTERVAL_MS } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { Gag2StockPoster, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
@@ -179,6 +179,37 @@ test('GAG2 current weather uses role mention while recent weather stays plain te
   assert.doesNotMatch(recentLines.join('\n'), /<@&123456789012345678>|<@&234567890123456789>/);
 });
 
+test('GAG2 weather post key changes only for current weather, not recent history', () => {
+  const base = parseWeatherPayload({
+    weather: {
+      current: { type: 'goldmoon', name: 'Goldmoon', startsAt: '2026-07-10T16:00:00.000Z', endsAt: '2026-07-10T16:03:00.000Z' },
+      recent: [
+        { key: 'rainbow', name: 'Rainbow', lastSeenAt: '2026-07-10T15:55:00.000Z' },
+      ],
+    },
+  });
+  const recentOnlyChanged = parseWeatherPayload({
+    weather: {
+      current: { type: 'goldmoon', name: 'Goldmoon', startsAt: '2026-07-10T16:00:00.000Z', endsAt: '2026-07-10T16:03:00.000Z' },
+      recent: [
+        { key: 'rainbow', name: 'Rainbow', lastSeenAt: '2026-07-10T15:56:00.000Z' },
+        { key: 'aurora', name: 'Aurora', lastSeenAt: '2026-07-10T15:54:00.000Z' },
+      ],
+    },
+  });
+  const currentChanged = parseWeatherPayload({
+    weather: {
+      current: { type: 'bloodmoon', name: 'Blood Moon', startsAt: '2026-07-10T16:04:00.000Z', endsAt: '2026-07-10T16:07:00.000Z' },
+      recent: [
+        { key: 'goldmoon', name: 'Goldmoon', lastSeenAt: '2026-07-10T16:03:00.000Z' },
+      ],
+    },
+  });
+
+  assert.equal(buildTypePostKey('weather', base), buildTypePostKey('weather', recentOnlyChanged));
+  assert.notEqual(buildTypePostKey('weather', base), buildTypePostKey('weather', currentChanged));
+});
+
 test('GAG2 stock unavailable payload is a red Components V2 container', () => {
   const payload = buildUnavailablePayload('HTTP 500', Date.parse('2026-07-10T16:50:00.000Z'));
 
@@ -262,6 +293,16 @@ test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:05.000Z'))).toISOString(),
     '2026-07-10T17:10:05.000Z',
   );
+});
+
+test('GAG2 weather and moon use a separate 15 second polling loop', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.equal(WEATHER_CHECK_INTERVAL_MS, 15_000);
+  assert.match(source, /scheduleWeatherTick\(this\.weatherInitialDelayMs\)/);
+  assert.match(source, /this\.tick\(STOCK_TYPE_GROUPS\.weather, 'weather'\)/);
+  assert.match(source, /this\.tick\(STOCK_POST_TYPES, 'stock'\)/);
+  assert.match(source, /delayOverrideMs !== null && Number\.isFinite\(override\)/);
+  assert.match(source, /const STOCK_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.stock, \.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
 });
 
 test('GAG2 stock poster treats expired restock stock as stale', () => {

@@ -174,7 +174,6 @@ function buildTypePostKey(type, entry) {
       current.key || 'none',
       current.startsAtMs || 'none',
       current.endsAtMs || 'none',
-      entry.recent?.slice(0, 8).map((item) => `${item.key}:${item.lastSeenAtMs || 0}`).join(',') || '',
     ].join(':');
   }
   if (type === 'moon') {
