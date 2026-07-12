@@ -134,9 +134,35 @@ function globalStorage() {
   };
 }
 
-async function guildSummary(client, guildId, disabledRecords, todayMessages, aiUsage) {
+function partialGuildSummary(client, guildId, fallbackGuild, disabledRecords, todayMessages, aiUsage) {
+  const config = getGuildConfigRaw(guildId);
+  const storage = dataFileBytesForGuild(guildId);
+  const usage = dataUsageForGuild(guildId, todayMessages, aiUsage);
+  return {
+    id: guildId,
+    name: fallbackGuild?.name || `Guild ${guildId}`,
+    iconURL: fallbackGuild?.iconURL?.({ extension: 'png', size: 64 }) || null,
+    ownerId: null,
+    totalUsers: Number(fallbackGuild?.approximateMemberCount || fallbackGuild?.approximate_member_count || fallbackGuild?.memberCount) || 0,
+    channels: 0,
+    roles: 0,
+    configured: Boolean(config),
+    enabled: config?.enabled !== false,
+    features: config?.features || { gag2Stock: true, fullBot: false },
+    disabled: disabledRecords[guildId] || null,
+    partial: true,
+    limitedInfo: true,
+    usage,
+    storage: {
+      ...storage,
+      label: formatBytes(storage.totalBytes),
+    },
+  };
+}
+
+async function guildSummary(client, guildId, disabledRecords, todayMessages, aiUsage, fallbackGuild = null) {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-  if (!guild) return null;
+  if (!guild) return fallbackGuild ? partialGuildSummary(client, guildId, fallbackGuild, disabledRecords, todayMessages, aiUsage) : null;
   const channels = await guild.channels.fetch().catch(() => guild.channels.cache);
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
   const owner = guild.ownerId ? null : await guild.fetchOwner().catch(() => null);
@@ -155,6 +181,8 @@ async function guildSummary(client, guildId, disabledRecords, todayMessages, aiU
     enabled: config?.enabled !== false,
     features: config?.features || { gag2Stock: true, fullBot: false },
     disabled: disabledRecords[guild.id] || null,
+    partial: false,
+    limitedInfo: false,
     usage,
     storage: {
       ...storage,
@@ -189,14 +217,44 @@ function addGuildIdsFromCollection(ids, value) {
   }
 }
 
-async function collectOwnerGuildIds(client, configuredIds = []) {
-  const ids = new Set();
-  for (const id of configuredIds) addGuildId(ids, id);
-  addGuildIdsFromCollection(ids, client?.guilds?.cache);
+function addGuildRecord(records, keyOrGuild, maybeGuild = null) {
+  const guild = maybeGuild?.id ? maybeGuild : (typeof keyOrGuild === 'object' ? keyOrGuild : null);
+  const keyId = typeof keyOrGuild === 'string' ? keyOrGuild : keyOrGuild?.id;
+  const valueId = guild?.id;
+  const id = /^\d{16,20}$/.test(String(keyId || '')) ? keyId : valueId;
+  if (!/^\d{16,20}$/.test(String(id || ''))) return;
+  const existing = records.get(String(id));
+  if (existing?.channels && existing?.roles) return;
+  records.set(String(id), guild || existing || { id: String(id) });
+}
+
+function addGuildRecordsFromCollection(records, value) {
+  if (!value) return;
+  if (typeof value.entries === 'function') {
+    for (const [key, guild] of value.entries()) addGuildRecord(records, key, guild);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const guild of value) addGuildRecord(records, guild);
+    return;
+  }
+  if (typeof value === 'object') {
+    for (const [key, guild] of Object.entries(value)) addGuildRecord(records, key, guild);
+  }
+}
+
+async function collectOwnerGuildRecords(client, configuredIds = []) {
+  const records = new Map();
+  for (const id of configuredIds) addGuildRecord(records, id);
+  addGuildRecordsFromCollection(records, client?.guilds?.cache);
   const fetchedGuilds = await client?.guilds?.fetch?.().catch(() => null);
-  addGuildIdsFromCollection(ids, fetchedGuilds);
-  addGuildIdsFromCollection(ids, client?.guilds?.cache);
-  return ids;
+  addGuildRecordsFromCollection(records, fetchedGuilds);
+  addGuildRecordsFromCollection(records, client?.guilds?.cache);
+  return records;
+}
+
+async function collectOwnerGuildIds(client, configuredIds = []) {
+  return new Set((await collectOwnerGuildRecords(client, configuredIds)).keys());
 }
 
 async function ownerOverview(client) {
@@ -205,8 +263,8 @@ async function ownerOverview(client) {
   const disabledRecords = getDisabledGuilds();
   const bugReports = bugReportStore.listBugReports({ limit: 200 });
   const configuredIds = new Set(getConfiguredGuildIds({ includeDisabled: true }));
-  const ids = await collectOwnerGuildIds(client, configuredIds);
-  const guilds = (await Promise.all([...ids].map((id) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage)))).filter(Boolean);
+  const guildRecords = await collectOwnerGuildRecords(client, configuredIds);
+  const guilds = (await Promise.all([...guildRecords].map(([id, fallbackGuild]) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage, fallbackGuild)))).filter(Boolean);
   const delayMeanMs = Number.isFinite(eventLoopDelay.mean) ? eventLoopDelay.mean / 1e6 : 0;
   const fps = delayMeanMs > 0 ? Math.max(1, Math.round(1000 / Math.max(1, delayMeanMs))) : null;
   return {
@@ -370,6 +428,7 @@ module.exports = {
   handleOwnerOverview,
   handleOwnerReportStatus,
   handleOwnerReports,
+  collectOwnerGuildRecords,
   collectOwnerGuildIds,
   isOwnerSession,
 };
