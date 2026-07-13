@@ -82,7 +82,7 @@ const SEED_ITEMS = [
   item('grape', 'Grape', '<:grape:1525195212236914779>', 'epic'),
   item('coconut', 'Coconut', '<:coconut:1525195201818394806>', 'epic'),
   item('mango', 'Mango', '<:mango:1525195221200011437>', 'epic'),
-  item('rocket_pop', 'Rocket Pop', '<:rocket_pop:1525195234898874630>', 'legendary'),
+  item('rocket_pop', 'Rocket Pop', '<:rocket_pop:1525195234898874630>', 'legendary', { createRole: false }),
   item('dragon_fruit', 'Dragon Fruit', '<:dragon_fruit:1525195205807050822>', 'legendary'),
   item('acorn', 'Acorn', '<:acorn:1525195184541794434>', 'legendary'),
   item('cherry', 'Cherry', '<:cherry:1525195199381504114>', 'legendary'),
@@ -105,7 +105,7 @@ const SEED_ITEMS = [
 ];
 
 const SELL_ONLY_ITEMS = [
-  item('eclipse_bloom', 'Eclipse Bloom', '<:eclipse_bloom:1526031940749361163>', 'secret'),
+  item('eclipse_bloom', 'Eclipse Bloom', '<:eclipse_bloom:1526031940749361163>', 'secret', { createRole: false }),
 ];
 
 const SELL_ITEMS = [...SEED_ITEMS, ...SELL_ONLY_ITEMS];
@@ -113,14 +113,14 @@ const SELL_ITEMS = [...SEED_ITEMS, ...SELL_ONLY_ITEMS];
 const GEAR_ITEMS = [
   item('common_watering_can', 'Common Watering Can', '<:common_watering_can:1525198690707439736>', 'common'),
   item('common_sprinkler', 'Common Sprinkler', '<:common_sprinkler:1525198688283267234>', 'common'),
-  item('sign', 'Sign', '<:sign:1525199115498160189>', 'common'),
+  item('sign', 'Sign', '<:sign:1525199115498160189>', 'common', { createRole: false }),
   item('uncommon_sprinkler', 'Uncommon Sprinkler', '<:uncommon_sprinkler:1525198728846115007>', 'uncommon'),
   item('trowel', 'Trowel', '<:trowel:1525198726535053404>', 'rare'),
   item('rare_sprinkler', 'Rare Sprinkler', '<:rare_sprinkler:1525198712761090308>', 'rare'),
   item('jump_mushroom', 'Jump Mushroom', '<:jump_mushroom:1525198699456626799>', 'rare'),
   item('speed_mushroom', 'Speed Mushroom', '<:speed_mushroom:1525198716577911024>', 'rare'),
-  item('lantern', 'Lantern', '', 'rare'),
-  item('megaphone', 'Megaphone', '<:megaphone:1525198707925057607>', 'rare'),
+  item('lantern', 'Lantern', '', 'rare', { createRole: false }),
+  item('megaphone', 'Megaphone', '<:megaphone:1525198707925057607>', 'rare', { createRole: false }),
   item('shrink_mushroom', 'Shrink Mushroom', '<:shrink_mushroom:1525198714749059162>', 'epic'),
   item('supersize_mushroom', 'Supersize Mushroom', '<:supersize_mushroom:1525198724639232100>', 'epic'),
   item('gnome', 'Gnome', '<:gnome:1525198694763200673>', 'epic'),
@@ -128,8 +128,8 @@ const GEAR_ITEMS = [
   item('basic_pot', 'Basic Pot', '<:basic_pot:1525198685410033684>', 'epic'),
   item('legendary_sprinkler', 'Legendary Sprinkler', '<:legendary_sprinkler:1525198702690697358>', 'epic'),
   item('invisibility_mushroom', 'Invisibility Mushroom', '<:invisibility_mushroom:1525198697263140954>', 'legendary'),
-  item('teleporter', 'Teleporter', '', 'legendary'),
-  item('wheelbarrow', 'Wheelbarrow', '<:wheelbarrow:1525198730683355386>', 'legendary'),
+  item('teleporter', 'Teleporter', '', 'legendary', { createRole: false }),
+  item('wheelbarrow', 'Wheelbarrow', '<:wheelbarrow:1525198730683355386>', 'legendary', { createRole: false }),
   item('player_magnet', 'Player Magnet', '<:player_magnet:1525198710231928832>', 'mythic'),
   item('strawberry_sniper', 'Strawberry Sniper', '<:strawberry_sniper:1525198718658154647>', 'mythic'),
   item('super_watering_can', 'Super Watering Can', '<:super_watering_can:1525198722785345708>', 'super'),
@@ -144,7 +144,7 @@ const CRATE_ITEMS = [
   item('arch_crate', 'Arch', '<:arch_crate:1525201071620882542>', 'rare'),
   item('roleplay_crate', 'Roleplay', '<:roleplay_crate:1525201091317465108>', 'rare'),
   item('picture_frame_crate', 'Picture Frame', '<:picture_frame_crate:1525202336631361606>', 'rare'),
-  item('fourth_of_july_crate', 'Fourth of July (limited)', '<:fourth_of_july_crate:1525201497116246128>', 'rare'),
+  item('fourth_of_july_crate', 'Fourth of July (limited)', '<:fourth_of_july_crate:1525201497116246128>', 'rare', { createRole: false }),
   item('bridge_crate', 'Bridge', '<:bridge_crate:1525201078642147469>', 'epic'),
   item('spring_crate', 'Spring', '<:spring_crate:1525201098233745528>', 'epic'),
   item('seesaw_crate', 'Seesaw', '<:seesaw_crate:1525201094257545286>', 'epic'),
@@ -346,8 +346,8 @@ function sellBonusRoleSpecs() {
 
 function roleSpecsForType(type) {
   if (type === 'seed') return [...SEED_ITEMS, ...SELL_ONLY_ITEMS].filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
-  if (type === 'gear') return GEAR_ITEMS.map(roleSpecFromItem);
-  if (type === 'crate') return CRATE_ITEMS.map(roleSpecFromItem);
+  if (type === 'gear') return GEAR_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
+  if (type === 'crate') return CRATE_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.map(roleSpecFromItem);
   if (type === 'sell') return sellBonusRoleSpecs();
   return [];

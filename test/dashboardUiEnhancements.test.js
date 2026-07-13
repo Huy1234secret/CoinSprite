@@ -106,7 +106,9 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   const styles = source('admin/style.css');
   const server = source('src/adminServer.js');
   assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
-  assert.match(app, /seed: 32/);
+  assert.match(app, /seed: 30/);
+  assert.match(app, /gear: 18/);
+  assert.match(app, /crate: 16/);
   assert.match(app, /sell: 16/);
   assert.match(app, /roleAssign/);
   assert.match(app, /\['updates', 'Bot Update alert', 'gag2UpdatesChannelMount'\]/);
@@ -127,6 +129,7 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /filters: clone\(state\.gag2StockFilters\)/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
+  assert.match(html, /Update 4/);
   assert.match(html, /Update 3/);
   assert.match(html, /Eclipse Bloom/);
   assert.match(html, /Added new weather:[\s\S]*Eclipse/);

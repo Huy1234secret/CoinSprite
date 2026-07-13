@@ -282,7 +282,7 @@ test('GAG2 role rarity filters retain only requested role specs', () => {
   });
 
   assert.deepEqual(seedSpecs.filter((spec) => spec.rarity === 'common').map((spec) => spec.key), ['carrot', 'strawberry', 'blueberry']);
-  assert.ok(seedSpecs.some((spec) => spec.key === 'eclipse_bloom'), 'Secret Eclipse Bloom remains available outside the Common-Super selector');
+  assert.ok(seedSpecs.every((spec) => spec.key !== 'eclipse_bloom'), 'Sell-only Eclipse Bloom does not create a seed notification role');
   assert.deepEqual(sellSpecs.map((spec) => spec.key), ['common_4x']);
 });
 
@@ -364,9 +364,11 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(crate.find((spec) => spec.key === 'teleporter_pad_crate').rarity, 'mythic');
   assert.equal(sell.length, 16);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
-  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').roleName, 'Eclipse Bloom');
-  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').emoji, '<:eclipse_bloom:1526031940749361163>');
-  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').color, 0xFFFFFF);
+  const excludedSeedRoles = ['baby_cactus', 'horned_melon', 'glow_mushroom', 'poison_ivy', 'ghost_pepper', 'rocket_pop', 'eclipse_bloom'];
+  const excludedGearRoles = ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow'];
+  assert.ok(excludedSeedRoles.every((key) => !seeds.some((spec) => spec.key === key)));
+  assert.ok(excludedGearRoles.every((key) => !gear.some((spec) => spec.key === key)));
+  assert.equal(crate.some((spec) => spec.key === 'fourth_of_july_crate'), false);
   assert.equal(emojiForType('seed', { key: 'eclipse_bloom' }), '');
   assert.equal(emojiForType('sell', { key: 'eclipse_bloom' }), '<:eclipse_bloom:1526031940749361163>');
   assert.equal(colorForType('sell', { key: 'eclipse_bloom' }), 0xFFFFFF);
@@ -414,7 +416,8 @@ test('GAG2 role sync deletes unassigned category roles instead of only clearing 
   assert.match(source, /const enabledRoleIds = roleIdsForTypes\(config, enabledTypes\)/);
   assert.match(source, /enabledRoleIds\.has\(clean\)/);
   assert.match(source, /await role\.delete\(`CoinSprite GAG2 category unassigned`\)/);
-  assert.match(source, /updateGuildGag2StockRoleIds\(guild\.id, type, \{\}\)/);
+  assert.match(source, /failedRoleIds\.add\(roleId\)/);
+  assert.match(source, /failedRoleIds\.has\(roleId\)/);
   assert.match(source, /async function clearFilteredTypeRoles\(guild, config, enabledTypes, specsByType, roles, progress\)/);
   assert.match(source, /CoinSprite GAG2 rarity or multiplier filter disabled/);
   assert.match(source, /const filteredRemoval = await clearFilteredTypeRoles/);
