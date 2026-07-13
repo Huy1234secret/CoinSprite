@@ -13,6 +13,7 @@ const { loadState, saveState } = require('./stateStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
+const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
   seed: Object.freeze([
     'ghost_pepper',
@@ -74,6 +75,26 @@ function buildRoleCleanupUpdatePayload() {
   };
 }
 
+function buildBugPatchesUpdatePayload() {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: 0x3EC044,
+      components: [{
+        type: 10,
+        content: [
+          '### Bug Patches',
+          '- Fixed an issue where **Sell Price Track** could replay an older price update after posting the latest one.',
+          '- Fixed an issue that could send the same sell price notification twice.',
+          '- **Sell Price Track** now announces only when the displayed prices change.',
+        ].join('\n'),
+      }],
+    }],
+  };
+}
+
 async function collectGuilds(client) {
   const ids = new Set(client?.guilds?.cache?.keys?.() || []);
   const fetched = await client?.guilds?.fetch?.().catch(() => null);
@@ -100,21 +121,21 @@ async function updateChannelForGuild(guild, config) {
     || await sendableChannel(guild, channels.seed);
 }
 
-function announcementRecord(state, guildId) {
-  return state?.updateAnnouncements?.[UPDATE_ID]?.[guildId] || null;
+function announcementRecord(state, updateId, guildId) {
+  return state?.updateAnnouncements?.[updateId]?.[guildId] || null;
 }
 
-function saveAnnouncementRecord(guildId, record, statePath = STATE_PATH) {
+function saveAnnouncementRecord(updateId, guildId, record, statePath = STATE_PATH) {
   const state = loadState(statePath);
   state.updateAnnouncements ||= {};
-  state.updateAnnouncements[UPDATE_ID] ||= {};
-  state.updateAnnouncements[UPDATE_ID][guildId] = record;
+  state.updateAnnouncements[updateId] ||= {};
+  state.updateAnnouncements[updateId][guildId] = record;
   saveState(state, statePath);
 }
 
 async function announceRoleCleanupUpdate(client, guild, options = {}) {
   const statePath = options.statePath || STATE_PATH;
-  if (announcementRecord(loadState(statePath), guild.id)) return null;
+  if (announcementRecord(loadState(statePath), UPDATE_ID, guild.id)) return null;
   ensureGuildConfig(guild.id);
   if (!isGuildGag2StockEnabled(guild.id)) return null;
 
@@ -134,7 +155,7 @@ async function announceRoleCleanupUpdate(client, guild, options = {}) {
   const channel = await updateChannelForGuild(guild, config);
   if (!channel) return null;
   const message = await channel.send(buildRoleCleanupUpdatePayload());
-  saveAnnouncementRecord(guild.id, {
+  saveAnnouncementRecord(UPDATE_ID, guild.id, {
     channelId: channel.id,
     messageId: message.id,
     sentAt: new Date(options.now?.() || Date.now()).toISOString(),
@@ -143,18 +164,43 @@ async function announceRoleCleanupUpdate(client, guild, options = {}) {
   return message;
 }
 
+async function announceBugPatchesUpdate(client, guild, options = {}) {
+  const statePath = options.statePath || STATE_PATH;
+  if (announcementRecord(loadState(statePath), BUG_PATCH_UPDATE_ID, guild.id)) return null;
+  ensureGuildConfig(guild.id);
+  if (!isGuildGag2StockEnabled(guild.id)) return null;
+
+  const config = getGuildConfig(guild.id);
+  const channel = await updateChannelForGuild(guild, config);
+  if (!channel) return null;
+  const message = await channel.send(buildBugPatchesUpdatePayload());
+  saveAnnouncementRecord(BUG_PATCH_UPDATE_ID, guild.id, {
+    channelId: channel.id,
+    messageId: message.id,
+    sentAt: new Date(options.now?.() || Date.now()).toISOString(),
+  }, statePath);
+  logCommandSystem(`GAG2 Bug Patches announced in guild ${guild.id}: ${channel.id}`);
+  return message;
+}
+
 async function startGag2UpdateAnnouncement(client, options = {}) {
   for (const guild of await collectGuilds(client)) {
     await announceRoleCleanupUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Update 4 failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
+    await announceBugPatchesUpdate(client, guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Bug Patches announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    });
   }
 }
 
 module.exports = {
+  BUG_PATCH_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
+  announceBugPatchesUpdate,
   announceRoleCleanupUpdate,
+  buildBugPatchesUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   startGag2UpdateAnnouncement,
