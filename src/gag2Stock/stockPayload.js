@@ -296,7 +296,7 @@ function formatSellLine(item, roleIds = {}, options = {}) {
 function formatSell(entry, roleIds = {}) {
   const lines = ['## GAG2 Sell Price Track'];
   const normalEntries = (entry.entries || []).filter((item) => !sellMultiplierBucket(item.multiplier));
-  for (const item of normalEntries.slice(0, 25)) {
+  for (const item of normalEntries) {
     lines.push(formatSellLine(item, roleIds));
   }
   if (lines.length === 1) lines.push('* No normal sell price entries listed right now.');

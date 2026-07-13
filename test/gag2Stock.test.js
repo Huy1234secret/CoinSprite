@@ -186,6 +186,21 @@ test('GAG2 current weather uses role mention while recent weather stays plain te
   assert.doesNotMatch(recentLines.join('\n'), /<@&123456789012345678>|<@&234567890123456789>/);
 });
 
+test('GAG2 normal sell container includes seeds after the old 25-item cutoff', () => {
+  const entries = roleSpecsForType('seed').map((spec, index) => ({
+    key: spec.key,
+    name: spec.roleName,
+    multiplier: 1 + (index / 100),
+    tier: 'normal',
+  }));
+  const payload = buildTypePayload('sell', { entries });
+  const content = payload.components.at(-1).components[0].content;
+
+  assert.match(content, /<:sun_bloom:1525996662449766431> \*\*Sun Bloom\*\*/);
+  assert.match(content, /<:star_fruit:1525996660000428112> \*\*Star Fruit\*\*/);
+  assert.equal(content.split('\n').length, entries.length + 1);
+});
+
 test('GAG2 weather post key changes only for current weather, not recent history', () => {
   const base = parseWeatherPayload({
     weather: {
