@@ -790,19 +790,6 @@ function updateGuildGag2StockRoleIds(guildId, type, roleIds) {
   return getGuildConfigRaw(id);
 }
 
-function updateGuildGag2StockChannel(guildId, type, channelId) {
-  const id = String(guildId || '').trim();
-  const key = String(type || '').trim();
-  if (!/^\d{16,20}$/.test(id) || !GAG2_STOCK_CHANNEL_KEYS.includes(key)) return null;
-  const state = loadState();
-  state.guilds[id] ||= defaultConfigForGuild(id);
-  const defaults = id === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GAG2_STOCK_CONFIG : DEFAULT_GAG2_STOCK_CONFIG;
-  state.guilds[id].gag2Stock = normalizeGag2StockConfig(state.guilds[id].gag2Stock, defaults);
-  state.guilds[id].gag2Stock.channels[key] = cleanChannelId(channelId);
-  saveState(state);
-  return getGuildConfigRaw(id);
-}
-
 module.exports = {
   DEFAULT_COMMUNITY_MESSAGES,
   DEFAULT_FEATURES,
@@ -835,6 +822,5 @@ module.exports = {
   saveState,
   setGuildEnabled,
   setGuildFeatures,
-  updateGuildGag2StockChannel,
   updateGuildGag2StockRoleIds,
 };
