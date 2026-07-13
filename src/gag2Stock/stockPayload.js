@@ -185,7 +185,7 @@ function buildTypePostKey(type, entry) {
     return `moon:${(entry.upcomingMoons || []).slice(0, 12).map((item) => `${item.key}:${item.boundaryMs}`).join(',')}`;
   }
   if (type === 'sell') {
-    return `sell:${(entry.entries || []).slice(0, 40).map((item) => `${item.key}:${item.multiplier.toFixed(4)}:${item.tier}`).join(',')}`;
+    return `sell:${(entry.entries || []).slice(0, 40).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')}`;
   }
   return `${type}:${JSON.stringify(entry).slice(0, 500)}`;
 }

@@ -47,7 +47,8 @@ const setupProgress = new Map();
 const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
 const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
 const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
-const RESTART_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
+const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
+const RECENT_SELL_POST_KEY_LIMIT = 24;
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -142,6 +143,56 @@ function existingPostBucket(state, guildId, type) {
   return state.posts?.[guildId]?.[type] || null;
 }
 
+function recentSellPostKeys(bucket) {
+  return Array.isArray(bucket?.recentPostedKeys)
+    ? bucket.recentPostedKeys.filter((key) => typeof key === 'string' && key)
+    : [];
+}
+
+function rememberSellPostKey(bucket, postKey) {
+  const key = String(postKey || '');
+  if (!key) return false;
+  const current = recentSellPostKeys(bucket);
+  const next = [key, ...current.filter((entry) => entry !== key)].slice(0, RECENT_SELL_POST_KEY_LIMIT);
+  if (next.length === current.length && next.every((entry, index) => entry === current[index])) return false;
+  bucket.recentPostedKeys = next;
+  return true;
+}
+
+function timestampMs(value) {
+  const number = Number(value);
+  return value !== null && value !== '' && Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function sellEntryIsOlderThanBucket(bucket, entry) {
+  const incomingRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+  const lastRefreshAtMs = timestampMs(bucket?.lastSellNextRefreshAtMs);
+  if (incomingRefreshAtMs !== null && lastRefreshAtMs !== null) {
+    if (incomingRefreshAtMs < lastRefreshAtMs) return true;
+    if (incomingRefreshAtMs > lastRefreshAtMs) return false;
+  }
+
+  const incomingFetchedAtMs = timestampMs(entry?.fetchedAtMs);
+  const lastFetchedAtMs = timestampMs(bucket?.lastSourceFetchedAtMs);
+  return incomingFetchedAtMs !== null
+    && lastFetchedAtMs !== null
+    && incomingFetchedAtMs < lastFetchedAtMs;
+}
+
+function sellEntryIsSameOrOlderCycle(bucket, entry) {
+  const incomingRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+  const lastRefreshAtMs = timestampMs(bucket?.lastSellNextRefreshAtMs);
+  if (incomingRefreshAtMs === null || lastRefreshAtMs === null) return true;
+  return incomingRefreshAtMs <= lastRefreshAtMs;
+}
+
+function updateSellPostMetadata(bucket, entry) {
+  const nextRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+  const fetchedAtMs = timestampMs(entry?.fetchedAtMs);
+  if (nextRefreshAtMs !== null) bucket.lastSellNextRefreshAtMs = nextRefreshAtMs;
+  if (fetchedAtMs !== null) bucket.lastSourceFetchedAtMs = fetchedAtMs;
+}
+
 function comparableComponent(value) {
   const raw = typeof value?.toJSON === 'function' ? value.toJSON() : (value?.data || value || {});
   const component = { type: Number(raw.type) || 0 };
@@ -161,7 +212,7 @@ function componentFingerprint(components) {
 
 async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowMs = Date.now()) {
   if (typeof channel?.messages?.fetch !== 'function') return null;
-  const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+  const messages = await channel.messages.fetch({ limit: 25 }).catch(() => null);
   if (!messages || typeof messages.values !== 'function') return null;
   const expected = componentFingerprint(payload?.components);
   for (const message of messages.values()) {
@@ -170,7 +221,7 @@ async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowM
       : message?.author?.bot === true;
     if (!ownMessage) continue;
     const createdAt = Number(message?.createdTimestamp);
-    if (Number.isFinite(createdAt) && createdAt < nowMs - RESTART_DEDUPE_WINDOW_MS) continue;
+    if (Number.isFinite(createdAt) && createdAt < nowMs - RECENT_SELL_DEDUPE_WINDOW_MS) continue;
     if (componentFingerprint(message?.components) === expected) return message;
   }
   return null;
@@ -434,6 +485,7 @@ class Gag2StockPoster {
     this.statePath = options.statePath || STATE_PATH;
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
     this.inFlight = new Set();
+    this.deliveryInFlight = new Map();
     this.timer = null;
     this.weatherTimer = null;
     this.sellTimer = null;
@@ -646,8 +698,31 @@ class Gag2StockPoster {
   }
 
   async postEntry(state, target, entry) {
+    const deliveryKey = `${target.type}:${target.channelId}`;
+    const previous = this.deliveryInFlight.get(deliveryKey);
+    const delivery = (previous ? previous.catch(() => null) : Promise.resolve())
+      .then(() => this.postEntryLocked(state, target, entry));
+    this.deliveryInFlight.set(deliveryKey, delivery);
+    try {
+      return await delivery;
+    } finally {
+      if (this.deliveryInFlight.get(deliveryKey) === delivery) this.deliveryInFlight.delete(deliveryKey);
+    }
+  }
+
+  async postEntryLocked(state, target, entry) {
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
+    if (target.type === 'sell') {
+      if (sellEntryIsOlderThanBucket(bucket, entry)) {
+        logCommandSystem(`GAG2 sell stale snapshot suppressed in ${target.channelId}: ${postKey}`);
+        return null;
+      }
+      if (sellEntryIsSameOrOlderCycle(bucket, entry) && recentSellPostKeys(bucket).includes(postKey)) {
+        logCommandSystem(`GAG2 sell replay suppressed in ${target.channelId}: ${postKey}`);
+        return null;
+      }
+    }
     const samePost = bucket.lastPostedKey === postKey && bucket.channelId === target.channelId;
     if (samePost && target.type !== 'moon') {
       if (target.type === 'sell' && isApiRefreshDue(target.type, entry, this.now())) {
@@ -660,17 +735,22 @@ class Gag2StockPoster {
     if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
 
     const payload = buildTypePayload(target.type, entry, { roleIds: target.roleIds });
-    if (target.type === 'sell' && !bucket.lastPostedKey) {
+    if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
       const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
       if (existing) {
-        Object.assign(bucket, {
-          channelId: target.channelId,
-          lastMessageId: existing.id || null,
-          lastPostedAt: new Date(Number(existing.createdTimestamp) || this.now()).toISOString(),
-          lastPostedKey: postKey,
-        });
+        if (!bucket.lastPostedKey) {
+          Object.assign(bucket, {
+            channelId: target.channelId,
+            lastMessageId: existing.id || null,
+            lastPostedAt: new Date(Number(existing.createdTimestamp) || this.now()).toISOString(),
+            lastPostedKey: postKey,
+          });
+          updateSellPostMetadata(bucket, entry);
+        } else {
+          rememberSellPostKey(bucket, postKey);
+        }
         saveState(state, this.statePath);
-        logCommandSystem(`GAG2 sell duplicate suppressed after restart in ${target.channelId}: ${postKey}`);
+        logCommandSystem(`GAG2 sell recent duplicate suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }
@@ -684,12 +764,19 @@ class Gag2StockPoster {
       });
     }
     if (!message) message = await channel.send(payload);
+    if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
+      rememberSellPostKey(bucket, bucket.lastPostedKey);
+    }
+    if (target.type === 'sell' && Array.isArray(bucket.recentPostedKeys)) {
+      bucket.recentPostedKeys = bucket.recentPostedKeys.filter((key) => key !== postKey);
+    }
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
       lastPostedAt: new Date(this.now()).toISOString(),
       lastPostedKey: postKey,
     });
+    if (target.type === 'sell') updateSellPostMetadata(bucket, entry);
     saveState(state, this.statePath);
     logCommandSystem(`GAG2 ${target.type} posted to ${target.channelId}: ${postKey}`);
     return message;
