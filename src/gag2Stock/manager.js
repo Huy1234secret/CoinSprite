@@ -1,6 +1,9 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('../commandLogger');
 const {
+  GAG2_ROLE_FILTER_RARITIES,
+  GAG2_SELL_FILTER_RARITIES,
+  GAG2_SELL_MULTIPLIERS,
   getEnabledGuildIds,
   getGuildConfig,
   isGuildGag2StockEnabled,
@@ -31,7 +34,12 @@ const {
   buildTypePostKey,
   buildUnavailablePayload,
 } = require('./stockPayload');
-const { roleSpecsForType } = require('./catalog');
+const {
+  normalizeRarity,
+  rarityForType,
+  roleSpecsForType,
+  sellMultiplierBucket,
+} = require('./catalog');
 const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
@@ -162,9 +170,46 @@ async function updateRoleColorIfNeeded(role, spec, guildId) {
   });
 }
 
-async function roleSpecsForTypes(types) {
+function selectedFilterValues(filters, path, fallback) {
+  const value = path.reduce((current, key) => current?.[key], filters);
+  return new Set(Array.isArray(value) ? value : fallback);
+}
+
+function sellFilterBucket(entry) {
+  return sellMultiplierBucket(entry?.multiplier) || 'normal';
+}
+
+function filterSellEntry(entry, filters = {}) {
+  const rarities = selectedFilterValues(filters, ['rarities', 'sell'], GAG2_SELL_FILTER_RARITIES);
+  const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
+  const includeUnknownRarity = rarities.size === GAG2_SELL_FILTER_RARITIES.length;
+  const entries = (entry?.entries || []).filter((item) => {
+    const rarity = normalizeRarity(rarityForType('sell', item));
+    return multipliers.has(sellFilterBucket(item)) && (rarities.has(rarity) || (!rarity && includeUnknownRarity));
+  });
+  return {
+    ...entry,
+    entries,
+    enabledMultipliers: [...multipliers],
+  };
+}
+
+function filteredRoleSpecs(type, specs, filters = {}) {
+  if (['seed', 'gear', 'crate'].includes(type)) {
+    const selected = selectedFilterValues(filters, ['rarities', type], GAG2_ROLE_FILTER_RARITIES);
+    return specs.filter((spec) => !GAG2_ROLE_FILTER_RARITIES.includes(spec.rarity) || selected.has(spec.rarity));
+  }
+  if (type === 'sell') {
+    const rarities = selectedFilterValues(filters, ['rarities', 'sell'], GAG2_SELL_FILTER_RARITIES);
+    const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
+    return specs.filter((spec) => rarities.has(spec.rarity) && multipliers.has(spec.bucket));
+  }
+  return specs;
+}
+
+async function roleSpecsForTypes(types, filters = {}) {
   const specsByType = Object.fromEntries(STOCK_TYPES.map((type) => [type, []]));
-  for (const type of types) specsByType[type] = roleSpecsForType(type);
+  for (const type of types) specsByType[type] = filteredRoleSpecs(type, roleSpecsForType(type), filters);
   return specsByType;
 }
 
@@ -219,6 +264,56 @@ async function clearDisabledTypeRoles(guild, config, enabledTypes, roles, progre
     const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
     if (!Object.keys(roleIds).length) continue;
     updateGuildGag2StockRoleIds(guild.id, type, {});
+  }
+  return { removed, failed, total };
+}
+
+async function clearFilteredTypeRoles(guild, config, enabledTypes, specsByType, roles, progress) {
+  const desiredKeys = Object.fromEntries(enabledTypes.map((type) => [
+    type,
+    new Set((specsByType[type] || []).map((spec) => spec.key)),
+  ]));
+  const protectedRoleIds = new Set();
+  for (const type of enabledTypes) {
+    for (const [key, roleId] of Object.entries(config?.gag2Stock?.roleIds?.[type] || {})) {
+      if (desiredKeys[type].has(key) && roleId) protectedRoleIds.add(roleId);
+    }
+  }
+
+  const deleteCandidates = new Map();
+  for (const type of enabledTypes) {
+    for (const [key, roleId] of Object.entries(config?.gag2Stock?.roleIds?.[type] || {})) {
+      if (desiredKeys[type].has(key) || protectedRoleIds.has(roleId) || deleteCandidates.has(roleId)) continue;
+      const role = roles.get(roleId);
+      if (role && typeof role.delete === 'function') deleteCandidates.set(roleId, role);
+    }
+  }
+
+  let remaining = deleteCandidates.size;
+  const total = remaining;
+  let removed = 0;
+  let failed = 0;
+  if (remaining) progress?.({ action: 'removing', remaining, total, status: 'running', message: `Removing ${remaining} roles` });
+  for (const [roleId, role] of deleteCandidates) {
+    const deleted = await role.delete('CoinSprite GAG2 rarity or multiplier filter disabled').then(() => true).catch((error) => {
+      logCommandSystem(`GAG2 filtered role delete failed in guild ${guild.id} (${role.name || roleId}): ${error?.message || 'unknown error'}`);
+      progress?.({ action: 'removing', remaining, total, status: 'error', message: `Could not remove ${role.name || 'role'}` });
+      return false;
+    });
+    if (deleted) {
+      roles.delete?.(roleId);
+      removed += 1;
+      remaining -= 1;
+      progress?.({ action: 'removing', remaining, total, status: remaining ? 'running' : 'done', message: `Removing ${remaining} roles` });
+    } else {
+      failed += 1;
+    }
+  }
+
+  for (const type of enabledTypes) {
+    const roleIds = Object.fromEntries(Object.entries(config?.gag2Stock?.roleIds?.[type] || {})
+      .filter(([key]) => desiredKeys[type].has(key)));
+    updateGuildGag2StockRoleIds(guild.id, type, roleIds);
   }
   return { removed, failed, total };
 }
@@ -436,6 +531,7 @@ class Gag2StockPoster {
           type,
           channelId,
           roleIds: config?.gag2Stock?.roleIds?.[type] || {},
+          filters: config?.gag2Stock?.filters || {},
         });
       }
     }
@@ -477,8 +573,12 @@ class Gag2StockPoster {
           continue;
         }
 
-        const entry = entries.get(target.type);
+        let entry = entries.get(target.type);
         if (!entry) continue;
+        if (target.type === 'sell') {
+          entry = filterSellEntry(entry, target.filters);
+          if (!entry.entries.length) continue;
+        }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
           skippedStaleStock = true;
@@ -605,18 +705,24 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
 
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
-  const removal = await clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress);
+  const specsByType = await roleSpecsForTypes(enabledTypes, config?.gag2Stock?.filters || {});
+  const disabledRemoval = await clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress);
   if (!enabledTypes.length) {
-    if (!removal.failed) progressGuildId && progress({ action: removal.removed ? 'removing' : 'checking', remaining: 0, total: removal.removed, status: 'done', message: removal.removed ? 'Removed roles' : 'No roles needed' });
-    return { removed: removal.removed, failed: removal.failed, added: 0 };
+    if (!disabledRemoval.failed) progressGuildId && progress({ action: disabledRemoval.removed ? 'removing' : 'checking', remaining: 0, total: disabledRemoval.removed, status: 'done', message: disabledRemoval.removed ? 'Removed roles' : 'No roles needed' });
+    return { removed: disabledRemoval.removed, failed: disabledRemoval.failed, added: 0 };
   }
 
+  const filteredRemoval = await clearFilteredTypeRoles(guild, config, enabledTypes, specsByType, roles, progress);
+  const removal = {
+    removed: disabledRemoval.removed + filteredRemoval.removed,
+    failed: disabledRemoval.failed + filteredRemoval.failed,
+  };
+  const syncedConfig = getGuildConfig(guild.id);
   const byName = new Map([...roles.values()].map((role) => [role.name.toLowerCase(), role]));
-  const specsByType = await roleSpecsForTypes(enabledTypes, fetchers);
   const result = {};
   let addRemaining = 0;
   for (const type of enabledTypes) {
-    const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
+    const roleIds = { ...(syncedConfig?.gag2Stock?.roleIds?.[type] || {}) };
     for (const spec of specsByType[type] || []) {
       const existingId = roleIds[spec.key];
       if (existingId && roles.has(existingId)) continue;
@@ -628,7 +734,7 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   if (addTotal) progress?.({ action: 'adding', remaining: addRemaining, total: addTotal, status: 'running', message: `Adding ${addRemaining} roles` });
 
   for (const type of enabledTypes) {
-    const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
+    const roleIds = { ...(syncedConfig?.gag2Stock?.roleIds?.[type] || {}) };
     for (const spec of specsByType[type] || []) {
       const existingId = roleIds[spec.key];
       if (existingId && roles.has(existingId)) {
@@ -670,8 +776,17 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
     result[type] = Object.keys(roleIds).length;
   }
 
-  if (!addTotal && progressGuildId && !removal.failed) progress({ action: removal.removed ? 'removing' : 'checking', remaining: 0, total: removal.removed, status: 'done', message: removal.removed ? 'Removed roles' : 'Roles already synced' });
-  return { ...result, added: addTotal - addRemaining, removed: removal.removed, failed: removal.failed };
+  const failed = removal.failed + addRemaining;
+  if (progressGuildId) {
+    const action = addTotal ? 'adding' : removal.removed ? 'removing' : 'checking';
+    const total = addTotal || removal.removed;
+    if (failed) {
+      progress({ action, remaining: failed, total, status: 'error', message: `Could not apply ${failed} role change${failed === 1 ? '' : 's'}` });
+    } else {
+      progress({ action, remaining: 0, total, status: 'done', message: addTotal || removal.removed ? 'Role changes applied' : 'Roles already synced' });
+    }
+  }
+  return { ...result, added: addTotal - addRemaining, removed: removal.removed, failed };
 }
 
 async function syncAllGag2StockSetups(client, fetchers) {
@@ -693,6 +808,8 @@ async function startGag2StockPoster(client, options = {}) {
 
 module.exports = {
   Gag2StockPoster,
+  filterSellEntry,
+  filteredRoleSpecs,
   getGag2StockSetupProgress,
   isStaleStockEntry,
   nextGag2StockTickAtMs,

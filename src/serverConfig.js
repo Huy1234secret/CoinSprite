@@ -141,6 +141,9 @@ const DEFAULT_COINSPRITE_FEATURES = {
 
 const GAG2_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
 const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_STOCK_ROLE_KEYS, 'roleAssign', 'updates'];
+const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
+const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
+const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
 
 function blankGag2StockChannels() {
   return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, '']));
@@ -150,10 +153,23 @@ function blankGag2StockRoleIds() {
   return Object.fromEntries(GAG2_STOCK_ROLE_KEYS.map((key) => [key, {}]));
 }
 
+function defaultGag2StockFilters() {
+  return {
+    rarities: {
+      seed: [...GAG2_ROLE_FILTER_RARITIES],
+      gear: [...GAG2_ROLE_FILTER_RARITIES],
+      crate: [...GAG2_ROLE_FILTER_RARITIES],
+      sell: [...GAG2_SELL_FILTER_RARITIES],
+    },
+    sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
+  };
+}
+
 const DEFAULT_GAG2_STOCK_CONFIG = {
   enabled: true,
   channels: blankGag2StockChannels(),
   roleIds: blankGag2StockRoleIds(),
+  filters: defaultGag2StockFilters(),
   rolesSyncedAt: '',
 };
 
@@ -466,6 +482,26 @@ function normalizeRoleIdMap(value) {
   return normalized;
 }
 
+function normalizeFilterSelection(value, allowed, fallback = allowed) {
+  if (!Array.isArray(value)) return [...fallback];
+  const selected = new Set(value.map((entry) => String(entry || '').trim().toLowerCase()));
+  return allowed.filter((entry) => selected.has(entry));
+}
+
+function normalizeGag2StockFilters(value, defaults = defaultGag2StockFilters()) {
+  const source = isPlainObject(value) ? value : {};
+  const defaultRarities = defaults?.rarities || {};
+  return {
+    rarities: {
+      seed: normalizeFilterSelection(source.rarities?.seed, GAG2_ROLE_FILTER_RARITIES, defaultRarities.seed),
+      gear: normalizeFilterSelection(source.rarities?.gear, GAG2_ROLE_FILTER_RARITIES, defaultRarities.gear),
+      crate: normalizeFilterSelection(source.rarities?.crate, GAG2_ROLE_FILTER_RARITIES, defaultRarities.crate),
+      sell: normalizeFilterSelection(source.rarities?.sell, GAG2_SELL_FILTER_RARITIES, defaultRarities.sell),
+    },
+    sellMultipliers: normalizeFilterSelection(source.sellMultipliers, GAG2_SELL_MULTIPLIERS, defaults?.sellMultipliers),
+  };
+}
+
 function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
   const source = isPlainObject(value) ? value : {};
   const defaultChannels = defaults.channels || {};
@@ -482,6 +518,7 @@ function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
     enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
     channels,
     roleIds,
+    filters: normalizeGag2StockFilters(source.filters, defaults.filters || defaultGag2StockFilters()),
     rolesSyncedAt: String(source.rolesSyncedAt || ''),
   };
 }
@@ -802,6 +839,9 @@ module.exports = {
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
   GAG2_STOCK_CHANNEL_KEYS,
+  GAG2_ROLE_FILTER_RARITIES,
+  GAG2_SELL_FILTER_RARITIES,
+  GAG2_SELL_MULTIPLIERS,
   SCHEMA_VERSION,
   STORE_PATH,
   deleteGuildConfig,
@@ -817,6 +857,7 @@ module.exports = {
   isGuildFullBotEnabled,
   isGuildGag2StockEnabled,
   loadState,
+  normalizeGag2StockConfig,
   normalizeLogging,
   resolveLoggingChannelId,
   saveState,
