@@ -549,6 +549,109 @@ test('GAG2 sell unchanged post only arms the rapid retry when API refresh is due
   assert.equal(poster.nextSellDelayOverrideMs, null);
 });
 
+test('GAG2 sell skips an expired API snapshot and posts the fresh cycle only once', async () => {
+  const now = Date.parse('2026-07-10T17:00:10.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-cycle-state.json');
+  fs.rmSync(statePath, { force: true });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  };
+  const expired = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now - 1_000) / 1000),
+      entries: [{ key: 'tomato', name: 'Tomato', multiplier: 1.05, rarity: 'Uncommon', tier: 'normal' }],
+    },
+  });
+  const fresh = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now + 10 * 60_000) / 1000),
+      entries: [{ key: 'tomato', name: 'Tomato', multiplier: 1.15, rarity: 'Uncommon', tier: 'normal' }],
+    },
+  });
+  let current = expired;
+  const sent = [];
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async (payload) => {
+      sent.push(payload);
+      return { id: `message-${sent.length}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, {
+    now: () => now,
+    statePath,
+    sellUnchangedRetryMs: SELL_UNCHANGED_RETRY_MS,
+    fetchSellPayload: async () => current,
+  });
+  poster.targets = () => [target];
+
+  await poster.tick(['sell'], 'sell');
+  assert.equal(sent.length, 0);
+  assert.equal(poster.nextSellDelayOverrideMs, SELL_UNCHANGED_RETRY_MS);
+
+  current = fresh;
+  await poster.tick(['sell'], 'sell');
+  await poster.tick(['sell'], 'sell');
+  assert.equal(sent.length, 1);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 sell restores duplicate state from a recent matching Discord message after restart', async () => {
+  const now = Date.parse('2026-07-10T17:02:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-restart-state.json');
+  fs.rmSync(statePath, { force: true });
+  const entry = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now + 8 * 60_000) / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.1, rarity: 'Common', tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const previousPayload = buildTypePayload('sell', entry, { roleIds: {} });
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => new Map([['existing-message', {
+        id: 'existing-message',
+        author: { id: '123456789012345678', bot: true },
+        createdTimestamp: now - 5_000,
+        components: previousPayload.components,
+      }]]),
+    },
+    send: async () => {
+      sends += 1;
+      return { id: `message-${sends}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = { posts: {} };
+
+  assert.equal(await poster.postEntry(state, target, entry), null);
+  assert.equal(sends, 0);
+  assert.equal(state.posts[target.guildId].sell.lastMessageId, 'existing-message');
+  assert.equal(state.posts[target.guildId].sell.lastPostedKey, buildTypePostKey('sell', entry));
+  fs.rmSync(statePath, { force: true });
+});
+
 test('GAG2 stock poster treats expired restock stock as stale', () => {
   const now = Date.parse('2026-07-10T17:00:51.000Z');
   assert.equal(isStaleStockEntry('seed', { nextRestockAtMs: now - 1 }, now), true);
