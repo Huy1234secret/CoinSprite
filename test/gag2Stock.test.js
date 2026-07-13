@@ -321,6 +321,14 @@ test('GAG2 role sync deletes unassigned category roles instead of only clearing 
   assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
 });
 
+test('GAG2 role creation and edits use the current Discord colors option', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.match(source, /createOptions\.colors = \{ primaryColor: color \}/);
+  assert.match(source, /role\.edit\(\{\s*colors: \{ primaryColor: color \}/);
+  assert.doesNotMatch(source, /createOptions\.color = color/);
+  assert.doesNotMatch(source, /role\.edit\(\{\s*color,/);
+});
+
 test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
