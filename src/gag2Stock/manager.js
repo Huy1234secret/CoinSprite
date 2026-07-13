@@ -242,6 +242,7 @@ async function clearDisabledTypeRoles(guild, config, enabledTypes, roles, progre
   const total = remaining;
   let removed = 0;
   let failed = 0;
+  const failedRoleIds = new Set();
   if (remaining) progress?.({ action: 'removing', remaining, total, status: 'running', message: `Removing ${remaining} roles` });
 
   for (const [roleId, role] of deleteCandidates) {
@@ -257,13 +258,16 @@ async function clearDisabledTypeRoles(guild, config, enabledTypes, roles, progre
       progress?.({ action: 'removing', remaining, total, status: remaining ? 'running' : 'done', message: `Removing ${remaining} roles` });
     } else {
       failed += 1;
+      failedRoleIds.add(roleId);
     }
   }
 
   for (const type of disabled) {
-    const roleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
-    if (!Object.keys(roleIds).length) continue;
-    updateGuildGag2StockRoleIds(guild.id, type, {});
+    const currentRoleIds = { ...(config?.gag2Stock?.roleIds?.[type] || {}) };
+    if (!Object.keys(currentRoleIds).length) continue;
+    const roleIds = Object.fromEntries(Object.entries(currentRoleIds)
+      .filter(([, roleId]) => failedRoleIds.has(roleId)));
+    updateGuildGag2StockRoleIds(guild.id, type, roleIds);
   }
   return { removed, failed, total };
 }
@@ -293,6 +297,7 @@ async function clearFilteredTypeRoles(guild, config, enabledTypes, specsByType, 
   const total = remaining;
   let removed = 0;
   let failed = 0;
+  const failedRoleIds = new Set();
   if (remaining) progress?.({ action: 'removing', remaining, total, status: 'running', message: `Removing ${remaining} roles` });
   for (const [roleId, role] of deleteCandidates) {
     const deleted = await role.delete('CoinSprite GAG2 rarity or multiplier filter disabled').then(() => true).catch((error) => {
@@ -307,12 +312,13 @@ async function clearFilteredTypeRoles(guild, config, enabledTypes, specsByType, 
       progress?.({ action: 'removing', remaining, total, status: remaining ? 'running' : 'done', message: `Removing ${remaining} roles` });
     } else {
       failed += 1;
+      failedRoleIds.add(roleId);
     }
   }
 
   for (const type of enabledTypes) {
     const roleIds = Object.fromEntries(Object.entries(config?.gag2Stock?.roleIds?.[type] || {})
-      .filter(([key]) => desiredKeys[type].has(key)));
+      .filter(([key, roleId]) => desiredKeys[type].has(key) || failedRoleIds.has(roleId)));
     updateGuildGag2StockRoleIds(guild.id, type, roleIds);
   }
   return { removed, failed, total };

@@ -2,26 +2,30 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
+  REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
-  buildEclipseBloomUpdatePayload,
+  buildRoleCleanupUpdatePayload,
   collectGuilds,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
 
-test('GAG2 Update 3 announces Eclipse Bloom with its role and emoji', () => {
-  const payload = buildEclipseBloomUpdatePayload('123456789012345678');
+test('GAG2 Update 4 clearly explains the notification role cleanup', () => {
+  const payload = buildRoleCleanupUpdatePayload();
   const container = payload.components[0];
   const content = container.components[0].content;
 
-  assert.equal(UPDATE_ID, 'gag2-update-3-eclipse-bloom');
+  assert.equal(UPDATE_ID, 'gag2-update-4-notification-role-cleanup');
   assert.equal(payload.flags, 32768);
-  assert.equal(container.accent_color, 0xFFFFFF);
-  assert.match(content, /^### Update 3/);
-  assert.match(content, /<:eclipse_bloom:1526031940749361163> \*\*<@&123456789012345678>\*\*/);
-  assert.match(content, /Secret 2x/);
-  assert.match(content, /Secret 4x/);
-  assert.match(content, /Briar Rose/);
-  assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
+  assert.equal(container.accent_color, 0xB0ADAC);
+  assert.match(content, /^### Update 4/);
+  assert.match(content, /seed-pack-only seeds/);
+  assert.match(content, /Baby Cactus/);
+  assert.match(content, /Rocket Pop/);
+  assert.match(content, /Fourth of July/);
+  assert.match(content, /Eclipse Bloom is obtained through merging/);
+  assert.match(content, /Sign.*Megaphone.*Lantern.*Teleporter.*Wheelbarrow/);
+  assert.deepEqual(payload.allowedMentions.roles, []);
+  assert.deepEqual(REMOVED_NOTIFICATION_ROLE_KEYS.gear, ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow']);
 });
 
 test('GAG2 update notification falls back to the seed channel', async () => {
