@@ -107,7 +107,11 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   const server = source('src/adminServer.js');
   assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
   assert.match(app, /roleAssign/);
+  assert.match(app, /\['updates', 'Bot Update alert', 'gag2UpdatesChannelMount'\]/);
   assert.match(html, /gag2AssignRoleChannelMount/);
+  assert.match(html, /Bot Update alert/);
+  assert.match(html, /recommended-label">Recommended/);
+  assert.match(html, /gag2UpdatesChannelMount/);
   assert.match(html, /gag2StockPermissionOverlay/);
   assert.match(html, /gag2StockPermissionRefreshButton/);
   assert.match(app, /gag2StockPermissionState/);

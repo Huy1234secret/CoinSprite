@@ -2648,6 +2648,20 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   display: none !important;
 }
 .gag2-stock-panel { position: relative; overflow: hidden; }
+.recommended-label {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px 7px;
+  color: #d8f7e3;
+  background: rgba(87, 242, 135, .14);
+  border: 1px solid rgba(87, 242, 135, .34);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+.field-hint { margin: 3px 0 8px; color: var(--muted); font-size: 12px; }
 .gag2-stock-panel.is-locked .gag2-stock-grid {
   filter: blur(3px);
   opacity: .42;
