@@ -1,0 +1,959 @@
+/* CoinSprite workspace component system.
+ * Module-specific presentation lives here so the shared shell in
+ * design-refresh.css remains small, predictable, and reusable.
+ */
+
+/* Navigation and shared states */
+body .sidebar-nav-label {
+  display: block;
+  padding: 5px 11px 7px;
+  color: #65748f;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+body :is(
+  .empty-state,
+  .message-loading,
+  .case-empty,
+  .user-case-empty,
+  .owner-empty,
+  .owner-loading,
+  .message-template-grid:empty::before
+) {
+  border: 1px dashed rgba(150, 169, 205, .22) !important;
+  border-radius: 13px !important;
+  padding: 22px !important;
+  background: rgba(7, 12, 22, .42) !important;
+  color: #8391a8 !important;
+  text-align: center;
+}
+
+body :is(.status.error, .inline-error, .owner-loading.error, .user-case-empty.error) {
+  border-color: rgba(251, 113, 133, .3) !important;
+  background: rgba(159, 18, 57, .1) !important;
+  color: #fda4af !important;
+}
+
+body :is(.status.ok, .bug-report-status.ok) {
+  border-color: rgba(54, 211, 153, .26) !important;
+  background: rgba(6, 95, 70, .12) !important;
+  color: #86efc4 !important;
+}
+
+body :is(.field-label, label) {
+  color: #9aa8bd;
+}
+
+/* Tickets */
+body #ticketEditorRoot {
+  display: grid;
+  gap: 16px;
+}
+
+body #ticketEditorRoot :is(.ticket-main-content, .ticket-type-section, .ticket-control-list, .form-question-list) {
+  gap: 16px !important;
+}
+
+body #ticketEditorRoot .ticket-list-head {
+  min-height: 60px;
+  padding: 4px 2px 14px !important;
+  border-bottom: 1px solid rgba(150, 169, 205, .12);
+}
+
+body #ticketEditorRoot .ticket-list-head h3,
+body #ticketEditorRoot .ticket-editor-head h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: -.025em;
+}
+
+body #ticketEditorRoot .ticket-list-actions {
+  padding: 4px;
+  border: 1px solid rgba(150, 169, 205, .12);
+  border-radius: 12px;
+  background: rgba(7, 12, 22, .45);
+}
+
+body #ticketEditorRoot .ticket-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+body #ticketEditorRoot .ticket-type-card {
+  min-height: 96px !important;
+  grid-template-columns: 48px minmax(0, 1fr) 22px !important;
+  gap: 14px !important;
+  border: 1px solid rgba(150, 169, 205, .15) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  background: linear-gradient(145deg, rgba(20, 29, 47, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14) !important;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease !important;
+}
+
+body #ticketEditorRoot .ticket-type-card:hover,
+body #ticketEditorRoot .ticket-type-card:focus-visible {
+  border-color: rgba(119, 130, 255, .5) !important;
+  background: linear-gradient(145deg, rgba(28, 38, 61, .99), rgba(16, 24, 40, .99)) !important;
+  box-shadow: 0 13px 30px rgba(0, 0, 0, .22) !important;
+  transform: translateY(-2px) !important;
+}
+
+body #ticketEditorRoot .ticket-type-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border: 1px solid rgba(119, 130, 255, .24) !important;
+  border-radius: 13px !important;
+  background: linear-gradient(145deg, rgba(119, 130, 255, .18), rgba(78, 216, 247, .06)) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .06) !important;
+}
+
+body #ticketEditorRoot .ticket-type-copy strong {
+  color: #f8f9ff;
+  font-size: 14px;
+}
+
+body #ticketEditorRoot .ticket-type-copy span,
+body #ticketEditorRoot .ticket-card-arrow {
+  color: #7f8da5 !important;
+}
+
+body #ticketEditorRoot .ticket-editor-head {
+  min-height: 58px;
+  gap: 13px !important;
+  padding: 4px 2px 14px !important;
+  border-bottom: 1px solid rgba(150, 169, 205, .12);
+}
+
+body #ticketEditorRoot :is(.ticket-control-card, .form-question-card) {
+  overflow: hidden;
+  border: 1px solid rgba(150, 169, 205, .15) !important;
+  border-radius: 15px !important;
+  padding: 0 18px 18px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14) !important;
+}
+
+body #ticketEditorRoot .ticket-card-toolbar {
+  min-height: 58px;
+  margin: 0 -18px 16px !important;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(150, 169, 205, .12);
+  background: rgba(255, 255, 255, .018);
+}
+
+body #ticketEditorRoot :is(.sequence-number, .question-order) {
+  border: 1px solid rgba(119, 130, 255, .23);
+  border-radius: 8px !important;
+  background: rgba(119, 130, 255, .1) !important;
+  color: #c8ccff !important;
+}
+
+body #ticketEditorRoot .sequence-list {
+  gap: 8px !important;
+}
+
+body #ticketEditorRoot .sequence-item {
+  min-height: 50px !important;
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 10px !important;
+  padding: 7px 9px !important;
+  background: rgba(7, 12, 22, .55) !important;
+}
+
+body #ticketEditorRoot :is(.action-sequence, .form-options) {
+  margin-top: 18px !important;
+  padding-top: 18px !important;
+  border-color: rgba(150, 169, 205, .12) !important;
+}
+
+body #ticketEditorRoot .form-phase-switch {
+  border: 1px solid rgba(150, 169, 205, .13);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(7, 12, 22, .36);
+}
+
+body #ticketEditorRoot .form-create-bar {
+  min-height: 64px;
+  border-color: rgba(119, 130, 255, .22) !important;
+  border-radius: 13px !important;
+  padding: 10px 12px !important;
+  background: linear-gradient(90deg, rgba(119, 130, 255, .08), rgba(78, 216, 247, .025)) !important;
+}
+
+body #ticketEditorRoot .danger-zone {
+  border-color: rgba(251, 113, 133, .28) !important;
+  border-radius: 13px !important;
+  background: linear-gradient(90deg, rgba(159, 18, 57, .11), rgba(159, 18, 57, .035)) !important;
+}
+
+body .ticket-modal-backdrop {
+  background: rgba(3, 6, 12, .82) !important;
+  backdrop-filter: none !important;
+}
+
+body .ticket-modal {
+  border: 1px solid rgba(150, 169, 205, .22) !important;
+  border-radius: 18px !important;
+  background: #0d1422 !important;
+  box-shadow: 0 32px 90px rgba(0, 0, 0, .52) !important;
+}
+
+body .ticket-modal-head,
+body .ticket-modal-actions {
+  border-color: rgba(150, 169, 205, .12) !important;
+  background: #111a2a !important;
+}
+
+body .permission-item {
+  border-color: rgba(150, 169, 205, .1) !important;
+}
+
+/* Messages and rich editors */
+body #messageTemplatesRoot {
+  display: grid;
+  gap: 16px;
+}
+
+body #messageTemplatesRoot .message-list-head {
+  min-height: 64px;
+  margin: 0 !important;
+  padding: 2px 2px 16px;
+  border-bottom: 1px solid rgba(150, 169, 205, .12);
+}
+
+body #messageTemplatesRoot .message-list-head h3,
+body #messageTemplatesRoot .message-editor-head h3 {
+  color: #fff;
+  font-size: 20px;
+  letter-spacing: -.025em;
+}
+
+body #messageTemplatesRoot .message-search {
+  min-height: 46px !important;
+  border-radius: 12px !important;
+  padding-inline: 14px !important;
+}
+
+body #messageTemplatesRoot .message-template-grid {
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+body #messageTemplatesRoot .message-template-card {
+  min-height: 100px !important;
+  grid-template-columns: 50px minmax(0, 1fr) 24px !important;
+  gap: 14px !important;
+  border-color: rgba(150, 169, 205, .15) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  background: linear-gradient(145deg, rgba(20, 29, 47, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14) !important;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease !important;
+}
+
+body #messageTemplatesRoot .message-template-card:hover,
+body #messageTemplatesRoot .message-template-card:focus-visible {
+  border-color: rgba(78, 216, 247, .38) !important;
+  background: linear-gradient(145deg, rgba(24, 35, 55, .99), rgba(15, 24, 39, .99)) !important;
+  box-shadow: 0 13px 30px rgba(0, 0, 0, .2) !important;
+  transform: translateY(-2px) !important;
+}
+
+body #messageTemplatesRoot .message-template-symbol {
+  width: 50px !important;
+  height: 50px !important;
+  border-color: rgba(78, 216, 247, .2) !important;
+  border-radius: 13px !important;
+  background: linear-gradient(145deg, rgba(78, 216, 247, .1), rgba(119, 130, 255, .09)) !important;
+}
+
+body #messageTemplatesRoot .message-editor-head {
+  top: -18px !important;
+  min-height: 64px;
+  margin: 0 !important;
+  padding: 10px 2px 14px !important;
+  border-bottom: 1px solid rgba(150, 169, 205, .12);
+  background: #080c15 !important;
+}
+
+body #messageTemplatesRoot .message-editor-body {
+  display: grid;
+  gap: 16px;
+}
+
+body #messageTemplatesRoot :is(.message-compose-card, .message-container-editor, .message-sticky-preview) {
+  border-color: rgba(150, 169, 205, .15) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+}
+
+body #messageTemplatesRoot :is(.message-compose-head, .message-container-head) {
+  padding-bottom: 13px;
+  border-bottom: 1px solid rgba(150, 169, 205, .11);
+}
+
+body #messageTemplatesRoot .message-use-grid {
+  gap: 16px !important;
+}
+
+body #messageTemplatesRoot .message-use-grid .panel {
+  min-height: 220px;
+}
+
+body #messageTemplatesRoot .message-use-status {
+  min-height: 48px !important;
+  border: 1px solid rgba(150, 169, 205, .14);
+  border-radius: 11px !important;
+  background: rgba(7, 12, 22, .45);
+}
+
+body #messageTemplatesRoot .message-use-status.success {
+  border-color: rgba(54, 211, 153, .25);
+  background: rgba(6, 95, 70, .11) !important;
+}
+
+body #messageTemplatesRoot .message-use-status.error {
+  border-color: rgba(251, 113, 133, .28);
+  background: rgba(159, 18, 57, .1) !important;
+}
+
+body :is(.message-color-popover, .message-media-popover, .message-create-menu) {
+  border: 1px solid rgba(150, 169, 205, .22) !important;
+  border-radius: 13px !important;
+  background: #0d1422 !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .44) !important;
+}
+
+/* Moderation and channel rules */
+body #moderatorRoot .moderator-shell {
+  gap: 18px !important;
+}
+
+body #moderatorRoot .moderator-status-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+body #moderatorRoot .moderator-stat {
+  position: relative;
+  min-height: 96px !important;
+  overflow: hidden;
+  border: 1px solid rgba(167, 139, 250, .2) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  background: linear-gradient(145deg, rgba(139, 92, 246, .11), rgba(19, 28, 45, .8)) !important;
+}
+
+body #moderatorRoot .moderator-stat::after {
+  content: "";
+  position: absolute;
+  right: -24px;
+  bottom: -34px;
+  width: 92px;
+  height: 92px;
+  border: 18px solid rgba(167, 139, 250, .045);
+  border-radius: 50%;
+}
+
+body #moderatorRoot .moderator-stat strong {
+  color: #fff;
+  font-size: 24px !important;
+  letter-spacing: -.03em;
+}
+
+body #moderatorRoot .moderator-ai-panel {
+  border-color: rgba(167, 139, 250, .25) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .2) !important;
+}
+
+body #moderatorRoot .automod-grid {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+body #moderatorRoot .automod-module-card {
+  min-height: 92px !important;
+  border: 1px solid rgba(167, 139, 250, .19) !important;
+  border-radius: 13px !important;
+  padding: 16px !important;
+  background: linear-gradient(145deg, rgba(139, 92, 246, .08), rgba(16, 24, 40, .92)) !important;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease !important;
+}
+
+body #moderatorRoot .automod-module-card:hover,
+body #moderatorRoot .automod-module-card.active {
+  border-color: rgba(167, 139, 250, .55) !important;
+  background: linear-gradient(145deg, rgba(139, 92, 246, .16), rgba(19, 28, 46, .96)) !important;
+  transform: translateY(-1px) !important;
+}
+
+body #moderatorRoot .automod-action-row {
+  min-height: 58px;
+  border: 1px solid rgba(150, 169, 205, .14) !important;
+  border-radius: 11px !important;
+  padding: 8px 10px !important;
+  background: rgba(7, 12, 22, .5) !important;
+}
+
+body #moderatorRoot .case-filter-bar {
+  border: 1px solid rgba(150, 169, 205, .13);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(7, 12, 22, .42);
+}
+
+body #moderatorRoot .case-table {
+  border-color: rgba(150, 169, 205, .15) !important;
+  border-radius: 14px !important;
+  background: rgba(12, 19, 32, .82);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .16);
+}
+
+body #moderatorRoot .case-table-head {
+  min-height: 44px;
+  background: rgba(255, 255, 255, .028) !important;
+  color: #71809a !important;
+  letter-spacing: .08em;
+}
+
+body #moderatorRoot .case-row {
+  min-height: 62px;
+  border-color: rgba(150, 169, 205, .09) !important;
+  transition: background .14s ease, color .14s ease !important;
+}
+
+body #moderatorRoot .case-row:hover,
+body #moderatorRoot .case-row:focus-visible {
+  background: rgba(119, 130, 255, .075) !important;
+}
+
+body #moderatorRoot .case-detail-hero {
+  border-color: rgba(167, 139, 250, .2) !important;
+  border-radius: 17px !important;
+  background: linear-gradient(145deg, rgba(139, 92, 246, .1), rgba(17, 24, 39, .94)) !important;
+}
+
+body #moderatorRoot .case-audit-list li {
+  border-color: rgba(150, 169, 205, .12) !important;
+  background: rgba(7, 12, 22, .42) !important;
+}
+
+body #moderatorRoot .channel-rule-editor {
+  border: 1px solid rgba(150, 169, 205, .14);
+  border-radius: 15px;
+  padding: 18px;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98));
+}
+
+body #moderatorRoot .channel-rule-subtabs {
+  border-bottom-color: rgba(150, 169, 205, .12) !important;
+}
+
+body #moderatorRoot .channel-rule-action {
+  border: 1px solid rgba(150, 169, 205, .14) !important;
+  border-radius: 13px !important;
+  padding: 14px !important;
+  background: rgba(7, 12, 22, .46) !important;
+}
+
+body #moderatorRoot .channel-rule-footer {
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 13px !important;
+  background: rgba(7, 12, 22, .56) !important;
+}
+
+body .app-modal-backdrop {
+  background: rgba(3, 6, 12, .82) !important;
+  backdrop-filter: none !important;
+}
+
+body .app-modal {
+  border: 1px solid rgba(150, 169, 205, .22) !important;
+  border-radius: 17px !important;
+  background: #0f1726 !important;
+  box-shadow: 0 30px 84px rgba(0, 0, 0, .5) !important;
+}
+
+body .app-toast {
+  border-color: rgba(150, 169, 205, .2) !important;
+  border-radius: 12px !important;
+  background: #111a2a !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .36) !important;
+}
+
+/* User data */
+body #userDataRoot .data-search-panel {
+  border-color: rgba(119, 130, 255, .22) !important;
+  background: linear-gradient(135deg, rgba(119, 130, 255, .08), rgba(13, 20, 33, .98)) !important;
+}
+
+body #userDataRoot .data-search-row {
+  border: 1px solid rgba(150, 169, 205, .11);
+  border-radius: 13px;
+  padding: 12px;
+  background: rgba(7, 12, 22, .4);
+}
+
+body #userDataRoot .user-data-head img {
+  border: 2px solid rgba(119, 130, 255, .28);
+  border-radius: 18px !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .28) !important;
+}
+
+body #userDataRoot .user-data-summary {
+  gap: 11px !important;
+}
+
+body #userDataRoot .data-chip {
+  min-height: 82px;
+  align-content: center;
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 13px !important;
+  padding: 14px !important;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, .012)) !important;
+}
+
+body #userDataRoot .data-chip strong {
+  color: #f9faff;
+  font-size: 22px !important;
+  letter-spacing: -.025em;
+}
+
+body #userDataRoot .data-actions {
+  border-color: rgba(150, 169, 205, .12) !important;
+}
+
+body #userDataRoot .user-moderation-workspace {
+  border-color: rgba(150, 169, 205, .12) !important;
+}
+
+body #userDataRoot .user-moderation-action {
+  border-color: rgba(119, 130, 255, .22) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(145deg, rgba(119, 130, 255, .085), rgba(13, 20, 33, .9)) !important;
+}
+
+body #userDataRoot .user-case-card {
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 15px !important;
+  padding: 18px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14);
+}
+
+body #userDataRoot .user-case-card dl > div {
+  border: 1px solid rgba(150, 169, 205, .1);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(7, 12, 22, .38);
+}
+
+body #userDataRoot :is(.user-case-image, .user-case-file) {
+  border-color: rgba(150, 169, 205, .17) !important;
+  border-radius: 11px !important;
+  background: rgba(7, 12, 22, .45) !important;
+}
+
+/* Appeal builder */
+body #appealAdminRoot .appeal-settings-view {
+  gap: 18px !important;
+}
+
+body #appealAdminRoot .appeal-view-header {
+  border: 1px solid rgba(119, 130, 255, .18) !important;
+  border-radius: 15px !important;
+  padding: 18px 20px !important;
+  background: linear-gradient(135deg, rgba(119, 130, 255, .09), rgba(13, 20, 33, .95)) !important;
+}
+
+body #appealAdminRoot .appeal-switch {
+  min-height: 42px;
+  border: 1px solid rgba(150, 169, 205, .14);
+  border-radius: 11px;
+  padding: 8px 12px;
+  background: rgba(7, 12, 22, .45);
+}
+
+body #appealAdminRoot .appeal-settings-band {
+  border: 1px solid rgba(150, 169, 205, .14) !important;
+  border-radius: 15px !important;
+  padding: 20px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14);
+}
+
+body #appealAdminRoot .appeal-form-designer {
+  gap: 16px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+body #appealAdminRoot :is(.appeal-field-nav, .appeal-field-inspector, .appeal-public-preview) {
+  border: 1px solid rgba(150, 169, 205, .15) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14) !important;
+}
+
+body #appealAdminRoot .appeal-field-nav {
+  padding: 14px !important;
+}
+
+body #appealAdminRoot .appeal-field-list {
+  gap: 8px !important;
+}
+
+body #appealAdminRoot .appeal-field-list > button {
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, .018) !important;
+}
+
+body #appealAdminRoot .appeal-field-list > button:hover {
+  border-color: rgba(150, 169, 205, .18) !important;
+  background: rgba(255, 255, 255, .04) !important;
+}
+
+body #appealAdminRoot .appeal-field-list > button.active {
+  border-color: rgba(119, 130, 255, .48) !important;
+  background: linear-gradient(90deg, rgba(119, 130, 255, .2), rgba(119, 130, 255, .055)) !important;
+}
+
+body #appealAdminRoot .appeal-field-order {
+  border: 1px solid rgba(119, 130, 255, .22);
+  border-radius: 8px !important;
+  background: rgba(119, 130, 255, .1) !important;
+  color: #c8ccff;
+}
+
+body #appealAdminRoot .appeal-add-field {
+  border-color: rgba(119, 130, 255, .3) !important;
+  border-radius: 11px !important;
+  background: rgba(119, 130, 255, .055) !important;
+}
+
+body #appealAdminRoot .appeal-field-actions button {
+  border: 1px solid rgba(150, 169, 205, .17);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .035);
+  color: var(--text);
+}
+
+body #appealAdminRoot .appeal-public-preview-body :is(label, fieldset) {
+  border: 1px solid rgba(150, 169, 205, .1);
+  border-radius: 11px;
+  padding: 11px;
+  background: rgba(7, 12, 22, .36);
+}
+
+body #appealAdminRoot .appeal-fixed-actions {
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 13px !important;
+  background: rgba(7, 12, 22, .52) !important;
+}
+
+/* Owner and utility pages */
+body .owner-panel-page,
+body .site-info-page {
+  height: calc(100dvh - 72px) !important;
+  padding: 26px clamp(16px, 3vw, 40px) 120px !important;
+  background:
+    radial-gradient(circle at 86% 0%, rgba(119, 130, 255, .12), transparent 30rem),
+    #070a12 !important;
+}
+
+body .owner-panel-page > *,
+body .site-info-shell {
+  width: min(1540px, 100%);
+  margin-inline: auto;
+}
+
+body .owner-head,
+body .site-info-head {
+  min-height: 76px;
+  border: 1px solid rgba(150, 169, 205, .15) !important;
+  border-radius: 16px !important;
+  padding: 18px 20px !important;
+  background: linear-gradient(135deg, rgba(119, 130, 255, .1), rgba(13, 20, 33, .96)) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .18);
+}
+
+body .owner-head h2,
+body .site-info-head h2 {
+  color: #fff;
+  font-size: 25px;
+  letter-spacing: -.035em;
+}
+
+body .owner-tabs {
+  border-color: rgba(150, 169, 205, .14) !important;
+  border-radius: 11px !important;
+  padding: 4px !important;
+  background: rgba(7, 12, 22, .55) !important;
+}
+
+body .owner-tabs button {
+  min-height: 36px !important;
+  border-radius: 8px !important;
+  transition: background .14s ease, color .14s ease !important;
+}
+
+body .owner-tabs button.active,
+body .owner-tabs button:hover {
+  background: linear-gradient(135deg, #7782ff, #5b67e8) !important;
+}
+
+body .owner-stat-grid {
+  gap: 12px !important;
+}
+
+body .owner-stat {
+  min-height: 104px;
+  align-content: center;
+  border-color: rgba(119, 130, 255, .18) !important;
+  border-radius: 14px !important;
+  padding: 16px !important;
+  background: linear-gradient(145deg, rgba(119, 130, 255, .095), rgba(13, 20, 33, .96)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14);
+}
+
+body .owner-stat strong {
+  color: #fff !important;
+  font-size: 25px !important;
+  letter-spacing: -.03em;
+}
+
+body :is(.owner-control-card, .owner-table-card, .owner-console-card, .owner-report-card, .site-info-card) {
+  border: 1px solid rgba(150, 169, 205, .15) !important;
+  border-radius: 15px !important;
+  background: linear-gradient(155deg, rgba(19, 28, 45, .98), rgba(13, 20, 33, .98)) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14) !important;
+}
+
+body :is(.owner-control-card, .owner-table-card, .owner-console-card) {
+  padding: 18px !important;
+}
+
+body .owner-table-head {
+  min-height: 52px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(150, 169, 205, .11);
+}
+
+body .owner-guild-table th {
+  color: #71809a !important;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+body .owner-guild-table th,
+body .owner-guild-table td {
+  border-color: rgba(150, 169, 205, .09) !important;
+  padding: 12px 10px !important;
+}
+
+body .owner-guild-table tbody tr {
+  transition: background .14s ease !important;
+}
+
+body .owner-guild-table tbody tr:hover {
+  background: rgba(119, 130, 255, .055);
+}
+
+body .owner-guild-icon,
+body .owner-guild-icon img {
+  border-radius: 10px !important;
+}
+
+body .owner-console-output {
+  border-color: rgba(150, 169, 205, .16) !important;
+  border-radius: 13px !important;
+  background: #050812 !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .02) !important;
+}
+
+body .owner-console-line {
+  border-color: rgba(150, 169, 205, .045) !important;
+}
+
+body .owner-report-card {
+  padding: 18px !important;
+}
+
+body .owner-report-attachment {
+  border-color: rgba(150, 169, 205, .15) !important;
+  border-radius: 11px !important;
+  background: rgba(7, 12, 22, .42) !important;
+}
+
+body .owner-dialog-backdrop {
+  background: rgba(3, 6, 12, .82) !important;
+  backdrop-filter: none !important;
+}
+
+body .owner-dialog {
+  border: 1px solid rgba(150, 169, 205, .22) !important;
+  border-radius: 17px !important;
+  background: #0f1726 !important;
+  box-shadow: 0 30px 84px rgba(0, 0, 0, .5) !important;
+}
+
+body .site-info-shell {
+  gap: 18px !important;
+}
+
+body .site-info-card {
+  padding: 22px !important;
+}
+
+body .site-info-card h3 {
+  color: #fff;
+  font-size: 18px;
+}
+
+body .bug-report-grid {
+  gap: 16px !important;
+}
+
+body .bug-report-status {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(150, 169, 205, .12);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: rgba(7, 12, 22, .4);
+}
+
+/* Responsive workspace composition */
+@media (max-width: 1100px) {
+  body #appealAdminRoot .appeal-form-designer {
+    grid-template-columns: 220px minmax(0, 1fr) !important;
+  }
+
+  body #appealAdminRoot .appeal-public-preview {
+    position: static !important;
+    grid-column: 1 / -1 !important;
+  }
+
+  body .owner-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 820px) {
+  body #ticketEditorRoot .ticket-list-head,
+  body #messageTemplatesRoot .message-list-head,
+  body #messageTemplatesRoot .message-editor-head,
+  body .owner-head,
+  body .site-info-head {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  body #ticketEditorRoot .ticket-list-actions,
+  body #messageTemplatesRoot .message-list-head > div:last-child {
+    width: 100%;
+  }
+
+  body #moderatorRoot .automod-textareas,
+  body #moderatorRoot .case-detail-grid,
+  body #userDataRoot .user-moderation-action-grid,
+  body .owner-control-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body #appealAdminRoot .appeal-form-designer {
+    grid-template-columns: 1fr !important;
+  }
+
+  body #appealAdminRoot .appeal-field-nav {
+    min-height: 0 !important;
+  }
+
+  body #appealAdminRoot .appeal-field-list {
+    max-height: 260px;
+  }
+
+  body #appealAdminRoot .appeal-public-preview {
+    grid-column: auto !important;
+  }
+
+  body .bug-report-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body .bug-report-grid .wide {
+    grid-column: auto !important;
+  }
+}
+
+@media (max-width: 600px) {
+  body .sidebar-nav-label {
+    display: none;
+  }
+
+  body #ticketEditorRoot .ticket-card-grid,
+  body #messageTemplatesRoot .message-template-grid,
+  body #messageTemplatesRoot .message-use-grid,
+  body #userDataRoot .user-data-summary,
+  body .owner-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body #ticketEditorRoot .ticket-type-card,
+  body #messageTemplatesRoot .message-template-card {
+    min-height: 88px !important;
+  }
+
+  body #ticketEditorRoot .form-create-bar,
+  body #ticketEditorRoot .sequence-add,
+  body #ticketEditorRoot .form-option-row {
+    align-items: stretch !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  body #ticketEditorRoot .form-create-bar {
+    flex-direction: column !important;
+  }
+
+  body #ticketEditorRoot .form-create-bar select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body #ticketEditorRoot .form-create-bar > span {
+    margin-left: 0;
+  }
+
+  body #userDataRoot .data-search-row,
+  body #userDataRoot .user-case-card dl {
+    grid-template-columns: 1fr !important;
+  }
+
+  body .owner-panel-page,
+  body .site-info-page {
+    height: calc(100dvh - 64px) !important;
+    padding: 14px 11px 100px !important;
+  }
+
+  body :is(.owner-control-card, .owner-table-card, .owner-console-card, .site-info-card) {
+    padding: 15px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #ticketEditorRoot .ticket-type-card,
+  body #messageTemplatesRoot .message-template-card,
+  body #moderatorRoot .automod-module-card,
+  body #moderatorRoot .case-row,
+  body .owner-guild-table tbody tr,
+  body .owner-tabs button {
+    transition: none !important;
+    transform: none !important;
+  }
+}
