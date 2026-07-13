@@ -107,7 +107,7 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   const server = source('src/adminServer.js');
   assert.match(app, /GAG2_STOCK_ROLE_COUNTS/);
   assert.match(app, /seed: 30/);
-  assert.match(app, /gear: 18/);
+  assert.match(app, /gear: 17/);
   assert.match(app, /crate: 16/);
   assert.match(app, /sell: 16/);
   assert.match(app, /roleAssign/);
@@ -130,6 +130,11 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
   assert.match(html, /Update 4/);
+  assert.match(html, /seed-pack-only seeds:[\s\S]*Ghost Pepper[\s\S]*Baby Cactus[\s\S]*Horned Melon[\s\S]*Glow Mushroom[\s\S]*Poison Ivy/);
+  assert.match(html, /retired limited items:[\s\S]*Rocket Pop[\s\S]*Fourth of July/);
+  assert.match(html, /Eclipse Bloom is obtained through merging rather than purchased from the shop/);
+  assert.match(html, /unnecessary Gear Shop notification roles:[\s\S]*Sign[\s\S]*Megaphone[\s\S]*Lantern[\s\S]*Teleporter[\s\S]*Wheelbarrow[\s\S]*Strawberry Sniper/);
+  assert.match(styles, /\.gag2-update-details/);
   assert.match(html, /Update 3/);
   assert.match(html, /Eclipse Bloom/);
   assert.match(html, /Added new weather:[\s\S]*Eclipse/);

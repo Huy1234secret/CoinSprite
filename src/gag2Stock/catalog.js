@@ -131,7 +131,7 @@ const GEAR_ITEMS = [
   item('teleporter', 'Teleporter', '', 'legendary', { createRole: false }),
   item('wheelbarrow', 'Wheelbarrow', '<:wheelbarrow:1525198730683355386>', 'legendary', { createRole: false }),
   item('player_magnet', 'Player Magnet', '<:player_magnet:1525198710231928832>', 'mythic'),
-  item('strawberry_sniper', 'Strawberry Sniper', '<:strawberry_sniper:1525198718658154647>', 'mythic'),
+  item('strawberry_sniper', 'Strawberry Sniper', '<:strawberry_sniper:1525198718658154647>', 'mythic', { createRole: false }),
   item('super_watering_can', 'Super Watering Can', '<:super_watering_can:1525198722785345708>', 'super'),
   item('super_sprinkler', 'Super Sprinkler', '<:super_sprinkler:1525198720931729589>', 'super'),
 ];
