@@ -1,6 +1,7 @@
 const { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
+const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 
 function dashboardBaseUrl() {
   const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
@@ -9,7 +10,7 @@ function dashboardBaseUrl() {
     const redirect = new URL(process.env.DISCORD_REDIRECT_URI || '');
     return redirect.origin;
   } catch {
-    return '';
+    return DEFAULT_DASHBOARD_BASE_URL;
   }
 }
 
@@ -21,7 +22,7 @@ module.exports = {
 
   async execute(interaction) {
     const baseUrl = dashboardBaseUrl();
-    const dashboardText = baseUrl ? `${baseUrl}/admin` : 'the admin dashboard';
+    const dashboardText = `${baseUrl}/admin`;
     await interaction.reply({
       content: [
         'Open the dashboard and edit the **Gag2 stock** tab.',
