@@ -51,6 +51,7 @@ const RARITY_RANK = {
   mythical: 6,
   super: 7,
   divine: 8,
+  secret: 9,
 };
 
 module.exports = {
