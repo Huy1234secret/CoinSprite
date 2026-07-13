@@ -111,7 +111,9 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(html, /gag2AssignRoleChannelMount/);
   assert.match(html, /Bot Update alert/);
   assert.match(html, /recommended-label">Recommended/);
+  assert.match(html, /field-label field-label-with-badge/);
   assert.match(html, /gag2UpdatesChannelMount/);
+  assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /gag2StockPermissionOverlay/);
   assert.match(html, /gag2StockPermissionRefreshButton/);
   assert.match(app, /gag2StockPermissionState/);

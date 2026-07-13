@@ -2648,9 +2648,16 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   display: none !important;
 }
 .gag2-stock-panel { position: relative; overflow: hidden; }
+.field-label.field-label-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+}
 .recommended-label {
   display: inline-flex;
-  margin-left: 6px;
+  flex: 0 0 auto;
   padding: 2px 7px;
   color: #d8f7e3;
   background: rgba(87, 242, 135, .14);
