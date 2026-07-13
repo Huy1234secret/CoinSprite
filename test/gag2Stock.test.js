@@ -124,6 +124,8 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
         { key: 'mushroom', name: 'Mushroom', multiplier: 2, tier: 'big' },
         { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
         { key: 'glow_mushroom', name: 'Glow Mushroom', multiplier: 1.05, tier: 'normal' },
+        { key: 'eclipse_bloom', name: 'Eclipse Bloom', multiplier: 1.25, tier: 'normal' },
+        { key: 'briar_rose', name: 'Briar Rose', multiplier: 1.2, tier: 'normal' },
       ],
     },
   });
@@ -131,6 +133,8 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.equal(weather.current.name, 'Rain');
   assert.equal(weather.upcomingMoons[0].name, 'Mega Moon');
   assert.equal(sell.entries[0].name, 'Tomato');
+  assert.ok(sell.entries.some((entry) => entry.key === 'eclipse_bloom'));
+  assert.ok(sell.entries.every((entry) => entry.key !== 'briar_rose'));
   assert.equal(new Date(sell.nextRefreshAtMs).toISOString(), '2026-07-12T12:00:00.000Z');
   const weatherPayload = buildTypePayload('weather', weather, { roleIds: { rain: '123456789012345678' } });
   assert.equal(weatherPayload.components[0].accent_color, 0x4A90E2);
@@ -154,6 +158,8 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.equal(sellPayload.components.at(-1).accent_color, 0xFFFFFF);
   assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10/);
   assert.match(sellPayload.components.at(-1).components[0].content, /\* <:glow_mushroom:1525390121929805926> \*\*Glow Mushroom\*\* x1.05/);
+  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:eclipse_bloom:1526031940749361163> \*\*Eclipse Bloom\*\* x1.25/);
+  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /Briar Rose/);
   assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<:mushroom:1525195225511760072>| - normal| - big/);
   assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
 });
@@ -273,13 +279,19 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(colorForType('seed', { key: 'ghost_pepper' }), 0xD62928);
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
-  assert.equal(sell.length, 14);
+  assert.equal(sell.length, 16);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
+  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom'), undefined);
+  assert.equal(emojiForType('seed', { key: 'eclipse_bloom' }), '');
+  assert.equal(emojiForType('sell', { key: 'eclipse_bloom' }), '<:eclipse_bloom:1526031940749361163>');
+  assert.equal(colorForType('sell', { key: 'eclipse_bloom' }), 0xFFFFFF);
   assert.equal(sell.find((spec) => spec.key === 'common_2x').roleName, 'Common 2x');
   assert.equal(sell.find((spec) => spec.key === 'common_2x').emoji, '<:sheckles:1525368044824825976>');
   assert.equal(sell.find((spec) => spec.key === 'common_2x').color, 0xE2AB0F);
   assert.equal(sell.find((spec) => spec.key === 'super_4x').roleName, 'Super 4x');
   assert.equal(sell.find((spec) => spec.key === 'super_4x').color, 0x7DE3FF);
+  assert.equal(sell.find((spec) => spec.key === 'secret_2x').roleName, 'Secret 2x');
+  assert.equal(sell.find((spec) => spec.key === 'secret_4x').roleName, 'Secret 4x');
   assert.deepEqual(weather.map((spec) => [spec.key, spec.roleName, spec.color]), [
     ['lightning', 'Lightning', 0xFFD23F],
     ['sunburst', 'Sunburst', 0xFF8C42],

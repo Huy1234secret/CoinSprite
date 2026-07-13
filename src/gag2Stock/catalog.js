@@ -7,6 +7,7 @@ const RARITY_COLORS = {
   mythic: 0xD62928,
   mythical: 0xD62928,
   super: 0xB71E99,
+  secret: 0xFFFFFF,
 };
 
 const RARITY_RANKS = {
@@ -18,6 +19,7 @@ const RARITY_RANKS = {
   mythic: 6,
   mythical: 6,
   super: 7,
+  secret: 9,
 };
 
 const SELL_BONUS_COLORS = {
@@ -35,6 +37,7 @@ const RARITY_LABELS = {
   mythic: 'Mythic',
   mythical: 'Mythic',
   super: 'Super',
+  secret: 'Secret',
 };
 
 function normalizeKey(value) {
@@ -100,6 +103,12 @@ const SEED_ITEMS = [
   item('poison_ivy', 'Poison Ivy', '<:poison_ivy:1525390125935366194>', 'legendary', { createRole: false }),
   item('ghost_pepper', 'Ghost Pepper', '<:ghost_pepper:1525390119664750612>', 'mythic', { createRole: false }),
 ];
+
+const SELL_ONLY_ITEMS = [
+  item('eclipse_bloom', 'Eclipse Bloom', '<:eclipse_bloom:1526031940749361163>', 'secret', { createRole: false }),
+];
+
+const SELL_ITEMS = [...SEED_ITEMS, ...SELL_ONLY_ITEMS];
 
 const GEAR_ITEMS = [
   item('common_watering_can', 'Common Watering Can', '<:common_watering_can:1525198690707439736>', 'common'),
@@ -209,7 +218,7 @@ function mapByKey(items) {
 
 const MAPS = {
   seed: mapByKey(SEED_ITEMS),
-  sell: mapByKey(SEED_ITEMS),
+  sell: mapByKey(SELL_ITEMS),
   gear: mapByKey(GEAR_ITEMS),
   crate: mapByKey(CRATE_ITEMS),
   weather: mapByKey(WEATHER_ITEMS),
@@ -322,7 +331,7 @@ function sellBonusRoleForEntry(entry) {
 
 function sellBonusRoleSpecs() {
   return ['2x', '4x'].flatMap((bucket) => (
-    ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'].map((rarity) => ({
+    ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super', 'secret'].map((rarity) => ({
       key: `${rarity}_${bucket}`,
       name: `${RARITY_LABELS[rarity]} ${bucket}`,
       emoji: SHECKLES_EMOJI,

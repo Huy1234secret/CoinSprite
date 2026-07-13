@@ -20,6 +20,7 @@ const {
 
 const NO_MENTIONS = { parse: [], roles: [], users: [] };
 const WHITE = 0xFFFFFF;
+const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
 
 function parseDateMs(value) {
   const parsed = Date.parse(value || '');
@@ -131,7 +132,7 @@ function parseSellPayload(payload) {
       rarity: String(entry?.rarity || '').trim(),
       tier: String(entry?.tier || '').trim(),
     }))
-    .filter((entry) => entry.name && Number.isFinite(entry.multiplier));
+    .filter((entry) => entry.name && Number.isFinite(entry.multiplier) && !HIDDEN_SELL_KEYS.has(entry.key));
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
     fetchedAtMs: parseDateMs(source?.fetchedAt) || parseDateMs(payload?.fetchedAt) || Date.now(),
