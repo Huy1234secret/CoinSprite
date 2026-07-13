@@ -6,6 +6,11 @@ const {
   isGuildGag2StockEnabled,
 } = require('../serverConfig');
 const { emojiForType } = require('./catalog');
+const {
+  DEFAULT_GAG2_BROADCAST_CONCURRENCY,
+  mapWithConcurrency,
+  normalizeConcurrency,
+} = require('./concurrency');
 const { STATE_PATH } = require('./config');
 const { syncGag2StockGuildSetup } = require('./manager');
 const { syncGag2RoleAssignmentPanel } = require('./roleAssignment');
@@ -184,14 +189,19 @@ async function announceBugPatchesUpdate(client, guild, options = {}) {
 }
 
 async function startGag2UpdateAnnouncement(client, options = {}) {
-  for (const guild of await collectGuilds(client)) {
+  const guilds = await collectGuilds(client);
+  const concurrency = normalizeConcurrency(
+    options.broadcastConcurrency,
+    DEFAULT_GAG2_BROADCAST_CONCURRENCY,
+  );
+  await mapWithConcurrency(guilds, concurrency, async (guild) => {
     await announceRoleCleanupUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Update 4 failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
     await announceBugPatchesUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Bug Patches announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
-  }
+  });
 }
 
 module.exports = {
