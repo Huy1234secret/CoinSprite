@@ -292,7 +292,23 @@ test('GAG2 role specs use requested names and colors', () => {
     ['goldmoon', 'Gold Moon', 0xF4C542],
     ['bloodmoon', 'Blood Moon', 0xB3202A],
     ['aurora', 'Aurora', 0x35E6A4],
+    ['eclipse', 'Eclipse', 0x9B59FF],
   ]);
+});
+
+test('GAG2 Eclipse weather uses its emoji, role, and purple container', () => {
+  const weather = parseWeatherPayload({
+    weather: {
+      current: { type: 'eclipse', name: 'Eclipse', endsAt: '2026-07-13T01:00:00.000Z' },
+      recent: [{ key: 'eclipse', name: 'Eclipse', lastSeenAt: '2026-07-13T00:55:00.000Z' }],
+    },
+  });
+  const payload = buildTypePayload('weather', weather, { roleIds: { eclipse: '123456789012345678' } });
+  const content = payload.components[0].components[0].components[0].content;
+
+  assert.equal(payload.components[0].accent_color, 0x9B59FF);
+  assert.match(content, /Current: <:eclipse:1526025549858738287> <@&123456789012345678>/);
+  assert.match(content, /<:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
 });
 
 test('GAG2 role sync deletes unassigned category roles instead of only clearing ids', () => {
