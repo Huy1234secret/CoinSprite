@@ -14,6 +14,7 @@ const { deleteGuildConfig, ensureGuildConfig, getEnabledGuildIds, getGuildConfig
 const { registerConsolidatedAdminCommands, startAdminServer } = require('./src/adminServer');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
+const { startGag2UpdateRollout } = require('./src/gag2Stock/updateRollout');
 const {
   isCommandVisibleForGuild,
   isFullBotFeatureEnabled,
@@ -558,6 +559,7 @@ client.once(Events.ClientReady, async () => {
   startAdminServer(client);
   await initCommandModules();
   await runInviteRewardHook('init', client); // FIXED: avoids calling .catch() on undefined legacy hook output.
+  await startGag2UpdateRollout(client);
   await startGag2StockPoster(client);
   await registerSlashCommands();
 });

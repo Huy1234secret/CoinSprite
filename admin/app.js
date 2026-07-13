@@ -16,15 +16,17 @@ const GAG2_STOCK_CHANNELS = [
   ['moon', 'Moon prediction', 'gag2MoonChannelMount'],
   ['sell', 'Sell price track', 'gag2SellChannelMount'],
   ['roleAssign', 'Role assignment', 'gag2AssignRoleChannelMount'],
+  ['updates', 'Bot Update alert', 'gag2UpdatesChannelMount'],
 ];
 const GAG2_STOCK_ROLE_COUNTS = {
-  seed: 29,
+  seed: 31,
   gear: 23,
   crate: 17,
   weather: 11,
   moon: 11,
   sell: 14,
   roleAssign: 0,
+  updates: 0,
 };
 
 const state = {

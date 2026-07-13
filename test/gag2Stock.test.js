@@ -235,6 +235,13 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(seeds.find((spec) => spec.key === 'carrot').emoji, '<:carrot:1525195196864925817>');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').roleName, 'Dragon’s Breath');
   assert.equal(seeds.find((spec) => spec.key === 'dragon_s_breath').color, 0xB71E99);
+  assert.deepEqual(
+    seeds.filter((spec) => ['sun_bloom', 'star_fruit'].includes(spec.key)).map((spec) => [spec.key, spec.roleName, spec.emoji, spec.color]),
+    [
+      ['sun_bloom', 'Sun Bloom', '<:sun_bloom:1525996662449766431>', 0xB71E99],
+      ['star_fruit', 'Star Fruit', '<:star_fruit:1525996660000428112>', 0xB71E99],
+    ],
+  );
   assert.equal(seeds.find((spec) => spec.key === 'poison_ivy'), undefined);
   assert.equal(seeds.find((spec) => spec.key === 'horned_melon'), undefined);
   assert.equal(seeds.find((spec) => spec.key === 'glow_mushroom'), undefined);
