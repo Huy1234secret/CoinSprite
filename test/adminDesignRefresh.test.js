@@ -13,10 +13,12 @@ test('admin loads the refresh after the existing design layers', () => {
   const baseIndex = html.indexOf('/admin/style.css');
   const unifiedIndex = html.indexOf('/admin/unified-design.css');
   const refreshIndex = html.indexOf('/admin/design-refresh.css');
+  const workspaceIndex = html.indexOf('/admin/design-workspaces.css');
 
   assert.ok(baseIndex >= 0);
   assert.ok(unifiedIndex > baseIndex);
   assert.ok(refreshIndex > unifiedIndex);
+  assert.ok(workspaceIndex > refreshIndex);
 });
 
 test('refresh is presentation-only, responsive, and motion-aware', () => {
@@ -26,6 +28,23 @@ test('refresh is presentation-only, responsive, and motion-aware', () => {
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /@media \(forced-colors: active\)/);
   assert.match(css, /button:focus-visible/);
+  assert.doesNotMatch(css, /url\(|data:/);
+  const backdropFilters = css.match(/backdrop-filter:[^;]+;/g) || [];
+  assert.ok(backdropFilters.every((rule) => /backdrop-filter:\s*none\s*!important;/.test(rule)));
+});
+
+test('workspace layer covers every major admin surface without remote assets', () => {
+  const html = read('admin/index.html');
+  const css = read('admin/design-workspaces.css');
+
+  for (const selector of [
+    '#ticketEditorRoot', '#messageTemplatesRoot', '#moderatorRoot', '#userDataRoot',
+    '#appealAdminRoot', '.owner-panel-page', '.site-info-page', '.channel-rule-editor',
+  ]) assert.ok(css.includes(selector), `missing workspace coverage for ${selector}`);
+
+  assert.match(html, /class="sidebar-nav-label"/);
+  assert.match(css, /@media \(max-width: 600px\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(css, /url\(|data:/);
   const backdropFilters = css.match(/backdrop-filter:[^;]+;/g) || [];
   assert.ok(backdropFilters.every((rule) => /backdrop-filter:\s*none\s*!important;/.test(rule)));
