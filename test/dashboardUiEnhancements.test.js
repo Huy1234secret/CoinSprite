@@ -129,6 +129,10 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /filters: clone\(state\.gag2StockFilters\)/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
+  assert.match(html, /<strong>Bug Patches<\/strong>/);
+  assert.match(html, /replay an older price update after posting the latest one/);
+  assert.match(html, /same sell price notification twice/);
+  assert.match(html, /only when the displayed prices change/);
   assert.match(html, /Update 4/);
   assert.match(html, /seed-pack-only seeds:[\s\S]*Ghost Pepper[\s\S]*Baby Cactus[\s\S]*Horned Melon[\s\S]*Glow Mushroom[\s\S]*Poison Ivy/);
   assert.match(html, /retired limited items:[\s\S]*Rocket Pop[\s\S]*Fourth of July/);

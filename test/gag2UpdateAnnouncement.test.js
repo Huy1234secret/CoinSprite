@@ -2,12 +2,29 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
+  BUG_PATCH_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
+  buildBugPatchesUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
+
+test('GAG2 Bug Patches announces the sell replay and duplicate-send fixes', () => {
+  const payload = buildBugPatchesUpdatePayload();
+  const container = payload.components[0];
+  const content = container.components[0].content;
+
+  assert.equal(BUG_PATCH_UPDATE_ID, 'gag2-bug-patches-sell-price-dedupe');
+  assert.equal(payload.flags, 32768);
+  assert.equal(container.accent_color, 0x3EC044);
+  assert.match(content, /^### Bug Patches/);
+  assert.match(content, /replay an older price update/);
+  assert.match(content, /same sell price notification twice/);
+  assert.match(content, /only when the displayed prices change/);
+  assert.deepEqual(payload.allowedMentions.roles, []);
+});
 
 test('GAG2 Update 4 clearly explains the notification role cleanup', () => {
   const payload = buildRoleCleanupUpdatePayload();
