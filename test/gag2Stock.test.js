@@ -365,7 +365,7 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(sell.length, 16);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
   const excludedSeedRoles = ['baby_cactus', 'horned_melon', 'glow_mushroom', 'poison_ivy', 'ghost_pepper', 'rocket_pop', 'eclipse_bloom'];
-  const excludedGearRoles = ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow'];
+  const excludedGearRoles = ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow', 'strawberry_sniper'];
   assert.ok(excludedSeedRoles.every((key) => !seeds.some((spec) => spec.key === key)));
   assert.ok(excludedGearRoles.every((key) => !gear.some((spec) => spec.key === key)));
   assert.equal(crate.some((spec) => spec.key === 'fourth_of_july_crate'), false);

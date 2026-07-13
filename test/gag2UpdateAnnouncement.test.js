@@ -23,9 +23,9 @@ test('GAG2 Update 4 clearly explains the notification role cleanup', () => {
   assert.match(content, /Rocket Pop/);
   assert.match(content, /Fourth of July/);
   assert.match(content, /Eclipse Bloom is obtained through merging/);
-  assert.match(content, /Sign.*Megaphone.*Lantern.*Teleporter.*Wheelbarrow/);
+  assert.match(content, /Sign.*Megaphone.*Lantern.*Teleporter.*Wheelbarrow.*Strawberry Sniper/);
   assert.deepEqual(payload.allowedMentions.roles, []);
-  assert.deepEqual(REMOVED_NOTIFICATION_ROLE_KEYS.gear, ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow']);
+  assert.deepEqual(REMOVED_NOTIFICATION_ROLE_KEYS.gear, ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow', 'strawberry_sniper']);
 });
 
 test('GAG2 update notification falls back to the seed channel', async () => {

@@ -20,7 +20,7 @@ const GAG2_STOCK_CHANNELS = [
 ];
 const GAG2_STOCK_ROLE_COUNTS = {
   seed: 30,
-  gear: 18,
+  gear: 17,
   crate: 16,
   weather: 12,
   moon: 12,

@@ -23,7 +23,7 @@ const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
     'rocket_pop',
     'eclipse_bloom',
   ]),
-  gear: Object.freeze(['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow']),
+  gear: Object.freeze(['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow', 'strawberry_sniper']),
   crate: Object.freeze(['fourth_of_july_crate']),
 });
 
@@ -66,7 +66,7 @@ function buildRoleCleanupUpdatePayload() {
           '-# These items are no longer available from their shops.',
           `- Removed the notification role for ${eclipseBloom}.`,
           '-# Eclipse Bloom is obtained through merging rather than purchased from the shop.',
-          '- Removed unnecessary Gear Shop notification roles: **Sign**, **Megaphone**, **Lantern**, **Teleporter**, and **Wheelbarrow**.',
+          '- Removed unnecessary Gear Shop notification roles: **Sign**, **Megaphone**, **Lantern**, **Teleporter**, **Wheelbarrow**, and **Strawberry Sniper**.',
           '-# Individual notifications are not needed for these gear items.',
         ].join('\n'),
       }],
