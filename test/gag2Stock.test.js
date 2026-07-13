@@ -14,6 +14,13 @@ const {
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
 const {
+  DEFAULT_GAG2_STOCK_CONFIG,
+  GAG2_ROLE_FILTER_RARITIES,
+  GAG2_SELL_FILTER_RARITIES,
+  GAG2_SELL_MULTIPLIERS,
+  normalizeGag2StockConfig,
+} = require('../src/serverConfig');
+const {
   REQUEST_TIMEOUT_MS,
   SELL_UNCHANGED_RETRY_MS,
   STALE_STOCK_RETRY_MS,
@@ -21,7 +28,7 @@ const {
 } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { Gag2StockPoster, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { Gag2StockPoster, filterSellEntry, filteredRoleSpecs, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function fixture() {
   return {
@@ -220,6 +227,65 @@ test('GAG2 normal sell container includes seeds after the old 25-item cutoff', (
   assert.equal(content.split('\n').length, entries.length + 1);
 });
 
+test('GAG2 filters default to every supported rarity and sell multiplier', () => {
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.seed, GAG2_ROLE_FILTER_RARITIES);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.gear, GAG2_ROLE_FILTER_RARITIES);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
+});
+
+test('GAG2 filter config preserves empty choices and removes unsupported values', () => {
+  const config = normalizeGag2StockConfig({
+    filters: {
+      rarities: { seed: [], gear: ['rare', 'invalid'], crate: ['super'], sell: ['secret', 'common', 'invalid'] },
+      sellMultipliers: ['4x', 'invalid'],
+    },
+  });
+  assert.deepEqual(config.filters.rarities.seed, []);
+  assert.deepEqual(config.filters.rarities.gear, ['rare']);
+  assert.deepEqual(config.filters.rarities.crate, ['super']);
+  assert.deepEqual(config.filters.rarities.sell, ['common', 'secret']);
+  assert.deepEqual(config.filters.sellMultipliers, ['4x']);
+});
+
+test('GAG2 sell filter can announce only Common 4x fruit without a normal container', () => {
+  const filtered = filterSellEntry({
+    entries: [
+      { key: 'carrot', name: 'Carrot', multiplier: 4, tier: 'big' },
+      { key: 'blueberry', name: 'Blueberry', multiplier: 1.5, tier: 'normal' },
+      { key: 'corn', name: 'Corn', multiplier: 4, tier: 'big' },
+    ],
+  }, {
+    rarities: { sell: ['common'] },
+    sellMultipliers: ['4x'],
+  });
+  const payload = buildTypePayload('sell', filtered, { roleIds: { common_4x: '123456789012345678' } });
+  const content = payload.components[0].components[0].content;
+
+  assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
+  assert.deepEqual(filtered.enabledMultipliers, ['4x']);
+  assert.equal(payload.components.length, 1);
+  assert.equal(payload.components[0].accent_color, 0x7DE3FF);
+  assert.match(content, /<@&123456789012345678>/);
+  assert.match(content, /Carrot/);
+  assert.doesNotMatch(content, /Blueberry|Corn|GAG2 Sell Price Track/);
+});
+
+test('GAG2 role rarity filters retain only requested role specs', () => {
+  const seedSpecs = filteredRoleSpecs('seed', roleSpecsForType('seed'), {
+    rarities: { seed: ['common'] },
+  });
+  const sellSpecs = filteredRoleSpecs('sell', roleSpecsForType('sell'), {
+    rarities: { sell: ['common'] },
+    sellMultipliers: ['4x'],
+  });
+
+  assert.deepEqual(seedSpecs.filter((spec) => spec.rarity === 'common').map((spec) => spec.key), ['carrot', 'strawberry', 'blueberry']);
+  assert.ok(seedSpecs.some((spec) => spec.key === 'eclipse_bloom'), 'Secret Eclipse Bloom remains available outside the Common-Super selector');
+  assert.deepEqual(sellSpecs.map((spec) => spec.key), ['common_4x']);
+});
+
 test('GAG2 weather post key changes only for current weather, not recent history', () => {
   const base = parseWeatherPayload({
     weather: {
@@ -262,6 +328,7 @@ test('GAG2 stock unavailable payload is a red Components V2 container', () => {
 test('GAG2 role specs use requested names and colors', () => {
   const seeds = roleSpecsForType('seed');
   const gear = roleSpecsForType('gear');
+  const crate = roleSpecsForType('crate');
   const sell = roleSpecsForType('sell');
   const weather = roleSpecsForType('weather');
 
@@ -292,6 +359,9 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(colorForType('seed', { key: 'ghost_pepper' }), 0xD62928);
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
+  assert.equal(crate.find((spec) => spec.key === 'ladder_crate').rarity, 'common');
+  assert.equal(crate.find((spec) => spec.key === 'spring_crate').rarity, 'epic');
+  assert.equal(crate.find((spec) => spec.key === 'teleporter_pad_crate').rarity, 'mythic');
   assert.equal(sell.length, 16);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
   assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').roleName, 'Eclipse Bloom');
@@ -345,6 +415,9 @@ test('GAG2 role sync deletes unassigned category roles instead of only clearing 
   assert.match(source, /enabledRoleIds\.has\(clean\)/);
   assert.match(source, /await role\.delete\(`CoinSprite GAG2 category unassigned`\)/);
   assert.match(source, /updateGuildGag2StockRoleIds\(guild\.id, type, \{\}\)/);
+  assert.match(source, /async function clearFilteredTypeRoles\(guild, config, enabledTypes, specsByType, roles, progress\)/);
+  assert.match(source, /CoinSprite GAG2 rarity or multiplier filter disabled/);
+  assert.match(source, /const filteredRemoval = await clearFilteredTypeRoles/);
   assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
 });
 

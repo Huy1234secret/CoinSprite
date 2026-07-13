@@ -365,16 +365,21 @@ function sellBonusContainers(entry, roleIds = {}) {
 
 function buildTypePayload(type, entry, options = {}) {
   const roleIds = options.roleIds || {};
+  const bonusContainers = type === 'sell' ? sellBonusContainers(entry, roleIds) : [];
+  const includeMainContainer = type !== 'sell'
+    || !Array.isArray(entry?.enabledMultipliers)
+    || entry.enabledMultipliers.includes('normal');
+  const mainContainer = {
+    type: 17,
+    accent_color: accentColorForType(type, entry),
+    components: componentsForType(type, entry, roleIds),
+  };
   return {
     allowedMentions: type === 'moon' ? NO_MENTIONS : allowedMentionsForRoles(roleIds),
     flags: COMPONENTS_V2_FLAG,
     components: [
-      ...((type === 'sell') ? sellBonusContainers(entry, roleIds) : []),
-      {
-        type: 17,
-        accent_color: accentColorForType(type, entry),
-        components: componentsForType(type, entry, roleIds),
-      },
+      ...bonusContainers,
+      ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
     ],
   };
 }

@@ -137,23 +137,23 @@ const GEAR_ITEMS = [
 ];
 
 const CRATE_ITEMS = [
-  item('ladder_crate', 'Ladder', '<:ladder_crate:1525201085231403240>'),
-  item('bench_crate', 'Bench', '<:bench_crate:1525201076276433056>'),
-  item('light_crate', 'Light', '<:light_crate:1525201087282413689>'),
-  item('sign_crate', 'Sign', '<:sign_crate:1525201096023474217>'),
-  item('arch_crate', 'Arch', '<:arch_crate:1525201071620882542>'),
-  item('roleplay_crate', 'Roleplay', '<:roleplay_crate:1525201091317465108>'),
-  item('picture_frame_crate', 'Picture Frame', '<:picture_frame_crate:1525202336631361606>'),
-  item('fourth_of_july_crate', 'Fourth of July (limited)', '<:fourth_of_july_crate:1525201497116246128>'),
-  item('bridge_crate', 'Bridge', '<:bridge_crate:1525201078642147469>'),
-  item('spring_crate', 'Spring', '<:spring_crate:1525201098233745528>'),
-  item('seesaw_crate', 'Seesaw', '<:seesaw_crate:1525201094257545286>'),
-  item('conveyor_crate', 'Conveyor', '<:conveyor_crate:1525201080831443096>'),
-  item('owner_door_crate', 'Owner Door', '<:owner_door_crate:1525201089387954196>'),
-  item('bear_trap_crate', 'Bear Trap', '<:bear_trap_crate:1525201073957245019>'),
-  item('boombox_crate', 'Boombox', '<:boombox_crate:1525201479546441931>'),
-  item('fence_crate', 'Fence', '<:fence_crate:1525201083117342911>'),
-  item('teleporter_pad_crate', 'Teleporter Pad', '<:teleporter_pad_crate:1525201100792397874>'),
+  item('ladder_crate', 'Ladder', '<:ladder_crate:1525201085231403240>', 'common'),
+  item('bench_crate', 'Bench', '<:bench_crate:1525201076276433056>', 'uncommon'),
+  item('light_crate', 'Light', '<:light_crate:1525201087282413689>', 'uncommon'),
+  item('sign_crate', 'Sign', '<:sign_crate:1525201096023474217>', 'rare'),
+  item('arch_crate', 'Arch', '<:arch_crate:1525201071620882542>', 'rare'),
+  item('roleplay_crate', 'Roleplay', '<:roleplay_crate:1525201091317465108>', 'rare'),
+  item('picture_frame_crate', 'Picture Frame', '<:picture_frame_crate:1525202336631361606>', 'rare'),
+  item('fourth_of_july_crate', 'Fourth of July (limited)', '<:fourth_of_july_crate:1525201497116246128>', 'rare'),
+  item('bridge_crate', 'Bridge', '<:bridge_crate:1525201078642147469>', 'epic'),
+  item('spring_crate', 'Spring', '<:spring_crate:1525201098233745528>', 'epic'),
+  item('seesaw_crate', 'Seesaw', '<:seesaw_crate:1525201094257545286>', 'epic'),
+  item('conveyor_crate', 'Conveyor', '<:conveyor_crate:1525201080831443096>', 'epic'),
+  item('owner_door_crate', 'Owner Door', '<:owner_door_crate:1525201089387954196>', 'legendary'),
+  item('bear_trap_crate', 'Bear Trap', '<:bear_trap_crate:1525201073957245019>', 'legendary'),
+  item('boombox_crate', 'Boombox', '<:boombox_crate:1525201479546441931>', 'legendary'),
+  item('fence_crate', 'Fence', '<:fence_crate:1525201083117342911>', 'legendary'),
+  item('teleporter_pad_crate', 'Teleporter Pad', '<:teleporter_pad_crate:1525201100792397874>', 'mythic'),
 ];
 
 function weatherItem(key, roleName, emoji, color) {
@@ -303,6 +303,7 @@ function roleSpecFromItem(entry) {
     name: entry.roleName,
     emoji: entry.emoji || '',
     roleName: entry.roleName.slice(0, 100),
+    rarity: entry.rarity || '',
     color: entry.color || null,
   };
 }
@@ -337,6 +338,8 @@ function sellBonusRoleSpecs() {
       emoji: SHECKLES_EMOJI,
       roleName: `${RARITY_LABELS[rarity]} ${bucket}`,
       color: SELL_BONUS_COLORS[bucket],
+      rarity,
+      bucket,
     }))
   ));
 }
@@ -362,6 +365,7 @@ module.exports = {
   normalizeKey,
   normalizeRarity,
   orderIndexForType,
+  rarityForType,
   roleKeyForType,
   roleSpecsForType,
   sellBonusRoleForEntry,

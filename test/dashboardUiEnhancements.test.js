@@ -115,6 +115,16 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(html, /recommended-label">Recommended/);
   assert.match(html, /field-label field-label-with-badge/);
   assert.match(html, /gag2UpdatesChannelMount/);
+  assert.match(html, /id="gag2FilterTitle">Notification filters/);
+  assert.match(html, /gag2SeedRarityMount/);
+  assert.match(html, /gag2GearRarityMount/);
+  assert.match(html, /gag2CrateRarityMount/);
+  assert.match(html, /gag2SellRarityMount/);
+  assert.match(html, /data-gag2-sell-multiplier/);
+  assert.match(html, /Below ×2/);
+  assert.match(app, /GAG2_SELL_RARITIES/);
+  assert.match(app, /renderGag2FilterControls/);
+  assert.match(app, /filters: clone\(state\.gag2StockFilters\)/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
   assert.match(html, /Update 3/);
@@ -139,6 +149,10 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(server, /fetchGuildDirectory\(guild, \{ force \}\)/);
   assert.match(server, /PermissionFlagsBits\.ManageRoles/);
   assert.match(app, /pollGag2RoleProgress\(payload\.roleProgress\)/);
+  assert.match(app, /setDashboardSyncLocked\(true\)/);
+  assert.match(app, /setDashboardSyncLocked\(false\)/);
+  assert.match(app, /elements\.configForm\.inert = state\.syncLocked/);
+  assert.match(styles, /body\.dashboard-sync-locked #configForm/);
   assert.match(server, /getGag2StockSetupProgress/);
   assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);
 });

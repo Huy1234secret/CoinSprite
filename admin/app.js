@@ -28,6 +28,25 @@ const GAG2_STOCK_ROLE_COUNTS = {
   roleAssign: 0,
   updates: 0,
 };
+const GAG2_ROLE_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
+const GAG2_SELL_RARITIES = [...GAG2_ROLE_RARITIES, 'secret'];
+const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
+const GAG2_RARITY_COLORS = {
+  common: '#B0ADAC', uncommon: '#3EC044', rare: '#3E7EF4', epic: '#9D3CD2',
+  legendary: '#E2AB0F', mythic: '#D62928', super: '#B71E99', secret: '#FFFFFF',
+};
+
+function defaultGag2StockFilters() {
+  return {
+    rarities: {
+      seed: [...GAG2_ROLE_RARITIES],
+      gear: [...GAG2_ROLE_RARITIES],
+      crate: [...GAG2_ROLE_RARITIES],
+      sell: [...GAG2_SELL_RARITIES],
+    },
+    sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
+  };
+}
 
 const state = {
   me: null,
@@ -43,6 +62,7 @@ const state = {
   boosts: [],
   rewards: [],
   gag2StockChannels: {},
+  gag2StockFilters: defaultGag2StockFilters(),
   activeTab: 'leveling',
   activeLevelingTab: 'xp',
   visibleTabs: null,
@@ -52,6 +72,7 @@ const state = {
   ticketEditor: null,
   dirtyTabs: new Set(),
   saving: false,
+  syncLocked: false,
 };
 
 const elements = {
@@ -91,6 +112,13 @@ const elements = {
   gag2StockPermissionOverlay: document.querySelector('#gag2StockPermissionOverlay'),
   gag2StockPermissionText: document.querySelector('#gag2StockPermissionText'),
   gag2StockPermissionRefreshButton: document.querySelector('#gag2StockPermissionRefreshButton'),
+  gag2RarityMounts: {
+    seed: document.querySelector('#gag2SeedRarityMount'),
+    gear: document.querySelector('#gag2GearRarityMount'),
+    crate: document.querySelector('#gag2CrateRarityMount'),
+    sell: document.querySelector('#gag2SellRarityMount'),
+  },
+  gag2SellMultiplierInputs: [...document.querySelectorAll('[data-gag2-sell-multiplier]')],
   levelUpChannelMount: document.querySelector('#levelUpChannelMount'),
   levelUpTokens: document.querySelector('#levelUpTokens'),
   levelUpContent: document.querySelector('#levelUpContent'),
@@ -825,6 +853,53 @@ function renderGag2StockPickers() {
   }
 }
 
+function normalizeGag2FilterSelection(value, allowed) {
+  if (!Array.isArray(value)) return [...allowed];
+  const selected = new Set(value.map((entry) => String(entry || '').toLowerCase()));
+  return allowed.filter((entry) => selected.has(entry));
+}
+
+function normalizeGag2Filters(value = {}) {
+  return {
+    rarities: {
+      seed: normalizeGag2FilterSelection(value.rarities?.seed, GAG2_ROLE_RARITIES),
+      gear: normalizeGag2FilterSelection(value.rarities?.gear, GAG2_ROLE_RARITIES),
+      crate: normalizeGag2FilterSelection(value.rarities?.crate, GAG2_ROLE_RARITIES),
+      sell: normalizeGag2FilterSelection(value.rarities?.sell, GAG2_SELL_RARITIES),
+    },
+    sellMultipliers: normalizeGag2FilterSelection(value.sellMultipliers, GAG2_SELL_MULTIPLIERS),
+  };
+}
+
+function rarityFilterOptions(rarities) {
+  return rarities.map((rarity) => ({
+    id: rarity,
+    label: rarity.charAt(0).toUpperCase() + rarity.slice(1),
+    color: GAG2_RARITY_COLORS[rarity],
+    optionType: 'role',
+  }));
+}
+
+function renderGag2FilterControls() {
+  for (const type of ['seed', 'gear', 'crate', 'sell']) {
+    const mount = elements.gag2RarityMounts[type];
+    if (!mount) continue;
+    const allowed = type === 'sell' ? GAG2_SELL_RARITIES : GAG2_ROLE_RARITIES;
+    renderPicker(mount, rarityFilterOptions(allowed), state.gag2StockFilters.rarities[type], {
+      multiple: true,
+      type: 'role',
+      placeholder: 'No rarities selected',
+      onChange: (value) => {
+        state.gag2StockFilters.rarities[type] = normalizeGag2FilterSelection(value, allowed);
+        renderGag2FilterControls();
+        refreshDirtyState();
+      },
+    });
+  }
+  const selectedMultipliers = new Set(state.gag2StockFilters.sellMultipliers);
+  for (const input of elements.gag2SellMultiplierInputs) input.checked = selectedMultipliers.has(input.value);
+}
+
 function gag2RoleStatusElement() {
   let element = document.querySelector('#gag2RoleSyncStatus');
   if (element) return element;
@@ -891,17 +966,37 @@ function renderGag2RoleProgress(progress) {
   setGag2RoleStatus('', '');
 }
 
+function setDashboardSyncLocked(locked) {
+  state.syncLocked = Boolean(locked);
+  document.body.classList.toggle('dashboard-sync-locked', state.syncLocked);
+  if (elements.configForm) elements.configForm.inert = state.syncLocked;
+  if (elements.tabList) elements.tabList.inert = state.syncLocked;
+  elements.guildSelect.disabled = state.syncLocked || state.guilds.length === 0;
+  elements.saveButton.disabled = state.syncLocked || state.saving;
+  if (state.syncLocked) elements.resetTabButton.disabled = true;
+  else refreshDirtyState();
+}
+
 function pollGag2RoleProgress(initialProgress = null) {
   if (state.gag2RoleProgressTimer) window.clearTimeout(state.gag2RoleProgressTimer);
   if (initialProgress) renderGag2RoleProgress(initialProgress);
   const running = initialProgress?.status === 'running';
-  if (!state.guildId || !running) return;
+  if (running) setDashboardSyncLocked(true);
+  if (!state.guildId || !running) {
+    if (state.syncLocked && !state.saving) {
+      setDashboardSyncLocked(false);
+      setStatus(initialProgress?.status === 'error' ? (initialProgress.message || 'Changes could not be fully applied.') : 'Changes applied.', initialProgress?.status === 'error' ? 'error' : 'ok');
+    }
+    return;
+  }
   state.gag2RoleProgressTimer = window.setTimeout(async () => {
     try {
       const payload = await api(`/api/guilds/${state.guildId}/gag2-stock/setup-progress`);
       pollGag2RoleProgress(payload.progress);
     } catch (error) {
       setGag2RoleStatus(error.message, 'error');
+      setDashboardSyncLocked(false);
+      setStatus(error.message, 'error');
     }
   }, 1000);
 }
@@ -955,7 +1050,9 @@ function applyTabFromConfig(tabName, config) {
     setField('inviteRewards.capMembers', config.inviteRewards?.capMembers);
   } else if (tabName === 'gag2Stock') {
     state.gag2StockChannels = { ...(config.gag2Stock?.channels || {}) };
+    state.gag2StockFilters = normalizeGag2Filters(config.gag2Stock?.filters || {});
     renderGag2StockPickers();
+    renderGag2FilterControls();
   } else if (tabName === 'games') {
     for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
       setField(`wordChain.${key}`, config.wordChain?.[key]);
@@ -1005,7 +1102,10 @@ function collectTabState(tabName) {
       inviteCap: Number(getField('inviteRewards.capMembers')),
     };
   }
-  if (tabName === 'gag2Stock') return clone(state.gag2StockChannels);
+  if (tabName === 'gag2Stock') return {
+    channels: clone(state.gag2StockChannels),
+    filters: clone(state.gag2StockFilters),
+  };
   return {
     wordChain: {
       minWordLength: Number(getField('wordChain.minWordLength')),
@@ -1153,6 +1253,7 @@ function collectPatch() {
     },
     gag2Stock: {
       channels: { ...state.gag2StockChannels },
+      filters: clone(state.gag2StockFilters),
     },
     wordChain: {
       minWordLength: Number(getField('wordChain.minWordLength')),
@@ -1405,6 +1506,16 @@ elements.gag2StockPermissionRefreshButton?.addEventListener('click', () => {
   refreshGag2StockPermissions();
 });
 
+for (const input of elements.gag2SellMultiplierInputs) {
+  input.addEventListener('change', () => {
+    const selected = new Set(state.gag2StockFilters.sellMultipliers);
+    if (input.checked) selected.add(input.value);
+    else selected.delete(input.value);
+    state.gag2StockFilters.sellMultipliers = GAG2_SELL_MULTIPLIERS.filter((value) => selected.has(value));
+    refreshDirtyState();
+  });
+}
+
 elements.logoutButton.addEventListener('click', async () => {
   if (state.dirtyTabs.size > 0) {
     showUnsavedNavigationBlock();
@@ -1447,24 +1558,26 @@ elements.resetTabButton.addEventListener('click', () => {
 elements.saveButton.addEventListener('click', async () => {
   if (!state.guildId || state.dirtyTabs.size === 0 || state.saving) return;
   state.saving = true;
-  elements.saveButton.disabled = true;
+  setDashboardSyncLocked(true);
   elements.saveButton.textContent = 'Saving...';
   setStatus('Saving changes...');
+  let waitingForSync = false;
   try {
     const payload = await api(`/api/guilds/${state.guildId}/config`, {
       method: 'PATCH',
       body: JSON.stringify(collectPatch()),
     });
     fillConfig(payload.config);
+    waitingForSync = payload.roleProgress?.status === 'running';
     if (payload.roleProgress) pollGag2RoleProgress(payload.roleProgress);
-    setStatus('Changes saved.', 'ok');
+    if (waitingForSync) setStatus('Applying changes...', '');
+    else setStatus('Changes applied.', 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {
     state.saving = false;
-    elements.saveButton.disabled = false;
     elements.saveButton.textContent = 'Save changes';
-    refreshDirtyState();
+    if (!waitingForSync) setDashboardSyncLocked(false);
   }
 });
 

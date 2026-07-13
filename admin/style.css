@@ -1252,6 +1252,7 @@ textarea:focus,
   .grid,
   .grid.compact-grid,
   .settings-grid,
+  .gag2-filter-grid,
   .config-row,
   .config-row.xp-group-row,
   .config-row.reward-row,
@@ -2669,6 +2670,27 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   vertical-align: middle;
 }
 .field-hint { margin: 3px 0 8px; color: var(--muted); font-size: 12px; }
+.gag2-filter-panel {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.gag2-filter-panel h4 { margin: 0; color: var(--text); font-size: 15px; }
+.gag2-filter-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.gag2-filter-checks { display: flex; flex-wrap: wrap; gap: 8px; min-height: 42px; align-items: center; }
+label.gag2-filter-check {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.gag2-filter-check input { margin: 0; }
 .gag2-update-feed {
   margin-top: 20px;
   padding-top: 18px;
@@ -2698,6 +2720,13 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
 .gag2-update-card p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
 .gag2-update-card p img { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px; }
 .gag2-update-card p strong { color: var(--text); }
+body.dashboard-sync-locked #configForm,
+body.dashboard-sync-locked #tabList,
+body.dashboard-sync-locked #guildSelect {
+  opacity: .55;
+  cursor: wait;
+}
+body.dashboard-sync-locked #editor { cursor: wait; }
 .gag2-stock-panel.is-locked .gag2-stock-grid {
   filter: blur(3px);
   opacity: .42;
