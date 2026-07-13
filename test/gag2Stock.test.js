@@ -842,6 +842,48 @@ test('GAG2 stock poster treats expired restock stock as stale', () => {
   assert.equal(isStaleStockEntry('weather', { nextRestockAtMs: now - 1 }, now), false);
 });
 
+test('GAG2 stock poster broadcasts to guild channels concurrently with a safe worker limit', async () => {
+  const now = Date.parse('2026-07-10T16:50:05.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-concurrent-broadcast-state.json');
+  fs.rmSync(statePath, { force: true });
+  const parsed = parseStockPayload(fixture());
+  const targets = Array.from({ length: 7 }, (_, index) => ({
+    guildId: `14939010025193472${index}`,
+    type: 'seed',
+    channelId: `15250033756518482${index}`,
+    roleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  }));
+  let activeSends = 0;
+  let maxActiveSends = 0;
+  const channels = new Map(targets.map((target, index) => [target.channelId, {
+    id: target.channelId,
+    isTextBased: () => true,
+    send: async () => {
+      activeSends += 1;
+      maxActiveSends = Math.max(maxActiveSends, activeSends);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      activeSends -= 1;
+      return { id: `message-${index}` };
+    },
+  }]));
+  const poster = new Gag2StockPoster({
+    channels: { cache: channels, fetch: async (channelId) => channels.get(channelId) || null },
+  }, {
+    broadcastConcurrency: 3,
+    fetchStockPayload: async () => parsed,
+    now: () => now,
+    statePath,
+  });
+  poster.targets = () => targets;
+
+  const sent = await poster.tick(['seed'], 'stock');
+
+  assert.equal(sent.length, targets.length);
+  assert.equal(maxActiveSends, 3);
+  fs.rmSync(statePath, { force: true });
+});
+
 test('GAG2 source uses a 5s timeout and retries transient aborts', async () => {
   let calls = 0;
   const payload = await fetchJson('https://example.test/gag2', {

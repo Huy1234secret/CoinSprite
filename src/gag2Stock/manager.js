@@ -42,6 +42,11 @@ const {
 } = require('./catalog');
 const { syncAllGag2RoleAssignmentPanels } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
+const {
+  DEFAULT_GAG2_BROADCAST_CONCURRENCY,
+  mapWithConcurrency,
+  normalizeConcurrency,
+} = require('./concurrency');
 
 const setupProgress = new Map();
 const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
@@ -484,6 +489,10 @@ class Gag2StockPoster {
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
+    this.broadcastConcurrency = normalizeConcurrency(
+      options.broadcastConcurrency,
+      DEFAULT_GAG2_BROADCAST_CONCURRENCY,
+    );
     this.inFlight = new Set();
     this.deliveryInFlight = new Map();
     this.timer = null;
@@ -653,41 +662,37 @@ class Gag2StockPoster {
       const nextSellRefreshAtMs = nextApiRefreshAtMsForTypes(entries, targetTypes.filter((type) => type === 'sell'), tickStartedAtMs);
       if (Number.isFinite(nextStockRefreshAtMs)) this.nextStockRefreshAtMs = nextStockRefreshAtMs;
       if (Number.isFinite(nextSellRefreshAtMs)) this.nextSellRefreshAtMs = nextSellRefreshAtMs;
-      const sent = [];
-
-      for (const target of targets) {
+      const deliveries = await mapWithConcurrency(targets, this.broadcastConcurrency, async (target) => {
         const error = errors.get(target.type);
         if (error) {
           const message = await this.postUnavailableOnce(state, target, error).catch((postError) => {
             logCommandSystem(`GAG2 ${target.type} unavailable notice failed: ${postError?.message || 'unknown error'}`);
             return null;
           });
-          if (message) sent.push(message);
-          continue;
+          return message;
         }
 
         let entry = entries.get(target.type);
-        if (!entry) continue;
+        if (!entry) return null;
         if (target.type === 'sell') {
           entry = filterSellEntry(entry, target.filters);
-          if (!entry.entries.length) continue;
+          if (!entry.entries.length) return null;
           if (isApiRefreshDue(target.type, entry, tickStartedAtMs)) {
             this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
-            continue;
+            return null;
           }
         }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
           skippedStaleStock = true;
-          continue;
+          return null;
         }
-        const message = await this.postEntry(state, target, entry).catch((postError) => {
+        return this.postEntry(state, target, entry).catch((postError) => {
           logCommandSystem(`GAG2 ${target.type} post failed in guild ${target.guildId}: ${postError?.message || 'unknown error'}`);
           return null;
         });
-        if (message) sent.push(message);
-      }
-      return sent;
+      });
+      return deliveries.filter(Boolean);
     } catch (error) {
       logCommandSystem(`GAG2 ${label} failed: ${error?.message || 'unknown error'}`);
       return null;
