@@ -3,13 +3,30 @@ const test = require('node:test');
 
 const {
   BUG_PATCH_UPDATE_ID,
+  PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   buildBugPatchesUpdatePayload,
+  buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
+
+test('GAG2 Performance Boost announces the faster concurrent delivery update', () => {
+  const payload = buildPerformanceBoostUpdatePayload();
+  const container = payload.components[0];
+  const content = container.components[0].content;
+
+  assert.equal(PERFORMANCE_BOOST_UPDATE_ID, 'gag2-performance-boost-concurrent-broadcasts');
+  assert.equal(payload.flags, 32768);
+  assert.equal(container.accent_color, 0xE2AB0F);
+  assert.match(content, /^### Performance Boost! ⭐/);
+  assert.match(content, /multiple servers at the same time/);
+  assert.match(content, /Stock, weather, moon, sell-price, and bot-update notifications/);
+  assert.match(content, /rate-limit safe/);
+  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
+});
 
 test('GAG2 Bug Patches announces the sell replay and duplicate-send fixes', () => {
   const payload = buildBugPatchesUpdatePayload();
