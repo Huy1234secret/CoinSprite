@@ -155,7 +155,7 @@ async function updateRoleColorIfNeeded(role, spec, guildId) {
   const color = roleColor(spec);
   if (!Number.isInteger(color) || !role || role.color === color || role.editable === false || typeof role.edit !== 'function') return;
   await role.edit({
-    color,
+    colors: { primaryColor: color },
     reason: 'CoinSprite GAG2 notification role color sync',
   }).catch((error) => {
     logCommandSystem(`GAG2 role color update failed in guild ${guildId} (${spec.roleName}): ${error?.message || 'unknown error'}`);
@@ -647,7 +647,7 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
           reason: `CoinSprite GAG2 ${type} notification role`,
         };
         const color = roleColor(spec);
-        if (Number.isInteger(color)) createOptions.color = color;
+        if (Number.isInteger(color)) createOptions.colors = { primaryColor: color };
         role = await guild.roles.create(createOptions).catch((error) => {
           logCommandSystem(`GAG2 role create failed in guild ${guild.id} (${spec.roleName}): ${error?.message || 'unknown error'}`);
           return null;
