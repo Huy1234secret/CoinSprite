@@ -19,6 +19,7 @@ const { loadState, saveState } = require('./stateStore');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
 const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
+const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
   seed: Object.freeze([
     'ghost_pepper',
@@ -94,6 +95,26 @@ function buildBugPatchesUpdatePayload() {
           '- Fixed an issue where **Sell Price Track** could replay an older price update after posting the latest one.',
           '- Fixed an issue that could send the same sell price notification twice.',
           '- **Sell Price Track** now announces only when the displayed prices change.',
+        ].join('\n'),
+      }],
+    }],
+  };
+}
+
+function buildPerformanceBoostUpdatePayload() {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: 0xE2AB0F,
+      components: [{
+        type: 10,
+        content: [
+          '### Performance Boost! ⭐',
+          '- GAG2 updates now broadcast to multiple servers at the same time.',
+          '- Stock, weather, moon, sell-price, and bot-update notifications should arrive much faster across every configured server.',
+          '- Delivery remains rate-limit safe, with per-channel duplicate protection unchanged.',
         ].join('\n'),
       }],
     }],
@@ -188,6 +209,25 @@ async function announceBugPatchesUpdate(client, guild, options = {}) {
   return message;
 }
 
+async function announcePerformanceBoostUpdate(client, guild, options = {}) {
+  const statePath = options.statePath || STATE_PATH;
+  if (announcementRecord(loadState(statePath), PERFORMANCE_BOOST_UPDATE_ID, guild.id)) return null;
+  ensureGuildConfig(guild.id);
+  if (!isGuildGag2StockEnabled(guild.id)) return null;
+
+  const config = getGuildConfig(guild.id);
+  const channel = await updateChannelForGuild(guild, config);
+  if (!channel) return null;
+  const message = await channel.send(buildPerformanceBoostUpdatePayload());
+  saveAnnouncementRecord(PERFORMANCE_BOOST_UPDATE_ID, guild.id, {
+    channelId: channel.id,
+    messageId: message.id,
+    sentAt: new Date(options.now?.() || Date.now()).toISOString(),
+  }, statePath);
+  logCommandSystem(`GAG2 Performance Boost announced in guild ${guild.id}: ${channel.id}`);
+  return message;
+}
+
 async function startGag2UpdateAnnouncement(client, options = {}) {
   const guilds = await collectGuilds(client);
   const concurrency = normalizeConcurrency(
@@ -201,16 +241,22 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
     await announceBugPatchesUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Bug Patches announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
+    await announcePerformanceBoostUpdate(client, guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Performance Boost announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    });
   });
 }
 
 module.exports = {
   BUG_PATCH_UPDATE_ID,
+  PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   announceBugPatchesUpdate,
+  announcePerformanceBoostUpdate,
   announceRoleCleanupUpdate,
   buildBugPatchesUpdatePayload,
+  buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   startGag2UpdateAnnouncement,
