@@ -2669,6 +2669,35 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
   vertical-align: middle;
 }
 .field-hint { margin: 3px 0 8px; color: var(--muted); font-size: 12px; }
+.gag2-update-feed {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.gag2-update-feed-heading h4 { margin: 0; color: var(--text); font-size: 15px; }
+.gag2-update-feed-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.gag2-update-list { display: grid; gap: 10px; margin-top: 12px; }
+.gag2-update-card {
+  padding: 12px 14px;
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--line);
+  border-left: 3px solid #6b7280;
+  border-radius: 10px;
+}
+.gag2-update-card.latest { border-left-color: #9B59FF; }
+.gag2-update-card-heading { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.gag2-update-card-heading > span {
+  padding: 2px 7px;
+  color: #eadcff;
+  background: rgba(155,89,255,.15);
+  border: 1px solid rgba(155,89,255,.35);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+}
+.gag2-update-card p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+.gag2-update-card p img { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px; }
+.gag2-update-card p strong { color: var(--text); }
 .gag2-stock-panel.is-locked .gag2-stock-grid {
   filter: blur(3px);
   opacity: .42;

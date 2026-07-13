@@ -114,6 +114,10 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(html, /field-label field-label-with-badge/);
   assert.match(html, /gag2UpdatesChannelMount/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
+  assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
+  assert.match(html, /Added new weather:[\s\S]*Eclipse/);
+  assert.match(html, /Added new seeds:[\s\S]*Sun Bloom[\s\S]*Star Fruit/);
+  assert.match(styles, /\.gag2-update-feed/);
   assert.match(html, /gag2StockPermissionOverlay/);
   assert.match(html, /gag2StockPermissionRefreshButton/);
   assert.match(app, /gag2StockPermissionState/);
