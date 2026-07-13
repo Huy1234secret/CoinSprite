@@ -3,21 +3,24 @@ const test = require('node:test');
 
 const {
   UPDATE_ID,
-  buildEclipseUpdatePayload,
+  buildEclipseBloomUpdatePayload,
   collectGuilds,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
 
-test('GAG2 Update 2 announces Eclipse with its role and emoji', () => {
-  const payload = buildEclipseUpdatePayload('123456789012345678');
+test('GAG2 Update 3 announces Eclipse Bloom with its role and emoji', () => {
+  const payload = buildEclipseBloomUpdatePayload('123456789012345678');
   const container = payload.components[0];
   const content = container.components[0].content;
 
-  assert.equal(UPDATE_ID, 'gag2-update-2-eclipse');
+  assert.equal(UPDATE_ID, 'gag2-update-3-eclipse-bloom');
   assert.equal(payload.flags, 32768);
-  assert.equal(container.accent_color, 0x9B59FF);
-  assert.match(content, /^### Update 2/);
-  assert.match(content, /<:eclipse:1526025549858738287> \*\*<@&123456789012345678>\*\*/);
+  assert.equal(container.accent_color, 0xFFFFFF);
+  assert.match(content, /^### Update 3/);
+  assert.match(content, /<:eclipse_bloom:1526031940749361163> \*\*<@&123456789012345678>\*\*/);
+  assert.match(content, /Secret 2x/);
+  assert.match(content, /Secret 4x/);
+  assert.match(content, /Briar Rose/);
   assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
 

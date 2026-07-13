@@ -19,7 +19,7 @@ const GAG2_STOCK_CHANNELS = [
   ['updates', 'Bot Update alert', 'gag2UpdatesChannelMount'],
 ];
 const GAG2_STOCK_ROLE_COUNTS = {
-  seed: 31,
+  seed: 32,
   gear: 23,
   crate: 17,
   weather: 12,
