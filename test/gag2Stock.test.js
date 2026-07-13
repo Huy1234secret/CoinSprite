@@ -652,6 +652,187 @@ test('GAG2 sell restores duplicate state from a recent matching Discord message 
   fs.rmSync(statePath, { force: true });
 });
 
+test('GAG2 sell dedupe ignores hidden API tier changes', () => {
+  const normal = parseSellPayload({
+    sell: {
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.1, tier: 'normal' }],
+    },
+  });
+  const renamedTier = parseSellPayload({
+    sell: {
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.1, tier: 'standard' }],
+    },
+  });
+
+  assert.equal(buildTypePostKey('sell', normal), buildTypePostKey('sell', renamedTier));
+});
+
+test('GAG2 sell rejects an older refresh snapshot after a newer one was posted', async () => {
+  const now = Date.parse('2026-07-13T15:52:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-stale-state.json');
+  fs.rmSync(statePath, { force: true });
+  const oldEntry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:40:05.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-07-13T15:50:00.000Z') / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.05, tier: 'normal' }],
+    },
+  });
+  const newEntry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:50:05.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-07-13T16:00:00.000Z') / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.15, tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async () => {
+      sends += 1;
+      return { id: `message-${sends}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = {
+    posts: {
+      [target.guildId]: {
+        sell: {
+          channelId: target.channelId,
+          lastPostedKey: buildTypePostKey('sell', newEntry),
+          lastSellNextRefreshAtMs: newEntry.nextRefreshAtMs,
+          lastSourceFetchedAtMs: newEntry.fetchedAtMs,
+        },
+      },
+    },
+  };
+
+  assert.equal(await poster.postEntry(state, target, oldEntry), null);
+  assert.equal(sends, 0);
+  assert.equal(state.posts[target.guildId].sell.lastPostedKey, buildTypePostKey('sell', newEntry));
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 sell does not replay a recent old snapshot from the same refresh cycle', async () => {
+  const now = Date.parse('2026-07-13T15:52:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-replay-state.json');
+  fs.rmSync(statePath, { force: true });
+  const nextRefreshUnix = Math.floor(Date.parse('2026-07-13T16:00:00.000Z') / 1000);
+  const oldEntry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:51:30.000Z',
+    sell: {
+      nextRefreshUnix,
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.05, tier: 'normal' }],
+    },
+  });
+  const newEntry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:51:00.000Z',
+    sell: {
+      nextRefreshUnix,
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.15, tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const oldPayload = buildTypePayload('sell', oldEntry, { roleIds: {} });
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => new Map([['old-message', {
+        id: 'old-message',
+        author: { id: '123456789012345678', bot: true },
+        createdTimestamp: now - 60_000,
+        components: oldPayload.components,
+      }]]),
+    },
+    send: async () => {
+      sends += 1;
+      return { id: `message-${sends}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = {
+    posts: {
+      [target.guildId]: {
+        sell: {
+          channelId: target.channelId,
+          lastPostedKey: buildTypePostKey('sell', newEntry),
+          lastSellNextRefreshAtMs: newEntry.nextRefreshAtMs,
+          lastSourceFetchedAtMs: newEntry.fetchedAtMs,
+        },
+      },
+    },
+  };
+
+  assert.equal(await poster.postEntry(state, target, oldEntry), null);
+  assert.equal(sends, 0);
+  assert.equal(state.posts[target.guildId].sell.lastPostedKey, buildTypePostKey('sell', newEntry));
+  assert.ok(state.posts[target.guildId].sell.recentPostedKeys.includes(buildTypePostKey('sell', oldEntry)));
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 sell serializes concurrent delivery to the same channel', async () => {
+  const now = Date.parse('2026-07-13T15:52:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-concurrent-state.json');
+  fs.rmSync(statePath, { force: true });
+  const entry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:51:30.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-07-13T16:00:00.000Z') / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.15, tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async () => {
+      sends += 1;
+      await new Promise((resolve) => setImmediate(resolve));
+      return { id: `message-${sends}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = { posts: {} };
+
+  await Promise.all([
+    poster.postEntry(state, target, entry),
+    poster.postEntry(state, target, entry),
+  ]);
+  assert.equal(sends, 1);
+  fs.rmSync(statePath, { force: true });
+});
+
 test('GAG2 stock poster treats expired restock stock as stale', () => {
   const now = Date.parse('2026-07-10T17:00:51.000Z');
   assert.equal(isStaleStockEntry('seed', { nextRestockAtMs: now - 1 }, now), true);
