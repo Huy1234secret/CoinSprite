@@ -47,6 +47,7 @@ const setupProgress = new Map();
 const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
 const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
 const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
+const RESTART_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -139,6 +140,40 @@ function unavailableBucket(state, guildId, type) {
 
 function existingPostBucket(state, guildId, type) {
   return state.posts?.[guildId]?.[type] || null;
+}
+
+function comparableComponent(value) {
+  const raw = typeof value?.toJSON === 'function' ? value.toJSON() : (value?.data || value || {});
+  const component = { type: Number(raw.type) || 0 };
+  if (typeof raw.content === 'string') component.content = raw.content;
+  const accentColor = raw.accent_color ?? raw.accentColor;
+  if (Number.isInteger(accentColor)) component.accent_color = accentColor;
+  if (Array.isArray(raw.components)) component.components = raw.components.map(comparableComponent);
+  if (raw.accessory) component.accessory = comparableComponent(raw.accessory);
+  const mediaUrl = raw.media?.url || raw.media?.proxy_url || raw.media?.proxyUrl;
+  if (mediaUrl) component.media = { url: String(mediaUrl) };
+  return component;
+}
+
+function componentFingerprint(components) {
+  return JSON.stringify((Array.isArray(components) ? components : []).map(comparableComponent));
+}
+
+async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowMs = Date.now()) {
+  if (typeof channel?.messages?.fetch !== 'function') return null;
+  const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+  if (!messages || typeof messages.values !== 'function') return null;
+  const expected = componentFingerprint(payload?.components);
+  for (const message of messages.values()) {
+    const ownMessage = clientUserId
+      ? message?.author?.id === clientUserId
+      : message?.author?.bot === true;
+    if (!ownMessage) continue;
+    const createdAt = Number(message?.createdTimestamp);
+    if (Number.isFinite(createdAt) && createdAt < nowMs - RESTART_DEDUPE_WINDOW_MS) continue;
+    if (componentFingerprint(message?.components) === expected) return message;
+  }
+  return null;
 }
 
 function isTransientSourceError(error) {
@@ -584,6 +619,10 @@ class Gag2StockPoster {
         if (target.type === 'sell') {
           entry = filterSellEntry(entry, target.filters);
           if (!entry.entries.length) continue;
+          if (isApiRefreshDue(target.type, entry, tickStartedAtMs)) {
+            this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
+            continue;
+          }
         }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
@@ -621,6 +660,20 @@ class Gag2StockPoster {
     if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
 
     const payload = buildTypePayload(target.type, entry, { roleIds: target.roleIds });
+    if (target.type === 'sell' && !bucket.lastPostedKey) {
+      const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
+      if (existing) {
+        Object.assign(bucket, {
+          channelId: target.channelId,
+          lastMessageId: existing.id || null,
+          lastPostedAt: new Date(Number(existing.createdTimestamp) || this.now()).toISOString(),
+          lastPostedKey: postKey,
+        });
+        saveState(state, this.statePath);
+        logCommandSystem(`GAG2 sell duplicate suppressed after restart in ${target.channelId}: ${postKey}`);
+        return null;
+      }
+    }
     let message = null;
     if (target.type === 'moon' && bucket.lastMessageId) {
       const existing = await channel.messages?.fetch?.(bucket.lastMessageId).catch(() => null);
@@ -814,7 +867,9 @@ async function startGag2StockPoster(client, options = {}) {
 
 module.exports = {
   Gag2StockPoster,
+  componentFingerprint,
   filterSellEntry,
+  findMatchingRecentBotMessage,
   filteredRoleSpecs,
   getGag2StockSetupProgress,
   isStaleStockEntry,
