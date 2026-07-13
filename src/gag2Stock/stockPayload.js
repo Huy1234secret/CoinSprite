@@ -13,6 +13,7 @@ const {
   highestRarityColor,
   normalizeKey,
   roleKeyForType,
+  roleSpecsForType,
   sellBonusRoleForEntry,
   sellMultiplierBucket,
   sortItemsForType,
@@ -199,6 +200,12 @@ function roleIdForItem(roleIds, item, type = '') {
   return roleIds?.[catalogKey] || roleIds?.[item?.key] || roleIds?.[slugKey(item?.name)];
 }
 
+function supportedRoleIdsForType(type, roleIds = {}) {
+  const supportedKeys = new Set(roleSpecsForType(type).map((spec) => spec.key));
+  return Object.fromEntries(Object.entries(roleIds)
+    .filter(([key]) => supportedKeys.has(key)));
+}
+
 function roleMention(roleIds, item, type = '') {
   const roleId = roleIdForItem(roleIds, item, type);
   return roleId ? ` <@&${roleId}>` : '';
@@ -364,7 +371,7 @@ function sellBonusContainers(entry, roleIds = {}) {
 }
 
 function buildTypePayload(type, entry, options = {}) {
-  const roleIds = options.roleIds || {};
+  const roleIds = supportedRoleIdsForType(type, options.roleIds || {});
   const bonusContainers = type === 'sell' ? sellBonusContainers(entry, roleIds) : [];
   const includeMainContainer = type !== 'sell'
     || !Array.isArray(entry?.enabledMultipliers)
@@ -385,11 +392,15 @@ function buildTypePayload(type, entry, options = {}) {
 }
 
 function buildStockPayload(stockPayload, options = {}) {
-  const combinedRoleIds = Object.assign({}, ...Object.values(options.roleIds || {}));
+  const roleIdsByType = Object.fromEntries((stockPayload.stock || []).map((entry) => [
+    entry.category,
+    supportedRoleIdsForType(entry.category, options.roleIds?.[entry.category] || {}),
+  ]));
+  const combinedRoleIds = Object.assign({}, ...Object.values(roleIdsByType));
   const components = [];
   for (const entry of stockPayload.stock) {
     if (components.length) components.push({ type: 14, divider: true, spacing: 1 });
-    components.push(...stockCategoryComponents(entry, options.roleIds?.[entry.category] || {}));
+    components.push(...stockCategoryComponents(entry, roleIdsByType[entry.category] || {}));
   }
   return {
     allowedMentions: allowedMentionsForRoles(combinedRoleIds),

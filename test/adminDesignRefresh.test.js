@@ -50,12 +50,15 @@ test('workspace layer covers every major admin surface without remote assets', (
   assert.ok(backdropFilters.every((rule) => /backdrop-filter:\s*none\s*!important;/.test(rule)));
 });
 
-test('login improvements preserve the OAuth and session hooks', () => {
+test('login uses CoinSprite branding and preserves the OAuth and session hooks', () => {
   const html = read('admin/index.html');
+  const css = read('admin/design-refresh.css');
 
   assert.match(html, /id="loginPanel"/);
   assert.match(html, /id="loginStatus"/);
   assert.match(html, /href="\/auth\/discord"/);
-  assert.match(html, /class="login-eyebrow"/);
-  assert.match(html, /class="login-trust"/);
+  assert.match(html, /<img class="login-icon" src="\/bot-avatar\.png" alt="CoinSprite bot profile image">/);
+  assert.doesNotMatch(html, /Secure control center/i);
+  assert.doesNotMatch(html, /Discord OAuth/i);
+  assert.match(css, /\.login-icon\s*{[^}]*object-fit:\s*cover;/s);
 });
