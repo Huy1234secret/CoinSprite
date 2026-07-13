@@ -281,14 +281,14 @@ button.button,
 }
 
 .login-icon {
+  display: block !important;
   width: 68px !important;
   height: 68px !important;
   border: 1px solid rgba(255, 255, 255, .16) !important;
   border-radius: 20px !important;
-  background: linear-gradient(145deg, #8d96ff, #5764ec) !important;
+  background: transparent !important;
   box-shadow: 0 16px 38px rgba(87, 100, 236, .3), inset 0 1px rgba(255, 255, 255, .24) !important;
-  font-size: 18px;
-  letter-spacing: -.03em;
+  object-fit: cover;
 }
 
 .login-box h2 {

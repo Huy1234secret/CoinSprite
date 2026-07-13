@@ -156,8 +156,14 @@ const CRATE_ITEMS = [
   item('teleporter_pad_crate', 'Teleporter Pad', '<:teleporter_pad_crate:1525201100792397874>', 'mythic'),
 ];
 
-function weatherItem(key, roleName, emoji, color) {
-  return { key, roleName, emoji, color };
+function weatherItem(key, roleName, emoji, color, options = {}) {
+  return {
+    key,
+    roleName,
+    emoji,
+    color,
+    createRole: options.createRole !== false,
+  };
 }
 
 const WEATHER_ITEMS = [
@@ -172,7 +178,7 @@ const WEATHER_ITEMS = [
   weatherItem('goldmoon', 'Gold Moon', '<:goldmoon:1525203815035441182>', 0xF4C542),
   weatherItem('bloodmoon', 'Blood Moon', '<:bloodmoon:1525203812607070260>', 0xB3202A),
   weatherItem('aurora', 'Aurora', '<:aurora:1525203810467840000>', 0x35E6A4),
-  weatherItem('eclipse', 'Eclipse', '<:eclipse:1526025549858738287>', 0x9B59FF),
+  weatherItem('eclipse', 'Eclipse', '<:eclipse:1526025549858738287>', 0x9B59FF, { createRole: false }),
 ];
 
 const ALIASES = {
@@ -348,7 +354,7 @@ function roleSpecsForType(type) {
   if (type === 'seed') return [...SEED_ITEMS, ...SELL_ONLY_ITEMS].filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'gear') return GEAR_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'crate') return CRATE_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
-  if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.map(roleSpecFromItem);
+  if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'sell') return sellBonusRoleSpecs();
   return [];
 }
