@@ -90,6 +90,19 @@ test('GAG2 stock payload builds a Components V2 container without source footer 
   assert.doesNotMatch(content, /Third-party live stock feeds/);
 });
 
+test('GAG2 stock parser excludes sell-only Eclipse Bloom from seed stock', () => {
+  const parsed = parseStockPayload({
+    stock: [{
+      category: 'seed',
+      items: [
+        { key: 'carrot', name: 'Carrot', rarity: 'Common', quantity: 1 },
+        { key: 'eclipse_bloom', name: 'Eclipse Bloom', rarity: 'Secret', quantity: 1 },
+      ],
+    }],
+  });
+  assert.deepEqual(parsed.stock[0].items.map((item) => item.key), ['carrot']);
+});
+
 test('GAG2 stock type payload builds one separate message for one category', () => {
   const parsed = parseStockPayload(fixture());
   const seed = parsed.stock.find((entry) => entry.category === 'seed');
@@ -281,7 +294,9 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
   assert.equal(sell.length, 16);
   assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
-  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom'), undefined);
+  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').roleName, 'Eclipse Bloom');
+  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').emoji, '<:eclipse_bloom:1526031940749361163>');
+  assert.equal(seeds.find((spec) => spec.key === 'eclipse_bloom').color, 0xFFFFFF);
   assert.equal(emojiForType('seed', { key: 'eclipse_bloom' }), '');
   assert.equal(emojiForType('sell', { key: 'eclipse_bloom' }), '<:eclipse_bloom:1526031940749361163>');
   assert.equal(colorForType('sell', { key: 'eclipse_bloom' }), 0xFFFFFF);

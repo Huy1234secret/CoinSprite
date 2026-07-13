@@ -105,7 +105,7 @@ const SEED_ITEMS = [
 ];
 
 const SELL_ONLY_ITEMS = [
-  item('eclipse_bloom', 'Eclipse Bloom', '<:eclipse_bloom:1526031940749361163>', 'secret', { createRole: false }),
+  item('eclipse_bloom', 'Eclipse Bloom', '<:eclipse_bloom:1526031940749361163>', 'secret'),
 ];
 
 const SELL_ITEMS = [...SEED_ITEMS, ...SELL_ONLY_ITEMS];
@@ -342,7 +342,7 @@ function sellBonusRoleSpecs() {
 }
 
 function roleSpecsForType(type) {
-  if (type === 'seed') return SEED_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
+  if (type === 'seed') return [...SEED_ITEMS, ...SELL_ONLY_ITEMS].filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'gear') return GEAR_ITEMS.map(roleSpecFromItem);
   if (type === 'crate') return CRATE_ITEMS.map(roleSpecFromItem);
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.map(roleSpecFromItem);

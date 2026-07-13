@@ -21,6 +21,7 @@ const {
 const NO_MENTIONS = { parse: [], roles: [], users: [] };
 const WHITE = 0xFFFFFF;
 const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
+const SELL_ONLY_SEED_KEYS = new Set(['eclipse_bloom']);
 
 function parseDateMs(value) {
   const parsed = Date.parse(value || '');
@@ -52,7 +53,8 @@ function normalizeCategory(entry) {
   const category = String(entry?.category || '').trim().toLowerCase();
   const items = sortItemsForType(category, (Array.isArray(entry?.items) ? entry.items : [])
     .map(normalizeItem)
-    .filter((item) => item.name && item.quantity > 0));
+    .filter((item) => item.name && item.quantity > 0)
+    .filter((item) => category !== 'seed' || !SELL_ONLY_SEED_KEYS.has(item.key)));
 
   return {
     type: category,

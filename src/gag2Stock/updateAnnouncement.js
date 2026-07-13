@@ -12,17 +12,17 @@ const { syncGag2RoleAssignmentPanel } = require('./roleAssignment');
 const { loadState, saveState } = require('./stateStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
-const UPDATE_ID = 'gag2-update-2-eclipse';
-const ECLIPSE_KEY = 'eclipse';
+const UPDATE_ID = 'gag2-update-3-eclipse-bloom';
+const ECLIPSE_BLOOM_KEY = 'eclipse_bloom';
 
 function cleanDiscordId(value) {
   const text = String(value || '').trim();
   return /^\d{16,20}$/.test(text) ? text : '';
 }
 
-function buildEclipseUpdatePayload(roleId = '') {
+function buildEclipseBloomUpdatePayload(roleId = '') {
   const cleanRoleId = cleanDiscordId(roleId);
-  const display = cleanRoleId ? `<@&${cleanRoleId}>` : 'Eclipse';
+  const display = cleanRoleId ? `<@&${cleanRoleId}>` : 'Eclipse Bloom';
   return {
     flags: COMPONENTS_V2_FLAG,
     allowedMentions: cleanRoleId
@@ -30,10 +30,15 @@ function buildEclipseUpdatePayload(roleId = '') {
       : { parse: [], users: [], roles: [] },
     components: [{
       type: 17,
-      accent_color: colorForType('weather', { key: ECLIPSE_KEY }),
+      accent_color: colorForType('sell', { key: ECLIPSE_BLOOM_KEY }),
       components: [{
         type: 10,
-        content: `### Update 2\n- Added new weather: ${emojiForType('weather', { key: ECLIPSE_KEY })} **${display}**.`,
+        content: [
+          '### Update 3',
+          `- Added new Secret seed to Sell Price Track: ${emojiForType('sell', { key: ECLIPSE_BLOOM_KEY })} **${display}**.`,
+          '- Added **Secret 2x** and **Secret 4x** notification roles.',
+          '- Removed unreleased **Briar Rose** from sell-price tracking.',
+        ].join('\n'),
       }],
     }],
   };
@@ -77,47 +82,46 @@ function saveAnnouncementRecord(guildId, record, statePath = STATE_PATH) {
   saveState(state, statePath);
 }
 
-async function announceEclipseUpdate(client, guild, options = {}) {
+async function announceEclipseBloomUpdate(client, guild, options = {}) {
   const statePath = options.statePath || STATE_PATH;
   if (announcementRecord(loadState(statePath), guild.id)) return null;
   ensureGuildConfig(guild.id);
   if (!isGuildGag2StockEnabled(guild.id)) return null;
 
   await syncGag2StockGuildSetup(client, guild.id).catch((error) => {
-    logCommandSystem(`GAG2 Eclipse role sync failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    logCommandSystem(`GAG2 Eclipse Bloom role sync failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
   });
   await syncGag2RoleAssignmentPanel(client, guild.id).catch((error) => {
-    logCommandSystem(`GAG2 Eclipse role panel refresh failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    logCommandSystem(`GAG2 Eclipse Bloom role panel refresh failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
   });
 
   const config = getGuildConfig(guild.id);
   const channel = await updateChannelForGuild(guild, config);
   if (!channel) return null;
-  const roleId = cleanDiscordId(config?.gag2Stock?.roleIds?.weather?.[ECLIPSE_KEY])
-    || cleanDiscordId(config?.gag2Stock?.roleIds?.moon?.[ECLIPSE_KEY]);
-  const message = await channel.send(buildEclipseUpdatePayload(roleId));
+  const roleId = cleanDiscordId(config?.gag2Stock?.roleIds?.seed?.[ECLIPSE_BLOOM_KEY]);
+  const message = await channel.send(buildEclipseBloomUpdatePayload(roleId));
   saveAnnouncementRecord(guild.id, {
     channelId: channel.id,
     messageId: message.id,
     sentAt: new Date(options.now?.() || Date.now()).toISOString(),
   }, statePath);
-  logCommandSystem(`GAG2 Update 2 announced in guild ${guild.id}: ${channel.id}`);
+  logCommandSystem(`GAG2 Update 3 announced in guild ${guild.id}: ${channel.id}`);
   return message;
 }
 
 async function startGag2UpdateAnnouncement(client, options = {}) {
   for (const guild of await collectGuilds(client)) {
-    await announceEclipseUpdate(client, guild, options).catch((error) => {
-      logCommandSystem(`GAG2 Update 2 failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    await announceEclipseBloomUpdate(client, guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Update 3 failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
   }
 }
 
 module.exports = {
-  ECLIPSE_KEY,
+  ECLIPSE_BLOOM_KEY,
   UPDATE_ID,
-  announceEclipseUpdate,
-  buildEclipseUpdatePayload,
+  announceEclipseBloomUpdate,
+  buildEclipseBloomUpdatePayload,
   collectGuilds,
   startGag2UpdateAnnouncement,
   updateChannelForGuild,

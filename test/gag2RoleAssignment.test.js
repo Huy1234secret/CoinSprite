@@ -98,7 +98,8 @@ test('GAG2 category role payload lists assigned roles and splits large role list
   assert.equal(selectRows.length, 2);
   assert.equal(firstSelect.placeholder, 'Select roles (1/2)');
   assert.equal(firstSelect.options.length, 25);
-  assert.equal(secondSelect.options.length, 6);
+  assert.equal(secondSelect.options.length, 7);
+  assert.ok(secondSelect.options.some((option) => option.label === 'Eclipse Bloom'));
   assert.deepEqual(firstSelect.options[0].emoji, {
     id: '1525195196864925817',
     name: 'carrot',
