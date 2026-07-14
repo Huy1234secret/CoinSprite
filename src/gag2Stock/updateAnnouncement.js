@@ -20,7 +20,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
 const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
-const NOTIFICATION_ROLE_UPDATE_ID = 'gag2-notification-role-update-eclipse';
+const NOTIFICATION_ROLE_UPDATE_ID = 'gag2-notification-role-update-eclipse-channel-v2';
 const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
   seed: Object.freeze([
     'ghost_pepper',
@@ -122,8 +122,15 @@ function buildPerformanceBoostUpdatePayload() {
   };
 }
 
-function buildNotificationRoleUpdatePayload() {
+function buildNotificationRoleUpdatePayload(options = {}) {
   const eclipse = itemLabel('weather', 'eclipse', 'Eclipse');
+  const lines = [
+    '### Notification Role Update',
+    `- Re-added the weather notification role for ${eclipse}.`,
+  ];
+  if (options.hasRoleAssignment) {
+    lines.push('-# Members can select it again from the Weather role assignment menu.');
+  }
   return {
     flags: COMPONENTS_V2_FLAG,
     allowedMentions: { parse: [], users: [], roles: [] },
@@ -132,11 +139,7 @@ function buildNotificationRoleUpdatePayload() {
       accent_color: 0x9B59FF,
       components: [{
         type: 10,
-        content: [
-          '### Notification Role Update',
-          `- Re-added the weather notification role for ${eclipse}.`,
-          '-# Members can select it again from the Weather role assignment menu.',
-        ].join('\n'),
+        content: lines.join('\n'),
       }],
     }],
   };
@@ -270,7 +273,8 @@ async function announceNotificationRoleUpdate(client, guild, options = {}) {
   const config = getGuildConfig(guild.id);
   const channel = await updateChannelForGuild(guild, config);
   if (!channel) return null;
-  const message = await channel.send(buildNotificationRoleUpdatePayload());
+  const hasRoleAssignment = Boolean(cleanDiscordId(config?.gag2Stock?.channels?.roleAssign));
+  const message = await channel.send(buildNotificationRoleUpdatePayload({ hasRoleAssignment }));
   saveAnnouncementRecord(NOTIFICATION_ROLE_UPDATE_ID, guild.id, {
     channelId: channel.id,
     messageId: message.id,
