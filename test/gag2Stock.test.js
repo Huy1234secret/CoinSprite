@@ -369,6 +369,7 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.ok(excludedSeedRoles.every((key) => !seeds.some((spec) => spec.key === key)));
   assert.ok(excludedGearRoles.every((key) => !gear.some((spec) => spec.key === key)));
   assert.equal(crate.some((spec) => spec.key === 'fourth_of_july_crate'), false);
+  assert.equal(crate.some((spec) => spec.key === 'sign_crate'), true);
   assert.equal(emojiForType('seed', { key: 'eclipse_bloom' }), '');
   assert.equal(emojiForType('sell', { key: 'eclipse_bloom' }), '<:eclipse_bloom:1526031940749361163>');
   assert.equal(colorForType('sell', { key: 'eclipse_bloom' }), 0xFFFFFF);
@@ -391,10 +392,11 @@ test('GAG2 role specs use requested names and colors', () => {
     ['goldmoon', 'Gold Moon', 0xF4C542],
     ['bloodmoon', 'Blood Moon', 0xB3202A],
     ['aurora', 'Aurora', 0x35E6A4],
+    ['eclipse', 'Eclipse', 0x9B59FF],
   ]);
 });
 
-test('GAG2 Eclipse weather uses its emoji and color without creating or pinging a role', () => {
+test('GAG2 Eclipse weather uses its emoji, role, and purple container', () => {
   const weather = parseWeatherPayload({
     weather: {
       current: { type: 'eclipse', name: 'Eclipse', endsAt: '2026-07-13T01:00:00.000Z' },
@@ -405,10 +407,9 @@ test('GAG2 Eclipse weather uses its emoji and color without creating or pinging 
   const content = payload.components[0].components[0].components[0].content;
 
   assert.equal(payload.components[0].accent_color, 0x9B59FF);
-  assert.match(content, /Current: <:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
+  assert.match(content, /Current: <:eclipse:1526025549858738287> <@&123456789012345678>/);
   assert.match(content, /<:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
-  assert.doesNotMatch(content, /<@&123456789012345678>/);
-  assert.deepEqual(payload.allowedMentions.roles, []);
+  assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
 
 test('GAG2 role sync deletes unassigned category roles instead of only clearing ids', () => {

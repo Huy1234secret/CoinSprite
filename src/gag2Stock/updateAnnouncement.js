@@ -20,6 +20,7 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
 const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
+const NOTIFICATION_ROLE_UPDATE_ID = 'gag2-notification-role-update-eclipse';
 const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
   seed: Object.freeze([
     'ghost_pepper',
@@ -115,6 +116,26 @@ function buildPerformanceBoostUpdatePayload() {
           '- GAG2 updates now broadcast to multiple servers at the same time.',
           '- Stock, weather, moon, sell-price, and bot-update notifications should arrive much faster across every configured server.',
           '- Delivery remains rate-limit safe, with per-channel duplicate protection unchanged.',
+        ].join('\n'),
+      }],
+    }],
+  };
+}
+
+function buildNotificationRoleUpdatePayload() {
+  const eclipse = itemLabel('weather', 'eclipse', 'Eclipse');
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: 0x9B59FF,
+      components: [{
+        type: 10,
+        content: [
+          '### Notification Role Update',
+          `- Re-added the weather notification role for ${eclipse}.`,
+          '-# Members can select it again from the Weather role assignment menu.',
         ].join('\n'),
       }],
     }],
@@ -228,6 +249,37 @@ async function announcePerformanceBoostUpdate(client, guild, options = {}) {
   return message;
 }
 
+async function announceNotificationRoleUpdate(client, guild, options = {}) {
+  const statePath = options.statePath || STATE_PATH;
+  if (announcementRecord(loadState(statePath), NOTIFICATION_ROLE_UPDATE_ID, guild.id)) return null;
+  ensureGuildConfig(guild.id);
+  if (!isGuildGag2StockEnabled(guild.id)) return null;
+
+  const syncResult = await syncGag2StockGuildSetup(client, guild.id).catch((error) => {
+    logCommandSystem(`GAG2 notification role update failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    return null;
+  });
+  if (!syncResult || syncResult.failed) {
+    logCommandSystem(`GAG2 Notification Role Update postponed for guild ${guild.id}: role sync is incomplete.`);
+    return null;
+  }
+  await syncGag2RoleAssignmentPanel(client, guild.id).catch((error) => {
+    logCommandSystem(`GAG2 role panel refresh failed after notification role update for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+  });
+
+  const config = getGuildConfig(guild.id);
+  const channel = await updateChannelForGuild(guild, config);
+  if (!channel) return null;
+  const message = await channel.send(buildNotificationRoleUpdatePayload());
+  saveAnnouncementRecord(NOTIFICATION_ROLE_UPDATE_ID, guild.id, {
+    channelId: channel.id,
+    messageId: message.id,
+    sentAt: new Date(options.now?.() || Date.now()).toISOString(),
+  }, statePath);
+  logCommandSystem(`GAG2 Notification Role Update announced in guild ${guild.id}: ${channel.id}`);
+  return message;
+}
+
 async function startGag2UpdateAnnouncement(client, options = {}) {
   const guilds = await collectGuilds(client);
   const concurrency = normalizeConcurrency(
@@ -244,18 +296,24 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
     await announcePerformanceBoostUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Performance Boost announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
+    await announceNotificationRoleUpdate(client, guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Notification Role Update announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    });
   });
 }
 
 module.exports = {
   BUG_PATCH_UPDATE_ID,
+  NOTIFICATION_ROLE_UPDATE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   announceBugPatchesUpdate,
+  announceNotificationRoleUpdate,
   announcePerformanceBoostUpdate,
   announceRoleCleanupUpdate,
   buildBugPatchesUpdatePayload,
+  buildNotificationRoleUpdatePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
