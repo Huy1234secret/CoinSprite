@@ -12,6 +12,8 @@
   let ownerConsoleAfter = 0;
   let ownerConsoleTimer = null;
   let ownerConsolePaused = false;
+  let ownerMetricsTimer = null;
+  let ownerMetricsInFlight = false;
   let installed = false;
   let messageAssetsStarted = false;
 
@@ -138,7 +140,70 @@
     const value = Number(bytes) || 0;
     if (value < 1024) return `${value} B`;
     if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-    return `${(value / 1024 / 1024).toFixed(2)} MB`;
+    if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(2)} MB`;
+    return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
+  function resourceMetricView(kind, metric = {}) {
+    const ratio = Math.min(1, Math.max(0, Number(metric.usageRatio) || 0));
+    const percent = ratio * 100;
+    const peakRatio = Math.min(1, Math.max(0, Number(metric.peakUsageRatio) || 0));
+    const hue = Math.round((1 - ratio) * 120);
+    if (kind === 'cpu') {
+      const maxVcpu = Math.max(1, Number(metric.maxVcpu) || 1);
+      return {
+        ratio,
+        percent,
+        color: `hsl(${hue} 78% 48%)`,
+        value: `${percent.toFixed(1)}%`,
+        detail: `${(Number(metric.usedVcpu) || 0).toFixed(2)} vCPU in use`,
+        peak: `Peak ${(peakRatio * 100).toFixed(1)}%`,
+        max: `Max ${fmtNumber(maxVcpu)} vCPU`,
+      };
+    }
+    return {
+      ratio,
+      percent,
+      color: `hsl(${hue} 78% 48%)`,
+      value: fmtFileSize(metric.usedBytes),
+      detail: `${percent.toFixed(1)}% of heap limit`,
+      peak: `Peak ${fmtFileSize(metric.peakBytes)}`,
+      max: `Max ${fmtFileSize(metric.maxBytes)}`,
+    };
+  }
+
+  function resourceMetricHtml(kind, label, metric) {
+    const view = resourceMetricView(kind, metric);
+    return `<div class="owner-stat owner-resource-stat" data-owner-resource="${kind}" style="--owner-meter-color:${view.color}">
+      <span>${label}</span>
+      <div class="owner-resource-value"><strong data-owner-resource-value>${escapeHtml(view.value)}</strong><small data-owner-resource-detail>${escapeHtml(view.detail)}</small></div>
+      <div class="owner-resource-track" data-owner-resource-track role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${view.percent.toFixed(1)}"><span data-owner-resource-fill style="width:${view.percent.toFixed(2)}%"></span></div>
+      <div class="owner-resource-footer"><small data-owner-resource-peak>${escapeHtml(view.peak)}</small><small data-owner-resource-max>${escapeHtml(view.max)}</small></div>
+    </div>`;
+  }
+
+  function updateResourceMetricDom(kind, metric) {
+    const card = ownerRoot?.querySelector(`[data-owner-resource="${kind}"]`);
+    if (!card) return;
+    const view = resourceMetricView(kind, metric);
+    card.style.setProperty('--owner-meter-color', view.color);
+    const value = card.querySelector('[data-owner-resource-value]');
+    const detail = card.querySelector('[data-owner-resource-detail]');
+    const fill = card.querySelector('[data-owner-resource-fill]');
+    const track = card.querySelector('[data-owner-resource-track]');
+    const peak = card.querySelector('[data-owner-resource-peak]');
+    const max = card.querySelector('[data-owner-resource-max]');
+    if (value) value.textContent = view.value;
+    if (detail) detail.textContent = view.detail;
+    if (fill) fill.style.width = `${view.percent.toFixed(2)}%`;
+    if (track) track.setAttribute('aria-valuenow', view.percent.toFixed(1));
+    if (peak) peak.textContent = view.peak;
+    if (max) max.textContent = view.max;
+  }
+
+  function updateOwnerMetricsDom(metrics) {
+    updateResourceMetricDom('cpu', metrics?.cpu || {});
+    updateResourceMetricDom('heap', metrics?.heap || {});
   }
 
   function reportDate(value) {
@@ -265,6 +330,13 @@
 
   function renderOwnerPanel(payload) {
     ownerData = payload;
+    const runtimeMetrics = payload.bot?.metrics || {
+      cpu: {},
+      heap: {
+        usedBytes: payload.bot?.memory?.heapUsedBytes || 0,
+        maxBytes: payload.bot?.memory?.heapUsedBytes || 1,
+      },
+    };
     const overviewHidden = ownerView === 'overview' ? '' : ' hidden';
     const consoleHidden = ownerView === 'console' ? '' : ' hidden';
     const reportsHidden = ownerView === 'reports' ? '' : ' hidden';
@@ -302,7 +374,8 @@
       <div class="owner-stat"><span>Uptime</span><strong>${fmtUptime(payload.bot?.uptimeMs)}</strong></div>
       <div class="owner-stat"><span>Guilds</span><strong>${fmtNumber(payload.bot?.guildCount)}</strong></div>
       <div class="owner-stat"><span>Total users</span><strong>${fmtNumber(payload.bot?.totalUsers)}</strong></div>
-      <div class="owner-stat"><span>Heap used</span><strong>${escapeHtml(payload.bot?.memory?.heapUsedLabel || '0 B')}</strong></div>
+      ${resourceMetricHtml('cpu', 'vCPU Usage', runtimeMetrics.cpu)}
+      ${resourceMetricHtml('heap', 'Heap used', runtimeMetrics.heap)}
       <div class="owner-stat"><span>Data storage</span><strong>${escapeHtml(payload.storage?.label || '0 B')}</strong></div>
       <div class="owner-stat"><span>Open reports</span><strong>${fmtNumber(payload.bugReports?.open)}</strong></div>
     </section>
@@ -332,6 +405,8 @@
       const output = ownerRoot?.querySelector('[data-owner-console-output]');
       if (output) output.scrollTop = output.scrollHeight;
     });
+    if (ownerView === 'overview') startOwnerMetricsPolling();
+    else stopOwnerMetricsPolling();
   }
 
   async function loadOwnerPanel() {
@@ -394,9 +469,35 @@
     ownerConsoleTimer = null;
   }
 
+  async function pollOwnerMetrics() {
+    if (ownerView !== 'overview' || ownerRoot?.hidden || ownerMetricsInFlight) return;
+    ownerMetricsInFlight = true;
+    try {
+      const metrics = await ownerApi('/api/owner/metrics');
+      if (ownerData?.bot) ownerData.bot.metrics = metrics;
+      updateOwnerMetricsDom(metrics);
+    } catch {
+      // Keep the last good resource sample visible during a temporary dashboard error.
+    } finally {
+      ownerMetricsInFlight = false;
+    }
+  }
+
+  function startOwnerMetricsPolling() {
+    if (ownerMetricsTimer) return;
+    void pollOwnerMetrics();
+    ownerMetricsTimer = setInterval(pollOwnerMetrics, 2_000);
+  }
+
+  function stopOwnerMetricsPolling() {
+    if (ownerMetricsTimer) clearInterval(ownerMetricsTimer);
+    ownerMetricsTimer = null;
+  }
+
   async function switchOwnerView(view) {
     ownerView = view === 'reports' ? 'reports' : view === 'console' ? 'console' : 'overview';
     if (ownerView !== 'console') stopOwnerConsolePolling();
+    if (ownerView !== 'overview') stopOwnerMetricsPolling();
     if (ownerView === 'console') {
       await loadOwnerConsole({ reset: ownerConsoleEntries.length === 0 });
       return;
@@ -410,6 +511,7 @@
 
   function closeOwnerPanel() {
     stopOwnerConsolePolling();
+    stopOwnerMetricsPolling();
     ensurePanel().hidden = true;
     if (state?.me?.user) document.querySelector('#appShell')?.removeAttribute('hidden');
   }

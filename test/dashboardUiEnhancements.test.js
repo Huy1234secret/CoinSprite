@@ -189,3 +189,22 @@ test('dashboard exposes terms and bug reports with owner report review hooks', (
   assert.match(ownerRoutes, /handleBugReportCreate/);
   assert.match(server, /\/api\/bug-reports/);
 });
+
+test('owner dashboard shows live vCPU and heap meters with peaks and maximums', () => {
+  const ownerPanel = source('admin/owner-panel.js');
+  const ownerStyles = source('admin/owner-panel.css');
+  const ownerRoutes = source('src/ownerPanelRoutes.js');
+  const server = source('src/adminServer.js');
+
+  assert.match(ownerPanel, /vCPU Usage/);
+  assert.match(ownerPanel, /resourceMetricHtml\('cpu', 'vCPU Usage'/);
+  assert.match(ownerPanel, /resourceMetricHtml\('heap', 'Heap used'/);
+  assert.match(ownerPanel, /Peak \$\{fmtFileSize\(metric\.peakBytes\)\}/);
+  assert.match(ownerPanel, /Max \$\{fmtNumber\(maxVcpu\)\} vCPU/);
+  assert.match(ownerPanel, /\/api\/owner\/metrics/);
+  assert.match(ownerPanel, /setInterval\(pollOwnerMetrics, 2_000\)/);
+  assert.match(ownerStyles, /--owner-meter-color/);
+  assert.match(ownerStyles, /\.owner-resource-track/);
+  assert.match(ownerRoutes, /getRuntimeMetrics/);
+  assert.match(server, /\/api\/owner\/metrics/);
+});

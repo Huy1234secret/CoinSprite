@@ -17,6 +17,7 @@ const {
 } = require('./serverConfig');
 const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
 const { slashCommandPayloadsForGuild } = require('./featureGate');
+const { getRuntimeMetrics } = require('./runtimeMetrics');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
@@ -267,6 +268,7 @@ async function ownerOverview(client) {
   const guilds = (await Promise.all([...guildRecords].map(([id, fallbackGuild]) => guildSummary(client, id, disabledRecords, todayMessages, aiUsage, fallbackGuild)))).filter(Boolean);
   const delayMeanMs = Number.isFinite(eventLoopDelay.mean) ? eventLoopDelay.mean / 1e6 : 0;
   const fps = delayMeanMs > 0 ? Math.max(1, Math.round(1000 / Math.max(1, delayMeanMs))) : null;
+  const memory = process.memoryUsage();
   return {
     bot: {
       tag: client.user?.tag || 'Unknown',
@@ -278,11 +280,12 @@ async function ownerOverview(client) {
       guildCount: guilds.length,
       totalUsers: guilds.reduce((sum, guild) => sum + guild.totalUsers, 0),
       memory: {
-        rssBytes: process.memoryUsage().rss,
-        heapUsedBytes: process.memoryUsage().heapUsed,
-        rssLabel: formatBytes(process.memoryUsage().rss),
-        heapUsedLabel: formatBytes(process.memoryUsage().heapUsed),
+        rssBytes: memory.rss,
+        heapUsedBytes: memory.heapUsed,
+        rssLabel: formatBytes(memory.rss),
+        heapUsedLabel: formatBytes(memory.heapUsed),
       },
+      metrics: getRuntimeMetrics(),
     },
     messages: {
       today: todayMessages.total,
@@ -379,6 +382,10 @@ async function handleOwnerOverview(req, res, client, deps) {
   deps.sendJson(res, 200, await ownerOverview(client));
 }
 
+async function handleOwnerMetrics(req, res, client, session, deps) {
+  deps.sendJson(res, 200, getRuntimeMetrics());
+}
+
 async function handleOwnerDisable(req, res, client, guildId, session, deps) {
   const body = await deps.readJsonBody(req);
   const reason = String(body?.reason || '').trim().slice(0, 500);
@@ -432,6 +439,7 @@ module.exports = {
   handleOwnerDisable,
   handleOwnerEnable,
   handleOwnerFeatures,
+  handleOwnerMetrics,
   handleOwnerOverview,
   handleOwnerReportStatus,
   handleOwnerReports,

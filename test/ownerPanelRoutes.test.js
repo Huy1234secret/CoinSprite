@@ -4,7 +4,7 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { collectOwnerGuildIds, collectOwnerGuildRecords } = require('../src/ownerPanelRoutes');
+const { collectOwnerGuildIds, collectOwnerGuildRecords, handleOwnerMetrics } = require('../src/ownerPanelRoutes');
 
 test('owner panel guild collection includes fetched guilds outside cache', async () => {
   const cachedGuildId = '111111111111111111';
@@ -59,4 +59,19 @@ test('owner panel labels partial guild rows as limited info', () => {
   assert.match(source, /Limited info from Discord guild list/);
   assert.match(source, /Channel\/role counts unavailable/);
   assert.match(source, /guild\.limitedInfo/);
+});
+
+test('owner metrics route returns live CPU and heap limits', async () => {
+  let response = null;
+  await handleOwnerMetrics({}, {}, {}, {}, {
+    sendJson: (_res, status, payload) => {
+      response = { status, payload };
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.ok(response.payload.cpu.maxVcpu >= 1);
+  assert.ok(response.payload.cpu.usageRatio >= 0 && response.payload.cpu.usageRatio <= 1);
+  assert.ok(response.payload.heap.maxBytes >= response.payload.heap.usedBytes);
+  assert.ok(response.payload.heap.peakBytes >= response.payload.heap.usedBytes);
 });

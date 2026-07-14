@@ -12,6 +12,7 @@ const {
   handleOwnerDisable,
   handleOwnerEnable,
   handleOwnerFeatures,
+  handleOwnerMetrics,
   handleOwnerOverview,
   handleOwnerReportStatus,
   handleOwnerReports,
@@ -620,6 +621,11 @@ async function routeRequest(req, res, env, client) {
     const session = await requireOwner(req, res, env, client);
     if (!session) return;
     return handleOwnerOverview(req, res, client, { sendJson });
+  }
+  if (req.method === 'GET' && url.pathname === '/api/owner/metrics') {
+    const session = await requireOwner(req, res, env, client);
+    if (!session) return;
+    return handleOwnerMetrics(req, res, client, session, { sendJson });
   }
   if (req.method === 'GET' && url.pathname === '/api/owner/reports') {
     const session = await requireOwner(req, res, env, client);
