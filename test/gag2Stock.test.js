@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const { PermissionFlagsBits } = require('discord.js');
 
 const {
   buildPostKey,
@@ -28,7 +29,12 @@ const {
 } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { Gag2StockPoster, filterSellEntry, filteredRoleSpecs, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+
+function testPermissions(...flags) {
+  const allowed = new Set(flags);
+  return { has: (flag) => allowed.has(flag) };
+}
 
 function fixture() {
   return {
@@ -1017,4 +1023,85 @@ test('GAG2 consolidates one shared weather outage across every destination', asy
   assert.equal(logs.length, 2);
   assert.match(logs[1], /weather source recovered after 2 failed polls/);
   fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 identifies channel permission overrides and stops only the failed stock after five checks', async () => {
+  const logs = [];
+  let sends = 0;
+  const allPostingPermissions = testPermissions(
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.UseExternalEmojis,
+  );
+  const missingSendInChannel = testPermissions(
+    PermissionFlagsBits.ViewChannel,
+    PermissionFlagsBits.ReadMessageHistory,
+    PermissionFlagsBits.UseExternalEmojis,
+  );
+  const member = { permissions: allPostingPermissions };
+  const channel = {
+    id: '152643215642198019',
+    name: 'gag2-weather',
+    guild: { members: { me: member } },
+    isTextBased: () => true,
+    isThread: () => false,
+    permissionsFor: () => missingSendInChannel,
+    send: async () => {
+      sends += 1;
+      return { id: `message-${sends}` };
+    },
+  };
+  const channels = new Map([[channel.id, channel]]);
+  const poster = new Gag2StockPoster({
+    channels: { cache: channels, fetch: async (id) => channels.get(id) || null },
+  }, {
+    logSystem: (message) => logs.push(message),
+    postPermissionRetryMs: 5_000,
+  });
+  const target = {
+    guildId: '1526432156421980180',
+    type: 'seed',
+    channelId: channel.id,
+    roleIds: {},
+  };
+  const entry = parseStockPayload(fixture()).stock.find((item) => item.category === 'seed');
+  const state = {};
+
+  for (let check = 0; check < 6; check += 1) await poster.postEntry(state, target, entry);
+
+  assert.equal(sends, 0);
+  assert.equal(logs.length, 5, 'the sixth attempt is suppressed for the same stock');
+  assert.match(logs[0], /permission check 1\/5 failed/);
+  assert.match(logs[0], /Missing channel\/category permissions in #gag2-weather \(152643215642198019\): Send Messages/);
+  assert.match(logs[4], /Stopping only this seed announcement after 5 checks/);
+
+  const nextEntry = {
+    ...entry,
+    items: entry.items.map((item, index) => index ? item : { ...item, quantity: item.quantity + 1 }),
+  };
+  await poster.postEntry(state, target, nextEntry);
+  assert.equal(logs.length, 6, 'a new stock receives a fresh five-check allowance');
+  assert.match(logs[5], /permission check 1\/5 failed/);
+});
+
+test('GAG2 distinguishes server role permissions from channel overrides', () => {
+  const member = {
+    permissions: testPermissions(
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+    ),
+  };
+  const channel = {
+    isThread: () => false,
+    permissionsFor: () => testPermissions(
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+    ),
+  };
+
+  const diagnostic = diagnosePostPermissions(channel, member, 'weather');
+
+  assert.deepEqual(diagnostic.server, ['Use External Emojis']);
+  assert.deepEqual(diagnostic.channel, []);
 });

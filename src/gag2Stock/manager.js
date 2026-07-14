@@ -55,10 +55,70 @@ const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
 const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
+const POST_PERMISSION_CHECK_LIMIT = 5;
+const POST_PERMISSION_RETRY_MS = 5 * 1000;
+
+const POST_PERMISSION_LABELS = Object.freeze([
+  [PermissionFlagsBits.ViewChannel, 'View Channel'],
+  [PermissionFlagsBits.SendMessages, 'Send Messages'],
+  [PermissionFlagsBits.SendMessagesInThreads, 'Send Messages in Threads'],
+  [PermissionFlagsBits.ReadMessageHistory, 'Read Message History'],
+  [PermissionFlagsBits.UseExternalEmojis, 'Use External Emojis'],
+]);
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function permissionSetHas(permissions, flag) {
+  try {
+    return permissions?.has?.(flag) === true;
+  } catch {
+    return false;
+  }
+}
+
+function requiredPostPermissionFlags(channel, type, options = {}) {
+  const thread = channel?.isThread?.() === true;
+  const flags = [
+    PermissionFlagsBits.ViewChannel,
+    thread ? PermissionFlagsBits.SendMessagesInThreads : PermissionFlagsBits.SendMessages,
+  ];
+  if (options.useExternalEmojis !== false) flags.push(PermissionFlagsBits.UseExternalEmojis);
+  if (options.requireHistory !== false && (type === 'moon' || type === 'sell')) flags.push(PermissionFlagsBits.ReadMessageHistory);
+  return flags;
+}
+
+function diagnosePostPermissions(channel, member, type, options = {}) {
+  if (!channel || typeof channel.permissionsFor !== 'function') {
+    return { server: [], channel: [], unknown: ['Unable to read channel permissions'] };
+  }
+  let effective = null;
+  try {
+    effective = channel.permissionsFor(member);
+  } catch {}
+  if (!effective || typeof effective.has !== 'function') {
+    return { server: [], channel: [], unknown: ['Unable to read channel permissions'] };
+  }
+
+  const labels = new Map(POST_PERMISSION_LABELS);
+  const result = { server: [], channel: [], unknown: [] };
+  for (const flag of requiredPostPermissionFlags(channel, type, options)) {
+    if (permissionSetHas(effective, flag)) continue;
+    const label = labels.get(flag) || String(flag);
+    if (member?.permissions && !permissionSetHas(member.permissions, flag)) result.server.push(label);
+    else result.channel.push(label);
+  }
+  return result;
+}
+
+function hasMissingPostPermissions(diagnostic) {
+  return Boolean(diagnostic?.server?.length || diagnostic?.channel?.length);
+}
+
+function isDiscordMissingPermissionsError(error) {
+  return Number(error?.code) === 50013 || /missing permissions/i.test(String(error?.message || ''));
 }
 
 function nextGag2StockTickAtMs(nowMs = Date.now(), options = {}) {
@@ -509,12 +569,15 @@ class Gag2StockPoster {
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
     this.sourceFailureLogIntervalMs = Math.max(5_000, Number(options.sourceFailureLogIntervalMs) || SOURCE_FAILURE_LOG_INTERVAL_MS);
     this.logSystem = options.logSystem || logCommandSystem;
+    this.postPermissionCheckLimit = Math.max(1, Number(options.postPermissionCheckLimit) || POST_PERMISSION_CHECK_LIMIT);
+    this.postPermissionRetryMs = Math.max(1_000, Number(options.postPermissionRetryMs) || POST_PERMISSION_RETRY_MS);
     this.broadcastConcurrency = normalizeConcurrency(
       options.broadcastConcurrency,
       DEFAULT_GAG2_BROADCAST_CONCURRENCY,
     );
     this.inFlight = new Set();
     this.deliveryInFlight = new Map();
+    this.postPermissionFailures = new Map();
     this.sourceHealth = new Map();
     this.timer = null;
     this.weatherTimer = null;
@@ -675,6 +738,79 @@ class Gag2StockPoster {
     }
   }
 
+  postPermissionFailureKey(target) {
+    return `${target.guildId}:${target.type}:${target.channelId}`;
+  }
+
+  postPermissionStopped(target, postKey) {
+    const record = this.postPermissionFailures.get(this.postPermissionFailureKey(target));
+    return record?.postKey === postKey && record.checks >= this.postPermissionCheckLimit;
+  }
+
+  schedulePostPermissionRetry(target) {
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+      this.nextDelayOverrideMs = Number.isFinite(this.nextDelayOverrideMs)
+        ? Math.min(this.nextDelayOverrideMs, this.postPermissionRetryMs)
+        : this.postPermissionRetryMs;
+    } else if (target.type === 'sell') {
+      this.nextSellDelayOverrideMs = Number.isFinite(this.nextSellDelayOverrideMs)
+        ? Math.min(this.nextSellDelayOverrideMs, this.postPermissionRetryMs)
+        : this.postPermissionRetryMs;
+    }
+  }
+
+  async postPermissionDiagnostic(channel, target, options = {}) {
+    const guild = channel?.guild
+      || this.client?.guilds?.cache?.get?.(target.guildId)
+      || await this.client?.guilds?.fetch?.(target.guildId).catch(() => null);
+    const member = guild?.members?.me || await guild?.members?.fetchMe?.().catch(() => null) || this.client?.user;
+    return diagnosePostPermissions(channel, member, target.type, options);
+  }
+
+  recordPostPermissionFailure(target, postKey, diagnostic, channel = null) {
+    const key = this.postPermissionFailureKey(target);
+    const previous = this.postPermissionFailures.get(key);
+    const record = previous?.postKey === postKey
+      ? previous
+      : { postKey, checks: 0 };
+    if (record.checks >= this.postPermissionCheckLimit) return null;
+    record.checks += 1;
+    this.postPermissionFailures.set(key, record);
+
+    const channelName = String(channel?.name || '').trim();
+    const location = channelName ? `#${channelName} (${target.channelId})` : `channel ${target.channelId}`;
+    const guildName = String(channel?.guild?.name || '').trim();
+    const guildLocation = guildName ? `${guildName} (${target.guildId})` : target.guildId;
+    const details = [];
+    if (diagnostic?.server?.length) details.push(`Missing server role permissions: ${diagnostic.server.join(', ')}`);
+    if (diagnostic?.channel?.length) details.push(`Missing channel/category permissions in ${location}: ${diagnostic.channel.join(', ')}`);
+    if (diagnostic?.unknown?.length) details.push(diagnostic.unknown.join(', '));
+    if (!details.length) details.push('Discord returned Missing Permissions (50013)');
+    const stopped = record.checks >= this.postPermissionCheckLimit;
+    const nextAction = stopped
+      ? `Stopping only this ${target.type} announcement after ${record.checks} checks; the next stock/event gets a fresh ${this.postPermissionCheckLimit} checks.`
+      : `Retrying this announcement in ${Math.round(this.postPermissionRetryMs / 1_000)} seconds.`;
+    this.logSystem(
+      `GAG2 ${target.type} permission check ${record.checks}/${this.postPermissionCheckLimit} failed for guild ${guildLocation}. `
+      + `${details.join('. ')}. ${nextAction}`,
+    );
+    if (!stopped) this.schedulePostPermissionRetry(target);
+    return null;
+  }
+
+  clearPostPermissionFailure(target, postKey, channel = null) {
+    const key = this.postPermissionFailureKey(target);
+    const record = this.postPermissionFailures.get(key);
+    if (!record) return;
+    this.postPermissionFailures.delete(key);
+    if (record.postKey !== postKey || !record.checks) return;
+    const channelName = String(channel?.name || '').trim();
+    const location = channelName ? `#${channelName} (${target.channelId})` : `channel ${target.channelId}`;
+    const guildName = String(channel?.guild?.name || '').trim();
+    const guildLocation = guildName ? `${guildName} (${target.guildId})` : target.guildId;
+    this.logSystem(`GAG2 ${target.type} posting permissions restored for guild ${guildLocation} in ${location}.`);
+  }
+
   targets(types = STOCK_TYPES) {
     const allowedTypes = new Set(types);
     const targets = [];
@@ -795,8 +931,19 @@ class Gag2StockPoster {
       return null;
     }
 
+    if (this.postPermissionStopped(target, postKey)) return null;
     const channel = await getSendableChannel(this.client, target.channelId);
-    if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
+    if (!channel) {
+      return this.recordPostPermissionFailure(target, postKey, {
+        server: [],
+        channel: ['View Channel'],
+        unknown: ['The channel may also have been deleted or changed'],
+      });
+    }
+    const permissionDiagnostic = await this.postPermissionDiagnostic(channel, target);
+    if (hasMissingPostPermissions(permissionDiagnostic)) {
+      return this.recordPostPermissionFailure(target, postKey, permissionDiagnostic, channel);
+    }
 
     const payload = buildTypePayload(target.type, entry, { roleIds: target.roleIds });
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
@@ -814,20 +961,47 @@ class Gag2StockPoster {
           rememberSellPostKey(bucket, postKey);
         }
         saveState(state, this.statePath);
+        this.clearPostPermissionFailure(target, postKey, channel);
         logCommandSystem(`GAG2 sell recent duplicate suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }
     let message = null;
+    let editPermissionFailure = false;
     if (target.type === 'moon' && bucket.lastMessageId) {
       const existing = await channel.messages?.fetch?.(bucket.lastMessageId).catch(() => null);
-      if (samePost && existing) return null;
+      if (samePost && existing) {
+        this.clearPostPermissionFailure(target, postKey, channel);
+        return null;
+      }
       message = await existing?.edit?.(payload).catch((error) => {
+        if (isDiscordMissingPermissionsError(error)) {
+          editPermissionFailure = true;
+          const diagnostic = hasMissingPostPermissions(permissionDiagnostic)
+            ? permissionDiagnostic
+            : { server: [], channel: [], unknown: ['Discord returned Missing Permissions while editing the message (50013)'] };
+          this.recordPostPermissionFailure(target, postKey, diagnostic, channel);
+          return null;
+        }
         logCommandSystem(`GAG2 moon prediction edit failed in guild ${target.guildId}: ${error?.message || 'unknown error'}`);
         return null;
       });
     }
-    if (!message) message = await channel.send(payload);
+    if (editPermissionFailure) return null;
+    if (!message) {
+      try {
+        message = await channel.send(payload);
+      } catch (error) {
+        if (isDiscordMissingPermissionsError(error)) {
+          const diagnostic = await this.postPermissionDiagnostic(channel, target);
+          if (!hasMissingPostPermissions(diagnostic)) {
+            diagnostic.unknown = ['Discord returned Missing Permissions while sending the message (50013)'];
+          }
+          return this.recordPostPermissionFailure(target, postKey, diagnostic, channel);
+        }
+        throw error;
+      }
+    }
     if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
       rememberSellPostKey(bucket, bucket.lastPostedKey);
     }
@@ -842,6 +1016,7 @@ class Gag2StockPoster {
     });
     if (target.type === 'sell') updateSellPostMetadata(bucket, entry);
     saveState(state, this.statePath);
+    this.clearPostPermissionFailure(target, postKey, channel);
     logCommandSystem(`GAG2 ${target.type} posted to ${target.channelId}: ${postKey}`);
     return message;
   }
@@ -867,9 +1042,38 @@ class Gag2StockPoster {
       return null;
     }
 
+    if (this.postPermissionStopped(target, postKey)) return null;
     const channel = await getSendableChannel(this.client, target.channelId);
-    if (!channel) throw new Error(`channel ${target.channelId} is unavailable or not sendable`);
-    const message = await channel.send(buildUnavailablePayload(target.type, error?.message || 'Unknown error', this.now()));
+    if (!channel) {
+      return this.recordPostPermissionFailure(target, postKey, {
+        server: [],
+        channel: ['View Channel'],
+        unknown: ['The channel may also have been deleted or changed'],
+      });
+    }
+    const permissionDiagnostic = await this.postPermissionDiagnostic(channel, target, {
+      requireHistory: false,
+      useExternalEmojis: false,
+    });
+    if (hasMissingPostPermissions(permissionDiagnostic)) {
+      return this.recordPostPermissionFailure(target, postKey, permissionDiagnostic, channel);
+    }
+    let message = null;
+    try {
+      message = await channel.send(buildUnavailablePayload(target.type, error?.message || 'Unknown error', this.now()));
+    } catch (postError) {
+      if (isDiscordMissingPermissionsError(postError)) {
+        const diagnostic = await this.postPermissionDiagnostic(channel, target, {
+          requireHistory: false,
+          useExternalEmojis: false,
+        });
+        if (!hasMissingPostPermissions(diagnostic)) {
+          diagnostic.unknown = ['Discord returned Missing Permissions while sending the message (50013)'];
+        }
+        return this.recordPostPermissionFailure(target, postKey, diagnostic, channel);
+      }
+      throw postError;
+    }
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
@@ -877,6 +1081,7 @@ class Gag2StockPoster {
       lastPostedKey: postKey,
     });
     saveState(state, this.statePath);
+    this.clearPostPermissionFailure(target, postKey, channel);
     return message;
   }
 }
@@ -1020,6 +1225,7 @@ async function startGag2StockPoster(client, options = {}) {
 module.exports = {
   Gag2StockPoster,
   componentFingerprint,
+  diagnosePostPermissions,
   filterSellEntry,
   findMatchingRecentBotMessage,
   filteredRoleSpecs,
