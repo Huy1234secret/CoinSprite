@@ -20,7 +20,10 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
 const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
-const NOTIFICATION_ROLE_UPDATE_ID = 'gag2-notification-role-update-eclipse-channel-v2';
+const RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS = Object.freeze([
+  'gag2-notification-role-update-eclipse',
+  'gag2-notification-role-update-eclipse-channel-v2',
+]);
 const REMOVED_NOTIFICATION_ROLE_KEYS = Object.freeze({
   seed: Object.freeze([
     'ghost_pepper',
@@ -122,29 +125,6 @@ function buildPerformanceBoostUpdatePayload() {
   };
 }
 
-function buildNotificationRoleUpdatePayload(options = {}) {
-  const eclipse = itemLabel('weather', 'eclipse', 'Eclipse');
-  const lines = [
-    '### Notification Role Update',
-    `- Re-added the weather notification role for ${eclipse}.`,
-  ];
-  if (options.hasRoleAssignment) {
-    lines.push('-# Members can select it again from the Weather role assignment menu.');
-  }
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    allowedMentions: { parse: [], users: [], roles: [] },
-    components: [{
-      type: 17,
-      accent_color: 0x9B59FF,
-      components: [{
-        type: 10,
-        content: lines.join('\n'),
-      }],
-    }],
-  };
-}
-
 async function collectGuilds(client) {
   const ids = new Set(client?.guilds?.cache?.keys?.() || []);
   const fetched = await client?.guilds?.fetch?.().catch(() => null);
@@ -181,6 +161,46 @@ function saveAnnouncementRecord(updateId, guildId, record, statePath = STATE_PAT
   state.updateAnnouncements[updateId] ||= {};
   state.updateAnnouncements[updateId][guildId] = record;
   saveState(state, statePath);
+}
+
+async function retractNotificationRoleUpdates(guild, options = {}) {
+  const statePath = options.statePath || STATE_PATH;
+  const state = loadState(statePath);
+  let removed = 0;
+
+  for (const updateId of RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS) {
+    const record = announcementRecord(state, updateId, guild.id);
+    if (!record) continue;
+    const channelId = cleanDiscordId(record.channelId);
+    const messageId = cleanDiscordId(record.messageId);
+    const channel = channelId
+      ? guild?.channels?.cache?.get?.(channelId) || await guild?.channels?.fetch?.(channelId).catch(() => null)
+      : null;
+    if (channelId && messageId && typeof channel?.messages?.delete === 'function') {
+      try {
+        await channel.messages.delete(messageId);
+      } catch (error) {
+        if (Number(error?.code) !== 10008) {
+          logCommandSystem(`GAG2 Eclipse announcement retraction failed in guild ${guild.id}: ${error?.message || 'unknown error'}`);
+          continue;
+        }
+      }
+    } else if (channelId && messageId) {
+      continue;
+    }
+
+    delete state.updateAnnouncements?.[updateId]?.[guild.id];
+    if (state.updateAnnouncements?.[updateId] && !Object.keys(state.updateAnnouncements[updateId]).length) {
+      delete state.updateAnnouncements[updateId];
+    }
+    removed += 1;
+  }
+
+  if (removed) {
+    saveState(state, statePath);
+    logCommandSystem(`GAG2 retracted ${removed} Eclipse role update announcement${removed === 1 ? '' : 's'} in guild ${guild.id}.`);
+  }
+  return removed;
 }
 
 async function announceRoleCleanupUpdate(client, guild, options = {}) {
@@ -252,38 +272,6 @@ async function announcePerformanceBoostUpdate(client, guild, options = {}) {
   return message;
 }
 
-async function announceNotificationRoleUpdate(client, guild, options = {}) {
-  const statePath = options.statePath || STATE_PATH;
-  if (announcementRecord(loadState(statePath), NOTIFICATION_ROLE_UPDATE_ID, guild.id)) return null;
-  ensureGuildConfig(guild.id);
-  if (!isGuildGag2StockEnabled(guild.id)) return null;
-
-  const syncResult = await syncGag2StockGuildSetup(client, guild.id).catch((error) => {
-    logCommandSystem(`GAG2 notification role update failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
-    return null;
-  });
-  if (!syncResult || syncResult.failed) {
-    logCommandSystem(`GAG2 Notification Role Update postponed for guild ${guild.id}: role sync is incomplete.`);
-    return null;
-  }
-  await syncGag2RoleAssignmentPanel(client, guild.id).catch((error) => {
-    logCommandSystem(`GAG2 role panel refresh failed after notification role update for guild ${guild.id}: ${error?.message || 'unknown error'}`);
-  });
-
-  const config = getGuildConfig(guild.id);
-  const channel = await updateChannelForGuild(guild, config);
-  if (!channel) return null;
-  const hasRoleAssignment = Boolean(cleanDiscordId(config?.gag2Stock?.channels?.roleAssign));
-  const message = await channel.send(buildNotificationRoleUpdatePayload({ hasRoleAssignment }));
-  saveAnnouncementRecord(NOTIFICATION_ROLE_UPDATE_ID, guild.id, {
-    channelId: channel.id,
-    messageId: message.id,
-    sentAt: new Date(options.now?.() || Date.now()).toISOString(),
-  }, statePath);
-  logCommandSystem(`GAG2 Notification Role Update announced in guild ${guild.id}: ${channel.id}`);
-  return message;
-}
-
 async function startGag2UpdateAnnouncement(client, options = {}) {
   const guilds = await collectGuilds(client);
   const concurrency = normalizeConcurrency(
@@ -291,6 +279,9 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
     DEFAULT_GAG2_BROADCAST_CONCURRENCY,
   );
   await mapWithConcurrency(guilds, concurrency, async (guild) => {
+    await retractNotificationRoleUpdates(guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Eclipse announcement cleanup failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    });
     await announceRoleCleanupUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Update 4 failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
@@ -300,27 +291,23 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
     await announcePerformanceBoostUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Performance Boost announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
-    await announceNotificationRoleUpdate(client, guild, options).catch((error) => {
-      logCommandSystem(`GAG2 Notification Role Update announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
-    });
   });
 }
 
 module.exports = {
   BUG_PATCH_UPDATE_ID,
-  NOTIFICATION_ROLE_UPDATE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
+  RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   announceBugPatchesUpdate,
-  announceNotificationRoleUpdate,
   announcePerformanceBoostUpdate,
   announceRoleCleanupUpdate,
   buildBugPatchesUpdatePayload,
-  buildNotificationRoleUpdatePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
+  retractNotificationRoleUpdates,
   startGag2UpdateAnnouncement,
   updateChannelForGuild,
 };

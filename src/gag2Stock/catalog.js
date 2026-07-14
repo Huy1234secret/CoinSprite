@@ -178,7 +178,7 @@ const WEATHER_ITEMS = [
   weatherItem('goldmoon', 'Gold Moon', '<:goldmoon:1525203815035441182>', 0xF4C542),
   weatherItem('bloodmoon', 'Blood Moon', '<:bloodmoon:1525203812607070260>', 0xB3202A),
   weatherItem('aurora', 'Aurora', '<:aurora:1525203810467840000>', 0x35E6A4),
-  weatherItem('eclipse', 'Eclipse', '<:eclipse:1526025549858738287>', 0x9B59FF),
+  weatherItem('eclipse', 'Eclipse', '<:eclipse:1526025549858738287>', 0x9B59FF, { createRole: false }),
 ];
 
 const ALIASES = {
