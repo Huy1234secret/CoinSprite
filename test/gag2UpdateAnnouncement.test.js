@@ -1,43 +1,49 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
   BUG_PATCH_UPDATE_ID,
-  NOTIFICATION_ROLE_UPDATE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
+  RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
   UPDATE_ID,
   buildBugPatchesUpdatePayload,
-  buildNotificationRoleUpdatePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
+  retractNotificationRoleUpdates,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
 
-test('GAG2 Notification Role Update announces the Eclipse role restoration', () => {
-  const payload = buildNotificationRoleUpdatePayload({ hasRoleAssignment: true });
-  const container = payload.components[0];
-  const content = container.components[0].content;
+test('GAG2 retracts stored Eclipse role-update announcements', async () => {
+  const statePath = path.join(__dirname, 'tmp-gag2-eclipse-announcement-state.json');
+  const guildId = '1493901002519347290';
+  const channelId = '1525003375651848263';
+  const messageIds = ['1527000000000000001', '1527000000000000002'];
+  fs.writeFileSync(statePath, JSON.stringify({
+    updateAnnouncements: Object.fromEntries(RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS.map((updateId, index) => [
+      updateId,
+      { [guildId]: { channelId, messageId: messageIds[index] } },
+    ])),
+  }));
+  const deleted = [];
+  const guild = {
+    id: guildId,
+    channels: {
+      cache: new Map([[channelId, {
+        messages: { delete: async (messageId) => deleted.push(messageId) },
+      }]]),
+      fetch: async () => null,
+    },
+  };
 
-  assert.equal(NOTIFICATION_ROLE_UPDATE_ID, 'gag2-notification-role-update-eclipse-channel-v2');
-  assert.equal(payload.flags, 32768);
-  assert.equal(container.accent_color, 0x9B59FF);
-  assert.match(content, /^### Notification Role Update/);
-  assert.match(content, /<:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
-  assert.match(content, /Re-added the weather notification role/);
-  assert.match(content, /Members can select it again from the Weather role assignment menu/);
-  assert.doesNotMatch(content, /Sign|sign_crate/);
-  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
-  assert.deepEqual(REMOVED_NOTIFICATION_ROLE_KEYS.crate, ['fourth_of_july_crate']);
-});
-
-test('GAG2 Eclipse announcement only mentions role assignment when the guild has its channel', () => {
-  const withoutRoleAssignment = buildNotificationRoleUpdatePayload().components[0].components[0].content;
-  const withRoleAssignment = buildNotificationRoleUpdatePayload({ hasRoleAssignment: true }).components[0].components[0].content;
-
-  assert.doesNotMatch(withoutRoleAssignment, /role assignment menu/i);
-  assert.match(withRoleAssignment, /role assignment menu/i);
+  assert.equal(await retractNotificationRoleUpdates(guild, { statePath }), 2);
+  assert.deepEqual(deleted, messageIds);
+  const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.ok(RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS.every((updateId) => !saved.updateAnnouncements?.[updateId]));
+  fs.rmSync(statePath, { force: true });
 });
 
 test('GAG2 Performance Boost announces the faster concurrent delivery update', () => {
