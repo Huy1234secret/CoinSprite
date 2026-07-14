@@ -54,6 +54,7 @@ const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
 const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
+const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -236,6 +237,23 @@ function isTransientSourceError(error) {
   if (error?.gag2Transient) return true;
   const message = String(error?.message || '');
   return error?.name === 'AbortError' || /aborted|timed out|timeout|fetch failed|network|socket/i.test(message);
+}
+
+function sourceGroupForType(type) {
+  if (STOCK_TYPE_GROUPS.stock.includes(type)) return 'stock';
+  if (STOCK_TYPE_GROUPS.weather.includes(type)) return 'weather';
+  if (type === 'sell') return 'sell';
+  return String(type || 'unknown');
+}
+
+function sourceErrorSummary(error) {
+  const status = Number(error?.status);
+  if (Number.isFinite(status) && status > 0) return `HTTP ${status}`;
+  return String(error?.message || 'unknown source error')
+    .replace(/https?:\/\/\S+/gi, 'source')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240);
 }
 
 function resetUnavailableFailures(state, target, nowMs) {
@@ -489,12 +507,15 @@ class Gag2StockPoster {
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
     this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
+    this.sourceFailureLogIntervalMs = Math.max(5_000, Number(options.sourceFailureLogIntervalMs) || SOURCE_FAILURE_LOG_INTERVAL_MS);
+    this.logSystem = options.logSystem || logCommandSystem;
     this.broadcastConcurrency = normalizeConcurrency(
       options.broadcastConcurrency,
       DEFAULT_GAG2_BROADCAST_CONCURRENCY,
     );
     this.inFlight = new Set();
     this.deliveryInFlight = new Map();
+    this.sourceHealth = new Map();
     this.timer = null;
     this.weatherTimer = null;
     this.sellTimer = null;
@@ -617,6 +638,43 @@ class Gag2StockPoster {
     this.sellTimer = null;
   }
 
+  updateSourceHealth(targets, errors) {
+    const groups = new Map();
+    for (const target of targets) {
+      const group = sourceGroupForType(target.type);
+      const current = groups.get(group) || { targetCount: 0, error: null };
+      current.targetCount += 1;
+      current.error ||= errors.get(target.type) || null;
+      groups.set(group, current);
+    }
+
+    const nowMs = this.now();
+    for (const [group, status] of groups) {
+      const previous = this.sourceHealth.get(group);
+      if (!status.error) {
+        if (previous?.consecutiveFailures) {
+          this.logSystem(`GAG2 ${group} source recovered after ${previous.consecutiveFailures} failed poll${previous.consecutiveFailures === 1 ? '' : 's'}.`);
+        }
+        this.sourceHealth.delete(group);
+        continue;
+      }
+
+      const health = previous || { consecutiveFailures: 0, lastLoggedAtMs: 0 };
+      health.consecutiveFailures += 1;
+      const shouldLog = health.consecutiveFailures === 1
+        || nowMs - health.lastLoggedAtMs >= this.sourceFailureLogIntervalMs;
+      if (shouldLog) {
+        const attempts = Math.max(1, Number(status.error?.attempts) || 1);
+        this.logSystem(
+          `GAG2 ${group} source temporarily unavailable (${sourceErrorSummary(status.error)}; ${attempts} request attempt${attempts === 1 ? '' : 's'}). `
+          + `Leaving ${status.targetCount} configured destination${status.targetCount === 1 ? '' : 's'} unchanged; retrying on the next poll.`,
+        );
+        health.lastLoggedAtMs = nowMs;
+      }
+      this.sourceHealth.set(group, health);
+    }
+  }
+
   targets(types = STOCK_TYPES) {
     const allowedTypes = new Set(types);
     const targets = [];
@@ -653,6 +711,7 @@ class Gag2StockPoster {
       if (!targets.length) return null;
       const state = loadState(this.statePath);
       const { entries, errors } = await fetchEntriesForTargets(targets, this.fetchers);
+      this.updateSourceHealth(targets, errors);
       const targetTypes = [...new Set(targets.map((target) => target.type))];
       const nextStockRefreshAtMs = nextApiRefreshAtMsForTypes(
         entries,
@@ -794,9 +853,10 @@ class Gag2StockPoster {
     bucket.lastErrorMessage = String(error?.message || 'Unknown error').slice(0, 500);
 
     const hasPreviousGoodPost = Boolean(existingPostBucket(state, target.guildId, target.type)?.lastPostedKey);
-    if (isTransientSourceError(error) && hasPreviousGoodPost && bucket.consecutiveFailures < this.transientUnavailableNoticeFailures) {
+    const transient = isTransientSourceError(error);
+    const waitingForInitialSource = transient && bucket.consecutiveFailures < this.transientUnavailableNoticeFailures;
+    if (transient && (hasPreviousGoodPost || waitingForInitialSource)) {
       saveState(state, this.statePath);
-      logCommandSystem(`GAG2 ${target.type} transient source failure ${bucket.consecutiveFailures}/${this.transientUnavailableNoticeFailures}; keeping previous message.`);
       return null;
     }
 

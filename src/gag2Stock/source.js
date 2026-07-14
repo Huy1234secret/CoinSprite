@@ -36,7 +36,13 @@ function isRetryableSourceError(error) {
 }
 
 function finalSourceError(error, attempts, timeoutMs) {
-  if (!isAbortError(error) && !error?.gag2SourceTimeout) return error;
+  if (!isAbortError(error) && !error?.gag2SourceTimeout) {
+    if (error && typeof error === 'object') {
+      error.attempts = attempts;
+      error.timeoutMs ||= timeoutMs;
+    }
+    return error;
+  }
   return sourceError(
     `GAG2 source timed out after ${attempts} attempts (${Math.round(timeoutMs / 1000)}s each)`,
     {

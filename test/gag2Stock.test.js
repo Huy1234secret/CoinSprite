@@ -913,7 +913,23 @@ test('GAG2 source uses a 5s timeout and retries transient aborts', async () => {
   assert.deepEqual(payload, { ok: true });
 });
 
-test('GAG2 poster keeps the previous good message for temporary source failures', async () => {
+test('GAG2 source reports the full retry count for transient HTTP failures', async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchJson('https://example.test/gag2', {
+      retryDelayMs: 0,
+      retries: 2,
+      fetchImpl: async () => {
+        calls += 1;
+        return { ok: false, status: 503 };
+      },
+    }),
+    (error) => error.status === 503 && error.attempts === 3,
+  );
+  assert.equal(calls, 3);
+});
+
+test('GAG2 poster keeps the previous good message throughout transient source failures', async () => {
   const sent = [];
   const channel = {
     isTextBased: () => true,
@@ -950,12 +966,55 @@ test('GAG2 poster keeps the previous good message for temporary source failures'
   const error = new Error('GAG2 source timed out after 3 attempts (5s each)');
   error.gag2Transient = true;
 
-  assert.equal(await poster.postUnavailableOnce(state, target, error), null);
-  assert.equal(await poster.postUnavailableOnce(state, target, error), null);
-  const message = await poster.postUnavailableOnce(state, target, error);
+  for (let failure = 0; failure < 5; failure += 1) {
+    assert.equal(await poster.postUnavailableOnce(state, target, error), null);
+  }
 
-  assert.equal(sent.length, 1);
-  assert.equal(message.id, 'message-1');
-  assert.equal(state.unavailable[target.guildId].sell.consecutiveFailures, 3);
+  assert.equal(sent.length, 0);
+  assert.equal(state.unavailable[target.guildId].sell.consecutiveFailures, 5);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 consolidates one shared weather outage across every destination', async () => {
+  const statePath = path.join(__dirname, 'tmp-gag2-weather-outage-state.json');
+  fs.rmSync(statePath, { force: true });
+  let now = Date.parse('2026-07-14T02:42:54.000Z');
+  let fetchCalls = 0;
+  const logs = [];
+  const error = new Error('GAG2 source timed out after 3 attempts (5s each)');
+  error.gag2Transient = true;
+  error.attempts = 3;
+  const targets = [
+    { guildId: 'guild-1', type: 'weather', channelId: 'weather-1' },
+    { guildId: 'guild-1', type: 'moon', channelId: 'moon-1' },
+    { guildId: 'guild-2', type: 'weather', channelId: 'weather-2' },
+    { guildId: 'guild-2', type: 'moon', channelId: 'moon-2' },
+    { guildId: 'guild-3', type: 'weather', channelId: 'weather-3' },
+  ];
+  const poster = new Gag2StockPoster({ channels: { cache: new Map(), fetch: async () => null } }, {
+    fetchWeatherPayload: async () => {
+      fetchCalls += 1;
+      throw error;
+    },
+    logSystem: (message) => logs.push(message),
+    now: () => now,
+    sourceFailureLogIntervalMs: 60_000,
+    statePath,
+  });
+  poster.targets = () => targets;
+
+  await poster.tick(['weather', 'moon'], 'weather');
+  now += 5_000;
+  await poster.tick(['weather', 'moon'], 'weather');
+
+  assert.equal(fetchCalls, 2, 'weather is fetched once per polling cycle, not once per destination');
+  assert.equal(logs.length, 1, 'the shared failure is logged once instead of once per destination');
+  assert.match(logs[0], /weather source temporarily unavailable/);
+  assert.match(logs[0], /3 request attempts/);
+  assert.match(logs[0], /5 configured destinations unchanged/);
+
+  poster.updateSourceHealth(targets, new Map());
+  assert.equal(logs.length, 2);
+  assert.match(logs[1], /weather source recovered after 2 failed polls/);
   fs.rmSync(statePath, { force: true });
 });
