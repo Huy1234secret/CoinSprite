@@ -3,15 +3,33 @@ const test = require('node:test');
 
 const {
   BUG_PATCH_UPDATE_ID,
+  NOTIFICATION_ROLE_UPDATE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   buildBugPatchesUpdatePayload,
+  buildNotificationRoleUpdatePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
+
+test('GAG2 Notification Role Update announces the Eclipse role restoration', () => {
+  const payload = buildNotificationRoleUpdatePayload();
+  const container = payload.components[0];
+  const content = container.components[0].content;
+
+  assert.equal(NOTIFICATION_ROLE_UPDATE_ID, 'gag2-notification-role-update-eclipse');
+  assert.equal(payload.flags, 32768);
+  assert.equal(container.accent_color, 0x9B59FF);
+  assert.match(content, /^### Notification Role Update/);
+  assert.match(content, /<:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
+  assert.match(content, /Re-added the weather notification role/);
+  assert.doesNotMatch(content, /Sign|sign_crate/);
+  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
+  assert.deepEqual(REMOVED_NOTIFICATION_ROLE_KEYS.crate, ['fourth_of_july_crate']);
+});
 
 test('GAG2 Performance Boost announces the faster concurrent delivery update', () => {
   const payload = buildPerformanceBoostUpdatePayload();
