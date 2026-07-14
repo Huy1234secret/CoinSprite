@@ -113,6 +113,7 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /roleAssign/);
   assert.match(app, /\['updates', 'Bot Update alert', 'gag2UpdatesChannelMount'\]/);
   assert.match(html, /gag2AssignRoleChannelMount/);
+  assert.match(html, /Select the channel where members can assign or remove their GAG2 stock notification roles\./);
   assert.match(html, /Bot Update alert/);
   assert.match(html, /recommended-label">Recommended/);
   assert.match(html, /field-label field-label-with-badge/);
