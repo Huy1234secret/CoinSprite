@@ -5,17 +5,33 @@ const test = require('node:test');
 
 const {
   BUG_PATCH_UPDATE_ID,
+  NOTIFICATION_ROLE_NOTICE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
   UPDATE_ID,
   buildBugPatchesUpdatePayload,
+  buildNotificationRoleNoticePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
   retractNotificationRoleUpdates,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
+
+test('GAG2 announces when notification roles for new items will be added', () => {
+  const payload = buildNotificationRoleNoticePayload();
+  const container = payload.components[0];
+  const content = container.components[0].content;
+
+  assert.equal(NOTIFICATION_ROLE_NOTICE_ID, 'gag2-notice-new-item-notification-roles');
+  assert.equal(payload.flags, 32768);
+  assert.equal(container.accent_color, 0x5865F2);
+  assert.match(content, /^### Notice: New Item Notification Roles/);
+  assert.match(content, /new items appearing in the bot's notifications/);
+  assert.match(content, /once they're available in-game/);
+  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
+});
 
 test('GAG2 retracts stored Eclipse role-update announcements', async () => {
   const statePath = path.join(__dirname, 'tmp-gag2-eclipse-announcement-state.json');

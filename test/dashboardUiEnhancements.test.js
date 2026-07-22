@@ -130,7 +130,10 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /renderGag2FilterControls/);
   assert.match(app, /filters: clone\(state\.gag2StockFilters\)/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
-  assert.match(html, /id="gag2UpdateFeedTitle">Update announcements/);
+  assert.match(html, /id="gag2UpdateFeedTitle">Announcements/);
+  assert.match(html, /<strong>Notice: New Item Notification Roles<\/strong>/);
+  assert.match(html, /new items appearing in the bot's notifications/);
+  assert.match(html, /once they're available in-game/);
   assert.match(html, /<strong>Bug Patches<\/strong>/);
   assert.match(html, /replay an older price update after posting the latest one/);
   assert.match(html, /same sell price notification twice/);
