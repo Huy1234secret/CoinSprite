@@ -291,7 +291,7 @@ function makeToken(option, type) {
 }
 
 function renderPicker(mount, options, selectedValue, settings) {
-  const { multiple = false, type = 'channel', placeholder = 'Select', onChange } = settings;
+  const { multiple = false, type = 'channel', placeholder = 'Select', disabled = false, disabledReason = '', onChange } = settings;
   const selected = multiple ? new Set(selectedValue || []) : new Set(selectedValue ? [selectedValue] : []);
   mount.replaceChildren();
 
@@ -300,15 +300,23 @@ function renderPicker(mount, options, selectedValue, settings) {
   const button = document.createElement('button');
   button.className = 'picker-button';
   button.type = 'button';
+  button.disabled = disabled;
+  button.setAttribute('aria-disabled', String(disabled));
+  if (disabledReason) button.title = disabledReason;
+  picker.classList.toggle('is-disabled', disabled);
   const selectedWrap = document.createElement('span');
   selectedWrap.className = 'selected-wrap';
-  const selectedOptions = [...selected].map((id) => optionById(options, id, type));
-  if (selectedOptions.length === 0) {
-    const empty = document.createElement('span');
-    empty.className = 'placeholder';
-    empty.textContent = placeholder;
-    selectedWrap.append(empty);
-  } else {
+
+  function drawButton() {
+    selectedWrap.replaceChildren();
+    const selectedOptions = [...selected].map((id) => optionById(options, id, type));
+    if (selectedOptions.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'placeholder';
+      empty.textContent = placeholder;
+      selectedWrap.append(empty);
+      return;
+    }
     selectedOptions.slice(0, multiple ? 5 : 1).forEach((option) => selectedWrap.append(makeToken(option, type)));
     if (selectedOptions.length > 5) {
       const more = document.createElement('span');
@@ -317,6 +325,8 @@ function renderPicker(mount, options, selectedValue, settings) {
       selectedWrap.append(more);
     }
   }
+
+  drawButton();
   const chevron = document.createElement('span');
   chevron.className = 'chevron';
   chevron.textContent = 'v';
@@ -358,11 +368,15 @@ function renderPicker(mount, options, selectedValue, settings) {
       check.className = 'check-mark';
       check.textContent = selected.has(option.id) ? 'Selected' : '';
       row.append(main, check);
-      row.addEventListener('click', () => {
+      row.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (disabled) return;
         if (multiple) {
           if (selected.has(option.id)) selected.delete(option.id);
           else selected.add(option.id);
           onChange([...selected]);
+          drawButton();
+          drawOptions();
         } else {
           onChange(selected.has(option.id) ? '' : option.id);
         }
@@ -373,6 +387,7 @@ function renderPicker(mount, options, selectedValue, settings) {
   }
 
   button.addEventListener('click', () => {
+    if (disabled) return;
     const open = !menu.classList.contains('open');
     document.querySelectorAll('.picker-menu.open').forEach((node) => node.classList.remove('open'));
     document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open'));
@@ -846,6 +861,7 @@ function renderGag2StockPickers() {
         if (locked) return;
         state.gag2StockChannels[key] = value;
         renderGag2StockPickers();
+        renderGag2FilterControls();
         renderPendingGag2RoleChange();
         refreshDirtyState();
       },
@@ -885,19 +901,28 @@ function renderGag2FilterControls() {
     const mount = elements.gag2RarityMounts[type];
     if (!mount) continue;
     const allowed = type === 'sell' ? GAG2_SELL_RARITIES : GAG2_ROLE_RARITIES;
+    const enabled = Boolean(state.gag2StockChannels[type]);
+    const channelLabel = type === 'sell' ? 'sell price track' : `${type} stock`;
+    mount.closest('.picker-field')?.classList.toggle('is-disabled', !enabled);
     renderPicker(mount, rarityFilterOptions(allowed), state.gag2StockFilters.rarities[type], {
       multiple: true,
       type: 'role',
       placeholder: 'No rarities selected',
+      disabled: !enabled,
+      disabledReason: enabled ? '' : `Select a ${channelLabel} channel first`,
       onChange: (value) => {
         state.gag2StockFilters.rarities[type] = normalizeGag2FilterSelection(value, allowed);
-        renderGag2FilterControls();
         refreshDirtyState();
       },
     });
   }
   const selectedMultipliers = new Set(state.gag2StockFilters.sellMultipliers);
-  for (const input of elements.gag2SellMultiplierInputs) input.checked = selectedMultipliers.has(input.value);
+  const sellFiltersEnabled = Boolean(state.gag2StockChannels.sell);
+  for (const input of elements.gag2SellMultiplierInputs) {
+    input.checked = selectedMultipliers.has(input.value);
+    input.disabled = !sellFiltersEnabled;
+  }
+  elements.gag2SellMultiplierInputs[0]?.closest('.picker-field')?.classList.toggle('is-disabled', !sellFiltersEnabled);
 }
 
 function gag2RoleStatusElement() {
@@ -1690,7 +1715,7 @@ loadSession();
   }
 
   renderPicker = function fixedPicker(mount, options, selectedValue, settings) {
-    const { multiple = false, type = 'channel', placeholder = 'Select', onChange } = settings;
+    const { multiple = false, type = 'channel', placeholder = 'Select', disabled = false, disabledReason = '', onChange } = settings;
     const selected = new Set(multiple ? selectedValue || [] : selectedValue ? [selectedValue] : []);
     if (mount._pickerMenu) {
       pickerMenus.delete(mount._pickerMenu);
@@ -1702,16 +1727,24 @@ loadSession();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'picker-button';
+    button.disabled = disabled;
+    button.setAttribute('aria-disabled', String(disabled));
+    if (disabledReason) button.title = disabledReason;
+    picker.classList.toggle('is-disabled', disabled);
     button.dataset.menuId = `picker-${Math.random().toString(36).slice(2)}`;
     const selectedWrap = document.createElement('span');
     selectedWrap.className = 'selected-wrap';
-    const selectedOptions = [...selected].map((id) => optionById(options, id, type));
-    if (!selectedOptions.length) {
-      const empty = document.createElement('span');
-      empty.className = 'placeholder';
-      empty.textContent = placeholder;
-      selectedWrap.append(empty);
-    } else {
+
+    function drawButton() {
+      selectedWrap.replaceChildren();
+      const selectedOptions = [...selected].map((id) => optionById(options, id, type));
+      if (!selectedOptions.length) {
+        const empty = document.createElement('span');
+        empty.className = 'placeholder';
+        empty.textContent = placeholder;
+        selectedWrap.append(empty);
+        return;
+      }
       selectedOptions.slice(0, multiple ? 5 : 1).forEach((option) => selectedWrap.append(makeToken(option, type)));
       if (selectedOptions.length > 5) {
         const more = document.createElement('span');
@@ -1720,6 +1753,8 @@ loadSession();
         selectedWrap.append(more);
       }
     }
+
+    drawButton();
     const chevron = document.createElement('span');
     chevron.className = 'chevron';
     chevron.textContent = 'v';
@@ -1758,12 +1793,18 @@ loadSession();
         check.className = 'check-mark';
         check.textContent = selected.has(option.id) ? 'Selected' : '';
         row.append(main, check);
-        row.addEventListener('click', () => {
+        row.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (disabled) return;
           if (multiple) {
             if (selected.has(option.id)) selected.delete(option.id); else selected.add(option.id);
             onChange([...selected]);
-          } else onChange(selected.has(option.id) ? '' : option.id);
-          closePickerMenus();
+            drawButton();
+            draw();
+          } else {
+            onChange(selected.has(option.id) ? '' : option.id);
+            closePickerMenus();
+          }
           refreshDirtyState();
         });
         list.append(row);
@@ -1771,6 +1812,7 @@ loadSession();
     }
     button.addEventListener('click', (event) => {
       event.stopPropagation();
+      if (disabled) return;
       const opening = !menu.classList.contains('open');
       closePickerMenus(opening ? menu : null);
       if (opening) {
