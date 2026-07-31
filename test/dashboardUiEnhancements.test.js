@@ -174,6 +174,21 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);
 });
 
+test('GAG2 notification filters follow their channels and multi-select stays open', () => {
+  const app = source('admin/app.js');
+  const styles = source('admin/style.css');
+
+  assert.match(app, /const enabled = Boolean\(state\.gag2StockChannels\[type\]\)/);
+  assert.match(app, /disabled: !enabled/);
+  assert.match(app, /input\.disabled = !sellFiltersEnabled/);
+  assert.match(app, /renderGag2StockPickers\(\);\s*renderGag2FilterControls\(\);\s*renderPendingGag2RoleChange\(\)/);
+  assert.doesNotMatch(app, /state\.gag2StockFilters\.rarities\[type\] = normalizeGag2FilterSelection\(value, allowed\);\s*renderGag2FilterControls\(\)/);
+  assert.match(app, /onChange\(\[\.\.\.selected\]\);\s*drawButton\(\);\s*draw\(\)/);
+  assert.match(app, /button\.disabled = disabled/);
+  assert.match(styles, /\.gag2-filter-grid \.picker-field\.is-disabled/);
+  assert.match(styles, /cursor: not-allowed/);
+});
+
 test('dashboard exposes terms and bug reports with owner report review hooks', () => {
   const html = source('admin/index.html');
   const sitePages = source('admin/site-pages.js');
