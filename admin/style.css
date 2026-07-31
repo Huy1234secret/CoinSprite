@@ -884,6 +884,11 @@ textarea:focus,
   border-color: var(--primary);
 }
 
+.picker-button:disabled,
+.picker.is-disabled .picker-button {
+  cursor: not-allowed;
+}
+
 .selected-wrap {
   display: flex;
   align-items: center;
@@ -2691,6 +2696,15 @@ label.gag2-filter-check {
   cursor: pointer;
 }
 .gag2-filter-check input { margin: 0; }
+.gag2-filter-grid .picker-field.is-disabled {
+  opacity: .48;
+}
+.gag2-filter-grid .picker-field.is-disabled .field-label {
+  color: var(--muted-2);
+}
+.gag2-filter-grid .picker-field.is-disabled .gag2-filter-check {
+  cursor: not-allowed;
+}
 .gag2-update-feed {
   margin-top: 20px;
   padding-top: 18px;
