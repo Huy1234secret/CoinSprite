@@ -423,7 +423,159 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').roleName, 'Player Magnet');
   assert.equal(gear.find((spec) => spec.key === 'player_magnet').color, 0xD62928);
   assert.equal(crate.find((spec) => spec.key === 'ladder_crate').rarity, 'common');
-  assert.equal(crate.find((spec) => spec.key === 'spring_crate').r…1980 tokens truncated…th.floor((now + 60_000) / 1000),
+  assert.equal(crate.find((spec) => spec.key === 'spring_crate').rarity, 'epic');
+  assert.equal(crate.find((spec) => spec.key === 'teleporter_pad_crate').rarity, 'mythic');
+  assert.equal(sell.length, 16);
+  assert.equal(sell.find((spec) => spec.key === 'moon_bloom'), undefined);
+  const excludedSeedRoles = ['baby_cactus', 'horned_melon', 'glow_mushroom', 'poison_ivy', 'ghost_pepper', 'rocket_pop', 'eclipse_bloom'];
+  const excludedGearRoles = ['sign', 'megaphone', 'lantern', 'teleporter', 'wheelbarrow', 'strawberry_sniper'];
+  assert.ok(excludedSeedRoles.every((key) => !seeds.some((spec) => spec.key === key)));
+  assert.ok(excludedGearRoles.every((key) => !gear.some((spec) => spec.key === key)));
+  assert.equal(crate.some((spec) => spec.key === 'fourth_of_july_crate'), false);
+  assert.equal(emojiForType('seed', { key: 'eclipse_bloom' }), '');
+  assert.equal(emojiForType('sell', { key: 'eclipse_bloom' }), '<:eclipse_bloom:1526031940749361163>');
+  assert.equal(colorForType('sell', { key: 'eclipse_bloom' }), 0xFFFFFF);
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').roleName, 'Common 2x');
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').emoji, '<:sheckles:1525368044824825976>');
+  assert.equal(sell.find((spec) => spec.key === 'common_2x').color, 0xE2AB0F);
+  assert.equal(sell.find((spec) => spec.key === 'super_4x').roleName, 'Super 4x');
+  assert.equal(sell.find((spec) => spec.key === 'super_4x').color, 0x7DE3FF);
+  assert.equal(sell.find((spec) => spec.key === 'secret_2x').roleName, 'Secret 2x');
+  assert.equal(sell.find((spec) => spec.key === 'secret_4x').roleName, 'Secret 4x');
+  assert.deepEqual(weather.map((spec) => [spec.key, spec.roleName, spec.color]), [
+    ['lightning', 'Lightning', 0xFFD23F],
+    ['sunburst', 'Sunburst', 0xFF8C42],
+    ['starfall', 'Starfall', 0x8C7CFF],
+    ['snowfall', 'Snowfall', 0xBDEBFF],
+    ['rain', 'Rain', 0x4A90E2],
+    ['rainbow_moon', 'Rainbow Moon', 0xC86BFA],
+    ['rainbow', 'Rainbow', 0xFF5C8A],
+    ['mega_moon', 'Mega Moon', 0xD9D7FF],
+    ['goldmoon', 'Gold Moon', 0xF4C542],
+    ['bloodmoon', 'Blood Moon', 0xB3202A],
+    ['aurora', 'Aurora', 0x35E6A4],
+  ]);
+});
+
+test('GAG2 Eclipse weather uses its emoji and color without creating or pinging a role', () => {
+  const weather = parseWeatherPayload({
+    weather: {
+      current: { type: 'eclipse', name: 'Eclipse', endsAt: '2026-07-13T01:00:00.000Z' },
+      recent: [{ key: 'eclipse', name: 'Eclipse', lastSeenAt: '2026-07-13T00:55:00.000Z' }],
+    },
+  });
+  const payload = buildTypePayload('weather', weather, { roleIds: { eclipse: '123456789012345678' } });
+  const content = payload.components[0].components[0].components[0].content;
+
+  assert.equal(payload.components[0].accent_color, 0x9B59FF);
+  assert.match(content, /Current: <:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
+  assert.match(content, /<:eclipse:1526025549858738287> \*\*Eclipse\*\*/);
+  assert.doesNotMatch(content, /<@&123456789012345678>/);
+  assert.deepEqual(payload.allowedMentions.roles, []);
+});
+
+test('GAG2 role sync deletes unassigned category roles instead of only clearing ids', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.match(source, /async function clearDisabledTypeRoles\(guild, config, enabledTypes, roles, progress\)/);
+  assert.match(source, /const enabledRoleIds = roleIdsForTypes\(config, enabledTypes\)/);
+  assert.match(source, /enabledRoleIds\.has\(clean\)/);
+  assert.match(source, /await role\.delete\(`CoinSprite GAG2 category unassigned`\)/);
+  assert.match(source, /failedRoleIds\.add\(roleId\)/);
+  assert.match(source, /failedRoleIds\.has\(roleId\)/);
+  assert.match(source, /async function clearFilteredTypeRoles\(guild, config, enabledTypes, specsByType, roles, progress\)/);
+  assert.match(source, /CoinSprite GAG2 rarity or multiplier filter disabled/);
+  assert.match(source, /const filteredRemoval = await clearFilteredTypeRoles/);
+  assert.doesNotMatch(source, /clearDisabledTypeRoleIds/);
+});
+
+test('GAG2 role creation and edits use the current Discord colors option', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.match(source, /createOptions\.colors = \{ primaryColor: color \}/);
+  assert.match(source, /role\.edit\(\{\s*colors: \{ primaryColor: color \}/);
+  assert.doesNotMatch(source, /createOptions\.color = color/);
+  assert.doesNotMatch(source, /role\.edit\(\{\s*color,/);
+});
+
+test('GAG2 stock scheduler targets UTC+7 five-minute marks at second 5', () => {
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
+    '2026-07-10T17:00:05.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:06.000Z'))).toISOString(),
+    '2026-07-10T17:05:05.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:04:59.000Z'))).toISOString(),
+    '2026-07-10T17:05:05.000Z',
+  );
+  assert.equal(
+    new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:05.000Z'))).toISOString(),
+    '2026-07-10T17:10:05.000Z',
+  );
+});
+
+test('GAG2 weather and moon use a separate 5 second polling loop', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.equal(WEATHER_CHECK_INTERVAL_MS, 5_000);
+  assert.match(source, /scheduleWeatherTick\(this\.weatherInitialDelayMs\)/);
+  assert.match(source, /this\.tick\(WEATHER_POST_TYPES, 'weather'\)/);
+  assert.match(source, /this\.tick\(STOCK_POST_TYPES, 'stock'\)/);
+  assert.match(source, /delayOverrideMs !== null && Number\.isFinite\(override\)/);
+  assert.match(source, /const STOCK_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.stock\]\)/);
+  assert.match(source, /const WEATHER_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.weather\]\)/);
+  assert.doesNotMatch(source, /LIVE_POST_TYPES|scheduleLiveTick|liveTimer|LIVE_CHECK_INTERVAL_MS/);
+});
+
+test('GAG2 refresh gaps retry every second', () => {
+  assert.equal(SELL_UNCHANGED_RETRY_MS, 1_000);
+  assert.equal(STALE_STOCK_RETRY_MS, 1_000);
+});
+
+test('GAG2 stock and sell schedules prefer API refresh timestamps', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'gag2Stock', 'manager.js'), 'utf8');
+  assert.match(source, /scheduleNextTick\(this\.stockInitialDelayMs\)/);
+  assert.match(source, /scheduleSellTick\(this\.sellInitialDelayMs\)/);
+  assert.match(source, /nextStockRefreshAtMs/);
+  assert.match(source, /nextSellRefreshAtMs/);
+  assert.match(source, /nextApiRefreshAtMsForTypes/);
+  assert.match(source, /scheduleSellTick\(\)/);
+  assert.match(source, /this\.tick\(SELL_POST_TYPES, 'sell'\)/);
+  assert.match(source, /const SELL_POST_TYPES = Object\.freeze\(\[\.\.\.STOCK_TYPE_GROUPS\.sell\]\)/);
+
+  const now = Date.parse('2026-07-10T17:00:00.000Z');
+  const stockPoster = new Gag2StockPoster({}, { now: () => now });
+  stockPoster.started = true;
+  stockPoster.nextStockRefreshAtMs = Date.parse('2026-07-10T17:04:00.000Z');
+  assert.equal(
+    new Date(stockPoster.scheduleNextTick()).toISOString(),
+    '2026-07-10T17:04:00.000Z',
+  );
+  stockPoster.stop();
+
+  const sellPoster = new Gag2StockPoster({}, { now: () => now });
+  sellPoster.started = true;
+  sellPoster.nextSellRefreshAtMs = Date.parse('2026-07-10T17:10:00.000Z');
+  assert.equal(
+    new Date(sellPoster.scheduleSellTick()).toISOString(),
+    '2026-07-10T17:10:00.000Z',
+  );
+  sellPoster.stop();
+});
+
+test('GAG2 sell unchanged post only arms the rapid retry when API refresh is due', async () => {
+  const now = Date.parse('2026-07-10T17:00:00.000Z');
+  const dueSell = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now - 1_000) / 1000),
+      entries: [
+        { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
+      ],
+    },
+  });
+  const futureSell = parseSellPayload({
+    sell: {
+      nextRefreshUnix: Math.floor((now + 60_000) / 1000),
       entries: [
         { key: 'tomato', name: 'Tomato', multiplier: 1.1, tier: 'normal' },
       ],
