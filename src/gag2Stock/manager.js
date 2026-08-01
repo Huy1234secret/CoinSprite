@@ -140,6 +140,16 @@ function isStaleStockEntry(type, entry, nowMs = Date.now()) {
   return nextRestockAtMs <= finiteNumber(nowMs, Date.now());
 }
 
+function isInactiveWeatherEntry(entry, nowMs = Date.now()) {
+  const current = entry?.current;
+  if (!current) return true;
+  const now = finiteNumber(nowMs, Date.now());
+  const startsAtMs = timestampMs(current.startsAtMs);
+  const endsAtMs = timestampMs(current.endsAtMs);
+  if (startsAtMs !== null && startsAtMs > now) return true;
+  return endsAtMs !== null && endsAtMs <= now;
+}
+
 function apiRefreshAtMsForEntry(type, entry) {
   if (STOCK_TYPE_GROUPS.stock.includes(type)) return Number(entry?.nextRestockAtMs);
   if (type === 'sell') return Number(entry?.nextRefreshAtMs);
@@ -913,6 +923,15 @@ class Gag2StockPoster {
   async postEntryLocked(state, target, entry) {
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
+    if (target.type === 'weather' && isInactiveWeatherEntry(entry, this.now())) {
+      if (bucket.lastPostedKey) {
+        this.clearPostPermissionFailure(target, bucket.lastPostedKey);
+        bucket.lastPostedKey = null;
+        bucket.lastWeatherInactiveAt = new Date(this.now()).toISOString();
+        saveState(state, this.statePath);
+      }
+      return null;
+    }
     if (target.type === 'sell') {
       if (sellEntryIsOlderThanBucket(bucket, entry)) {
         logCommandSystem(`GAG2 sell stale snapshot suppressed in ${target.channelId}: ${postKey}`);
@@ -1230,6 +1249,7 @@ module.exports = {
   findMatchingRecentBotMessage,
   filteredRoleSpecs,
   getGag2StockSetupProgress,
+  isInactiveWeatherEntry,
   isStaleStockEntry,
   nextGag2StockTickAtMs,
   roleSpecsForTypes,
