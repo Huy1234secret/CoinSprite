@@ -160,8 +160,6 @@ function parseItemsPayload(payload) {
 function buildStockCategoryKey(entry) {
   return [
     entry.category,
-    entry.restockedAtMs || 'none',
-    entry.nextRestockAtMs || 'none',
     entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
   ].join(':');
 }
@@ -175,18 +173,13 @@ function buildTypePostKey(type, entry) {
   if (['seed', 'gear', 'crate'].includes(type)) return buildStockCategoryKey(entry);
   if (type === 'weather') {
     const current = entry.current || {};
-    return [
-      'weather',
-      current.key || 'none',
-      current.startsAtMs || 'none',
-      current.endsAtMs || 'none',
-    ].join(':');
+    return `weather:${current.key || 'none'}`;
   }
   if (type === 'moon') {
     return `moon:${(entry.upcomingMoons || []).slice(0, 12).map((item) => `${item.key}:${item.boundaryMs}`).join(',')}`;
   }
   if (type === 'sell') {
-    return `sell:${(entry.entries || []).slice(0, 40).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')}`;
+    return `sell:${(entry.entries || []).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')}`;
   }
   return `${type}:${JSON.stringify(entry).slice(0, 500)}`;
 }
