@@ -29,7 +29,7 @@ const {
 } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function testPermissions(...flags) {
   const allowed = new Set(flags);
@@ -362,6 +362,59 @@ test('GAG2 weather post key changes only for current weather identity, not times
   assert.equal(buildTypePostKey('weather', base), buildTypePostKey('weather', recentOnlyChanged));
   assert.equal(buildTypePostKey('weather', base), buildTypePostKey('weather', currentTimestampsChanged));
   assert.notEqual(buildTypePostKey('weather', base), buildTypePostKey('weather', currentChanged));
+});
+
+test('GAG2 weather skips inactive events and rearms after an inactive gap', async () => {
+  let now = Date.parse('2026-07-10T16:10:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-weather-inactive-state.json');
+  fs.rmSync(statePath, { force: true });
+  const weather = (startsAt, endsAt) => parseWeatherPayload({
+    weather: {
+      current: { type: 'sunburst', name: 'Sunburst', startsAt, endsAt },
+    },
+  });
+  const expired = weather('2026-07-10T16:00:00.000Z', '2026-07-10T16:09:59.000Z');
+  const future = weather('2026-07-10T16:11:00.000Z', '2026-07-10T16:15:00.000Z');
+  const active = weather('2026-07-10T16:09:00.000Z', '2026-07-10T16:12:00.000Z');
+  const activeWithoutBoundaries = weather(null, null);
+  const retimedActive = weather('2026-07-10T16:08:00.000Z', '2026-07-10T16:13:00.000Z');
+  const state = { posts: {} };
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'weather',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    send: async () => ({ id: `message-${++sends}` }),
+  };
+  const poster = new Gag2StockPoster({
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+
+  assert.equal(isInactiveWeatherEntry(expired, now), true);
+  assert.equal(isInactiveWeatherEntry(future, now), true);
+  assert.equal(isInactiveWeatherEntry(active, now), false);
+  assert.equal(isInactiveWeatherEntry(activeWithoutBoundaries, now), false);
+  await poster.postEntry(state, target, expired);
+  await poster.postEntry(state, target, future);
+  assert.equal(sends, 0);
+
+  await poster.postEntry(state, target, active);
+  await poster.postEntry(state, target, retimedActive);
+  assert.equal(sends, 1, 'timestamp drift does not reannounce the same active weather');
+
+  now = Date.parse('2026-07-10T16:14:00.000Z');
+  await poster.postEntry(state, target, retimedActive);
+  assert.equal(state.posts[target.guildId].weather.lastPostedKey, null);
+
+  const laterOccurrence = weather('2026-07-10T16:14:00.000Z', '2026-07-10T16:18:00.000Z');
+  await poster.postEntry(state, target, laterOccurrence);
+  assert.equal(sends, 2, 'the same weather can announce once again after an inactive gap');
+  fs.rmSync(statePath, { force: true });
 });
 
 test('GAG2 sell dedupe includes price changes after the fortieth item', () => {

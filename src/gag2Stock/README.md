@@ -7,4 +7,5 @@ Automatic Grow a Garden 2 stock feed.
 - Uses `https://api.gag2.gg/api/live/stock`, `https://api.gag2.gg/api/live/weather`, and `https://api.gag2.gg/api/live/sell`.
 - Runtime state is stored in ignored `data/gag2-stock-poster.json` to avoid reposting unchanged feed data after restart.
 - Announcement dedupe uses meaningful feed content rather than moving API timestamps: item/quantity changes, current weather identity changes, and any sell-price change can post; restock/end-time drift alone cannot ping again.
+- Expired, not-yet-started, and missing current weather entries are not announced. An inactive gap resets the current-weather key so a later genuine occurrence can post once.
 - Best-effort role sync creates reusable item/event roles when a feed channel is configured.
