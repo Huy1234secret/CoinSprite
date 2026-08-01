@@ -135,6 +135,38 @@ test('GAG2 stock type payload builds one separate message for one category', () 
   assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
 
+test('GAG2 stock dedupe ignores moving restock timestamps for every stock category', () => {
+  for (const category of ['seed', 'gear', 'crate']) {
+    const base = parseStockPayload({
+      stock: [{
+        category,
+        restockedAt: '2026-07-10T16:00:00.000Z',
+        nextRestockAt: '2026-07-10T16:05:00.000Z',
+        items: [{ key: 'test_item', name: 'Test Item', quantity: 1 }],
+      }],
+    }).stock[0];
+    const retimed = parseStockPayload({
+      stock: [{
+        category,
+        restockedAt: '2026-07-10T16:01:00.000Z',
+        nextRestockAt: '2026-07-10T16:06:00.000Z',
+        items: [{ key: 'test_item', name: 'Test Item', quantity: 1 }],
+      }],
+    }).stock[0];
+    const changed = parseStockPayload({
+      stock: [{
+        category,
+        restockedAt: '2026-07-10T16:01:00.000Z',
+        nextRestockAt: '2026-07-10T16:06:00.000Z',
+        items: [{ key: 'test_item', name: 'Test Item', quantity: 2 }],
+      }],
+    }).stock[0];
+
+    assert.equal(buildTypePostKey(category, base), buildTypePostKey(category, retimed));
+    assert.notEqual(buildTypePostKey(category, base), buildTypePostKey(category, changed));
+  }
+});
+
 test('GAG2 weather and sell payloads parse public live endpoints', () => {
   const weather = parseWeatherPayload({
     weather: {
@@ -292,7 +324,7 @@ test('GAG2 role rarity filters retain only requested role specs', () => {
   assert.deepEqual(sellSpecs.map((spec) => spec.key), ['common_4x']);
 });
 
-test('GAG2 weather post key changes only for current weather, not recent history', () => {
+test('GAG2 weather post key changes only for current weather identity, not timestamps or recent history', () => {
   const base = parseWeatherPayload({
     weather: {
       current: { type: 'goldmoon', name: 'Goldmoon', startsAt: '2026-07-10T16:00:00.000Z', endsAt: '2026-07-10T16:03:00.000Z' },
@@ -310,6 +342,14 @@ test('GAG2 weather post key changes only for current weather, not recent history
       ],
     },
   });
+  const currentTimestampsChanged = parseWeatherPayload({
+    weather: {
+      current: { type: 'goldmoon', name: 'Goldmoon', startsAt: '2026-07-10T16:01:00.000Z', endsAt: '2026-07-10T16:08:00.000Z' },
+      recent: [
+        { key: 'rainbow', name: 'Rainbow', lastSeenAt: '2026-07-10T15:56:00.000Z' },
+      ],
+    },
+  });
   const currentChanged = parseWeatherPayload({
     weather: {
       current: { type: 'bloodmoon', name: 'Blood Moon', startsAt: '2026-07-10T16:04:00.000Z', endsAt: '2026-07-10T16:07:00.000Z' },
@@ -320,7 +360,24 @@ test('GAG2 weather post key changes only for current weather, not recent history
   });
 
   assert.equal(buildTypePostKey('weather', base), buildTypePostKey('weather', recentOnlyChanged));
+  assert.equal(buildTypePostKey('weather', base), buildTypePostKey('weather', currentTimestampsChanged));
   assert.notEqual(buildTypePostKey('weather', base), buildTypePostKey('weather', currentChanged));
+});
+
+test('GAG2 sell dedupe includes price changes after the fortieth item', () => {
+  const entries = Array.from({ length: 41 }, (_, index) => ({
+    key: `item_${String(index).padStart(2, '0')}`,
+    name: `Item ${index}`,
+    multiplier: 1,
+  }));
+  const changedEntries = entries.map((entry, index) => (
+    index === 40 ? { ...entry, multiplier: 1.25 } : entry
+  ));
+
+  const base = parseSellPayload({ sell: { entries } });
+  const changed = parseSellPayload({ sell: { entries: changedEntries } });
+
+  assert.notEqual(buildTypePostKey('sell', base), buildTypePostKey('sell', changed));
 });
 
 test('GAG2 stock unavailable payload is a red Components V2 container', () => {
