@@ -8,8 +8,11 @@ const {
   buildPostKey,
   buildStockPayload,
   buildTypePayload,
+  buildTypePayloads,
   buildTypePostKey,
   buildUnavailablePayload,
+  displayableTextSize,
+  nextCycleRestockAtMs,
   parseSellPayload,
   parseRestockPayload,
   parseStockPayload,
@@ -33,6 +36,8 @@ const {
   SELL_CHECK_INTERVAL_MS,
   SELL_FAILURE_RETRY_LIMIT,
   STOCK_API_URL,
+  STOCK_FAILURE_RETRY_LIMIT,
+  STOCK_FAILURE_RETRY_MS,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('../src/gag2Stock/config');
 const { fetchFallSellPayload, fetchFallStockPayload, fetchJson, fetchStockPayload } = require('../src/gag2Stock/source');
@@ -358,7 +363,7 @@ test('GAG2 stock type payload builds one separate message for one category', () 
   assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
 
-test('GAG2 stock dedupe ignores moving restock timestamps for every stock category', () => {
+test('GAG2 stock dedupe posts every new restock cycle even when quantities repeat', () => {
   for (const category of ['seed', 'gear', 'crate']) {
     const base = parseStockPayload({
       stock: [{
@@ -368,26 +373,67 @@ test('GAG2 stock dedupe ignores moving restock timestamps for every stock catego
         items: [{ key: 'test_item', name: 'Test Item', quantity: 1 }],
       }],
     }).stock[0];
-    const retimed = parseStockPayload({
+    const sameCycleRetimed = parseStockPayload({
       stock: [{
         category,
-        restockedAt: '2026-07-10T16:01:00.000Z',
+        restockedAt: '2026-07-10T16:00:00.000Z',
         nextRestockAt: '2026-07-10T16:06:00.000Z',
+        items: [{ key: 'test_item', name: 'Test Item', quantity: 1 }],
+      }],
+    }).stock[0];
+    const nextCycle = parseStockPayload({
+      stock: [{
+        category,
+        restockedAt: '2026-07-10T16:05:00.000Z',
+        nextRestockAt: '2026-07-10T16:10:00.000Z',
         items: [{ key: 'test_item', name: 'Test Item', quantity: 1 }],
       }],
     }).stock[0];
     const changed = parseStockPayload({
       stock: [{
         category,
-        restockedAt: '2026-07-10T16:01:00.000Z',
-        nextRestockAt: '2026-07-10T16:06:00.000Z',
+        restockedAt: '2026-07-10T16:00:00.000Z',
+        nextRestockAt: '2026-07-10T16:05:00.000Z',
         items: [{ key: 'test_item', name: 'Test Item', quantity: 2 }],
       }],
     }).stock[0];
 
-    assert.equal(buildTypePostKey(category, base), buildTypePostKey(category, retimed));
+    assert.equal(buildTypePostKey(category, base), buildTypePostKey(category, sameCycleRetimed));
+    assert.notEqual(buildTypePostKey(category, base), buildTypePostKey(category, nextCycle));
     assert.notEqual(buildTypePostKey(category, base), buildTypePostKey(category, changed));
   }
+});
+
+test('GAG2 replaces the previous-cycle restock timer with the next five-minute boundary', () => {
+  const window = Date.parse('2026-08-02T06:10:00.000Z');
+  const parsed = parseRestockPayload({
+    window: Math.floor(window / 1000),
+    nextRestock: Math.floor(window / 1000),
+    seeds: [{ name: 'Carrot', slug: 'carrot', lastStockedAt: Math.floor(window / 1000), lastQty: 1, inStockNow: true }],
+    gears: [],
+    props: [],
+  });
+
+  assert.equal(parsed.stock[0].restockedAtMs, window);
+  assert.equal(parsed.stock[0].nextRestockAtMs, window + 5 * 60 * 1000);
+  assert.equal(nextCycleRestockAtMs(window, window), window + 5 * 60 * 1000);
+});
+
+test('GAG2 splits oversized Components V2 sell output into ordered messages', () => {
+  const entries = Array.from({ length: 140 }, (_, index) => ({
+    key: `fruit_${index}`,
+    name: `Very Long Garden Fruit ${index}`,
+    multiplier: 1.25,
+    rarity: 'Common',
+    tier: 'normal',
+  }));
+  const payloads = buildTypePayloads('sell', { entries, enabledMultipliers: ['normal'] });
+  const combined = payloads.map((payload) => JSON.stringify(payload.components)).join('\n');
+
+  assert.ok(payloads.length > 1);
+  assert.ok(payloads.every((payload) => payload.components.reduce((total, component) => total + displayableTextSize(component), 0) <= 3_900));
+  assert.match(combined, /Very Long Garden Fruit 0/);
+  assert.match(combined, /Very Long Garden Fruit 139/);
 });
 
 test('GAG2 weather and sell payloads parse public live endpoints', () => {
@@ -494,6 +540,27 @@ test('GAG2 filters default to every supported rarity and sell multiplier', () =>
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.seed, roleSpecsForType('seed').map((spec) => spec.key));
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.gear, roleSpecsForType('gear').map((spec) => spec.key));
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.crate, roleSpecsForType('crate').map((spec) => spec.key));
+});
+
+test('GAG2 migrates legacy Garden Valley rarity filters to matching item selections', () => {
+  const config = normalizeGag2StockConfig({
+    filters: {
+      rarities: { seed: ['common'], gear: ['rare'], crate: ['legendary'], sell: ['common'] },
+    },
+  });
+
+  assert.deepEqual(config.filters.roleItems.seed, ['carrot', 'strawberry', 'blueberry']);
+  assert.deepEqual(
+    config.filters.roleItems.gear,
+    roleSpecsForType('gear').filter((spec) => spec.rarity === 'rare').map((spec) => spec.key),
+  );
+  assert.deepEqual(
+    config.filters.roleItems.crate,
+    roleSpecsForType('crate').filter((spec) => spec.rarity === 'legendary').map((spec) => spec.key),
+  );
 });
 
 test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item roles', () => {
@@ -525,6 +592,7 @@ test('GAG2 filter config preserves empty choices and removes unsupported values'
   const config = normalizeGag2StockConfig({
     filters: {
       rarities: { seed: [], gear: ['rare', 'invalid'], crate: ['super'], sell: ['secret', 'common', 'invalid'] },
+      roleItems: { seed: ['carrot', 'grape', 'not_real'], gear: [], crate: ['ladder_crate'] },
       sellMultipliers: ['4x', 'invalid'],
     },
   });
@@ -533,6 +601,9 @@ test('GAG2 filter config preserves empty choices and removes unsupported values'
   assert.deepEqual(config.filters.rarities.crate, ['super']);
   assert.deepEqual(config.filters.rarities.sell, ['common', 'secret']);
   assert.deepEqual(config.filters.sellMultipliers, ['4x']);
+  assert.deepEqual(config.filters.roleItems.seed, ['carrot', 'grape']);
+  assert.deepEqual(config.filters.roleItems.gear, []);
+  assert.deepEqual(config.filters.roleItems.crate, ['ladder_crate']);
 });
 
 test('GAG2 sell filter can announce only Common 4x fruit without a normal container', () => {
@@ -570,6 +641,15 @@ test('GAG2 role rarity filters retain only requested role specs', () => {
   assert.deepEqual(seedSpecs.filter((spec) => spec.rarity === 'common').map((spec) => spec.key), ['carrot', 'strawberry', 'blueberry']);
   assert.ok(seedSpecs.every((spec) => spec.key !== 'eclipse_bloom'), 'Sell-only Eclipse Bloom does not create a seed notification role');
   assert.deepEqual(sellSpecs.map((spec) => spec.key), ['common_4x']);
+});
+
+test('GAG2 Garden Valley role filters retain individual items inside an enabled rarity', () => {
+  const seedSpecs = filteredRoleSpecs('seed', roleSpecsForType('seed'), {
+    rarities: { seed: ['common'] },
+    roleItems: { seed: ['carrot', 'blueberry'] },
+  });
+
+  assert.deepEqual(seedSpecs.map((spec) => spec.key), ['carrot', 'blueberry']);
 });
 
 test('GAG2 weather post key changes only for current weather identity, not timestamps or recent history', () => {
@@ -912,6 +992,27 @@ test('GAG2 weather and moon use a separate 5 second polling loop', () => {
 test('GAG2 sell failures retry every three seconds up to three times', () => {
   assert.equal(SELL_UNCHANGED_RETRY_MS, 3_000);
   assert.equal(SELL_FAILURE_RETRY_LIMIT, 3);
+});
+
+test('GAG2 stale stock retries quickly without moving the normal five-minute schedule', () => {
+  const now = Date.parse('2026-08-02T06:10:00.000Z');
+  const poster = new Gag2StockPoster({}, { now: () => now });
+  poster.started = true;
+  assert.equal(STOCK_FAILURE_RETRY_MS, 1_000);
+  assert.equal(STOCK_FAILURE_RETRY_LIMIT, 3);
+  for (let attempt = 1; attempt <= STOCK_FAILURE_RETRY_LIMIT; attempt += 1) {
+    poster.stop();
+    poster.started = true;
+    poster.nextDelayOverrideMs = STOCK_FAILURE_RETRY_MS;
+    assert.equal(poster.scheduleNextTick(), now + STOCK_FAILURE_RETRY_MS);
+    assert.equal(poster.stockFailureRetryCount, attempt);
+  }
+  poster.stop();
+  poster.started = true;
+  poster.nextDelayOverrideMs = STOCK_FAILURE_RETRY_MS;
+  assert.equal(poster.scheduleNextTick(), Date.parse('2026-08-02T06:15:00.000Z'));
+  assert.equal(poster.stockFailureRetryCount, 0);
+  poster.stop();
 });
 
 test('GAG2 stock and sell schedules stay on fixed boundaries and cap rapid retries', () => {
@@ -1286,6 +1387,59 @@ test('GAG2 sell serializes concurrent delivery to the same channel', async () =>
     poster.postEntry(state, target, entry),
   ]);
   assert.equal(sends, 1);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 sell poster delivers every ordered component split and records all message IDs', async () => {
+  const now = Date.parse('2026-08-02T06:20:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-split-state.json');
+  fs.rmSync(statePath, { force: true });
+  const entry = parseSellPayload({
+    fetchedAt: '2026-08-02T06:19:59.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-08-02T06:30:00.000Z') / 1000),
+      entries: Array.from({ length: 140 }, (_, index) => ({
+        key: `fruit_${index}`,
+        name: `Very Long Garden Fruit ${index}`,
+        multiplier: 1.25,
+        rarity: 'Common',
+        tier: 'normal',
+      })),
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const sentPayloads = [];
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async (payload) => {
+      sentPayloads.push(payload);
+      return { id: `message-${sentPayloads.length}`, delete: async () => null };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = { posts: {} };
+
+  await poster.postEntry(state, target, entry);
+
+  assert.ok(sentPayloads.length > 1);
+  assert.ok(sentPayloads.every((payload) => payload.components.reduce(
+    (total, component) => total + displayableTextSize(component),
+    0,
+  ) <= 3_900));
+  assert.deepEqual(
+    state.posts[target.guildId].sell.lastMessageIds,
+    sentPayloads.map((_, index) => `message-${index + 1}`),
+  );
   fs.rmSync(statePath, { force: true });
 });
 

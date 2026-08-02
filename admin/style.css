@@ -2785,7 +2785,20 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
 }
 .gag2-filter-panel h4 { margin: 0; color: var(--text); font-size: 15px; }
 .gag2-filter-panel h4 .gag2-world-tag { margin-right: 7px; vertical-align: 1px; }
-.gag2-filter-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.gag2-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gag2-filter-grid > .picker-field {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(62, 192, 68, .2);
+  border-radius: 11px;
+  background: rgba(15, 24, 19, .4);
+}
+.gag2-filter-grid > .picker-field > .field-label { color: var(--text); font-weight: 750; }
+.gag2-garden-picker-button { border-color: rgba(62, 192, 68, .3); }
+.gag2-garden-picker-menu {
+  border-color: rgba(62, 192, 68, .38);
+  box-shadow: 0 18px 54px rgba(10, 70, 32, .28);
+}
 .gag2-filter-checks { display: flex; flex-wrap: wrap; gap: 8px; min-height: 42px; align-items: center; }
 label.gag2-filter-check {
   display: inline-flex;

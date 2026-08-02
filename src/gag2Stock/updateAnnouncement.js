@@ -18,7 +18,7 @@ const { loadState, saveState } = require('./stateStore');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
-const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
+const BUG_PATCH_UPDATE_ID = 'gag2-bug-fixes-cycle-timer-sell-split';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const NOTIFICATION_ROLE_NOTICE_ID = 'gag2-notice-new-item-notification-roles';
 const FALL_HARVEST_UPDATE_ID = 'gag2-fall-harvest-limited-event';
@@ -116,10 +116,13 @@ function buildBugPatchesUpdatePayload() {
       components: [{
         type: 10,
         content: [
-          '### Bug Patches',
-          '- Fixed an issue where **Sell Price Track** could replay an older price update after posting the latest one.',
-          '- Fixed an issue that could send the same sell price notification twice.',
-          '- **Sell Price Track** now announces only when the displayed prices change.',
+          '### A few GAG2 fixes are live \u{1F527}',
+          "We've shipped a few fixes after watching the latest stock cycles:",
+          '- **Seed**, **Gear**, and **Crate** alerts now go out on every five-minute restock, even when the quantities match the previous cycle.',
+          '- The countdown now points to the next restock instead of showing the previous one as “ago.”',
+          '- Long **Sell Price Track** updates now split into multiple messages instead of failing when they reach Discord’s text limit.',
+          '- Brief source delays get a few quick retries, which should make missed stock alerts much less likely.',
+          '-# Thanks to everyone who reported these issues — keep them coming!',
         ].join('\n'),
       }],
     }],

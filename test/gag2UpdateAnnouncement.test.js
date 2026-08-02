@@ -118,18 +118,20 @@ test('GAG2 Performance Boost announces the faster concurrent delivery update', (
   assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
 });
 
-test('GAG2 Bug Patches announces the sell replay and duplicate-send fixes', () => {
+test('GAG2 bug-fix announcement explains the current delivery fixes in plain language', () => {
   const payload = buildBugPatchesUpdatePayload();
   const container = payload.components[0];
   const content = container.components[0].content;
 
-  assert.equal(BUG_PATCH_UPDATE_ID, 'gag2-bug-patches-sell-price-dedupe');
+  assert.equal(BUG_PATCH_UPDATE_ID, 'gag2-bug-fixes-cycle-timer-sell-split');
   assert.equal(payload.flags, 32768);
   assert.equal(container.accent_color, 0x3EC044);
-  assert.match(content, /^### Bug Patches/);
-  assert.match(content, /replay an older price update/);
-  assert.match(content, /same sell price notification twice/);
-  assert.match(content, /only when the displayed prices change/);
+  assert.match(content, /^### A few GAG2 fixes are live/);
+  assert.match(content, /every five-minute restock/);
+  assert.match(content, /previous one as “ago.”/);
+  assert.match(content, /split into multiple messages/);
+  assert.match(content, /quick retries/);
+  assert.doesNotMatch(content, /dashboard|role picker|dropdown|style/i);
   assert.deepEqual(payload.allowedMentions.roles, []);
 });
 

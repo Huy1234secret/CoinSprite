@@ -39,6 +39,82 @@ const GAG2_FALL_TYPES = ['seed', 'gear', 'crate', 'sell'];
 const GAG2_FALL_RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
 const GAG2_FALL_RARITY_LABELS = { mythic: 'Mythical' };
 
+function gardenItem(key, name, emojiId, rarity) {
+  return { key, name, emojiId, rarity };
+}
+
+const GAG2_GARDEN_ITEMS = {
+  seed: [
+    gardenItem('carrot', 'Carrot', '1525195196864925817', 'common'),
+    gardenItem('strawberry', 'Strawberry', '1525195237008474242', 'common'),
+    gardenItem('blueberry', 'Blueberry', '1525195192632741990', 'common'),
+    gardenItem('tulip', 'Tulip', '1525195243438211163', 'uncommon'),
+    gardenItem('tomato', 'Tomato', '1525195241026617435', 'uncommon'),
+    gardenItem('apple', 'Apple', '1525195186085429340', 'uncommon'),
+    gardenItem('bamboo', 'Bamboo', '1525195188538970295', 'rare'),
+    gardenItem('corn', 'Corn', '1525195203651174512', 'rare'),
+    gardenItem('cactus', 'Cactus', '1525195194759254016', 'rare'),
+    gardenItem('pineapple', 'Pineapple', '1525195227667759198', 'rare'),
+    gardenItem('mushroom', 'Mushroom', '1525195225511760072', 'epic'),
+    gardenItem('green_bean', 'Green Bean', '1525195214489124874', 'epic'),
+    gardenItem('banana', 'Banana', '1525195190707683338', 'epic'),
+    gardenItem('grape', 'Grape', '1525195212236914779', 'epic'),
+    gardenItem('coconut', 'Coconut', '1525195201818394806', 'epic'),
+    gardenItem('mango', 'Mango', '1525195221200011437', 'epic'),
+    gardenItem('dragon_fruit', 'Dragon Fruit', '1525195205807050822', 'legendary'),
+    gardenItem('acorn', 'Acorn', '1525195184541794434', 'legendary'),
+    gardenItem('cherry', 'Cherry', '1525195199381504114', 'legendary'),
+    gardenItem('sunflower', 'Sunflower', '1525195239155830946', 'legendary'),
+    gardenItem('fire_fern', 'Fire Fern', '1525195210068590703', 'legendary'),
+    gardenItem('venus_fly_trap', 'Venus Flytrap', '1525195248169390171', 'mythic'),
+    gardenItem('pomegranate', 'Pomegranate', '1525195232377835541', 'mythic'),
+    gardenItem('poison_apple', 'Poison Apple', '1525195230201249983', 'mythic'),
+    gardenItem('venom_spitter', 'Venom Spitter', '1525195245661327550', 'mythic'),
+    gardenItem('moon_bloom', 'Moon Bloom', '1525195223473586196', 'super'),
+    gardenItem('hypno_bloom', 'Hypno Bloom', '1525195218805194752', 'super'),
+    gardenItem('dragon_s_breath', "Dragon's Breath", '1525195207778373814', 'super'),
+    gardenItem('sun_bloom', 'Sun Bloom', '1525996662449766431', 'super'),
+    gardenItem('star_fruit', 'Star Fruit', '1525996660000428112', 'super'),
+  ],
+  gear: [
+    gardenItem('common_watering_can', 'Common Watering Can', '1525198690707439736', 'common'),
+    gardenItem('common_sprinkler', 'Common Sprinkler', '1525198688283267234', 'common'),
+    gardenItem('uncommon_sprinkler', 'Uncommon Sprinkler', '1525198728846115007', 'uncommon'),
+    gardenItem('trowel', 'Trowel', '1525198726535053404', 'rare'),
+    gardenItem('rare_sprinkler', 'Rare Sprinkler', '1525198712761090308', 'rare'),
+    gardenItem('jump_mushroom', 'Jump Mushroom', '1525198699456626799', 'rare'),
+    gardenItem('speed_mushroom', 'Speed Mushroom', '1525198716577911024', 'rare'),
+    gardenItem('shrink_mushroom', 'Shrink Mushroom', '1525198714749059162', 'epic'),
+    gardenItem('supersize_mushroom', 'Supersize Mushroom', '1525198724639232100', 'epic'),
+    gardenItem('gnome', 'Gnome', '1525198694763200673', 'epic'),
+    gardenItem('flashbang', 'Flashbang', '1525198692846538895', 'epic'),
+    gardenItem('basic_pot', 'Basic Pot', '1525198685410033684', 'epic'),
+    gardenItem('legendary_sprinkler', 'Legendary Sprinkler', '1525198702690697358', 'epic'),
+    gardenItem('invisibility_mushroom', 'Invisibility Mushroom', '1525198697263140954', 'legendary'),
+    gardenItem('player_magnet', 'Player Magnet', '1525198710231928832', 'mythic'),
+    gardenItem('super_watering_can', 'Super Watering Can', '1525198722785345708', 'super'),
+    gardenItem('super_sprinkler', 'Super Sprinkler', '1525198720931729589', 'super'),
+  ],
+  crate: [
+    gardenItem('ladder_crate', 'Ladder', '1525201085231403240', 'common'),
+    gardenItem('bench_crate', 'Bench', '1525201076276433056', 'uncommon'),
+    gardenItem('light_crate', 'Light', '1525201087282413689', 'uncommon'),
+    gardenItem('sign_crate', 'Sign', '1525201096023474217', 'rare'),
+    gardenItem('arch_crate', 'Arch', '1525201071620882542', 'rare'),
+    gardenItem('roleplay_crate', 'Roleplay', '1525201091317465108', 'rare'),
+    gardenItem('picture_frame_crate', 'Picture Frame', '1525202336631361606', 'rare'),
+    gardenItem('bridge_crate', 'Bridge', '1525201078642147469', 'epic'),
+    gardenItem('spring_crate', 'Spring', '1525201098233745528', 'epic'),
+    gardenItem('seesaw_crate', 'Seesaw', '1525201094257545286', 'epic'),
+    gardenItem('conveyor_crate', 'Conveyor', '1525201080831443096', 'epic'),
+    gardenItem('owner_door_crate', 'Owner Door', '1525201089387954196', 'legendary'),
+    gardenItem('bear_trap_crate', 'Bear Trap', '1525201073957245019', 'legendary'),
+    gardenItem('boombox_crate', 'Boombox', '1525201479546441931', 'legendary'),
+    gardenItem('fence_crate', 'Fence', '1525201083117342911', 'legendary'),
+    gardenItem('teleporter_pad_crate', 'Teleporter Pad', '1525201100792397874', 'mythic'),
+  ],
+};
+
 function fallItem(key, name, emojiId, rarity) {
   return { key, name, emojiId, rarity };
 }
@@ -104,6 +180,8 @@ function defaultGag2StockFilters() {
       crate: [...GAG2_ROLE_RARITIES],
       sell: [...GAG2_SELL_RARITIES],
     },
+    roleItems: Object.fromEntries(Object.entries(GAG2_GARDEN_ITEMS)
+      .map(([type, items]) => [type, items.map((item) => item.key)])),
     sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
   };
 }
@@ -958,13 +1036,24 @@ function normalizeGag2FilterSelection(value, allowed) {
 }
 
 function normalizeGag2Filters(value = {}) {
+  const rarities = {
+    seed: normalizeGag2FilterSelection(value.rarities?.seed, GAG2_ROLE_RARITIES),
+    gear: normalizeGag2FilterSelection(value.rarities?.gear, GAG2_ROLE_RARITIES),
+    crate: normalizeGag2FilterSelection(value.rarities?.crate, GAG2_ROLE_RARITIES),
+    sell: normalizeGag2FilterSelection(value.rarities?.sell, GAG2_SELL_RARITIES),
+  };
+  const roleItems = {};
+  for (const type of ['seed', 'gear', 'crate']) {
+    const allowed = GAG2_GARDEN_ITEMS[type].map((item) => item.key);
+    roleItems[type] = Array.isArray(value.roleItems?.[type])
+      ? normalizeGag2FilterSelection(value.roleItems[type], allowed)
+      : GAG2_GARDEN_ITEMS[type]
+        .filter((item) => rarities[type].includes(item.rarity))
+        .map((item) => item.key);
+  }
   return {
-    rarities: {
-      seed: normalizeGag2FilterSelection(value.rarities?.seed, GAG2_ROLE_RARITIES),
-      gear: normalizeGag2FilterSelection(value.rarities?.gear, GAG2_ROLE_RARITIES),
-      crate: normalizeGag2FilterSelection(value.rarities?.crate, GAG2_ROLE_RARITIES),
-      sell: normalizeGag2FilterSelection(value.rarities?.sell, GAG2_SELL_RARITIES),
-    },
+    rarities,
+    roleItems,
     sellMultipliers: normalizeGag2FilterSelection(value.sellMultipliers, GAG2_SELL_MULTIPLIERS),
   };
 }
@@ -993,7 +1082,7 @@ function commitFallRoleItems(type, keys) {
   refreshDirtyState();
 }
 
-function fallRarityOption(rarity) {
+function roleRarityOption(rarity) {
   return {
     id: rarity,
     label: GAG2_FALL_RARITY_LABELS[rarity] || `${rarity.charAt(0).toUpperCase()}${rarity.slice(1)}`,
@@ -1018,14 +1107,17 @@ function placeFallRoleMenu(button, menu) {
     : `${Math.max(safeTop, rect.top - maxHeight - 6)}px`;
 }
 
-function renderFallRolePicker(mount, type, enabled, selected) {
+function renderItemRolePicker(mount, type, enabled, selected, options = {}) {
+  const items = options.items || [];
+  const commitItems = options.commitItems || (() => {});
+  const theme = options.theme || 'fall';
   const picker = document.createElement('div');
-  picker.className = 'picker gag2-fall-picker';
+  picker.className = `picker gag2-fall-picker gag2-${theme}-picker`;
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'picker-button gag2-fall-picker-button';
+  button.className = `picker-button gag2-fall-picker-button gag2-${theme}-picker-button`;
   button.disabled = !enabled;
-  button.title = enabled ? '' : `Enable Fall ${fallTypeLabel(type)} notifications first`;
+  button.title = enabled ? '' : options.disabledTitle || `Enable ${fallTypeLabel(type)} notifications first`;
   const selectedWrap = document.createElement('span');
   selectedWrap.className = 'selected-wrap';
   const chevron = document.createElement('span');
@@ -1034,7 +1126,7 @@ function renderFallRolePicker(mount, type, enabled, selected) {
   button.append(selectedWrap, chevron);
 
   const menu = document.createElement('div');
-  menu.className = 'picker-menu gag2-fall-picker-menu';
+  menu.className = `picker-menu gag2-fall-picker-menu gag2-${theme}-picker-menu`;
   const search = document.createElement('input');
   search.type = 'search';
   search.className = 'picker-search';
@@ -1045,7 +1137,7 @@ function renderFallRolePicker(mount, type, enabled, selected) {
   menu.append(search, optionList);
 
   function selectedRarities() {
-    return GAG2_FALL_RARITY_ORDER.filter((rarity) => GAG2_FALL_ITEMS[type]
+    return GAG2_FALL_RARITY_ORDER.filter((rarity) => items
       .some((item) => item.rarity === rarity && selected.has(item.key)));
   }
 
@@ -1059,7 +1151,7 @@ function renderFallRolePicker(mount, type, enabled, selected) {
       selectedWrap.append(placeholder);
       return;
     }
-    rarities.slice(0, 5).forEach((rarity) => selectedWrap.append(makeToken(fallRarityOption(rarity), 'role')));
+    rarities.slice(0, 5).forEach((rarity) => selectedWrap.append(makeToken(roleRarityOption(rarity), 'role')));
     if (rarities.length > 5) {
       const more = document.createElement('span');
       more.className = 'token';
@@ -1072,8 +1164,8 @@ function renderFallRolePicker(mount, type, enabled, selected) {
     const query = search.value.trim().toLowerCase();
     optionList.replaceChildren();
     for (const rarity of GAG2_FALL_RARITY_ORDER) {
-      const rarityOption = fallRarityOption(rarity);
-      const allItems = GAG2_FALL_ITEMS[type].filter((item) => item.rarity === rarity);
+      const rarityOption = roleRarityOption(rarity);
+      const allItems = items.filter((item) => item.rarity === rarity);
       const items = allItems.filter((item) => !query
         || rarityOption.label.toLowerCase().includes(query)
         || item.name.toLowerCase().includes(query)
@@ -1120,7 +1212,7 @@ function renderFallRolePicker(mount, type, enabled, selected) {
         input.addEventListener('change', () => {
           if (input.checked) selected.add(item.key);
           else selected.delete(item.key);
-          commitFallRoleItems(type, [...selected]);
+          commitItems([...selected]);
           drawButton();
           drawOptions();
         });
@@ -1131,7 +1223,7 @@ function renderFallRolePicker(mount, type, enabled, selected) {
           if (rarityInput.checked) selected.add(item.key);
           else selected.delete(item.key);
         }
-        commitFallRoleItems(type, [...selected]);
+        commitItems([...selected]);
         drawButton();
         drawOptions();
       });
@@ -1165,6 +1257,34 @@ function renderFallRolePicker(mount, type, enabled, selected) {
   drawButton();
   picker.append(button, menu);
   mount.append(picker);
+}
+
+function renderFallRolePicker(mount, type, enabled, selected) {
+  renderItemRolePicker(mount, type, enabled, selected, {
+    items: GAG2_FALL_ITEMS[type],
+    theme: 'fall',
+    disabledTitle: `Enable Fall ${fallTypeLabel(type)} notifications first`,
+    commitItems: (keys) => commitFallRoleItems(type, keys),
+  });
+}
+
+function commitGardenRoleItems(type, keys) {
+  const allowed = GAG2_GARDEN_ITEMS[type].map((item) => item.key);
+  state.gag2StockFilters.roleItems[type] = normalizeGag2FilterSelection(keys, allowed);
+  const selected = new Set(state.gag2StockFilters.roleItems[type]);
+  state.gag2StockFilters.rarities[type] = GAG2_ROLE_RARITIES.filter((rarity) => GAG2_GARDEN_ITEMS[type]
+    .some((item) => item.rarity === rarity && selected.has(item.key)));
+  renderPendingGag2RoleChange();
+  refreshDirtyState();
+}
+
+function renderGardenRolePicker(mount, type, enabled, selected) {
+  renderItemRolePicker(mount, type, enabled, selected, {
+    items: GAG2_GARDEN_ITEMS[type],
+    theme: 'garden',
+    disabledTitle: `Select a ${type} stock channel first`,
+    commitItems: (keys) => commitGardenRoleItems(type, keys),
+  });
 }
 
 function renderGag2FallControls() {
@@ -1224,6 +1344,10 @@ function renderGag2FilterControls() {
     const enabled = Boolean(state.gag2StockChannels[type]);
     const channelLabel = type === 'sell' ? 'sell price track' : `${type} stock`;
     mount.closest('.picker-field')?.classList.toggle('is-disabled', !enabled);
+    if (type !== 'sell') {
+      renderGardenRolePicker(mount, type, enabled, new Set(state.gag2StockFilters.roleItems[type]));
+      continue;
+    }
     renderPicker(mount, rarityFilterOptions(allowed), state.gag2StockFilters.rarities[type], {
       multiple: true,
       type: 'role',

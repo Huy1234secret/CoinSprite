@@ -165,6 +165,10 @@ function defaultGag2StockFilters() {
       crate: [...GAG2_ROLE_FILTER_RARITIES],
       sell: [...GAG2_SELL_FILTER_RARITIES],
     },
+    roleItems: Object.fromEntries(['seed', 'gear', 'crate'].map((type) => [
+      type,
+      roleSpecsForType(type).map((spec) => spec.key),
+    ])),
     sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
   };
 }
@@ -503,13 +507,27 @@ function normalizeFilterSelection(value, allowed, fallback = allowed) {
 function normalizeGag2StockFilters(value, defaults = defaultGag2StockFilters()) {
   const source = isPlainObject(value) ? value : {};
   const defaultRarities = defaults?.rarities || {};
+  const rarities = {
+    seed: normalizeFilterSelection(source.rarities?.seed, GAG2_ROLE_FILTER_RARITIES, defaultRarities.seed),
+    gear: normalizeFilterSelection(source.rarities?.gear, GAG2_ROLE_FILTER_RARITIES, defaultRarities.gear),
+    crate: normalizeFilterSelection(source.rarities?.crate, GAG2_ROLE_FILTER_RARITIES, defaultRarities.crate),
+    sell: normalizeFilterSelection(source.rarities?.sell, GAG2_SELL_FILTER_RARITIES, defaultRarities.sell),
+  };
+  const roleItems = {};
+  for (const type of ['seed', 'gear', 'crate']) {
+    const specs = roleSpecsForType(type);
+    const allowed = specs.map((spec) => spec.key);
+    const legacyFallback = specs.filter((spec) => rarities[type].includes(spec.rarity)).map((spec) => spec.key);
+    roleItems[type] = normalizeFilterSelection(
+      source.roleItems?.[type],
+      allowed,
+      defaults?.roleItems?.[type] || legacyFallback,
+    );
+    if (!Array.isArray(source.roleItems?.[type])) roleItems[type] = legacyFallback;
+  }
   return {
-    rarities: {
-      seed: normalizeFilterSelection(source.rarities?.seed, GAG2_ROLE_FILTER_RARITIES, defaultRarities.seed),
-      gear: normalizeFilterSelection(source.rarities?.gear, GAG2_ROLE_FILTER_RARITIES, defaultRarities.gear),
-      crate: normalizeFilterSelection(source.rarities?.crate, GAG2_ROLE_FILTER_RARITIES, defaultRarities.crate),
-      sell: normalizeFilterSelection(source.rarities?.sell, GAG2_SELL_FILTER_RARITIES, defaultRarities.sell),
-    },
+    rarities,
+    roleItems,
     sellMultipliers: normalizeFilterSelection(source.sellMultipliers, GAG2_SELL_MULTIPLIERS, defaults?.sellMultipliers),
   };
 }

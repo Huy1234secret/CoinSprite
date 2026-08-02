@@ -377,15 +377,15 @@
               <p class="field-hint gag2-fall-role-guidance">Select only the specific item roles your community wants to avoid reaching Discord's role limit.</p>
               <div class="settings-grid gag2-filter-grid">
                 <div class="picker-field">
-                  <span class="field-label">Seed role rarities</span>
+                  <span class="field-label">Seed item roles</span>
                   <div id="gag2SeedRarityMount"></div>
                 </div>
                 <div class="picker-field">
-                  <span class="field-label">Gear role rarities</span>
+                  <span class="field-label">Gear item roles</span>
                   <div id="gag2GearRarityMount"></div>
                 </div>
                 <div class="picker-field">
-                  <span class="field-label">Crate role rarities</span>
+                  <span class="field-label">Crate item roles</span>
                   <div id="gag2CrateRarityMount"></div>
                 </div>
                 <div class="picker-field">
@@ -420,8 +420,20 @@
               <div class="gag2-update-list">
                 <article class="gag2-update-card latest">
                   <div class="gag2-update-card-heading">
-                    <strong>🍂 Fall Harvest is live</strong>
+                    <strong>&#128295; A few GAG2 fixes are live</strong>
                     <span>Latest</span>
+                  </div>
+                  <p>We've shipped a few fixes after watching the latest stock cycles:</p>
+                  <ul class="gag2-update-details">
+                    <li><strong>Seed</strong>, <strong>Gear</strong>, and <strong>Crate</strong> alerts now go out on every five-minute restock, even when quantities haven't changed.</li>
+                    <li>The countdown now points to the next restock instead of showing the previous one as “ago.”</li>
+                    <li>Long <strong>Sell Price Track</strong> updates now split into multiple messages instead of failing at Discord's text limit.</li>
+                    <li>Brief source delays get a few quick retries, making missed stock alerts much less likely.</li>
+                  </ul>
+                </article>
+                <article class="gag2-update-card">
+                  <div class="gag2-update-card-heading">
+                    <strong>🍂 Fall Harvest is live</strong>
                   </div>
                   <ul class="gag2-update-details">
                     <li>Limited Fall Harvest Seed, Gear, Crate, and Sell-price stock can now appear inside the matching Garden Valley notification.</li>

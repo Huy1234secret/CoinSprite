@@ -31,6 +31,8 @@ const NO_MENTIONS = { parse: [], roles: [], users: [] };
 const WHITE = 0xFFFFFF;
 const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
 const SELL_ONLY_SEED_KEYS = new Set(['eclipse_bloom']);
+const STOCK_RESTOCK_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_COMPONENT_DISPLAY_TEXT = 3_900;
 const FALL_ONLY_KEYS = Object.freeze({
   seed: new Set(FALL_SELL_ITEMS.filter((item) => !catalogEntry('seed', item.key)).map((item) => item.key)),
   gear: new Set(FALL_GEAR_ITEMS.filter((item) => !catalogEntry('gear', item.key)).map((item) => item.key)),
@@ -53,6 +55,19 @@ function parseBoundaryMs(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return parseDateMs(value);
   return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+}
+
+function nextCycleRestockAtMs(nextRestockAtMs, restockedAtMs, nowMs = null) {
+  const restockedAt = Number(restockedAtMs);
+  let nextAt = Number(nextRestockAtMs);
+  if (Number.isFinite(restockedAt) && (!Number.isFinite(nextAt) || nextAt <= restockedAt)) {
+    nextAt = restockedAt + STOCK_RESTOCK_INTERVAL_MS;
+  }
+  const now = Number(nowMs);
+  if (Number.isFinite(now) && (!Number.isFinite(nextAt) || nextAt <= now)) {
+    nextAt = (Math.floor(now / STOCK_RESTOCK_INTERVAL_MS) + 1) * STOCK_RESTOCK_INTERVAL_MS;
+  }
+  return Number.isFinite(nextAt) ? nextAt : null;
 }
 
 function slugKey(value) {
@@ -82,13 +97,15 @@ function normalizeCategory(entry, options = {}) {
     .filter((item) => world !== 'fall' || FALL_WORLD_KEYS[category]?.has(item.key))
     .filter((item) => world === 'fall' || !FALL_ONLY_KEYS[category]?.has(item.key)));
 
+  const restockedAtMs = parseDateMs(entry?.restockedAt);
+  const nextRestockAtMs = nextCycleRestockAtMs(parseDateMs(entry?.nextRestockAt), restockedAtMs);
   return {
     type: category,
     category,
     label: CATEGORY_LABELS[category] || category || 'Stock',
     items,
-    nextRestockAtMs: parseDateMs(entry?.nextRestockAt),
-    restockedAtMs: parseDateMs(entry?.restockedAt),
+    nextRestockAtMs,
+    restockedAtMs,
     world,
   };
 }
@@ -96,8 +113,10 @@ function normalizeCategory(entry, options = {}) {
 function parseRestockPayload(payload, options = {}) {
   const world = String(options.world || payload?.world || 'main').trim().toLowerCase();
   const windowMs = parseBoundaryMs(payload?.window);
-  const nextRestockAtMs = parseBoundaryMs(payload?.nextRestock ?? payload?.nextRefresh)
-    || (Number.isFinite(windowMs) ? windowMs + 5 * 60 * 1000 : null);
+  const nextRestockAtMs = nextCycleRestockAtMs(
+    parseBoundaryMs(payload?.nextRestock ?? payload?.nextRefresh),
+    windowMs,
+  );
   const sources = [
     ['seed', payload?.seeds],
     ['gear', payload?.gears],
@@ -240,6 +259,7 @@ function parseItemsPayload(payload) {
 function buildStockCategoryKey(entry) {
   return [
     entry.category,
+    Number.isFinite(Number(entry.restockedAtMs)) ? Math.floor(Number(entry.restockedAtMs) / 1000) : 'unknown-cycle',
     entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
   ].join(':');
 }
@@ -272,6 +292,86 @@ function buildTypePostKey(type, entry) {
 
 function formatTimestamp(ms, style = 'R') {
   return Number.isFinite(ms) ? `<t:${Math.floor(ms / 1000)}:${style}>` : 'unknown';
+}
+
+function displayableTextSize(component) {
+  if (!component || typeof component !== 'object') return 0;
+  const own = typeof component.content === 'string' ? component.content.length : 0;
+  return own + (Array.isArray(component.components)
+    ? component.components.reduce((total, child) => total + displayableTextSize(child), 0)
+    : 0);
+}
+
+function splitTextDisplay(component, maxText) {
+  const lines = String(component.content || '').split('\n');
+  const chunks = [];
+  let current = [];
+  let size = 0;
+  for (const line of lines) {
+    const pieces = line.length <= maxText
+      ? [line]
+      : line.match(new RegExp(`.{1,${maxText}}`, 'g')) || [''];
+    for (const piece of pieces) {
+      const added = piece.length + (current.length ? 1 : 0);
+      if (current.length && size + added > maxText) {
+        chunks.push({ ...component, content: current.join('\n') });
+        current = [];
+        size = 0;
+      }
+      current.push(piece);
+      size += piece.length + (current.length > 1 ? 1 : 0);
+    }
+  }
+  if (current.length) chunks.push({ ...component, content: current.join('\n') });
+  return chunks;
+}
+
+function splitDisplayComponent(component, maxText) {
+  if (displayableTextSize(component) <= maxText) return [component];
+  if (component.type === 10 && typeof component.content === 'string') {
+    return splitTextDisplay(component, maxText);
+  }
+  if (!Array.isArray(component.components)) return [component];
+  const children = component.components.flatMap((child) => splitDisplayComponent(child, maxText));
+  const groups = [];
+  let current = [];
+  let size = 0;
+  for (const child of children) {
+    const childSize = displayableTextSize(child);
+    if (current.length && size + childSize > maxText) {
+      while (current[0]?.type === 14) current.shift();
+      while (current.at(-1)?.type === 14) current.pop();
+      if (current.length) groups.push({ ...component, components: current });
+      current = [];
+      size = 0;
+    }
+    current.push(child);
+    size += childSize;
+  }
+  while (current[0]?.type === 14) current.shift();
+  while (current.at(-1)?.type === 14) current.pop();
+  if (current.length) groups.push({ ...component, components: current });
+  return groups;
+}
+
+function splitPayloadByDisplayText(payload, maxText = MAX_COMPONENT_DISPLAY_TEXT) {
+  const limit = Math.max(100, Math.min(4_000, Number(maxText) || MAX_COMPONENT_DISPLAY_TEXT));
+  const components = (payload.components || []).flatMap((component) => splitDisplayComponent(component, limit));
+  const payloads = [];
+  let current = [];
+  let size = 0;
+  for (const component of components) {
+    const componentSize = displayableTextSize(component);
+    if (current.length && size + componentSize > limit) {
+      payloads.push({ ...payload, components: current });
+      current = [];
+      size = 0;
+    }
+    current.push(component);
+    size += componentSize;
+  }
+  if (current.length || !payloads.length) payloads.push({ ...payload, components: current });
+  return payloads;
 }
 
 function roleIdForItem(roleIds, item, type = '') {
@@ -313,9 +413,10 @@ function formatItem(type, item, roleIds = {}) {
 }
 
 function formatStockCategoryHeader(entry) {
+  const nextRestockAtMs = nextCycleRestockAtMs(entry.nextRestockAtMs, entry.restockedAtMs, Date.now());
   return [
     `## GAG2 ${entry.label}`,
-    `-# Restock ${formatTimestamp(entry.nextRestockAtMs)}`,
+    `-# Restock ${formatTimestamp(nextRestockAtMs)}`,
     '-# **🌿GARDEN VALLEY🌻**',
   ].join('\n');
 }
@@ -526,6 +627,10 @@ function buildTypePayload(type, entry, options = {}) {
   };
 }
 
+function buildTypePayloads(type, entry, options = {}) {
+  return splitPayloadByDisplayText(buildTypePayload(type, entry, options));
+}
+
 function buildStockPayload(stockPayload, options = {}) {
   const roleIdsByType = Object.fromEntries((stockPayload.stock || []).map((entry) => [
     entry.category,
@@ -584,13 +689,17 @@ module.exports = {
   buildPostKey,
   buildStockPayload,
   buildTypePayload,
+  buildTypePayloads,
   buildTypePostKey,
   buildUnavailablePayload,
   formatStockCategory,
+  displayableTextSize,
+  nextCycleRestockAtMs,
   parseItemsPayload,
   parseRestockPayload,
   parseSellPayload,
   parseStockPayload,
   parseWeatherPayload,
+  splitPayloadByDisplayText,
   slugKey,
 };
