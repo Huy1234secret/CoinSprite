@@ -111,9 +111,11 @@ async function fetchJson(url, options = {}) {
   const retryDelayMs = Math.max(0, Number.isFinite(Number(options.retryDelayMs)) ? Number(options.retryDelayMs) : REQUEST_RETRY_DELAY_MS);
   const timeoutMs = Math.max(1, Number(options.timeoutMs) || REQUEST_TIMEOUT_MS);
   const attempts = retries + 1;
+  let attempted = 0;
   let lastError = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    attempted = attempt + 1;
     try {
       return await fetchJsonOnce(url, { ...options, timeoutMs });
     } catch (error) {
@@ -123,7 +125,7 @@ async function fetchJson(url, options = {}) {
     }
   }
 
-  throw finalSourceError(lastError, attempts, timeoutMs);
+  throw finalSourceError(lastError, attempted, timeoutMs);
 }
 
 async function fetchStockPayload(options = {}) {
@@ -132,7 +134,7 @@ async function fetchStockPayload(options = {}) {
   try {
     return parseStockPayload(await fetchJson(url, options), { world });
   } catch (error) {
-    if (world !== 'main' || Number(error?.status) !== 403) throw error;
+    if (Number(error?.status) !== 403) throw error;
     return parseStockPayload(await fetchJson(options.fallbackUrl || LEGACY_STOCK_API_URL, options), { world });
   }
 }
@@ -157,7 +159,7 @@ async function fetchSellPayload(options = {}) {
       referer: 'https://gag.gg/seed-restock/',
     }), { world });
   } catch (error) {
-    if (world !== 'main' || Number(error?.status) !== 403) throw error;
+    if (Number(error?.status) !== 403) throw error;
     return parseSellPayload(await fetchJson(options.fallbackUrl || LEGACY_SELL_API_URL, options), { world });
   }
 }

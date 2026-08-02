@@ -158,7 +158,8 @@ const CRATE_ITEMS = [
 
 // Fall Harvest is a separate, limited world. Its role catalog stays separate
 // from Garden Valley so guilds can opt into only the event roles they need.
-const FALL_SEED_ITEMS = [
+const FALL_SELL_ONLY_SEED_KEYS = new Set(['potato', 'cinnamon_stick', 'honeysuckle', 'plum', 'romanesco']);
+const FALL_SELL_ITEMS = [
   item('maple_blueberry', 'Maple Blueberry', '<:mapleblueberry:1533299270378328254>', 'common'),
   item('maple_strawberry', 'Maple Strawberry', '<:maplestrawberry:1533299298907853021>', 'common'),
   item('maple_carrot', 'Maple Carrot', '<:maplecarrot:1533299274186489938>', 'common'),
@@ -192,11 +193,11 @@ const FALL_SEED_ITEMS = [
   item('romanesco', 'Romanesco', '<:romanesco:1533299314363732089>', 'mythic'),
   item('amber_cranberry', 'Amber Cranberry', '<:ambercranberry:1533299246315475045>', 'super'),
 ];
+const FALL_SEED_ITEMS = FALL_SELL_ITEMS.filter((item) => !FALL_SELL_ONLY_SEED_KEYS.has(item.key));
 
 const FALL_GEAR_ITEMS = [
   item('syrup_sprinkler', 'Syrup Sprinkler', '<:syrupsprinkler:1533305566112387283>', 'common'),
   item('syrup_watering_can', 'Syrup Watering Can', '<:syrupwateringcan:1533305567978848348>', 'common'),
-  item('trowel', 'Trowel', '<:trowel:1525198726535053404>', 'rare'),
   item('rare_magic_mail', 'Rare Magic Mail', '<:raremagicmail:1533305557618917396>', 'rare'),
   item('harp', 'Harp', '<:harp:1533305553621749780>', 'rare'),
   item('legendary_magic_mail', 'Legendary Magic Mail', '<:legendarymagicmail:1533305555740000256>', 'legendary'),
@@ -298,7 +299,7 @@ const MAPS = {
   fallSeed: mapByKey(FALL_SEED_ITEMS),
   fallGear: mapByKey(FALL_GEAR_ITEMS),
   fallCrate: mapByKey(FALL_CRATE_ITEMS),
-  fallSell: mapByKey(FALL_SEED_ITEMS),
+  fallSell: mapByKey(FALL_SELL_ITEMS),
 };
 
 function resolveType(type) {
@@ -397,9 +398,9 @@ function sellMultiplierBucket(multiplier) {
   return '';
 }
 
-function sellBonusRoleForEntry(entry) {
+function sellBonusRoleForEntry(entry, type = 'sell') {
   const bucket = sellMultiplierBucket(entry?.multiplier);
-  const rarity = rarityForType('sell', entry);
+  const rarity = rarityForType(type, entry);
   if (!bucket || !RARITY_LABELS[rarity]) return null;
   return {
     key: `${rarity}_${bucket}`,
@@ -431,7 +432,8 @@ function roleSpecsForType(type) {
   if (type === 'crate') return CRATE_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'sell') return sellBonusRoleSpecs();
-  if (type === 'fallSeed' || type === 'fallSell') return FALL_SEED_ITEMS.map(roleSpecFromItem);
+  if (type === 'fallSeed') return FALL_SEED_ITEMS.map(roleSpecFromItem);
+  if (type === 'fallSell') return [];
   if (type === 'fallGear') return FALL_GEAR_ITEMS.map(roleSpecFromItem);
   if (type === 'fallCrate') return FALL_CRATE_ITEMS.map(roleSpecFromItem);
   return [];
@@ -446,6 +448,8 @@ module.exports = {
   FALL_GEAR_ITEMS,
   FALL_ROLE_TYPES,
   FALL_SEED_ITEMS,
+  FALL_SELL_ITEMS,
+  FALL_SELL_ONLY_SEED_KEYS,
   SELL_BONUS_COLORS,
   SHECKLES_EMOJI,
   catalogEntry,

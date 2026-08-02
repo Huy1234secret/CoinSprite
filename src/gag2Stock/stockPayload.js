@@ -9,6 +9,8 @@ const {
   FALL_CRATE_ITEMS,
   FALL_GEAR_ITEMS,
   FALL_SEED_ITEMS,
+  FALL_SELL_ITEMS,
+  FALL_SELL_ONLY_SEED_KEYS,
   SELL_BONUS_COLORS,
   catalogEntry,
   colorForType,
@@ -30,10 +32,16 @@ const WHITE = 0xFFFFFF;
 const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
 const SELL_ONLY_SEED_KEYS = new Set(['eclipse_bloom']);
 const FALL_ONLY_KEYS = Object.freeze({
-  seed: new Set(FALL_SEED_ITEMS.filter((item) => !catalogEntry('seed', item.key)).map((item) => item.key)),
+  seed: new Set(FALL_SELL_ITEMS.filter((item) => !catalogEntry('seed', item.key)).map((item) => item.key)),
   gear: new Set(FALL_GEAR_ITEMS.filter((item) => !catalogEntry('gear', item.key)).map((item) => item.key)),
   crate: new Set(FALL_CRATE_ITEMS.filter((item) => !catalogEntry('crate', item.key)).map((item) => item.key)),
-  sell: new Set(FALL_SEED_ITEMS.filter((item) => !catalogEntry('sell', item.key)).map((item) => item.key)),
+  sell: new Set(FALL_SELL_ITEMS.filter((item) => !catalogEntry('sell', item.key)).map((item) => item.key)),
+});
+const FALL_WORLD_KEYS = Object.freeze({
+  seed: new Set(FALL_SEED_ITEMS.map((item) => item.key)),
+  gear: new Set(FALL_GEAR_ITEMS.map((item) => item.key)),
+  crate: new Set(FALL_CRATE_ITEMS.map((item) => item.key)),
+  sell: new Set(FALL_SELL_ITEMS.map((item) => item.key)),
 });
 
 function parseDateMs(value) {
@@ -70,6 +78,8 @@ function normalizeCategory(entry, options = {}) {
     .map(normalizeItem)
     .filter((item) => item.name && item.quantity > 0)
     .filter((item) => category !== 'seed' || !SELL_ONLY_SEED_KEYS.has(item.key))
+    .filter((item) => category !== 'seed' || !FALL_SELL_ONLY_SEED_KEYS.has(item.key))
+    .filter((item) => world !== 'fall' || FALL_WORLD_KEYS[category]?.has(item.key))
     .filter((item) => world === 'fall' || !FALL_ONLY_KEYS[category]?.has(item.key)));
 
   return {
@@ -202,6 +212,7 @@ function parseSellPayload(payload, options = {}) {
       tier: String(entry?.tier || '').trim(),
     }))
     .filter((entry) => entry.name && Number.isFinite(entry.multiplier) && !HIDDEN_SELL_KEYS.has(entry.key))
+    .filter((entry) => world !== 'fall' || FALL_WORLD_KEYS.sell.has(entry.key))
     .filter((entry) => world === 'fall' || !FALL_ONLY_KEYS.sell.has(entry.key));
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
@@ -435,20 +446,20 @@ function accentColorForType(type, entry) {
   return GREEN;
 }
 
-function bonusRoleDisplayForSellItem(roleIds, item) {
-  const bonusRole = sellBonusRoleForEntry(item);
+function bonusRoleDisplayForSellItem(roleIds, item, type = 'sell') {
+  const bonusRole = sellBonusRoleForEntry(item, type);
   if (!bonusRole) return '';
   return roleMention(roleIds, bonusRole, 'sell').trim() || bonusRole.roleName;
 }
 
-function sellBonusContainers(entry, roleIds = {}) {
+function sellBonusContainers(entry, roleIds = {}, type = 'sell') {
   const entries = (entry?.entries || []).filter((item) => sellMultiplierBucket(item.multiplier));
   const buckets = ['4x', '2x'].filter((bucket) => entries.some((item) => sellMultiplierBucket(item.multiplier) === bucket));
   return buckets.map((bucket) => {
     const bucketEntries = entries.filter((item) => sellMultiplierBucket(item.multiplier) === bucket);
-    const bonusRoles = [...new Set(bucketEntries.map((item) => bonusRoleDisplayForSellItem(roleIds, item)).filter(Boolean))];
+    const bonusRoles = [...new Set(bucketEntries.map((item) => bonusRoleDisplayForSellItem(roleIds, item, type)).filter(Boolean))];
     const title = `## ${bonusRoles.length ? bonusRoles.join(' ') : bucket} Sell Price`;
-    const lines = bucketEntries.map((item) => formatSellLine(item, roleIds));
+    const lines = bucketEntries.map((item) => formatSellLine(item, roleIds, { type }));
     return {
       type: 17,
       accent_color: SELL_BONUS_COLORS[bucket],
@@ -457,9 +468,22 @@ function sellBonusContainers(entry, roleIds = {}) {
   });
 }
 
-function fallSellContainer(entry, roleIds = {}) {
-  if (!entry?.entries?.length) return null;
-  return {
+function fallSellContainers(entry, roleIds = {}) {
+  if (!entry?.entries?.length) return [];
+  const eventHeader = [
+    '-# **\u{1F342}FALL HARVEST\u{1F341}**',
+    `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
+  ];
+  const bonusContainers = sellBonusContainers(entry, roleIds, 'fallSell').map((container) => ({
+    ...container,
+    components: container.components.map((component) => ({
+      ...component,
+      content: [...eventHeader, component.content].join('\n'),
+    })),
+  }));
+  const normalEntries = entry.entries.filter((item) => !sellMultiplierBucket(item.multiplier));
+  if (!normalEntries.length) return bonusContainers;
+  return [...bonusContainers, {
     type: 17,
     accent_color: FALL_ORANGE,
     components: [{
@@ -467,10 +491,10 @@ function fallSellContainer(entry, roleIds = {}) {
       content: [
         '-# **🍂FALL HARVEST🍁**',
         `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
-        ...entry.entries.map((item) => formatSellLine(item, roleIds, { type: 'fallSell', itemRoles: true })),
+        ...normalEntries.map((item) => formatSellLine(item, {}, { type: 'fallSell' })),
       ].join('\n'),
     }],
-  };
+  }];
 }
 
 function buildTypePayload(type, entry, options = {}) {
@@ -488,14 +512,16 @@ function buildTypePayload(type, entry, options = {}) {
       ? stockCategoryComponents(entry, roleIds, fallRoleIds)
       : componentsForType(type, entry, roleIds),
   };
-  const eventContainer = type === 'sell' ? fallSellContainer(entry?.fall, fallRoleIds) : null;
+  const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, roleIds) : [];
   return {
-    allowedMentions: type === 'moon' ? NO_MENTIONS : allowedMentionsForRoles({ ...roleIds, ...fallRoleIds }),
+    allowedMentions: type === 'moon'
+      ? NO_MENTIONS
+      : allowedMentionsForRoles(type === 'sell' ? roleIds : { ...roleIds, ...fallRoleIds }),
     flags: COMPONENTS_V2_FLAG,
     components: [
       ...bonusContainers,
       ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
-      ...(eventContainer ? [eventContainer] : []),
+      ...eventContainers,
     ],
   };
 }

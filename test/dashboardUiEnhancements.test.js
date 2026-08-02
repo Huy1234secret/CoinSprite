@@ -191,6 +191,9 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(app, /const GAG2_FALL_TYPES = \['seed', 'gear', 'crate', 'sell'\]/);
   assert.match(app, /input\.disabled = locked \|\| !gardenValleyEnabled/);
   assert.match(app, /gag2-fall-picker-menu/);
+  assert.match(app, /GAG2_FALL_TYPES\.filter\(\(entry\) => entry !== 'sell'\)/);
+  assert.match(app, /sell: \[\]/);
+  assert.doesNotMatch(app, /fallItem\('(potato|cinnamon_stick|honeysuckle|plum|romanesco)'/);
   assert.match(app, /rarityInput\.indeterminate/);
   assert.match(app, /section\.append\(itemList\)/);
   assert.match(app, /cdn\.discordapp\.com\/emojis\/\$\{item\.emojiId\}\.png\?size=32/);
@@ -201,6 +204,7 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(styles, /\.gag2-fall-item-list/);
   assert.match(styles, /\.gag2-fall-type input\[type="checkbox"\][\s\S]*?width: 16px !important/);
   assert.match(styles, /\.gag2-filter-check input\[type="checkbox"\][\s\S]*?height: 16px !important/);
+  assert.match(styles, /\.gag2-fall-role-panel::after[\s\S]*?bottom: 8px/);
 });
 
 test('GAG2 notification filters follow their channels and multi-select stays open', () => {
@@ -214,7 +218,10 @@ test('GAG2 notification filters follow their channels and multi-select stays ope
   assert.doesNotMatch(app, /state\.gag2StockFilters\.rarities\[type\] = normalizeGag2FilterSelection\(value, allowed\);\s*renderGag2FilterControls\(\)/);
   assert.match(app, /onChange\(\[\.\.\.selected\]\);\s*drawButton\(\);\s*draw\(\)/);
   assert.match(app, /button\.disabled = disabled/);
+  assert.match(app, /menuClass: 'gag2-rarity-picker-menu'/);
+  assert.match(app, /optionStyle: 'rarity'/);
   assert.match(styles, /\.gag2-filter-grid \.picker-field\.is-disabled/);
+  assert.match(styles, /\.gag2-rarity-picker-menu \.option\.gag2-rarity-option/);
   assert.match(styles, /cursor: not-allowed/);
 });
 
