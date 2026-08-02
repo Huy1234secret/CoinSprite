@@ -257,9 +257,12 @@ function parseItemsPayload(payload) {
 }
 
 function buildStockCategoryKey(entry) {
+  const cycleAtMs = Number.isFinite(Number(entry.deliveryCycleAtMs))
+    ? Number(entry.deliveryCycleAtMs)
+    : Number(entry.restockedAtMs);
   return [
     entry.category,
-    Number.isFinite(Number(entry.restockedAtMs)) ? Math.floor(Number(entry.restockedAtMs) / 1000) : 'unknown-cycle',
+    Number.isFinite(cycleAtMs) ? Math.floor(cycleAtMs / 1000) : 'unknown-cycle',
     entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
   ].join(':');
 }
