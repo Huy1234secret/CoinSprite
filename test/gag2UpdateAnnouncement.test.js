@@ -5,12 +5,14 @@ const test = require('node:test');
 
 const {
   BUG_PATCH_UPDATE_ID,
+  FALL_HARVEST_UPDATE_ID,
   NOTIFICATION_ROLE_NOTICE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
   UPDATE_ID,
   buildBugPatchesUpdatePayload,
+  buildFallHarvestUpdatePayload,
   buildNotificationRoleNoticePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
@@ -18,6 +20,19 @@ const {
   retractNotificationRoleUpdates,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
+
+test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
+  const payload = buildFallHarvestUpdatePayload();
+  const container = payload.components[0];
+  const content = container.components[0].content;
+  assert.equal(FALL_HARVEST_UPDATE_ID, 'gag2-fall-harvest-limited-event');
+  assert.equal(container.accent_color, 0xC96F2B);
+  assert.match(content, /^### 🍂 Fall Harvest is live/);
+  assert.match(content, /Seed.*Gear.*Crate.*Sell-price/);
+  assert.match(content, /whole-rarity toggles and individual item choices/);
+  assert.match(content, /below Discord's role limit/);
+  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
+});
 
 test('GAG2 announces when notification roles for new items will be added', () => {
   const payload = buildNotificationRoleNoticePayload();

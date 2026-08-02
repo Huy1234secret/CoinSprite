@@ -1,4 +1,6 @@
 const {
+  FALL_SELL_API_URL,
+  FALL_STOCK_API_URL,
   ITEMS_API_URL,
   REQUEST_RETRY_COUNT,
   REQUEST_RETRY_DELAY_MS,
@@ -69,9 +71,9 @@ async function fetchJsonOnce(url, options = {}) {
       headers: {
         accept: 'application/json,text/plain,*/*',
         'cache-control': 'no-cache',
-        origin: 'https://www.gag2.gg',
+        origin: 'https://gag.gg',
         pragma: 'no-cache',
-        referer: options.referer || 'https://www.gag2.gg/stock',
+        referer: options.referer || 'https://gag.gg/seed-restock/',
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
       },
     });
@@ -119,21 +121,33 @@ async function fetchJson(url, options = {}) {
 }
 
 async function fetchStockPayload(options = {}) {
-  return parseStockPayload(await fetchJson(options.url || STOCK_API_URL, options));
+  const world = String(options.world || 'main').trim().toLowerCase();
+  const url = options.url || (world === 'fall' ? FALL_STOCK_API_URL : STOCK_API_URL);
+  return parseStockPayload(await fetchJson(url, options), { world });
+}
+
+async function fetchFallStockPayload(options = {}) {
+  return fetchStockPayload({ ...options, world: 'fall', url: options.url || FALL_STOCK_API_URL });
 }
 
 async function fetchWeatherPayload(options = {}) {
   return parseWeatherPayload(await fetchJson(options.url || WEATHER_API_URL, {
     ...options,
-    referer: 'https://www.gag2.gg/stock/weather',
+    referer: 'https://gag.gg/seed-restock/',
   }));
 }
 
 async function fetchSellPayload(options = {}) {
-  return parseSellPayload(await fetchJson(options.url || SELL_API_URL, {
+  const world = String(options.world || 'main').trim().toLowerCase();
+  const url = options.url || (world === 'fall' ? FALL_SELL_API_URL : SELL_API_URL);
+  return parseSellPayload(await fetchJson(url, {
     ...options,
-    referer: 'https://www.gag2.gg/stock/sell',
-  }));
+    referer: 'https://gag.gg/seed-restock/',
+  }), { world });
+}
+
+async function fetchFallSellPayload(options = {}) {
+  return fetchSellPayload({ ...options, world: 'fall', url: options.url || FALL_SELL_API_URL });
 }
 
 async function fetchItemsPayload(options = {}) {
@@ -141,6 +155,8 @@ async function fetchItemsPayload(options = {}) {
 }
 
 module.exports = {
+  fetchFallSellPayload,
+  fetchFallStockPayload,
   fetchItemsPayload,
   fetchJson,
   fetchSellPayload,

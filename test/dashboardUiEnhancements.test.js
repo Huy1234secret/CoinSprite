@@ -131,9 +131,10 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(app, /filters: clone\(state\.gag2StockFilters\)/);
   assert.match(styles, /\.field-label\.field-label-with-badge\s*\{[\s\S]*?display: inline-flex/);
   assert.match(html, /id="gag2UpdateFeedTitle">Announcements/);
-  assert.match(html, /<strong>Notice: New Item Notification Roles<\/strong>/);
-  assert.match(html, /new items appearing in the bot's notifications/);
-  assert.match(html, /once they're available in-game/);
+  assert.match(html, /<strong>🍂 Fall Harvest is live<\/strong>/);
+  assert.match(html, /Limited Fall Harvest Seed, Gear, Crate, and Sell-price stock/);
+  assert.match(html, /whole-rarity toggles and individual item choices/);
+  assert.match(html, /below Discord's role limit/);
   assert.match(html, /<strong>Bug Patches<\/strong>/);
   assert.match(html, /replay an older price update after posting the latest one/);
   assert.match(html, /same sell price notification twice/);
@@ -172,6 +173,27 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(styles, /body\.dashboard-sync-locked #configForm/);
   assert.match(server, /getGag2StockSetupProgress/);
   assert.match(server, /roleProgress: getGag2StockSetupProgress\(guildId\)/);
+});
+
+test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item rarity roles', () => {
+  const app = source('admin/app.js');
+  const html = source('admin/index.html');
+  const styles = source('admin/style.css');
+
+  assert.match(html, /garden-valley-tag">GARDEN VALLEY/);
+  assert.match(html, /fall-harvest-tag" id="gag2FallTitle">FALL HARVEST/);
+  assert.match(html, /gag2-limited-tag">Limited Event/);
+  assert.match(html, /data-gag2-fall-type[\s\S]*Seed[\s\S]*Gear[\s\S]*Crate[\s\S]*Sell-price/);
+  assert.match(html, /gag2FallRoleSettingsMount/);
+  assert.match(html, /Select only the specific item roles your community wants/);
+  assert.match(app, /const GAG2_FALL_TYPES = \['seed', 'gear', 'crate', 'sell'\]/);
+  assert.match(app, /input\.disabled = locked \|\| !gardenValleyEnabled/);
+  assert.match(app, /rarityToggle\.indeterminate/);
+  assert.match(app, /cdn\.discordapp\.com\/emojis\/\$\{item\.emojiId\}\.png\?size=32/);
+  assert.match(app, /fall: clone\(state\.gag2Fall\)/);
+  assert.match(styles, /\.gag2-fall-panel/);
+  assert.match(styles, /linear-gradient\(145deg, rgba\(92, 42, 12/);
+  assert.match(styles, /\.gag2-fall-item-list/);
 });
 
 test('GAG2 notification filters follow their channels and multi-select stays open', () => {

@@ -156,6 +156,70 @@ const CRATE_ITEMS = [
   item('teleporter_pad_crate', 'Teleporter Pad', '<:teleporter_pad_crate:1525201100792397874>', 'mythic'),
 ];
 
+// Fall Harvest is a separate, limited world. Its role catalog stays separate
+// from Garden Valley so guilds can opt into only the event roles they need.
+const FALL_SEED_ITEMS = [
+  item('maple_blueberry', 'Maple Blueberry', '<:mapleblueberry:1533299270378328254>', 'common'),
+  item('maple_strawberry', 'Maple Strawberry', '<:maplestrawberry:1533299298907853021>', 'common'),
+  item('maple_carrot', 'Maple Carrot', '<:maplecarrot:1533299274186489938>', 'common'),
+  item('maple_apple', 'Maple Apple', '<:mapleapple:1533299264757825536>', 'uncommon'),
+  item('maple_tomato', 'Maple Tomato', '<:mapletomato:1533299302057775247>', 'uncommon'),
+  item('maple_tulip', 'Maple Tulip', '<:mapletulip:1533299304222162985>', 'uncommon'),
+  item('maple_pineapple', 'Maple Pineapple', '<:maplepineapple:1533299293509783622>', 'rare'),
+  item('maple_cactus', 'Maple Cactus', '<:maplecactus:1533299272458703038>', 'rare'),
+  item('maple_corn', 'Maple Corn', '<:maplecorn:1533299279718781129>', 'rare'),
+  item('maple_bamboo', 'Maple Bamboo', '<:maplebamboo:1533299266624422028>', 'rare'),
+  item('potato', 'Potato', '<:potato:1533299312677621810>', 'rare'),
+  item('maple_mango', 'Maple Mango', '<:maplemango:1533299288036216902>', 'epic'),
+  item('maple_coconut', 'Maple Coconut', '<:maplecoconut:1533299277634469889>', 'epic'),
+  item('maple_grape', 'Maple Grape', '<:maplegrape:1533299284349423626>', 'epic'),
+  item('maple_banana', 'Maple Banana', '<:maplebanana:1533299268369256540>', 'epic'),
+  item('maple_green_bean', 'Maple Green Bean', '<:maplegreenbean:1533299286027010188>', 'epic'),
+  item('maple_mushroom', 'Maple Mushroom', '<:maplemushroom:1533299290263388231>', 'epic'),
+  item('cinnamon_stick', 'Cinnamon Stick', '<:cinnamonstick:1533299249746284657>', 'epic'),
+  item('maple_sunflower', 'Maple Sunflower', '<:maplesunflower:1533299300623192195>', 'legendary'),
+  item('maple_cherry', 'Maple Cherry', '<:maplecherry:1533299275910611044>', 'legendary'),
+  item('maple_acorn', 'Maple Acorn', '<:mapleacorn:1533299262639575041>', 'legendary'),
+  item('atlantic_giant_pumpkin', 'Atlantic Giant Pumpkin', '<:atlanticgiantpumpkin:1533299248102113370>', 'legendary'),
+  item('maple_dragon_fruit', 'Maple Dragon Fruit', '<:mapledragonfruit:1533299281748951070>', 'legendary'),
+  item('plum', 'Plum', '<:plum:1533299311012610048>', 'legendary'),
+  item('honeysuckle', 'Honeysuckle', '<:honeysuckle:1533299253584072747>', 'legendary'),
+  item('conifer_cone', 'Conifer Cone', '<:conifercone:1533299251638042787>', 'mythic'),
+  item('maple_venom_spitter', 'Maple Venom Spitter', '<:maplevenomspitter:1533299307065643071>', 'mythic'),
+  item('maple_poison_apple', 'Maple Poison Apple', '<:maplepoisonapple:1533299295367991417>', 'mythic'),
+  item('maple_pomegranate', 'Maple Pomegranate', '<:maplepomegranate:1533299297209155624>', 'mythic'),
+  item('maple_venus_fly_trap', 'Maple Venus Fly Trap', '<:maplevenusflytrap:1533299309292818462>', 'mythic'),
+  item('romanesco', 'Romanesco', '<:romanesco:1533299314363732089>', 'mythic'),
+  item('amber_cranberry', 'Amber Cranberry', '<:ambercranberry:1533299246315475045>', 'super'),
+];
+
+const FALL_GEAR_ITEMS = [
+  item('syrup_sprinkler', 'Syrup Sprinkler', '<:syrupsprinkler:1533305566112387283>', 'common'),
+  item('syrup_watering_can', 'Syrup Watering Can', '<:syrupwateringcan:1533305567978848348>', 'common'),
+  item('trowel', 'Trowel', '<:trowel:1525198726535053404>', 'rare'),
+  item('rare_magic_mail', 'Rare Magic Mail', '<:raremagicmail:1533305557618917396>', 'rare'),
+  item('harp', 'Harp', '<:harp:1533305553621749780>', 'rare'),
+  item('legendary_magic_mail', 'Legendary Magic Mail', '<:legendarymagicmail:1533305555740000256>', 'legendary'),
+  item('super_magic_mail', 'Super Magic Mail', '<:supermagicmail:1533305559728656515>', 'super'),
+  item('super_syrup_sprinkler', 'Super Syrup Sprinkler', '<:supersyrupsprinkler:1533305562043781282>', 'super'),
+  item('super_syrup_watering_can', 'Super Syrup Watering Can', '<:supersyrupwateringcan:1533305564312895539>', 'super'),
+];
+
+const FALL_CRATE_ITEMS = [
+  item('fall_cosmetic_crate', 'Fall Cosmetic Crate', '<:fallcosmeticcrate:1533306166300643509>', 'uncommon'),
+  item('lantern_crate', 'Lantern Crate', '<:lanterncrate:1533306170348011520>', 'uncommon'),
+  item('fall_structure_crate', 'Fall Structure Crate', '<:fallstructurecrate:1533306168213246052>', 'rare'),
+  item('cobblestone_crate', 'Cobblestone Crate', '<:cobblestonecrate:1533306164018937936>', 'rare'),
+  item('rake_crate', 'Rake Crate', '<:rakecrate:1533306173112188998>', 'legendary'),
+];
+
+const FALL_ROLE_TYPES = Object.freeze({
+  seed: 'fallSeed',
+  gear: 'fallGear',
+  crate: 'fallCrate',
+  sell: 'fallSell',
+});
+
 function weatherItem(key, roleName, emoji, color, options = {}) {
   return {
     key,
@@ -169,6 +233,7 @@ function weatherItem(key, roleName, emoji, color, options = {}) {
 const WEATHER_ITEMS = [
   weatherItem('lightning', 'Lightning', '<:lightning:1525203832638799872>', 0xFFD23F),
   weatherItem('sunburst', 'Sunburst', '<:sunburst:1525203830919135363>', 0xFF8C42),
+  weatherItem('harvest_moon', 'Harvest Moon', '🌕', 0xC96F2B),
   weatherItem('starfall', 'Starfall', '<:starfall:1525203828549357718>', 0x8C7CFF),
   weatherItem('snowfall', 'Snowfall', '<:snowfall:1525203826687344740>', 0xBDEBFF),
   weatherItem('rain', 'Rain', '<:rain:1525203824376156390>', 0x4A90E2),
@@ -212,6 +277,7 @@ const ALIASES = {
   weather: {
     gold_moon: 'goldmoon',
     blood_moon: 'bloodmoon',
+    harvestmoon: 'harvest_moon',
     mega_moon_event: 'mega_moon',
   },
 };
@@ -229,10 +295,19 @@ const MAPS = {
   crate: mapByKey(CRATE_ITEMS),
   weather: mapByKey(WEATHER_ITEMS),
   moon: mapByKey(WEATHER_ITEMS),
+  fallSeed: mapByKey(FALL_SEED_ITEMS),
+  fallGear: mapByKey(FALL_GEAR_ITEMS),
+  fallCrate: mapByKey(FALL_CRATE_ITEMS),
+  fallSell: mapByKey(FALL_SEED_ITEMS),
 };
 
 function resolveType(type) {
-  return type === 'sell' ? 'sell' : String(type || '').toLowerCase();
+  const normalized = String(type || '').trim().toLowerCase();
+  if (normalized === 'fallseed' || normalized === 'fall_seed') return 'fallSeed';
+  if (normalized === 'fallgear' || normalized === 'fall_gear') return 'fallGear';
+  if (normalized === 'fallcrate' || normalized === 'fall_crate') return 'fallCrate';
+  if (normalized === 'fallsell' || normalized === 'fall_sell') return 'fallSell';
+  return normalized;
 }
 
 function resolveKey(type, keyOrName) {
@@ -356,10 +431,21 @@ function roleSpecsForType(type) {
   if (type === 'crate') return CRATE_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'sell') return sellBonusRoleSpecs();
+  if (type === 'fallSeed' || type === 'fallSell') return FALL_SEED_ITEMS.map(roleSpecFromItem);
+  if (type === 'fallGear') return FALL_GEAR_ITEMS.map(roleSpecFromItem);
+  if (type === 'fallCrate') return FALL_CRATE_ITEMS.map(roleSpecFromItem);
   return [];
 }
 
+function fallRoleTypeForStock(type) {
+  return FALL_ROLE_TYPES[String(type || '').toLowerCase()] || '';
+}
+
 module.exports = {
+  FALL_CRATE_ITEMS,
+  FALL_GEAR_ITEMS,
+  FALL_ROLE_TYPES,
+  FALL_SEED_ITEMS,
   SELL_BONUS_COLORS,
   SHECKLES_EMOJI,
   catalogEntry,
@@ -367,6 +453,7 @@ module.exports = {
   customEmojiImageUrl,
   displayNameForType,
   emojiForType,
+  fallRoleTypeForStock,
   highestRarityColor,
   normalizeKey,
   normalizeRarity,

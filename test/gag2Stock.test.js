@@ -11,6 +11,7 @@ const {
   buildTypePostKey,
   buildUnavailablePayload,
   parseSellPayload,
+  parseRestockPayload,
   parseStockPayload,
   parseWeatherPayload,
 } = require('../src/gag2Stock/stockPayload');
@@ -22,9 +23,13 @@ const {
   normalizeGag2StockConfig,
 } = require('../src/serverConfig');
 const {
+  FALL_SELL_API_URL,
+  FALL_STOCK_API_URL,
   REQUEST_TIMEOUT_MS,
   SELL_UNCHANGED_RETRY_MS,
+  SELL_API_URL,
   STALE_STOCK_RETRY_MS,
+  STOCK_API_URL,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('../src/gag2Stock/config');
 const { fetchJson } = require('../src/gag2Stock/source');
@@ -68,6 +73,75 @@ function fixture() {
     ],
   };
 }
+
+test('GAG2 uses the new world-aware Garden Valley and Fall Harvest endpoints', () => {
+  assert.equal(STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=main');
+  assert.equal(FALL_STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=fall');
+  assert.equal(SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=main');
+  assert.equal(FALL_SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=fall');
+});
+
+test('GAG2 parses the new restock response shape for each world', () => {
+  const window = 1785639300;
+  const parsed = parseRestockPayload({
+    world: 'fall',
+    window,
+    seeds: [
+      { name: 'Maple Carrot', slug: 'maple-carrot', lastStockedAt: window, lastQty: 3, inStockNow: true },
+      { name: 'Romanesco', slug: 'romanesco', lastStockedAt: window - 300, lastQty: 1, inStockNow: false },
+    ],
+    gears: [{ name: 'Harp', slug: 'harp', lastStockedAt: window, lastQty: 1, inStockNow: true }],
+    props: [{ name: 'Rake Crate', slug: 'rake-crate', lastStockedAt: window, lastQty: 2, inStockNow: true }],
+  }, { world: 'fall' });
+
+  assert.equal(parsed.world, 'fall');
+  assert.equal(parsed.stock[0].nextRestockAtMs, (window + 300) * 1000);
+  assert.deepEqual(parsed.stock[0].items.map((item) => [item.key, item.quantity]), [['maple_carrot', 3]]);
+  assert.deepEqual(parsed.stock[1].items.map((item) => item.key), ['harp']);
+  assert.deepEqual(parsed.stock[2].items.map((item) => item.key), ['rake_crate']);
+});
+
+test('GAG2 appends Fall Harvest items and roles to the same Garden Valley stock message', () => {
+  const main = parseStockPayload(fixture()).stock.find((entry) => entry.category === 'seed');
+  const fall = parseRestockPayload({
+    world: 'fall',
+    window: 1785639300,
+    seeds: [
+      { name: 'Amber Cranberry', slug: 'amber-cranberry', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true },
+      { name: 'Romanesco', slug: 'romanesco', lastStockedAt: 1785639300, lastQty: 2, inStockNow: true },
+    ],
+    gears: [],
+    props: [],
+  }, { world: 'fall' }).stock[0];
+  const payload = buildTypePayload('seed', { ...main, fall }, {
+    roleIds: {},
+    fallRoleIds: { romanesco: '123456789012345678' },
+  });
+  const content = payload.components[0].components
+    .filter((component) => component.type === 10)
+    .map((component) => component.content)
+    .join('\n');
+
+  assert.equal(payload.components.length, 1);
+  assert.match(content, /-# \*\*🌿GARDEN VALLEY🌻\*\*/);
+  assert.match(content, /-# \*\*🍂FALL HARVEST🍁\*\*/);
+  assert.match(content, /<:ambercranberry:1533299246315475045> \*\*Amber Cranberry\*\* x1/);
+  assert.match(content, /<:romanesco:1533299314363732089> <@&123456789012345678> x2/);
+  assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
+  assert.notEqual(buildTypePostKey('seed', main), buildTypePostKey('seed', { ...main, fall }));
+});
+
+test('GAG2 Fall Harvest role catalog uses item emojis and rarity colors', () => {
+  const romanesco = roleSpecsForType('fallSeed').find((spec) => spec.key === 'romanesco');
+  const amberCranberry = roleSpecsForType('fallSeed').find((spec) => spec.key === 'amber_cranberry');
+  const rakeCrate = roleSpecsForType('fallCrate').find((spec) => spec.key === 'rake_crate');
+  assert.deepEqual(
+    { emoji: romanesco.emoji, rarity: romanesco.rarity, color: romanesco.color },
+    { emoji: '<:romanesco:1533299314363732089>', rarity: 'mythic', color: 0xD62928 },
+  );
+  assert.equal(amberCranberry.color, 0xB71E99);
+  assert.equal(rakeCrate.color, 0xE2AB0F);
+});
 
 test('GAG2 stock payload normalizes API stock and sorts by catalog order', () => {
   const parsed = parseStockPayload(fixture());
@@ -271,6 +345,31 @@ test('GAG2 filters default to every supported rarity and sell multiplier', () =>
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
+});
+
+test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item roles', () => {
+  const normalized = normalizeGag2StockConfig({
+    channels: { seed: '123456789012345678' },
+    fall: {
+      enabledTypes: ['seed', 'sell', 'weather'],
+      roleItems: {
+        seed: ['maple_carrot', 'romanesco', 'not_real'],
+        sell: ['amber_cranberry'],
+      },
+    },
+  });
+  assert.deepEqual(normalized.fall.enabledTypes, ['seed', 'sell']);
+  assert.deepEqual(normalized.fall.roleItems.seed, ['maple_carrot', 'romanesco']);
+  assert.deepEqual(normalized.fall.roleItems.sell, ['amber_cranberry']);
+  assert.deepEqual(normalized.fall.roleItems.gear, []);
+});
+
+test('GAG2 Fall Harvest role filtering creates only explicitly selected item roles', () => {
+  const specs = roleSpecsForType('fallSeed');
+  const filtered = filteredRoleSpecs('fallSeed', specs, {
+    fall: { roleItems: { seed: ['romanesco', 'maple_carrot'] } },
+  });
+  assert.deepEqual(filtered.map((spec) => spec.key), ['maple_carrot', 'romanesco']);
 });
 
 test('GAG2 filter config preserves empty choices and removes unsupported values', () => {
@@ -498,6 +597,7 @@ test('GAG2 role specs use requested names and colors', () => {
   assert.deepEqual(weather.map((spec) => [spec.key, spec.roleName, spec.color]), [
     ['lightning', 'Lightning', 0xFFD23F],
     ['sunburst', 'Sunburst', 0xFF8C42],
+    ['harvest_moon', 'Harvest Moon', 0xC96F2B],
     ['starfall', 'Starfall', 0x8C7CFF],
     ['snowfall', 'Snowfall', 0xBDEBFF],
     ['rain', 'Rain', 0x4A90E2],
@@ -508,6 +608,16 @@ test('GAG2 role specs use requested names and colors', () => {
     ['bloodmoon', 'Blood Moon', 0xB3202A],
     ['aurora', 'Aurora', 0x35E6A4],
   ]);
+});
+
+test('GAG2 creates an orange Harvest Moon weather role', () => {
+  const harvestMoon = roleSpecsForType('weather').find((entry) => entry.key === 'harvest_moon');
+  assert.equal(harvestMoon.key, 'harvest_moon');
+  assert.equal(harvestMoon.roleName, 'Harvest Moon');
+  assert.equal(harvestMoon.emoji, '🌕');
+  assert.equal(harvestMoon.color, 0xC96F2B);
+  assert.equal(colorForType('weather', { name: 'Harvest Moon' }), 0xC96F2B);
+  assert.equal(emojiForType('weather', { type: 'harvestmoon' }), '🌕');
 });
 
 test('GAG2 Eclipse weather uses its emoji and color without creating or pinging a role', () => {

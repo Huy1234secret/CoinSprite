@@ -11,9 +11,10 @@ const {
 const { sanitizeWordChainXpFormula } = require('./wordChainFormula');
 const { DEFAULT_APPEAL_CONFIG, sanitizeAppealConfig } = require('./appealConfig');
 const { sanitizeCommunityMessages } = require('./communityMessageConfig');
+const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
 
@@ -139,8 +140,11 @@ const DEFAULT_COINSPRITE_FEATURES = {
   fullBot: true,
 };
 
-const GAG2_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
-const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_STOCK_ROLE_KEYS, 'roleAssign', 'updates'];
+const GAG2_BASE_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
+const GAG2_FALL_STOCK_TYPES = ['seed', 'gear', 'crate', 'sell'];
+const GAG2_FALL_ROLE_KEYS = GAG2_FALL_STOCK_TYPES.map((type) => FALL_ROLE_TYPES[type]);
+const GAG2_STOCK_ROLE_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, ...GAG2_FALL_ROLE_KEYS];
+const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, 'roleAssign', 'updates'];
 const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
 const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
 const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
@@ -165,11 +169,19 @@ function defaultGag2StockFilters() {
   };
 }
 
+function defaultGag2FallConfig() {
+  return {
+    enabledTypes: [],
+    roleItems: Object.fromEntries(GAG2_FALL_STOCK_TYPES.map((type) => [type, []])),
+  };
+}
+
 const DEFAULT_GAG2_STOCK_CONFIG = {
   enabled: true,
   channels: blankGag2StockChannels(),
   roleIds: blankGag2StockRoleIds(),
   filters: defaultGag2StockFilters(),
+  fall: defaultGag2FallConfig(),
   rolesSyncedAt: '',
 };
 
@@ -502,6 +514,17 @@ function normalizeGag2StockFilters(value, defaults = defaultGag2StockFilters()) 
   };
 }
 
+function normalizeGag2FallConfig(value, defaults = defaultGag2FallConfig()) {
+  const source = isPlainObject(value) ? value : {};
+  const enabledTypes = normalizeFilterSelection(source.enabledTypes, GAG2_FALL_STOCK_TYPES, defaults.enabledTypes || []);
+  const roleItems = {};
+  for (const type of GAG2_FALL_STOCK_TYPES) {
+    const allowed = roleSpecsForType(FALL_ROLE_TYPES[type]).map((spec) => spec.key);
+    roleItems[type] = normalizeFilterSelection(source.roleItems?.[type], allowed, defaults.roleItems?.[type] || []);
+  }
+  return { enabledTypes, roleItems };
+}
+
 function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
   const source = isPlainObject(value) ? value : {};
   const defaultChannels = defaults.channels || {};
@@ -519,6 +542,7 @@ function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
     channels,
     roleIds,
     filters: normalizeGag2StockFilters(source.filters, defaults.filters || defaultGag2StockFilters()),
+    fall: normalizeGag2FallConfig(source.fall, defaults.fall || defaultGag2FallConfig()),
     rolesSyncedAt: String(source.rolesSyncedAt || ''),
   };
 }
@@ -839,6 +863,8 @@ module.exports = {
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
   GAG2_STOCK_CHANNEL_KEYS,
+  GAG2_FALL_ROLE_KEYS,
+  GAG2_FALL_STOCK_TYPES,
   GAG2_ROLE_FILTER_RARITIES,
   GAG2_SELL_FILTER_RARITIES,
   GAG2_SELL_MULTIPLIERS,
