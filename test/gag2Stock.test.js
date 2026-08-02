@@ -26,6 +26,7 @@ const {
   normalizeGag2StockConfig,
 } = require('../src/serverConfig');
 const {
+  CHECK_SCHEDULE_SECOND_MS,
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
   LEGACY_SELL_API_URL,
@@ -950,22 +951,23 @@ test('GAG2 role creation and edits use the current Discord colors option', () =>
   assert.doesNotMatch(source, /role\.edit\(\{\s*color,/);
 });
 
-test('GAG2 stock scheduler targets exact UTC+7 five-minute boundaries', () => {
+test('GAG2 stock scheduler waits 500ms after UTC+7 five-minute boundaries', () => {
+  assert.equal(CHECK_SCHEDULE_SECOND_MS, 500);
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.000Z',
+    '2026-07-10T17:00:00.500Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:06.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.000Z',
+    '2026-07-10T17:05:00.500Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:04:59.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.000Z',
+    '2026-07-10T17:05:00.500Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:00.000Z'))).toISOString(),
-    '2026-07-10T17:10:00.000Z',
+    '2026-07-10T17:05:00.500Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'), {
@@ -995,7 +997,7 @@ test('GAG2 sell failures retry every three seconds up to three times', () => {
 });
 
 test('GAG2 stale stock retries quickly without moving the normal five-minute schedule', () => {
-  const now = Date.parse('2026-08-02T06:10:00.000Z');
+  let now = Date.parse('2026-08-02T06:10:00.500Z');
   const poster = new Gag2StockPoster({}, { now: () => now });
   poster.started = true;
   assert.equal(STOCK_FAILURE_RETRY_MS, 1_000);
@@ -1006,11 +1008,12 @@ test('GAG2 stale stock retries quickly without moving the normal five-minute sch
     poster.nextDelayOverrideMs = STOCK_FAILURE_RETRY_MS;
     assert.equal(poster.scheduleNextTick(), now + STOCK_FAILURE_RETRY_MS);
     assert.equal(poster.stockFailureRetryCount, attempt);
+    now += STOCK_FAILURE_RETRY_MS;
   }
   poster.stop();
   poster.started = true;
   poster.nextDelayOverrideMs = STOCK_FAILURE_RETRY_MS;
-  assert.equal(poster.scheduleNextTick(), Date.parse('2026-08-02T06:15:00.000Z'));
+  assert.equal(poster.scheduleNextTick(), Date.parse('2026-08-02T06:15:00.500Z'));
   assert.equal(poster.stockFailureRetryCount, 0);
   poster.stop();
 });
@@ -1031,7 +1034,7 @@ test('GAG2 stock and sell schedules stay on fixed boundaries and cap rapid retri
   stockPoster.started = true;
   assert.equal(
     new Date(stockPoster.scheduleNextTick()).toISOString(),
-    '2026-07-10T17:05:00.000Z',
+    '2026-07-10T17:00:00.500Z',
   );
   stockPoster.stop();
 
