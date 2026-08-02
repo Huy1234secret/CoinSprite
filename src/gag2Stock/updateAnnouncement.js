@@ -22,7 +22,7 @@ const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const NOTIFICATION_ROLE_NOTICE_ID = 'gag2-notice-new-item-notification-roles';
 const FALL_HARVEST_UPDATE_ID = 'gag2-fall-harvest-limited-event';
-const FALL_HARVEST_UPDATE_REVISION = 2;
+const FALL_HARVEST_UPDATE_REVISION = 3;
 const RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS = Object.freeze([
   'gag2-notification-role-update-eclipse',
   'gag2-notification-role-update-eclipse-channel-v2',
@@ -213,17 +213,18 @@ function saveAnnouncementRecord(updateId, guildId, record, statePath = STATE_PAT
   saveState(state, statePath);
 }
 
-async function editStoredAnnouncement(guild, record, payload) {
+async function deleteStoredAnnouncement(guild, record) {
   const channelId = cleanDiscordId(record?.channelId);
   const messageId = cleanDiscordId(record?.messageId);
-  if (!channelId || !messageId) return { message: null, missing: false };
+  if (!channelId || !messageId) return false;
   const channel = guild?.channels?.cache?.get?.(channelId)
     || await guild?.channels?.fetch?.(channelId).catch(() => null);
-  if (typeof channel?.messages?.edit !== 'function') return { message: null, missing: false };
+  if (typeof channel?.messages?.delete !== 'function') return false;
   try {
-    return { message: await channel.messages.edit(messageId, payload), missing: false };
+    await channel.messages.delete(messageId);
+    return true;
   } catch (error) {
-    if (Number(error?.code) === 10008) return { message: null, missing: true };
+    if (Number(error?.code) === 10008) return true;
     throw error;
   }
 }
@@ -364,17 +365,8 @@ async function announceFallHarvestUpdate(client, guild, options = {}) {
   if (!isGuildGag2StockEnabled(guild.id)) return null;
 
   if (existing) {
-    const edited = await editStoredAnnouncement(guild, existing, buildFallHarvestUpdatePayload());
-    if (edited.message) {
-      saveAnnouncementRecord(FALL_HARVEST_UPDATE_ID, guild.id, {
-        ...existing,
-        revision: FALL_HARVEST_UPDATE_REVISION,
-        updatedAt: new Date(options.now?.() || Date.now()).toISOString(),
-      }, statePath);
-      logCommandSystem(`GAG2 Fall Harvest announcement refreshed in guild ${guild.id}: ${existing.channelId}`);
-      return edited.message;
-    }
-    if (!edited.missing) return null;
+    const removed = await deleteStoredAnnouncement(guild, existing);
+    if (!removed) return null;
   }
 
   const config = getGuildConfig(guild.id);
@@ -436,7 +428,7 @@ module.exports = {
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
-  editStoredAnnouncement,
+  deleteStoredAnnouncement,
   retractNotificationRoleUpdates,
   startGag2UpdateAnnouncement,
   updateChannelForGuild,

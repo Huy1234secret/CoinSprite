@@ -118,6 +118,50 @@ test('GAG2 parses the new restock response shape for each world', () => {
   assert.deepEqual(parsed.stock[2].items.map((item) => item.key), ['rake_crate']);
 });
 
+test('GAG2 keeps Fall-only items out of Garden Valley until the event type is enabled', () => {
+  const main = parseRestockPayload({
+    world: 'main',
+    window: 1785639300,
+    seeds: [
+      { name: 'Tulip', slug: 'tulip', lastStockedAt: 1785639300, lastQty: 3, inStockNow: true },
+      { name: 'Maple Apple', slug: 'maple-apple', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true },
+    ],
+    gears: [
+      { name: 'Trowel', slug: 'trowel', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true },
+      { name: 'Harp', slug: 'harp', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true },
+    ],
+    props: [{ name: 'Rake Crate', slug: 'rake-crate', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true }],
+  }, { world: 'main' });
+  const fall = parseRestockPayload({
+    world: 'fall',
+    window: 1785639300,
+    seeds: [{ name: 'Maple Apple', slug: 'maple-apple', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true }],
+    gears: [{ name: 'Harp', slug: 'harp', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true }],
+    props: [{ name: 'Rake Crate', slug: 'rake-crate', lastStockedAt: 1785639300, lastQty: 1, inStockNow: true }],
+  }, { world: 'fall' });
+
+  assert.deepEqual(main.stock[0].items.map((item) => item.key), ['tulip']);
+  assert.deepEqual(main.stock[1].items.map((item) => item.key), ['trowel']);
+  assert.deepEqual(main.stock[2].items, []);
+  assert.deepEqual(fall.stock.map((entry) => entry.items.map((item) => item.key)), [
+    ['maple_apple'],
+    ['harp'],
+    ['rake_crate'],
+  ]);
+});
+
+test('GAG2 keeps Fall-only sell prices out of Garden Valley', () => {
+  const entries = [
+    { name: 'Carrot', slug: 'carrot', multiplier: 1.5 },
+    { name: 'Maple Apple', slug: 'maple-apple', multiplier: 2 },
+  ];
+  const main = parseSellPayload({ world: 'main', entries }, { world: 'main' });
+  const fall = parseSellPayload({ world: 'fall', entries }, { world: 'fall' });
+
+  assert.deepEqual(main.entries.map((item) => item.key), ['carrot']);
+  assert.deepEqual(fall.entries.map((item) => item.key), ['maple_apple', 'carrot']);
+});
+
 test('GAG2 appends Fall Harvest items and roles to the same Garden Valley stock message', () => {
   const main = parseStockPayload(fixture()).stock.find((entry) => entry.category === 'seed');
   const fall = parseRestockPayload({

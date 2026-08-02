@@ -18,7 +18,7 @@ const {
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
-  editStoredAnnouncement,
+  deleteStoredAnnouncement,
   retractNotificationRoleUpdates,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
@@ -28,7 +28,7 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   const container = payload.components[0];
   const content = container.components[0].content;
   assert.equal(FALL_HARVEST_UPDATE_ID, 'gag2-fall-harvest-limited-event');
-  assert.equal(FALL_HARVEST_UPDATE_REVISION, 2);
+  assert.equal(FALL_HARVEST_UPDATE_REVISION, 3);
   assert.equal(container.accent_color, 0xC96F2B);
   assert.match(content, /^### 🍂 Fall Harvest is live/);
   assert.match(content, /Seed.*Gear.*Crate.*Sell-price/);
@@ -39,31 +39,25 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
 });
 
-test('GAG2 refreshes the stored Fall announcement without sending a duplicate', async () => {
+test('GAG2 deletes the stored Fall announcement before resending its new revision', async () => {
   const channelId = '1525003375651848263';
   const messageId = '1527000000000000001';
-  const edits = [];
+  const deleted = [];
   const guild = {
     channels: {
       cache: new Map([[channelId, {
         messages: {
-          edit: async (id, payload) => {
-            edits.push({ id, payload });
-            return { id };
-          },
+          delete: async (id) => deleted.push(id),
         },
       }]]),
       fetch: async () => null,
     },
   };
 
-  const result = await editStoredAnnouncement(guild, { channelId, messageId }, buildFallHarvestUpdatePayload());
+  const result = await deleteStoredAnnouncement(guild, { channelId, messageId });
 
-  assert.equal(result.message.id, messageId);
-  assert.equal(result.missing, false);
-  assert.equal(edits.length, 1);
-  assert.equal(edits[0].id, messageId);
-  assert.match(JSON.stringify(edits[0].payload), /Config at our dashboard!/);
+  assert.equal(result, true);
+  assert.deepEqual(deleted, [messageId]);
 });
 
 test('GAG2 announces when notification roles for new items will be added', () => {
