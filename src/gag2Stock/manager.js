@@ -143,11 +143,11 @@ function nextGag2StockTickAtMs(nowMs = Date.now(), options = {}) {
   return nextShifted - offsetMs;
 }
 
-function isStaleStockEntry(type, entry, nowMs = Date.now()) {
-  if (!STOCK_TYPE_GROUPS.stock.includes(type)) return false;
-  const nextRestockAtMs = Number(entry?.nextRestockAtMs);
-  if (!Number.isFinite(nextRestockAtMs)) return false;
-  return nextRestockAtMs <= finiteNumber(nowMs, Date.now());
+function currentGag2StockCycleAtMs(nowMs = Date.now(), options = {}) {
+  const intervalMs = Math.max(1_000, finiteNumber(options.intervalMs, CHECK_INTERVAL_MS));
+  const offsetMs = finiteNumber(options.offsetMs, CHECK_SCHEDULE_UTC_OFFSET_MS);
+  const shiftedNow = finiteNumber(nowMs, Date.now()) + offsetMs;
+  return Math.floor(shiftedNow / intervalMs) * intervalMs - offsetMs;
 }
 
 function isInactiveWeatherEntry(entry, nowMs = Date.now()) {
@@ -552,6 +552,7 @@ async function getSendableChannel(client, channelId) {
 async function fetchEntriesForTargets(targets, fetchers) {
   const entries = new Map();
   const errors = new Map();
+  const requests = [];
   const needStock = targets.some((target) => STOCK_TYPE_GROUPS.stock.includes(target.type));
   const needWeather = targets.some((target) => STOCK_TYPE_GROUPS.weather.includes(target.type));
   const needSell = targets.some((target) => target.type === 'sell');
@@ -559,50 +560,61 @@ async function fetchEntriesForTargets(targets, fetchers) {
   const needFallSell = targets.some((target) => target.fallEnabled && target.type === 'sell');
 
   if (needStock) {
-    try {
-      const stockPayload = await fetchers.fetchStockPayload();
-      for (const entry of stockPayload.stock) entries.set(entry.category, entry);
-    } catch (error) {
-      for (const type of STOCK_TYPE_GROUPS.stock) errors.set(type, error);
-    }
+    requests.push((async () => {
+      try {
+        const stockPayload = await fetchers.fetchStockPayload();
+        for (const entry of stockPayload.stock) entries.set(entry.category, entry);
+      } catch (error) {
+        for (const type of STOCK_TYPE_GROUPS.stock) errors.set(type, error);
+      }
+    })());
   }
 
   if (needFallStock) {
-    try {
-      const stockPayload = await fetchers.fetchFallStockPayload();
-      for (const entry of stockPayload.stock) entries.set(`fall:${entry.category}`, entry);
-    } catch (error) {
-      errors.set('fallStock', error);
-    }
+    requests.push((async () => {
+      try {
+        const stockPayload = await fetchers.fetchFallStockPayload();
+        for (const entry of stockPayload.stock) entries.set(`fall:${entry.category}`, entry);
+      } catch (error) {
+        errors.set('fallStock', error);
+      }
+    })());
   }
 
   if (needWeather) {
-    try {
-      const weatherPayload = await fetchers.fetchWeatherPayload();
-      entries.set('weather', weatherPayload);
-      entries.set('moon', weatherPayload);
-    } catch (error) {
-      errors.set('weather', error);
-      errors.set('moon', error);
-    }
+    requests.push((async () => {
+      try {
+        const weatherPayload = await fetchers.fetchWeatherPayload();
+        entries.set('weather', weatherPayload);
+        entries.set('moon', weatherPayload);
+      } catch (error) {
+        errors.set('weather', error);
+        errors.set('moon', error);
+      }
+    })());
   }
 
   if (needSell) {
-    try {
-      entries.set('sell', await fetchers.fetchSellPayload());
-    } catch (error) {
-      errors.set('sell', error);
-    }
+    requests.push((async () => {
+      try {
+        entries.set('sell', await fetchers.fetchSellPayload());
+      } catch (error) {
+        errors.set('sell', error);
+      }
+    })());
   }
 
   if (needFallSell) {
-    try {
-      entries.set('fall:sell', await fetchers.fetchFallSellPayload());
-    } catch (error) {
-      errors.set('fallSell', error);
-    }
+    requests.push((async () => {
+      try {
+        entries.set('fall:sell', await fetchers.fetchFallSellPayload());
+      } catch (error) {
+        errors.set('fallSell', error);
+      }
+    })());
   }
 
+  await Promise.all(requests);
   return { entries, errors };
 }
 
@@ -955,9 +967,12 @@ class Gag2StockPoster {
     const lockKey = [...tickTypes].sort().join(',');
     if (this.inFlight.has(lockKey)) return null;
     this.inFlight.add(lockKey);
-    let skippedStaleStock = false;
     try {
       const tickStartedAtMs = this.now();
+      const stockDeliveryCycleAtMs = currentGag2StockCycleAtMs(tickStartedAtMs, {
+        intervalMs: this.checkIntervalMs,
+        offsetMs: this.checkScheduleOffsetMs,
+      });
       const targets = this.targets(tickTypes);
       if (!targets.length) return null;
       const state = loadState(this.statePath);
@@ -990,6 +1005,9 @@ class Gag2StockPoster {
 
         let entry = entries.get(target.type);
         if (!entry) return null;
+        if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+          entry = { ...entry, deliveryCycleAtMs: stockDeliveryCycleAtMs };
+        }
         if (target.fallEnabled) {
           const fallError = errors.get(target.type === 'sell' ? 'fallSell' : 'fallStock');
           if (!fallError) {
@@ -1006,10 +1024,6 @@ class Gag2StockPoster {
           }
         }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
-        if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
-          skippedStaleStock = true;
-          return null;
-        }
         return this.postEntry(state, target, entry).catch((postError) => {
           logCommandSystem(`GAG2 ${target.type} post failed in guild ${target.guildId}: ${postError?.message || 'unknown error'}`);
           return null;
@@ -1020,7 +1034,6 @@ class Gag2StockPoster {
       logCommandSystem(`GAG2 ${label} failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
-      if (skippedStaleStock) this.nextDelayOverrideMs = this.stockFailureRetryMs;
       this.inFlight.delete(lockKey);
     }
   }
@@ -1395,7 +1408,7 @@ module.exports = {
   getGag2StockSetupProgress,
   isInactiveWeatherEntry,
   isRecentUnavailableMessage,
-  isStaleStockEntry,
+  currentGag2StockCycleAtMs,
   nextGag2StockTickAtMs,
   roleSpecsForTypes,
   startGag2StockPoster,

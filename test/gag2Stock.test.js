@@ -44,7 +44,7 @@ const {
 const { fetchFallSellPayload, fetchFallStockPayload, fetchJson, fetchStockPayload } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { buildRoleAssignmentPanelPayload, ROLE_ASSIGN_TYPES } = require('../src/gag2Stock/roleAssignment');
-const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, currentGag2StockCycleAtMs, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function testPermissions(...flags) {
   const allowed = new Set(flags);
@@ -996,7 +996,7 @@ test('GAG2 sell failures retry every three seconds up to three times', () => {
   assert.equal(SELL_FAILURE_RETRY_LIMIT, 3);
 });
 
-test('GAG2 stale stock retries quickly without moving the normal five-minute schedule', () => {
+test('GAG2 stock source failures retry quickly without moving the normal five-minute schedule', () => {
   let now = Date.parse('2026-08-02T06:10:00.500Z');
   const poster = new Gag2StockPoster({}, { now: () => now });
   poster.started = true;
@@ -1446,13 +1446,110 @@ test('GAG2 sell poster delivers every ordered component split and records all me
   fs.rmSync(statePath, { force: true });
 });
 
-test('GAG2 stock poster treats expired restock stock as stale', () => {
-  const now = Date.parse('2026-07-10T17:00:51.000Z');
-  assert.equal(isStaleStockEntry('seed', { nextRestockAtMs: now - 1 }, now), true);
-  assert.equal(isStaleStockEntry('gear', { nextRestockAtMs: now }, now), true);
-  assert.equal(isStaleStockEntry('crate', { nextRestockAtMs: now + 1 }, now), false);
-  assert.equal(isStaleStockEntry('sell', { nextRestockAtMs: now - 1 }, now), false);
-  assert.equal(isStaleStockEntry('weather', { nextRestockAtMs: now - 1 }, now), false);
+test('GAG2 stock delivery cycle stays fixed across same-cycle retries', () => {
+  assert.equal(
+    currentGag2StockCycleAtMs(Date.parse('2026-08-02T06:10:00.500Z')),
+    Date.parse('2026-08-02T06:10:00.000Z'),
+  );
+  assert.equal(
+    currentGag2StockCycleAtMs(Date.parse('2026-08-02T06:10:03.500Z')),
+    Date.parse('2026-08-02T06:10:00.000Z'),
+  );
+  assert.equal(
+    currentGag2StockCycleAtMs(Date.parse('2026-08-02T06:15:00.500Z')),
+    Date.parse('2026-08-02T06:15:00.000Z'),
+  );
+});
+
+test('GAG2 stock poster sends every bot cycle when the source window stays unchanged', async () => {
+  let now = Date.parse('2026-08-02T06:10:00.500Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-fixed-source-cycle-state.json');
+  fs.rmSync(statePath, { force: true });
+  const parsed = parseStockPayload({
+    stock: [{
+      category: 'seed',
+      restockedAt: '2026-08-02T06:05:00.000Z',
+      nextRestockAt: '2026-08-02T06:10:00.000Z',
+      items: [{ key: 'carrot', name: 'Carrot', rarity: 'Common', quantity: 1 }],
+    }],
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'seed',
+    channelId: '1525003375651848263',
+    roleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  };
+  const sentPayloads = [];
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    send: async (payload) => {
+      sentPayloads.push(payload);
+      return { id: `message-${sentPayloads.length}` };
+    },
+  };
+  const poster = new Gag2StockPoster({
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, {
+    fetchStockPayload: async () => parsed,
+    now: () => now,
+    statePath,
+  });
+  poster.targets = () => [target];
+
+  await poster.tick(['seed'], 'stock');
+  now = Date.parse('2026-08-02T06:10:03.500Z');
+  await poster.tick(['seed'], 'stock');
+  now = Date.parse('2026-08-02T06:15:00.500Z');
+  await poster.tick(['seed'], 'stock');
+
+  assert.equal(sentPayloads.length, 2, 'same-cycle retry is deduped but the next five-minute cycle is sent');
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 fetches main and Fall stock together instead of adding their delays', async () => {
+  const now = Date.parse('2026-08-02T06:10:00.500Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-parallel-stock-source-state.json');
+  fs.rmSync(statePath, { force: true });
+  const parsed = parseStockPayload(fixture());
+  let mainFinished = false;
+  let fallStartedBeforeMainFinished = false;
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'seed',
+    channelId: '1525003375651848263',
+    roleIds: {},
+    fallEnabled: true,
+    fallRoleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  };
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    send: async () => ({ id: 'message-1' }),
+  };
+  const poster = new Gag2StockPoster({
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, {
+    fetchStockPayload: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      mainFinished = true;
+      return parsed;
+    },
+    fetchFallStockPayload: async () => {
+      fallStartedBeforeMainFinished = !mainFinished;
+      return parsed;
+    },
+    now: () => now,
+    statePath,
+  });
+  poster.targets = () => [target];
+
+  await poster.tick(['seed'], 'stock');
+
+  assert.equal(fallStartedBeforeMainFinished, true);
+  fs.rmSync(statePath, { force: true });
 });
 
 test('GAG2 stock poster broadcasts to guild channels concurrently with a safe worker limit', async () => {
