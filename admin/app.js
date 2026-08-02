@@ -1166,11 +1166,11 @@ function renderItemRolePicker(mount, type, enabled, selected, options = {}) {
     for (const rarity of GAG2_FALL_RARITY_ORDER) {
       const rarityOption = roleRarityOption(rarity);
       const allItems = items.filter((item) => item.rarity === rarity);
-      const items = allItems.filter((item) => !query
+      const visibleItems = allItems.filter((item) => !query
         || rarityOption.label.toLowerCase().includes(query)
         || item.name.toLowerCase().includes(query)
         || item.key.includes(query));
-      if (!items.length) continue;
+      if (!visibleItems.length) continue;
 
       const section = document.createElement('section');
       section.className = 'gag2-fall-rarity-option';
@@ -1194,7 +1194,7 @@ function renderItemRolePicker(mount, type, enabled, selected, options = {}) {
 
       const itemList = document.createElement('div');
       itemList.className = 'gag2-fall-item-list';
-      for (const item of items) {
+      for (const item of visibleItems) {
         const label = document.createElement('label');
         label.className = 'gag2-fall-item';
         const input = document.createElement('input');
@@ -1256,7 +1256,7 @@ function renderItemRolePicker(mount, type, enabled, selected, options = {}) {
   search.addEventListener('input', drawOptions);
   drawButton();
   picker.append(button, menu);
-  mount.append(picker);
+  mount.replaceChildren(picker);
 }
 
 function renderFallRolePicker(mount, type, enabled, selected) {
