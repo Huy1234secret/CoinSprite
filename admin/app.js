@@ -54,33 +54,27 @@ const GAG2_FALL_SEED_ITEMS = [
   fallItem('maple_cactus', 'Maple Cactus', '1533299272458703038', 'rare'),
   fallItem('maple_corn', 'Maple Corn', '1533299279718781129', 'rare'),
   fallItem('maple_bamboo', 'Maple Bamboo', '1533299266624422028', 'rare'),
-  fallItem('potato', 'Potato', '1533299312677621810', 'rare'),
   fallItem('maple_mango', 'Maple Mango', '1533299288036216902', 'epic'),
   fallItem('maple_coconut', 'Maple Coconut', '1533299277634469889', 'epic'),
   fallItem('maple_grape', 'Maple Grape', '1533299284349423626', 'epic'),
   fallItem('maple_banana', 'Maple Banana', '1533299268369256540', 'epic'),
   fallItem('maple_green_bean', 'Maple Green Bean', '1533299286027010188', 'epic'),
   fallItem('maple_mushroom', 'Maple Mushroom', '1533299290263388231', 'epic'),
-  fallItem('cinnamon_stick', 'Cinnamon Stick', '1533299249746284657', 'epic'),
   fallItem('maple_sunflower', 'Maple Sunflower', '1533299300623192195', 'legendary'),
   fallItem('maple_cherry', 'Maple Cherry', '1533299275910611044', 'legendary'),
   fallItem('maple_acorn', 'Maple Acorn', '1533299262639575041', 'legendary'),
   fallItem('atlantic_giant_pumpkin', 'Atlantic Giant Pumpkin', '1533299248102113370', 'legendary'),
   fallItem('maple_dragon_fruit', 'Maple Dragon Fruit', '1533299281748951070', 'legendary'),
-  fallItem('plum', 'Plum', '1533299311012610048', 'legendary'),
-  fallItem('honeysuckle', 'Honeysuckle', '1533299253584072747', 'legendary'),
   fallItem('conifer_cone', 'Conifer Cone', '1533299251638042787', 'mythic'),
   fallItem('maple_venom_spitter', 'Maple Venom Spitter', '1533299307065643071', 'mythic'),
   fallItem('maple_poison_apple', 'Maple Poison Apple', '1533299295367991417', 'mythic'),
   fallItem('maple_pomegranate', 'Maple Pomegranate', '1533299297209155624', 'mythic'),
   fallItem('maple_venus_fly_trap', 'Maple Venus Fly Trap', '1533299309292818462', 'mythic'),
-  fallItem('romanesco', 'Romanesco', '1533299314363732089', 'mythic'),
   fallItem('amber_cranberry', 'Amber Cranberry', '1533299246315475045', 'super'),
 ];
 const GAG2_FALL_GEAR_ITEMS = [
   fallItem('syrup_sprinkler', 'Syrup Sprinkler', '1533305566112387283', 'common'),
   fallItem('syrup_watering_can', 'Syrup Watering Can', '1533305567978848348', 'common'),
-  fallItem('trowel', 'Trowel', '1525198726535053404', 'rare'),
   fallItem('rare_magic_mail', 'Rare Magic Mail', '1533305557618917396', 'rare'),
   fallItem('harp', 'Harp', '1533305553621749780', 'rare'),
   fallItem('legendary_magic_mail', 'Legendary Magic Mail', '1533305555740000256', 'legendary'),
@@ -99,7 +93,7 @@ const GAG2_FALL_ITEMS = {
   seed: GAG2_FALL_SEED_ITEMS,
   gear: GAG2_FALL_GEAR_ITEMS,
   crate: GAG2_FALL_CRATE_ITEMS,
-  sell: GAG2_FALL_SEED_ITEMS,
+  sell: [],
 };
 
 function defaultGag2StockFilters() {
@@ -367,12 +361,23 @@ function makeToken(option, type) {
 }
 
 function renderPicker(mount, options, selectedValue, settings) {
-  const { multiple = false, type = 'channel', placeholder = 'Select', disabled = false, disabledReason = '', onChange } = settings;
+  const {
+    multiple = false,
+    type = 'channel',
+    placeholder = 'Select',
+    disabled = false,
+    disabledReason = '',
+    pickerClass = '',
+    menuClass = '',
+    optionStyle = '',
+    searchPlaceholder = 'Search by name or ID',
+    onChange,
+  } = settings;
   const selected = multiple ? new Set(selectedValue || []) : new Set(selectedValue ? [selectedValue] : []);
   mount.replaceChildren();
 
   const picker = document.createElement('div');
-  picker.className = 'picker';
+  picker.className = `picker ${pickerClass}`.trim();
   const button = document.createElement('button');
   button.className = 'picker-button';
   button.type = 'button';
@@ -409,10 +414,10 @@ function renderPicker(mount, options, selectedValue, settings) {
   button.append(selectedWrap, chevron);
 
   const menu = document.createElement('div');
-  menu.className = 'picker-menu';
+  menu.className = `picker-menu ${menuClass}`.trim();
   const search = document.createElement('input');
   search.className = 'picker-search';
-  search.placeholder = 'Search by name or ID';
+  search.placeholder = searchPlaceholder;
   search.autocomplete = 'off';
   const optionList = document.createElement('div');
   optionList.className = 'option-list';
@@ -435,7 +440,7 @@ function renderPicker(mount, options, selectedValue, settings) {
     for (const option of filtered) {
       const row = document.createElement('button');
       row.type = 'button';
-      row.className = `option ${type === 'role' ? 'role-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
+      row.className = `option ${type === 'role' ? 'role-option' : ''}${optionStyle === 'rarity' ? ' gag2-rarity-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
       if (type === 'role') row.style.setProperty('--role-color', option.color || '#99aab5');
       const main = document.createElement('span');
       main.className = 'option-main';
@@ -1177,7 +1182,7 @@ function renderGag2FallControls() {
   const mount = elements.gag2FallRoleSettingsMount;
   if (!mount) return;
   mount.replaceChildren();
-  for (const type of GAG2_FALL_TYPES) {
+  for (const type of GAG2_FALL_TYPES.filter((entry) => entry !== 'sell')) {
     const enabled = !locked && Boolean(state.gag2StockChannels[type]) && enabledTypes.has(type);
     const selected = new Set(state.gag2Fall.roleItems[type]);
     const card = document.createElement('article');
@@ -1222,6 +1227,10 @@ function renderGag2FilterControls() {
     renderPicker(mount, rarityFilterOptions(allowed), state.gag2StockFilters.rarities[type], {
       multiple: true,
       type: 'role',
+      pickerClass: 'gag2-rarity-picker',
+      menuClass: 'gag2-rarity-picker-menu',
+      optionStyle: 'rarity',
+      searchPlaceholder: 'Search rarity',
       placeholder: 'No rarities selected',
       disabled: !enabled,
       disabledReason: enabled ? '' : `Select a ${channelLabel} channel first`,
@@ -2047,7 +2056,18 @@ loadSession();
   }
 
   renderPicker = function fixedPicker(mount, options, selectedValue, settings) {
-    const { multiple = false, type = 'channel', placeholder = 'Select', disabled = false, disabledReason = '', onChange } = settings;
+    const {
+      multiple = false,
+      type = 'channel',
+      placeholder = 'Select',
+      disabled = false,
+      disabledReason = '',
+      pickerClass = '',
+      menuClass = '',
+      optionStyle = '',
+      searchPlaceholder = 'Search by name or ID',
+      onChange,
+    } = settings;
     const selected = new Set(multiple ? selectedValue || [] : selectedValue ? [selectedValue] : []);
     if (mount._pickerMenu) {
       pickerMenus.delete(mount._pickerMenu);
@@ -2055,7 +2075,7 @@ loadSession();
     }
     mount.replaceChildren();
     const picker = document.createElement('div');
-    picker.className = 'picker';
+    picker.className = `picker ${pickerClass}`.trim();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'picker-button';
@@ -2092,11 +2112,11 @@ loadSession();
     chevron.textContent = 'v';
     button.append(selectedWrap, chevron);
     const menu = document.createElement('div');
-    menu.className = 'picker-menu picker-portal-menu';
+    menu.className = `picker-menu picker-portal-menu ${menuClass}`.trim();
     menu.dataset.menuId = button.dataset.menuId;
     const search = document.createElement('input');
     search.className = 'picker-search';
-    search.placeholder = 'Search by name or ID';
+    search.placeholder = searchPlaceholder;
     search.autocomplete = 'off';
     const list = document.createElement('div');
     list.className = 'option-list';
@@ -2116,7 +2136,7 @@ loadSession();
       filtered.forEach((option) => {
         const row = document.createElement('button');
         row.type = 'button';
-        row.className = `option ${type === 'role' ? 'role-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
+        row.className = `option ${type === 'role' ? 'role-option' : ''}${optionStyle === 'rarity' ? ' gag2-rarity-option' : ''}${selected.has(option.id) ? ' selected' : ''}`;
         if (type === 'role') row.style.setProperty('--role-color', option.color || '#99aab5');
         const main = document.createElement('span');
         main.className = 'option-main';

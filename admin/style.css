@@ -2730,10 +2730,10 @@ body.gag2-stock-only .tab-panel[data-panel]:not([data-panel="gag2Stock"]) {
 .gag2-fall-role-panel::after {
   content: '🍁';
   position: absolute;
-  right: 13px;
-  bottom: -13px;
+  right: 14px;
+  bottom: 8px;
   color: rgba(245, 158, 11, .16);
-  font-size: 62px;
+  font-size: 52px;
   line-height: 1;
   transform: rotate(-13deg);
   pointer-events: none;
@@ -3022,6 +3022,24 @@ body.dashboard-sync-locked #editor { cursor: wait; }
 .picker-menu .option:hover { background: #5865f2; }
 .picker-menu .option:hover .check-mark,
 .picker-menu .option:hover .tag { color: #fff; }
+.gag2-rarity-picker-menu .option-list { padding: 6px; }
+.gag2-rarity-picker-menu .option.gag2-rarity-option {
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, var(--role-color) 35%, #30343c);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--role-color) 12%, #15171d);
+}
+.gag2-rarity-picker-menu .option.gag2-rarity-option + .option.gag2-rarity-option { margin-top: 6px; }
+.gag2-rarity-picker-menu .option.gag2-rarity-option:hover,
+.gag2-rarity-picker-menu .option.gag2-rarity-option.selected {
+  background: color-mix(in srgb, var(--role-color) 22%, #17191f);
+  border-color: color-mix(in srgb, var(--role-color) 60%, #3b3f48);
+}
+.gag2-rarity-picker-menu .option.gag2-rarity-option .check-mark {
+  color: #62d68d;
+  font-size: 11px;
+  font-weight: 800;
+}
 
 .emoji-field { position: relative; display: flex; align-items: center; min-width: 0; }
 .emoji-field > input { padding-right: 48px; }

@@ -24,7 +24,9 @@ const WHITE = 0xFFFFFF;
 const RED = 0xed4245;
 const NO_MENTIONS = { parse: [], users: [], roles: [] };
 const ROLE_ASSIGN_CHANNEL_KEY = 'roleAssign';
-const ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell', ...Object.values(FALL_ROLE_TYPES)];
+const GARDEN_ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell'];
+const FALL_ROLE_ASSIGN_TYPES = Object.values(FALL_ROLE_TYPES).filter((type) => type !== 'fallSell');
+const ROLE_ASSIGN_TYPES = [...GARDEN_ROLE_ASSIGN_TYPES, ...FALL_ROLE_ASSIGN_TYPES];
 const CUSTOM_ID_PREFIX = 'gag2role';
 const MAX_SELECT_OPTIONS = 25;
 
@@ -37,7 +39,6 @@ const ROLE_ASSIGN_LABELS = {
   fallSeed: 'Fall seed',
   fallGear: 'Fall gear',
   fallCrate: 'Fall crate',
-  fallSell: 'Fall sell price',
 };
 
 const THUMBNAIL_KEYS = {
@@ -48,7 +49,6 @@ const THUMBNAIL_KEYS = {
   fallSeed: ['fallSeed', 'amber_cranberry'],
   fallGear: ['fallGear', 'super_magic_mail'],
   fallCrate: ['fallCrate', 'rake_crate'],
-  fallSell: ['fallSell', 'maple_carrot'],
 };
 
 function cleanDiscordId(value) {
@@ -194,7 +194,20 @@ function buildRoleAssignmentPanelPayload(config) {
             ].join('\n'),
           },
           { type: 14, divider: true, spacing: 1 },
-          ...chunkButtons(ROLE_ASSIGN_TYPES).map((types) => ({
+          { type: 10, content: '-# **🌿GARDEN VALLEY🌻**' },
+          ...chunkButtons(GARDEN_ROLE_ASSIGN_TYPES).map((types) => ({
+            type: 1,
+            components: types.map((type) => ({
+              type: 2,
+              custom_id: `${CUSTOM_ID_PREFIX}:open:${type}`,
+              label: categoryLabel(type),
+              style: 2,
+              disabled: !isCategoryBound(config, type),
+            })),
+          })),
+          { type: 14, divider: true, spacing: 1 },
+          { type: 10, content: '-# **🍂FALL HARVEST🍁**' },
+          ...chunkButtons(FALL_ROLE_ASSIGN_TYPES).map((types) => ({
             type: 1,
             components: types.map((type) => ({
               type: 2,

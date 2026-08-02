@@ -16,9 +16,9 @@ const {
   CHECK_SCHEDULE_UTC_OFFSET_MS,
   SELL_CHECK_INTERVAL_MS,
   SELL_CHECK_SCHEDULE_SECOND_MS,
+  SELL_FAILURE_RETRY_LIMIT,
   SELL_UNCHANGED_RETRY_MS,
   STATE_PATH,
-  STALE_STOCK_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
   TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
@@ -162,16 +162,6 @@ function apiRefreshAtMsForEntry(type, entry) {
   if (STOCK_TYPE_GROUPS.stock.includes(type)) return Number(entry?.nextRestockAtMs);
   if (type === 'sell') return Number(entry?.nextRefreshAtMs);
   return null;
-}
-
-function nextApiRefreshAtMsForTypes(entries, types, nowMs = Date.now()) {
-  const now = finiteNumber(nowMs, Date.now());
-  const times = [];
-  for (const type of types) {
-    const nextAt = apiRefreshAtMsForEntry(type, entries?.get?.(type));
-    if (Number.isFinite(nextAt) && nextAt > now) times.push(nextAt);
-  }
-  return times.length ? Math.min(...times) : null;
 }
 
 function isApiRefreshDue(type, entry, nowMs = Date.now()) {
@@ -397,13 +387,16 @@ function filterSellEntry(entry, filters = {}) {
   const rarities = selectedFilterValues(filters, ['rarities', 'sell'], GAG2_SELL_FILTER_RARITIES);
   const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
   const includeUnknownRarity = rarities.size === GAG2_SELL_FILTER_RARITIES.length;
-  const entries = (entry?.entries || []).filter((item) => {
-    const rarity = normalizeRarity(rarityForType('sell', item));
+  const filterEntries = (items, catalogType) => (items || []).filter((item) => {
+    const rarity = normalizeRarity(rarityForType(catalogType, item));
     return multipliers.has(sellFilterBucket(item)) && (rarities.has(rarity) || (!rarity && includeUnknownRarity));
   });
+  const entries = filterEntries(entry?.entries, 'sell');
+  const fall = entry?.fall ? { ...entry.fall, entries: filterEntries(entry.fall.entries, 'fallSell') } : entry?.fall;
   return {
     ...entry,
     entries,
+    fall,
     enabledMultipliers: [...multipliers],
   };
 }
@@ -613,20 +606,16 @@ class Gag2StockPoster {
     this.checkIntervalMs = options.checkIntervalMs || CHECK_INTERVAL_MS;
     this.checkScheduleSecondMs = options.checkScheduleSecondMs ?? CHECK_SCHEDULE_SECOND_MS;
     this.checkScheduleOffsetMs = options.checkScheduleOffsetMs ?? CHECK_SCHEDULE_UTC_OFFSET_MS;
-    const stockInitialDelay = Number(options.stockInitialDelayMs ?? options.initialDelayMs);
     const weatherInterval = Number(options.weatherCheckIntervalMs);
     const weatherInitialDelay = Number(options.weatherInitialDelayMs);
-    const sellInitialDelay = Number(options.sellInitialDelayMs);
     const sellInterval = Number(options.sellCheckIntervalMs);
     const sellScheduleSecond = Number(options.sellCheckScheduleSecondMs);
-    this.stockInitialDelayMs = Math.max(0, Number.isFinite(stockInitialDelay) ? stockInitialDelay : 1_000);
     this.weatherCheckIntervalMs = Math.max(5_000, Number.isFinite(weatherInterval) ? weatherInterval : WEATHER_CHECK_INTERVAL_MS);
     this.weatherInitialDelayMs = Math.max(0, Number.isFinite(weatherInitialDelay) ? weatherInitialDelay : 1_000);
-    this.sellInitialDelayMs = Math.max(0, Number.isFinite(sellInitialDelay) ? sellInitialDelay : 1_000);
     this.sellCheckIntervalMs = Math.max(60_000, Number.isFinite(sellInterval) ? sellInterval : SELL_CHECK_INTERVAL_MS);
     this.sellCheckScheduleSecondMs = Math.max(0, Math.min(this.sellCheckIntervalMs - 1, Number.isFinite(sellScheduleSecond) ? sellScheduleSecond : SELL_CHECK_SCHEDULE_SECOND_MS));
     this.sellUnchangedRetryMs = Math.max(1_000, Number(options.sellUnchangedRetryMs) || SELL_UNCHANGED_RETRY_MS);
-    this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
+    this.sellFailureRetryLimit = Math.max(1, Number(options.sellFailureRetryLimit) || SELL_FAILURE_RETRY_LIMIT);
     this.fetchers = {
       fetchFallSellPayload: options.fetchFallSellPayload || fetchFallSellPayload,
       fetchFallStockPayload: options.fetchFallStockPayload || fetchFallStockPayload,
@@ -654,10 +643,9 @@ class Gag2StockPoster {
     this.weatherTimer = null;
     this.sellTimer = null;
     this.started = false;
-    this.nextStockRefreshAtMs = null;
-    this.nextSellRefreshAtMs = null;
     this.nextDelayOverrideMs = null;
     this.nextSellDelayOverrideMs = null;
+    this.sellFailureRetryCount = 0;
   }
 
   async start() {
@@ -666,9 +654,9 @@ class Gag2StockPoster {
     await this.deleteRecentUnavailableMessages().catch((error) => {
       this.logSystem(`GAG2 recent error cleanup failed: ${error?.message || 'unknown error'}`);
     });
-    this.scheduleNextTick(this.stockInitialDelayMs);
+    this.scheduleNextTick();
     this.scheduleWeatherTick(this.weatherInitialDelayMs);
-    this.scheduleSellTick(this.sellInitialDelayMs);
+    this.scheduleSellTick();
     setTimeout(() => {
       syncAllGag2StockSetups(this.client, this.fetchers)
         .then(() => syncAllGag2RoleAssignmentPanels(this.client))
@@ -726,17 +714,13 @@ class Gag2StockPoster {
     const override = Number.isFinite(this.nextDelayOverrideMs) ? Math.max(0, this.nextDelayOverrideMs) : delayOverrideMs;
     this.nextDelayOverrideMs = null;
     const hasOverride = override !== null && override !== undefined && Number.isFinite(Number(override));
-    const apiNextAt = Number.isFinite(this.nextStockRefreshAtMs) && this.nextStockRefreshAtMs > now
-      ? this.nextStockRefreshAtMs
-      : null;
     const nextAt = hasOverride
       ? now + Math.max(0, Number(override))
-      : apiNextAt
-        || nextGag2StockTickAtMs(now, {
-          intervalMs: this.checkIntervalMs,
-          secondMs: this.checkScheduleSecondMs,
-          offsetMs: this.checkScheduleOffsetMs,
-        });
+      : nextGag2StockTickAtMs(now, {
+        intervalMs: this.checkIntervalMs,
+        secondMs: this.checkScheduleSecondMs,
+        offsetMs: this.checkScheduleOffsetMs,
+      });
     const delay = Math.max(0, nextAt - now);
     this.timer = setTimeout(() => {
       this.timer = null;
@@ -780,17 +764,16 @@ class Gag2StockPoster {
       : delayOverrideMs;
     this.nextSellDelayOverrideMs = null;
     const hasOverride = override !== null && override !== undefined && Number.isFinite(Number(override));
-    const apiNextAt = Number.isFinite(this.nextSellRefreshAtMs) && this.nextSellRefreshAtMs > now
-      ? this.nextSellRefreshAtMs
-      : null;
-    const nextAt = hasOverride
+    const retryAllowed = hasOverride && this.sellFailureRetryCount < this.sellFailureRetryLimit;
+    if (retryAllowed) this.sellFailureRetryCount += 1;
+    else this.sellFailureRetryCount = 0;
+    const nextAt = retryAllowed
       ? now + Math.max(0, Number(override))
-      : apiNextAt
-        || nextGag2StockTickAtMs(now, {
-          intervalMs: this.sellCheckIntervalMs,
-          secondMs: this.sellCheckScheduleSecondMs,
-          offsetMs: this.checkScheduleOffsetMs,
-        });
+      : nextGag2StockTickAtMs(now, {
+        intervalMs: this.sellCheckIntervalMs,
+        secondMs: this.sellCheckScheduleSecondMs,
+        offsetMs: this.checkScheduleOffsetMs,
+      });
     const delay = Math.max(0, nextAt - now);
     this.sellTimer = setTimeout(() => {
       this.sellTimer = null;
@@ -960,8 +943,6 @@ class Gag2StockPoster {
     const lockKey = [...tickTypes].sort().join(',');
     if (this.inFlight.has(lockKey)) return null;
     this.inFlight.add(lockKey);
-    let skippedStaleStock = false;
-
     try {
       const tickStartedAtMs = this.now();
       const targets = this.targets(tickTypes);
@@ -976,15 +957,10 @@ class Gag2StockPoster {
         healthTargets.push({ type: 'fallSell' });
       }
       this.updateSourceHealth(healthTargets, errors);
-      const targetTypes = [...new Set(targets.map((target) => target.type))];
-      const nextStockRefreshAtMs = nextApiRefreshAtMsForTypes(
-        entries,
-        targetTypes.filter((type) => STOCK_TYPE_GROUPS.stock.includes(type)),
-        tickStartedAtMs,
-      );
-      const nextSellRefreshAtMs = nextApiRefreshAtMsForTypes(entries, targetTypes.filter((type) => type === 'sell'), tickStartedAtMs);
-      if (Number.isFinite(nextStockRefreshAtMs)) this.nextStockRefreshAtMs = nextStockRefreshAtMs;
-      if (Number.isFinite(nextSellRefreshAtMs)) this.nextSellRefreshAtMs = nextSellRefreshAtMs;
+      if (targets.some((target) => target.type === 'sell'
+        && (errors.has('sell') || (target.fallEnabled && errors.has('fallSell'))))) {
+        this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
+      }
       const deliveries = await mapWithConcurrency(targets, this.broadcastConcurrency, async (target) => {
         const error = errors.get(target.type);
         if (error) {
@@ -1014,7 +990,6 @@ class Gag2StockPoster {
         }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
-          skippedStaleStock = true;
           return null;
         }
         return this.postEntry(state, target, entry).catch((postError) => {
@@ -1027,7 +1002,6 @@ class Gag2StockPoster {
       logCommandSystem(`GAG2 ${label} failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
-      if (skippedStaleStock) this.nextDelayOverrideMs = this.staleStockRetryMs;
       this.inFlight.delete(lockKey);
     }
   }
