@@ -368,9 +368,11 @@ test('GAG2 notification payloads end with the Fall Harvest dashboard link button
   const parsed = parseStockPayload(fixture());
   const seed = parsed.stock.find((entry) => entry.category === 'seed');
   const payload = buildTypePayload('seed', seed);
-  const row = payload.components.at(-1);
+  const container = payload.components.at(-1);
+  const row = container.components.at(-1);
   const button = row.components[0];
 
+  assert.equal(container.type, 17);
   assert.equal(row.type, 1);
   assert.deepEqual(button, {
     type: 2,
@@ -381,7 +383,7 @@ test('GAG2 notification payloads end with the Fall Harvest dashboard link button
   });
 
   const combined = buildStockPayload(parsed);
-  assert.deepEqual(combined.components.at(-1), row);
+  assert.deepEqual(combined.components.at(-1).components.at(-1), row);
 });
 
 test('GAG2 stock dedupe posts every new restock cycle even when quantities repeat', () => {
@@ -455,8 +457,12 @@ test('GAG2 splits oversized Components V2 sell output into ordered messages', ()
   assert.ok(payloads.every((payload) => payload.components.reduce((total, component) => total + displayableTextSize(component), 0) <= 3_900));
   assert.match(combined, /Very Long Garden Fruit 0/);
   assert.match(combined, /Very Long Garden Fruit 139/);
-  assert.equal(payloads.flatMap((payload) => payload.components).filter((component) => component.type === 1).length, 1);
-  assert.equal(payloads.at(-1).components.at(-1).components[0].url, 'https://panel.coin-sprite.com/');
+  const buttonRows = payloads
+    .flatMap((payload) => payload.components)
+    .flatMap((container) => container.components || [])
+    .filter((component) => component.type === 1);
+  assert.equal(buttonRows.length, 1);
+  assert.equal(payloads.at(-1).components.at(-1).components.at(-1).components[0].url, 'https://panel.coin-sprite.com/');
 });
 
 test('GAG2 sell header shows the refresh timer and Garden Valley before Fall Harvest', () => {

@@ -319,6 +319,18 @@ function fallConfigButtonRow() {
   };
 }
 
+function addFallConfigButtonToLastContainer(components) {
+  const result = [...components];
+  const lastIndex = result.length - 1;
+  const lastContainer = result[lastIndex];
+  if (!lastContainer || lastContainer.type !== 17) return result;
+  result[lastIndex] = {
+    ...lastContainer,
+    components: [...(lastContainer.components || []), fallConfigButtonRow()],
+  };
+  return result;
+}
+
 function splitTextDisplay(component, maxText) {
   const lines = String(component.content || '').split('\n');
   const chunks = [];
@@ -631,17 +643,17 @@ function buildTypePayload(type, entry, options = {}) {
       : componentsForType(type, entry, roleIds),
   };
   const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, roleIds) : [];
+  const components = addFallConfigButtonToLastContainer([
+    ...bonusContainers,
+    ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
+    ...eventContainers,
+  ]);
   return {
     allowedMentions: type === 'moon'
       ? NO_MENTIONS
       : allowedMentionsForRoles(type === 'sell' ? roleIds : { ...roleIds, ...fallRoleIds }),
     flags: COMPONENTS_V2_FLAG,
-    components: [
-      ...bonusContainers,
-      ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
-      ...eventContainers,
-      fallConfigButtonRow(),
-    ],
+    components,
   };
 }
 
@@ -667,9 +679,8 @@ function buildStockPayload(stockPayload, options = {}) {
       {
         type: 17,
         accent_color: GREEN,
-        components,
+        components: [...components, fallConfigButtonRow()],
       },
-      fallConfigButtonRow(),
     ],
   };
 }
