@@ -261,7 +261,7 @@ test('GAG2 appends Fall Harvest items and roles to the same Garden Valley stock 
     .map((component) => component.content)
     .join('\n');
 
-  assert.equal(payload.components.length, 1);
+  assert.equal(payload.components.filter((component) => component.type === 17).length, 1);
   assert.match(content, /-# \*\*🌿GARDEN VALLEY🌻\*\*/);
   assert.match(content, /-# \*\*🍂FALL HARVEST🍁\*\*/);
   assert.match(content, /<:ambercranberry:1533299246315475045> \*\*Amber Cranberry\*\* x1/);
@@ -364,6 +364,26 @@ test('GAG2 stock type payload builds one separate message for one category', () 
   assert.deepEqual(payload.allowedMentions.roles, ['123456789012345678']);
 });
 
+test('GAG2 notification payloads end with the Fall Harvest dashboard link button', () => {
+  const parsed = parseStockPayload(fixture());
+  const seed = parsed.stock.find((entry) => entry.category === 'seed');
+  const payload = buildTypePayload('seed', seed);
+  const row = payload.components.at(-1);
+  const button = row.components[0];
+
+  assert.equal(row.type, 1);
+  assert.deepEqual(button, {
+    type: 2,
+    style: 5,
+    label: 'Config Fall Harvest stock notify! [NEW]',
+    emoji: { name: '🍂' },
+    url: 'https://panel.coin-sprite.com/',
+  });
+
+  const combined = buildStockPayload(parsed);
+  assert.deepEqual(combined.components.at(-1), row);
+});
+
 test('GAG2 stock dedupe posts every new restock cycle even when quantities repeat', () => {
   for (const category of ['seed', 'gear', 'crate']) {
     const base = parseStockPayload({
@@ -435,6 +455,31 @@ test('GAG2 splits oversized Components V2 sell output into ordered messages', ()
   assert.ok(payloads.every((payload) => payload.components.reduce((total, component) => total + displayableTextSize(component), 0) <= 3_900));
   assert.match(combined, /Very Long Garden Fruit 0/);
   assert.match(combined, /Very Long Garden Fruit 139/);
+  assert.equal(payloads.flatMap((payload) => payload.components).filter((component) => component.type === 1).length, 1);
+  assert.equal(payloads.at(-1).components.at(-1).components[0].url, 'https://panel.coin-sprite.com/');
+});
+
+test('GAG2 sell header shows the refresh timer and Garden Valley before Fall Harvest', () => {
+  const nextRefreshAtMs = Date.parse('2026-08-02T15:20:00.000Z');
+  const main = parseSellPayload({
+    nextRefresh: Math.floor(nextRefreshAtMs / 1000),
+    entries: [{ name: 'Carrot', slug: 'carrot', multiplier: 1.1 }],
+  });
+  const fall = parseSellPayload({
+    world: 'fall',
+    nextRefresh: Math.floor(nextRefreshAtMs / 1000),
+    entries: [{ name: 'Amber Cranberry', slug: 'amber-cranberry', multiplier: 2 }],
+  }, { world: 'fall' });
+  const payload = buildTypePayload('sell', { ...main, fall });
+  const text = payload.components
+    .flatMap((component) => component.components || [])
+    .filter((component) => component.type === 10)
+    .map((component) => component.content)
+    .join('\n');
+
+  assert.match(text, new RegExp(`## GAG2 Sell Price Track\\n-# Refresh <t:${Math.floor(nextRefreshAtMs / 1000)}:R>\\n-# \\*\\*🌿GARDEN VALLEY🌻\\*\\*`));
+  assert.match(text, /-# \*\*🍂FALL HARVEST🍁\*\*/);
+  assert.equal((text.match(/-# Refresh/g) || []).length, 1);
 });
 
 test('GAG2 weather and sell payloads parse public live endpoints', () => {
@@ -483,13 +528,14 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.match(sellPayload.components[0].components[0].content, /## <@&567890123456789012> Sell Price/);
   assert.match(sellPayload.components[0].components[0].content, /\* <:mushroom:1525195225511760072> \*\*Mushroom\*\* x2.00/);
   assert.doesNotMatch(sellPayload.components[0].components[0].content, / - big| - normal/);
-  assert.equal(sellPayload.components.at(-1).accent_color, 0xFFFFFF);
-  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10/);
-  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:glow_mushroom:1525390121929805926> \*\*Glow Mushroom\*\* x1.05/);
-  assert.match(sellPayload.components.at(-1).components[0].content, /\* <:eclipse_bloom:1526031940749361163> \*\*Eclipse Bloom\*\* x1.25/);
-  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /Briar Rose/);
-  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<:mushroom:1525195225511760072>| - normal| - big/);
-  assert.doesNotMatch(sellPayload.components.at(-1).components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
+  const mainSellContainer = sellPayload.components.find((component) => component.accent_color === 0xFFFFFF);
+  assert.ok(mainSellContainer);
+  assert.match(mainSellContainer.components[0].content, /\* <:tomato:1525195241026617435> \*\*Tomato\*\* x1.10/);
+  assert.match(mainSellContainer.components[0].content, /\* <:glow_mushroom:1525390121929805926> \*\*Glow Mushroom\*\* x1.05/);
+  assert.match(mainSellContainer.components[0].content, /\* <:eclipse_bloom:1526031940749361163> \*\*Eclipse Bloom\*\* x1.25/);
+  assert.doesNotMatch(mainSellContainer.components[0].content, /Briar Rose/);
+  assert.doesNotMatch(mainSellContainer.components[0].content, /<:mushroom:1525195225511760072>| - normal| - big/);
+  assert.doesNotMatch(mainSellContainer.components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
 });
 
 test('GAG2 current weather uses role mention while recent weather stays plain text', () => {
@@ -528,11 +574,11 @@ test('GAG2 normal sell container includes seeds after the old 25-item cutoff', (
     tier: 'normal',
   }));
   const payload = buildTypePayload('sell', { entries });
-  const content = payload.components.at(-1).components[0].content;
+  const content = payload.components.find((component) => component.accent_color === 0xFFFFFF).components[0].content;
 
   assert.match(content, /<:sun_bloom:1525996662449766431> \*\*Sun Bloom\*\*/);
   assert.match(content, /<:star_fruit:1525996660000428112> \*\*Star Fruit\*\*/);
-  assert.equal(content.split('\n').length, entries.length + 1);
+  assert.equal(content.split('\n').length, entries.length + 3);
 });
 
 test('GAG2 filters default to every supported rarity and sell multiplier', () => {
@@ -623,7 +669,7 @@ test('GAG2 sell filter can announce only Common 4x fruit without a normal contai
 
   assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
   assert.deepEqual(filtered.enabledMultipliers, ['4x']);
-  assert.equal(payload.components.length, 1);
+  assert.equal(payload.components.filter((component) => component.type === 17).length, 1);
   assert.equal(payload.components[0].accent_color, 0x7DE3FF);
   assert.match(content, /<@&123456789012345678>/);
   assert.match(content, /Carrot/);
@@ -1632,7 +1678,12 @@ test('GAG2 still posts main stock when the Fall source is unavailable', async ()
 
   assert.equal(sent.length, 1);
   assert.equal(sentPayloads.length, 1);
-  assert.doesNotMatch(JSON.stringify(sentPayloads[0]), /FALL HARVEST/i);
+  const sentContent = sentPayloads[0].components
+    .flatMap((component) => component.components || [])
+    .filter((component) => component.type === 10)
+    .map((component) => component.content)
+    .join('\n');
+  assert.doesNotMatch(sentContent, /-# \*\*🍂FALL HARVEST🍁\*\*/i);
   fs.rmSync(statePath, { force: true });
 });
 

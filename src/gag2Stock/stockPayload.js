@@ -33,6 +33,7 @@ const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
 const SELL_ONLY_SEED_KEYS = new Set(['eclipse_bloom']);
 const STOCK_RESTOCK_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_COMPONENT_DISPLAY_TEXT = 3_900;
+const FALL_CONFIG_DASHBOARD_URL = 'https://panel.coin-sprite.com/';
 const FALL_ONLY_KEYS = Object.freeze({
   seed: new Set(FALL_SELL_ITEMS.filter((item) => !catalogEntry('seed', item.key)).map((item) => item.key)),
   gear: new Set(FALL_GEAR_ITEMS.filter((item) => !catalogEntry('gear', item.key)).map((item) => item.key)),
@@ -305,6 +306,19 @@ function displayableTextSize(component) {
     : 0);
 }
 
+function fallConfigButtonRow() {
+  return {
+    type: 1,
+    components: [{
+      type: 2,
+      style: 5,
+      label: 'Config Fall Harvest stock notify! [NEW]',
+      emoji: { name: '\u{1F342}' },
+      url: FALL_CONFIG_DASHBOARD_URL,
+    }],
+  };
+}
+
 function splitTextDisplay(component, maxText) {
   const lines = String(component.content || '').split('\n');
   const chunks = [];
@@ -506,7 +520,11 @@ function formatSellLine(item, roleIds = {}, options = {}) {
 }
 
 function formatSell(entry, roleIds = {}) {
-  const lines = ['## GAG2 Sell Price Track'];
+  const lines = [
+    '## GAG2 Sell Price Track',
+    `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
+    '-# **\u{1F33F}GARDEN VALLEY\u{1F33B}**',
+  ];
   const normalEntries = (entry.entries || []).filter((item) => !sellMultiplierBucket(item.multiplier));
   for (const item of normalEntries) {
     lines.push(formatSellLine(item, roleIds));
@@ -574,10 +592,7 @@ function sellBonusContainers(entry, roleIds = {}, type = 'sell') {
 
 function fallSellContainers(entry, roleIds = {}) {
   if (!entry?.entries?.length) return [];
-  const eventHeader = [
-    '-# **\u{1F342}FALL HARVEST\u{1F341}**',
-    `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
-  ];
+  const eventHeader = ['-# **\u{1F342}FALL HARVEST\u{1F341}**'];
   const bonusContainers = sellBonusContainers(entry, roleIds, 'fallSell').map((container) => ({
     ...container,
     components: container.components.map((component) => ({
@@ -594,7 +609,6 @@ function fallSellContainers(entry, roleIds = {}) {
       type: 10,
       content: [
         '-# **🍂FALL HARVEST🍁**',
-        `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
         ...normalEntries.map((item) => formatSellLine(item, {}, { type: 'fallSell' })),
       ].join('\n'),
     }],
@@ -626,6 +640,7 @@ function buildTypePayload(type, entry, options = {}) {
       ...bonusContainers,
       ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
       ...eventContainers,
+      fallConfigButtonRow(),
     ],
   };
 }
@@ -654,6 +669,7 @@ function buildStockPayload(stockPayload, options = {}) {
         accent_color: GREEN,
         components,
       },
+      fallConfigButtonRow(),
     ],
   };
 }
