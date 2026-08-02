@@ -6,6 +6,7 @@ const test = require('node:test');
 const {
   BUG_PATCH_UPDATE_ID,
   FALL_HARVEST_UPDATE_ID,
+  FALL_HARVEST_UPDATE_REVISION,
   NOTIFICATION_ROLE_NOTICE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   REMOVED_NOTIFICATION_ROLE_KEYS,
@@ -17,6 +18,7 @@ const {
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
+  editStoredAnnouncement,
   retractNotificationRoleUpdates,
   updateChannelForGuild,
 } = require('../src/gag2Stock/updateAnnouncement');
@@ -26,6 +28,7 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   const container = payload.components[0];
   const content = container.components[0].content;
   assert.equal(FALL_HARVEST_UPDATE_ID, 'gag2-fall-harvest-limited-event');
+  assert.equal(FALL_HARVEST_UPDATE_REVISION, 2);
   assert.equal(container.accent_color, 0xC96F2B);
   assert.match(content, /^### 🍂 Fall Harvest is live/);
   assert.match(content, /Seed.*Gear.*Crate.*Sell-price/);
@@ -34,6 +37,33 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   assert.deepEqual(container.components[1], { type: 14, divider: true, spacing: 1 });
   assert.equal(container.components[2].content, 'Config at our dashboard!: https://panel.coin-sprite.com/');
   assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
+});
+
+test('GAG2 refreshes the stored Fall announcement without sending a duplicate', async () => {
+  const channelId = '1525003375651848263';
+  const messageId = '1527000000000000001';
+  const edits = [];
+  const guild = {
+    channels: {
+      cache: new Map([[channelId, {
+        messages: {
+          edit: async (id, payload) => {
+            edits.push({ id, payload });
+            return { id };
+          },
+        },
+      }]]),
+      fetch: async () => null,
+    },
+  };
+
+  const result = await editStoredAnnouncement(guild, { channelId, messageId }, buildFallHarvestUpdatePayload());
+
+  assert.equal(result.message.id, messageId);
+  assert.equal(result.missing, false);
+  assert.equal(edits.length, 1);
+  assert.equal(edits[0].id, messageId);
+  assert.match(JSON.stringify(edits[0].payload), /Config at our dashboard!/);
 });
 
 test('GAG2 announces when notification roles for new items will be added', () => {

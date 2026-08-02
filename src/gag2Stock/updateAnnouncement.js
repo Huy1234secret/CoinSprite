@@ -22,6 +22,7 @@ const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const NOTIFICATION_ROLE_NOTICE_ID = 'gag2-notice-new-item-notification-roles';
 const FALL_HARVEST_UPDATE_ID = 'gag2-fall-harvest-limited-event';
+const FALL_HARVEST_UPDATE_REVISION = 2;
 const RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS = Object.freeze([
   'gag2-notification-role-update-eclipse',
   'gag2-notification-role-update-eclipse-channel-v2',
@@ -212,6 +213,21 @@ function saveAnnouncementRecord(updateId, guildId, record, statePath = STATE_PAT
   saveState(state, statePath);
 }
 
+async function editStoredAnnouncement(guild, record, payload) {
+  const channelId = cleanDiscordId(record?.channelId);
+  const messageId = cleanDiscordId(record?.messageId);
+  if (!channelId || !messageId) return { message: null, missing: false };
+  const channel = guild?.channels?.cache?.get?.(channelId)
+    || await guild?.channels?.fetch?.(channelId).catch(() => null);
+  if (typeof channel?.messages?.edit !== 'function') return { message: null, missing: false };
+  try {
+    return { message: await channel.messages.edit(messageId, payload), missing: false };
+  } catch (error) {
+    if (Number(error?.code) === 10008) return { message: null, missing: true };
+    throw error;
+  }
+}
+
 async function retractNotificationRoleUpdates(guild, options = {}) {
   const statePath = options.statePath || STATE_PATH;
   const state = loadState(statePath);
@@ -342,9 +358,24 @@ async function announceNotificationRoleNotice(client, guild, options = {}) {
 
 async function announceFallHarvestUpdate(client, guild, options = {}) {
   const statePath = options.statePath || STATE_PATH;
-  if (announcementRecord(loadState(statePath), FALL_HARVEST_UPDATE_ID, guild.id)) return null;
+  const existing = announcementRecord(loadState(statePath), FALL_HARVEST_UPDATE_ID, guild.id);
+  if (Number(existing?.revision) >= FALL_HARVEST_UPDATE_REVISION) return null;
   ensureGuildConfig(guild.id);
   if (!isGuildGag2StockEnabled(guild.id)) return null;
+
+  if (existing) {
+    const edited = await editStoredAnnouncement(guild, existing, buildFallHarvestUpdatePayload());
+    if (edited.message) {
+      saveAnnouncementRecord(FALL_HARVEST_UPDATE_ID, guild.id, {
+        ...existing,
+        revision: FALL_HARVEST_UPDATE_REVISION,
+        updatedAt: new Date(options.now?.() || Date.now()).toISOString(),
+      }, statePath);
+      logCommandSystem(`GAG2 Fall Harvest announcement refreshed in guild ${guild.id}: ${existing.channelId}`);
+      return edited.message;
+    }
+    if (!edited.missing) return null;
+  }
 
   const config = getGuildConfig(guild.id);
   const channel = await updateChannelForGuild(guild, config);
@@ -353,6 +384,7 @@ async function announceFallHarvestUpdate(client, guild, options = {}) {
   saveAnnouncementRecord(FALL_HARVEST_UPDATE_ID, guild.id, {
     channelId: channel.id,
     messageId: message.id,
+    revision: FALL_HARVEST_UPDATE_REVISION,
     sentAt: new Date(options.now?.() || Date.now()).toISOString(),
   }, statePath);
   logCommandSystem(`GAG2 Fall Harvest announced in guild ${guild.id}: ${channel.id}`);
@@ -387,6 +419,7 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
 module.exports = {
   BUG_PATCH_UPDATE_ID,
   FALL_HARVEST_UPDATE_ID,
+  FALL_HARVEST_UPDATE_REVISION,
   NOTIFICATION_ROLE_NOTICE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
@@ -403,6 +436,7 @@ module.exports = {
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
   collectGuilds,
+  editStoredAnnouncement,
   retractNotificationRoleUpdates,
   startGag2UpdateAnnouncement,
   updateChannelForGuild,
