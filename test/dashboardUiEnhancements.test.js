@@ -201,6 +201,10 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(app, /const GAG2_GARDEN_ITEMS/);
   assert.match(app, /renderGardenRolePicker/);
   assert.match(app, /state\.gag2StockFilters\.roleItems\[type\]/);
+  assert.match(app, /const visibleItems = allItems\.filter/);
+  assert.match(app, /for \(const item of visibleItems\)/);
+  assert.match(app, /picker\.append\(button, menu\);\s*mount\.replaceChildren\(picker\)/);
+  assert.doesNotMatch(app, /const allItems = items\.filter[\s\S]{0,200}const items = allItems\.filter/);
   assert.match(html, /Seed item roles/);
   assert.match(html, /Gear item roles/);
   assert.match(html, /Crate item roles/);
