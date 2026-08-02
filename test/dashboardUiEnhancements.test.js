@@ -136,6 +136,9 @@ test('GAG2 stock dashboard shows role sync progress', () => {
   assert.match(html, /whole-rarity toggles and individual item choices/);
   assert.match(html, /below Discord's role limit/);
   assert.match(html, /<strong>Bug Patches<\/strong>/);
+  assert.match(html, /A few GAG2 fixes are live/);
+  assert.match(html, /every five-minute restock/);
+  assert.match(html, /split into multiple messages/);
   assert.match(html, /replay an older price update after posting the latest one/);
   assert.match(html, /same sell price notification twice/);
   assert.match(html, /only when the displayed prices change/);
@@ -195,6 +198,12 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(app, /sell: \[\]/);
   assert.doesNotMatch(app, /fallItem\('(potato|cinnamon_stick|honeysuckle|plum|romanesco)'/);
   assert.match(app, /rarityInput\.indeterminate/);
+  assert.match(app, /const GAG2_GARDEN_ITEMS/);
+  assert.match(app, /renderGardenRolePicker/);
+  assert.match(app, /state\.gag2StockFilters\.roleItems\[type\]/);
+  assert.match(html, /Seed item roles/);
+  assert.match(html, /Gear item roles/);
+  assert.match(html, /Crate item roles/);
   assert.match(app, /section\.append\(itemList\)/);
   assert.match(app, /cdn\.discordapp\.com\/emojis\/\$\{item\.emojiId\}\.png\?size=32/);
   assert.match(app, /fall: clone\(state\.gag2Fall\)/);
@@ -205,6 +214,7 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(styles, /\.gag2-fall-type input\[type="checkbox"\][\s\S]*?width: 16px !important/);
   assert.match(styles, /\.gag2-filter-check input\[type="checkbox"\][\s\S]*?height: 16px !important/);
   assert.match(styles, /\.gag2-fall-role-panel::after[\s\S]*?bottom: 8px/);
+  assert.match(styles, /\.gag2-garden-picker-menu/);
 });
 
 test('GAG2 notification filters follow their channels and multi-select stays open', () => {

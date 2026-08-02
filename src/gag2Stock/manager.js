@@ -19,6 +19,8 @@ const {
   SELL_FAILURE_RETRY_LIMIT,
   SELL_UNCHANGED_RETRY_MS,
   STATE_PATH,
+  STOCK_FAILURE_RETRY_LIMIT,
+  STOCK_FAILURE_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
   TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
@@ -33,7 +35,7 @@ const {
   fetchWeatherPayload,
 } = require('./source');
 const {
-  buildTypePayload,
+  buildTypePayloads,
   buildTypePostKey,
   buildUnavailablePayload,
 } = require('./stockPayload');
@@ -403,6 +405,10 @@ function filterSellEntry(entry, filters = {}) {
 
 function filteredRoleSpecs(type, specs, filters = {}) {
   if (['seed', 'gear', 'crate'].includes(type)) {
+    if (Array.isArray(filters?.roleItems?.[type])) {
+      const selectedItems = new Set(filters.roleItems[type]);
+      return specs.filter((spec) => selectedItems.has(spec.key));
+    }
     const selected = selectedFilterValues(filters, ['rarities', type], GAG2_ROLE_FILTER_RARITIES);
     return specs.filter((spec) => !GAG2_ROLE_FILTER_RARITIES.includes(spec.rarity) || selected.has(spec.rarity));
   }
@@ -616,6 +622,8 @@ class Gag2StockPoster {
     this.sellCheckScheduleSecondMs = Math.max(0, Math.min(this.sellCheckIntervalMs - 1, Number.isFinite(sellScheduleSecond) ? sellScheduleSecond : SELL_CHECK_SCHEDULE_SECOND_MS));
     this.sellUnchangedRetryMs = Math.max(1_000, Number(options.sellUnchangedRetryMs) || SELL_UNCHANGED_RETRY_MS);
     this.sellFailureRetryLimit = Math.max(1, Number(options.sellFailureRetryLimit) || SELL_FAILURE_RETRY_LIMIT);
+    this.stockFailureRetryMs = Math.max(250, Number(options.stockFailureRetryMs) || STOCK_FAILURE_RETRY_MS);
+    this.stockFailureRetryLimit = Math.max(1, Number(options.stockFailureRetryLimit) || STOCK_FAILURE_RETRY_LIMIT);
     this.fetchers = {
       fetchFallSellPayload: options.fetchFallSellPayload || fetchFallSellPayload,
       fetchFallStockPayload: options.fetchFallStockPayload || fetchFallStockPayload,
@@ -645,6 +653,7 @@ class Gag2StockPoster {
     this.started = false;
     this.nextDelayOverrideMs = null;
     this.nextSellDelayOverrideMs = null;
+    this.stockFailureRetryCount = 0;
     this.sellFailureRetryCount = 0;
   }
 
@@ -714,7 +723,10 @@ class Gag2StockPoster {
     const override = Number.isFinite(this.nextDelayOverrideMs) ? Math.max(0, this.nextDelayOverrideMs) : delayOverrideMs;
     this.nextDelayOverrideMs = null;
     const hasOverride = override !== null && override !== undefined && Number.isFinite(Number(override));
-    const nextAt = hasOverride
+    const retryAllowed = hasOverride && this.stockFailureRetryCount < this.stockFailureRetryLimit;
+    if (retryAllowed) this.stockFailureRetryCount += 1;
+    else this.stockFailureRetryCount = 0;
+    const nextAt = retryAllowed
       ? now + Math.max(0, Number(override))
       : nextGag2StockTickAtMs(now, {
         intervalMs: this.checkIntervalMs,
@@ -943,6 +955,7 @@ class Gag2StockPoster {
     const lockKey = [...tickTypes].sort().join(',');
     if (this.inFlight.has(lockKey)) return null;
     this.inFlight.add(lockKey);
+    let skippedStaleStock = false;
     try {
       const tickStartedAtMs = this.now();
       const targets = this.targets(tickTypes);
@@ -957,6 +970,10 @@ class Gag2StockPoster {
         healthTargets.push({ type: 'fallSell' });
       }
       this.updateSourceHealth(healthTargets, errors);
+      if (targets.some((target) => STOCK_TYPE_GROUPS.stock.includes(target.type)
+        && (errors.has(target.type) || (target.fallEnabled && errors.has('fallStock'))))) {
+        this.nextDelayOverrideMs = this.stockFailureRetryMs;
+      }
       if (targets.some((target) => target.type === 'sell'
         && (errors.has('sell') || (target.fallEnabled && errors.has('fallSell'))))) {
         this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
@@ -990,6 +1007,7 @@ class Gag2StockPoster {
         }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         if (isStaleStockEntry(target.type, entry, tickStartedAtMs)) {
+          skippedStaleStock = true;
           return null;
         }
         return this.postEntry(state, target, entry).catch((postError) => {
@@ -1002,6 +1020,7 @@ class Gag2StockPoster {
       logCommandSystem(`GAG2 ${label} failed: ${error?.message || 'unknown error'}`);
       return null;
     } finally {
+      if (skippedStaleStock) this.nextDelayOverrideMs = this.stockFailureRetryMs;
       this.inFlight.delete(lockKey);
     }
   }
@@ -1063,10 +1082,11 @@ class Gag2StockPoster {
       return this.recordPostPermissionFailure(target, postKey, permissionDiagnostic, channel);
     }
 
-    const payload = buildTypePayload(target.type, entry, {
+    const payloads = buildTypePayloads(target.type, entry, {
       roleIds: target.roleIds,
       fallRoleIds: target.fallRoleIds,
     });
+    const payload = payloads[0];
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
       const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
       if (existing) {
@@ -1109,10 +1129,15 @@ class Gag2StockPoster {
       });
     }
     if (editPermissionFailure) return null;
+    const sentMessages = [];
     if (!message) {
       try {
-        message = await channel.send(payload);
+        for (const part of payloads) sentMessages.push(await channel.send(part));
+        [message] = sentMessages;
       } catch (error) {
+        if (sentMessages.length) {
+          await Promise.allSettled(sentMessages.map((sent) => sent?.delete?.()));
+        }
         if (isDiscordMissingPermissionsError(error)) {
           const diagnostic = await this.postPermissionDiagnostic(channel, target);
           if (!hasMissingPostPermissions(diagnostic)) {
@@ -1132,13 +1157,14 @@ class Gag2StockPoster {
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
+      lastMessageIds: sentMessages.length > 1 ? sentMessages.map((sent) => sent?.id).filter(Boolean) : undefined,
       lastPostedAt: new Date(this.now()).toISOString(),
       lastPostedKey: postKey,
     });
     if (target.type === 'sell') updateSellPostMetadata(bucket, entry);
     saveState(state, this.statePath);
     this.clearPostPermissionFailure(target, postKey, channel);
-    logCommandSystem(`GAG2 ${target.type} posted to ${target.channelId}: ${postKey}`);
+    logCommandSystem(`GAG2 ${target.type} posted to ${target.channelId}${payloads.length > 1 ? ` in ${payloads.length} messages` : ''}: ${postKey}`);
     return message;
   }
 
