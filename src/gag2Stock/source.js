@@ -2,6 +2,8 @@ const {
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
   ITEMS_API_URL,
+  LEGACY_SELL_API_URL,
+  LEGACY_STOCK_API_URL,
   REQUEST_RETRY_COUNT,
   REQUEST_RETRY_DELAY_MS,
   REQUEST_TIMEOUT_MS,
@@ -70,11 +72,15 @@ async function fetchJsonOnce(url, options = {}) {
       signal: controller.signal,
       headers: {
         accept: 'application/json,text/plain,*/*',
+        'accept-language': 'en-US,en;q=0.9',
         'cache-control': 'no-cache',
-        origin: 'https://gag.gg',
         pragma: 'no-cache',
         referer: options.referer || 'https://gag.gg/seed-restock/',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
+        ...(options.headers || {}),
       },
     });
     if (!response?.ok) {
@@ -123,7 +129,12 @@ async function fetchJson(url, options = {}) {
 async function fetchStockPayload(options = {}) {
   const world = String(options.world || 'main').trim().toLowerCase();
   const url = options.url || (world === 'fall' ? FALL_STOCK_API_URL : STOCK_API_URL);
-  return parseStockPayload(await fetchJson(url, options), { world });
+  try {
+    return parseStockPayload(await fetchJson(url, options), { world });
+  } catch (error) {
+    if (world !== 'main' || Number(error?.status) !== 403) throw error;
+    return parseStockPayload(await fetchJson(options.fallbackUrl || LEGACY_STOCK_API_URL, options), { world });
+  }
 }
 
 async function fetchFallStockPayload(options = {}) {
@@ -140,10 +151,15 @@ async function fetchWeatherPayload(options = {}) {
 async function fetchSellPayload(options = {}) {
   const world = String(options.world || 'main').trim().toLowerCase();
   const url = options.url || (world === 'fall' ? FALL_SELL_API_URL : SELL_API_URL);
-  return parseSellPayload(await fetchJson(url, {
-    ...options,
-    referer: 'https://gag.gg/seed-restock/',
-  }), { world });
+  try {
+    return parseSellPayload(await fetchJson(url, {
+      ...options,
+      referer: 'https://gag.gg/seed-restock/',
+    }), { world });
+  } catch (error) {
+    if (world !== 'main' || Number(error?.status) !== 403) throw error;
+    return parseSellPayload(await fetchJson(options.fallbackUrl || LEGACY_SELL_API_URL, options), { world });
+  }
 }
 
 async function fetchFallSellPayload(options = {}) {

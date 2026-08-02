@@ -31,6 +31,8 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   assert.match(content, /Seed.*Gear.*Crate.*Sell-price/);
   assert.match(content, /whole-rarity toggles and individual item choices/);
   assert.match(content, /below Discord's role limit/);
+  assert.deepEqual(container.components[1], { type: 14, divider: true, spacing: 1 });
+  assert.equal(container.components[2].content, 'Config at our dashboard!: https://panel.coin-sprite.com/');
   assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [] });
 });
 

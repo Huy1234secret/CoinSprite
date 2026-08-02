@@ -162,6 +162,13 @@ function buildFallHarvestUpdatePayload() {
           '- Fall role settings support whole-rarity toggles and individual item choices with item icons.',
           '-# Tip: create only the roles your community actually wants so your server stays comfortably below Discord\'s role limit.',
         ].join('\n'),
+      }, {
+        type: 14,
+        divider: true,
+        spacing: 1,
+      }, {
+        type: 10,
+        content: 'Config at our dashboard!: https://panel.coin-sprite.com/',
       }],
     }],
   };
