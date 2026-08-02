@@ -25,6 +25,7 @@ const {
 const {
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
+  LEGACY_STOCK_API_URL,
   REQUEST_TIMEOUT_MS,
   SELL_UNCHANGED_RETRY_MS,
   SELL_API_URL,
@@ -32,9 +33,9 @@ const {
   STOCK_API_URL,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('../src/gag2Stock/config');
-const { fetchJson } = require('../src/gag2Stock/source');
+const { fetchJson, fetchStockPayload } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
-const { Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, isStaleStockEntry, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function testPermissions(...flags) {
   const allowed = new Set(flags);
@@ -79,6 +80,22 @@ test('GAG2 uses the new world-aware Garden Valley and Fall Harvest endpoints', (
   assert.equal(FALL_STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=fall');
   assert.equal(SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=main');
   assert.equal(FALL_SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=fall');
+});
+
+test('GAG2 falls back to the legacy main stock feed when gag.gg returns HTTP 403', async () => {
+  const requested = [];
+  const parsed = await fetchStockPayload({
+    retries: 0,
+    fetchImpl: async (url) => {
+      requested.push(url);
+      if (url === STOCK_API_URL) return { ok: false, status: 403 };
+      if (url === LEGACY_STOCK_API_URL) return { ok: true, json: async () => fixture() };
+      throw new Error(`Unexpected URL: ${url}`);
+    },
+  });
+
+  assert.deepEqual(requested, [STOCK_API_URL, LEGACY_STOCK_API_URL]);
+  assert.equal(parsed.stock.find((entry) => entry.category === 'seed').items[0].key, 'carrot');
 });
 
 test('GAG2 parses the new restock response shape for each world', () => {
@@ -538,6 +555,68 @@ test('GAG2 stock unavailable payload is a red Components V2 container', () => {
   assert.equal(payload.flags, 32768);
   assert.equal(payload.components[0].accent_color, 0xed4245);
   assert.match(payload.components[0].components[0].content, /source unavailable/);
+});
+
+test('GAG2 source errors are sent only to the diagnostic guild', async () => {
+  assert.equal(GAG2_DIAGNOSTIC_GUILD_ID, '1493901002519347290');
+  const statePath = path.join(__dirname, 'tmp-gag2-private-source-error-state.json');
+  fs.rmSync(statePath, { force: true });
+  let sends = 0;
+  const channel = {
+    id: '1525003375651848263',
+    isTextBased: () => true,
+    send: async () => { sends += 1; return { id: 'error-message' }; },
+  };
+  const poster = new Gag2StockPoster({
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { statePath });
+  const error = Object.assign(new Error(`${STOCK_API_URL}: HTTP 403`), { status: 403 });
+
+  await poster.postUnavailableOnce({}, {
+    guildId: '222222222222222222',
+    type: 'seed',
+    channelId: channel.id,
+  }, error);
+
+  assert.equal(sends, 0);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 startup cleanup deletes only recent bot source-error messages', async () => {
+  const now = Date.parse('2026-08-02T04:00:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-source-error-cleanup-state.json');
+  fs.rmSync(statePath, { force: true });
+  let deletedErrors = 0;
+  let deletedNormal = 0;
+  const errorMessage = {
+    author: { id: '123456789012345678', bot: true },
+    createdTimestamp: now - 60_000,
+    components: [{ type: 17, components: [{ type: 10, content: '## GAG2 Seed stock\n* Status: **source unavailable**\n-# HTTP 403' }] }],
+    delete: async () => { deletedErrors += 1; },
+  };
+  const normalMessage = {
+    author: { id: '123456789012345678', bot: true },
+    createdTimestamp: now - 30_000,
+    components: [{ type: 17, components: [{ type: 10, content: '## GAG2 Seed stock\n* Carrot x1' }] }],
+    delete: async () => { deletedNormal += 1; },
+  };
+  const channel = {
+    id: '1525003375651848263',
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map([['error', errorMessage], ['normal', normalMessage]]) },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  poster.targets = () => [{ guildId: GAG2_DIAGNOSTIC_GUILD_ID, type: 'seed', channelId: channel.id }];
+
+  assert.equal(isRecentUnavailableMessage(errorMessage, '123456789012345678', now), true);
+  assert.equal(isRecentUnavailableMessage(normalMessage, '123456789012345678', now), false);
+  assert.equal(await poster.deleteRecentUnavailableMessages(), 1);
+  assert.equal(deletedErrors, 1);
+  assert.equal(deletedNormal, 0);
+  fs.rmSync(statePath, { force: true });
 });
 
 test('GAG2 role specs use requested names and colors', () => {
@@ -1108,6 +1187,48 @@ test('GAG2 stock poster broadcasts to guild channels concurrently with a safe wo
 
   assert.equal(sent.length, targets.length);
   assert.equal(maxActiveSends, 3);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 still posts main stock when the Fall source is unavailable', async () => {
+  const now = Date.parse('2026-07-10T16:50:05.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-fall-source-failure-state.json');
+  fs.rmSync(statePath, { force: true });
+  const parsed = parseStockPayload(fixture());
+  const sentPayloads = [];
+  const target = {
+    guildId: '222222222222222222',
+    type: 'seed',
+    channelId: '1525003375651848263',
+    roleIds: {},
+    fallEnabled: true,
+    fallRoleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  };
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    send: async (payload) => {
+      sentPayloads.push(payload);
+      return { id: 'main-stock-message' };
+    },
+  };
+  const fallError = Object.assign(new Error(`${FALL_STOCK_API_URL}: HTTP 403`), { status: 403 });
+  const poster = new Gag2StockPoster({
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, {
+    fetchStockPayload: async () => parsed,
+    fetchFallStockPayload: async () => { throw fallError; },
+    now: () => now,
+    statePath,
+  });
+  poster.targets = () => [target];
+
+  const sent = await poster.tick(['seed'], 'stock');
+
+  assert.equal(sent.length, 1);
+  assert.equal(sentPayloads.length, 1);
+  assert.doesNotMatch(JSON.stringify(sentPayloads[0]), /FALL HARVEST/i);
   fs.rmSync(statePath, { force: true });
 });
 

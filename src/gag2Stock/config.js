@@ -2,9 +2,11 @@ const path = require('path');
 
 const STOCK_API_URL = 'https://gag.gg/api/seed-restock?world=main';
 const FALL_STOCK_API_URL = 'https://gag.gg/api/seed-restock?world=fall';
+const LEGACY_STOCK_API_URL = 'https://api.gag2.gg/api/live/stock';
 const WEATHER_API_URL = 'https://api.gag2.gg/api/live/weather';
 const SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=main';
 const FALL_SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=fall';
+const LEGACY_SELL_API_URL = 'https://api.gag2.gg/api/live/sell';
 const ITEMS_API_URL = 'https://api.gag2.gg/api/items';
 const COMPONENTS_V2_FLAG = 32768;
 const GREEN = 0x57f287;
@@ -68,6 +70,8 @@ module.exports = {
   FALL_STOCK_API_URL,
   GREEN,
   ITEMS_API_URL,
+  LEGACY_SELL_API_URL,
+  LEGACY_STOCK_API_URL,
   RARITY_RANK,
   RED,
   REQUEST_RETRY_COUNT,

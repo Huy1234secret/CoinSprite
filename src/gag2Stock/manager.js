@@ -63,6 +63,8 @@ const RECENT_SELL_POST_KEY_LIMIT = 24;
 const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
 const POST_PERMISSION_CHECK_LIMIT = 5;
 const POST_PERMISSION_RETRY_MS = 5 * 1000;
+const GAG2_DIAGNOSTIC_GUILD_ID = '1493901002519347290';
+const RECENT_UNAVAILABLE_CLEANUP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 const POST_PERMISSION_LABELS = Object.freeze([
   [PermissionFlagsBits.ViewChannel, 'View Channel'],
@@ -307,6 +309,31 @@ async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowM
     if (componentFingerprint(message?.components) === expected) return message;
   }
   return null;
+}
+
+function componentText(component) {
+  const raw = typeof component?.toJSON === 'function' ? component.toJSON() : component;
+  if (!raw || typeof raw !== 'object') return '';
+  return [
+    raw.content,
+    raw.description,
+    raw.label,
+    ...(Array.isArray(raw.components) ? raw.components.map(componentText) : []),
+  ].filter(Boolean).join('\n');
+}
+
+function isRecentUnavailableMessage(message, clientUserId, nowMs = Date.now()) {
+  const ownMessage = clientUserId
+    ? message?.author?.id === clientUserId
+    : message?.author?.bot === true;
+  if (!ownMessage) return false;
+  const createdAt = Number(message?.createdTimestamp);
+  if (Number.isFinite(createdAt) && createdAt < nowMs - RECENT_UNAVAILABLE_CLEANUP_WINDOW_MS) return false;
+  const text = [
+    message?.content,
+    ...(Array.isArray(message?.components) ? message.components.map(componentText) : []),
+  ].filter(Boolean).join('\n');
+  return /source unavailable|gag\.gg\/api\/[^\s]+.*HTTP 403/i.test(text);
 }
 
 function isTransientSourceError(error) {
@@ -636,6 +663,9 @@ class Gag2StockPoster {
   async start() {
     if (this.started) return this;
     this.started = true;
+    await this.deleteRecentUnavailableMessages().catch((error) => {
+      this.logSystem(`GAG2 recent error cleanup failed: ${error?.message || 'unknown error'}`);
+    });
     this.scheduleNextTick(this.stockInitialDelayMs);
     this.scheduleWeatherTick(this.weatherInitialDelayMs);
     this.scheduleSellTick(this.sellInitialDelayMs);
@@ -647,6 +677,47 @@ class Gag2StockPoster {
         });
     }, 5_000).unref?.();
     return this;
+  }
+
+  async deleteRecentUnavailableMessages() {
+    const grouped = new Map();
+    for (const target of this.targets()) {
+      const entry = grouped.get(target.channelId) || { channelId: target.channelId, targets: [] };
+      entry.targets.push(target);
+      grouped.set(target.channelId, entry);
+    }
+    const state = loadState(this.statePath);
+    let stateChanged = false;
+    const counts = await mapWithConcurrency([...grouped.values()], this.broadcastConcurrency, async (entry) => {
+      const channel = this.client?.channels?.cache?.get?.(entry.channelId)
+        || await this.client?.channels?.fetch?.(entry.channelId).catch(() => null);
+      if (!channel?.isTextBased?.()) return 0;
+      if (typeof channel?.messages?.fetch !== 'function') return 0;
+      const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+      if (!messages || typeof messages.values !== 'function') return 0;
+      let removed = 0;
+      for (const message of messages.values()) {
+        if (!isRecentUnavailableMessage(message, this.client?.user?.id, this.now())) continue;
+        if (typeof message?.delete !== 'function') continue;
+        const deleted = await message.delete().then(() => true).catch(() => false);
+        if (deleted) removed += 1;
+      }
+      if (removed) {
+        for (const target of entry.targets) {
+          const bucket = state.unavailable?.[target.guildId]?.[target.type];
+          if (!bucket) continue;
+          delete bucket.lastMessageId;
+          delete bucket.lastPostedAt;
+          delete bucket.lastPostedKey;
+          stateChanged = true;
+        }
+      }
+      return removed;
+    });
+    const removed = counts.reduce((sum, count) => sum + count, 0);
+    if (stateChanged) saveState(state, this.statePath);
+    if (removed) this.logSystem(`GAG2 removed ${removed} recent stock error message${removed === 1 ? '' : 's'}.`);
+    return removed;
   }
 
   scheduleNextTick(delayOverrideMs = null) {
@@ -928,10 +999,10 @@ class Gag2StockPoster {
         if (!entry) return null;
         if (target.fallEnabled) {
           const fallError = errors.get(target.type === 'sell' ? 'fallSell' : 'fallStock');
-          if (fallError) return null;
-          const fallEntry = entries.get(`fall:${target.type}`);
-          if (!fallEntry) return null;
-          entry = { ...entry, fall: fallEntry };
+          if (!fallError) {
+            const fallEntry = entries.get(`fall:${target.type}`);
+            if (fallEntry) entry = { ...entry, fall: fallEntry };
+          }
         }
         if (target.type === 'sell') {
           entry = filterSellEntry(entry, target.filters);
@@ -1102,6 +1173,11 @@ class Gag2StockPoster {
     bucket.consecutiveFailures = (Number(bucket.consecutiveFailures) || 0) + 1;
     bucket.lastErrorAt = new Date(this.now()).toISOString();
     bucket.lastErrorMessage = String(error?.message || 'Unknown error').slice(0, 500);
+
+    if (String(target.guildId) !== GAG2_DIAGNOSTIC_GUILD_ID) {
+      saveState(state, this.statePath);
+      return null;
+    }
 
     const hasPreviousGoodPost = Boolean(existingPostBucket(state, target.guildId, target.type)?.lastPostedKey);
     const transient = isTransientSourceError(error);
@@ -1309,6 +1385,7 @@ async function startGag2StockPoster(client, options = {}) {
 }
 
 module.exports = {
+  GAG2_DIAGNOSTIC_GUILD_ID,
   Gag2StockPoster,
   componentFingerprint,
   diagnosePostPermissions,
@@ -1317,6 +1394,7 @@ module.exports = {
   filteredRoleSpecs,
   getGag2StockSetupProgress,
   isInactiveWeatherEntry,
+  isRecentUnavailableMessage,
   isStaleStockEntry,
   nextGag2StockTickAtMs,
   roleSpecsForTypes,

@@ -186,14 +186,21 @@ test('GAG2 dashboard exposes dependent Fall Harvest notifications and per-item r
   assert.match(html, /data-gag2-fall-type[\s\S]*Seed[\s\S]*Gear[\s\S]*Crate[\s\S]*Sell-price/);
   assert.match(html, /gag2FallRoleSettingsMount/);
   assert.match(html, /Select only the specific item roles your community wants/);
+  assert.match(html, /gag2FilterTitle[\s\S]*gag2-fall-role-guidance[\s\S]*gag2-filter-grid/);
+  assert.doesNotMatch(html, />Notification roles<\/h4>/);
   assert.match(app, /const GAG2_FALL_TYPES = \['seed', 'gear', 'crate', 'sell'\]/);
   assert.match(app, /input\.disabled = locked \|\| !gardenValleyEnabled/);
-  assert.match(app, /rarityToggle\.indeterminate/);
+  assert.match(app, /gag2-fall-picker-menu/);
+  assert.match(app, /rarityInput\.indeterminate/);
+  assert.match(app, /section\.append\(itemList\)/);
   assert.match(app, /cdn\.discordapp\.com\/emojis\/\$\{item\.emojiId\}\.png\?size=32/);
   assert.match(app, /fall: clone\(state\.gag2Fall\)/);
   assert.match(styles, /\.gag2-fall-panel/);
   assert.match(styles, /linear-gradient\(145deg, rgba\(92, 42, 12/);
+  assert.match(styles, /\.gag2-fall-picker-menu/);
   assert.match(styles, /\.gag2-fall-item-list/);
+  assert.match(styles, /\.gag2-fall-type input\[type="checkbox"\][\s\S]*?width: 16px !important/);
+  assert.match(styles, /\.gag2-filter-check input\[type="checkbox"\][\s\S]*?height: 16px !important/);
 });
 
 test('GAG2 notification filters follow their channels and multi-select stays open', () => {

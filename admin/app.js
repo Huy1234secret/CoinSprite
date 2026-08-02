@@ -981,70 +981,185 @@ function fallTypeLabel(type) {
   return type === 'sell' ? 'Sell-price' : `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
 }
 
-function setFallRoleItems(type, keys) {
+function commitFallRoleItems(type, keys) {
   const allowed = GAG2_FALL_ITEMS[type].map((item) => item.key);
   state.gag2Fall.roleItems[type] = normalizeGag2FilterSelection(keys, allowed);
-  renderGag2FallControls();
   renderPendingGag2RoleChange();
   refreshDirtyState();
 }
 
-function fallRarityGroup(type, rarity, items, selected, enabled) {
-  const group = document.createElement('fieldset');
-  group.className = 'gag2-fall-rarity-group';
-  group.style.setProperty('--rarity-color', GAG2_RARITY_COLORS[rarity] || '#B0ADAC');
+function fallRarityOption(rarity) {
+  return {
+    id: rarity,
+    label: GAG2_FALL_RARITY_LABELS[rarity] || `${rarity.charAt(0).toUpperCase()}${rarity.slice(1)}`,
+    color: GAG2_RARITY_COLORS[rarity] || '#B0ADAC',
+  };
+}
 
-  const legend = document.createElement('legend');
-  const rarityToggle = document.createElement('input');
-  rarityToggle.type = 'checkbox';
-  rarityToggle.disabled = !enabled;
-  rarityToggle.checked = items.every((item) => selected.has(item.key));
-  rarityToggle.indeterminate = !rarityToggle.checked && items.some((item) => selected.has(item.key));
-  const rarityName = document.createElement('span');
-  rarityName.textContent = GAG2_FALL_RARITY_LABELS[rarity] || `${rarity.charAt(0).toUpperCase()}${rarity.slice(1)}`;
-  const count = document.createElement('small');
-  count.textContent = `${items.filter((item) => selected.has(item.key)).length}/${items.length}`;
-  const rarityLabel = document.createElement('label');
-  rarityLabel.append(rarityToggle, rarityName, count);
-  legend.append(rarityLabel);
-  group.append(legend);
+function placeFallRoleMenu(button, menu) {
+  const rect = button.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, 320), window.innerWidth - 24);
+  const roomBelow = window.innerHeight - rect.bottom - 12;
+  const safeTop = 84;
+  const openBelow = roomBelow >= 180;
+  const maxHeight = openBelow
+    ? Math.min(520, roomBelow)
+    : Math.min(520, Math.max(180, rect.top - safeTop - 6));
+  menu.style.width = `${width}px`;
+  menu.style.maxHeight = `${maxHeight}px`;
+  menu.style.left = `${Math.min(Math.max(12, rect.left), window.innerWidth - width - 12)}px`;
+  menu.style.top = openBelow
+    ? `${rect.bottom + 6}px`
+    : `${Math.max(safeTop, rect.top - maxHeight - 6)}px`;
+}
 
-  const list = document.createElement('div');
-  list.className = 'gag2-fall-item-list';
-  for (const item of items) {
-    const label = document.createElement('label');
-    label.className = 'gag2-fall-item';
-    const input = document.createElement('input');
-    input.type = 'checkbox';
-    input.disabled = !enabled;
-    input.checked = selected.has(item.key);
-    const icon = document.createElement('img');
-    icon.src = `https://cdn.discordapp.com/emojis/${item.emojiId}.png?size=32`;
-    icon.alt = '';
-    icon.width = 24;
-    icon.height = 24;
-    const name = document.createElement('span');
-    name.textContent = item.name;
-    label.append(input, icon, name);
-    input.addEventListener('change', () => {
-      const next = new Set(state.gag2Fall.roleItems[type]);
-      if (input.checked) next.add(item.key);
-      else next.delete(item.key);
-      setFallRoleItems(type, [...next]);
-    });
-    list.append(label);
+function renderFallRolePicker(mount, type, enabled, selected) {
+  const picker = document.createElement('div');
+  picker.className = 'picker gag2-fall-picker';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'picker-button gag2-fall-picker-button';
+  button.disabled = !enabled;
+  button.title = enabled ? '' : `Enable Fall ${fallTypeLabel(type)} notifications first`;
+  const selectedWrap = document.createElement('span');
+  selectedWrap.className = 'selected-wrap';
+  const chevron = document.createElement('span');
+  chevron.className = 'chevron';
+  chevron.textContent = 'v';
+  button.append(selectedWrap, chevron);
+
+  const menu = document.createElement('div');
+  menu.className = 'picker-menu gag2-fall-picker-menu';
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'picker-search';
+  search.placeholder = 'Search rarity or item';
+  search.autocomplete = 'off';
+  const optionList = document.createElement('div');
+  optionList.className = 'option-list gag2-fall-option-list';
+  menu.append(search, optionList);
+
+  function selectedRarities() {
+    return GAG2_FALL_RARITY_ORDER.filter((rarity) => GAG2_FALL_ITEMS[type]
+      .some((item) => item.rarity === rarity && selected.has(item.key)));
   }
-  group.append(list);
 
-  rarityToggle.addEventListener('change', () => {
-    const next = new Set(state.gag2Fall.roleItems[type]);
-    for (const item of items) {
-      if (rarityToggle.checked) next.add(item.key);
-      else next.delete(item.key);
+  function drawButton() {
+    selectedWrap.replaceChildren();
+    const rarities = selectedRarities();
+    if (!rarities.length) {
+      const placeholder = document.createElement('span');
+      placeholder.className = 'placeholder';
+      placeholder.textContent = 'No item roles selected';
+      selectedWrap.append(placeholder);
+      return;
     }
-    setFallRoleItems(type, [...next]);
+    rarities.slice(0, 5).forEach((rarity) => selectedWrap.append(makeToken(fallRarityOption(rarity), 'role')));
+    if (rarities.length > 5) {
+      const more = document.createElement('span');
+      more.className = 'token';
+      more.textContent = `+${rarities.length - 5}`;
+      selectedWrap.append(more);
+    }
+  }
+
+  function drawOptions() {
+    const query = search.value.trim().toLowerCase();
+    optionList.replaceChildren();
+    for (const rarity of GAG2_FALL_RARITY_ORDER) {
+      const rarityOption = fallRarityOption(rarity);
+      const allItems = GAG2_FALL_ITEMS[type].filter((item) => item.rarity === rarity);
+      const items = allItems.filter((item) => !query
+        || rarityOption.label.toLowerCase().includes(query)
+        || item.name.toLowerCase().includes(query)
+        || item.key.includes(query));
+      if (!items.length) continue;
+
+      const section = document.createElement('section');
+      section.className = 'gag2-fall-rarity-option';
+      section.style.setProperty('--rarity-color', rarityOption.color);
+      const row = document.createElement('div');
+      row.className = 'gag2-fall-rarity-row';
+      const rarityLabel = document.createElement('label');
+      rarityLabel.className = 'gag2-fall-rarity-toggle';
+      const rarityInput = document.createElement('input');
+      rarityInput.type = 'checkbox';
+      rarityInput.disabled = !enabled;
+      rarityInput.checked = allItems.every((item) => selected.has(item.key));
+      rarityInput.indeterminate = !rarityInput.checked && allItems.some((item) => selected.has(item.key));
+      rarityLabel.append(rarityInput, makeToken(rarityOption, 'role'));
+      const selectedCount = allItems.filter((item) => selected.has(item.key)).length;
+      const status = document.createElement('span');
+      status.className = 'gag2-fall-rarity-status';
+      status.textContent = selectedCount === allItems.length ? 'Selected' : `${selectedCount}/${allItems.length}`;
+      row.append(rarityLabel, status);
+      section.append(row);
+
+      const itemList = document.createElement('div');
+      itemList.className = 'gag2-fall-item-list';
+      for (const item of items) {
+        const label = document.createElement('label');
+        label.className = 'gag2-fall-item';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.disabled = !enabled;
+        input.checked = selected.has(item.key);
+        const icon = document.createElement('img');
+        icon.src = `https://cdn.discordapp.com/emojis/${item.emojiId}.png?size=32`;
+        icon.alt = '';
+        icon.width = 24;
+        icon.height = 24;
+        const name = document.createElement('span');
+        name.textContent = item.name;
+        label.append(input, icon, name);
+        input.addEventListener('change', () => {
+          if (input.checked) selected.add(item.key);
+          else selected.delete(item.key);
+          commitFallRoleItems(type, [...selected]);
+          drawButton();
+          drawOptions();
+        });
+        itemList.append(label);
+      }
+      rarityInput.addEventListener('change', () => {
+        for (const item of allItems) {
+          if (rarityInput.checked) selected.add(item.key);
+          else selected.delete(item.key);
+        }
+        commitFallRoleItems(type, [...selected]);
+        drawButton();
+        drawOptions();
+      });
+      section.append(itemList);
+      optionList.append(section);
+    }
+    if (!optionList.childElementCount) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-option';
+      empty.textContent = 'No results';
+      optionList.append(empty);
+    }
+  }
+
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!enabled) return;
+    const opening = !menu.classList.contains('open');
+    document.querySelectorAll('.picker-menu.open').forEach((node) => node.classList.remove('open'));
+    document.querySelectorAll('.picker-button.open').forEach((node) => node.classList.remove('open'));
+    menu.classList.toggle('open', opening);
+    button.classList.toggle('open', opening);
+    if (opening) {
+      drawOptions();
+      placeFallRoleMenu(button, menu);
+      search.focus();
+    }
   });
-  return group;
+  menu.addEventListener('click', (event) => event.stopPropagation());
+  search.addEventListener('input', drawOptions);
+  drawButton();
+  picker.append(button, menu);
+  mount.append(picker);
 }
 
 function renderGag2FallControls() {
@@ -1079,11 +1194,10 @@ function renderGag2FallControls() {
       : `Enable Fall ${fallTypeLabel(type)} notifications first`;
     heading.append(title, status);
     card.append(heading);
-
-    for (const rarity of GAG2_FALL_RARITY_ORDER) {
-      const items = GAG2_FALL_ITEMS[type].filter((item) => item.rarity === rarity);
-      if (items.length) card.append(fallRarityGroup(type, rarity, items, selected, enabled));
-    }
+    const pickerMount = document.createElement('div');
+    pickerMount.className = 'gag2-fall-picker-mount';
+    renderFallRolePicker(pickerMount, type, enabled, selected);
+    card.append(pickerMount);
     mount.append(card);
   }
 }
