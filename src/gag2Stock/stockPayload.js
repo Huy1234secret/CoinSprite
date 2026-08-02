@@ -1,6 +1,7 @@
 const {
   CATEGORY_LABELS,
   COMPONENTS_V2_FLAG,
+  FALL_ORANGE,
   GREEN,
   RED,
 } = require('./config');
@@ -10,6 +11,7 @@ const {
   customEmojiImageUrl,
   displayNameForType,
   emojiForType,
+  fallRoleTypeForStock,
   highestRarityColor,
   normalizeKey,
   roleKeyForType,
@@ -50,9 +52,10 @@ function normalizeItem(item) {
   };
 }
 
-function normalizeCategory(entry) {
+function normalizeCategory(entry, options = {}) {
   const category = String(entry?.category || '').trim().toLowerCase();
-  const items = sortItemsForType(category, (Array.isArray(entry?.items) ? entry.items : [])
+  const catalogType = options.catalogType || category;
+  const items = sortItemsForType(catalogType, (Array.isArray(entry?.items) ? entry.items : [])
     .map(normalizeItem)
     .filter((item) => item.name && item.quantity > 0)
     .filter((item) => category !== 'seed' || !SELL_ONLY_SEED_KEYS.has(item.key)));
@@ -64,20 +67,70 @@ function normalizeCategory(entry) {
     items,
     nextRestockAtMs: parseDateMs(entry?.nextRestockAt),
     restockedAtMs: parseDateMs(entry?.restockedAt),
+    world: options.world || String(entry?.world || 'main').trim().toLowerCase(),
   };
 }
 
-function parseStockPayload(payload) {
+function parseRestockPayload(payload, options = {}) {
+  const world = String(options.world || payload?.world || 'main').trim().toLowerCase();
+  const windowMs = parseBoundaryMs(payload?.window);
+  const nextRestockAtMs = parseBoundaryMs(payload?.nextRestock ?? payload?.nextRefresh)
+    || (Number.isFinite(windowMs) ? windowMs + 5 * 60 * 1000 : null);
+  const sources = [
+    ['seed', payload?.seeds],
+    ['gear', payload?.gears],
+    ['crate', payload?.props ?? payload?.crates],
+  ];
+  if (!sources.some(([, items]) => Array.isArray(items))) throw new Error('missing GAG2 restock lists');
+
+  const stock = sources.map(([category, sourceItems]) => {
+    const items = (Array.isArray(sourceItems) ? sourceItems : [])
+      .map((entry) => {
+        const lastStockedAtMs = parseBoundaryMs(entry?.lastStockedAt);
+        const inStockNow = entry?.inStockNow === true
+          || (Number.isFinite(windowMs) && Number.isFinite(lastStockedAtMs) && lastStockedAtMs >= windowMs);
+        if (!inStockNow) return null;
+        return {
+          key: entry?.key || entry?.id || entry?.slug || entry?.name,
+          name: entry?.name,
+          quantity: entry?.lastQty ?? entry?.quantity ?? 0,
+          rarity: entry?.rarity,
+          type: category,
+        };
+      })
+      .filter(Boolean);
+    return normalizeCategory({
+      category,
+      items,
+      nextRestockAt: Number.isFinite(nextRestockAtMs) ? new Date(nextRestockAtMs).toISOString() : null,
+      restockedAt: Number.isFinite(windowMs) ? new Date(windowMs).toISOString() : null,
+      world,
+    }, {
+      catalogType: world === 'fall' ? fallRoleTypeForStock(category) : category,
+      world,
+    });
+  });
+
+  return {
+    fetchedAtMs: parseDateMs(payload?.fetchedAt) || Date.now(),
+    world,
+    windowMs,
+    stock,
+  };
+}
+
+function parseStockPayload(payload, options = {}) {
   if (!payload || typeof payload !== 'object') throw new Error('invalid GAG2 stock payload');
-  if (!Array.isArray(payload.stock)) throw new Error('missing GAG2 stock list');
+  if (!Array.isArray(payload.stock)) return parseRestockPayload(payload, options);
 
   const stock = payload.stock
-    .map(normalizeCategory)
+    .map((entry) => normalizeCategory(entry, options))
     .filter((entry) => entry.category);
   if (!stock.length) throw new Error('empty GAG2 stock list');
 
   return {
     fetchedAtMs: parseDateMs(payload.fetchedAt) || Date.now(),
+    world: String(options.world || payload?.world || 'main').trim().toLowerCase(),
     stock,
   };
 }
@@ -123,13 +176,13 @@ function parseWeatherPayload(payload) {
   };
 }
 
-function parseSellPayload(payload) {
+function parseSellPayload(payload, options = {}) {
   const source = payload?.sell && typeof payload.sell === 'object' ? payload.sell : payload;
   const entries = source?.entries;
   if (!Array.isArray(entries)) throw new Error('missing GAG2 sell price list');
   const normalized = entries
     .map((entry) => ({
-      key: slugKey(entry?.key || entry?.id || entry?.name),
+      key: slugKey(entry?.key || entry?.id || entry?.slug || entry?.name),
       name: String(entry?.name || 'Unknown item').trim(),
       multiplier: Number(entry?.multiplier),
       rarity: String(entry?.rarity || '').trim(),
@@ -139,8 +192,10 @@ function parseSellPayload(payload) {
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
     fetchedAtMs: parseDateMs(source?.fetchedAt) || parseDateMs(payload?.fetchedAt) || Date.now(),
-    nextRefreshAtMs: parseBoundaryMs(source?.nextRefreshUnix ?? source?.nextRefreshAt ?? payload?.nextRefreshUnix ?? payload?.nextRefreshAt),
-    entries: sortItemsForType('sell', normalized),
+    nextRefreshAtMs: parseBoundaryMs(source?.nextRefreshUnix ?? source?.nextRefreshAt ?? source?.nextRefresh ?? payload?.nextRefreshUnix ?? payload?.nextRefreshAt ?? payload?.nextRefresh),
+    windowMs: parseBoundaryMs(source?.window ?? payload?.window),
+    world: String(options.world || source?.world || payload?.world || 'main').trim().toLowerCase(),
+    entries: sortItemsForType(String(options.world || source?.world || payload?.world || '').toLowerCase() === 'fall' ? 'fallSell' : 'sell', normalized),
   };
 }
 
@@ -170,18 +225,24 @@ function buildPostKey(stockPayload) {
 
 function buildTypePostKey(type, entry) {
   if (!entry) return `${type}:empty`;
-  if (['seed', 'gear', 'crate'].includes(type)) return buildStockCategoryKey(entry);
+  let key = '';
+  if (['seed', 'gear', 'crate'].includes(type)) key = buildStockCategoryKey(entry);
   if (type === 'weather') {
     const current = entry.current || {};
-    return `weather:${current.key || 'none'}`;
+    key = `weather:${current.key || 'none'}`;
   }
   if (type === 'moon') {
-    return `moon:${(entry.upcomingMoons || []).slice(0, 12).map((item) => `${item.key}:${item.boundaryMs}`).join(',')}`;
+    key = `moon:${(entry.upcomingMoons || []).slice(0, 12).map((item) => `${item.key}:${item.boundaryMs}`).join(',')}`;
   }
   if (type === 'sell') {
-    return `sell:${(entry.entries || []).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')}`;
+    key = `sell:${(entry.entries || []).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')}`;
   }
-  return `${type}:${JSON.stringify(entry).slice(0, 500)}`;
+  if (!key) key = `${type}:${JSON.stringify(entry).slice(0, 500)}`;
+  if (!entry.fall) return key;
+  const fallKey = type === 'sell'
+    ? (entry.fall.entries || []).map((item) => `${item.key}:${item.multiplier.toFixed(4)}`).join(',')
+    : (entry.fall.items || []).map((item) => `${item.key}:${item.quantity}`).join(',');
+  return `${key}|fall:${fallKey}`;
 }
 
 function formatTimestamp(ms, style = 'R') {
@@ -230,12 +291,13 @@ function formatStockCategoryHeader(entry) {
   return [
     `## GAG2 ${entry.label}`,
     `-# Restock ${formatTimestamp(entry.nextRestockAtMs)}`,
+    '-# **🌿GARDEN VALLEY🌻**',
   ].join('\n');
 }
 
-function formatStockCategoryItems(entry, roleIds = {}) {
+function formatStockCategoryItems(entry, roleIds = {}, catalogType = entry.category) {
   return entry.items.length
-    ? entry.items.map((item) => formatItem(entry.category, item, roleIds)).join('\n')
+    ? entry.items.map((item) => formatItem(catalogType, item, roleIds)).join('\n')
     : '* Nothing listed right now.';
 }
 
@@ -246,12 +308,26 @@ function formatStockCategory(entry, roleIds = {}) {
   ].join('\n');
 }
 
-function stockCategoryComponents(entry, roleIds = {}) {
-  return [
+function stockCategoryComponents(entry, roleIds = {}, fallRoleIds = {}) {
+  const components = [
     { type: 10, content: formatStockCategoryHeader(entry) },
     { type: 14, divider: true, spacing: 1 },
     { type: 10, content: formatStockCategoryItems(entry, roleIds) },
   ];
+  if (entry?.fall) {
+    const fallType = fallRoleTypeForStock(entry.category);
+    components.push(
+      { type: 14, divider: true, spacing: 1 },
+      {
+        type: 10,
+        content: [
+          '-# **🍂FALL HARVEST🍁**',
+          formatStockCategoryItems(entry.fall, fallRoleIds, fallType),
+        ].join('\n'),
+      },
+    );
+  }
+  return components;
 }
 
 function formatWeather(entry, roleIds = {}) {
@@ -293,7 +369,11 @@ function formatMultiplier(multiplier) {
 
 function formatSellLine(item, roleIds = {}, options = {}) {
   const prefix = options.heading ? '## ' : '* ';
-  return `${prefix}${emojiPrefix('sell', item)}**${displayNameForType('sell', item)}** x${formatMultiplier(item.multiplier)}`;
+  const type = options.type || 'sell';
+  const display = options.itemRoles
+    ? roleDisplay(roleIds, item, type)
+    : `**${displayNameForType(type, item)}**`;
+  return `${prefix}${emojiPrefix(type, item)}${display} x${formatMultiplier(item.multiplier)}`;
 }
 
 function formatSell(entry, roleIds = {}) {
@@ -302,7 +382,7 @@ function formatSell(entry, roleIds = {}) {
   for (const item of normalEntries) {
     lines.push(formatSellLine(item, roleIds));
   }
-  if (lines.length === 1) lines.push('* No normal sell price entries listed right now.');
+  if (!normalEntries.length) lines.push('* No normal sell price entries listed right now.');
   return lines.join('\n');
 }
 
@@ -363,8 +443,26 @@ function sellBonusContainers(entry, roleIds = {}) {
   });
 }
 
+function fallSellContainer(entry, roleIds = {}) {
+  if (!entry?.entries?.length) return null;
+  return {
+    type: 17,
+    accent_color: FALL_ORANGE,
+    components: [{
+      type: 10,
+      content: [
+        '-# **🍂FALL HARVEST🍁**',
+        `-# Refresh ${formatTimestamp(entry.nextRefreshAtMs)}`,
+        ...entry.entries.map((item) => formatSellLine(item, roleIds, { type: 'fallSell', itemRoles: true })),
+      ].join('\n'),
+    }],
+  };
+}
+
 function buildTypePayload(type, entry, options = {}) {
   const roleIds = supportedRoleIdsForType(type, options.roleIds || {});
+  const fallType = fallRoleTypeForStock(type);
+  const fallRoleIds = fallType ? supportedRoleIdsForType(fallType, options.fallRoleIds || {}) : {};
   const bonusContainers = type === 'sell' ? sellBonusContainers(entry, roleIds) : [];
   const includeMainContainer = type !== 'sell'
     || !Array.isArray(entry?.enabledMultipliers)
@@ -372,14 +470,18 @@ function buildTypePayload(type, entry, options = {}) {
   const mainContainer = {
     type: 17,
     accent_color: accentColorForType(type, entry),
-    components: componentsForType(type, entry, roleIds),
+    components: ['seed', 'gear', 'crate'].includes(type)
+      ? stockCategoryComponents(entry, roleIds, fallRoleIds)
+      : componentsForType(type, entry, roleIds),
   };
+  const eventContainer = type === 'sell' ? fallSellContainer(entry?.fall, fallRoleIds) : null;
   return {
-    allowedMentions: type === 'moon' ? NO_MENTIONS : allowedMentionsForRoles(roleIds),
+    allowedMentions: type === 'moon' ? NO_MENTIONS : allowedMentionsForRoles({ ...roleIds, ...fallRoleIds }),
     flags: COMPONENTS_V2_FLAG,
     components: [
       ...bonusContainers,
       ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
+      ...(eventContainer ? [eventContainer] : []),
     ],
   };
 }
@@ -446,6 +548,7 @@ module.exports = {
   buildUnavailablePayload,
   formatStockCategory,
   parseItemsPayload,
+  parseRestockPayload,
   parseSellPayload,
   parseStockPayload,
   parseWeatherPayload,

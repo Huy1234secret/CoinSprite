@@ -11,6 +11,7 @@ const {
   STATE_PATH,
 } = require('./config');
 const {
+  FALL_ROLE_TYPES,
   SHECKLES_EMOJI,
   customEmojiImageUrl,
   emojiForType,
@@ -23,7 +24,7 @@ const WHITE = 0xFFFFFF;
 const RED = 0xed4245;
 const NO_MENTIONS = { parse: [], users: [], roles: [] };
 const ROLE_ASSIGN_CHANNEL_KEY = 'roleAssign';
-const ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell'];
+const ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell', ...Object.values(FALL_ROLE_TYPES)];
 const CUSTOM_ID_PREFIX = 'gag2role';
 const MAX_SELECT_OPTIONS = 25;
 
@@ -33,6 +34,10 @@ const ROLE_ASSIGN_LABELS = {
   crate: 'Crate',
   weather: 'Weather',
   sell: 'Sell price',
+  fallSeed: 'Fall seed',
+  fallGear: 'Fall gear',
+  fallCrate: 'Fall crate',
+  fallSell: 'Fall sell price',
 };
 
 const THUMBNAIL_KEYS = {
@@ -40,6 +45,10 @@ const THUMBNAIL_KEYS = {
   gear: ['gear', 'common_sprinkler'],
   crate: ['crate', 'boombox_crate'],
   weather: ['weather', 'goldmoon'],
+  fallSeed: ['fallSeed', 'amber_cranberry'],
+  fallGear: ['fallGear', 'super_magic_mail'],
+  fallCrate: ['fallCrate', 'rake_crate'],
+  fallSell: ['fallSell', 'maple_carrot'],
 };
 
 function cleanDiscordId(value) {
@@ -57,6 +66,13 @@ function categoryLabel(type) {
 }
 
 function isCategoryBound(config, type) {
+  const fallType = Object.entries(FALL_ROLE_TYPES).find(([, roleType]) => roleType === type)?.[0];
+  if (fallType) {
+    return Boolean(
+      cleanDiscordId(config?.gag2Stock?.channels?.[fallType])
+      && config?.gag2Stock?.fall?.enabledTypes?.includes?.(fallType),
+    );
+  }
   return Boolean(cleanDiscordId(config?.gag2Stock?.channels?.[type]));
 }
 
@@ -91,6 +107,12 @@ function chunkOptions(options) {
   for (let index = 0; index < options.length; index += MAX_SELECT_OPTIONS) {
     chunks.push(options.slice(index, index + MAX_SELECT_OPTIONS));
   }
+  return chunks;
+}
+
+function chunkButtons(values, size = 5) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
   return chunks;
 }
 
@@ -172,16 +194,16 @@ function buildRoleAssignmentPanelPayload(config) {
             ].join('\n'),
           },
           { type: 14, divider: true, spacing: 1 },
-          {
+          ...chunkButtons(ROLE_ASSIGN_TYPES).map((types) => ({
             type: 1,
-            components: ROLE_ASSIGN_TYPES.map((type) => ({
+            components: types.map((type) => ({
               type: 2,
               custom_id: `${CUSTOM_ID_PREFIX}:open:${type}`,
               label: categoryLabel(type),
               style: 2,
               disabled: !isCategoryBound(config, type),
             })),
-          },
+          })),
         ],
       },
     ],

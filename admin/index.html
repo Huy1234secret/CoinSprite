@@ -315,6 +315,10 @@
                 <button class="button subtle" type="button" id="gag2StockPermissionRefreshButton">Refresh permissions</button>
               </div>
             </div>
+            <div class="gag2-world-heading garden-valley-heading">
+              <span class="gag2-world-tag garden-valley-tag">GARDEN VALLEY</span>
+              <p>Core stock, weather, moon, and sell-price notifications.</p>
+            </div>
             <div class="settings-grid gag2-stock-grid" id="gag2StockConfigArea">
               <div class="picker-field">
                 <span class="field-label">Seed stock</span>
@@ -351,8 +355,25 @@
                 <div id="gag2UpdatesChannelMount"></div>
               </div>
             </div>
+            <section class="gag2-fall-panel" aria-labelledby="gag2FallTitle">
+              <div class="gag2-world-heading">
+                <div>
+                  <span class="gag2-world-tag fall-harvest-tag" id="gag2FallTitle">FALL HARVEST</span>
+                  <span class="gag2-limited-tag">Limited Event</span>
+                </div>
+                <p>Add Fall Harvest stock to the matching Garden Valley message.</p>
+              </div>
+              <div class="gag2-fall-type-grid" aria-label="Add event stock notifications">
+                <span class="field-label">Add event's stock notification:</span>
+                <label class="gag2-fall-type"><input type="checkbox" value="seed" data-gag2-fall-type> Seed</label>
+                <label class="gag2-fall-type"><input type="checkbox" value="gear" data-gag2-fall-type> Gear</label>
+                <label class="gag2-fall-type"><input type="checkbox" value="crate" data-gag2-fall-type> Crate</label>
+                <label class="gag2-fall-type"><input type="checkbox" value="sell" data-gag2-fall-type> Sell-price</label>
+              </div>
+              <p class="field-hint gag2-fall-dependency-hint">Each option becomes available after its Garden Valley channel is selected.</p>
+            </section>
             <section class="gag2-filter-panel" aria-labelledby="gag2FilterTitle">
-              <h4 id="gag2FilterTitle">Notification filters</h4>
+              <h4 id="gag2FilterTitle">Notification filters <span class="gag2-world-tag garden-valley-tag">GARDEN VALLEY</span></h4>
               <div class="settings-grid gag2-filter-grid">
                 <div class="picker-field">
                   <span class="field-label">Seed role rarities</span>
@@ -380,6 +401,16 @@
                 </div>
               </div>
             </section>
+            <section class="gag2-fall-role-panel" aria-labelledby="gag2FallRoleTitle">
+              <div class="gag2-world-heading">
+                <div>
+                  <span class="gag2-world-tag fall-harvest-tag">FALL HARVEST</span>
+                  <h4 id="gag2FallRoleTitle">Notification roles</h4>
+                </div>
+                <p>Select only the specific item roles your community wants to avoid reaching Discord's role limit.</p>
+              </div>
+              <div id="gag2FallRoleSettingsMount" class="gag2-fall-role-settings"></div>
+            </section>
             <section class="gag2-update-feed" aria-labelledby="gag2UpdateFeedTitle">
               <div class="gag2-update-feed-heading">
                 <div>
@@ -390,11 +421,14 @@
               <div class="gag2-update-list">
                 <article class="gag2-update-card latest">
                   <div class="gag2-update-card-heading">
-                    <strong>Notice: New Item Notification Roles</strong>
+                    <strong>🍂 Fall Harvest is live</strong>
                     <span>Latest</span>
                   </div>
                   <ul class="gag2-update-details">
-                    <li>We've noticed several new items appearing in the bot's notifications. We'll add notification roles for them once they're available in-game.</li>
+                    <li>Limited Fall Harvest Seed, Gear, Crate, and Sell-price stock can now appear inside the matching Garden Valley notification.</li>
+                    <li>Every new event item includes its Discord emoji and rarity color.</li>
+                    <li>Fall role settings now support whole-rarity toggles and individual item choices with item icons.</li>
+                    <li><strong>Tip:</strong> create only the roles your server needs so you stay comfortably below Discord's role limit.</li>
                   </ul>
                 </article>
                 <article class="gag2-update-card">

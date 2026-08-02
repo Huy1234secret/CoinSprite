@@ -1,6 +1,7 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('../commandLogger');
 const {
+  GAG2_FALL_STOCK_TYPES,
   GAG2_ROLE_FILTER_RARITIES,
   GAG2_SELL_FILTER_RARITIES,
   GAG2_SELL_MULTIPLIERS,
@@ -24,6 +25,8 @@ const {
   WEATHER_CHECK_INTERVAL_MS,
 } = require('./config');
 const {
+  fetchFallSellPayload,
+  fetchFallStockPayload,
   fetchItemsPayload,
   fetchSellPayload,
   fetchStockPayload,
@@ -35,6 +38,8 @@ const {
   buildUnavailablePayload,
 } = require('./stockPayload');
 const {
+  FALL_ROLE_TYPES,
+  fallRoleTypeForStock,
   normalizeRarity,
   rarityForType,
   roleSpecsForType,
@@ -52,6 +57,7 @@ const setupProgress = new Map();
 const STOCK_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.stock]);
 const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
 const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
+const ROLE_TYPES = Object.freeze([...STOCK_TYPES, ...Object.values(FALL_ROLE_TYPES)]);
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
 const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
@@ -310,6 +316,8 @@ function isTransientSourceError(error) {
 }
 
 function sourceGroupForType(type) {
+  if (type === 'fallStock') return 'Fall Harvest stock';
+  if (type === 'fallSell') return 'Fall Harvest sell';
   if (STOCK_TYPE_GROUPS.stock.includes(type)) return 'stock';
   if (STOCK_TYPE_GROUPS.weather.includes(type)) return 'weather';
   if (type === 'sell') return 'sell';
@@ -383,11 +391,16 @@ function filteredRoleSpecs(type, specs, filters = {}) {
     const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
     return specs.filter((spec) => rarities.has(spec.rarity) && multipliers.has(spec.bucket));
   }
+  const fallStockType = Object.entries(FALL_ROLE_TYPES).find(([, roleType]) => roleType === type)?.[0];
+  if (fallStockType) {
+    const selected = selectedFilterValues(filters, ['fall', 'roleItems', fallStockType], []);
+    return specs.filter((spec) => selected.has(spec.key));
+  }
   return specs;
 }
 
 async function roleSpecsForTypes(types, filters = {}) {
-  const specsByType = Object.fromEntries(STOCK_TYPES.map((type) => [type, []]));
+  const specsByType = Object.fromEntries(ROLE_TYPES.map((type) => [type, []]));
   for (const type of types) specsByType[type] = filteredRoleSpecs(type, roleSpecsForType(type), filters);
   return specsByType;
 }
@@ -404,7 +417,7 @@ function roleIdsForTypes(config, types) {
 }
 
 async function clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress) {
-  const disabled = STOCK_TYPES.filter((type) => !enabledTypes.includes(type));
+  const disabled = ROLE_TYPES.filter((type) => !enabledTypes.includes(type));
   const enabledRoleIds = roleIdsForTypes(config, enabledTypes);
   const deleteCandidates = new Map();
 
@@ -516,6 +529,8 @@ async function fetchEntriesForTargets(targets, fetchers) {
   const needStock = targets.some((target) => STOCK_TYPE_GROUPS.stock.includes(target.type));
   const needWeather = targets.some((target) => STOCK_TYPE_GROUPS.weather.includes(target.type));
   const needSell = targets.some((target) => target.type === 'sell');
+  const needFallStock = targets.some((target) => target.fallEnabled && STOCK_TYPE_GROUPS.stock.includes(target.type));
+  const needFallSell = targets.some((target) => target.fallEnabled && target.type === 'sell');
 
   if (needStock) {
     try {
@@ -523,6 +538,15 @@ async function fetchEntriesForTargets(targets, fetchers) {
       for (const entry of stockPayload.stock) entries.set(entry.category, entry);
     } catch (error) {
       for (const type of STOCK_TYPE_GROUPS.stock) errors.set(type, error);
+    }
+  }
+
+  if (needFallStock) {
+    try {
+      const stockPayload = await fetchers.fetchFallStockPayload();
+      for (const entry of stockPayload.stock) entries.set(`fall:${entry.category}`, entry);
+    } catch (error) {
+      errors.set('fallStock', error);
     }
   }
 
@@ -542,6 +566,14 @@ async function fetchEntriesForTargets(targets, fetchers) {
       entries.set('sell', await fetchers.fetchSellPayload());
     } catch (error) {
       errors.set('sell', error);
+    }
+  }
+
+  if (needFallSell) {
+    try {
+      entries.set('fall:sell', await fetchers.fetchFallSellPayload());
+    } catch (error) {
+      errors.set('fallSell', error);
     }
   }
 
@@ -569,6 +601,8 @@ class Gag2StockPoster {
     this.sellUnchangedRetryMs = Math.max(1_000, Number(options.sellUnchangedRetryMs) || SELL_UNCHANGED_RETRY_MS);
     this.staleStockRetryMs = Math.max(1_000, Number(options.staleStockRetryMs) || STALE_STOCK_RETRY_MS);
     this.fetchers = {
+      fetchFallSellPayload: options.fetchFallSellPayload || fetchFallSellPayload,
+      fetchFallStockPayload: options.fetchFallStockPayload || fetchFallStockPayload,
       fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
       fetchSellPayload: options.fetchSellPayload || fetchSellPayload,
       fetchStockPayload: options.fetchStockPayload || fetchStockPayload,
@@ -828,6 +862,7 @@ class Gag2StockPoster {
       if (!isGuildGag2StockEnabled(guildId)) continue;
       const config = getGuildConfig(guildId);
       const channels = config?.gag2Stock?.channels || {};
+      const fallEnabledTypes = new Set(config?.gag2Stock?.fall?.enabledTypes || []);
       for (const type of STOCK_TYPES) {
         if (!allowedTypes.has(type)) continue;
         const channelId = cleanChannelId(channels[type]);
@@ -837,7 +872,12 @@ class Gag2StockPoster {
           type,
           channelId,
           roleIds: config?.gag2Stock?.roleIds?.[type] || {},
-          filters: config?.gag2Stock?.filters || {},
+          fallEnabled: GAG2_FALL_STOCK_TYPES.includes(type) && fallEnabledTypes.has(type),
+          fallRoleIds: config?.gag2Stock?.roleIds?.[fallRoleTypeForStock(type)] || {},
+          filters: {
+            ...(config?.gag2Stock?.filters || {}),
+            fall: config?.gag2Stock?.fall || {},
+          },
         });
       }
     }
@@ -857,7 +897,14 @@ class Gag2StockPoster {
       if (!targets.length) return null;
       const state = loadState(this.statePath);
       const { entries, errors } = await fetchEntriesForTargets(targets, this.fetchers);
-      this.updateSourceHealth(targets, errors);
+      const healthTargets = [...targets];
+      if (targets.some((target) => target.fallEnabled && STOCK_TYPE_GROUPS.stock.includes(target.type))) {
+        healthTargets.push({ type: 'fallStock' });
+      }
+      if (targets.some((target) => target.fallEnabled && target.type === 'sell')) {
+        healthTargets.push({ type: 'fallSell' });
+      }
+      this.updateSourceHealth(healthTargets, errors);
       const targetTypes = [...new Set(targets.map((target) => target.type))];
       const nextStockRefreshAtMs = nextApiRefreshAtMsForTypes(
         entries,
@@ -879,9 +926,16 @@ class Gag2StockPoster {
 
         let entry = entries.get(target.type);
         if (!entry) return null;
+        if (target.fallEnabled) {
+          const fallError = errors.get(target.type === 'sell' ? 'fallSell' : 'fallStock');
+          if (fallError) return null;
+          const fallEntry = entries.get(`fall:${target.type}`);
+          if (!fallEntry) return null;
+          entry = { ...entry, fall: fallEntry };
+        }
         if (target.type === 'sell') {
           entry = filterSellEntry(entry, target.filters);
-          if (!entry.entries.length) return null;
+          if (!entry.entries.length && !entry.fall?.entries?.length) return null;
           if (isApiRefreshDue(target.type, entry, tickStartedAtMs)) {
             this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
             return null;
@@ -964,7 +1018,10 @@ class Gag2StockPoster {
       return this.recordPostPermissionFailure(target, postKey, permissionDiagnostic, channel);
     }
 
-    const payload = buildTypePayload(target.type, entry, { roleIds: target.roleIds });
+    const payload = buildTypePayload(target.type, entry, {
+      roleIds: target.roleIds,
+      fallRoleIds: target.fallRoleIds,
+    });
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
       const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
       if (existing) {
@@ -1131,6 +1188,13 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
   const config = getGuildConfig(guild.id);
   const enabledTypes = STOCK_TYPES.filter((type) => cleanChannelId(config?.gag2Stock?.channels?.[type]));
+  const fallEnabledTypes = new Set(config?.gag2Stock?.fall?.enabledTypes || []);
+  const enabledRoleTypes = [
+    ...enabledTypes,
+    ...GAG2_FALL_STOCK_TYPES
+      .filter((type) => enabledTypes.includes(type) && fallEnabledTypes.has(type))
+      .map((type) => FALL_ROLE_TYPES[type]),
+  ];
 
   const me = guild.members?.me || await guild.members?.fetchMe?.().catch(() => null);
   if (!me?.permissions?.has?.(PermissionFlagsBits.ManageRoles)) {
@@ -1140,14 +1204,17 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
 
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
-  const specsByType = await roleSpecsForTypes(enabledTypes, config?.gag2Stock?.filters || {});
-  const disabledRemoval = await clearDisabledTypeRoles(guild, config, enabledTypes, roles, progress);
-  if (!enabledTypes.length) {
+  const specsByType = await roleSpecsForTypes(enabledRoleTypes, {
+    ...(config?.gag2Stock?.filters || {}),
+    fall: config?.gag2Stock?.fall || {},
+  });
+  const disabledRemoval = await clearDisabledTypeRoles(guild, config, enabledRoleTypes, roles, progress);
+  if (!enabledRoleTypes.length) {
     if (!disabledRemoval.failed) progressGuildId && progress({ action: disabledRemoval.removed ? 'removing' : 'checking', remaining: 0, total: disabledRemoval.removed, status: 'done', message: disabledRemoval.removed ? 'Removed roles' : 'No roles needed' });
     return { removed: disabledRemoval.removed, failed: disabledRemoval.failed, added: 0 };
   }
 
-  const filteredRemoval = await clearFilteredTypeRoles(guild, config, enabledTypes, specsByType, roles, progress);
+  const filteredRemoval = await clearFilteredTypeRoles(guild, config, enabledRoleTypes, specsByType, roles, progress);
   const removal = {
     removed: disabledRemoval.removed + filteredRemoval.removed,
     failed: disabledRemoval.failed + filteredRemoval.failed,
@@ -1156,7 +1223,7 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   const byName = new Map([...roles.values()].map((role) => [role.name.toLowerCase(), role]));
   const result = {};
   let addRemaining = 0;
-  for (const type of enabledTypes) {
+  for (const type of enabledRoleTypes) {
     const roleIds = { ...(syncedConfig?.gag2Stock?.roleIds?.[type] || {}) };
     for (const spec of specsByType[type] || []) {
       const existingId = roleIds[spec.key];
@@ -1168,7 +1235,7 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   const addTotal = addRemaining;
   if (addTotal) progress?.({ action: 'adding', remaining: addRemaining, total: addTotal, status: 'running', message: `Adding ${addRemaining} roles` });
 
-  for (const type of enabledTypes) {
+  for (const type of enabledRoleTypes) {
     const roleIds = { ...(syncedConfig?.gag2Stock?.roleIds?.[type] || {}) };
     for (const spec of specsByType[type] || []) {
       const existingId = roleIds[spec.key];

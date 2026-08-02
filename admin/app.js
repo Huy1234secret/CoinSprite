@@ -35,6 +35,72 @@ const GAG2_RARITY_COLORS = {
   common: '#B0ADAC', uncommon: '#3EC044', rare: '#3E7EF4', epic: '#9D3CD2',
   legendary: '#E2AB0F', mythic: '#D62928', super: '#B71E99', secret: '#FFFFFF',
 };
+const GAG2_FALL_TYPES = ['seed', 'gear', 'crate', 'sell'];
+const GAG2_FALL_RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
+const GAG2_FALL_RARITY_LABELS = { mythic: 'Mythical' };
+
+function fallItem(key, name, emojiId, rarity) {
+  return { key, name, emojiId, rarity };
+}
+
+const GAG2_FALL_SEED_ITEMS = [
+  fallItem('maple_blueberry', 'Maple Blueberry', '1533299270378328254', 'common'),
+  fallItem('maple_strawberry', 'Maple Strawberry', '1533299298907853021', 'common'),
+  fallItem('maple_carrot', 'Maple Carrot', '1533299274186489938', 'common'),
+  fallItem('maple_apple', 'Maple Apple', '1533299264757825536', 'uncommon'),
+  fallItem('maple_tomato', 'Maple Tomato', '1533299302057775247', 'uncommon'),
+  fallItem('maple_tulip', 'Maple Tulip', '1533299304222162985', 'uncommon'),
+  fallItem('maple_pineapple', 'Maple Pineapple', '1533299293509783622', 'rare'),
+  fallItem('maple_cactus', 'Maple Cactus', '1533299272458703038', 'rare'),
+  fallItem('maple_corn', 'Maple Corn', '1533299279718781129', 'rare'),
+  fallItem('maple_bamboo', 'Maple Bamboo', '1533299266624422028', 'rare'),
+  fallItem('potato', 'Potato', '1533299312677621810', 'rare'),
+  fallItem('maple_mango', 'Maple Mango', '1533299288036216902', 'epic'),
+  fallItem('maple_coconut', 'Maple Coconut', '1533299277634469889', 'epic'),
+  fallItem('maple_grape', 'Maple Grape', '1533299284349423626', 'epic'),
+  fallItem('maple_banana', 'Maple Banana', '1533299268369256540', 'epic'),
+  fallItem('maple_green_bean', 'Maple Green Bean', '1533299286027010188', 'epic'),
+  fallItem('maple_mushroom', 'Maple Mushroom', '1533299290263388231', 'epic'),
+  fallItem('cinnamon_stick', 'Cinnamon Stick', '1533299249746284657', 'epic'),
+  fallItem('maple_sunflower', 'Maple Sunflower', '1533299300623192195', 'legendary'),
+  fallItem('maple_cherry', 'Maple Cherry', '1533299275910611044', 'legendary'),
+  fallItem('maple_acorn', 'Maple Acorn', '1533299262639575041', 'legendary'),
+  fallItem('atlantic_giant_pumpkin', 'Atlantic Giant Pumpkin', '1533299248102113370', 'legendary'),
+  fallItem('maple_dragon_fruit', 'Maple Dragon Fruit', '1533299281748951070', 'legendary'),
+  fallItem('plum', 'Plum', '1533299311012610048', 'legendary'),
+  fallItem('honeysuckle', 'Honeysuckle', '1533299253584072747', 'legendary'),
+  fallItem('conifer_cone', 'Conifer Cone', '1533299251638042787', 'mythic'),
+  fallItem('maple_venom_spitter', 'Maple Venom Spitter', '1533299307065643071', 'mythic'),
+  fallItem('maple_poison_apple', 'Maple Poison Apple', '1533299295367991417', 'mythic'),
+  fallItem('maple_pomegranate', 'Maple Pomegranate', '1533299297209155624', 'mythic'),
+  fallItem('maple_venus_fly_trap', 'Maple Venus Fly Trap', '1533299309292818462', 'mythic'),
+  fallItem('romanesco', 'Romanesco', '1533299314363732089', 'mythic'),
+  fallItem('amber_cranberry', 'Amber Cranberry', '1533299246315475045', 'super'),
+];
+const GAG2_FALL_GEAR_ITEMS = [
+  fallItem('syrup_sprinkler', 'Syrup Sprinkler', '1533305566112387283', 'common'),
+  fallItem('syrup_watering_can', 'Syrup Watering Can', '1533305567978848348', 'common'),
+  fallItem('trowel', 'Trowel', '1525198726535053404', 'rare'),
+  fallItem('rare_magic_mail', 'Rare Magic Mail', '1533305557618917396', 'rare'),
+  fallItem('harp', 'Harp', '1533305553621749780', 'rare'),
+  fallItem('legendary_magic_mail', 'Legendary Magic Mail', '1533305555740000256', 'legendary'),
+  fallItem('super_magic_mail', 'Super Magic Mail', '1533305559728656515', 'super'),
+  fallItem('super_syrup_sprinkler', 'Super Syrup Sprinkler', '1533305562043781282', 'super'),
+  fallItem('super_syrup_watering_can', 'Super Syrup Watering Can', '1533305564312895539', 'super'),
+];
+const GAG2_FALL_CRATE_ITEMS = [
+  fallItem('fall_cosmetic_crate', 'Fall Cosmetic Crate', '1533306166300643509', 'uncommon'),
+  fallItem('lantern_crate', 'Lantern Crate', '1533306170348011520', 'uncommon'),
+  fallItem('fall_structure_crate', 'Fall Structure Crate', '1533306168213246052', 'rare'),
+  fallItem('cobblestone_crate', 'Cobblestone Crate', '1533306164018937936', 'rare'),
+  fallItem('rake_crate', 'Rake Crate', '1533306173112188998', 'legendary'),
+];
+const GAG2_FALL_ITEMS = {
+  seed: GAG2_FALL_SEED_ITEMS,
+  gear: GAG2_FALL_GEAR_ITEMS,
+  crate: GAG2_FALL_CRATE_ITEMS,
+  sell: GAG2_FALL_SEED_ITEMS,
+};
 
 function defaultGag2StockFilters() {
   return {
@@ -45,6 +111,13 @@ function defaultGag2StockFilters() {
       sell: [...GAG2_SELL_RARITIES],
     },
     sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
+  };
+}
+
+function defaultGag2FallConfig() {
+  return {
+    enabledTypes: [],
+    roleItems: Object.fromEntries(GAG2_FALL_TYPES.map((type) => [type, []])),
   };
 }
 
@@ -63,6 +136,7 @@ const state = {
   rewards: [],
   gag2StockChannels: {},
   gag2StockFilters: defaultGag2StockFilters(),
+  gag2Fall: defaultGag2FallConfig(),
   activeTab: 'leveling',
   activeLevelingTab: 'xp',
   visibleTabs: null,
@@ -112,6 +186,8 @@ const elements = {
   gag2StockPermissionOverlay: document.querySelector('#gag2StockPermissionOverlay'),
   gag2StockPermissionText: document.querySelector('#gag2StockPermissionText'),
   gag2StockPermissionRefreshButton: document.querySelector('#gag2StockPermissionRefreshButton'),
+  gag2FallTypeInputs: [...document.querySelectorAll('[data-gag2-fall-type]')],
+  gag2FallRoleSettingsMount: document.querySelector('#gag2FallRoleSettingsMount'),
   gag2RarityMounts: {
     seed: document.querySelector('#gag2SeedRarityMount'),
     gear: document.querySelector('#gag2GearRarityMount'),
@@ -863,6 +939,7 @@ function renderGag2StockPickers() {
         renderGag2StockPickers();
         renderGag2FilterControls();
         renderPendingGag2RoleChange();
+        renderGag2FallControls();
         refreshDirtyState();
       },
     });
@@ -885,6 +962,130 @@ function normalizeGag2Filters(value = {}) {
     },
     sellMultipliers: normalizeGag2FilterSelection(value.sellMultipliers, GAG2_SELL_MULTIPLIERS),
   };
+}
+
+function normalizeGag2FallConfig(value = {}) {
+  const enabledTypes = Array.isArray(value.enabledTypes)
+    ? normalizeGag2FilterSelection(value.enabledTypes, GAG2_FALL_TYPES)
+    : [];
+  const roleItems = {};
+  for (const type of GAG2_FALL_TYPES) {
+    roleItems[type] = Array.isArray(value.roleItems?.[type])
+      ? normalizeGag2FilterSelection(value.roleItems[type], GAG2_FALL_ITEMS[type].map((item) => item.key))
+      : [];
+  }
+  return { enabledTypes, roleItems };
+}
+
+function fallTypeLabel(type) {
+  return type === 'sell' ? 'Sell-price' : `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+}
+
+function setFallRoleItems(type, keys) {
+  const allowed = GAG2_FALL_ITEMS[type].map((item) => item.key);
+  state.gag2Fall.roleItems[type] = normalizeGag2FilterSelection(keys, allowed);
+  renderGag2FallControls();
+  renderPendingGag2RoleChange();
+  refreshDirtyState();
+}
+
+function fallRarityGroup(type, rarity, items, selected, enabled) {
+  const group = document.createElement('fieldset');
+  group.className = 'gag2-fall-rarity-group';
+  group.style.setProperty('--rarity-color', GAG2_RARITY_COLORS[rarity] || '#B0ADAC');
+
+  const legend = document.createElement('legend');
+  const rarityToggle = document.createElement('input');
+  rarityToggle.type = 'checkbox';
+  rarityToggle.disabled = !enabled;
+  rarityToggle.checked = items.every((item) => selected.has(item.key));
+  rarityToggle.indeterminate = !rarityToggle.checked && items.some((item) => selected.has(item.key));
+  const rarityName = document.createElement('span');
+  rarityName.textContent = GAG2_FALL_RARITY_LABELS[rarity] || `${rarity.charAt(0).toUpperCase()}${rarity.slice(1)}`;
+  const count = document.createElement('small');
+  count.textContent = `${items.filter((item) => selected.has(item.key)).length}/${items.length}`;
+  const rarityLabel = document.createElement('label');
+  rarityLabel.append(rarityToggle, rarityName, count);
+  legend.append(rarityLabel);
+  group.append(legend);
+
+  const list = document.createElement('div');
+  list.className = 'gag2-fall-item-list';
+  for (const item of items) {
+    const label = document.createElement('label');
+    label.className = 'gag2-fall-item';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.disabled = !enabled;
+    input.checked = selected.has(item.key);
+    const icon = document.createElement('img');
+    icon.src = `https://cdn.discordapp.com/emojis/${item.emojiId}.png?size=32`;
+    icon.alt = '';
+    icon.width = 24;
+    icon.height = 24;
+    const name = document.createElement('span');
+    name.textContent = item.name;
+    label.append(input, icon, name);
+    input.addEventListener('change', () => {
+      const next = new Set(state.gag2Fall.roleItems[type]);
+      if (input.checked) next.add(item.key);
+      else next.delete(item.key);
+      setFallRoleItems(type, [...next]);
+    });
+    list.append(label);
+  }
+  group.append(list);
+
+  rarityToggle.addEventListener('change', () => {
+    const next = new Set(state.gag2Fall.roleItems[type]);
+    for (const item of items) {
+      if (rarityToggle.checked) next.add(item.key);
+      else next.delete(item.key);
+    }
+    setFallRoleItems(type, [...next]);
+  });
+  return group;
+}
+
+function renderGag2FallControls() {
+  const locked = !gag2StockPermissionState().usable;
+  const enabledTypes = new Set(state.gag2Fall.enabledTypes);
+  for (const input of elements.gag2FallTypeInputs) {
+    const type = input.value;
+    const gardenValleyEnabled = Boolean(state.gag2StockChannels[type]);
+    input.disabled = locked || !gardenValleyEnabled;
+    input.checked = gardenValleyEnabled && enabledTypes.has(type);
+    input.closest('.gag2-fall-type')?.classList.toggle('is-disabled', input.disabled);
+    input.title = gardenValleyEnabled ? '' : `Select a ${fallTypeLabel(type).toLowerCase()} Garden Valley channel first`;
+  }
+
+  const mount = elements.gag2FallRoleSettingsMount;
+  if (!mount) return;
+  mount.replaceChildren();
+  for (const type of GAG2_FALL_TYPES) {
+    const enabled = !locked && Boolean(state.gag2StockChannels[type]) && enabledTypes.has(type);
+    const selected = new Set(state.gag2Fall.roleItems[type]);
+    const card = document.createElement('article');
+    card.className = 'gag2-fall-role-category';
+    card.classList.toggle('is-disabled', !enabled);
+
+    const heading = document.createElement('div');
+    heading.className = 'gag2-fall-role-category-heading';
+    const title = document.createElement('strong');
+    title.textContent = `${fallTypeLabel(type)} item roles`;
+    const status = document.createElement('span');
+    status.textContent = enabled
+      ? `${selected.size} selected`
+      : `Enable Fall ${fallTypeLabel(type)} notifications first`;
+    heading.append(title, status);
+    card.append(heading);
+
+    for (const rarity of GAG2_FALL_RARITY_ORDER) {
+      const items = GAG2_FALL_ITEMS[type].filter((item) => item.rarity === rarity);
+      if (items.length) card.append(fallRarityGroup(type, rarity, items, selected, enabled));
+    }
+    mount.append(card);
+  }
 }
 
 function rarityFilterOptions(rarities) {
@@ -1076,8 +1277,10 @@ function applyTabFromConfig(tabName, config) {
   } else if (tabName === 'gag2Stock') {
     state.gag2StockChannels = { ...(config.gag2Stock?.channels || {}) };
     state.gag2StockFilters = normalizeGag2Filters(config.gag2Stock?.filters || {});
+    state.gag2Fall = normalizeGag2FallConfig(config.gag2Stock?.fall || {});
     renderGag2StockPickers();
     renderGag2FilterControls();
+    renderGag2FallControls();
   } else if (tabName === 'games') {
     for (const key of ['minWordLength', 'maxWordLength', 'startingHearts']) {
       setField(`wordChain.${key}`, config.wordChain?.[key]);
@@ -1130,6 +1333,7 @@ function collectTabState(tabName) {
   if (tabName === 'gag2Stock') return {
     channels: clone(state.gag2StockChannels),
     filters: clone(state.gag2StockFilters),
+    fall: clone(state.gag2Fall),
   };
   return {
     wordChain: {
@@ -1279,6 +1483,7 @@ function collectPatch() {
     gag2Stock: {
       channels: { ...state.gag2StockChannels },
       filters: clone(state.gag2StockFilters),
+      fall: clone(state.gag2Fall),
     },
     wordChain: {
       minWordLength: Number(getField('wordChain.minWordLength')),
@@ -1537,6 +1742,19 @@ for (const input of elements.gag2SellMultiplierInputs) {
     if (input.checked) selected.add(input.value);
     else selected.delete(input.value);
     state.gag2StockFilters.sellMultipliers = GAG2_SELL_MULTIPLIERS.filter((value) => selected.has(value));
+    refreshDirtyState();
+  });
+}
+
+for (const input of elements.gag2FallTypeInputs) {
+  input.addEventListener('change', () => {
+    if (input.disabled) return;
+    const selected = new Set(state.gag2Fall.enabledTypes);
+    if (input.checked) selected.add(input.value);
+    else selected.delete(input.value);
+    state.gag2Fall.enabledTypes = GAG2_FALL_TYPES.filter((type) => selected.has(type));
+    renderGag2FallControls();
+    renderPendingGag2RoleChange();
     refreshDirtyState();
   });
 }

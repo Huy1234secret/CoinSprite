@@ -21,6 +21,7 @@ const UPDATE_ID = 'gag2-update-4-notification-role-cleanup';
 const BUG_PATCH_UPDATE_ID = 'gag2-bug-patches-sell-price-dedupe';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const NOTIFICATION_ROLE_NOTICE_ID = 'gag2-notice-new-item-notification-roles';
+const FALL_HARVEST_UPDATE_ID = 'gag2-fall-harvest-limited-event';
 const RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS = Object.freeze([
   'gag2-notification-role-update-eclipse',
   'gag2-notification-role-update-eclipse-channel-v2',
@@ -144,6 +145,28 @@ function buildPerformanceBoostUpdatePayload() {
   };
 }
 
+function buildFallHarvestUpdatePayload() {
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: 0xC96F2B,
+      components: [{
+        type: 10,
+        content: [
+          '### 🍂 Fall Harvest is live',
+          '- Limited Fall Harvest **Seed**, **Gear**, **Crate**, and **Sell-price** stock can now appear inside the matching Garden Valley notification.',
+          '- Every new event item includes its Discord emoji and rarity-colored notification role.',
+          '- The dashboard now lets admins enable each event stock type only after its Garden Valley channel is configured.',
+          '- Fall role settings support whole-rarity toggles and individual item choices with item icons.',
+          '-# Tip: create only the roles your community actually wants so your server stays comfortably below Discord\'s role limit.',
+        ].join('\n'),
+      }],
+    }],
+  };
+}
+
 async function collectGuilds(client) {
   const ids = new Set(client?.guilds?.cache?.keys?.() || []);
   const fetched = await client?.guilds?.fetch?.().catch(() => null);
@@ -217,7 +240,7 @@ async function retractNotificationRoleUpdates(guild, options = {}) {
 
   if (removed) {
     saveState(state, statePath);
-    logCommandSystem(`GAG2 retracted ${removed} Eclipse role update announcement${removed === 1 ? '' : 's'} in guild ${guild.id}.`);
+    logCommandSystem(`GAG2 retracted ${removed} superseded role update announcement${removed === 1 ? '' : 's'} in guild ${guild.id}.`);
   }
   return removed;
 }
@@ -310,6 +333,25 @@ async function announceNotificationRoleNotice(client, guild, options = {}) {
   return message;
 }
 
+async function announceFallHarvestUpdate(client, guild, options = {}) {
+  const statePath = options.statePath || STATE_PATH;
+  if (announcementRecord(loadState(statePath), FALL_HARVEST_UPDATE_ID, guild.id)) return null;
+  ensureGuildConfig(guild.id);
+  if (!isGuildGag2StockEnabled(guild.id)) return null;
+
+  const config = getGuildConfig(guild.id);
+  const channel = await updateChannelForGuild(guild, config);
+  if (!channel) return null;
+  const message = await channel.send(buildFallHarvestUpdatePayload());
+  saveAnnouncementRecord(FALL_HARVEST_UPDATE_ID, guild.id, {
+    channelId: channel.id,
+    messageId: message.id,
+    sentAt: new Date(options.now?.() || Date.now()).toISOString(),
+  }, statePath);
+  logCommandSystem(`GAG2 Fall Harvest announced in guild ${guild.id}: ${channel.id}`);
+  return message;
+}
+
 async function startGag2UpdateAnnouncement(client, options = {}) {
   const guilds = await collectGuilds(client);
   const concurrency = normalizeConcurrency(
@@ -329,24 +371,27 @@ async function startGag2UpdateAnnouncement(client, options = {}) {
     await announcePerformanceBoostUpdate(client, guild, options).catch((error) => {
       logCommandSystem(`GAG2 Performance Boost announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
-    await announceNotificationRoleNotice(client, guild, options).catch((error) => {
-      logCommandSystem(`GAG2 notification role notice failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+    await announceFallHarvestUpdate(client, guild, options).catch((error) => {
+      logCommandSystem(`GAG2 Fall Harvest announcement failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
     });
   });
 }
 
 module.exports = {
   BUG_PATCH_UPDATE_ID,
+  FALL_HARVEST_UPDATE_ID,
   NOTIFICATION_ROLE_NOTICE_ID,
   PERFORMANCE_BOOST_UPDATE_ID,
   RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS,
   REMOVED_NOTIFICATION_ROLE_KEYS,
   UPDATE_ID,
   announceBugPatchesUpdate,
+  announceFallHarvestUpdate,
   announceNotificationRoleNotice,
   announcePerformanceBoostUpdate,
   announceRoleCleanupUpdate,
   buildBugPatchesUpdatePayload,
+  buildFallHarvestUpdatePayload,
   buildNotificationRoleNoticePayload,
   buildPerformanceBoostUpdatePayload,
   buildRoleCleanupUpdatePayload,
