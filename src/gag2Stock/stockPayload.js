@@ -6,7 +6,11 @@ const {
   RED,
 } = require('./config');
 const {
+  FALL_CRATE_ITEMS,
+  FALL_GEAR_ITEMS,
+  FALL_SEED_ITEMS,
   SELL_BONUS_COLORS,
+  catalogEntry,
   colorForType,
   customEmojiImageUrl,
   displayNameForType,
@@ -25,6 +29,12 @@ const NO_MENTIONS = { parse: [], roles: [], users: [] };
 const WHITE = 0xFFFFFF;
 const HIDDEN_SELL_KEYS = new Set(['briar_rose']);
 const SELL_ONLY_SEED_KEYS = new Set(['eclipse_bloom']);
+const FALL_ONLY_KEYS = Object.freeze({
+  seed: new Set(FALL_SEED_ITEMS.filter((item) => !catalogEntry('seed', item.key)).map((item) => item.key)),
+  gear: new Set(FALL_GEAR_ITEMS.filter((item) => !catalogEntry('gear', item.key)).map((item) => item.key)),
+  crate: new Set(FALL_CRATE_ITEMS.filter((item) => !catalogEntry('crate', item.key)).map((item) => item.key)),
+  sell: new Set(FALL_SEED_ITEMS.filter((item) => !catalogEntry('sell', item.key)).map((item) => item.key)),
+});
 
 function parseDateMs(value) {
   const parsed = Date.parse(value || '');
@@ -55,10 +65,12 @@ function normalizeItem(item) {
 function normalizeCategory(entry, options = {}) {
   const category = String(entry?.category || '').trim().toLowerCase();
   const catalogType = options.catalogType || category;
+  const world = String(options.world || entry?.world || 'main').trim().toLowerCase();
   const items = sortItemsForType(catalogType, (Array.isArray(entry?.items) ? entry.items : [])
     .map(normalizeItem)
     .filter((item) => item.name && item.quantity > 0)
-    .filter((item) => category !== 'seed' || !SELL_ONLY_SEED_KEYS.has(item.key)));
+    .filter((item) => category !== 'seed' || !SELL_ONLY_SEED_KEYS.has(item.key))
+    .filter((item) => world === 'fall' || !FALL_ONLY_KEYS[category]?.has(item.key)));
 
   return {
     type: category,
@@ -67,7 +79,7 @@ function normalizeCategory(entry, options = {}) {
     items,
     nextRestockAtMs: parseDateMs(entry?.nextRestockAt),
     restockedAtMs: parseDateMs(entry?.restockedAt),
-    world: options.world || String(entry?.world || 'main').trim().toLowerCase(),
+    world,
   };
 }
 
@@ -180,6 +192,7 @@ function parseSellPayload(payload, options = {}) {
   const source = payload?.sell && typeof payload.sell === 'object' ? payload.sell : payload;
   const entries = source?.entries;
   if (!Array.isArray(entries)) throw new Error('missing GAG2 sell price list');
+  const world = String(options.world || source?.world || payload?.world || 'main').trim().toLowerCase();
   const normalized = entries
     .map((entry) => ({
       key: slugKey(entry?.key || entry?.id || entry?.slug || entry?.name),
@@ -188,14 +201,15 @@ function parseSellPayload(payload, options = {}) {
       rarity: String(entry?.rarity || '').trim(),
       tier: String(entry?.tier || '').trim(),
     }))
-    .filter((entry) => entry.name && Number.isFinite(entry.multiplier) && !HIDDEN_SELL_KEYS.has(entry.key));
+    .filter((entry) => entry.name && Number.isFinite(entry.multiplier) && !HIDDEN_SELL_KEYS.has(entry.key))
+    .filter((entry) => world === 'fall' || !FALL_ONLY_KEYS.sell.has(entry.key));
   if (!normalized.length) throw new Error('empty GAG2 sell price list');
   return {
     fetchedAtMs: parseDateMs(source?.fetchedAt) || parseDateMs(payload?.fetchedAt) || Date.now(),
     nextRefreshAtMs: parseBoundaryMs(source?.nextRefreshUnix ?? source?.nextRefreshAt ?? source?.nextRefresh ?? payload?.nextRefreshUnix ?? payload?.nextRefreshAt ?? payload?.nextRefresh),
     windowMs: parseBoundaryMs(source?.window ?? payload?.window),
-    world: String(options.world || source?.world || payload?.world || 'main').trim().toLowerCase(),
-    entries: sortItemsForType(String(options.world || source?.world || payload?.world || '').toLowerCase() === 'fall' ? 'fallSell' : 'sell', normalized),
+    world,
+    entries: sortItemsForType(world === 'fall' ? 'fallSell' : 'sell', normalized),
   };
 }
 
