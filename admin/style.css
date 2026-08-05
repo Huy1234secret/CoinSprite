@@ -34,7 +34,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .ambient-one { top: -14rem; left: -10rem; background: var(--lime); }
 .ambient-two { right: -15rem; bottom: -16rem; background: var(--cyan); }
 
-.topbar { position: relative; z-index: 20; height: 82px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(22px, 4vw, 64px); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); background: rgba(9, 12, 11, .7); }
+.topbar { position: sticky; top: 0; z-index: 100; width: 100%; height: 82px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(22px, 4vw, 64px); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); background: rgba(9, 12, 11, .88); }
 .brand { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
 .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(185,245,71,.28); border-radius: 13px; background: linear-gradient(145deg, rgba(185,245,71,.16), rgba(94,231,208,.05)); box-shadow: inset 0 0 18px rgba(185,245,71,.08); }
 .brand-mark img { width: 34px; height: 34px; object-fit: cover; border-radius: 10px; }
@@ -100,6 +100,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .nav-item:hover { color: var(--text); background: rgba(255,255,255,.025); }
 .nav-item.active { border-color: rgba(185,245,71,.18); color: var(--text); background: rgba(185,245,71,.075); }
 .nav-icon { width: 31px; height: 31px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 9px; color: var(--lime); background: rgba(0,0,0,.16); }
+.nav-icon img { width: 21px; height: 21px; object-fit: contain; }
 .nav-item > span:last-child { display: grid; gap: 3px; }
 .nav-item strong { font-size: 13px; }
 .nav-item small { color: var(--muted); font-size: 10px; }
@@ -143,6 +144,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .channel-card { display: grid; grid-template-columns: 40px minmax(0, .7fr) minmax(170px, 1fr); align-items: center; gap: 12px; min-height: 70px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.018); }
 .channel-card:hover { border-color: var(--line-strong); }
 .feed-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; color: var(--lime); background: rgba(185,245,71,.08); font-size: 16px; }
+.feed-icon img { width: 24px; height: 24px; object-fit: contain; }
 .feed-copy { display: grid; gap: 3px; min-width: 0; }
 .feed-copy strong { font-size: 12px; }
 .feed-copy small { color: var(--muted); font-size: 9px; line-height: 1.35; }
@@ -152,7 +154,39 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .filter-card { padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.018); }
 .filter-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .filter-card-head strong { font-size: 12px; text-transform: capitalize; }
-.filter-card-head button { padding: 0; border: 0; color: var(--lime); background: none; font-size: 10px; font-weight: 750; cursor: pointer; }
+.filter-card-head > span { color: var(--muted); font-size: 9px; font-weight: 700; }
+.filter-card.is-disabled { opacity: .62; }
+.notification-picker { position: relative; }
+.notification-trigger { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 13px; border: 1px solid var(--line-strong); border-radius: 11px; color: var(--text); background: #0d1210; text-align: left; cursor: pointer; }
+.notification-trigger:hover:not(:disabled), .notification-trigger[aria-expanded="true"] { border-color: rgba(185,245,71,.35); }
+.notification-trigger:disabled { cursor: not-allowed; }
+.notification-trigger > span { display: grid; gap: 4px; }
+.notification-trigger small { color: var(--muted); font-size: 9px; font-weight: 700; }
+.notification-trigger strong { font-size: 11px; }
+.notification-trigger > i { color: var(--lime); font-style: normal; transition: transform .16s ease; }
+.notification-trigger[aria-expanded="true"] > i { transform: rotate(180deg); }
+.notification-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 35; width: min(470px, calc(100vw - 72px)); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; background: #101613; box-shadow: 0 22px 60px rgba(0,0,0,.48); }
+.filter-card:nth-child(even) .notification-menu { right: 0; left: auto; }
+.picker-tools { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 10px; border-bottom: 1px solid var(--line); }
+.picker-tools input { min-width: 0; height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: #090d0b; font-size: 11px; }
+.picker-tools button, .picker-group-head button { border: 0; color: var(--lime); background: none; font-size: 9px; font-weight: 800; cursor: pointer; }
+.picker-options { max-height: 350px; overflow-y: auto; padding: 8px; scrollbar-color: var(--line-strong) transparent; }
+.picker-group + .picker-group { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.picker-group-head { display: flex; align-items: center; justify-content: space-between; padding: 3px 4px 7px; }
+.rarity-label { color: var(--chip); font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.picker-group-options { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px; }
+.picker-option { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 9px; min-height: 46px; padding: 7px 9px; border: 1px solid transparent; border-radius: 9px; cursor: pointer; transition: .14s ease; }
+.picker-option:hover { border-color: var(--line-strong); background: rgba(255,255,255,.025); }
+.picker-option.selected { border-color: color-mix(in srgb, var(--chip, var(--lime)) 30%, transparent); background: color-mix(in srgb, var(--chip, var(--lime)) 7%, transparent); }
+.picker-option input { position: absolute; opacity: 0; pointer-events: none; }
+.picker-option-main { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.picker-option-main > img, .picker-option-fallback { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; object-fit: contain; border-radius: 7px; background: rgba(255,255,255,.04); }
+.picker-option-main > span:last-child { min-width: 0; display: grid; gap: 2px; }
+.picker-option-main b { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.picker-option-main small { color: var(--chip, var(--muted)); font-size: 8px; }
+.picker-check { width: 18px; height: 18px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--line-strong); border-radius: 5px; color: transparent; font-size: 10px; font-style: normal; }
+.picker-option.selected .picker-check { border-color: var(--chip, var(--lime)); color: #0d120b; background: var(--chip, var(--lime)); }
+.rarity-dot { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; background: var(--chip, var(--muted)); box-shadow: 0 0 12px color-mix(in srgb, var(--chip, var(--muted)) 35%, transparent); }
 .chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
 .filter-chip { position: relative; }
 .filter-chip input { position: absolute; opacity: 0; pointer-events: none; }
@@ -276,6 +310,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .channel-card { grid-template-columns: 36px minmax(0,1fr); }
   .channel-card select { grid-column: 1 / -1; }
   .filter-grid, .metric-grid { grid-template-columns: 1fr; }
+  .filter-card:nth-child(even) .notification-menu { right: auto; left: 0; }
+  .notification-menu { width: min(470px, calc(100vw - 68px)); }
+  .picker-group-options { grid-template-columns: 1fr; }
   .multiplier-panel { align-items: flex-start; flex-direction: column; }
   .event-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .console-line { grid-template-columns: 66px minmax(0,1fr); }

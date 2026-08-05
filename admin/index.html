@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a0d0c">
-  <meta name="description" content="CoinSprite GAG stock control center">
-  <title>CoinSprite · Stock Control</title>
+  <meta name="description" content="CoinSprite Discord bot dashboard">
+  <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
   <link rel="stylesheet" href="/admin/style.css">
   <script src="/admin/app.js" defer></script>
@@ -17,10 +17,10 @@
   <header class="topbar">
     <a class="brand" href="/admin" aria-label="CoinSprite home">
       <span class="brand-mark"><img src="/bot-avatar.png" alt=""></span>
-      <span><strong>CoinSprite</strong><small>Stock control</small></span>
+      <span><strong>CoinSprite</strong><small>Bot dashboard</small></span>
     </a>
     <div class="topbar-actions">
-      <span class="live-pill"><i></i> GAG network</span>
+      <span class="live-pill"><i></i> Bot online</span>
       <div class="user-chip" id="userChip" hidden>
         <img id="userAvatar" alt="">
         <span id="sessionLabel"></span>
@@ -31,9 +31,9 @@
 
   <main class="login-shell" id="loginPanel">
     <section class="login-copy">
-      <span class="eyebrow">One signal. Zero noise.</span>
-      <h1>Your Garden<br><em>stock station.</em></h1>
-      <p>Route live Grow a Garden inventory, weather, sell prices, and event alerts to every Discord community you manage.</p>
+      <span class="eyebrow">Built for Discord.</span>
+      <h1>CoinSprite <em>bot.</em></h1>
+      <p>Simple tools for a smoother Discord community.</p>
       <a class="button primary login-button" href="/auth/discord">Continue with Discord <span aria-hidden="true">↗</span></a>
       <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
     </section>
@@ -61,7 +61,7 @@
       </div>
 
       <nav class="nav-list" aria-label="Dashboard">
-        <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon">✦</span><span><strong>Stock station</strong><small>Feeds & filters</small></span></button>
+        <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
