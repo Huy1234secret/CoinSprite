@@ -24,6 +24,7 @@ const {
 const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2Stock/manager');
 const { syncGag2RoleAssignmentPanel } = require('./gag2Stock/roleAssignment');
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
+const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -499,10 +500,11 @@ async function routeRequest(req, res, env, client) {
   if (req.method === 'GET' && catalogMatch) {
     const auth = await requireGuildAdmin(req, res, env, client, catalogMatch[1]);
     if (!auth) return;
-    const types = ['seed', 'gear', 'crate'];
+    const types = ['seed', 'gear', 'crate', 'sell'];
     return sendJson(res, 200, {
       items: Object.fromEntries(types.map((type) => [type, roleSpecsForType(type)])),
       fallItems: Object.fromEntries(types.map((type) => [type, roleSpecsForType(FALL_ROLE_TYPES[type])])),
+      fallHarvestEndsAt: new Date(FALL_HARVEST_END_AT_MS).toISOString(),
     });
   }
 

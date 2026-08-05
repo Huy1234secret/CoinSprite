@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260805-1">
-  <script src="/admin/app.js?v=20260805-1" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260805-2">
+  <script src="/admin/app.js?v=20260805-2" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -102,10 +102,12 @@
           </div>
         </section>
 
-        <section class="section-block">
-          <div class="section-heading"><div><span class="step">03</span><h2>Fall Harvest</h2></div><p>Layer seasonal inventory into the matching stock feeds.</p></div>
+        <section class="section-block fall-harvest" id="fallHarvestSection">
+          <div class="fall-breeze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="section-heading"><div><span class="step">03</span><h2>Fall Harvest</h2></div><div class="fall-heading-meta"><p>Layer seasonal inventory into the matching stock feeds.</p><aside class="fall-countdown" id="fallCountdown"><span>Event ends in</span><strong>Loading…</strong></aside></div></div>
           <div class="event-grid" id="fallFilters"></div>
-          <p class="microcopy">Existing item-level event selections are preserved when you save.</p>
+          <div class="filter-grid fall-role-grid" id="fallRoleFilters"></div>
+          <p class="microcopy">Fall role selections only affect Fall Harvest alerts and activate with their matching toggle above.</p>
         </section>
 
         <footer class="mobile-save"><span id="mobileSaveState">All changes saved</span><button class="button primary" id="mobileSaveButton" type="button" disabled>Save</button></footer>

@@ -14,6 +14,7 @@ const {
   CHECK_INTERVAL_MS,
   CHECK_SCHEDULE_SECOND_MS,
   CHECK_SCHEDULE_UTC_OFFSET_MS,
+  isFallHarvestActive,
   SELL_CHECK_INTERVAL_MS,
   SELL_CHECK_SCHEDULE_SECOND_MS,
   SELL_FAILURE_RETRY_LIMIT,
@@ -75,6 +76,12 @@ const POST_PERMISSION_LABELS = Object.freeze([
   [PermissionFlagsBits.ReadMessageHistory, 'Read Message History'],
   [PermissionFlagsBits.UseExternalEmojis, 'Use External Emojis'],
 ]);
+
+function activeFallTypes(config, nowMs = Date.now()) {
+  return isFallHarvestActive(nowMs)
+    ? new Set(config?.gag2Stock?.fall?.enabledTypes || [])
+    : new Set();
+}
 
 function finiteNumber(value, fallback) {
   const number = Number(value);
@@ -394,7 +401,7 @@ function filterSellEntry(entry, filters = {}) {
     return multipliers.has(sellFilterBucket(item)) && (rarities.has(rarity) || (!rarity && includeUnknownRarity));
   });
   const entries = filterEntries(entry?.entries, 'sell');
-  const fall = entry?.fall ? { ...entry.fall, entries: filterEntries(entry.fall.entries, 'fallSell') } : entry?.fall;
+  const fall = entry?.fall ? { ...entry.fall, entries: [...(entry.fall.entries || [])] } : entry?.fall;
   return {
     ...entry,
     entries,
@@ -940,7 +947,7 @@ class Gag2StockPoster {
       if (!isGuildGag2StockEnabled(guildId)) continue;
       const config = getGuildConfig(guildId);
       const channels = config?.gag2Stock?.channels || {};
-      const fallEnabledTypes = new Set(config?.gag2Stock?.fall?.enabledTypes || []);
+      const fallEnabledTypes = activeFallTypes(config, this.now());
       for (const type of STOCK_TYPES) {
         if (!allowedTypes.has(type)) continue;
         const channelId = cleanChannelId(channels[type]);
@@ -1008,7 +1015,7 @@ class Gag2StockPoster {
         if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
           entry = { ...entry, deliveryCycleAtMs: stockDeliveryCycleAtMs };
         }
-        if (target.fallEnabled) {
+        if (target.fallEnabled && isFallHarvestActive(this.now())) {
           const fallError = errors.get(target.type === 'sell' ? 'fallSell' : 'fallStock');
           if (!fallError) {
             const fallEntry = entries.get(`fall:${target.type}`);
@@ -1277,7 +1284,8 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
   }
   const config = getGuildConfig(guild.id);
   const enabledTypes = STOCK_TYPES.filter((type) => cleanChannelId(config?.gag2Stock?.channels?.[type]));
-  const fallEnabledTypes = new Set(config?.gag2Stock?.fall?.enabledTypes || []);
+  const setupNowMs = typeof options.now === 'function' ? options.now() : Date.now();
+  const fallEnabledTypes = activeFallTypes(config, setupNowMs);
   const enabledRoleTypes = [
     ...enabledTypes,
     ...GAG2_FALL_STOCK_TYPES
@@ -1398,6 +1406,7 @@ async function startGag2StockPoster(client, options = {}) {
 }
 
 module.exports = {
+  activeFallTypes,
   GAG2_DIAGNOSTIC_GUILD_ID,
   Gag2StockPoster,
   componentFingerprint,

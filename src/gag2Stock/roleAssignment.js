@@ -8,6 +8,7 @@ const {
 const {
   COMPONENTS_V2_FLAG,
   GREEN,
+  isFallHarvestActive,
   STATE_PATH,
 } = require('./config');
 const {
@@ -25,7 +26,7 @@ const RED = 0xed4245;
 const NO_MENTIONS = { parse: [], users: [], roles: [] };
 const ROLE_ASSIGN_CHANNEL_KEY = 'roleAssign';
 const GARDEN_ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell'];
-const FALL_ROLE_ASSIGN_TYPES = Object.values(FALL_ROLE_TYPES).filter((type) => type !== 'fallSell');
+const FALL_ROLE_ASSIGN_TYPES = Object.values(FALL_ROLE_TYPES);
 const ROLE_ASSIGN_TYPES = [...GARDEN_ROLE_ASSIGN_TYPES, ...FALL_ROLE_ASSIGN_TYPES];
 const CUSTOM_ID_PREFIX = 'gag2role';
 const MAX_SELECT_OPTIONS = 25;
@@ -39,6 +40,7 @@ const ROLE_ASSIGN_LABELS = {
   fallSeed: 'Fall seed',
   fallGear: 'Fall gear',
   fallCrate: 'Fall crate',
+  fallSell: 'Fall sell',
 };
 
 const THUMBNAIL_KEYS = {
@@ -49,6 +51,7 @@ const THUMBNAIL_KEYS = {
   fallSeed: ['fallSeed', 'amber_cranberry'],
   fallGear: ['fallGear', 'super_magic_mail'],
   fallCrate: ['fallCrate', 'rake_crate'],
+  fallSell: ['fallSell', 'maple_apple'],
 };
 
 function cleanDiscordId(value) {
@@ -65,11 +68,12 @@ function categoryLabel(type) {
   return ROLE_ASSIGN_LABELS[type] || type || 'Role';
 }
 
-function isCategoryBound(config, type) {
+function isCategoryBound(config, type, nowMs = Date.now()) {
   const fallType = Object.entries(FALL_ROLE_TYPES).find(([, roleType]) => roleType === type)?.[0];
   if (fallType) {
     return Boolean(
-      cleanDiscordId(config?.gag2Stock?.channels?.[fallType])
+      isFallHarvestActive(nowMs)
+      && cleanDiscordId(config?.gag2Stock?.channels?.[fallType])
       && config?.gag2Stock?.fall?.enabledTypes?.includes?.(fallType),
     );
   }
@@ -177,7 +181,7 @@ function messageFlags(ephemeral = false) {
   return COMPONENTS_V2_FLAG | (ephemeral ? EPHEMERAL_FLAG : 0);
 }
 
-function buildRoleAssignmentPanelPayload(config) {
+function buildRoleAssignmentPanelPayload(config, options = {}) {
   return {
     allowedMentions: NO_MENTIONS,
     flags: COMPONENTS_V2_FLAG,
@@ -202,7 +206,7 @@ function buildRoleAssignmentPanelPayload(config) {
               custom_id: `${CUSTOM_ID_PREFIX}:open:${type}`,
               label: categoryLabel(type),
               style: 2,
-              disabled: !isCategoryBound(config, type),
+              disabled: !isCategoryBound(config, type, options.nowMs),
             })),
           })),
           { type: 14, divider: true, spacing: 1 },
@@ -214,7 +218,7 @@ function buildRoleAssignmentPanelPayload(config) {
               custom_id: `${CUSTOM_ID_PREFIX}:open:${type}`,
               label: categoryLabel(type),
               style: 2,
-              disabled: !isCategoryBound(config, type),
+              disabled: !isCategoryBound(config, type, options.nowMs),
             })),
           })),
         ],

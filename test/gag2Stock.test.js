@@ -27,6 +27,7 @@ const {
 } = require('../src/serverConfig');
 const {
   CHECK_SCHEDULE_SECOND_MS,
+  FALL_HARVEST_END_AT_MS,
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
   LEGACY_SELL_API_URL,
@@ -40,11 +41,12 @@ const {
   STOCK_FAILURE_RETRY_LIMIT,
   STOCK_FAILURE_RETRY_MS,
   WEATHER_CHECK_INTERVAL_MS,
+  isFallHarvestActive,
 } = require('../src/gag2Stock/config');
 const { fetchFallSellPayload, fetchFallStockPayload, fetchJson, fetchStockPayload } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { buildRoleAssignmentPanelPayload, ROLE_ASSIGN_TYPES } = require('../src/gag2Stock/roleAssignment');
-const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, currentGag2StockCycleAtMs, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, activeFallTypes, currentGag2StockCycleAtMs, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function testPermissions(...flags) {
   const allowed = new Set(flags);
@@ -221,23 +223,26 @@ test('GAG2 keeps Fall-only sell prices out of Garden Valley', () => {
   assert.deepEqual(fall.entries.map((item) => item.key), ['maple_apple']);
 });
 
-test('GAG2 Fall sell prices use the normal rarity multiplier roles', () => {
+test('GAG2 Fall sell uses separate item roles without changing Garden Valley price roles', () => {
   const main = parseSellPayload({ entries: [{ name: 'Carrot', slug: 'carrot', multiplier: 2 }] }, { world: 'main' });
   const fall = parseSellPayload({ entries: [
     { name: 'Maple Apple', slug: 'maple-apple', multiplier: 2 },
     { name: 'Romanesco', slug: 'romanesco', multiplier: 1.1 },
   ] }, { world: 'fall' });
   const roleId = '123456789012345678';
+  const fallRoleId = '987654321098765432';
   const payload = buildTypePayload('sell', { ...main, fall }, {
-    roleIds: { uncommon_2x: roleId },
-    fallRoleIds: { maple_apple: '987654321098765432' },
+    roleIds: { common_2x: roleId },
+    fallRoleIds: { maple_apple: fallRoleId },
   });
   const content = JSON.stringify(payload.components);
+  const fallContent = payload.components.find((component) => component.accent_color === 0xC96F2B).components[0].content;
 
   assert.match(content, /FALL HARVEST/);
   assert.match(content, new RegExp(`<@&${roleId}>`));
-  assert.doesNotMatch(content, /987654321098765432/);
-  assert.deepEqual(payload.allowedMentions.roles, [roleId]);
+  assert.match(fallContent, new RegExp(`<@&${fallRoleId}>`));
+  assert.doesNotMatch(fallContent, new RegExp(`<@&${roleId}>`));
+  assert.deepEqual(payload.allowedMentions.roles, [roleId, fallRoleId]);
 });
 
 test('GAG2 appends Fall Harvest items and roles to the same Garden Valley stock message', () => {
@@ -278,7 +283,9 @@ test('GAG2 Fall Harvest role catalog uses item emojis and rarity colors', () => 
     { emoji: coniferCone.emoji, rarity: coniferCone.rarity, color: coniferCone.color },
     { emoji: '<:conifercone:1533299251638042787>', rarity: 'mythic', color: 0xD62928 },
   );
-  assert.deepEqual(roleSpecsForType('fallSell'), []);
+  const mapleAppleSell = roleSpecsForType('fallSell').find((spec) => spec.key === 'maple_apple');
+  assert.equal(mapleAppleSell.emoji, '<:mapleapple:1533299264757825536>');
+  assert.equal(mapleAppleSell.roleName, 'Fall Sell · Maple Apple');
   assert.equal(roleSpecsForType('fallSeed').some((spec) => ['potato', 'cinnamon_stick', 'honeysuckle', 'plum', 'romanesco'].includes(spec.key)), false);
   assert.equal(emojiForType('fallSell', { key: 'romanesco' }), '<:romanesco:1533299314363732089>');
   assert.equal(amberCranberry.color, 0xB71E99);
@@ -294,8 +301,8 @@ test('GAG2 role assignment panel separates Garden Valley and Fall buttons', () =
   assert.match(text, /-# \*\*🌿GARDEN VALLEY🌻\*\*/);
   assert.match(text, /-# \*\*🍂FALL HARVEST🍁\*\*/);
   assert.equal(components.filter((component) => component.type === 14).length, 2);
-  assert.equal(ROLE_ASSIGN_TYPES.includes('fallSell'), false);
-  assert.equal(buttons.some((id) => id.endsWith(':fallSell')), false);
+  assert.equal(ROLE_ASSIGN_TYPES.includes('fallSell'), true);
+  assert.equal(buttons.some((id) => id.endsWith(':fallSell')), true);
 });
 
 test('GAG2 stock payload normalizes API stock and sorts by catalog order', () => {
@@ -629,7 +636,7 @@ test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item rol
   });
   assert.deepEqual(normalized.fall.enabledTypes, ['seed', 'sell']);
   assert.deepEqual(normalized.fall.roleItems.seed, ['maple_carrot', 'conifer_cone']);
-  assert.deepEqual(normalized.fall.roleItems.sell, []);
+  assert.deepEqual(normalized.fall.roleItems.sell, ['amber_cranberry']);
   assert.deepEqual(normalized.fall.roleItems.gear, []);
 });
 
@@ -1029,6 +1036,29 @@ test('GAG2 stock scheduler waits 500ms after UTC+7 five-minute boundaries', () =
     })).toISOString(),
     '2026-07-10T17:10:00.000Z',
   );
+});
+
+test('GAG2 Garden Valley sell filters do not remove Fall Harvest sell items', () => {
+  const filtered = filterSellEntry({
+    entries: [{ key: 'carrot', name: 'Carrot', multiplier: 4 }],
+    fall: { entries: [{ key: 'amber_cranberry', name: 'Amber Cranberry', multiplier: 1.1 }] },
+  }, {
+    rarities: { sell: ['common'] },
+    sellMultipliers: ['4x'],
+  });
+
+  assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
+  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['amber_cranberry']);
+});
+
+test('GAG2 disables Fall Harvest exactly at the October 1 UTC+7 deadline', () => {
+  const config = { gag2Stock: { fall: { enabledTypes: ['seed', 'sell'] } } };
+  assert.equal(new Date(FALL_HARVEST_END_AT_MS).toISOString(), '2026-10-01T07:00:00.000Z');
+  assert.equal(isFallHarvestActive(FALL_HARVEST_END_AT_MS - 1), true);
+  assert.equal(isFallHarvestActive(FALL_HARVEST_END_AT_MS), false);
+  assert.equal(isFallHarvestActive(FALL_HARVEST_END_AT_MS + 1), false);
+  assert.deepEqual([...activeFallTypes(config, FALL_HARVEST_END_AT_MS - 1)], ['seed', 'sell']);
+  assert.deepEqual([...activeFallTypes(config, FALL_HARVEST_END_AT_MS)], []);
 });
 
 test('GAG2 weather and moon use a separate 5 second polling loop', () => {
