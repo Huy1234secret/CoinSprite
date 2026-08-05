@@ -1,7 +1,7 @@
 {
   "name": "coinsprite",
   "version": "1.0.0",
-  "description": "A simple Discord bot starter built with Discord.js.",
+  "description": "Focused Grow a Garden stock alerts and owner control panel for Discord.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -10,12 +10,12 @@
   },
   "keywords": [
     "discord",
-    "bot"
+    "grow-a-garden",
+    "stock-alerts"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.100",
     "discord.js": "^14.26.4",
     "dotenv": "^16.6.1"
   }

@@ -3,594 +3,136 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CoinSprite Admin</title>
+  <meta name="theme-color" content="#0a0d0c">
+  <meta name="description" content="CoinSprite GAG stock control center">
+  <title>CoinSprite · Stock Control</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <script src="/admin/bootstrap.js"></script>
   <link rel="stylesheet" href="/admin/style.css">
-  <link rel="stylesheet" href="/admin/user-data.css">
-  <link rel="stylesheet" href="/admin/owner-panel.css?v=owner-tokens-1">
-  <link rel="stylesheet" href="/admin/unified-design.css?v=unified-1">
-  <link rel="stylesheet" href="/admin/design-refresh.css?v=refresh-1">
-  <link rel="stylesheet" href="/admin/design-workspaces.css?v=refresh-1">
+  <script src="/admin/app.js" defer></script>
 </head>
 <body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
   <header class="topbar">
-    <div class="brand">
-      <img class="brand-mark" src="/bot-avatar.png" alt="CoinSprite bot profile image">
-      <div class="brand-copy">
-        <div class="brand-title-row">
-          <h1>CoinSprite</h1>
-          <nav class="site-links" aria-label="Site links">
-            <button type="button" data-site-page="terms-service">Terms of Service</button>
-            <button type="button" data-site-page="terms-use">Terms of Use</button>
-            <button type="button" data-site-page="report-bugs">Report bugs</button>
-          </nav>
-        </div>
-        <p>Server administration</p>
-      </div>
-    </div>
+    <a class="brand" href="/admin" aria-label="CoinSprite home">
+      <span class="brand-mark"><img src="/bot-avatar.png" alt=""></span>
+      <span><strong>CoinSprite</strong><small>Stock control</small></span>
+    </a>
     <div class="topbar-actions">
+      <span class="live-pill"><i></i> GAG network</span>
       <div class="user-chip" id="userChip" hidden>
         <img id="userAvatar" alt="">
         <span id="sessionLabel"></span>
       </div>
-      <a class="button primary" id="loginButton" href="/auth/discord">Log in with Discord</a>
-      <button class="button subtle" id="logoutButton" type="button" hidden>Log out</button>
+      <button class="button ghost small" id="logoutButton" type="button" hidden>Sign out</button>
     </div>
   </header>
 
-  <main class="login-screen" id="loginPanel">
-    <section class="login-box">
-      <img class="login-icon" src="/bot-avatar.png" alt="CoinSprite bot profile image">
-      <div>
-        <h2>Admin dashboard</h2>
-        <p>Configure CoinSprite, manage your community, and preview every change from one focused workspace.</p>
+  <main class="login-shell" id="loginPanel">
+    <section class="login-copy">
+      <span class="eyebrow">One signal. Zero noise.</span>
+      <h1>Your Garden<br><em>stock station.</em></h1>
+      <p>Route live Grow a Garden inventory, weather, sell prices, and event alerts to every Discord community you manage.</p>
+      <a class="button primary login-button" href="/auth/discord">Continue with Discord <span aria-hidden="true">↗</span></a>
+      <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
+    </section>
+    <section class="signal-card" aria-label="Product preview">
+      <div class="signal-head"><span>LIVE FEED</span><b>02:41</b></div>
+      <div class="signal-orbit">
+        <span class="orbit-ring ring-one"></span><span class="orbit-ring ring-two"></span>
+        <div class="signal-core"><img src="/bot-avatar.png" alt="CoinSprite"></div>
+        <span class="signal-node node-one">Seeds</span>
+        <span class="signal-node node-two">Weather</span>
+        <span class="signal-node node-three">Sell</span>
       </div>
-      <a class="button primary wide" href="/auth/discord">Continue with Discord</a>
-      <div class="status compact" id="loginStatus" role="status">Checking session...</div>
+      <div class="signal-foot"><span><i></i> Connected</span><span>6 feeds</span></div>
     </section>
   </main>
 
-  <main class="site-info-page" id="siteInfoPage" hidden></main>
-
-  <main class="layout" id="appShell" hidden>
+  <main class="app-shell" id="appShell" hidden>
     <aside class="sidebar">
-      <div class="sidebar-section">
-        <label class="field-label" for="guildSelect">Server</label>
-        <select id="guildSelect" disabled>
-          <option value="">No editable servers</option>
-        </select>
-        <div class="server-meta" id="serverMeta"></div>
+      <div class="server-block">
+        <label for="guildSelect">Active community</label>
+        <div class="select-wrap">
+          <select id="guildSelect" disabled><option value="">No editable servers</option></select>
+        </div>
+        <p id="serverMeta">Choose a Discord server</p>
       </div>
 
-      <nav class="tabs" id="tabList" aria-label="Settings sections">
-        <span class="sidebar-nav-label">Server workspace</span>
-        <button class="tab active" type="button" data-tab="leveling"><img class="tab-icon" src="/images/leveling.png" alt="" aria-hidden="true"><span>Leveling</span></button>
-        <button class="tab" type="button" data-tab="channels"><span>Channels</span></button>
-        <button class="tab" type="button" data-tab="roles"><span>Roles</span></button>
-        <button class="tab" type="button" data-tab="data"><img class="tab-icon" src="/images/data.png" alt="" aria-hidden="true"><span>Data</span></button>
-        <button class="tab" type="button" data-tab="tickets"><img class="tab-icon" src="/images/ticket.png" alt="" aria-hidden="true"><span>Tickets</span></button>
-        <button class="tab" type="button" data-tab="invites"><span>Invite rewards</span></button>
-        <button class="tab" type="button" data-tab="gag2Stock"><span>Gag2 stock</span></button>
-        <button class="tab" type="button" data-tab="games"><span>Games</span></button>
+      <nav class="nav-list" aria-label="Dashboard">
+        <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon">✦</span><span><strong>Stock station</strong><small>Feeds & filters</small></span></button>
+        <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
-      <div class="status" id="statusBox" role="status">Loading server...</div>
+      <div class="sidebar-foot">
+        <span class="scope-badge">Focused build</span>
+        <p>Only GAG stock and owner controls are active.</p>
+      </div>
     </aside>
 
-    <section class="workspace" id="editor" hidden>
-      <div class="section-title">
-        <div>
-          <h2 id="guildTitle">Server settings</h2>
-          <p id="guildSubtitle">Select a section to edit.</p>
-        </div>
-        <span class="saved-state" id="savedState">All changes saved</span>
-      </div>
+    <section class="workspace">
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-      <form id="configForm" class="config-scroll">
-        <section class="tab-panel active" data-panel="leveling">
-          <nav class="mini-tabs" id="levelingTabList" aria-label="Leveling settings">
-            <button class="mini-tab active" type="button" data-leveling-tab="xp">XP earning</button>
-            <button class="mini-tab" type="button" data-leveling-tab="rewards">Rewards</button>
-            <button class="mini-tab" type="button" data-leveling-tab="message">Level-up message</button>
-          </nav>
+      <section class="view active" id="stockView" data-view-panel="stock">
+        <header class="workspace-head">
+          <div><span class="eyebrow">GAG stock</span><h1>Signal routing</h1><p>Choose where each live update lands and which alerts deserve a ping.</p></div>
+          <div class="head-actions"><span class="save-state" id="saveState">All changes saved</span><button class="button primary" id="saveButton" type="button" disabled>Save changes</button></div>
+        </header>
 
-          <div class="mini-panel active" data-leveling-panel="xp">
-            <div class="panel">
-              <div class="panel-heading">
-                <div>
-                  <h3>Default message XP</h3>
-                  <p>These values apply to every XP-enabled destination unless an override below replaces them.</p>
-                </div>
-              </div>
-              <div class="grid compact-grid">
-                <label>Minimum XP <input name="xp.messageXpMin" type="number" min="0" step="0.1"></label>
-                <label>Maximum XP <input name="xp.messageXpMax" type="number" min="0" step="0.1"></label>
-                <label>Cooldown (seconds) <input name="xp.messageCooldownMs" type="number" min="0" step="1"></label>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-head">
-                <div class="panel-heading">
-                  <h3>Channel overrides</h3>
-                  <p>Select several channels, categories, or forum threads in one group. A group set to 1-5 XP uses 1-5 in those destinations instead of the default range above.</p>
-                </div>
-                <button class="button small" id="addXpChannelButton" type="button">Add override</button>
-              </div>
-              <div class="rows" id="xpChannelRows"></div>
-              <div class="empty-state" id="xpEmptyState" hidden>No overrides. Add one to enable XP in selected destinations.</div>
-            </div>
+        <section class="hero-panel">
+          <div class="hero-copy">
+            <span class="pulse-dot"></span>
+            <div><small>STOCK ENGINE</small><h2 id="engineTitle">Ready to route</h2><p id="engineMessage">Select a community to load its live configuration.</p></div>
           </div>
+          <label class="switch-card"><span><strong>Stock engine</strong><small>Post live GAG updates</small></span><input id="stockEnabled" type="checkbox"><i></i></label>
+        </section>
 
-          <div class="mini-panel" data-leveling-panel="rewards">
-            <div class="panel">
-              <div class="panel-head">
-                <div class="panel-heading">
-                  <h3>XP boost roles</h3>
-                  <p>Members receive the configured percentage boost while they hold the selected role.</p>
-                </div>
-                <button class="button small" id="addBoostButton" type="button">Add boost</button>
-              </div>
-              <div class="rows" id="boostRows"></div>
-            </div>
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">01</span><h2>Destinations</h2></div><p>One channel per signal. Reuse channels when you want a combined feed.</p></div>
+          <div class="channel-grid" id="channelGrid"></div>
+        </section>
 
-            <div class="panel">
-              <div class="panel-head">
-                <div class="panel-heading">
-                  <h3>Level role rewards</h3>
-                  <p>Assign a Discord role automatically when a member reaches a level.</p>
-                </div>
-                <button class="button small" id="addRewardButton" type="button">Add reward</button>
-              </div>
-              <div class="rows" id="rewardRows"></div>
-            </div>
-          </div>
-
-          <div class="mini-panel" data-leveling-panel="message">
-            <div class="panel">
-              <div class="panel-heading">
-                <h3>Level-up destination</h3>
-                <p>The selected channel receives the message whenever a member gains a level.</p>
-              </div>
-              <div class="announcement-basics">
-                <label class="checkline"><input name="xp.levelUpMessage.enabled" type="checkbox"> Send level-up messages</label>
-                <div class="picker-field">
-                  <span class="field-label">Announcement channel</span>
-                  <div id="levelUpChannelMount"></div>
-                </div>
-                <label>Preview level <input id="levelUpPreviewLevel" type="number" min="1" step="1" value="10"></label>
-              </div>
-            </div>
-
-            <div class="message-builder">
-              <div class="panel message-editor">
-                <div class="panel-heading">
-                  <h3>Level-up message</h3>
-                  <p>Add text, a thumbnail, or an image. Use <code>&lt;separator&gt;</code> when you want a divider between sections.</p>
-                </div>
-                <div class="template-tokens" id="levelUpTokens" aria-label="Message placeholders">
-                  <button type="button" data-token="&lt;@mention&gt;">&lt;@mention&gt;</button>
-                  <button type="button" data-token="&lt;username&gt;">&lt;username&gt;</button>
-                  <button type="button" data-token="&lt;display_name&gt;">&lt;display_name&gt;</button>
-                  <button type="button" data-token="&lt;level&gt;">&lt;level&gt;</button>
-                  <button type="button" data-token="&lt;previous_level&gt;">&lt;previous_level&gt;</button>
-                  <button type="button" data-token="&lt;server&gt;">&lt;server&gt;</button>
-                  <button type="button" data-token="&lt;channel&gt;">&lt;channel&gt;</button>
-                  <button type="button" data-token="&lt;user_id&gt;">&lt;user_id&gt;</button>
-                  <button type="button" data-token="&lt;avatar_url&gt;">&lt;avatar_url&gt;</button>
-                  <button type="button" data-token="&lt;separator&gt;">&lt;separator&gt;</button>
-                  <button type="button" data-token="&lt;if&lt;level&gt;==10,&quot;Shown at Level 10&quot;,&quot;&quot;&gt;">Conditional</button>
-                </div>
-                <label>Message
-                  <textarea name="xp.levelUpMessage.content" id="levelUpContent" rows="11" maxlength="4000" spellcheck="true"></textarea>
-                </label>
-                <div class="grid">
-                  <label>Container color <input name="xp.levelUpMessage.accentColor" type="color" value="#57f287"></label>
-                  <label>Thumbnail URL <input name="xp.levelUpMessage.thumbnailUrl" type="text" maxlength="1000" placeholder="&lt;avatar_url&gt;"></label>
-                  <label>Image URL <input name="xp.levelUpMessage.imageUrl" type="url" maxlength="1000" placeholder="https://example.com/banner.png"></label>
-                </div>
-                <p class="condition-help">Condition format: <code>&lt;if&lt;level&gt;==10,&quot;shown&quot;,&quot;hidden&quot;&gt;</code>. Supported operators: <code>==</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, and <code>&lt;=</code>. Aliases <code>&lt;currentlevel&gt;</code> and <code>&lt;current_level&gt;</code> also work.</p>
-              </div>
-
-              <aside class="message-sticky-preview external-message-sticky-preview">
-                <div class="panel-heading">
-                  <h3>Live preview</h3>
-                  <p>Preview updates as you type. Click a message box, color bar, thumbnail, or image area to edit.</p>
-                </div>
-                <div id="levelUpPreview">
-                  <div class="preview-container" id="levelUpPreviewContainer">
-                    <div id="levelUpPreviewBody"></div>
-                    <img class="preview-image" id="levelUpPreviewImage" alt="" hidden>
-                  </div>
-                </div>
-              </aside>
-            </div>
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">02</span><h2>Alert filters</h2></div><p>Keep the rare drops, mute the clutter.</p></div>
+          <div class="filter-grid" id="filterGrid"></div>
+          <div class="multiplier-panel">
+            <div><strong>Sell multipliers</strong><small>Notify when Garden Guide values hit these multipliers.</small></div>
+            <div class="chip-row" id="multiplierFilters"></div>
           </div>
         </section>
 
-        <section class="tab-panel" data-panel="channels">
-          <div class="panel">
-            <div class="panel-heading">
-              <h3>Bot channels</h3>
-              <p>Choose where bot panels, logs, announcements, and game activity are sent.</p>
-            </div>
-            <div class="settings-grid" id="channelsGrid"></div>
-          </div>
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">03</span><h2>Fall Harvest</h2></div><p>Layer seasonal inventory into the matching stock feeds.</p></div>
+          <div class="event-grid" id="fallFilters"></div>
+          <p class="microcopy">Existing item-level event selections are preserved when you save.</p>
         </section>
 
-        <section class="tab-panel" data-panel="roles">
-          <div class="panel">
-            <div class="panel-heading">
-              <h3>Bot roles</h3>
-              <p>Role colors match the roles currently configured in Discord.</p>
-            </div>
-            <div class="settings-grid" id="rolesGrid"></div>
-          </div>
+        <footer class="mobile-save"><span id="mobileSaveState">All changes saved</span><button class="button primary" id="mobileSaveButton" type="button" disabled>Save</button></footer>
+      </section>
+
+      <section class="view" id="ownerView" data-view-panel="owner" hidden>
+        <header class="workspace-head">
+          <div><span class="eyebrow">Owner only</span><h1>Fleet control</h1><p>Health, communities, access, and live bot output.</p></div>
+          <button class="button ghost" id="ownerRefresh" type="button">Refresh</button>
+        </header>
+        <div id="ownerOverview" class="owner-overview"></div>
+        <section class="console-panel">
+          <div class="console-head"><div><span class="console-light"></span><strong>Live console</strong></div><div><button class="text-button" id="consoleClear" type="button">Clear</button><button class="text-button" id="consoleToggle" type="button">Pause</button></div></div>
+          <div class="console-output" id="consoleOutput" tabindex="0"><p class="console-empty">Waiting for bot activity…</p></div>
         </section>
-
-        <section class="tab-panel" data-panel="data">
-          <div class="data-workspace" id="userDataRoot">
-            <div class="panel data-search-panel">
-              <div class="panel-heading">
-                <h3>Guild user data</h3>
-                <p>Search by Discord user ID only. The bot keeps saved data here even after that user leaves the guild.</p>
-              </div>
-              <div class="data-search-row">
-                <label>User ID <input id="userDataSearchId" type="text" inputmode="numeric" pattern="\d{16,20}" maxlength="20" placeholder="902736357766594611" autocomplete="off"></label>
-                <button class="button primary" id="userDataSearchButton" type="button">Find user</button>
-              </div>
-              <div class="status compact" id="userDataStatus" role="status">Enter a user ID to load stored level and punishment data.</div>
-            </div>
-
-            <div class="panel user-data-card" id="userDataEditor" hidden>
-              <div class="user-data-head">
-                <img id="userDataAvatar" alt="" hidden>
-                <div>
-                  <h3 id="userDataTitle">User data</h3>
-                  <p id="userDataMeta">No user loaded.</p>
-                </div>
-              </div>
-
-              <div class="user-data-summary" id="userDataSummary"></div>
-
-              <div class="mode-setting user-data-mode">
-                <div>
-                  <span class="field-label">XP save mode</span>
-                  <p>Use total XP for precise edits, or set the minimum XP for a target level.</p>
-                </div>
-                <div class="segmented-control">
-                  <label><input name="userDataXpMode" type="radio" value="xp" checked><span>Total XP</span></label>
-                  <label><input name="userDataXpMode" type="radio" value="level"><span>Exact level</span></label>
-                </div>
-              </div>
-
-              <div class="grid three data-grid">
-                <label>Level <input id="userDataLevel" type="number" min="0" step="1"></label>
-                <label>Total XP <input id="userDataXp" type="number" min="0" step="1"></label>
-                <label>Messages counted <input id="userDataMessages" type="number" min="0" step="1"></label>
-                <label>Stored punish tier <input id="userDataPunishTier" type="number" min="0" max="5" step="1"></label>
-                <label>Active punishment tier <input id="userDataActivePunishTier" type="number" min="0" max="5" step="1"></label>
-              </div>
-
-              <div class="grid compact-grid">
-                <label>Active punishment ends <input id="userDataPunishEndsAt" type="datetime-local"></label>
-                <label class="checkline"><input id="userDataExpLocked" type="checkbox"> Lock XP earning / XP blacklist</label>
-              </div>
-              <label>XP lock reason <textarea id="userDataExpLockReason" rows="3" maxlength="500" placeholder="Reason shown on the user's rank card"></textarea></label>
-
-              <div class="data-actions">
-                <button class="button subtle" id="userDataReloadButton" type="button">Reload</button>
-                <button class="button success" id="userDataSaveButton" type="button">Save user data</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="tab-panel" data-panel="tickets">
-          <div id="ticketEditorRoot"></div>
-        </section>
-
-        <section class="tab-panel" data-panel="invites">
-          <div class="panel">
-            <div class="panel-heading">
-              <h3>Invite rewards</h3>
-            </div>
-            <div class="grid compact-grid">
-              <label class="checkline"><input name="inviteRewards.enabled" type="checkbox"> Enabled</label>
-              <label>Member cap <input name="inviteRewards.capMembers" type="number" min="0" step="1"></label>
-            </div>
-          </div>
-        </section>
-
-        <section class="tab-panel" data-panel="gag2Stock">
-          <div class="panel gag2-stock-panel" id="gag2StockPanel">
-            <div class="panel-heading">
-              <h3>Gag2 stock</h3>
-            </div>
-            <div class="gag2-stock-permission-overlay" id="gag2StockPermissionOverlay" hidden>
-              <div>
-                <h4>Bot missing permissions</h4>
-                <p id="gag2StockPermissionText">Give the bot the required permissions before editing GAG2 stock settings.</p>
-                <button class="button subtle" type="button" id="gag2StockPermissionRefreshButton">Refresh permissions</button>
-              </div>
-            </div>
-            <div class="gag2-world-heading garden-valley-heading">
-              <span class="gag2-world-tag garden-valley-tag">GARDEN VALLEY</span>
-              <p>Core stock, weather, moon, and sell-price notifications.</p>
-            </div>
-            <div class="settings-grid gag2-stock-grid" id="gag2StockConfigArea">
-              <div class="picker-field">
-                <span class="field-label">Seed stock</span>
-                <div id="gag2SeedChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label">Gear stock</span>
-                <div id="gag2GearChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label">Crate stock</span>
-                <div id="gag2CrateChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label">Weather</span>
-                <div id="gag2WeatherChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label">Moon prediction</span>
-                <div id="gag2MoonChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label">Sell price track</span>
-                <div id="gag2SellChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label field-label-with-badge">Assign role channel <span class="recommended-label">Recommended</span></span>
-                <p class="field-hint">Select the channel where members can assign or remove their GAG2 stock notification roles.</p>
-                <div id="gag2AssignRoleChannelMount"></div>
-              </div>
-              <div class="picker-field">
-                <span class="field-label field-label-with-badge">Bot Update alert <span class="recommended-label">Recommended</span></span>
-                <p class="field-hint">Receive important CoinSprite and GAG2 stock feature updates.</p>
-                <div id="gag2UpdatesChannelMount"></div>
-              </div>
-            </div>
-            <section class="gag2-fall-panel" aria-labelledby="gag2FallTitle">
-              <div class="gag2-world-heading">
-                <div>
-                  <span class="gag2-world-tag fall-harvest-tag" id="gag2FallTitle">FALL HARVEST</span>
-                  <span class="gag2-limited-tag">Limited Event</span>
-                </div>
-                <p>Add Fall Harvest stock to the matching Garden Valley message.</p>
-              </div>
-              <div class="gag2-fall-type-grid" aria-label="Add event stock notifications">
-                <span class="field-label">Add event's stock notification:</span>
-                <label class="gag2-fall-type"><input type="checkbox" value="seed" data-gag2-fall-type> Seed</label>
-                <label class="gag2-fall-type"><input type="checkbox" value="gear" data-gag2-fall-type> Gear</label>
-                <label class="gag2-fall-type"><input type="checkbox" value="crate" data-gag2-fall-type> Crate</label>
-                <label class="gag2-fall-type"><input type="checkbox" value="sell" data-gag2-fall-type> Sell-price</label>
-              </div>
-              <p class="field-hint gag2-fall-dependency-hint">Each option becomes available after its Garden Valley channel is selected.</p>
-            </section>
-            <section class="gag2-filter-panel" aria-labelledby="gag2FilterTitle">
-              <h4 id="gag2FilterTitle">Notification filters <span class="gag2-world-tag garden-valley-tag">GARDEN VALLEY</span></h4>
-              <p class="field-hint gag2-fall-role-guidance">Select only the specific item roles your community wants to avoid reaching Discord's role limit.</p>
-              <div class="settings-grid gag2-filter-grid">
-                <div class="picker-field">
-                  <span class="field-label">Seed item roles</span>
-                  <div id="gag2SeedRarityMount"></div>
-                </div>
-                <div class="picker-field">
-                  <span class="field-label">Gear item roles</span>
-                  <div id="gag2GearRarityMount"></div>
-                </div>
-                <div class="picker-field">
-                  <span class="field-label">Crate item roles</span>
-                  <div id="gag2CrateRarityMount"></div>
-                </div>
-                <div class="picker-field">
-                  <span class="field-label">Sell price rarities</span>
-                  <div id="gag2SellRarityMount"></div>
-                </div>
-                <div class="picker-field gag2-multiplier-field">
-                  <span class="field-label">Sell price multipliers</span>
-                  <div class="gag2-filter-checks">
-                    <label class="gag2-filter-check"><input type="checkbox" value="normal" data-gag2-sell-multiplier> Below ×2</label>
-                    <label class="gag2-filter-check"><input type="checkbox" value="2x" data-gag2-sell-multiplier> ×2</label>
-                    <label class="gag2-filter-check"><input type="checkbox" value="4x" data-gag2-sell-multiplier> ×4</label>
-                  </div>
-                </div>
-              </div>
-            </section>
-            <section class="gag2-fall-role-panel" aria-labelledby="gag2FallRoleTitle">
-              <div class="gag2-world-heading">
-                <div>
-                  <span class="gag2-world-tag fall-harvest-tag" id="gag2FallRoleTitle">FALL HARVEST</span>
-                </div>
-              </div>
-              <div id="gag2FallRoleSettingsMount" class="gag2-fall-role-settings"></div>
-            </section>
-            <section class="gag2-update-feed" aria-labelledby="gag2UpdateFeedTitle">
-              <div class="gag2-update-feed-heading">
-                <div>
-                  <h4 id="gag2UpdateFeedTitle">Announcements</h4>
-                  <p>Recent notices and changes to GAG2 stock notifications.</p>
-                </div>
-              </div>
-              <div class="gag2-update-list">
-                <article class="gag2-update-card latest">
-                  <div class="gag2-update-card-heading">
-                    <strong>&#128295; A few GAG2 fixes are live</strong>
-                    <span>Latest</span>
-                  </div>
-                  <p>We've shipped a few fixes after watching the latest stock cycles:</p>
-                  <ul class="gag2-update-details">
-                    <li><strong>Seed</strong>, <strong>Gear</strong>, and <strong>Crate</strong> alerts now go out on every five-minute restock, even when quantities haven't changed.</li>
-                    <li>The countdown now points to the next restock instead of showing the previous one as “ago.”</li>
-                    <li>Long <strong>Sell Price Track</strong> updates now split into multiple messages instead of failing at Discord's text limit.</li>
-                    <li>Brief source delays get a few quick retries, making missed stock alerts much less likely.</li>
-                  </ul>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>🍂 Fall Harvest is live</strong>
-                  </div>
-                  <ul class="gag2-update-details">
-                    <li>Limited Fall Harvest Seed, Gear, Crate, and Sell-price stock can now appear inside the matching Garden Valley notification.</li>
-                    <li>Every new event item includes its Discord emoji and rarity color.</li>
-                    <li>Fall role settings now support whole-rarity toggles and individual item choices with item icons.</li>
-                    <li><strong>Tip:</strong> create only the roles your server needs so you stay comfortably below Discord's role limit.</li>
-                  </ul>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>Performance Boost! ⭐</strong>
-                  </div>
-                  <ul class="gag2-update-details">
-                    <li>GAG2 updates now broadcast to multiple servers at the same time.</li>
-                    <li>Stock, weather, moon, sell-price, and bot-update notifications should arrive much faster across every configured server.</li>
-                    <li>Delivery remains rate-limit safe, with per-channel duplicate protection unchanged.</li>
-                  </ul>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>Bug Patches</strong>
-                  </div>
-                  <ul class="gag2-update-details">
-                    <li>Fixed an issue where <strong>Sell Price Track</strong> could replay an older price update after posting the latest one.</li>
-                    <li>Fixed an issue that could send the same sell price notification twice.</li>
-                    <li><strong>Sell Price Track</strong> now announces only when the displayed prices change.</li>
-                  </ul>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>Update 4</strong>
-                  </div>
-                  <ul class="gag2-update-details">
-                    <li>
-                      Removed notification roles for seed-pack-only seeds:
-                      <img src="https://cdn.discordapp.com/emojis/1525390119664750612.png?size=32" alt="Ghost Pepper"> <strong>Ghost Pepper</strong>,
-                      <img src="https://cdn.discordapp.com/emojis/1525390117345427507.png?size=32" alt="Baby Cactus"> <strong>Baby Cactus</strong>,
-                      <img src="https://cdn.discordapp.com/emojis/1525390123875831919.png?size=32" alt="Horned Melon"> <strong>Horned Melon</strong>,
-                      <img src="https://cdn.discordapp.com/emojis/1525390121929805926.png?size=32" alt="Glow Mushroom"> <strong>Glow Mushroom</strong>, and
-                      <img src="https://cdn.discordapp.com/emojis/1525390125935366194.png?size=32" alt="Poison Ivy"> <strong>Poison Ivy</strong>.
-                      <small>These seeds cannot be purchased directly from the Seed Shop.</small>
-                    </li>
-                    <li>
-                      Removed notification roles for retired limited items:
-                      <img src="https://cdn.discordapp.com/emojis/1525195234898874630.png?size=32" alt="Rocket Pop"> <strong>Rocket Pop</strong> and
-                      <img src="https://cdn.discordapp.com/emojis/1525201497116246128.png?size=32" alt="Fourth of July"> <strong>Fourth of July</strong>.
-                      <small>These items are no longer available from their shops.</small>
-                    </li>
-                    <li>
-                      Removed the notification role for
-                      <img src="https://cdn.discordapp.com/emojis/1526031940749361163.png?size=32" alt="Eclipse Bloom"> <strong>Eclipse Bloom</strong>.
-                      <small>Eclipse Bloom is obtained through merging rather than purchased from the shop.</small>
-                    </li>
-                    <li>
-                      Removed unnecessary Gear Shop notification roles: <strong>Sign</strong>, <strong>Megaphone</strong>, <strong>Lantern</strong>, <strong>Teleporter</strong>, <strong>Wheelbarrow</strong>, and <strong>Strawberry Sniper</strong>.
-                      <small>Individual notifications are not needed for these gear items.</small>
-                    </li>
-                  </ul>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>Update 3</strong>
-                  </div>
-                  <p>Added sell-only Secret seed <img src="https://cdn.discordapp.com/emojis/1526031940749361163.png?size=32" alt="Eclipse Bloom"> <strong>Eclipse Bloom</strong>, added Secret multiplier roles, and removed unreleased <strong>Briar Rose</strong>.</p>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading">
-                    <strong>Update 2</strong>
-                  </div>
-                  <p>Added new weather: <img src="https://cdn.discordapp.com/emojis/1526025549858738287.png?size=32" alt="Eclipse"> <strong>Eclipse</strong>.</p>
-                </article>
-                <article class="gag2-update-card">
-                  <div class="gag2-update-card-heading"><strong>Update 1</strong></div>
-                  <p>Added new seeds: <img src="https://cdn.discordapp.com/emojis/1525996662449766431.png?size=32" alt="Sun Bloom"> <strong>Sun Bloom</strong> and <img src="https://cdn.discordapp.com/emojis/1525996660000428112.png?size=32" alt="Star Fruit"> <strong>Star Fruit</strong>.</p>
-                </article>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section class="tab-panel" data-panel="games">
-          <div class="panel">
-            <div class="panel-heading">
-              <h3>Word Chain</h3>
-            </div>
-            <div class="grid three">
-              <label>Minimum word length <input name="wordChain.minWordLength" type="number" min="1" step="1"></label>
-              <label>Maximum word length <input name="wordChain.maxWordLength" type="number" min="1" step="1"></label>
-              <label>Starting hearts <input name="wordChain.startingHearts" type="number" min="1" step="1"></label>
-              <label>Turn timeout (seconds) <input name="wordChain.turnTimeoutMs" type="number" min="1" step="1"></label>
-              <label>Punishment (seconds) <input name="wordChain.punishmentMs" type="number" min="1" step="1"></label>
-              <label>Game cooldown (seconds) <input name="wordChain.gameCooldownMs" type="number" min="1" step="1"></label>
-            </div>
-            <div class="game-rules">
-              <div class="mode-setting">
-                <div>
-                  <span class="field-label">Repeated word</span>
-                  <p>Choose whether a word already used in the current game receives a warning or the full invalid-word penalty.</p>
-                </div>
-                <div class="segmented-control">
-                  <label><input name="wordChain.repeatedWordAction" type="radio" value="warn"><span>Warn</span></label>
-                  <label><input name="wordChain.repeatedWordAction" type="radio" value="punish"><span>Punish</span></label>
-                </div>
-              </div>
-              <div class="mode-setting">
-                <div>
-                  <span class="field-label">Wrong starting letter</span>
-                  <p>Choose whether a word that ignores the required first letter receives a warning or the full invalid-word penalty.</p>
-                </div>
-                <div class="segmented-control">
-                  <label><input name="wordChain.wrongStartAction" type="radio" value="warn"><span>Warn</span></label>
-                  <label><input name="wordChain.wrongStartAction" type="radio" value="punish"><span>Punish</span></label>
-                </div>
-              </div>
-              <label class="formula-field">
-                XP reward formula
-                <input name="wordChain.xpRewardFormula" type="text" maxlength="120" spellcheck="false" placeholder="wordLength">
-                <span>Variables: <code>wordLength</code> and <code>streak</code>. Supports +, -, *, /, %, parentheses, and min/max/round/floor/ceil/abs. Empty or invalid formulas use <code>wordLength</code>.</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-heading">
-              <h3>Giveaway limits</h3>
-            </div>
-            <div class="grid">
-              <label>Minimum claim time (seconds) <input name="giveaway.minClaimMs" type="number" min="1" step="1"></label>
-              <label>Maximum claim time (seconds) <input name="giveaway.maxClaimMs" type="number" min="1" step="1"></label>
-              <label>Minimum duration (seconds) <input name="giveaway.minDurationMs" type="number" min="1" step="1"></label>
-              <label>Maximum duration (seconds) <input name="giveaway.maxDurationMs" type="number" min="1" step="1"></label>
-            </div>
-          </div>
-        </section>
-      </form>
+      </section>
     </section>
   </main>
 
-  <aside class="unsaved-bar" id="unsavedBar" hidden aria-live="polite">
-    <div>
-      <strong>You have unsaved changes</strong>
-      <span id="unsavedDetail">Review or save before leaving this page.</span>
-    </div>
-    <div class="unsaved-actions">
-      <button class="button subtle" id="resetTabButton" type="button">Reset this tab</button>
-      <button class="button success" id="saveButton" type="button">Save changes</button>
-    </div>
-  </aside>
-
-  <script src="/admin/tickets.js" defer></script>
-  <script src="/admin/app.js?v=app-2" defer></script>
-  <script src="/admin/user-data.js" defer></script>
-  <script src="/admin/emoji-picker.js" defer></script>
-  <script src="/admin/message-template-workflow.js?v=workflow-1" defer></script><!-- ADDED: fixes message template workflow before the Messages tab loads. -->
-  <script src="/admin/message-inline-editor.js" defer></script>
-  <script src="/admin/message-edit-shortcuts.js" defer></script>
-  <script src="/admin/site-pages.js?v=site-pages-1" defer></script>
-  <script src="/admin/owner-panel.js?v=owner-tokens-1" defer></script>
+  <dialog id="confirmDialog" class="dialog">
+    <form method="dialog">
+      <span class="dialog-icon">!</span>
+      <h2 id="dialogTitle">Confirm action</h2>
+      <p id="dialogCopy"></p>
+      <label id="dialogInputWrap" hidden>Reason<textarea id="dialogInput" maxlength="500" rows="4"></textarea></label>
+      <div><button class="button ghost" value="cancel">Cancel</button><button class="button danger" id="dialogConfirm" value="confirm">Confirm</button></div>
+    </form>
+  </dialog>
 </body>
 </html>
