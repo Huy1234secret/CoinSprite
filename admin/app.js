@@ -1,15 +1,17 @@
 (() => {
   'use strict';
 
+  const MEDAL_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text x="3" y="26" font-size="26">🏅</text></svg>')}`;
+  const discordEmoji = (id) => `https://cdn.discordapp.com/emojis/${id}.webp?size=32&quality=lossless`;
   const CHANNELS = [
-    ['seed', 'Seed stock', 'Fresh seed inventory', '♧'],
-    ['gear', 'Gear stock', 'Tools and equipment', '⚙'],
-    ['crate', 'Crate stock', 'Cosmetic crate restocks', '◇'],
+    ['seed', 'Seed stock', 'Fresh seed inventory', discordEmoji('1525195207778373814')],
+    ['gear', 'Gear stock', 'Tools and equipment', discordEmoji('1525198690707439736')],
+    ['crate', 'Crate stock', 'Cosmetic crate restocks', discordEmoji('1525201479546441931')],
     ['weather', 'Weather', 'Active weather alerts', '☂'],
     ['moon', 'Moon events', 'Moon and sky events', '◐'],
-    ['sell', 'Sell prices', 'Garden Guide price changes', '↗'],
-    ['roleAssign', 'Role selector', 'Self-serve alert roles', '@'],
-    ['updates', 'Update notes', 'GAG content announcements', '✦'],
+    ['sell', 'Sell prices', 'Garden Guide price changes', discordEmoji('1525368044824825976')],
+    ['roleAssign', 'Role selector', 'Self-serve alert roles', MEDAL_ICON],
+    ['updates', 'Update notes', 'GAG content announcements', discordEmoji('1525198707925057607')],
   ];
   const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super', 'secret'];
   const FALL_TYPES = [
@@ -53,6 +55,16 @@
     return String(value ?? '').replace(/[&<>'"]/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
     })[char]);
+  }
+
+  function titleCase(value) {
+    const text = String(value || '');
+    return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : '';
+  }
+
+  function emojiUrl(value) {
+    const match = String(value || '').match(/^<a?:[a-z0-9_]+:(\d{16,20})>$/i);
+    return match ? `https://cdn.discordapp.com/emojis/${match[1]}.webp?size=32&quality=lossless` : '';
   }
 
   function clone(value) {
@@ -147,26 +159,70 @@
     const channels = state.config.gag2Stock.channels;
     elements.channelGrid.innerHTML = CHANNELS.map(([key, label, description, icon]) => `
       <label class="channel-card">
-        <span class="feed-icon" aria-hidden="true">${icon}</span>
+        <span class="feed-icon" aria-hidden="true">${/^(?:https:|data:image)/.test(icon) ? `<img src="${escapeHtml(icon)}" alt="">` : icon}</span>
         <span class="feed-copy"><strong>${label}</strong><small>${description}</small></span>
         <select data-channel="${key}" aria-label="${label} channel">${channelOptions(channels[key] || '')}</select>
       </label>`).join('');
   }
 
-  function selectedRarities(type) {
-    return new Set(state.config.gag2Stock.filters.rarities[type] || []);
+  function pickerItemOption(type, item, selected) {
+    const rarity = RARITIES.includes(item.rarity) ? item.rarity : 'common';
+    const image = emojiUrl(item.emoji);
+    const name = item.name || item.roleName || titleCase(item.key);
+    const search = `${name} ${rarity} ${item.key}`.toLowerCase();
+    return `<label class="picker-option rarity-${rarity}${selected.has(item.key) ? ' selected' : ''}" data-picker-option data-search="${escapeHtml(search)}">
+      <input type="checkbox" data-filter-item="${type}" value="${escapeHtml(item.key)}" ${selected.has(item.key) ? 'checked' : ''}>
+      <span class="picker-option-main">${image ? `<img src="${image}" alt="">` : '<span class="picker-option-fallback">✦</span>'}<span><b>${escapeHtml(name)}</b><small>${titleCase(rarity)}</small></span></span>
+      <i class="picker-check" aria-hidden="true">✓</i>
+    </label>`;
+  }
+
+  function itemPickerGroups(type, items, selected) {
+    return RARITIES.filter((rarity) => rarity !== 'secret').map((rarity) => {
+      const matches = items.filter((item) => item.rarity === rarity);
+      if (!matches.length) return '';
+      return `<section class="picker-group" data-picker-group-section="${rarity}">
+        <div class="picker-group-head"><span class="rarity-label rarity-${rarity}">${titleCase(rarity)}</span><button type="button" data-picker-group="${type}" data-picker-rarity="${rarity}">Select rarity</button></div>
+        <div class="picker-group-options">${matches.map((item) => pickerItemOption(type, item, selected)).join('')}</div>
+      </section>`;
+    }).join('');
+  }
+
+  function sellRarityOptions(selected) {
+    return RARITIES.map((rarity) => `<label class="picker-option rarity-${rarity}${selected.has(rarity) ? ' selected' : ''}" data-picker-option data-search="${rarity}">
+      <input type="checkbox" data-filter-rarity="sell" value="${rarity}" ${selected.has(rarity) ? 'checked' : ''}>
+      <span class="picker-option-main"><span class="rarity-dot"></span><span><b>${titleCase(rarity)}</b><small>Sell price rarity</small></span></span>
+      <i class="picker-check" aria-hidden="true">✓</i>
+    </label>`).join('');
+  }
+
+  function filterPickerCard(type) {
+    const stock = state.config.gag2Stock;
+    const itemMode = type !== 'sell';
+    const options = itemMode ? (state.catalog.items[type] || []) : RARITIES;
+    const selected = new Set(itemMode ? (stock.filters.roleItems[type] || []) : (stock.filters.rarities.sell || []));
+    const allSelected = options.length > 0 && selected.size === options.length;
+    const label = type === 'sell' ? 'Sell price' : titleCase(type);
+    const summary = selected.size === 0
+      ? `No ${itemMode ? 'items' : 'rarities'} selected`
+      : allSelected ? `All ${options.length} ${itemMode ? 'items' : 'rarities'}` : `${selected.size} of ${options.length} selected`;
+    const routed = Boolean(stock.channels[type]);
+    return `<article class="filter-card${routed ? '' : ' is-disabled'}" data-filter-card="${type}">
+      <div class="filter-card-head"><strong>${label} alerts</strong><span>${itemMode ? 'Choose items' : 'Choose rarities'}</span></div>
+      <div class="notification-picker" data-notification-picker="${type}">
+        <button class="notification-trigger" type="button" data-picker-trigger="${type}" aria-expanded="false" ${routed ? '' : 'disabled'}>
+          <span><small>${routed ? 'Notification roles' : 'Choose a destination first'}</small><strong data-picker-summary="${type}">${summary}</strong></span><i aria-hidden="true">⌄</i>
+        </button>
+        <div class="notification-menu" data-picker-menu="${type}" hidden>
+          <div class="picker-tools"><input type="search" data-picker-search="${type}" placeholder="Search ${itemMode ? 'rarity or item' : 'rarity'}" autocomplete="off"><button type="button" data-picker-all="${type}">${allSelected ? 'Clear all' : 'Select all'}</button></div>
+          <div class="picker-options">${itemMode ? itemPickerGroups(type, options, selected) : sellRarityOptions(selected)}</div>
+        </div>
+      </div>
+    </article>`;
   }
 
   function renderFilters() {
-    const types = ['seed', 'gear', 'crate', 'sell'];
-    elements.filterGrid.innerHTML = types.map((type) => {
-      const selected = selectedRarities(type);
-      const allowed = type === 'sell' ? RARITIES : RARITIES.filter((rarity) => rarity !== 'secret');
-      return `<article class="filter-card" data-filter-card="${type}">
-        <div class="filter-card-head"><strong>${type} alerts</strong><button type="button" data-select-all="${type}">Select all</button></div>
-        <div class="chip-row">${allowed.map((rarity) => `<label class="filter-chip rarity-${rarity}"><input type="checkbox" data-rarity="${type}" value="${rarity}" ${selected.has(rarity) ? 'checked' : ''}><span>${rarity}</span></label>`).join('')}</div>
-      </article>`;
-    }).join('');
+    elements.filterGrid.innerHTML = ['seed', 'gear', 'crate', 'sell'].map(filterPickerCard).join('');
 
     const selectedMultipliers = new Set(state.config.gag2Stock.filters.sellMultipliers || []);
     elements.multiplierFilters.innerHTML = ['normal', '2x', '4x'].map((value) => `<label class="filter-chip"><input type="checkbox" data-multiplier value="${value}" ${selectedMultipliers.has(value) ? 'checked' : ''}><span>${value}</span></label>`).join('');
@@ -184,6 +240,7 @@
       enabled: stock.enabled,
       channels: stock.channels,
       rarities: stock.filters.rarities,
+      roleItems: stock.filters.roleItems,
       sellMultipliers: stock.filters.sellMultipliers,
       fallTypes: stock.fall.enabledTypes,
     });
@@ -235,7 +292,7 @@
     state.guildId = guildId;
     elements.guildSelect.value = guildId;
     const guild = state.guilds.find((item) => item.id === guildId);
-    elements.serverMeta.textContent = guild ? `Guild ${guild.id}` : `Guild ${guildId}`;
+    elements.serverMeta.textContent = `${state.me?.owner ? 'Owner view' : 'Administrator access'} · ${guild ? guild.id : guildId}`;
     elements.engineTitle.textContent = 'Tuning into stock feeds';
     elements.engineMessage.textContent = 'Loading channels and alert configuration…';
     elements.saveButton.disabled = true;
@@ -262,18 +319,6 @@
     }
   }
 
-  function updateRoleItemsForChangedRarities(stock, previous) {
-    for (const type of ['seed', 'gear', 'crate']) {
-      const before = JSON.stringify(previous.filters.rarities[type] || []);
-      const after = JSON.stringify(stock.filters.rarities[type] || []);
-      if (before === after) continue;
-      const selected = new Set(stock.filters.rarities[type]);
-      stock.filters.roleItems[type] = (state.catalog.items[type] || [])
-        .filter((item) => selected.has(item.rarity))
-        .map((item) => item.key);
-    }
-  }
-
   async function saveStock() {
     if (!state.config || state.saving || snapshot() === state.savedSnapshot) return;
     state.saving = true;
@@ -283,8 +328,6 @@
     elements.mobileSaveState.textContent = 'Applying changes…';
     try {
       const stock = clone(state.config.gag2Stock);
-      const previous = normalizeStockConfig((await api(`/api/guilds/${state.guildId}/config`)).config);
-      updateRoleItemsForChangedRarities(stock, previous);
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
         body: JSON.stringify({ gag2Stock: stock }),
@@ -457,15 +500,75 @@
     if (!state.config) return;
     const stock = state.config.gag2Stock;
     if (target === elements.stockEnabled) stock.enabled = target.checked;
-    if (target.matches('[data-channel]')) stock.channels[target.dataset.channel] = target.value;
-    if (target.matches('[data-rarity]')) {
-      const type = target.dataset.rarity;
-      stock.filters.rarities[type] = [...document.querySelectorAll(`[data-rarity="${type}"]:checked`)].map((input) => input.value);
+    if (target.matches('[data-channel]')) {
+      stock.channels[target.dataset.channel] = target.value;
+      if (['seed', 'gear', 'crate', 'sell'].includes(target.dataset.channel)) renderFilters();
     }
     if (target.matches('[data-multiplier]')) stock.filters.sellMultipliers = [...document.querySelectorAll('[data-multiplier]:checked')].map((input) => input.value);
     if (target.matches('[data-fall-type]')) stock.fall.enabledTypes = [...document.querySelectorAll('[data-fall-type]:checked')].map((input) => input.value);
     renderEngine();
     refreshDirty();
+  }
+
+  function closeNotificationPickers(exceptType = '') {
+    for (const menu of elements.filterGrid.querySelectorAll('[data-picker-menu]')) {
+      if (menu.dataset.pickerMenu === exceptType) continue;
+      menu.hidden = true;
+      const trigger = elements.filterGrid.querySelector(`[data-picker-trigger="${menu.dataset.pickerMenu}"]`);
+      trigger?.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  function updateNotificationPickerUi(type) {
+    const card = elements.filterGrid.querySelector(`[data-filter-card="${type}"]`);
+    if (!card) return;
+    const inputs = [...card.querySelectorAll(type === 'sell' ? '[data-filter-rarity]' : '[data-filter-item]')];
+    const selected = inputs.filter((input) => input.checked);
+    const summary = card.querySelector('[data-picker-summary]');
+    if (summary) {
+      const noun = type === 'sell' ? 'rarities' : 'items';
+      summary.textContent = selected.length === 0 ? `No ${noun} selected`
+        : selected.length === inputs.length ? `All ${inputs.length} ${noun}` : `${selected.length} of ${inputs.length} selected`;
+    }
+    const allButton = card.querySelector('[data-picker-all]');
+    if (allButton) allButton.textContent = inputs.length > 0 && selected.length === inputs.length ? 'Clear all' : 'Select all';
+    for (const option of card.querySelectorAll('[data-picker-option]')) {
+      option.classList.toggle('selected', Boolean(option.querySelector('input')?.checked));
+    }
+    for (const button of card.querySelectorAll('[data-picker-group]')) {
+      const groupInputs = [...button.closest('.picker-group').querySelectorAll('[data-filter-item]')];
+      const allInGroup = groupInputs.length > 0 && groupInputs.every((input) => input.checked);
+      button.textContent = `${allInGroup ? 'Clear' : 'Select'} ${button.dataset.pickerRarity}`;
+    }
+  }
+
+  function commitNotificationFilter(type) {
+    const card = elements.filterGrid.querySelector(`[data-filter-card="${type}"]`);
+    if (!card || !state.config) return;
+    const stock = state.config.gag2Stock;
+    if (type === 'sell') {
+      stock.filters.rarities.sell = [...card.querySelectorAll('[data-filter-rarity]:checked')].map((input) => input.value);
+    } else {
+      const keys = [...card.querySelectorAll('[data-filter-item]:checked')].map((input) => input.value);
+      const selected = new Set(keys);
+      stock.filters.roleItems[type] = keys;
+      stock.filters.rarities[type] = RARITIES.filter((rarity) => rarity !== 'secret' && (state.catalog.items[type] || [])
+        .some((item) => item.rarity === rarity && selected.has(item.key)));
+    }
+    updateNotificationPickerUi(type);
+    refreshDirty();
+  }
+
+  function filterNotificationOptions(search) {
+    const menu = search.closest('[data-picker-menu]');
+    if (!menu) return;
+    const query = search.value.trim().toLowerCase();
+    for (const option of menu.querySelectorAll('[data-picker-option]')) {
+      option.hidden = Boolean(query) && !option.dataset.search.includes(query);
+    }
+    for (const group of menu.querySelectorAll('.picker-group')) {
+      group.hidden = ![...group.querySelectorAll('[data-picker-option]')].some((option) => !option.hidden);
+    }
   }
 
   async function loadSession() {
@@ -480,7 +583,7 @@
       state.me = null;
       state.guilds = [];
       renderSession();
-      elements.loginStatus.textContent = error.status === 401 ? 'Sign in to open your stock station.' : error.message;
+      elements.loginStatus.textContent = error.status === 401 ? 'Sign in to open your dashboard.' : error.message;
     }
   }
 
@@ -493,16 +596,54 @@
   });
   elements.stockEnabled.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.channelGrid.addEventListener('change', (event) => updateConfigFromControl(event.target));
-  elements.filterGrid.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.multiplierFilters.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.fallFilters.addEventListener('change', (event) => updateConfigFromControl(event.target));
+  elements.filterGrid.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-filter-item], [data-filter-rarity]');
+    if (input) commitNotificationFilter(input.dataset.filterItem || input.dataset.filterRarity);
+  });
+  elements.filterGrid.addEventListener('input', (event) => {
+    const search = event.target.closest('[data-picker-search]');
+    if (search) filterNotificationOptions(search);
+  });
   elements.filterGrid.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-select-all]');
-    if (!button) return;
-    const boxes = [...document.querySelectorAll(`[data-rarity="${button.dataset.selectAll}"]`)];
-    const shouldSelect = boxes.some((input) => !input.checked);
-    for (const input of boxes) input.checked = shouldSelect;
-    if (boxes[0]) updateConfigFromControl(boxes[0]);
+    const trigger = event.target.closest('[data-picker-trigger]');
+    if (trigger) {
+      const type = trigger.dataset.pickerTrigger;
+      const menu = elements.filterGrid.querySelector(`[data-picker-menu="${type}"]`);
+      const willOpen = menu.hidden;
+      closeNotificationPickers(type);
+      menu.hidden = !willOpen;
+      trigger.setAttribute('aria-expanded', String(willOpen));
+      if (willOpen) window.requestAnimationFrame(() => menu.querySelector('[data-picker-search]')?.focus());
+      return;
+    }
+    const allButton = event.target.closest('[data-picker-all]');
+    if (allButton) {
+      const type = allButton.dataset.pickerAll;
+      const card = allButton.closest('[data-filter-card]');
+      const inputs = [...card.querySelectorAll(type === 'sell' ? '[data-filter-rarity]' : '[data-filter-item]')];
+      const shouldSelect = inputs.some((input) => !input.checked);
+      for (const input of inputs) input.checked = shouldSelect;
+      commitNotificationFilter(type);
+      return;
+    }
+    const groupButton = event.target.closest('[data-picker-group]');
+    if (groupButton) {
+      const inputs = [...groupButton.closest('.picker-group').querySelectorAll('[data-filter-item]')];
+      const shouldSelect = inputs.some((input) => !input.checked);
+      for (const input of inputs) input.checked = shouldSelect;
+      commitNotificationFilter(groupButton.dataset.pickerGroup);
+    }
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.notification-picker')) closeNotificationPickers();
+  });
+  elements.filterGrid.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeNotificationPickers();
+      event.target.closest('[data-filter-card]')?.querySelector('[data-picker-trigger]')?.focus();
+    }
   });
   document.querySelector('.nav-list').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');

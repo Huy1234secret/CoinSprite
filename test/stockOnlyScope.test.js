@@ -21,8 +21,11 @@ test('dashboard exposes one focused stylesheet and script', () => {
   const html = read('admin/index.html');
   assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 1);
   assert.equal((html.match(/<script /g) || []).length, 1);
-  assert.match(html, /Stock station/);
+  assert.match(html, /GAG2 Stock/);
   assert.match(html, /Owner panel/);
+  assert.match(html, /CoinSprite <em>bot\.<\/em>/);
+  assert.match(html, /1525195196864925817/);
+  assert.doesNotMatch(html, /Your Garden/);
   for (const removed of ['Leveling', 'Tickets', 'Moderation', 'Invite rewards', 'Giveaway']) {
     assert.doesNotMatch(html, new RegExp(removed, 'i'));
   }
@@ -57,4 +60,23 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /@media \(max-width: 620px\)/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /\.mobile-save/);
+  assert.match(css, /\.topbar \{ position: sticky; top: 0;/);
+  assert.match(css, /\.notification-menu/);
+});
+
+test('notification settings use searchable dropdown item pickers', () => {
+  const source = read('admin/app.js');
+  assert.match(source, /data-picker-trigger/);
+  assert.match(source, /data-picker-search/);
+  assert.match(source, /data-filter-item/);
+  assert.match(source, /roleItems: stock\.filters\.roleItems/);
+  assert.doesNotMatch(source, /updateRoleItemsForChangedRarities/);
+});
+
+test('all-server visibility is reserved for owners', () => {
+  const source = read('src/adminServer.js');
+  assert.match(source, /const ids = isOwnerSession\(session, client\)/);
+  assert.match(source, /if \(!isOwnerSession\(session, client\)\)/);
+  assert.match(source, /member\?\.permissions\?\.has\(PermissionFlagsBits\.Administrator\)/);
+  assert.match(source, /!getGuildConfig\(guild\.id\)\) continue/);
 });
