@@ -83,6 +83,9 @@ test('notification settings use searchable dropdown item pickers', () => {
   assert.match(source, /data-fall-filter-item/);
   assert.match(source, /roleItems: stock\.filters\.roleItems/);
   assert.match(source, /fallRoleItems: stock\.fall\.roleItems/);
+  assert.match(source, /data-fall-multiplier/);
+  assert.match(source, /Moon prediction/);
+  assert.match(source, /Accuracy 100%/);
   assert.match(source, /startFallCountdown/);
   assert.match(source, /1525203819775135764/);
   assert.match(source, /1525203812607070260/);

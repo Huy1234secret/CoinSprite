@@ -71,7 +71,7 @@ test('GAG2 role assignment panel shows five category buttons and skips moon pred
   assert.equal(buttons.find((button) => button.label === 'Sell price').disabled, false);
 });
 
-test('GAG2 role assignment exposes four Fall categories only while their event toggles are active', () => {
+test('GAG2 role assignment exposes item-role Fall categories only while their event toggles are active', () => {
   const config = configFor({
     seedChannel: '123456789012345678',
     gearChannel: '223456789012345678',
@@ -84,10 +84,10 @@ test('GAG2 role assignment exposes four Fall categories only while their event t
     .flatMap((component) => component.components || [])
     .filter((component) => component.custom_id?.includes(':open:fall'));
 
-  assert.deepEqual(fallButtons.map((button) => button.label), ['Fall seed', 'Fall gear', 'Fall crate', 'Fall sell']);
+  assert.deepEqual(fallButtons.map((button) => button.label), ['Fall seed', 'Fall gear', 'Fall crate']);
   assert.equal(fallButtons.find((button) => button.label === 'Fall seed').disabled, false);
   assert.equal(fallButtons.find((button) => button.label === 'Fall gear').disabled, true);
-  assert.equal(fallButtons.find((button) => button.label === 'Fall sell').disabled, false);
+  assert.equal(fallButtons.some((button) => button.label === 'Fall sell'), false);
 
   const endedPayload = buildRoleAssignmentPanelPayload(config, { nowMs: FALL_HARVEST_END_AT_MS });
   const endedFallButtons = endedPayload.components[0].components

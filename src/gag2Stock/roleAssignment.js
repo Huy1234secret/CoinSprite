@@ -26,7 +26,7 @@ const RED = 0xed4245;
 const NO_MENTIONS = { parse: [], users: [], roles: [] };
 const ROLE_ASSIGN_CHANNEL_KEY = 'roleAssign';
 const GARDEN_ROLE_ASSIGN_TYPES = ['seed', 'gear', 'crate', 'weather', 'sell'];
-const FALL_ROLE_ASSIGN_TYPES = Object.values(FALL_ROLE_TYPES);
+const FALL_ROLE_ASSIGN_TYPES = Object.values(FALL_ROLE_TYPES).filter((type) => type !== FALL_ROLE_TYPES.sell);
 const ROLE_ASSIGN_TYPES = [...GARDEN_ROLE_ASSIGN_TYPES, ...FALL_ROLE_ASSIGN_TYPES];
 const CUSTOM_ID_PREFIX = 'gag2role';
 const MAX_SELECT_OPTIONS = 25;
