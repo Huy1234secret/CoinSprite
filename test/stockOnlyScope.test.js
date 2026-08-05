@@ -21,6 +21,8 @@ test('dashboard exposes one focused stylesheet and script', () => {
   const html = read('admin/index.html');
   assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 1);
   assert.equal((html.match(/<script /g) || []).length, 1);
+  assert.match(html, /\/admin\/style\.css\?v=[^"']+/);
+  assert.match(html, /\/admin\/app\.js\?v=[^"']+/);
   assert.match(html, /GAG2 Stock/);
   assert.match(html, /Owner panel/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
@@ -36,6 +38,8 @@ test('admin writes require CSRF and only accept GAG stock config', () => {
   assert.match(source, /function requireCsrf/);
   assert.match(source, /Only GAG stock configuration can be updated/);
   assert.match(source, /PUBLIC_ASSETS = new Map/);
+  assert.match(source, /'Cache-Control': 'no-store, max-age=0'/);
+  assert.match(source, /Pragma: 'no-cache'/);
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
 

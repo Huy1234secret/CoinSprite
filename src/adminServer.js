@@ -201,7 +201,9 @@ function serveAsset(res, pathname) {
     if (error) return send(res, 404, 'Not found');
     send(res, 200, data, {
       'Content-Type': contentType,
-      'Cache-Control': filename === 'index.html' ? 'no-store' : 'public, max-age=300',
+      'Cache-Control': 'no-store, max-age=0',
+      Pragma: 'no-cache',
+      Expires: '0',
     });
   });
 }
