@@ -14,6 +14,7 @@ const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, 'roleAssign', 'up
 const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
 const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
 const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
+const GAG2_FALL_SELL_MULTIPLIERS = ['2x', '4x'];
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -50,7 +51,8 @@ function defaultFilters() {
 function defaultFall() {
   return {
     enabledTypes: [],
-    roleItems: Object.fromEntries(GAG2_FALL_STOCK_TYPES.map((type) => [type, []])),
+    roleItems: Object.fromEntries(['seed', 'gear', 'crate'].map((type) => [type, []])),
+    sellMultipliers: [...GAG2_FALL_SELL_MULTIPLIERS],
   };
 }
 
@@ -131,11 +133,16 @@ function normalizeFall(value, defaults = defaultFall()) {
   const source = isObject(value) ? value : {};
   const enabledTypes = normalizeSelection(source.enabledTypes, GAG2_FALL_STOCK_TYPES, defaults.enabledTypes);
   const roleItems = {};
-  for (const type of GAG2_FALL_STOCK_TYPES) {
+  for (const type of ['seed', 'gear', 'crate']) {
     const allowed = roleSpecsForType(FALL_ROLE_TYPES[type]).map((spec) => spec.key);
     roleItems[type] = normalizeSelection(source.roleItems?.[type], allowed, defaults.roleItems?.[type] || []);
   }
-  return { enabledTypes, roleItems };
+  const sellMultipliers = normalizeSelection(
+    source.sellMultipliers,
+    GAG2_FALL_SELL_MULTIPLIERS,
+    defaults.sellMultipliers || GAG2_FALL_SELL_MULTIPLIERS,
+  );
+  return { enabledTypes, roleItems, sellMultipliers };
 }
 
 function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {

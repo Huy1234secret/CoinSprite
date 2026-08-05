@@ -7,7 +7,7 @@
     ['gear', 'Gear stock', 'Tools and equipment', discordEmoji('1525198690707439736')],
     ['crate', 'Crate stock', 'Cosmetic crate restocks', discordEmoji('1525201479546441931')],
     ['weather', 'Weather', 'Active weather alerts', discordEmoji('1525203819775135764')],
-    ['moon', 'Moon events', 'Moon and sky events', discordEmoji('1525203812607070260')],
+    ['moon', 'Moon prediction', 'Accuracy 100%', discordEmoji('1525203812607070260')],
     ['sell', 'Sell prices', 'Garden Guide price changes', discordEmoji('1525368044824825976')],
     ['roleAssign', 'Role selector', 'Self-serve alert roles', '\u{1F3C5}'],
     ['updates', 'Update notes', 'GAG content announcements', discordEmoji('1525198707925057607')],
@@ -140,6 +140,7 @@
     source.fall ||= {};
     source.fall.enabledTypes ||= [];
     source.fall.roleItems ||= {};
+    source.fall.sellMultipliers ||= ['2x', '4x'];
     for (const type of ['seed', 'gear', 'crate']) source.filters.rarities[type] ||= RARITIES.filter((rarity) => rarity !== 'secret');
     source.filters.rarities.sell ||= [...RARITIES];
     return source;
@@ -274,10 +275,17 @@
 
   function fallPickerCard(type, label) {
     const stock = state.config.gag2Stock;
+    const enabled = isFallHarvestActive() && stock.fall.enabledTypes.includes(type);
+    if (type === 'sell') {
+      const selected = new Set(stock.fall.sellMultipliers || []);
+      return `<article class="filter-card fall-role-card${enabled ? '' : ' is-disabled'}" data-fall-filter-card="sell">
+        <div class="filter-card-head"><strong>Fall sell alerts</strong><span>Uses Garden Valley roles</span></div>
+        <div class="chip-row fall-multiplier-row">${['2x', '4x'].map((value) => `<label class="filter-chip"><input type="checkbox" data-fall-multiplier value="${value}" ${selected.has(value) ? 'checked' : ''} ${enabled ? '' : 'disabled'}><span>${value}</span></label>`).join('')}</div>
+      </article>`;
+    }
     const options = state.catalog.fallItems[type] || [];
     const selected = new Set(stock.fall.roleItems[type] || []);
     const allSelected = options.length > 0 && selected.size === options.length;
-    const enabled = isFallHarvestActive() && stock.fall.enabledTypes.includes(type);
     const noun = options.length === 1 ? 'item' : 'items';
     const summary = selected.size === 0 ? 'No items selected'
       : allSelected ? `All ${options.length} ${noun}` : `${selected.size} of ${options.length} selected`;
@@ -313,6 +321,7 @@
       sellMultipliers: stock.filters.sellMultipliers,
       fallTypes: stock.fall.enabledTypes,
       fallRoleItems: stock.fall.roleItems,
+      fallSellMultipliers: stock.fall.sellMultipliers,
     });
   }
 
@@ -576,6 +585,7 @@
       if (['seed', 'gear', 'crate', 'sell'].includes(target.dataset.channel)) renderFilters();
     }
     if (target.matches('[data-multiplier]')) stock.filters.sellMultipliers = [...document.querySelectorAll('[data-multiplier]:checked')].map((input) => input.value);
+    if (target.matches('[data-fall-multiplier]')) stock.fall.sellMultipliers = [...elements.fallRoleFilters.querySelectorAll('[data-fall-multiplier]:checked')].map((input) => input.value);
     if (target.matches('[data-fall-type]')) {
       stock.fall.enabledTypes = [...document.querySelectorAll('[data-fall-type]:checked')].map((input) => input.value);
       renderFall();
@@ -690,6 +700,10 @@
     if (input) commitNotificationFilter(input.dataset.filterItem || input.dataset.filterRarity);
   });
   elements.fallRoleFilters.addEventListener('change', (event) => {
+    if (event.target.matches('[data-fall-multiplier]')) {
+      updateConfigFromControl(event.target);
+      return;
+    }
     const input = event.target.closest('[data-fall-filter-item]');
     if (input) commitNotificationFilter(input.dataset.fallFilterItem, 'fall');
   });

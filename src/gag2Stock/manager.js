@@ -395,13 +395,18 @@ function sellFilterBucket(entry) {
 function filterSellEntry(entry, filters = {}) {
   const rarities = selectedFilterValues(filters, ['rarities', 'sell'], GAG2_SELL_FILTER_RARITIES);
   const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
+  const fallMultipliers = selectedFilterValues(filters, ['fall', 'sellMultipliers'], ['2x', '4x']);
   const includeUnknownRarity = rarities.size === GAG2_SELL_FILTER_RARITIES.length;
   const filterEntries = (items, catalogType) => (items || []).filter((item) => {
     const rarity = normalizeRarity(rarityForType(catalogType, item));
     return multipliers.has(sellFilterBucket(item)) && (rarities.has(rarity) || (!rarity && includeUnknownRarity));
   });
   const entries = filterEntries(entry?.entries, 'sell');
-  const fall = entry?.fall ? { ...entry.fall, entries: [...(entry.fall.entries || [])] } : entry?.fall;
+  const fall = entry?.fall ? {
+    ...entry.fall,
+    entries: (entry.fall.entries || []).filter((item) => fallMultipliers.has(sellFilterBucket(item))),
+    enabledMultipliers: [...fallMultipliers],
+  } : entry?.fall;
   return {
     ...entry,
     entries,
@@ -1290,7 +1295,8 @@ async function syncGag2StockGuildSetup(client, guildId, fetchers = {
     ...enabledTypes,
     ...GAG2_FALL_STOCK_TYPES
       .filter((type) => enabledTypes.includes(type) && fallEnabledTypes.has(type))
-      .map((type) => FALL_ROLE_TYPES[type]),
+      .map((type) => FALL_ROLE_TYPES[type])
+      .filter((type) => type && type !== FALL_ROLE_TYPES.sell),
   ];
 
   const me = guild.members?.me || await guild.members?.fetchMe?.().catch(() => null);

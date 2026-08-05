@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260805-2">
-  <script src="/admin/app.js?v=20260805-2" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260805-3">
+  <script src="/admin/app.js?v=20260805-3" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -65,10 +65,6 @@
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
-      <div class="sidebar-foot">
-        <span class="scope-badge">Focused build</span>
-        <p>Only GAG stock and owner controls are active.</p>
-      </div>
     </aside>
 
     <section class="workspace">
@@ -76,7 +72,7 @@
 
       <section class="view active" id="stockView" data-view-panel="stock">
         <header class="workspace-head">
-          <div><span class="eyebrow">GAG stock</span><h1>Signal routing</h1><p>Choose where each live update lands and which alerts deserve a ping.</p></div>
+          <div><span class="eyebrow">GAG2 STOCK</span><h1>A Live stock notification!</h1></div>
           <div class="head-actions"><span class="save-state" id="saveState">All changes saved</span><button class="button primary" id="saveButton" type="button" disabled>Save changes</button></div>
         </header>
 
@@ -94,7 +90,7 @@
         </section>
 
         <section class="section-block">
-          <div class="section-heading"><div><span class="step">02</span><h2>Alert filters</h2></div><p>Keep the rare drops, mute the clutter.</p></div>
+          <div class="section-heading"><div><span class="step">02</span><h2>Alert filters</h2></div><p>Select seeds that you need roles for them! Suggest selecting necessary seeds to prevent Discord Role Limitation</p></div>
           <div class="filter-grid" id="filterGrid"></div>
           <div class="multiplier-panel">
             <div><strong>Sell multipliers</strong><small>Notify when Garden Guide values hit these multipliers.</small></div>
@@ -106,8 +102,8 @@
           <div class="fall-breeze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
           <div class="section-heading"><div><span class="step">03</span><h2>Fall Harvest</h2></div><div class="fall-heading-meta"><p>Layer seasonal inventory into the matching stock feeds.</p><aside class="fall-countdown" id="fallCountdown"><span>Event ends in</span><strong>Loading…</strong></aside></div></div>
           <div class="event-grid" id="fallFilters"></div>
-          <div class="filter-grid fall-role-grid" id="fallRoleFilters"></div>
           <p class="microcopy">Fall role selections only affect Fall Harvest alerts and activate with their matching toggle above.</p>
+          <div class="filter-grid fall-role-grid" id="fallRoleFilters"></div>
         </section>
 
         <footer class="mobile-save"><span id="mobileSaveState">All changes saved</span><button class="button primary" id="mobileSaveButton" type="button" disabled>Save</button></footer>

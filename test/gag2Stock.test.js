@@ -223,26 +223,25 @@ test('GAG2 keeps Fall-only sell prices out of Garden Valley', () => {
   assert.deepEqual(fall.entries.map((item) => item.key), ['maple_apple']);
 });
 
-test('GAG2 Fall sell uses separate item roles without changing Garden Valley price roles', () => {
+test('GAG2 Fall sell reuses Garden Valley multiplier roles', () => {
   const main = parseSellPayload({ entries: [{ name: 'Carrot', slug: 'carrot', multiplier: 2 }] }, { world: 'main' });
   const fall = parseSellPayload({ entries: [
     { name: 'Maple Apple', slug: 'maple-apple', multiplier: 2 },
     { name: 'Romanesco', slug: 'romanesco', multiplier: 1.1 },
   ] }, { world: 'fall' });
   const roleId = '123456789012345678';
-  const fallRoleId = '987654321098765432';
   const payload = buildTypePayload('sell', { ...main, fall }, {
-    roleIds: { common_2x: roleId },
-    fallRoleIds: { maple_apple: fallRoleId },
+    roleIds: { uncommon_2x: roleId },
+    fallRoleIds: { maple_apple: '987654321098765432' },
   });
   const content = JSON.stringify(payload.components);
   const fallContent = payload.components.find((component) => component.accent_color === 0xC96F2B).components[0].content;
 
   assert.match(content, /FALL HARVEST/);
   assert.match(content, new RegExp(`<@&${roleId}>`));
-  assert.match(fallContent, new RegExp(`<@&${fallRoleId}>`));
-  assert.doesNotMatch(fallContent, new RegExp(`<@&${roleId}>`));
-  assert.deepEqual(payload.allowedMentions.roles, [roleId, fallRoleId]);
+  assert.match(fallContent, new RegExp(`<@&${roleId}>`));
+  assert.doesNotMatch(fallContent, /987654321098765432/);
+  assert.deepEqual(payload.allowedMentions.roles, [roleId]);
 });
 
 test('GAG2 appends Fall Harvest items and roles to the same Garden Valley stock message', () => {
@@ -301,8 +300,8 @@ test('GAG2 role assignment panel separates Garden Valley and Fall buttons', () =
   assert.match(text, /-# \*\*🌿GARDEN VALLEY🌻\*\*/);
   assert.match(text, /-# \*\*🍂FALL HARVEST🍁\*\*/);
   assert.equal(components.filter((component) => component.type === 14).length, 2);
-  assert.equal(ROLE_ASSIGN_TYPES.includes('fallSell'), true);
-  assert.equal(buttons.some((id) => id.endsWith(':fallSell')), true);
+  assert.equal(ROLE_ASSIGN_TYPES.includes('fallSell'), false);
+  assert.equal(buttons.some((id) => id.endsWith(':fallSell')), false);
 });
 
 test('GAG2 stock payload normalizes API stock and sorts by catalog order', () => {
@@ -600,6 +599,7 @@ test('GAG2 filters default to every supported rarity and sell multiplier', () =>
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.fall.sellMultipliers, ['2x', '4x']);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.seed, roleSpecsForType('seed').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.gear, roleSpecsForType('gear').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.crate, roleSpecsForType('crate').map((spec) => spec.key));
@@ -628,6 +628,7 @@ test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item rol
     channels: { seed: '123456789012345678' },
     fall: {
       enabledTypes: ['seed', 'sell', 'weather'],
+      sellMultipliers: ['4x', 'normal'],
       roleItems: {
         seed: ['maple_carrot', 'conifer_cone', 'romanesco', 'not_real'],
         sell: ['amber_cranberry'],
@@ -636,7 +637,8 @@ test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item rol
   });
   assert.deepEqual(normalized.fall.enabledTypes, ['seed', 'sell']);
   assert.deepEqual(normalized.fall.roleItems.seed, ['maple_carrot', 'conifer_cone']);
-  assert.deepEqual(normalized.fall.roleItems.sell, ['amber_cranberry']);
+  assert.equal(normalized.fall.roleItems.sell, undefined);
+  assert.deepEqual(normalized.fall.sellMultipliers, ['4x']);
   assert.deepEqual(normalized.fall.roleItems.gear, []);
 });
 
@@ -1038,17 +1040,21 @@ test('GAG2 stock scheduler waits 500ms after UTC+7 five-minute boundaries', () =
   );
 });
 
-test('GAG2 Garden Valley sell filters do not remove Fall Harvest sell items', () => {
+test('GAG2 Garden Valley and Fall Harvest sell multipliers filter independently', () => {
   const filtered = filterSellEntry({
     entries: [{ key: 'carrot', name: 'Carrot', multiplier: 4 }],
-    fall: { entries: [{ key: 'amber_cranberry', name: 'Amber Cranberry', multiplier: 1.1 }] },
+    fall: { entries: [
+      { key: 'amber_cranberry', name: 'Amber Cranberry', multiplier: 1.1 },
+      { key: 'maple_apple', name: 'Maple Apple', multiplier: 2 },
+    ] },
   }, {
     rarities: { sell: ['common'] },
     sellMultipliers: ['4x'],
+    fall: { sellMultipliers: ['2x'] },
   });
 
   assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
-  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['amber_cranberry']);
+  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['maple_apple']);
 });
 
 test('GAG2 disables Fall Harvest exactly at the October 1 UTC+7 deadline', () => {
