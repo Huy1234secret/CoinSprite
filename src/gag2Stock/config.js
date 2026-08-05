@@ -11,6 +11,7 @@ const ITEMS_API_URL = 'https://api.gag2.gg/api/items';
 const COMPONENTS_V2_FLAG = 32768;
 const GREEN = 0x57f287;
 const FALL_ORANGE = 0xC96F2B;
+const FALL_HARVEST_END_AT_MS = Date.parse('2026-10-01T07:00:00.000Z');
 const RED = 0xed4245;
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const CHECK_SCHEDULE_SECOND_MS = 500;
@@ -60,6 +61,11 @@ const RARITY_RANK = {
   secret: 9,
 };
 
+function isFallHarvestActive(nowMs = Date.now()) {
+  const now = Number(nowMs);
+  return Number.isFinite(now) && now < FALL_HARVEST_END_AT_MS;
+}
+
 module.exports = {
   CATEGORY_LABELS,
   CHECK_INTERVAL_MS,
@@ -67,10 +73,12 @@ module.exports = {
   CHECK_SCHEDULE_UTC_OFFSET_MS,
   COMPONENTS_V2_FLAG,
   FALL_ORANGE,
+  FALL_HARVEST_END_AT_MS,
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
   GREEN,
   ITEMS_API_URL,
+  isFallHarvestActive,
   LEGACY_SELL_API_URL,
   LEGACY_STOCK_API_URL,
   RARITY_RANK,

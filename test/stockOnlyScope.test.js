@@ -27,6 +27,9 @@ test('dashboard exposes one focused stylesheet and script', () => {
   assert.match(html, /Owner panel/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
   assert.match(html, /1525195196864925817/);
+  assert.match(html, /fallHarvestSection/);
+  assert.match(html, /fallCountdown/);
+  assert.match(html, /fallRoleFilters/);
   assert.doesNotMatch(html, /Your Garden/);
   for (const removed of ['Leveling', 'Tickets', 'Moderation', 'Invite rewards', 'Giveaway']) {
     assert.doesNotMatch(html, new RegExp(removed, 'i'));
@@ -40,6 +43,7 @@ test('admin writes require CSRF and only accept GAG stock config', () => {
   assert.match(source, /PUBLIC_ASSETS = new Map/);
   assert.match(source, /'Cache-Control': 'no-store, max-age=0'/);
   assert.match(source, /Pragma: 'no-cache'/);
+  assert.match(source, /fallHarvestEndsAt/);
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
 
@@ -66,6 +70,9 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /\.mobile-save/);
   assert.match(css, /\.topbar \{ position: sticky; top: 0;/);
   assert.match(css, /\.notification-menu/);
+  assert.match(css, /@keyframes fall-leaf/);
+  assert.match(css, /\.event-toggle span \{ min-height: 58px;/);
+  assert.match(css, /animation: none !important/);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {
@@ -73,7 +80,15 @@ test('notification settings use searchable dropdown item pickers', () => {
   assert.match(source, /data-picker-trigger/);
   assert.match(source, /data-picker-search/);
   assert.match(source, /data-filter-item/);
+  assert.match(source, /data-fall-filter-item/);
   assert.match(source, /roleItems: stock\.filters\.roleItems/);
+  assert.match(source, /fallRoleItems: stock\.fall\.roleItems/);
+  assert.match(source, /startFallCountdown/);
+  assert.match(source, /1525203819775135764/);
+  assert.match(source, /1525203812607070260/);
+  assert.match(source, /1533299246315475045/);
+  assert.match(source, /1533305562043781282/);
+  assert.match(source, /1533306164018937936/);
   assert.doesNotMatch(source, /updateRoleItemsForChangedRarities/);
 });
 

@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { roleSpecsForType } = require('../src/gag2Stock/catalog');
+const { FALL_HARVEST_END_AT_MS } = require('../src/gag2Stock/config');
 const {
   buildCategoryRolePayload,
   buildRoleAssignmentPanelPayload,
@@ -24,6 +25,7 @@ function configFor(options = {}) {
         roleAssign: options.roleAssignChannel || '',
       },
       roleIds: options.roleIds || {},
+      fall: { enabledTypes: options.fallEnabledTypes || [] },
     },
   };
 }
@@ -67,6 +69,31 @@ test('GAG2 role assignment panel shows five category buttons and skips moon pred
   assert.equal(buttons.find((button) => button.label === 'Seed').disabled, false);
   assert.equal(buttons.find((button) => button.label === 'Gear').disabled, true);
   assert.equal(buttons.find((button) => button.label === 'Sell price').disabled, false);
+});
+
+test('GAG2 role assignment exposes four Fall categories only while their event toggles are active', () => {
+  const config = configFor({
+    seedChannel: '123456789012345678',
+    gearChannel: '223456789012345678',
+    crateChannel: '323456789012345678',
+    sellChannel: '423456789012345678',
+    fallEnabledTypes: ['seed', 'sell'],
+  });
+  const payload = buildRoleAssignmentPanelPayload(config, { nowMs: FALL_HARVEST_END_AT_MS - 1 });
+  const fallButtons = payload.components[0].components
+    .flatMap((component) => component.components || [])
+    .filter((component) => component.custom_id?.includes(':open:fall'));
+
+  assert.deepEqual(fallButtons.map((button) => button.label), ['Fall seed', 'Fall gear', 'Fall crate', 'Fall sell']);
+  assert.equal(fallButtons.find((button) => button.label === 'Fall seed').disabled, false);
+  assert.equal(fallButtons.find((button) => button.label === 'Fall gear').disabled, true);
+  assert.equal(fallButtons.find((button) => button.label === 'Fall sell').disabled, false);
+
+  const endedPayload = buildRoleAssignmentPanelPayload(config, { nowMs: FALL_HARVEST_END_AT_MS });
+  const endedFallButtons = endedPayload.components[0].components
+    .flatMap((component) => component.components || [])
+    .filter((component) => component.custom_id?.includes(':open:fall'));
+  assert.ok(endedFallButtons.every((button) => button.disabled));
 });
 
 test('GAG2 category role payload lists assigned roles and splits large role lists into multiple selects', async () => {

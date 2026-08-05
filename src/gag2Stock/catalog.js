@@ -390,6 +390,11 @@ function roleSpecFromItem(entry) {
   };
 }
 
+function roleSpecFromFallSellItem(entry) {
+  const spec = roleSpecFromItem(entry);
+  return { ...spec, roleName: `Fall Sell · ${spec.roleName}`.slice(0, 100) };
+}
+
 function sellMultiplierBucket(multiplier) {
   const value = Number(multiplier);
   if (!Number.isFinite(value)) return '';
@@ -433,7 +438,7 @@ function roleSpecsForType(type) {
   if (type === 'weather' || type === 'moon') return WEATHER_ITEMS.filter((entry) => entry.createRole !== false).map(roleSpecFromItem);
   if (type === 'sell') return sellBonusRoleSpecs();
   if (type === 'fallSeed') return FALL_SEED_ITEMS.map(roleSpecFromItem);
-  if (type === 'fallSell') return [];
+  if (type === 'fallSell') return FALL_SELL_ITEMS.map(roleSpecFromFallSellItem);
   if (type === 'fallGear') return FALL_GEAR_ITEMS.map(roleSpecFromItem);
   if (type === 'fallCrate') return FALL_CRATE_ITEMS.map(roleSpecFromItem);
   return [];

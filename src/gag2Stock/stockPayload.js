@@ -604,24 +604,14 @@ function sellBonusContainers(entry, roleIds = {}, type = 'sell') {
 
 function fallSellContainers(entry, roleIds = {}) {
   if (!entry?.entries?.length) return [];
-  const eventHeader = ['-# **\u{1F342}FALL HARVEST\u{1F341}**'];
-  const bonusContainers = sellBonusContainers(entry, roleIds, 'fallSell').map((container) => ({
-    ...container,
-    components: container.components.map((component) => ({
-      ...component,
-      content: [...eventHeader, component.content].join('\n'),
-    })),
-  }));
-  const normalEntries = entry.entries.filter((item) => !sellMultiplierBucket(item.multiplier));
-  if (!normalEntries.length) return bonusContainers;
-  return [...bonusContainers, {
+  return [{
     type: 17,
     accent_color: FALL_ORANGE,
     components: [{
       type: 10,
       content: [
         '-# **🍂FALL HARVEST🍁**',
-        ...normalEntries.map((item) => formatSellLine(item, {}, { type: 'fallSell' })),
+        ...entry.entries.map((item) => formatSellLine(item, roleIds, { type: 'fallSell', itemRoles: true })),
       ].join('\n'),
     }],
   }];
@@ -642,7 +632,7 @@ function buildTypePayload(type, entry, options = {}) {
       ? stockCategoryComponents(entry, roleIds, fallRoleIds)
       : componentsForType(type, entry, roleIds),
   };
-  const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, roleIds) : [];
+  const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, fallRoleIds) : [];
   const components = addFallConfigButtonToLastContainer([
     ...bonusContainers,
     ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
@@ -651,7 +641,7 @@ function buildTypePayload(type, entry, options = {}) {
   return {
     allowedMentions: type === 'moon'
       ? NO_MENTIONS
-      : allowedMentionsForRoles(type === 'sell' ? roleIds : { ...roleIds, ...fallRoleIds }),
+      : allowedMentionsForRoles({ ...roleIds, ...fallRoleIds }),
     flags: COMPONENTS_V2_FLAG,
     components,
   };

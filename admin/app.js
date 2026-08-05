@@ -1,21 +1,23 @@
 (() => {
   'use strict';
 
-  const MEDAL_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><text x="3" y="26" font-size="26">🏅</text></svg>')}`;
   const discordEmoji = (id) => `https://cdn.discordapp.com/emojis/${id}.webp?size=32&quality=lossless`;
   const CHANNELS = [
     ['seed', 'Seed stock', 'Fresh seed inventory', discordEmoji('1525195207778373814')],
     ['gear', 'Gear stock', 'Tools and equipment', discordEmoji('1525198690707439736')],
     ['crate', 'Crate stock', 'Cosmetic crate restocks', discordEmoji('1525201479546441931')],
-    ['weather', 'Weather', 'Active weather alerts', '☂'],
-    ['moon', 'Moon events', 'Moon and sky events', '◐'],
+    ['weather', 'Weather', 'Active weather alerts', discordEmoji('1525203819775135764')],
+    ['moon', 'Moon events', 'Moon and sky events', discordEmoji('1525203812607070260')],
     ['sell', 'Sell prices', 'Garden Guide price changes', discordEmoji('1525368044824825976')],
-    ['roleAssign', 'Role selector', 'Self-serve alert roles', MEDAL_ICON],
+    ['roleAssign', 'Role selector', 'Self-serve alert roles', '\u{1F3C5}'],
     ['updates', 'Update notes', 'GAG content announcements', discordEmoji('1525198707925057607')],
   ];
   const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super', 'secret'];
   const FALL_TYPES = [
-    ['seed', 'Fall seeds', '♧'], ['gear', 'Fall gear', '⚙'], ['crate', 'Fall crates', '◇'], ['sell', 'Fall sell', '↗'],
+    ['seed', 'Fall seeds', discordEmoji('1533299246315475045')],
+    ['gear', 'Fall gear', discordEmoji('1533305562043781282')],
+    ['crate', 'Fall crates', discordEmoji('1533306164018937936')],
+    ['sell', 'Fall sell', '\u{1F341}'],
   ];
 
   const state = {
@@ -25,10 +27,11 @@
     guildId: '',
     config: null,
     directory: { channels: [], gag2StockPermissions: { usable: true, missing: [] } },
-    catalog: { items: {}, fallItems: {} },
+    catalog: { items: {}, fallItems: {}, fallHarvestEndsAt: '' },
     savedSnapshot: '',
     currentView: 'stock',
     saving: false,
+    fallTimer: null,
     progressTimer: null,
     consoleTimer: null,
     consolePaused: false,
@@ -43,7 +46,8 @@
     guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'),
     stockView: $('#stockView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
-    multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), engineTitle: $('#engineTitle'),
+    multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
+    fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), engineTitle: $('#engineTitle'),
     engineMessage: $('#engineMessage'), saveButton: $('#saveButton'), mobileSaveButton: $('#mobileSaveButton'),
     saveState: $('#saveState'), mobileSaveState: $('#mobileSaveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -165,25 +169,26 @@
       </label>`).join('');
   }
 
-  function pickerItemOption(type, item, selected) {
+  function pickerItemOption(type, item, selected, scope = 'garden') {
     const rarity = RARITIES.includes(item.rarity) ? item.rarity : 'common';
     const image = emojiUrl(item.emoji);
     const name = item.name || item.roleName || titleCase(item.key);
     const search = `${name} ${rarity} ${item.key}`.toLowerCase();
+    const inputAttribute = scope === 'fall' ? 'data-fall-filter-item' : 'data-filter-item';
     return `<label class="picker-option rarity-${rarity}${selected.has(item.key) ? ' selected' : ''}" data-picker-option data-search="${escapeHtml(search)}">
-      <input type="checkbox" data-filter-item="${type}" value="${escapeHtml(item.key)}" ${selected.has(item.key) ? 'checked' : ''}>
+      <input type="checkbox" ${inputAttribute}="${type}" value="${escapeHtml(item.key)}" ${selected.has(item.key) ? 'checked' : ''}>
       <span class="picker-option-main">${image ? `<img src="${image}" alt="">` : '<span class="picker-option-fallback">✦</span>'}<span><b>${escapeHtml(name)}</b><small>${titleCase(rarity)}</small></span></span>
       <i class="picker-check" aria-hidden="true">✓</i>
     </label>`;
   }
 
-  function itemPickerGroups(type, items, selected) {
+  function itemPickerGroups(type, items, selected, scope = 'garden') {
     return RARITIES.filter((rarity) => rarity !== 'secret').map((rarity) => {
       const matches = items.filter((item) => item.rarity === rarity);
       if (!matches.length) return '';
       return `<section class="picker-group" data-picker-group-section="${rarity}">
-        <div class="picker-group-head"><span class="rarity-label rarity-${rarity}">${titleCase(rarity)}</span><button type="button" data-picker-group="${type}" data-picker-rarity="${rarity}">Select rarity</button></div>
-        <div class="picker-group-options">${matches.map((item) => pickerItemOption(type, item, selected)).join('')}</div>
+        <div class="picker-group-head"><span class="rarity-label rarity-${rarity}">${titleCase(rarity)}</span><button type="button" data-picker-group="${type}" data-picker-scope="${scope}" data-picker-rarity="${rarity}">Select rarity</button></div>
+        <div class="picker-group-options">${matches.map((item) => pickerItemOption(type, item, selected, scope)).join('')}</div>
       </section>`;
     }).join('');
   }
@@ -210,11 +215,11 @@
     return `<article class="filter-card${routed ? '' : ' is-disabled'}" data-filter-card="${type}">
       <div class="filter-card-head"><strong>${label} alerts</strong><span>${itemMode ? 'Choose items' : 'Choose rarities'}</span></div>
       <div class="notification-picker" data-notification-picker="${type}">
-        <button class="notification-trigger" type="button" data-picker-trigger="${type}" aria-expanded="false" ${routed ? '' : 'disabled'}>
+        <button class="notification-trigger" type="button" data-picker-trigger="${type}" data-picker-scope="garden" aria-expanded="false" ${routed ? '' : 'disabled'}>
           <span><small>${routed ? 'Notification roles' : 'Choose a destination first'}</small><strong data-picker-summary="${type}">${summary}</strong></span><i aria-hidden="true">⌄</i>
         </button>
-        <div class="notification-menu" data-picker-menu="${type}" hidden>
-          <div class="picker-tools"><input type="search" data-picker-search="${type}" placeholder="Search ${itemMode ? 'rarity or item' : 'rarity'}" autocomplete="off"><button type="button" data-picker-all="${type}">${allSelected ? 'Clear all' : 'Select all'}</button></div>
+        <div class="notification-menu" data-picker-menu="${type}" data-picker-scope="garden" hidden>
+          <div class="picker-tools"><input type="search" data-picker-search="${type}" placeholder="Search ${itemMode ? 'rarity or item' : 'rarity'}" autocomplete="off"><button type="button" data-picker-all="${type}" data-picker-scope="garden">${allSelected ? 'Clear all' : 'Select all'}</button></div>
           <div class="picker-options">${itemMode ? itemPickerGroups(type, options, selected) : sellRarityOptions(selected)}</div>
         </div>
       </div>
@@ -228,9 +233,73 @@
     elements.multiplierFilters.innerHTML = ['normal', '2x', '4x'].map((value) => `<label class="filter-chip"><input type="checkbox" data-multiplier value="${value}" ${selectedMultipliers.has(value) ? 'checked' : ''}><span>${value}</span></label>`).join('');
   }
 
+  function fallHarvestEndMs() {
+    return Date.parse(state.catalog.fallHarvestEndsAt || '');
+  }
+
+  function isFallHarvestActive() {
+    const endAtMs = fallHarvestEndMs();
+    return Number.isFinite(endAtMs) && Date.now() < endAtMs;
+  }
+
+  function updateFallCountdown() {
+    const endAtMs = fallHarvestEndMs();
+    const remainingMs = endAtMs - Date.now();
+    const active = Number.isFinite(endAtMs) && remainingMs > 0;
+    elements.fallSection?.classList.toggle('is-ended', !active);
+    if (!elements.fallCountdown) return active;
+    if (!active) {
+      elements.fallCountdown.innerHTML = '<span>Event status</span><strong>Harvest ended</strong>';
+      return false;
+    }
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const clock = [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+    elements.fallCountdown.innerHTML = `<span>Event ends in</span><strong>${days}d ${clock}</strong>`;
+    return true;
+  }
+
+  function startFallCountdown() {
+    window.clearInterval(state.fallTimer);
+    if (!updateFallCountdown()) return;
+    state.fallTimer = window.setInterval(() => {
+      if (updateFallCountdown()) return;
+      window.clearInterval(state.fallTimer);
+      renderFall();
+    }, 1000);
+  }
+
+  function fallPickerCard(type, label) {
+    const stock = state.config.gag2Stock;
+    const options = state.catalog.fallItems[type] || [];
+    const selected = new Set(stock.fall.roleItems[type] || []);
+    const allSelected = options.length > 0 && selected.size === options.length;
+    const enabled = isFallHarvestActive() && stock.fall.enabledTypes.includes(type);
+    const noun = options.length === 1 ? 'item' : 'items';
+    const summary = selected.size === 0 ? 'No items selected'
+      : allSelected ? `All ${options.length} ${noun}` : `${selected.size} of ${options.length} selected`;
+    return `<article class="filter-card fall-role-card${enabled ? '' : ' is-disabled'}" data-fall-filter-card="${type}">
+      <div class="filter-card-head"><strong>${label} roles</strong><span>Fall Harvest only</span></div>
+      <div class="notification-picker" data-notification-picker="fall:${type}">
+        <button class="notification-trigger" type="button" data-picker-trigger="${type}" data-picker-scope="fall" aria-expanded="false" ${enabled ? '' : 'disabled'}>
+          <span><small>${enabled ? 'Notification roles' : `Enable ${label.toLowerCase()} above`}</small><strong data-picker-summary="${type}">${summary}</strong></span><i aria-hidden="true">⌄</i>
+        </button>
+        <div class="notification-menu" data-picker-menu="${type}" data-picker-scope="fall" hidden>
+          <div class="picker-tools"><input type="search" data-picker-search="${type}" placeholder="Search rarity or item" autocomplete="off"><button type="button" data-picker-all="${type}" data-picker-scope="fall">${allSelected ? 'Clear all' : 'Select all'}</button></div>
+          <div class="picker-options">${itemPickerGroups(type, options, selected, 'fall')}</div>
+        </div>
+      </div>
+    </article>`;
+  }
+
   function renderFall() {
     const selected = new Set(state.config.gag2Stock.fall.enabledTypes || []);
-    elements.fallFilters.innerHTML = FALL_TYPES.map(([type, label, icon]) => `<label class="event-toggle"><input type="checkbox" data-fall-type value="${type}" ${selected.has(type) ? 'checked' : ''}><span><b>${icon}</b>${label}</span></label>`).join('');
+    const active = isFallHarvestActive();
+    elements.fallFilters.innerHTML = FALL_TYPES.map(([type, label, icon]) => `<label class="event-toggle"><input type="checkbox" data-fall-type value="${type}" ${selected.has(type) ? 'checked' : ''} ${active ? '' : 'disabled'}><span><b>${icon.startsWith('https:') ? `<img src="${escapeHtml(icon)}" alt="">` : icon}</b>${label}</span></label>`).join('');
+    elements.fallRoleFilters.innerHTML = FALL_TYPES.map(([type, label]) => fallPickerCard(type, label)).join('');
   }
 
   function snapshot() {
@@ -243,6 +312,7 @@
       roleItems: stock.filters.roleItems,
       sellMultipliers: stock.filters.sellMultipliers,
       fallTypes: stock.fall.enabledTypes,
+      fallRoleItems: stock.fall.roleItems,
     });
   }
 
@@ -282,6 +352,7 @@
     elements.stockEnabled.checked = state.config.gag2Stock.enabled;
     renderChannels();
     renderFilters();
+    startFallCountdown();
     renderFall();
     renderEngine(progress);
     refreshDirty();
@@ -505,28 +576,42 @@
       if (['seed', 'gear', 'crate', 'sell'].includes(target.dataset.channel)) renderFilters();
     }
     if (target.matches('[data-multiplier]')) stock.filters.sellMultipliers = [...document.querySelectorAll('[data-multiplier]:checked')].map((input) => input.value);
-    if (target.matches('[data-fall-type]')) stock.fall.enabledTypes = [...document.querySelectorAll('[data-fall-type]:checked')].map((input) => input.value);
+    if (target.matches('[data-fall-type]')) {
+      stock.fall.enabledTypes = [...document.querySelectorAll('[data-fall-type]:checked')].map((input) => input.value);
+      renderFall();
+    }
     renderEngine();
     refreshDirty();
   }
 
-  function closeNotificationPickers(exceptType = '') {
-    for (const menu of elements.filterGrid.querySelectorAll('[data-picker-menu]')) {
-      if (menu.dataset.pickerMenu === exceptType) continue;
+  function closeNotificationPickers(exceptMenu = null) {
+    for (const menu of document.querySelectorAll('[data-picker-menu]')) {
+      if (menu === exceptMenu) continue;
       menu.hidden = true;
-      const trigger = elements.filterGrid.querySelector(`[data-picker-trigger="${menu.dataset.pickerMenu}"]`);
+      const trigger = menu.closest('.notification-picker')?.querySelector('[data-picker-trigger]');
       trigger?.setAttribute('aria-expanded', 'false');
     }
   }
 
-  function updateNotificationPickerUi(type) {
-    const card = elements.filterGrid.querySelector(`[data-filter-card="${type}"]`);
+  function pickerCard(type, scope) {
+    return scope === 'fall'
+      ? elements.fallRoleFilters.querySelector(`[data-fall-filter-card="${type}"]`)
+      : elements.filterGrid.querySelector(`[data-filter-card="${type}"]`);
+  }
+
+  function pickerInputSelector(type, scope) {
+    if (scope === 'fall') return '[data-fall-filter-item]';
+    return type === 'sell' ? '[data-filter-rarity]' : '[data-filter-item]';
+  }
+
+  function updateNotificationPickerUi(type, scope = 'garden') {
+    const card = pickerCard(type, scope);
     if (!card) return;
-    const inputs = [...card.querySelectorAll(type === 'sell' ? '[data-filter-rarity]' : '[data-filter-item]')];
+    const inputs = [...card.querySelectorAll(pickerInputSelector(type, scope))];
     const selected = inputs.filter((input) => input.checked);
     const summary = card.querySelector('[data-picker-summary]');
     if (summary) {
-      const noun = type === 'sell' ? 'rarities' : 'items';
+      const noun = scope === 'garden' && type === 'sell' ? 'rarities' : 'items';
       summary.textContent = selected.length === 0 ? `No ${noun} selected`
         : selected.length === inputs.length ? `All ${inputs.length} ${noun}` : `${selected.length} of ${inputs.length} selected`;
     }
@@ -536,17 +621,19 @@
       option.classList.toggle('selected', Boolean(option.querySelector('input')?.checked));
     }
     for (const button of card.querySelectorAll('[data-picker-group]')) {
-      const groupInputs = [...button.closest('.picker-group').querySelectorAll('[data-filter-item]')];
+      const groupInputs = [...button.closest('.picker-group').querySelectorAll(pickerInputSelector(type, scope))];
       const allInGroup = groupInputs.length > 0 && groupInputs.every((input) => input.checked);
       button.textContent = `${allInGroup ? 'Clear' : 'Select'} ${button.dataset.pickerRarity}`;
     }
   }
 
-  function commitNotificationFilter(type) {
-    const card = elements.filterGrid.querySelector(`[data-filter-card="${type}"]`);
+  function commitNotificationFilter(type, scope = 'garden') {
+    const card = pickerCard(type, scope);
     if (!card || !state.config) return;
     const stock = state.config.gag2Stock;
-    if (type === 'sell') {
+    if (scope === 'fall') {
+      stock.fall.roleItems[type] = [...card.querySelectorAll('[data-fall-filter-item]:checked')].map((input) => input.value);
+    } else if (type === 'sell') {
       stock.filters.rarities.sell = [...card.querySelectorAll('[data-filter-rarity]:checked')].map((input) => input.value);
     } else {
       const keys = [...card.querySelectorAll('[data-filter-item]:checked')].map((input) => input.value);
@@ -555,7 +642,7 @@
       stock.filters.rarities[type] = RARITIES.filter((rarity) => rarity !== 'secret' && (state.catalog.items[type] || [])
         .some((item) => item.rarity === rarity && selected.has(item.key)));
     }
-    updateNotificationPickerUi(type);
+    updateNotificationPickerUi(type, scope);
     refreshDirty();
   }
 
@@ -602,17 +689,23 @@
     const input = event.target.closest('[data-filter-item], [data-filter-rarity]');
     if (input) commitNotificationFilter(input.dataset.filterItem || input.dataset.filterRarity);
   });
-  elements.filterGrid.addEventListener('input', (event) => {
+  elements.fallRoleFilters.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-fall-filter-item]');
+    if (input) commitNotificationFilter(input.dataset.fallFilterItem, 'fall');
+  });
+
+  function handlePickerInput(event) {
     const search = event.target.closest('[data-picker-search]');
     if (search) filterNotificationOptions(search);
-  });
-  elements.filterGrid.addEventListener('click', (event) => {
+  }
+
+  function handlePickerClick(event) {
     const trigger = event.target.closest('[data-picker-trigger]');
     if (trigger) {
       const type = trigger.dataset.pickerTrigger;
-      const menu = elements.filterGrid.querySelector(`[data-picker-menu="${type}"]`);
+      const menu = trigger.closest('.notification-picker').querySelector('[data-picker-menu]');
       const willOpen = menu.hidden;
-      closeNotificationPickers(type);
+      closeNotificationPickers(menu);
       menu.hidden = !willOpen;
       trigger.setAttribute('aria-expanded', String(willOpen));
       if (willOpen) window.requestAnimationFrame(() => menu.querySelector('[data-picker-search]')?.focus());
@@ -621,30 +714,40 @@
     const allButton = event.target.closest('[data-picker-all]');
     if (allButton) {
       const type = allButton.dataset.pickerAll;
-      const card = allButton.closest('[data-filter-card]');
-      const inputs = [...card.querySelectorAll(type === 'sell' ? '[data-filter-rarity]' : '[data-filter-item]')];
+      const scope = allButton.dataset.pickerScope || 'garden';
+      const card = pickerCard(type, scope);
+      const inputs = [...card.querySelectorAll(pickerInputSelector(type, scope))];
       const shouldSelect = inputs.some((input) => !input.checked);
       for (const input of inputs) input.checked = shouldSelect;
-      commitNotificationFilter(type);
+      commitNotificationFilter(type, scope);
       return;
     }
     const groupButton = event.target.closest('[data-picker-group]');
     if (groupButton) {
-      const inputs = [...groupButton.closest('.picker-group').querySelectorAll('[data-filter-item]')];
+      const scope = groupButton.dataset.pickerScope || 'garden';
+      const type = groupButton.dataset.pickerGroup;
+      const inputs = [...groupButton.closest('.picker-group').querySelectorAll(pickerInputSelector(type, scope))];
       const shouldSelect = inputs.some((input) => !input.checked);
       for (const input of inputs) input.checked = shouldSelect;
-      commitNotificationFilter(groupButton.dataset.pickerGroup);
+      commitNotificationFilter(type, scope);
     }
-  });
+  }
+
+  elements.filterGrid.addEventListener('input', handlePickerInput);
+  elements.fallRoleFilters.addEventListener('input', handlePickerInput);
+  elements.filterGrid.addEventListener('click', handlePickerClick);
+  elements.fallRoleFilters.addEventListener('click', handlePickerClick);
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.notification-picker')) closeNotificationPickers();
   });
-  elements.filterGrid.addEventListener('keydown', (event) => {
+  function handlePickerKeydown(event) {
     if (event.key === 'Escape') {
       closeNotificationPickers();
-      event.target.closest('[data-filter-card]')?.querySelector('[data-picker-trigger]')?.focus();
+      event.target.closest('.filter-card')?.querySelector('[data-picker-trigger]')?.focus();
     }
-  });
+  }
+  elements.filterGrid.addEventListener('keydown', handlePickerKeydown);
+  elements.fallRoleFilters.addEventListener('keydown', handlePickerKeydown);
   document.querySelector('.nav-list').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');
     if (button) setView(button.dataset.view);
