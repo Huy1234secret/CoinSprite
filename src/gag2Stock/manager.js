@@ -30,7 +30,6 @@ const {
 const {
   fetchFallSellPayload,
   fetchFallStockPayload,
-  fetchItemsPayload,
   fetchSellPayload,
   fetchStockPayload,
   fetchWeatherPayload,
@@ -718,7 +717,6 @@ class Gag2StockPoster {
     this.fetchers = {
       fetchFallSellPayload: options.fetchFallSellPayload || fetchFallSellPayload,
       fetchFallStockPayload: options.fetchFallStockPayload || fetchFallStockPayload,
-      fetchItemsPayload: options.fetchItemsPayload || fetchItemsPayload,
       fetchSellPayload: options.fetchSellPayload || fetchSellPayload,
       fetchStockPayload: options.fetchStockPayload || fetchStockPayload,
       fetchWeatherPayload: options.fetchWeatherPayload || fetchWeatherPayload,
@@ -1383,14 +1381,9 @@ class Gag2StockPoster {
   }
 }
 
-async function syncGag2StockGuildSetup(client, guildId, fetchers = {
-  fetchItemsPayload,
-  fetchSellPayload,
-  fetchWeatherPayload,
-}, options = {}) {
-  if (fetchers && typeof fetchers === 'object' && !fetchers.fetchItemsPayload && (fetchers.progressGuildId || fetchers.onProgress)) {
+async function syncGag2StockGuildSetup(client, guildId, fetchers = {}, options = {}) {
+  if (fetchers && typeof fetchers === 'object' && (fetchers.progressGuildId || fetchers.onProgress)) {
     options = fetchers;
-    fetchers = { fetchItemsPayload, fetchSellPayload, fetchWeatherPayload };
   }
   const progressGuildId = options.progressGuildId || '';
   const progress = (patch) => {

@@ -1,9 +1,6 @@
 const {
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
-  ITEMS_API_URL,
-  LEGACY_SELL_API_URL,
-  LEGACY_STOCK_API_URL,
   REQUEST_RETRY_COUNT,
   REQUEST_RETRY_DELAY_MS,
   REQUEST_TIMEOUT_MS,
@@ -12,7 +9,6 @@ const {
   WEATHER_API_URL,
 } = require('./config');
 const {
-  parseItemsPayload,
   parseSellPayload,
   parseStockPayload,
   parseWeatherPayload,
@@ -131,12 +127,7 @@ async function fetchJson(url, options = {}) {
 async function fetchStockPayload(options = {}) {
   const world = String(options.world || 'main').trim().toLowerCase();
   const url = options.url || (world === 'fall' ? FALL_STOCK_API_URL : STOCK_API_URL);
-  try {
-    return parseStockPayload(await fetchJson(url, options), { world });
-  } catch (error) {
-    if (Number(error?.status) !== 403) throw error;
-    return parseStockPayload(await fetchJson(options.fallbackUrl || LEGACY_STOCK_API_URL, options), { world });
-  }
+  return parseStockPayload(await fetchJson(url, options), { world });
 }
 
 async function fetchFallStockPayload(options = {}) {
@@ -153,29 +144,19 @@ async function fetchWeatherPayload(options = {}) {
 async function fetchSellPayload(options = {}) {
   const world = String(options.world || 'main').trim().toLowerCase();
   const url = options.url || (world === 'fall' ? FALL_SELL_API_URL : SELL_API_URL);
-  try {
-    return parseSellPayload(await fetchJson(url, {
-      ...options,
-      referer: 'https://gag.gg/seed-restock/',
-    }), { world });
-  } catch (error) {
-    if (Number(error?.status) !== 403) throw error;
-    return parseSellPayload(await fetchJson(options.fallbackUrl || LEGACY_SELL_API_URL, options), { world });
-  }
+  return parseSellPayload(await fetchJson(url, {
+    ...options,
+    referer: 'https://gag.gg/seed-restock/',
+  }), { world });
 }
 
 async function fetchFallSellPayload(options = {}) {
   return fetchSellPayload({ ...options, world: 'fall', url: options.url || FALL_SELL_API_URL });
 }
 
-async function fetchItemsPayload(options = {}) {
-  return parseItemsPayload(await fetchJson(options.url || ITEMS_API_URL, options));
-}
-
 module.exports = {
   fetchFallSellPayload,
   fetchFallStockPayload,
-  fetchItemsPayload,
   fetchJson,
   fetchSellPayload,
   fetchStockPayload,

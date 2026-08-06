@@ -2,31 +2,29 @@ const path = require('path');
 
 const STOCK_API_URL = 'https://gag.gg/api/seed-restock?world=main';
 const FALL_STOCK_API_URL = 'https://gag.gg/api/seed-restock?world=fall';
-const LEGACY_STOCK_API_URL = 'https://api.gag2.gg/api/live/stock';
 const WEATHER_API_URL = 'https://api.gag2.gg/api/live/weather';
 const SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=main';
-const FALL_SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=fall';
-const LEGACY_SELL_API_URL = 'https://api.gag2.gg/api/live/sell';
-const ITEMS_API_URL = 'https://api.gag2.gg/api/items';
+// Fall Harvest publishes stock and sell data from the same world feed.
+const FALL_SELL_API_URL = FALL_STOCK_API_URL;
 const COMPONENTS_V2_FLAG = 32768;
 const GREEN = 0x57f287;
 const FALL_ORANGE = 0xC96F2B;
 const FALL_HARVEST_END_AT_MS = Date.parse('2026-10-01T07:00:00.000Z');
 const RED = 0xed4245;
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
-const CHECK_SCHEDULE_SECOND_MS = 500;
+const CHECK_SCHEDULE_SECOND_MS = 1_000;
 const CHECK_SCHEDULE_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 const WEATHER_CHECK_INTERVAL_MS = 5_000;
-const STOCK_FAILURE_RETRY_MS = 1_000;
+const STOCK_FAILURE_RETRY_MS = 2_000;
 // The upstream restock snapshot can take several seconds to roll over after a
 // five-minute boundary. Keep retrying the boundary briefly instead of posting
 // the previous cycle or giving up before the fresh snapshot arrives.
 const STOCK_FAILURE_RETRY_LIMIT = 12;
 const SELL_CHECK_INTERVAL_MS = 10 * 60 * 1000;
-const SELL_CHECK_SCHEDULE_SECOND_MS = 0;
+const SELL_CHECK_SCHEDULE_SECOND_MS = 1_000;
 // Sell retries stay short and bounded when a boundary returns an old or
 // unavailable snapshot. Normal polls remain aligned to exact 10-minute marks.
-const SELL_UNCHANGED_RETRY_MS = 3_000;
+const SELL_UNCHANGED_RETRY_MS = 2_000;
 const SELL_FAILURE_RETRY_LIMIT = 3;
 const REQUEST_TIMEOUT_MS = 5_000;
 const REQUEST_RETRY_COUNT = 2;
@@ -80,10 +78,7 @@ module.exports = {
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
   GREEN,
-  ITEMS_API_URL,
   isFallHarvestActive,
-  LEGACY_SELL_API_URL,
-  LEGACY_STOCK_API_URL,
   RARITY_RANK,
   RED,
   REQUEST_RETRY_COUNT,
