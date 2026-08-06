@@ -589,6 +589,28 @@ function saveLevelCardDesign(userId, value) {
   const design = normalizeLevelCardDesign(value, id);
   getState().profiles[id] = { design, updatedAt: Date.now() };
   flushLevelingState();
+
+  // Cleanup orphaned media
+  try {
+    const dir = path.join(LEVEL_CARD_MEDIA_DIR, id);
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir);
+      const activeUrls = new Set();
+      if (design.background?.imageUrl) activeUrls.add(design.background.imageUrl);
+      for (const layer of design.layers) {
+        if (layer.type === 'image' && layer.imageUrl) activeUrls.add(layer.imageUrl);
+      }
+      for (const file of files) {
+        const isUsed = Array.from(activeUrls).some(url => url.includes(file));
+        if (!isUsed) {
+          try { fs.unlinkSync(path.join(dir, file)); } catch {}
+        }
+      }
+    }
+  } catch (e) {
+    // ignore cleanup errors
+  }
+
   return design;
 }
 

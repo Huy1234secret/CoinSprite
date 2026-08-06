@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
+const { loadImage, createCanvas } = require('@napi-rs/canvas');
 const http = require('http');
 const path = require('path');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
@@ -697,11 +698,33 @@ async function routeRequest(req, res, env, client) {
     const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
     const media = decodeLevelingMedia(body?.dataUrl);
     if (media.extension === 'gif') return sendJson(res, 400, { error: 'Card artwork must be PNG, JPG, or WEBP.' });
+
+    let processedData = media.data;
+    let processedExtension = media.extension;
+    try {
+      const image = await loadImage(media.data);
+      const MAX_SIZE = 1920;
+      let width = image.width;
+      let height = image.height;
+      if (width > MAX_SIZE || height > MAX_SIZE) {
+        const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(image, 0, 0, width, height);
+      processedData = await canvas.encode('webp', 85);
+      processedExtension = 'webp';
+    } catch (e) {
+      // fallback to original if image processing fails
+    }
+
     const id = crypto.randomBytes(16).toString('hex');
     const directory = path.join(LEVEL_CARD_MEDIA_DIR, session.user.id);
     fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(path.join(directory, `${id}.${media.extension}`), media.data);
-    return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.${media.extension}` });
+    fs.writeFileSync(path.join(directory, `${id}.${processedExtension}`), processedData);
+    return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.${processedExtension}` });
   }
 
   const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/leveling-media$/);
