@@ -29,11 +29,20 @@ const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
+const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const COOKIE_NAME = 'coinsprite_admin';
 const SESSION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
 const MAX_BODY_BYTES = 512 * 1024;
+const MAX_LEVELING_MEDIA_BYTES = 5 * 1024 * 1024;
+const MAX_LEVELING_MEDIA_BODY_BYTES = 7 * 1024 * 1024;
+const LEVELING_MEDIA_TYPES = Object.freeze({
+  gif: { extension: 'gif', contentType: 'image/gif' },
+  jpeg: { extension: 'jpg', contentType: 'image/jpeg' },
+  png: { extension: 'png', contentType: 'image/png' },
+  webp: { extension: 'webp', contentType: 'image/webp' },
+});
 const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
@@ -52,6 +61,7 @@ function getEnv() {
     host: process.env.ADMIN_WEB_HOST || '127.0.0.1',
     port: Number(process.env.ADMIN_WEB_PORT) || 3000,
     cookieSecure: /^(1|true|yes)$/i.test(String(process.env.ADMIN_COOKIE_SECURE || '')),
+    publicOrigin: String(process.env.ADMIN_PUBLIC_URL || '').replace(/\/$/, ''),
   };
 }
 
@@ -173,12 +183,12 @@ function requireCsrf(req, res, session) {
   return true;
 }
 
-async function readJsonBody(req) {
+async function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
     total += chunk.length;
-    if (total > MAX_BODY_BYTES) {
+    if (total > maxBytes) {
       const error = new Error('Request body is too large.');
       error.statusCode = 413;
       throw error;
@@ -193,6 +203,49 @@ async function readJsonBody(req) {
     error.statusCode = 400;
     throw error;
   }
+}
+
+function decodeLevelingMedia(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=]+)$/i);
+  if (!match) {
+    const error = new Error('Upload a PNG, JPG, WEBP, or GIF image.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const type = match[1].toLowerCase();
+  const data = Buffer.from(match[2], 'base64');
+  if (!data.length || data.length > MAX_LEVELING_MEDIA_BYTES) {
+    const error = new Error('Images must be 5 MB or smaller.');
+    error.statusCode = data.length ? 413 : 400;
+    throw error;
+  }
+  const valid = type === 'png'
+    ? data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    : type === 'jpeg'
+      ? data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff
+      : type === 'gif'
+        ? ['GIF87a', 'GIF89a'].includes(data.subarray(0, 6).toString('ascii'))
+        : data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (!valid) {
+    const error = new Error('The uploaded file does not match its image type.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return { data, ...LEVELING_MEDIA_TYPES[type] };
+}
+
+function serveLevelingMedia(res, pathname) {
+  const match = pathname.match(/^\/leveling-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp|gif)$/);
+  if (!match) return send(res, 404, 'Not found');
+  const filePath = path.join(LEVELING_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
+  const contentType = match[3] === 'jpg' ? 'image/jpeg' : `image/${match[3]}`;
+  fs.readFile(filePath, (error, data) => {
+    if (error) return send(res, 404, 'Not found');
+    return send(res, 200, data, {
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+  });
 }
 
 function serveAsset(res, pathname) {
@@ -420,6 +473,7 @@ async function routeRequest(req, res, env, client) {
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/')) return serveAsset(res, '/admin/index.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname);
+  if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite-gag-stock' });
   if (req.method === 'GET' && pathname === '/auth/discord') return handleAuthStart(req, res, env);
@@ -484,6 +538,27 @@ async function routeRequest(req, res, env, client) {
     if (!auth) return;
     const force = url.searchParams.get('refresh') === '1';
     return sendJson(res, 200, { guildId: directoryMatch[1], directory: await fetchGuildDirectory(auth.guild, force) });
+  }
+
+  const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/leveling-media$/);
+  if (req.method === 'POST' && levelingMediaMatch) {
+    const guildId = levelingMediaMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    if (getGuildConfigRaw(guildId)?.features?.leveling !== true) {
+      return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
+    }
+    const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
+    const media = decodeLevelingMedia(body?.dataUrl);
+    const id = crypto.randomBytes(16).toString('hex');
+    const directory = path.join(LEVELING_MEDIA_DIR, guildId);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, `${id}.${media.extension}`), media.data);
+    let origin = env.publicOrigin;
+    if (!/^https?:\/\//i.test(origin)) {
+      try { origin = new URL(env.redirectUri).origin; } catch { origin = `http://${req.headers.host || `${env.host}:${env.port}`}`; }
+    }
+    return sendJson(res, 201, { url: `${origin}/leveling-media/${guildId}/${id}.${media.extension}` });
   }
 
   const configMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/config$/);
@@ -570,4 +645,4 @@ function startAdminServer(client) {
   return serverRef;
 }
 
-module.exports = { startAdminServer };
+module.exports = { decodeLevelingMedia, startAdminServer };

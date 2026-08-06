@@ -1,3 +1,4 @@
+const https = require('https');
 const {
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
@@ -18,6 +19,35 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
+function nodeHttpsFetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, {
+      headers: options.headers || {},
+      signal: options.signal,
+    }, (response) => {
+      const chunks = [];
+      let total = 0;
+      response.on('data', (chunk) => {
+        total += chunk.length;
+        if (total > 5 * 1024 * 1024) {
+          request.destroy(sourceError('GAG2 source response is too large', { gag2Transient: true }));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve({
+          ok: Number(response.statusCode) >= 200 && Number(response.statusCode) < 300,
+          status: Number(response.statusCode) || 0,
+          json: async () => JSON.parse(body),
+        });
+      });
+    });
+    request.on('error', reject);
+  });
+}
+
 function isAbortError(error) {
   return error?.name === 'AbortError' || /aborted|aborterror/i.test(String(error?.message || ''));
 }
@@ -31,7 +61,7 @@ function sourceError(message, patch = {}) {
 function isRetryableSourceError(error) {
   if (error?.gag2Transient) return true;
   const status = Number(error?.status);
-  if (status === 429 || status >= 500) return true;
+  if (status === 403 || status === 429 || status >= 500) return true;
   return isAbortError(error) || /fetch failed|network|socket|timeout/i.test(String(error?.message || ''));
 }
 
@@ -56,8 +86,9 @@ function finalSourceError(error, attempts, timeoutMs) {
 }
 
 async function fetchJsonOnce(url, options = {}) {
-  const fetchImpl = options.fetchImpl || globalThis.fetch;
-  if (typeof fetchImpl !== 'function') throw new Error('global fetch is unavailable in this Node runtime');
+  // Native HTTPS avoids the intermittent Cloudflare challenge that Node's
+  // browser-style global fetch receives for these otherwise public endpoints.
+  const fetchImpl = options.fetchImpl || nodeHttpsFetch;
 
   const controller = new AbortController();
   const timeoutMs = Math.max(1, Number(options.timeoutMs) || REQUEST_TIMEOUT_MS);
@@ -82,7 +113,9 @@ async function fetchJsonOnce(url, options = {}) {
     if (!response?.ok) {
       const status = Number(response?.status) || 0;
       throw sourceError(`${url}: HTTP ${status || 'unknown'}`, {
-        gag2Transient: status === 429 || status >= 500,
+        // Cloudflare can challenge the first otherwise-valid API request with
+        // a 403 and accept the immediate retry with the same safe headers.
+        gag2Transient: status === 403 || status === 429 || status >= 500,
         status,
       });
     }

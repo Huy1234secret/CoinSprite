@@ -22,7 +22,9 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   announcements: Object.freeze({
     enabled: false,
     channelId: '',
+    title: '✦ Level {level} reached',
     message: 'GG {user}! You reached level {level}.',
+    progress: '`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}',
     layout: Object.freeze({
       container: true,
       accentColor: '#b9f547',
@@ -237,9 +239,15 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     .filter((boost) => boost.roleId)
     .filter((boost, index, boosts) => index === boosts.findIndex((candidate) => candidate.roleId === boost.roleId))
     .slice(0, 100);
+  const title = String(source.announcements?.title || defaults.announcements.title)
+    .trim()
+    .slice(0, 250) || defaults.announcements.title;
   const message = String(source.announcements?.message || defaults.announcements.message)
     .trim()
     .slice(0, 2000) || defaults.announcements.message;
+  const progress = String(source.announcements?.progress || defaults.announcements.progress)
+    .trim()
+    .slice(0, 500) || defaults.announcements.progress;
   const layoutSource = isObject(source.announcements?.layout) ? source.announcements.layout : {};
   const layoutDefaults = defaults.announcements.layout || DEFAULT_LEVELING_CONFIG.announcements.layout;
   return {
@@ -259,7 +267,9 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         ? defaults.announcements.enabled !== false
         : source.announcements.enabled !== false,
       channelId: cleanId(source.announcements?.channelId),
+      title,
       message,
+      progress,
       layout: {
         container: layoutSource.container === undefined ? layoutDefaults.container !== false : layoutSource.container !== false,
         accentColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor),

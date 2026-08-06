@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260806-5">
-  <script src="/admin/app.js?v=20260806-5" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260806-6">
+  <script src="/admin/app.js?v=20260806-6" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -131,19 +131,12 @@
             <label class="field-card"><span>Announcement channel<small>Automatic posts in the earning channel</small></span><select id="levelingAnnounceChannel"></select></label>
             <section class="message-composer wide">
               <header class="composer-toolbar">
-                <div><strong>Live Discord message</strong><small>Edit in the template or click the message inside the preview. Use {user}, {username}, {level}, {server}, and {separator}.</small></div>
-                <div><button class="composer-add" id="levelingContainerAdd" type="button">+ Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">+ Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">+ Gallery image</button></div>
+                <div><strong>Live Discord message</strong><small>Click any text inside the message to edit exactly what members will see.</small></div>
               </header>
-              <div class="composer-assets">
-                <label id="levelingThumbnailField" hidden><span>Thumbnail URL</span><input id="levelingThumbnailUrl" type="url" maxlength="2000" placeholder="https://example.com/thumbnail.png"></label>
-                <div class="gallery-fields" id="levelingGalleryFields"></div>
-              </div>
-              <div class="composer-panels">
-                <label class="composer-editor"><span>Message template</span><textarea id="levelingMessage" maxlength="2000" rows="10" spellcheck="true"></textarea></label>
-                <div class="discord-preview" aria-label="Live Discord preview">
-                  <div class="discord-preview-head"><span>LIVE PREVIEW</span><small>Click the message to edit</small></div>
-                  <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="levelingDiscordFrame"><button class="discord-accent-button" id="levelingAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="levelingAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="levelingMessagePreview"></div></div></div></div>
-                </div>
+              <div class="discord-preview" aria-label="Live Discord preview">
+                <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="levelingVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="levelingContainerAdd" type="button">Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">Gallery</button></div></div>
+                <div class="preview-tool-panel" id="levelingComposerPanel" hidden></div>
+                <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="levelingDiscordFrame"><button class="discord-accent-button" id="levelingAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="levelingAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="levelingMessagePreview"></div></div></div></div>
               </div>
             </section>
           </div>

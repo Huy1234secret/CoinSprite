@@ -9,6 +9,7 @@ const {
 const {
   COMPONENTS_V2_FLAG,
   LEVELING_COMMANDS,
+  announcementText,
   applyXpToRecord,
   buildLevelPayload,
   levelUpAnnouncementPayload,
@@ -18,13 +19,16 @@ const {
   xpMultiplierForMessage,
 } = require('../src/leveling');
 const { ownerLiveMetrics } = require('../src/ownerPanelRoutes');
+const { decodeLevelingMedia } = require('../src/adminServer');
 
 test('leveling config clamps pacing and normalizes reward milestones', () => {
   const config = normalizeLevelingConfig({
     xp: { min: -5, max: 9999, cooldownSeconds: 1 },
     curve: { baseXp: 5, growth: 9, maxLevel: 50 },
     announcements: {
+      title: '  ✨ Level {level}  ',
       message: '  Welcome {user} to level {level}!  ',
+      progress: '  `{bar}` {progress_xp}/{needed_xp} → {next_level}  ',
       layout: {
         container: true,
         accentColor: '#FF00AA',
@@ -48,6 +52,8 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
   assert.deepEqual(config.xp, { min: 1, max: 2000, cooldownSeconds: 5 });
   assert.deepEqual(config.curve, { baseXp: 25, growth: 3, maxLevel: 50 });
   assert.equal(config.announcements.message, 'Welcome {user} to level {level}!');
+  assert.equal(config.announcements.title, '✨ Level {level}');
+  assert.equal(config.announcements.progress, '`{bar}` {progress_xp}/{needed_xp} → {next_level}');
   assert.deepEqual(config.channelMultipliers, { '123456789012345678': 0, '123456789012345679': 10 });
   assert.equal(config.announcements.layout.accentColor, '#ff00aa');
   assert.equal(config.announcements.layout.thumbnailUrl, '');
@@ -60,6 +66,33 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
     { roleId: '523456789012345678', multiplier: 10 },
     { roleId: '623456789012345678', multiplier: 0 },
   ]);
+});
+
+test('level-up templates replace title, member, and XP progress variables', () => {
+  const message = {
+    author: { id: '123456789012345678', username: 'GardenHero' },
+    member: { displayName: 'Garden Hero' },
+    guild: { name: 'Grow a Garden' },
+  };
+  assert.equal(
+    announcementText('{user} • {username} • {level} • {next_level} • {server} • `{bar}` {progress_xp}/{needed_xp} • {total_xp}', message, 12, {
+      nextLevel: 13,
+      bar: '■■□□',
+      progressXp: '280',
+      neededXp: '420',
+      totalXp: '3,160',
+    }),
+    '<@123456789012345678> • Garden Hero • 12 • 13 • Grow a Garden • `■■□□` 280/420 • 3,160',
+  );
+});
+
+test('leveling image upload accepts real image bytes and rejects disguised files', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const media = decodeLevelingMedia(png);
+  assert.equal(media.extension, 'png');
+  assert.equal(media.contentType, 'image/png');
+  assert.ok(media.data.length > 8);
+  assert.throws(() => decodeLevelingMedia(`data:image/png;base64,${Buffer.from('not an image').toString('base64')}`), /does not match/);
 });
 
 test('schema upgrade locks and disables leveling for every existing server', () => {

@@ -161,22 +161,27 @@ test('owner controls feature access and leveling stays server-side locked', () =
   assert.match(dashboard, /Locked by owner/);
 });
 
-test('leveling dashboard provides inline live V2 composition, channel multipliers, and role boosts', () => {
+test('leveling dashboard provides a single fully editable live V2 composer with media uploads', () => {
   const html = read('admin/index.html');
   const source = read('admin/app.js');
   const css = read('admin/style.css');
   assert.match(html, /Live Discord message/);
-  assert.match(html, /Click the message to edit/);
+  assert.doesNotMatch(html, /id="levelingMessage"/);
+  assert.match(html, /id="levelingVariablesToggle"/);
+  assert.match(html, /id="levelingComposerPanel"/);
   assert.match(html, /id="levelingContainerAdd"/);
   assert.match(html, /id="levelingThumbnailAdd"/);
   assert.match(html, /id="levelingGalleryAdd"/);
-  assert.match(html, /\{separator\}/);
   assert.match(source, /discordInlineMarkdown/);
   assert.match(source, /beginInlineMessageEdit/);
   assert.match(source, /data-inline-message-input/);
-  assert.match(source, /elements\.levelingMessage\.value = leveling\.announcements\.message/);
+  assert.match(source, /inlineTemplateEditor\('title'/);
+  assert.match(source, /inlineTemplateEditor\('progress'/);
+  assert.match(source, /LEVELING_VARIABLES/);
+  assert.match(source, /leveling-media/);
   assert.match(source, /data-leveling-channel-multiplier/);
   assert.match(source, /renderLevelingBoosts/);
   assert.match(source, /role-color/);
   assert.match(css, /\.inline-message-editor\.editing/);
+  assert.match(css, /\.preview-tool-panel/);
 });

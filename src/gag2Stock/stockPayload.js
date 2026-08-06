@@ -3,7 +3,6 @@ const {
   COMPONENTS_V2_FLAG,
   FALL_ORANGE,
   GREEN,
-  RED,
 } = require('./config');
 const {
   FALL_CRATE_ITEMS,
@@ -694,43 +693,12 @@ function buildStockPayload(stockPayload, options = {}) {
   };
 }
 
-function buildUnavailablePayload(typeOrError, errorOrNow, maybeNow) {
-  const hasType = typeof maybeNow !== 'undefined';
-  const type = hasType ? typeOrError : 'stock';
-  const errorMessage = hasType ? errorOrNow : typeOrError;
-  const nowMs = hasType ? maybeNow : errorOrNow || Date.now();
-  const label = CATEGORY_LABELS[type] || 'Stock';
-  return {
-    allowedMentions: NO_MENTIONS,
-    flags: COMPONENTS_V2_FLAG,
-    components: [
-      {
-        type: 17,
-        accent_color: RED,
-        components: [
-          {
-            type: 10,
-            content: [
-              `## GAG2 ${label}`,
-              '* Status: **source unavailable**',
-              `* Checked: ${formatTimestamp(nowMs, 'F')}`,
-              '',
-              `-# ${String(errorMessage || 'Unknown error').slice(0, 500)}`,
-            ].join('\n'),
-          },
-        ],
-      },
-    ],
-  };
-}
-
 module.exports = {
   buildPostKey,
   buildStockPayload,
   buildTypePayload,
   buildTypePayloads,
   buildTypePostKey,
-  buildUnavailablePayload,
   formatStockCategory,
   displayableTextSize,
   nextCycleRestockAtMs,
