@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260806-8">
-  <script src="/admin/app.js?v=20260806-8" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260806-9">
+  <script src="/admin/app.js?v=20260806-9" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -21,9 +21,16 @@
     </a>
     <div class="topbar-actions">
       <span class="live-pill"><i></i> Bot online</span>
-      <div class="user-chip" id="userChip" hidden>
-        <img id="userAvatar" alt="">
-        <span id="sessionLabel"></span>
+      <div class="account-wrap" id="accountWrap" hidden>
+        <button class="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded="false">
+          <img id="userAvatar" alt="">
+          <span id="sessionLabel"></span>
+          <i aria-hidden="true">&#8964;</i>
+        </button>
+        <div class="account-menu" id="accountMenu" role="menu" hidden>
+          <a href="/admin" role="menuitem"><span>&#9881;</span><b>Manage Server</b><small>Configure your communities</small></a>
+          <a href="/profile" role="menuitem"><span>&#9672;</span><b>Profile</b><small>Customize your level card</small></a>
+        </div>
       </div>
       <button class="button ghost small" id="logoutButton" type="button" hidden>Sign out</button>
     </div>
@@ -48,6 +55,52 @@
       </div>
       <div class="signal-foot"><span><i></i> Connected</span><span>6 feeds</span></div>
     </section>
+  </main>
+
+  <main class="profile-shell" id="profileShell" hidden>
+    <header class="profile-heading">
+      <div class="profile-identity">
+        <img id="profileAvatar" alt="">
+        <div><span class="eyebrow">YOUR PROFILE</span><h1 id="profileName">Member</h1><p>Design the level card CoinSprite sends from <code>/level</code>.</p></div>
+      </div>
+      <a class="button ghost" href="/admin">Manage servers</a>
+    </header>
+
+    <section class="card-studio" aria-label="Level card editor">
+      <header class="studio-head">
+        <div><span class="step">01</span><div><h2>Level card studio</h2><p>Drag any element on the card. Use the corner handle to resize images and the progress bar.</p></div></div>
+        <div class="studio-actions">
+          <button class="button ghost small" id="cardBackgroundButton" type="button">Upload background</button>
+          <button class="button ghost small" id="cardImageButton" type="button">+ Image or icon</button>
+          <button class="button primary small" id="cardTextButton" type="button">+ Text</button>
+          <input id="cardBackgroundFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+          <input id="cardImageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        </div>
+      </header>
+
+      <div class="studio-grid">
+        <aside class="layers-panel">
+          <span class="panel-label">ELEMENTS</span>
+          <div class="layer-list" id="cardLayerList"></div>
+        </aside>
+        <div class="card-workbench">
+          <div class="level-card-canvas-wrap" id="cardCanvasWrap">
+            <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Editable level card preview"></canvas>
+          </div>
+          <p class="studio-hint"><span></span> Changes here update the card preview instantly. Card stats always come from the current server.</p>
+        </div>
+        <aside class="inspector-panel">
+          <span class="panel-label">INSPECTOR</span>
+          <h3 id="cardInspectorTitle">Background</h3>
+          <div id="cardInspector"></div>
+        </aside>
+      </div>
+    </section>
+
+    <footer class="profile-save-dock" id="profileSaveDock" hidden>
+      <span><b>Unsaved card changes</b><small>Your current Discord card is still live.</small></span>
+      <div><button class="button ghost" id="cardResetButton" type="button">Reset</button><button class="button primary" id="cardSaveButton" type="button">Save level card</button></div>
+    </footer>
   </main>
 
   <main class="app-shell" id="appShell" hidden>
