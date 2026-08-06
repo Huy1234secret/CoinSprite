@@ -1,7 +1,7 @@
 {
   "name": "coinsprite",
   "version": "1.0.0",
-  "description": "Focused Grow a Garden stock alerts and owner control panel for Discord.",
+  "description": "Grow a Garden stock alerts, community leveling, and owner controls for Discord.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -11,7 +11,8 @@
   "keywords": [
     "discord",
     "grow-a-garden",
-    "stock-alerts"
+    "stock-alerts",
+    "leveling"
   ],
   "author": "",
   "license": "ISC",
