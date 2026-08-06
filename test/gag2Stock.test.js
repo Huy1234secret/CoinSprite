@@ -30,12 +30,11 @@ const {
   FALL_HARVEST_END_AT_MS,
   FALL_SELL_API_URL,
   FALL_STOCK_API_URL,
-  LEGACY_SELL_API_URL,
-  LEGACY_STOCK_API_URL,
   REQUEST_TIMEOUT_MS,
   SELL_UNCHANGED_RETRY_MS,
   SELL_API_URL,
   SELL_CHECK_INTERVAL_MS,
+  SELL_CHECK_SCHEDULE_SECOND_MS,
   SELL_FAILURE_RETRY_LIMIT,
   STOCK_API_URL,
   STOCK_FAILURE_RETRY_LIMIT,
@@ -90,45 +89,40 @@ test('GAG2 uses the new world-aware Garden Valley and Fall Harvest endpoints', (
   assert.equal(STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=main');
   assert.equal(FALL_STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=fall');
   assert.equal(SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=main');
-  assert.equal(FALL_SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=fall');
+  assert.equal(FALL_SELL_API_URL, FALL_STOCK_API_URL);
 });
 
-test('GAG2 falls back to the legacy main stock feed when gag.gg returns HTTP 403', async () => {
+test('GAG2 never mixes a legacy stock source into a failed gag.gg cycle', async () => {
   const requested = [];
-  const parsed = await fetchStockPayload({
+  await assert.rejects(fetchStockPayload({
     retries: 0,
     fetchImpl: async (url) => {
       requested.push(url);
-      if (url === STOCK_API_URL) return { ok: false, status: 403 };
-      if (url === LEGACY_STOCK_API_URL) return { ok: true, json: async () => fixture() };
-      throw new Error(`Unexpected URL: ${url}`);
+      return { ok: false, status: 403 };
     },
-  });
+  }), /HTTP 403/);
 
-  assert.deepEqual(requested, [STOCK_API_URL, LEGACY_STOCK_API_URL]);
-  assert.equal(parsed.stock.find((entry) => entry.category === 'seed').items[0].key, 'carrot');
+  assert.deepEqual(requested, [STOCK_API_URL]);
 });
 
-test('GAG2 splits the combined legacy feed into real Fall stock when gag.gg returns HTTP 403', async () => {
+test('GAG2 reads Fall stock only from the Fall restock endpoint', async () => {
   const requested = [];
-  const combined = fixture();
-  combined.stock[0].items.push(
-    { key: 'maple_apple', name: 'Maple Apple', rarity: 'Uncommon', quantity: 2 },
-    { key: 'potato', name: 'Potato', rarity: 'Rare', quantity: 1 },
-  );
-  combined.stock[1].items.push({ key: 'harp', name: 'Harp', rarity: 'Rare', quantity: 1 });
-  combined.stock[2].items.push({ key: 'rake_crate', name: 'Rake Crate', rarity: 'Legendary', quantity: 1 });
+  const window = 1785639300;
   const parsed = await fetchFallStockPayload({
     retries: 0,
     fetchImpl: async (url) => {
       requested.push(url);
-      if (url === FALL_STOCK_API_URL) return { ok: false, status: 403 };
-      if (url === LEGACY_STOCK_API_URL) return { ok: true, json: async () => combined };
-      throw new Error(`Unexpected URL: ${url}`);
+      return { ok: true, json: async () => ({
+        world: 'fall',
+        window,
+        seeds: [{ name: 'Maple Apple', slug: 'maple-apple', lastStockedAt: window, lastQty: 2 }],
+        gears: [{ name: 'Harp', slug: 'harp', lastStockedAt: window, lastQty: 1 }],
+        props: [{ name: 'Rake Crate', slug: 'rake-crate', lastStockedAt: window, lastQty: 1 }],
+      }) };
     },
   });
 
-  assert.deepEqual(requested, [FALL_STOCK_API_URL, LEGACY_STOCK_API_URL]);
+  assert.deepEqual(requested, [FALL_STOCK_API_URL]);
   assert.deepEqual(parsed.stock.map((entry) => entry.items.map((item) => item.key)), [
     ['maple_apple'],
     ['harp'],
@@ -136,26 +130,24 @@ test('GAG2 splits the combined legacy feed into real Fall stock when gag.gg retu
   ]);
 });
 
-test('GAG2 splits Fall sell prices from the combined legacy feed after a 403', async () => {
+test('GAG2 reads embedded Fall sell prices from the Fall restock endpoint', async () => {
   const requested = [];
   const parsed = await fetchFallSellPayload({
     retries: 0,
     fetchImpl: async (url) => {
       requested.push(url);
-      if (url === FALL_SELL_API_URL) return { ok: false, status: 403 };
-      if (url === LEGACY_SELL_API_URL) return {
+      return {
         ok: true,
-        json: async () => ({ sell: { entries: [
+        json: async () => ({ window: 1785639300, sellPrices: [
           { key: 'carrot', name: 'Carrot', multiplier: 2 },
-          { key: 'maple_apple', name: 'Maple Apple', multiplier: 2 },
-          { key: 'romanesco', name: 'Romanesco', multiplier: 1.1 },
-        ] } }),
+          { key: 'maple_apple', name: 'Maple Apple', currentMultiplier: 2 },
+          { key: 'romanesco', name: 'Romanesco', sellMultiplier: 1.1 },
+        ] }),
       };
-      throw new Error(`Unexpected URL: ${url}`);
     },
   });
 
-  assert.deepEqual(requested, [FALL_SELL_API_URL, LEGACY_SELL_API_URL]);
+  assert.deepEqual(requested, [FALL_STOCK_API_URL]);
   assert.deepEqual(parsed.entries.map((entry) => entry.key), ['maple_apple', 'romanesco']);
 });
 
@@ -331,7 +323,7 @@ test('GAG2 stock payload normalizes API stock and sorts by catalog order', () =>
 
 test('GAG2 stock payload builds a Components V2 container without source footer text', () => {
   const parsed = parseStockPayload(fixture());
-  const payload = buildStockPayload(parsed, { sourceUrl: 'https://api.gag2.gg/api/live/stock' });
+  const payload = buildStockPayload(parsed, { sourceUrl: STOCK_API_URL });
   const container = payload.components[0];
   const content = container.components
     .filter((component) => component.type === 10)
@@ -1028,31 +1020,32 @@ test('GAG2 role creation and edits use the current Discord colors option', () =>
   assert.doesNotMatch(source, /role\.edit\(\{\s*color,/);
 });
 
-test('GAG2 stock scheduler waits 500ms after UTC+7 five-minute boundaries', () => {
-  assert.equal(CHECK_SCHEDULE_SECOND_MS, 500);
+test('GAG2 stock and sell schedulers run at second one on UTC+7 boundaries', () => {
+  assert.equal(CHECK_SCHEDULE_SECOND_MS, 1_000);
+  assert.equal(SELL_CHECK_SCHEDULE_SECOND_MS, 1_000);
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'))).toISOString(),
-    '2026-07-10T17:00:00.500Z',
+    '2026-07-10T17:00:01.000Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:06.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.500Z',
+    '2026-07-10T17:05:01.000Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:04:59.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.500Z',
+    '2026-07-10T17:05:01.000Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:05:00.000Z'))).toISOString(),
-    '2026-07-10T17:05:00.500Z',
+    '2026-07-10T17:05:01.000Z',
   );
   assert.equal(
     new Date(nextGag2StockTickAtMs(Date.parse('2026-07-10T17:00:00.000Z'), {
       intervalMs: SELL_CHECK_INTERVAL_MS,
-      secondMs: 0,
+      secondMs: SELL_CHECK_SCHEDULE_SECOND_MS,
       offsetMs: 7 * 60 * 60 * 1000,
     })).toISOString(),
-    '2026-07-10T17:10:00.000Z',
+    '2026-07-10T17:00:01.000Z',
   );
 });
 
@@ -1095,16 +1088,16 @@ test('GAG2 weather and moon use a separate 5 second polling loop', () => {
   assert.doesNotMatch(source, /LIVE_POST_TYPES|scheduleLiveTick|liveTimer|LIVE_CHECK_INTERVAL_MS/);
 });
 
-test('GAG2 sell failures retry every three seconds up to three times', () => {
-  assert.equal(SELL_UNCHANGED_RETRY_MS, 3_000);
+test('GAG2 sell failures retry every two seconds up to three times', () => {
+  assert.equal(SELL_UNCHANGED_RETRY_MS, 2_000);
   assert.equal(SELL_FAILURE_RETRY_LIMIT, 3);
 });
 
 test('GAG2 stock source failures retry quickly without moving the normal five-minute schedule', () => {
-  let now = Date.parse('2026-08-02T06:10:00.500Z');
+  let now = Date.parse('2026-08-02T06:10:01.000Z');
   const poster = new Gag2StockPoster({}, { now: () => now });
   poster.started = true;
-  assert.equal(STOCK_FAILURE_RETRY_MS, 1_000);
+  assert.equal(STOCK_FAILURE_RETRY_MS, 2_000);
   assert.equal(STOCK_FAILURE_RETRY_LIMIT, 12);
   for (let attempt = 1; attempt <= STOCK_FAILURE_RETRY_LIMIT; attempt += 1) {
     poster.stop();
@@ -1117,7 +1110,7 @@ test('GAG2 stock source failures retry quickly without moving the normal five-mi
   poster.stop();
   poster.started = true;
   poster.nextDelayOverrideMs = STOCK_FAILURE_RETRY_MS;
-  assert.equal(poster.scheduleNextTick(), Date.parse('2026-08-02T06:15:00.500Z'));
+  assert.equal(poster.scheduleNextTick(), Date.parse('2026-08-02T06:15:01.000Z'));
   assert.equal(poster.stockFailureRetryCount, 0);
   poster.stop();
 });
@@ -1138,7 +1131,7 @@ test('GAG2 stock and sell schedules stay on fixed boundaries and cap rapid retri
   stockPoster.started = true;
   assert.equal(
     new Date(stockPoster.scheduleNextTick()).toISOString(),
-    '2026-07-10T17:00:00.500Z',
+    '2026-07-10T17:00:01.000Z',
   );
   stockPoster.stop();
 
@@ -1146,7 +1139,7 @@ test('GAG2 stock and sell schedules stay on fixed boundaries and cap rapid retri
   sellPoster.started = true;
   assert.equal(
     new Date(sellPoster.scheduleSellTick()).toISOString(),
-    '2026-07-10T17:10:00.000Z',
+    '2026-07-10T17:00:01.000Z',
   );
   for (let attempt = 1; attempt <= SELL_FAILURE_RETRY_LIMIT; attempt += 1) {
     sellPoster.stop();
@@ -1158,7 +1151,7 @@ test('GAG2 stock and sell schedules stay on fixed boundaries and cap rapid retri
   sellPoster.stop();
   sellPoster.started = true;
   sellPoster.nextSellDelayOverrideMs = SELL_UNCHANGED_RETRY_MS;
-  assert.equal(sellPoster.scheduleSellTick(), Date.parse('2026-07-10T17:10:00.000Z'));
+  assert.equal(sellPoster.scheduleSellTick(), Date.parse('2026-07-10T17:00:01.000Z'));
   assert.equal(sellPoster.sellFailureRetryCount, 0);
   sellPoster.stop();
 });

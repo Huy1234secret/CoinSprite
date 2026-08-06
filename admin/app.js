@@ -449,6 +449,84 @@
     }).join('');
   }
 
+  function editorInlineMarkdown(value) {
+    const fragments = [];
+    const stash = (html) => {
+      fragments.push(html);
+      return `\uE000${fragments.length - 1}\uE001`;
+    };
+    let html = escapeHtml(value);
+    html = html
+      .replace(/`([^`\n]+)`/g, (_, content) => stash(`<span class="markdown-syntax">\`</span><code>${content}</code><span class="markdown-syntax">\`</span>`))
+      .replace(/\*\*([^*\n]+)\*\*/g, (_, content) => stash(`<span class="markdown-syntax">**</span><strong>${content}</strong><span class="markdown-syntax">**</span>`))
+      .replace(/__([^_\n]+)__/g, (_, content) => stash(`<span class="markdown-syntax">__</span><u>${content}</u><span class="markdown-syntax">__</span>`))
+      .replace(/~~([^~\n]+)~~/g, (_, content) => stash(`<span class="markdown-syntax">~~</span><s>${content}</s><span class="markdown-syntax">~~</span>`))
+      .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
+      .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
+      .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
+      .replace(/\{(?:user|username|level|server|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+    return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
+  }
+
+  function editorMarkdown(value) {
+    return String(value || '').split('\n').map((line) => {
+      const heading = line.match(/^(#{1,3}\s)(.*)$/);
+      const quote = line.match(/^(>\s?)(.*)$/);
+      const list = line.match(/^(-\s)(.*)$/);
+      if (heading) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(heading[1])}</span><strong>${editorInlineMarkdown(heading[2])}</strong></div>`;
+      if (quote) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(quote[1])}</span>${editorInlineMarkdown(quote[2])}</div>`;
+      if (list) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(list[1])}</span>${editorInlineMarkdown(list[2])}</div>`;
+      return `<div class="editor-source-line">${line ? editorInlineMarkdown(line) : '<br>'}</div>`;
+    }).join('');
+  }
+
+  function previewMessageValue(template) {
+    return String(template || '')
+      .replaceAll('{user}', '@GardenHero')
+      .replaceAll('{username}', 'GardenHero')
+      .replaceAll('{level}', '12')
+      .replaceAll('{server}', 'Grow a Garden');
+  }
+
+  function renderedEditableMessage(template) {
+    return previewMessageValue(template).split(/\{separator\}/gi)
+      .map((segment, index) => `${index ? '<div class="discord-separator"></div>' : ''}<div class="discord-text">${discordMarkdown(segment)}</div>`)
+      .join('');
+  }
+
+  function syncInlineEditorVisual(input) {
+    const editor = input.closest('[data-inline-message-editor]');
+    const mirror = editor?.querySelector('[data-inline-message-highlight]');
+    const sourceShell = editor?.querySelector('.inline-message-source-shell');
+    const display = editor?.querySelector('[data-inline-message-display]');
+    if (!editor || !mirror || !sourceShell || !display) return;
+    mirror.innerHTML = editorMarkdown(input.value);
+    input.style.height = 'auto';
+    const height = Math.min(190, Math.max(54, input.scrollHeight));
+    input.style.height = `${height}px`;
+    sourceShell.style.height = `${height}px`;
+    mirror.style.transform = `translateY(-${input.scrollTop}px)`;
+    display.innerHTML = `${renderedEditableMessage(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+  }
+
+  function beginInlineMessageEdit(trigger) {
+    const editor = trigger.closest('[data-inline-message-editor]');
+    const input = editor?.querySelector('[data-inline-message-input]');
+    if (!editor || !input) return;
+    editor.classList.add('editing');
+    syncInlineEditorVisual(input);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  function finishInlineMessageEdit(editor) {
+    if (!editor?.classList.contains('editing')) return;
+    editor.classList.remove('editing');
+    const input = editor.querySelector('[data-inline-message-input]');
+    const display = editor.querySelector('[data-inline-message-display]');
+    if (input && display) display.innerHTML = `${renderedEditableMessage(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+  }
+
   function renderGalleryFields() {
     const urls = state.config.leveling.announcements.layout.galleryUrls;
     elements.levelingGalleryFields.innerHTML = urls.map((url, index) => `<label><span>Gallery image ${index + 1}</span><input type="url" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-leveling-gallery-url="${index}"><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></label>`).join('');
@@ -457,14 +535,17 @@
   function renderMessagePreview() {
     const announcements = state.config.leveling.announcements;
     const layout = announcements.layout;
-    const customMessage = announcements.message
-      .replaceAll('{user}', '@GardenHero')
-      .replaceAll('{username}', 'GardenHero')
-      .replaceAll('{level}', '12')
-      .replaceAll('{server}', 'Grow a Garden');
-    const sample = [`## \u2726 Level 12 reached`, customMessage, '', '`■■■■■■■■□□□□` 280 / 420 XP toward level 13'].join('\n');
-    const segments = sample.split(/\{separator\}/gi);
-    const text = segments.map((segment, index) => `${index ? '<div class="discord-separator"></div>' : ''}<div class="discord-text">${discordMarkdown(segment)}</div>`).join('');
+    const fixedHeading = `<div class="discord-text">${discordMarkdown('## \u2726 Level 12 reached')}</div>`;
+    const progress = `<div class="discord-text discord-progress-preview">${discordMarkdown('`■■■■■■■■□□□□` 280 / 420 XP toward level 13')}</div>`;
+    const inlineEditor = `<div class="inline-message-editor" data-inline-message-editor>
+      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit message inside Discord preview">${renderedEditableMessage(announcements.message)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
+      <div class="inline-message-source-shell">
+        <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(announcements.message)}</div>
+        <textarea class="inline-message-input" data-inline-message-input maxlength="2000" rows="2" spellcheck="true" aria-label="Message template in live Discord preview">${escapeHtml(announcements.message)}</textarea>
+      </div>
+      <div class="inline-message-actions"><span>Markdown and template variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
+    </div>`;
+    const text = `${fixedHeading}${inlineEditor}${progress}`;
     const thumbnail = layout.thumbnailEnabled
       ? validHttpUrl(layout.thumbnailUrl) ? `<img class="discord-thumbnail" src="${escapeHtml(layout.thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
       : '';
@@ -824,6 +905,13 @@
   function updateLevelingFromControl(target) {
     if (!state.config) return;
     const leveling = state.config.leveling;
+    if (target.matches('[data-inline-message-input]')) {
+      leveling.announcements.message = target.value.slice(0, 2000);
+      elements.levelingMessage.value = leveling.announcements.message;
+      syncInlineEditorVisual(target);
+      refreshDirty();
+      return;
+    }
     if (target === elements.levelingEnabled) leveling.enabled = target.checked;
     if (target === elements.levelingXpMin) {
       leveling.xp.min = Math.round(clampNumber(target.value, 1, 1000, 15));
@@ -1017,6 +1105,33 @@
   elements.stockEnabled.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
+  elements.levelingMessagePreview.addEventListener('click', (event) => {
+    const edit = event.target.closest('[data-inline-message-display]');
+    if (edit) return beginInlineMessageEdit(edit);
+    const done = event.target.closest('[data-inline-message-done]');
+    if (done) finishInlineMessageEdit(done.closest('[data-inline-message-editor]'));
+  });
+  elements.levelingMessagePreview.addEventListener('keydown', (event) => {
+    const edit = event.target.closest('[data-inline-message-display]');
+    if (edit && ['Enter', ' '].includes(event.key)) {
+      event.preventDefault();
+      beginInlineMessageEdit(edit);
+      return;
+    }
+    if (event.target.matches('[data-inline-message-input]') && event.key === 'Escape') event.target.blur();
+  });
+  elements.levelingMessagePreview.addEventListener('focusout', (event) => {
+    const editor = event.target.closest('[data-inline-message-editor]');
+    if (!editor) return;
+    window.setTimeout(() => {
+      if (!editor.contains(document.activeElement)) finishInlineMessageEdit(editor);
+    }, 0);
+  });
+  elements.levelingMessagePreview.addEventListener('scroll', (event) => {
+    const input = event.target.closest?.('[data-inline-message-input]');
+    const mirror = input?.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-highlight]');
+    if (input && mirror) mirror.style.transform = `translateY(-${input.scrollTop}px)`;
+  }, true);
   elements.levelingAddReward.addEventListener('click', addLevelReward);
   elements.levelingAddBoost.addEventListener('click', addLevelBoost);
   elements.levelingContainerAdd.addEventListener('click', () => {

@@ -222,14 +222,24 @@ function parseWeatherPayload(payload) {
 
 function parseSellPayload(payload, options = {}) {
   const source = payload?.sell && typeof payload.sell === 'object' ? payload.sell : payload;
-  const entries = source?.entries;
+  const entrySources = [
+    source?.entries,
+    payload?.fruits,
+    payload?.fruitStock,
+    payload?.fruitPrices,
+    payload?.sellPrices,
+    payload?.seeds,
+  ];
+  const entries = entrySources
+    .map((candidate) => (Array.isArray(candidate) ? candidate : candidate?.entries))
+    .find(Array.isArray);
   if (!Array.isArray(entries)) throw new Error('missing GAG2 sell price list');
   const world = String(options.world || source?.world || payload?.world || 'main').trim().toLowerCase();
   const normalized = entries
     .map((entry) => ({
       key: slugKey(entry?.key || entry?.id || entry?.slug || entry?.name),
       name: String(entry?.name || 'Unknown item').trim(),
-      multiplier: Number(entry?.multiplier),
+      multiplier: Number(entry?.multiplier ?? entry?.sellMultiplier ?? entry?.lastMultiplier ?? entry?.currentMultiplier ?? entry?.value),
       rarity: String(entry?.rarity || '').trim(),
       tier: String(entry?.tier || '').trim(),
     }))
