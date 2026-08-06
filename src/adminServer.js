@@ -30,6 +30,7 @@ const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
   getLevelCardDesign,
+  levelCardRenderKey,
   renderLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
@@ -65,6 +66,7 @@ function getEnv() {
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
     redirectUri: process.env.DISCORD_REDIRECT_URI,
     sessionSecret: process.env.SESSION_SECRET || process.env.DISCORD_CLIENT_SECRET,
+    renderSecret: process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET,
     host: process.env.ADMIN_WEB_HOST || '127.0.0.1',
     port: Number(process.env.ADMIN_WEB_PORT) || 3000,
     cookieSecure: /^(1|true|yes)$/i.test(String(process.env.ADMIN_COOKIE_SECURE || '')),
@@ -105,6 +107,12 @@ function sign(value, secret) {
 function createSessionId(secret) {
   const raw = crypto.randomBytes(32).toString('base64url');
   return `${raw}.${sign(raw, secret)}`;
+}
+
+function hasInternalRenderKey(req, secret) {
+  const provided = Buffer.from(String(req.headers['x-coinsprite-render-key'] || ''));
+  const expected = Buffer.from(levelCardRenderKey(secret));
+  return provided.length > 0 && provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
 }
 
 function parseCookies(header = '') {
@@ -303,6 +311,41 @@ function profileRenderIdentity(session) {
     displayName: user.globalName || user.username,
     displayAvatarURL: () => avatarUrl,
     avatarURL: () => avatarUrl,
+  };
+}
+
+function internalCardIdentity(userId, value = {}) {
+  let avatarUrl = '';
+  try {
+    const candidate = new URL(String(value.avatarUrl || ''));
+    const hostname = candidate.hostname.toLowerCase();
+    if (candidate.protocol === 'https:' && (hostname === 'cdn.discordapp.com' || hostname === 'media.discordapp.net')) avatarUrl = candidate.toString();
+  } catch {}
+  const username = String(value.username || 'Member').slice(0, 100);
+  const globalName = String(value.globalName || '').slice(0, 100);
+  const displayName = String(value.displayName || globalName || username).slice(0, 100);
+  return {
+    id: userId,
+    username,
+    globalName,
+    displayName,
+    displayAvatarURL: () => avatarUrl,
+    avatarURL: () => avatarUrl,
+  };
+}
+
+function internalCardStats(value = {}) {
+  const positive = (input, fallback = 0) => Math.max(0, Math.min(1_000_000_000, Number(input) || fallback));
+  const neededXp = Math.max(1, positive(value.neededXp, 1));
+  const progressXp = Math.min(neededXp, positive(value.progressXp));
+  const suppliedRatio = Number(value.progressRatio);
+  return {
+    xp: positive(value.xp),
+    level: Math.floor(positive(value.level)),
+    rank: Math.max(1, Math.floor(positive(value.rank, 1))),
+    progressXp,
+    neededXp,
+    progressRatio: Math.max(0, Math.min(1, Number.isFinite(suppliedRatio) ? suppliedRatio : progressXp / neededXp)),
   };
 }
 
@@ -597,6 +640,23 @@ async function routeRequest(req, res, env, client) {
     if (!auth) return;
     const force = url.searchParams.get('refresh') === '1';
     return sendJson(res, 200, { guildId: directoryMatch[1], directory: await fetchGuildDirectory(auth.guild, force) });
+  }
+
+  const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);
+  if (req.method === 'POST' && internalCardMatch) {
+    if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
+    const body = await readJsonBody(req);
+    const userId = internalCardMatch[1];
+    const image = await renderLevelCard(
+      internalCardIdentity(userId, body?.user),
+      internalCardStats(body?.stats),
+      getLevelCardDesign(userId),
+    );
+    return send(res, 200, image, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'no-store',
+      'Content-Disposition': 'inline; filename="level-card.png"',
+    });
   }
 
   if (req.method === 'GET' && pathname === '/api/profile/card') {

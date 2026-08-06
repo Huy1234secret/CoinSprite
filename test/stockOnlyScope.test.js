@@ -214,9 +214,13 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /\/api\/profile\/card/);
   assert.match(server, /pathname === '\/api\/profile\/card'/);
   assert.match(server, /pathname === '\/api\/profile\/card\/preview'/);
+  assert.match(server, /internalCardMatch/);
+  assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
   assert.match(server, /level-card-media/);
   assert.match(leveling, /renderLevelCard/);
+  assert.match(leveling, /renderPublishedLevelCard/);
+  assert.match(leveling, /X-CoinSprite-Render-Key/);
   assert.match(leveling, /label: 'Edit card here!'/);
   assert.match(leveling, /renderLeaderboardCard/);
   assert.match(leveling, /name: 'leaderboard\.png'/);
