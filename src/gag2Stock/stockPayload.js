@@ -263,11 +263,13 @@ function buildStockCategoryKey(entry) {
   const cycleAtMs = Number.isFinite(Number(entry.deliveryCycleAtMs))
     ? Number(entry.deliveryCycleAtMs)
     : Number(entry.restockedAtMs);
-  return [
-    entry.category,
-    Number.isFinite(cycleAtMs) ? Math.floor(cycleAtMs / 1000) : 'unknown-cycle',
-    entry.items.map((item) => `${item.key}:${item.quantity}`).join(','),
-  ].join(':');
+  if (Number.isFinite(cycleAtMs)) {
+    // A restock is one delivery. The source can fill quantities in over a few
+    // responses, so item changes inside the same source cycle must not create
+    // another Discord announcement.
+    return `${entry.category}:${Math.floor(cycleAtMs / 1000)}`;
+  }
+  return `${entry.category}:unknown-cycle:${entry.items.map((item) => `${item.key}:${item.quantity}`).join(',')}`;
 }
 
 function buildPostKey(stockPayload) {
@@ -444,7 +446,9 @@ function formatItem(type, item, roleIds = {}) {
 }
 
 function formatStockCategoryHeader(entry) {
-  const nextRestockAtMs = nextCycleRestockAtMs(entry.nextRestockAtMs, entry.restockedAtMs, Date.now());
+  // Never relabel a stale source snapshot as the current cycle. The manager
+  // waits for a refreshed snapshot when this timestamp is already due.
+  const nextRestockAtMs = nextCycleRestockAtMs(entry.nextRestockAtMs, entry.restockedAtMs);
   return [
     `## GAG2 ${entry.label}`,
     `-# Restock ${formatTimestamp(nextRestockAtMs)}`,

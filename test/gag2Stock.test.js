@@ -408,7 +408,7 @@ test('GAG2 notification payloads end with the Fall Harvest dashboard link button
   assert.deepEqual(combined.components.at(-1).components.at(-1), row);
 });
 
-test('GAG2 stock dedupe posts every new restock cycle even when quantities repeat', () => {
+test('GAG2 stock dedupe posts every new cycle and ignores same-cycle quantity changes', () => {
   for (const category of ['seed', 'gear', 'crate']) {
     const base = parseStockPayload({
       stock: [{
@@ -445,7 +445,7 @@ test('GAG2 stock dedupe posts every new restock cycle even when quantities repea
 
     assert.equal(buildTypePostKey(category, base), buildTypePostKey(category, sameCycleRetimed));
     assert.notEqual(buildTypePostKey(category, base), buildTypePostKey(category, nextCycle));
-    assert.notEqual(buildTypePostKey(category, base), buildTypePostKey(category, changed));
+    assert.equal(buildTypePostKey(category, base), buildTypePostKey(category, changed));
   }
 });
 
@@ -615,7 +615,7 @@ test('GAG2 filters default to every supported rarity and sell multiplier', () =>
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
-  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.fall.sellMultipliers, ['2x', '4x']);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.fall.sellMultipliers, ['normal', '2x', '4x']);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.seed, roleSpecsForType('seed').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.gear, roleSpecsForType('gear').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.crate, roleSpecsForType('crate').map((spec) => spec.key));
@@ -654,7 +654,7 @@ test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item rol
   assert.deepEqual(normalized.fall.enabledTypes, ['seed', 'sell']);
   assert.deepEqual(normalized.fall.roleItems.seed, ['maple_carrot', 'conifer_cone']);
   assert.equal(normalized.fall.roleItems.sell, undefined);
-  assert.deepEqual(normalized.fall.sellMultipliers, ['4x']);
+  assert.deepEqual(normalized.fall.sellMultipliers, ['normal', '4x']);
   assert.deepEqual(normalized.fall.roleItems.gear, []);
 });
 
@@ -1066,11 +1066,11 @@ test('GAG2 Garden Valley and Fall Harvest sell multipliers filter independently'
   }, {
     rarities: { sell: ['common'] },
     sellMultipliers: ['4x'],
-    fall: { sellMultipliers: ['2x'] },
+    fall: { sellMultipliers: ['normal'] },
   });
 
   assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
-  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['maple_apple']);
+  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['amber_cranberry']);
 });
 
 test('GAG2 disables Fall Harvest exactly at the October 1 UTC+7 deadline', () => {
@@ -1105,7 +1105,7 @@ test('GAG2 stock source failures retry quickly without moving the normal five-mi
   const poster = new Gag2StockPoster({}, { now: () => now });
   poster.started = true;
   assert.equal(STOCK_FAILURE_RETRY_MS, 1_000);
-  assert.equal(STOCK_FAILURE_RETRY_LIMIT, 3);
+  assert.equal(STOCK_FAILURE_RETRY_LIMIT, 12);
   for (let attempt = 1; attempt <= STOCK_FAILURE_RETRY_LIMIT; attempt += 1) {
     poster.stop();
     poster.started = true;
@@ -1565,7 +1565,7 @@ test('GAG2 stock delivery cycle stays fixed across same-cycle retries', () => {
   );
 });
 
-test('GAG2 stock poster sends an unchanged source restock only once across bot cycles', async () => {
+test('GAG2 stock poster never relabels or sends an expired source restock', async () => {
   let now = Date.parse('2026-08-02T06:10:00.500Z');
   const statePath = path.join(__dirname, 'tmp-gag2-fixed-source-cycle-state.json');
   fs.rmSync(statePath, { force: true });
@@ -1608,8 +1608,233 @@ test('GAG2 stock poster sends an unchanged source restock only once across bot c
   now = Date.parse('2026-08-02T06:15:00.500Z');
   await poster.tick(['seed'], 'stock');
 
-  assert.equal(sentPayloads.length, 1, 'the API source window, not the bot clock, owns the restock identity');
+  assert.equal(sentPayloads.length, 0, 'an expired source window is retried instead of being relabelled as current stock');
   fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 waits through a stale boundary snapshot and sends only the refreshed stock', async () => {
+  const now = Date.parse('2026-08-02T06:10:00.500Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-stale-boundary-state.json');
+  fs.rmSync(statePath, { force: true });
+  const stale = parseStockPayload({
+    stock: [{
+      category: 'crate',
+      restockedAt: '2026-08-02T06:05:00.000Z',
+      nextRestockAt: '2026-08-02T06:10:00.000Z',
+      items: [{ key: 'bench_crate', name: 'Bench Crate', rarity: 'Uncommon', quantity: 1 }],
+    }],
+  });
+  const fresh = parseStockPayload({
+    stock: [{
+      category: 'crate',
+      restockedAt: '2026-08-02T06:10:03.000Z',
+      nextRestockAt: '2026-08-02T06:15:00.000Z',
+      items: [{ key: 'boombox', name: 'Boombox', rarity: 'Legendary', quantity: 1 }],
+    }],
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'crate',
+    channelId: '1525003375651848265',
+    roleIds: {},
+    filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+  };
+  let fetchCalls = 0;
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async () => ({ id: `message-${++sends}` }),
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, {
+    fetchStockPayload: async () => (++fetchCalls === 1 ? stale : fresh),
+    now: () => now,
+    statePath,
+  });
+  poster.targets = () => [target];
+
+  await poster.tick(['crate'], 'stale boundary');
+  assert.equal(sends, 0);
+  assert.equal(poster.nextDelayOverrideMs, STOCK_FAILURE_RETRY_MS);
+  await poster.tick(['crate'], 'fresh boundary');
+
+  assert.equal(fetchCalls, 2);
+  assert.equal(sends, 1);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 restores seed and gear cycle dedupe from recent Discord messages', async () => {
+  for (const type of ['seed', 'gear']) {
+    const now = Date.parse('2026-08-02T06:10:00.500Z');
+    const statePath = path.join(__dirname, `tmp-gag2-discord-${type}-state.json`);
+    fs.rmSync(statePath, { force: true });
+    const entry = parseStockPayload({
+      stock: [{
+        category: type,
+        restockedAt: '2026-08-02T06:10:00.000Z',
+        nextRestockAt: '2026-08-02T06:15:00.000Z',
+        items: [{ key: type === 'seed' ? 'carrot' : 'trowel', name: type === 'seed' ? 'Carrot' : 'Trowel', rarity: 'Common', quantity: 1 }],
+      }],
+    }).stock[0];
+    const target = {
+      guildId: '1493901002519347290',
+      type,
+      channelId: type === 'seed' ? '1525003375651848263' : '1525003375651848264',
+      roleIds: {},
+    };
+    const payload = buildTypePayload(type, entry);
+    const existing = {
+      id: '1525003375651848299',
+      author: { id: '123456789012345678' },
+      components: payload.components,
+      createdTimestamp: now - 1_000,
+      delete: async () => null,
+    };
+    let sends = 0;
+    const channel = {
+      id: target.channelId,
+      isTextBased: () => true,
+      messages: { fetch: async () => new Map([[existing.id, existing]]) },
+      send: async () => ({ id: `message-${++sends}` }),
+    };
+    const poster = new Gag2StockPoster({
+      user: { id: '123456789012345678' },
+      channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+    }, { now: () => now, statePath });
+
+    await poster.postEntry({}, target, entry);
+
+    assert.equal(sends, 0, `${type} is not reposted when Discord already has that restock cycle`);
+    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(saved.posts[target.guildId][type].lastMessageId, existing.id);
+    fs.rmSync(statePath, { force: true });
+  }
+});
+
+test('GAG2 suppresses an old prop cycle when Discord already has the current one', async () => {
+  const now = Date.parse('2026-08-02T06:10:00.500Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-discord-stale-crate-state.json');
+  fs.rmSync(statePath, { force: true });
+  const stale = parseStockPayload({
+    stock: [{
+      category: 'crate',
+      restockedAt: '2026-08-02T06:05:00.000Z',
+      nextRestockAt: '2026-08-02T06:10:00.000Z',
+      items: [{ key: 'bench_crate', name: 'Bench Crate', rarity: 'Uncommon', quantity: 1 }],
+    }],
+  }).stock[0];
+  const current = parseStockPayload({
+    stock: [{
+      category: 'crate',
+      restockedAt: '2026-08-02T06:10:00.000Z',
+      nextRestockAt: '2026-08-02T06:15:00.000Z',
+      items: [{ key: 'boombox', name: 'Boombox', rarity: 'Legendary', quantity: 1 }],
+    }],
+  }).stock[0];
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'crate',
+    channelId: '1525003375651848265',
+    roleIds: {},
+  };
+  const currentPayload = buildTypePayload('crate', current);
+  const existing = {
+    id: '1525003375651848299',
+    author: { id: '123456789012345678' },
+    components: currentPayload.components,
+    createdTimestamp: now - 250,
+    delete: async () => null,
+  };
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map([[existing.id, existing]]) },
+    send: async () => ({ id: `message-${++sends}` }),
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+
+  await poster.postEntry({}, target, stale);
+
+  assert.equal(sends, 0);
+  const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.equal(saved.posts[target.guildId].crate.lastStockNextRestockAtMs, current.nextRestockAtMs);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 converges overlapping bot instances to one stock message', async () => {
+  const now = Date.parse('2026-08-02T06:10:00.500Z');
+  const statePaths = [1, 2].map((id) => path.join(__dirname, `tmp-gag2-instance-${id}-state.json`));
+  statePaths.forEach((statePath) => fs.rmSync(statePath, { force: true }));
+  const entry = parseStockPayload({
+    stock: [{
+      category: 'seed',
+      restockedAt: '2026-08-02T06:10:00.000Z',
+      nextRestockAt: '2026-08-02T06:15:00.000Z',
+      items: [{ key: 'carrot', name: 'Carrot', rarity: 'Common', quantity: 1 }],
+    }],
+  }).stock[0];
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'seed',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const messages = new Map();
+  let preflightCalls = 0;
+  let releasePreflight;
+  const preflight = new Promise((resolve) => { releasePreflight = resolve; });
+  let sendCalls = 0;
+  let releaseSends;
+  const bothSent = new Promise((resolve) => { releaseSends = resolve; });
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => {
+        if (preflightCalls < 2) {
+          preflightCalls += 1;
+          if (preflightCalls === 2) releasePreflight();
+          await preflight;
+          return new Map();
+        }
+        return new Map(messages);
+      },
+    },
+    send: async (payload) => {
+      sendCalls += 1;
+      const id = `15250033756518482${sendCalls}`;
+      const message = {
+        id,
+        author: { id: '123456789012345678' },
+        components: payload.components,
+        createdTimestamp: now + sendCalls,
+        delete: async () => { messages.delete(id); },
+      };
+      messages.set(id, message);
+      if (sendCalls === 2) releaseSends();
+      await bothSent;
+      return message;
+    },
+  };
+  const client = {
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  };
+  const posters = statePaths.map((statePath) => new Gag2StockPoster(client, { now: () => now, statePath }));
+
+  await Promise.all(posters.map((poster) => poster.postEntry({}, target, entry)));
+
+  assert.equal(sendCalls, 2, 'the test forces both stateless instances through their preflight check');
+  assert.equal(messages.size, 1, 'the post-send reconciliation removes the duplicate deterministically');
+  statePaths.forEach((statePath) => fs.rmSync(statePath, { force: true }));
 });
 
 test('GAG2 overlapping stock retry groups share the latest persisted dedupe state', async () => {
@@ -1981,6 +2206,8 @@ test('GAG2 identifies channel permission overrides and stops only the failed sto
 
   const nextEntry = {
     ...entry,
+    restockedAtMs: entry.restockedAtMs + 5 * 60 * 1000,
+    nextRestockAtMs: entry.nextRestockAtMs + 5 * 60 * 1000,
     items: entry.items.map((item, index) => index ? item : { ...item, quantity: item.quantity + 1 }),
   };
   await poster.postEntry(state, target, nextEntry);
