@@ -19,12 +19,14 @@ const {
   buildLevelCardPayload,
   buildLevelPayload,
   canvasDisplayName,
+  levelCardRenderKey,
   levelUpAnnouncementPayload,
   levelForXp,
   normalizeLevelCardDesign,
   progressBar,
   renderLeaderboardCard,
   renderLevelCard,
+  renderPublishedLevelCard,
   resolvedAnnouncementLayout,
   xpThresholdForLevel,
   xpMultiplierForMessage,
@@ -297,6 +299,34 @@ test('level card renderer supports Unicode names and sends a direct attachment w
   assert.equal(payload.components[0].components[0].label, 'Edit card here!');
   assert.match(payload.components[0].components[0].url, /\/profile$/);
   assert.doesNotMatch(JSON.stringify(payload), /description|alt/i);
+});
+
+test('/level uses the dashboard renderer that owns saved card media', async () => {
+  const expected = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from('authoritative-card'),
+  ]);
+  let request;
+  const image = await renderPublishedLevelCard({
+    id: '123456789012345678',
+    username: 'Sprite',
+    displayName: 'Garden Sprite',
+    displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png',
+  }, {
+    level: 12, rank: 3, progressXp: 280, neededXp: 420, progressRatio: 2 / 3, xp: 3160,
+  }, {
+    origin: 'https://panel.coin-sprite.com',
+    key: 'signed-render-key',
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, arrayBuffer: async () => expected };
+    },
+  });
+  assert.deepEqual(image, expected);
+  assert.equal(request.url, 'https://panel.coin-sprite.com/api/internal/level-card/123456789012345678');
+  assert.equal(request.options.headers['X-CoinSprite-Render-Key'], 'signed-render-key');
+  assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
+  assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
 });
 
 test('leaderboard renderer creates an attachment image with podium-colored top ranks', async () => {

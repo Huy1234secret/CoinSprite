@@ -389,6 +389,69 @@ function dashboardBaseUrl() {
   }
 }
 
+function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET) {
+  const value = String(secret || '');
+  return value ? crypto.createHmac('sha256', value).update('coinsprite-level-card-render-v1').digest('hex') : '';
+}
+
+function levelCardRenderOrigin() {
+  const configured = String(process.env.PUBLIC_WEB_BASE_URL || process.env.ADMIN_PUBLIC_URL || '').trim().replace(/\/+$/g, '');
+  if (!configured) return '';
+  try {
+    const url = new URL(configured);
+    return ['http:', 'https:'].includes(url.protocol) ? url.origin : '';
+  } catch {
+    return '';
+  }
+}
+
+function cardAvatarUrl(user) {
+  return user?.displayAvatarURL?.({ extension: 'png', size: 256 })
+    || user?.avatarURL?.({ extension: 'png', size: 256 })
+    || '';
+}
+
+async function renderPublishedLevelCard(user, stats, options = {}) {
+  const origin = options.origin === undefined ? levelCardRenderOrigin() : String(options.origin || '').replace(/\/+$/g, '');
+  const key = options.key === undefined ? levelCardRenderKey() : String(options.key || '');
+  const fetchImpl = options.fetchImpl || fetch;
+  if (origin && key) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    timeout.unref?.();
+    try {
+      const response = await fetchImpl(`${origin}/api/internal/level-card/${user.id}`, {
+        method: 'POST',
+        headers: {
+          Accept: 'image/png',
+          'Content-Type': 'application/json',
+          'X-CoinSprite-Render-Key': key,
+        },
+        body: JSON.stringify({
+          user: {
+            username: String(user?.username || '').slice(0, 100),
+            globalName: String(user?.globalName || '').slice(0, 100),
+            displayName: String(user?.displayName || '').slice(0, 100),
+            avatarUrl: cardAvatarUrl(user),
+          },
+          stats,
+        }),
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        const image = Buffer.from(await response.arrayBuffer());
+        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) return image;
+      }
+    } catch {
+      // The local renderer keeps /level available during dashboard maintenance.
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return renderLevelCard(user, stats);
+}
+
 function messageFingerprint(message) {
   const content = String(message.content || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 1000);
   const attachments = [...(message.attachments?.values?.() || [])]
@@ -1034,7 +1097,7 @@ async function executeLevel(interaction) {
       displayAvatarURL: (options) => member?.displayAvatarURL?.(options) || user.displayAvatarURL?.(options),
       avatarURL: (options) => user.avatarURL?.(options),
     };
-    const image = await renderLevelCard(identity, stats);
+    const image = await renderPublishedLevelCard(identity, stats);
     await interaction.editReply(buildLevelCardPayload(identity, stats, image));
   } catch (error) {
     logCommandSystem(`Level card render failed for ${user.id}: ${error?.message || 'unknown error'}`);
@@ -1205,7 +1268,9 @@ module.exports = {
   resetLevelingCache,
   renderLeaderboardCard,
   renderLevelCard,
+  renderPublishedLevelCard,
   saveLevelCardDesign,
+  levelCardRenderKey,
   sortedLeaderboard,
   xpThresholdForLevel,
   xpMultiplierForMessage,
