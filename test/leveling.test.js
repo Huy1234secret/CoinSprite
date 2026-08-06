@@ -1,5 +1,8 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
+const { createCanvas } = require('@napi-rs/canvas');
 
 const {
   DEFAULT_LEVELING_CONFIG,
@@ -8,6 +11,7 @@ const {
 } = require('../src/serverConfig');
 const {
   COMPONENTS_V2_FLAG,
+  LEVEL_CARD_MEDIA_DIR,
   LEVELING_COMMANDS,
   announcementText,
   applyXpToRecord,
@@ -217,6 +221,7 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   const userId = '123456789012345678';
   const design = normalizeLevelCardDesign({
     background: { color: '#FF00AA', imageUrl: `/level-card-media/${userId}/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png`, scale: 99 },
+    panelOpacity: -4,
     avatar: { x: 999, y: 999, size: 240 },
     username: { x: 999, y: 999, size: 80 },
     level: { x: 999, y: 999, size: 60 },
@@ -232,6 +237,7 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   }, userId);
   assert.equal(design.background.color, '#ff00aa');
   assert.equal(design.background.scale, 5);
+  assert.equal(design.panelOpacity, 0);
   assert.equal(design.progress.width, 950);
   assert.equal(design.progress.x, 50);
   assert.equal(design.progress.y, 250);
@@ -247,6 +253,33 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   assert.equal(design.layers[0].text, 'Hello world');
   assert.equal(design.layers[1].x, 200);
   assert.equal(design.layers[1].y, 20);
+});
+
+test('level card background retries after a missing upload and uses saved panel opacity', async () => {
+  const userId = '123456789012345679';
+  const assetId = 'dddddddddddddddddddddddddddddddd';
+  const directory = path.join(LEVEL_CARD_MEDIA_DIR, userId);
+  const filePath = path.join(directory, `${assetId}.png`);
+  fs.rmSync(directory, { recursive: true, force: true });
+  const design = normalizeLevelCardDesign({
+    background: { color: '#0000ff', imageUrl: `/level-card-media/${userId}/${assetId}.png` },
+    panelOpacity: 0,
+  }, userId);
+  const user = { id: userId, username: 'BackgroundTest' };
+  const stats = { level: 1, rank: 1, progressXp: 1, neededXp: 2, progressRatio: .5, xp: 1 };
+  try {
+    const beforeUpload = await renderLevelCard(user, stats, design);
+    const background = createCanvas(16, 16);
+    const context = background.getContext('2d');
+    context.fillStyle = '#ff0000';
+    context.fillRect(0, 0, 16, 16);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(filePath, background.toBuffer('image/png'));
+    const afterUpload = await renderLevelCard(user, stats, design);
+    assert.notDeepEqual(afterUpload, beforeUpload);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('level card renderer supports Unicode names and sends a direct attachment without alt text', async () => {

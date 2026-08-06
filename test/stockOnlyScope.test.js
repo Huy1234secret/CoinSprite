@@ -206,10 +206,15 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /moveCardPointer/);
   assert.match(source, /uploadCardMedia/);
   assert.match(source, /constrainCardSelection/);
+  assert.match(source, /\/api\/profile\/card\/preview/);
+  assert.match(source, /cardExactSnapshot/);
+  assert.match(source, /panelOpacity/);
   assert.match(source, /1000 - target\.width/);
   assert.match(source, /320 - target\.height/);
   assert.match(source, /\/api\/profile\/card/);
   assert.match(server, /pathname === '\/api\/profile\/card'/);
+  assert.match(server, /pathname === '\/api\/profile\/card\/preview'/);
+  assert.match(server, /renderLevelCard/);
   assert.match(server, /level-card-media/);
   assert.match(leveling, /renderLevelCard/);
   assert.match(leveling, /label: 'Edit card here!'/);
