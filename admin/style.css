@@ -272,9 +272,31 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .composer-editor { display: grid; grid-template-rows: auto 1fr; gap: 8px; min-width: 0; padding: 14px; border-right: 1px solid var(--line); }
 .composer-editor > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .composer-editor textarea { width: 100%; min-height: 270px; resize: vertical; padding: 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: #090d0b; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.discord-preview { min-width: 0; padding: 14px; background: #313338; }
-.discord-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; color: #b5bac1; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.discord-preview { min-width: 0; min-height: 390px; padding: 14px; background: radial-gradient(circle at 90% 10%, rgba(88,101,242,.08), transparent 35%), #313338; }
+.discord-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; color: #b5bac1; font-size: 8px; font-weight: 800; letter-spacing: .1em; }
 .discord-preview-head small { color: #949ba4; font-size: 8px; letter-spacing: 0; }
+.preview-tool-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.discord-preview .composer-add { min-height: 28px; border-color: #4e5058; color: #dbdee1; background: #2b2d31; }
+.discord-preview .composer-add:hover, .discord-preview .composer-add.active { border-color: rgba(185,245,71,.55); color: var(--lime); background: rgba(185,245,71,.08); }
+.preview-tool-panel { margin: -7px 0 16px; padding: 12px; border: 1px solid #4e5058; border-radius: 9px; background: #232428; box-shadow: 0 10px 24px rgba(0,0,0,.18); }
+.variable-guide { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+.variable-guide button { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 8px; padding: 8px; border: 1px solid #3f4147; border-radius: 7px; color: #dbdee1; background: #2b2d31; text-align: left; cursor: pointer; }
+.variable-guide button:hover { border-color: rgba(185,245,71,.45); }
+.variable-guide code { color: var(--lime); font: 8px ui-monospace, monospace; }
+.variable-guide span { overflow: hidden; color: #b5bac1; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.media-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.media-panel-head > div:first-child { display: grid; gap: 2px; }
+.media-panel-head strong { color: #f2f3f5; font-size: 10px; }.media-panel-head small { color: #949ba4; font-size: 8px; }
+.media-panel-head > div:last-child { display: flex; gap: 6px; }
+.media-panel-head button, .media-upload { min-height: 29px; display: inline-flex; align-items: center; justify-content: center; padding: 0 9px; border: 1px solid #4e5058; border-radius: 7px; color: #dbdee1; background: #2b2d31; font-size: 8px; font-weight: 800; cursor: pointer; }
+.media-panel-head button:hover, .media-upload:hover { border-color: rgba(185,245,71,.5); color: var(--lime); }
+.media-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.media-upload.uploading { opacity: .55; pointer-events: none; }.media-upload.uploading::after { content: '...'; margin-left: 3px; }
+.media-list { display: grid; gap: 6px; }.media-list > p { margin: 0; color: #949ba4; font-size: 8px; }
+.media-entry { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: 6px; }
+.media-entry > span { width: 18px; color: #949ba4; font-size: 8px; text-align: center; }
+.media-entry > input { width: 100%; min-width: 0; height: 31px; padding: 0 9px; border: 1px solid #3f4147; border-radius: 7px; color: #f2f3f5; background: #1e1f22; font-size: 9px; }
+.media-entry > button { width: 29px; height: 29px; border: 1px solid rgba(255,107,107,.25); border-radius: 7px; color: #ffaaaa; background: rgba(255,107,107,.05); cursor: pointer; }
 .discord-message-row { display: grid; grid-template-columns: 38px minmax(0,1fr); gap: 10px; }
 .discord-avatar { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; color: #18210d; background: var(--lime); font-size: 14px; font-weight: 900; }
 .discord-message-body { min-width: 0; color: #dbdee1; font: 12px/1.45 Inter, ui-sans-serif, sans-serif; }
@@ -297,6 +319,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .discord-spoiler { padding: 0 2px; border-radius: 2px; color: transparent; background: #1e1f22; }
 .discord-separator { height: 1px; margin: 10px 0; background: #3f4147; }
 .inline-message-editor { position: relative; margin: 2px -6px 5px; }
+.inline-message-editor.compact { margin-bottom: 2px; }
+.inline-message-editor.compact .inline-message-display { min-height: 26px; }
 .inline-message-display { position: relative; min-height: 30px; padding: 5px 31px 5px 6px; border: 1px solid transparent; border-radius: 5px; cursor: text; transition: border-color .14s ease, background .14s ease; }
 .inline-message-display:hover, .inline-message-display:focus-visible { outline: 0; border-color: rgba(185,245,71,.48); background: rgba(185,245,71,.045); }
 .inline-edit-badge { position: absolute; top: 6px; right: 6px; padding: 2px 4px; border-radius: 3px; color: #b9f547; background: rgba(185,245,71,.1); font-size: 6px; font-weight: 900; letter-spacing: .08em; opacity: 0; transition: opacity .14s ease; }
@@ -491,6 +515,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .boost-row .reward-remove { grid-column: 3; grid-row: 2; }
   .composer-toolbar { align-items: flex-start; flex-direction: column; }
   .composer-toolbar > div:last-child { justify-content: flex-start; }
+  .discord-preview-head { align-items: flex-start; flex-direction: column; }
+  .preview-tool-buttons { justify-content: flex-start; }
+  .variable-guide { grid-template-columns: 1fr; }
+  .media-panel-head { align-items: flex-start; flex-direction: column; }
+  .media-entry { grid-template-columns: auto minmax(0,1fr) auto; }
+  .media-entry .media-upload { grid-column: 2 / 3; }
   .composer-assets > label, .gallery-fields label { grid-template-columns: 1fr auto; }
   .composer-assets label > span { grid-column: 1 / -1; }
   .console-line { grid-template-columns: 66px minmax(0,1fr); }

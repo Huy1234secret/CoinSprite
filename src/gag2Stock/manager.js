@@ -5,8 +5,10 @@ const {
   GAG2_ROLE_FILTER_RARITIES,
   GAG2_SELL_FILTER_RARITIES,
   GAG2_SELL_MULTIPLIERS,
+  getConfiguredGuildIds,
   getEnabledGuildIds,
   getGuildConfig,
+  getGuildConfigRaw,
   isGuildGag2StockEnabled,
   updateGuildGag2StockRoleIds,
 } = require('../serverConfig');
@@ -24,7 +26,6 @@ const {
   STOCK_FAILURE_RETRY_MS,
   STOCK_TYPE_GROUPS,
   STOCK_TYPES,
-  TRANSIENT_UNAVAILABLE_NOTICE_FAILURES,
   WEATHER_CHECK_INTERVAL_MS,
 } = require('./config');
 const {
@@ -37,7 +38,6 @@ const {
 const {
   buildTypePayloads,
   buildTypePostKey,
-  buildUnavailablePayload,
 } = require('./stockPayload');
 const {
   FALL_ROLE_TYPES,
@@ -63,10 +63,8 @@ const ROLE_TYPES = Object.freeze([...STOCK_TYPES, ...Object.values(FALL_ROLE_TYP
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_STOCK_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
-const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
 const POST_PERMISSION_CHECK_LIMIT = 5;
 const POST_PERMISSION_RETRY_MS = 5 * 1000;
-const GAG2_DIAGNOSTIC_GUILD_ID = '1493901002519347290';
 const RECENT_UNAVAILABLE_CLEANUP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 const POST_PERMISSION_LABELS = Object.freeze([
@@ -222,10 +220,6 @@ function unavailableBucket(state, guildId, type) {
   state.unavailable[guildId] ||= {};
   state.unavailable[guildId][type] ||= {};
   return state.unavailable[guildId][type];
-}
-
-function existingPostBucket(state, guildId, type) {
-  return state.posts?.[guildId]?.[type] || null;
 }
 
 function recentSellPostKeys(bucket) {
@@ -398,13 +392,7 @@ function isRecentUnavailableMessage(message, clientUserId, nowMs = Date.now()) {
     message?.content,
     ...(Array.isArray(message?.components) ? message.components.map(componentText) : []),
   ].filter(Boolean).join('\n');
-  return /source unavailable|gag\.gg\/api\/[^\s]+.*HTTP 403/i.test(text);
-}
-
-function isTransientSourceError(error) {
-  if (error?.gag2Transient) return true;
-  const message = String(error?.message || '');
-  return error?.name === 'AbortError' || /aborted|timed out|timeout|fetch failed|network|socket/i.test(message);
+  return /source(?:\s+temporarily)?\s+unavailable|gag\.gg\/api\/[^\s]+.*HTTP 403/i.test(text);
 }
 
 function sourceGroupForType(type) {
@@ -414,16 +402,6 @@ function sourceGroupForType(type) {
   if (STOCK_TYPE_GROUPS.weather.includes(type)) return 'weather';
   if (type === 'sell') return 'sell';
   return String(type || 'unknown');
-}
-
-function sourceErrorSummary(error) {
-  const status = Number(error?.status);
-  if (Number.isFinite(status) && status > 0) return `HTTP ${status}`;
-  return String(error?.message || 'unknown source error')
-    .replace(/https?:\/\/\S+/gi, 'source')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 240);
 }
 
 function resetUnavailableFailures(state, target, nowMs) {
@@ -723,8 +701,6 @@ class Gag2StockPoster {
     };
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
-    this.transientUnavailableNoticeFailures = Math.max(1, Number(options.transientUnavailableNoticeFailures) || TRANSIENT_UNAVAILABLE_NOTICE_FAILURES);
-    this.sourceFailureLogIntervalMs = Math.max(5_000, Number(options.sourceFailureLogIntervalMs) || SOURCE_FAILURE_LOG_INTERVAL_MS);
     this.logSystem = options.logSystem || logCommandSystem;
     this.postPermissionCheckLimit = Math.max(1, Number(options.postPermissionCheckLimit) || POST_PERMISSION_CHECK_LIMIT);
     this.postPermissionRetryMs = Math.max(1_000, Number(options.postPermissionRetryMs) || POST_PERMISSION_RETRY_MS);
@@ -765,9 +741,21 @@ class Gag2StockPoster {
     return this;
   }
 
+  cleanupTargets() {
+    const targets = [];
+    for (const guildId of getConfiguredGuildIds({ includeDisabled: true })) {
+      const channels = getGuildConfigRaw(guildId)?.gag2Stock?.channels || {};
+      for (const type of STOCK_TYPES) {
+        const channelId = cleanChannelId(channels[type]);
+        if (channelId) targets.push({ guildId, type, channelId });
+      }
+    }
+    return targets;
+  }
+
   async deleteRecentUnavailableMessages() {
     const grouped = new Map();
-    for (const target of this.targets()) {
+    for (const target of this.cleanupTargets()) {
       const entry = grouped.get(target.channelId) || { channelId: target.channelId, targets: [] };
       entry.targets.push(target);
       grouped.set(target.channelId, entry);
@@ -910,30 +898,15 @@ class Gag2StockPoster {
       groups.set(group, current);
     }
 
-    const nowMs = this.now();
     for (const [group, status] of groups) {
-      const previous = this.sourceHealth.get(group);
       if (!status.error) {
-        if (previous?.consecutiveFailures) {
-          this.logSystem(`GAG2 ${group} source recovered after ${previous.consecutiveFailures} failed poll${previous.consecutiveFailures === 1 ? '' : 's'}.`);
-        }
         this.sourceHealth.delete(group);
         continue;
       }
-
-      const health = previous || { consecutiveFailures: 0, lastLoggedAtMs: 0 };
-      health.consecutiveFailures += 1;
-      const shouldLog = health.consecutiveFailures === 1
-        || nowMs - health.lastLoggedAtMs >= this.sourceFailureLogIntervalMs;
-      if (shouldLog) {
-        const attempts = Math.max(1, Number(status.error?.attempts) || 1);
-        this.logSystem(
-          `GAG2 ${group} source temporarily unavailable (${sourceErrorSummary(status.error)}; ${attempts} request attempt${attempts === 1 ? '' : 's'}). `
-          + `Leaving ${status.targetCount} configured destination${status.targetCount === 1 ? '' : 's'} unchanged; retrying on the next poll.`,
-        );
-        health.lastLoggedAtMs = nowMs;
-      }
-      this.sourceHealth.set(group, health);
+      const consecutiveFailures = (Number(this.sourceHealth.get(group)?.consecutiveFailures) || 0) + 1;
+      // Source failures are intentionally kept internal. Never expose an API
+      // URL, status, or response detail in Discord or the owner live console.
+      this.sourceHealth.set(group, { consecutiveFailures });
     }
   }
 
@@ -1069,11 +1042,7 @@ class Gag2StockPoster {
       const deliveries = await mapWithConcurrency(targets, this.broadcastConcurrency, async (target) => {
         const error = errors.get(target.type);
         if (error) {
-          const message = await this.postUnavailableOnce(state, target, error).catch((postError) => {
-            logCommandSystem(`GAG2 ${target.type} unavailable notice failed: ${postError?.message || 'unknown error'}`);
-            return null;
-          });
-          return message;
+          return this.postUnavailableOnce(state, target).catch(() => null);
         }
 
         let entry = entries.get(target.type);
@@ -1311,73 +1280,16 @@ class Gag2StockPoster {
     return message;
   }
 
-  async postUnavailableOnce(state, target, error) {
+  async postUnavailableOnce(state, target) {
     const bucket = unavailableBucket(state, target.guildId, target.type);
     bucket.consecutiveFailures = (Number(bucket.consecutiveFailures) || 0) + 1;
     bucket.lastErrorAt = new Date(this.now()).toISOString();
-    bucket.lastErrorMessage = String(error?.message || 'Unknown error').slice(0, 500);
-
-    if (String(target.guildId) !== GAG2_DIAGNOSTIC_GUILD_ID) {
-      saveState(state, this.statePath);
-      return null;
-    }
-
-    const hasPreviousGoodPost = Boolean(existingPostBucket(state, target.guildId, target.type)?.lastPostedKey);
-    const transient = isTransientSourceError(error);
-    const waitingForInitialSource = transient && bucket.consecutiveFailures < this.transientUnavailableNoticeFailures;
-    if (transient && (hasPreviousGoodPost || waitingForInitialSource)) {
-      saveState(state, this.statePath);
-      return null;
-    }
-
-    const dayBucket = new Date(this.now()).toISOString().slice(0, 10);
-    const postKey = `unavailable:${target.channelId}:${dayBucket}`;
-    if (bucket.lastPostedKey === postKey) {
-      saveState(state, this.statePath);
-      return null;
-    }
-
-    if (this.postPermissionStopped(target, postKey)) return null;
-    const channel = await getSendableChannel(this.client, target.channelId);
-    if (!channel) {
-      return this.recordPostPermissionFailure(target, postKey, {
-        server: [],
-        channel: ['View Channel'],
-        unknown: ['The channel may also have been deleted or changed'],
-      });
-    }
-    const permissionDiagnostic = await this.postPermissionDiagnostic(channel, target, {
-      requireHistory: false,
-      useExternalEmojis: false,
-    });
-    if (hasMissingPostPermissions(permissionDiagnostic)) {
-      return this.recordPostPermissionFailure(target, postKey, permissionDiagnostic, channel);
-    }
-    let message = null;
-    try {
-      message = await channel.send(buildUnavailablePayload(target.type, error?.message || 'Unknown error', this.now()));
-    } catch (postError) {
-      if (isDiscordMissingPermissionsError(postError)) {
-        const diagnostic = await this.postPermissionDiagnostic(channel, target, {
-          requireHistory: false,
-          useExternalEmojis: false,
-        });
-        if (!hasMissingPostPermissions(diagnostic)) {
-          diagnostic.unknown = ['Discord returned Missing Permissions while sending the message (50013)'];
-        }
-        return this.recordPostPermissionFailure(target, postKey, diagnostic, channel);
-      }
-      throw postError;
-    }
-    Object.assign(bucket, {
-      channelId: target.channelId,
-      lastMessageId: message?.id || null,
-      lastPostedAt: new Date(this.now()).toISOString(),
-      lastPostedKey: postKey,
-    });
+    delete bucket.lastErrorMessage;
+    delete bucket.lastMessageId;
+    delete bucket.lastPostedAt;
+    delete bucket.lastPostedKey;
     saveState(state, this.statePath);
-    this.clearPostPermissionFailure(target, postKey, channel);
-    return message;
+    return null;
   }
 }
 
@@ -1526,7 +1438,6 @@ async function startGag2StockPoster(client, options = {}) {
 
 module.exports = {
   activeFallTypes,
-  GAG2_DIAGNOSTIC_GUILD_ID,
   Gag2StockPoster,
   componentFingerprint,
   diagnosePostPermissions,

@@ -10,7 +10,6 @@ const {
   buildTypePayload,
   buildTypePayloads,
   buildTypePostKey,
-  buildUnavailablePayload,
   displayableTextSize,
   nextCycleRestockAtMs,
   parseSellPayload,
@@ -45,7 +44,7 @@ const {
 const { fetchFallSellPayload, fetchFallStockPayload, fetchJson, fetchStockPayload } = require('../src/gag2Stock/source');
 const { colorForType, emojiForType, roleSpecsForType } = require('../src/gag2Stock/catalog');
 const { buildRoleAssignmentPanelPayload, ROLE_ASSIGN_TYPES } = require('../src/gag2Stock/roleAssignment');
-const { GAG2_DIAGNOSTIC_GUILD_ID, Gag2StockPoster, activeFallTypes, currentGag2StockCycleAtMs, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
+const { Gag2StockPoster, activeFallTypes, currentGag2StockCycleAtMs, diagnosePostPermissions, filterSellEntry, filteredRoleSpecs, isInactiveWeatherEntry, isRecentUnavailableMessage, nextGag2StockTickAtMs } = require('../src/gag2Stock/manager');
 
 function testPermissions(...flags) {
   const allowed = new Set(flags);
@@ -831,16 +830,7 @@ test('GAG2 sell dedupe includes price changes after the fortieth item', () => {
   assert.notEqual(buildTypePostKey('sell', base), buildTypePostKey('sell', changed));
 });
 
-test('GAG2 stock unavailable payload is a red Components V2 container', () => {
-  const payload = buildUnavailablePayload('HTTP 500', Date.parse('2026-07-10T16:50:00.000Z'));
-
-  assert.equal(payload.flags, 32768);
-  assert.equal(payload.components[0].accent_color, 0xed4245);
-  assert.match(payload.components[0].components[0].content, /source unavailable/);
-});
-
-test('GAG2 source errors are sent only to the diagnostic guild', async () => {
-  assert.equal(GAG2_DIAGNOSTIC_GUILD_ID, '1493901002519347290');
+test('GAG2 source errors are never sent to Discord or saved with sensitive details', async () => {
   const statePath = path.join(__dirname, 'tmp-gag2-private-source-error-state.json');
   fs.rmSync(statePath, { force: true });
   let sends = 0;
@@ -855,16 +845,18 @@ test('GAG2 source errors are sent only to the diagnostic guild', async () => {
   const error = Object.assign(new Error(`${STOCK_API_URL}: HTTP 403`), { status: 403 });
 
   await poster.postUnavailableOnce({}, {
-    guildId: '222222222222222222',
+    guildId: '1493901002519347290',
     type: 'seed',
     channelId: channel.id,
   }, error);
 
   assert.equal(sends, 0);
+  const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  assert.equal(saved.unavailable['1493901002519347290'].seed.lastErrorMessage, undefined);
   fs.rmSync(statePath, { force: true });
 });
 
-test('GAG2 startup cleanup deletes only recent bot source-error messages', async () => {
+test('GAG2 startup cleanup deletes recent bot source-error messages across configured servers', async () => {
   const now = Date.parse('2026-08-02T04:00:00.000Z');
   const statePath = path.join(__dirname, 'tmp-gag2-source-error-cleanup-state.json');
   fs.rmSync(statePath, { force: true });
@@ -891,9 +883,14 @@ test('GAG2 startup cleanup deletes only recent bot source-error messages', async
     user: { id: '123456789012345678' },
     channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
   }, { now: () => now, statePath });
-  poster.targets = () => [{ guildId: GAG2_DIAGNOSTIC_GUILD_ID, type: 'seed', channelId: channel.id }];
+  poster.cleanupTargets = () => [{ guildId: '222222222222222222', type: 'seed', channelId: channel.id }];
 
   assert.equal(isRecentUnavailableMessage(errorMessage, '123456789012345678', now), true);
+  assert.equal(isRecentUnavailableMessage({
+    author: { id: '123456789012345678', bot: true },
+    createdTimestamp: now,
+    content: 'SYSTEM // GAG2 stock source temporarily unavailable (HTTP 403; 1 request attempt).',
+  }, '123456789012345678', now), true);
   assert.equal(isRecentUnavailableMessage(normalMessage, '123456789012345678', now), false);
   assert.equal(await poster.deleteRecentUnavailableMessages(), 1);
   assert.equal(deletedErrors, 1);
@@ -2056,6 +2053,22 @@ test('GAG2 source reports the full retry count for transient HTTP failures', asy
   assert.equal(calls, 3);
 });
 
+test('GAG2 retries a temporary Cloudflare 403 against the same approved API', async () => {
+  let calls = 0;
+  const payload = await fetchJson(STOCK_API_URL, {
+    retryDelayMs: 0,
+    retries: 1,
+    fetchImpl: async (url) => {
+      calls += 1;
+      assert.equal(url, STOCK_API_URL);
+      if (calls === 1) return { ok: false, status: 403 };
+      return { ok: true, json: async () => ({ ok: true }) };
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(payload, { ok: true });
+});
+
 test('GAG2 poster keeps the previous good message throughout transient source failures', async () => {
   const sent = [];
   const channel = {
@@ -2076,7 +2089,6 @@ test('GAG2 poster keeps the previous good message throughout transient source fa
   const poster = new Gag2StockPoster(client, {
     now: () => Date.parse('2026-07-11T12:00:00.000Z'),
     statePath,
-    transientUnavailableNoticeFailures: 3,
   });
   const state = {
     posts: {
@@ -2102,7 +2114,7 @@ test('GAG2 poster keeps the previous good message throughout transient source fa
   fs.rmSync(statePath, { force: true });
 });
 
-test('GAG2 consolidates one shared weather outage across every destination', async () => {
+test('GAG2 keeps a shared weather outage silent across every destination', async () => {
   const statePath = path.join(__dirname, 'tmp-gag2-weather-outage-state.json');
   fs.rmSync(statePath, { force: true });
   let now = Date.parse('2026-07-14T02:42:54.000Z');
@@ -2125,7 +2137,6 @@ test('GAG2 consolidates one shared weather outage across every destination', asy
     },
     logSystem: (message) => logs.push(message),
     now: () => now,
-    sourceFailureLogIntervalMs: 60_000,
     statePath,
   });
   poster.targets = () => targets;
@@ -2135,14 +2146,12 @@ test('GAG2 consolidates one shared weather outage across every destination', asy
   await poster.tick(['weather', 'moon'], 'weather');
 
   assert.equal(fetchCalls, 2, 'weather is fetched once per polling cycle, not once per destination');
-  assert.equal(logs.length, 1, 'the shared failure is logged once instead of once per destination');
-  assert.match(logs[0], /weather source temporarily unavailable/);
-  assert.match(logs[0], /3 request attempts/);
-  assert.match(logs[0], /5 configured destinations unchanged/);
+  assert.equal(logs.length, 0, 'source failures never enter the owner console');
+  assert.equal(poster.sourceHealth.get('weather').consecutiveFailures, 2);
 
   poster.updateSourceHealth(targets, new Map());
-  assert.equal(logs.length, 2);
-  assert.match(logs[1], /weather source recovered after 2 failed polls/);
+  assert.equal(logs.length, 0);
+  assert.equal(poster.sourceHealth.has('weather'), false);
   fs.rmSync(statePath, { force: true });
 });
 

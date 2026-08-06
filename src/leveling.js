@@ -304,12 +304,21 @@ async function syncRewardRoles(guild, userId, level, config = levelingConfig(gui
   if (remove.length) await member.roles.remove(remove, `CoinSprite level ${level} reward update`).catch((error) => logCommandSystem(`Level reward cleanup failed in ${guild.id}: ${error?.message || 'unknown error'}`));
 }
 
-function announcementText(template, message, level) {
-  return String(template || DEFAULT_LEVELING_CONFIG.announcements.message)
-    .replaceAll('{user}', `<@${message.author.id}>`)
-    .replaceAll('{username}', safeName(message.member?.displayName || message.author.username))
-    .replaceAll('{level}', String(level))
-    .replaceAll('{server}', safeName(message.guild.name));
+function announcementText(template, message, level, values = {}) {
+  const tokens = {
+    user: `<@${message.author.id}>`,
+    username: safeName(message.member?.displayName || message.author.username),
+    level: String(level),
+    next_level: String(values.nextLevel ?? level + 1),
+    server: safeName(message.guild.name),
+    bar: String(values.bar || ''),
+    progress_xp: String(values.progressXp ?? 0),
+    needed_xp: String(values.neededXp ?? 0),
+    total_xp: String(values.totalXp ?? 0),
+  };
+  let output = String(template || '');
+  for (const [key, value] of Object.entries(tokens)) output = output.replaceAll(`{${key}}`, value);
+  return output;
 }
 
 function safeMediaUrl(value) {
@@ -393,13 +402,18 @@ async function announceLevelUp(message, result, config) {
     : message.channel;
   if (!channel?.isTextBased?.() || typeof channel.send !== 'function') return;
   const stats = memberStats(message.guildId, message.author.id, config);
+  const templateValues = {
+    nextLevel: Math.min(config.curve.maxLevel, result.newLevel + 1),
+    bar: progressBar(stats.neededXp ? stats.progressRatio : 1),
+    progressXp: number(stats.progressXp),
+    neededXp: number(stats.neededXp),
+    totalXp: number(stats.xp),
+  };
   const content = [
-    `## \u2726 Level ${result.newLevel} reached`,
-    announcementText(config.announcements.message, message, result.newLevel),
+    `## ${announcementText(config.announcements.title, message, result.newLevel, templateValues)}`,
+    announcementText(config.announcements.message, message, result.newLevel, templateValues),
     '',
-    stats.neededXp
-      ? `\`${progressBar(stats.progressRatio)}\` ${number(stats.progressXp)} / ${number(stats.neededXp)} XP toward level ${result.newLevel + 1}`
-      : `\`${progressBar(1)}\` Maximum level reached`,
+    announcementText(config.announcements.progress, message, result.newLevel, templateValues),
   ].join('\n');
   const payload = levelUpAnnouncementPayload(content, config);
   payload.allowedMentions.users = [message.author.id];
@@ -543,6 +557,7 @@ module.exports = {
   COMPONENTS_V2_FLAG,
   DATA_PATH,
   LEVELING_COMMANDS,
+  announcementText,
   applyXpToRecord,
   buildLevelPayload,
   flushLevelingState,
