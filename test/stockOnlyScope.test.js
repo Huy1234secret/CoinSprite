@@ -17,6 +17,17 @@ test('bot startup loads only GAG stock and owner-panel services', () => {
   }
 });
 
+test('bot registers only the GAG stock setup command and clears legacy guild commands', () => {
+  const source = read('index.js');
+  assert.match(source, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
+  assert.match(source, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
+  assert.match(source, /client\.application\.commands\.set\(\[STOCK_SETUP_COMMAND\]\)/);
+  assert.match(source, /guild\.commands\.set\(\[\]\)/);
+  assert.match(source, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
+  assert.match(source, /Dashboard: \$\{dashboardBaseUrl\(\)\}\/admin/);
+  assert.doesNotMatch(source, /commandsPath|client\.commands|commands\.set\(slashCommands\)/);
+});
+
 test('dashboard exposes one focused stylesheet and script', () => {
   const html = read('admin/index.html');
   assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 1);
