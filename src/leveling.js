@@ -66,7 +66,10 @@ function safeColor(value, fallback) {
 }
 
 function safeCardMediaUrl(value, userId) {
-  const url = String(value || '').trim();
+  let url = String(value || '').trim();
+  try {
+    if (url.startsWith('http')) url = new URL(url).pathname;
+  } catch {}
   const match = url.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
   return match && match[1] === String(userId) ? url : '';
 }
@@ -693,20 +696,21 @@ async function drawCanvasDisplayName(context, value, x, y, options = {}) {
   const requestedSize = Math.max(10, Number(options.size) || 30);
   let textX = x;
   let maximumWidth = Math.max(30, Number(options.maximumWidth) || 500);
+  const isTop = context.textBaseline === 'top';
   if (parts.flag) {
     const flagHeight = Math.round(requestedSize * .9);
     const flagWidth = Math.round(flagHeight * 1.33);
     const image = await loadFlagEmoji(parts.flag);
-    if (image) context.drawImage(image, x, y + Math.round((requestedSize - flagHeight) / 2), flagWidth, flagHeight);
+    if (image) context.drawImage(image, x, y + (isTop ? 0 : -requestedSize * .8) + Math.round((requestedSize - flagHeight) / 2), flagWidth, flagHeight);
     else {
       const previousFill = context.fillStyle;
       context.fillStyle = '#263129';
-      roundedRect(context, x, y + 2, flagWidth, Math.max(18, flagHeight - 2), 6);
+      roundedRect(context, x, y + (isTop ? 2 : -requestedSize * .8 + 2), flagWidth, Math.max(18, flagHeight - 2), 6);
       context.fill();
       context.fillStyle = previousFill;
       context.textAlign = 'center';
       context.font = `bold ${Math.max(10, Math.round(requestedSize * .38))}px ${CANVAS_FONT_FAMILY}`;
-      context.fillText(parts.countryCode, x + flagWidth / 2, y + requestedSize * .68);
+      context.fillText(parts.countryCode, x + flagWidth / 2, y + (isTop ? 0 : -requestedSize * .8) + requestedSize * .68);
       context.textAlign = 'left';
     }
     textX += flagWidth + 10;
@@ -714,7 +718,7 @@ async function drawCanvasDisplayName(context, value, x, y, options = {}) {
   }
   if (!parts.text) return;
   const fitted = fitCanvasText(context, parts.text, { ...options, maximumWidth });
-  context.fillText(fitted.text, textX, y + fitted.size);
+  context.fillText(fitted.text, textX, isTop ? y : y + fitted.size);
 }
 
 const PODIUM_COLORS = Object.freeze({
@@ -898,6 +902,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   }
   context.restore();
 
+  context.textBaseline = 'top';
   context.textAlign = 'left';
   context.fillStyle = design.username.color;
   await drawCanvasDisplayName(context, user?.displayName || user?.globalName || user?.username, design.username.x, design.username.y, {
@@ -907,11 +912,11 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   });
   context.fillStyle = design.level.color;
   context.font = `bold ${design.level.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`LEVEL ${number(stats.level)}`, design.level.x, design.level.y + design.level.size);
+  context.fillText(`LEVEL ${number(stats.level)}`, design.level.x, design.level.y);
   context.textAlign = 'right';
   context.fillStyle = design.rank.color;
   context.font = `bold ${design.rank.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`#${number(stats.rank)}`, design.rank.x, design.rank.y + design.rank.size);
+  context.fillText(`#${number(stats.rank)}`, design.rank.x, design.rank.y);
 
   roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
   context.fillStyle = design.progress.trackColor;
@@ -926,7 +931,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.fillStyle = design.xp.color;
   context.font = `${design.xp.size}px ${CANVAS_FONT_FAMILY}`;
   const xpLabel = stats.neededXp ? `${number(stats.progressXp)} / ${number(stats.neededXp)} XP` : `${number(stats.xp)} XP - MAX LEVEL`;
-  context.fillText(xpLabel, design.xp.x, design.xp.y + design.xp.size);
+  context.fillText(xpLabel, design.xp.x, design.xp.y);
 
   for (const layer of design.layers) {
     if (layer.type === 'image') {
@@ -942,7 +947,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
         minimum: 10,
         maximumWidth: Math.min(1000 - layer.x, layer.width),
       });
-      context.fillText(fittedLayer.text, layer.x, layer.y + fittedLayer.size);
+      context.fillText(fittedLayer.text, layer.x, layer.y);
     }
   }
   context.restore();
