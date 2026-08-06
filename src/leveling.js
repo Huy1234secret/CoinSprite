@@ -50,7 +50,33 @@ const DEFAULT_LEVEL_CARD_DESIGN = Object.freeze({
   progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33' },
   layers: [],
 });
+// Add near top of src/leveling.js (after canvas imports)
 
+/**
+ * Draws background image with 'cover' scaling (centered and aspect ratio preserved)
+ */
+function drawCoverImage(ctx, img, x, y, targetWidth, targetHeight) {
+  const imgRatio = img.width / img.height;
+  const targetRatio = targetWidth / targetHeight;
+
+  let sx, sy, sWidth, sHeight;
+
+  if (imgRatio > targetRatio) {
+    // Image is wider than target: crop left & right
+    sHeight = img.height;
+    sWidth = img.height * targetRatio;
+    sx = (img.width - sWidth) / 2;
+    sy = 0;
+  } else {
+    // Image is taller than target: crop top & bottom
+    sWidth = img.width;
+    sHeight = img.width / targetRatio;
+    sx = 0;
+    sy = (img.height - sHeight) / 2;
+  }
+
+  ctx.drawImage(img, sx, sy, sWidth, sHeight, x, y, targetWidth, targetHeight);
+}
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
