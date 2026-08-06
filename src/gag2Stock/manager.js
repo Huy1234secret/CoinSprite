@@ -395,7 +395,7 @@ function sellFilterBucket(entry) {
 function filterSellEntry(entry, filters = {}) {
   const rarities = selectedFilterValues(filters, ['rarities', 'sell'], GAG2_SELL_FILTER_RARITIES);
   const multipliers = selectedFilterValues(filters, ['sellMultipliers'], GAG2_SELL_MULTIPLIERS);
-  const fallMultipliers = selectedFilterValues(filters, ['fall', 'sellMultipliers'], ['2x', '4x']);
+  const fallMultipliers = selectedFilterValues(filters, ['fall', 'sellMultipliers'], GAG2_SELL_MULTIPLIERS);
   const includeUnknownRarity = rarities.size === GAG2_SELL_FILTER_RARITIES.length;
   const filterEntries = (items, catalogType) => (items || []).filter((item) => {
     const rarity = normalizeRarity(rarityForType(catalogType, item));

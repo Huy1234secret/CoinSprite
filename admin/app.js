@@ -140,7 +140,7 @@
     source.fall ||= {};
     source.fall.enabledTypes ||= [];
     source.fall.roleItems ||= {};
-    source.fall.sellMultipliers ||= ['2x', '4x'];
+    source.fall.sellMultipliers ||= ['normal', '2x', '4x'];
     for (const type of ['seed', 'gear', 'crate']) source.filters.rarities[type] ||= RARITIES.filter((rarity) => rarity !== 'secret');
     source.filters.rarities.sell ||= [...RARITIES];
     return source;
@@ -280,7 +280,7 @@
       const selected = new Set(stock.fall.sellMultipliers || []);
       return `<article class="filter-card fall-role-card${enabled ? '' : ' is-disabled'}" data-fall-filter-card="sell">
         <div class="filter-card-head"><strong>Fall sell alerts</strong><span>Uses Garden Valley roles</span></div>
-        <div class="chip-row fall-multiplier-row">${['2x', '4x'].map((value) => `<label class="filter-chip"><input type="checkbox" data-fall-multiplier value="${value}" ${selected.has(value) ? 'checked' : ''} ${enabled ? '' : 'disabled'}><span>${value}</span></label>`).join('')}</div>
+        <div class="chip-row fall-multiplier-row">${['normal', '2x', '4x'].map((value) => `<label class="filter-chip"><input type="checkbox" data-fall-multiplier value="${value}" ${selected.has(value) ? 'checked' : ''} ${enabled ? '' : 'disabled'}><span>${value}</span></label>`).join('')}</div>
       </article>`;
     }
     const options = state.catalog.fallItems[type] || [];

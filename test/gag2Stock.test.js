@@ -615,7 +615,7 @@ test('GAG2 filters default to every supported rarity and sell multiplier', () =>
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.crate, GAG2_ROLE_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.rarities.sell, GAG2_SELL_FILTER_RARITIES);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.sellMultipliers, GAG2_SELL_MULTIPLIERS);
-  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.fall.sellMultipliers, ['2x', '4x']);
+  assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.fall.sellMultipliers, ['normal', '2x', '4x']);
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.seed, roleSpecsForType('seed').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.gear, roleSpecsForType('gear').map((spec) => spec.key));
   assert.deepEqual(DEFAULT_GAG2_STOCK_CONFIG.filters.roleItems.crate, roleSpecsForType('crate').map((spec) => spec.key));
@@ -654,7 +654,7 @@ test('GAG2 Fall Harvest config keeps valid event types and exact opt-in item rol
   assert.deepEqual(normalized.fall.enabledTypes, ['seed', 'sell']);
   assert.deepEqual(normalized.fall.roleItems.seed, ['maple_carrot', 'conifer_cone']);
   assert.equal(normalized.fall.roleItems.sell, undefined);
-  assert.deepEqual(normalized.fall.sellMultipliers, ['4x']);
+  assert.deepEqual(normalized.fall.sellMultipliers, ['normal', '4x']);
   assert.deepEqual(normalized.fall.roleItems.gear, []);
 });
 
@@ -1066,11 +1066,11 @@ test('GAG2 Garden Valley and Fall Harvest sell multipliers filter independently'
   }, {
     rarities: { sell: ['common'] },
     sellMultipliers: ['4x'],
-    fall: { sellMultipliers: ['2x'] },
+    fall: { sellMultipliers: ['normal'] },
   });
 
   assert.deepEqual(filtered.entries.map((entry) => entry.key), ['carrot']);
-  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['maple_apple']);
+  assert.deepEqual(filtered.fall.entries.map((entry) => entry.key), ['amber_cranberry']);
 });
 
 test('GAG2 disables Fall Harvest exactly at the October 1 UTC+7 deadline', () => {

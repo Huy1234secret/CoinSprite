@@ -14,7 +14,7 @@ const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, 'roleAssign', 'up
 const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
 const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
 const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
-const GAG2_FALL_SELL_MULTIPLIERS = ['2x', '4x'];
+const GAG2_FALL_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
