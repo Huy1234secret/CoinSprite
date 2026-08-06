@@ -305,8 +305,13 @@ async function syncRewardRoles(guild, userId, level, config = levelingConfig(gui
 }
 
 function announcementText(template, message, level, values = {}) {
+  let userProfile = '';
+  try {
+    userProfile = String(message.author?.displayAvatarURL?.({ extension: 'png', size: 256 }) || '');
+  } catch {}
   const tokens = {
     user: `<@${message.author.id}>`,
+    user_profile: userProfile,
     username: safeName(message.member?.displayName || message.author.username),
     level: String(level),
     next_level: String(values.nextLevel ?? level + 1),
@@ -328,6 +333,14 @@ function safeMediaUrl(value) {
   } catch {
     return '';
   }
+}
+
+function resolvedAnnouncementLayout(layout = {}, message, level, values = {}) {
+  return {
+    ...layout,
+    thumbnailUrl: announcementText(layout.thumbnailUrl, message, level, values),
+    galleryUrls: (layout.galleryUrls || []).map((url) => announcementText(url, message, level, values)),
+  };
 }
 
 function accentColorValue(value) {
@@ -409,13 +422,16 @@ async function announceLevelUp(message, result, config) {
     neededXp: number(stats.neededXp),
     totalXp: number(stats.xp),
   };
-  const content = [
-    `## ${announcementText(config.announcements.title, message, result.newLevel, templateValues)}`,
-    announcementText(config.announcements.message, message, result.newLevel, templateValues),
-    '',
-    announcementText(config.announcements.progress, message, result.newLevel, templateValues),
-  ].join('\n');
-  const payload = levelUpAnnouncementPayload(content, config);
+  const content = announcementText(config.announcements.template, message, result.newLevel, templateValues);
+  const layout = config.announcements?.layout || {};
+  const resolvedConfig = {
+    ...config,
+    announcements: {
+      ...config.announcements,
+      layout: resolvedAnnouncementLayout(layout, message, result.newLevel, templateValues),
+    },
+  };
+  const payload = levelUpAnnouncementPayload(content, resolvedConfig);
   payload.allowedMentions.users = [message.author.id];
   await channel.send(payload).catch((error) => logCommandSystem(`Level-up announcement failed in ${message.guildId}: ${error?.message || 'unknown error'}`));
 }
@@ -569,6 +585,7 @@ module.exports = {
   memberStats,
   processMessageXp,
   progressBar,
+  resolvedAnnouncementLayout,
   resetLevelingCache,
   sortedLeaderboard,
   xpThresholdForLevel,

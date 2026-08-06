@@ -1677,6 +1677,7 @@ test('GAG2 restores seed and gear cycle dedupe from recent Discord messages', as
       roleIds: {},
     };
     const payload = buildTypePayload(type, entry);
+    const logs = [];
     const existing = {
       id: '1525003375651848299',
       author: { id: '123456789012345678' },
@@ -1694,11 +1695,12 @@ test('GAG2 restores seed and gear cycle dedupe from recent Discord messages', as
     const poster = new Gag2StockPoster({
       user: { id: '123456789012345678' },
       channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
-    }, { now: () => now, statePath });
+    }, { logSystem: (message) => logs.push(message), now: () => now, statePath });
 
     await poster.postEntry({}, target, entry);
 
     assert.equal(sends, 0, `${type} is not reposted when Discord already has that restock cycle`);
+    assert.equal(logs.length, 0, `${type} duplicate suppression stays out of the owner console`);
     const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
     assert.equal(saved.posts[target.guildId][type].lastMessageId, existing.id);
     fs.rmSync(statePath, { force: true });
@@ -2155,7 +2157,7 @@ test('GAG2 keeps a shared weather outage silent across every destination', async
   fs.rmSync(statePath, { force: true });
 });
 
-test('GAG2 identifies channel permission overrides and stops only the failed stock after five checks', async () => {
+test('GAG2 pauses only the failed destination and reports an unchanged permission issue once', async () => {
   const logs = [];
   let sends = 0;
   const allPostingPermissions = testPermissions(
@@ -2187,7 +2189,6 @@ test('GAG2 identifies channel permission overrides and stops only the failed sto
     channels: { cache: channels, fetch: async (id) => channels.get(id) || null },
   }, {
     logSystem: (message) => logs.push(message),
-    postPermissionRetryMs: 5_000,
   });
   const target = {
     guildId: '1526432156421980180',
@@ -2201,10 +2202,11 @@ test('GAG2 identifies channel permission overrides and stops only the failed sto
   for (let check = 0; check < 6; check += 1) await poster.postEntry(state, target, entry);
 
   assert.equal(sends, 0);
-  assert.equal(logs.length, 5, 'the sixth attempt is suppressed for the same stock');
-  assert.match(logs[0], /permission check 1\/5 failed/);
+  assert.equal(logs.length, 1, 'the same broken destination is reported once');
+  assert.match(logs[0], /posting paused/);
   assert.match(logs[0], /Missing channel\/category permissions in #gag2-weather \(152643215642198019\): Send Messages/);
-  assert.match(logs[4], /Stopping only this seed announcement after 5 checks/);
+  assert.match(logs[0], /Only this destination is skipped until its permissions are restored/);
+  assert.equal(poster.nextDelayOverrideMs, null, 'one bad destination does not retry every stock channel');
 
   const nextEntry = {
     ...entry,
@@ -2213,8 +2215,7 @@ test('GAG2 identifies channel permission overrides and stops only the failed sto
     items: entry.items.map((item, index) => index ? item : { ...item, quantity: item.quantity + 1 }),
   };
   await poster.postEntry(state, target, nextEntry);
-  assert.equal(logs.length, 6, 'a new stock receives a fresh five-check allowance');
-  assert.match(logs[5], /permission check 1\/5 failed/);
+  assert.equal(logs.length, 1, 'the same permission problem remains quiet on later stock cycles');
 });
 
 test('GAG2 distinguishes server role permissions from channel overrides', () => {

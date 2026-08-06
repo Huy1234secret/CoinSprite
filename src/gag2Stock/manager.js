@@ -63,8 +63,6 @@ const ROLE_TYPES = Object.freeze([...STOCK_TYPES, ...Object.values(FALL_ROLE_TYP
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_STOCK_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
-const POST_PERMISSION_CHECK_LIMIT = 5;
-const POST_PERMISSION_RETRY_MS = 5 * 1000;
 const RECENT_UNAVAILABLE_CLEANUP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
 
 const POST_PERMISSION_LABELS = Object.freeze([
@@ -702,8 +700,6 @@ class Gag2StockPoster {
     this.now = options.now || (() => Date.now());
     this.statePath = options.statePath || STATE_PATH;
     this.logSystem = options.logSystem || logCommandSystem;
-    this.postPermissionCheckLimit = Math.max(1, Number(options.postPermissionCheckLimit) || POST_PERMISSION_CHECK_LIMIT);
-    this.postPermissionRetryMs = Math.max(1_000, Number(options.postPermissionRetryMs) || POST_PERMISSION_RETRY_MS);
     this.broadcastConcurrency = normalizeConcurrency(
       options.broadcastConcurrency,
       DEFAULT_GAG2_BROADCAST_CONCURRENCY,
@@ -916,19 +912,7 @@ class Gag2StockPoster {
 
   postPermissionStopped(target, postKey) {
     const record = this.postPermissionFailures.get(this.postPermissionFailureKey(target));
-    return record?.postKey === postKey && record.checks >= this.postPermissionCheckLimit;
-  }
-
-  schedulePostPermissionRetry(target) {
-    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
-      this.nextDelayOverrideMs = Number.isFinite(this.nextDelayOverrideMs)
-        ? Math.min(this.nextDelayOverrideMs, this.postPermissionRetryMs)
-        : this.postPermissionRetryMs;
-    } else if (target.type === 'sell') {
-      this.nextSellDelayOverrideMs = Number.isFinite(this.nextSellDelayOverrideMs)
-        ? Math.min(this.nextSellDelayOverrideMs, this.postPermissionRetryMs)
-        : this.postPermissionRetryMs;
-    }
+    return record?.postKey === postKey;
   }
 
   async postPermissionDiagnostic(channel, target, options = {}) {
@@ -942,13 +926,6 @@ class Gag2StockPoster {
   recordPostPermissionFailure(target, postKey, diagnostic, channel = null) {
     const key = this.postPermissionFailureKey(target);
     const previous = this.postPermissionFailures.get(key);
-    const record = previous?.postKey === postKey
-      ? previous
-      : { postKey, checks: 0 };
-    if (record.checks >= this.postPermissionCheckLimit) return null;
-    record.checks += 1;
-    this.postPermissionFailures.set(key, record);
-
     const channelName = String(channel?.name || '').trim();
     const location = channelName ? `#${channelName} (${target.channelId})` : `channel ${target.channelId}`;
     const guildName = String(channel?.guild?.name || '').trim();
@@ -958,15 +935,14 @@ class Gag2StockPoster {
     if (diagnostic?.channel?.length) details.push(`Missing channel/category permissions in ${location}: ${diagnostic.channel.join(', ')}`);
     if (diagnostic?.unknown?.length) details.push(diagnostic.unknown.join(', '));
     if (!details.length) details.push('Discord returned Missing Permissions (50013)');
-    const stopped = record.checks >= this.postPermissionCheckLimit;
-    const nextAction = stopped
-      ? `Stopping only this ${target.type} announcement after ${record.checks} checks; the next stock/event gets a fresh ${this.postPermissionCheckLimit} checks.`
-      : `Retrying this announcement in ${Math.round(this.postPermissionRetryMs / 1_000)} seconds.`;
-    this.logSystem(
-      `GAG2 ${target.type} permission check ${record.checks}/${this.postPermissionCheckLimit} failed for guild ${guildLocation}. `
-      + `${details.join('. ')}. ${nextAction}`,
-    );
-    if (!stopped) this.schedulePostPermissionRetry(target);
+    const diagnosticKey = details.join('|');
+    this.postPermissionFailures.set(key, { postKey, diagnosticKey, reported: true });
+    if (previous?.diagnosticKey !== diagnosticKey) {
+      this.logSystem(
+        `GAG2 ${target.type} posting paused for guild ${guildLocation}. `
+        + `${details.join('. ')}. Only this destination is skipped until its permissions are restored.`,
+      );
+    }
     return null;
   }
 
@@ -975,7 +951,7 @@ class Gag2StockPoster {
     const record = this.postPermissionFailures.get(key);
     if (!record) return;
     this.postPermissionFailures.delete(key);
-    if (record.postKey !== postKey || !record.checks) return;
+    if (record.postKey !== postKey || !record.reported) return;
     const channelName = String(channel?.name || '').trim();
     const location = channelName ? `#${channelName} (${target.channelId})` : `channel ${target.channelId}`;
     const guildName = String(channel?.guild?.name || '').trim();
@@ -1111,7 +1087,6 @@ class Gag2StockPoster {
       if (incomingNextRestockAtMs !== null
         && lastNextRestockAtMs !== null
         && incomingNextRestockAtMs <= lastNextRestockAtMs) {
-        logCommandSystem(`GAG2 ${target.type} same or stale cycle suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }
@@ -1126,11 +1101,9 @@ class Gag2StockPoster {
     }
     if (target.type === 'sell') {
       if (sellEntryIsOlderThanBucket(bucket, entry)) {
-        logCommandSystem(`GAG2 sell stale snapshot suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
       if (sellEntryIsSameOrOlderCycle(bucket, entry) && recentSellPostKeys(bucket).includes(postKey)) {
-        logCommandSystem(`GAG2 sell replay suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }
@@ -1181,7 +1154,6 @@ class Gag2StockPoster {
         updateStockPostMetadata(bucket, entry, latestCycle.nextRestockAtMs);
         saveState(state, this.statePath);
         this.clearPostPermissionFailure(target, postKey, channel);
-        logCommandSystem(`GAG2 ${target.type} recent same or newer cycle suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }
@@ -1201,7 +1173,6 @@ class Gag2StockPoster {
         }
         saveState(state, this.statePath);
         this.clearPostPermissionFailure(target, postKey, channel);
-        logCommandSystem(`GAG2 sell recent duplicate suppressed in ${target.channelId}: ${postKey}`);
         return null;
       }
     }

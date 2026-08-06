@@ -22,9 +22,7 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   announcements: Object.freeze({
     enabled: false,
     channelId: '',
-    title: '✦ Level {level} reached',
-    message: 'GG {user}! You reached level {level}.',
-    progress: '`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}',
+    template: '## ✦ Level {level} reached\nGG {user}! You reached level {level}.\n\n`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}',
     layout: Object.freeze({
       container: true,
       accentColor: '#b9f547',
@@ -203,6 +201,11 @@ function cleanWebUrl(value) {
   }
 }
 
+function cleanLevelingMediaUrl(value) {
+  const text = String(value || '').trim();
+  return text.toLowerCase() === '{user_profile}' ? '{user_profile}' : cleanWebUrl(text);
+}
+
 function cleanHexColor(value, fallback = '#b9f547') {
   const text = String(value || '').trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(text) ? text : fallback;
@@ -239,15 +242,17 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     .filter((boost) => boost.roleId)
     .filter((boost, index, boosts) => index === boosts.findIndex((candidate) => candidate.roleId === boost.roleId))
     .slice(0, 100);
-  const title = String(source.announcements?.title || defaults.announcements.title)
+  const legacyTemplate = [
+    `## ${String(source.announcements?.title || '✦ Level {level} reached').trim()}`,
+    String(source.announcements?.message || 'GG {user}! You reached level {level}.').trim(),
+    '',
+    String(source.announcements?.progress || '`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}').trim(),
+  ].join('\n');
+  const hasLegacyTemplate = ['title', 'message', 'progress']
+    .some((field) => source.announcements?.[field] !== undefined);
+  const template = String(source.announcements?.template || (hasLegacyTemplate ? legacyTemplate : defaults.announcements.template))
     .trim()
-    .slice(0, 250) || defaults.announcements.title;
-  const message = String(source.announcements?.message || defaults.announcements.message)
-    .trim()
-    .slice(0, 2000) || defaults.announcements.message;
-  const progress = String(source.announcements?.progress || defaults.announcements.progress)
-    .trim()
-    .slice(0, 500) || defaults.announcements.progress;
+    .slice(0, 3000) || defaults.announcements.template;
   const layoutSource = isObject(source.announcements?.layout) ? source.announcements.layout : {};
   const layoutDefaults = defaults.announcements.layout || DEFAULT_LEVELING_CONFIG.announcements.layout;
   return {
@@ -267,16 +272,14 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         ? defaults.announcements.enabled !== false
         : source.announcements.enabled !== false,
       channelId: cleanId(source.announcements?.channelId),
-      title,
-      message,
-      progress,
+      template,
       layout: {
         container: layoutSource.container === undefined ? layoutDefaults.container !== false : layoutSource.container !== false,
         accentColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor),
         thumbnailEnabled: layoutSource.thumbnailEnabled === true,
-        thumbnailUrl: cleanWebUrl(layoutSource.thumbnailUrl),
+        thumbnailUrl: cleanLevelingMediaUrl(layoutSource.thumbnailUrl),
         galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
-          .map(cleanWebUrl).filter(Boolean))].slice(0, 10),
+          .map(cleanLevelingMediaUrl).filter(Boolean))].slice(0, 10),
       },
     },
     channelMultipliers,

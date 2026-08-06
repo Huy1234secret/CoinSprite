@@ -15,6 +15,7 @@ const {
   levelUpAnnouncementPayload,
   levelForXp,
   progressBar,
+  resolvedAnnouncementLayout,
   xpThresholdForLevel,
   xpMultiplierForMessage,
 } = require('../src/leveling');
@@ -26,15 +27,13 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
     xp: { min: -5, max: 9999, cooldownSeconds: 1 },
     curve: { baseXp: 5, growth: 9, maxLevel: 50 },
     announcements: {
-      title: '  ✨ Level {level}  ',
-      message: '  Welcome {user} to level {level}!  ',
-      progress: '  `{bar}` {progress_xp}/{needed_xp} → {next_level}  ',
+      template: '## ✨ Level {level}\nWelcome {user} to level {level}!\n\n`{bar}` {progress_xp}/{needed_xp} → {next_level}',
       layout: {
         container: true,
         accentColor: '#FF00AA',
         thumbnailEnabled: true,
-        thumbnailUrl: 'javascript:alert(1)',
-        galleryUrls: ['https://example.com/one.png', 'not-a-url'],
+        thumbnailUrl: '{user_profile}',
+        galleryUrls: ['https://example.com/one.png', '{user_profile}', 'not-a-url'],
       },
     },
     channelMultipliers: { '123456789012345678': -2, bad: 4, '123456789012345679': 99 },
@@ -51,13 +50,11 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
   });
   assert.deepEqual(config.xp, { min: 1, max: 2000, cooldownSeconds: 5 });
   assert.deepEqual(config.curve, { baseXp: 25, growth: 3, maxLevel: 50 });
-  assert.equal(config.announcements.message, 'Welcome {user} to level {level}!');
-  assert.equal(config.announcements.title, '✨ Level {level}');
-  assert.equal(config.announcements.progress, '`{bar}` {progress_xp}/{needed_xp} → {next_level}');
+  assert.equal(config.announcements.template, '## ✨ Level {level}\nWelcome {user} to level {level}!\n\n`{bar}` {progress_xp}/{needed_xp} → {next_level}');
   assert.deepEqual(config.channelMultipliers, { '123456789012345678': 0, '123456789012345679': 10 });
   assert.equal(config.announcements.layout.accentColor, '#ff00aa');
-  assert.equal(config.announcements.layout.thumbnailUrl, '');
-  assert.deepEqual(config.announcements.layout.galleryUrls, ['https://example.com/one.png']);
+  assert.equal(config.announcements.layout.thumbnailUrl, '{user_profile}');
+  assert.deepEqual(config.announcements.layout.galleryUrls, ['https://example.com/one.png', '{user_profile}']);
   assert.deepEqual(config.roleRewards, [
     { level: 10, roleId: '223456789012345678' },
     { level: 25, roleId: '423456789012345678' },
@@ -70,20 +67,51 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
 
 test('level-up templates replace title, member, and XP progress variables', () => {
   const message = {
-    author: { id: '123456789012345678', username: 'GardenHero' },
+    author: {
+      id: '123456789012345678',
+      username: 'GardenHero',
+      displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/123/avatar.png',
+    },
     member: { displayName: 'Garden Hero' },
     guild: { name: 'Grow a Garden' },
   };
   assert.equal(
-    announcementText('{user} • {username} • {level} • {next_level} • {server} • `{bar}` {progress_xp}/{needed_xp} • {total_xp}', message, 12, {
+    announcementText('{user} • {user_profile} • {username} • {level} • {next_level} • {server} • `{bar}` {progress_xp}/{needed_xp} • {total_xp}', message, 12, {
       nextLevel: 13,
       bar: '■■□□',
       progressXp: '280',
       neededXp: '420',
       totalXp: '3,160',
     }),
-    '<@123456789012345678> • Garden Hero • 12 • 13 • Grow a Garden • `■■□□` 280/420 • 3,160',
+    '<@123456789012345678> • https://cdn.discordapp.com/avatars/123/avatar.png • Garden Hero • 12 • 13 • Grow a Garden • `■■□□` 280/420 • 3,160',
   );
+  assert.deepEqual(
+    resolvedAnnouncementLayout({
+      thumbnailUrl: '{user_profile}',
+      galleryUrls: ['{user_profile}', 'https://example.com/static.png'],
+    }, message, 12),
+    {
+      thumbnailUrl: 'https://cdn.discordapp.com/avatars/123/avatar.png',
+      galleryUrls: ['https://cdn.discordapp.com/avatars/123/avatar.png', 'https://example.com/static.png'],
+    },
+  );
+});
+
+test('legacy three-field announcements migrate into the unified editor template', () => {
+  const config = normalizeLevelingConfig({
+    announcements: {
+      title: 'Old title {level}',
+      message: 'Old message for {user}',
+      progress: 'Old progress {progress_xp}/{needed_xp}',
+    },
+  });
+  assert.equal(
+    config.announcements.template,
+    '## Old title {level}\nOld message for {user}\n\nOld progress {progress_xp}/{needed_xp}',
+  );
+  assert.equal(config.announcements.title, undefined);
+  assert.equal(config.announcements.message, undefined);
+  assert.equal(config.announcements.progress, undefined);
 });
 
 test('leveling image upload accepts real image bytes and rejects disguised files', () => {
