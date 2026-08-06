@@ -589,6 +589,34 @@ function saveLevelCardDesign(userId, value) {
   const design = normalizeLevelCardDesign(value, id);
   getState().profiles[id] = { design, updatedAt: Date.now() };
   flushLevelingState();
+
+  try {
+    const directory = path.join(LEVEL_CARD_MEDIA_DIR, id);
+    if (fs.existsSync(directory)) {
+      const usedImages = new Set();
+      if (design.background?.imageUrl) {
+        const bgMatch = design.background.imageUrl.match(/\/([a-f0-9]{32}\.(?:png|jpg|webp))$/);
+        if (bgMatch) usedImages.add(bgMatch[1]);
+      }
+      for (const layer of design.layers || []) {
+        if (layer.type === 'image' && layer.imageUrl) {
+          const layerMatch = layer.imageUrl.match(/\/([a-f0-9]{32}\.(?:png|jpg|webp))$/);
+          if (layerMatch) usedImages.add(layerMatch[1]);
+        }
+      }
+      const files = fs.readdirSync(directory);
+      for (const file of files) {
+        if (!usedImages.has(file)) {
+          try {
+            fs.unlinkSync(path.join(directory, file));
+          } catch {}
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to cleanup level card media:', error);
+  }
+
   return design;
 }
 
