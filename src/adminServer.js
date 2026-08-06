@@ -322,6 +322,8 @@ async function fetchGuildDirectory(guild, force = false) {
     ['Manage Roles', PermissionFlagsBits.ManageRoles],
     ['View Channels', PermissionFlagsBits.ViewChannel],
     ['Send Messages', PermissionFlagsBits.SendMessages],
+    ['Read Message History', PermissionFlagsBits.ReadMessageHistory],
+    ['Use External Emojis', PermissionFlagsBits.UseExternalEmojis],
   ];
   const missing = required.filter(([, flag]) => !botMember?.permissions?.has?.(flag)).map(([label]) => label);
 

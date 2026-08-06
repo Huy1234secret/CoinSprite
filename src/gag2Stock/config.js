@@ -18,7 +18,10 @@ const CHECK_SCHEDULE_SECOND_MS = 500;
 const CHECK_SCHEDULE_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 const WEATHER_CHECK_INTERVAL_MS = 5_000;
 const STOCK_FAILURE_RETRY_MS = 1_000;
-const STOCK_FAILURE_RETRY_LIMIT = 3;
+// The upstream restock snapshot can take several seconds to roll over after a
+// five-minute boundary. Keep retrying the boundary briefly instead of posting
+// the previous cycle or giving up before the fresh snapshot arrives.
+const STOCK_FAILURE_RETRY_LIMIT = 12;
 const SELL_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const SELL_CHECK_SCHEDULE_SECOND_MS = 0;
 // Sell retries stay short and bounded when a boundary returns an old or

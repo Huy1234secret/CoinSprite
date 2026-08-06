@@ -62,6 +62,7 @@ const WEATHER_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.weather]);
 const SELL_POST_TYPES = Object.freeze([...STOCK_TYPE_GROUPS.sell]);
 const ROLE_TYPES = Object.freeze([...STOCK_TYPES, ...Object.values(FALL_ROLE_TYPES)]);
 const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
+const RECENT_STOCK_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
 const SOURCE_FAILURE_LOG_INTERVAL_MS = 60 * 1000;
 const POST_PERMISSION_CHECK_LIMIT = 5;
@@ -103,7 +104,9 @@ function requiredPostPermissionFlags(channel, type, options = {}) {
     thread ? PermissionFlagsBits.SendMessagesInThreads : PermissionFlagsBits.SendMessages,
   ];
   if (options.useExternalEmojis !== false) flags.push(PermissionFlagsBits.UseExternalEmojis);
-  if (options.requireHistory !== false && (type === 'moon' || type === 'sell')) flags.push(PermissionFlagsBits.ReadMessageHistory);
+  if (options.requireHistory !== false && (STOCK_TYPE_GROUPS.stock.includes(type) || type === 'moon' || type === 'sell')) {
+    flags.push(PermissionFlagsBits.ReadMessageHistory);
+  }
   return flags;
 }
 
@@ -308,6 +311,70 @@ async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowM
     if (componentFingerprint(message?.components) === expected) return message;
   }
   return null;
+}
+
+function stockNextRestockAtMs(entry) {
+  const nextAtMs = timestampMs(entry?.nextRestockAtMs);
+  if (nextAtMs !== null) return nextAtMs;
+  const restockedAtMs = timestampMs(entry?.restockedAtMs);
+  return restockedAtMs === null ? null : restockedAtMs + CHECK_INTERVAL_MS;
+}
+
+function stockMessageNextRestockAtMs(message) {
+  const text = (Array.isArray(message?.components) ? message.components : [])
+    .map(componentText)
+    .join('\n');
+  const match = text.match(/\bRestock\s+<t:(\d+):[A-Za-z]>/i);
+  return match ? Number(match[1]) * 1000 : null;
+}
+
+function messageCreatedAtMs(message) {
+  const createdAtMs = Number(message?.createdTimestamp);
+  if (Number.isFinite(createdAtMs)) return createdAtMs;
+  try {
+    return Number(BigInt(String(message?.id || '0')) >> 22n) + 1420070400000;
+  } catch {
+    return 0;
+  }
+}
+
+async function findRecentStockCycleMessages(channel, clientUserId, entry, nowMs = Date.now()) {
+  if (typeof channel?.messages?.fetch !== 'function') return [];
+  const messages = await channel.messages.fetch({ limit: 25 }).catch(() => null);
+  if (!messages || typeof messages.values !== 'function') return [];
+  const expectedHeader = `## GAG2 ${entry?.label || ''}`;
+  const result = [];
+  for (const message of messages.values()) {
+    const ownMessage = clientUserId
+      ? message?.author?.id === clientUserId
+      : message?.author?.bot === true;
+    if (!ownMessage) continue;
+    const createdAtMs = messageCreatedAtMs(message);
+    if (createdAtMs && createdAtMs < nowMs - RECENT_STOCK_DEDUPE_WINDOW_MS) continue;
+    const text = (Array.isArray(message?.components) ? message.components : [])
+      .map(componentText)
+      .join('\n');
+    if (!text.includes(expectedHeader)) continue;
+    const nextRestockAtMs = stockMessageNextRestockAtMs(message);
+    if (!Number.isFinite(nextRestockAtMs)) continue;
+    result.push({ message, nextRestockAtMs, createdAtMs });
+  }
+  return result.sort((left, right) => right.nextRestockAtMs - left.nextRestockAtMs
+    || right.createdAtMs - left.createdAtMs
+    || String(right.message?.id || '').localeCompare(String(left.message?.id || '')));
+}
+
+async function removeDuplicateStockCycleMessages(matches, keeper) {
+  const duplicates = matches.filter((match) => match.message?.id !== keeper?.message?.id
+    && typeof match.message?.delete === 'function');
+  const results = await Promise.allSettled(duplicates.map((match) => match.message.delete()));
+  return results.filter((result) => result.status === 'fulfilled').length;
+}
+
+function updateStockPostMetadata(bucket, entry, nextRestockAtMs = stockNextRestockAtMs(entry)) {
+  if (Number.isFinite(nextRestockAtMs)) bucket.lastStockNextRestockAtMs = nextRestockAtMs;
+  const restockedAtMs = timestampMs(entry?.restockedAtMs);
+  if (restockedAtMs !== null) bucket.lastStockRestockedAtMs = restockedAtMs;
 }
 
 function componentText(component) {
@@ -1028,6 +1095,14 @@ class Gag2StockPoster {
             return null;
           }
         }
+        if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+          const staleMain = isApiRefreshDue(target.type, entry, tickStartedAtMs);
+          const staleFall = entry.fall && isApiRefreshDue(target.type, entry.fall, tickStartedAtMs);
+          if (staleMain || staleFall) {
+            this.nextDelayOverrideMs = this.stockFailureRetryMs;
+            return null;
+          }
+        }
         if (resetUnavailableFailures(state, target, tickStartedAtMs)) saveState(state, this.statePath);
         return this.postEntry(state, target, entry).catch((postError) => {
           logCommandSystem(`GAG2 ${target.type} post failed in guild ${target.guildId}: ${postError?.message || 'unknown error'}`);
@@ -1063,6 +1138,16 @@ class Gag2StockPoster {
     if (STOCK_TYPE_GROUPS.stock.includes(target.type)) state = loadState(this.statePath);
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+      const incomingNextRestockAtMs = stockNextRestockAtMs(entry);
+      const lastNextRestockAtMs = timestampMs(bucket.lastStockNextRestockAtMs);
+      if (incomingNextRestockAtMs !== null
+        && lastNextRestockAtMs !== null
+        && incomingNextRestockAtMs <= lastNextRestockAtMs) {
+        logCommandSystem(`GAG2 ${target.type} same or stale cycle suppressed in ${target.channelId}: ${postKey}`);
+        return null;
+      }
+    }
     if (target.type === 'weather' && isInactiveWeatherEntry(entry, this.now())) {
       if (bucket.lastPostedKey) {
         this.clearPostPermissionFailure(target, bucket.lastPostedKey);
@@ -1109,6 +1194,30 @@ class Gag2StockPoster {
       fallRoleIds: target.fallRoleIds,
     });
     const payload = payloads[0];
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+      const incomingNextRestockAtMs = stockNextRestockAtMs(entry);
+      const recentCycles = await findRecentStockCycleMessages(channel, this.client?.user?.id, entry, this.now());
+      const latestCycle = recentCycles[0];
+      if (incomingNextRestockAtMs !== null
+        && latestCycle
+        && latestCycle.nextRestockAtMs >= incomingNextRestockAtMs) {
+        const sameCycle = recentCycles.filter((match) => match.nextRestockAtMs === latestCycle.nextRestockAtMs);
+        await removeDuplicateStockCycleMessages(sameCycle, latestCycle);
+        Object.assign(bucket, {
+          channelId: target.channelId,
+          lastMessageId: latestCycle.message?.id || null,
+          lastPostedAt: new Date(latestCycle.createdAtMs || this.now()).toISOString(),
+          lastPostedKey: latestCycle.nextRestockAtMs === incomingNextRestockAtMs
+            ? postKey
+            : (bucket.lastPostedKey || null),
+        });
+        updateStockPostMetadata(bucket, entry, latestCycle.nextRestockAtMs);
+        saveState(state, this.statePath);
+        this.clearPostPermissionFailure(target, postKey, channel);
+        logCommandSystem(`GAG2 ${target.type} recent same or newer cycle suppressed in ${target.channelId}: ${postKey}`);
+        return null;
+      }
+    }
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
       const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
       if (existing) {
@@ -1170,6 +1279,19 @@ class Gag2StockPoster {
         throw error;
       }
     }
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
+      const incomingNextRestockAtMs = stockNextRestockAtMs(entry);
+      if (incomingNextRestockAtMs !== null) {
+        const sameCycle = (await findRecentStockCycleMessages(channel, this.client?.user?.id, entry, this.now()))
+          .filter((match) => match.nextRestockAtMs === incomingNextRestockAtMs);
+        if (sameCycle.length) {
+          const keeper = sameCycle[0];
+          const removed = await removeDuplicateStockCycleMessages(sameCycle, keeper);
+          message = keeper.message || message;
+          if (removed) logCommandSystem(`GAG2 removed ${removed} duplicate ${target.type} announcement${removed === 1 ? '' : 's'} in ${target.channelId}.`);
+        }
+      }
+    }
     if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
       rememberSellPostKey(bucket, bucket.lastPostedKey);
     }
@@ -1183,6 +1305,7 @@ class Gag2StockPoster {
       lastPostedAt: new Date(this.now()).toISOString(),
       lastPostedKey: postKey,
     });
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) updateStockPostMetadata(bucket, entry);
     if (target.type === 'sell') updateSellPostMetadata(bucket, entry);
     saveState(state, this.statePath);
     this.clearPostPermissionFailure(target, postKey, channel);
