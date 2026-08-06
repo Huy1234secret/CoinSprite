@@ -37,6 +37,7 @@ function blankState() {
 
 const DEFAULT_LEVEL_CARD_DESIGN = Object.freeze({
   background: { color: '#111814', imageUrl: '', x: 0, y: 0, scale: 1 },
+  panelOpacity: 0.85,
   colors: {
     surface: '#18201b', accent: '#b9f547', text: '#f4f7f2', muted: '#a3ada6',
     track: '#303a33', progress: '#b9f547',
@@ -89,6 +90,7 @@ function normalizeLevelCardDesign(value, userId) {
       y: clamp(source.background?.y, -320, 320, 0),
       scale: clamp(source.background?.scale, 0.25, 5, 1),
     },
+    panelOpacity: clamp(source.panelOpacity, 0, 1, defaults.panelOpacity),
     colors: {},
     avatar: point('avatar', { x: [0, 950], y: [0, 270], size: [32, 240] }),
     username: point('username', { x: [0, 980], y: [20, 310], size: [12, 80] }),
@@ -537,12 +539,25 @@ function roundedRect(context, x, y, width, height, radius) {
 async function loadLocalCardImage(url, userId) {
   const safe = safeCardMediaUrl(url, userId);
   if (!safe) return null;
-  if (levelCardAssetCache.has(safe)) return levelCardAssetCache.get(safe);
   const match = safe.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
-  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`)))).catch(() => null);
-  levelCardAssetCache.set(safe, loading);
+  const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
+  let fingerprint;
+  try {
+    const metadata = fs.statSync(filePath);
+    fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
+  } catch {
+    levelCardAssetCache.delete(safe);
+    return null;
+  }
+  const cached = levelCardAssetCache.get(safe);
+  if (cached?.fingerprint === fingerprint) return cached.loading;
+  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null);
+  const entry = { fingerprint, loading };
+  levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);
-  return loading;
+  const image = await loading;
+  if (!image && levelCardAssetCache.get(safe) === entry) levelCardAssetCache.delete(safe);
+  return image;
 }
 
 async function loadDiscordAvatar(user) {
@@ -795,9 +810,11 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.clip();
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
-  context.fillStyle = `${design.colors.surface}d9`;
+  context.globalAlpha = design.panelOpacity;
+  context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
   context.fill();
+  context.globalAlpha = 1;
 
   const avatar = await loadDiscordAvatar(user);
   context.save();

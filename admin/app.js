@@ -46,6 +46,11 @@
     cardSelection: 'background',
     cardPointer: null,
     cardSaving: false,
+    cardExactPreview: null,
+    cardExactSnapshot: '',
+    cardExactUrl: '',
+    cardExactTimer: null,
+    cardExactRequest: 0,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -1192,7 +1197,7 @@
     const entry = { image: new Image(), ready: false };
     cardImages.set(url, entry);
     entry.image.crossOrigin = 'anonymous';
-    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(); });
+    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(false); });
     entry.image.addEventListener('error', () => { entry.failed = true; });
     entry.image.src = url;
     return null;
@@ -1240,9 +1245,47 @@
     return { x: selection === 'rank' ? item.x - widths.rank : item.x, y: item.y, width: widths[selection], height: item.size * 1.25, resize: true };
   }
 
-  function scheduleCardDraw() {
+  function scheduleExactCardPreview() {
+    window.clearTimeout(state.cardExactTimer);
+    if (!state.profile || elements.profileShell.hidden) return;
+    const snapshot = cardSnapshot();
+    state.cardExactTimer = window.setTimeout(async () => {
+      const request = ++state.cardExactRequest;
+      try {
+        const response = await fetch('/api/profile/card/preview', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'image/png',
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': state.csrfToken,
+          },
+          body: JSON.stringify({ design: state.profile.design }),
+        });
+        if (!response.ok) return;
+        const url = URL.createObjectURL(await response.blob());
+        const image = new Image();
+        image.addEventListener('load', () => {
+          if (request !== state.cardExactRequest || snapshot !== cardSnapshot()) {
+            URL.revokeObjectURL(url);
+            return;
+          }
+          if (state.cardExactUrl) URL.revokeObjectURL(state.cardExactUrl);
+          state.cardExactPreview = image;
+          state.cardExactSnapshot = snapshot;
+          state.cardExactUrl = url;
+          scheduleCardDraw(false);
+        }, { once: true });
+        image.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
+        image.src = url;
+      } catch {}
+    }, 160);
+  }
+
+  function scheduleCardDraw(refreshExact = true) {
     window.cancelAnimationFrame(cardFrame);
     cardFrame = window.requestAnimationFrame(drawCardPreview);
+    if (refreshExact) scheduleExactCardPreview();
   }
 
   function drawCardPreview() {
@@ -1251,79 +1294,83 @@
     const canvas = elements.cardCanvas;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.save();
-    cardRoundRect(context, 0, 0, 1000, 320, 30);
-    context.clip();
-    context.fillStyle = design.background.color;
-    context.fillRect(0, 0, 1000, 320);
-    const background = cardImage(design.background.imageUrl);
-    if (background) drawCardCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
-    context.globalAlpha = .85;
-    context.fillStyle = design.colors.surface;
-    cardRoundRect(context, 28, 28, 944, 264, 24);
-    context.fill();
-    context.globalAlpha = 1;
-
-    context.save();
-    context.fillStyle = design.avatar.color;
-    cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
-    context.fill();
-    cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
-    context.clip();
-    const avatar = cardImage(preview.avatarUrl);
-    if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+    const exact = state.cardExactSnapshot === cardSnapshot() ? state.cardExactPreview : null;
+    if (exact) context.drawImage(exact, 0, 0, 1000, 320);
     else {
-      context.fillStyle = design.colors.track;
-      context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-    }
-    context.restore();
-
-    context.textBaseline = 'top';
-    context.textAlign = 'left';
-    context.fillStyle = design.username.color;
-    const previewName = String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
-    let previewNameSize = design.username.size;
-    const previewNameWidth = Math.max(120, design.rank.x - design.username.x - 145);
-    context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-    while (previewNameSize > 16 && context.measureText(previewName).width > previewNameWidth) {
-      previewNameSize -= 1;
-      context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-    }
-    context.fillText(previewName, design.username.x, design.username.y);
-    context.fillStyle = design.level.color;
-    context.font = `bold ${design.level.size}px ${CARD_FONT_FAMILY}`;
-    context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
-    context.textAlign = 'right';
-    context.fillStyle = design.rank.color;
-    context.font = `bold ${design.rank.size}px ${CARD_FONT_FAMILY}`;
-    context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
-
-    context.fillStyle = design.progress.trackColor;
-    cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
-    context.fill();
-    const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
-    if (progressWidth) {
-      context.fillStyle = design.progress.color;
-      cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
+      context.save();
+      cardRoundRect(context, 0, 0, 1000, 320, 30);
+      context.clip();
+      context.fillStyle = design.background.color;
+      context.fillRect(0, 0, 1000, 320);
+      const background = cardImage(design.background.imageUrl);
+      if (background) drawCardCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
+      context.globalAlpha = Number.isFinite(Number(design.panelOpacity)) ? Math.max(0, Math.min(1, Number(design.panelOpacity))) : .85;
+      context.fillStyle = design.colors.surface;
+      cardRoundRect(context, 28, 28, 944, 264, 24);
       context.fill();
-    }
-    context.textAlign = 'left';
-    context.fillStyle = design.xp.color;
-    context.font = `${design.xp.size}px ${CARD_FONT_FAMILY}`;
-    context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
+      context.globalAlpha = 1;
 
-    for (const layer of design.layers) {
-      if (layer.type === 'image') {
-        const image = cardImage(layer.imageUrl);
-        if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
-      } else {
-        context.textAlign = 'left';
-        context.fillStyle = layer.color;
-        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-        context.fillText(layer.text, layer.x, layer.y);
+      context.save();
+      context.fillStyle = design.avatar.color;
+      cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+      context.fill();
+      cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+      context.clip();
+      const avatar = cardImage(preview.avatarUrl);
+      if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      else {
+        context.fillStyle = design.colors.track;
+        context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
       }
+      context.restore();
+
+      context.textBaseline = 'top';
+      context.textAlign = 'left';
+      context.fillStyle = design.username.color;
+      const previewName = String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
+      let previewNameSize = design.username.size;
+      const previewNameWidth = Math.max(120, design.rank.x - design.username.x - 145);
+      context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
+      while (previewNameSize > 16 && context.measureText(previewName).width > previewNameWidth) {
+        previewNameSize -= 1;
+        context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
+      }
+      context.fillText(previewName, design.username.x, design.username.y);
+      context.fillStyle = design.level.color;
+      context.font = `bold ${design.level.size}px ${CARD_FONT_FAMILY}`;
+      context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
+      context.textAlign = 'right';
+      context.fillStyle = design.rank.color;
+      context.font = `bold ${design.rank.size}px ${CARD_FONT_FAMILY}`;
+      context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
+
+      context.fillStyle = design.progress.trackColor;
+      cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+      context.fill();
+      const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
+      if (progressWidth) {
+        context.fillStyle = design.progress.color;
+        cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
+        context.fill();
+      }
+      context.textAlign = 'left';
+      context.fillStyle = design.xp.color;
+      context.font = `${design.xp.size}px ${CARD_FONT_FAMILY}`;
+      context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
+
+      for (const layer of design.layers) {
+        if (layer.type === 'image') {
+          const image = cardImage(layer.imageUrl);
+          if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
+        } else {
+          context.textAlign = 'left';
+          context.fillStyle = layer.color;
+          context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
+          context.fillText(layer.text, layer.x, layer.y);
+        }
+      }
+      context.restore();
     }
-    context.restore();
 
     const bounds = cardBounds(state.cardSelection, context);
     if (bounds) {
@@ -1379,6 +1426,7 @@
     if (selection === 'background') {
       fields = inspectorInput('Card color', 'background.color', item.color, { type: 'color' })
         + inspectorInput('Panel color', 'colors.surface', state.profile.design.colors.surface, { type: 'color' })
+        + inspectorInput('Panel opacity', 'panelOpacity', state.profile.design.panelOpacity ?? .85, { min: 0, max: 1, step: .05, wide: true })
         + inspectorInput('Image X', 'background.x', item.x, { min: -1000, max: 1000 })
         + inspectorInput('Image Y', 'background.y', item.y, { min: -320, max: 320 })
         + inspectorInput('Image scale', 'background.scale', item.scale, { min: .25, max: 5, step: .05, wide: true });
@@ -1430,10 +1478,17 @@
   }
 
   function constrainCardSelection(selection = state.cardSelection) {
-    if (!state.profile || selection === 'background') return;
+    if (!state.profile) return;
+    const limit = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value) || 0));
+    if (selection === 'background') {
+      state.profile.design.panelOpacity = limit(state.profile.design.panelOpacity ?? .85, 0, 1);
+      state.profile.design.background.x = limit(state.profile.design.background.x, -1000, 1000);
+      state.profile.design.background.y = limit(state.profile.design.background.y, -320, 320);
+      state.profile.design.background.scale = limit(state.profile.design.background.scale, .25, 5);
+      return;
+    }
     const target = cardSelectionObject(selection);
     if (!target) return;
-    const limit = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value) || 0));
     const layer = cardLayerBySelection(selection);
     if (selection === 'avatar') {
       target.size = limit(target.size, 32, 240);

@@ -30,6 +30,7 @@ const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
   getLevelCardDesign,
+  renderLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
 
@@ -272,9 +273,7 @@ function profilePreview(session, client) {
   const user = session.user;
   const stats = bestMemberStats(user.id);
   const guild = stats.guildId ? client.guilds.cache.get(stats.guildId) : null;
-  const avatarUrl = user.avatar
-    ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
-    : 'https://cdn.discordapp.com/embed/avatars/0.png';
+  const avatarUrl = profileAvatarUrl(user);
   return {
     username: user.globalName || user.username,
     avatarUrl,
@@ -285,6 +284,25 @@ function profilePreview(session, client) {
     progressXp: stats.progressXp,
     neededXp: stats.neededXp,
     progressRatio: stats.progressRatio,
+  };
+}
+
+function profileAvatarUrl(user) {
+  return user.avatar
+    ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
+    : 'https://cdn.discordapp.com/embed/avatars/0.png';
+}
+
+function profileRenderIdentity(session) {
+  const user = session.user;
+  const avatarUrl = profileAvatarUrl(user);
+  return {
+    id: user.id,
+    username: user.username,
+    globalName: user.globalName,
+    displayName: user.globalName || user.username,
+    displayAvatarURL: () => avatarUrl,
+    avatarURL: () => avatarUrl,
   };
 }
 
@@ -587,6 +605,22 @@ async function routeRequest(req, res, env, client) {
     return sendJson(res, 200, {
       design: getLevelCardDesign(session.user.id),
       preview: profilePreview(session, client),
+    });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/profile/card/preview') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session || !requireCsrf(req, res, session)) return;
+    const body = await readJsonBody(req);
+    const image = await renderLevelCard(
+      profileRenderIdentity(session),
+      bestMemberStats(session.user.id),
+      body?.design,
+    );
+    return send(res, 200, image, {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'no-store',
+      'Content-Disposition': 'inline; filename="level-card-preview.png"',
     });
   }
 
