@@ -67,12 +67,21 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /@media \(max-width: 820px\)/);
   assert.match(css, /@media \(max-width: 620px\)/);
   assert.match(css, /prefers-reduced-motion/);
-  assert.match(css, /\.mobile-save/);
+  assert.match(css, /\.save-dock/);
   assert.match(css, /\.topbar \{ position: sticky; top: 0;/);
   assert.match(css, /\.notification-menu/);
   assert.match(css, /@keyframes fall-leaf/);
   assert.match(css, /\.event-toggle span \{ min-height: 58px;/);
   assert.match(css, /animation: none !important/);
+});
+
+test('dashboard moves engine control to the header and only shows save dock for changes', () => {
+  const html = read('admin/index.html');
+  const source = read('admin/app.js');
+  assert.doesNotMatch(html, /hero-panel|engineTitle|engineMessage|mobileSave/);
+  assert.match(html, /class="switch-card header-switch"/);
+  assert.match(html, /class="save-dock" id="saveDock"[^>]*hidden/);
+  assert.match(source, /elements\.saveDock\.hidden = !dirty && !state\.saving/);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {

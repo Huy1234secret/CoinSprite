@@ -47,9 +47,8 @@
     stockView: $('#stockView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
-    fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), engineTitle: $('#engineTitle'),
-    engineMessage: $('#engineMessage'), saveButton: $('#saveButton'), mobileSaveButton: $('#mobileSaveButton'),
-    saveState: $('#saveState'), mobileSaveState: $('#mobileSaveState'), ownerOverview: $('#ownerOverview'),
+    fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
+    saveButton: $('#saveButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
     consoleToggle: $('#consoleToggle'), dialog: $('#confirmDialog'), dialogTitle: $('#dialogTitle'), dialogCopy: $('#dialogCopy'),
     dialogInputWrap: $('#dialogInputWrap'), dialogInput: $('#dialogInput'), dialogConfirm: $('#dialogConfirm'),
@@ -327,34 +326,9 @@
 
   function refreshDirty() {
     const dirty = snapshot() !== state.savedSnapshot;
-    const label = dirty ? 'Unsaved changes' : 'All changes saved';
-    elements.saveState.textContent = label;
-    elements.mobileSaveState.textContent = label;
-    elements.saveState.classList.toggle('dirty', dirty);
+    elements.saveDock.hidden = !dirty && !state.saving;
+    elements.saveState.textContent = state.saving ? 'Applying changes…' : 'Unsaved changes';
     elements.saveButton.disabled = !dirty || state.saving;
-    elements.mobileSaveButton.disabled = !dirty || state.saving;
-  }
-
-  function renderEngine(progress = null) {
-    const permissions = state.directory.gag2StockPermissions || { usable: true, missing: [] };
-    if (!permissions.usable) {
-      elements.engineTitle.textContent = 'Permissions needed';
-      elements.engineMessage.textContent = `Grant the bot: ${permissions.missing.map((item) => item.label).join(', ')}.`;
-      return;
-    }
-    if (progress?.status === 'running') {
-      elements.engineTitle.textContent = progress.action === 'removing' ? 'Removing alert roles' : 'Syncing alert roles';
-      elements.engineMessage.textContent = `${Math.max(0, Number(progress.remaining) || 0)} changes remaining.`;
-      return;
-    }
-    if (progress?.status === 'error') {
-      elements.engineTitle.textContent = 'Sync needs attention';
-      elements.engineMessage.textContent = progress.message || 'Role setup could not finish.';
-      return;
-    }
-    const routed = Object.values(state.config?.gag2Stock?.channels || {}).filter(Boolean).length;
-    elements.engineTitle.textContent = state.config?.gag2Stock?.enabled === false ? 'Engine paused' : 'Stock engine online';
-    elements.engineMessage.textContent = `${routed} of ${CHANNELS.length} destinations routed${progress?.status === 'complete' ? ' · roles synced' : ''}.`;
   }
 
   function renderStock(progress = null) {
@@ -363,7 +337,6 @@
     renderFilters();
     startFallCountdown();
     renderFall();
-    renderEngine(progress);
     refreshDirty();
   }
 
@@ -373,10 +346,8 @@
     elements.guildSelect.value = guildId;
     const guild = state.guilds.find((item) => item.id === guildId);
     elements.serverMeta.textContent = `${state.me?.owner ? 'Owner view' : 'Administrator access'} · ${guild ? guild.id : guildId}`;
-    elements.engineTitle.textContent = 'Tuning into stock feeds';
-    elements.engineMessage.textContent = 'Loading channels and alert configuration…';
     elements.saveButton.disabled = true;
-    elements.mobileSaveButton.disabled = true;
+    elements.saveDock.hidden = true;
 
     try {
       const [directoryPayload, configPayload, catalogPayload, progressPayload] = await Promise.all([
@@ -403,9 +374,7 @@
     if (!state.config || state.saving || snapshot() === state.savedSnapshot) return;
     state.saving = true;
     elements.saveButton.disabled = true;
-    elements.mobileSaveButton.disabled = true;
     elements.saveState.textContent = 'Applying changes…';
-    elements.mobileSaveState.textContent = 'Applying changes…';
     try {
       const stock = clone(state.config.gag2Stock);
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
@@ -430,11 +399,8 @@
     if (!state.guildId) return;
     try {
       const payload = await api(`/api/guilds/${state.guildId}/gag2-stock/setup-progress`);
-      renderEngine(payload.progress);
       if (payload.progress?.status === 'running') state.progressTimer = window.setTimeout(pollProgress, 1100);
-    } catch (error) {
-      renderEngine({ status: 'error', message: error.message });
-    }
+    } catch {}
   }
 
   function formatNumber(value) {
@@ -590,7 +556,6 @@
       stock.fall.enabledTypes = [...document.querySelectorAll('[data-fall-type]:checked')].map((input) => input.value);
       renderFall();
     }
-    renderEngine();
     refreshDirty();
   }
 
@@ -686,7 +651,6 @@
 
   elements.guildSelect.addEventListener('change', () => loadGuild(elements.guildSelect.value));
   elements.saveButton.addEventListener('click', saveStock);
-  elements.mobileSaveButton.addEventListener('click', saveStock);
   elements.logoutButton.addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
