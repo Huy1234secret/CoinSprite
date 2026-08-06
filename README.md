@@ -1,11 +1,12 @@
-# CoinSprite Stock Control
+# CoinSprite
 
-CoinSprite is a focused Discord service for Grow a Garden stock alerts. The runtime intentionally contains two product surfaces:
+CoinSprite is a focused Discord service for Grow a Garden stock alerts and community leveling. The runtime contains three product surfaces:
 
 - **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
+- **Leveling** — anti-spam message XP, level-up cards, leaderboards, ignored channels, and milestone roles.
 - **Owner panel** — bot health, connected guilds, enable/disable controls, and a live operational console.
 
-Legacy leveling, tickets, moderation, giveaways, games, invite rewards, and general-purpose dashboard modules are not loaded by the application.
+Tickets, moderation, giveaways, games, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
 
 ## Setup
 
@@ -24,21 +25,25 @@ Legacy leveling, tickets, moderation, giveaways, games, invite rewards, and gene
    OWNER_USER_IDS=your_discord_user_id
    ```
 
-3. Add the exact redirect URI to the Discord Developer Portal.
+3. Add the exact redirect URI to the Discord Developer Portal and enable the **Message Content Intent** for message XP.
 4. Run `npm start` and open `http://127.0.0.1:3000/admin`.
 
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
 ## Configuration
 
-Guild configuration is stored in `data/server-config.json`. On first launch after this update, CoinSprite creates a one-time `server-config.json.pre-stock-only.bak` backup and migrates the active file to the stock-only schema.
+Guild settings are stored in `data/server-config.json`, while member XP is stored atomically in `data/leveling.json`.
 
 The dashboard lets Discord administrators configure:
 
 - destinations for seed, gear, crate, weather, moon, sell, role-selection, and update feeds;
 - rarity and sell-multiplier filters;
 - Fall Harvest feed participation;
-- automatic notification-role synchronization.
+- automatic notification-role synchronization;
+- XP range, cooldown, progression curve, maximum level, and ignored channels;
+- Components V2 level-up announcements and stackable or highest-only role rewards.
+
+The focused application commands are `/stock-set-up`, `/level`, `/leaderboard`, `/level-set`, `/xp-add`, and `/leveling-setup`.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
@@ -48,4 +53,4 @@ All dashboard writes require a same-session CSRF token. Guild edits require Disc
 npm test
 ```
 
-The retained GAG stock tests cover payload parsing, deduplication, schedules, source retries, permissions, role assignment, Fall Harvest handling, and update announcements.
+The test suite covers GAG stock delivery and deduplication, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.

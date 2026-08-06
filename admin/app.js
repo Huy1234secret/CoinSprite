@@ -26,7 +26,7 @@
     guilds: [],
     guildId: '',
     config: null,
-    directory: { channels: [], gag2StockPermissions: { usable: true, missing: [] } },
+    directory: { channels: [], roles: [], gag2StockPermissions: { usable: true, missing: [] } },
     catalog: { items: {}, fallItems: {}, fallHarvestEndsAt: '' },
     savedSnapshot: '',
     currentView: 'stock',
@@ -34,6 +34,7 @@
     fallTimer: null,
     progressTimer: null,
     consoleTimer: null,
+    metricsTimer: null,
     consolePaused: false,
     consoleEntries: [],
     consoleAfter: 0,
@@ -44,7 +45,7 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
     guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'),
-    stockView: $('#stockView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    stockView: $('#stockView'), levelingView: $('#levelingView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
     fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
@@ -52,6 +53,13 @@
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
     consoleToggle: $('#consoleToggle'), dialog: $('#confirmDialog'), dialogTitle: $('#dialogTitle'), dialogCopy: $('#dialogCopy'),
     dialogInputWrap: $('#dialogInputWrap'), dialogInput: $('#dialogInput'), dialogConfirm: $('#dialogConfirm'),
+    levelingEnabled: $('#levelingEnabled'), levelingXpMin: $('#levelingXpMin'), levelingXpMax: $('#levelingXpMax'),
+    levelingCooldown: $('#levelingCooldown'), levelingBaseXp: $('#levelingBaseXp'), levelingGrowth: $('#levelingGrowth'),
+    levelingMaxLevel: $('#levelingMaxLevel'), levelingCurvePreview: $('#levelingCurvePreview'),
+    levelingAnnounceEnabled: $('#levelingAnnounceEnabled'), levelingAnnounceChannel: $('#levelingAnnounceChannel'),
+    levelingMessage: $('#levelingMessage'), levelingIgnoredChannels: $('#levelingIgnoredChannels'),
+    levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
+    levelingAddReward: $('#levelingAddReward'),
   };
 
   function escapeHtml(value) {
@@ -120,8 +128,7 @@
     if (!state.guilds.length) {
       elements.guildSelect.append(new Option('No editable servers', ''));
       elements.guildSelect.disabled = true;
-      elements.engineTitle.textContent = 'No communities found';
-      elements.engineMessage.textContent = 'Administrator access is required to configure a server.';
+      elements.serverMeta.textContent = 'Administrator access is required to configure a server.';
       return;
     }
     for (const guild of state.guilds) elements.guildSelect.append(new Option(guild.name, guild.id));
@@ -145,10 +152,39 @@
     return source;
   }
 
-  function channelOptions(selected) {
+  function clampNumber(value, minimum, maximum, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
+  }
+
+  function normalizeLevelingConfig(config) {
+    const source = clone(config?.leveling || {});
+    source.enabled = source.enabled !== false;
+    source.xp ||= {};
+    source.xp.min = Math.round(clampNumber(source.xp.min, 1, 1000, 15));
+    source.xp.max = Math.round(clampNumber(source.xp.max, source.xp.min, 2000, 25));
+    source.xp.cooldownSeconds = Math.round(clampNumber(source.xp.cooldownSeconds, 5, 3600, 60));
+    source.curve ||= {};
+    source.curve.baseXp = Math.round(clampNumber(source.curve.baseXp, 25, 100000, 100));
+    source.curve.growth = clampNumber(source.curve.growth, 1, 3, 1.5);
+    source.curve.maxLevel = Math.round(clampNumber(source.curve.maxLevel, 1, 1000, 100));
+    source.announcements ||= {};
+    source.announcements.enabled = source.announcements.enabled !== false;
+    source.announcements.channelId = String(source.announcements.channelId || '');
+    source.announcements.message = String(source.announcements.message || 'GG {user}! You reached level {level}.').slice(0, 500);
+    source.ignoredChannelIds = [...new Set((source.ignoredChannelIds || []).map(String))];
+    source.roleRewards = (source.roleRewards || []).map((reward) => ({
+      level: Math.round(clampNumber(reward.level, 1, source.curve.maxLevel, 1)),
+      roleId: String(reward.roleId || ''),
+    })).filter((reward) => reward.roleId).sort((a, b) => a.level - b.level).slice(0, 100);
+    source.stackRoleRewards = source.stackRoleRewards !== false;
+    return source;
+  }
+
+  function channelOptions(selected, include = () => true) {
     const options = ['<option value="">Not routed</option>'];
     let lastParent = null;
-    for (const channel of state.directory.channels.filter((item) => !item.archived)) {
+    for (const channel of state.directory.channels.filter((item) => !item.archived && include(item))) {
       if (channel.parentName && channel.parentName !== lastParent) {
         options.push(`<option disabled>── ${escapeHtml(channel.parentName)} ──</option>`);
         lastParent = channel.parentName;
@@ -309,18 +345,76 @@
     elements.fallRoleFilters.innerHTML = FALL_TYPES.map(([type, label]) => fallPickerCard(type, label)).join('');
   }
 
+  function xpThreshold(level) {
+    const curve = state.config.leveling.curve;
+    return Math.floor(curve.baseXp * Math.pow(Math.max(0, level), curve.growth));
+  }
+
+  function renderCurvePreview() {
+    const maximum = state.config.leveling.curve.maxLevel;
+    const levels = [...new Set([1, 5, 10, 25, maximum].filter((level) => level <= maximum))];
+    elements.levelingCurvePreview.innerHTML = `<span>CURVE PREVIEW</span><div>${levels.map((level) => `<article><small>LEVEL ${level}</small><strong>${formatNumber(xpThreshold(level))} XP</strong></article>`).join('')}</div>`;
+  }
+
+  function roleOptions(selected) {
+    const roles = state.directory.roles || [];
+    return ['<option value="">Choose a reward role</option>', ...roles.map((role) => `<option value="${role.id}" ${role.id === selected ? 'selected' : ''} ${role.editable === false ? 'disabled' : ''}>@${escapeHtml(role.name)}${role.editable === false ? ' (above CoinSprite)' : ''}</option>`)].join('');
+  }
+
+  function renderIgnoredChannels() {
+    const ignored = new Set(state.config.leveling.ignoredChannelIds || []);
+    const channels = (state.directory.channels || []).filter((channel) => !channel.archived && channel.kind !== 'category');
+    elements.levelingIgnoredChannels.innerHTML = channels.length ? channels.map((channel) => `<label class="ignored-channel-option${ignored.has(channel.id) ? ' selected' : ''}">
+      <input type="checkbox" data-leveling-ignore value="${channel.id}" ${ignored.has(channel.id) ? 'checked' : ''}>
+      <span><b>#</b><strong>${escapeHtml(channel.name)}</strong><small>${escapeHtml(channel.parentName || 'No category')}</small></span><i aria-hidden="true">${ignored.has(channel.id) ? '&#x2713;' : '+'}</i>
+    </label>`).join('') : '<p class="empty-state">No eligible text channels found.</p>';
+  }
+
+  function renderLevelingRewards() {
+    const rewards = state.config.leveling.roleRewards || [];
+    elements.levelingRewards.innerHTML = rewards.length ? rewards.map((reward, index) => `<article class="reward-row">
+      <span class="reward-level-mark">LV</span>
+      <label><small>Level</small><input type="number" min="1" max="${state.config.leveling.curve.maxLevel}" value="${reward.level}" data-level-reward-level="${index}"></label>
+      <label class="reward-role-field"><small>Discord role</small><select data-level-reward-role="${index}">${roleOptions(reward.roleId)}</select></label>
+      <button type="button" class="reward-remove" data-remove-level-reward="${index}" aria-label="Remove level ${reward.level} reward">Remove</button>
+    </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role rewards yet</strong><span>Add milestones such as Level 5, 10, and 25.</span></div>';
+  }
+
+  function renderLeveling() {
+    const leveling = state.config.leveling;
+    elements.levelingEnabled.checked = leveling.enabled;
+    elements.levelingXpMin.value = leveling.xp.min;
+    elements.levelingXpMax.value = leveling.xp.max;
+    elements.levelingCooldown.value = leveling.xp.cooldownSeconds;
+    elements.levelingBaseXp.value = leveling.curve.baseXp;
+    elements.levelingGrowth.value = leveling.curve.growth;
+    elements.levelingMaxLevel.value = leveling.curve.maxLevel;
+    elements.levelingAnnounceEnabled.checked = leveling.announcements.enabled;
+    elements.levelingAnnounceChannel.innerHTML = channelOptions(leveling.announcements.channelId, (channel) => channel.kind !== 'forum');
+    elements.levelingAnnounceChannel.options[0].textContent = 'Use the channel where XP was earned';
+    elements.levelingMessage.value = leveling.announcements.message;
+    elements.levelingStackRewards.checked = leveling.stackRoleRewards;
+    renderCurvePreview();
+    renderIgnoredChannels();
+    renderLevelingRewards();
+    refreshDirty();
+  }
+
   function snapshot() {
     if (!state.config) return '';
     const stock = state.config.gag2Stock;
     return JSON.stringify({
-      enabled: stock.enabled,
-      channels: stock.channels,
-      rarities: stock.filters.rarities,
-      roleItems: stock.filters.roleItems,
-      sellMultipliers: stock.filters.sellMultipliers,
-      fallTypes: stock.fall.enabledTypes,
-      fallRoleItems: stock.fall.roleItems,
-      fallSellMultipliers: stock.fall.sellMultipliers,
+      gag2Stock: {
+        enabled: stock.enabled,
+        channels: stock.channels,
+        rarities: stock.filters.rarities,
+        roleItems: stock.filters.roleItems,
+        sellMultipliers: stock.filters.sellMultipliers,
+        fallTypes: stock.fall.enabledTypes,
+        fallRoleItems: stock.fall.roleItems,
+        fallSellMultipliers: stock.fall.sellMultipliers,
+      },
+      leveling: state.config.leveling,
     });
   }
 
@@ -357,34 +451,44 @@
         api(`/api/guilds/${guildId}/gag2-stock/setup-progress`).catch(() => null),
       ]);
       if (state.guildId !== guildId) return;
-      state.directory = directoryPayload.directory;
+      state.directory = { channels: [], roles: [], ...directoryPayload.directory };
       state.catalog = catalogPayload;
-      state.config = { ...configPayload.config, gag2Stock: normalizeStockConfig(configPayload.config) };
+      state.config = {
+        ...configPayload.config,
+        gag2Stock: normalizeStockConfig(configPayload.config),
+        leveling: normalizeLevelingConfig(configPayload.config),
+      };
       state.savedSnapshot = snapshot();
       renderStock(progressPayload?.progress);
+      renderLeveling();
       if (progressPayload?.progress?.status === 'running') pollProgress();
     } catch (error) {
       showToast(error.message, 'error');
-      elements.engineTitle.textContent = 'Could not load this community';
-      elements.engineMessage.textContent = error.message;
+      elements.serverMeta.textContent = `Could not load this community: ${error.message}`;
     }
   }
 
-  async function saveStock() {
+  async function saveConfig() {
     if (!state.config || state.saving || snapshot() === state.savedSnapshot) return;
     state.saving = true;
     elements.saveButton.disabled = true;
     elements.saveState.textContent = 'Applying changes…';
     try {
       const stock = clone(state.config.gag2Stock);
+      const leveling = clone(state.config.leveling);
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
-        body: JSON.stringify({ gag2Stock: stock }),
+        body: JSON.stringify({ gag2Stock: stock, leveling }),
       });
-      state.config = { ...payload.config, gag2Stock: normalizeStockConfig(payload.config) };
+      state.config = {
+        ...payload.config,
+        gag2Stock: normalizeStockConfig(payload.config),
+        leveling: normalizeLevelingConfig(payload.config),
+      };
       state.savedSnapshot = snapshot();
       renderStock(payload.progress);
-      showToast('Stock routing updated.');
+      renderLeveling();
+      showToast('Dashboard settings updated.');
       pollProgress();
     } catch (error) {
       showToast(error.message, 'error');
@@ -423,11 +527,11 @@
 
   function renderOwnerOverview(payload) {
     const metrics = [
-      ['Bot ping', `${formatNumber(payload.bot.pingMs)} ms`, 'Discord gateway'],
-      ['Uptime', formatUptime(payload.bot.uptimeMs), payload.bot.tag],
-      ['Communities', formatNumber(payload.bot.guildCount), `${formatNumber(payload.bot.totalUsers)} members`],
-      ['Heap', payload.bot.memory.heapUsedLabel, 'Current process'],
-      ['Storage', payload.storage.label, 'Data and logs'],
+      ['ping', 'Bot ping', `${formatNumber(payload.bot.pingMs)} ms`, 'Discord gateway'],
+      ['uptime', 'Uptime', formatUptime(payload.bot.uptimeMs), payload.bot.tag],
+      ['communities', 'Communities', formatNumber(payload.bot.guildCount), `${formatNumber(payload.bot.totalUsers)} members`],
+      ['heap', 'Heap', payload.bot.memory.heapUsedLabel, 'Live process usage'],
+      ['storage', 'Storage', payload.storage.label, 'Live data and logs'],
     ];
     const rows = (payload.guilds || []).map((guild) => `<tr>
       <td><div class="guild-cell">${guildIcon(guild)}<span><strong>${escapeHtml(guild.name)}</strong><small>${guild.id}</small></span></div></td>
@@ -438,8 +542,28 @@
       <td><div class="row-actions"><button class="text-button" type="button" data-owner-load="${guild.id}">Open</button><button class="text-button" type="button" data-owner-toggle="${guild.id}" data-enabled="${guild.enabled}">${guild.enabled ? 'Disable' : 'Enable'}</button></div></td>
     </tr>`).join('');
     elements.ownerOverview.innerHTML = `
-      <section class="metric-grid">${metrics.map(([label, value, detail]) => `<article class="metric-card"><small>${label}</small><strong>${escapeHtml(value)}</strong><span>${escapeHtml(detail)}</span></article>`).join('')}</section>
+      <section class="metric-grid">${metrics.map(([key, label, value, detail]) => `<article class="metric-card"><small>${label}</small><strong data-owner-metric="${key}">${escapeHtml(value)}</strong><span>${escapeHtml(detail)}</span></article>`).join('')}</section>
       <section class="fleet-panel"><header class="fleet-head"><h2>Community fleet</h2><span>${payload.guilds.length} connected</span></header><div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th>Community</th><th>Members</th><th>Status</th><th>Routes</th><th>Role sync</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No communities available.</td></tr>'}</tbody></table></div></section>`;
+  }
+
+  async function pollOwnerMetrics() {
+    if (state.currentView !== 'owner') return;
+    const payload = await api('/api/owner/metrics');
+    const heap = elements.ownerOverview.querySelector('[data-owner-metric="heap"]');
+    const storage = elements.ownerOverview.querySelector('[data-owner-metric="storage"]');
+    if (heap) heap.textContent = payload.heap.label;
+    if (storage) storage.textContent = payload.storage.label;
+  }
+
+  function startOwnerMetricPolling() {
+    window.clearInterval(state.metricsTimer);
+    pollOwnerMetrics().catch(() => null);
+    state.metricsTimer = window.setInterval(() => pollOwnerMetrics().catch(() => null), 2000);
+  }
+
+  function stopOwnerMetricPolling() {
+    window.clearInterval(state.metricsTimer);
+    state.metricsTimer = null;
   }
 
   async function loadOwner() {
@@ -449,6 +573,7 @@
       renderOwnerOverview(await api('/api/owner/overview'));
       await pollConsole(true);
       startConsolePolling();
+      startOwnerMetricPolling();
     } catch (error) {
       elements.ownerOverview.innerHTML = `<section class="metric-card"><small>ERROR</small><strong>Unavailable</strong><span>${escapeHtml(error.message)}</span></section>`;
     }
@@ -503,7 +628,10 @@
       panel.classList.toggle('active', active);
     });
     if (view === 'owner') loadOwner();
-    else stopConsolePolling();
+    else {
+      stopConsolePolling();
+      stopOwnerMetricPolling();
+    }
   }
 
   function confirmAction({ title, copy, input = false, confirmLabel = 'Confirm' }) {
@@ -557,6 +685,57 @@
       renderFall();
     }
     refreshDirty();
+  }
+
+  function updateLevelingFromControl(target) {
+    if (!state.config) return;
+    const leveling = state.config.leveling;
+    if (target === elements.levelingEnabled) leveling.enabled = target.checked;
+    if (target === elements.levelingXpMin) {
+      leveling.xp.min = Math.round(clampNumber(target.value, 1, 1000, 15));
+      leveling.xp.max = Math.max(leveling.xp.min, leveling.xp.max);
+      elements.levelingXpMax.value = leveling.xp.max;
+    }
+    if (target === elements.levelingXpMax) leveling.xp.max = Math.round(clampNumber(target.value, leveling.xp.min, 2000, 25));
+    if (target === elements.levelingCooldown) leveling.xp.cooldownSeconds = Math.round(clampNumber(target.value, 5, 3600, 60));
+    if (target === elements.levelingBaseXp) leveling.curve.baseXp = Math.round(clampNumber(target.value, 25, 100000, 100));
+    if (target === elements.levelingGrowth) leveling.curve.growth = clampNumber(target.value, 1, 3, 1.5);
+    if (target === elements.levelingMaxLevel) {
+      leveling.curve.maxLevel = Math.round(clampNumber(target.value, 1, 1000, 100));
+      for (const reward of leveling.roleRewards) reward.level = Math.min(reward.level, leveling.curve.maxLevel);
+      renderLevelingRewards();
+    }
+    if ([elements.levelingBaseXp, elements.levelingGrowth, elements.levelingMaxLevel].includes(target)) renderCurvePreview();
+    if (target === elements.levelingAnnounceEnabled) leveling.announcements.enabled = target.checked;
+    if (target === elements.levelingAnnounceChannel) leveling.announcements.channelId = target.value;
+    if (target === elements.levelingMessage) leveling.announcements.message = target.value.slice(0, 500);
+    if (target === elements.levelingStackRewards) leveling.stackRoleRewards = target.checked;
+    if (target.matches('[data-leveling-ignore]')) {
+      leveling.ignoredChannelIds = [...elements.levelingIgnoredChannels.querySelectorAll('[data-leveling-ignore]:checked')].map((input) => input.value);
+      target.closest('.ignored-channel-option')?.classList.toggle('selected', target.checked);
+      const marker = target.closest('.ignored-channel-option')?.querySelector('i');
+      if (marker) marker.textContent = target.checked ? '\u2713' : '+';
+    }
+    if (target.matches('[data-level-reward-level]')) {
+      const reward = leveling.roleRewards[Number(target.dataset.levelRewardLevel)];
+      if (reward) reward.level = Math.round(clampNumber(target.value, 1, leveling.curve.maxLevel, reward.level));
+    }
+    if (target.matches('[data-level-reward-role]')) {
+      const reward = leveling.roleRewards[Number(target.dataset.levelRewardRole)];
+      if (reward) reward.roleId = target.value;
+    }
+    refreshDirty();
+  }
+
+  function addLevelReward() {
+    if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
+    const rewards = state.config.leveling.roleRewards;
+    const lastLevel = rewards.length ? Math.max(...rewards.map((reward) => reward.level)) : 0;
+    const firstRole = (state.directory.roles || []).find((role) => role.editable !== false);
+    rewards.push({ level: Math.min(state.config.leveling.curve.maxLevel, lastLevel + 5 || 5), roleId: firstRole?.id || '' });
+    renderLevelingRewards();
+    refreshDirty();
+    elements.levelingRewards.lastElementChild?.querySelector('input')?.focus();
   }
 
   function closeNotificationPickers(exceptMenu = null) {
@@ -650,12 +829,22 @@
   }
 
   elements.guildSelect.addEventListener('change', () => loadGuild(elements.guildSelect.value));
-  elements.saveButton.addEventListener('click', saveStock);
+  elements.saveButton.addEventListener('click', saveConfig);
   elements.logoutButton.addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
   });
   elements.stockEnabled.addEventListener('change', (event) => updateConfigFromControl(event.target));
+  elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
+  elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
+  elements.levelingAddReward.addEventListener('click', addLevelReward);
+  elements.levelingRewards.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-level-reward]');
+    if (!button || !state.config) return;
+    state.config.leveling.roleRewards.splice(Number(button.dataset.removeLevelReward), 1);
+    renderLevelingRewards();
+    refreshDirty();
+  });
   elements.channelGrid.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.multiplierFilters.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.fallFilters.addEventListener('change', (event) => updateConfigFromControl(event.target));

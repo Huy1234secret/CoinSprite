@@ -6,25 +6,30 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('bot startup loads only GAG stock and owner-panel services', () => {
+test('bot startup loads focused GAG stock, leveling, and owner-panel services', () => {
   const source = read('index.js');
   assert.match(source, /startAdminServer/);
   assert.match(source, /startGag2StockPoster/);
   assert.match(source, /startGag2UpdateAnnouncement/);
   assert.match(source, /handleGag2RoleAssignmentInteraction/);
-  for (const removed of ['commandsPath', 'inviteRewards', 'dailyMessageStats', 'MessageCreate', 'GuildMemberAdd', 'giveaway', 'ticketSystem']) {
+  assert.match(source, /handleLevelingInteraction/);
+  assert.match(source, /handleLevelingMessage/);
+  assert.match(source, /Events\.MessageCreate/);
+  for (const removed of ['commandsPath', 'inviteRewards', 'dailyMessageStats', 'GuildMemberAdd', 'giveaway', 'ticketSystem']) {
     assert.doesNotMatch(source, new RegExp(removed, 'i'));
   }
 });
 
-test('bot registers only the GAG stock setup command and clears legacy guild commands', () => {
+test('bot registers only stock setup and leveling commands and clears legacy guild commands', () => {
   const source = read('index.js');
   assert.match(source, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
   assert.match(source, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
-  assert.match(source, /client\.application\.commands\.set\(\[STOCK_SETUP_COMMAND\]\)/);
+  assert.match(source, /const APPLICATION_COMMANDS = \[STOCK_SETUP_COMMAND, \.\.\.LEVELING_COMMANDS/);
+  assert.match(source, /client\.application\.commands\.set\(APPLICATION_COMMANDS\)/);
   assert.match(source, /guild\.commands\.set\(\[\]\)/);
   assert.match(source, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
-  assert.match(source, /Dashboard: \$\{dashboardBaseUrl\(\)\}\/admin/);
+  assert.match(source, /Open stock dashboard/);
+  assert.match(source, /flags: COMPONENTS_V2_FLAG \| EPHEMERAL/);
   assert.doesNotMatch(source, /commandsPath|client\.commands|commands\.set\(slashCommands\)/);
 });
 
@@ -36,21 +41,26 @@ test('dashboard exposes one focused stylesheet and script', () => {
   assert.match(html, /\/admin\/app\.js\?v=[^"']+/);
   assert.match(html, /GAG2 Stock/);
   assert.match(html, /Owner panel/);
+  assert.match(html, /data-view="leveling"/);
+  assert.match(html, /id="levelingView"/);
+  assert.match(html, /id="levelingRewards"/);
+  assert.match(html, /V2 COMMANDS/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
   assert.match(html, /1525195196864925817/);
   assert.match(html, /fallHarvestSection/);
   assert.match(html, /fallCountdown/);
   assert.match(html, /fallRoleFilters/);
   assert.doesNotMatch(html, /Your Garden/);
-  for (const removed of ['Leveling', 'Tickets', 'Moderation', 'Invite rewards', 'Giveaway']) {
+  for (const removed of ['Tickets', 'Moderation', 'Invite rewards', 'Giveaway']) {
     assert.doesNotMatch(html, new RegExp(removed, 'i'));
   }
 });
 
-test('admin writes require CSRF and only accept GAG stock config', () => {
+test('admin writes require CSRF and accept only focused feature config', () => {
   const source = read('src/adminServer.js');
   assert.match(source, /function requireCsrf/);
-  assert.match(source, /Only GAG stock configuration can be updated/);
+  assert.match(source, /GAG stock or leveling configuration is required/);
+  assert.match(source, /hasLeveling/);
   assert.match(source, /PUBLIC_ASSETS = new Map/);
   assert.match(source, /'Cache-Control': 'no-store, max-age=0'/);
   assert.match(source, /Pragma: 'no-cache'/);
@@ -58,9 +68,10 @@ test('admin writes require CSRF and only accept GAG stock config', () => {
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
 
-test('stock-only config permanently disables full bot features', () => {
+test('focused config enables stock and leveling while full bot stays disabled', () => {
   const config = require('../src/serverConfig');
   assert.equal(config.DEFAULT_FEATURES.gag2Stock, true);
+  assert.equal(config.DEFAULT_FEATURES.leveling, true);
   assert.equal(config.DEFAULT_FEATURES.fullBot, false);
   assert.equal(config.isGuildFullBotEnabled('1493901002519347290'), false);
   const normalized = config.normalizeGag2StockConfig({
@@ -83,6 +94,8 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /\.notification-menu/);
   assert.match(css, /@keyframes fall-leaf/);
   assert.match(css, /\.event-toggle span \{ min-height: 58px;/);
+  assert.match(css, /\.leveling-settings-grid/);
+  assert.match(css, /\.reward-row/);
   assert.match(css, /animation: none !important/);
 });
 
@@ -122,4 +135,13 @@ test('all-server visibility is reserved for owners', () => {
   assert.match(source, /if \(!isOwnerSession\(session, client\)\)/);
   assert.match(source, /member\?\.permissions\?\.has\(PermissionFlagsBits\.Administrator\)/);
   assert.match(source, /!getGuildConfig\(guild\.id\)\) continue/);
+});
+
+test('owner heap and storage cards poll live without refreshing the page', () => {
+  const source = read('admin/app.js');
+  const routes = read('src/adminServer.js');
+  assert.match(source, /api\('\/api\/owner\/metrics'\)/);
+  assert.match(source, /setInterval\(\(\) => pollOwnerMetrics/);
+  assert.match(source, /data-owner-metric="\$\{key\}"/);
+  assert.match(routes, /pathname === '\/api\/owner\/metrics'/);
 });

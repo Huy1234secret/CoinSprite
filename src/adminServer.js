@@ -317,6 +317,7 @@ async function fetchGuildDirectory(guild, force = false) {
   const parentNames = new Map(baseChannels.map((channel) => [channel.id, channel.name]));
   const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
   const allChannels = [...baseChannels, ...Array.from(activeThreads?.threads?.values?.() || [])];
+  const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
   const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
   const required = [
     ['Manage Roles', PermissionFlagsBits.ManageRoles],
@@ -337,6 +338,16 @@ async function fetchGuildDirectory(guild, force = false) {
       archived: Boolean(channel.archived),
       rawPosition: Number(channel.rawPosition) || 0,
     })).sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '') || a.rawPosition - b.rawPosition || a.name.localeCompare(b.name)),
+    roles: [...roles.values()]
+      .filter((role) => role.id !== guild.id && !role.managed)
+      .map((role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.hexColor || '#99a1a6',
+        position: Number(role.rawPosition) || 0,
+        editable: role.editable !== false,
+      }))
+      .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name)),
     gag2StockPermissions: { usable: missing.length === 0, missing: missing.map((label) => ({ label })) },
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
@@ -357,8 +368,9 @@ function mergePlain(base, patch) {
 function publicConfig(config) {
   return {
     enabled: config?.enabled !== false,
-    features: { gag2Stock: true, fullBot: false },
+    features: { gag2Stock: true, leveling: true, fullBot: false },
     gag2Stock: config?.gag2Stock || {},
+    leveling: config?.leveling || {},
   };
 }
 
@@ -473,21 +485,24 @@ async function routeRequest(req, res, env, client) {
     const auth = await requireGuildAdmin(req, res, env, client, guildId);
     if (!auth || !requireCsrf(req, res, auth.session)) return;
     const body = await readJsonBody(req);
-    if (!body?.gag2Stock || typeof body.gag2Stock !== 'object' || Array.isArray(body.gag2Stock)) {
-      return sendJson(res, 400, { error: 'Only GAG stock configuration can be updated.' });
-    }
+    const hasStock = body?.gag2Stock && typeof body.gag2Stock === 'object' && !Array.isArray(body.gag2Stock);
+    const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
+    if (!hasStock && !hasLeveling) return sendJson(res, 400, { error: 'GAG stock or leveling configuration is required.' });
 
     const state = loadState();
     state.guilds[guildId] ||= ensureGuildConfig(guildId);
-    state.guilds[guildId].features = { gag2Stock: true, fullBot: false };
-    state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
+    state.guilds[guildId].features = { gag2Stock: true, leveling: true, fullBot: false };
+    if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
+    if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     saveState(state);
     const config = getGuildConfigRaw(guildId);
 
-    syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId })
-      .then(() => syncGag2RoleAssignmentPanel(client, guildId))
-      .catch((error) => logCommandSystem(`GAG stock setup sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
-    logCommandSystem(`Admin ${auth.session.user.id} updated GAG stock for guild ${guildId}.`);
+    if (hasStock) {
+      syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId })
+        .then(() => syncGag2RoleAssignmentPanel(client, guildId))
+        .catch((error) => logCommandSystem(`GAG stock setup sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
+    }
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config), progress: getGag2StockSetupProgress(guildId) });
   }
 
@@ -532,7 +547,7 @@ function startAdminServer(client) {
   });
   serverRef.requestTimeout = 15_000;
   serverRef.headersTimeout = 20_000;
-  serverRef.listen(env.port, env.host, () => logCommandSystem(`GAG stock dashboard listening on http://${env.host}:${env.port}.`));
+  serverRef.listen(env.port, env.host, () => logCommandSystem(`CoinSprite dashboard listening on http://${env.host}:${env.port}.`));
   return serverRef;
 }
 

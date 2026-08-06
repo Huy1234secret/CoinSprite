@@ -3,7 +3,7 @@ const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileSto
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
 const GAG2_BASE_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
@@ -15,6 +15,19 @@ const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legend
 const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
 const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
 const GAG2_FALL_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
+const DEFAULT_LEVELING_CONFIG = Object.freeze({
+  enabled: true,
+  xp: Object.freeze({ min: 15, max: 25, cooldownSeconds: 60 }),
+  curve: Object.freeze({ baseXp: 100, growth: 1.5, maxLevel: 100 }),
+  announcements: Object.freeze({
+    enabled: true,
+    channelId: '',
+    message: 'GG {user}! You reached level {level}.',
+  }),
+  ignoredChannelIds: Object.freeze([]),
+  roleRewards: Object.freeze([]),
+  stackRoleRewards: true,
+});
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -56,7 +69,7 @@ function defaultFall() {
   };
 }
 
-const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, fullBot: false });
+const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, leveling: true, fullBot: false });
 const DEFAULT_GAG2_STOCK_CONFIG = Object.freeze({
   enabled: true,
   channels: blankChannels(),
@@ -70,6 +83,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   features: DEFAULT_FEATURES,
   channels: { commandLogThread: '' },
   gag2Stock: DEFAULT_GAG2_STOCK_CONFIG,
+  leveling: DEFAULT_LEVELING_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = Object.freeze({
   ...DEFAULT_GUILD_CONFIG,
@@ -161,6 +175,60 @@ function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
   };
 }
 
+function clampNumber(value, minimum, maximum, fallback, integer = true) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  const clamped = Math.min(maximum, Math.max(minimum, number));
+  return integer ? Math.round(clamped) : Math.round(clamped * 100) / 100;
+}
+
+function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
+  const source = isObject(value) ? value : {};
+  const minimumXp = clampNumber(source.xp?.min, 1, 1000, defaults.xp.min);
+  const maximumXp = clampNumber(source.xp?.max, minimumXp, 2000, Math.max(minimumXp, defaults.xp.max));
+  const maximumLevel = clampNumber(source.curve?.maxLevel, 1, 1000, defaults.curve.maxLevel);
+  const ignoredChannelIds = Array.isArray(source.ignoredChannelIds)
+    ? [...new Set(source.ignoredChannelIds.map(cleanId).filter(Boolean))].slice(0, 250)
+    : [...defaults.ignoredChannelIds];
+  const roleRewards = (Array.isArray(source.roleRewards) ? source.roleRewards : defaults.roleRewards)
+    .map((reward) => ({
+      level: clampNumber(reward?.level, 1, maximumLevel, 1),
+      roleId: cleanId(reward?.roleId),
+    }))
+    .filter((reward) => reward.roleId)
+    .sort((left, right) => left.level - right.level)
+    .filter((reward, index, rewards) => index === rewards.findIndex((candidate) => candidate.level === reward.level))
+    .slice(0, 100);
+  const message = String(source.announcements?.message || defaults.announcements.message)
+    .trim()
+    .slice(0, 500) || defaults.announcements.message;
+  return {
+    enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
+    xp: {
+      min: minimumXp,
+      max: maximumXp,
+      cooldownSeconds: clampNumber(source.xp?.cooldownSeconds, 5, 3600, defaults.xp.cooldownSeconds),
+    },
+    curve: {
+      baseXp: clampNumber(source.curve?.baseXp, 25, 100000, defaults.curve.baseXp),
+      growth: clampNumber(source.curve?.growth, 1, 3, defaults.curve.growth, false),
+      maxLevel: maximumLevel,
+    },
+    announcements: {
+      enabled: source.announcements?.enabled === undefined
+        ? defaults.announcements.enabled !== false
+        : source.announcements.enabled !== false,
+      channelId: cleanId(source.announcements?.channelId),
+      message,
+    },
+    ignoredChannelIds,
+    roleRewards,
+    stackRoleRewards: source.stackRoleRewards === undefined
+      ? defaults.stackRoleRewards !== false
+      : source.stackRoleRewards !== false,
+  };
+}
+
 function defaultConfigForGuild(guildId) {
   return clone(guildId === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
 }
@@ -173,6 +241,7 @@ function normalizeGuildConfig(guildId, value) {
     features: { ...DEFAULT_FEATURES },
     channels: { commandLogThread: '' },
     gag2Stock: normalizeGag2StockConfig(source.gag2Stock, defaults.gag2Stock),
+    leveling: normalizeLevelingConfig(source.leveling, defaults.leveling),
   };
 }
 
@@ -301,6 +370,11 @@ function isGuildGag2StockEnabled(guildId) {
   return Boolean(config?.features?.gag2Stock && config.gag2Stock?.enabled !== false);
 }
 
+function isGuildLevelingEnabled(guildId) {
+  const config = getGuildConfig(guildId);
+  return Boolean(config?.features?.leveling && config.leveling?.enabled !== false);
+}
+
 function updateGuildGag2StockRoleIds(guildId, type, value) {
   const id = cleanId(guildId);
   const key = String(type || '');
@@ -321,6 +395,7 @@ function resolveLoggingChannelId() {
 module.exports = {
   DEFAULT_FEATURES,
   DEFAULT_GAG2_STOCK_CONFIG,
+  DEFAULT_LEVELING_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -344,8 +419,10 @@ module.exports = {
   isGuildEnabled,
   isGuildFullBotEnabled,
   isGuildGag2StockEnabled,
+  isGuildLevelingEnabled,
   loadState,
   normalizeGag2StockConfig,
+  normalizeLevelingConfig,
   resolveLoggingChannelId,
   saveState,
   setGuildEnabled,

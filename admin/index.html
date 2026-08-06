@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260806-2">
-  <script src="/admin/app.js?v=20260806-2" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260806-3">
+  <script src="/admin/app.js?v=20260806-3" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -62,6 +62,7 @@
 
       <nav class="nav-list" aria-label="Dashboard">
         <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
+        <button class="nav-item" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>XP & rewards</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -100,10 +101,53 @@
           <div class="filter-grid fall-role-grid" id="fallRoleFilters"></div>
         </section>
 
-        <footer class="save-dock" id="saveDock" role="status" aria-live="polite" hidden>
-          <span id="saveState">Unsaved changes</span>
-          <button class="button primary" id="saveButton" type="button">Save changes</button>
-        </footer>
+      </section>
+
+      <section class="view" id="levelingView" data-view-panel="leveling" hidden>
+        <header class="workspace-head">
+          <div><span class="eyebrow">LEVELING</span><h1>Turn activity into progress.</h1><p>Balanced XP, clean rewards, and a leaderboard your community can actually enjoy.</p></div>
+          <div class="head-actions">
+            <label class="switch-card header-switch"><span><strong>Leveling engine</strong><small>Award XP from eligible messages</small></span><input id="levelingEnabled" type="checkbox"><i></i></label>
+          </div>
+        </header>
+
+        <section class="section-block leveling-hero">
+          <div class="section-heading"><div><span class="step">01</span><h2>XP pacing</h2></div><p>Random XP feels natural while cooldown and repeat protection keep spam useless.</p></div>
+          <div class="leveling-settings-grid">
+            <label class="setting-card"><span>Minimum XP<small>Lowest reward per eligible message</small></span><input id="levelingXpMin" type="number" min="1" max="1000"></label>
+            <label class="setting-card"><span>Maximum XP<small>Highest reward per eligible message</small></span><input id="levelingXpMax" type="number" min="1" max="2000"></label>
+            <label class="setting-card"><span>Cooldown<small>Seconds between XP awards</small></span><input id="levelingCooldown" type="number" min="5" max="3600"></label>
+            <label class="setting-card"><span>Base XP<small>XP needed to reach level one</small></span><input id="levelingBaseXp" type="number" min="25" max="100000"></label>
+            <label class="setting-card"><span>Growth curve<small>Higher means tougher later levels</small></span><input id="levelingGrowth" type="number" min="1" max="3" step="0.05"></label>
+            <label class="setting-card"><span>Maximum level<small>Hard cap for progression</small></span><input id="levelingMaxLevel" type="number" min="1" max="1000"></label>
+          </div>
+          <div class="curve-preview" id="levelingCurvePreview"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">02</span><h2>Level-up signal</h2></div><p>Celebrate in the active chat or route every level-up into one dedicated channel.</p></div>
+          <div class="leveling-announcement-grid">
+            <label class="switch-card compact-switch"><span><strong>Announcements</strong><small>Post a V2 level-up card</small></span><input id="levelingAnnounceEnabled" type="checkbox"><i></i></label>
+            <label class="field-card"><span>Announcement channel<small>Automatic posts in the earning channel</small></span><select id="levelingAnnounceChannel"></select></label>
+            <label class="field-card wide"><span>Message template<small>Use {user}, {username}, {level}, and {server}</small></span><textarea id="levelingMessage" maxlength="500" rows="3"></textarea></label>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">03</span><h2>XP channels</h2></div><p>Disable XP in bot channels, spam rooms, counting games, or anywhere activity should not count.</p></div>
+          <div class="ignored-channel-list" id="levelingIgnoredChannels"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading reward-heading"><div><span class="step">04</span><h2>Role rewards</h2></div><button class="button small ghost" id="levelingAddReward" type="button">+ Add reward</button></div>
+          <label class="switch-card compact-switch reward-mode"><span><strong>Stack reward roles</strong><small>Keep earlier roles as members level up</small></span><input id="levelingStackRewards" type="checkbox"><i></i></label>
+          <div class="reward-list" id="levelingRewards"></div>
+          <p class="microcopy">CoinSprite can only grant roles below its highest Discord role. Managed integration roles are excluded.</p>
+        </section>
+
+        <section class="leveling-command-strip">
+          <span>V2 COMMANDS</span><code>/level</code><code>/leaderboard</code><code>/level-set</code><code>/xp-add</code><code>/leveling-setup</code>
+        </section>
       </section>
 
       <section class="view" id="ownerView" data-view-panel="owner" hidden>
@@ -117,6 +161,11 @@
           <div class="console-output" id="consoleOutput" tabindex="0"><p class="console-empty">Waiting for bot activity…</p></div>
         </section>
       </section>
+
+      <footer class="save-dock" id="saveDock" role="status" aria-live="polite" hidden>
+        <span id="saveState">Unsaved changes</span>
+        <button class="button primary" id="saveButton" type="button">Apply changes</button>
+      </footer>
     </section>
   </main>
 

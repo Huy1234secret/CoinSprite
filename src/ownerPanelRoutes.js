@@ -11,6 +11,8 @@ const { getRuntimeMetrics } = require('./runtimeMetrics');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
+const STORAGE_CACHE_MS = 5_000;
+let storageCache = { sampledAt: 0, bytes: 0 };
 
 function ownerIdSet() {
   const raw = [
@@ -122,6 +124,7 @@ async function ownerOverview(client) {
   )).sort((a, b) => a.name.localeCompare(b.name));
   const memory = process.memoryUsage();
   const storageBytes = directoryBytes(DATA_DIR) + directoryBytes(LOGS_DIR);
+  storageCache = { sampledAt: Date.now(), bytes: storageBytes };
 
   return {
     bot: {
@@ -141,6 +144,22 @@ async function ownerOverview(client) {
     },
     storage: { bytes: storageBytes, label: formatBytes(storageBytes) },
     guilds,
+  };
+}
+
+function ownerLiveMetrics(nowMs = Date.now()) {
+  if (nowMs - storageCache.sampledAt >= STORAGE_CACHE_MS) {
+    storageCache = {
+      sampledAt: nowMs,
+      bytes: directoryBytes(DATA_DIR) + directoryBytes(LOGS_DIR),
+    };
+  }
+  const memory = process.memoryUsage();
+  return {
+    sampledAt: new Date(nowMs).toISOString(),
+    heap: { bytes: memory.heapUsed, label: formatBytes(memory.heapUsed) },
+    storage: { bytes: storageCache.bytes, label: formatBytes(storageCache.bytes) },
+    runtime: getRuntimeMetrics(),
   };
 }
 
@@ -167,7 +186,7 @@ async function handleOwnerOverview(req, res, client, deps) {
 }
 
 async function handleOwnerMetrics(req, res, client, session, deps) {
-  deps.sendJson(res, 200, getRuntimeMetrics());
+  deps.sendJson(res, 200, ownerLiveMetrics());
 }
 
 async function handleOwnerConsole(req, res, url, client, session, deps) {
@@ -214,4 +233,5 @@ module.exports = {
   handleOwnerMetrics,
   handleOwnerOverview,
   isOwnerSession,
+  ownerLiveMetrics,
 };
