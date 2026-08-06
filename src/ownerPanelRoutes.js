@@ -5,6 +5,7 @@ const {
   getDisabledGuilds,
   getGuildConfigRaw,
   setGuildEnabled,
+  setGuildFeatureAccess,
 } = require('./serverConfig');
 const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
 const { getRuntimeMetrics } = require('./runtimeMetrics');
@@ -105,6 +106,11 @@ async function guildSummary(client, id, fallback, disabledGuilds) {
     enabled: config?.enabled !== false,
     disabled: disabledGuilds[id] || null,
     partial: !guild,
+    features: {
+      gag2Stock: true,
+      leveling: config?.features?.leveling === true,
+      fullBot: false,
+    },
     stock: {
       enabled: gag2Stock.enabled !== false,
       configuredChannels,
@@ -224,12 +230,22 @@ async function handleOwnerEnable(req, res, client, guildId, session, deps) {
   return deps.sendJson(res, 200, { guildId, config: result.config });
 }
 
+async function handleOwnerFeatures(req, res, client, guildId, session, deps) {
+  const guild = await getGuild(client, guildId);
+  if (!guild) return deps.sendJson(res, 404, { error: 'Guild is not available to the bot.' });
+  const body = await deps.readJsonBody(req);
+  const config = setGuildFeatureAccess(guildId, { leveling: body?.features?.leveling === true });
+  logCommandSystem(`Owner ${session.user.id} updated feature access for guild ${guildId}: leveling ${config.features.leveling ? 'unlocked' : 'locked'}.`);
+  return deps.sendJson(res, 200, { guildId, features: config.features, config });
+}
+
 module.exports = {
   collectOwnerGuildIds,
   collectOwnerGuildRecords,
   handleOwnerConsole,
   handleOwnerDisable,
   handleOwnerEnable,
+  handleOwnerFeatures,
   handleOwnerMetrics,
   handleOwnerOverview,
   isOwnerSession,

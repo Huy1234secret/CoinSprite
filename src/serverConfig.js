@@ -3,7 +3,7 @@ const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileSto
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
 const GAG2_BASE_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
@@ -16,16 +16,24 @@ const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
 const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
 const GAG2_FALL_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
-  enabled: true,
+  enabled: false,
   xp: Object.freeze({ min: 15, max: 25, cooldownSeconds: 60 }),
   curve: Object.freeze({ baseXp: 100, growth: 1.5, maxLevel: 100 }),
   announcements: Object.freeze({
-    enabled: true,
+    enabled: false,
     channelId: '',
     message: 'GG {user}! You reached level {level}.',
+    layout: Object.freeze({
+      container: true,
+      accentColor: '#b9f547',
+      thumbnailEnabled: false,
+      thumbnailUrl: '',
+      galleryUrls: Object.freeze([]),
+    }),
   }),
-  ignoredChannelIds: Object.freeze([]),
+  channelMultipliers: Object.freeze({}),
   roleRewards: Object.freeze([]),
+  roleBoosts: Object.freeze([]),
   stackRoleRewards: true,
 });
 
@@ -69,7 +77,7 @@ function defaultFall() {
   };
 }
 
-const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, leveling: true, fullBot: false });
+const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, leveling: false, fullBot: false });
 const DEFAULT_GAG2_STOCK_CONFIG = Object.freeze({
   enabled: true,
   channels: blankChannels(),
@@ -182,14 +190,36 @@ function clampNumber(value, minimum, maximum, fallback, integer = true) {
   return integer ? Math.round(clamped) : Math.round(clamped * 100) / 100;
 }
 
+function cleanWebUrl(value) {
+  const text = String(value || '').trim().slice(0, 2000);
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function cleanHexColor(value, fallback = '#b9f547') {
+  const text = String(value || '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(text) ? text : fallback;
+}
+
+function normalizeMultiplierMap(value, defaults = {}) {
+  const source = isObject(value) ? value : defaults;
+  return Object.fromEntries(Object.entries(source).map(([id, multiplier]) => [
+    cleanId(id),
+    clampNumber(multiplier, 0, 10, 1),
+  ]).filter(([id]) => id).slice(0, 250));
+}
+
 function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
   const source = isObject(value) ? value : {};
   const minimumXp = clampNumber(source.xp?.min, 1, 1000, defaults.xp.min);
   const maximumXp = clampNumber(source.xp?.max, minimumXp, 2000, Math.max(minimumXp, defaults.xp.max));
   const maximumLevel = clampNumber(source.curve?.maxLevel, 1, 1000, defaults.curve.maxLevel);
-  const ignoredChannelIds = Array.isArray(source.ignoredChannelIds)
-    ? [...new Set(source.ignoredChannelIds.map(cleanId).filter(Boolean))].slice(0, 250)
-    : [...defaults.ignoredChannelIds];
+  const channelMultipliers = normalizeMultiplierMap(source.channelMultipliers, defaults.channelMultipliers);
   const roleRewards = (Array.isArray(source.roleRewards) ? source.roleRewards : defaults.roleRewards)
     .map((reward) => ({
       level: clampNumber(reward?.level, 1, maximumLevel, 1),
@@ -199,9 +229,19 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     .sort((left, right) => left.level - right.level)
     .filter((reward, index, rewards) => index === rewards.findIndex((candidate) => candidate.level === reward.level))
     .slice(0, 100);
+  const roleBoosts = (Array.isArray(source.roleBoosts) ? source.roleBoosts : (defaults.roleBoosts || []))
+    .map((boost) => ({
+      roleId: cleanId(boost?.roleId),
+      multiplier: clampNumber(boost?.multiplier, 0, 10, 1),
+    }))
+    .filter((boost) => boost.roleId)
+    .filter((boost, index, boosts) => index === boosts.findIndex((candidate) => candidate.roleId === boost.roleId))
+    .slice(0, 100);
   const message = String(source.announcements?.message || defaults.announcements.message)
     .trim()
-    .slice(0, 500) || defaults.announcements.message;
+    .slice(0, 2000) || defaults.announcements.message;
+  const layoutSource = isObject(source.announcements?.layout) ? source.announcements.layout : {};
+  const layoutDefaults = defaults.announcements.layout || DEFAULT_LEVELING_CONFIG.announcements.layout;
   return {
     enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
     xp: {
@@ -220,9 +260,18 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         : source.announcements.enabled !== false,
       channelId: cleanId(source.announcements?.channelId),
       message,
+      layout: {
+        container: layoutSource.container === undefined ? layoutDefaults.container !== false : layoutSource.container !== false,
+        accentColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor),
+        thumbnailEnabled: layoutSource.thumbnailEnabled === true,
+        thumbnailUrl: cleanWebUrl(layoutSource.thumbnailUrl),
+        galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
+          .map(cleanWebUrl).filter(Boolean))].slice(0, 10),
+      },
     },
-    ignoredChannelIds,
+    channelMultipliers,
     roleRewards,
+    roleBoosts,
     stackRoleRewards: source.stackRoleRewards === undefined
       ? defaults.stackRoleRewards !== false
       : source.stackRoleRewards !== false,
@@ -233,15 +282,21 @@ function defaultConfigForGuild(guildId) {
   return clone(guildId === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
 }
 
-function normalizeGuildConfig(guildId, value) {
+function normalizeGuildConfig(guildId, value, options = {}) {
   const source = isObject(value) ? value : {};
   const defaults = defaultConfigForGuild(guildId);
+  const leveling = normalizeLevelingConfig(source.leveling, defaults.leveling);
+  if (options.resetFeatureLocks) leveling.enabled = false;
   return {
     enabled: source.enabled !== false,
-    features: { ...DEFAULT_FEATURES },
+    features: {
+      gag2Stock: true,
+      leveling: options.resetFeatureLocks ? false : source.features?.leveling === true,
+      fullBot: false,
+    },
     channels: { commandLogThread: '' },
     gag2Stock: normalizeGag2StockConfig(source.gag2Stock, defaults.gag2Stock),
-    leveling: normalizeLevelingConfig(source.leveling, defaults.leveling),
+    leveling,
   };
 }
 
@@ -264,10 +319,11 @@ function normalizeDisabledGuilds(value) {
 
 function normalizeState(value) {
   const source = isObject(value) ? value : {};
+  const resetFeatureLocks = Number(source.meta?.schemaVersion || 0) < SCHEMA_VERSION;
   const guilds = {};
   for (const [guildId, config] of Object.entries(isObject(source.guilds) ? source.guilds : {})) {
     const id = cleanId(guildId);
-    if (id) guilds[id] = normalizeGuildConfig(id, config);
+    if (id) guilds[id] = normalizeGuildConfig(id, config, { resetFeatureLocks });
   }
   if (!guilds[DEFAULT_GUILD_ID]) guilds[DEFAULT_GUILD_ID] = defaultConfigForGuild(DEFAULT_GUILD_ID);
   return {
@@ -370,6 +426,21 @@ function isGuildGag2StockEnabled(guildId) {
   return Boolean(config?.features?.gag2Stock && config.gag2Stock?.enabled !== false);
 }
 
+function setGuildFeatureAccess(guildId, features = {}) {
+  const id = cleanId(guildId);
+  if (!id) return null;
+  const state = loadState();
+  state.guilds[id] ||= defaultConfigForGuild(id);
+  state.guilds[id].features = {
+    gag2Stock: true,
+    leveling: features.leveling === true,
+    fullBot: false,
+  };
+  if (!state.guilds[id].features.leveling) state.guilds[id].leveling.enabled = false;
+  saveState(state);
+  return getGuildConfigRaw(id);
+}
+
 function isGuildLevelingEnabled(guildId) {
   const config = getGuildConfig(guildId);
   return Boolean(config?.features?.leveling && config.leveling?.enabled !== false);
@@ -423,8 +494,10 @@ module.exports = {
   loadState,
   normalizeGag2StockConfig,
   normalizeLevelingConfig,
+  normalizeState,
   resolveLoggingChannelId,
   saveState,
   setGuildEnabled,
+  setGuildFeatureAccess,
   updateGuildGag2StockRoleIds,
 };

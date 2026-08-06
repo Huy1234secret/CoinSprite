@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260806-3">
-  <script src="/admin/app.js?v=20260806-3" defer></script>
+  <link rel="stylesheet" href="/admin/style.css?v=20260806-4">
+  <script src="/admin/app.js?v=20260806-4" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -62,7 +62,7 @@
 
       <nav class="nav-list" aria-label="Dashboard">
         <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
-        <button class="nav-item" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>XP & rewards</small></span></button>
+        <button class="nav-item" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -129,17 +129,39 @@
           <div class="leveling-announcement-grid">
             <label class="switch-card compact-switch"><span><strong>Announcements</strong><small>Post a V2 level-up card</small></span><input id="levelingAnnounceEnabled" type="checkbox"><i></i></label>
             <label class="field-card"><span>Announcement channel<small>Automatic posts in the earning channel</small></span><select id="levelingAnnounceChannel"></select></label>
-            <label class="field-card wide"><span>Message template<small>Use {user}, {username}, {level}, and {server}</small></span><textarea id="levelingMessage" maxlength="500" rows="3"></textarea></label>
+            <section class="message-composer wide">
+              <header class="composer-toolbar">
+                <div><strong>Live Discord message</strong><small>Markdown renders while you type. Use {user}, {username}, {level}, {server}, and {separator}.</small></div>
+                <div><button class="composer-add" id="levelingContainerAdd" type="button">+ Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">+ Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">+ Gallery image</button></div>
+              </header>
+              <div class="composer-assets">
+                <label id="levelingThumbnailField" hidden><span>Thumbnail URL</span><input id="levelingThumbnailUrl" type="url" maxlength="2000" placeholder="https://example.com/thumbnail.png"></label>
+                <div class="gallery-fields" id="levelingGalleryFields"></div>
+              </div>
+              <div class="composer-panels">
+                <label class="composer-editor"><span>Message template</span><textarea id="levelingMessage" maxlength="2000" rows="10" spellcheck="true"></textarea></label>
+                <div class="discord-preview" aria-label="Live Discord preview">
+                  <div class="discord-preview-head"><span>LIVE PREVIEW</span><small>Discord Components V2</small></div>
+                  <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="levelingDiscordFrame"><button class="discord-accent-button" id="levelingAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="levelingAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="levelingMessagePreview"></div></div></div></div>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
 
         <section class="section-block">
-          <div class="section-heading"><div><span class="step">03</span><h2>XP channels</h2></div><p>Disable XP in bot channels, spam rooms, counting games, or anywhere activity should not count.</p></div>
-          <div class="ignored-channel-list" id="levelingIgnoredChannels"></div>
+          <div class="section-heading"><div><span class="step">03</span><h2>XP channels</h2></div><p>Enable the channels that award XP, then tune each channel from ×0 to ×10.</p></div>
+          <div class="ignored-channel-list" id="levelingChannels"></div>
         </section>
 
         <section class="section-block">
-          <div class="section-heading reward-heading"><div><span class="step">04</span><h2>Role rewards</h2></div><button class="button small ghost" id="levelingAddReward" type="button">+ Add reward</button></div>
+          <div class="section-heading reward-heading"><div><span class="step">04</span><h2>Role XP boosts</h2></div><button class="button small ghost" id="levelingAddBoost" type="button">+ Add role boost</button></div>
+          <div class="reward-list" id="levelingBoosts"></div>
+          <p class="microcopy">A member's highest matching role boost is used. Channel and role multipliers combine, capped at ×10.</p>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading reward-heading"><div><span class="step">05</span><h2>Role rewards</h2></div><button class="button small ghost" id="levelingAddReward" type="button">+ Add reward</button></div>
           <label class="switch-card compact-switch reward-mode"><span><strong>Stack reward roles</strong><small>Keep earlier roles as members level up</small></span><input id="levelingStackRewards" type="checkbox"><i></i></label>
           <div class="reward-list" id="levelingRewards"></div>
           <p class="microcopy">CoinSprite can only grant roles below its highest Discord role. Managed integration roles are excluded.</p>
@@ -164,7 +186,7 @@
 
       <footer class="save-dock" id="saveDock" role="status" aria-live="polite" hidden>
         <span id="saveState">Unsaved changes</span>
-        <button class="button primary" id="saveButton" type="button">Apply changes</button>
+        <div><button class="button ghost" id="resetButton" type="button">Reset</button><button class="button primary" id="saveButton" type="button">Apply changes</button></div>
       </footer>
     </section>
   </main>

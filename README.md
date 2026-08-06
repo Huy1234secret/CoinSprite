@@ -3,8 +3,8 @@
 CoinSprite is a focused Discord service for Grow a Garden stock alerts and community leveling. The runtime contains three product surfaces:
 
 - **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
-- **Leveling** — anti-spam message XP, level-up cards, leaderboards, ignored channels, and milestone roles.
-- **Owner panel** — bot health, connected guilds, enable/disable controls, and a live operational console.
+- **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
+- **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
 
 Tickets, moderation, giveaways, games, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
 
@@ -34,14 +34,17 @@ For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.
 
 Guild settings are stored in `data/server-config.json`, while member XP is stored atomically in `data/leveling.json`.
 
-The dashboard lets Discord administrators configure:
+GAG Stock is always unlocked. Every optional feature defaults locked and disabled for every server; the bot owner can unlock Leveling from the fleet's **Feature access** dropdown.
+
+The dashboard lets Discord administrators configure unlocked features:
 
 - destinations for seed, gear, crate, weather, moon, sell, role-selection, and update feeds;
 - rarity and sell-multiplier filters;
 - Fall Harvest feed participation;
 - automatic notification-role synchronization;
-- XP range, cooldown, progression curve, maximum level, and ignored channels;
-- Components V2 level-up announcements and stackable or highest-only role rewards.
+- XP range, cooldown, progression curve, maximum level, opt-in channel multipliers, and role XP boosts;
+- a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
+- stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
 The focused application commands are `/stock-set-up`, `/level`, `/leaderboard`, `/level-set`, `/xp-add`, and `/leveling-setup`.
 

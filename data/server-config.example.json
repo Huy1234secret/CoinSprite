@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 8,
+    "schemaVersion": 10,
     "disabledGuilds": {}
   },
   "guilds": {
@@ -8,6 +8,7 @@
       "enabled": true,
       "features": {
         "gag2Stock": true,
+        "leveling": false,
         "fullBot": false
       },
       "channels": {
@@ -61,6 +62,27 @@
           }
         },
         "rolesSyncedAt": ""
+      },
+      "leveling": {
+        "enabled": false,
+        "xp": { "min": 15, "max": 25, "cooldownSeconds": 60 },
+        "curve": { "baseXp": 100, "growth": 1.5, "maxLevel": 100 },
+        "announcements": {
+          "enabled": false,
+          "channelId": "",
+          "message": "GG {user}! You reached level {level}.",
+          "layout": {
+            "container": true,
+            "accentColor": "#b9f547",
+            "thumbnailEnabled": false,
+            "thumbnailUrl": "",
+            "galleryUrls": []
+          }
+        },
+        "channelMultipliers": {},
+        "roleRewards": [],
+        "roleBoosts": [],
+        "stackRoleRewards": true
       }
     }
   }
