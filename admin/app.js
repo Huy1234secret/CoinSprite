@@ -19,6 +19,7 @@
     ['crate', 'Fall crates', discordEmoji('1533306164018937936')],
     ['sell', 'Fall sell', '\u{1F341}'],
   ];
+  const CARD_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 
   const state = {
     me: null,
@@ -1226,7 +1227,7 @@
     if (selection === 'background') return { x: 0, y: 0, width: 1000, height: 320, resize: false };
     if (layer) {
       if (layer.type === 'text') {
-        context.font = `${layer.weight} ${layer.size}px sans-serif`;
+        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
         return { x: layer.x, y: layer.y, width: Math.max(40, context.measureText(layer.text).width), height: layer.size * 1.25, resize: true };
       }
       return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: true };
@@ -1280,14 +1281,21 @@
     context.textBaseline = 'top';
     context.textAlign = 'left';
     context.fillStyle = design.username.color;
-    context.font = `bold ${design.username.size}px sans-serif`;
-    context.fillText(preview.username || 'Member', design.username.x, design.username.y);
+    const previewName = String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
+    let previewNameSize = design.username.size;
+    const previewNameWidth = Math.max(120, design.rank.x - design.username.x - 145);
+    context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
+    while (previewNameSize > 16 && context.measureText(previewName).width > previewNameWidth) {
+      previewNameSize -= 1;
+      context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
+    }
+    context.fillText(previewName, design.username.x, design.username.y);
     context.fillStyle = design.level.color;
-    context.font = `bold ${design.level.size}px sans-serif`;
+    context.font = `bold ${design.level.size}px ${CARD_FONT_FAMILY}`;
     context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
     context.textAlign = 'right';
     context.fillStyle = design.rank.color;
-    context.font = `bold ${design.rank.size}px sans-serif`;
+    context.font = `bold ${design.rank.size}px ${CARD_FONT_FAMILY}`;
     context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
 
     context.fillStyle = design.progress.trackColor;
@@ -1301,7 +1309,7 @@
     }
     context.textAlign = 'left';
     context.fillStyle = design.xp.color;
-    context.font = `${design.xp.size}px sans-serif`;
+    context.font = `${design.xp.size}px ${CARD_FONT_FAMILY}`;
     context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
 
     for (const layer of design.layers) {
@@ -1311,7 +1319,7 @@
       } else {
         context.textAlign = 'left';
         context.fillStyle = layer.color;
-        context.font = `${layer.weight} ${layer.size}px sans-serif`;
+        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
         context.fillText(layer.text, layer.x, layer.y);
       }
     }
@@ -1408,6 +1416,60 @@
     while (parts.length > 1) target = target[parts.shift()];
     const key = parts[0];
     target[key] = typeof target[key] === 'number' ? Number(value) : value;
+  }
+
+  function getCardField(path) {
+    const parts = path.split('.');
+    let target = state.profile.design;
+    if (parts[0] === 'layers') {
+      target = state.profile.design.layers.find((layer) => layer.id === parts[1]);
+      parts.splice(0, 2);
+    }
+    while (target && parts.length) target = target[parts.shift()];
+    return target;
+  }
+
+  function constrainCardSelection(selection = state.cardSelection) {
+    if (!state.profile || selection === 'background') return;
+    const target = cardSelectionObject(selection);
+    if (!target) return;
+    const limit = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, Number(value) || 0));
+    const layer = cardLayerBySelection(selection);
+    if (selection === 'avatar') {
+      target.size = limit(target.size, 32, 240);
+      target.x = limit(target.x, 0, 1000 - target.size);
+      target.y = limit(target.y, 0, 320 - target.size);
+      return;
+    }
+    if (selection === 'progress') {
+      target.width = limit(target.width, 40, 1000);
+      target.height = limit(target.height, 6, 70);
+      target.x = limit(target.x, 0, 1000 - target.width);
+      target.y = limit(target.y, 0, 320 - target.height);
+      return;
+    }
+    if (layer) {
+      if (layer.type === 'text') {
+        layer.size = limit(layer.size, 10, 96);
+        const context = elements.cardCanvas.getContext('2d');
+        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
+        layer.width = Math.min(1000, Math.max(12, Math.ceil(context.measureText(layer.text || 'Text').width)));
+        layer.height = Math.min(320, Math.max(12, Math.ceil(layer.size * 1.25)));
+      } else {
+        layer.width = limit(layer.width, 12, 1000);
+        layer.height = limit(layer.height, 12, 320);
+      }
+      layer.x = limit(layer.x, 0, 1000 - layer.width);
+      layer.y = limit(layer.y, 0, 320 - layer.height);
+      return;
+    }
+    const bounds = cardBounds(selection);
+    if (!bounds) return;
+    target.size = limit(target.size, 12, 80);
+    target.y = limit(target.y, 0, 320 - bounds.height);
+    target.x = selection === 'rank'
+      ? limit(target.x, bounds.width, 1000)
+      : limit(target.x, 0, 1000 - bounds.width);
   }
 
   function refreshCardDirty() {
@@ -1542,6 +1604,7 @@
       if ('x' in target) target.x = Math.round(drag.original.x + dx);
       if ('y' in target) target.y = Math.round(drag.original.y + dy);
     }
+    constrainCardSelection();
     scheduleCardDraw();
     refreshCardDirty();
   }
@@ -1603,6 +1666,9 @@
     const input = event.target.closest('[data-card-field]');
     if (!input || !state.profile) return;
     setCardField(input.dataset.cardField, input.value);
+    constrainCardSelection();
+    const constrained = getCardField(input.dataset.cardField);
+    if (typeof constrained === 'number') input.value = String(Math.round(constrained * 100) / 100);
     if (input.tagName === 'TEXTAREA') renderCardLayers();
     scheduleCardDraw();
     refreshCardDirty();

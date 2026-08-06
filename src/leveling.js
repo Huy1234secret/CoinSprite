@@ -23,11 +23,13 @@ const ACCENT = 0xb9f547;
 const PAGE_SIZE = 10;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
+const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 
 let cachedState = null;
 let saveTimer = null;
 const levelCardAssetCache = new Map();
 const avatarImageCache = new Map();
+const emojiImageCache = new Map();
 
 function blankState() {
   return { version: 2, guilds: {}, profiles: {} };
@@ -98,6 +100,17 @@ function normalizeLevelCardDesign(value, userId) {
   };
   for (const key of Object.keys(defaults.colors)) design.colors[key] = safeColor(source.colors?.[key], defaults.colors[key]);
   design.progress.trackColor = safeColor(source.progress?.trackColor, defaults.progress.trackColor);
+  design.avatar.x = clamp(design.avatar.x, 0, 1000 - design.avatar.size, defaults.avatar.x);
+  design.avatar.y = clamp(design.avatar.y, 0, 320 - design.avatar.size, defaults.avatar.y);
+  const textWidths = { username: 390, level: 210, xp: 330 };
+  for (const key of ['username', 'level', 'xp']) {
+    design[key].x = clamp(design[key].x, 0, 1000 - textWidths[key], defaults[key].x);
+    design[key].y = clamp(design[key].y, 0, 320 - design[key].size, defaults[key].y);
+  }
+  design.rank.x = clamp(design.rank.x, 120, 1000, defaults.rank.x);
+  design.rank.y = clamp(design.rank.y, 0, 320 - design.rank.size, defaults.rank.y);
+  design.progress.x = clamp(design.progress.x, 0, 1000 - design.progress.width, defaults.progress.x);
+  design.progress.y = clamp(design.progress.y, 0, 320 - design.progress.height, defaults.progress.y);
   for (const [index, layer] of (Array.isArray(source.layers) ? source.layers : []).slice(0, 20).entries()) {
     if (!layer || typeof layer !== 'object') continue;
     const base = {
@@ -107,11 +120,18 @@ function normalizeLevelCardDesign(value, userId) {
     };
     if (layer.type === 'image') {
       const imageUrl = safeCardMediaUrl(layer.imageUrl, userId);
-      if (imageUrl) design.layers.push({ ...base, type: 'image', imageUrl });
+      if (imageUrl) design.layers.push({
+        ...base, type: 'image', imageUrl,
+        x: clamp(base.x, 0, 1000 - base.width, 50),
+        y: clamp(base.y, 0, 320 - base.height, 50),
+      });
     } else if (layer.type === 'text') {
+      const size = clamp(layer.size, 10, 96, 28);
       design.layers.push({
         ...base, type: 'text', text: String(layer.text || 'Text').replace(/[\r\n]+/g, ' ').slice(0, 120),
-        size: clamp(layer.size, 10, 96, 28), color: safeColor(layer.color, '#f4f7f2'),
+        x: clamp(base.x, 0, 1000 - base.width, 50),
+        y: clamp(base.y, 0, 320 - size, 50),
+        size, color: safeColor(layer.color, '#f4f7f2'),
         weight: layer.weight === 'normal' ? 'normal' : 'bold',
       });
     }
@@ -256,6 +276,42 @@ function safeName(value) {
   return String(value || 'Member').replace(/[\\*_~`|>]/g, '\\$&').slice(0, 80);
 }
 
+function canvasDisplayName(value) {
+  return String(value || 'Member')
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/^\*\*([\s\S]+)\*\*$/u, '$1')
+    .trim() || 'Member';
+}
+
+function graphemes(value) {
+  const text = String(value || '');
+  if (typeof Intl.Segmenter === 'function') {
+    return [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((part) => part.segment);
+  }
+  return Array.from(text);
+}
+
+function fitCanvasText(context, value, options = {}) {
+  const text = options.displayName === false
+    ? String(value || '').normalize('NFC').replace(/[\u0000-\u001f\u007f]/g, '')
+    : canvasDisplayName(value);
+  const weight = options.weight || 'bold';
+  const minimum = Math.max(8, Number(options.minimum) || 14);
+  let size = Math.max(minimum, Number(options.size) || 30);
+  const maximumWidth = Math.max(20, Number(options.maximumWidth) || 500);
+  while (size > minimum) {
+    context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+    if (context.measureText(text).width <= maximumWidth) return { text, size };
+    size -= 1;
+  }
+  context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+  if (context.measureText(text).width <= maximumWidth) return { text, size };
+  const parts = graphemes(text);
+  while (parts.length > 1 && context.measureText(`${parts.join('')}\u2026`).width > maximumWidth) parts.pop();
+  return { text: `${parts.join('')}\u2026`, size };
+}
+
 function number(value) {
   return new Intl.NumberFormat('en-US').format(Math.max(0, Number(value) || 0));
 }
@@ -294,8 +350,13 @@ async function leaderboardPage(interaction, page = 1) {
   const rows = await Promise.all(entries.slice(start, start + PAGE_SIZE).map(async (entry, index) => {
     const member = interaction.guild.members.cache.get(entry.userId)
       || await interaction.guild.members.fetch(entry.userId).catch(() => null);
-    const name = safeName(member?.displayName || member?.user?.username || `Member ${entry.userId}`);
-    return `**${start + index + 1}.** ${name} \u2014 **Level ${number(entry.level)}** \u00b7 ${number(entry.xp)} XP`;
+    return {
+      rank: start + index + 1,
+      displayName: member?.displayName || member?.user?.globalName || member?.user?.username || `Member ${entry.userId}`,
+      user: member?.user || { id: entry.userId, username: `Member ${entry.userId}` },
+      level: entry.level,
+      xp: entry.xp,
+    };
   }));
   const ownerId = interaction.user.id;
   const controls = maxPage > 1 ? [{
@@ -306,12 +367,14 @@ async function leaderboardPage(interaction, page = 1) {
       { type: 2, style: 2, label: 'Next', custom_id: `leveling:leaderboard:${ownerId}:${currentPage + 1}`, disabled: currentPage >= maxPage },
     ],
   }] : [];
-  return v2Payload([
-    `## \u219f ${safeName(interaction.guild.name)} leaderboard`,
-    `-# Ranked by total XP \u00b7 ${number(entries.length)} members`,
-    '',
-    ...(rows.length ? rows : ['No one has earned XP yet.']),
-  ].join('\n'), { components: controls });
+  const image = await renderLeaderboardCard({
+    guildName: interaction.guild.name,
+    rows,
+    page: currentPage,
+    maxPage,
+    totalMembers: entries.length,
+  });
+  return buildLeaderboardPayload(image, controls);
 }
 
 function dashboardBaseUrl() {
@@ -509,6 +572,209 @@ async function loadDiscordAvatar(user) {
   return loading;
 }
 
+function leadingFlagParts(value) {
+  const displayName = canvasDisplayName(value);
+  const match = displayName.match(/^([\u{1F1E6}-\u{1F1FF}]{2})\s*(.*)$/u);
+  if (!match) return { flag: '', countryCode: '', text: displayName };
+  const points = Array.from(match[1], (character) => character.codePointAt(0));
+  return {
+    flag: match[1],
+    countryCode: points.map((point) => String.fromCharCode(65 + point - 0x1f1e6)).join(''),
+    text: match[2],
+  };
+}
+
+async function loadFlagEmoji(flag) {
+  if (!flag) return null;
+  const asset = Array.from(flag, (character) => character.codePointAt(0).toString(16)).join('-');
+  if (emojiImageCache.has(asset)) return emojiImageCache.get(asset);
+  const loading = (async () => {
+    let timer;
+    try {
+      const controller = new AbortController();
+      timer = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(`https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/72x72/${asset}.png`, { signal: controller.signal });
+      if (!response.ok) return null;
+      const body = Buffer.from(await response.arrayBuffer());
+      if (!body.length || body.length > 256 * 1024) return null;
+      return await loadImage(body);
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+  emojiImageCache.set(asset, loading);
+  if (emojiImageCache.size > 50) emojiImageCache.delete(emojiImageCache.keys().next().value);
+  return loading;
+}
+
+async function drawCanvasDisplayName(context, value, x, y, options = {}) {
+  const parts = leadingFlagParts(value);
+  const requestedSize = Math.max(10, Number(options.size) || 30);
+  let textX = x;
+  let maximumWidth = Math.max(30, Number(options.maximumWidth) || 500);
+  if (parts.flag) {
+    const flagHeight = Math.round(requestedSize * .9);
+    const flagWidth = Math.round(flagHeight * 1.33);
+    const image = await loadFlagEmoji(parts.flag);
+    if (image) context.drawImage(image, x, y + Math.round((requestedSize - flagHeight) / 2), flagWidth, flagHeight);
+    else {
+      const previousFill = context.fillStyle;
+      context.fillStyle = '#263129';
+      roundedRect(context, x, y + 2, flagWidth, Math.max(18, flagHeight - 2), 6);
+      context.fill();
+      context.fillStyle = previousFill;
+      context.textAlign = 'center';
+      context.font = `bold ${Math.max(10, Math.round(requestedSize * .38))}px ${CANVAS_FONT_FAMILY}`;
+      context.fillText(parts.countryCode, x + flagWidth / 2, y + requestedSize * .68);
+      context.textAlign = 'left';
+    }
+    textX += flagWidth + 10;
+    maximumWidth -= flagWidth + 10;
+  }
+  if (!parts.text) return;
+  const fitted = fitCanvasText(context, parts.text, { ...options, maximumWidth });
+  context.fillText(fitted.text, textX, y + fitted.size);
+}
+
+const PODIUM_COLORS = Object.freeze({
+  1: { main: '#f6c945', soft: 'rgba(246, 201, 69, .14)', label: '1ST' },
+  2: { main: '#c6ced8', soft: 'rgba(198, 206, 216, .12)', label: '2ND' },
+  3: { main: '#d58a52', soft: 'rgba(213, 138, 82, .13)', label: '3RD' },
+});
+
+async function renderLeaderboardCard(options = {}) {
+  const rows = Array.isArray(options.rows) ? options.rows.slice(0, PAGE_SIZE) : [];
+  const rowCount = Math.max(1, rows.length);
+  const width = 1000;
+  const height = 205 + rowCount * 82 + 54;
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext('2d');
+  const avatars = await Promise.all(rows.map((row) => loadDiscordAvatar(row.user)));
+
+  context.fillStyle = '#0b100d';
+  roundedRect(context, 0, 0, width, height, 30);
+  context.fill();
+  context.save();
+  roundedRect(context, 0, 0, width, height, 30);
+  context.clip();
+  const glow = context.createRadialGradient(80, 40, 0, 80, 40, 480);
+  glow.addColorStop(0, 'rgba(185, 245, 71, .14)');
+  glow.addColorStop(1, 'rgba(185, 245, 71, 0)');
+  context.fillStyle = glow;
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = '#b9f547';
+  roundedRect(context, 42, 38, 9, 88, 5);
+  context.fill();
+  context.fillStyle = '#f4f7f2';
+  const guildTitle = fitCanvasText(context, options.guildName || 'Server', { size: 42, minimum: 24, maximumWidth: 700 });
+  context.fillText(guildTitle.text, 78, 52 + guildTitle.size);
+  context.fillStyle = '#98a39c';
+  context.font = `18px ${CANVAS_FONT_FAMILY}`;
+  context.fillText(`${number(options.totalMembers)} ranked members`, 80, 124);
+  context.textAlign = 'right';
+  context.fillStyle = '#b9f547';
+  context.font = `bold 18px ${CANVAS_FONT_FAMILY}`;
+  context.fillText('COINSPRITE LEADERBOARD', 946, 64);
+  context.fillStyle = '#77837b';
+  context.font = `15px ${CANVAS_FONT_FAMILY}`;
+  context.fillText('Ranked by total XP', 946, 94);
+
+  if (!rows.length) {
+    context.textAlign = 'center';
+    context.fillStyle = '#171e1a';
+    roundedRect(context, 42, 165, 916, 82, 18);
+    context.fill();
+    context.fillStyle = '#98a39c';
+    context.font = `20px ${CANVAS_FONT_FAMILY}`;
+    context.fillText('No one has earned XP yet.', 500, 215);
+  }
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const y = 165 + index * 82;
+    const podium = PODIUM_COLORS[row.rank];
+    context.fillStyle = podium?.soft || 'rgba(255, 255, 255, .035)';
+    roundedRect(context, 42, y, 916, 70, 17);
+    context.fill();
+    context.strokeStyle = podium?.main || 'rgba(236, 255, 246, .09)';
+    context.lineWidth = podium ? 2 : 1;
+    roundedRect(context, 42, y, 916, 70, 17);
+    context.stroke();
+
+    context.fillStyle = podium?.main || '#27312b';
+    roundedRect(context, 56, y + 10, 54, 50, 13);
+    context.fill();
+    context.textAlign = 'center';
+    context.fillStyle = podium ? '#11160f' : '#b8c2bc';
+    context.font = `bold ${row.rank < 100 ? 22 : 17}px ${CANVAS_FONT_FAMILY}`;
+    context.fillText(`#${number(row.rank)}`, 83, y + 43);
+
+    const avatarX = 126;
+    const avatarY = y + 9;
+    const avatarSize = 52;
+    context.save();
+    context.fillStyle = podium?.main || '#b9f547';
+    roundedRect(context, avatarX - 3, avatarY - 3, avatarSize + 6, avatarSize + 6, 29);
+    context.fill();
+    roundedRect(context, avatarX, avatarY, avatarSize, avatarSize, 26);
+    context.clip();
+    if (avatars[index]) context.drawImage(avatars[index], avatarX, avatarY, avatarSize, avatarSize);
+    else {
+      context.fillStyle = '#253029';
+      context.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+      context.fillStyle = '#f4f7f2';
+      context.textAlign = 'center';
+      context.font = `bold 23px ${CANVAS_FONT_FAMILY}`;
+      context.fillText(graphemes(canvasDisplayName(row.displayName))[0]?.toUpperCase() || '?', avatarX + avatarSize / 2, avatarY + 35);
+    }
+    context.restore();
+
+    context.textAlign = 'left';
+    context.fillStyle = podium?.main || '#f4f7f2';
+    await drawCanvasDisplayName(context, row.displayName, 198, y + 12, { size: 25, minimum: 16, maximumWidth: 410 });
+    if (podium) {
+      context.fillStyle = podium.main;
+      context.font = `bold 11px ${CANVAS_FONT_FAMILY}`;
+      context.fillText(podium.label, 198, y + 56);
+    }
+
+    context.textAlign = 'left';
+    context.fillStyle = '#98a39c';
+    context.font = `14px ${CANVAS_FONT_FAMILY}`;
+    context.fillText('LEVEL', 665, y + 25);
+    context.fillStyle = '#f4f7f2';
+    context.font = `bold 23px ${CANVAS_FONT_FAMILY}`;
+    context.fillText(number(row.level), 665, y + 52);
+    context.textAlign = 'right';
+    context.fillStyle = '#98a39c';
+    context.font = `14px ${CANVAS_FONT_FAMILY}`;
+    context.fillText('TOTAL XP', 932, y + 25);
+    context.fillStyle = '#f4f7f2';
+    context.font = `bold 23px ${CANVAS_FONT_FAMILY}`;
+    context.fillText(number(row.xp), 932, y + 52);
+  }
+
+  context.textAlign = 'center';
+  context.fillStyle = '#68736c';
+  context.font = `14px ${CANVAS_FONT_FAMILY}`;
+  context.fillText(`PAGE ${number(options.page || 1)} OF ${number(options.maxPage || 1)}`, 500, height - 24);
+  context.restore();
+  return canvas.toBuffer('image/png');
+}
+
+function buildLeaderboardPayload(image, controls = []) {
+  return {
+    content: null,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    attachments: [],
+    files: [{ attachment: image, name: 'leaderboard.png' }],
+    components: controls,
+  };
+}
+
 function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0, scale = 1) {
   const base = Math.max(width / image.width, height / image.height) * scale;
   const drawWidth = image.width * base;
@@ -545,22 +811,25 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
     context.fillStyle = design.colors.track;
     context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
     context.fillStyle = design.colors.text;
-    context.font = `bold ${Math.round(design.avatar.size * .45)}px sans-serif`;
+    context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
     context.textAlign = 'center';
-    context.fillText(String(user?.username || '?').charAt(0).toUpperCase(), design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
+    context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
   }
   context.restore();
 
   context.textAlign = 'left';
   context.fillStyle = design.username.color;
-  context.font = `bold ${design.username.size}px sans-serif`;
-  context.fillText(String(user?.globalName || user?.displayName || user?.username || 'Member').slice(0, 32), design.username.x, design.username.y + design.username.size);
+  await drawCanvasDisplayName(context, user?.displayName || user?.globalName || user?.username, design.username.x, design.username.y, {
+    size: design.username.size,
+    minimum: 16,
+    maximumWidth: Math.max(120, design.rank.x - design.username.x - 145),
+  });
   context.fillStyle = design.level.color;
-  context.font = `bold ${design.level.size}px sans-serif`;
+  context.font = `bold ${design.level.size}px ${CANVAS_FONT_FAMILY}`;
   context.fillText(`LEVEL ${number(stats.level)}`, design.level.x, design.level.y + design.level.size);
   context.textAlign = 'right';
   context.fillStyle = design.rank.color;
-  context.font = `bold ${design.rank.size}px sans-serif`;
+  context.font = `bold ${design.rank.size}px ${CANVAS_FONT_FAMILY}`;
   context.fillText(`#${number(stats.rank)}`, design.rank.x, design.rank.y + design.rank.size);
 
   roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
@@ -574,7 +843,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   }
   context.textAlign = 'left';
   context.fillStyle = design.xp.color;
-  context.font = `${design.xp.size}px sans-serif`;
+  context.font = `${design.xp.size}px ${CANVAS_FONT_FAMILY}`;
   const xpLabel = stats.neededXp ? `${number(stats.progressXp)} / ${number(stats.neededXp)} XP` : `${number(stats.xp)} XP - MAX LEVEL`;
   context.fillText(xpLabel, design.xp.x, design.xp.y + design.xp.size);
 
@@ -585,8 +854,14 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
     } else {
       context.textAlign = 'left';
       context.fillStyle = layer.color;
-      context.font = `${layer.weight} ${layer.size}px sans-serif`;
-      context.fillText(layer.text, layer.x, layer.y + layer.size);
+      const fittedLayer = fitCanvasText(context, layer.text, {
+        displayName: false,
+        weight: layer.weight,
+        size: layer.size,
+        minimum: 10,
+        maximumWidth: Math.min(1000 - layer.x, layer.width),
+      });
+      context.fillText(fittedLayer.text, layer.x, layer.y + fittedLayer.size);
     }
   }
   context.restore();
@@ -595,17 +870,18 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
 
 function buildLevelCardPayload(user, stats, image) {
   return {
-    flags: COMPONENTS_V2_FLAG,
+    content: null,
     allowedMentions: { parse: [], users: [], roles: [] },
+    attachments: [],
     files: [{ attachment: image, name: 'level-card.png' }],
-    components: [{
-      type: 17,
-      accent_color: ACCENT,
-      components: [{
-        type: 12,
-        items: [{ media: { url: 'attachment://level-card.png' }, description: `${safeName(user?.username)} - level ${number(stats.level)}, rank #${number(stats.rank)}` }],
-      }],
-    }],
+    components: [profileEditButtonRow()],
+  };
+}
+
+function profileEditButtonRow() {
+  return {
+    type: 1,
+    components: [{ type: 2, style: 5, label: 'Edit card here!', url: `${dashboardBaseUrl()}/profile` }],
   };
 }
 
@@ -723,19 +999,46 @@ async function handleLevelingMessage(message) {
 
 async function executeLevel(interaction) {
   const user = interaction.options.getUser('user') || interaction.user;
-  await interaction.reply(v2Payload(`## Building ${safeName(user?.globalName || user?.username)}'s level card\n-# Loading profile artwork and current server XP...`));
+  await interaction.reply({
+    content: `Building ${safeName(user?.globalName || user?.username)}'s level card...`,
+    allowedMentions: { parse: [], users: [], roles: [] },
+  });
   const stats = memberStats(interaction.guildId, user.id);
   try {
-    const image = await renderLevelCard(user, stats);
-    await interaction.editReply(buildLevelCardPayload(user, stats, image));
+    let member = interaction.guild?.members?.cache?.get?.(user.id) || null;
+    if (!member && typeof interaction.guild?.members?.fetch === 'function') {
+      member = await interaction.guild.members.fetch(user.id).catch(() => null);
+    }
+    const identity = {
+      id: user.id,
+      username: user.username,
+      globalName: user.globalName,
+      displayName: member?.displayName || user.globalName || user.username,
+      displayAvatarURL: (options) => member?.displayAvatarURL?.(options) || user.displayAvatarURL?.(options),
+      avatarURL: (options) => user.avatarURL?.(options),
+    };
+    const image = await renderLevelCard(identity, stats);
+    await interaction.editReply(buildLevelCardPayload(identity, stats, image));
   } catch (error) {
     logCommandSystem(`Level card render failed for ${user.id}: ${error?.message || 'unknown error'}`);
-    await interaction.editReply(buildLevelPayload(user, stats));
+    await interaction.editReply({
+      content: `**${safeName(user?.globalName || user?.username)}** \u00b7 Level **${number(stats.level)}** \u00b7 Rank **#${number(stats.rank)}**\n${number(stats.progressXp)} / ${number(stats.neededXp)} XP`,
+      components: [profileEditButtonRow()],
+      attachments: [],
+      files: [],
+      allowedMentions: { parse: [], users: [], roles: [] },
+    });
   }
 }
 
 async function executeLeaderboard(interaction) {
-  await interaction.reply(await leaderboardPage(interaction, interaction.options.getInteger('page') || 1));
+  await interaction.reply({ content: 'Building the leaderboard...', allowedMentions: { parse: [], users: [], roles: [] } });
+  try {
+    await interaction.editReply(await leaderboardPage(interaction, interaction.options.getInteger('page') || 1));
+  } catch (error) {
+    logCommandSystem(`Leaderboard render failed in ${interaction.guildId}: ${error?.message || 'unknown error'}`);
+    await interaction.editReply({ content: 'The leaderboard could not be rendered right now.', components: [], attachments: [], files: [] });
+  }
 }
 
 async function executeLevelSet(interaction) {
@@ -845,7 +1148,13 @@ async function handleLevelingInteraction(interaction) {
       await interaction.reply(v2Payload('These leaderboard controls belong to another member.', { ephemeral: true }));
       return true;
     }
-    await interaction.update(await leaderboardPage(interaction, page));
+    await interaction.deferUpdate();
+    try {
+      await interaction.editReply(await leaderboardPage(interaction, page));
+    } catch (error) {
+      logCommandSystem(`Leaderboard page render failed in ${interaction.guildId}: ${error?.message || 'unknown error'}`);
+      await interaction.editReply({ content: 'That leaderboard page could not be rendered right now.', components: [], attachments: [], files: [] });
+    }
     return true;
   }
   return false;
@@ -860,8 +1169,10 @@ module.exports = {
   announcementText,
   applyXpToRecord,
   bestMemberStats,
+  buildLeaderboardPayload,
   buildLevelCardPayload,
   buildLevelPayload,
+  canvasDisplayName,
   flushLevelingState,
   getLevelCardDesign,
   handleLevelingInteraction,
@@ -875,6 +1186,7 @@ module.exports = {
   progressBar,
   resolvedAnnouncementLayout,
   resetLevelingCache,
+  renderLeaderboardCard,
   renderLevelCard,
   saveLevelCardDesign,
   sortedLeaderboard,
