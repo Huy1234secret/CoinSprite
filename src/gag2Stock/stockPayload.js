@@ -129,8 +129,10 @@ function parseRestockPayload(payload, options = {}) {
     const items = (Array.isArray(sourceItems) ? sourceItems : [])
       .map((entry) => {
         const lastStockedAtMs = parseBoundaryMs(entry?.lastStockedAt);
-        const inStockNow = entry?.inStockNow === true
-          || (Number.isFinite(windowMs) && Number.isFinite(lastStockedAtMs) && lastStockedAtMs >= windowMs);
+        const hasWindowTimestamps = Number.isFinite(windowMs) && Number.isFinite(lastStockedAtMs);
+        const inStockNow = hasWindowTimestamps
+          ? lastStockedAtMs >= windowMs
+          : entry?.inStockNow === true;
         if (!inStockNow) return null;
         return {
           key: entry?.key || entry?.id || entry?.slug || entry?.name,

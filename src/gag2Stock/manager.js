@@ -981,10 +981,6 @@ class Gag2StockPoster {
     this.inFlight.add(lockKey);
     try {
       const tickStartedAtMs = this.now();
-      const stockDeliveryCycleAtMs = currentGag2StockCycleAtMs(tickStartedAtMs, {
-        intervalMs: this.checkIntervalMs,
-        offsetMs: this.checkScheduleOffsetMs,
-      });
       const targets = this.targets(tickTypes);
       if (!targets.length) return null;
       const state = loadState(this.statePath);
@@ -1017,9 +1013,6 @@ class Gag2StockPoster {
 
         let entry = entries.get(target.type);
         if (!entry) return null;
-        if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
-          entry = { ...entry, deliveryCycleAtMs: stockDeliveryCycleAtMs };
-        }
         if (target.fallEnabled && isFallHarvestActive(this.now())) {
           const fallError = errors.get(target.type === 'sell' ? 'fallSell' : 'fallStock');
           if (!fallError) {
@@ -1064,6 +1057,10 @@ class Gag2StockPoster {
   }
 
   async postEntryLocked(state, target, entry) {
+    // Different retry groups can overlap and arrive here with separate state
+    // snapshots. Reload after the per-destination send lock is acquired so the
+    // duplicate check always sees the last successful post.
+    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) state = loadState(this.statePath);
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
     if (target.type === 'weather' && isInactiveWeatherEntry(entry, this.now())) {

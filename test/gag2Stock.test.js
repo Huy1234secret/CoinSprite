@@ -179,6 +179,22 @@ test('GAG2 parses the new restock response shape for each world', () => {
   assert.deepEqual(parsed.stock[2].items.map((item) => item.key), ['rake_crate']);
 });
 
+test('GAG2 ignores stale props marked in stock when their timestamp is from an older window', () => {
+  const window = 1785639300;
+  const parsed = parseRestockPayload({
+    world: 'main',
+    window,
+    seeds: [],
+    gears: [],
+    props: [
+      { name: 'Bench', slug: 'bench', lastStockedAt: window - 300, lastQty: 2, inStockNow: true },
+      { name: 'Boombox', slug: 'boombox', lastStockedAt: window, lastQty: 1, inStockNow: true },
+    ],
+  });
+
+  assert.deepEqual(parsed.stock[2].items.map((item) => item.key), ['boombox']);
+});
+
 test('GAG2 keeps Fall-only items out of Garden Valley until the event type is enabled', () => {
   const main = parseRestockPayload({
     world: 'main',
@@ -1549,7 +1565,7 @@ test('GAG2 stock delivery cycle stays fixed across same-cycle retries', () => {
   );
 });
 
-test('GAG2 stock poster sends every bot cycle when the source window stays unchanged', async () => {
+test('GAG2 stock poster sends an unchanged source restock only once across bot cycles', async () => {
   let now = Date.parse('2026-08-02T06:10:00.500Z');
   const statePath = path.join(__dirname, 'tmp-gag2-fixed-source-cycle-state.json');
   fs.rmSync(statePath, { force: true });
@@ -1592,8 +1608,57 @@ test('GAG2 stock poster sends every bot cycle when the source window stays uncha
   now = Date.parse('2026-08-02T06:15:00.500Z');
   await poster.tick(['seed'], 'stock');
 
-  assert.equal(sentPayloads.length, 2, 'same-cycle retry is deduped but the next five-minute cycle is sent');
+  assert.equal(sentPayloads.length, 1, 'the API source window, not the bot clock, owns the restock identity');
   fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 overlapping stock retry groups share the latest persisted dedupe state', async () => {
+  for (const type of ['seed', 'gear']) {
+    const now = Date.parse('2026-08-02T06:10:00.500Z');
+    const statePath = path.join(__dirname, `tmp-gag2-overlap-${type}-state.json`);
+    fs.rmSync(statePath, { force: true });
+    const parsed = parseStockPayload({
+      stock: [{
+        category: type,
+        restockedAt: '2026-08-02T06:10:00.000Z',
+        nextRestockAt: '2026-08-02T06:15:00.000Z',
+        items: [{ key: type === 'seed' ? 'carrot' : 'trowel', name: type === 'seed' ? 'Carrot' : 'Trowel', rarity: 'Common', quantity: 1 }],
+      }],
+    });
+    const target = {
+      guildId: '1493901002519347290',
+      type,
+      channelId: type === 'seed' ? '1525003375651848263' : '1525003375651848264',
+      roleIds: {},
+      filters: DEFAULT_GAG2_STOCK_CONFIG.filters,
+    };
+    let sends = 0;
+    const channel = {
+      id: target.channelId,
+      isTextBased: () => true,
+      send: async () => {
+        sends += 1;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return { id: `message-${sends}` };
+      },
+    };
+    const poster = new Gag2StockPoster({
+      channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+    }, {
+      fetchStockPayload: async () => parsed,
+      now: () => now,
+      statePath,
+    });
+    poster.targets = (types) => types.includes(type) ? [target] : [];
+
+    await Promise.all([
+      poster.tick([type], 'single retry'),
+      poster.tick(['seed', 'gear', 'crate'], 'stock group'),
+    ]);
+
+    assert.equal(sends, 1, `${type} posts once even when retry groups overlap`);
+    fs.rmSync(statePath, { force: true });
+  }
 });
 
 test('GAG2 fetches main and Fall stock together instead of adding their delays', async () => {
