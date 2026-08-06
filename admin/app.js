@@ -178,9 +178,11 @@
     source.announcements ||= {};
     source.announcements.enabled = source.announcements.enabled === true;
     source.announcements.channelId = String(source.announcements.channelId || '');
-    source.announcements.title = String(source.announcements.title || '✦ Level {level} reached').slice(0, 250);
-    source.announcements.message = String(source.announcements.message || 'GG {user}! You reached level {level}.').slice(0, 2000);
-    source.announcements.progress = String(source.announcements.progress || '`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}').slice(0, 500);
+    const legacyTemplate = `## ${String(source.announcements.title || '✦ Level {level} reached')}\n${String(source.announcements.message || 'GG {user}! You reached level {level}.')}\n\n${String(source.announcements.progress || '`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}')}`;
+    source.announcements.template = String(source.announcements.template || legacyTemplate).slice(0, 3000);
+    delete source.announcements.title;
+    delete source.announcements.message;
+    delete source.announcements.progress;
     source.announcements.layout ||= {};
     source.announcements.layout.container = source.announcements.layout.container !== false;
     source.announcements.layout.accentColor = /^#[0-9a-f]{6}$/i.test(source.announcements.layout.accentColor || '')
@@ -425,6 +427,16 @@
     try { return ['http:', 'https:'].includes(new URL(String(value || '')).protocol); } catch { return false; }
   }
 
+  function validMediaTemplate(value) {
+    return String(value || '').trim().toLowerCase() === '{user_profile}' || validHttpUrl(value);
+  }
+
+  function previewMediaUrl(value) {
+    return String(value || '').trim().toLowerCase() === '{user_profile}'
+      ? 'https://cdn.discordapp.com/embed/avatars/0.png'
+      : validHttpUrl(value) ? String(value).trim() : '';
+  }
+
   function discordInlineMarkdown(value) {
     const code = [];
     let html = escapeHtml(value).replace(/`([^`\n]+)`/g, (_, content) => {
@@ -467,7 +479,7 @@
       .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
-      .replace(/\{(?:user|username|level|next_level|server|bar|progress_xp|needed_xp|total_xp|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+      .replace(/\{(?:user|user_profile|username|level|next_level|server|bar|progress_xp|needed_xp|total_xp|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
     return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
@@ -486,6 +498,7 @@
   function previewMessageValue(template) {
     return String(template || '')
       .replaceAll('{user}', '@GardenHero')
+      .replaceAll('{user_profile}', 'https://cdn.discordapp.com/embed/avatars/0.png')
       .replaceAll('{username}', 'GardenHero')
       .replaceAll('{level}', '12')
       .replaceAll('{next_level}', '13')
@@ -496,10 +509,8 @@
       .replaceAll('{total_xp}', '3,160');
   }
 
-  function renderedEditableTemplate(template, field = 'message') {
+  function renderedEditableTemplate(template) {
     const preview = previewMessageValue(template);
-    if (field === 'title') return `<div class="discord-text">${discordMarkdown(`## ${preview}`)}</div>`;
-    if (field === 'progress') return `<div class="discord-text discord-progress-preview">${discordMarkdown(preview)}</div>`;
     return preview.split(/\{separator\}/gi)
       .map((segment, index) => `${index ? '<div class="discord-separator"></div>' : ''}<div class="discord-text">${discordMarkdown(segment)}</div>`)
       .join('');
@@ -510,7 +521,6 @@
     const mirror = editor?.querySelector('[data-inline-message-highlight]');
     const sourceShell = editor?.querySelector('.inline-message-source-shell');
     const display = editor?.querySelector('[data-inline-message-display]');
-    const field = input.dataset.inlineTemplateField || 'message';
     if (!editor || !mirror || !sourceShell || !display) return;
     mirror.innerHTML = editorMarkdown(input.value);
     input.style.height = 'auto';
@@ -518,7 +528,7 @@
     input.style.height = `${height}px`;
     sourceShell.style.height = `${height}px`;
     mirror.style.transform = `translateY(-${input.scrollTop}px)`;
-    display.innerHTML = `${renderedEditableTemplate(input.value, field)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+    display.innerHTML = `${renderedEditableTemplate(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
   function beginInlineMessageEdit(trigger) {
@@ -536,24 +546,23 @@
     editor.classList.remove('editing');
     const input = editor.querySelector('[data-inline-message-input]');
     const display = editor.querySelector('[data-inline-message-display]');
-    const field = input?.dataset.inlineTemplateField || 'message';
-    if (input && display) display.innerHTML = `${renderedEditableTemplate(input.value, field)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+    if (input && display) display.innerHTML = `${renderedEditableTemplate(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
-  function inlineTemplateEditor(field, template, maxLength, label) {
-    const compact = field === 'message' ? '' : ' compact';
-    return `<div class="inline-message-editor${compact}" data-inline-message-editor data-template-field="${field}">
-      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, field)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
+  function inlineTemplateEditor(template) {
+    return `<div class="inline-message-editor" data-inline-message-editor data-template-field="template">
+      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit level-up message">${renderedEditableTemplate(template)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
-        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${field}" maxlength="${maxLength}" rows="2" spellcheck="true" aria-label="${escapeHtml(label)}">${escapeHtml(template)}</textarea>
+        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="template" maxlength="3000" rows="5" spellcheck="true" aria-label="Level-up message template">${escapeHtml(template)}</textarea>
       </div>
       <div class="inline-message-actions"><span>Markdown and variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
     </div>`;
   }
 
   const LEVELING_VARIABLES = [
-    ['{user}', 'Mention the member'], ['{username}', 'Member display name'],
+    ['{user}', 'Mention the member'], ['{user_profile}', 'Member profile image URL'],
+    ['{username}', 'Member display name'],
     ['{level}', 'New level'], ['{next_level}', 'Next level'],
     ['{server}', 'Server name'], ['{bar}', 'Live XP progress bar'],
     ['{progress_xp}', 'XP earned inside this level'], ['{needed_xp}', 'XP required for the next level'],
@@ -567,18 +576,18 @@
     elements.levelingComposerPanel.dataset.panel = panel;
     elements.levelingVariablesToggle.classList.toggle('active', panel === 'variables');
     elements.levelingThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
-    elements.levelingGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validHttpUrl));
+    elements.levelingGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMediaTemplate));
     if (!panel) return;
     if (panel === 'variables') {
       elements.levelingComposerPanel.innerHTML = `<div class="variable-guide">${LEVELING_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
       return;
     }
     if (panel === 'thumbnail') {
-      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Paste an image URL or upload PNG, JPG, WEBP, or GIF up to 5 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="url" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="thumbnail"></label></div>`;
+      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload PNG, JPG, WEBP, or GIF up to 5 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="url" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images by URL or upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function readMediaFile(file) {
@@ -637,15 +646,11 @@
   function renderMessagePreview(renderTools = true) {
     const announcements = state.config.leveling.announcements;
     const layout = announcements.layout;
-    const text = [
-      inlineTemplateEditor('title', announcements.title, 250, 'level-up title'),
-      inlineTemplateEditor('message', announcements.message, 2000, 'level-up message'),
-      inlineTemplateEditor('progress', announcements.progress, 500, 'XP progress line'),
-    ].join('');
+    const text = inlineTemplateEditor(announcements.template);
     const thumbnail = layout.thumbnailEnabled
-      ? validHttpUrl(layout.thumbnailUrl) ? `<img class="discord-thumbnail" src="${escapeHtml(layout.thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+      ? previewMediaUrl(layout.thumbnailUrl) ? `<img class="discord-thumbnail" src="${escapeHtml(previewMediaUrl(layout.thumbnailUrl))}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
       : '';
-    const gallery = layout.galleryUrls.filter(validHttpUrl);
+    const gallery = layout.galleryUrls.map(previewMediaUrl).filter(Boolean);
     const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
     elements.levelingDiscordFrame.classList.toggle('has-container', layout.container);
     elements.levelingDiscordFrame.classList.toggle('no-container', !layout.container);
@@ -998,7 +1003,7 @@
     const leveling = state.config.leveling;
     if (target.matches('[data-inline-message-input]')) {
       const field = target.dataset.inlineTemplateField;
-      const limits = { title: 250, message: 2000, progress: 500 };
+      const limits = { template: 3000 };
       if (limits[field]) leveling.announcements[field] = target.value.slice(0, limits[field]);
       syncInlineEditorVisual(target);
       refreshDirty();
@@ -1024,7 +1029,7 @@
     if (target === elements.levelingAnnounceChannel) leveling.announcements.channelId = target.value;
     if (target.matches('[data-leveling-thumbnail-url]')) {
       leveling.announcements.layout.thumbnailUrl = target.value.slice(0, 2000);
-      leveling.announcements.layout.thumbnailEnabled = validHttpUrl(target.value);
+      leveling.announcements.layout.thumbnailEnabled = validMediaTemplate(target.value);
       renderMessagePreview(false);
     }
     if (target === elements.levelingAccentColor) {

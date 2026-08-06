@@ -175,8 +175,10 @@ test('leveling dashboard provides a single fully editable live V2 composer with 
   assert.match(source, /discordInlineMarkdown/);
   assert.match(source, /beginInlineMessageEdit/);
   assert.match(source, /data-inline-message-input/);
-  assert.match(source, /inlineTemplateEditor\('title'/);
-  assert.match(source, /inlineTemplateEditor\('progress'/);
+  assert.match(source, /inlineTemplateEditor\(announcements\.template\)/);
+  assert.equal((source.match(/<textarea class="inline-message-input"/g) || []).length, 1, 'the live message has one edit box');
+  assert.doesNotMatch(source, /inlineTemplateEditor\('title'|inlineTemplateEditor\('progress'/);
+  assert.match(source, /\{user_profile\}/);
   assert.match(source, /LEVELING_VARIABLES/);
   assert.match(source, /leveling-media/);
   assert.match(source, /data-leveling-channel-multiplier/);

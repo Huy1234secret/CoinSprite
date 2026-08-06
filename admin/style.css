@@ -320,8 +320,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .discord-spoiler { padding: 0 2px; border-radius: 2px; color: transparent; background: #1e1f22; }
 .discord-separator { height: 1px; margin: 10px 0; background: #3f4147; }
 .inline-message-editor { position: relative; margin: 2px -6px 5px; }
-.inline-message-editor.compact { margin-bottom: 2px; }
-.inline-message-editor.compact .inline-message-display { min-height: 26px; }
 .inline-message-display { position: relative; min-height: 30px; padding: 5px 31px 5px 6px; border: 1px solid transparent; border-radius: 5px; cursor: text; transition: border-color .14s ease, background .14s ease; }
 .inline-message-display:hover, .inline-message-display:focus-visible { outline: 0; border-color: rgba(185,245,71,.48); background: rgba(185,245,71,.045); }
 .inline-edit-badge { position: absolute; top: 6px; right: 6px; padding: 2px 4px; border-radius: 3px; color: #b9f547; background: rgba(185,245,71,.1); font-size: 6px; font-weight: 900; letter-spacing: .08em; opacity: 0; transition: opacity .14s ease; }
@@ -342,7 +340,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .inline-message-editor.editing .inline-message-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px 0; }
 .inline-message-actions span { color: #949ba4; font-size: 7px; }
 .inline-message-actions button { padding: 3px 7px; border: 1px solid rgba(185,245,71,.35); border-radius: 5px; color: #b9f547; background: rgba(185,245,71,.07); font-size: 7px; font-weight: 850; cursor: pointer; }
-.discord-progress-preview { margin-top: 6px; }
 .discord-thumbnail { width: 78px; height: 78px; object-fit: cover; border-radius: 5px; background: #1e1f22; }
 .discord-thumbnail.placeholder { display: grid; place-items: center; border: 1px dashed #5d6068; color: #949ba4; font-size: 9px; }
 .discord-gallery { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px; margin-top: 9px; overflow: hidden; border-radius: 6px; }
