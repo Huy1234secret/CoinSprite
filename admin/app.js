@@ -564,6 +564,7 @@
     const panel = state.levelingComposerPanel;
     const layout = state.config.leveling.announcements.layout;
     elements.levelingComposerPanel.hidden = !panel;
+    elements.levelingComposerPanel.dataset.panel = panel;
     elements.levelingVariablesToggle.classList.toggle('active', panel === 'variables');
     elements.levelingThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
     elements.levelingGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validHttpUrl));
