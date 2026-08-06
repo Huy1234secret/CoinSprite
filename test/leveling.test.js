@@ -19,6 +19,7 @@ const {
   buildLevelCardPayload,
   buildLevelPayload,
   canvasDisplayName,
+  levelCardRenderOrigin,
   levelCardRenderKey,
   levelUpAnnouncementPayload,
   levelForXp,
@@ -327,6 +328,7 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
   assert.equal(request.options.headers['X-CoinSprite-Render-Key'], 'signed-render-key');
   assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
   assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
+  assert.equal(levelCardRenderOrigin({ DISCORD_REDIRECT_URI: 'https://panel.coin-sprite.com/auth/discord/callback' }), 'https://panel.coin-sprite.com');
 });
 
 test('leaderboard renderer creates an attachment image with podium-colored top ranks', async () => {

@@ -394,15 +394,16 @@ function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET || pro
   return value ? crypto.createHmac('sha256', value).update('coinsprite-level-card-render-v1').digest('hex') : '';
 }
 
-function levelCardRenderOrigin() {
-  const configured = String(process.env.PUBLIC_WEB_BASE_URL || process.env.ADMIN_PUBLIC_URL || '').trim().replace(/\/+$/g, '');
-  if (!configured) return '';
-  try {
-    const url = new URL(configured);
-    return ['http:', 'https:'].includes(url.protocol) ? url.origin : '';
-  } catch {
-    return '';
+function levelCardRenderOrigin(env = process.env) {
+  const configured = String(env.PUBLIC_WEB_BASE_URL || env.ADMIN_PUBLIC_URL || '').trim().replace(/\/+$/g, '');
+  for (const candidate of [configured, env.DISCORD_REDIRECT_URI]) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (['http:', 'https:'].includes(url.protocol)) return url.origin;
+    } catch {}
   }
+  return '';
 }
 
 function cardAvatarUrl(user) {
@@ -1267,6 +1268,7 @@ module.exports = {
   resolvedAnnouncementLayout,
   resetLevelingCache,
   renderLeaderboardCard,
+  levelCardRenderOrigin,
   renderLevelCard,
   renderPublishedLevelCard,
   saveLevelCardDesign,
