@@ -205,9 +205,15 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /beginCardPointer/);
   assert.match(source, /moveCardPointer/);
   assert.match(source, /uploadCardMedia/);
+  assert.match(source, /constrainCardSelection/);
+  assert.match(source, /1000 - target\.width/);
+  assert.match(source, /320 - target\.height/);
   assert.match(source, /\/api\/profile\/card/);
   assert.match(server, /pathname === '\/api\/profile\/card'/);
   assert.match(server, /level-card-media/);
   assert.match(leveling, /renderLevelCard/);
-  assert.match(leveling, /attachment:\/\/level-card\.png/);
+  assert.match(leveling, /label: 'Edit card here!'/);
+  assert.match(leveling, /renderLeaderboardCard/);
+  assert.match(leveling, /name: 'leaderboard\.png'/);
+  assert.doesNotMatch(leveling, /attachment:\/\/level-card\.png/);
 });
