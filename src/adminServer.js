@@ -17,6 +17,7 @@ const {
   handleOwnerConsole,
   handleOwnerDisable,
   handleOwnerEnable,
+  handleOwnerFeatures,
   handleOwnerMetrics,
   handleOwnerOverview,
   isOwnerSession,
@@ -368,7 +369,11 @@ function mergePlain(base, patch) {
 function publicConfig(config) {
   return {
     enabled: config?.enabled !== false,
-    features: { gag2Stock: true, leveling: true, fullBot: false },
+    features: {
+      gag2Stock: true,
+      leveling: config?.features?.leveling === true,
+      fullBot: false,
+    },
     gag2Stock: config?.gag2Stock || {},
     leveling: config?.leveling || {},
   };
@@ -466,6 +471,13 @@ async function routeRequest(req, res, env, client) {
       : handleOwnerEnable(req, res, client, ownerAction[1], session, deps);
   }
 
+  const ownerFeatures = pathname.match(/^\/api\/owner\/guilds\/(\d{16,20})\/features$/);
+  if (req.method === 'PATCH' && ownerFeatures) {
+    const session = await requireOwner(req, res, env, client);
+    if (!session || !requireCsrf(req, res, session)) return;
+    return handleOwnerFeatures(req, res, client, ownerFeatures[1], session, { readJsonBody, sendJson });
+  }
+
   const directoryMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/directory$/);
   if (req.method === 'GET' && directoryMatch) {
     const auth = await requireGuildAdmin(req, res, env, client, directoryMatch[1]);
@@ -491,7 +503,14 @@ async function routeRequest(req, res, env, client) {
 
     const state = loadState();
     state.guilds[guildId] ||= ensureGuildConfig(guildId);
-    state.guilds[guildId].features = { gag2Stock: true, leveling: true, fullBot: false };
+    if (hasLeveling && state.guilds[guildId].features?.leveling !== true) {
+      return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
+    }
+    state.guilds[guildId].features = {
+      gag2Stock: true,
+      leveling: state.guilds[guildId].features?.leveling === true,
+      fullBot: false,
+    };
     if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     saveState(state);

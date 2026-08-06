@@ -29,6 +29,7 @@
     directory: { channels: [], roles: [], gag2StockPermissions: { usable: true, missing: [] } },
     catalog: { items: {}, fallItems: {}, fallHarvestEndsAt: '' },
     savedSnapshot: '',
+    savedConfig: null,
     currentView: 'stock',
     saving: false,
     fallTimer: null,
@@ -44,12 +45,12 @@
   const elements = {
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'),
     stockView: $('#stockView'), levelingView: $('#levelingView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
     fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
-    saveButton: $('#saveButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
+    saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
     consoleToggle: $('#consoleToggle'), dialog: $('#confirmDialog'), dialogTitle: $('#dialogTitle'), dialogCopy: $('#dialogCopy'),
     dialogInputWrap: $('#dialogInputWrap'), dialogInput: $('#dialogInput'), dialogConfirm: $('#dialogConfirm'),
@@ -57,9 +58,14 @@
     levelingCooldown: $('#levelingCooldown'), levelingBaseXp: $('#levelingBaseXp'), levelingGrowth: $('#levelingGrowth'),
     levelingMaxLevel: $('#levelingMaxLevel'), levelingCurvePreview: $('#levelingCurvePreview'),
     levelingAnnounceEnabled: $('#levelingAnnounceEnabled'), levelingAnnounceChannel: $('#levelingAnnounceChannel'),
-    levelingMessage: $('#levelingMessage'), levelingIgnoredChannels: $('#levelingIgnoredChannels'),
+    levelingMessage: $('#levelingMessage'), levelingChannels: $('#levelingChannels'),
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
-    levelingAddReward: $('#levelingAddReward'),
+    levelingAddReward: $('#levelingAddReward'), levelingBoosts: $('#levelingBoosts'), levelingAddBoost: $('#levelingAddBoost'),
+    levelingContainerAdd: $('#levelingContainerAdd'), levelingThumbnailAdd: $('#levelingThumbnailAdd'),
+    levelingGalleryAdd: $('#levelingGalleryAdd'), levelingThumbnailField: $('#levelingThumbnailField'),
+    levelingThumbnailUrl: $('#levelingThumbnailUrl'), levelingGalleryFields: $('#levelingGalleryFields'),
+    levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
+    levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
   };
 
   function escapeHtml(value) {
@@ -159,7 +165,7 @@
 
   function normalizeLevelingConfig(config) {
     const source = clone(config?.leveling || {});
-    source.enabled = source.enabled !== false;
+    source.enabled = source.enabled === true;
     source.xp ||= {};
     source.xp.min = Math.round(clampNumber(source.xp.min, 1, 1000, 15));
     source.xp.max = Math.round(clampNumber(source.xp.max, source.xp.min, 2000, 25));
@@ -169,14 +175,27 @@
     source.curve.growth = clampNumber(source.curve.growth, 1, 3, 1.5);
     source.curve.maxLevel = Math.round(clampNumber(source.curve.maxLevel, 1, 1000, 100));
     source.announcements ||= {};
-    source.announcements.enabled = source.announcements.enabled !== false;
+    source.announcements.enabled = source.announcements.enabled === true;
     source.announcements.channelId = String(source.announcements.channelId || '');
-    source.announcements.message = String(source.announcements.message || 'GG {user}! You reached level {level}.').slice(0, 500);
-    source.ignoredChannelIds = [...new Set((source.ignoredChannelIds || []).map(String))];
+    source.announcements.message = String(source.announcements.message || 'GG {user}! You reached level {level}.').slice(0, 2000);
+    source.announcements.layout ||= {};
+    source.announcements.layout.container = source.announcements.layout.container !== false;
+    source.announcements.layout.accentColor = /^#[0-9a-f]{6}$/i.test(source.announcements.layout.accentColor || '')
+      ? source.announcements.layout.accentColor.toLowerCase() : '#b9f547';
+    source.announcements.layout.thumbnailEnabled = source.announcements.layout.thumbnailEnabled === true;
+    source.announcements.layout.thumbnailUrl = String(source.announcements.layout.thumbnailUrl || '').slice(0, 2000);
+    source.announcements.layout.galleryUrls = (source.announcements.layout.galleryUrls || []).map(String).slice(0, 10);
+    source.channelMultipliers = Object.fromEntries(Object.entries(source.channelMultipliers || {}).map(([id, multiplier]) => [
+      String(id), Math.round(clampNumber(multiplier, 0, 10, 1)),
+    ]));
     source.roleRewards = (source.roleRewards || []).map((reward) => ({
       level: Math.round(clampNumber(reward.level, 1, source.curve.maxLevel, 1)),
       roleId: String(reward.roleId || ''),
     })).filter((reward) => reward.roleId).sort((a, b) => a.level - b.level).slice(0, 100);
+    source.roleBoosts = (source.roleBoosts || []).map((boost) => ({
+      roleId: String(boost.roleId || ''),
+      multiplier: Math.round(clampNumber(boost.multiplier, 0, 10, 1)),
+    })).filter((boost) => boost.roleId).slice(0, 100);
     source.stackRoleRewards = source.stackRoleRewards !== false;
     return source;
   }
@@ -358,26 +377,111 @@
 
   function roleOptions(selected) {
     const roles = state.directory.roles || [];
-    return ['<option value="">Choose a reward role</option>', ...roles.map((role) => `<option value="${role.id}" ${role.id === selected ? 'selected' : ''} ${role.editable === false ? 'disabled' : ''}>@${escapeHtml(role.name)}${role.editable === false ? ' (above CoinSprite)' : ''}</option>`)].join('');
+    return ['<option value="">Choose a Discord role</option>', ...roles.map((role) => `<option value="${role.id}" style="color:${roleColor(role.id)}" ${role.id === selected ? 'selected' : ''} ${role.editable === false ? 'disabled' : ''}>\u25cf @${escapeHtml(role.name)}${role.editable === false ? ' (above CoinSprite)' : ''}</option>`)].join('');
   }
 
-  function renderIgnoredChannels() {
-    const ignored = new Set(state.config.leveling.ignoredChannelIds || []);
+  function roleColor(roleId) {
+    const color = (state.directory.roles || []).find((role) => role.id === roleId)?.color;
+    return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#99a1a6';
+  }
+
+  function renderLevelingChannels() {
+    const multipliers = state.config.leveling.channelMultipliers || {};
     const channels = (state.directory.channels || []).filter((channel) => !channel.archived && channel.kind !== 'category');
-    elements.levelingIgnoredChannels.innerHTML = channels.length ? channels.map((channel) => `<label class="ignored-channel-option${ignored.has(channel.id) ? ' selected' : ''}">
-      <input type="checkbox" data-leveling-ignore value="${channel.id}" ${ignored.has(channel.id) ? 'checked' : ''}>
-      <span><b>#</b><strong>${escapeHtml(channel.name)}</strong><small>${escapeHtml(channel.parentName || 'No category')}</small></span><i aria-hidden="true">${ignored.has(channel.id) ? '&#x2713;' : '+'}</i>
-    </label>`).join('') : '<p class="empty-state">No eligible text channels found.</p>';
+    elements.levelingChannels.innerHTML = channels.length ? channels.map((channel) => {
+      const active = Object.prototype.hasOwnProperty.call(multipliers, channel.id);
+      const multiplier = active ? multipliers[channel.id] : 1;
+      return `<article class="xp-channel-option${active ? ' selected' : ''}">
+        <label class="xp-channel-toggle"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''}><span><b>#</b><strong>${escapeHtml(channel.name)}</strong><small>${escapeHtml(channel.parentName || 'No category')}</small></span><i aria-hidden="true">${active ? '&#x2713;' : '+'}</i></label>
+        <label class="channel-multiplier" ${active ? '' : 'hidden'}><span>Multi:</span><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
+      </article>`;
+    }).join('') : '<p class="empty-state">No eligible text channels found.</p>';
   }
 
   function renderLevelingRewards() {
     const rewards = state.config.leveling.roleRewards || [];
-    elements.levelingRewards.innerHTML = rewards.length ? rewards.map((reward, index) => `<article class="reward-row">
+    elements.levelingRewards.innerHTML = rewards.length ? rewards.map((reward, index) => `<article class="reward-row" style="--role-color:${roleColor(reward.roleId)}">
       <span class="reward-level-mark">LV</span>
       <label><small>Level</small><input type="number" min="1" max="${state.config.leveling.curve.maxLevel}" value="${reward.level}" data-level-reward-level="${index}"></label>
-      <label class="reward-role-field"><small>Discord role</small><select data-level-reward-role="${index}">${roleOptions(reward.roleId)}</select></label>
+      <label class="reward-role-field"><small><i class="role-color-dot"></i>Discord role</small><select data-level-reward-role="${index}">${roleOptions(reward.roleId)}</select></label>
       <button type="button" class="reward-remove" data-remove-level-reward="${index}" aria-label="Remove level ${reward.level} reward">Remove</button>
     </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role rewards yet</strong><span>Add milestones such as Level 5, 10, and 25.</span></div>';
+  }
+
+  function renderLevelingBoosts() {
+    const boosts = state.config.leveling.roleBoosts || [];
+    elements.levelingBoosts.innerHTML = boosts.length ? boosts.map((boost, index) => `<article class="reward-row boost-row" style="--role-color:${roleColor(boost.roleId)}">
+      <span class="reward-level-mark boost-mark">XP</span>
+      <label class="reward-role-field"><small><i class="role-color-dot"></i>Discord role</small><select data-level-boost-role="${index}">${roleOptions(boost.roleId)}</select></label>
+      <label><small>Multiplier</small><span class="multiplier-input"><b>&times;</b><input type="number" min="0" max="10" step="1" value="${boost.multiplier}" data-level-boost-multiplier="${index}"></span></label>
+      <button type="button" class="reward-remove" data-remove-level-boost="${index}" aria-label="Remove role XP boost">Remove</button>
+    </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role boosts yet</strong><span>Add a role and choose an XP multiplier from ×0 to ×10.</span></div>';
+  }
+
+  function validHttpUrl(value) {
+    try { return ['http:', 'https:'].includes(new URL(String(value || '')).protocol); } catch { return false; }
+  }
+
+  function discordInlineMarkdown(value) {
+    const code = [];
+    let html = escapeHtml(value).replace(/`([^`\n]+)`/g, (_, content) => {
+      code.push(`<code>${content}</code>`);
+      return `\uE000${code.length - 1}\uE001`;
+    });
+    html = html
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
+      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+      .replace(/\|\|([^|\n]+)\|\|/g, '<span class="discord-spoiler">$1</span>')
+      .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+      .replace(/_([^_\n]+)_/g, '<em>$1</em>');
+    return html.replace(/\uE000(\d+)\uE001/g, (_, index) => code[Number(index)] || '');
+  }
+
+  function discordMarkdown(value) {
+    return String(value || '').split('\n').map((line) => {
+      if (/^###\s/.test(line)) return `<h3>${discordInlineMarkdown(line.slice(4))}</h3>`;
+      if (/^##\s/.test(line)) return `<h2>${discordInlineMarkdown(line.slice(3))}</h2>`;
+      if (/^#\s/.test(line)) return `<h1>${discordInlineMarkdown(line.slice(2))}</h1>`;
+      if (/^>\s?/.test(line)) return `<blockquote>${discordInlineMarkdown(line.replace(/^>\s?/, ''))}</blockquote>`;
+      if (/^-\s/.test(line)) return `<div class="discord-list-item">&#8226;<span>${discordInlineMarkdown(line.slice(2))}</span></div>`;
+      return line ? `<div class="discord-line">${discordInlineMarkdown(line)}</div>` : '<div class="discord-line"><br></div>';
+    }).join('');
+  }
+
+  function renderGalleryFields() {
+    const urls = state.config.leveling.announcements.layout.galleryUrls;
+    elements.levelingGalleryFields.innerHTML = urls.map((url, index) => `<label><span>Gallery image ${index + 1}</span><input type="url" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-leveling-gallery-url="${index}"><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></label>`).join('');
+  }
+
+  function renderMessagePreview() {
+    const announcements = state.config.leveling.announcements;
+    const layout = announcements.layout;
+    const customMessage = announcements.message
+      .replaceAll('{user}', '@GardenHero')
+      .replaceAll('{username}', 'GardenHero')
+      .replaceAll('{level}', '12')
+      .replaceAll('{server}', 'Grow a Garden');
+    const sample = [`## \u2726 Level 12 reached`, customMessage, '', '`■■■■■■■■□□□□` 280 / 420 XP toward level 13'].join('\n');
+    const segments = sample.split(/\{separator\}/gi);
+    const text = segments.map((segment, index) => `${index ? '<div class="discord-separator"></div>' : ''}<div class="discord-text">${discordMarkdown(segment)}</div>`).join('');
+    const thumbnail = layout.thumbnailEnabled
+      ? validHttpUrl(layout.thumbnailUrl) ? `<img class="discord-thumbnail" src="${escapeHtml(layout.thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+      : '';
+    const gallery = layout.galleryUrls.filter(validHttpUrl);
+    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
+    elements.levelingDiscordFrame.classList.toggle('has-container', layout.container);
+    elements.levelingDiscordFrame.classList.toggle('no-container', !layout.container);
+    elements.levelingDiscordFrame.style.setProperty('--accent-color', layout.accentColor);
+    elements.levelingAccentButton.hidden = !layout.container;
+    elements.levelingAccentColor.value = layout.accentColor;
+    elements.levelingThumbnailField.hidden = !layout.thumbnailEnabled;
+    elements.levelingThumbnailUrl.value = layout.thumbnailUrl;
+    elements.levelingContainerAdd.classList.toggle('active', layout.container);
+    elements.levelingContainerAdd.textContent = layout.container ? 'Container added' : '+ Container';
+    elements.levelingThumbnailAdd.classList.toggle('active', layout.thumbnailEnabled);
+    elements.levelingThumbnailAdd.textContent = layout.thumbnailEnabled ? 'Thumbnail added' : '+ Thumbnail';
+    elements.levelingMessagePreview.innerHTML = `<div class="discord-section"><div>${text}</div>${thumbnail}</div>${galleryHtml}`;
   }
 
   function renderLeveling() {
@@ -395,9 +499,23 @@
     elements.levelingMessage.value = leveling.announcements.message;
     elements.levelingStackRewards.checked = leveling.stackRoleRewards;
     renderCurvePreview();
-    renderIgnoredChannels();
+    renderLevelingChannels();
     renderLevelingRewards();
+    renderLevelingBoosts();
+    renderGalleryFields();
+    renderMessagePreview();
     refreshDirty();
+  }
+
+  function renderFeatureAccess() {
+    if (!state.config) return;
+    const unlocked = state.config.features?.leveling === true;
+    elements.levelingNav.disabled = !unlocked;
+    elements.levelingNav.classList.toggle('is-locked', !unlocked);
+    const label = elements.levelingNav.querySelector('small');
+    if (label) label.textContent = unlocked ? 'XP & rewards' : 'Locked by owner';
+    elements.levelingNav.title = unlocked ? '' : 'The bot owner must unlock Leveling for this server.';
+    if (!unlocked && state.currentView === 'leveling') setView('stock');
   }
 
   function snapshot() {
@@ -423,6 +541,7 @@
     elements.saveDock.hidden = !dirty && !state.saving;
     elements.saveState.textContent = state.saving ? 'Applying changes…' : 'Unsaved changes';
     elements.saveButton.disabled = !dirty || state.saving;
+    elements.resetButton.disabled = !dirty || state.saving;
   }
 
   function renderStock(progress = null) {
@@ -459,6 +578,8 @@
         leveling: normalizeLevelingConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
+      state.savedConfig = clone(state.config);
+      renderFeatureAccess();
       renderStock(progressPayload?.progress);
       renderLeveling();
       if (progressPayload?.progress?.status === 'running') pollProgress();
@@ -472,13 +593,16 @@
     if (!state.config || state.saving || snapshot() === state.savedSnapshot) return;
     state.saving = true;
     elements.saveButton.disabled = true;
+    elements.resetButton.disabled = true;
     elements.saveState.textContent = 'Applying changes…';
     try {
       const stock = clone(state.config.gag2Stock);
       const leveling = clone(state.config.leveling);
+      const body = { gag2Stock: stock };
+      if (state.config.features?.leveling === true) body.leveling = leveling;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
-        body: JSON.stringify({ gag2Stock: stock, leveling }),
+        body: JSON.stringify(body),
       });
       state.config = {
         ...payload.config,
@@ -486,6 +610,8 @@
         leveling: normalizeLevelingConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
+      state.savedConfig = clone(state.config);
+      renderFeatureAccess();
       renderStock(payload.progress);
       renderLeveling();
       showToast('Dashboard settings updated.');
@@ -539,11 +665,15 @@
       <td><span class="status-pill ${guild.enabled ? '' : 'off'}">${guild.enabled ? 'Online' : 'Disabled'}</span></td>
       <td>${guild.stock.configuredChannels}/${guild.stock.totalChannels}</td>
       <td>${guild.stock.rolesSyncedAt ? new Date(guild.stock.rolesSyncedAt).toLocaleDateString() : 'Not yet'}</td>
+      <td><details class="feature-dropdown"><summary>${guild.features?.leveling ? '2 features' : 'GAG Stock only'}</summary><div>
+        <label><input type="checkbox" checked disabled><span><strong>GAG2 Stock</strong><small>Always unlocked</small></span></label>
+        <label><input type="checkbox" data-owner-feature="leveling" data-guild-id="${guild.id}" ${guild.features?.leveling ? 'checked' : ''}><span><strong>Leveling</strong><small>${guild.features?.leveling ? 'Unlocked' : 'Locked'}</small></span></label>
+      </div></details></td>
       <td><div class="row-actions"><button class="text-button" type="button" data-owner-load="${guild.id}">Open</button><button class="text-button" type="button" data-owner-toggle="${guild.id}" data-enabled="${guild.enabled}">${guild.enabled ? 'Disable' : 'Enable'}</button></div></td>
     </tr>`).join('');
     elements.ownerOverview.innerHTML = `
       <section class="metric-grid">${metrics.map(([key, label, value, detail]) => `<article class="metric-card"><small>${label}</small><strong data-owner-metric="${key}">${escapeHtml(value)}</strong><span>${escapeHtml(detail)}</span></article>`).join('')}</section>
-      <section class="fleet-panel"><header class="fleet-head"><h2>Community fleet</h2><span>${payload.guilds.length} connected</span></header><div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th>Community</th><th>Members</th><th>Status</th><th>Routes</th><th>Role sync</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No communities available.</td></tr>'}</tbody></table></div></section>`;
+      <section class="fleet-panel"><header class="fleet-head"><h2>Community fleet</h2><span>${payload.guilds.length} connected</span></header><div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th>Community</th><th>Members</th><th>Status</th><th>Routes</th><th>Role sync</th><th>Feature access</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No communities available.</td></tr>'}</tbody></table></div></section>`;
   }
 
   async function pollOwnerMetrics() {
@@ -620,6 +750,10 @@
 
   function setView(view) {
     if (view === 'owner' && !state.me?.owner) return;
+    if (view === 'leveling' && state.config?.features?.leveling !== true) {
+      showToast('Leveling is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
+      return;
+    }
     state.currentView = view;
     document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
     document.querySelectorAll('[data-view-panel]').forEach((panel) => {
@@ -708,13 +842,30 @@
     if ([elements.levelingBaseXp, elements.levelingGrowth, elements.levelingMaxLevel].includes(target)) renderCurvePreview();
     if (target === elements.levelingAnnounceEnabled) leveling.announcements.enabled = target.checked;
     if (target === elements.levelingAnnounceChannel) leveling.announcements.channelId = target.value;
-    if (target === elements.levelingMessage) leveling.announcements.message = target.value.slice(0, 500);
+    if (target === elements.levelingMessage) {
+      leveling.announcements.message = target.value.slice(0, 2000);
+      renderMessagePreview();
+    }
+    if (target === elements.levelingThumbnailUrl) {
+      leveling.announcements.layout.thumbnailUrl = target.value.slice(0, 2000);
+      renderMessagePreview();
+    }
+    if (target === elements.levelingAccentColor) {
+      leveling.announcements.layout.accentColor = target.value;
+      renderMessagePreview();
+    }
     if (target === elements.levelingStackRewards) leveling.stackRoleRewards = target.checked;
-    if (target.matches('[data-leveling-ignore]')) {
-      leveling.ignoredChannelIds = [...elements.levelingIgnoredChannels.querySelectorAll('[data-leveling-ignore]:checked')].map((input) => input.value);
-      target.closest('.ignored-channel-option')?.classList.toggle('selected', target.checked);
-      const marker = target.closest('.ignored-channel-option')?.querySelector('i');
-      if (marker) marker.textContent = target.checked ? '\u2713' : '+';
+    if (target.matches('[data-leveling-channel]')) {
+      if (target.checked) leveling.channelMultipliers[target.value] = 1;
+      else delete leveling.channelMultipliers[target.value];
+      renderLevelingChannels();
+    }
+    if (target.matches('[data-leveling-channel-multiplier]')) {
+      leveling.channelMultipliers[target.dataset.levelingChannelMultiplier] = Math.round(clampNumber(target.value, 0, 10, 1));
+    }
+    if (target.matches('[data-leveling-gallery-url]')) {
+      leveling.announcements.layout.galleryUrls[Number(target.dataset.levelingGalleryUrl)] = target.value.slice(0, 2000);
+      renderMessagePreview();
     }
     if (target.matches('[data-level-reward-level]')) {
       const reward = leveling.roleRewards[Number(target.dataset.levelRewardLevel)];
@@ -723,6 +874,16 @@
     if (target.matches('[data-level-reward-role]')) {
       const reward = leveling.roleRewards[Number(target.dataset.levelRewardRole)];
       if (reward) reward.roleId = target.value;
+      target.closest('.reward-row')?.style.setProperty('--role-color', roleColor(target.value));
+    }
+    if (target.matches('[data-level-boost-role]')) {
+      const boost = leveling.roleBoosts[Number(target.dataset.levelBoostRole)];
+      if (boost) boost.roleId = target.value;
+      target.closest('.reward-row')?.style.setProperty('--role-color', roleColor(target.value));
+    }
+    if (target.matches('[data-level-boost-multiplier]')) {
+      const boost = leveling.roleBoosts[Number(target.dataset.levelBoostMultiplier)];
+      if (boost) boost.multiplier = Math.round(clampNumber(target.value, 0, 10, 1));
     }
     refreshDirty();
   }
@@ -736,6 +897,24 @@
     renderLevelingRewards();
     refreshDirty();
     elements.levelingRewards.lastElementChild?.querySelector('input')?.focus();
+  }
+
+  function addLevelBoost() {
+    if (!state.config || state.config.leveling.roleBoosts.length >= 100) return;
+    const firstUnused = (state.directory.roles || []).find((role) => role.editable !== false
+      && !state.config.leveling.roleBoosts.some((boost) => boost.roleId === role.id));
+    state.config.leveling.roleBoosts.push({ roleId: firstUnused?.id || '', multiplier: 2 });
+    renderLevelingBoosts();
+    refreshDirty();
+  }
+
+  function resetUnsavedChanges() {
+    if (!state.savedConfig || state.saving) return;
+    state.config = clone(state.savedConfig);
+    renderFeatureAccess();
+    renderStock();
+    renderLeveling();
+    showToast('Unsaved changes reset.');
   }
 
   function closeNotificationPickers(exceptMenu = null) {
@@ -830,6 +1009,7 @@
 
   elements.guildSelect.addEventListener('change', () => loadGuild(elements.guildSelect.value));
   elements.saveButton.addEventListener('click', saveConfig);
+  elements.resetButton.addEventListener('click', resetUnsavedChanges);
   elements.logoutButton.addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
@@ -838,11 +1018,49 @@
   elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.levelingAddReward.addEventListener('click', addLevelReward);
+  elements.levelingAddBoost.addEventListener('click', addLevelBoost);
+  elements.levelingContainerAdd.addEventListener('click', () => {
+    state.config.leveling.announcements.layout.container = !state.config.leveling.announcements.layout.container;
+    renderMessagePreview();
+    refreshDirty();
+  });
+  elements.levelingThumbnailAdd.addEventListener('click', () => {
+    const layout = state.config.leveling.announcements.layout;
+    layout.thumbnailEnabled = !layout.thumbnailEnabled;
+    renderMessagePreview();
+    refreshDirty();
+    if (layout.thumbnailEnabled) elements.levelingThumbnailUrl.focus();
+  });
+  elements.levelingGalleryAdd.addEventListener('click', () => {
+    const gallery = state.config.leveling.announcements.layout.galleryUrls;
+    if (gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push('');
+    renderGalleryFields();
+    renderMessagePreview();
+    refreshDirty();
+    elements.levelingGalleryFields.lastElementChild?.querySelector('input')?.focus();
+  });
+  elements.levelingAccentButton.addEventListener('click', () => elements.levelingAccentColor.click());
+  elements.levelingGalleryFields.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-gallery]');
+    if (!button) return;
+    state.config.leveling.announcements.layout.galleryUrls.splice(Number(button.dataset.removeGallery), 1);
+    renderGalleryFields();
+    renderMessagePreview();
+    refreshDirty();
+  });
   elements.levelingRewards.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-level-reward]');
     if (!button || !state.config) return;
     state.config.leveling.roleRewards.splice(Number(button.dataset.removeLevelReward), 1);
     renderLevelingRewards();
+    refreshDirty();
+  });
+  elements.levelingBoosts.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-level-boost]');
+    if (!button || !state.config) return;
+    state.config.leveling.roleBoosts.splice(Number(button.dataset.removeLevelBoost), 1);
+    renderLevelingBoosts();
     refreshDirty();
   });
   elements.channelGrid.addEventListener('change', (event) => updateConfigFromControl(event.target));
@@ -932,6 +1150,30 @@
     }
     const toggle = event.target.closest('[data-owner-toggle]');
     if (toggle) handleOwnerToggle(toggle).catch((error) => showToast(error.message, 'error'));
+  });
+  elements.ownerOverview.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-owner-feature]');
+    if (!input) return;
+    input.disabled = true;
+    try {
+      const payload = await api(`/api/owner/guilds/${input.dataset.guildId}/features`, {
+        method: 'PATCH',
+        body: JSON.stringify({ features: { leveling: input.checked } }),
+      });
+      if (state.guildId === input.dataset.guildId && state.config) {
+        state.config.features = payload.features;
+        state.config.leveling = normalizeLevelingConfig(payload.config);
+        state.savedConfig = clone(state.config);
+        state.savedSnapshot = snapshot();
+        renderFeatureAccess();
+      }
+      showToast(`Leveling ${input.checked ? 'unlocked' : 'locked'} for this server.`);
+      await loadOwner();
+    } catch (error) {
+      input.checked = !input.checked;
+      input.disabled = false;
+      showToast(error.message, 'error');
+    }
   });
   elements.consoleClear.addEventListener('click', () => { state.consoleEntries = []; renderConsole(); });
   elements.consoleToggle.addEventListener('click', () => {

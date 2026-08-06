@@ -68,11 +68,13 @@ test('admin writes require CSRF and accept only focused feature config', () => {
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
 
-test('focused config enables stock and leveling while full bot stays disabled', () => {
+test('only GAG stock is unlocked by default', () => {
   const config = require('../src/serverConfig');
   assert.equal(config.DEFAULT_FEATURES.gag2Stock, true);
-  assert.equal(config.DEFAULT_FEATURES.leveling, true);
+  assert.equal(config.DEFAULT_FEATURES.leveling, false);
   assert.equal(config.DEFAULT_FEATURES.fullBot, false);
+  assert.equal(config.DEFAULT_LEVELING_CONFIG.enabled, false);
+  assert.equal(config.DEFAULT_LEVELING_CONFIG.announcements.enabled, false);
   assert.equal(config.isGuildFullBotEnabled('1493901002519347290'), false);
   const normalized = config.normalizeGag2StockConfig({
     enabled: true,
@@ -106,6 +108,8 @@ test('dashboard moves engine control to the header and only shows save dock for 
   assert.match(html, /class="switch-card header-switch"/);
   assert.match(html, /class="save-dock" id="saveDock"[^>]*hidden/);
   assert.match(source, /elements\.saveDock\.hidden = !dirty && !state\.saving/);
+  assert.match(html, /id="resetButton"/);
+  assert.match(source, /function resetUnsavedChanges/);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {
@@ -144,4 +148,29 @@ test('owner heap and storage cards poll live without refreshing the page', () =>
   assert.match(source, /setInterval\(\(\) => pollOwnerMetrics/);
   assert.match(source, /data-owner-metric="\$\{key\}"/);
   assert.match(routes, /pathname === '\/api\/owner\/metrics'/);
+});
+
+test('owner controls feature access and leveling stays server-side locked', () => {
+  const server = read('src/adminServer.js');
+  const owner = read('src/ownerPanelRoutes.js');
+  const dashboard = read('admin/app.js');
+  assert.match(server, /ownerFeatures/);
+  assert.match(server, /Leveling is locked for this server/);
+  assert.match(owner, /setGuildFeatureAccess/);
+  assert.match(dashboard, /data-owner-feature="leveling"/);
+  assert.match(dashboard, /Locked by owner/);
+});
+
+test('leveling dashboard provides live V2 composition, channel multipliers, and role boosts', () => {
+  const html = read('admin/index.html');
+  const source = read('admin/app.js');
+  assert.match(html, /Live Discord message/);
+  assert.match(html, /id="levelingContainerAdd"/);
+  assert.match(html, /id="levelingThumbnailAdd"/);
+  assert.match(html, /id="levelingGalleryAdd"/);
+  assert.match(html, /\{separator\}/);
+  assert.match(source, /discordInlineMarkdown/);
+  assert.match(source, /data-leveling-channel-multiplier/);
+  assert.match(source, /renderLevelingBoosts/);
+  assert.match(source, /role-color/);
 });

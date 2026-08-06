@@ -241,13 +241,33 @@ function randomXp(config) {
   return crypto.randomInt(minimum, maximum + 1);
 }
 
+function xpMultiplierForMessage(message, config) {
+  const multipliers = config.channelMultipliers || {};
+  const channelId = String(message.channelId || '');
+  const parentId = String(message.channel?.parentId || '');
+  const hasChannel = Object.prototype.hasOwnProperty.call(multipliers, channelId);
+  const hasParent = parentId && Object.prototype.hasOwnProperty.call(multipliers, parentId);
+  const channelMultiplier = Math.max(0, Math.min(10, Number(hasChannel ? multipliers[channelId] : hasParent ? multipliers[parentId] : 0) || 0));
+  if (!channelMultiplier) return { channelMultiplier, roleMultiplier: 1, multiplier: 0 };
+
+  const memberRoles = message.member?.roles?.cache;
+  const matchingRoleBoosts = (config.roleBoosts || [])
+    .filter((boost) => memberRoles?.has?.(boost.roleId))
+    .map((boost) => Math.max(0, Math.min(10, Number(boost.multiplier) || 0)));
+  const roleMultiplier = matchingRoleBoosts.length ? Math.max(...matchingRoleBoosts) : 1;
+  return {
+    channelMultiplier,
+    roleMultiplier,
+    multiplier: Math.min(10, channelMultiplier * roleMultiplier),
+  };
+}
+
 function processMessageXp(message, options = {}) {
   const config = options.config || levelingConfig(message.guildId);
   const nowMs = Number(options.nowMs) || Date.now();
   if (!config.enabled || message.author?.bot || message.webhookId || message.system) return { awarded: false, reason: 'ineligible' };
-  if (config.ignoredChannelIds.includes(message.channelId) || config.ignoredChannelIds.includes(message.channel?.parentId)) {
-    return { awarded: false, reason: 'ignored-channel' };
-  }
+  const multipliers = xpMultiplierForMessage(message, config);
+  if (!multipliers.multiplier) return { awarded: false, reason: 'xp-disabled-channel', ...multipliers };
   const fingerprint = options.fingerprint || messageFingerprint(message);
   if (!fingerprint) return { awarded: false, reason: 'empty' };
   const record = userRecord(message.guildId, message.author.id);
@@ -264,9 +284,10 @@ function processMessageXp(message, options = {}) {
     return { awarded: false, reason: 'cooldown', record };
   }
   record.lastXpAt = nowMs;
-  const result = applyXpToRecord(record, options.amount ?? randomXp(config), config, nowMs);
+  const baseAmount = options.amount ?? randomXp(config);
+  const result = applyXpToRecord(record, Math.floor(baseAmount * multipliers.multiplier), config, nowMs);
   scheduleSave();
-  return { awarded: result.amount > 0, reason: 'awarded', ...result };
+  return { awarded: result.amount > 0, reason: 'awarded', ...multipliers, ...result };
 }
 
 async function syncRewardRoles(guild, userId, level, config = levelingConfig(guild.id)) {
@@ -291,6 +312,79 @@ function announcementText(template, message, level) {
     .replaceAll('{server}', safeName(message.guild.name));
 }
 
+function safeMediaUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function accentColorValue(value) {
+  const hex = String(value || '').replace(/^#/, '');
+  return /^[0-9a-f]{6}$/i.test(hex) ? Number.parseInt(hex, 16) : ACCENT;
+}
+
+function announcementContentComponents(content, layout = {}) {
+  const rawParts = String(content || '').split(/\{separator\}/gi);
+  const parts = rawParts.length > 5
+    ? [...rawParts.slice(0, 4), rawParts.slice(4).join('\n')]
+    : rawParts;
+  const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
+  const components = [];
+  let thumbnailPlaced = false;
+
+  for (let index = 0; index < parts.length; index += 1) {
+    const text = parts[index].trim();
+    if (index > 0 && components.length && components.at(-1)?.type !== 14) {
+      components.push({ type: 14, divider: true, spacing: 1 });
+    }
+    if (!text) continue;
+    if (thumbnailUrl && !thumbnailPlaced) {
+      components.push({
+        type: 9,
+        components: [{ type: 10, content: text }],
+        accessory: { type: 11, media: { url: thumbnailUrl }, description: 'Level-up thumbnail' },
+      });
+      thumbnailPlaced = true;
+    } else components.push({ type: 10, content: text });
+  }
+
+  if (!components.length) components.push({ type: 10, content: '-# Level up' });
+  if (thumbnailUrl && !thumbnailPlaced) {
+    const first = components.shift();
+    components.unshift({
+      type: 9,
+      components: [first.type === 10 ? first : { type: 10, content: '-# Level up' }],
+      accessory: { type: 11, media: { url: thumbnailUrl }, description: 'Level-up thumbnail' },
+    });
+  }
+
+  const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
+  if (galleryUrls.length) {
+    components.push({
+      type: 12,
+      items: galleryUrls.map((url) => ({ media: { url }, description: 'Level-up image' })),
+    });
+  }
+  return components;
+}
+
+function levelUpAnnouncementPayload(content, config) {
+  const layout = config.announcements?.layout || {};
+  const inner = announcementContentComponents(content, layout);
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: layout.container === false ? inner : [{
+      type: 17,
+      accent_color: accentColorValue(layout.accentColor),
+      components: inner,
+    }],
+  };
+}
+
 async function announceLevelUp(message, result, config) {
   if (!config.announcements.enabled) return;
   const channel = config.announcements.channelId
@@ -299,16 +393,17 @@ async function announceLevelUp(message, result, config) {
     : message.channel;
   if (!channel?.isTextBased?.() || typeof channel.send !== 'function') return;
   const stats = memberStats(message.guildId, message.author.id, config);
-  await channel.send(v2Payload([
+  const content = [
     `## \u2726 Level ${result.newLevel} reached`,
     announcementText(config.announcements.message, message, result.newLevel),
     '',
     stats.neededXp
       ? `\`${progressBar(stats.progressRatio)}\` ${number(stats.progressXp)} / ${number(stats.neededXp)} XP toward level ${result.newLevel + 1}`
       : `\`${progressBar(1)}\` Maximum level reached`,
-  ].join('\n'), {
-    allowedMentions: { parse: [], users: [message.author.id], roles: [] },
-  })).catch((error) => logCommandSystem(`Level-up announcement failed in ${message.guildId}: ${error?.message || 'unknown error'}`));
+  ].join('\n');
+  const payload = levelUpAnnouncementPayload(content, config);
+  payload.allowedMentions.users = [message.author.id];
+  await channel.send(payload).catch((error) => logCommandSystem(`Level-up announcement failed in ${message.guildId}: ${error?.message || 'unknown error'}`));
 }
 
 async function handleLevelingMessage(message) {
@@ -422,8 +517,11 @@ async function handleLevelingInteraction(interaction) {
       await interaction.reply(v2Payload('## Manage Server required\nYou do not have permission to use this Leveling command.', { ephemeral: true }));
       return true;
     }
-    if (!isGuildLevelingEnabled(interaction.guildId) && interaction.commandName !== 'leveling-setup') {
-      await interaction.reply(v2Payload('## Leveling is paused\nAn administrator can enable it from the dashboard.', { ephemeral: true }));
+    if (!isGuildLevelingEnabled(interaction.guildId)) {
+      const locked = getGuildConfig(interaction.guildId)?.features?.leveling !== true;
+      await interaction.reply(v2Payload(locked
+        ? '## Leveling is locked\nThe bot owner must unlock this feature for the server.'
+        : '## Leveling is paused\nAn administrator can enable it from the dashboard.', { ephemeral: true }));
       return true;
     }
     await command.execute(interaction);
@@ -451,6 +549,7 @@ module.exports = {
   handleLevelingInteraction,
   handleLevelingMessage,
   leaderboardPage,
+  levelUpAnnouncementPayload,
   levelForXp,
   memberStats,
   processMessageXp,
@@ -458,4 +557,5 @@ module.exports = {
   resetLevelingCache,
   sortedLeaderboard,
   xpThresholdForLevel,
+  xpMultiplierForMessage,
 };
