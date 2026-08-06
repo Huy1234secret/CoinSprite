@@ -184,4 +184,6 @@ test('leveling dashboard provides a single fully editable live V2 composer with 
   assert.match(source, /role-color/);
   assert.match(css, /\.inline-message-editor\.editing/);
   assert.match(css, /\.preview-tool-panel/);
+  assert.match(css, /\.preview-tool-panel\[data-panel="variables"\]\s*\{[^}]*position:\s*absolute/);
+  assert.doesNotMatch(css, /\.discord-preview\s*\{[^}]*min-height:\s*390px/);
 });
