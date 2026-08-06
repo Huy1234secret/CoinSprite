@@ -11,10 +11,13 @@ const {
   LEVELING_COMMANDS,
   announcementText,
   applyXpToRecord,
+  buildLevelCardPayload,
   buildLevelPayload,
   levelUpAnnouncementPayload,
   levelForXp,
+  normalizeLevelCardDesign,
   progressBar,
+  renderLevelCard,
   resolvedAnnouncementLayout,
   xpThresholdForLevel,
   xpMultiplierForMessage,
@@ -205,6 +208,55 @@ test('level payload and every leveling command use Components V2', () => {
   assert.deepEqual(LEVELING_COMMANDS.map((command) => command.data.name), [
     'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup',
   ]);
+});
+
+test('level card design keeps editable layers safe and scoped to the signed-in user', () => {
+  const userId = '123456789012345678';
+  const design = normalizeLevelCardDesign({
+    background: { color: '#FF00AA', imageUrl: `/level-card-media/${userId}/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png`, scale: 99 },
+    progress: { width: 5000, color: '#00FF00', trackColor: 'red' },
+    layers: [
+      { id: 'welcome', type: 'text', text: 'Hello\nworld', x: 42, y: 50, size: 28, color: '#abcdef' },
+      { id: 'safe-icon', type: 'image', imageUrl: `/level-card-media/${userId}/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp`, width: 80, height: 90 },
+      { id: 'other-user', type: 'image', imageUrl: '/level-card-media/999999999999999999/cccccccccccccccccccccccccccccccc.png' },
+      { id: 'external', type: 'image', imageUrl: 'https://example.com/tracker.png' },
+    ],
+  }, userId);
+  assert.equal(design.background.color, '#ff00aa');
+  assert.equal(design.background.scale, 5);
+  assert.equal(design.progress.width, 950);
+  assert.equal(design.progress.color, '#00ff00');
+  assert.equal(design.progress.trackColor, '#303a33');
+  assert.deepEqual(design.layers.map((layer) => layer.id), ['welcome', 'safe-icon']);
+  assert.equal(design.layers[0].text, 'Hello world');
+});
+
+test('level card renderer produces a PNG delivered through a Components V2 gallery', async () => {
+  const user = { id: '123456789012345678', username: 'Sprite', globalName: 'Garden Sprite' };
+  const stats = { level: 12, rank: 3, progressXp: 280, neededXp: 420, progressRatio: 2 / 3, xp: 3160 };
+  const image = await renderLevelCard(user, stats, normalizeLevelCardDesign({}, user.id));
+  assert.ok(image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
+  const payload = buildLevelCardPayload(user, stats, image);
+  assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
+  assert.equal(payload.files[0].name, 'level-card.png');
+  assert.equal(payload.components[0].components[0].type, 12);
+  assert.equal(payload.components[0].components[0].items[0].media.url, 'attachment://level-card.png');
+});
+
+test('/level acknowledges immediately, then replaces the loading card with the rendered image', async () => {
+  const replies = [];
+  const interaction = {
+    guildId: '223456789012345678',
+    user: { id: '123456789012345678', username: 'Sprite', globalName: 'Garden Sprite' },
+    options: { getUser: () => null },
+    reply: async (payload) => replies.push(['reply', payload]),
+    editReply: async (payload) => replies.push(['edit', payload]),
+  };
+  await LEVELING_COMMANDS.find((command) => command.data.name === 'level').execute(interaction);
+  assert.equal(replies[0][0], 'reply');
+  assert.match(replies[0][1].components[0].components[0].content, /Building Garden Sprite's level card/);
+  assert.equal(replies[1][0], 'edit');
+  assert.equal(replies[1][1].files[0].name, 'level-card.png');
 });
 
 test('owner live metrics expose refreshed heap and storage labels', () => {

@@ -40,12 +40,18 @@
     consoleEntries: [],
     consoleAfter: 0,
     levelingComposerPanel: '',
+    profile: null,
+    profileSavedSnapshot: '',
+    cardSelection: 'background',
+    cardPointer: null,
+    cardSaving: false,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const elements = {
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
-    logoutButton: $('#logoutButton'), userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
+    logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
+    userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
     guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'),
     stockView: $('#stockView'), levelingView: $('#levelingView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
@@ -67,6 +73,12 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
+    profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
+    cardCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
+    cardInspector: $('#cardInspector'), cardInspectorTitle: $('#cardInspectorTitle'),
+    cardBackgroundButton: $('#cardBackgroundButton'), cardImageButton: $('#cardImageButton'), cardTextButton: $('#cardTextButton'),
+    cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
+    profileSaveDock: $('#profileSaveDock'), cardSaveButton: $('#cardSaveButton'), cardResetButton: $('#cardResetButton'),
   };
 
   function escapeHtml(value) {
@@ -121,16 +133,21 @@
 
   function renderSession() {
     const user = state.me?.user;
+    const profileRoute = location.pathname.startsWith('/profile');
     elements.loginPanel.hidden = Boolean(user);
-    elements.appShell.hidden = !user;
+    elements.appShell.hidden = !user || profileRoute;
+    elements.profileShell.hidden = !user || !profileRoute;
     elements.logoutButton.hidden = !user;
-    elements.userChip.hidden = !user;
+    elements.accountWrap.hidden = !user;
     elements.ownerNav.hidden = !state.me?.owner;
     if (!user) return;
 
     elements.sessionLabel.textContent = user.globalName || user.username;
     elements.userAvatar.src = avatarUrl(user);
     elements.userAvatar.alt = `${user.globalName || user.username} avatar`;
+    elements.profileAvatar.src = avatarUrl(user).replace('size=64', 'size=256');
+    elements.profileAvatar.alt = `${user.globalName || user.username} avatar`;
+    elements.profileName.textContent = user.globalName || user.username;
     elements.guildSelect.replaceChildren();
     if (!state.guilds.length) {
       elements.guildSelect.append(new Option('No editable servers', ''));
@@ -1161,6 +1178,381 @@
     refreshDirty();
   }
 
+  const cardImages = new Map();
+  let cardFrame = 0;
+
+  function cardSnapshot() {
+    return state.profile ? JSON.stringify(state.profile.design) : '';
+  }
+
+  function cardImage(url) {
+    if (!url) return null;
+    if (cardImages.has(url)) return cardImages.get(url).ready ? cardImages.get(url).image : null;
+    const entry = { image: new Image(), ready: false };
+    cardImages.set(url, entry);
+    entry.image.crossOrigin = 'anonymous';
+    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(); });
+    entry.image.addEventListener('error', () => { entry.failed = true; });
+    entry.image.src = url;
+    return null;
+  }
+
+  function cardRoundRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.roundRect(x, y, width, height, Math.min(radius, width / 2, height / 2));
+  }
+
+  function drawCardCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0, scale = 1) {
+    const base = Math.max(width / image.naturalWidth, height / image.naturalHeight) * scale;
+    const drawWidth = image.naturalWidth * base;
+    const drawHeight = image.naturalHeight * base;
+    context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
+  }
+
+  function cardLayerBySelection(selection = state.cardSelection) {
+    if (!selection.startsWith('layer:')) return null;
+    return state.profile?.design.layers.find((layer) => layer.id === selection.slice(6)) || null;
+  }
+
+  function cardSelectionObject(selection = state.cardSelection) {
+    if (!state.profile) return null;
+    return cardLayerBySelection(selection) || state.profile.design[selection] || null;
+  }
+
+  function cardBounds(selection = state.cardSelection, context = elements.cardCanvas.getContext('2d')) {
+    if (!state.profile) return null;
+    const design = state.profile.design;
+    const layer = cardLayerBySelection(selection);
+    if (selection === 'background') return { x: 0, y: 0, width: 1000, height: 320, resize: false };
+    if (layer) {
+      if (layer.type === 'text') {
+        context.font = `${layer.weight} ${layer.size}px sans-serif`;
+        return { x: layer.x, y: layer.y, width: Math.max(40, context.measureText(layer.text).width), height: layer.size * 1.25, resize: true };
+      }
+      return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: true };
+    }
+    if (selection === 'avatar') return { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size, resize: true };
+    if (selection === 'progress') return { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height, resize: true };
+    const widths = { username: 390, level: 210, rank: 120, xp: 330 };
+    const item = design[selection];
+    if (!item) return null;
+    return { x: selection === 'rank' ? item.x - widths.rank : item.x, y: item.y, width: widths[selection], height: item.size * 1.25, resize: true };
+  }
+
+  function scheduleCardDraw() {
+    window.cancelAnimationFrame(cardFrame);
+    cardFrame = window.requestAnimationFrame(drawCardPreview);
+  }
+
+  function drawCardPreview() {
+    if (!state.profile || elements.profileShell.hidden) return;
+    const { design, preview } = state.profile;
+    const canvas = elements.cardCanvas;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.save();
+    cardRoundRect(context, 0, 0, 1000, 320, 30);
+    context.clip();
+    context.fillStyle = design.background.color;
+    context.fillRect(0, 0, 1000, 320);
+    const background = cardImage(design.background.imageUrl);
+    if (background) drawCardCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
+    context.globalAlpha = .85;
+    context.fillStyle = design.colors.surface;
+    cardRoundRect(context, 28, 28, 944, 264, 24);
+    context.fill();
+    context.globalAlpha = 1;
+
+    context.save();
+    context.fillStyle = design.avatar.color;
+    cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+    context.fill();
+    cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+    context.clip();
+    const avatar = cardImage(preview.avatarUrl);
+    if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+    else {
+      context.fillStyle = design.colors.track;
+      context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+    }
+    context.restore();
+
+    context.textBaseline = 'top';
+    context.textAlign = 'left';
+    context.fillStyle = design.username.color;
+    context.font = `bold ${design.username.size}px sans-serif`;
+    context.fillText(preview.username || 'Member', design.username.x, design.username.y);
+    context.fillStyle = design.level.color;
+    context.font = `bold ${design.level.size}px sans-serif`;
+    context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
+    context.textAlign = 'right';
+    context.fillStyle = design.rank.color;
+    context.font = `bold ${design.rank.size}px sans-serif`;
+    context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
+
+    context.fillStyle = design.progress.trackColor;
+    cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+    context.fill();
+    const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
+    if (progressWidth) {
+      context.fillStyle = design.progress.color;
+      cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
+      context.fill();
+    }
+    context.textAlign = 'left';
+    context.fillStyle = design.xp.color;
+    context.font = `${design.xp.size}px sans-serif`;
+    context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
+
+    for (const layer of design.layers) {
+      if (layer.type === 'image') {
+        const image = cardImage(layer.imageUrl);
+        if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
+      } else {
+        context.textAlign = 'left';
+        context.fillStyle = layer.color;
+        context.font = `${layer.weight} ${layer.size}px sans-serif`;
+        context.fillText(layer.text, layer.x, layer.y);
+      }
+    }
+    context.restore();
+
+    const bounds = cardBounds(state.cardSelection, context);
+    if (bounds) {
+      context.save();
+      context.strokeStyle = '#b9f547';
+      context.lineWidth = 2;
+      context.setLineDash([7, 5]);
+      context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
+      context.setLineDash([]);
+      if (bounds.resize) {
+        context.fillStyle = '#b9f547';
+        context.fillRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+        context.strokeStyle = '#0b0f0d';
+        context.lineWidth = 2;
+        context.strokeRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+      }
+      context.restore();
+    }
+  }
+
+  const CARD_BUILTINS = [
+    ['background', 'BG', 'Background'], ['avatar', 'AV', 'Discord profile'], ['username', 'Aa', 'Username'],
+    ['level', 'LV', 'Level'], ['rank', '#', 'Rank'], ['progress', '==', 'Progress bar'], ['xp', 'XP', 'XP amount'],
+  ];
+
+  function renderCardLayers() {
+    if (!state.profile) return;
+    const builtins = CARD_BUILTINS.map(([key, icon, label]) => `<button class="layer-button${state.cardSelection === key ? ' active' : ''}" type="button" data-card-selection="${key}"><i>${icon}</i><span>${label}</span></button>`).join('');
+    const layers = state.profile.design.layers.map((layer) => {
+      const selection = `layer:${layer.id}`;
+      const label = layer.type === 'text' ? layer.text : 'Uploaded image';
+      return `<button class="layer-button${state.cardSelection === selection ? ' active' : ''}" type="button" data-card-selection="${escapeHtml(selection)}"><i>${layer.type === 'text' ? 'Aa' : 'IMG'}</i><span>${escapeHtml(label)}</span></button>`;
+    }).join('');
+    elements.cardLayerList.innerHTML = builtins + layers;
+  }
+
+  function inspectorInput(label, path, value, options = {}) {
+    const wide = options.wide ? ' wide' : '';
+    const type = options.type || 'number';
+    const attributes = type === 'number' ? ` min="${options.min ?? -1000}" max="${options.max ?? 1000}" step="${options.step ?? 1}"` : '';
+    if (type === 'textarea') return `<label class="${wide.trim()}">${label}<textarea maxlength="120" data-card-field="${path}">${escapeHtml(value)}</textarea></label>`;
+    return `<label class="${wide.trim()}">${label}<input type="${type}" value="${escapeHtml(value)}" data-card-field="${path}"${attributes}></label>`;
+  }
+
+  function renderCardInspector() {
+    if (!state.profile) return;
+    const selection = state.cardSelection;
+    const layer = cardLayerBySelection(selection);
+    const item = layer || state.profile.design[selection];
+    const title = layer ? (layer.type === 'text' ? 'Text layer' : 'Image layer') : (CARD_BUILTINS.find(([key]) => key === selection)?.[2] || 'Element');
+    elements.cardInspectorTitle.textContent = title;
+    let fields = '';
+    if (selection === 'background') {
+      fields = inspectorInput('Card color', 'background.color', item.color, { type: 'color' })
+        + inspectorInput('Panel color', 'colors.surface', state.profile.design.colors.surface, { type: 'color' })
+        + inspectorInput('Image X', 'background.x', item.x, { min: -1000, max: 1000 })
+        + inspectorInput('Image Y', 'background.y', item.y, { min: -320, max: 320 })
+        + inspectorInput('Image scale', 'background.scale', item.scale, { min: .25, max: 5, step: .05, wide: true });
+    } else if (selection === 'avatar') {
+      fields = inspectorInput('X', 'avatar.x', item.x, { min: 0, max: 950 }) + inspectorInput('Y', 'avatar.y', item.y, { min: 0, max: 270 })
+        + inspectorInput('Size', 'avatar.size', item.size, { min: 32, max: 240 }) + inspectorInput('Ring color', 'avatar.color', item.color, { type: 'color' });
+    } else if (selection === 'progress') {
+      fields = inspectorInput('X', 'progress.x', item.x) + inspectorInput('Y', 'progress.y', item.y)
+        + inspectorInput('Width', 'progress.width', item.width, { min: 40, max: 950 }) + inspectorInput('Height', 'progress.height', item.height, { min: 6, max: 70 })
+        + inspectorInput('Bar color', 'progress.color', item.color, { type: 'color' }) + inspectorInput('Track color', 'progress.trackColor', item.trackColor, { type: 'color' });
+    } else if (layer?.type === 'image') {
+      fields = inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
+        + inspectorInput('Width', `layers.${layer.id}.width`, layer.width, { min: 12, max: 800 }) + inspectorInput('Height', `layers.${layer.id}.height`, layer.height, { min: 12, max: 320 })
+        + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete image</button>';
+    } else if (layer?.type === 'text') {
+      fields = inspectorInput('Text', `layers.${layer.id}.text`, layer.text, { type: 'textarea', wide: true })
+        + inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
+        + inspectorInput('Font size', `layers.${layer.id}.size`, layer.size, { min: 10, max: 96 }) + inspectorInput('Color', `layers.${layer.id}.color`, layer.color, { type: 'color' })
+        + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete text</button>';
+    } else {
+      fields = inspectorInput('X', `${selection}.x`, item.x) + inspectorInput('Y', `${selection}.y`, item.y)
+        + inspectorInput('Font size', `${selection}.size`, item.size, { min: 12, max: 80 }) + inspectorInput('Color', `${selection}.color`, item.color, { type: 'color' });
+    }
+    elements.cardInspector.innerHTML = `<div class="inspector-fields">${fields}</div>`;
+  }
+
+  function setCardField(path, value) {
+    const parts = path.split('.');
+    let target = state.profile.design;
+    if (parts[0] === 'layers') {
+      target = state.profile.design.layers.find((layer) => layer.id === parts[1]);
+      parts.splice(0, 2);
+    }
+    if (!target) return;
+    while (parts.length > 1) target = target[parts.shift()];
+    const key = parts[0];
+    target[key] = typeof target[key] === 'number' ? Number(value) : value;
+  }
+
+  function refreshCardDirty() {
+    const dirty = cardSnapshot() !== state.profileSavedSnapshot;
+    elements.profileSaveDock.hidden = !dirty && !state.cardSaving;
+    elements.cardSaveButton.disabled = !dirty || state.cardSaving;
+    elements.cardResetButton.disabled = !dirty || state.cardSaving;
+  }
+
+  function renderCardStudio() {
+    renderCardLayers();
+    renderCardInspector();
+    refreshCardDirty();
+    scheduleCardDraw();
+  }
+
+  async function loadProfile() {
+    try {
+      state.profile = await api('/api/profile/card');
+      state.profileSavedSnapshot = cardSnapshot();
+      state.cardSelection = 'background';
+      renderCardStudio();
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  }
+
+  async function saveProfileCard() {
+    if (!state.profile || state.cardSaving || cardSnapshot() === state.profileSavedSnapshot) return;
+    state.cardSaving = true;
+    refreshCardDirty();
+    try {
+      const payload = await api('/api/profile/card', { method: 'PATCH', body: JSON.stringify({ design: state.profile.design }) });
+      state.profile.design = payload.design;
+      state.profileSavedSnapshot = cardSnapshot();
+      renderCardStudio();
+      showToast('Your /level card is updated.');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      state.cardSaving = false;
+      refreshCardDirty();
+    }
+  }
+
+  async function uploadCardMedia(input, kind) {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      input.value = '';
+      return showToast('Upload a PNG, JPG, or WEBP image up to 5 MB.', 'error');
+    }
+    try {
+      const payload = await api('/api/profile/card/media', { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
+      if (kind === 'background') {
+        state.profile.design.background.imageUrl = payload.url;
+        state.profile.design.background.x = 0;
+        state.profile.design.background.y = 0;
+        state.profile.design.background.scale = 1;
+        state.cardSelection = 'background';
+      } else {
+        const id = `image-${Date.now().toString(36)}`;
+        state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140 });
+        state.cardSelection = `layer:${id}`;
+      }
+      renderCardStudio();
+      showToast('Artwork added. Save when you are ready.');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      input.value = '';
+    }
+  }
+
+  function addCardText() {
+    if (!state.profile || state.profile.design.layers.length >= 20) return showToast('This card already has the maximum of 20 custom layers.', 'error');
+    const id = `text-${Date.now().toString(36)}`;
+    state.profile.design.layers.push({ id, type: 'text', text: 'Your text', x: 420, y: 155, width: 160, height: 40, size: 28, color: '#f4f7f2', weight: 'bold' });
+    state.cardSelection = `layer:${id}`;
+    renderCardStudio();
+    elements.cardInspector.querySelector('textarea')?.focus();
+  }
+
+  function canvasPoint(event) {
+    const box = elements.cardCanvas.getBoundingClientRect();
+    return { x: (event.clientX - box.left) * 1000 / box.width, y: (event.clientY - box.top) * 320 / box.height };
+  }
+
+  function hitCardSelection(point) {
+    const choices = [
+      ...state.profile.design.layers.map((layer) => `layer:${layer.id}`).reverse(),
+      'rank', 'xp', 'progress', 'level', 'username', 'avatar', 'background',
+    ];
+    return choices.find((selection) => {
+      const box = cardBounds(selection);
+      return box && point.x >= box.x - 5 && point.x <= box.x + box.width + 5 && point.y >= box.y - 5 && point.y <= box.y + box.height + 5;
+    }) || 'background';
+  }
+
+  function beginCardPointer(event) {
+    if (!state.profile || event.button !== 0) return;
+    const point = canvasPoint(event);
+    const activeBounds = cardBounds();
+    const resize = activeBounds?.resize && Math.abs(point.x - (activeBounds.x + activeBounds.width)) < 18 && Math.abs(point.y - (activeBounds.y + activeBounds.height)) < 18;
+    if (!resize) state.cardSelection = hitCardSelection(point);
+    const target = cardSelectionObject();
+    const bounds = cardBounds();
+    state.cardPointer = { id: event.pointerId, start: point, resize, target, original: clone(target), bounds };
+    elements.cardCanvas.setPointerCapture(event.pointerId);
+    renderCardLayers();
+    renderCardInspector();
+    scheduleCardDraw();
+  }
+
+  function moveCardPointer(event) {
+    const drag = state.cardPointer;
+    if (!drag || drag.id !== event.pointerId) return;
+    const point = canvasPoint(event);
+    const dx = point.x - drag.start.x;
+    const dy = point.y - drag.start.y;
+    const target = drag.target;
+    if (state.cardSelection === 'background') {
+      if (target.imageUrl) { target.x = Math.round(drag.original.x + dx); target.y = Math.round(drag.original.y + dy); }
+    } else if (drag.resize) {
+      if ('size' in target && !('width' in target)) target.size = Math.max(12, Math.round(drag.original.size + Math.max(dx, dy)));
+      else {
+        target.width = Math.max(12, Math.round((drag.original.width || drag.bounds.width) + dx));
+        target.height = Math.max(6, Math.round((drag.original.height || drag.bounds.height) + dy));
+        if (target.type === 'text') target.size = Math.max(10, Math.round(drag.original.size + dy));
+      }
+    } else {
+      if ('x' in target) target.x = Math.round(drag.original.x + dx);
+      if ('y' in target) target.y = Math.round(drag.original.y + dy);
+    }
+    scheduleCardDraw();
+    refreshCardDirty();
+  }
+
+  function endCardPointer(event) {
+    if (!state.cardPointer || state.cardPointer.id !== event.pointerId) return;
+    state.cardPointer = null;
+    renderCardInspector();
+    refreshCardDirty();
+  }
+
   function filterNotificationOptions(search) {
     const menu = search.closest('[data-picker-menu]');
     if (!menu) return;
@@ -1180,7 +1572,8 @@
       state.csrfToken = payload.csrfToken || '';
       state.guilds = payload.guilds || [];
       renderSession();
-      if (state.guilds.length) await loadGuild(state.guilds[0].id);
+      if (location.pathname.startsWith('/profile')) await loadProfile();
+      else if (state.guilds.length) await loadGuild(state.guilds[0].id);
     } catch (error) {
       state.me = null;
       state.guilds = [];
@@ -1190,6 +1583,50 @@
   }
 
   elements.guildSelect.addEventListener('change', () => loadGuild(elements.guildSelect.value));
+  elements.userChip.addEventListener('click', () => {
+    const open = elements.accountMenu.hidden;
+    elements.accountMenu.hidden = !open;
+    elements.userChip.setAttribute('aria-expanded', String(open));
+  });
+  elements.cardBackgroundButton.addEventListener('click', () => elements.cardBackgroundFile.click());
+  elements.cardImageButton.addEventListener('click', () => elements.cardImageFile.click());
+  elements.cardTextButton.addEventListener('click', addCardText);
+  elements.cardBackgroundFile.addEventListener('change', () => uploadCardMedia(elements.cardBackgroundFile, 'background'));
+  elements.cardImageFile.addEventListener('change', () => uploadCardMedia(elements.cardImageFile, 'image'));
+  elements.cardLayerList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-card-selection]');
+    if (!button) return;
+    state.cardSelection = button.dataset.cardSelection;
+    renderCardStudio();
+  });
+  elements.cardInspector.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-card-field]');
+    if (!input || !state.profile) return;
+    setCardField(input.dataset.cardField, input.value);
+    if (input.tagName === 'TEXTAREA') renderCardLayers();
+    scheduleCardDraw();
+    refreshCardDirty();
+  });
+  elements.cardInspector.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-delete-card-layer]')) return;
+    const layer = cardLayerBySelection();
+    if (!layer) return;
+    state.profile.design.layers = state.profile.design.layers.filter((item) => item.id !== layer.id);
+    state.cardSelection = 'background';
+    renderCardStudio();
+  });
+  elements.cardCanvas.addEventListener('pointerdown', beginCardPointer);
+  elements.cardCanvas.addEventListener('pointermove', moveCardPointer);
+  elements.cardCanvas.addEventListener('pointerup', endCardPointer);
+  elements.cardCanvas.addEventListener('pointercancel', endCardPointer);
+  elements.cardSaveButton.addEventListener('click', saveProfileCard);
+  elements.cardResetButton.addEventListener('click', () => {
+    if (!state.profile || state.cardSaving || !state.profileSavedSnapshot) return;
+    state.profile.design = JSON.parse(state.profileSavedSnapshot);
+    state.cardSelection = 'background';
+    renderCardStudio();
+    showToast('Unsaved card changes reset.');
+  });
   elements.saveButton.addEventListener('click', saveConfig);
   elements.resetButton.addEventListener('click', resetUnsavedChanges);
   elements.logoutButton.addEventListener('click', async () => {
@@ -1345,6 +1782,15 @@
   elements.fallRoleFilters.addEventListener('click', handlePickerClick);
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.notification-picker')) closeNotificationPickers();
+    if (!event.target.closest('.account-wrap')) {
+      elements.accountMenu.hidden = true;
+      elements.userChip.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    elements.accountMenu.hidden = true;
+    elements.userChip.setAttribute('aria-expanded', 'false');
   });
   function handlePickerKeydown(event) {
     if (event.key === 'Escape') {
@@ -1403,7 +1849,9 @@
     if (!state.consolePaused) pollConsole().catch(() => null);
   });
   window.addEventListener('beforeunload', (event) => {
-    if (snapshot() === state.savedSnapshot) return;
+    const dashboardDirty = state.config && snapshot() !== state.savedSnapshot;
+    const profileDirty = state.profile && cardSnapshot() !== state.profileSavedSnapshot;
+    if (!dashboardDirty && !profileDirty) return;
     event.preventDefault();
     event.returnValue = '';
   });

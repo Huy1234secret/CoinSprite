@@ -26,6 +26,12 @@ const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2St
 const { syncGag2RoleAssignmentPanel } = require('./gag2Stock/roleAssignment');
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
+const {
+  LEVEL_CARD_MEDIA_DIR,
+  bestMemberStats,
+  getLevelCardDesign,
+  saveLevelCardDesign,
+} = require('./leveling');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -246,6 +252,40 @@ function serveLevelingMedia(res, pathname) {
       'Cache-Control': 'public, max-age=31536000, immutable',
     });
   });
+}
+
+function serveLevelCardMedia(res, pathname) {
+  const match = pathname.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
+  if (!match) return send(res, 404, 'Not found');
+  const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
+  const contentType = match[3] === 'jpg' ? 'image/jpeg' : `image/${match[3]}`;
+  fs.readFile(filePath, (error, data) => {
+    if (error) return send(res, 404, 'Not found');
+    return send(res, 200, data, {
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+  });
+}
+
+function profilePreview(session, client) {
+  const user = session.user;
+  const stats = bestMemberStats(user.id);
+  const guild = stats.guildId ? client.guilds.cache.get(stats.guildId) : null;
+  const avatarUrl = user.avatar
+    ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256`
+    : 'https://cdn.discordapp.com/embed/avatars/0.png';
+  return {
+    username: user.globalName || user.username,
+    avatarUrl,
+    serverName: guild?.name || '',
+    level: stats.level,
+    rank: stats.rank,
+    xp: stats.xp,
+    progressXp: stats.progressXp,
+    neededXp: stats.neededXp,
+    progressRatio: stats.progressRatio,
+  };
 }
 
 function serveAsset(res, pathname) {
@@ -471,9 +511,10 @@ async function routeRequest(req, res, env, client) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
-  if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/')) return serveAsset(res, '/admin/index.html');
+  if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
+  if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite-gag-stock' });
   if (req.method === 'GET' && pathname === '/auth/discord') return handleAuthStart(req, res, env);
@@ -538,6 +579,35 @@ async function routeRequest(req, res, env, client) {
     if (!auth) return;
     const force = url.searchParams.get('refresh') === '1';
     return sendJson(res, 200, { guildId: directoryMatch[1], directory: await fetchGuildDirectory(auth.guild, force) });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/profile/card') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session) return;
+    return sendJson(res, 200, {
+      design: getLevelCardDesign(session.user.id),
+      preview: profilePreview(session, client),
+    });
+  }
+
+  if (req.method === 'PATCH' && pathname === '/api/profile/card') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session || !requireCsrf(req, res, session)) return;
+    const body = await readJsonBody(req);
+    return sendJson(res, 200, { design: saveLevelCardDesign(session.user.id, body?.design) });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/profile/card/media') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session || !requireCsrf(req, res, session)) return;
+    const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
+    const media = decodeLevelingMedia(body?.dataUrl);
+    if (media.extension === 'gif') return sendJson(res, 400, { error: 'Card artwork must be PNG, JPG, or WEBP.' });
+    const id = crypto.randomBytes(16).toString('hex');
+    const directory = path.join(LEVEL_CARD_MEDIA_DIR, session.user.id);
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, `${id}.${media.extension}`), media.data);
+    return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.${media.extension}` });
   }
 
   const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/leveling-media$/);

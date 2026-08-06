@@ -189,3 +189,25 @@ test('leveling dashboard provides a single fully editable live V2 composer with 
   assert.match(css, /\.preview-tool-panel\[data-panel="variables"\]\s*\{[^}]*position:\s*absolute/);
   assert.doesNotMatch(css, /\.discord-preview\s*\{[^}]*min-height:\s*390px/);
 });
+
+test('profile menu opens a focused drag-and-resize level card editor', () => {
+  const html = read('admin/index.html');
+  const source = read('admin/app.js');
+  const server = read('src/adminServer.js');
+  const leveling = read('src/leveling.js');
+  assert.match(html, />Manage Server</);
+  assert.match(html, /href="\/profile"/);
+  assert.match(html, /id="profileShell"/);
+  assert.match(html, /id="levelCardCanvas"/);
+  assert.match(html, /Upload background/);
+  assert.match(html, /\+ Image or icon/);
+  assert.match(html, /\+ Text/);
+  assert.match(source, /beginCardPointer/);
+  assert.match(source, /moveCardPointer/);
+  assert.match(source, /uploadCardMedia/);
+  assert.match(source, /\/api\/profile\/card/);
+  assert.match(server, /pathname === '\/api\/profile\/card'/);
+  assert.match(server, /level-card-media/);
+  assert.match(leveling, /renderLevelCard/);
+  assert.match(leveling, /attachment:\/\/level-card\.png/);
+});
