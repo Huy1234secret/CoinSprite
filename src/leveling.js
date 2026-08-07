@@ -906,6 +906,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.clip();
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
+  context.restore();
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
