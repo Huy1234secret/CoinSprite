@@ -637,16 +637,37 @@ async function loadLocalCardImage(url, userId) {
   const match = safe.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
   const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
   let fingerprint;
+  let isRemote = false;
   try {
     const metadata = fs.statSync(filePath);
     fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
   } catch {
-    levelCardAssetCache.delete(safe);
-    return null;
+    isRemote = true;
+    fingerprint = 'remote';
   }
+
+  if (isRemote) {
+    const origin = levelCardRenderOrigin();
+    if (!origin) {
+      levelCardAssetCache.delete(safe);
+      return null;
+    }
+  }
+
   const cached = levelCardAssetCache.get(safe);
   if (cached?.fingerprint === fingerprint) return cached.loading;
-  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null);
+
+  let loading;
+  if (isRemote) {
+    const origin = levelCardRenderOrigin();
+    loading = fetch(`${origin}${safe}`).then(async (res) => {
+      if (!res.ok) return null;
+      return loadImage(Buffer.from(await res.arrayBuffer()));
+    }).catch(() => null);
+  } else {
+    loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null);
+  }
+
   const entry = { fingerprint, loading };
   levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);
