@@ -908,9 +908,11 @@ function buildLeaderboardPayload(image, controls = []) {
 }
 
 function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0, scale = 1) {
-  const base = Math.max(width / image.width, height / image.height) * scale;
-  const drawWidth = image.width * base;
-  const drawHeight = image.height * base;
+  const imgW = image.width || image.naturalWidth || width;
+  const imgH = image.height || image.naturalHeight || height;
+  const base = Math.max(width / imgW, height / imgH) * scale;
+  const drawWidth = imgW * base;
+  const drawHeight = imgH * base;
   context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
 }
 
@@ -925,9 +927,12 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
+  console.log("Loading background:", design.background.imageUrl);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
+  console.log("Background loaded?", !!background);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
   context.restore();
+  console.log("Panel Opacity:", design.panelOpacity);
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
