@@ -26,6 +26,8 @@ const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 
 let cachedState = null;
+let cachedStateMtime = 0;
+let lastCheckTime = 0;
 let saveTimer = null;
 const levelCardAssetCache = new Map();
 const avatarImageCache = new Map();
@@ -177,14 +179,31 @@ function normalizeState(value) {
 }
 
 function getState() {
-  if (!cachedState) cachedState = normalizeState(readJsonFile(DATA_PATH, { label: 'leveling data', fallback: blankState() }));
+  const now = Date.now();
+  if (!cachedState || now - lastCheckTime > 2000) {
+    lastCheckTime = now;
+    try {
+      const stat = fs.statSync(DATA_PATH);
+      if (stat.mtimeMs > cachedStateMtime || !cachedState) {
+        cachedState = normalizeState(readJsonFile(DATA_PATH, { label: 'leveling data', fallback: blankState() }));
+        cachedStateMtime = stat.mtimeMs;
+      }
+    } catch {
+      if (!cachedState) cachedState = blankState();
+    }
+  }
   return cachedState;
 }
 
 function flushLevelingState() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
-  if (cachedState) writeJsonAtomic(DATA_PATH, cachedState);
+  if (cachedState) {
+    writeJsonAtomic(DATA_PATH, cachedState);
+    try {
+      cachedStateMtime = fs.statSync(DATA_PATH).mtimeMs;
+    } catch {}
+  }
 }
 
 function scheduleSave() {
@@ -197,6 +216,8 @@ function resetLevelingCache() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;
   cachedState = null;
+  cachedStateMtime = 0;
+  lastCheckTime = 0;
 }
 
 function guildUsers(guildId) {
