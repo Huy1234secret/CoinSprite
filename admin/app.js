@@ -20,6 +20,13 @@
     ['sell', 'Fall sell', '\u{1F341}'],
   ];
   const CARD_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_FONT_FAMILIES = Object.freeze({
+    sans: CARD_FONT_FAMILY,
+    serif: '"Noto Serif", "DejaVu Serif", serif',
+    mono: '"Noto Sans Mono", "DejaVu Sans Mono", monospace',
+  });
+  const CARD_SNAP_DISTANCE = 7;
+  const CARD_SNAP_RELEASE = 16;
 
   const state = {
     me: null,
@@ -45,6 +52,7 @@
     profileSavedSnapshot: '',
     cardSelection: 'background',
     cardPointer: null,
+    cardGuides: {},
     cardSaving: false,
     cardExactPreview: null,
     cardExactSnapshot: '',
@@ -1215,6 +1223,98 @@
     context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
   }
 
+  function normalizedCardRotation(value) {
+    const rotation = Number(value);
+    if (!Number.isFinite(rotation)) return 0;
+    return ((rotation + 180) % 360 + 360) % 360 - 180;
+  }
+
+  function cardFont(item, size = item?.size) {
+    const family = CARD_FONT_FAMILIES[item?.fontFamily] || CARD_FONT_FAMILIES.sans;
+    return `${item?.italic ? 'italic' : 'normal'} ${item?.bold === false || item?.weight === 'normal' ? 'normal' : 'bold'} ${Math.max(1, Number(size) || 1)}px ${family}`;
+  }
+
+  function cardTextValue(selection, layer = cardLayerBySelection(selection)) {
+    if (layer?.type === 'text') return layer.text || 'Text';
+    const preview = state.profile?.preview || {};
+    if (selection === 'username') return String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
+    if (selection === 'level') return `LEVEL ${formatNumber(preview.level)}`;
+    if (selection === 'rank') return `#${formatNumber(preview.rank)}`;
+    if (selection === 'xp') return preview.neededXp
+      ? `${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`
+      : `${formatNumber(preview.xp)} XP - MAX LEVEL`;
+    return '';
+  }
+
+  function cardTextBounds(context, item, text, align = 'left') {
+    context.save();
+    context.textBaseline = 'top';
+    context.textAlign = align;
+    context.font = cardFont(item);
+    const metrics = context.measureText(String(text || ''));
+    let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
+    let right = Number(metrics.actualBoundingBoxRight) || Number(metrics.width) || 1;
+    if (item.underline) {
+      const underlineLeft = align === 'right' ? -metrics.width : 0;
+      const underlineRight = align === 'right' ? 0 : metrics.width;
+      left = Math.min(left, underlineLeft);
+      right = Math.max(right, underlineRight);
+    }
+    const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
+    const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
+    const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+    context.restore();
+    return {
+      x: item.x + left,
+      y: item.y - ascent,
+      width: Math.max(1, right - left),
+      height: Math.max(1, ascent + Math.max(descent, underlineBottom)),
+      resize: 'text',
+      rotation: normalizedCardRotation(item.rotation),
+    };
+  }
+
+  function rotateCardPoint(point, center, degrees) {
+    const angle = normalizedCardRotation(degrees) * Math.PI / 180;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return { x: center.x + dx * cosine - dy * sine, y: center.y + dx * sine + dy * cosine };
+  }
+
+  function cardBoundsCenter(bounds) {
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }
+
+  function cardPointInBounds(point, bounds) {
+    const local = rotateCardPoint(point, cardBoundsCenter(bounds), -bounds.rotation);
+    return local.x >= bounds.x - 5 && local.x <= bounds.x + bounds.width + 5
+      && local.y >= bounds.y - 5 && local.y <= bounds.y + bounds.height + 5;
+  }
+
+  function cardVisualBounds(bounds) {
+    if (!bounds?.rotation) return bounds;
+    const center = cardBoundsCenter(bounds);
+    const points = [
+      { x: bounds.x, y: bounds.y }, { x: bounds.x + bounds.width, y: bounds.y },
+      { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, { x: bounds.x, y: bounds.y + bounds.height },
+    ].map((point) => rotateCardPoint(point, center, bounds.rotation));
+    const x = points.map((point) => point.x);
+    const y = points.map((point) => point.y);
+    return { x: Math.min(...x), y: Math.min(...y), width: Math.max(...x) - Math.min(...x), height: Math.max(...y) - Math.min(...y) };
+  }
+
+  function withCardRotation(context, bounds, draw) {
+    context.save();
+    const center = cardBoundsCenter(bounds);
+    context.translate(center.x, center.y);
+    context.rotate(normalizedCardRotation(bounds.rotation) * Math.PI / 180);
+    context.translate(-center.x, -center.y);
+    draw();
+    context.restore();
+  }
+
   function cardLayerBySelection(selection = state.cardSelection) {
     if (!selection.startsWith('layer:')) return null;
     return state.profile?.design.layers.find((layer) => layer.id === selection.slice(6)) || null;
@@ -1230,19 +1330,15 @@
     const design = state.profile.design;
     const layer = cardLayerBySelection(selection);
     if (selection === 'background') return { x: 0, y: 0, width: 1000, height: 320, resize: false };
-    if (layer) {
-      if (layer.type === 'text') {
-        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-        return { x: layer.x, y: layer.y, width: Math.max(40, context.measureText(layer.text).width), height: layer.size * 1.25, resize: true };
-      }
-      return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: true };
+    const item = layer || design[selection];
+    if (!item || item.visible === false) return null;
+    if (layer?.type === 'text' || ['username', 'level', 'rank', 'xp'].includes(selection)) {
+      return cardTextBounds(context, item, cardTextValue(selection, layer), selection === 'rank' ? 'right' : 'left');
     }
-    if (selection === 'avatar') return { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size, resize: true };
-    if (selection === 'progress') return { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height, resize: true };
-    const widths = { username: 390, level: 210, rank: 120, xp: 330 };
-    const item = design[selection];
-    if (!item) return null;
-    return { x: selection === 'rank' ? item.x - widths.rank : item.x, y: item.y, width: widths[selection], height: item.size * 1.25, resize: true };
+    if (layer) return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: 'free', rotation: normalizedCardRotation(layer.rotation) };
+    if (selection === 'avatar') return { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size, resize: 'square', rotation: normalizedCardRotation(design.avatar.rotation) };
+    if (selection === 'progress') return { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height, resize: 'free', rotation: normalizedCardRotation(design.progress.rotation) };
+    return null;
   }
 
   function scheduleExactCardPreview() {
@@ -1288,6 +1384,46 @@
     if (refreshExact) scheduleExactCardPreview();
   }
 
+  function drawCardPreviewText(context, text, item, align = 'left') {
+    const bounds = cardTextBounds(context, item, text, align);
+    withCardRotation(context, bounds, () => {
+      context.textBaseline = 'top';
+      context.textAlign = align;
+      context.fillStyle = item.color;
+      context.font = cardFont(item);
+      context.fillText(text, item.x, item.y);
+      if (item.underline) {
+        const width = context.measureText(text).width;
+        const start = align === 'right' ? item.x - width : item.x;
+        const y = item.y + item.size * 1.08;
+        context.strokeStyle = item.color;
+        context.lineWidth = Math.max(1, item.size / 15);
+        context.beginPath();
+        context.moveTo(start, y);
+        context.lineTo(start + width, y);
+        context.stroke();
+      }
+    });
+  }
+
+  function cardHandlePositions(bounds) {
+    if (!bounds?.resize) return [];
+    const points = [
+      ['nw', bounds.x, bounds.y], ['n', bounds.x + bounds.width / 2, bounds.y], ['ne', bounds.x + bounds.width, bounds.y],
+      ['e', bounds.x + bounds.width, bounds.y + bounds.height / 2],
+      ['se', bounds.x + bounds.width, bounds.y + bounds.height], ['s', bounds.x + bounds.width / 2, bounds.y + bounds.height],
+      ['sw', bounds.x, bounds.y + bounds.height], ['w', bounds.x, bounds.y + bounds.height / 2],
+    ];
+    const center = cardBoundsCenter(bounds);
+    return points.map(([handle, x, y]) => ({ handle, ...rotateCardPoint({ x, y }, center, bounds.rotation) }));
+  }
+
+  function cardRotateHandle(bounds) {
+    if (!bounds?.resize) return null;
+    const center = cardBoundsCenter(bounds);
+    return { handle: 'rotate', ...rotateCardPoint({ x: bounds.x + bounds.width / 2, y: bounds.y - 28 }, center, bounds.rotation) };
+  }
+
   function drawCardPreview() {
     if (!state.profile || elements.profileShell.hidden) return;
     const { design, preview } = state.profile;
@@ -1310,64 +1446,66 @@
       context.fill();
       context.globalAlpha = 1;
 
-      context.save();
-      context.fillStyle = design.avatar.color;
-      cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
-      context.fill();
-      cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
-      context.clip();
-      const avatar = cardImage(preview.avatarUrl);
-      if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-      else {
-        context.fillStyle = design.colors.track;
-        context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      if (design.avatar.visible !== false) {
+        const avatarBounds = cardBounds('avatar', context);
+        withCardRotation(context, avatarBounds, () => {
+          context.save();
+          context.fillStyle = design.avatar.color;
+          cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+          context.fill();
+          cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+          context.clip();
+          const avatar = cardImage(preview.avatarUrl);
+          if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+          else {
+            context.fillStyle = design.colors.track;
+            context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+          }
+          context.restore();
+        });
       }
-      context.restore();
 
-      context.textBaseline = 'top';
-      context.textAlign = 'left';
-      context.fillStyle = design.username.color;
-      const previewName = String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
-      let previewNameSize = design.username.size;
-      const previewNameWidth = Math.max(120, design.rank.x - design.username.x - 145);
-      context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-      while (previewNameSize > 16 && context.measureText(previewName).width > previewNameWidth) {
-        previewNameSize -= 1;
-        context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-      }
-      context.fillText(previewName, design.username.x, design.username.y);
-      context.fillStyle = design.level.color;
-      context.font = `bold ${design.level.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
-      context.textAlign = 'right';
-      context.fillStyle = design.rank.color;
-      context.font = `bold ${design.rank.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
+      if (design.username.visible !== false) drawCardPreviewText(context, cardTextValue('username'), design.username);
+      if (design.level.visible !== false) drawCardPreviewText(context, cardTextValue('level'), design.level);
+      if (design.rank.visible !== false) drawCardPreviewText(context, cardTextValue('rank'), design.rank, 'right');
 
-      context.fillStyle = design.progress.trackColor;
-      cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
-      context.fill();
-      const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
-      if (progressWidth) {
-        context.fillStyle = design.progress.color;
-        cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
-        context.fill();
+      if (design.progress.visible !== false) {
+        const progressBounds = cardBounds('progress', context);
+        withCardRotation(context, progressBounds, () => {
+          context.fillStyle = design.progress.trackColor;
+          cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+          context.fill();
+          const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
+          if (progressWidth) {
+            context.fillStyle = design.progress.color;
+            cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
+            context.fill();
+          }
+        });
       }
-      context.textAlign = 'left';
-      context.fillStyle = design.xp.color;
-      context.font = `${design.xp.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
+      if (design.xp.visible !== false) drawCardPreviewText(context, cardTextValue('xp'), design.xp);
 
       for (const layer of design.layers) {
+        if (layer.visible === false) continue;
         if (layer.type === 'image') {
           const image = cardImage(layer.imageUrl);
-          if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
-        } else {
-          context.textAlign = 'left';
-          context.fillStyle = layer.color;
-          context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-          context.fillText(layer.text, layer.x, layer.y);
-        }
+          const layerBounds = cardBounds(`layer:${layer.id}`, context);
+          if (image) withCardRotation(context, layerBounds, () => context.drawImage(image, layer.x, layer.y, layer.width, layer.height));
+        } else drawCardPreviewText(context, layer.text, layer);
+      }
+      context.restore();
+    }
+
+    if (Number.isFinite(state.cardGuides.x) || Number.isFinite(state.cardGuides.y)) {
+      context.save();
+      context.strokeStyle = '#5ce1e6';
+      context.lineWidth = 1.5;
+      context.setLineDash([8, 5]);
+      if (Number.isFinite(state.cardGuides.x)) {
+        context.beginPath(); context.moveTo(state.cardGuides.x, 0); context.lineTo(state.cardGuides.x, 320); context.stroke();
+      }
+      if (Number.isFinite(state.cardGuides.y)) {
+        context.beginPath(); context.moveTo(0, state.cardGuides.y); context.lineTo(1000, state.cardGuides.y); context.stroke();
       }
       context.restore();
     }
@@ -1378,14 +1516,30 @@
       context.strokeStyle = '#b9f547';
       context.lineWidth = 2;
       context.setLineDash([7, 5]);
-      context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
+      withCardRotation(context, bounds, () => {
+        context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
+        if (bounds.resize) {
+          context.beginPath();
+          context.moveTo(bounds.x + bounds.width / 2, bounds.y - 3);
+          context.lineTo(bounds.x + bounds.width / 2, bounds.y - 28);
+          context.stroke();
+        }
+      });
       context.setLineDash([]);
       if (bounds.resize) {
-        context.fillStyle = '#b9f547';
-        context.fillRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+        for (const handle of cardHandlePositions(bounds)) {
+          context.fillStyle = '#b9f547';
+          context.fillRect(handle.x - 6, handle.y - 6, 12, 12);
+          context.strokeStyle = '#0b0f0d';
+          context.strokeRect(handle.x - 6, handle.y - 6, 12, 12);
+        }
+        const rotate = cardRotateHandle(bounds);
+        context.beginPath();
+        context.arc(rotate.x, rotate.y, 7, 0, Math.PI * 2);
+        context.fillStyle = '#5ce1e6';
+        context.fill();
         context.strokeStyle = '#0b0f0d';
-        context.lineWidth = 2;
-        context.strokeRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+        context.stroke();
       }
       context.restore();
     }
@@ -1398,11 +1552,15 @@
 
   function renderCardLayers() {
     if (!state.profile) return;
-    const builtins = CARD_BUILTINS.map(([key, icon, label]) => `<button class="layer-button${state.cardSelection === key ? ' active' : ''}" type="button" data-card-selection="${key}"><i>${icon}</i><span>${label}</span></button>`).join('');
+    const row = (selection, icon, label, item, canHide = true) => `<div class="layer-row${item?.visible === false ? ' is-hidden' : ''}">
+      <button class="layer-button${state.cardSelection === selection ? ' active' : ''}" type="button" data-card-selection="${escapeHtml(selection)}"><i>${icon}</i><span>${escapeHtml(label)}</span></button>
+      ${canHide ? `<button class="layer-visibility" type="button" data-card-visibility="${escapeHtml(selection)}" aria-label="${item?.visible === false ? 'Show' : 'Hide'} ${escapeHtml(label)}" title="${item?.visible === false ? 'Show' : 'Hide'} element">${item?.visible === false ? '○' : '●'}</button>` : ''}
+    </div>`;
+    const builtins = CARD_BUILTINS.map(([key, icon, label]) => row(key, icon, label, state.profile.design[key], key !== 'background')).join('');
     const layers = state.profile.design.layers.map((layer) => {
       const selection = `layer:${layer.id}`;
       const label = layer.type === 'text' ? layer.text : 'Uploaded image';
-      return `<button class="layer-button${state.cardSelection === selection ? ' active' : ''}" type="button" data-card-selection="${escapeHtml(selection)}"><i>${layer.type === 'text' ? 'Aa' : 'IMG'}</i><span>${escapeHtml(label)}</span></button>`;
+      return row(selection, layer.type === 'text' ? 'Aa' : 'IMG', label, layer);
     }).join('');
     elements.cardLayerList.innerHTML = builtins + layers;
   }
@@ -1413,6 +1571,20 @@
     const attributes = type === 'number' ? ` min="${options.min ?? -1000}" max="${options.max ?? 1000}" step="${options.step ?? 1}"` : '';
     if (type === 'textarea') return `<label class="${wide.trim()}">${label}<textarea maxlength="120" data-card-field="${path}">${escapeHtml(value)}</textarea></label>`;
     return `<label class="${wide.trim()}">${label}<input type="${type}" value="${escapeHtml(value)}" data-card-field="${path}"${attributes}></label>`;
+  }
+
+  function inspectorSelect(label, path, value) {
+    const options = [['sans', 'Sans serif'], ['serif', 'Serif'], ['mono', 'Monospace']]
+      .map(([key, name]) => `<option value="${key}"${value === key ? ' selected' : ''}>${name}</option>`).join('');
+    return `<label class="wide">${label}<select data-card-field="${path}">${options}</select></label>`;
+  }
+
+  function inspectorFormatting(prefix, item) {
+    return `<div class="inspector-format wide" aria-label="Text formatting">
+      <button type="button" data-card-toggle="${prefix}.bold" class="${item.bold !== false ? 'active' : ''}" aria-pressed="${item.bold !== false}"><b>B</b></button>
+      <button type="button" data-card-toggle="${prefix}.italic" class="${item.italic ? 'active' : ''}" aria-pressed="${Boolean(item.italic)}"><i>I</i></button>
+      <button type="button" data-card-toggle="${prefix}.underline" class="${item.underline ? 'active' : ''}" aria-pressed="${Boolean(item.underline)}"><u>U</u></button>
+    </div>`;
   }
 
   function renderCardInspector() {
@@ -1432,23 +1604,32 @@
         + inspectorInput('Image scale', 'background.scale', item.scale, { min: .25, max: 5, step: .05, wide: true });
     } else if (selection === 'avatar') {
       fields = inspectorInput('X', 'avatar.x', item.x, { min: 0, max: 950 }) + inspectorInput('Y', 'avatar.y', item.y, { min: 0, max: 270 })
-        + inspectorInput('Size', 'avatar.size', item.size, { min: 32, max: 240 }) + inspectorInput('Ring color', 'avatar.color', item.color, { type: 'color' });
+        + inspectorInput('Size', 'avatar.size', item.size, { min: 32, max: 240 }) + inspectorInput('Rotation', 'avatar.rotation', item.rotation || 0, { min: -180, max: 180 })
+        + inspectorInput('Ring color', 'avatar.color', item.color, { type: 'color', wide: true });
     } else if (selection === 'progress') {
       fields = inspectorInput('X', 'progress.x', item.x) + inspectorInput('Y', 'progress.y', item.y)
         + inspectorInput('Width', 'progress.width', item.width, { min: 40, max: 950 }) + inspectorInput('Height', 'progress.height', item.height, { min: 6, max: 70 })
+        + inspectorInput('Rotation', 'progress.rotation', item.rotation || 0, { min: -180, max: 180, wide: true })
         + inspectorInput('Bar color', 'progress.color', item.color, { type: 'color' }) + inspectorInput('Track color', 'progress.trackColor', item.trackColor, { type: 'color' });
     } else if (layer?.type === 'image') {
       fields = inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
         + inspectorInput('Width', `layers.${layer.id}.width`, layer.width, { min: 12, max: 800 }) + inspectorInput('Height', `layers.${layer.id}.height`, layer.height, { min: 12, max: 320 })
+        + inspectorInput('Rotation', `layers.${layer.id}.rotation`, layer.rotation || 0, { min: -180, max: 180, wide: true })
         + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete image</button>';
     } else if (layer?.type === 'text') {
+      const prefix = `layers.${layer.id}`;
       fields = inspectorInput('Text', `layers.${layer.id}.text`, layer.text, { type: 'textarea', wide: true })
         + inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
-        + inspectorInput('Font size', `layers.${layer.id}.size`, layer.size, { min: 10, max: 96 }) + inspectorInput('Color', `layers.${layer.id}.color`, layer.color, { type: 'color' })
+        + inspectorInput('Font size', `${prefix}.size`, layer.size, { min: 10, max: 96 }) + inspectorInput('Rotation', `${prefix}.rotation`, layer.rotation || 0, { min: -180, max: 180 })
+        + inspectorSelect('Font', `${prefix}.fontFamily`, layer.fontFamily || 'sans') + inspectorFormatting(prefix, layer)
+        + inspectorInput('Color', `${prefix}.color`, layer.color, { type: 'color', wide: true })
         + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete text</button>';
     } else {
+      const prefix = selection;
       fields = inspectorInput('X', `${selection}.x`, item.x) + inspectorInput('Y', `${selection}.y`, item.y)
-        + inspectorInput('Font size', `${selection}.size`, item.size, { min: 12, max: 80 }) + inspectorInput('Color', `${selection}.color`, item.color, { type: 'color' });
+        + inspectorInput('Font size', `${selection}.size`, item.size, { min: 12, max: 80 }) + inspectorInput('Rotation', `${selection}.rotation`, item.rotation || 0, { min: -180, max: 180 })
+        + inspectorSelect('Font', `${prefix}.fontFamily`, item.fontFamily || 'sans') + inspectorFormatting(prefix, item)
+        + inspectorInput('Color', `${selection}.color`, item.color, { type: 'color', wide: true });
     }
     elements.cardInspector.innerHTML = `<div class="inspector-fields">${fields}</div>`;
   }
@@ -1489,6 +1670,7 @@
     }
     const target = cardSelectionObject(selection);
     if (!target) return;
+    target.rotation = normalizedCardRotation(target.rotation);
     const layer = cardLayerBySelection(selection);
     if (selection === 'avatar') {
       target.size = limit(target.size, 32, 240);
@@ -1507,9 +1689,11 @@
       if (layer.type === 'text') {
         layer.size = limit(layer.size, 10, 96);
         const context = elements.cardCanvas.getContext('2d');
-        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-        layer.width = Math.min(1000, Math.max(12, Math.ceil(context.measureText(layer.text || 'Text').width)));
-        layer.height = Math.min(320, Math.max(12, Math.ceil(layer.size * 1.25)));
+        context.font = cardFont(layer);
+        const metrics = context.measureText(layer.text || 'Text');
+        layer.width = Math.min(1000, Math.max(1, Math.ceil(metrics.width)));
+        layer.height = Math.min(320, Math.max(1, Math.ceil((Number(metrics.actualBoundingBoxAscent) || 0) + (Number(metrics.actualBoundingBoxDescent) || layer.size))));
+        layer.weight = layer.bold === false ? 'normal' : 'bold';
       } else {
         layer.width = limit(layer.width, 12, 1000);
         layer.height = limit(layer.height, 12, 320);
@@ -1521,10 +1705,11 @@
     const bounds = cardBounds(selection);
     if (!bounds) return;
     target.size = limit(target.size, 12, 80);
-    target.y = limit(target.y, 0, 320 - bounds.height);
-    target.x = selection === 'rank'
-      ? limit(target.x, bounds.width, 1000)
-      : limit(target.x, 0, 1000 - bounds.width);
+    const fitted = cardBounds(selection);
+    if (fitted.x < 0) target.x -= fitted.x;
+    if (fitted.x + fitted.width > 1000) target.x -= fitted.x + fitted.width - 1000;
+    if (fitted.y < 0) target.y -= fitted.y;
+    if (fitted.y + fitted.height > 320) target.y -= fitted.y + fitted.height - 320;
   }
 
   function refreshCardDirty() {
@@ -1587,7 +1772,7 @@
         state.cardSelection = 'background';
       } else {
         const id = `image-${Date.now().toString(36)}`;
-        state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140 });
+        state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140, visible: true, rotation: 0 });
         state.cardSelection = `layer:${id}`;
       }
       renderCardStudio();
@@ -1602,7 +1787,11 @@
   function addCardText() {
     if (!state.profile || state.profile.design.layers.length >= 20) return showToast('This card already has the maximum of 20 custom layers.', 'error');
     const id = `text-${Date.now().toString(36)}`;
-    state.profile.design.layers.push({ id, type: 'text', text: 'Your text', x: 420, y: 155, width: 160, height: 40, size: 28, color: '#f4f7f2', weight: 'bold' });
+    state.profile.design.layers.push({
+      id, type: 'text', text: 'Your text', x: 420, y: 155, width: 130, height: 28, size: 28,
+      color: '#f4f7f2', weight: 'bold', bold: true, italic: false, underline: false,
+      fontFamily: 'sans', visible: true, rotation: 0,
+    });
     state.cardSelection = `layer:${id}`;
     renderCardStudio();
     elements.cardInspector.querySelector('textarea')?.focus();
@@ -1620,19 +1809,133 @@
     ];
     return choices.find((selection) => {
       const box = cardBounds(selection);
-      return box && point.x >= box.x - 5 && point.x <= box.x + box.width + 5 && point.y >= box.y - 5 && point.y <= box.y + box.height + 5;
+      return box && cardPointInBounds(point, box);
     }) || 'background';
+  }
+
+  function cardHandleAtPoint(point, bounds) {
+    if (!bounds?.resize) return '';
+    const rotate = cardRotateHandle(bounds);
+    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= 14) return 'rotate';
+    return cardHandlePositions(bounds).find((handle) => Math.hypot(point.x - handle.x, point.y - handle.y) <= 12)?.handle || '';
+  }
+
+  function cardAlignmentTargets(excludedSelection) {
+    const x = [0, 28, 500, 972, 1000];
+    const y = [0, 28, 160, 292, 320];
+    const selections = [
+      ...state.profile.design.layers.map((layer) => `layer:${layer.id}`),
+      'avatar', 'username', 'level', 'rank', 'progress', 'xp',
+    ];
+    for (const selection of selections) {
+      if (selection === excludedSelection) continue;
+      const bounds = cardVisualBounds(cardBounds(selection));
+      if (!bounds) continue;
+      x.push(bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width);
+      y.push(bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height);
+    }
+    return { x, y };
+  }
+
+  function cardSnapAxis(axis, bounds, targets, drag) {
+    const origin = axis === 'x' ? bounds.x : bounds.y;
+    const size = axis === 'x' ? bounds.width : bounds.height;
+    const latchKey = axis === 'x' ? 'snapX' : 'snapY';
+    const offsets = [0, size / 2, size];
+    const latched = drag[latchKey];
+    if (latched) {
+      const difference = origin + latched.offset - latched.target;
+      if (Math.abs(difference) <= CARD_SNAP_RELEASE) return { delta: -difference, guide: latched.target };
+      drag[latchKey] = null;
+    }
+    let best = null;
+    for (const offset of offsets) {
+      for (const target of targets) {
+        const difference = origin + offset - target;
+        if (Math.abs(difference) <= CARD_SNAP_DISTANCE && (!best || Math.abs(difference) < Math.abs(best.difference))) {
+          best = { difference, offset, target };
+        }
+      }
+    }
+    if (!best) return { delta: 0 };
+    drag[latchKey] = { offset: best.offset, target: best.target };
+    return { delta: -best.difference, guide: best.target };
+  }
+
+  function snapMovedCardTarget(drag) {
+    const bounds = cardVisualBounds(cardBounds());
+    if (!bounds) return;
+    const targets = cardAlignmentTargets(state.cardSelection);
+    const x = cardSnapAxis('x', bounds, targets.x, drag);
+    const y = cardSnapAxis('y', bounds, targets.y, drag);
+    if ('x' in drag.target) drag.target.x += x.delta;
+    if ('y' in drag.target) drag.target.y += y.delta;
+    state.cardGuides = { x: x.guide, y: y.guide };
+  }
+
+  function oppositeCardAnchor(bounds, handle) {
+    const point = {
+      x: handle.includes('e') ? bounds.x : handle.includes('w') ? bounds.x + bounds.width : bounds.x + bounds.width / 2,
+      y: handle.includes('s') ? bounds.y : handle.includes('n') ? bounds.y + bounds.height : bounds.y + bounds.height / 2,
+    };
+    return rotateCardPoint(point, cardBoundsCenter(bounds), bounds.rotation);
+  }
+
+  function resizeCardTarget(drag, point) {
+    const originalBounds = drag.bounds;
+    const center = cardBoundsCenter(originalBounds);
+    const local = rotateCardPoint(point, center, -originalBounds.rotation);
+    const localX = local.x - originalBounds.x;
+    const localY = local.y - originalBounds.y;
+    const handle = drag.handle;
+    let width = handle.includes('e') ? localX : handle.includes('w') ? originalBounds.width - localX : originalBounds.width;
+    let height = handle.includes('s') ? localY : handle.includes('n') ? originalBounds.height - localY : originalBounds.height;
+    width = Math.max(6, width);
+    height = Math.max(6, height);
+    const fixedAnchor = oppositeCardAnchor(originalBounds, handle);
+
+    if (originalBounds.resize === 'text') {
+      const scales = [];
+      if (handle.includes('e') || handle.includes('w')) scales.push(width / originalBounds.width);
+      if (handle.includes('n') || handle.includes('s')) scales.push(height / originalBounds.height);
+      const scale = Math.max(.1, ...scales);
+      const minimum = drag.target.type === 'text' ? 10 : 12;
+      const maximum = drag.target.type === 'text' ? 96 : 80;
+      drag.target.size = Math.round(Math.min(maximum, Math.max(minimum, drag.original.size * scale)));
+    } else if (originalBounds.resize === 'square') {
+      drag.target.size = Math.round(Math.max(32, Math.min(240, Math.max(width, height))));
+    } else {
+      drag.target.width = Math.round(Math.max(12, width));
+      drag.target.height = Math.round(Math.max(state.cardSelection === 'progress' ? 6 : 12, height));
+    }
+
+    const resizedBounds = cardBounds();
+    if (!resizedBounds) return;
+    const movedAnchor = oppositeCardAnchor(resizedBounds, handle);
+    if ('x' in drag.target) drag.target.x += fixedAnchor.x - movedAnchor.x;
+    if ('y' in drag.target) drag.target.y += fixedAnchor.y - movedAnchor.y;
+    constrainCardSelection();
   }
 
   function beginCardPointer(event) {
     if (!state.profile || event.button !== 0) return;
     const point = canvasPoint(event);
     const activeBounds = cardBounds();
-    const resize = activeBounds?.resize && Math.abs(point.x - (activeBounds.x + activeBounds.width)) < 18 && Math.abs(point.y - (activeBounds.y + activeBounds.height)) < 18;
-    if (!resize) state.cardSelection = hitCardSelection(point);
+    let handle = cardHandleAtPoint(point, activeBounds);
+    if (!handle) {
+      state.cardSelection = hitCardSelection(point);
+      handle = cardHandleAtPoint(point, cardBounds());
+    }
     const target = cardSelectionObject();
     const bounds = cardBounds();
-    state.cardPointer = { id: event.pointerId, start: point, resize, target, original: clone(target), bounds };
+    if (!target || !bounds) return;
+    const center = cardBoundsCenter(bounds);
+    state.cardPointer = {
+      id: event.pointerId, start: point, handle, target, original: clone(target), bounds,
+      mode: handle === 'rotate' ? 'rotate' : handle ? 'resize' : state.cardSelection === 'background' ? 'background' : 'move',
+      startAngle: Math.atan2(point.y - center.y, point.x - center.x),
+    };
+    state.cardGuides = {};
     elements.cardCanvas.setPointerCapture(event.pointerId);
     renderCardLayers();
     renderCardInspector();
@@ -1646,20 +1949,26 @@
     const dx = point.x - drag.start.x;
     const dy = point.y - drag.start.y;
     const target = drag.target;
-    if (state.cardSelection === 'background') {
+    if (drag.mode === 'background') {
       if (target.imageUrl) { target.x = Math.round(drag.original.x + dx); target.y = Math.round(drag.original.y + dy); }
-    } else if (drag.resize) {
-      if ('size' in target && !('width' in target)) target.size = Math.max(12, Math.round(drag.original.size + Math.max(dx, dy)));
-      else {
-        target.width = Math.max(12, Math.round((drag.original.width || drag.bounds.width) + dx));
-        target.height = Math.max(6, Math.round((drag.original.height || drag.bounds.height) + dy));
-        if (target.type === 'text') target.size = Math.max(10, Math.round(drag.original.size + dy));
-      }
+    } else if (drag.mode === 'rotate') {
+      const center = cardBoundsCenter(drag.bounds);
+      const angle = Math.atan2(point.y - center.y, point.x - center.x);
+      let rotation = normalizedCardRotation(drag.original.rotation + (angle - drag.startAngle) * 180 / Math.PI);
+      const snapped = Math.round(rotation / 15) * 15;
+      if (event.shiftKey || Math.abs(rotation - snapped) <= 3) rotation = snapped;
+      target.rotation = normalizedCardRotation(rotation);
+      state.cardGuides = {};
+    } else if (drag.mode === 'resize') {
+      resizeCardTarget(drag, point);
+      state.cardGuides = {};
     } else {
       if ('x' in target) target.x = Math.round(drag.original.x + dx);
       if ('y' in target) target.y = Math.round(drag.original.y + dy);
+      constrainCardSelection();
+      snapMovedCardTarget(drag);
     }
-    constrainCardSelection();
+    if (drag.mode !== 'move' && drag.mode !== 'resize') constrainCardSelection();
     scheduleCardDraw();
     refreshCardDirty();
   }
@@ -1667,7 +1976,9 @@
   function endCardPointer(event) {
     if (!state.cardPointer || state.cardPointer.id !== event.pointerId) return;
     state.cardPointer = null;
+    state.cardGuides = {};
     renderCardInspector();
+    scheduleCardDraw();
     refreshCardDirty();
   }
 
@@ -1712,6 +2023,16 @@
   elements.cardBackgroundFile.addEventListener('change', () => uploadCardMedia(elements.cardBackgroundFile, 'background'));
   elements.cardImageFile.addEventListener('change', () => uploadCardMedia(elements.cardImageFile, 'image'));
   elements.cardLayerList.addEventListener('click', (event) => {
+    const visibility = event.target.closest('[data-card-visibility]');
+    if (visibility) {
+      const selection = visibility.dataset.cardVisibility;
+      const target = cardSelectionObject(selection);
+      if (!target) return;
+      target.visible = target.visible === false;
+      state.cardSelection = selection;
+      renderCardStudio();
+      return;
+    }
     const button = event.target.closest('[data-card-selection]');
     if (!button) return;
     state.cardSelection = button.dataset.cardSelection;
@@ -1729,6 +2050,16 @@
     refreshCardDirty();
   });
   elements.cardInspector.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-card-toggle]');
+    if (toggle) {
+      const path = toggle.dataset.cardToggle;
+      setCardField(path, !getCardField(path));
+      constrainCardSelection();
+      renderCardInspector();
+      scheduleCardDraw();
+      refreshCardDirty();
+      return;
+    }
     if (!event.target.closest('[data-delete-card-layer]')) return;
     const layer = cardLayerBySelection();
     if (!layer) return;

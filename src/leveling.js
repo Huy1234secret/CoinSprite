@@ -25,6 +25,11 @@ const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
+  sans: CANVAS_FONT_FAMILY,
+  serif: '"Noto Serif", "DejaVu Serif", serif',
+  mono: '"Noto Sans Mono", "DejaVu Sans Mono", monospace',
+});
 
 let cachedState = null;
 let cachedStateMtime = 0;
@@ -45,12 +50,12 @@ const DEFAULT_LEVEL_CARD_DESIGN = Object.freeze({
     surface: '#18201b', accent: '#b9f547', text: '#f4f7f2', muted: '#a3ada6',
     track: '#303a33', progress: '#b9f547',
   },
-  avatar: { x: 54, y: 68, size: 150, color: '#b9f547' },
-  username: { x: 236, y: 70, size: 34, color: '#f4f7f2' },
-  level: { x: 236, y: 130, size: 24, color: '#b9f547' },
-  rank: { x: 876, y: 68, size: 28, color: '#f4f7f2' },
-  xp: { x: 236, y: 269, size: 21, color: '#d8ded9' },
-  progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33' },
+  avatar: { x: 54, y: 68, size: 150, color: '#b9f547', visible: true, rotation: 0 },
+  username: { x: 236, y: 70, size: 34, color: '#f4f7f2', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  level: { x: 236, y: 130, size: 24, color: '#b9f547', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  rank: { x: 876, y: 68, size: 28, color: '#f4f7f2', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  xp: { x: 236, y: 269, size: 21, color: '#d8ded9', visible: true, rotation: 0, fontFamily: 'sans', bold: false, italic: false, underline: false },
+  progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33', visible: true, rotation: 0 },
   layers: [],
 });
 
@@ -66,6 +71,30 @@ function clamp(value, minimum, maximum, fallback) {
 function safeColor(value, fallback) {
   const color = String(value || '').trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+}
+
+function normalizedRotation(value) {
+  const rotation = Number(value);
+  if (!Number.isFinite(rotation)) return 0;
+  return ((rotation + 180) % 360 + 360) % 360 - 180;
+}
+
+function cardElementOptions(input = {}, defaults = {}) {
+  return {
+    visible: input.visible !== false,
+    rotation: normalizedRotation(input.rotation ?? defaults.rotation),
+  };
+}
+
+function cardTextOptions(input = {}, defaults = {}) {
+  const bold = input.bold === undefined ? (input.weight ? input.weight !== 'normal' : defaults.bold !== false) : input.bold === true;
+  return {
+    ...cardElementOptions(input, defaults),
+    fontFamily: Object.hasOwn(LEVEL_CARD_FONT_FAMILIES, input.fontFamily) ? input.fontFamily : (defaults.fontFamily || 'sans'),
+    bold,
+    italic: input.italic === true,
+    underline: input.underline === true,
+  };
 }
 
 function safeCardMediaUrl(value, userId) {
@@ -98,12 +127,12 @@ function normalizeLevelCardDesign(value, userId) {
     },
     panelOpacity: clamp(source.panelOpacity, 0, 1, defaults.panelOpacity),
     colors: {},
-    avatar: point('avatar', { x: [0, 950], y: [0, 270], size: [32, 240] }),
-    username: point('username', { x: [0, 980], y: [20, 310], size: [12, 80] }),
-    level: point('level', { x: [0, 980], y: [20, 310], size: [12, 60] }),
-    rank: point('rank', { x: [0, 980], y: [20, 310], size: [12, 60] }),
-    xp: point('xp', { x: [0, 980], y: [20, 310], size: [12, 50] }),
-    progress: point('progress', { x: [0, 980], y: [0, 310], width: [40, 950], height: [6, 70] }),
+    avatar: { ...point('avatar', { x: [0, 950], y: [0, 270], size: [32, 240] }), ...cardElementOptions(source.avatar, defaults.avatar) },
+    username: { ...point('username', { x: [0, 980], y: [20, 310], size: [12, 80] }), ...cardTextOptions(source.username, defaults.username) },
+    level: { ...point('level', { x: [0, 980], y: [20, 310], size: [12, 60] }), ...cardTextOptions(source.level, defaults.level) },
+    rank: { ...point('rank', { x: [0, 980], y: [20, 310], size: [12, 60] }), ...cardTextOptions(source.rank, defaults.rank) },
+    xp: { ...point('xp', { x: [0, 980], y: [20, 310], size: [12, 50] }), ...cardTextOptions(source.xp, defaults.xp) },
+    progress: { ...point('progress', { x: [0, 980], y: [0, 310], width: [40, 950], height: [6, 70] }), ...cardElementOptions(source.progress, defaults.progress) },
     layers: [],
   };
   for (const key of Object.keys(defaults.colors)) design.colors[key] = safeColor(source.colors?.[key], defaults.colors[key]);
@@ -125,6 +154,7 @@ function normalizeLevelCardDesign(value, userId) {
       id: /^[a-z0-9_-]{1,40}$/i.test(String(layer.id || '')) ? String(layer.id) : `layer-${index + 1}`,
       x: clamp(layer.x, -500, 1000, 50), y: clamp(layer.y, -300, 320, 50),
       width: clamp(layer.width, 12, 800, 120), height: clamp(layer.height, 12, 320, 120),
+      ...cardElementOptions(layer),
     };
     if (layer.type === 'image') {
       const imageUrl = safeCardMediaUrl(layer.imageUrl, userId);
@@ -135,12 +165,13 @@ function normalizeLevelCardDesign(value, userId) {
       });
     } else if (layer.type === 'text') {
       const size = clamp(layer.size, 10, 96, 28);
+      const textOptions = cardTextOptions(layer, { fontFamily: 'sans', bold: true });
       design.layers.push({
-        ...base, type: 'text', text: String(layer.text || 'Text').replace(/[\r\n]+/g, ' ').slice(0, 120),
+        ...base, ...textOptions, type: 'text', text: String(layer.text || 'Text').replace(/[\r\n]+/g, ' ').slice(0, 120),
         x: clamp(base.x, 0, 1000 - base.width, 50),
         y: clamp(base.y, 0, 320 - size, 50),
         size, color: safeColor(layer.color, '#f4f7f2'),
-        weight: layer.weight === 'normal' ? 'normal' : 'bold',
+        weight: textOptions.bold ? 'bold' : 'normal',
       });
     }
   }
@@ -319,20 +350,26 @@ function graphemes(value) {
   return Array.from(text);
 }
 
+function levelCardFont(item = {}, size = item.size) {
+  const family = LEVEL_CARD_FONT_FAMILIES[item.fontFamily] || LEVEL_CARD_FONT_FAMILIES.sans;
+  const style = item.italic ? 'italic' : 'normal';
+  const weight = item.bold === false || item.weight === 'normal' ? 'normal' : 'bold';
+  return `${style} ${weight} ${Math.max(1, Number(size) || 1)}px ${family}`;
+}
+
 function fitCanvasText(context, value, options = {}) {
   const text = options.displayName === false
     ? String(value || '').normalize('NFC').replace(/[\u0000-\u001f\u007f]/g, '')
     : canvasDisplayName(value);
-  const weight = options.weight || 'bold';
   const minimum = Math.max(8, Number(options.minimum) || 14);
   let size = Math.max(minimum, Number(options.size) || 30);
   const maximumWidth = Math.max(20, Number(options.maximumWidth) || 500);
   while (size > minimum) {
-    context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+    context.font = levelCardFont(options, size);
     if (context.measureText(text).width <= maximumWidth) return { text, size };
     size -= 1;
   }
-  context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+  context.font = levelCardFont(options, size);
   if (context.measureText(text).width <= maximumWidth) return { text, size };
   const parts = graphemes(text);
   while (parts.length > 1 && context.measureText(`${parts.join('')}\u2026`).width > maximumWidth) parts.pop();
@@ -1049,6 +1086,70 @@ function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0
   context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
 }
 
+function canvasTextBounds(context, text, item, align = 'left') {
+  context.font = levelCardFont(item);
+  const metrics = context.measureText(String(text || ''));
+  let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
+  let right = Number(metrics.actualBoundingBoxRight) || Number(metrics.width) || 1;
+  if (item.underline) {
+    const underlineLeft = align === 'right' ? -metrics.width : 0;
+    const underlineRight = align === 'right' ? 0 : metrics.width;
+    left = Math.min(left, underlineLeft);
+    right = Math.max(right, underlineRight);
+  }
+  const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
+  const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
+  const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+  return {
+    x: item.x + left,
+    y: item.y - ascent,
+    width: Math.max(1, right - left),
+    height: Math.max(1, ascent + Math.max(descent, underlineBottom)),
+  };
+}
+
+async function drawRotatedCardElement(context, bounds, rotation, draw) {
+  context.save();
+  const angle = normalizedRotation(rotation) * Math.PI / 180;
+  if (angle) {
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    context.translate(centerX, centerY);
+    context.rotate(angle);
+    context.translate(-centerX, -centerY);
+  }
+  try {
+    await draw();
+  } finally {
+    context.restore();
+  }
+}
+
+function drawCardUnderline(context, text, item, align = 'left') {
+  if (!item.underline) return;
+  context.font = levelCardFont(item);
+  const width = context.measureText(String(text || '')).width;
+  const start = align === 'right' ? item.x - width : item.x;
+  const y = item.y + Number(item.size) * 1.08;
+  context.save();
+  context.strokeStyle = item.color;
+  context.lineWidth = Math.max(1, Number(item.size) / 15);
+  context.beginPath();
+  context.moveTo(start, y);
+  context.lineTo(start + width, y);
+  context.stroke();
+  context.restore();
+}
+
+function drawCardText(context, text, item, align = 'left') {
+  context.textBaseline = 'top';
+  context.textAlign = align;
+  context.fillStyle = item.color;
+  context.font = levelCardFont(item);
+  context.fillText(text, item.x, item.y);
+  drawCardUnderline(context, text, item, align);
+}
+
 async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(user?.id)) {
   const userId = String(user?.id || '');
   const design = normalizeLevelCardDesign(inputDesign, userId);
@@ -1072,73 +1173,89 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.fill();
   context.globalAlpha = 1;
 
-  const avatar = await loadDiscordAvatar(user);
-  context.save();
-  roundedRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
-  context.fillStyle = design.avatar.color;
-  context.fill();
-  roundedRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
-  context.clip();
-  if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-  else {
-    context.fillStyle = design.colors.track;
-    context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-    context.fillStyle = design.colors.text;
-    context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
-    context.textAlign = 'center';
-    context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
+  if (design.avatar.visible) {
+    const avatar = await loadDiscordAvatar(user);
+    const bounds = { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size };
+    await drawRotatedCardElement(context, bounds, design.avatar.rotation, () => {
+      context.save();
+      roundedRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+      context.fillStyle = design.avatar.color;
+      context.fill();
+      roundedRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+      context.clip();
+      if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      else {
+        context.fillStyle = design.colors.track;
+        context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+        context.fillStyle = design.colors.text;
+        context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
+        context.textAlign = 'center';
+        context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
+      }
+      context.restore();
+    });
   }
-  context.restore();
 
-  context.textBaseline = 'top';
-  context.textAlign = 'left';
-  context.fillStyle = design.username.color;
-  await drawCanvasDisplayName(context, user?.displayName || user?.globalName || user?.username, design.username.x, design.username.y, {
-    size: design.username.size,
-    minimum: 16,
-    maximumWidth: Math.max(120, design.rank.x - design.username.x - 145),
-  });
-  context.fillStyle = design.level.color;
-  context.font = `bold ${design.level.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`LEVEL ${number(stats.level)}`, design.level.x, design.level.y);
-  context.textAlign = 'right';
-  context.fillStyle = design.rank.color;
-  context.font = `bold ${design.rank.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`#${number(stats.rank)}`, design.rank.x, design.rank.y);
-
-  roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
-  context.fillStyle = design.progress.trackColor;
-  context.fill();
-  const filled = Math.max(0, design.progress.width * Math.min(1, Number(stats.progressRatio) || 0));
-  if (filled > 0) {
-    roundedRect(context, design.progress.x, design.progress.y, filled, design.progress.height, design.progress.height / 2);
-    context.fillStyle = design.progress.color;
-    context.fill();
+  const displayName = canvasDisplayName(user?.displayName || user?.globalName || user?.username);
+  if (design.username.visible) {
+    const bounds = canvasTextBounds(context, displayName, design.username);
+    await drawRotatedCardElement(context, bounds, design.username.rotation, async () => {
+      context.textBaseline = 'top';
+      context.textAlign = 'left';
+      context.fillStyle = design.username.color;
+      await drawCanvasDisplayName(context, displayName, design.username.x, design.username.y, {
+        ...design.username,
+        minimum: design.username.size,
+        maximumWidth: 2000,
+        weight: design.username.bold ? 'bold' : 'normal',
+      });
+      drawCardUnderline(context, displayName, design.username);
+    });
   }
-  context.textAlign = 'left';
-  context.fillStyle = design.xp.color;
-  context.font = `${design.xp.size}px ${CANVAS_FONT_FAMILY}`;
+  const levelLabel = `LEVEL ${number(stats.level)}`;
+  if (design.level.visible) {
+    const bounds = canvasTextBounds(context, levelLabel, design.level);
+    await drawRotatedCardElement(context, bounds, design.level.rotation, () => drawCardText(context, levelLabel, design.level));
+  }
+  const rankLabel = `#${number(stats.rank)}`;
+  if (design.rank.visible) {
+    const bounds = canvasTextBounds(context, rankLabel, design.rank, 'right');
+    await drawRotatedCardElement(context, bounds, design.rank.rotation, () => drawCardText(context, rankLabel, design.rank, 'right'));
+  }
+
+  if (design.progress.visible) {
+    const bounds = { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height };
+    await drawRotatedCardElement(context, bounds, design.progress.rotation, () => {
+      roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+      context.fillStyle = design.progress.trackColor;
+      context.fill();
+      const filled = Math.max(0, design.progress.width * Math.min(1, Number(stats.progressRatio) || 0));
+      if (filled > 0) {
+        roundedRect(context, design.progress.x, design.progress.y, filled, design.progress.height, design.progress.height / 2);
+        context.fillStyle = design.progress.color;
+        context.fill();
+      }
+    });
+  }
   const xpLabel = stats.neededXp ? `${number(stats.progressXp)} / ${number(stats.neededXp)} XP` : `${number(stats.xp)} XP - MAX LEVEL`;
-  context.fillText(xpLabel, design.xp.x, design.xp.y);
+  if (design.xp.visible) {
+    const bounds = canvasTextBounds(context, xpLabel, design.xp);
+    await drawRotatedCardElement(context, bounds, design.xp.rotation, () => drawCardText(context, xpLabel, design.xp));
+  }
 
   for (const layer of design.layers) {
+    if (!layer.visible) continue;
     if (layer.type === 'image') {
       const image = await loadLocalCardImage(layer.imageUrl, userId);
-      if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
+      if (image) {
+        const bounds = { x: layer.x, y: layer.y, width: layer.width, height: layer.height };
+        await drawRotatedCardElement(context, bounds, layer.rotation, () => context.drawImage(image, layer.x, layer.y, layer.width, layer.height));
+      }
     } else {
-      context.textAlign = 'left';
-      context.fillStyle = layer.color;
-      const fittedLayer = fitCanvasText(context, layer.text, {
-        displayName: false,
-        weight: layer.weight,
-        size: layer.size,
-        minimum: 10,
-        maximumWidth: Math.min(1000 - layer.x, layer.width),
-      });
-      context.fillText(fittedLayer.text, layer.x, layer.y);
+      const bounds = canvasTextBounds(context, layer.text, layer);
+      await drawRotatedCardElement(context, bounds, layer.rotation, () => drawCardText(context, layer.text, layer));
     }
   }
-  context.restore();
   return canvas.toBuffer('image/png');
 }
 
