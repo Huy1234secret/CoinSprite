@@ -7,6 +7,7 @@ const {
   inventoryPageData,
   rollPayload,
   salePageData,
+  salePayload,
 } = require('../src/features/rng-game/components/builders');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
@@ -292,6 +293,17 @@ test('sell selections survive page changes because the backend set is authoritat
   session.selectedItemIds.add('26');
   salePageData(state, session);
   assert.deepEqual([...session.selectedItemIds], ['1', '26']);
+});
+
+test('sell navigation buttons use valid text labels instead of punctuation emoji', () => {
+  const state = { items: [item(1)] };
+  const session = { id: 'session', selectedItemIds: new Set(), currentPage: 1, filters: {} };
+  const payload = salePayload(state, session);
+  const navigation = payload.components[0].components[3].components;
+  assert.equal(navigation[0].label, 'Previous');
+  assert.equal(navigation[2].label, 'Next');
+  assert.equal(Object.hasOwn(navigation[0], 'emoji'), false);
+  assert.equal(Object.hasOwn(navigation[2], 'emoji'), false);
 });
 
 test('an active sell session locks rolls and other economy commands without consuming cooldown', async () => {
