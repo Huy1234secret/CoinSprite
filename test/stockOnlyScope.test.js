@@ -225,6 +225,8 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /redoCardDesign/);
   assert.match(source, /cardHandleMetrics/);
   assert.match(source, /Nunito Rounded/);
+  assert.match(source, /document\.fonts\.load\(font, sample\)/);
+  assert.match(source, /\.then\(\(\) => scheduleCardDraw\(\)\)/);
   assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
   assert.doesNotMatch(source, /previewNameWidth/);
   assert.doesNotMatch(source, /\/api\/profile\/card\/preview/);
@@ -249,6 +251,8 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(html, /cardUndoButton/);
   assert.match(html, /cardRedoButton/);
   assert.match(leveling, /renderLevelCard/);
+  assert.match(leveling, /levelCardTextY\(item\)/);
+  assert.match(leveling, /saved Y coordinate authoritative/);
   assert.match(leveling, /drawCardText\(context, displayName, design\.username\)/);
   assert.match(leveling, /renderPublishedLevelCard/);
   assert.match(leveling, /X-CoinSprite-Render-Key/);

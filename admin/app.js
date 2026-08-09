@@ -29,6 +29,7 @@
     condensed: '"Oswald Variable", ' + CARD_UNICODE_FALLBACK,
     handwriting: '"Caveat Variable", ' + CARD_UNICODE_FALLBACK,
   });
+  const cardFontLoads = new Map();
   const CARD_SNAP_DISTANCE = 6;
   const CARD_SNAP_RELEASE = 10;
   const CARD_HISTORY_LIMIT = 60;
@@ -1349,6 +1350,21 @@
     return `${item?.italic ? 'italic' : 'normal'} ${item?.bold === false || item?.weight === 'normal' ? 'normal' : 'bold'} ${Math.max(1, Number(size) || 1)}px ${family}`;
   }
 
+  function loadCardFont(item, text) {
+    if (!document.fonts?.load) return;
+    const font = cardFont(item);
+    const sample = String(text || 'CoinSprite');
+    const key = `${font}\0${sample}`;
+    if (cardFontLoads.has(key)) return;
+    const loading = document.fonts.load(font, sample)
+      .then(() => scheduleCardDraw())
+      .catch((error) => {
+        cardFontLoads.delete(key);
+        console.error(`Card preview font failed to load: ${font}`, error);
+      });
+    cardFontLoads.set(key, loading);
+  }
+
   function cardTextValue(selection, layer = cardLayerBySelection(selection)) {
     if (layer?.type === 'text') return layer.text || 'Text';
     const preview = state.profile?.preview || {};
@@ -1462,6 +1478,7 @@
   }
 
   function drawCardPreviewText(context, text, item, align = 'left') {
+    loadCardFont(item, text);
     const bounds = cardTextBounds(context, item, text, align);
     withCardRotation(context, bounds, () => {
       context.textBaseline = 'top';

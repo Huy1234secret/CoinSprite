@@ -29,6 +29,7 @@ const LEADERBOARD_HEIGHT = 205 + PAGE_SIZE * 82 + 54;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+const LEVEL_CARD_TEXT_TOP_ADJUSTMENT = 0.075;
 const CANVAS_UNICODE_FALLBACK = '"CoinSprite Unicode", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 const CANVAS_FONT_FAMILY = '"Noto Sans Variable", ' + CANVAS_UNICODE_FALLBACK;
 const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
@@ -373,6 +374,11 @@ function levelCardFont(item = {}, size = item.size) {
   const style = item.italic ? 'italic' : 'normal';
   const weight = item.bold === false || item.weight === 'normal' ? 'normal' : 'bold';
   return `${style} ${weight} ${Math.max(1, Number(size) || 1)}px ${family}`;
+}
+
+function levelCardTextY(item = {}) {
+  const size = Math.max(1, Number(item.size) || 1);
+  return Number(item.y) - Math.max(1, Math.round(size * LEVEL_CARD_TEXT_TOP_ADJUSTMENT));
 }
 
 function fitCanvasText(context, value, options = {}) {
@@ -1160,6 +1166,9 @@ function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0
 }
 
 function canvasTextBounds(context, text, item, align = 'left') {
+  context.save();
+  context.textBaseline = 'top';
+  context.textAlign = align;
   context.font = levelCardFont(item);
   const metrics = context.measureText(String(text || ''));
   let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
@@ -1173,6 +1182,7 @@ function canvasTextBounds(context, text, item, align = 'left') {
   const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
   const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
   const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+  context.restore();
   return {
     x: item.x + left,
     y: item.y - ascent,
@@ -1219,7 +1229,9 @@ function drawCardText(context, text, item, align = 'left') {
   context.textAlign = align;
   context.fillStyle = item.color;
   context.font = levelCardFont(item);
-  context.fillText(text, item.x, item.y);
+  // Skia's `top` baseline sits slightly below Chromium's for these WOFF2 fonts.
+  // Keep the editor's saved Y coordinate authoritative and compensate here only.
+  context.fillText(text, item.x, levelCardTextY(item));
   drawCardUnderline(context, text, item, align);
 }
 
