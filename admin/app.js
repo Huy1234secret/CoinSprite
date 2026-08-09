@@ -91,12 +91,6 @@
     cardPointer: null,
     cardGuides: {},
     cardSaving: false,
-    cardExactPreview: null,
-    cardExactSnapshot: '',
-    cardExactUrl: '',
-    cardExactTimer: null,
-    cardExactRequest: 0,
-    cardPreviewState: 'draft',
     cardUndoStack: [],
     cardRedoStack: [],
     cardPendingHistory: '',
@@ -135,8 +129,6 @@
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
     cardTemplateSelect: $('#cardTemplateSelect'), cardTemplateButton: $('#cardTemplateButton'),
     cardUndoButton: $('#cardUndoButton'), cardRedoButton: $('#cardRedoButton'),
-    cardPreviewState: $('#cardPreviewState'), cardPreviewStateLabel: $('#cardPreviewStateLabel'),
-    cardPreviewStateMessage: $('#cardPreviewStateMessage'),
     profileSaveDock: $('#profileSaveDock'), cardSaveButton: $('#cardSaveButton'), cardResetButton: $('#cardResetButton'),
   };
 
@@ -1328,7 +1320,7 @@
     const entry = { image: new Image(), ready: false };
     cardImages.set(url, entry);
     entry.image.crossOrigin = 'anonymous';
-    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(false); });
+    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(); });
     entry.image.addEventListener('error', () => { entry.failed = true; });
     entry.image.src = url;
     return null;
@@ -1464,92 +1456,9 @@
     return null;
   }
 
-  function setCardPreviewState(status, message = '') {
-    state.cardPreviewState = status;
-    elements.cardPreviewState.dataset.state = status;
-    elements.cardPreviewStateLabel.textContent = status === 'exact'
-      ? 'Exact Discord render'
-      : status === 'error' ? 'Server preview error' : 'Draft preview';
-    elements.cardPreviewStateMessage.textContent = message || (status === 'exact'
-      ? 'Server-rendered PNG loaded.'
-      : status === 'error' ? 'The exact server render could not be loaded.' : 'Waiting for the exact server render.');
-  }
-
-  function invalidateExactCardPreview() {
-    window.clearTimeout(state.cardExactTimer);
-    state.cardExactRequest += 1;
-    if (state.cardExactUrl) URL.revokeObjectURL(state.cardExactUrl);
-    state.cardExactPreview = null;
-    state.cardExactSnapshot = '';
-    state.cardExactUrl = '';
-    setCardPreviewState('draft');
-  }
-
-  function scheduleExactCardPreview({ persisted = false, delay = 160 } = {}) {
-    window.clearTimeout(state.cardExactTimer);
-    if (!state.profile || elements.profileShell.hidden) return;
-    const snapshot = cardSnapshot();
-    setCardPreviewState('draft');
-    state.cardExactTimer = window.setTimeout(async () => {
-      const request = ++state.cardExactRequest;
-      try {
-        const response = await fetch('/api/profile/card/preview', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'image/png',
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': state.csrfToken,
-          },
-          body: JSON.stringify(persisted ? {} : { draft: true, design: state.profile.design }),
-        });
-        if (!response.ok) {
-          let detail = `HTTP ${response.status}`;
-          try {
-            const payload = await response.json();
-            if (payload?.error) detail = payload.error;
-          } catch {}
-          throw new Error(detail);
-        }
-        const url = URL.createObjectURL(await response.blob());
-        const image = new Image();
-        image.addEventListener('load', () => {
-          if (request !== state.cardExactRequest || snapshot !== cardSnapshot()) {
-            URL.revokeObjectURL(url);
-            return;
-          }
-          if (state.cardExactUrl) URL.revokeObjectURL(state.cardExactUrl);
-          state.cardExactPreview = image;
-          state.cardExactSnapshot = snapshot;
-          state.cardExactUrl = url;
-          setCardPreviewState('exact');
-          scheduleCardDraw(false);
-        }, { once: true });
-        image.addEventListener('error', () => {
-          URL.revokeObjectURL(url);
-          if (request === state.cardExactRequest && snapshot === cardSnapshot()) {
-            setCardPreviewState('error', 'The server response was not a usable image.');
-          }
-        }, { once: true });
-        image.src = url;
-      } catch (error) {
-        if (request === state.cardExactRequest && snapshot === cardSnapshot()) {
-          setCardPreviewState('error', error?.message || 'The exact server render could not be loaded.');
-        }
-      }
-    }, delay);
-  }
-
-  function refreshPersistedCardPreview() {
-    invalidateExactCardPreview();
-    scheduleCardDraw(false);
-    scheduleExactCardPreview({ persisted: true, delay: 0 });
-  }
-
-  function scheduleCardDraw(refreshExact = true) {
+  function scheduleCardDraw() {
     window.cancelAnimationFrame(cardFrame);
     cardFrame = window.requestAnimationFrame(drawCardPreview);
-    if (refreshExact) scheduleExactCardPreview();
   }
 
   function drawCardPreviewText(context, text, item, align = 'left') {
@@ -1609,10 +1518,8 @@
     const canvas = elements.cardCanvas;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
-    const exact = state.cardExactSnapshot === cardSnapshot() ? state.cardExactPreview : null;
-    if (exact) context.drawImage(exact, 0, 0, 1000, 320);
-    else {
-      context.save();
+    context.save();
+    try {
       cardRoundRect(context, 0, 0, 1000, 320, 30);
       context.clip();
       context.fillStyle = design.background.color;
@@ -1672,6 +1579,7 @@
           if (image) withCardRotation(context, layerBounds, () => context.drawImage(image, layer.x, layer.y, layer.width, layer.height));
         } else drawCardPreviewText(context, layer.text, layer);
       }
+    } finally {
       context.restore();
     }
 
@@ -1919,7 +1827,6 @@
       state.cardRedoStack = [];
       state.cardPendingHistory = '';
       renderCardStudio();
-      refreshPersistedCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1934,7 +1841,6 @@
       state.profile.design = payload.design;
       state.profileSavedSnapshot = cardSnapshot();
       renderCardStudio();
-      refreshPersistedCardPreview();
       showToast('Your /level card is updated.');
     } catch (error) {
       showToast(error.message, 'error');
@@ -2292,7 +2198,6 @@
     mutateCardDesign(() => { state.profile.design = JSON.parse(state.profileSavedSnapshot); });
     state.cardSelection = 'background';
     renderCardStudio();
-    refreshPersistedCardPreview();
     showToast('Unsaved card changes reset.');
   });
   window.addEventListener('keydown', (event) => {
