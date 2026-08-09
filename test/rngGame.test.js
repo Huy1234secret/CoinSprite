@@ -10,7 +10,7 @@ const {
   salePageData,
   salePayload,
 } = require('../src/features/rng-game/components/builders');
-const { SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
+const { RARITY_EMOJIS, SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
@@ -277,6 +277,21 @@ test('inventory fields intentionally insert a desktop spacer after every two cro
   assert.equal(fields.length, 6);
   assert.deepEqual([fields[2].name, fields[5].name], ['\u200b', '\u200b']);
   assert.ok(fields.every((field) => field.inline));
+  assert.ok(fields[0].value.includes(RARITY_EMOJIS.Common));
+  assert.doesNotMatch(fields[0].value, /\bCommon\b/);
+});
+
+test('rarity registry uses the configured custom Discord badges', () => {
+  assert.deepEqual(RARITY_EMOJIS, {
+    Common: '<:RCommon:1536072829148336128>',
+    Uncommon: '<:RUncommon:1536072831299747951>',
+    Rare: '<:RRare:1536072820826570955>',
+    Epic: '<:REpic:1536072823687348244>',
+    Legendary: '<:RLegendary:1536072819237060650>',
+    Mythic: '<:RMythic:1536072827105443871>',
+    Super: '<a:RSUPER:1536072842800537600>',
+    Secret: '<a:RSecret:1536073173165146344>',
+  });
 });
 
 test('rolled crop thumbnails omit Discord image-description alt text', () => {
@@ -289,6 +304,9 @@ test('rolled crop thumbnails omit Discord image-description alt text', () => {
   assert.equal(thumbnail.type, 11);
   assert.ok(thumbnail.media.url);
   assert.equal(Object.hasOwn(thumbnail, 'description'), false);
+  const content = payload.components[0].components[0].components[0].content;
+  assert.match(content, new RegExp(`Rarity: ${seed.rarityEmoji} .*50%`));
+  assert.doesNotMatch(content, /Rarity: Common/);
 });
 
 test('balance uses a white text-only container with a non-pinging user mention', () => {
@@ -387,11 +405,11 @@ test('selling is atomic and an operation replay cannot credit twice', () => {
 test('upgrade affordability is rechecked transactionally and duplicate operations are idempotent', () => {
   const game = feature();
   game.repository.ensurePlayer('upgrade');
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(49_999n, 'upgrade');
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(2_999n, 'upgrade');
   const denied = game.repository.upgrade('upgrade', 'upgrade:denied', upgradeCost, 1);
   assert.equal(denied.status, 'insufficient');
   assert.equal(game.repository.getPlayer('upgrade').inventoryCapacity, 100);
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(50_000n, 'upgrade');
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(3_000n, 'upgrade');
   const upgraded = game.repository.upgrade('upgrade', 'upgrade:once', upgradeCost, 2);
   const replay = game.repository.upgrade('upgrade', 'upgrade:once', upgradeCost, 3);
   assert.equal(upgraded.status, 'ok');
@@ -402,9 +420,9 @@ test('upgrade affordability is rechecked transactionally and duplicate operation
 });
 
 test('upgrade cost uses exact rational growth and nearest-100 rounding', () => {
-  assert.equal(upgradeCost(0), 50_000n);
-  assert.equal(upgradeCost(1), 87_500n);
-  assert.equal(upgradeCost(2), 153_100n);
+  assert.equal(upgradeCost(0), 3_000n);
+  assert.equal(upgradeCost(1), 5_300n);
+  assert.equal(upgradeCost(2), 9_200n);
 });
 
 test('15-minute inactivity expiry releases the per-user sale lock', () => {

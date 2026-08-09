@@ -4,7 +4,7 @@ const ROLL_COOLDOWN_MS = 5_000;
 
 function upgradeCost(level) {
   const upgradeLevel = Math.max(0, Math.floor(Number(level) || 0));
-  const numerator = 50_000n * (7n ** BigInt(upgradeLevel));
+  const numerator = 3_000n * (7n ** BigInt(upgradeLevel));
   const denominator = 4n ** BigInt(upgradeLevel);
   return ((numerator + 50n * denominator) / (100n * denominator)) * 100n;
 }

@@ -37,16 +37,17 @@ const CROP_EMOJIS = Object.freeze({
   carrot: '<:CarrotFruit:1536043909548085308>',
 });
 
-// The stock feature does not currently define rarity badge emojis. These
-// environment-overridable Unicode defaults are intentional placeholders.
+// Central rarity badge registry. Deployments may override these defaults
+// without changing the inventory or filter builders.
 const RARITY_EMOJIS = Object.freeze({
-  Common: process.env.RNG_RARITY_COMMON_EMOJI || '⚪',
-  Uncommon: process.env.RNG_RARITY_UNCOMMON_EMOJI || '🟢',
-  Rare: process.env.RNG_RARITY_RARE_EMOJI || '🔵',
-  Epic: process.env.RNG_RARITY_EPIC_EMOJI || '🟣',
-  Legendary: process.env.RNG_RARITY_LEGENDARY_EMOJI || '🟠',
-  Mythic: process.env.RNG_RARITY_MYTHIC_EMOJI || '🔴',
-  Super: process.env.RNG_RARITY_SUPER_EMOJI || '💠',
+  Common: process.env.RNG_RARITY_COMMON_EMOJI || '<:RCommon:1536072829148336128>',
+  Uncommon: process.env.RNG_RARITY_UNCOMMON_EMOJI || '<:RUncommon:1536072831299747951>',
+  Rare: process.env.RNG_RARITY_RARE_EMOJI || '<:RRare:1536072820826570955>',
+  Epic: process.env.RNG_RARITY_EPIC_EMOJI || '<:REpic:1536072823687348244>',
+  Legendary: process.env.RNG_RARITY_LEGENDARY_EMOJI || '<:RLegendary:1536072819237060650>',
+  Mythic: process.env.RNG_RARITY_MYTHIC_EMOJI || '<:RMythic:1536072827105443871>',
+  Super: process.env.RNG_RARITY_SUPER_EMOJI || '<a:RSUPER:1536072842800537600>',
+  Secret: process.env.RNG_RARITY_SECRET_EMOJI || '<a:RSecret:1536073173165146344>',
 });
 
 const FALLBACK_THUMBNAIL_URL = process.env.RNG_FALLBACK_THUMBNAIL_URL
