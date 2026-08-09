@@ -46,7 +46,7 @@ function errorPayload(content, options = {}) {
 function rollPayload(userId, instance, options = {}) {
   const seed = instance.seed;
   const content = `<@${userId}>, You have rolled **${seed.displayName}**\n\n`
-    + `-# Rarity: ${seed.rarity} • \`${formatChanceWithRatio(seed)}\`\n`
+    + `-# Rarity: ${seed.rarityEmoji} • \`${formatChanceWithRatio(seed)}\`\n`
     + `-# Weight: \`${formatWeight(instance.item?.weightUnits ?? instance.weightUnits)}\` kg`;
   return v2Payload([{
     type: 17,
@@ -72,7 +72,7 @@ function inventoryCropFields(items) {
     const seed = SEED_BY_ID.get(item.seedId);
     fields.push({
       name: `${item.cropName} ${seed?.emoji || ''}`.trim().slice(0, 256),
-      value: `-# * ${seed?.rarityEmoji || ''} ${item.rarity}\n-# * ${formatWeight(item.weightUnits)} kg`.slice(0, 1_024),
+      value: `-# * ${seed?.rarityEmoji || ''}\n-# * ${formatWeight(item.weightUnits)} kg`.slice(0, 1_024),
       inline: true,
     });
     if ((index + 1) % 2 === 0) fields.push({ name: '\u200b', value: '\u200b', inline: true });
