@@ -10,7 +10,7 @@ Tickets, moderation, giveaways, games, invite rewards, and other general-purpose
 
 ## Setup
 
-1. Install dependencies with `npm install`.
+1. Install the lockfile-defined dependencies with `npm ci`.
 2. Create `.env` with:
 
    ```env
@@ -29,6 +29,8 @@ Tickets, moderation, giveaways, games, invite rewards, and other general-purpose
 4. Run `npm start` and open `http://127.0.0.1:3000/admin`.
 
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
+
+Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. The `npm run deploy:bot` and `npm run deploy:panel` entrypoints enforce that clean lockfile install before startup so both runtimes receive the identical canvas and Fontsource packages.
 
 ## Configuration
 

@@ -1,5 +1,4 @@
 const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -12,7 +11,6 @@ const {
 } = require('../src/serverConfig');
 const {
   COMPONENTS_V2_FLAG,
-  DATA_PATH,
   LEVEL_CARD_MEDIA_DIR,
   LEVELING_COMMANDS,
   announcementText,
@@ -33,15 +31,13 @@ const {
   renderLeaderboardCard,
   renderLevelCard,
   renderPublishedLevelCard,
-  renderSavedLevelCard,
-  resetLevelingCache,
   resolvedAnnouncementLayout,
-  saveLevelCardDesign,
   xpThresholdForLevel,
   xpMultiplierForMessage,
 } = require('../src/leveling');
 const { ownerLiveMetrics } = require('../src/ownerPanelRoutes');
 const { decodeLevelingMedia } = require('../src/adminServer');
+const { levelCardRendererIdentity } = require('../src/canvasFonts');
 
 function crc32(buffer) {
   let crc = 0xffffffff;
@@ -355,72 +351,6 @@ test('level card renderer keeps editor text sizing exact and honors visibility, 
   assert.notDeepEqual(hidden, narrowSavedBox);
 });
 
-test('saved web preview and /level server render are pixel-identical with deterministic inputs', async () => {
-  const userId = '123456789012345689';
-  const assetId = 'abababababababababababababababab';
-  const directory = path.join(LEVEL_CARD_MEDIA_DIR, userId);
-  const filePath = path.join(directory, `${assetId}.png`);
-  const previousState = fs.existsSync(DATA_PATH) ? fs.readFileSync(DATA_PATH) : null;
-  const media = createCanvas(24, 12);
-  const mediaContext = media.getContext('2d');
-  mediaContext.fillStyle = '#663399';
-  mediaContext.fillRect(0, 0, 12, 12);
-  mediaContext.fillStyle = '#f5d442';
-  mediaContext.fillRect(12, 0, 12, 12);
-  fs.mkdirSync(directory, { recursive: true });
-  fs.writeFileSync(filePath, media.toBuffer('image/png'));
-
-  const user = { id: userId, username: 'PixelUser', displayName: 'Nguyễn 世界' };
-  const stats = { level: 17, rank: 23, progressXp: 144, neededXp: 377, progressRatio: 144 / 377, xp: 2345 };
-  try {
-    resetLevelingCache();
-    saveLevelCardDesign(userId, {
-      background: { color: '#102030', imageUrl: `/level-card-media/${userId}/${assetId}.png`, x: 13, y: -7, scale: 1.3 },
-      panelOpacity: 0.42,
-      avatar: { visible: false },
-      username: { x: 90, y: 42, size: 36, fontFamily: 'rounded', bold: true },
-      level: { x: 90, y: 104, size: 25, fontFamily: 'condensed', italic: true },
-      rank: { x: 900, y: 45, size: 29, fontFamily: 'mono' },
-      xp: { x: 90, y: 268, size: 20, fontFamily: 'serif' },
-      progress: { x: 90, y: 212, width: 780, height: 28 },
-      layers: [{
-        id: 'unicode', type: 'text', text: '榜 🎋', x: 670, y: 125, width: 150, height: 60,
-        size: 34, color: '#ffffff', fontFamily: 'sans', bold: true,
-      }],
-    });
-
-    const webPreview = await renderSavedLevelCard(user, stats);
-    const levelOutput = await renderPublishedLevelCard(user, stats, { origin: '', key: '', log: () => {} });
-    const hash = (png) => crypto.createHash('sha256').update(png).digest('hex');
-    assert.equal(hash(webPreview), hash(levelOutput));
-
-    const [webImage, levelImage] = await Promise.all([loadImage(webPreview), loadImage(levelOutput)]);
-    assert.deepEqual({ width: webImage.width, height: webImage.height }, { width: 1000, height: 320 });
-    assert.deepEqual({ width: levelImage.width, height: levelImage.height }, { width: 1000, height: 320 });
-    const pixels = (image) => {
-      const canvas = createCanvas(1000, 320);
-      const context = canvas.getContext('2d');
-      context.drawImage(image, 0, 0);
-      return context.getImageData(0, 0, 1000, 320).data;
-    };
-    const webPixels = pixels(webImage);
-    const levelPixels = pixels(levelImage);
-    let differentPixels = 0;
-    for (let offset = 0; offset < webPixels.length; offset += 4) {
-      if (webPixels[offset] !== levelPixels[offset]
-        || webPixels[offset + 1] !== levelPixels[offset + 1]
-        || webPixels[offset + 2] !== levelPixels[offset + 2]
-        || webPixels[offset + 3] !== levelPixels[offset + 3]) differentPixels += 1;
-    }
-    assert.equal(differentPixels, 0);
-  } finally {
-    if (previousState) fs.writeFileSync(DATA_PATH, previousState);
-    else fs.rmSync(DATA_PATH, { force: true });
-    fs.rmSync(directory, { recursive: true, force: true });
-    resetLevelingCache();
-  }
-});
-
 test('level card media loads locally without a remote request', async () => {
   const userId = '123456789012345680';
   const assetId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -583,6 +513,7 @@ test('level card renderer supports Unicode names and sends a direct attachment w
 });
 
 test('/level uses the dashboard renderer that owns saved card media', async () => {
+  const identity = levelCardRendererIdentity();
   const expected = Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     Buffer.from('authoritative-card'),
@@ -604,7 +535,11 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
       return {
         ok: true,
         status: 200,
-        headers: { get: (name) => name === 'content-type' ? 'image/png' : null },
+        headers: { get: (name) => ({
+          'content-type': 'image/png',
+          'x-coinsprite-renderer-version': identity.version,
+          'x-coinsprite-font-manifest': identity.fontManifestHash,
+        })[name.toLowerCase()] || null },
         arrayBuffer: async () => expected,
       };
     },
@@ -613,16 +548,18 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
   assert.deepEqual(image, expected);
   assert.equal(request.url, 'https://panel.coin-sprite.com/api/internal/level-card/123456789012345678');
   assert.equal(request.options.headers['X-CoinSprite-Render-Key'], 'signed-render-key');
+  assert.equal(request.options.headers['X-CoinSprite-Renderer-Version'], identity.version);
+  assert.equal(request.options.headers['X-CoinSprite-Font-Manifest'], identity.fontManifestHash);
   assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
-  assert.ok(logs.some((message) => message.includes('response status=200 content-type=image/png')));
-  assert.ok(logs.some((message) => message.includes('accepted response')));
+  assert.ok(logs.some((message) => message.includes(`status=200 renderer=${identity.version} font-manifest=${identity.fontManifestHash}`)));
+  assert.ok(logs.some((message) => message.includes('Authoritative level card used')));
   assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
   assert.equal(levelCardRenderOrigin({ DISCORD_REDIRECT_URI: 'https://panel.coin-sprite.com/auth/discord/callback' }), 'https://panel.coin-sprite.com');
 });
 
-test('/level reports the authoritative renderer fallback reason without logging its secret', async () => {
+test('/level reports an authoritative renderer failure without falling back or logging its secret', async () => {
   const logs = [];
-  const image = await renderPublishedLevelCard({
+  await assert.rejects(() => renderPublishedLevelCard({
     id: '123456789012345687', username: 'Fallback', displayName: 'Fallback',
   }, {
     level: 2, rank: 4, progressXp: 10, neededXp: 20, progressRatio: .5, xp: 50,
@@ -635,10 +572,9 @@ test('/level reports the authoritative renderer fallback reason without logging 
       headers: { get: (name) => name === 'content-type' ? 'text/plain' : null },
     }),
     log: (message) => logs.push(message),
-  });
-  assert.ok(image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
-  assert.ok(logs.some((message) => message.includes('response status=503 content-type=text/plain')));
-  assert.ok(logs.some((message) => message.includes('fallback reason=HTTP 503')));
+  }), (error) => error.code === 'LEVEL_CARD_AUTHORITATIVE_UNAVAILABLE' && error.reason === 'http-503');
+  assert.ok(logs.some((message) => message.includes('status=503 renderer=missing font-manifest=missing content-type=text/plain')));
+  assert.ok(logs.some((message) => message.includes('reason=http-503')));
   assert.doesNotMatch(logs.join('\n'), /must-not-appear-in-logs/);
 });
 

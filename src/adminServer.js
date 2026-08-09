@@ -14,6 +14,7 @@ const {
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
+const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
   handleOwnerConsole,
   handleOwnerDisable,
@@ -89,11 +90,20 @@ function send(res, status, body = '', headers = {}) {
   res.end(body);
 }
 
-function sendJson(res, status, payload) {
+function sendJson(res, status, payload, headers = {}) {
   send(res, status, JSON.stringify(payload), {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...headers,
   });
+}
+
+function levelCardRendererHeaders() {
+  const identity = levelCardRendererIdentity();
+  return {
+    'X-CoinSprite-Renderer-Version': identity.version,
+    'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
+  };
 }
 
 function redirect(res, location) {
@@ -660,6 +670,14 @@ async function routeRequest(req, res, env, client) {
   const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);
   if (req.method === 'POST' && internalCardMatch) {
     if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
+    const identity = levelCardRendererIdentity();
+    const requestedVersion = String(req.headers['x-coinsprite-renderer-version'] || '');
+    const requestedManifest = String(req.headers['x-coinsprite-font-manifest'] || '');
+    if ((requestedVersion && requestedVersion !== identity.version)
+      || (requestedManifest && requestedManifest !== identity.fontManifestHash)) {
+      logCommandSystem(`Authoritative level card identity mismatch: bot-renderer=${requestedVersion || 'missing'} panel-renderer=${identity.version} bot-font-manifest=${requestedManifest || 'missing'} panel-font-manifest=${identity.fontManifestHash}.`);
+      return sendJson(res, 409, { error: 'Level card renderer deployment versions do not match.' }, levelCardRendererHeaders());
+    }
     const body = await readJsonBody(req);
     const userId = internalCardMatch[1];
     const image = await renderSavedLevelCard(
@@ -670,6 +688,7 @@ async function routeRequest(req, res, env, client) {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card.png"',
+      ...levelCardRendererHeaders(),
     });
   }
 
@@ -695,6 +714,7 @@ async function routeRequest(req, res, env, client) {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card-preview.png"',
+      ...levelCardRendererHeaders(),
     });
   }
 
@@ -800,6 +820,16 @@ async function routeRequest(req, res, env, client) {
   return sendJson(res, 404, { error: 'Not found.' });
 }
 
+function createAdminRequestHandler(env, client) {
+  return (req, res) => {
+    routeRequest(req, res, env, client).catch((error) => {
+      const status = error?.statusCode || 500;
+      logCommandSystem(`Admin request failed: ${error?.message || 'unknown error'}`);
+      sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
+    });
+  };
+}
+
 function startAdminServer(client) {
   if (serverRef) return serverRef;
   const env = getEnv();
@@ -810,17 +840,14 @@ function startAdminServer(client) {
 
   loadSessions();
   saveSessions();
-  serverRef = http.createServer((req, res) => {
-    routeRequest(req, res, env, client).catch((error) => {
-      const status = error?.statusCode || 500;
-      logCommandSystem(`Admin request failed: ${error?.message || 'unknown error'}`);
-      sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
-    });
-  });
+  serverRef = http.createServer(createAdminRequestHandler(env, client));
   serverRef.requestTimeout = 15_000;
   serverRef.headersTimeout = 20_000;
-  serverRef.listen(env.port, env.host, () => logCommandSystem(`CoinSprite dashboard listening on http://${env.host}:${env.port}.`));
+  serverRef.listen(env.port, env.host, () => {
+    logLevelCardRendererIdentity(logCommandSystem, 'Panel');
+    logCommandSystem(`CoinSprite dashboard listening on http://${env.host}:${env.port}.`);
+  });
   return serverRef;
 }
 
-module.exports = { decodeLevelingMedia, startAdminServer };
+module.exports = { createAdminRequestHandler, decodeLevelingMedia, levelCardRendererHeaders, startAdminServer };

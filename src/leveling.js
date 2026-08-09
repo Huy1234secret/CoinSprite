@@ -2,7 +2,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
-require('./canvasFonts');
+const {
+  assertCanvasFontsAvailable,
+  levelCardRendererIdentity,
+} = require('./canvasFonts');
 const {
   MessageFlags,
   PermissionFlagsBits,
@@ -36,6 +39,15 @@ const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
   condensed: '"Oswald Variable", ' + CANVAS_UNICODE_FALLBACK,
   handwriting: '"Caveat Variable", ' + CANVAS_UNICODE_FALLBACK,
 });
+
+class AuthoritativeLevelCardError extends Error {
+  constructor(message, reason = 'authoritative-render-failed') {
+    super(message);
+    this.name = 'AuthoritativeLevelCardError';
+    this.code = 'LEVEL_CARD_AUTHORITATIVE_UNAVAILABLE';
+    this.reason = reason;
+  }
+}
 
 let cachedState = null;
 let cachedStateMtime = 0;
@@ -479,56 +491,78 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
   const key = options.key === undefined ? levelCardRenderKey() : String(options.key || '');
   const fetchImpl = options.fetchImpl || fetch;
   const log = diagnosticLogger(options);
-  if (origin && key) {
-    let fallbackReason = '';
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    timeout.unref?.();
-    try {
-      const response = await fetchImpl(`${origin}/api/internal/level-card/${user.id}`, {
-        method: 'POST',
-        headers: {
-          Accept: 'image/png',
-          'Content-Type': 'application/json',
-          'X-CoinSprite-Render-Key': key,
-        },
-        body: JSON.stringify({
-          user: {
-            username: String(user?.username || '').slice(0, 100),
-            globalName: String(user?.globalName || '').slice(0, 100),
-            displayName: String(user?.displayName || '').slice(0, 100),
-            avatarUrl: cardAvatarUrl(user),
-          },
-          stats,
-        }),
-        signal: controller.signal,
-      });
-      if (response.ok) {
-        const image = Buffer.from(await response.arrayBuffer());
-        const contentType = String(response.headers?.get?.('content-type') || 'unknown');
-        log(`Dashboard level card authoritative render for user ${user.id}: response status=${response.status || 200} content-type=${contentType} bytes=${image.length}.`);
-        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-        if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) {
-          log(`Dashboard level card authoritative render for user ${user.id}: accepted response.`);
-          return image;
-        }
-      } else {
-        const contentType = String(response.headers?.get?.('content-type') || 'unknown');
-        const contentLength = String(response.headers?.get?.('content-length') || 'not-read');
-        log(`Dashboard level card authoritative render for user ${user.id}: response status=${response.status || 'error'} content-type=${contentType} bytes=${contentLength}.`);
-      }
-      fallbackReason = response.ok ? 'invalid image response' : `HTTP ${response.status || 'error'}`;
-    } catch (error) {
-      fallbackReason = error?.name === 'AbortError' ? 'timeout' : 'request error';
-    } finally {
-      clearTimeout(timeout);
-    }
-    log(`Dashboard level card authoritative render for user ${user.id}: fallback reason=${fallbackReason}.`);
-  } else {
-    const fallbackReason = !origin ? 'origin not configured' : 'render key not configured';
-    log(`Dashboard level card authoritative render for user ${user.id}: fallback reason=${fallbackReason}.`);
+  const identity = levelCardRendererIdentity();
+  if (!origin && !key) {
+    log(`Authoritative level card renderer is not configured; using local renderer version=${identity.version} font-manifest=${identity.fontManifestHash}.`);
+    return renderSavedLevelCard(user, stats);
   }
-  return renderSavedLevelCard(user, stats);
+  if (!origin || !key) {
+    const reason = !origin ? 'origin-not-configured' : 'render-key-not-configured';
+    const message = `Authoritative level card renderer configuration is incomplete: ${reason}.`;
+    log(message);
+    throw new AuthoritativeLevelCardError(message, reason);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  timeout.unref?.();
+  try {
+    const response = await fetchImpl(`${origin}/api/internal/level-card/${user.id}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'image/png',
+        'Content-Type': 'application/json',
+        'X-CoinSprite-Render-Key': key,
+        'X-CoinSprite-Renderer-Version': identity.version,
+        'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
+      },
+      body: JSON.stringify({
+        user: {
+          username: String(user?.username || '').slice(0, 100),
+          globalName: String(user?.globalName || '').slice(0, 100),
+          displayName: String(user?.displayName || '').slice(0, 100),
+          avatarUrl: cardAvatarUrl(user),
+        },
+        stats,
+      }),
+      signal: controller.signal,
+    });
+    const responseVersion = String(response.headers?.get?.('x-coinsprite-renderer-version') || 'missing');
+    const responseManifest = String(response.headers?.get?.('x-coinsprite-font-manifest') || 'missing');
+    const contentType = String(response.headers?.get?.('content-type') || 'unknown');
+    const image = response.ok ? Buffer.from(await response.arrayBuffer()) : null;
+    const bytes = image?.length ?? String(response.headers?.get?.('content-length') || 'not-read');
+    log(`Authoritative level card response: user=${user.id} status=${response.status || 'error'} renderer=${responseVersion} font-manifest=${responseManifest} content-type=${contentType} bytes=${bytes}.`);
+
+    if (!response.ok) throw new AuthoritativeLevelCardError(`Authoritative level card renderer returned HTTP ${response.status || 'error'}.`, `http-${response.status || 'error'}`);
+    if (responseVersion !== identity.version) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card renderer version mismatch: bot=${identity.version} panel=${responseVersion}.`, 'renderer-version-mismatch');
+    }
+    if (responseManifest !== identity.fontManifestHash) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card font manifest mismatch: bot=${identity.fontManifestHash} panel=${responseManifest}.`, 'font-manifest-mismatch');
+    }
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!contentType.toLowerCase().startsWith('image/png')
+      || !image || image.length > 10 * 1024 * 1024
+      || !image.subarray(0, png.length).equals(png)) {
+      throw new AuthoritativeLevelCardError('Authoritative level card renderer returned an invalid PNG.', 'invalid-png');
+    }
+    log(`Authoritative level card used: user=${user.id} renderer=${responseVersion} font-manifest=${responseManifest} bytes=${image.length}.`);
+    return image;
+  } catch (error) {
+    const failure = error instanceof AuthoritativeLevelCardError
+      ? error
+      : new AuthoritativeLevelCardError(
+        error?.name === 'AbortError'
+          ? 'Authoritative level card renderer timed out.'
+          : 'Authoritative level card renderer request failed.',
+        error?.name === 'AbortError' ? 'timeout' : 'request-failed',
+      );
+    log(`Authoritative level card failed: user=${user.id} reason=${failure.reason} message="${failure.message}".`);
+    throw failure;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function messageFingerprint(message) {
@@ -1190,6 +1224,7 @@ function drawCardText(context, text, item, align = 'left') {
 }
 
 async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(user?.id)) {
+  assertCanvasFontsAvailable();
   const userId = String(user?.id || '');
   const design = normalizeLevelCardDesign(inputDesign, userId);
   const canvas = createCanvas(1000, 320);
@@ -1453,7 +1488,7 @@ async function executeLevel(interaction) {
   } catch (error) {
     logCommandSystem(`Level card render failed for ${user.id}: ${error?.message || 'unknown error'}`);
     await interaction.editReply({
-      content: `**${safeName(user?.globalName || user?.username)}** \u00b7 Level **${number(stats.level)}** \u00b7 Rank **#${number(stats.rank)}**\n${number(stats.progressXp)} / ${number(stats.neededXp)} XP`,
+      content: 'The exact Discord level card is temporarily unavailable. Please try again shortly.',
       components: [profileEditButtonRow()],
       attachments: [],
       files: [],
@@ -1607,6 +1642,7 @@ async function handleLevelingInteraction(interaction) {
 }
 
 module.exports = {
+  AuthoritativeLevelCardError,
   COMPONENTS_V2_FLAG,
   DATA_PATH,
   DEFAULT_LEVEL_CARD_DESIGN,

@@ -503,7 +503,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .level-card-canvas-wrap { position: relative; width: min(100%,550px); align-self: center; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 20px; background: #111814; box-shadow: 0 24px 80px rgba(0,0,0,.46); user-select: none; touch-action: none; }
 #levelCardCanvas { width: 100%; height: auto; display: block; cursor: default; }
 .studio-hint { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 15px 0 0; color: var(--muted); font-size: 9px; text-align: center; }
-.studio-hint span { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+.studio-hint > span { width: 6px; height: 6px; border-radius: 50%; background: #f0b95a; box-shadow: 0 0 8px #f0b95a; }
+.studio-hint strong { color: var(--text); }
+.studio-hint small { color: inherit; }
+.studio-hint[data-state="exact"] > span { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+.studio-hint[data-state="error"] { color: #ff8f8f; }
+.studio-hint[data-state="error"] > span { background: #ff6b6b; box-shadow: 0 0 8px #ff6b6b; }
 .inspector-panel h3 { margin: 0 8px 17px; font-size: 15px; }
 .inspector-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .inspector-fields label { min-width: 0; display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 750; }

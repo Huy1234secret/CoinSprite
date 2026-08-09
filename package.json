@@ -6,7 +6,11 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "predeploy:bot": "npm ci",
+    "deploy:bot": "node index.js",
+    "predeploy:panel": "npm ci",
+    "deploy:panel": "node index.js"
   },
   "keywords": [
     "discord",
