@@ -23,18 +23,42 @@ test('bot startup loads focused GAG stock, leveling, RNG game, and owner-panel s
   }
 });
 
-test('bot registers stock setup, leveling, and RNG game commands and clears legacy guild commands', () => {
+test('bot registers stock setup globally and syncs optional commands per guild', () => {
   const source = read('index.js');
-  assert.match(source, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
-  assert.match(source, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
-  assert.match(source, /\.\.\.LEVELING_COMMANDS\.map/);
-  assert.match(source, /\.\.\.rngGame\.commands\.map/);
-  assert.match(source, /client\.application\.commands\.set\(APPLICATION_COMMANDS\)/);
-  assert.match(source, /guild\.commands\.set\(\[\]\)/);
-  assert.match(source, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
+  const commands = read('src/applicationCommands.js');
+  assert.match(commands, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
+  assert.match(commands, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
+  assert.match(commands, /LEVELING_COMMANDS/);
+  assert.match(commands, /RNG_GAME_COMMANDS/);
+  assert.match(source, /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
+  assert.match(source, /syncGuildApplicationCommands/);
+  assert.match(commands, /guild\.commands\.set\(commands\)/);
+  assert.match(commands, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
   assert.match(source, /Open stock dashboard/);
   assert.match(source, /flags: COMPONENTS_V2_FLAG \| EPHEMERAL/);
+  assert.doesNotMatch(source, /\.\.\.LEVELING_COMMANDS|\.\.\.rngGame\.commands/);
   assert.doesNotMatch(source, /commandsPath|client\.commands|commands\.set\(slashCommands\)/);
+});
+
+test('optional slash command visibility follows each server engine and owner lock', () => {
+  const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
+  assert.deepEqual(GLOBAL_APPLICATION_COMMANDS.map((command) => command.name), ['stock-set-up']);
+  const base = {
+    enabled: true,
+    features: { leveling: false, rngGame: false },
+    leveling: { enabled: false },
+    rngGame: { enabled: false },
+  };
+  assert.deepEqual(featureCommandsForConfig(base), []);
+  const leveling = featureCommandsForConfig({
+    ...base, features: { ...base.features, leveling: true }, leveling: { enabled: true },
+  }).map((command) => command.name);
+  assert.deepEqual(leveling, ['level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup']);
+  const rngGame = featureCommandsForConfig({
+    ...base, features: { ...base.features, rngGame: true }, rngGame: { enabled: true },
+  }).map((command) => command.name);
+  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance']);
+  assert.deepEqual(featureCommandsForConfig({ ...base, enabled: false }), []);
 });
 
 test('dashboard exposes one focused stylesheet and script', () => {
@@ -49,6 +73,10 @@ test('dashboard exposes one focused stylesheet and script', () => {
   assert.match(html, /data-view="leveling"/);
   assert.match(html, /id="levelingView"/);
   assert.match(html, /id="levelingRewards"/);
+  assert.match(html, /data-view="rng-game"/);
+  assert.match(html, /id="rngGameView"/);
+  assert.match(html, /id="rngGameChannel"/);
+  assert.match(html, /id="rngCooldownBypassRoles" multiple/);
   assert.match(html, /V2 COMMANDS/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
   assert.match(html, /1525195196864925817/);
@@ -64,8 +92,9 @@ test('dashboard exposes one focused stylesheet and script', () => {
 test('admin writes require CSRF and accept only focused feature config', () => {
   const source = read('src/adminServer.js');
   assert.match(source, /function requireCsrf/);
-  assert.match(source, /GAG stock or leveling configuration is required/);
+  assert.match(source, /GAG stock, leveling, or RNG game configuration is required/);
   assert.match(source, /hasLeveling/);
+  assert.match(source, /hasRngGame/);
   assert.match(source, /PUBLIC_ASSETS = new Map/);
   assert.match(source, /no-store, max-age=0/);
   assert.match(source, /public, max-age=31536000, immutable/);
@@ -78,9 +107,12 @@ test('only GAG stock is unlocked by default', () => {
   const config = require('../src/serverConfig');
   assert.equal(config.DEFAULT_FEATURES.gag2Stock, true);
   assert.equal(config.DEFAULT_FEATURES.leveling, false);
+  assert.equal(config.DEFAULT_FEATURES.rngGame, false);
   assert.equal(config.DEFAULT_FEATURES.fullBot, false);
   assert.equal(config.DEFAULT_LEVELING_CONFIG.enabled, false);
   assert.equal(config.DEFAULT_LEVELING_CONFIG.announcements.enabled, false);
+  assert.equal(config.DEFAULT_RNG_GAME_CONFIG.enabled, false);
+  assert.deepEqual(config.DEFAULT_RNG_GAME_CONFIG.cooldownBypassRoleIds, []);
   assert.equal(config.isGuildFullBotEnabled('1493901002519347290'), false);
   const normalized = config.normalizeGag2StockConfig({
     enabled: true,
@@ -90,6 +122,38 @@ test('only GAG stock is unlocked by default', () => {
   assert.equal(normalized.channels.seed, '123456789012345678');
   assert.equal(normalized.channels.gear, '');
   assert.deepEqual(normalized.filters.sellMultipliers, ['4x']);
+  assert.deepEqual(config.normalizeRngGameConfig({
+    enabled: true,
+    gameChannelId: '223456789012345678',
+    cooldownBypassRoleIds: ['323456789012345678', '323456789012345678', 'invalid'],
+  }), {
+    enabled: true,
+    gameChannelId: '223456789012345678',
+    cooldownBypassRoleIds: ['323456789012345678'],
+  });
+});
+
+test('adding RNG config at the current schema does not relock an enabled leveling server', () => {
+  const config = require('../src/serverConfig');
+  const guildId = '123456789012345678';
+  const state = config.normalizeState({
+    meta: { schemaVersion: config.SCHEMA_VERSION, disabledGuilds: {} },
+    guilds: {
+      [guildId]: {
+        enabled: true,
+        features: { gag2Stock: true, leveling: true },
+        leveling: { enabled: true },
+      },
+    },
+  });
+  assert.equal(state.guilds[guildId].features.leveling, true);
+  assert.equal(state.guilds[guildId].leveling.enabled, true);
+  assert.equal(state.guilds[guildId].features.rngGame, false);
+  assert.deepEqual(state.guilds[guildId].rngGame, {
+    enabled: false,
+    gameChannelId: '',
+    cooldownBypassRoleIds: [],
+  });
 });
 
 test('responsive design keeps desktop and mobile layouts', () => {
@@ -103,6 +167,7 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /@keyframes fall-leaf/);
   assert.match(css, /\.event-toggle span \{ min-height: 58px;/);
   assert.match(css, /\.leveling-settings-grid/);
+  assert.match(css, /\.rng-settings-grid/);
   assert.match(css, /\.reward-row/);
   assert.match(css, /animation: none !important/);
 });
@@ -156,14 +221,16 @@ test('owner heap and storage cards poll live without refreshing the page', () =>
   assert.match(routes, /pathname === '\/api\/owner\/metrics'/);
 });
 
-test('owner controls feature access and leveling stays server-side locked', () => {
+test('owner controls feature access and optional features stay server-side locked', () => {
   const server = read('src/adminServer.js');
   const owner = read('src/ownerPanelRoutes.js');
   const dashboard = read('admin/app.js');
   assert.match(server, /ownerFeatures/);
   assert.match(server, /Leveling is locked for this server/);
+  assert.match(server, /GAG2 RNG Game is locked for this server/);
   assert.match(owner, /setGuildFeatureAccess/);
   assert.match(dashboard, /data-owner-feature="leveling"/);
+  assert.match(dashboard, /data-owner-feature="rngGame"/);
   assert.match(dashboard, /Locked by owner/);
 });
 

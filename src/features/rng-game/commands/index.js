@@ -6,6 +6,7 @@ const {
   rollPayload,
   salePayload,
 } = require('../components/builders');
+const { evaluateRngGameAccess } = require('../services/accessPolicy');
 
 const PREFIX_ROLL = 'c!roll';
 const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance']);
@@ -34,10 +35,17 @@ function rollErrorPayload(result, options = {}) {
 }
 
 function createCommandHandlers(context) {
-  const { gameService, inventoryViews, saleSessions } = context;
+  const { gameService, getGuildPolicy, inventoryViews, saleSessions } = context;
 
-  async function executeRoll(interaction) {
-    const result = gameService.roll(interaction.user.id);
+  async function requireAccess(source, options = {}) {
+    const access = evaluateRngGameAccess(source, getGuildPolicy);
+    if (access.allowed) return access;
+    await source.reply(errorPayload(`Command unavailable\n${access.reason}`, options));
+    return null;
+  }
+
+  async function executeRoll(interaction, access) {
+    const result = gameService.roll(interaction.user.id, { bypassCooldown: access.bypassCooldown });
     if (result.status !== 'ok') {
       await interaction.reply(rollErrorPayload(result, { ephemeral: true }));
       return;
@@ -91,7 +99,14 @@ function createCommandHandlers(context) {
       await interaction.reply(lockedPayload({ ephemeral: true }));
       return true;
     }
-    if (interaction.commandName === 'roll') await executeRoll(interaction);
+    const access = await requireAccess({
+      guildId: interaction.guildId,
+      channelId: interaction.channelId,
+      member: interaction.member,
+      reply: (payload) => interaction.reply(payload),
+    }, { ephemeral: true });
+    if (!access) return true;
+    if (interaction.commandName === 'roll') await executeRoll(interaction, access);
     if (interaction.commandName === 'inventory') await executeInventory(interaction);
     if (interaction.commandName === 'sell') await executeSell(interaction);
     if (interaction.commandName === 'balance') await executeBalance(interaction);
@@ -104,7 +119,14 @@ function createCommandHandlers(context) {
       await message.reply(lockedPayload());
       return true;
     }
-    const result = gameService.roll(message.author.id);
+    const access = await requireAccess({
+      guildId: message.guildId,
+      channelId: message.channelId,
+      member: message.member,
+      reply: (payload) => message.reply(payload),
+    });
+    if (!access) return true;
+    const result = gameService.roll(message.author.id, { bypassCooldown: access.bypassCooldown });
     const payload = result.status === 'ok'
       ? rollPayload(message.author.id, { seed: result.seed, item: result.item })
       : rollErrorPayload(result);

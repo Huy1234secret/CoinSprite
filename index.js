@@ -4,8 +4,6 @@ const {
   GatewayIntentBits,
   MessageFlags,
   Partials,
-  PermissionFlagsBits,
-  SlashCommandBuilder,
 } = require('discord.js');
 const { config } = require('dotenv');
 
@@ -14,6 +12,7 @@ config();
 const { logCommandSystem, setLogClient } = require('./src/commandLogger');
 const {
   ensureGuildConfig,
+  getGuildConfigRaw,
   isGuildEnabled,
 } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
@@ -23,26 +22,29 @@ const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAss
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
 const { createRngGameFeature } = require('./src/features/rng-game');
 const {
+  GLOBAL_APPLICATION_COMMANDS,
+  STOCK_SETUP_COMMAND_NAME,
+  syncGuildApplicationCommands,
+} = require('./src/applicationCommands');
+const {
   COMPONENTS_V2_FLAG,
-  LEVELING_COMMANDS,
   handleLevelingInteraction,
   handleLevelingMessage,
 } = require('./src/leveling');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
-const STOCK_SETUP_COMMAND_NAME = 'stock-set-up';
-const STOCK_SETUP_COMMAND = new SlashCommandBuilder()
-  .setName(STOCK_SETUP_COMMAND_NAME)
-  .setDescription('Set up GAG2 stock auto-posting in the dashboard.')
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .toJSON();
-const rngGame = createRngGameFeature();
-const APPLICATION_COMMANDS = [
-  STOCK_SETUP_COMMAND,
-  ...LEVELING_COMMANDS.map((command) => command.data.toJSON()),
-  ...rngGame.commands.map((command) => command.data.toJSON()),
-];
+const rngGame = createRngGameFeature({
+  getGuildPolicy(guildId) {
+    const config = getGuildConfigRaw(guildId);
+    return {
+      unlocked: config?.enabled !== false && config?.features?.rngGame === true,
+      enabled: config?.rngGame?.enabled === true,
+      gameChannelId: config?.rngGame?.gameChannelId || '',
+      cooldownBypassRoleIds: config?.rngGame?.cooldownBypassRoleIds || [],
+    };
+  },
+});
 
 function dashboardBaseUrl() {
   const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
@@ -69,9 +71,9 @@ async function executeStockSetupCommand(interaction) {
   });
 }
 
-async function clearGuildCommands(guild) {
-  await guild.commands.set([]).catch((error) => {
-    logCommandSystem(`Old command cleanup failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
+async function syncGuildCommands(guild) {
+  await syncGuildApplicationCommands(guild).catch((error) => {
+    logCommandSystem(`Application command sync failed for guild ${guild.id}: ${error?.message || 'unknown error'}`);
   });
 }
 
@@ -94,12 +96,12 @@ client.once(Events.ClientReady, async () => {
 
   for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
 
-  // Remove every legacy guild command first. The focused stock and leveling
-  // command set is registered globally below, so Discord exposes no stale extras.
-  await Promise.all([...client.guilds.cache.values()].map(clearGuildCommands));
-  await client.application.commands.set(APPLICATION_COMMANDS).catch((error) => {
+  // Optional features are guild commands so Discord only exposes them where the
+  // owner has unlocked the feature and the server has enabled its engine.
+  await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
     logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
   });
+  await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
   startAdminServer(client);
   await startGag2UpdateAnnouncement(client);
@@ -108,8 +110,8 @@ client.once(Events.ClientReady, async () => {
 
 client.on(Events.GuildCreate, async (guild) => {
   ensureGuildConfig(guild.id);
-  await clearGuildCommands(guild);
-  logCommandSystem(`CoinSprite stock and leveling configuration created for guild ${guild.id}.`);
+  await syncGuildCommands(guild);
+  logCommandSystem(`CoinSprite stock, leveling, and RNG configuration created for guild ${guild.id}.`);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
