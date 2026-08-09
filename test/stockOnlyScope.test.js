@@ -241,6 +241,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /\/api\/profile\/card/);
   assert.match(server, /pathname === '\/api\/profile\/card'/);
   assert.match(server, /pathname === '\/api\/profile\/card\/preview'/);
+  assert.match(server, /img-src 'self' blob: https:\/\/cdn\.discordapp\.com data:/);
   assert.match(server, /internalCardMatch/);
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
