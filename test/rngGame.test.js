@@ -3,17 +3,20 @@ const test = require('node:test');
 
 const { createRngGameFeature } = require('../src/features/rng-game');
 const {
+  balancePayload,
   inventoryCropFields,
   inventoryPageData,
   rollPayload,
   salePageData,
   salePayload,
 } = require('../src/features/rng-game/components/builders');
+const { SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
 const { SaleSessionStore } = require('../src/features/rng-game/services/sessionStore');
 const { evaluateRngGameAccess } = require('../src/features/rng-game/services/accessPolicy');
+const { formatChanceWithRatio } = require('../src/features/rng-game/utils/format');
 const { filterInventory, normalizeCropName } = require('../src/features/rng-game/utils/normalize');
 
 function feature(options = {}) {
@@ -88,6 +91,8 @@ test('a failed check continues and a successful check stops immediately', () => 
 test('Carrot is the guaranteed fallback when every individual check fails', () => {
   const result = cascadingRoll({ rng: (maximum) => maximum - 1 });
   assert.equal(result.seed, FALLBACK_SEED);
+  assert.equal(CHECKED_SEEDS.includes(FALLBACK_SEED), false);
+  assert.equal(formatChanceWithRatio(FALLBACK_SEED), '50%');
 });
 
 test('rational checks use result < numerator exactly', () => {
@@ -284,6 +289,19 @@ test('rolled crop thumbnails omit Discord image-description alt text', () => {
   assert.equal(thumbnail.type, 11);
   assert.ok(thumbnail.media.url);
   assert.equal(Object.hasOwn(thumbnail, 'description'), false);
+});
+
+test('balance uses a white text-only container with a non-pinging user mention', () => {
+  const payload = balancePayload({ id: '123456789012345678' }, 12_345n);
+  const container = payload.components[0];
+  assert.equal(container.type, 17);
+  assert.equal(container.accent_color, 0xFFFFFF);
+  assert.deepEqual(container.components, [{
+    type: 10,
+    content: `### <@123456789012345678>'s Balance\n- Sheckles: 12,345 ${SHECKLES_EMOJI}`,
+  }]);
+  assert.deepEqual(payload.allowedMentions.parse, []);
+  assert.deepEqual(payload.allowedMentions.users, []);
 });
 
 test('crop normalization accepts spaces, no spaces, hyphens, and underscores', () => {

@@ -12,7 +12,6 @@ function formatWeight(weightUnits) {
 }
 
 function formatChance(seed, maximumDecimalPlaces = 12) {
-  if (seed?.fallback) return 'Guaranteed fallback';
   const numerator = BigInt(seed?.chanceNumerator || 0) * 100n;
   const denominator = BigInt(seed?.chanceDenominator || 1);
   const whole = numerator / denominator;
