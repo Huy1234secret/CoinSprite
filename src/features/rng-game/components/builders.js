@@ -54,7 +54,7 @@ function rollPayload(userId, instance, options = {}) {
     components: [{
       type: 9,
       components: [{ type: 10, content }],
-      accessory: { type: 11, media: { url: seedThumbnail(seed) }, description: `${seed.displayName} crop` },
+      accessory: { type: 11, media: { url: seedThumbnail(seed) } },
     }],
   }], options);
 }

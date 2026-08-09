@@ -2,7 +2,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { createRngGameFeature } = require('../src/features/rng-game');
-const { inventoryCropFields, inventoryPageData, salePageData } = require('../src/features/rng-game/components/builders');
+const {
+  inventoryCropFields,
+  inventoryPageData,
+  rollPayload,
+  salePageData,
+} = require('../src/features/rng-game/components/builders');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
@@ -257,6 +262,18 @@ test('inventory fields intentionally insert a desktop spacer after every two cro
   assert.equal(fields.length, 6);
   assert.deepEqual([fields[2].name, fields[5].name], ['\u200b', '\u200b']);
   assert.ok(fields.every((field) => field.inline));
+});
+
+test('rolled crop thumbnails omit Discord image-description alt text', () => {
+  const seed = SEEDS.at(-1);
+  const payload = rollPayload('123456789012345678', {
+    seed,
+    item: { weightUnits: weightBounds(seed).minimum },
+  });
+  const thumbnail = payload.components[0].components[0].accessory;
+  assert.equal(thumbnail.type, 11);
+  assert.ok(thumbnail.media.url);
+  assert.equal(Object.hasOwn(thumbnail, 'description'), false);
 });
 
 test('crop normalization accepts spaces, no spaces, hyphens, and underscores', () => {
