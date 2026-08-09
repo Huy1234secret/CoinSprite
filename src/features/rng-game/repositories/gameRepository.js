@@ -65,7 +65,7 @@ class RngGameRepository {
         (operation_key, user_id, operation_kind, result_json, created_at) VALUES (?, ?, ?, ?, ?)`),
     };
 
-    this.rollTransaction = db.transaction((userId, createInstance, now, cooldownMs, isLocked) => {
+    this.rollTransaction = db.transaction((userId, createInstance, now, cooldownMs, isLocked, bypassCooldown) => {
       this.ensurePlayer(userId, now);
       const player = playerRecord(this.statements.player.get(userId));
       const itemCount = this.statements.inventoryCount.get(userId).count;
@@ -73,14 +73,16 @@ class RngGameRepository {
         return { status: 'full', current: Number(itemCount), capacity: player.inventoryCapacity };
       }
       if (isLocked?.()) return { status: 'locked' };
-      const availableAt = this.statements.cooldown.get(userId)?.available_at || 0n;
       const currentTime = BigInt(now);
-      if (availableAt > currentTime) {
-        return { status: 'cooldown', remainingMs: Number(availableAt - currentTime) };
+      if (!bypassCooldown) {
+        const availableAt = this.statements.cooldown.get(userId)?.available_at || 0n;
+        if (availableAt > currentTime) {
+          return { status: 'cooldown', remainingMs: Number(availableAt - currentTime) };
+        }
       }
       const instance = createInstance();
       const nextAvailableAt = currentTime + BigInt(cooldownMs);
-      this.statements.saveCooldown.run(userId, nextAvailableAt);
+      if (!bypassCooldown) this.statements.saveCooldown.run(userId, nextAvailableAt);
       const inserted = this.statements.insertItem.run(
         userId,
         instance.seed.id,
@@ -189,6 +191,7 @@ class RngGameRepository {
       options.now ?? Date.now(),
       options.cooldownMs ?? 5_000,
       options.isLocked,
+      options.bypassCooldown === true,
     );
   }
 

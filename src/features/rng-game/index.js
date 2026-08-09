@@ -19,7 +19,15 @@ function createRngGameFeature(options = {}) {
     clock,
     cooldownMs: options.cooldownMs,
   });
-  const context = { actions, db, gameService, inventoryViews, repository, saleSessions };
+  const context = {
+    actions,
+    db,
+    gameService,
+    getGuildPolicy: options.getGuildPolicy,
+    inventoryViews,
+    repository,
+    saleSessions,
+  };
   const commands = createCommandHandlers(context);
   const handleComponent = createComponentHandler(context);
 

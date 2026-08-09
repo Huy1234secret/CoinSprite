@@ -18,12 +18,13 @@ class RngGameService {
     this.cooldownMs = options.cooldownMs || ROLL_COOLDOWN_MS;
   }
 
-  roll(userId) {
+  roll(userId, options = {}) {
     const id = String(userId);
     if (this.saleSessions.has(id)) return { status: 'locked' };
     return this.repository.roll(id, () => cascadingRoll({ rng: this.rng }), {
       now: this.clock(),
       cooldownMs: this.cooldownMs,
+      bypassCooldown: options.bypassCooldown === true,
       isLocked: () => this.saleSessions.has(id),
     });
   }

@@ -9,6 +9,7 @@ const {
 } = require('./serverConfig');
 const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
 const { getRuntimeMetrics } = require('./runtimeMetrics');
+const { syncGuildApplicationCommands } = require('./applicationCommands');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const LOGS_DIR = path.join(__dirname, '..', 'logs');
@@ -109,6 +110,7 @@ async function guildSummary(client, id, fallback, disabledGuilds) {
     features: {
       gag2Stock: true,
       leveling: config?.features?.leveling === true,
+      rngGame: config?.features?.rngGame === true,
       fullBot: false,
     },
     stock: {
@@ -225,7 +227,7 @@ async function handleOwnerEnable(req, res, client, guildId, session, deps) {
   if (!guild) return deps.sendJson(res, 404, { error: 'Guild is not available to the bot.' });
 
   const result = setGuildEnabled(guildId, true, {});
-  await guild.commands.set([]).catch(() => null);
+  await syncGuildApplicationCommands(guild).catch(() => null);
   logCommandSystem(`Owner ${session.user.id} enabled GAG stock for guild ${guildId}.`);
   return deps.sendJson(res, 200, { guildId, config: result.config });
 }
@@ -234,8 +236,11 @@ async function handleOwnerFeatures(req, res, client, guildId, session, deps) {
   const guild = await getGuild(client, guildId);
   if (!guild) return deps.sendJson(res, 404, { error: 'Guild is not available to the bot.' });
   const body = await deps.readJsonBody(req);
-  const config = setGuildFeatureAccess(guildId, { leveling: body?.features?.leveling === true });
-  logCommandSystem(`Owner ${session.user.id} updated feature access for guild ${guildId}: leveling ${config.features.leveling ? 'unlocked' : 'locked'}.`);
+  const config = setGuildFeatureAccess(guildId, body?.features || {});
+  await syncGuildApplicationCommands(guild).catch((error) => {
+    logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`);
+  });
+  logCommandSystem(`Owner ${session.user.id} updated feature access for guild ${guildId}: leveling ${config.features.leveling ? 'unlocked' : 'locked'}, RNG game ${config.features.rngGame ? 'unlocked' : 'locked'}.`);
   return deps.sendJson(res, 200, { guildId, features: config.features, config });
 }
 
