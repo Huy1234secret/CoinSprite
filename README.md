@@ -1,12 +1,13 @@
 # CoinSprite
 
-CoinSprite is a focused Discord service for Grow a Garden stock alerts and community leveling. The runtime contains three product surfaces:
+CoinSprite is a focused Discord service for Grow a Garden stock alerts, a seed RNG economy, and community leveling. The runtime contains four product surfaces:
 
 - **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
+- **Seed RNG economy** — secure crop rolls, persistent inventories and balances, selling, filtering, pagination, and capacity upgrades.
 - **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
 - **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
 
-Tickets, moderation, giveaways, games, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
+Tickets, moderation, giveaways, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
 
 ## Setup
 
@@ -61,7 +62,7 @@ The dashboard lets Discord administrators configure unlocked features:
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
-The focused application commands are `/stock-set-up`, `/level`, `/leaderboard`, `/level-set`, `/xp-add`, and `/leveling-setup`.
+The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, and `/balance`. The RNG game also supports the `c!roll` prefix command; both roll entry points share the same five-second per-user cooldown and SQLite inventory.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 

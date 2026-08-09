@@ -21,6 +21,7 @@ const { logLevelCardRendererIdentity } = require('./src/canvasFonts');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
+const { createRngGameFeature } = require('./src/features/rng-game');
 const {
   COMPONENTS_V2_FLAG,
   LEVELING_COMMANDS,
@@ -36,7 +37,12 @@ const STOCK_SETUP_COMMAND = new SlashCommandBuilder()
   .setDescription('Set up GAG2 stock auto-posting in the dashboard.')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .toJSON();
-const APPLICATION_COMMANDS = [STOCK_SETUP_COMMAND, ...LEVELING_COMMANDS.map((command) => command.data.toJSON())];
+const rngGame = createRngGameFeature();
+const APPLICATION_COMMANDS = [
+  STOCK_SETUP_COMMAND,
+  ...LEVELING_COMMANDS.map((command) => command.data.toJSON()),
+  ...rngGame.commands.map((command) => command.data.toJSON()),
+];
 
 function dashboardBaseUrl() {
   const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
@@ -84,7 +90,7 @@ setLogClient(client);
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
   logLevelCardRendererIdentity(logCommandSystem, 'Bot');
-  logCommandSystem(`Bot ready as ${client.user.tag}. GAG stock, leveling, and owner panel are active.`);
+  logCommandSystem(`Bot ready as ${client.user.tag}. GAG stock, leveling, RNG economy, and owner panel are active.`);
 
   for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
 
@@ -118,6 +124,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   try {
+    if (await rngGame.handleInteraction(interaction)) return;
     if (await handleGag2RoleAssignmentInteraction(interaction)) return;
     if (await handleLevelingInteraction(interaction)) return;
     if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {
@@ -129,10 +136,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-client.on(Events.MessageCreate, (message) => {
-  handleLevelingMessage(message).catch((error) => {
-    logCommandSystem(`Leveling message handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
-  });
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
+    await handleLevelingMessage(message);
+  } catch (error) {
+    logCommandSystem(`Message command handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
+  }
 });
 
 const token = process.env.DISCORD_TOKEN;

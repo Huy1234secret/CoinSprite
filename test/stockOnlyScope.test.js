@@ -6,7 +6,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('bot startup loads focused GAG stock, leveling, and owner-panel services', () => {
+test('bot startup loads focused GAG stock, leveling, RNG game, and owner-panel services', () => {
   const source = read('index.js');
   assert.match(source, /startAdminServer/);
   assert.match(source, /startGag2StockPoster/);
@@ -14,17 +14,21 @@ test('bot startup loads focused GAG stock, leveling, and owner-panel services', 
   assert.match(source, /handleGag2RoleAssignmentInteraction/);
   assert.match(source, /handleLevelingInteraction/);
   assert.match(source, /handleLevelingMessage/);
+  assert.match(source, /createRngGameFeature/);
+  assert.match(source, /rngGame\.handleInteraction/);
+  assert.match(source, /rngGame\.handleMessage/);
   assert.match(source, /Events\.MessageCreate/);
   for (const removed of ['commandsPath', 'inviteRewards', 'dailyMessageStats', 'GuildMemberAdd', 'giveaway', 'ticketSystem']) {
     assert.doesNotMatch(source, new RegExp(removed, 'i'));
   }
 });
 
-test('bot registers only stock setup and leveling commands and clears legacy guild commands', () => {
+test('bot registers stock setup, leveling, and RNG game commands and clears legacy guild commands', () => {
   const source = read('index.js');
   assert.match(source, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
   assert.match(source, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
-  assert.match(source, /const APPLICATION_COMMANDS = \[STOCK_SETUP_COMMAND, \.\.\.LEVELING_COMMANDS/);
+  assert.match(source, /\.\.\.LEVELING_COMMANDS\.map/);
+  assert.match(source, /\.\.\.rngGame\.commands\.map/);
   assert.match(source, /client\.application\.commands\.set\(APPLICATION_COMMANDS\)/);
   assert.match(source, /guild\.commands\.set\(\[\]\)/);
   assert.match(source, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
