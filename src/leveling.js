@@ -29,6 +29,7 @@ const LEADERBOARD_HEIGHT = 205 + PAGE_SIZE * 82 + 54;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+const LEVEL_CARD_TEXT_TOP_ADJUSTMENT = 0.075;
 const CANVAS_UNICODE_FALLBACK = '"CoinSprite Unicode", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 const CANVAS_FONT_FAMILY = '"Noto Sans Variable", ' + CANVAS_UNICODE_FALLBACK;
 const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
@@ -373,6 +374,11 @@ function levelCardFont(item = {}, size = item.size) {
   const style = item.italic ? 'italic' : 'normal';
   const weight = item.bold === false || item.weight === 'normal' ? 'normal' : 'bold';
   return `${style} ${weight} ${Math.max(1, Number(size) || 1)}px ${family}`;
+}
+
+function levelCardTextY(item = {}) {
+  const size = Math.max(1, Number(item.size) || 1);
+  return Number(item.y) - Math.max(1, Math.round(size * LEVEL_CARD_TEXT_TOP_ADJUSTMENT));
 }
 
 function fitCanvasText(context, value, options = {}) {
@@ -1160,6 +1166,9 @@ function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0
 }
 
 function canvasTextBounds(context, text, item, align = 'left') {
+  context.save();
+  context.textBaseline = 'top';
+  context.textAlign = align;
   context.font = levelCardFont(item);
   const metrics = context.measureText(String(text || ''));
   let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
@@ -1173,6 +1182,7 @@ function canvasTextBounds(context, text, item, align = 'left') {
   const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
   const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
   const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+  context.restore();
   return {
     x: item.x + left,
     y: item.y - ascent,
@@ -1219,7 +1229,9 @@ function drawCardText(context, text, item, align = 'left') {
   context.textAlign = align;
   context.fillStyle = item.color;
   context.font = levelCardFont(item);
-  context.fillText(text, item.x, item.y);
+  // Skia's `top` baseline sits slightly below Chromium's for these WOFF2 fonts.
+  // Keep the editor's saved Y coordinate authoritative and compensate here only.
+  context.fillText(text, item.x, levelCardTextY(item));
   drawCardUnderline(context, text, item, align);
 }
 
@@ -1229,15 +1241,13 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   const design = normalizeLevelCardDesign(inputDesign, userId);
   const canvas = createCanvas(1000, 320);
   const context = canvas.getContext('2d');
-  context.fillStyle = design.background.color;
-  roundedRect(context, 0, 0, 1000, 320, 30);
-  context.fill();
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
+  context.fillStyle = design.background.color;
+  context.fillRect(0, 0, 1000, 320);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
-  context.restore();
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
@@ -1258,10 +1268,6 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
       else {
         context.fillStyle = design.colors.track;
         context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-        context.fillStyle = design.colors.text;
-        context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
-        context.textAlign = 'center';
-        context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
       }
       context.restore();
     });
@@ -1270,18 +1276,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   const displayName = canvasDisplayName(user?.displayName || user?.globalName || user?.username);
   if (design.username.visible) {
     const bounds = canvasTextBounds(context, displayName, design.username);
-    await drawRotatedCardElement(context, bounds, design.username.rotation, async () => {
-      context.textBaseline = 'top';
-      context.textAlign = 'left';
-      context.fillStyle = design.username.color;
-      await drawCanvasDisplayName(context, displayName, design.username.x, design.username.y, {
-        ...design.username,
-        minimum: design.username.size,
-        maximumWidth: 2000,
-        weight: design.username.bold ? 'bold' : 'normal',
-      });
-      drawCardUnderline(context, displayName, design.username);
-    });
+    await drawRotatedCardElement(context, bounds, design.username.rotation, () => drawCardText(context, displayName, design.username));
   }
   const levelLabel = `LEVEL ${number(stats.level)}`;
   if (design.level.visible) {
@@ -1327,6 +1322,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
       await drawRotatedCardElement(context, bounds, layer.rotation, () => drawCardText(context, layer.text, layer));
     }
   }
+  context.restore();
   return canvas.toBuffer('image/png');
 }
 
