@@ -528,7 +528,7 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
     const fallbackReason = !origin ? 'origin not configured' : 'render key not configured';
     log(`Dashboard level card authoritative render for user ${user.id}: fallback reason=${fallbackReason}.`);
   }
-  return renderLevelCard(user, stats);
+  return renderSavedLevelCard(user, stats);
 }
 
 function messageFingerprint(message) {
@@ -1083,7 +1083,7 @@ function buildLeaderboardPayload(image, options = {}) {
       components: [
         { type: 12, items: [{ media: { url: 'attachment://leaderboard.png' } }] },
         { type: 14, divider: true, spacing: 1 },
-        { type: 10, content: `- You are placed **#${number(viewerRank)}** in the leaderboard!` },
+        { type: 10, content: `You are placed **#${viewerRank}** in the leaderboard!` },
         { type: 1, components: [{
           type: 2,
           style: 2,
@@ -1200,12 +1200,9 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
-  console.log("Loading background:", design.background.imageUrl);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
-  console.log("Background loaded?", !!background);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
   context.restore();
-  console.log("Panel Opacity:", design.panelOpacity);
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
@@ -1296,6 +1293,10 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
     }
   }
   return canvas.toBuffer('image/png');
+}
+
+function renderSavedLevelCard(user, stats) {
+  return renderLevelCard(user, stats, getLevelCardDesign(user?.id));
 }
 
 function buildLevelCardPayload(user, stats, image) {
@@ -1636,6 +1637,7 @@ module.exports = {
   levelCardRenderOrigin,
   loadLocalCardImage,
   renderLevelCard,
+  renderSavedLevelCard,
   renderPublishedLevelCard,
   saveLevelCardDesign,
   levelCardRenderKey,

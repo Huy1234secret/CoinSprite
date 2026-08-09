@@ -19,7 +19,7 @@
     ['crate', 'Fall crates', discordEmoji('1533306164018937936')],
     ['sell', 'Fall sell', '\u{1F341}'],
   ];
-  const CARD_UNICODE_FALLBACK = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_UNICODE_FALLBACK = '"Noto Sans SC Variable", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
   const CARD_FONT_FAMILY = '"Noto Sans Variable", ' + CARD_UNICODE_FALLBACK;
   const CARD_FONT_FAMILIES = Object.freeze({
     sans: CARD_FONT_FAMILY,
@@ -1461,7 +1461,16 @@
     return null;
   }
 
-  function scheduleExactCardPreview() {
+  function invalidateExactCardPreview() {
+    window.clearTimeout(state.cardExactTimer);
+    state.cardExactRequest += 1;
+    if (state.cardExactUrl) URL.revokeObjectURL(state.cardExactUrl);
+    state.cardExactPreview = null;
+    state.cardExactSnapshot = '';
+    state.cardExactUrl = '';
+  }
+
+  function scheduleExactCardPreview({ persisted = false, delay = 160 } = {}) {
     window.clearTimeout(state.cardExactTimer);
     if (!state.profile || elements.profileShell.hidden) return;
     const snapshot = cardSnapshot();
@@ -1476,7 +1485,7 @@
             'Content-Type': 'application/json',
             'X-CSRF-Token': state.csrfToken,
           },
-          body: JSON.stringify({ design: state.profile.design }),
+          body: JSON.stringify(persisted ? {} : { draft: true, design: state.profile.design }),
         });
         if (!response.ok) return;
         const url = URL.createObjectURL(await response.blob());
@@ -1495,7 +1504,13 @@
         image.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
         image.src = url;
       } catch {}
-    }, 160);
+    }, delay);
+  }
+
+  function refreshPersistedCardPreview() {
+    invalidateExactCardPreview();
+    scheduleCardDraw(false);
+    scheduleExactCardPreview({ persisted: true, delay: 0 });
   }
 
   function scheduleCardDraw(refreshExact = true) {
@@ -1871,6 +1886,7 @@
       state.cardRedoStack = [];
       state.cardPendingHistory = '';
       renderCardStudio();
+      refreshPersistedCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1885,6 +1901,7 @@
       state.profile.design = payload.design;
       state.profileSavedSnapshot = cardSnapshot();
       renderCardStudio();
+      refreshPersistedCardPreview();
       showToast('Your /level card is updated.');
     } catch (error) {
       showToast(error.message, 'error');
@@ -2242,6 +2259,7 @@
     mutateCardDesign(() => { state.profile.design = JSON.parse(state.profileSavedSnapshot); });
     state.cardSelection = 'background';
     renderCardStudio();
+    refreshPersistedCardPreview();
     showToast('Unsaved card changes reset.');
   });
   window.addEventListener('keydown', (event) => {

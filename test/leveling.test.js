@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -11,6 +12,7 @@ const {
 } = require('../src/serverConfig');
 const {
   COMPONENTS_V2_FLAG,
+  DATA_PATH,
   LEVEL_CARD_MEDIA_DIR,
   LEVELING_COMMANDS,
   announcementText,
@@ -31,7 +33,10 @@ const {
   renderLeaderboardCard,
   renderLevelCard,
   renderPublishedLevelCard,
+  renderSavedLevelCard,
+  resetLevelingCache,
   resolvedAnnouncementLayout,
+  saveLevelCardDesign,
   xpThresholdForLevel,
   xpMultiplierForMessage,
 } = require('../src/leveling');
@@ -350,6 +355,72 @@ test('level card renderer keeps editor text sizing exact and honors visibility, 
   assert.notDeepEqual(hidden, narrowSavedBox);
 });
 
+test('saved web preview and /level server render are pixel-identical with deterministic inputs', async () => {
+  const userId = '123456789012345689';
+  const assetId = 'abababababababababababababababab';
+  const directory = path.join(LEVEL_CARD_MEDIA_DIR, userId);
+  const filePath = path.join(directory, `${assetId}.png`);
+  const previousState = fs.existsSync(DATA_PATH) ? fs.readFileSync(DATA_PATH) : null;
+  const media = createCanvas(24, 12);
+  const mediaContext = media.getContext('2d');
+  mediaContext.fillStyle = '#663399';
+  mediaContext.fillRect(0, 0, 12, 12);
+  mediaContext.fillStyle = '#f5d442';
+  mediaContext.fillRect(12, 0, 12, 12);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(filePath, media.toBuffer('image/png'));
+
+  const user = { id: userId, username: 'PixelUser', displayName: 'Nguyễn 世界' };
+  const stats = { level: 17, rank: 23, progressXp: 144, neededXp: 377, progressRatio: 144 / 377, xp: 2345 };
+  try {
+    resetLevelingCache();
+    saveLevelCardDesign(userId, {
+      background: { color: '#102030', imageUrl: `/level-card-media/${userId}/${assetId}.png`, x: 13, y: -7, scale: 1.3 },
+      panelOpacity: 0.42,
+      avatar: { visible: false },
+      username: { x: 90, y: 42, size: 36, fontFamily: 'rounded', bold: true },
+      level: { x: 90, y: 104, size: 25, fontFamily: 'condensed', italic: true },
+      rank: { x: 900, y: 45, size: 29, fontFamily: 'mono' },
+      xp: { x: 90, y: 268, size: 20, fontFamily: 'serif' },
+      progress: { x: 90, y: 212, width: 780, height: 28 },
+      layers: [{
+        id: 'unicode', type: 'text', text: '榜 🎋', x: 670, y: 125, width: 150, height: 60,
+        size: 34, color: '#ffffff', fontFamily: 'sans', bold: true,
+      }],
+    });
+
+    const webPreview = await renderSavedLevelCard(user, stats);
+    const levelOutput = await renderPublishedLevelCard(user, stats, { origin: '', key: '', log: () => {} });
+    const hash = (png) => crypto.createHash('sha256').update(png).digest('hex');
+    assert.equal(hash(webPreview), hash(levelOutput));
+
+    const [webImage, levelImage] = await Promise.all([loadImage(webPreview), loadImage(levelOutput)]);
+    assert.deepEqual({ width: webImage.width, height: webImage.height }, { width: 1000, height: 320 });
+    assert.deepEqual({ width: levelImage.width, height: levelImage.height }, { width: 1000, height: 320 });
+    const pixels = (image) => {
+      const canvas = createCanvas(1000, 320);
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, 1000, 320).data;
+    };
+    const webPixels = pixels(webImage);
+    const levelPixels = pixels(levelImage);
+    let differentPixels = 0;
+    for (let offset = 0; offset < webPixels.length; offset += 4) {
+      if (webPixels[offset] !== levelPixels[offset]
+        || webPixels[offset + 1] !== levelPixels[offset + 1]
+        || webPixels[offset + 2] !== levelPixels[offset + 2]
+        || webPixels[offset + 3] !== levelPixels[offset + 3]) differentPixels += 1;
+    }
+    assert.equal(differentPixels, 0);
+  } finally {
+    if (previousState) fs.writeFileSync(DATA_PATH, previousState);
+    else fs.rmSync(DATA_PATH, { force: true });
+    fs.rmSync(directory, { recursive: true, force: true });
+    resetLevelingCache();
+  }
+});
+
 test('level card media loads locally without a remote request', async () => {
   const userId = '123456789012345680';
   const assetId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
@@ -588,16 +659,25 @@ test('leaderboard uses one fixed Unicode-capable image and one modal page button
   assert.equal(GlobalFonts.has('CoinSprite Unicode'), true);
 
   const payload = buildLeaderboardPayload(image, { ownerId: '123', currentPage: 2, maxPage: 8, viewerRank: 9 });
-  assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
-  assert.equal(payload.files[0].name, 'leaderboard.png');
-  assert.equal(payload.components.length, 1);
-  assert.equal(payload.components[0].accent_color, 0xffffff);
-  assert.deepEqual(payload.components[0].components.map((component) => component.type), [12, 14, 10, 1]);
-  assert.equal(payload.components[0].components[0].items[0].media.url, 'attachment://leaderboard.png');
-  assert.match(payload.components[0].components[2].content, /placed \*\*#9\*\*/);
-  assert.deepEqual(payload.components[0].components[3].components, [{
-    type: 2, style: 2, label: 'Page 2 / 8', custom_id: 'leveling:leaderboard-open:123:8',
-  }]);
+  assert.deepEqual(payload, {
+    flags: COMPONENTS_V2_FLAG,
+    content: null,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    attachments: [],
+    files: [{ attachment: image, name: 'leaderboard.png' }],
+    components: [{
+      type: 17,
+      accent_color: 0xffffff,
+      components: [
+        { type: 12, items: [{ media: { url: 'attachment://leaderboard.png' } }] },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: 'You are placed **#9** in the leaderboard!' },
+        { type: 1, components: [{
+          type: 2, style: 2, label: 'Page 2 / 8', custom_id: 'leveling:leaderboard-open:123:8',
+        }] },
+      ],
+    }],
+  });
   assert.doesNotMatch(JSON.stringify(payload), /description|alt/i);
 
   const modal = leaderboardPageModal('123', 8);
@@ -622,6 +702,17 @@ test('leaderboard page button opens its owner-only page modal', async () => {
   assert.equal(handled, true);
   assert.equal(shown.custom_id, 'leveling:leaderboard-submit:123:7');
 
+  let deniedReply;
+  await handleLevelingInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: 'leveling:leaderboard-open:123:7',
+    user: { id: '456' },
+    reply: async (payload) => { deniedReply = payload; },
+  });
+  assert.equal(deniedReply.flags & 64, 64);
+  assert.match(deniedReply.components[0].components[0].content, /another member/);
+
   let errorReply;
   const invalid = await handleLevelingInteraction({
     isChatInputCommand: () => false,
@@ -634,6 +725,35 @@ test('leaderboard page button opens its owner-only page modal', async () => {
   });
   assert.equal(invalid, true);
   assert.match(errorReply.components[0].components[0].content, /from \*\*1\*\* to \*\*7\*\*/);
+});
+
+test('leaderboard modal pagination replaces the attachment on the same message', async () => {
+  const calls = [];
+  const handled = await handleLevelingInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => false,
+    isModalSubmit: () => true,
+    customId: 'leveling:leaderboard-submit:123:1',
+    user: { id: '123' },
+    guildId: '923456789012345678',
+    guild: {
+      name: 'Unicode 世界',
+      members: { cache: new Map(), fetch: async () => null },
+    },
+    fields: { getTextInputValue: () => '1' },
+    deferUpdate: async () => calls.push('deferUpdate'),
+    editReply: async (payload) => calls.push(['editReply', payload]),
+  });
+  assert.equal(handled, true);
+  assert.equal(calls[0], 'deferUpdate');
+  assert.equal(calls[1][0], 'editReply');
+  const payload = calls[1][1];
+  assert.equal(payload.flags, COMPONENTS_V2_FLAG);
+  assert.deepEqual(payload.attachments, []);
+  assert.equal(payload.files[0].name, 'leaderboard.png');
+  assert.equal(payload.allowedMentions.parse.length, 0);
+  assert.equal(payload.components[0].components[0].items[0].media.url, 'attachment://leaderboard.png');
+  assert.equal(payload.components[0].components[3].components[0].label, 'Page 1 / 1');
 });
 
 test('/level acknowledges immediately, then replaces the loading card with the rendered image', async () => {
