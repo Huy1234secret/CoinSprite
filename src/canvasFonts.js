@@ -62,7 +62,10 @@ function resolveFontManifest() {
 
 function registrationFailure(entry, error) {
   const reason = String(error?.message || error || 'registration returned false').replace(/\s+/g, ' ').slice(0, 300);
-  return `Level card font registration failed: family="${entry?.family || 'unknown'}" package="${entry?.packageName || 'unknown'}" file="${entry?.filename || 'unknown'}" reason="${reason}".`;
+  const installHint = error?.code === 'MODULE_NOT_FOUND' && entry?.packageName
+    ? ' Required font dependency is not installed; run "npm ci" in this deployment before starting CoinSprite.'
+    : '';
+  return `Level card font registration failed: family="${entry?.family || 'unknown'}" package="${entry?.packageName || 'unknown'}" file="${entry?.filename || 'unknown'}" reason="${reason}".${installHint}`;
 }
 
 function registerCanvasFonts(options = {}) {
