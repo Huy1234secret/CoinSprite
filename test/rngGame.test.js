@@ -126,6 +126,15 @@ test('stored value is monotonic with weight and reaches configured endpoints', (
   }
 });
 
+test('seed registry uses the revised maximum crop values', () => {
+  const expectedMaximums = [
+    4_000_000, 2_500_000, 1_800_000, 1_250_000, 850_000, 550_000, 350_000, 250_000,
+    170_000, 120_000, 85_000, 60_000, 40_000, 26_000, 18_000, 12_500, 8_500, 5_500,
+    3_500, 2_250, 1_500, 1_000, 700, 450, 300, 200, 120, 80, 60, 40, 30, 20,
+  ];
+  assert.deepEqual(SEEDS.map((entry) => entry.maximumValue), expectedMaximums);
+});
+
 test('prefix and slash roll paths share one five-second cooldown', async () => {
   let now = 10_000;
   const game = feature({ clock: () => now });
