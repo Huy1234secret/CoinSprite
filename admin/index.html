@@ -93,13 +93,10 @@
         </aside>
         <div class="card-workbench">
           <div class="level-card-canvas-wrap" id="cardCanvasWrap">
-            <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Editable level card preview"></canvas>
+            <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Authoritative server-rendered level card preview"></canvas>
+            <canvas id="levelCardDraftCanvas" width="1000" height="320" aria-label="Editable draft level card preview" hidden></canvas>
           </div>
-          <p class="studio-hint"><span></span><strong>Draft preview</strong><small>Editor guides and unsaved changes never appear in Discord.</small></p>
-          <div class="level-card-canvas-wrap exact-card-preview" id="cardExactWrap" hidden>
-            <canvas id="levelCardExactCanvas" width="1000" height="320" aria-label="Exact saved Discord level card render"></canvas>
-          </div>
-          <p class="studio-hint" id="cardExactLabel" hidden><span></span><strong>Exact Discord render</strong><small>Loaded from the authoritative saved renderer.</small></p>
+          <p class="studio-hint" id="cardPreviewLabel"><span></span><strong>Loading authoritative preview</strong><small>The saved card is rendered by the same server used by /level.</small></p>
         </div>
         <aside class="inspector-panel">
           <span class="panel-label">INSPECTOR</span>

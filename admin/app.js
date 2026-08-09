@@ -29,7 +29,17 @@
     condensed: '"Oswald Variable", ' + CARD_UNICODE_FALLBACK,
     handwriting: '"Caveat Variable", ' + CARD_UNICODE_FALLBACK,
   });
+  const CARD_REQUIRED_FONT_FACES = Object.freeze([
+    { family: 'Noto Sans Variable', italic: true },
+    { family: 'Noto Sans SC Variable', italic: false },
+    { family: 'Noto Serif Variable', italic: true },
+    { family: 'Roboto Mono Variable', italic: true },
+    { family: 'Nunito Variable', italic: true },
+    { family: 'Oswald Variable', italic: false },
+    { family: 'Caveat Variable', italic: false },
+  ]);
   const cardFontLoads = new Map();
+  const CARD_PREVIEW_DEBOUNCE_MS = 350;
   const CARD_SNAP_DISTANCE = 6;
   const CARD_SNAP_RELEASE = 10;
   const CARD_HISTORY_LIMIT = 60;
@@ -95,8 +105,9 @@
     cardUndoStack: [],
     cardRedoStack: [],
     cardPendingHistory: '',
-    cardExactRequest: 0,
-    cardExactHash: '',
+    cardPreviewRequest: 0,
+    cardPreviewHash: '',
+    cardPreviewTimer: null,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -126,8 +137,8 @@
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
-    cardCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
-    cardExactCanvas: $('#levelCardExactCanvas'), cardExactWrap: $('#cardExactWrap'), cardExactLabel: $('#cardExactLabel'),
+    cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
+    cardPreviewLabel: $('#cardPreviewLabel'),
     cardInspector: $('#cardInspector'), cardInspectorTitle: $('#cardInspectorTitle'),
     cardBackgroundButton: $('#cardBackgroundButton'), cardImageButton: $('#cardImageButton'), cardTextButton: $('#cardTextButton'),
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
@@ -1235,6 +1246,8 @@
 
   const cardImages = new Map();
   let cardFrame = 0;
+  let cardDrawRequest = 0;
+  let cardFontsReadyPromise = null;
 
   function cardSnapshot() {
     return state.profile ? JSON.stringify(state.profile.design) : '';
@@ -1353,19 +1366,56 @@
     return `${item?.italic ? 'italic' : 'normal'} ${item?.bold === false || item?.weight === 'normal' ? 'normal' : 'bold'} ${Math.max(1, Number(size) || 1)}px ${family}`;
   }
 
+  function normalizedFontFaceFamily(value) {
+    return String(value || '').replace(/^['"]|['"]$/g, '');
+  }
+
+  function ensureCardFontsReady() {
+    if (cardFontsReadyPromise) return cardFontsReadyPromise;
+    cardFontsReadyPromise = (async () => {
+      if (!document.fonts?.load || !document.fonts?.check || !document.fonts?.ready || !document.fonts[Symbol.iterator]) {
+        throw new Error('This browser cannot verify the required level-card fonts. The draft editor is unavailable.');
+      }
+      const requests = [];
+      for (const face of CARD_REQUIRED_FONT_FACES) {
+        const styles = face.italic ? ['normal', 'italic'] : ['normal'];
+        for (const style of styles) {
+          for (const weight of [400, 700]) {
+            const font = `${style} ${weight} 32px "${face.family}"`;
+            requests.push(document.fonts.load(font, face.family === 'Noto Sans SC Variable' ? '\u6c49\u5b57' : 'CoinSprite')
+              .then((loaded) => {
+                const exact = [...loaded].some((entry) => normalizedFontFaceFamily(entry.family) === face.family && entry.status === 'loaded');
+                const declared = [...document.fonts].some((entry) => normalizedFontFaceFamily(entry.family) === face.family && entry.status === 'loaded');
+                if (!exact || !declared || !document.fonts.check(font, face.family === 'Noto Sans SC Variable' ? '\u6c49\u5b57' : 'CoinSprite')) {
+                  throw new Error(`Required browser font silently fell back: ${face.family} (${style} ${weight}).`);
+                }
+              }));
+          }
+        }
+      }
+      await Promise.all(requests);
+      await document.fonts.ready;
+      return true;
+    })().catch((error) => {
+      cardFontsReadyPromise = null;
+      throw error;
+    });
+    return cardFontsReadyPromise;
+  }
+
   function loadCardFont(item, text) {
-    if (!document.fonts?.load) return;
     const font = cardFont(item);
     const sample = String(text || 'CoinSprite');
     const key = `${font}\0${sample}`;
-    if (cardFontLoads.has(key)) return;
-    const loading = document.fonts.load(font, sample)
-      .then(() => scheduleCardDraw())
+    if (cardFontLoads.has(key)) return cardFontLoads.get(key);
+    const loading = ensureCardFontsReady()
+      .then(() => document.fonts.load(font, sample))
       .catch((error) => {
         cardFontLoads.delete(key);
-        console.error(`Card preview font failed to load: ${font}`, error);
+        throw new Error(`Card draft font failed to load without fallback: ${font}`, { cause: error });
       });
     cardFontLoads.set(key, loading);
+    return loading;
   }
 
   function cardTextValue(selection, layer = cardLayerBySelection(selection)) {
@@ -1475,13 +1525,35 @@
     return null;
   }
 
+  function showDraftCardPreview() {
+    elements.cardAuthoritativeCanvas.hidden = true;
+    elements.cardCanvas.hidden = false;
+    elements.cardPreviewLabel.querySelector('strong').textContent = 'Draft preview';
+    elements.cardPreviewLabel.querySelector('small').textContent = 'Unsaved browser draft; a server-rendered preview is loading.';
+  }
+
   function scheduleCardDraw() {
+    showDraftCardPreview();
+    scheduleAuthoritativeCardPreview();
     window.cancelAnimationFrame(cardFrame);
-    cardFrame = window.requestAnimationFrame(drawCardPreview);
+    const request = ++cardDrawRequest;
+    cardFrame = window.requestAnimationFrame(async () => {
+      try {
+        const design = state.profile?.design;
+        if (!design) return;
+        const textItems = [
+          ['username', design.username], ['level', design.level], ['rank', design.rank], ['xp', design.xp],
+          ...design.layers.filter((layer) => layer.type === 'text').map((layer) => [`layer:${layer.id}`, layer]),
+        ];
+        await Promise.all(textItems.map(([selection, item]) => loadCardFont(item, cardTextValue(selection, item))));
+        if (request === cardDrawRequest) drawCardPreview();
+      } catch (error) {
+        if (request === cardDrawRequest) showToast(error.message, 'error');
+      }
+    });
   }
 
   function drawCardPreviewText(context, text, item, align = 'left') {
-    loadCardFont(item, text);
     const bounds = cardTextBounds(context, item, text, align);
     withCardRotation(context, bounds, () => {
       context.textBaseline = 'top';
@@ -1831,24 +1903,37 @@
     refreshCardHistoryButtons();
   }
 
-  function renderCardStudio() {
+  function renderCardStudio(draw = true) {
     renderCardLayers();
     renderCardInspector();
     refreshCardDirty();
-    scheduleCardDraw();
+    if (draw) scheduleCardDraw();
   }
 
-  function hideExactCardPreview() {
-    state.cardExactHash = '';
-    elements.cardExactWrap.hidden = true;
-    elements.cardExactLabel.hidden = true;
+  function scheduleAuthoritativeCardPreview() {
+    window.clearTimeout(state.cardPreviewTimer);
+    state.cardPreviewTimer = window.setTimeout(() => {
+      loadAuthoritativeCardPreview().catch(() => null);
+    }, CARD_PREVIEW_DEBOUNCE_MS);
   }
 
-  async function loadExactCardPreview() {
-    const expectedHash = String(state.profile?.designHash || '');
-    const request = ++state.cardExactRequest;
-    hideExactCardPreview();
-    if (!expectedHash) return;
+  function showAuthoritativeCardPreview(draft) {
+    elements.cardCanvas.hidden = true;
+    elements.cardAuthoritativeCanvas.hidden = false;
+    elements.cardPreviewLabel.querySelector('strong').textContent = draft ? 'Authoritative server draft' : 'Authoritative Discord render';
+    elements.cardPreviewLabel.querySelector('small').textContent = draft
+      ? 'Rendered on the server; save to publish this design to /level.'
+      : 'This saved PNG is rendered by the same server used by /level.';
+  }
+
+  async function loadAuthoritativeCardPreview() {
+    window.clearTimeout(state.cardPreviewTimer);
+    state.cardPreviewTimer = null;
+    const expectedSavedHash = String(state.profile?.designHash || '');
+    const designSnapshot = cardSnapshot();
+    const draft = designSnapshot !== state.profileSavedSnapshot;
+    const request = ++state.cardPreviewRequest;
+    if (!expectedSavedHash) return;
     try {
       const response = await fetch('/api/profile/card/preview', {
         method: 'POST',
@@ -1858,32 +1943,43 @@
           'Content-Type': 'application/json',
           'X-CSRF-Token': state.csrfToken,
         },
-        body: JSON.stringify({ designHash: expectedHash }),
+        body: JSON.stringify({
+          designHash: expectedSavedHash,
+          draft,
+          ...(draft ? { design: state.profile.design } : {}),
+        }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || `Exact Discord render failed (${response.status})`);
+        throw new Error(payload.error || `Authoritative level-card render failed (${response.status})`);
       }
       const responseHash = String(response.headers.get('x-coinsprite-design-hash') || '');
-      if (request !== state.cardExactRequest || expectedHash !== state.profile?.designHash || responseHash !== expectedHash) return;
+      const responseSource = String(response.headers.get('x-coinsprite-render-source') || '');
+      if (request !== state.cardPreviewRequest || expectedSavedHash !== state.profile?.designHash || designSnapshot !== cardSnapshot()) return;
+      if (!draft && responseHash !== expectedSavedHash) throw new Error('Authoritative saved preview returned a different design hash.');
+      if (responseSource !== (draft ? 'authoritative-draft' : 'authoritative')) throw new Error('Level-card preview did not come from the authoritative renderer.');
       const blobUrl = URL.createObjectURL(await response.blob());
       try {
         const image = new Image();
         image.src = blobUrl;
         await image.decode();
-        if (request !== state.cardExactRequest || expectedHash !== state.profile?.designHash || responseHash !== expectedHash) return;
-        if (image.naturalWidth !== 1000 || image.naturalHeight !== 320) throw new Error('Exact Discord render returned unexpected dimensions.');
-        const context = elements.cardExactCanvas.getContext('2d');
+        if (request !== state.cardPreviewRequest || expectedSavedHash !== state.profile?.designHash || designSnapshot !== cardSnapshot()) return;
+        if (image.naturalWidth !== 1000 || image.naturalHeight !== 320) throw new Error('Authoritative level-card render returned unexpected dimensions.');
+        const context = elements.cardAuthoritativeCanvas.getContext('2d');
         context.clearRect(0, 0, 1000, 320);
         context.drawImage(image, 0, 0);
       } finally {
         URL.revokeObjectURL(blobUrl);
       }
-      state.cardExactHash = responseHash;
-      elements.cardExactWrap.hidden = false;
-      elements.cardExactLabel.hidden = false;
+      state.cardPreviewHash = responseHash;
+      showAuthoritativeCardPreview(draft);
     } catch (error) {
-      if (request === state.cardExactRequest && expectedHash === state.profile?.designHash) showToast(error.message, 'error');
+      if (request === state.cardPreviewRequest && expectedSavedHash === state.profile?.designHash && designSnapshot === cardSnapshot()) {
+        showDraftCardPreview();
+        elements.cardPreviewLabel.querySelector('small').textContent = 'Authoritative server preview unavailable; this remains a labelled browser draft.';
+        showToast(error.message, 'error');
+      }
+      throw error;
     }
   }
 
@@ -1895,8 +1991,9 @@
       state.cardUndoStack = [];
       state.cardRedoStack = [];
       state.cardPendingHistory = '';
-      renderCardStudio();
-      await loadExactCardPreview();
+      renderCardStudio(false);
+      await loadAuthoritativeCardPreview();
+      await ensureCardFontsReady();
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1914,7 +2011,7 @@
       state.profileSavedSnapshot = cardSnapshot();
       renderCardStudio();
       showToast('Your /level card is updated.');
-      await loadExactCardPreview();
+      await loadAuthoritativeCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
@@ -1970,7 +2067,7 @@
   }
 
   function canvasPoint(event) {
-    const box = elements.cardCanvas.getBoundingClientRect();
+    const box = elements.cardCanvasWrap.getBoundingClientRect();
     return { x: (event.clientX - box.left) * 1000 / box.width, y: (event.clientY - box.top) * 320 / box.height };
   }
 
@@ -2111,7 +2208,7 @@
       historySnapshot: cardSnapshot(),
     };
     state.cardGuides = {};
-    elements.cardCanvas.setPointerCapture(event.pointerId);
+    elements.cardCanvasWrap.setPointerCapture(event.pointerId);
     renderCardLayers();
     renderCardInspector();
     scheduleCardDraw();
@@ -2261,10 +2358,10 @@
     state.cardSelection = 'background';
     renderCardStudio();
   });
-  elements.cardCanvas.addEventListener('pointerdown', beginCardPointer);
-  elements.cardCanvas.addEventListener('pointermove', moveCardPointer);
-  elements.cardCanvas.addEventListener('pointerup', endCardPointer);
-  elements.cardCanvas.addEventListener('pointercancel', endCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointerdown', beginCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointermove', moveCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointerup', endCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointercancel', endCardPointer);
   elements.cardSaveButton.addEventListener('click', saveProfileCard);
   elements.cardResetButton.addEventListener('click', () => {
     if (!state.profile || state.cardSaving || !state.profileSavedSnapshot) return;
