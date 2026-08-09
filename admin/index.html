@@ -70,6 +70,14 @@
       <header class="studio-head">
         <div><span class="step">01</span><div><h2>Level card studio</h2><p>Drag elements with smart guides. Use any edge to resize and the top handle to rotate.</p></div></div>
         <div class="studio-actions">
+          <label class="studio-template"><span>Template</span><select id="cardTemplateSelect">
+            <option value="classic">Classic lime</option><option value="arcade">Arcade center</option>
+            <option value="split">Split focus</option><option value="minimal">Minimal glass</option>
+            <option value="spotlight">Center spotlight</option>
+          </select></label>
+          <button class="button ghost small" id="cardTemplateButton" type="button">Apply</button>
+          <button class="button ghost small history-button" id="cardUndoButton" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>&#8617;</button>
+          <button class="button ghost small history-button" id="cardRedoButton" type="button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled>&#8618;</button>
           <button class="button ghost small" id="cardBackgroundButton" type="button">Upload background</button>
           <button class="button ghost small" id="cardImageButton" type="button">+ Image or icon</button>
           <button class="button primary small" id="cardTextButton" type="button">+ Text</button>

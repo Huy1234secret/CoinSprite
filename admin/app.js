@@ -19,14 +19,51 @@
     ['crate', 'Fall crates', discordEmoji('1533306164018937936')],
     ['sell', 'Fall sell', '\u{1F341}'],
   ];
-  const CARD_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_UNICODE_FALLBACK = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_FONT_FAMILY = '"Noto Sans Variable", ' + CARD_UNICODE_FALLBACK;
   const CARD_FONT_FAMILIES = Object.freeze({
     sans: CARD_FONT_FAMILY,
-    serif: '"Noto Serif", "DejaVu Serif", serif',
-    mono: '"Noto Sans Mono", "DejaVu Sans Mono", monospace',
+    serif: '"Noto Serif Variable", ' + CARD_UNICODE_FALLBACK,
+    mono: '"Roboto Mono Variable", ' + CARD_UNICODE_FALLBACK,
+    rounded: '"Nunito Variable", ' + CARD_UNICODE_FALLBACK,
+    condensed: '"Oswald Variable", ' + CARD_UNICODE_FALLBACK,
+    handwriting: '"Caveat Variable", ' + CARD_UNICODE_FALLBACK,
   });
-  const CARD_SNAP_DISTANCE = 7;
-  const CARD_SNAP_RELEASE = 16;
+  const CARD_SNAP_DISTANCE = 6;
+  const CARD_SNAP_RELEASE = 10;
+  const CARD_HISTORY_LIMIT = 60;
+  const CARD_TEMPLATES = Object.freeze({
+    classic: {
+      panelOpacity: .85, colors: { surface: '#18201b', accent: '#b9f547', text: '#f4f7f2', muted: '#a3ada6', track: '#303a33', progress: '#b9f547' },
+      avatar: { x: 54, y: 68, size: 150, color: '#b9f547' }, username: { x: 236, y: 70, size: 34, color: '#f4f7f2' },
+      level: { x: 236, y: 130, size: 24, color: '#b9f547' }, rank: { x: 934, y: 68, size: 28, color: '#f4f7f2' },
+      progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33' }, xp: { x: 236, y: 269, size: 21, color: '#d8ded9' },
+    },
+    arcade: {
+      panelOpacity: 0, colors: { surface: '#17132d', accent: '#925cff', text: '#ffffff', muted: '#ddd4ff', track: '#46336e', progress: '#c8a8ff' },
+      avatar: { x: 410, y: 16, size: 180, color: '#925cff' }, username: { x: 438, y: 214, size: 36, color: '#ffffff' },
+      level: { x: 465, y: 282, size: 22, color: '#ffffff' }, rank: { x: 970, y: 28, size: 32, color: '#d7b9ff' },
+      progress: { x: 345, y: 247, width: 320, height: 25, color: '#c8a8ff', trackColor: '#46336e' }, xp: { x: 452, y: 249, size: 19, color: '#ffffff' },
+    },
+    split: {
+      panelOpacity: .58, colors: { surface: '#101d26', accent: '#57d6ff', text: '#f5fcff', muted: '#a9c7d3', track: '#263d49', progress: '#57d6ff' },
+      avatar: { x: 70, y: 58, size: 185, color: '#57d6ff' }, username: { x: 300, y: 68, size: 40, color: '#f5fcff' },
+      level: { x: 302, y: 130, size: 23, color: '#57d6ff' }, rank: { x: 920, y: 68, size: 32, color: '#f5fcff' },
+      progress: { x: 302, y: 210, width: 618, height: 30, color: '#57d6ff', trackColor: '#263d49' }, xp: { x: 302, y: 260, size: 20, color: '#d9f4ff' },
+    },
+    minimal: {
+      panelOpacity: .32, colors: { surface: '#101410', accent: '#ffffff', text: '#ffffff', muted: '#c7cec8', track: '#303632', progress: '#ffffff' },
+      avatar: { x: 72, y: 92, size: 112, color: '#ffffff' }, username: { x: 220, y: 74, size: 38, color: '#ffffff' },
+      level: { x: 222, y: 135, size: 20, color: '#ffffff' }, rank: { x: 928, y: 74, size: 28, color: '#ffffff' },
+      progress: { x: 222, y: 207, width: 706, height: 18, color: '#ffffff', trackColor: '#303632' }, xp: { x: 222, y: 252, size: 18, color: '#c7cec8' },
+    },
+    spotlight: {
+      panelOpacity: .68, colors: { surface: '#241711', accent: '#ffad63', text: '#fff8f1', muted: '#e5c8b1', track: '#503526', progress: '#ffad63' },
+      avatar: { x: 425, y: 34, size: 150, color: '#ffad63' }, username: { x: 395, y: 200, size: 36, color: '#fff8f1' },
+      level: { x: 444, y: 258, size: 20, color: '#ffcf9f' }, rank: { x: 930, y: 42, size: 28, color: '#fff8f1' },
+      progress: { x: 320, y: 238, width: 360, height: 20, color: '#ffad63', trackColor: '#503526' }, xp: { x: 425, y: 238, size: 17, color: '#fff8f1' },
+    },
+  });
 
   const state = {
     me: null,
@@ -59,6 +96,9 @@
     cardExactUrl: '',
     cardExactTimer: null,
     cardExactRequest: 0,
+    cardUndoStack: [],
+    cardRedoStack: [],
+    cardPendingHistory: '',
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -92,6 +132,8 @@
     cardInspector: $('#cardInspector'), cardInspectorTitle: $('#cardInspectorTitle'),
     cardBackgroundButton: $('#cardBackgroundButton'), cardImageButton: $('#cardImageButton'), cardTextButton: $('#cardTextButton'),
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
+    cardTemplateSelect: $('#cardTemplateSelect'), cardTemplateButton: $('#cardTemplateButton'),
+    cardUndoButton: $('#cardUndoButton'), cardRedoButton: $('#cardRedoButton'),
     profileSaveDock: $('#profileSaveDock'), cardSaveButton: $('#cardSaveButton'), cardResetButton: $('#cardResetButton'),
   };
 
@@ -1199,6 +1241,84 @@
     return state.profile ? JSON.stringify(state.profile.design) : '';
   }
 
+  function refreshCardHistoryButtons() {
+    elements.cardUndoButton.disabled = !state.cardUndoStack.length;
+    elements.cardRedoButton.disabled = !state.cardRedoStack.length;
+  }
+
+  function pushCardHistory(stack, snapshot) {
+    if (!snapshot || stack.at(-1) === snapshot) return;
+    stack.push(snapshot);
+    if (stack.length > CARD_HISTORY_LIMIT) stack.shift();
+  }
+
+  function commitCardHistory(before) {
+    if (!before || before === cardSnapshot()) return false;
+    pushCardHistory(state.cardUndoStack, before);
+    state.cardRedoStack = [];
+    refreshCardHistoryButtons();
+    return true;
+  }
+
+  function mutateCardDesign(change) {
+    if (!state.profile) return false;
+    const before = cardSnapshot();
+    change();
+    return commitCardHistory(before);
+  }
+
+  function beginCardInputHistory() {
+    if (!state.cardPendingHistory) state.cardPendingHistory = cardSnapshot();
+  }
+
+  function finishCardInputHistory() {
+    if (!state.cardPendingHistory) return;
+    const before = state.cardPendingHistory;
+    state.cardPendingHistory = '';
+    commitCardHistory(before);
+  }
+
+  function restoreCardHistory(snapshot) {
+    state.profile.design = JSON.parse(snapshot);
+    if (state.cardSelection !== 'background' && !cardSelectionObject()) state.cardSelection = 'background';
+    renderCardStudio();
+  }
+
+  function undoCardDesign() {
+    finishCardInputHistory();
+    const snapshot = state.cardUndoStack.pop();
+    if (!snapshot) return;
+    pushCardHistory(state.cardRedoStack, cardSnapshot());
+    restoreCardHistory(snapshot);
+  }
+
+  function redoCardDesign() {
+    finishCardInputHistory();
+    const snapshot = state.cardRedoStack.pop();
+    if (!snapshot) return;
+    pushCardHistory(state.cardUndoStack, cardSnapshot());
+    restoreCardHistory(snapshot);
+  }
+
+  function applyCardTemplate() {
+    const key = elements.cardTemplateSelect.value;
+    const template = CARD_TEMPLATES[key];
+    if (!template || !state.profile) return;
+    const templateFont = { classic: 'sans', arcade: 'condensed', split: 'rounded', minimal: 'sans', spotlight: 'serif' }[key];
+    mutateCardDesign(() => {
+      const design = state.profile.design;
+      design.panelOpacity = template.panelOpacity;
+      design.colors = { ...design.colors, ...clone(template.colors) };
+      for (const element of ['avatar', 'username', 'level', 'rank', 'progress', 'xp']) {
+        design[element] = { ...design[element], ...clone(template[element]), visible: true, rotation: 0 };
+      }
+      for (const element of ['username', 'level', 'rank', 'xp']) design[element].fontFamily = templateFont;
+    });
+    state.cardSelection = 'background';
+    renderCardStudio();
+    showToast(`Applied the ${elements.cardTemplateSelect.selectedOptions[0].textContent} template.`);
+  }
+
   function cardImage(url) {
     if (!url) return null;
     if (cardImages.has(url)) return cardImages.get(url).ready ? cardImages.get(url).image : null;
@@ -1418,10 +1538,21 @@
     return points.map(([handle, x, y]) => ({ handle, ...rotateCardPoint({ x, y }, center, bounds.rotation) }));
   }
 
+  function cardHandleMetrics(bounds) {
+    const shortest = Math.max(1, Math.min(bounds.width, bounds.height));
+    const size = Math.min(10, Math.max(4, shortest * .22));
+    return {
+      size,
+      hitRadius: Math.max(5, size),
+      rotateDistance: Math.min(28, Math.max(14, shortest * .45)),
+    };
+  }
+
   function cardRotateHandle(bounds) {
     if (!bounds?.resize) return null;
     const center = cardBoundsCenter(bounds);
-    return { handle: 'rotate', ...rotateCardPoint({ x: bounds.x + bounds.width / 2, y: bounds.y - 28 }, center, bounds.rotation) };
+    const { rotateDistance } = cardHandleMetrics(bounds);
+    return { handle: 'rotate', ...rotateCardPoint({ x: bounds.x + bounds.width / 2, y: bounds.y - rotateDistance }, center, bounds.rotation) };
   }
 
   function drawCardPreview() {
@@ -1516,12 +1647,13 @@
       context.strokeStyle = '#b9f547';
       context.lineWidth = 2;
       context.setLineDash([7, 5]);
+      const controls = cardHandleMetrics(bounds);
       withCardRotation(context, bounds, () => {
         context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
         if (bounds.resize) {
           context.beginPath();
           context.moveTo(bounds.x + bounds.width / 2, bounds.y - 3);
-          context.lineTo(bounds.x + bounds.width / 2, bounds.y - 28);
+          context.lineTo(bounds.x + bounds.width / 2, bounds.y - controls.rotateDistance);
           context.stroke();
         }
       });
@@ -1529,13 +1661,13 @@
       if (bounds.resize) {
         for (const handle of cardHandlePositions(bounds)) {
           context.fillStyle = '#b9f547';
-          context.fillRect(handle.x - 6, handle.y - 6, 12, 12);
+          context.fillRect(handle.x - controls.size / 2, handle.y - controls.size / 2, controls.size, controls.size);
           context.strokeStyle = '#0b0f0d';
-          context.strokeRect(handle.x - 6, handle.y - 6, 12, 12);
+          context.strokeRect(handle.x - controls.size / 2, handle.y - controls.size / 2, controls.size, controls.size);
         }
         const rotate = cardRotateHandle(bounds);
         context.beginPath();
-        context.arc(rotate.x, rotate.y, 7, 0, Math.PI * 2);
+        context.arc(rotate.x, rotate.y, Math.max(3, controls.size * .6), 0, Math.PI * 2);
         context.fillStyle = '#5ce1e6';
         context.fill();
         context.strokeStyle = '#0b0f0d';
@@ -1574,7 +1706,10 @@
   }
 
   function inspectorSelect(label, path, value) {
-    const options = [['sans', 'Sans serif'], ['serif', 'Serif'], ['mono', 'Monospace']]
+    const options = [
+      ['sans', 'Noto Sans'], ['serif', 'Noto Serif'], ['mono', 'Roboto Mono'],
+      ['rounded', 'Nunito Rounded'], ['condensed', 'Oswald Condensed'], ['handwriting', 'Caveat Handwriting'],
+    ]
       .map(([key, name]) => `<option value="${key}"${value === key ? ' selected' : ''}>${name}</option>`).join('');
     return `<label class="wide">${label}<select data-card-field="${path}">${options}</select></label>`;
   }
@@ -1717,6 +1852,7 @@
     elements.profileSaveDock.hidden = !dirty && !state.cardSaving;
     elements.cardSaveButton.disabled = !dirty || state.cardSaving;
     elements.cardResetButton.disabled = !dirty || state.cardSaving;
+    refreshCardHistoryButtons();
   }
 
   function renderCardStudio() {
@@ -1731,6 +1867,9 @@
       state.profile = await api('/api/profile/card');
       state.profileSavedSnapshot = cardSnapshot();
       state.cardSelection = 'background';
+      state.cardUndoStack = [];
+      state.cardRedoStack = [];
+      state.cardPendingHistory = '';
       renderCardStudio();
     } catch (error) {
       showToast(error.message, 'error');
@@ -1764,6 +1903,7 @@
     }
     try {
       const payload = await api('/api/profile/card/media', { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
+      const before = cardSnapshot();
       if (kind === 'background') {
         state.profile.design.background.imageUrl = payload.url;
         state.profile.design.background.x = 0;
@@ -1775,6 +1915,7 @@
         state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140, visible: true, rotation: 0 });
         state.cardSelection = `layer:${id}`;
       }
+      commitCardHistory(before);
       renderCardStudio();
       showToast('Artwork added. Save when you are ready.');
     } catch (error) {
@@ -1787,10 +1928,12 @@
   function addCardText() {
     if (!state.profile || state.profile.design.layers.length >= 20) return showToast('This card already has the maximum of 20 custom layers.', 'error');
     const id = `text-${Date.now().toString(36)}`;
-    state.profile.design.layers.push({
-      id, type: 'text', text: 'Your text', x: 420, y: 155, width: 130, height: 28, size: 28,
-      color: '#f4f7f2', weight: 'bold', bold: true, italic: false, underline: false,
-      fontFamily: 'sans', visible: true, rotation: 0,
+    mutateCardDesign(() => {
+      state.profile.design.layers.push({
+        id, type: 'text', text: 'Your text', x: 420, y: 155, width: 130, height: 28, size: 28,
+        color: '#f4f7f2', weight: 'bold', bold: true, italic: false, underline: false,
+        fontFamily: 'sans', visible: true, rotation: 0,
+      });
     });
     state.cardSelection = `layer:${id}`;
     renderCardStudio();
@@ -1815,14 +1958,15 @@
 
   function cardHandleAtPoint(point, bounds) {
     if (!bounds?.resize) return '';
+    const controls = cardHandleMetrics(bounds);
     const rotate = cardRotateHandle(bounds);
-    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= 14) return 'rotate';
-    return cardHandlePositions(bounds).find((handle) => Math.hypot(point.x - handle.x, point.y - handle.y) <= 12)?.handle || '';
+    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= controls.hitRadius) return 'rotate';
+    return cardHandlePositions(bounds).find((handle) => Math.hypot(point.x - handle.x, point.y - handle.y) <= controls.hitRadius)?.handle || '';
   }
 
   function cardAlignmentTargets(excludedSelection) {
-    const x = [0, 28, 500, 972, 1000];
-    const y = [0, 28, 160, 292, 320];
+    const x = [{ value: 0, kind: 'start' }, { value: 28, kind: 'start' }, { value: 500, kind: 'center' }, { value: 972, kind: 'end' }, { value: 1000, kind: 'end' }];
+    const y = [{ value: 0, kind: 'start' }, { value: 28, kind: 'start' }, { value: 160, kind: 'center' }, { value: 292, kind: 'end' }, { value: 320, kind: 'end' }];
     const selections = [
       ...state.profile.design.layers.map((layer) => `layer:${layer.id}`),
       'avatar', 'username', 'level', 'rank', 'progress', 'xp',
@@ -1831,8 +1975,8 @@
       if (selection === excludedSelection) continue;
       const bounds = cardVisualBounds(cardBounds(selection));
       if (!bounds) continue;
-      x.push(bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width);
-      y.push(bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height);
+      x.push({ value: bounds.x, kind: 'start' }, { value: bounds.x + bounds.width / 2, kind: 'center' }, { value: bounds.x + bounds.width, kind: 'end' });
+      y.push({ value: bounds.y, kind: 'start' }, { value: bounds.y + bounds.height / 2, kind: 'center' }, { value: bounds.y + bounds.height, kind: 'end' });
     }
     return { x, y };
   }
@@ -1841,7 +1985,7 @@
     const origin = axis === 'x' ? bounds.x : bounds.y;
     const size = axis === 'x' ? bounds.width : bounds.height;
     const latchKey = axis === 'x' ? 'snapX' : 'snapY';
-    const offsets = [0, size / 2, size];
+    const offsets = [{ value: 0, kind: 'start' }, { value: size / 2, kind: 'center' }, { value: size, kind: 'end' }];
     const latched = drag[latchKey];
     if (latched) {
       const difference = origin + latched.offset - latched.target;
@@ -1851,9 +1995,10 @@
     let best = null;
     for (const offset of offsets) {
       for (const target of targets) {
-        const difference = origin + offset - target;
+        if (offset.kind !== target.kind) continue;
+        const difference = origin + offset.value - target.value;
         if (Math.abs(difference) <= CARD_SNAP_DISTANCE && (!best || Math.abs(difference) < Math.abs(best.difference))) {
-          best = { difference, offset, target };
+          best = { difference, offset: offset.value, target: target.value };
         }
       }
     }
@@ -1934,6 +2079,7 @@
       id: event.pointerId, start: point, handle, target, original: clone(target), bounds,
       mode: handle === 'rotate' ? 'rotate' : handle ? 'resize' : state.cardSelection === 'background' ? 'background' : 'move',
       startAngle: Math.atan2(point.y - center.y, point.x - center.x),
+      historySnapshot: cardSnapshot(),
     };
     state.cardGuides = {};
     elements.cardCanvas.setPointerCapture(event.pointerId);
@@ -1975,8 +2121,10 @@
 
   function endCardPointer(event) {
     if (!state.cardPointer || state.cardPointer.id !== event.pointerId) return;
+    const historySnapshot = state.cardPointer.historySnapshot;
     state.cardPointer = null;
     state.cardGuides = {};
+    commitCardHistory(historySnapshot);
     renderCardInspector();
     scheduleCardDraw();
     refreshCardDirty();
@@ -2020,6 +2168,9 @@
   elements.cardBackgroundButton.addEventListener('click', () => elements.cardBackgroundFile.click());
   elements.cardImageButton.addEventListener('click', () => elements.cardImageFile.click());
   elements.cardTextButton.addEventListener('click', addCardText);
+  elements.cardTemplateButton.addEventListener('click', applyCardTemplate);
+  elements.cardUndoButton.addEventListener('click', undoCardDesign);
+  elements.cardRedoButton.addEventListener('click', redoCardDesign);
   elements.cardBackgroundFile.addEventListener('change', () => uploadCardMedia(elements.cardBackgroundFile, 'background'));
   elements.cardImageFile.addEventListener('change', () => uploadCardMedia(elements.cardImageFile, 'image'));
   elements.cardLayerList.addEventListener('click', (event) => {
@@ -2028,7 +2179,7 @@
       const selection = visibility.dataset.cardVisibility;
       const target = cardSelectionObject(selection);
       if (!target) return;
-      target.visible = target.visible === false;
+      mutateCardDesign(() => { target.visible = target.visible === false; });
       state.cardSelection = selection;
       renderCardStudio();
       return;
@@ -2041,6 +2192,7 @@
   elements.cardInspector.addEventListener('input', (event) => {
     const input = event.target.closest('[data-card-field]');
     if (!input || !state.profile) return;
+    beginCardInputHistory();
     setCardField(input.dataset.cardField, input.value);
     constrainCardSelection();
     const constrained = getCardField(input.dataset.cardField);
@@ -2049,12 +2201,23 @@
     scheduleCardDraw();
     refreshCardDirty();
   });
+  elements.cardInspector.addEventListener('focusin', (event) => {
+    if (event.target.closest('[data-card-field]')) beginCardInputHistory();
+  });
+  elements.cardInspector.addEventListener('change', (event) => {
+    if (event.target.closest('[data-card-field]')) finishCardInputHistory();
+  });
+  elements.cardInspector.addEventListener('focusout', (event) => {
+    if (event.target.closest('[data-card-field]')) finishCardInputHistory();
+  });
   elements.cardInspector.addEventListener('click', (event) => {
     const toggle = event.target.closest('[data-card-toggle]');
     if (toggle) {
       const path = toggle.dataset.cardToggle;
-      setCardField(path, !getCardField(path));
-      constrainCardSelection();
+      mutateCardDesign(() => {
+        setCardField(path, !getCardField(path));
+        constrainCardSelection();
+      });
       renderCardInspector();
       scheduleCardDraw();
       refreshCardDirty();
@@ -2063,7 +2226,9 @@
     if (!event.target.closest('[data-delete-card-layer]')) return;
     const layer = cardLayerBySelection();
     if (!layer) return;
-    state.profile.design.layers = state.profile.design.layers.filter((item) => item.id !== layer.id);
+    mutateCardDesign(() => {
+      state.profile.design.layers = state.profile.design.layers.filter((item) => item.id !== layer.id);
+    });
     state.cardSelection = 'background';
     renderCardStudio();
   });
@@ -2074,10 +2239,22 @@
   elements.cardSaveButton.addEventListener('click', saveProfileCard);
   elements.cardResetButton.addEventListener('click', () => {
     if (!state.profile || state.cardSaving || !state.profileSavedSnapshot) return;
-    state.profile.design = JSON.parse(state.profileSavedSnapshot);
+    mutateCardDesign(() => { state.profile.design = JSON.parse(state.profileSavedSnapshot); });
     state.cardSelection = 'background';
     renderCardStudio();
     showToast('Unsaved card changes reset.');
+  });
+  window.addEventListener('keydown', (event) => {
+    if (!state.profile || elements.profileShell.hidden || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) redoCardDesign();
+      else undoCardDesign();
+    } else if (key === 'y') {
+      event.preventDefault();
+      redoCardDesign();
+    }
   });
   elements.saveButton.addEventListener('click', saveConfig);
   elements.resetButton.addEventListener('click', resetUnsavedChanges);

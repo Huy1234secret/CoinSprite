@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
+require('./canvasFonts');
 const {
   MessageFlags,
   PermissionFlagsBits,
@@ -21,14 +22,19 @@ const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ACCENT = 0xb9f547;
 const PAGE_SIZE = 10;
+const LEADERBOARD_HEIGHT = 205 + PAGE_SIZE * 82 + 54;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
-const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+const CANVAS_UNICODE_FALLBACK = '"CoinSprite Unicode", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+const CANVAS_FONT_FAMILY = '"Noto Sans Variable", ' + CANVAS_UNICODE_FALLBACK;
 const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
   sans: CANVAS_FONT_FAMILY,
-  serif: '"Noto Serif", "DejaVu Serif", serif',
-  mono: '"Noto Sans Mono", "DejaVu Sans Mono", monospace',
+  serif: '"Noto Serif Variable", ' + CANVAS_UNICODE_FALLBACK,
+  mono: '"Roboto Mono Variable", ' + CANVAS_UNICODE_FALLBACK,
+  rounded: '"Nunito Variable", ' + CANVAS_UNICODE_FALLBACK,
+  condensed: '"Oswald Variable", ' + CANVAS_UNICODE_FALLBACK,
+  handwriting: '"Caveat Variable", ' + CANVAS_UNICODE_FALLBACK,
 });
 
 let cachedState = null;
@@ -423,14 +429,8 @@ async function leaderboardPage(interaction, page = 1) {
     };
   }));
   const ownerId = interaction.user.id;
-  const controls = maxPage > 1 ? [{
-    type: 1,
-    components: [
-      { type: 2, style: 2, label: 'Previous', custom_id: `leveling:leaderboard:${ownerId}:${currentPage - 1}`, disabled: currentPage <= 1 },
-      { type: 2, style: 2, label: `Page ${currentPage}/${maxPage}`, custom_id: `leveling:leaderboard:${ownerId}:${currentPage}`, disabled: true },
-      { type: 2, style: 2, label: 'Next', custom_id: `leveling:leaderboard:${ownerId}:${currentPage + 1}`, disabled: currentPage >= maxPage },
-    ],
-  }] : [];
+  const viewerIndex = entries.findIndex((entry) => entry.userId === String(ownerId));
+  const viewerRank = viewerIndex === -1 ? entries.length + 1 : viewerIndex + 1;
   const image = await renderLeaderboardCard({
     guildName: interaction.guild.name,
     rows,
@@ -438,7 +438,7 @@ async function leaderboardPage(interaction, page = 1) {
     maxPage,
     totalMembers: entries.length,
   });
-  return buildLeaderboardPayload(image, controls);
+  return buildLeaderboardPayload(image, { ownerId, currentPage, maxPage, viewerRank });
 }
 
 function dashboardBaseUrl() {
@@ -948,9 +948,8 @@ const PODIUM_COLORS = Object.freeze({
 
 async function renderLeaderboardCard(options = {}) {
   const rows = Array.isArray(options.rows) ? options.rows.slice(0, PAGE_SIZE) : [];
-  const rowCount = Math.max(1, rows.length);
   const width = 1000;
-  const height = 205 + rowCount * 82 + 54;
+  const height = LEADERBOARD_HEIGHT;
   const canvas = createCanvas(width, height);
   const context = canvas.getContext('2d');
   const avatars = await Promise.all(rows.map((row) => loadDiscordAvatar(row.user)));
@@ -1067,13 +1066,53 @@ async function renderLeaderboardCard(options = {}) {
   return canvas.toBuffer('image/png');
 }
 
-function buildLeaderboardPayload(image, controls = []) {
+function buildLeaderboardPayload(image, options = {}) {
+  const currentPage = Math.max(1, Math.floor(Number(options.currentPage) || 1));
+  const maxPage = Math.max(1, Math.floor(Number(options.maxPage) || 1));
+  const viewerRank = Math.max(1, Math.floor(Number(options.viewerRank) || 1));
+  const ownerId = String(options.ownerId || '0');
   return {
+    flags: COMPONENTS_V2_FLAG,
     content: null,
     allowedMentions: { parse: [], users: [], roles: [] },
     attachments: [],
     files: [{ attachment: image, name: 'leaderboard.png' }],
-    components: controls,
+    components: [{
+      type: 17,
+      accent_color: 0xffffff,
+      components: [
+        { type: 12, items: [{ media: { url: 'attachment://leaderboard.png' } }] },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: `- You are placed **#${number(viewerRank)}** in the leaderboard!` },
+        { type: 1, components: [{
+          type: 2,
+          style: 2,
+          label: `Page ${currentPage} / ${maxPage}`,
+          custom_id: `leveling:leaderboard-open:${ownerId}:${maxPage}`,
+        }] },
+      ],
+    }],
+  };
+}
+
+function leaderboardPageModal(ownerId, maxPage) {
+  const maximum = Math.max(1, Math.floor(Number(maxPage) || 1));
+  return {
+    custom_id: `leveling:leaderboard-submit:${ownerId}:${maximum}`,
+    title: 'Switch leaderboard page',
+    components: [{
+      type: 1,
+      components: [{
+        type: 4,
+        custom_id: 'page',
+        style: 1,
+        label: 'What page you wanna switch to?',
+        placeholder: `1 / ${maximum}`,
+        min_length: 1,
+        max_length: String(maximum).length,
+        required: true,
+      }],
+    }],
   };
 }
 
@@ -1533,10 +1572,25 @@ async function handleLevelingInteraction(interaction) {
     await command.execute(interaction);
     return true;
   }
-  if (interaction.isButton?.() && interaction.customId.startsWith('leveling:leaderboard:')) {
-    const [, , ownerId, page] = interaction.customId.split(':');
+  if (interaction.isButton?.() && interaction.customId.startsWith('leveling:leaderboard-open:')) {
+    const [, , ownerId, maxPage] = interaction.customId.split(':');
     if (ownerId !== interaction.user.id) {
       await interaction.reply(v2Payload('These leaderboard controls belong to another member.', { ephemeral: true }));
+      return true;
+    }
+    await interaction.showModal(leaderboardPageModal(ownerId, maxPage));
+    return true;
+  }
+  if (interaction.isModalSubmit?.() && interaction.customId.startsWith('leveling:leaderboard-submit:')) {
+    const [, , ownerId, maxPage] = interaction.customId.split(':');
+    if (ownerId !== interaction.user.id) {
+      await interaction.reply(v2Payload('This leaderboard page picker belongs to another member.', { ephemeral: true }));
+      return true;
+    }
+    const page = Number(interaction.fields.getTextInputValue('page'));
+    const maximum = Math.max(1, Math.floor(Number(maxPage) || 1));
+    if (!Number.isInteger(page) || page < 1 || page > maximum) {
+      await interaction.reply(v2Payload(`Enter a page from **1** to **${maximum}**.`, { ephemeral: true }));
       return true;
     }
     await interaction.deferUpdate();
@@ -1561,6 +1615,7 @@ module.exports = {
   applyXpToRecord,
   bestMemberStats,
   buildLeaderboardPayload,
+  leaderboardPageModal,
   buildLevelCardPayload,
   buildLevelPayload,
   canvasDisplayName,

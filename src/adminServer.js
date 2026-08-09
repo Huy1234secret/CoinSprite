@@ -55,6 +55,14 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
 ]);
+const ADMIN_FONT_PACKAGES = Object.freeze({
+  'noto-sans': '@fontsource-variable/noto-sans',
+  'noto-serif': '@fontsource-variable/noto-serif',
+  'roboto-mono': '@fontsource-variable/roboto-mono',
+  nunito: '@fontsource-variable/nunito',
+  oswald: '@fontsource-variable/oswald',
+  caveat: '@fontsource-variable/caveat',
+});
 
 const sessions = new Map();
 const directoryCache = new Map();
@@ -364,6 +372,28 @@ function serveAsset(res, pathname) {
   });
 }
 
+function serveAdminFont(res, pathname) {
+  const cssMatch = pathname.match(/^\/admin\/fonts\/([a-z-]+)\.css$/);
+  const fileMatch = pathname.match(/^\/admin\/fonts\/files\/([a-z0-9-]+\.woff2)$/);
+  const key = cssMatch?.[1] || Object.keys(ADMIN_FONT_PACKAGES).find((name) => fileMatch?.[1].startsWith(`${name}-`));
+  const packageName = ADMIN_FONT_PACKAGES[key];
+  if (!packageName) return send(res, 404, 'Not found');
+  let packageDirectory;
+  try {
+    packageDirectory = path.dirname(require.resolve(`${packageName}/package.json`));
+  } catch {
+    return send(res, 404, 'Not found');
+  }
+  const filename = cssMatch ? 'index.css' : path.join('files', fileMatch[1]);
+  fs.readFile(path.join(packageDirectory, filename), (error, data) => {
+    if (error) return send(res, 404, 'Not found');
+    return send(res, 200, data, {
+      'Content-Type': cssMatch ? 'text/css; charset=utf-8' : 'font/woff2',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
+  });
+}
+
 function redirectBotAvatar(res, client) {
   const url = client.user?.displayAvatarURL?.({ extension: 'png', size: 128 });
   if (!url) return send(res, 404, 'Bot avatar unavailable');
@@ -574,6 +604,7 @@ async function routeRequest(req, res, env, client) {
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname);
+  if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
