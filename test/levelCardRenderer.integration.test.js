@@ -156,6 +156,7 @@ test('missing required Fontsource package fails a separate renderer process clea
   assert.match(result.stderr, /Level card font registration failed/);
   assert.match(result.stderr, /family="Noto Sans Variable" package="@fontsource-variable\/noto-sans" file="package.json"/);
   assert.match(result.stderr, /simulated missing required Fontsource package/);
+  assert.match(result.stderr, /Required font dependency is not installed; run "npm ci" in this deployment before starting CoinSprite/);
 });
 
 test('font manifest, lockfile, and deployment scripts require identical bundled dependencies', () => {
