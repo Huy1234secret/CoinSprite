@@ -247,14 +247,14 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   const design = normalizeLevelCardDesign({
     background: { color: '#FF00AA', imageUrl: `/level-card-media/${userId}/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png`, scale: 99 },
     panelOpacity: -4,
-    avatar: { x: 999, y: 999, size: 240 },
-    username: { x: 999, y: 999, size: 80 },
-    level: { x: 999, y: 999, size: 60 },
+    avatar: { x: 999, y: 999, size: 240, visible: false, rotation: 33 },
+    username: { x: 999, y: 999, size: 80, fontFamily: 'serif', bold: false, italic: true, underline: true, rotation: 361 },
+    level: { x: 999, y: 999, size: 60, visible: false },
     rank: { x: -999, y: 999, size: 60 },
     xp: { x: 999, y: 999, size: 50 },
     progress: { x: 999, y: 999, width: 5000, height: 70, color: '#00FF00', trackColor: 'red' },
     layers: [
-      { id: 'welcome', type: 'text', text: 'Hello\nworld', x: 42, y: 50, size: 28, color: '#abcdef' },
+      { id: 'welcome', type: 'text', text: 'Hello\nworld', x: 42, y: 50, size: 28, color: '#abcdef', fontFamily: 'mono', bold: false, italic: true, underline: true, rotation: -450 },
       { id: 'safe-icon', type: 'image', imageUrl: `/level-card-media/${userId}/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.webp`, x: 999, y: 999, width: 800, height: 300 },
       { id: 'other-user', type: 'image', imageUrl: '/level-card-media/999999999999999999/cccccccccccccccccccccccccccccccc.png' },
       { id: 'external', type: 'image', imageUrl: 'https://example.com/tracker.png' },
@@ -268,7 +268,13 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   assert.equal(design.progress.y, 250);
   assert.equal(design.avatar.x, 760);
   assert.equal(design.avatar.y, 80);
+  assert.equal(design.avatar.visible, false);
+  assert.equal(design.avatar.rotation, 33);
   assert.deepEqual({ x: design.username.x, y: design.username.y }, { x: 610, y: 240 });
+  assert.deepEqual({ fontFamily: design.username.fontFamily, bold: design.username.bold, italic: design.username.italic, underline: design.username.underline, rotation: design.username.rotation }, {
+    fontFamily: 'serif', bold: false, italic: true, underline: true, rotation: 1,
+  });
+  assert.equal(design.level.visible, false);
   assert.deepEqual({ x: design.level.x, y: design.level.y }, { x: 790, y: 260 });
   assert.deepEqual({ x: design.rank.x, y: design.rank.y }, { x: 120, y: 260 });
   assert.deepEqual({ x: design.xp.x, y: design.xp.y }, { x: 670, y: 270 });
@@ -276,6 +282,9 @@ test('level card design keeps editable layers safe and scoped to the signed-in u
   assert.equal(design.progress.trackColor, '#303a33');
   assert.deepEqual(design.layers.map((layer) => layer.id), ['welcome', 'safe-icon']);
   assert.equal(design.layers[0].text, 'Hello world');
+  assert.deepEqual({ fontFamily: design.layers[0].fontFamily, bold: design.layers[0].bold, italic: design.layers[0].italic, underline: design.layers[0].underline, rotation: design.layers[0].rotation }, {
+    fontFamily: 'mono', bold: false, italic: true, underline: true, rotation: -90,
+  });
   assert.equal(design.layers[1].x, 200);
   assert.equal(design.layers[1].y, 20);
 });
@@ -305,6 +314,38 @@ test('level card background retries after a missing upload and uses saved panel 
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('level card renderer keeps editor text sizing exact and honors visibility, typography, and rotation', async () => {
+  const user = { id: '123456789012345688', username: 'ExactPreview' };
+  const stats = { level: 7, rank: 4, progressXp: 41, neededXp: 281, progressRatio: 41 / 281, xp: 900 };
+  const design = {
+    panelOpacity: 0,
+    avatar: { visible: false }, username: { visible: false }, level: { visible: false },
+    rank: { visible: false }, xp: { visible: false }, progress: { visible: false },
+    layers: [{
+      id: 'exact-text', type: 'text', text: 'Exact text', x: 100, y: 110, width: 12, height: 12,
+      size: 42, color: '#ffffff', fontFamily: 'sans', bold: true, italic: false, underline: false, rotation: 0,
+    }],
+  };
+  const narrowSavedBox = await renderLevelCard(user, stats, design);
+  const wideSavedBox = await renderLevelCard(user, stats, {
+    ...design,
+    layers: [{ ...design.layers[0], width: 600, height: 200 }],
+  });
+  assert.deepEqual(narrowSavedBox, wideSavedBox);
+
+  const styled = await renderLevelCard(user, stats, {
+    ...design,
+    layers: [{ ...design.layers[0], fontFamily: 'mono', italic: true, underline: true, rotation: 30 }],
+  });
+  assert.notDeepEqual(styled, narrowSavedBox);
+
+  const hidden = await renderLevelCard(user, stats, {
+    ...design,
+    layers: [{ ...design.layers[0], visible: false }],
+  });
+  assert.notDeepEqual(hidden, narrowSavedBox);
 });
 
 test('level card media loads locally without a remote request', async () => {

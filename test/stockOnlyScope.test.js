@@ -206,6 +206,17 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /moveCardPointer/);
   assert.match(source, /uploadCardMedia/);
   assert.match(source, /constrainCardSelection/);
+  assert.match(source, /CARD_SNAP_DISTANCE/);
+  assert.match(source, /CARD_SNAP_RELEASE/);
+  assert.match(source, /cardVisualBounds/);
+  assert.match(source, /\['nw'.*'n'.*'ne'/s);
+  assert.match(source, /cardRotateHandle/);
+  assert.match(source, /data-card-visibility/);
+  assert.match(source, /data-card-toggle/);
+  assert.match(source, /fontFamily/);
+  assert.match(source, /underline/);
+  assert.match(source, /rotation/);
+  assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
   assert.match(source, /cardExactSnapshot/);
   assert.match(source, /panelOpacity/);
