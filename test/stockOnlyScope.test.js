@@ -229,10 +229,10 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /\.then\(\(\) => scheduleCardDraw\(\)\)/);
   assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
   assert.doesNotMatch(source, /previewNameWidth/);
-  assert.doesNotMatch(source, /\/api\/profile\/card\/preview/);
-  assert.doesNotMatch(source, /cardExactSnapshot|scheduleExactCardPreview|Exact Discord render|Server preview error/);
-  assert.match(html, /Website preview/);
-  assert.match(html, /Discord uses this saved card design/);
+  assert.match(source, /\/api\/profile\/card\/preview/);
+  assert.match(source, /responseHash !== expectedHash/);
+  assert.match(html, /Draft preview/);
+  assert.match(html, /Exact Discord render/);
   assert.match(source, /panelOpacity/);
   assert.match(source, /1000 - target\.width/);
   assert.match(source, /320 - target\.height/);
@@ -242,7 +242,9 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(server, /internalCardMatch/);
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
-  assert.match(server, /renderSavedLevelCard/);
+  assert.match(server, /getLevelCardProfile/);
+  assert.match(server, /X-CoinSprite-Design-Hash/);
+  assert.match(server, /X-CoinSprite-Build-Version/);
   assert.match(server, /X-CoinSprite-Renderer-Version/);
   assert.match(server, /X-CoinSprite-Font-Manifest/);
   assert.match(server, /level-card-media/);

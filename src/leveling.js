@@ -19,7 +19,7 @@ const {
   isGuildLevelingEnabled,
 } = require('./serverConfig');
 
-const DATA_PATH = path.join(__dirname, '..', 'data', 'leveling.json');
+const DATA_PATH = process.env.LEVELING_DATA_PATH || path.join(__dirname, '..', 'data', 'leveling.json');
 const LEVEL_CARD_MEDIA_DIR = path.join(__dirname, '..', 'data', 'level-card-media');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
@@ -197,6 +197,11 @@ function normalizeLevelCardDesign(value, userId) {
   return design;
 }
 
+function levelCardDesignHash(value, userId) {
+  const design = normalizeLevelCardDesign(value, userId);
+  return crypto.createHash('sha256').update(JSON.stringify(design)).digest('hex');
+}
+
 function normalizeRecord(value = {}) {
   return {
     xp: Math.max(0, Math.floor(Number(value.xp) || 0)),
@@ -221,9 +226,11 @@ function normalizeState(value) {
   }
   for (const [userId, profile] of Object.entries(value.profiles || {})) {
     if (!/^\d{16,20}$/.test(userId)) continue;
+    const design = normalizeLevelCardDesign(profile?.design, userId);
     state.profiles[userId] = {
-      design: normalizeLevelCardDesign(profile?.design, userId),
+      design,
       updatedAt: Math.max(0, Number(profile?.updatedAt) || 0),
+      designHash: levelCardDesignHash(design, userId),
     };
   }
   return state;
@@ -469,7 +476,7 @@ function dashboardBaseUrl() {
   }
 }
 
-function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET) {
+function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET) {
   const value = String(secret || '');
   return value ? crypto.createHmac('sha256', value).update('coinsprite-level-card-render-v1').digest('hex') : '';
 }
@@ -499,8 +506,11 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
   const log = diagnosticLogger(options);
   const identity = levelCardRendererIdentity();
   if (!origin && !key) {
-    log(`Authoritative level card renderer is not configured; using local renderer version=${identity.version} font-manifest=${identity.fontManifestHash}.`);
-    return renderSavedLevelCard(user, stats);
+    const profile = getLevelCardProfile(user?.id);
+    const username = profile.design.username;
+    log(`Level card render diagnostics: source=local renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${profile.designHash} saved-at=${profile.updatedAt} username-x=${username.x} username-y=${username.y} username-size=${username.size} username-font=${username.fontFamily} username-bold=${username.bold} username-italic=${username.italic}.`);
+    options.onMetadata?.({ ...profile, source: 'local', rendererVersion: identity.version, buildVersion: identity.buildVersion, fontManifestHash: identity.fontManifestHash });
+    return renderLevelCard(user, stats, profile.design);
   }
   if (!origin || !key) {
     const reason = !origin ? 'origin-not-configured' : 'render-key-not-configured';
@@ -520,6 +530,7 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
         'Content-Type': 'application/json',
         'X-CoinSprite-Render-Key': key,
         'X-CoinSprite-Renderer-Version': identity.version,
+        'X-CoinSprite-Build-Version': identity.buildVersion,
         'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
       },
       body: JSON.stringify({
@@ -534,18 +545,28 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
       signal: controller.signal,
     });
     const responseVersion = String(response.headers?.get?.('x-coinsprite-renderer-version') || 'missing');
+    const responseBuild = String(response.headers?.get?.('x-coinsprite-build-version') || 'missing');
     const responseManifest = String(response.headers?.get?.('x-coinsprite-font-manifest') || 'missing');
+    const designHash = String(response.headers?.get?.('x-coinsprite-design-hash') || 'missing');
+    const savedAt = String(response.headers?.get?.('x-coinsprite-saved-at') || 'missing');
+    const source = String(response.headers?.get?.('x-coinsprite-render-source') || 'missing');
     const contentType = String(response.headers?.get?.('content-type') || 'unknown');
     const image = response.ok ? Buffer.from(await response.arrayBuffer()) : null;
     const bytes = image?.length ?? String(response.headers?.get?.('content-length') || 'not-read');
-    log(`Authoritative level card response: user=${user.id} status=${response.status || 'error'} renderer=${responseVersion} font-manifest=${responseManifest} content-type=${contentType} bytes=${bytes}.`);
+    log(`Authoritative level card response: user=${user.id} status=${response.status || 'error'} source=${source} renderer=${responseVersion} build=${responseBuild} font-manifest=${responseManifest} design=${designHash} saved-at=${savedAt} content-type=${contentType} bytes=${bytes}.`);
 
     if (!response.ok) throw new AuthoritativeLevelCardError(`Authoritative level card renderer returned HTTP ${response.status || 'error'}.`, `http-${response.status || 'error'}`);
     if (responseVersion !== identity.version) {
       throw new AuthoritativeLevelCardError(`Authoritative level card renderer version mismatch: bot=${identity.version} panel=${responseVersion}.`, 'renderer-version-mismatch');
     }
+    if (responseBuild !== identity.buildVersion) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card build mismatch: bot=${identity.buildVersion} panel=${responseBuild}.`, 'build-version-mismatch');
+    }
     if (responseManifest !== identity.fontManifestHash) {
       throw new AuthoritativeLevelCardError(`Authoritative level card font manifest mismatch: bot=${identity.fontManifestHash} panel=${responseManifest}.`, 'font-manifest-mismatch');
+    }
+    if (!/^[a-f0-9]{64}$/.test(designHash) || !/^\d+$/.test(savedAt) || source !== 'authoritative') {
+      throw new AuthoritativeLevelCardError('Authoritative level card renderer returned incomplete saved-design metadata.', 'invalid-render-metadata');
     }
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     if (!contentType.toLowerCase().startsWith('image/png')
@@ -553,7 +574,12 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
       || !image.subarray(0, png.length).equals(png)) {
       throw new AuthoritativeLevelCardError('Authoritative level card renderer returned an invalid PNG.', 'invalid-png');
     }
-    log(`Authoritative level card used: user=${user.id} renderer=${responseVersion} font-manifest=${responseManifest} bytes=${image.length}.`);
+    const metadata = {
+      source, rendererVersion: responseVersion, buildVersion: responseBuild,
+      fontManifestHash: responseManifest, designHash, updatedAt: Number(savedAt),
+    };
+    options.onMetadata?.(metadata);
+    log(`Authoritative level card used: user=${user.id} source=${source} renderer=${responseVersion} build=${responseBuild} font-manifest=${responseManifest} design=${designHash} saved-at=${savedAt} bytes=${image.length}.`);
     return image;
   } catch (error) {
     const failure = error instanceof AuthoritativeLevelCardError
@@ -694,15 +720,31 @@ function bestMemberStats(userId) {
 }
 
 function getLevelCardDesign(userId) {
-  const profile = getState().profiles[String(userId)];
-  return normalizeLevelCardDesign(profile?.design, userId);
+  return getLevelCardProfile(userId).design;
+}
+
+function getLevelCardProfile(userId) {
+  const id = String(userId);
+  const saved = getState().profiles[id];
+  const design = normalizeLevelCardDesign(saved?.design, id);
+  return {
+    design,
+    updatedAt: Math.max(0, Number(saved?.updatedAt) || 0),
+    designHash: levelCardDesignHash(design, id),
+  };
 }
 
 function saveLevelCardDesign(userId, value) {
   const id = String(userId);
   if (!/^\d{16,20}$/.test(id)) throw new Error('A valid Discord user is required.');
   const design = normalizeLevelCardDesign(value, id);
-  getState().profiles[id] = { design, updatedAt: Date.now() };
+  const previousUpdatedAt = Math.max(0, Number(getState().profiles[id]?.updatedAt) || 0);
+  const profile = {
+    design,
+    updatedAt: Math.max(Date.now(), previousUpdatedAt + 1),
+    designHash: levelCardDesignHash(design, id),
+  };
+  getState().profiles[id] = profile;
   flushLevelingState();
 
   try {
@@ -732,7 +774,7 @@ function saveLevelCardDesign(userId, value) {
     console.error('Failed to cleanup level card media:', error);
   }
 
-  return design;
+  return cloneJson(profile);
 }
 
 function roundedRect(context, x, y, width, height, radius) {
@@ -1654,6 +1696,7 @@ module.exports = {
   canvasDisplayName,
   flushLevelingState,
   getLevelCardDesign,
+  getLevelCardProfile,
   handleLevelingInteraction,
   handleLevelingMessage,
   leaderboardPage,
@@ -1667,6 +1710,7 @@ module.exports = {
   resetLevelingCache,
   renderLeaderboardCard,
   levelCardRenderOrigin,
+  levelCardDesignHash,
   loadLocalCardImage,
   renderLevelCard,
   renderSavedLevelCard,

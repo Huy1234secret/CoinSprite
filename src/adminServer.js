@@ -31,14 +31,13 @@ const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
-  getLevelCardDesign,
+  getLevelCardProfile,
   levelCardRenderKey,
   renderLevelCard,
-  renderSavedLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
 
-const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
+const SESSION_STORE_PATH = process.env.ADMIN_SESSION_STORE_PATH || path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const COOKIE_NAME = 'coinsprite_admin';
@@ -67,7 +66,7 @@ function getEnv() {
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
     redirectUri: process.env.DISCORD_REDIRECT_URI,
     sessionSecret: process.env.SESSION_SECRET || process.env.DISCORD_CLIENT_SECRET,
-    renderSecret: process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET,
+    renderSecret: process.env.LEVEL_CARD_RENDER_SECRET,
     host: process.env.ADMIN_WEB_HOST || '127.0.0.1',
     port: Number(process.env.ADMIN_WEB_PORT) || 3000,
     cookieSecure: /^(1|true|yes)$/i.test(String(process.env.ADMIN_COOKIE_SECURE || '')),
@@ -98,12 +97,25 @@ function sendJson(res, status, payload, headers = {}) {
   });
 }
 
-function levelCardRendererHeaders() {
+function levelCardRendererHeaders(profile, source = 'authoritative') {
   const identity = levelCardRendererIdentity();
-  return {
+  const headers = {
     'X-CoinSprite-Renderer-Version': identity.version,
+    'X-CoinSprite-Build-Version': identity.buildVersion,
     'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
   };
+  if (profile) {
+    headers['X-CoinSprite-Design-Hash'] = profile.designHash;
+    headers['X-CoinSprite-Saved-At'] = String(profile.updatedAt);
+    headers['X-CoinSprite-Render-Source'] = source;
+  }
+  return headers;
+}
+
+function logLevelCardDiagnostics(profile, source) {
+  const identity = levelCardRendererIdentity();
+  const username = profile.design.username;
+  logCommandSystem(`Level card render diagnostics: source=${source} renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${profile.designHash} saved-at=${profile.updatedAt} username-x=${username.x} username-y=${username.y} username-size=${username.size} username-font=${username.fontFamily} username-bold=${username.bold} username-italic=${username.italic}.`);
 }
 
 function redirect(res, location) {
@@ -672,23 +684,28 @@ async function routeRequest(req, res, env, client) {
     if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
     const identity = levelCardRendererIdentity();
     const requestedVersion = String(req.headers['x-coinsprite-renderer-version'] || '');
+    const requestedBuild = String(req.headers['x-coinsprite-build-version'] || '');
     const requestedManifest = String(req.headers['x-coinsprite-font-manifest'] || '');
-    if ((requestedVersion && requestedVersion !== identity.version)
-      || (requestedManifest && requestedManifest !== identity.fontManifestHash)) {
-      logCommandSystem(`Authoritative level card identity mismatch: bot-renderer=${requestedVersion || 'missing'} panel-renderer=${identity.version} bot-font-manifest=${requestedManifest || 'missing'} panel-font-manifest=${identity.fontManifestHash}.`);
+    if (requestedVersion !== identity.version
+      || requestedBuild !== identity.buildVersion
+      || requestedManifest !== identity.fontManifestHash) {
+      logCommandSystem(`Authoritative level card identity mismatch: bot-renderer=${requestedVersion || 'missing'} panel-renderer=${identity.version} bot-build=${requestedBuild || 'missing'} panel-build=${identity.buildVersion} bot-font-manifest=${requestedManifest || 'missing'} panel-font-manifest=${identity.fontManifestHash}.`);
       return sendJson(res, 409, { error: 'Level card renderer deployment versions do not match.' }, levelCardRendererHeaders());
     }
     const body = await readJsonBody(req);
     const userId = internalCardMatch[1];
-    const image = await renderSavedLevelCard(
+    const profile = getLevelCardProfile(userId);
+    const image = await renderLevelCard(
       internalCardIdentity(userId, body?.user),
       internalCardStats(body?.stats),
+      profile.design,
     );
+    logLevelCardDiagnostics(profile, 'authoritative');
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card.png"',
-      ...levelCardRendererHeaders(),
+      ...levelCardRendererHeaders(profile),
     });
   }
 
@@ -696,7 +713,7 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session) return;
     return sendJson(res, 200, {
-      design: getLevelCardDesign(session.user.id),
+      ...getLevelCardProfile(session.user.id),
       preview: profilePreview(session, client),
     });
   }
@@ -705,16 +722,20 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req);
+    const profile = getLevelCardProfile(session.user.id);
+    const expectedHash = String(body?.designHash || '');
+    if (expectedHash && expectedHash !== profile.designHash) {
+      return sendJson(res, 409, { error: 'Saved level card changed before this preview rendered.', designHash: profile.designHash }, levelCardRendererHeaders(profile));
+    }
     const user = profileRenderIdentity(session);
     const stats = bestMemberStats(session.user.id);
-    const image = body?.draft === true
-      ? await renderLevelCard(user, stats, body.design)
-      : await renderSavedLevelCard(user, stats);
+    const image = await renderLevelCard(user, stats, profile.design);
+    logLevelCardDiagnostics(profile, 'authoritative');
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card-preview.png"',
-      ...levelCardRendererHeaders(),
+      ...levelCardRendererHeaders(profile),
     });
   }
 
@@ -722,7 +743,7 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req);
-    return sendJson(res, 200, { design: saveLevelCardDesign(session.user.id, body?.design) });
+    return sendJson(res, 200, saveLevelCardDesign(session.user.id, body?.design));
   }
 
   if (req.method === 'POST' && pathname === '/api/profile/card/media') {
@@ -821,6 +842,7 @@ async function routeRequest(req, res, env, client) {
 }
 
 function createAdminRequestHandler(env, client) {
+  loadSessions();
   return (req, res) => {
     routeRequest(req, res, env, client).catch((error) => {
       const status = error?.statusCode || 500;

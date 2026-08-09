@@ -22,6 +22,9 @@ Tickets, moderation, giveaways, games, invite rewards, and other general-purpose
    ADMIN_WEB_HOST=127.0.0.1
    ADMIN_WEB_PORT=3000
    ADMIN_COOKIE_SECURE=false
+   PUBLIC_WEB_BASE_URL=http://127.0.0.1:3000
+   LEVEL_CARD_RENDER_SECRET=use_the_same_dedicated_secret_for_bot_and_panel
+   COINSPRITE_BUILD_VERSION=the_deployed_git_commit_sha
    OWNER_USER_IDS=your_discord_user_id
    ```
 
@@ -31,6 +34,16 @@ Tickets, moderation, giveaways, games, invite rewards, and other general-purpose
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
 Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. The `npm run deploy:bot` and `npm run deploy:panel` entrypoints enforce that clean lockfile install before startup so both runtimes receive the identical canvas and Fontsource packages.
+
+For pixel-identical level cards, deploy the bot and panel from the same commit and `package-lock.json`, run `npm ci` in both deployments, and set identical `LEVEL_CARD_RENDER_SECRET` and `COINSPRITE_BUILD_VERSION` values. Point the bot's `PUBLIC_WEB_BASE_URL` at the panel. The renderer rejects a panel whose build, renderer, or installed-font manifest differs from the bot instead of falling back to a stale local card.
+
+Production verification:
+
+1. Confirm bot and panel startup diagnostics report the same `build`, renderer `version`, and `font-manifest` values.
+2. Save a card with distinctive username font settings and wait for **Exact Discord render** to load in the profile editor.
+3. Run `/level` and confirm diagnostics report `source=authoritative` with the same `design` hash and `saved-at` value as the panel render.
+4. Download both PNGs and compare their SHA-256 hashes and decoded pixels; both must match with zero differing pixels.
+5. Temporarily make the panel renderer unavailable and verify `/level` returns the temporary render error without an attachment.
 
 ## Configuration
 

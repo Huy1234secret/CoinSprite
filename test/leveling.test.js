@@ -549,6 +549,7 @@ test('level card renderer supports Unicode names and sends a direct attachment w
 
 test('/level uses the dashboard renderer that owns saved card media', async () => {
   const identity = levelCardRendererIdentity();
+  const designHash = 'a'.repeat(64);
   const expected = Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     Buffer.from('authoritative-card'),
@@ -573,7 +574,11 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
         headers: { get: (name) => ({
           'content-type': 'image/png',
           'x-coinsprite-renderer-version': identity.version,
+          'x-coinsprite-build-version': identity.buildVersion,
           'x-coinsprite-font-manifest': identity.fontManifestHash,
+          'x-coinsprite-design-hash': designHash,
+          'x-coinsprite-saved-at': '1720000000000',
+          'x-coinsprite-render-source': 'authoritative',
         })[name.toLowerCase()] || null },
         arrayBuffer: async () => expected,
       };
@@ -584,9 +589,10 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
   assert.equal(request.url, 'https://panel.coin-sprite.com/api/internal/level-card/123456789012345678');
   assert.equal(request.options.headers['X-CoinSprite-Render-Key'], 'signed-render-key');
   assert.equal(request.options.headers['X-CoinSprite-Renderer-Version'], identity.version);
+  assert.equal(request.options.headers['X-CoinSprite-Build-Version'], identity.buildVersion);
   assert.equal(request.options.headers['X-CoinSprite-Font-Manifest'], identity.fontManifestHash);
   assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
-  assert.ok(logs.some((message) => message.includes(`status=200 renderer=${identity.version} font-manifest=${identity.fontManifestHash}`)));
+  assert.ok(logs.some((message) => message.includes(`status=200 source=authoritative renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${designHash}`)));
   assert.ok(logs.some((message) => message.includes('Authoritative level card used')));
   assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
   assert.equal(levelCardRenderOrigin({ DISCORD_REDIRECT_URI: 'https://panel.coin-sprite.com/auth/discord/callback' }), 'https://panel.coin-sprite.com');
@@ -608,7 +614,7 @@ test('/level reports an authoritative renderer failure without falling back or l
     }),
     log: (message) => logs.push(message),
   }), (error) => error.code === 'LEVEL_CARD_AUTHORITATIVE_UNAVAILABLE' && error.reason === 'http-503');
-  assert.ok(logs.some((message) => message.includes('status=503 renderer=missing font-manifest=missing content-type=text/plain')));
+  assert.ok(logs.some((message) => message.includes('status=503 source=missing renderer=missing build=missing font-manifest=missing design=missing saved-at=missing content-type=text/plain')));
   assert.ok(logs.some((message) => message.includes('reason=http-503')));
   assert.doesNotMatch(logs.join('\n'), /must-not-appear-in-logs/);
 });

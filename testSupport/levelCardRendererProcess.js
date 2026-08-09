@@ -21,7 +21,11 @@ if (mode === 'missing-font') {
   let handler;
   if (mode === 'authoritative') {
     const { createAdminRequestHandler } = require('../src/adminServer');
-    handler = createAdminRequestHandler({ renderSecret: process.env.LEVEL_CARD_TEST_SECRET }, { user: null });
+    handler = createAdminRequestHandler({
+      renderSecret: process.env.LEVEL_CARD_TEST_SECRET,
+      sessionSecret: process.env.LEVEL_CARD_TEST_SESSION_SECRET || 'fixture-session-secret',
+      cookieSecure: false,
+    }, { guilds: { cache: new Map() }, user: null });
   } else {
     handler = (req, res) => {
       const rendererVersion = mode === 'version-mismatch' ? `${identity.version}-different` : identity.version;
@@ -33,6 +37,7 @@ if (mode === 'missing-font') {
         'Content-Type': status === 200 ? 'image/png' : 'text/plain',
         'Content-Length': body.length,
         'X-CoinSprite-Renderer-Version': rendererVersion,
+        'X-CoinSprite-Build-Version': identity.buildVersion,
         'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
       });
       res.end(body);
