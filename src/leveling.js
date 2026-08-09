@@ -1229,15 +1229,13 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   const design = normalizeLevelCardDesign(inputDesign, userId);
   const canvas = createCanvas(1000, 320);
   const context = canvas.getContext('2d');
-  context.fillStyle = design.background.color;
-  roundedRect(context, 0, 0, 1000, 320, 30);
-  context.fill();
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
+  context.fillStyle = design.background.color;
+  context.fillRect(0, 0, 1000, 320);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
-  context.restore();
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
@@ -1258,10 +1256,6 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
       else {
         context.fillStyle = design.colors.track;
         context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-        context.fillStyle = design.colors.text;
-        context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
-        context.textAlign = 'center';
-        context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
       }
       context.restore();
     });
@@ -1270,18 +1264,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   const displayName = canvasDisplayName(user?.displayName || user?.globalName || user?.username);
   if (design.username.visible) {
     const bounds = canvasTextBounds(context, displayName, design.username);
-    await drawRotatedCardElement(context, bounds, design.username.rotation, async () => {
-      context.textBaseline = 'top';
-      context.textAlign = 'left';
-      context.fillStyle = design.username.color;
-      await drawCanvasDisplayName(context, displayName, design.username.x, design.username.y, {
-        ...design.username,
-        minimum: design.username.size,
-        maximumWidth: 2000,
-        weight: design.username.bold ? 'bold' : 'normal',
-      });
-      drawCardUnderline(context, displayName, design.username);
-    });
+    await drawRotatedCardElement(context, bounds, design.username.rotation, () => drawCardText(context, displayName, design.username));
   }
   const levelLabel = `LEVEL ${number(stats.level)}`;
   if (design.level.visible) {
@@ -1327,6 +1310,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
       await drawRotatedCardElement(context, bounds, layer.rotation, () => drawCardText(context, layer.text, layer));
     }
   }
+  context.restore();
   return canvas.toBuffer('image/png');
 }
 

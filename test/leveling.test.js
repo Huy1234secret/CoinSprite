@@ -351,6 +351,41 @@ test('level card renderer keeps editor text sizing exact and honors visibility, 
   assert.notDeepEqual(hidden, narrowSavedBox);
 });
 
+test('Discord level card renderer follows the website canvas clipping', async () => {
+  const userId = '123456789012345686';
+  const assetId = 'cccccccccccccccccccccccccccccccc';
+  const directory = path.join(LEVEL_CARD_MEDIA_DIR, userId);
+  const filePath = path.join(directory, `${assetId}.png`);
+  const artwork = createCanvas(100, 100);
+  const artworkContext = artwork.getContext('2d');
+  artworkContext.fillStyle = '#ff0000';
+  artworkContext.fillRect(0, 0, 100, 100);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(filePath, artwork.toBuffer('image/png'));
+
+  try {
+    const image = await renderLevelCard({ id: userId, username: 'WebsiteTruth' }, {
+      level: 1, rank: 1, progressXp: 0, neededXp: 1, progressRatio: 0, xp: 0,
+    }, {
+      panelOpacity: 0,
+      avatar: { visible: false }, username: { visible: false }, level: { visible: false },
+      rank: { visible: false }, xp: { visible: false }, progress: { visible: false },
+      layers: [{
+        id: 'corner-art', type: 'image', imageUrl: `/level-card-media/${userId}/${assetId}.png`,
+        x: 0, y: 0, width: 100, height: 100, rotation: 0,
+      }],
+    });
+    const decoded = await loadImage(image);
+    const pixels = createCanvas(1000, 320);
+    const context = pixels.getContext('2d');
+    context.drawImage(decoded, 0, 0);
+    assert.equal(context.getImageData(0, 0, 1, 1).data[3], 0);
+    assert.equal(context.getImageData(50, 50, 1, 1).data[3], 255);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('level card media loads locally without a remote request', async () => {
   const userId = '123456789012345680';
   const assetId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
