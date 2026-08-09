@@ -192,6 +192,7 @@ test('leveling dashboard provides a single fully editable live V2 composer with 
 
 test('profile menu opens a focused drag-and-resize level card editor', () => {
   const html = read('admin/index.html');
+  const css = read('admin/style.css');
   const source = read('admin/app.js');
   const server = read('src/adminServer.js');
   const leveling = read('src/leveling.js');
@@ -222,6 +223,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /redoCardDesign/);
   assert.match(source, /cardHandleMetrics/);
   assert.match(source, /Nunito Rounded/);
+  assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,600px\)/);
   assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
   assert.match(source, /cardExactSnapshot/);
