@@ -13,6 +13,7 @@ const {
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const {
   handleOwnerConsole,
   handleOwnerDisable,
@@ -32,10 +33,10 @@ const {
   getLevelCardDesign,
   levelCardRenderKey,
   renderLevelCard,
+  renderSavedLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
 
-const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
@@ -55,15 +56,6 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
 ]);
-const ADMIN_FONT_PACKAGES = Object.freeze({
-  'noto-sans': '@fontsource-variable/noto-sans',
-  'noto-serif': '@fontsource-variable/noto-serif',
-  'roboto-mono': '@fontsource-variable/roboto-mono',
-  nunito: '@fontsource-variable/nunito',
-  oswald: '@fontsource-variable/oswald',
-  caveat: '@fontsource-variable/caveat',
-});
-
 const sessions = new Map();
 const directoryCache = new Map();
 let serverRef = null;
@@ -357,40 +349,32 @@ function internalCardStats(value = {}) {
   };
 }
 
-function serveAsset(res, pathname) {
+function versionedCacheControl(requestedVersion, currentVersion) {
+  return requestedVersion === currentVersion
+    ? 'public, max-age=31536000, immutable'
+    : 'no-store, max-age=0';
+}
+
+function serveAsset(res, pathname, requestedVersion = '') {
   const asset = PUBLIC_ASSETS.get(pathname);
   const filename = asset?.[0] || 'index.html';
   const contentType = asset?.[1] || 'text/html; charset=utf-8';
-  fs.readFile(path.join(ADMIN_DIR, filename), (error, data) => {
-    if (error) return send(res, 404, 'Not found');
-    send(res, 200, data, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-store, max-age=0',
-      Pragma: 'no-cache',
-      Expires: '0',
-    });
+  const loaded = loadAdminAsset(filename);
+  if (!loaded) return send(res, 404, 'Not found');
+  const index = filename === 'index.html';
+  return send(res, 200, loaded.data, {
+    'Content-Type': contentType,
+    'Cache-Control': index ? 'no-store, max-age=0' : versionedCacheControl(requestedVersion, loaded.version),
+    ...(index ? { Pragma: 'no-cache', Expires: '0' } : {}),
   });
 }
 
-function serveAdminFont(res, pathname) {
-  const cssMatch = pathname.match(/^\/admin\/fonts\/([a-z-]+)\.css$/);
-  const fileMatch = pathname.match(/^\/admin\/fonts\/files\/([a-z0-9-]+\.woff2)$/);
-  const key = cssMatch?.[1] || Object.keys(ADMIN_FONT_PACKAGES).find((name) => fileMatch?.[1].startsWith(`${name}-`));
-  const packageName = ADMIN_FONT_PACKAGES[key];
-  if (!packageName) return send(res, 404, 'Not found');
-  let packageDirectory;
-  try {
-    packageDirectory = path.dirname(require.resolve(`${packageName}/package.json`));
-  } catch {
-    return send(res, 404, 'Not found');
-  }
-  const filename = cssMatch ? 'index.css' : path.join('files', fileMatch[1]);
-  fs.readFile(path.join(packageDirectory, filename), (error, data) => {
-    if (error) return send(res, 404, 'Not found');
-    return send(res, 200, data, {
-      'Content-Type': cssMatch ? 'text/css; charset=utf-8' : 'font/woff2',
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    });
+function serveAdminFont(res, pathname, requestedVersion = '') {
+  const loaded = loadAdminFont(pathname);
+  if (!loaded) return send(res, 404, 'Not found');
+  return send(res, 200, loaded.data, {
+    'Content-Type': loaded.contentType,
+    'Cache-Control': versionedCacheControl(requestedVersion, loaded.version),
   });
 }
 
@@ -603,8 +587,8 @@ async function routeRequest(req, res, env, client) {
   const pathname = url.pathname;
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
-  if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname);
-  if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname);
+  if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
+  if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
@@ -678,10 +662,9 @@ async function routeRequest(req, res, env, client) {
     if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
     const body = await readJsonBody(req);
     const userId = internalCardMatch[1];
-    const image = await renderLevelCard(
+    const image = await renderSavedLevelCard(
       internalCardIdentity(userId, body?.user),
       internalCardStats(body?.stats),
-      getLevelCardDesign(userId),
     );
     return send(res, 200, image, {
       'Content-Type': 'image/png',
@@ -703,11 +686,11 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req);
-    const image = await renderLevelCard(
-      profileRenderIdentity(session),
-      bestMemberStats(session.user.id),
-      body?.design,
-    );
+    const user = profileRenderIdentity(session);
+    const stats = bestMemberStats(session.user.id);
+    const image = body?.draft === true
+      ? await renderLevelCard(user, stats, body.design)
+      : await renderSavedLevelCard(user, stats);
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',

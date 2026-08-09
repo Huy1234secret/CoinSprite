@@ -37,8 +37,9 @@ test('dashboard exposes one focused stylesheet and script', () => {
   const html = read('admin/index.html');
   assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 1);
   assert.equal((html.match(/<script /g) || []).length, 1);
-  assert.match(html, /\/admin\/style\.css\?v=[^"']+/);
-  assert.match(html, /\/admin\/app\.js\?v=[^"']+/);
+  assert.match(html, /href="\/admin\/style\.css"/);
+  assert.match(html, /src="\/admin\/app\.js"/);
+  assert.doesNotMatch(html, /(?:app\.js|style\.css)\?v=/);
   assert.match(html, /GAG2 Stock/);
   assert.match(html, /Owner panel/);
   assert.match(html, /data-view="leveling"/);
@@ -62,8 +63,9 @@ test('admin writes require CSRF and accept only focused feature config', () => {
   assert.match(source, /GAG stock or leveling configuration is required/);
   assert.match(source, /hasLeveling/);
   assert.match(source, /PUBLIC_ASSETS = new Map/);
-  assert.match(source, /'Cache-Control': 'no-store, max-age=0'/);
-  assert.match(source, /Pragma: 'no-cache'/);
+  assert.match(source, /no-store, max-age=0/);
+  assert.match(source, /public, max-age=31536000, immutable/);
+  assert.match(source, /url\.searchParams\.get\('v'\)/);
   assert.match(source, /fallHarvestEndsAt/);
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
@@ -227,6 +229,8 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
   assert.match(source, /cardExactSnapshot/);
+  assert.match(source, /invalidateExactCardPreview/);
+  assert.match(source, /persisted: true/);
   assert.match(source, /panelOpacity/);
   assert.match(source, /1000 - target\.width/);
   assert.match(source, /320 - target\.height/);
@@ -236,6 +240,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(server, /internalCardMatch/);
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
+  assert.match(server, /renderSavedLevelCard/);
   assert.match(server, /level-card-media/);
   assert.match(server, /serveAdminFont/);
   assert.match(html, /cardTemplateSelect/);
