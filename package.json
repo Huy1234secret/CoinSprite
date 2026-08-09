@@ -1,7 +1,7 @@
 {
   "name": "coinsprite",
   "version": "1.0.0",
-  "description": "Grow a Garden stock alerts, community leveling, and owner controls for Discord.",
+  "description": "Grow a Garden stock alerts, seed RNG economy, community leveling, and owner controls for Discord.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -20,6 +20,9 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@fontsource-variable/caveat": "^5.3.0",
     "@fontsource-variable/noto-sans": "^5.3.0",
@@ -29,6 +32,7 @@
     "@fontsource-variable/oswald": "^5.3.0",
     "@fontsource-variable/roboto-mono": "^5.3.0",
     "@napi-rs/canvas": "^1.0.3",
+    "better-sqlite3": "^12.4.1",
     "discord.js": "^14.26.4",
     "dotenv": "^16.6.1"
   }
