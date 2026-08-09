@@ -95,7 +95,7 @@
           <div class="level-card-canvas-wrap" id="cardCanvasWrap">
             <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Editable level card preview"></canvas>
           </div>
-          <p class="studio-hint"><span></span> Changes update instantly, then settle to the exact image Discord will send.</p>
+          <p class="studio-hint" id="cardPreviewState" data-state="draft" aria-live="polite"><span></span><strong id="cardPreviewStateLabel">Draft preview</strong><small id="cardPreviewStateMessage">Waiting for the exact server render.</small></p>
         </div>
         <aside class="inspector-panel">
           <span class="panel-label">INSPECTOR</span>

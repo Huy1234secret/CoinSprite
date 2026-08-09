@@ -17,6 +17,7 @@ const {
   isGuildEnabled,
 } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
+const { logLevelCardRendererIdentity } = require('./src/canvasFonts');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
@@ -82,6 +83,7 @@ setLogClient(client);
 
 client.once(Events.ClientReady, async () => {
   console.info(`Ready as ${client.user.tag}`);
+  logLevelCardRendererIdentity(logCommandSystem, 'Bot');
   logCommandSystem(`Bot ready as ${client.user.tag}. GAG stock, leveling, and owner panel are active.`);
 
   for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);

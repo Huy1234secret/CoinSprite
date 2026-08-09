@@ -231,6 +231,10 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /cardExactSnapshot/);
   assert.match(source, /invalidateExactCardPreview/);
   assert.match(source, /persisted: true/);
+  assert.match(source, /Exact Discord render/);
+  assert.match(html, /Draft preview/);
+  assert.match(source, /Server preview error/);
+  assert.match(source, /setCardPreviewState\('error'/);
   assert.match(source, /panelOpacity/);
   assert.match(source, /1000 - target\.width/);
   assert.match(source, /320 - target\.height/);
@@ -241,6 +245,8 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
   assert.match(server, /renderSavedLevelCard/);
+  assert.match(server, /X-CoinSprite-Renderer-Version/);
+  assert.match(server, /X-CoinSprite-Font-Manifest/);
   assert.match(server, /level-card-media/);
   assert.match(server, /serveAdminFont/);
   assert.match(html, /cardTemplateSelect/);
@@ -249,6 +255,8 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(leveling, /renderLevelCard/);
   assert.match(leveling, /renderPublishedLevelCard/);
   assert.match(leveling, /X-CoinSprite-Render-Key/);
+  assert.match(leveling, /renderer-version-mismatch/);
+  assert.match(leveling, /Authoritative level card used/);
   assert.match(leveling, /label: 'Edit card here!'/);
   assert.match(leveling, /renderLeaderboardCard/);
   assert.match(leveling, /name: 'leaderboard\.png'/);

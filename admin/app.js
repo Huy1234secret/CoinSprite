@@ -96,6 +96,7 @@
     cardExactUrl: '',
     cardExactTimer: null,
     cardExactRequest: 0,
+    cardPreviewState: 'draft',
     cardUndoStack: [],
     cardRedoStack: [],
     cardPendingHistory: '',
@@ -134,6 +135,8 @@
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
     cardTemplateSelect: $('#cardTemplateSelect'), cardTemplateButton: $('#cardTemplateButton'),
     cardUndoButton: $('#cardUndoButton'), cardRedoButton: $('#cardRedoButton'),
+    cardPreviewState: $('#cardPreviewState'), cardPreviewStateLabel: $('#cardPreviewStateLabel'),
+    cardPreviewStateMessage: $('#cardPreviewStateMessage'),
     profileSaveDock: $('#profileSaveDock'), cardSaveButton: $('#cardSaveButton'), cardResetButton: $('#cardResetButton'),
   };
 
@@ -1461,6 +1464,17 @@
     return null;
   }
 
+  function setCardPreviewState(status, message = '') {
+    state.cardPreviewState = status;
+    elements.cardPreviewState.dataset.state = status;
+    elements.cardPreviewStateLabel.textContent = status === 'exact'
+      ? 'Exact Discord render'
+      : status === 'error' ? 'Server preview error' : 'Draft preview';
+    elements.cardPreviewStateMessage.textContent = message || (status === 'exact'
+      ? 'Server-rendered PNG loaded.'
+      : status === 'error' ? 'The exact server render could not be loaded.' : 'Waiting for the exact server render.');
+  }
+
   function invalidateExactCardPreview() {
     window.clearTimeout(state.cardExactTimer);
     state.cardExactRequest += 1;
@@ -1468,12 +1482,14 @@
     state.cardExactPreview = null;
     state.cardExactSnapshot = '';
     state.cardExactUrl = '';
+    setCardPreviewState('draft');
   }
 
   function scheduleExactCardPreview({ persisted = false, delay = 160 } = {}) {
     window.clearTimeout(state.cardExactTimer);
     if (!state.profile || elements.profileShell.hidden) return;
     const snapshot = cardSnapshot();
+    setCardPreviewState('draft');
     state.cardExactTimer = window.setTimeout(async () => {
       const request = ++state.cardExactRequest;
       try {
@@ -1487,7 +1503,14 @@
           },
           body: JSON.stringify(persisted ? {} : { draft: true, design: state.profile.design }),
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          let detail = `HTTP ${response.status}`;
+          try {
+            const payload = await response.json();
+            if (payload?.error) detail = payload.error;
+          } catch {}
+          throw new Error(detail);
+        }
         const url = URL.createObjectURL(await response.blob());
         const image = new Image();
         image.addEventListener('load', () => {
@@ -1499,11 +1522,21 @@
           state.cardExactPreview = image;
           state.cardExactSnapshot = snapshot;
           state.cardExactUrl = url;
+          setCardPreviewState('exact');
           scheduleCardDraw(false);
         }, { once: true });
-        image.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
+        image.addEventListener('error', () => {
+          URL.revokeObjectURL(url);
+          if (request === state.cardExactRequest && snapshot === cardSnapshot()) {
+            setCardPreviewState('error', 'The server response was not a usable image.');
+          }
+        }, { once: true });
         image.src = url;
-      } catch {}
+      } catch (error) {
+        if (request === state.cardExactRequest && snapshot === cardSnapshot()) {
+          setCardPreviewState('error', error?.message || 'The exact server render could not be loaded.');
+        }
+      }
     }, delay);
   }
 
