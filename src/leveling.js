@@ -23,6 +23,8 @@ const ACCENT = 0xb9f547;
 const PAGE_SIZE = 10;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
+const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+const LEVEL_CARD_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 
 let cachedState = null;
@@ -441,6 +443,7 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
   const key = options.key === undefined ? levelCardRenderKey() : String(options.key || '');
   const fetchImpl = options.fetchImpl || fetch;
   if (origin && key) {
+    let fallbackReason = '';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     timeout.unref?.();
@@ -468,11 +471,13 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
         const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
         if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) return image;
       }
-    } catch {
-      // The local renderer keeps /level available during dashboard maintenance.
+      fallbackReason = response.ok ? 'invalid image response' : `HTTP ${response.status || 'error'}`;
+    } catch (error) {
+      fallbackReason = error?.name === 'AbortError' ? 'timeout' : 'request error';
     } finally {
       clearTimeout(timeout);
     }
+    logCommandSystem(`Dashboard level card render failed for user ${user.id} (${fallbackReason}); using local fallback.`);
   }
   return renderLevelCard(user, stats);
 }
@@ -652,22 +657,48 @@ function roundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
-async function loadLocalCardImage(url, userId) {
+async function loadLocalCardImage(url, userId, options = {}) {
   const safe = safeCardMediaUrl(url, userId);
   if (!safe) return null;
   const match = safe.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
   const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
   let fingerprint;
+  let local = true;
   try {
     const metadata = fs.statSync(filePath);
     fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
   } catch {
-    levelCardAssetCache.delete(safe);
-    return null;
+    local = false;
+    fingerprint = 'remote';
   }
   const cached = levelCardAssetCache.get(safe);
   if (cached?.fingerprint === fingerprint) return cached.loading;
-  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null);
+  const loading = local
+    ? Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null)
+    : (async () => {
+      let timer;
+      try {
+        const configuredOrigin = options.origin === undefined ? levelCardRenderOrigin() : options.origin;
+        const parsedOrigin = new URL(String(configuredOrigin || ''));
+        if (!['http:', 'https:'].includes(parsedOrigin.protocol)) return null;
+        const controller = new AbortController();
+        timer = setTimeout(() => controller.abort(), options.timeoutMs || 5000);
+        timer.unref?.();
+        const response = await (options.fetchImpl || fetch)(`${parsedOrigin.origin}${safe}`, { signal: controller.signal });
+        if (!response.ok) return null;
+        const contentType = String(response.headers?.get?.('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+        if (!LEVEL_CARD_MEDIA_TYPES.has(contentType)) return null;
+        const contentLength = Number(response.headers?.get?.('content-length'));
+        if (Number.isFinite(contentLength) && contentLength > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
+        const body = Buffer.from(await response.arrayBuffer());
+        if (!body.length || body.length > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
+        return await loadImage(body);
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
   const entry = { fingerprint, loading };
   levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);
@@ -1329,6 +1360,7 @@ module.exports = {
   resetLevelingCache,
   renderLeaderboardCard,
   levelCardRenderOrigin,
+  loadLocalCardImage,
   renderLevelCard,
   renderPublishedLevelCard,
   saveLevelCardDesign,
