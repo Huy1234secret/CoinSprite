@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { createCanvas } = require('@napi-rs/canvas');
+const { createCanvas, GlobalFonts, loadImage } = require('@napi-rs/canvas');
 
 const {
   DEFAULT_LEVELING_CONFIG,
@@ -19,6 +19,8 @@ const {
   buildLevelCardPayload,
   buildLevelPayload,
   canvasDisplayName,
+  handleLevelingInteraction,
+  leaderboardPageModal,
   levelCardRenderOrigin,
   levelCardRenderKey,
   loadLocalCardImage,
@@ -569,25 +571,69 @@ test('/level reports the authoritative renderer fallback reason without logging 
   assert.doesNotMatch(logs.join('\n'), /must-not-appear-in-logs/);
 });
 
-test('leaderboard renderer creates an attachment image with podium-colored top ranks', async () => {
+test('leaderboard uses one fixed Unicode-capable image and one modal page button', async () => {
   const rows = [
     { rank: 1, displayName: 'Gold', user: { id: '111111111111111111', username: 'Gold' }, level: 30, xp: 9000 },
     { rank: 2, displayName: 'Silver', user: { id: '222222222222222222', username: 'Silver' }, level: 25, xp: 7000 },
     { rank: 3, displayName: 'Bronze', user: { id: '333333333333333333', username: 'Bronze' }, level: 20, xp: 5000 },
-    { rank: 4, displayName: '🇪🇸 ⟪𝐒𝐞𝐫𝐠𝐃𝐚𝐦⟫', user: { id: '444444444444444444', username: 'SergDam' }, level: 18, xp: 4200 },
+    { rank: 4, displayName: '你好世界 · Nguyễn 🌱', user: { id: '444444444444444444', username: 'Unicode' }, level: 18, xp: 4200 },
   ];
   const image = await renderLeaderboardCard({ guildName: 'Garden Hub', rows, page: 1, maxPage: 2, totalMembers: 14 });
+  const emptyImage = await renderLeaderboardCard({ guildName: 'Garden Hub', rows: [], page: 2, maxPage: 2, totalMembers: 14 });
   assert.ok(image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
-  const controls = [{ type: 1, components: [{ type: 2, style: 2, label: 'Next', custom_id: 'next' }] }];
-  const payload = buildLeaderboardPayload(image, controls);
-  assert.equal(payload.flags, undefined);
+  const [fullSize, emptySize] = await Promise.all([loadImage(image), loadImage(emptyImage)]);
+  assert.deepEqual({ width: fullSize.width, height: fullSize.height }, { width: 1000, height: 1079 });
+  assert.deepEqual({ width: emptySize.width, height: emptySize.height }, { width: 1000, height: 1079 });
+  assert.equal(canvasDisplayName(rows[3].displayName), rows[3].displayName);
+  assert.equal(GlobalFonts.has('CoinSprite Unicode'), true);
+
+  const payload = buildLeaderboardPayload(image, { ownerId: '123', currentPage: 2, maxPage: 8, viewerRank: 9 });
+  assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
   assert.equal(payload.files[0].name, 'leaderboard.png');
-  assert.deepEqual(payload.components, controls);
+  assert.equal(payload.components.length, 1);
+  assert.equal(payload.components[0].accent_color, 0xffffff);
+  assert.deepEqual(payload.components[0].components.map((component) => component.type), [12, 14, 10, 1]);
+  assert.equal(payload.components[0].components[0].items[0].media.url, 'attachment://leaderboard.png');
+  assert.match(payload.components[0].components[2].content, /placed \*\*#9\*\*/);
+  assert.deepEqual(payload.components[0].components[3].components, [{
+    type: 2, style: 2, label: 'Page 2 / 8', custom_id: 'leveling:leaderboard-open:123:8',
+  }]);
   assert.doesNotMatch(JSON.stringify(payload), /description|alt/i);
+
+  const modal = leaderboardPageModal('123', 8);
+  assert.equal(modal.title, 'Switch leaderboard page');
+  assert.equal(modal.components[0].components[0].label, 'What page you wanna switch to?');
+  assert.equal(modal.components[0].components[0].placeholder, '1 / 8');
   const source = require('node:fs').readFileSync(require.resolve('../src/leveling'), 'utf8');
   assert.match(source, /1: \{ main: '#f6c945'/);
   assert.match(source, /2: \{ main: '#c6ced8'/);
   assert.match(source, /3: \{ main: '#d58a52'/);
+});
+
+test('leaderboard page button opens its owner-only page modal', async () => {
+  let shown;
+  const handled = await handleLevelingInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: 'leveling:leaderboard-open:123:7',
+    user: { id: '123' },
+    showModal: async (modal) => { shown = modal; },
+  });
+  assert.equal(handled, true);
+  assert.equal(shown.custom_id, 'leveling:leaderboard-submit:123:7');
+
+  let errorReply;
+  const invalid = await handleLevelingInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => false,
+    isModalSubmit: () => true,
+    customId: 'leveling:leaderboard-submit:123:7',
+    user: { id: '123' },
+    fields: { getTextInputValue: () => '9' },
+    reply: async (payload) => { errorReply = payload; },
+  });
+  assert.equal(invalid, true);
+  assert.match(errorReply.components[0].components[0].content, /from \*\*1\*\* to \*\*7\*\*/);
 });
 
 test('/level acknowledges immediately, then replaces the loading card with the rendered image', async () => {

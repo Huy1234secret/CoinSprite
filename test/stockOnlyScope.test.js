@@ -208,6 +208,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /constrainCardSelection/);
   assert.match(source, /CARD_SNAP_DISTANCE/);
   assert.match(source, /CARD_SNAP_RELEASE/);
+  assert.match(source, /kind: 'center'/);
   assert.match(source, /cardVisualBounds/);
   assert.match(source, /\['nw'.*'n'.*'ne'/s);
   assert.match(source, /cardRotateHandle/);
@@ -216,6 +217,11 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /fontFamily/);
   assert.match(source, /underline/);
   assert.match(source, /rotation/);
+  assert.match(source, /CARD_TEMPLATES/);
+  assert.match(source, /undoCardDesign/);
+  assert.match(source, /redoCardDesign/);
+  assert.match(source, /cardHandleMetrics/);
+  assert.match(source, /Nunito Rounded/);
   assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
   assert.match(source, /cardExactSnapshot/);
@@ -229,6 +235,10 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
   assert.match(server, /level-card-media/);
+  assert.match(server, /serveAdminFont/);
+  assert.match(html, /cardTemplateSelect/);
+  assert.match(html, /cardUndoButton/);
+  assert.match(html, /cardRedoButton/);
   assert.match(leveling, /renderLevelCard/);
   assert.match(leveling, /renderPublishedLevelCard/);
   assert.match(leveling, /X-CoinSprite-Render-Key/);
