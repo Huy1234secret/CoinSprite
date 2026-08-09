@@ -196,9 +196,9 @@ function salePayload(state, session, options = {}) {
   inner.push({
     type: 1,
     components: [
-      { type: 2, style: 2, emoji: { name: '‹' }, custom_id: `rng:sale:prev:${session.id}`, disabled: session.currentPage <= 1 },
+      { type: 2, style: 2, label: 'Previous', custom_id: `rng:sale:prev:${session.id}`, disabled: session.currentPage <= 1 },
       { type: 2, style: 2, label: `Page ${session.currentPage} / ${page.maxPage}`, custom_id: `rng:sale:page:${session.id}`, disabled: true },
-      { type: 2, style: 2, emoji: { name: '›' }, custom_id: `rng:sale:next:${session.id}`, disabled: session.currentPage >= page.maxPage },
+      { type: 2, style: 2, label: 'Next', custom_id: `rng:sale:next:${session.id}`, disabled: session.currentPage >= page.maxPage },
       { type: 2, style: 2, label: 'Sell filter', custom_id: `rng:sale:filter:${session.id}` },
     ],
   }, {
