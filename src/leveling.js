@@ -50,6 +50,10 @@ class AuthoritativeLevelCardError extends Error {
   }
 }
 
+function canonicalLevelCardUsername(user) {
+  return String(user?.globalName || user?.username || 'Member').slice(0, 100);
+}
+
 let cachedState = null;
 let cachedStateMtime = 0;
 let lastCheckTime = 0;
@@ -537,7 +541,7 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
         user: {
           username: String(user?.username || '').slice(0, 100),
           globalName: String(user?.globalName || '').slice(0, 100),
-          displayName: String(user?.displayName || '').slice(0, 100),
+          displayName: canonicalLevelCardUsername(user),
           avatarUrl: cardAvatarUrl(user),
         },
         stats,
@@ -1315,7 +1319,7 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
     });
   }
 
-  const displayName = canvasDisplayName(user?.displayName || user?.globalName || user?.username);
+  const displayName = canvasDisplayName(canonicalLevelCardUsername(user));
   if (design.username.visible) {
     const bounds = canvasTextBounds(context, displayName, design.username);
     await drawRotatedCardElement(context, bounds, design.username.rotation, () => drawCardText(context, displayName, design.username));
@@ -1517,7 +1521,7 @@ async function executeLevel(interaction) {
       id: user.id,
       username: user.username,
       globalName: user.globalName,
-      displayName: member?.displayName || user.globalName || user.username,
+      displayName: canonicalLevelCardUsername(user),
       displayAvatarURL: (options) => member?.displayAvatarURL?.(options) || user.displayAvatarURL?.(options),
       avatarURL: (options) => user.avatarURL?.(options),
     };
@@ -1693,6 +1697,7 @@ module.exports = {
   leaderboardPageModal,
   buildLevelCardPayload,
   buildLevelPayload,
+  canonicalLevelCardUsername,
   canvasDisplayName,
   flushLevelingState,
   getLevelCardDesign,

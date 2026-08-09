@@ -18,6 +18,7 @@ const {
   buildLeaderboardPayload,
   buildLevelCardPayload,
   buildLevelPayload,
+  canonicalLevelCardUsername,
   canvasDisplayName,
   handleLevelingInteraction,
   leaderboardPageModal,
@@ -558,8 +559,9 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
   const logs = [];
   const image = await renderPublishedLevelCard({
     id: '123456789012345678',
-    username: 'Sprite',
-    displayName: 'Garden Sprite',
+    username: 'RawUsername',
+    globalName: 'Canonical Global',
+    displayName: 'Guild Nickname',
     displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png',
   }, {
     level: 12, rank: 3, progressXp: 280, neededXp: 420, progressRatio: 2 / 3, xp: 3160,
@@ -591,11 +593,23 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
   assert.equal(request.options.headers['X-CoinSprite-Renderer-Version'], identity.version);
   assert.equal(request.options.headers['X-CoinSprite-Build-Version'], identity.buildVersion);
   assert.equal(request.options.headers['X-CoinSprite-Font-Manifest'], identity.fontManifestHash);
-  assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
+  assert.deepEqual(JSON.parse(request.options.body).user, {
+    username: 'RawUsername',
+    globalName: 'Canonical Global',
+    displayName: 'Canonical Global',
+    avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
+  });
   assert.ok(logs.some((message) => message.includes(`status=200 source=authoritative renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${designHash}`)));
   assert.ok(logs.some((message) => message.includes('Authoritative level card used')));
   assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
   assert.equal(levelCardRenderOrigin({ DISCORD_REDIRECT_URI: 'https://panel.coin-sprite.com/auth/discord/callback' }), 'https://panel.coin-sprite.com');
+});
+
+test('level-card username ignores guild display names and uses the global name before username', () => {
+  assert.equal(canonicalLevelCardUsername({
+    displayName: 'Guild Nickname', globalName: 'Canonical Global', username: 'RawUsername',
+  }), 'Canonical Global');
+  assert.equal(canonicalLevelCardUsername({ displayName: 'Guild Nickname', username: 'RawUsername' }), 'RawUsername');
 });
 
 test('/level reports an authoritative renderer failure without falling back or logging its secret', async () => {

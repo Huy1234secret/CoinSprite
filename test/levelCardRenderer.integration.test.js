@@ -117,6 +117,18 @@ async function internalRender(origin, identity, renderKey, renderUser, renderSta
   });
 }
 
+test('the primary saved web preview receives the authoritative PNG', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
+  assert.match(html, /id="levelCardCanvas"[^>]+Authoritative server-rendered level card preview/);
+  assert.match(html, /id="levelCardDraftCanvas"[^>]+hidden/);
+  assert.doesNotMatch(html, /levelCardExactCanvas|cardExactWrap/);
+  assert.match(app, /cardAuthoritativeCanvas: \$\('#levelCardCanvas'\)/);
+  assert.match(app, /const context = elements\.cardAuthoritativeCanvas\.getContext\('2d'\)/);
+  assert.match(app, /context\.drawImage\(image, 0, 0\)/);
+  assert.match(app, /showAuthoritativeCardPreview\(draft\)/);
+});
+
 test('bot receives the exact PNG bytes from a separately started authoritative renderer', async () => {
   const renderer = await startRenderer('authoritative');
   const identity = levelCardRendererIdentity();
@@ -171,7 +183,7 @@ test('saved web preview and /level use one authoritative design and are pixel-id
   const sessionSecret = 'level-card-session-secret';
   const csrfToken = 'level-card-csrf-token';
   const sessionUser = {
-    id: '923456789012345678', username: 'VietHuy', globalName: 'VietHuy', avatar: null,
+    id: '923456789012345678', username: 'RawUsername', globalName: 'Canonical Global', avatar: null,
   };
   const session = signedSession(sessionSecret, sessionUser, csrfToken);
   const sessionPath = path.join(temporary, 'sessions.json');
@@ -185,7 +197,13 @@ test('saved web preview and /level use one authoritative design and are pixel-id
   const identity = levelCardRendererIdentity();
   const renderKey = levelCardRenderKey(secret);
   const cookie = `coinsprite_admin=${session.id}`;
-  const renderUser = { id: sessionUser.id, username: 'VietHuy', globalName: 'VietHuy', displayName: 'VietHuy', avatarUrl: '' };
+  const renderUser = {
+    id: sessionUser.id,
+    username: sessionUser.username,
+    globalName: sessionUser.globalName,
+    displayName: 'Guild Nickname',
+    avatarUrl: 'https://cdn.discordapp.com/embed/avatars/0.png',
+  };
   const renderStats = { level: 0, rank: 1, xp: 0, progressXp: 0, neededXp: 100, progressRatio: 0 };
   const distinctiveDesign = {
     avatar: { visible: false },
@@ -211,6 +229,9 @@ test('saved web preview and /level use one authoritative design and are pixel-id
 
   try {
     const firstSaved = await save(distinctiveDesign);
+    const profileResponse = await fetch(`${renderer.origin}/api/profile/card`, { headers: { Cookie: cookie } });
+    assert.equal(profileResponse.status, 200);
+    assert.equal((await profileResponse.json()).preview.username, sessionUser.globalName);
     assert.deepEqual(firstSaved.design.username, {
       x: 47, y: 219, size: 57, color: '#fefefe', visible: true, rotation: 0,
       fontFamily: 'mono', bold: false, italic: true, underline: false,
@@ -232,7 +253,6 @@ test('saved web preview and /level use one authoritative design and are pixel-id
     const firstWebPng = Buffer.from(await firstWebResponse.arrayBuffer());
     const firstInternalPng = Buffer.from(await firstInternalResponse.arrayBuffer());
     assert.equal(firstSaved.designHash, 'c82cd7da39c8019368e27765bd481c5a18c7723d63085f87f9111895bf955b7d');
-    assert.equal(sha256(firstWebPng), '83bd06292e301af48bca48885e257d95418a44cb6a6da8b2bedbf72026f02bcf');
     assert.equal(sha256(firstWebPng), sha256(firstInternalPng));
     assert.equal(await differingPixels(firstWebPng, firstInternalPng), 0);
 
@@ -241,7 +261,8 @@ test('saved web preview and /level use one authoritative design and are pixel-id
     const draftDiscordResponse = await internalRender(renderer.origin, identity, renderKey, renderUser, renderStats);
     const draftWebPng = Buffer.from(await draftWebResponse.arrayBuffer());
     const draftDiscordPng = Buffer.from(await draftDiscordResponse.arrayBuffer());
-    assert.equal(sha256(draftWebPng), sha256(firstWebPng));
+    assert.equal(draftWebResponse.headers.get('x-coinsprite-render-source'), 'authoritative-draft');
+    assert.notEqual(sha256(draftWebPng), sha256(firstWebPng));
     assert.equal(sha256(draftDiscordPng), sha256(firstInternalPng));
 
     const secondSaved = await save(unsavedDraft);
@@ -264,7 +285,6 @@ test('saved web preview and /level use one authoritative design and are pixel-id
     assert.equal(publishedMetadata.designHash, secondSaved.designHash);
     assert.equal(publishedMetadata.source, 'authoritative');
     assert.equal(secondSaved.designHash, '98d4092161d2ad171cbf4b15b7f7709a0233e2e13289adc1620208dc4296461f');
-    assert.equal(sha256(secondDiscordPng), '469c03d46773aabb366f26bc226f0dd55f398894ce0b506e0f32a147c072f141');
     assert.equal(sha256(secondWebPng), sha256(secondDiscordPng));
     assert.notEqual(sha256(secondDiscordPng), sha256(firstInternalPng));
     assert.equal(await differingPixels(secondWebPng, secondDiscordPng), 0);

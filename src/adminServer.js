@@ -31,8 +31,11 @@ const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
+  canonicalLevelCardUsername,
   getLevelCardProfile,
+  levelCardDesignHash,
   levelCardRenderKey,
+  normalizeLevelCardDesign,
   renderLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
@@ -330,7 +333,7 @@ function profileRenderIdentity(session) {
     id: user.id,
     username: user.username,
     globalName: user.globalName,
-    displayName: user.globalName || user.username,
+    displayName: canonicalLevelCardUsername(user),
     displayAvatarURL: () => avatarUrl,
     avatarURL: () => avatarUrl,
   };
@@ -345,7 +348,7 @@ function internalCardIdentity(userId, value = {}) {
   } catch {}
   const username = String(value.username || 'Member').slice(0, 100);
   const globalName = String(value.globalName || '').slice(0, 100);
-  const displayName = String(value.displayName || globalName || username).slice(0, 100);
+  const displayName = canonicalLevelCardUsername({ globalName, username });
   return {
     id: userId,
     username,
@@ -727,15 +730,23 @@ async function routeRequest(req, res, env, client) {
     if (expectedHash && expectedHash !== profile.designHash) {
       return sendJson(res, 409, { error: 'Saved level card changed before this preview rendered.', designHash: profile.designHash }, levelCardRendererHeaders(profile));
     }
+    const draft = body?.draft === true;
+    const design = draft ? normalizeLevelCardDesign(body?.design, session.user.id) : profile.design;
+    const renderProfile = draft ? {
+      ...profile,
+      design,
+      designHash: levelCardDesignHash(design, session.user.id),
+    } : profile;
     const user = profileRenderIdentity(session);
     const stats = bestMemberStats(session.user.id);
-    const image = await renderLevelCard(user, stats, profile.design);
-    logLevelCardDiagnostics(profile, 'authoritative');
+    const image = await renderLevelCard(user, stats, renderProfile.design);
+    const source = draft ? 'authoritative-draft' : 'authoritative';
+    logLevelCardDiagnostics(renderProfile, source);
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card-preview.png"',
-      ...levelCardRendererHeaders(profile),
+      ...levelCardRendererHeaders(renderProfile, source),
     });
   }
 
