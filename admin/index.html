@@ -95,7 +95,11 @@
           <div class="level-card-canvas-wrap" id="cardCanvasWrap">
             <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Editable level card preview"></canvas>
           </div>
-          <p class="studio-hint"><span></span><strong>Website preview</strong><small>Discord uses this saved card design.</small></p>
+          <p class="studio-hint"><span></span><strong>Draft preview</strong><small>Editor guides and unsaved changes never appear in Discord.</small></p>
+          <div class="level-card-canvas-wrap exact-card-preview" id="cardExactWrap" hidden>
+            <canvas id="levelCardExactCanvas" width="1000" height="320" aria-label="Exact saved Discord level card render"></canvas>
+          </div>
+          <p class="studio-hint" id="cardExactLabel" hidden><span></span><strong>Exact Discord render</strong><small>Loaded from the authoritative saved renderer.</small></p>
         </div>
         <aside class="inspector-panel">
           <span class="panel-label">INSPECTOR</span>

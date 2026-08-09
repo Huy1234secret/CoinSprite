@@ -115,6 +115,12 @@ const LEVEL_CARD_RENDERER_VERSION = `level-card-${shortHash([
   normalizedSource(path.join(__dirname, 'leveling.js')),
   normalizedSource(path.join(__dirname, '..', 'package-lock.json')),
 ])}`;
+const LEVEL_CARD_BUILD_VERSION = String(
+  process.env.COINSPRITE_BUILD_VERSION
+  || process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.RENDER_GIT_COMMIT
+  || LEVEL_CARD_RENDERER_VERSION,
+).replace(/[^a-z0-9._-]/gi, '').slice(0, 120) || LEVEL_CARD_RENDERER_VERSION;
 
 function assertCanvasFontsAvailable(globalFonts = GlobalFonts) {
   const missing = CANVAS_FONT_STATUS.families.filter((family) => !globalFonts.has(family));
@@ -126,6 +132,7 @@ function levelCardRendererIdentity() {
   assertCanvasFontsAvailable();
   return Object.freeze({
     version: LEVEL_CARD_RENDERER_VERSION,
+    buildVersion: LEVEL_CARD_BUILD_VERSION,
     fontManifestHash: CANVAS_FONT_STATUS.manifestHash,
     fontFamilies: CANVAS_FONT_STATUS.families,
     fontFiles: CANVAS_FONT_STATUS.files,
@@ -134,13 +141,14 @@ function levelCardRendererIdentity() {
 
 function logLevelCardRendererIdentity(log = console.info, component = 'Runtime') {
   const identity = levelCardRendererIdentity();
-  log(`${component} level card renderer ready: version=${identity.version} font-manifest=${identity.fontManifestHash} fonts="${identity.fontFamilies.join(', ')}" files=${identity.fontFiles}.`);
+  log(`${component} level card renderer ready: version=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} fonts="${identity.fontFamilies.join(', ')}" files=${identity.fontFiles}.`);
   return identity;
 }
 
 module.exports = {
   CANVAS_FONT_STATUS,
   FONT_SOURCES,
+  LEVEL_CARD_BUILD_VERSION,
   LEVEL_CARD_RENDERER_VERSION,
   assertCanvasFontsAvailable,
   levelCardRendererIdentity,

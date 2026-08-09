@@ -95,6 +95,8 @@
     cardUndoStack: [],
     cardRedoStack: [],
     cardPendingHistory: '',
+    cardExactRequest: 0,
+    cardExactHash: '',
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -125,6 +127,7 @@
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
+    cardExactCanvas: $('#levelCardExactCanvas'), cardExactWrap: $('#cardExactWrap'), cardExactLabel: $('#cardExactLabel'),
     cardInspector: $('#cardInspector'), cardInspectorTitle: $('#cardInspectorTitle'),
     cardBackgroundButton: $('#cardBackgroundButton'), cardImageButton: $('#cardImageButton'), cardTextButton: $('#cardTextButton'),
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
@@ -1835,6 +1838,55 @@
     scheduleCardDraw();
   }
 
+  function hideExactCardPreview() {
+    state.cardExactHash = '';
+    elements.cardExactWrap.hidden = true;
+    elements.cardExactLabel.hidden = true;
+  }
+
+  async function loadExactCardPreview() {
+    const expectedHash = String(state.profile?.designHash || '');
+    const request = ++state.cardExactRequest;
+    hideExactCardPreview();
+    if (!expectedHash) return;
+    try {
+      const response = await fetch('/api/profile/card/preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'image/png',
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': state.csrfToken,
+        },
+        body: JSON.stringify({ designHash: expectedHash }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || `Exact Discord render failed (${response.status})`);
+      }
+      const responseHash = String(response.headers.get('x-coinsprite-design-hash') || '');
+      if (request !== state.cardExactRequest || expectedHash !== state.profile?.designHash || responseHash !== expectedHash) return;
+      const blobUrl = URL.createObjectURL(await response.blob());
+      try {
+        const image = new Image();
+        image.src = blobUrl;
+        await image.decode();
+        if (request !== state.cardExactRequest || expectedHash !== state.profile?.designHash || responseHash !== expectedHash) return;
+        if (image.naturalWidth !== 1000 || image.naturalHeight !== 320) throw new Error('Exact Discord render returned unexpected dimensions.');
+        const context = elements.cardExactCanvas.getContext('2d');
+        context.clearRect(0, 0, 1000, 320);
+        context.drawImage(image, 0, 0);
+      } finally {
+        URL.revokeObjectURL(blobUrl);
+      }
+      state.cardExactHash = responseHash;
+      elements.cardExactWrap.hidden = false;
+      elements.cardExactLabel.hidden = false;
+    } catch (error) {
+      if (request === state.cardExactRequest && expectedHash === state.profile?.designHash) showToast(error.message, 'error');
+    }
+  }
+
   async function loadProfile() {
     try {
       state.profile = await api('/api/profile/card');
@@ -1844,6 +1896,7 @@
       state.cardRedoStack = [];
       state.cardPendingHistory = '';
       renderCardStudio();
+      await loadExactCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1856,9 +1909,12 @@
     try {
       const payload = await api('/api/profile/card', { method: 'PATCH', body: JSON.stringify({ design: state.profile.design }) });
       state.profile.design = payload.design;
+      state.profile.updatedAt = payload.updatedAt;
+      state.profile.designHash = payload.designHash;
       state.profileSavedSnapshot = cardSnapshot();
       renderCardStudio();
       showToast('Your /level card is updated.');
+      await loadExactCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
