@@ -64,7 +64,7 @@ const SEEDS = Object.freeze([
   seed('tulip', 'Tulip', 'Uncommon', 2, 25, 0.25, 1.1, 3, 60),
   seed('blueberry', 'Blueberry', 'Common', 3, 25, 0.2, 0.9, 2, 40),
   seed('strawberry', 'Strawberry', 'Common', 1, 5, 0.15, 0.75, 1, 30),
-  seed('carrot', 'Carrot', 'Common', 1, 1, 0.1, 0.6, 1, 20, { fallback: true }),
+  seed('carrot', 'Carrot', 'Common', 1, 2, 0.1, 0.6, 1, 20, { fallback: true }),
 ]);
 
 const SEED_BY_ID = new Map(SEEDS.map((entry) => [entry.id, entry]));

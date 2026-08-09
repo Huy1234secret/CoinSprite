@@ -60,16 +60,10 @@ function rollPayload(userId, instance, options = {}) {
 }
 
 function balancePayload(user, balance, options = {}) {
-  const avatar = user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || seedThumbnail(null);
-  return v2Payload([{
-    type: 17,
-    accent_color: WHITE,
-    components: [{
-      type: 9,
-      components: [{ type: 10, content: `* ${formatInteger(balance)} ${SHECKLES_EMOJI}` }],
-      accessory: { type: 11, media: { url: avatar }, description: `${safeUsername(user?.username)} avatar` },
-    }],
-  }], options);
+  return textContainer(
+    `### <@${user.id}>'s Balance\n- Sheckles: ${formatInteger(balance)} ${SHECKLES_EMOJI}`,
+    options,
+  );
 }
 
 function inventoryCropFields(items) {
