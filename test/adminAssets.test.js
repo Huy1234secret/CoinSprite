@@ -11,6 +11,7 @@ test('admin entrypoint receives content-derived JavaScript and stylesheet versio
   const html = index.data.toString('utf8');
   assert.match(html, new RegExp(`/admin/app\\.js\\?v=${app.version}`));
   assert.match(html, new RegExp(`/admin/style\\.css\\?v=${style.version}`));
+  assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
   assert.doesNotMatch(html, /20260806-9/);
 });
 

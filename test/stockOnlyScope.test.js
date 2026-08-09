@@ -225,7 +225,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /redoCardDesign/);
   assert.match(source, /cardHandleMetrics/);
   assert.match(source, /Nunito Rounded/);
-  assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,600px\)/);
+  assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
   assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
   assert.match(source, /cardExactSnapshot/);
