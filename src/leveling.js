@@ -24,7 +24,6 @@ const PAGE_SIZE = 10;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
-const LEVEL_CARD_MEDIA_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 
 let cachedState = null;
@@ -442,6 +441,7 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
   const origin = options.origin === undefined ? levelCardRenderOrigin() : String(options.origin || '').replace(/\/+$/g, '');
   const key = options.key === undefined ? levelCardRenderKey() : String(options.key || '');
   const fetchImpl = options.fetchImpl || fetch;
+  const log = diagnosticLogger(options);
   if (origin && key) {
     let fallbackReason = '';
     const controller = new AbortController();
@@ -468,8 +468,17 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
       });
       if (response.ok) {
         const image = Buffer.from(await response.arrayBuffer());
+        const contentType = String(response.headers?.get?.('content-type') || 'unknown');
+        log(`Dashboard level card authoritative render for user ${user.id}: response status=${response.status || 200} content-type=${contentType} bytes=${image.length}.`);
         const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-        if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) return image;
+        if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) {
+          log(`Dashboard level card authoritative render for user ${user.id}: accepted response.`);
+          return image;
+        }
+      } else {
+        const contentType = String(response.headers?.get?.('content-type') || 'unknown');
+        const contentLength = String(response.headers?.get?.('content-length') || 'not-read');
+        log(`Dashboard level card authoritative render for user ${user.id}: response status=${response.status || 'error'} content-type=${contentType} bytes=${contentLength}.`);
       }
       fallbackReason = response.ok ? 'invalid image response' : `HTTP ${response.status || 'error'}`;
     } catch (error) {
@@ -477,7 +486,10 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
     } finally {
       clearTimeout(timeout);
     }
-    logCommandSystem(`Dashboard level card render failed for user ${user.id} (${fallbackReason}); using local fallback.`);
+    log(`Dashboard level card authoritative render for user ${user.id}: fallback reason=${fallbackReason}.`);
+  } else {
+    const fallbackReason = !origin ? 'origin not configured' : 'render key not configured';
+    log(`Dashboard level card authoritative render for user ${user.id}: fallback reason=${fallbackReason}.`);
   }
   return renderLevelCard(user, stats);
 }
@@ -657,48 +669,138 @@ function roundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
+function cardMediaSignatureMatches(body, extension) {
+  if (extension === 'png') {
+    return body.length >= 8 && body.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (extension === 'jpg') return body.length >= 3 && body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff;
+  return extension === 'webp'
+    && body.length >= 12
+    && body.subarray(0, 4).toString('ascii') === 'RIFF'
+    && body.subarray(8, 12).toString('ascii') === 'WEBP';
+}
+
+function withoutPngCaBxMetadata(body) {
+  if (!cardMediaSignatureMatches(body, 'png')) return body;
+  const chunks = [body.subarray(0, 8)];
+  let offset = 8;
+  let changed = false;
+  while (offset + 12 <= body.length) {
+    const length = body.readUInt32BE(offset);
+    const end = offset + 12 + length;
+    if (end > body.length) return body;
+    const type = body.subarray(offset + 4, offset + 8).toString('ascii');
+    if (type === 'caBX') changed = true;
+    else chunks.push(body.subarray(offset, end));
+    offset = end;
+    if (type === 'IEND') return changed ? Buffer.concat(chunks) : body;
+  }
+  return body;
+}
+
+function cardMediaError(error) {
+  return String(error?.message || error?.name || 'unknown error').replace(/\s+/g, ' ').slice(0, 160);
+}
+
+function diagnosticLogger(options) {
+  const reporter = typeof options.log === 'function' ? options.log : logCommandSystem;
+  return (message) => {
+    try {
+      reporter(message);
+    } catch {}
+  };
+}
+
+async function decodeCardMedia(body, extension, stage, log, loadImageImpl = loadImage) {
+  const decodedBody = extension === 'png' ? withoutPngCaBxMetadata(body) : body;
+  if (decodedBody !== body) log(`Level card media ${stage}: removed caBX metadata before decode.`);
+  try {
+    const image = await loadImageImpl(decodedBody);
+    log(`Level card media ${stage} decode result=ok dimensions=${image.width}x${image.height}.`);
+    return image;
+  } catch (error) {
+    log(`Level card media ${stage} decode error=${cardMediaError(error)}.`);
+    return null;
+  }
+}
+
 async function loadLocalCardImage(url, userId, options = {}) {
   const safe = safeCardMediaUrl(url, userId);
   if (!safe) return null;
   const match = safe.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
   const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
+  const log = diagnosticLogger(options);
+  const loadImageImpl = options.loadImageImpl || loadImage;
   let fingerprint;
-  let local = true;
+  let metadata = null;
   try {
-    const metadata = fs.statSync(filePath);
+    metadata = fs.statSync(filePath);
     fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
-  } catch {
-    local = false;
+    log(`Level card media ${safe}: local stat result=ok bytes=${metadata.size}.`);
+  } catch (error) {
     fingerprint = 'remote';
+    const result = error?.code === 'ENOENT' ? 'miss' : `error=${cardMediaError(error)}`;
+    log(`Level card media ${safe}: local stat result=${result}.`);
   }
   const cached = levelCardAssetCache.get(safe);
   if (cached?.fingerprint === fingerprint) return cached.loading;
-  const loading = local
-    ? Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null)
-    : (async () => {
-      let timer;
+  const loading = (async () => {
+    if (metadata) {
       try {
-        const configuredOrigin = options.origin === undefined ? levelCardRenderOrigin() : options.origin;
-        const parsedOrigin = new URL(String(configuredOrigin || ''));
-        if (!['http:', 'https:'].includes(parsedOrigin.protocol)) return null;
-        const controller = new AbortController();
-        timer = setTimeout(() => controller.abort(), options.timeoutMs || 5000);
-        timer.unref?.();
-        const response = await (options.fetchImpl || fetch)(`${parsedOrigin.origin}${safe}`, { signal: controller.signal });
-        if (!response.ok) return null;
-        const contentType = String(response.headers?.get?.('content-type') || '').split(';', 1)[0].trim().toLowerCase();
-        if (!LEVEL_CARD_MEDIA_TYPES.has(contentType)) return null;
-        const contentLength = Number(response.headers?.get?.('content-length'));
-        if (Number.isFinite(contentLength) && contentLength > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
-        const body = Buffer.from(await response.arrayBuffer());
-        if (!body.length || body.length > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
-        return await loadImage(body);
-      } catch {
-        return null;
-      } finally {
-        clearTimeout(timer);
+        const body = fs.readFileSync(filePath);
+        log(`Level card media ${safe}: local read result=ok bytes=${body.length}.`);
+        const image = await decodeCardMedia(body, match[3], `${safe}: local`, log, loadImageImpl);
+        if (image) return image;
+      } catch (error) {
+        log(`Level card media ${safe}: local read error=${cardMediaError(error)}.`);
       }
-    })();
+      log(`Level card media ${safe}: local result=failed; attempting remote fallback.`);
+    }
+
+    let timer;
+    try {
+      const configuredOrigin = options.origin === undefined ? levelCardRenderOrigin() : options.origin;
+      let parsedOrigin;
+      try {
+        parsedOrigin = new URL(String(configuredOrigin || ''));
+      } catch {
+        log(`Level card media ${safe}: selected remote origin=invalid.`);
+        return null;
+      }
+      if (!['http:', 'https:'].includes(parsedOrigin.protocol)) {
+        log(`Level card media ${safe}: selected remote origin=unsupported protocol.`);
+        return null;
+      }
+      log(`Level card media ${safe}: selected remote origin=${parsedOrigin.origin}.`);
+      const controller = new AbortController();
+      timer = setTimeout(() => controller.abort(), options.timeoutMs || 5000);
+      timer.unref?.();
+      const response = await (options.fetchImpl || fetch)(`${parsedOrigin.origin}${safe}`, { signal: controller.signal });
+      const contentType = String(response.headers?.get?.('content-type') || 'unknown').split(';', 1)[0].trim().toLowerCase();
+      const statedLength = Number(response.headers?.get?.('content-length'));
+      if (!response.ok) {
+        log(`Level card media ${safe}: remote response status=${response.status || 'error'} content-type=${contentType} bytes=${Number.isFinite(statedLength) ? statedLength : 'not-read'}.`);
+        return null;
+      }
+      if (Number.isFinite(statedLength) && statedLength > LEVEL_CARD_MEDIA_MAX_BYTES) {
+        log(`Level card media ${safe}: remote response status=${response.status || 200} content-type=${contentType} bytes=${statedLength}; rejected=size limit.`);
+        return null;
+      }
+      const body = Buffer.from(await response.arrayBuffer());
+      log(`Level card media ${safe}: remote response status=${response.status || 200} content-type=${contentType} bytes=${body.length}.`);
+      if (!body.length || body.length > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
+      if (!cardMediaSignatureMatches(body, match[3])) {
+        log(`Level card media ${safe}: remote decode skipped=signature mismatch for .${match[3]}.`);
+        return null;
+      }
+      return decodeCardMedia(body, match[3], `${safe}: remote`, log, loadImageImpl);
+    } catch (error) {
+      log(`Level card media ${safe}: remote fetch error=${cardMediaError(error)}.`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
   const entry = { fingerprint, loading };
   levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);

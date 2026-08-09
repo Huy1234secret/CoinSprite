@@ -36,6 +36,27 @@ const {
 const { ownerLiveMetrics } = require('../src/ownerPanelRoutes');
 const { decodeLevelingMedia } = require('../src/adminServer');
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function withCaBxMetadata(png) {
+  const type = Buffer.from('caBX');
+  const payload = Buffer.from('content credentials metadata');
+  const chunk = Buffer.alloc(12 + payload.length);
+  chunk.writeUInt32BE(payload.length, 0);
+  type.copy(chunk, 4);
+  payload.copy(chunk, 8);
+  chunk.writeUInt32BE(crc32(Buffer.concat([type, payload])), 8 + payload.length);
+  const ihdrEnd = 8 + 12 + png.readUInt32BE(8);
+  return Buffer.concat([png.subarray(0, ihdrEnd), chunk, png.subarray(ihdrEnd)]);
+}
+
 test('leveling config clamps pacing and normalizes reward milestones', () => {
   const config = normalizeLevelingConfig({
     xp: { min: -5, max: 9999, cooldownSeconds: 1 },
@@ -299,6 +320,7 @@ test('level card media loads locally without a remote request', async () => {
     const loaded = await loadLocalCardImage(`/level-card-media/${userId}/${assetId}.png`, userId, {
       origin: 'https://panel.coin-sprite.com',
       fetchImpl: async () => { fetched = true; },
+      log: () => {},
     });
     assert.ok(loaded);
     assert.equal(fetched, false);
@@ -319,41 +341,114 @@ test('level card media loads remotely after a local miss', async () => {
       requestedUrl = url;
       return {
         ok: true,
+        status: 200,
         headers: { get: (name) => name === 'content-type' ? 'image/png' : String(image.length) },
         arrayBuffer: async () => image,
       };
     },
+    log: () => {},
   });
   assert.ok(loaded);
   assert.equal(requestedUrl, expectedUrl);
 });
 
+test('level card media falls back remotely after a corrupt local image', async () => {
+  const userId = '123456789012345682';
+  const assetId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const directory = path.join(LEVEL_CARD_MEDIA_DIR, userId);
+  const filePath = path.join(directory, `${assetId}.png`);
+  const image = createCanvas(2, 2).toBuffer('image/png');
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(filePath, Buffer.from('not an image'));
+  try {
+    let requests = 0;
+    const loaded = await loadLocalCardImage(`/level-card-media/${userId}/${assetId}.png`, userId, {
+      origin: 'https://panel.coin-sprite.com',
+      fetchImpl: async () => {
+        requests += 1;
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: (name) => name === 'content-type' ? 'image/png' : String(image.length) },
+          arrayBuffer: async () => image,
+        };
+      },
+      log: () => {},
+    });
+    assert.ok(loaded);
+    assert.equal(requests, 1);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('level card media accepts a valid image with a proxy-style content type', async () => {
+  const userId = '123456789012345683';
+  const assetId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const image = withCaBxMetadata(createCanvas(2, 2).toBuffer('image/png'));
+  const logs = [];
+  const loaded = await loadLocalCardImage(`/level-card-media/${userId}/${assetId}.png`, userId, {
+    origin: 'https://panel.coin-sprite.com',
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: (name) => name === 'content-type' ? 'application/octet-stream' : null },
+      arrayBuffer: async () => image,
+    }),
+    log: (message) => logs.push(message),
+  });
+  assert.ok(loaded);
+  assert.ok(logs.some((message) => message.includes('content-type=application/octet-stream')));
+  assert.ok(logs.some((message) => message.includes('removed caBX metadata before decode')));
+});
+
+test('level card media remote decode and fetch failures remain retryable', async () => {
+  const userId = '123456789012345684';
+  const image = createCanvas(2, 2).toBuffer('image/png');
+  let decodeRequests = 0;
+  const decodeUrl = `/level-card-media/${userId}/cccccccccccccccccccccccccccccccc.png`;
+  const decodeOptions = {
+    origin: 'https://panel.coin-sprite.com',
+    fetchImpl: async () => {
+      decodeRequests += 1;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name === 'content-type' ? 'image/png' : null },
+        arrayBuffer: async () => image,
+      };
+    },
+    loadImageImpl: async () => { throw new Error('undecodable image'); },
+    log: () => {},
+  };
+  assert.equal(await loadLocalCardImage(decodeUrl, userId, decodeOptions), null);
+  assert.equal(await loadLocalCardImage(decodeUrl, userId, decodeOptions), null);
+  assert.equal(decodeRequests, 2);
+
+  let fetchRequests = 0;
+  const fetchUrl = `/level-card-media/${userId}/dddddddddddddddddddddddddddddddd.png`;
+  const fetchOptions = {
+    origin: 'https://panel.coin-sprite.com',
+    fetchImpl: async () => {
+      fetchRequests += 1;
+      throw new Error('temporary proxy failure');
+    },
+    log: () => {},
+  };
+  assert.equal(await loadLocalCardImage(fetchUrl, userId, fetchOptions), null);
+  assert.equal(await loadLocalCardImage(fetchUrl, userId, fetchOptions), null);
+  assert.equal(fetchRequests, 2);
+});
+
 test('level card media rejects a URL owned by another user', async () => {
   let fetched = false;
   const loaded = await loadLocalCardImage(
-    '/level-card-media/123456789012345682/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png',
-    '123456789012345683',
-    { origin: 'https://panel.coin-sprite.com', fetchImpl: async () => { fetched = true; } },
+    '/level-card-media/123456789012345685/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png',
+    '123456789012345686',
+    { origin: 'https://panel.coin-sprite.com', fetchImpl: async () => { fetched = true; }, log: () => {} },
   );
   assert.equal(loaded, null);
   assert.equal(fetched, false);
-});
-
-test('level card media does not cache remote failures', async () => {
-  const userId = '123456789012345684';
-  const assetId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-  let requests = 0;
-  const options = {
-    origin: 'https://panel.coin-sprite.com',
-    fetchImpl: async () => {
-      requests += 1;
-      return { ok: false, status: 503, headers: { get: () => null } };
-    },
-  };
-  const url = `/level-card-media/${userId}/${assetId}.png`;
-  assert.equal(await loadLocalCardImage(url, userId, options), null);
-  assert.equal(await loadLocalCardImage(url, userId, options), null);
-  assert.equal(requests, 2);
 });
 
 test('level card renderer supports Unicode names and sends a direct attachment without alt text', async () => {
@@ -379,6 +474,7 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
     Buffer.from('authoritative-card'),
   ]);
   let request;
+  const logs = [];
   const image = await renderPublishedLevelCard({
     id: '123456789012345678',
     username: 'Sprite',
@@ -391,15 +487,45 @@ test('/level uses the dashboard renderer that owns saved card media', async () =
     key: 'signed-render-key',
     fetchImpl: async (url, options) => {
       request = { url, options };
-      return { ok: true, arrayBuffer: async () => expected };
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name === 'content-type' ? 'image/png' : null },
+        arrayBuffer: async () => expected,
+      };
     },
+    log: (message) => logs.push(message),
   });
   assert.deepEqual(image, expected);
   assert.equal(request.url, 'https://panel.coin-sprite.com/api/internal/level-card/123456789012345678');
   assert.equal(request.options.headers['X-CoinSprite-Render-Key'], 'signed-render-key');
   assert.equal(JSON.parse(request.options.body).user.displayName, 'Garden Sprite');
+  assert.ok(logs.some((message) => message.includes('response status=200 content-type=image/png')));
+  assert.ok(logs.some((message) => message.includes('accepted response')));
   assert.equal(levelCardRenderKey('shared-secret'), levelCardRenderKey('shared-secret'));
   assert.equal(levelCardRenderOrigin({ DISCORD_REDIRECT_URI: 'https://panel.coin-sprite.com/auth/discord/callback' }), 'https://panel.coin-sprite.com');
+});
+
+test('/level reports the authoritative renderer fallback reason without logging its secret', async () => {
+  const logs = [];
+  const image = await renderPublishedLevelCard({
+    id: '123456789012345687', username: 'Fallback', displayName: 'Fallback',
+  }, {
+    level: 2, rank: 4, progressXp: 10, neededXp: 20, progressRatio: .5, xp: 50,
+  }, {
+    origin: 'https://panel.coin-sprite.com',
+    key: 'must-not-appear-in-logs',
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      headers: { get: (name) => name === 'content-type' ? 'text/plain' : null },
+    }),
+    log: (message) => logs.push(message),
+  });
+  assert.ok(image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])));
+  assert.ok(logs.some((message) => message.includes('response status=503 content-type=text/plain')));
+  assert.ok(logs.some((message) => message.includes('fallback reason=HTTP 503')));
+  assert.doesNotMatch(logs.join('\n'), /must-not-appear-in-logs/);
 });
 
 test('leaderboard renderer creates an attachment image with podium-colored top ranks', async () => {
