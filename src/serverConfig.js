@@ -38,7 +38,7 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
 });
 const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   enabled: false,
-  gameChannelId: '',
+  gameChannelIds: Object.freeze([]),
   cooldownBypassRoleIds: Object.freeze([]),
 });
 
@@ -299,12 +299,17 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
 
 function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   const source = isObject(value) ? value : {};
+  const channelIds = Array.isArray(source.gameChannelIds)
+    ? source.gameChannelIds
+    : (source.gameChannelId !== undefined
+      ? [source.gameChannelId]
+      : (Array.isArray(defaults.gameChannelIds) ? defaults.gameChannelIds : [defaults.gameChannelId]));
   const roleIds = Array.isArray(source.cooldownBypassRoleIds)
     ? source.cooldownBypassRoleIds.map(cleanId).filter(Boolean)
     : defaults.cooldownBypassRoleIds;
   return {
     enabled: source.enabled === undefined ? defaults.enabled === true : source.enabled === true,
-    gameChannelId: cleanId(source.gameChannelId ?? defaults.gameChannelId),
+    gameChannelIds: [...new Set(channelIds.map(cleanId).filter(Boolean))].slice(0, 100),
     cooldownBypassRoleIds: [...new Set(roleIds)].slice(0, 100),
   };
 }

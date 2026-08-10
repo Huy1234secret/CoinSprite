@@ -136,7 +136,7 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
-    rngGameEnabled: $('#rngGameEnabled'), rngGameChannel: $('#rngGameChannel'),
+    rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
     rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
@@ -293,13 +293,17 @@
   function normalizeRngGameConfig(config) {
     const source = clone(config?.rngGame || {});
     source.enabled = source.enabled === true;
-    source.gameChannelId = String(source.gameChannelId || '');
+    const channelIds = Array.isArray(source.gameChannelIds) ? source.gameChannelIds : [source.gameChannelId];
+    source.gameChannelIds = [...new Set(channelIds.map(String).filter(Boolean))].slice(0, 100);
+    delete source.gameChannelId;
     source.cooldownBypassRoleIds = [...new Set((source.cooldownBypassRoleIds || []).map(String))].slice(0, 100);
     return source;
   }
 
   function channelOptions(selected, include = () => true) {
-    const options = ['<option value="">Not routed</option>'];
+    const multiple = Array.isArray(selected);
+    const selectedIds = new Set((multiple ? selected : [selected]).map(String).filter(Boolean));
+    const options = [`<option value="" ${multiple ? 'disabled' : ''}>Not routed</option>`];
     let lastParent = null;
     for (const channel of state.directory.channels.filter((item) => !item.archived && include(item))) {
       if (channel.parentName && channel.parentName !== lastParent) {
@@ -307,7 +311,7 @@
         lastParent = channel.parentName;
       }
       const prefix = channel.kind === 'thread' ? '⌁' : channel.kind === 'forum' ? '▦' : '#';
-      options.push(`<option value="${channel.id}" ${channel.id === selected ? 'selected' : ''}>${prefix} ${escapeHtml(channel.name)}</option>`);
+      options.push(`<option value="${channel.id}" ${selectedIds.has(channel.id) ? 'selected' : ''}>${prefix} ${escapeHtml(channel.name)}</option>`);
     }
     return options.join('');
   }
@@ -780,8 +784,8 @@
   function renderRngGame() {
     const rngGame = state.config.rngGame;
     elements.rngGameEnabled.checked = rngGame.enabled;
-    elements.rngGameChannel.innerHTML = channelOptions(rngGame.gameChannelId, (channel) => channel.kind !== 'forum');
-    elements.rngGameChannel.options[0].textContent = 'Choose a game channel';
+    elements.rngGameChannels.innerHTML = channelOptions(rngGame.gameChannelIds, (channel) => channel.kind !== 'forum');
+    elements.rngGameChannels.options[0].textContent = 'Choose one or more game channels';
     const selected = new Set(rngGame.cooldownBypassRoleIds);
     const roles = state.directory.roles || [];
     elements.rngCooldownBypassRoles.innerHTML = roles.length
@@ -1215,7 +1219,9 @@
     if (!state.config) return;
     const rngGame = state.config.rngGame;
     if (target === elements.rngGameEnabled) rngGame.enabled = target.checked;
-    if (target === elements.rngGameChannel) rngGame.gameChannelId = target.value;
+    if (target === elements.rngGameChannels) {
+      rngGame.gameChannelIds = [...target.selectedOptions].map((option) => option.value).filter(Boolean).slice(0, 100);
+    }
     if (target === elements.rngCooldownBypassRoles) {
       rngGame.cooldownBypassRoleIds = [...target.selectedOptions].map((option) => option.value).slice(0, 100);
     }

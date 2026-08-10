@@ -18,12 +18,16 @@ function evaluateRngGameAccess(source, getGuildPolicy) {
   if (policy.enabled !== true) {
     return { allowed: false, reason: 'GAG2 RNG Game is disabled for this server. Ask a server administrator to enable it.' };
   }
-  const gameChannelId = String(policy.gameChannelId || '');
-  if (!gameChannelId) {
-    return { allowed: false, reason: 'GAG2 RNG Game needs a game channel. Ask a server administrator to configure one in the dashboard.' };
+  const configuredChannels = Array.isArray(policy.gameChannelIds)
+    ? policy.gameChannelIds
+    : [policy.gameChannelId];
+  const gameChannelIds = [...new Set(configuredChannels.map((channelId) => String(channelId || '')).filter(Boolean))];
+  if (!gameChannelIds.length) {
+    return { allowed: false, reason: 'GAG2 RNG Game needs at least one game channel. Ask a server administrator to configure one in the dashboard.' };
   }
-  if (String(source.channelId || '') !== gameChannelId) {
-    return { allowed: false, reason: `GAG2 RNG Game commands are only available in <#${gameChannelId}>.` };
+  if (!gameChannelIds.includes(String(source.channelId || ''))) {
+    const channelList = gameChannelIds.map((channelId) => `<#${channelId}>`).join(', ');
+    return { allowed: false, reason: `GAG2 RNG Game commands are only available in ${channelList}.` };
   }
   const bypassRoles = new Set((policy.cooldownBypassRoleIds || []).map(String));
   return {
