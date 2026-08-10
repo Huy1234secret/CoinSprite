@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { evaluateRngGameAccess } = require('../../rng-game/services/accessPolicy');
+const { evaluateFarmingGameAccess } = require('../services/accessPolicy');
 const { lockedPayload } = require('../../rng-game/commands');
 const {
   errorPayload,
@@ -27,7 +27,7 @@ function createFarmingCommandHandlers(context) {
   } = context;
 
   async function requireAccess(interaction) {
-    const access = evaluateRngGameAccess(interaction, getGuildPolicy);
+    const access = evaluateFarmingGameAccess(interaction, getGuildPolicy);
     if (access.allowed) return true;
     await interaction.reply(errorPayload(`Command unavailable\n${access.reason}`, { ephemeral: true }));
     return false;

@@ -257,6 +257,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .field-card select[multiple] option { padding: 7px 8px; border-radius: 6px; }
 .field-card select[multiple] option:checked { color: #071006; background: var(--lime) linear-gradient(0deg,var(--lime),var(--lime)); }
 .field-card > .microcopy { margin: -3px 0 0; }
+.single-setting-grid { grid-template-columns: minmax(0,1fr); }
 
 @media (max-width: 1320px) {
   .rng-game-head { align-items: flex-start; flex-direction: column; }

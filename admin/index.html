@@ -126,6 +126,7 @@
         <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
         <button class="nav-item" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>GAG2 RNG Game</strong><small>Locked by owner</small></span></button>
+        <button class="nav-item" id="farmingGameNav" type="button" data-view="farming-game"><span class="nav-icon">&#x1F331;</span><span><strong>Farming Game</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -248,6 +249,29 @@
           <div class="section-heading"><div><span class="step">02</span><h2>Command visibility</h2></div><p>These slash commands are registered only while owner access and the RNG game engine are both enabled.</p></div>
           <div class="leveling-command-strip">
             <span>GAME COMMANDS</span><code>/roll</code><code>/inventory</code><code>/sell</code><code>/balance</code><code>c!roll</code>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="farmingGameView" data-view-panel="farming-game" hidden>
+        <header class="workspace-head rng-game-head">
+          <div><span class="eyebrow">FARMING GAME</span><h1>Plant crops. Grow your farm.</h1><p>Choose where players can manage their farm and farming inventory.</p></div>
+          <div class="head-actions">
+            <label class="switch-card header-switch"><span><strong>Farming game engine</strong><small>Register and enable farming commands</small></span><input id="farmingGameEnabled" type="checkbox"><i></i></label>
+          </div>
+        </header>
+
+        <section class="section-block rng-game-hero">
+          <div class="section-heading"><div><span class="step">01</span><h2>Game access</h2></div><p>Farming commands work in any selected game channel or forum post.</p></div>
+          <div class="rng-settings-grid single-setting-grid">
+            <label class="field-card"><span>Game channels &amp; forums<small>Select every text channel or forum where farming commands can be used.</small></span><select id="farmingGameChannels" multiple size="8" aria-describedby="farmingChannelHelp"></select><small id="farmingChannelHelp" class="microcopy">Selecting a forum enables every post in it. Use Ctrl/Command or Shift to select multiple destinations.</small></label>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">02</span><h2>Command visibility</h2></div><p>These slash commands are registered only while owner access and the Farming Game engine are both enabled.</p></div>
+          <div class="leveling-command-strip">
+            <span>FARMING COMMANDS</span><code>/my-farm</code><code>/my-inventory</code>
           </div>
         </section>
       </section>

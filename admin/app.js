@@ -115,8 +115,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'),
-    stockView: $('#stockView'), levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'), farmingGameNav: $('#farmingGameNav'),
+    stockView: $('#stockView'), levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), farmingGameView: $('#farmingGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
     fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
@@ -138,6 +138,7 @@
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
     rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
     rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
+    farmingGameEnabled: $('#farmingGameEnabled'), farmingGameChannels: $('#farmingGameChannels'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
     cardPreviewLabel: $('#cardPreviewLabel'),
@@ -297,6 +298,16 @@
     source.gameChannelIds = [...new Set(channelIds.map(String).filter(Boolean))].slice(0, 100);
     delete source.gameChannelId;
     source.cooldownBypassRoleIds = [...new Set((source.cooldownBypassRoleIds || []).map(String))].slice(0, 100);
+    return source;
+  }
+
+  function normalizeFarmingGameConfig(config) {
+    const source = clone(config?.farmingGame || {});
+    source.enabled = source.enabled === true;
+    const channelIds = Array.isArray(source.gameChannelIds) ? source.gameChannelIds : [source.gameChannelId];
+    source.gameChannelIds = [...new Set(channelIds.map(String).filter(Boolean))].slice(0, 100);
+    delete source.gameChannelId;
+    delete source.cooldownBypassRoleIds;
     return source;
   }
 
@@ -794,6 +805,14 @@
     refreshDirty();
   }
 
+  function renderFarmingGame() {
+    const farmingGame = state.config.farmingGame;
+    elements.farmingGameEnabled.checked = farmingGame.enabled;
+    elements.farmingGameChannels.innerHTML = channelOptions(farmingGame.gameChannelIds);
+    elements.farmingGameChannels.options[0].textContent = 'Choose one or more game channels';
+    refreshDirty();
+  }
+
   function renderFeatureAccess() {
     if (!state.config) return;
     const levelingUnlocked = state.config.features?.leveling === true;
@@ -808,7 +827,15 @@
     const rngLabel = elements.rngGameNav.querySelector('small');
     if (rngLabel) rngLabel.textContent = rngUnlocked ? 'Rolls & economy' : 'Locked by owner';
     elements.rngGameNav.title = rngUnlocked ? '' : 'The bot owner must unlock GAG2 RNG Game for this server.';
-    if ((!levelingUnlocked && state.currentView === 'leveling') || (!rngUnlocked && state.currentView === 'rng-game')) setView('stock');
+    const farmingUnlocked = state.config.features?.farmingGame === true;
+    elements.farmingGameNav.disabled = !farmingUnlocked;
+    elements.farmingGameNav.classList.toggle('is-locked', !farmingUnlocked);
+    const farmingLabel = elements.farmingGameNav.querySelector('small');
+    if (farmingLabel) farmingLabel.textContent = farmingUnlocked ? 'Plots & inventory' : 'Locked by owner';
+    elements.farmingGameNav.title = farmingUnlocked ? '' : 'The bot owner must unlock Farming Game for this server.';
+    if ((!levelingUnlocked && state.currentView === 'leveling')
+      || (!rngUnlocked && state.currentView === 'rng-game')
+      || (!farmingUnlocked && state.currentView === 'farming-game')) setView('stock');
   }
 
   function snapshot() {
@@ -827,6 +854,7 @@
       },
       leveling: state.config.leveling,
       rngGame: state.config.rngGame,
+      farmingGame: state.config.farmingGame,
     });
   }
 
@@ -871,6 +899,7 @@
         gag2Stock: normalizeStockConfig(configPayload.config),
         leveling: normalizeLevelingConfig(configPayload.config),
         rngGame: normalizeRngGameConfig(configPayload.config),
+        farmingGame: normalizeFarmingGameConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -878,6 +907,7 @@
       renderStock(progressPayload?.progress);
       renderLeveling();
       renderRngGame();
+      renderFarmingGame();
       if (progressPayload?.progress?.status === 'running') pollProgress();
     } catch (error) {
       showToast(error.message, 'error');
@@ -895,9 +925,11 @@
       const stock = clone(state.config.gag2Stock);
       const leveling = clone(state.config.leveling);
       const rngGame = clone(state.config.rngGame);
+      const farmingGame = clone(state.config.farmingGame);
       const body = { gag2Stock: stock };
       if (state.config.features?.leveling === true) body.leveling = leveling;
       if (state.config.features?.rngGame === true) body.rngGame = rngGame;
+      if (state.config.features?.farmingGame === true) body.farmingGame = farmingGame;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -907,6 +939,7 @@
         gag2Stock: normalizeStockConfig(payload.config),
         leveling: normalizeLevelingConfig(payload.config),
         rngGame: normalizeRngGameConfig(payload.config),
+        farmingGame: normalizeFarmingGameConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -914,6 +947,7 @@
       renderStock(payload.progress);
       renderLeveling();
       renderRngGame();
+      renderFarmingGame();
       showToast('Dashboard settings updated.');
       pollProgress();
     } catch (error) {
@@ -960,7 +994,10 @@
       ['storage', 'Storage', payload.storage.label, 'Live data and logs', payload.storage.usageRatio, payload.storage.maxLabel],
     ];
     const rows = (payload.guilds || []).map((guild) => {
-      const featureCount = 1 + Number(guild.features?.leveling === true) + Number(guild.features?.rngGame === true);
+      const featureCount = 1
+        + Number(guild.features?.leveling === true)
+        + Number(guild.features?.rngGame === true)
+        + Number(guild.features?.farmingGame === true);
       return `<tr>
       <td><div class="guild-cell">${guildIcon(guild)}<span><strong>${escapeHtml(guild.name)}</strong><small>${guild.id}</small></span></div></td>
       <td>${formatNumber(guild.totalUsers)}</td>
@@ -971,6 +1008,7 @@
         <label><input type="checkbox" checked disabled><span><strong>GAG2 Stock</strong><small>Always unlocked</small></span></label>
         <label><input type="checkbox" data-owner-feature="leveling" data-guild-id="${guild.id}" ${guild.features?.leveling ? 'checked' : ''}><span><strong>Leveling</strong><small>${guild.features?.leveling ? 'Unlocked' : 'Locked'}</small></span></label>
         <label><input type="checkbox" data-owner-feature="rngGame" data-guild-id="${guild.id}" ${guild.features?.rngGame ? 'checked' : ''}><span><strong>GAG2 RNG Game</strong><small>${guild.features?.rngGame ? 'Unlocked' : 'Locked'}</small></span></label>
+        <label><input type="checkbox" data-owner-feature="farmingGame" data-guild-id="${guild.id}" ${guild.features?.farmingGame ? 'checked' : ''}><span><strong>Farming Game</strong><small>${guild.features?.farmingGame ? 'Unlocked' : 'Locked'}</small></span></label>
       </div></details></td>
       <td><div class="row-actions"><button class="text-button" type="button" data-owner-load="${guild.id}">Open</button><button class="text-button" type="button" data-owner-toggle="${guild.id}" data-enabled="${guild.enabled}">${guild.enabled ? 'Disable' : 'Enable'}</button></div></td>
     </tr>`;
@@ -1074,6 +1112,10 @@
     }
     if (view === 'rng-game' && state.config?.features?.rngGame !== true) {
       showToast('GAG2 RNG Game is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
+      return;
+    }
+    if (view === 'farming-game' && state.config?.features?.farmingGame !== true) {
+      showToast('Farming Game is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
       return;
     }
     state.currentView = view;
@@ -1228,6 +1270,16 @@
     refreshDirty();
   }
 
+  function updateFarmingGameFromControl(target) {
+    if (!state.config) return;
+    const farmingGame = state.config.farmingGame;
+    if (target === elements.farmingGameEnabled) farmingGame.enabled = target.checked;
+    if (target === elements.farmingGameChannels) {
+      farmingGame.gameChannelIds = [...target.selectedOptions].map((option) => option.value).filter(Boolean).slice(0, 100);
+    }
+    refreshDirty();
+  }
+
   function addLevelReward() {
     if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
     const rewards = state.config.leveling.roleRewards;
@@ -1255,6 +1307,7 @@
     renderStock();
     renderLeveling();
     renderRngGame();
+    renderFarmingGame();
     showToast('Unsaved changes reset.');
   }
 
@@ -2469,6 +2522,8 @@
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
+  elements.farmingGameView.addEventListener('input', (event) => updateFarmingGameFromControl(event.target));
+  elements.farmingGameView.addEventListener('change', (event) => updateFarmingGameFromControl(event.target));
   elements.levelingMessagePreview.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-inline-message-display]');
     if (edit) return beginInlineMessageEdit(edit);
@@ -2666,11 +2721,14 @@
         state.config.features = payload.features;
         state.config.leveling = normalizeLevelingConfig(payload.config);
         state.config.rngGame = normalizeRngGameConfig(payload.config);
+        state.config.farmingGame = normalizeFarmingGameConfig(payload.config);
         state.savedConfig = clone(state.config);
         state.savedSnapshot = snapshot();
         renderFeatureAccess();
       }
-      const featureLabel = input.dataset.ownerFeature === 'rngGame' ? 'GAG2 RNG Game' : 'Leveling';
+      const featureLabel = input.dataset.ownerFeature === 'rngGame'
+        ? 'GAG2 RNG Game'
+        : input.dataset.ownerFeature === 'farmingGame' ? 'Farming Game' : 'Leveling';
       showToast(`${featureLabel} ${input.checked ? 'unlocked' : 'locked'} for this server.`);
       await loadOwner();
     } catch (error) {

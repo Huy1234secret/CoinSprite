@@ -52,13 +52,22 @@ function getRngGuildPolicy(guildId) {
   };
 }
 
+function getFarmingGuildPolicy(guildId) {
+  const guildConfig = getGuildConfigRaw(guildId);
+  return {
+    unlocked: guildConfig?.enabled !== false && guildConfig?.features?.farmingGame === true,
+    enabled: guildConfig?.farmingGame?.enabled === true,
+    gameChannelIds: guildConfig?.farmingGame?.gameChannelIds || [],
+  };
+}
+
 const rngGame = createRngGameFeature({ getGuildPolicy: getRngGuildPolicy });
 const farmingGame = createFarmingGameFeature({
   db: rngGame.db,
   cropRepository: rngGame.repository,
   cropGameService: rngGame.gameService,
   saleSessions: rngGame.saleSessions,
-  getGuildPolicy: getRngGuildPolicy,
+  getGuildPolicy: getFarmingGuildPolicy,
 });
 
 function dashboardBaseUrl() {

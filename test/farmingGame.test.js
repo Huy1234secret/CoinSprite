@@ -14,6 +14,7 @@ const { ITEMS, ITEM_BY_ID, STARTER_ITEM_QUANTITY } = require('../src/features/fa
 const { FarmingGameRepository } = require('../src/features/farming-game/repositories/farmingRepository');
 const { PLOT_RECTS, anchorBounds } = require('../src/features/farming-game/renderer/config');
 const { FarmingGameService } = require('../src/features/farming-game/services/farmingService');
+const { evaluateFarmingGameAccess } = require('../src/features/farming-game/services/accessPolicy');
 const { generatePlotAnchors, validPlotAnchors } = require('../src/features/farming-game/utils/anchors');
 const { growthStage } = require('../src/features/farming-game/utils/growth');
 const {
@@ -34,6 +35,19 @@ function farmingFeature(options = {}) {
 function stack(itemId, quantity = 1n) {
   return { itemId, quantity, item: ITEM_BY_ID[itemId], updatedAt: 1 };
 }
+
+test('Farming access is independently locked and accepts configured forum posts without bypass state', () => {
+  const source = { guildId: 'guild', channelId: 'post', channel: { parentId: 'farm-forum' }, member: { roles: ['vip'] } };
+  assert.match(evaluateFarmingGameAccess(source, () => ({ unlocked: false })).reason, /Farming Game is locked/);
+  assert.match(evaluateFarmingGameAccess(source, () => ({ unlocked: true, enabled: false })).reason, /Farming Game is disabled/);
+  assert.match(evaluateFarmingGameAccess(source, () => ({ unlocked: true, enabled: true, gameChannelIds: [] })).reason, /at least one game channel/);
+  assert.deepEqual(evaluateFarmingGameAccess(source, () => ({
+    unlocked: true,
+    enabled: true,
+    gameChannelIds: ['farm-forum'],
+    cooldownBypassRoleIds: ['vip'],
+  })), { allowed: true });
+});
 
 function componentText(payload) {
   return JSON.stringify(payload);
@@ -352,11 +366,11 @@ test('Other inventory has no capacity text or Upgrade button', () => {
   game.close();
 });
 
-test('Farming commands register under the RNG guild feature and use its access policy', async () => {
+test('Farming commands register under their own guild feature and use its access policy', async () => {
   const config = {
     enabled: true,
-    features: { rngGame: true },
-    rngGame: { enabled: true },
+    features: { farmingGame: true },
+    farmingGame: { enabled: true },
   };
   const names = featureCommandsForConfig(config).map((command) => command.name);
   assert.deepEqual(names.slice(-2), ['my-farm', 'my-inventory']);
