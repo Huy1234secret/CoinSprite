@@ -6,7 +6,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('bot startup loads focused GAG stock, leveling, and owner-panel services', () => {
+test('bot startup loads focused GAG stock, leveling, RNG game, and owner-panel services', () => {
   const source = read('index.js');
   assert.match(source, /startAdminServer/);
   assert.match(source, /startGag2StockPoster/);
@@ -14,36 +14,69 @@ test('bot startup loads focused GAG stock, leveling, and owner-panel services', 
   assert.match(source, /handleGag2RoleAssignmentInteraction/);
   assert.match(source, /handleLevelingInteraction/);
   assert.match(source, /handleLevelingMessage/);
+  assert.match(source, /createRngGameFeature/);
+  assert.match(source, /rngGame\.handleInteraction/);
+  assert.match(source, /rngGame\.handleMessage/);
   assert.match(source, /Events\.MessageCreate/);
   for (const removed of ['commandsPath', 'inviteRewards', 'dailyMessageStats', 'GuildMemberAdd', 'giveaway', 'ticketSystem']) {
     assert.doesNotMatch(source, new RegExp(removed, 'i'));
   }
 });
 
-test('bot registers only stock setup and leveling commands and clears legacy guild commands', () => {
+test('bot registers stock setup globally and syncs optional commands per guild', () => {
   const source = read('index.js');
-  assert.match(source, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
-  assert.match(source, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
-  assert.match(source, /const APPLICATION_COMMANDS = \[STOCK_SETUP_COMMAND, \.\.\.LEVELING_COMMANDS/);
-  assert.match(source, /client\.application\.commands\.set\(APPLICATION_COMMANDS\)/);
-  assert.match(source, /guild\.commands\.set\(\[\]\)/);
-  assert.match(source, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
+  const commands = read('src/applicationCommands.js');
+  assert.match(commands, /\.setName\(STOCK_SETUP_COMMAND_NAME\)/);
+  assert.match(commands, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
+  assert.match(commands, /LEVELING_COMMANDS/);
+  assert.match(commands, /RNG_GAME_COMMANDS/);
+  assert.match(source, /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
+  assert.match(source, /syncGuildApplicationCommands/);
+  assert.match(commands, /guild\.commands\.set\(commands\)/);
+  assert.match(commands, /setDefaultMemberPermissions\(PermissionFlagsBits\.ManageGuild\)/);
   assert.match(source, /Open stock dashboard/);
   assert.match(source, /flags: COMPONENTS_V2_FLAG \| EPHEMERAL/);
+  assert.doesNotMatch(source, /\.\.\.LEVELING_COMMANDS|\.\.\.rngGame\.commands/);
   assert.doesNotMatch(source, /commandsPath|client\.commands|commands\.set\(slashCommands\)/);
+});
+
+test('optional slash command visibility follows each server engine and owner lock', () => {
+  const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
+  assert.deepEqual(GLOBAL_APPLICATION_COMMANDS.map((command) => command.name), ['stock-set-up']);
+  const base = {
+    enabled: true,
+    features: { leveling: false, rngGame: false },
+    leveling: { enabled: false },
+    rngGame: { enabled: false },
+  };
+  assert.deepEqual(featureCommandsForConfig(base), []);
+  const leveling = featureCommandsForConfig({
+    ...base, features: { ...base.features, leveling: true }, leveling: { enabled: true },
+  }).map((command) => command.name);
+  assert.deepEqual(leveling, ['level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup']);
+  const rngGame = featureCommandsForConfig({
+    ...base, features: { ...base.features, rngGame: true }, rngGame: { enabled: true },
+  }).map((command) => command.name);
+  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index']);
+  assert.deepEqual(featureCommandsForConfig({ ...base, enabled: false }), []);
 });
 
 test('dashboard exposes one focused stylesheet and script', () => {
   const html = read('admin/index.html');
   assert.equal((html.match(/<link rel="stylesheet"/g) || []).length, 1);
   assert.equal((html.match(/<script /g) || []).length, 1);
-  assert.match(html, /\/admin\/style\.css\?v=[^"']+/);
-  assert.match(html, /\/admin\/app\.js\?v=[^"']+/);
+  assert.match(html, /href="\/admin\/style\.css"/);
+  assert.match(html, /src="\/admin\/app\.js"/);
+  assert.doesNotMatch(html, /(?:app\.js|style\.css)\?v=/);
   assert.match(html, /GAG2 Stock/);
   assert.match(html, /Owner panel/);
   assert.match(html, /data-view="leveling"/);
   assert.match(html, /id="levelingView"/);
   assert.match(html, /id="levelingRewards"/);
+  assert.match(html, /data-view="rng-game"/);
+  assert.match(html, /id="rngGameView"/);
+  assert.match(html, /id="rngGameChannel"/);
+  assert.match(html, /id="rngCooldownBypassRoles" multiple/);
   assert.match(html, /V2 COMMANDS/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
   assert.match(html, /1525195196864925817/);
@@ -59,11 +92,13 @@ test('dashboard exposes one focused stylesheet and script', () => {
 test('admin writes require CSRF and accept only focused feature config', () => {
   const source = read('src/adminServer.js');
   assert.match(source, /function requireCsrf/);
-  assert.match(source, /GAG stock or leveling configuration is required/);
+  assert.match(source, /GAG stock, leveling, or RNG game configuration is required/);
   assert.match(source, /hasLeveling/);
+  assert.match(source, /hasRngGame/);
   assert.match(source, /PUBLIC_ASSETS = new Map/);
-  assert.match(source, /'Cache-Control': 'no-store, max-age=0'/);
-  assert.match(source, /Pragma: 'no-cache'/);
+  assert.match(source, /no-store, max-age=0/);
+  assert.match(source, /public, max-age=31536000, immutable/);
+  assert.match(source, /url\.searchParams\.get\('v'\)/);
   assert.match(source, /fallHarvestEndsAt/);
   assert.doesNotMatch(source, /handleAppealApi|moderationCases|ticketCommand|handleUserData/);
 });
@@ -72,9 +107,12 @@ test('only GAG stock is unlocked by default', () => {
   const config = require('../src/serverConfig');
   assert.equal(config.DEFAULT_FEATURES.gag2Stock, true);
   assert.equal(config.DEFAULT_FEATURES.leveling, false);
+  assert.equal(config.DEFAULT_FEATURES.rngGame, false);
   assert.equal(config.DEFAULT_FEATURES.fullBot, false);
   assert.equal(config.DEFAULT_LEVELING_CONFIG.enabled, false);
   assert.equal(config.DEFAULT_LEVELING_CONFIG.announcements.enabled, false);
+  assert.equal(config.DEFAULT_RNG_GAME_CONFIG.enabled, false);
+  assert.deepEqual(config.DEFAULT_RNG_GAME_CONFIG.cooldownBypassRoleIds, []);
   assert.equal(config.isGuildFullBotEnabled('1493901002519347290'), false);
   const normalized = config.normalizeGag2StockConfig({
     enabled: true,
@@ -84,6 +122,38 @@ test('only GAG stock is unlocked by default', () => {
   assert.equal(normalized.channels.seed, '123456789012345678');
   assert.equal(normalized.channels.gear, '');
   assert.deepEqual(normalized.filters.sellMultipliers, ['4x']);
+  assert.deepEqual(config.normalizeRngGameConfig({
+    enabled: true,
+    gameChannelId: '223456789012345678',
+    cooldownBypassRoleIds: ['323456789012345678', '323456789012345678', 'invalid'],
+  }), {
+    enabled: true,
+    gameChannelId: '223456789012345678',
+    cooldownBypassRoleIds: ['323456789012345678'],
+  });
+});
+
+test('adding RNG config at the current schema does not relock an enabled leveling server', () => {
+  const config = require('../src/serverConfig');
+  const guildId = '123456789012345678';
+  const state = config.normalizeState({
+    meta: { schemaVersion: config.SCHEMA_VERSION, disabledGuilds: {} },
+    guilds: {
+      [guildId]: {
+        enabled: true,
+        features: { gag2Stock: true, leveling: true },
+        leveling: { enabled: true },
+      },
+    },
+  });
+  assert.equal(state.guilds[guildId].features.leveling, true);
+  assert.equal(state.guilds[guildId].leveling.enabled, true);
+  assert.equal(state.guilds[guildId].features.rngGame, false);
+  assert.deepEqual(state.guilds[guildId].rngGame, {
+    enabled: false,
+    gameChannelId: '',
+    cooldownBypassRoleIds: [],
+  });
 });
 
 test('responsive design keeps desktop and mobile layouts', () => {
@@ -97,6 +167,7 @@ test('responsive design keeps desktop and mobile layouts', () => {
   assert.match(css, /@keyframes fall-leaf/);
   assert.match(css, /\.event-toggle span \{ min-height: 58px;/);
   assert.match(css, /\.leveling-settings-grid/);
+  assert.match(css, /\.rng-settings-grid/);
   assert.match(css, /\.reward-row/);
   assert.match(css, /animation: none !important/);
 });
@@ -150,14 +221,16 @@ test('owner heap and storage cards poll live without refreshing the page', () =>
   assert.match(routes, /pathname === '\/api\/owner\/metrics'/);
 });
 
-test('owner controls feature access and leveling stays server-side locked', () => {
+test('owner controls feature access and optional features stay server-side locked', () => {
   const server = read('src/adminServer.js');
   const owner = read('src/ownerPanelRoutes.js');
   const dashboard = read('admin/app.js');
   assert.match(server, /ownerFeatures/);
   assert.match(server, /Leveling is locked for this server/);
+  assert.match(server, /GAG2 RNG Game is locked for this server/);
   assert.match(owner, /setGuildFeatureAccess/);
   assert.match(dashboard, /data-owner-feature="leveling"/);
+  assert.match(dashboard, /data-owner-feature="rngGame"/);
   assert.match(dashboard, /Locked by owner/);
 });
 
@@ -192,6 +265,7 @@ test('leveling dashboard provides a single fully editable live V2 composer with 
 
 test('profile menu opens a focused drag-and-resize level card editor', () => {
   const html = read('admin/index.html');
+  const css = read('admin/style.css');
   const source = read('admin/app.js');
   const server = read('src/adminServer.js');
   const leveling = read('src/leveling.js');
@@ -199,6 +273,7 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(html, /href="\/profile"/);
   assert.match(html, /id="profileShell"/);
   assert.match(html, /id="levelCardCanvas"/);
+  assert.match(html, /id="levelCardDraftCanvas"/);
   assert.match(html, /Upload background/);
   assert.match(html, /\+ Image or icon/);
   assert.match(html, /\+ Text/);
@@ -206,8 +281,34 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(source, /moveCardPointer/);
   assert.match(source, /uploadCardMedia/);
   assert.match(source, /constrainCardSelection/);
+  assert.match(source, /CARD_SNAP_DISTANCE/);
+  assert.match(source, /CARD_SNAP_RELEASE/);
+  assert.match(source, /kind: 'center'/);
+  assert.match(source, /cardVisualBounds/);
+  assert.match(source, /\['nw'.*'n'.*'ne'/s);
+  assert.match(source, /cardRotateHandle/);
+  assert.match(source, /data-card-visibility/);
+  assert.match(source, /data-card-toggle/);
+  assert.match(source, /fontFamily/);
+  assert.match(source, /underline/);
+  assert.match(source, /rotation/);
+  assert.match(source, /CARD_TEMPLATES/);
+  assert.match(source, /undoCardDesign/);
+  assert.match(source, /redoCardDesign/);
+  assert.match(source, /cardHandleMetrics/);
+  assert.match(source, /Nunito Rounded/);
+  assert.match(source, /ensureCardFontsReady/);
+  assert.match(source, /Required browser font silently fell back/);
+  assert.match(source, /await Promise\.all\(textItems\.map/);
+  assert.match(css, /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
+  assert.doesNotMatch(source, /previewNameWidth/);
   assert.match(source, /\/api\/profile\/card\/preview/);
-  assert.match(source, /cardExactSnapshot/);
+  assert.match(source, /responseHash !== expectedSavedHash/);
+  assert.match(html, /Authoritative server-rendered level card preview/);
+  assert.doesNotMatch(html, /levelCardExactCanvas/);
+  assert.match(source, /showAuthoritativeCardPreview/);
+  assert.match(source, /CARD_PREVIEW_DEBOUNCE_MS = 350/);
+  assert.match(source, /cardAuthoritativeCanvas\.getContext/);
   assert.match(source, /panelOpacity/);
   assert.match(source, /1000 - target\.width/);
   assert.match(source, /320 - target\.height/);
@@ -217,10 +318,24 @@ test('profile menu opens a focused drag-and-resize level card editor', () => {
   assert.match(server, /internalCardMatch/);
   assert.match(server, /hasInternalRenderKey/);
   assert.match(server, /renderLevelCard/);
+  assert.match(server, /getLevelCardProfile/);
+  assert.match(server, /X-CoinSprite-Design-Hash/);
+  assert.match(server, /X-CoinSprite-Build-Version/);
+  assert.match(server, /X-CoinSprite-Renderer-Version/);
+  assert.match(server, /X-CoinSprite-Font-Manifest/);
   assert.match(server, /level-card-media/);
+  assert.match(server, /serveAdminFont/);
+  assert.match(html, /cardTemplateSelect/);
+  assert.match(html, /cardUndoButton/);
+  assert.match(html, /cardRedoButton/);
   assert.match(leveling, /renderLevelCard/);
+  assert.match(leveling, /levelCardTextY\(item\)/);
+  assert.match(leveling, /saved Y coordinate authoritative/);
+  assert.match(leveling, /drawCardText\(context, displayName, design\.username\)/);
   assert.match(leveling, /renderPublishedLevelCard/);
   assert.match(leveling, /X-CoinSprite-Render-Key/);
+  assert.match(leveling, /renderer-version-mismatch/);
+  assert.match(leveling, /Authoritative level card used/);
   assert.match(leveling, /label: 'Edit card here!'/);
   assert.match(leveling, /renderLeaderboardCard/);
   assert.match(leveling, /name: 'leaderboard\.png'/);

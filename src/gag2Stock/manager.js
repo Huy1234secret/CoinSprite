@@ -1,5 +1,7 @@
+const fs = require('fs');
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('../commandLogger');
+const { runtimeCapabilities } = require('../runtimeRole');
 const {
   GAG2_FALL_STOCK_TYPES,
   GAG2_ROLE_FILTER_RARITIES,
@@ -327,6 +329,16 @@ function sellMessageNextRefreshAtMs(message) {
   return match ? Number(match[1]) * 1000 : null;
 }
 
+function compareMessageIds(left, right) {
+  try {
+    const leftId = BigInt(String(left || '0'));
+    const rightId = BigInt(String(right || '0'));
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+  } catch {
+    return String(left || '').localeCompare(String(right || ''));
+  }
+}
+
 function findMatchingRecentSellMessages(channel, clientUserId, expectedRefreshAtMs, fingerprint, nowMs = Date.now()) {
   if (typeof channel?.messages?.fetch !== 'function') return Promise.resolve([]);
   return channel.messages.fetch({ limit: 25 }).catch(() => null).then((messages) => {
@@ -345,8 +357,43 @@ function findMatchingRecentSellMessages(channel, clientUserId, expectedRefreshAt
       result.push({ message, refreshAtMs, createdAtMs });
     }
     return result.sort((left, right) => left.createdAtMs - right.createdAtMs
-      || String(left.message?.id || '').localeCompare(String(right.message?.id || '')));
+      || compareMessageIds(left.message?.id, right.message?.id));
   });
+}
+
+async function findMatchingRecentSellMessagesLegacy(channel, clientUserId, payload, entry, nowMs = Date.now()) {
+  if (typeof channel?.messages?.fetch !== 'function') return [];
+  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  if (!messages || typeof messages.values !== 'function') return [];
+  const expectedFingerprint = componentFingerprint(payload?.components);
+  const expectedRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+  const matches = [];
+  for (const message of messages.values()) {
+    const ownMessage = clientUserId
+      ? message?.author?.id === clientUserId
+      : message?.author?.bot === true;
+    if (!ownMessage) continue;
+    const createdAtMs = messageCreatedAtMs(message);
+    if (createdAtMs && createdAtMs < nowMs - RECENT_SELL_DEDUPE_WINDOW_MS) continue;
+    if (componentFingerprint(message?.components) !== expectedFingerprint) continue;
+    const refreshAtMs = sellMessageNextRefreshAtMs(message);
+    if (expectedRefreshAtMs !== null && refreshAtMs !== expectedRefreshAtMs) continue;
+    matches.push({ message, createdAtMs, refreshAtMs });
+  }
+  return matches.sort((left, right) => left.createdAtMs - right.createdAtMs
+    || compareMessageIds(left.message?.id, right.message?.id));
+}
+
+function chooseOldestSellMessage(matches) {
+  return [...(matches || [])].sort((left, right) => left.createdAtMs - right.createdAtMs
+    || compareMessageIds(left.message?.id, right.message?.id))[0] || null;
+}
+
+async function removeDuplicateSellMessages(matches, keeper) {
+  const duplicates = (matches || []).filter((match) => match.message?.id !== keeper?.message?.id
+    && typeof match.message?.delete === 'function');
+  const results = await Promise.allSettled(duplicates.map((match) => match.message.delete()));
+  return results.filter((result) => result.status === 'fulfilled').length;
 }
 
 function stockNextRestockAtMs(entry) {
@@ -922,18 +969,23 @@ class Gag2StockPoster {
   async reconcileSellMessages(channel, entry, payloads, sentMessages) {
     const clientUserId = this.client?.user?.id;
     const expectedRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
-    if (expectedRefreshAtMs === null) return;
+    if (expectedRefreshAtMs === null) return null;
     const partFingerprints = payloads.map((part) => componentFingerprint(part?.components));
+    let mainKeeper = null;
     for (let attempt = 1; attempt <= SELL_RECONCILIATION_MAX_RETRIES; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, SELL_RECONCILIATION_BACKOFF_MS * attempt));
+      if (attempt > 1) {
+        await new Promise((resolve) => setTimeout(resolve, SELL_RECONCILIATION_BACKOFF_MS * attempt));
+      }
       let allClean = true;
       for (let i = 0; i < partFingerprints.length; i++) {
         const matches = await findMatchingRecentSellMessages(
           channel, clientUserId, expectedRefreshAtMs, partFingerprints[i], this.now(),
         );
+        if (!matches.length) continue;
+        const keeper = matches[0];
+        if (i === 0 && keeper?.message) mainKeeper = keeper.message;
         if (matches.length <= 1) continue;
         allClean = false;
-        const keeper = matches[0];
         const duplicates = matches.slice(1).filter((match) => typeof match.message?.delete === 'function');
         const results = await Promise.allSettled(duplicates.map((match) => match.message.delete()));
         const deleted = results.filter((r) => r.status === 'fulfilled').length;
@@ -947,6 +999,7 @@ class Gag2StockPoster {
       }
       if (allClean) break;
     }
+    return mainKeeper;
   }
 
   stop() {
@@ -1153,7 +1206,9 @@ class Gag2StockPoster {
     // Different retry groups can overlap and arrive here with separate state
     // snapshots. Reload after the per-destination send lock is acquired so the
     // duplicate check always sees the last successful post.
-    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) state = loadState(this.statePath);
+    if ((STOCK_TYPE_GROUPS.stock.includes(target.type) || target.type === 'sell') && fs.existsSync(this.statePath)) {
+      state = loadState(this.statePath);
+    }
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
     if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
@@ -1183,7 +1238,8 @@ class Gag2StockPoster {
       }
     }
     const samePost = bucket.lastPostedKey === postKey && bucket.channelId === target.channelId;
-    if (samePost && target.type !== 'moon') {
+    const sameSellCycle = target.type !== 'sell' || sellEntryIsSameOrOlderCycle(bucket, entry);
+    if (samePost && sameSellCycle && target.type !== 'moon') {
       if (target.type === 'sell' && isApiRefreshDue(target.type, entry, this.now())) {
         this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
       }
@@ -1315,12 +1371,16 @@ class Gag2StockPoster {
         }
       }
     }
-    if (target.type === 'sell' && sentMessages.length > 1) {
-      await this.reconcileSellMessages(channel, entry, payloads, sentMessages).catch((error) => {
+    let persistedMessages = sentMessages.length ? [...sentMessages] : (message ? [message] : []);
+    if (target.type === 'sell' && sentMessages.length) {
+      const keeperMessage = await this.reconcileSellMessages(channel, entry, payloads, sentMessages).catch((error) => {
         this.logSystem(`GAG2 sell reconciliation failed: ${error?.message || 'unknown error'}`);
+        return null;
       });
+      if (keeperMessage) {
+        message = keeperMessage;
+      }
     }
-
     if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
       rememberSellPostKey(bucket, bucket.lastPostedKey);
     }
@@ -1330,7 +1390,7 @@ class Gag2StockPoster {
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
-      lastMessageIds: sentMessages.length > 1 ? sentMessages.map((sent) => sent?.id).filter(Boolean) : undefined,
+      lastMessageIds: persistedMessages.length > 1 ? persistedMessages.map((sent) => sent?.id).filter(Boolean) : undefined,
       lastPostedAt: new Date(this.now()).toISOString(),
       lastPostedKey: postKey,
     });
@@ -1492,6 +1552,11 @@ async function syncAllGag2StockSetups(client, fetchers) {
 let activePoster = null;
 
 async function startGag2StockPoster(client, options = {}) {
+  const capabilities = runtimeCapabilities(options.runtimeRole);
+  if (!capabilities.stockPoster) {
+    (options.logSystem || logCommandSystem)('GAG2 stock poster refused to start in panel runtime.');
+    return null;
+  }
   if (activePoster) return activePoster;
   activePoster = new Gag2StockPoster(client, options);
   await activePoster.start();
@@ -1513,6 +1578,8 @@ module.exports = {
   isRecentUnavailableMessage,
   currentGag2StockCycleAtMs,
   nextGag2StockTickAtMs,
+  chooseOldestSellMessage,
+  removeDuplicateSellMessages,
   roleSpecsForTypes,
   sellMessageNextRefreshAtMs,
   startGag2StockPoster,

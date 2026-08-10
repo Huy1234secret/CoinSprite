@@ -7,8 +7,8 @@
   <meta name="description" content="CoinSprite Discord bot dashboard">
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
-  <link rel="stylesheet" href="/admin/style.css?v=20260806-9">
-  <script src="/admin/app.js?v=20260806-9" defer></script>
+  <link rel="stylesheet" href="/admin/style.css">
+  <script src="/admin/app.js" defer></script>
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -68,8 +68,16 @@
 
     <section class="card-studio" aria-label="Level card editor">
       <header class="studio-head">
-        <div><span class="step">01</span><div><h2>Level card studio</h2><p>Drag any element on the card. Use the corner handle to resize images and the progress bar.</p></div></div>
+        <div><span class="step">01</span><div><h2>Level card studio</h2><p>Drag elements with smart guides. Use any edge to resize and the top handle to rotate.</p></div></div>
         <div class="studio-actions">
+          <label class="studio-template"><span>Template</span><select id="cardTemplateSelect">
+            <option value="classic">Classic lime</option><option value="arcade">Arcade center</option>
+            <option value="split">Split focus</option><option value="minimal">Minimal glass</option>
+            <option value="spotlight">Center spotlight</option>
+          </select></label>
+          <button class="button ghost small" id="cardTemplateButton" type="button">Apply</button>
+          <button class="button ghost small history-button" id="cardUndoButton" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>&#8617;</button>
+          <button class="button ghost small history-button" id="cardRedoButton" type="button" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" disabled>&#8618;</button>
           <button class="button ghost small" id="cardBackgroundButton" type="button">Upload background</button>
           <button class="button ghost small" id="cardImageButton" type="button">+ Image or icon</button>
           <button class="button primary small" id="cardTextButton" type="button">+ Text</button>
@@ -85,9 +93,10 @@
         </aside>
         <div class="card-workbench">
           <div class="level-card-canvas-wrap" id="cardCanvasWrap">
-            <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Editable level card preview"></canvas>
+            <canvas id="levelCardCanvas" width="1000" height="320" aria-label="Authoritative server-rendered level card preview"></canvas>
+            <canvas id="levelCardDraftCanvas" width="1000" height="320" aria-label="Editable draft level card preview" hidden></canvas>
           </div>
-          <p class="studio-hint"><span></span> Changes update instantly, then settle to the exact image Discord will send.</p>
+          <p class="studio-hint" id="cardPreviewLabel"><span></span><strong>Loading authoritative preview</strong><small>The saved card is rendered by the same server used by /level.</small></p>
         </div>
         <aside class="inspector-panel">
           <span class="panel-label">INSPECTOR</span>
@@ -116,6 +125,7 @@
       <nav class="nav-list" aria-label="Dashboard">
         <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
         <button class="nav-item" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
+        <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>GAG2 RNG Game</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -215,6 +225,30 @@
 
         <section class="leveling-command-strip">
           <span>V2 COMMANDS</span><code>/level</code><code>/leaderboard</code><code>/level-set</code><code>/xp-add</code><code>/leveling-setup</code>
+        </section>
+      </section>
+
+      <section class="view" id="rngGameView" data-view-panel="rng-game" hidden>
+        <header class="workspace-head rng-game-head">
+          <div><span class="eyebrow">GAG2 RNG GAME</span><h1>Roll crops. Build an economy.</h1><p>Keep every game command in one channel and choose the roles that can roll without a cooldown.</p></div>
+          <div class="head-actions">
+            <label class="switch-card header-switch"><span><strong>RNG game engine</strong><small>Register and enable game commands</small></span><input id="rngGameEnabled" type="checkbox"><i></i></label>
+          </div>
+        </header>
+
+        <section class="section-block rng-game-hero">
+          <div class="section-heading"><div><span class="step">01</span><h2>Game access</h2></div><p>Slash commands and <code>c!roll</code> only work in the selected game channel.</p></div>
+          <div class="rng-settings-grid">
+            <label class="field-card"><span>Game channel<small>The only channel where RNG economy commands can be used</small></span><select id="rngGameChannel"></select></label>
+            <label class="field-card"><span>Cooldown bypass roles<small>Select any number of roles. Members with one matching role bypass the shared five-second roll cooldown.</small></span><select id="rngCooldownBypassRoles" multiple size="8" aria-describedby="rngRoleHelp"></select><small id="rngRoleHelp" class="microcopy">Use Ctrl/Command or Shift to select multiple roles.</small></label>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">02</span><h2>Command visibility</h2></div><p>These slash commands are registered only while owner access and the RNG game engine are both enabled.</p></div>
+          <div class="leveling-command-strip">
+            <span>GAME COMMANDS</span><code>/roll</code><code>/inventory</code><code>/sell</code><code>/balance</code><code>c!roll</code>
+          </div>
         </section>
       </section>
 

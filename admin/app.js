@@ -19,7 +19,62 @@
     ['crate', 'Fall crates', discordEmoji('1533306164018937936')],
     ['sell', 'Fall sell', '\u{1F341}'],
   ];
-  const CARD_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_UNICODE_FALLBACK = '"Noto Sans SC Variable", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+  const CARD_FONT_FAMILY = '"Noto Sans Variable", ' + CARD_UNICODE_FALLBACK;
+  const CARD_FONT_FAMILIES = Object.freeze({
+    sans: CARD_FONT_FAMILY,
+    serif: '"Noto Serif Variable", ' + CARD_UNICODE_FALLBACK,
+    mono: '"Roboto Mono Variable", ' + CARD_UNICODE_FALLBACK,
+    rounded: '"Nunito Variable", ' + CARD_UNICODE_FALLBACK,
+    condensed: '"Oswald Variable", ' + CARD_UNICODE_FALLBACK,
+    handwriting: '"Caveat Variable", ' + CARD_UNICODE_FALLBACK,
+  });
+  const CARD_REQUIRED_FONT_FACES = Object.freeze([
+    { family: 'Noto Sans Variable', italic: true },
+    { family: 'Noto Sans SC Variable', italic: false },
+    { family: 'Noto Serif Variable', italic: true },
+    { family: 'Roboto Mono Variable', italic: true },
+    { family: 'Nunito Variable', italic: true },
+    { family: 'Oswald Variable', italic: false },
+    { family: 'Caveat Variable', italic: false },
+  ]);
+  const cardFontLoads = new Map();
+  const CARD_PREVIEW_DEBOUNCE_MS = 350;
+  const CARD_SNAP_DISTANCE = 6;
+  const CARD_SNAP_RELEASE = 10;
+  const CARD_HISTORY_LIMIT = 60;
+  const CARD_TEMPLATES = Object.freeze({
+    classic: {
+      panelOpacity: .85, colors: { surface: '#18201b', accent: '#b9f547', text: '#f4f7f2', muted: '#a3ada6', track: '#303a33', progress: '#b9f547' },
+      avatar: { x: 54, y: 68, size: 150, color: '#b9f547' }, username: { x: 236, y: 70, size: 34, color: '#f4f7f2' },
+      level: { x: 236, y: 130, size: 24, color: '#b9f547' }, rank: { x: 934, y: 68, size: 28, color: '#f4f7f2' },
+      progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33' }, xp: { x: 236, y: 269, size: 21, color: '#d8ded9' },
+    },
+    arcade: {
+      panelOpacity: 0, colors: { surface: '#17132d', accent: '#925cff', text: '#ffffff', muted: '#ddd4ff', track: '#46336e', progress: '#c8a8ff' },
+      avatar: { x: 410, y: 16, size: 180, color: '#925cff' }, username: { x: 438, y: 214, size: 36, color: '#ffffff' },
+      level: { x: 465, y: 282, size: 22, color: '#ffffff' }, rank: { x: 970, y: 28, size: 32, color: '#d7b9ff' },
+      progress: { x: 345, y: 247, width: 320, height: 25, color: '#c8a8ff', trackColor: '#46336e' }, xp: { x: 452, y: 249, size: 19, color: '#ffffff' },
+    },
+    split: {
+      panelOpacity: .58, colors: { surface: '#101d26', accent: '#57d6ff', text: '#f5fcff', muted: '#a9c7d3', track: '#263d49', progress: '#57d6ff' },
+      avatar: { x: 70, y: 58, size: 185, color: '#57d6ff' }, username: { x: 300, y: 68, size: 40, color: '#f5fcff' },
+      level: { x: 302, y: 130, size: 23, color: '#57d6ff' }, rank: { x: 920, y: 68, size: 32, color: '#f5fcff' },
+      progress: { x: 302, y: 210, width: 618, height: 30, color: '#57d6ff', trackColor: '#263d49' }, xp: { x: 302, y: 260, size: 20, color: '#d9f4ff' },
+    },
+    minimal: {
+      panelOpacity: .32, colors: { surface: '#101410', accent: '#ffffff', text: '#ffffff', muted: '#c7cec8', track: '#303632', progress: '#ffffff' },
+      avatar: { x: 72, y: 92, size: 112, color: '#ffffff' }, username: { x: 220, y: 74, size: 38, color: '#ffffff' },
+      level: { x: 222, y: 135, size: 20, color: '#ffffff' }, rank: { x: 928, y: 74, size: 28, color: '#ffffff' },
+      progress: { x: 222, y: 207, width: 706, height: 18, color: '#ffffff', trackColor: '#303632' }, xp: { x: 222, y: 252, size: 18, color: '#c7cec8' },
+    },
+    spotlight: {
+      panelOpacity: .68, colors: { surface: '#241711', accent: '#ffad63', text: '#fff8f1', muted: '#e5c8b1', track: '#503526', progress: '#ffad63' },
+      avatar: { x: 425, y: 34, size: 150, color: '#ffad63' }, username: { x: 395, y: 200, size: 36, color: '#fff8f1' },
+      level: { x: 444, y: 258, size: 20, color: '#ffcf9f' }, rank: { x: 930, y: 42, size: 28, color: '#fff8f1' },
+      progress: { x: 320, y: 238, width: 360, height: 20, color: '#ffad63', trackColor: '#503526' }, xp: { x: 425, y: 238, size: 17, color: '#fff8f1' },
+    },
+  });
 
   const state = {
     me: null,
@@ -45,12 +100,14 @@
     profileSavedSnapshot: '',
     cardSelection: 'background',
     cardPointer: null,
+    cardGuides: {},
     cardSaving: false,
-    cardExactPreview: null,
-    cardExactSnapshot: '',
-    cardExactUrl: '',
-    cardExactTimer: null,
-    cardExactRequest: 0,
+    cardUndoStack: [],
+    cardRedoStack: [],
+    cardPendingHistory: '',
+    cardPreviewRequest: 0,
+    cardPreviewHash: '',
+    cardPreviewTimer: null,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -58,8 +115,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'),
-    stockView: $('#stockView'), levelingView: $('#levelingView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'),
+    stockView: $('#stockView'), levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
     fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
@@ -79,11 +136,16 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
+    rngGameEnabled: $('#rngGameEnabled'), rngGameChannel: $('#rngGameChannel'),
+    rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
-    cardCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
+    cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
+    cardPreviewLabel: $('#cardPreviewLabel'),
     cardInspector: $('#cardInspector'), cardInspectorTitle: $('#cardInspectorTitle'),
     cardBackgroundButton: $('#cardBackgroundButton'), cardImageButton: $('#cardImageButton'), cardTextButton: $('#cardTextButton'),
     cardBackgroundFile: $('#cardBackgroundFile'), cardImageFile: $('#cardImageFile'),
+    cardTemplateSelect: $('#cardTemplateSelect'), cardTemplateButton: $('#cardTemplateButton'),
+    cardUndoButton: $('#cardUndoButton'), cardRedoButton: $('#cardRedoButton'),
     profileSaveDock: $('#profileSaveDock'), cardSaveButton: $('#cardSaveButton'), cardResetButton: $('#cardResetButton'),
   };
 
@@ -225,6 +287,14 @@
       multiplier: Math.round(clampNumber(boost.multiplier, 0, 10, 1)),
     })).filter((boost) => boost.roleId).slice(0, 100);
     source.stackRoleRewards = source.stackRoleRewards !== false;
+    return source;
+  }
+
+  function normalizeRngGameConfig(config) {
+    const source = clone(config?.rngGame || {});
+    source.enabled = source.enabled === true;
+    source.gameChannelId = String(source.gameChannelId || '');
+    source.cooldownBypassRoleIds = [...new Set((source.cooldownBypassRoleIds || []).map(String))].slice(0, 100);
     return source;
   }
 
@@ -707,15 +777,34 @@
     refreshDirty();
   }
 
+  function renderRngGame() {
+    const rngGame = state.config.rngGame;
+    elements.rngGameEnabled.checked = rngGame.enabled;
+    elements.rngGameChannel.innerHTML = channelOptions(rngGame.gameChannelId, (channel) => channel.kind !== 'forum');
+    elements.rngGameChannel.options[0].textContent = 'Choose a game channel';
+    const selected = new Set(rngGame.cooldownBypassRoleIds);
+    const roles = state.directory.roles || [];
+    elements.rngCooldownBypassRoles.innerHTML = roles.length
+      ? roles.map((role) => `<option value="${role.id}" ${selected.has(role.id) ? 'selected' : ''} style="color:${roleColor(role.id)}">● @${escapeHtml(role.name)}</option>`).join('')
+      : '<option disabled>No roles available</option>';
+    refreshDirty();
+  }
+
   function renderFeatureAccess() {
     if (!state.config) return;
-    const unlocked = state.config.features?.leveling === true;
-    elements.levelingNav.disabled = !unlocked;
-    elements.levelingNav.classList.toggle('is-locked', !unlocked);
-    const label = elements.levelingNav.querySelector('small');
-    if (label) label.textContent = unlocked ? 'XP & rewards' : 'Locked by owner';
-    elements.levelingNav.title = unlocked ? '' : 'The bot owner must unlock Leveling for this server.';
-    if (!unlocked && state.currentView === 'leveling') setView('stock');
+    const levelingUnlocked = state.config.features?.leveling === true;
+    elements.levelingNav.disabled = !levelingUnlocked;
+    elements.levelingNav.classList.toggle('is-locked', !levelingUnlocked);
+    const levelingLabel = elements.levelingNav.querySelector('small');
+    if (levelingLabel) levelingLabel.textContent = levelingUnlocked ? 'XP & rewards' : 'Locked by owner';
+    elements.levelingNav.title = levelingUnlocked ? '' : 'The bot owner must unlock Leveling for this server.';
+    const rngUnlocked = state.config.features?.rngGame === true;
+    elements.rngGameNav.disabled = !rngUnlocked;
+    elements.rngGameNav.classList.toggle('is-locked', !rngUnlocked);
+    const rngLabel = elements.rngGameNav.querySelector('small');
+    if (rngLabel) rngLabel.textContent = rngUnlocked ? 'Rolls & economy' : 'Locked by owner';
+    elements.rngGameNav.title = rngUnlocked ? '' : 'The bot owner must unlock GAG2 RNG Game for this server.';
+    if ((!levelingUnlocked && state.currentView === 'leveling') || (!rngUnlocked && state.currentView === 'rng-game')) setView('stock');
   }
 
   function snapshot() {
@@ -733,6 +822,7 @@
         fallSellMultipliers: stock.fall.sellMultipliers,
       },
       leveling: state.config.leveling,
+      rngGame: state.config.rngGame,
     });
   }
 
@@ -776,12 +866,14 @@
         ...configPayload.config,
         gag2Stock: normalizeStockConfig(configPayload.config),
         leveling: normalizeLevelingConfig(configPayload.config),
+        rngGame: normalizeRngGameConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderStock(progressPayload?.progress);
       renderLeveling();
+      renderRngGame();
       if (progressPayload?.progress?.status === 'running') pollProgress();
     } catch (error) {
       showToast(error.message, 'error');
@@ -798,8 +890,10 @@
     try {
       const stock = clone(state.config.gag2Stock);
       const leveling = clone(state.config.leveling);
+      const rngGame = clone(state.config.rngGame);
       const body = { gag2Stock: stock };
       if (state.config.features?.leveling === true) body.leveling = leveling;
+      if (state.config.features?.rngGame === true) body.rngGame = rngGame;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -808,12 +902,14 @@
         ...payload.config,
         gag2Stock: normalizeStockConfig(payload.config),
         leveling: normalizeLevelingConfig(payload.config),
+        rngGame: normalizeRngGameConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderStock(payload.progress);
       renderLeveling();
+      renderRngGame();
       showToast('Dashboard settings updated.');
       pollProgress();
     } catch (error) {
@@ -859,18 +955,22 @@
       ['heap', 'Heap', payload.bot.memory.heapUsedLabel, 'Live process usage'],
       ['storage', 'Storage', payload.storage.label, 'Live data and logs'],
     ];
-    const rows = (payload.guilds || []).map((guild) => `<tr>
+    const rows = (payload.guilds || []).map((guild) => {
+      const featureCount = 1 + Number(guild.features?.leveling === true) + Number(guild.features?.rngGame === true);
+      return `<tr>
       <td><div class="guild-cell">${guildIcon(guild)}<span><strong>${escapeHtml(guild.name)}</strong><small>${guild.id}</small></span></div></td>
       <td>${formatNumber(guild.totalUsers)}</td>
       <td><span class="status-pill ${guild.enabled ? '' : 'off'}">${guild.enabled ? 'Online' : 'Disabled'}</span></td>
       <td>${guild.stock.configuredChannels}/${guild.stock.totalChannels}</td>
       <td>${guild.stock.rolesSyncedAt ? new Date(guild.stock.rolesSyncedAt).toLocaleDateString() : 'Not yet'}</td>
-      <td><details class="feature-dropdown"><summary>${guild.features?.leveling ? '2 features' : 'GAG Stock only'}</summary><div>
+      <td><details class="feature-dropdown"><summary>${featureCount === 1 ? 'GAG Stock only' : `${featureCount} features`}</summary><div>
         <label><input type="checkbox" checked disabled><span><strong>GAG2 Stock</strong><small>Always unlocked</small></span></label>
         <label><input type="checkbox" data-owner-feature="leveling" data-guild-id="${guild.id}" ${guild.features?.leveling ? 'checked' : ''}><span><strong>Leveling</strong><small>${guild.features?.leveling ? 'Unlocked' : 'Locked'}</small></span></label>
+        <label><input type="checkbox" data-owner-feature="rngGame" data-guild-id="${guild.id}" ${guild.features?.rngGame ? 'checked' : ''}><span><strong>GAG2 RNG Game</strong><small>${guild.features?.rngGame ? 'Unlocked' : 'Locked'}</small></span></label>
       </div></details></td>
       <td><div class="row-actions"><button class="text-button" type="button" data-owner-load="${guild.id}">Open</button><button class="text-button" type="button" data-owner-toggle="${guild.id}" data-enabled="${guild.enabled}">${guild.enabled ? 'Disable' : 'Enable'}</button></div></td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
     elements.ownerOverview.innerHTML = `
       <section class="metric-grid">${metrics.map(([key, label, value, detail]) => `<article class="metric-card"><small>${label}</small><strong data-owner-metric="${key}">${escapeHtml(value)}</strong><span>${escapeHtml(detail)}</span></article>`).join('')}</section>
       <section class="fleet-panel"><header class="fleet-head"><h2>Community fleet</h2><span>${payload.guilds.length} connected</span></header><div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th>Community</th><th>Members</th><th>Status</th><th>Routes</th><th>Role sync</th><th>Feature access</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No communities available.</td></tr>'}</tbody></table></div></section>`;
@@ -952,6 +1052,10 @@
     if (view === 'owner' && !state.me?.owner) return;
     if (view === 'leveling' && state.config?.features?.leveling !== true) {
       showToast('Leveling is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
+      return;
+    }
+    if (view === 'rng-game' && state.config?.features?.rngGame !== true) {
+      showToast('GAG2 RNG Game is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
       return;
     }
     state.currentView = view;
@@ -1093,6 +1197,17 @@
     refreshDirty();
   }
 
+  function updateRngGameFromControl(target) {
+    if (!state.config) return;
+    const rngGame = state.config.rngGame;
+    if (target === elements.rngGameEnabled) rngGame.enabled = target.checked;
+    if (target === elements.rngGameChannel) rngGame.gameChannelId = target.value;
+    if (target === elements.rngCooldownBypassRoles) {
+      rngGame.cooldownBypassRoleIds = [...target.selectedOptions].map((option) => option.value).slice(0, 100);
+    }
+    refreshDirty();
+  }
+
   function addLevelReward() {
     if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
     const rewards = state.config.leveling.roleRewards;
@@ -1119,6 +1234,7 @@
     renderFeatureAccess();
     renderStock();
     renderLeveling();
+    renderRngGame();
     showToast('Unsaved changes reset.');
   }
 
@@ -1186,9 +1302,89 @@
 
   const cardImages = new Map();
   let cardFrame = 0;
+  let cardDrawRequest = 0;
+  let cardFontsReadyPromise = null;
 
   function cardSnapshot() {
     return state.profile ? JSON.stringify(state.profile.design) : '';
+  }
+
+  function refreshCardHistoryButtons() {
+    elements.cardUndoButton.disabled = !state.cardUndoStack.length;
+    elements.cardRedoButton.disabled = !state.cardRedoStack.length;
+  }
+
+  function pushCardHistory(stack, snapshot) {
+    if (!snapshot || stack.at(-1) === snapshot) return;
+    stack.push(snapshot);
+    if (stack.length > CARD_HISTORY_LIMIT) stack.shift();
+  }
+
+  function commitCardHistory(before) {
+    if (!before || before === cardSnapshot()) return false;
+    pushCardHistory(state.cardUndoStack, before);
+    state.cardRedoStack = [];
+    refreshCardHistoryButtons();
+    return true;
+  }
+
+  function mutateCardDesign(change) {
+    if (!state.profile) return false;
+    const before = cardSnapshot();
+    change();
+    return commitCardHistory(before);
+  }
+
+  function beginCardInputHistory() {
+    if (!state.cardPendingHistory) state.cardPendingHistory = cardSnapshot();
+  }
+
+  function finishCardInputHistory() {
+    if (!state.cardPendingHistory) return;
+    const before = state.cardPendingHistory;
+    state.cardPendingHistory = '';
+    commitCardHistory(before);
+  }
+
+  function restoreCardHistory(snapshot) {
+    state.profile.design = JSON.parse(snapshot);
+    if (state.cardSelection !== 'background' && !cardSelectionObject()) state.cardSelection = 'background';
+    renderCardStudio();
+  }
+
+  function undoCardDesign() {
+    finishCardInputHistory();
+    const snapshot = state.cardUndoStack.pop();
+    if (!snapshot) return;
+    pushCardHistory(state.cardRedoStack, cardSnapshot());
+    restoreCardHistory(snapshot);
+  }
+
+  function redoCardDesign() {
+    finishCardInputHistory();
+    const snapshot = state.cardRedoStack.pop();
+    if (!snapshot) return;
+    pushCardHistory(state.cardUndoStack, cardSnapshot());
+    restoreCardHistory(snapshot);
+  }
+
+  function applyCardTemplate() {
+    const key = elements.cardTemplateSelect.value;
+    const template = CARD_TEMPLATES[key];
+    if (!template || !state.profile) return;
+    const templateFont = { classic: 'sans', arcade: 'condensed', split: 'rounded', minimal: 'sans', spotlight: 'serif' }[key];
+    mutateCardDesign(() => {
+      const design = state.profile.design;
+      design.panelOpacity = template.panelOpacity;
+      design.colors = { ...design.colors, ...clone(template.colors) };
+      for (const element of ['avatar', 'username', 'level', 'rank', 'progress', 'xp']) {
+        design[element] = { ...design[element], ...clone(template[element]), visible: true, rotation: 0 };
+      }
+      for (const element of ['username', 'level', 'rank', 'xp']) design[element].fontFamily = templateFont;
+    });
+    state.cardSelection = 'background';
+    renderCardStudio();
+    showToast(`Applied the ${elements.cardTemplateSelect.selectedOptions[0].textContent} template.`);
   }
 
   function cardImage(url) {
@@ -1197,7 +1393,7 @@
     const entry = { image: new Image(), ready: false };
     cardImages.set(url, entry);
     entry.image.crossOrigin = 'anonymous';
-    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(false); });
+    entry.image.addEventListener('load', () => { entry.ready = true; scheduleCardDraw(); });
     entry.image.addEventListener('error', () => { entry.failed = true; });
     entry.image.src = url;
     return null;
@@ -1215,6 +1411,150 @@
     context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
   }
 
+  function normalizedCardRotation(value) {
+    const rotation = Number(value);
+    if (!Number.isFinite(rotation)) return 0;
+    return ((rotation + 180) % 360 + 360) % 360 - 180;
+  }
+
+  function cardFont(item, size = item?.size) {
+    const family = CARD_FONT_FAMILIES[item?.fontFamily] || CARD_FONT_FAMILIES.sans;
+    return `${item?.italic ? 'italic' : 'normal'} ${item?.bold === false || item?.weight === 'normal' ? 'normal' : 'bold'} ${Math.max(1, Number(size) || 1)}px ${family}`;
+  }
+
+  function normalizedFontFaceFamily(value) {
+    return String(value || '').replace(/^['"]|['"]$/g, '');
+  }
+
+  function ensureCardFontsReady() {
+    if (cardFontsReadyPromise) return cardFontsReadyPromise;
+    cardFontsReadyPromise = (async () => {
+      if (!document.fonts?.load || !document.fonts?.check || !document.fonts?.ready || !document.fonts[Symbol.iterator]) {
+        throw new Error('This browser cannot verify the required level-card fonts. The draft editor is unavailable.');
+      }
+      const requests = [];
+      for (const face of CARD_REQUIRED_FONT_FACES) {
+        const styles = face.italic ? ['normal', 'italic'] : ['normal'];
+        for (const style of styles) {
+          for (const weight of [400, 700]) {
+            const font = `${style} ${weight} 32px "${face.family}"`;
+            requests.push(document.fonts.load(font, face.family === 'Noto Sans SC Variable' ? '\u6c49\u5b57' : 'CoinSprite')
+              .then((loaded) => {
+                const exact = [...loaded].some((entry) => normalizedFontFaceFamily(entry.family) === face.family && entry.status === 'loaded');
+                const declared = [...document.fonts].some((entry) => normalizedFontFaceFamily(entry.family) === face.family && entry.status === 'loaded');
+                if (!exact || !declared || !document.fonts.check(font, face.family === 'Noto Sans SC Variable' ? '\u6c49\u5b57' : 'CoinSprite')) {
+                  throw new Error(`Required browser font silently fell back: ${face.family} (${style} ${weight}).`);
+                }
+              }));
+          }
+        }
+      }
+      await Promise.all(requests);
+      await document.fonts.ready;
+      return true;
+    })().catch((error) => {
+      cardFontsReadyPromise = null;
+      throw error;
+    });
+    return cardFontsReadyPromise;
+  }
+
+  function loadCardFont(item, text) {
+    const font = cardFont(item);
+    const sample = String(text || 'CoinSprite');
+    const key = `${font}\0${sample}`;
+    if (cardFontLoads.has(key)) return cardFontLoads.get(key);
+    const loading = ensureCardFontsReady()
+      .then(() => document.fonts.load(font, sample))
+      .catch((error) => {
+        cardFontLoads.delete(key);
+        throw new Error(`Card draft font failed to load without fallback: ${font}`, { cause: error });
+      });
+    cardFontLoads.set(key, loading);
+    return loading;
+  }
+
+  function cardTextValue(selection, layer = cardLayerBySelection(selection)) {
+    if (layer?.type === 'text') return layer.text || 'Text';
+    const preview = state.profile?.preview || {};
+    if (selection === 'username') return String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
+    if (selection === 'level') return `LEVEL ${formatNumber(preview.level)}`;
+    if (selection === 'rank') return `#${formatNumber(preview.rank)}`;
+    if (selection === 'xp') return preview.neededXp
+      ? `${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`
+      : `${formatNumber(preview.xp)} XP - MAX LEVEL`;
+    return '';
+  }
+
+  function cardTextBounds(context, item, text, align = 'left') {
+    context.save();
+    context.textBaseline = 'top';
+    context.textAlign = align;
+    context.font = cardFont(item);
+    const metrics = context.measureText(String(text || ''));
+    let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
+    let right = Number(metrics.actualBoundingBoxRight) || Number(metrics.width) || 1;
+    if (item.underline) {
+      const underlineLeft = align === 'right' ? -metrics.width : 0;
+      const underlineRight = align === 'right' ? 0 : metrics.width;
+      left = Math.min(left, underlineLeft);
+      right = Math.max(right, underlineRight);
+    }
+    const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
+    const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
+    const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+    context.restore();
+    return {
+      x: item.x + left,
+      y: item.y - ascent,
+      width: Math.max(1, right - left),
+      height: Math.max(1, ascent + Math.max(descent, underlineBottom)),
+      resize: 'text',
+      rotation: normalizedCardRotation(item.rotation),
+    };
+  }
+
+  function rotateCardPoint(point, center, degrees) {
+    const angle = normalizedCardRotation(degrees) * Math.PI / 180;
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return { x: center.x + dx * cosine - dy * sine, y: center.y + dx * sine + dy * cosine };
+  }
+
+  function cardBoundsCenter(bounds) {
+    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  }
+
+  function cardPointInBounds(point, bounds) {
+    const local = rotateCardPoint(point, cardBoundsCenter(bounds), -bounds.rotation);
+    return local.x >= bounds.x - 5 && local.x <= bounds.x + bounds.width + 5
+      && local.y >= bounds.y - 5 && local.y <= bounds.y + bounds.height + 5;
+  }
+
+  function cardVisualBounds(bounds) {
+    if (!bounds?.rotation) return bounds;
+    const center = cardBoundsCenter(bounds);
+    const points = [
+      { x: bounds.x, y: bounds.y }, { x: bounds.x + bounds.width, y: bounds.y },
+      { x: bounds.x + bounds.width, y: bounds.y + bounds.height }, { x: bounds.x, y: bounds.y + bounds.height },
+    ].map((point) => rotateCardPoint(point, center, bounds.rotation));
+    const x = points.map((point) => point.x);
+    const y = points.map((point) => point.y);
+    return { x: Math.min(...x), y: Math.min(...y), width: Math.max(...x) - Math.min(...x), height: Math.max(...y) - Math.min(...y) };
+  }
+
+  function withCardRotation(context, bounds, draw) {
+    context.save();
+    const center = cardBoundsCenter(bounds);
+    context.translate(center.x, center.y);
+    context.rotate(normalizedCardRotation(bounds.rotation) * Math.PI / 180);
+    context.translate(-center.x, -center.y);
+    draw();
+    context.restore();
+  }
+
   function cardLayerBySelection(selection = state.cardSelection) {
     if (!selection.startsWith('layer:')) return null;
     return state.profile?.design.layers.find((layer) => layer.id === selection.slice(6)) || null;
@@ -1230,62 +1570,94 @@
     const design = state.profile.design;
     const layer = cardLayerBySelection(selection);
     if (selection === 'background') return { x: 0, y: 0, width: 1000, height: 320, resize: false };
-    if (layer) {
-      if (layer.type === 'text') {
-        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-        return { x: layer.x, y: layer.y, width: Math.max(40, context.measureText(layer.text).width), height: layer.size * 1.25, resize: true };
-      }
-      return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: true };
+    const item = layer || design[selection];
+    if (!item || item.visible === false) return null;
+    if (layer?.type === 'text' || ['username', 'level', 'rank', 'xp'].includes(selection)) {
+      return cardTextBounds(context, item, cardTextValue(selection, layer), selection === 'rank' ? 'right' : 'left');
     }
-    if (selection === 'avatar') return { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size, resize: true };
-    if (selection === 'progress') return { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height, resize: true };
-    const widths = { username: 390, level: 210, rank: 120, xp: 330 };
-    const item = design[selection];
-    if (!item) return null;
-    return { x: selection === 'rank' ? item.x - widths.rank : item.x, y: item.y, width: widths[selection], height: item.size * 1.25, resize: true };
+    if (layer) return { x: layer.x, y: layer.y, width: layer.width, height: layer.height, resize: 'free', rotation: normalizedCardRotation(layer.rotation) };
+    if (selection === 'avatar') return { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size, resize: 'square', rotation: normalizedCardRotation(design.avatar.rotation) };
+    if (selection === 'progress') return { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height, resize: 'free', rotation: normalizedCardRotation(design.progress.rotation) };
+    return null;
   }
 
-  function scheduleExactCardPreview() {
-    window.clearTimeout(state.cardExactTimer);
-    if (!state.profile || elements.profileShell.hidden) return;
-    const snapshot = cardSnapshot();
-    state.cardExactTimer = window.setTimeout(async () => {
-      const request = ++state.cardExactRequest;
-      try {
-        const response = await fetch('/api/profile/card/preview', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'image/png',
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': state.csrfToken,
-          },
-          body: JSON.stringify({ design: state.profile.design }),
-        });
-        if (!response.ok) return;
-        const url = URL.createObjectURL(await response.blob());
-        const image = new Image();
-        image.addEventListener('load', () => {
-          if (request !== state.cardExactRequest || snapshot !== cardSnapshot()) {
-            URL.revokeObjectURL(url);
-            return;
-          }
-          if (state.cardExactUrl) URL.revokeObjectURL(state.cardExactUrl);
-          state.cardExactPreview = image;
-          state.cardExactSnapshot = snapshot;
-          state.cardExactUrl = url;
-          scheduleCardDraw(false);
-        }, { once: true });
-        image.addEventListener('error', () => URL.revokeObjectURL(url), { once: true });
-        image.src = url;
-      } catch {}
-    }, 160);
+  function showDraftCardPreview() {
+    elements.cardAuthoritativeCanvas.hidden = true;
+    elements.cardCanvas.hidden = false;
+    elements.cardPreviewLabel.querySelector('strong').textContent = 'Draft preview';
+    elements.cardPreviewLabel.querySelector('small').textContent = 'Unsaved browser draft; a server-rendered preview is loading.';
   }
 
-  function scheduleCardDraw(refreshExact = true) {
+  function scheduleCardDraw() {
+    showDraftCardPreview();
+    scheduleAuthoritativeCardPreview();
     window.cancelAnimationFrame(cardFrame);
-    cardFrame = window.requestAnimationFrame(drawCardPreview);
-    if (refreshExact) scheduleExactCardPreview();
+    const request = ++cardDrawRequest;
+    cardFrame = window.requestAnimationFrame(async () => {
+      try {
+        const design = state.profile?.design;
+        if (!design) return;
+        const textItems = [
+          ['username', design.username], ['level', design.level], ['rank', design.rank], ['xp', design.xp],
+          ...design.layers.filter((layer) => layer.type === 'text').map((layer) => [`layer:${layer.id}`, layer]),
+        ];
+        await Promise.all(textItems.map(([selection, item]) => loadCardFont(item, cardTextValue(selection, item))));
+        if (request === cardDrawRequest) drawCardPreview();
+      } catch (error) {
+        if (request === cardDrawRequest) showToast(error.message, 'error');
+      }
+    });
+  }
+
+  function drawCardPreviewText(context, text, item, align = 'left') {
+    const bounds = cardTextBounds(context, item, text, align);
+    withCardRotation(context, bounds, () => {
+      context.textBaseline = 'top';
+      context.textAlign = align;
+      context.fillStyle = item.color;
+      context.font = cardFont(item);
+      context.fillText(text, item.x, item.y);
+      if (item.underline) {
+        const width = context.measureText(text).width;
+        const start = align === 'right' ? item.x - width : item.x;
+        const y = item.y + item.size * 1.08;
+        context.strokeStyle = item.color;
+        context.lineWidth = Math.max(1, item.size / 15);
+        context.beginPath();
+        context.moveTo(start, y);
+        context.lineTo(start + width, y);
+        context.stroke();
+      }
+    });
+  }
+
+  function cardHandlePositions(bounds) {
+    if (!bounds?.resize) return [];
+    const points = [
+      ['nw', bounds.x, bounds.y], ['n', bounds.x + bounds.width / 2, bounds.y], ['ne', bounds.x + bounds.width, bounds.y],
+      ['e', bounds.x + bounds.width, bounds.y + bounds.height / 2],
+      ['se', bounds.x + bounds.width, bounds.y + bounds.height], ['s', bounds.x + bounds.width / 2, bounds.y + bounds.height],
+      ['sw', bounds.x, bounds.y + bounds.height], ['w', bounds.x, bounds.y + bounds.height / 2],
+    ];
+    const center = cardBoundsCenter(bounds);
+    return points.map(([handle, x, y]) => ({ handle, ...rotateCardPoint({ x, y }, center, bounds.rotation) }));
+  }
+
+  function cardHandleMetrics(bounds) {
+    const shortest = Math.max(1, Math.min(bounds.width, bounds.height));
+    const size = Math.min(10, Math.max(4, shortest * .22));
+    return {
+      size,
+      hitRadius: Math.max(5, size),
+      rotateDistance: Math.min(28, Math.max(14, shortest * .45)),
+    };
+  }
+
+  function cardRotateHandle(bounds) {
+    if (!bounds?.resize) return null;
+    const center = cardBoundsCenter(bounds);
+    const { rotateDistance } = cardHandleMetrics(bounds);
+    return { handle: 'rotate', ...rotateCardPoint({ x: bounds.x + bounds.width / 2, y: bounds.y - rotateDistance }, center, bounds.rotation) };
   }
 
   function drawCardPreview() {
@@ -1294,10 +1666,8 @@
     const canvas = elements.cardCanvas;
     const context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
-    const exact = state.cardExactSnapshot === cardSnapshot() ? state.cardExactPreview : null;
-    if (exact) context.drawImage(exact, 0, 0, 1000, 320);
-    else {
-      context.save();
+    context.save();
+    try {
       cardRoundRect(context, 0, 0, 1000, 320, 30);
       context.clip();
       context.fillStyle = design.background.color;
@@ -1310,64 +1680,67 @@
       context.fill();
       context.globalAlpha = 1;
 
-      context.save();
-      context.fillStyle = design.avatar.color;
-      cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
-      context.fill();
-      cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
-      context.clip();
-      const avatar = cardImage(preview.avatarUrl);
-      if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-      else {
-        context.fillStyle = design.colors.track;
-        context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      if (design.avatar.visible !== false) {
+        const avatarBounds = cardBounds('avatar', context);
+        withCardRotation(context, avatarBounds, () => {
+          context.save();
+          context.fillStyle = design.avatar.color;
+          cardRoundRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+          context.fill();
+          cardRoundRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+          context.clip();
+          const avatar = cardImage(preview.avatarUrl);
+          if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+          else {
+            context.fillStyle = design.colors.track;
+            context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+          }
+          context.restore();
+        });
       }
-      context.restore();
 
-      context.textBaseline = 'top';
-      context.textAlign = 'left';
-      context.fillStyle = design.username.color;
-      const previewName = String(preview.username || 'Member').normalize('NFKC').replace(/^\*\*([\s\S]+)\*\*$/u, '$1');
-      let previewNameSize = design.username.size;
-      const previewNameWidth = Math.max(120, design.rank.x - design.username.x - 145);
-      context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-      while (previewNameSize > 16 && context.measureText(previewName).width > previewNameWidth) {
-        previewNameSize -= 1;
-        context.font = `bold ${previewNameSize}px ${CARD_FONT_FAMILY}`;
-      }
-      context.fillText(previewName, design.username.x, design.username.y);
-      context.fillStyle = design.level.color;
-      context.font = `bold ${design.level.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`LEVEL ${formatNumber(preview.level)}`, design.level.x, design.level.y);
-      context.textAlign = 'right';
-      context.fillStyle = design.rank.color;
-      context.font = `bold ${design.rank.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`#${formatNumber(preview.rank)}`, design.rank.x, design.rank.y);
+      if (design.username.visible !== false) drawCardPreviewText(context, cardTextValue('username'), design.username);
+      if (design.level.visible !== false) drawCardPreviewText(context, cardTextValue('level'), design.level);
+      if (design.rank.visible !== false) drawCardPreviewText(context, cardTextValue('rank'), design.rank, 'right');
 
-      context.fillStyle = design.progress.trackColor;
-      cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
-      context.fill();
-      const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
-      if (progressWidth) {
-        context.fillStyle = design.progress.color;
-        cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
-        context.fill();
+      if (design.progress.visible !== false) {
+        const progressBounds = cardBounds('progress', context);
+        withCardRotation(context, progressBounds, () => {
+          context.fillStyle = design.progress.trackColor;
+          cardRoundRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+          context.fill();
+          const progressWidth = design.progress.width * Math.max(0, Math.min(1, Number(preview.progressRatio) || 0));
+          if (progressWidth) {
+            context.fillStyle = design.progress.color;
+            cardRoundRect(context, design.progress.x, design.progress.y, progressWidth, design.progress.height, design.progress.height / 2);
+            context.fill();
+          }
+        });
       }
-      context.textAlign = 'left';
-      context.fillStyle = design.xp.color;
-      context.font = `${design.xp.size}px ${CARD_FONT_FAMILY}`;
-      context.fillText(`${formatNumber(preview.progressXp)} / ${formatNumber(preview.neededXp)} XP`, design.xp.x, design.xp.y);
+      if (design.xp.visible !== false) drawCardPreviewText(context, cardTextValue('xp'), design.xp);
 
       for (const layer of design.layers) {
+        if (layer.visible === false) continue;
         if (layer.type === 'image') {
           const image = cardImage(layer.imageUrl);
-          if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
-        } else {
-          context.textAlign = 'left';
-          context.fillStyle = layer.color;
-          context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-          context.fillText(layer.text, layer.x, layer.y);
-        }
+          const layerBounds = cardBounds(`layer:${layer.id}`, context);
+          if (image) withCardRotation(context, layerBounds, () => context.drawImage(image, layer.x, layer.y, layer.width, layer.height));
+        } else drawCardPreviewText(context, layer.text, layer);
+      }
+    } finally {
+      context.restore();
+    }
+
+    if (Number.isFinite(state.cardGuides.x) || Number.isFinite(state.cardGuides.y)) {
+      context.save();
+      context.strokeStyle = '#5ce1e6';
+      context.lineWidth = 1.5;
+      context.setLineDash([8, 5]);
+      if (Number.isFinite(state.cardGuides.x)) {
+        context.beginPath(); context.moveTo(state.cardGuides.x, 0); context.lineTo(state.cardGuides.x, 320); context.stroke();
+      }
+      if (Number.isFinite(state.cardGuides.y)) {
+        context.beginPath(); context.moveTo(0, state.cardGuides.y); context.lineTo(1000, state.cardGuides.y); context.stroke();
       }
       context.restore();
     }
@@ -1378,14 +1751,31 @@
       context.strokeStyle = '#b9f547';
       context.lineWidth = 2;
       context.setLineDash([7, 5]);
-      context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
+      const controls = cardHandleMetrics(bounds);
+      withCardRotation(context, bounds, () => {
+        context.strokeRect(bounds.x - 3, bounds.y - 3, bounds.width + 6, bounds.height + 6);
+        if (bounds.resize) {
+          context.beginPath();
+          context.moveTo(bounds.x + bounds.width / 2, bounds.y - 3);
+          context.lineTo(bounds.x + bounds.width / 2, bounds.y - controls.rotateDistance);
+          context.stroke();
+        }
+      });
       context.setLineDash([]);
       if (bounds.resize) {
-        context.fillStyle = '#b9f547';
-        context.fillRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+        for (const handle of cardHandlePositions(bounds)) {
+          context.fillStyle = '#b9f547';
+          context.fillRect(handle.x - controls.size / 2, handle.y - controls.size / 2, controls.size, controls.size);
+          context.strokeStyle = '#0b0f0d';
+          context.strokeRect(handle.x - controls.size / 2, handle.y - controls.size / 2, controls.size, controls.size);
+        }
+        const rotate = cardRotateHandle(bounds);
+        context.beginPath();
+        context.arc(rotate.x, rotate.y, Math.max(3, controls.size * .6), 0, Math.PI * 2);
+        context.fillStyle = '#5ce1e6';
+        context.fill();
         context.strokeStyle = '#0b0f0d';
-        context.lineWidth = 2;
-        context.strokeRect(bounds.x + bounds.width - 7, bounds.y + bounds.height - 7, 14, 14);
+        context.stroke();
       }
       context.restore();
     }
@@ -1398,11 +1788,15 @@
 
   function renderCardLayers() {
     if (!state.profile) return;
-    const builtins = CARD_BUILTINS.map(([key, icon, label]) => `<button class="layer-button${state.cardSelection === key ? ' active' : ''}" type="button" data-card-selection="${key}"><i>${icon}</i><span>${label}</span></button>`).join('');
+    const row = (selection, icon, label, item, canHide = true) => `<div class="layer-row${item?.visible === false ? ' is-hidden' : ''}">
+      <button class="layer-button${state.cardSelection === selection ? ' active' : ''}" type="button" data-card-selection="${escapeHtml(selection)}"><i>${icon}</i><span>${escapeHtml(label)}</span></button>
+      ${canHide ? `<button class="layer-visibility" type="button" data-card-visibility="${escapeHtml(selection)}" aria-label="${item?.visible === false ? 'Show' : 'Hide'} ${escapeHtml(label)}" title="${item?.visible === false ? 'Show' : 'Hide'} element">${item?.visible === false ? '○' : '●'}</button>` : ''}
+    </div>`;
+    const builtins = CARD_BUILTINS.map(([key, icon, label]) => row(key, icon, label, state.profile.design[key], key !== 'background')).join('');
     const layers = state.profile.design.layers.map((layer) => {
       const selection = `layer:${layer.id}`;
       const label = layer.type === 'text' ? layer.text : 'Uploaded image';
-      return `<button class="layer-button${state.cardSelection === selection ? ' active' : ''}" type="button" data-card-selection="${escapeHtml(selection)}"><i>${layer.type === 'text' ? 'Aa' : 'IMG'}</i><span>${escapeHtml(label)}</span></button>`;
+      return row(selection, layer.type === 'text' ? 'Aa' : 'IMG', label, layer);
     }).join('');
     elements.cardLayerList.innerHTML = builtins + layers;
   }
@@ -1413,6 +1807,23 @@
     const attributes = type === 'number' ? ` min="${options.min ?? -1000}" max="${options.max ?? 1000}" step="${options.step ?? 1}"` : '';
     if (type === 'textarea') return `<label class="${wide.trim()}">${label}<textarea maxlength="120" data-card-field="${path}">${escapeHtml(value)}</textarea></label>`;
     return `<label class="${wide.trim()}">${label}<input type="${type}" value="${escapeHtml(value)}" data-card-field="${path}"${attributes}></label>`;
+  }
+
+  function inspectorSelect(label, path, value) {
+    const options = [
+      ['sans', 'Noto Sans'], ['serif', 'Noto Serif'], ['mono', 'Roboto Mono'],
+      ['rounded', 'Nunito Rounded'], ['condensed', 'Oswald Condensed'], ['handwriting', 'Caveat Handwriting'],
+    ]
+      .map(([key, name]) => `<option value="${key}"${value === key ? ' selected' : ''}>${name}</option>`).join('');
+    return `<label class="wide">${label}<select data-card-field="${path}">${options}</select></label>`;
+  }
+
+  function inspectorFormatting(prefix, item) {
+    return `<div class="inspector-format wide" aria-label="Text formatting">
+      <button type="button" data-card-toggle="${prefix}.bold" class="${item.bold !== false ? 'active' : ''}" aria-pressed="${item.bold !== false}"><b>B</b></button>
+      <button type="button" data-card-toggle="${prefix}.italic" class="${item.italic ? 'active' : ''}" aria-pressed="${Boolean(item.italic)}"><i>I</i></button>
+      <button type="button" data-card-toggle="${prefix}.underline" class="${item.underline ? 'active' : ''}" aria-pressed="${Boolean(item.underline)}"><u>U</u></button>
+    </div>`;
   }
 
   function renderCardInspector() {
@@ -1432,23 +1843,32 @@
         + inspectorInput('Image scale', 'background.scale', item.scale, { min: .25, max: 5, step: .05, wide: true });
     } else if (selection === 'avatar') {
       fields = inspectorInput('X', 'avatar.x', item.x, { min: 0, max: 950 }) + inspectorInput('Y', 'avatar.y', item.y, { min: 0, max: 270 })
-        + inspectorInput('Size', 'avatar.size', item.size, { min: 32, max: 240 }) + inspectorInput('Ring color', 'avatar.color', item.color, { type: 'color' });
+        + inspectorInput('Size', 'avatar.size', item.size, { min: 32, max: 240 }) + inspectorInput('Rotation', 'avatar.rotation', item.rotation || 0, { min: -180, max: 180 })
+        + inspectorInput('Ring color', 'avatar.color', item.color, { type: 'color', wide: true });
     } else if (selection === 'progress') {
       fields = inspectorInput('X', 'progress.x', item.x) + inspectorInput('Y', 'progress.y', item.y)
         + inspectorInput('Width', 'progress.width', item.width, { min: 40, max: 950 }) + inspectorInput('Height', 'progress.height', item.height, { min: 6, max: 70 })
+        + inspectorInput('Rotation', 'progress.rotation', item.rotation || 0, { min: -180, max: 180, wide: true })
         + inspectorInput('Bar color', 'progress.color', item.color, { type: 'color' }) + inspectorInput('Track color', 'progress.trackColor', item.trackColor, { type: 'color' });
     } else if (layer?.type === 'image') {
       fields = inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
         + inspectorInput('Width', `layers.${layer.id}.width`, layer.width, { min: 12, max: 800 }) + inspectorInput('Height', `layers.${layer.id}.height`, layer.height, { min: 12, max: 320 })
+        + inspectorInput('Rotation', `layers.${layer.id}.rotation`, layer.rotation || 0, { min: -180, max: 180, wide: true })
         + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete image</button>';
     } else if (layer?.type === 'text') {
+      const prefix = `layers.${layer.id}`;
       fields = inspectorInput('Text', `layers.${layer.id}.text`, layer.text, { type: 'textarea', wide: true })
         + inspectorInput('X', `layers.${layer.id}.x`, layer.x) + inspectorInput('Y', `layers.${layer.id}.y`, layer.y)
-        + inspectorInput('Font size', `layers.${layer.id}.size`, layer.size, { min: 10, max: 96 }) + inspectorInput('Color', `layers.${layer.id}.color`, layer.color, { type: 'color' })
+        + inspectorInput('Font size', `${prefix}.size`, layer.size, { min: 10, max: 96 }) + inspectorInput('Rotation', `${prefix}.rotation`, layer.rotation || 0, { min: -180, max: 180 })
+        + inspectorSelect('Font', `${prefix}.fontFamily`, layer.fontFamily || 'sans') + inspectorFormatting(prefix, layer)
+        + inspectorInput('Color', `${prefix}.color`, layer.color, { type: 'color', wide: true })
         + '<div class="inspector-divider"></div><button class="inspector-delete" type="button" data-delete-card-layer>Delete text</button>';
     } else {
+      const prefix = selection;
       fields = inspectorInput('X', `${selection}.x`, item.x) + inspectorInput('Y', `${selection}.y`, item.y)
-        + inspectorInput('Font size', `${selection}.size`, item.size, { min: 12, max: 80 }) + inspectorInput('Color', `${selection}.color`, item.color, { type: 'color' });
+        + inspectorInput('Font size', `${selection}.size`, item.size, { min: 12, max: 80 }) + inspectorInput('Rotation', `${selection}.rotation`, item.rotation || 0, { min: -180, max: 180 })
+        + inspectorSelect('Font', `${prefix}.fontFamily`, item.fontFamily || 'sans') + inspectorFormatting(prefix, item)
+        + inspectorInput('Color', `${selection}.color`, item.color, { type: 'color', wide: true });
     }
     elements.cardInspector.innerHTML = `<div class="inspector-fields">${fields}</div>`;
   }
@@ -1489,6 +1909,7 @@
     }
     const target = cardSelectionObject(selection);
     if (!target) return;
+    target.rotation = normalizedCardRotation(target.rotation);
     const layer = cardLayerBySelection(selection);
     if (selection === 'avatar') {
       target.size = limit(target.size, 32, 240);
@@ -1507,9 +1928,11 @@
       if (layer.type === 'text') {
         layer.size = limit(layer.size, 10, 96);
         const context = elements.cardCanvas.getContext('2d');
-        context.font = `${layer.weight} ${layer.size}px ${CARD_FONT_FAMILY}`;
-        layer.width = Math.min(1000, Math.max(12, Math.ceil(context.measureText(layer.text || 'Text').width)));
-        layer.height = Math.min(320, Math.max(12, Math.ceil(layer.size * 1.25)));
+        context.font = cardFont(layer);
+        const metrics = context.measureText(layer.text || 'Text');
+        layer.width = Math.min(1000, Math.max(1, Math.ceil(metrics.width)));
+        layer.height = Math.min(320, Math.max(1, Math.ceil((Number(metrics.actualBoundingBoxAscent) || 0) + (Number(metrics.actualBoundingBoxDescent) || layer.size))));
+        layer.weight = layer.bold === false ? 'normal' : 'bold';
       } else {
         layer.width = limit(layer.width, 12, 1000);
         layer.height = limit(layer.height, 12, 320);
@@ -1521,10 +1944,11 @@
     const bounds = cardBounds(selection);
     if (!bounds) return;
     target.size = limit(target.size, 12, 80);
-    target.y = limit(target.y, 0, 320 - bounds.height);
-    target.x = selection === 'rank'
-      ? limit(target.x, bounds.width, 1000)
-      : limit(target.x, 0, 1000 - bounds.width);
+    const fitted = cardBounds(selection);
+    if (fitted.x < 0) target.x -= fitted.x;
+    if (fitted.x + fitted.width > 1000) target.x -= fitted.x + fitted.width - 1000;
+    if (fitted.y < 0) target.y -= fitted.y;
+    if (fitted.y + fitted.height > 320) target.y -= fitted.y + fitted.height - 320;
   }
 
   function refreshCardDirty() {
@@ -1532,13 +1956,87 @@
     elements.profileSaveDock.hidden = !dirty && !state.cardSaving;
     elements.cardSaveButton.disabled = !dirty || state.cardSaving;
     elements.cardResetButton.disabled = !dirty || state.cardSaving;
+    refreshCardHistoryButtons();
   }
 
-  function renderCardStudio() {
+  function renderCardStudio(draw = true) {
     renderCardLayers();
     renderCardInspector();
     refreshCardDirty();
-    scheduleCardDraw();
+    if (draw) scheduleCardDraw();
+  }
+
+  function scheduleAuthoritativeCardPreview() {
+    window.clearTimeout(state.cardPreviewTimer);
+    state.cardPreviewTimer = window.setTimeout(() => {
+      loadAuthoritativeCardPreview().catch(() => null);
+    }, CARD_PREVIEW_DEBOUNCE_MS);
+  }
+
+  function showAuthoritativeCardPreview(draft) {
+    elements.cardCanvas.hidden = true;
+    elements.cardAuthoritativeCanvas.hidden = false;
+    elements.cardPreviewLabel.querySelector('strong').textContent = draft ? 'Authoritative server draft' : 'Authoritative Discord render';
+    elements.cardPreviewLabel.querySelector('small').textContent = draft
+      ? 'Rendered on the server; save to publish this design to /level.'
+      : 'This saved PNG is rendered by the same server used by /level.';
+  }
+
+  async function loadAuthoritativeCardPreview() {
+    window.clearTimeout(state.cardPreviewTimer);
+    state.cardPreviewTimer = null;
+    const expectedSavedHash = String(state.profile?.designHash || '');
+    const designSnapshot = cardSnapshot();
+    const draft = designSnapshot !== state.profileSavedSnapshot;
+    const request = ++state.cardPreviewRequest;
+    if (!expectedSavedHash) return;
+    try {
+      const response = await fetch('/api/profile/card/preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'image/png',
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': state.csrfToken,
+        },
+        body: JSON.stringify({
+          designHash: expectedSavedHash,
+          draft,
+          ...(draft ? { design: state.profile.design } : {}),
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || `Authoritative level-card render failed (${response.status})`);
+      }
+      const responseHash = String(response.headers.get('x-coinsprite-design-hash') || '');
+      const responseSource = String(response.headers.get('x-coinsprite-render-source') || '');
+      if (request !== state.cardPreviewRequest || expectedSavedHash !== state.profile?.designHash || designSnapshot !== cardSnapshot()) return;
+      if (!draft && responseHash !== expectedSavedHash) throw new Error('Authoritative saved preview returned a different design hash.');
+      if (responseSource !== (draft ? 'authoritative-draft' : 'authoritative')) throw new Error('Level-card preview did not come from the authoritative renderer.');
+      const blobUrl = URL.createObjectURL(await response.blob());
+      try {
+        const image = new Image();
+        image.src = blobUrl;
+        await image.decode();
+        if (request !== state.cardPreviewRequest || expectedSavedHash !== state.profile?.designHash || designSnapshot !== cardSnapshot()) return;
+        if (image.naturalWidth !== 1000 || image.naturalHeight !== 320) throw new Error('Authoritative level-card render returned unexpected dimensions.');
+        const context = elements.cardAuthoritativeCanvas.getContext('2d');
+        context.clearRect(0, 0, 1000, 320);
+        context.drawImage(image, 0, 0);
+      } finally {
+        URL.revokeObjectURL(blobUrl);
+      }
+      state.cardPreviewHash = responseHash;
+      showAuthoritativeCardPreview(draft);
+    } catch (error) {
+      if (request === state.cardPreviewRequest && expectedSavedHash === state.profile?.designHash && designSnapshot === cardSnapshot()) {
+        showDraftCardPreview();
+        elements.cardPreviewLabel.querySelector('small').textContent = 'Authoritative server preview unavailable; this remains a labelled browser draft.';
+        showToast(error.message, 'error');
+      }
+      throw error;
+    }
   }
 
   async function loadProfile() {
@@ -1546,7 +2044,12 @@
       state.profile = await api('/api/profile/card');
       state.profileSavedSnapshot = cardSnapshot();
       state.cardSelection = 'background';
-      renderCardStudio();
+      state.cardUndoStack = [];
+      state.cardRedoStack = [];
+      state.cardPendingHistory = '';
+      renderCardStudio(false);
+      await loadAuthoritativeCardPreview();
+      await ensureCardFontsReady();
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1559,9 +2062,12 @@
     try {
       const payload = await api('/api/profile/card', { method: 'PATCH', body: JSON.stringify({ design: state.profile.design }) });
       state.profile.design = payload.design;
+      state.profile.updatedAt = payload.updatedAt;
+      state.profile.designHash = payload.designHash;
       state.profileSavedSnapshot = cardSnapshot();
       renderCardStudio();
       showToast('Your /level card is updated.');
+      await loadAuthoritativeCardPreview();
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
@@ -1579,6 +2085,7 @@
     }
     try {
       const payload = await api('/api/profile/card/media', { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
+      const before = cardSnapshot();
       if (kind === 'background') {
         state.profile.design.background.imageUrl = payload.url;
         state.profile.design.background.x = 0;
@@ -1587,9 +2094,10 @@
         state.cardSelection = 'background';
       } else {
         const id = `image-${Date.now().toString(36)}`;
-        state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140 });
+        state.profile.design.layers.push({ id, type: 'image', imageUrl: payload.url, x: 420, y: 80, width: 140, height: 140, visible: true, rotation: 0 });
         state.cardSelection = `layer:${id}`;
       }
+      commitCardHistory(before);
       renderCardStudio();
       showToast('Artwork added. Save when you are ready.');
     } catch (error) {
@@ -1602,14 +2110,20 @@
   function addCardText() {
     if (!state.profile || state.profile.design.layers.length >= 20) return showToast('This card already has the maximum of 20 custom layers.', 'error');
     const id = `text-${Date.now().toString(36)}`;
-    state.profile.design.layers.push({ id, type: 'text', text: 'Your text', x: 420, y: 155, width: 160, height: 40, size: 28, color: '#f4f7f2', weight: 'bold' });
+    mutateCardDesign(() => {
+      state.profile.design.layers.push({
+        id, type: 'text', text: 'Your text', x: 420, y: 155, width: 130, height: 28, size: 28,
+        color: '#f4f7f2', weight: 'bold', bold: true, italic: false, underline: false,
+        fontFamily: 'sans', visible: true, rotation: 0,
+      });
+    });
     state.cardSelection = `layer:${id}`;
     renderCardStudio();
     elements.cardInspector.querySelector('textarea')?.focus();
   }
 
   function canvasPoint(event) {
-    const box = elements.cardCanvas.getBoundingClientRect();
+    const box = elements.cardCanvasWrap.getBoundingClientRect();
     return { x: (event.clientX - box.left) * 1000 / box.width, y: (event.clientY - box.top) * 320 / box.height };
   }
 
@@ -1620,20 +2134,137 @@
     ];
     return choices.find((selection) => {
       const box = cardBounds(selection);
-      return box && point.x >= box.x - 5 && point.x <= box.x + box.width + 5 && point.y >= box.y - 5 && point.y <= box.y + box.height + 5;
+      return box && cardPointInBounds(point, box);
     }) || 'background';
+  }
+
+  function cardHandleAtPoint(point, bounds) {
+    if (!bounds?.resize) return '';
+    const controls = cardHandleMetrics(bounds);
+    const rotate = cardRotateHandle(bounds);
+    if (Math.hypot(point.x - rotate.x, point.y - rotate.y) <= controls.hitRadius) return 'rotate';
+    return cardHandlePositions(bounds).find((handle) => Math.hypot(point.x - handle.x, point.y - handle.y) <= controls.hitRadius)?.handle || '';
+  }
+
+  function cardAlignmentTargets(excludedSelection) {
+    const x = [{ value: 0, kind: 'start' }, { value: 28, kind: 'start' }, { value: 500, kind: 'center' }, { value: 972, kind: 'end' }, { value: 1000, kind: 'end' }];
+    const y = [{ value: 0, kind: 'start' }, { value: 28, kind: 'start' }, { value: 160, kind: 'center' }, { value: 292, kind: 'end' }, { value: 320, kind: 'end' }];
+    const selections = [
+      ...state.profile.design.layers.map((layer) => `layer:${layer.id}`),
+      'avatar', 'username', 'level', 'rank', 'progress', 'xp',
+    ];
+    for (const selection of selections) {
+      if (selection === excludedSelection) continue;
+      const bounds = cardVisualBounds(cardBounds(selection));
+      if (!bounds) continue;
+      x.push({ value: bounds.x, kind: 'start' }, { value: bounds.x + bounds.width / 2, kind: 'center' }, { value: bounds.x + bounds.width, kind: 'end' });
+      y.push({ value: bounds.y, kind: 'start' }, { value: bounds.y + bounds.height / 2, kind: 'center' }, { value: bounds.y + bounds.height, kind: 'end' });
+    }
+    return { x, y };
+  }
+
+  function cardSnapAxis(axis, bounds, targets, drag) {
+    const origin = axis === 'x' ? bounds.x : bounds.y;
+    const size = axis === 'x' ? bounds.width : bounds.height;
+    const latchKey = axis === 'x' ? 'snapX' : 'snapY';
+    const offsets = [{ value: 0, kind: 'start' }, { value: size / 2, kind: 'center' }, { value: size, kind: 'end' }];
+    const latched = drag[latchKey];
+    if (latched) {
+      const difference = origin + latched.offset - latched.target;
+      if (Math.abs(difference) <= CARD_SNAP_RELEASE) return { delta: -difference, guide: latched.target };
+      drag[latchKey] = null;
+    }
+    let best = null;
+    for (const offset of offsets) {
+      for (const target of targets) {
+        if (offset.kind !== target.kind) continue;
+        const difference = origin + offset.value - target.value;
+        if (Math.abs(difference) <= CARD_SNAP_DISTANCE && (!best || Math.abs(difference) < Math.abs(best.difference))) {
+          best = { difference, offset: offset.value, target: target.value };
+        }
+      }
+    }
+    if (!best) return { delta: 0 };
+    drag[latchKey] = { offset: best.offset, target: best.target };
+    return { delta: -best.difference, guide: best.target };
+  }
+
+  function snapMovedCardTarget(drag) {
+    const bounds = cardVisualBounds(cardBounds());
+    if (!bounds) return;
+    const targets = cardAlignmentTargets(state.cardSelection);
+    const x = cardSnapAxis('x', bounds, targets.x, drag);
+    const y = cardSnapAxis('y', bounds, targets.y, drag);
+    if ('x' in drag.target) drag.target.x += x.delta;
+    if ('y' in drag.target) drag.target.y += y.delta;
+    state.cardGuides = { x: x.guide, y: y.guide };
+  }
+
+  function oppositeCardAnchor(bounds, handle) {
+    const point = {
+      x: handle.includes('e') ? bounds.x : handle.includes('w') ? bounds.x + bounds.width : bounds.x + bounds.width / 2,
+      y: handle.includes('s') ? bounds.y : handle.includes('n') ? bounds.y + bounds.height : bounds.y + bounds.height / 2,
+    };
+    return rotateCardPoint(point, cardBoundsCenter(bounds), bounds.rotation);
+  }
+
+  function resizeCardTarget(drag, point) {
+    const originalBounds = drag.bounds;
+    const center = cardBoundsCenter(originalBounds);
+    const local = rotateCardPoint(point, center, -originalBounds.rotation);
+    const localX = local.x - originalBounds.x;
+    const localY = local.y - originalBounds.y;
+    const handle = drag.handle;
+    let width = handle.includes('e') ? localX : handle.includes('w') ? originalBounds.width - localX : originalBounds.width;
+    let height = handle.includes('s') ? localY : handle.includes('n') ? originalBounds.height - localY : originalBounds.height;
+    width = Math.max(6, width);
+    height = Math.max(6, height);
+    const fixedAnchor = oppositeCardAnchor(originalBounds, handle);
+
+    if (originalBounds.resize === 'text') {
+      const scales = [];
+      if (handle.includes('e') || handle.includes('w')) scales.push(width / originalBounds.width);
+      if (handle.includes('n') || handle.includes('s')) scales.push(height / originalBounds.height);
+      const scale = Math.max(.1, ...scales);
+      const minimum = drag.target.type === 'text' ? 10 : 12;
+      const maximum = drag.target.type === 'text' ? 96 : 80;
+      drag.target.size = Math.round(Math.min(maximum, Math.max(minimum, drag.original.size * scale)));
+    } else if (originalBounds.resize === 'square') {
+      drag.target.size = Math.round(Math.max(32, Math.min(240, Math.max(width, height))));
+    } else {
+      drag.target.width = Math.round(Math.max(12, width));
+      drag.target.height = Math.round(Math.max(state.cardSelection === 'progress' ? 6 : 12, height));
+    }
+
+    const resizedBounds = cardBounds();
+    if (!resizedBounds) return;
+    const movedAnchor = oppositeCardAnchor(resizedBounds, handle);
+    if ('x' in drag.target) drag.target.x += fixedAnchor.x - movedAnchor.x;
+    if ('y' in drag.target) drag.target.y += fixedAnchor.y - movedAnchor.y;
+    constrainCardSelection();
   }
 
   function beginCardPointer(event) {
     if (!state.profile || event.button !== 0) return;
     const point = canvasPoint(event);
     const activeBounds = cardBounds();
-    const resize = activeBounds?.resize && Math.abs(point.x - (activeBounds.x + activeBounds.width)) < 18 && Math.abs(point.y - (activeBounds.y + activeBounds.height)) < 18;
-    if (!resize) state.cardSelection = hitCardSelection(point);
+    let handle = cardHandleAtPoint(point, activeBounds);
+    if (!handle) {
+      state.cardSelection = hitCardSelection(point);
+      handle = cardHandleAtPoint(point, cardBounds());
+    }
     const target = cardSelectionObject();
     const bounds = cardBounds();
-    state.cardPointer = { id: event.pointerId, start: point, resize, target, original: clone(target), bounds };
-    elements.cardCanvas.setPointerCapture(event.pointerId);
+    if (!target || !bounds) return;
+    const center = cardBoundsCenter(bounds);
+    state.cardPointer = {
+      id: event.pointerId, start: point, handle, target, original: clone(target), bounds,
+      mode: handle === 'rotate' ? 'rotate' : handle ? 'resize' : state.cardSelection === 'background' ? 'background' : 'move',
+      startAngle: Math.atan2(point.y - center.y, point.x - center.x),
+      historySnapshot: cardSnapshot(),
+    };
+    state.cardGuides = {};
+    elements.cardCanvasWrap.setPointerCapture(event.pointerId);
     renderCardLayers();
     renderCardInspector();
     scheduleCardDraw();
@@ -1646,28 +2277,38 @@
     const dx = point.x - drag.start.x;
     const dy = point.y - drag.start.y;
     const target = drag.target;
-    if (state.cardSelection === 'background') {
+    if (drag.mode === 'background') {
       if (target.imageUrl) { target.x = Math.round(drag.original.x + dx); target.y = Math.round(drag.original.y + dy); }
-    } else if (drag.resize) {
-      if ('size' in target && !('width' in target)) target.size = Math.max(12, Math.round(drag.original.size + Math.max(dx, dy)));
-      else {
-        target.width = Math.max(12, Math.round((drag.original.width || drag.bounds.width) + dx));
-        target.height = Math.max(6, Math.round((drag.original.height || drag.bounds.height) + dy));
-        if (target.type === 'text') target.size = Math.max(10, Math.round(drag.original.size + dy));
-      }
+    } else if (drag.mode === 'rotate') {
+      const center = cardBoundsCenter(drag.bounds);
+      const angle = Math.atan2(point.y - center.y, point.x - center.x);
+      let rotation = normalizedCardRotation(drag.original.rotation + (angle - drag.startAngle) * 180 / Math.PI);
+      const snapped = Math.round(rotation / 15) * 15;
+      if (event.shiftKey || Math.abs(rotation - snapped) <= 3) rotation = snapped;
+      target.rotation = normalizedCardRotation(rotation);
+      state.cardGuides = {};
+    } else if (drag.mode === 'resize') {
+      resizeCardTarget(drag, point);
+      state.cardGuides = {};
     } else {
       if ('x' in target) target.x = Math.round(drag.original.x + dx);
       if ('y' in target) target.y = Math.round(drag.original.y + dy);
+      constrainCardSelection();
+      snapMovedCardTarget(drag);
     }
-    constrainCardSelection();
+    if (drag.mode !== 'move' && drag.mode !== 'resize') constrainCardSelection();
     scheduleCardDraw();
     refreshCardDirty();
   }
 
   function endCardPointer(event) {
     if (!state.cardPointer || state.cardPointer.id !== event.pointerId) return;
+    const historySnapshot = state.cardPointer.historySnapshot;
     state.cardPointer = null;
+    state.cardGuides = {};
+    commitCardHistory(historySnapshot);
     renderCardInspector();
+    scheduleCardDraw();
     refreshCardDirty();
   }
 
@@ -1709,9 +2350,22 @@
   elements.cardBackgroundButton.addEventListener('click', () => elements.cardBackgroundFile.click());
   elements.cardImageButton.addEventListener('click', () => elements.cardImageFile.click());
   elements.cardTextButton.addEventListener('click', addCardText);
+  elements.cardTemplateButton.addEventListener('click', applyCardTemplate);
+  elements.cardUndoButton.addEventListener('click', undoCardDesign);
+  elements.cardRedoButton.addEventListener('click', redoCardDesign);
   elements.cardBackgroundFile.addEventListener('change', () => uploadCardMedia(elements.cardBackgroundFile, 'background'));
   elements.cardImageFile.addEventListener('change', () => uploadCardMedia(elements.cardImageFile, 'image'));
   elements.cardLayerList.addEventListener('click', (event) => {
+    const visibility = event.target.closest('[data-card-visibility]');
+    if (visibility) {
+      const selection = visibility.dataset.cardVisibility;
+      const target = cardSelectionObject(selection);
+      if (!target) return;
+      mutateCardDesign(() => { target.visible = target.visible === false; });
+      state.cardSelection = selection;
+      renderCardStudio();
+      return;
+    }
     const button = event.target.closest('[data-card-selection]');
     if (!button) return;
     state.cardSelection = button.dataset.cardSelection;
@@ -1720,6 +2374,7 @@
   elements.cardInspector.addEventListener('input', (event) => {
     const input = event.target.closest('[data-card-field]');
     if (!input || !state.profile) return;
+    beginCardInputHistory();
     setCardField(input.dataset.cardField, input.value);
     constrainCardSelection();
     const constrained = getCardField(input.dataset.cardField);
@@ -1728,25 +2383,60 @@
     scheduleCardDraw();
     refreshCardDirty();
   });
+  elements.cardInspector.addEventListener('focusin', (event) => {
+    if (event.target.closest('[data-card-field]')) beginCardInputHistory();
+  });
+  elements.cardInspector.addEventListener('change', (event) => {
+    if (event.target.closest('[data-card-field]')) finishCardInputHistory();
+  });
+  elements.cardInspector.addEventListener('focusout', (event) => {
+    if (event.target.closest('[data-card-field]')) finishCardInputHistory();
+  });
   elements.cardInspector.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-card-toggle]');
+    if (toggle) {
+      const path = toggle.dataset.cardToggle;
+      mutateCardDesign(() => {
+        setCardField(path, !getCardField(path));
+        constrainCardSelection();
+      });
+      renderCardInspector();
+      scheduleCardDraw();
+      refreshCardDirty();
+      return;
+    }
     if (!event.target.closest('[data-delete-card-layer]')) return;
     const layer = cardLayerBySelection();
     if (!layer) return;
-    state.profile.design.layers = state.profile.design.layers.filter((item) => item.id !== layer.id);
+    mutateCardDesign(() => {
+      state.profile.design.layers = state.profile.design.layers.filter((item) => item.id !== layer.id);
+    });
     state.cardSelection = 'background';
     renderCardStudio();
   });
-  elements.cardCanvas.addEventListener('pointerdown', beginCardPointer);
-  elements.cardCanvas.addEventListener('pointermove', moveCardPointer);
-  elements.cardCanvas.addEventListener('pointerup', endCardPointer);
-  elements.cardCanvas.addEventListener('pointercancel', endCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointerdown', beginCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointermove', moveCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointerup', endCardPointer);
+  elements.cardCanvasWrap.addEventListener('pointercancel', endCardPointer);
   elements.cardSaveButton.addEventListener('click', saveProfileCard);
   elements.cardResetButton.addEventListener('click', () => {
     if (!state.profile || state.cardSaving || !state.profileSavedSnapshot) return;
-    state.profile.design = JSON.parse(state.profileSavedSnapshot);
+    mutateCardDesign(() => { state.profile.design = JSON.parse(state.profileSavedSnapshot); });
     state.cardSelection = 'background';
     renderCardStudio();
     showToast('Unsaved card changes reset.');
+  });
+  window.addEventListener('keydown', (event) => {
+    if (!state.profile || elements.profileShell.hidden || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) redoCardDesign();
+      else undoCardDesign();
+    } else if (key === 'y') {
+      event.preventDefault();
+      redoCardDesign();
+    }
   });
   elements.saveButton.addEventListener('click', saveConfig);
   elements.resetButton.addEventListener('click', resetUnsavedChanges);
@@ -1757,6 +2447,8 @@
   elements.stockEnabled.addEventListener('change', (event) => updateConfigFromControl(event.target));
   elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
+  elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
+  elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
   elements.levelingMessagePreview.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-inline-message-display]');
     if (edit) return beginInlineMessageEdit(edit);
@@ -1944,18 +2636,22 @@
     if (!input) return;
     input.disabled = true;
     try {
+      const featureInputs = [...input.closest('.feature-dropdown').querySelectorAll('[data-owner-feature]')];
+      const features = Object.fromEntries(featureInputs.map((featureInput) => [featureInput.dataset.ownerFeature, featureInput.checked]));
       const payload = await api(`/api/owner/guilds/${input.dataset.guildId}/features`, {
         method: 'PATCH',
-        body: JSON.stringify({ features: { leveling: input.checked } }),
+        body: JSON.stringify({ features }),
       });
       if (state.guildId === input.dataset.guildId && state.config) {
         state.config.features = payload.features;
         state.config.leveling = normalizeLevelingConfig(payload.config);
+        state.config.rngGame = normalizeRngGameConfig(payload.config);
         state.savedConfig = clone(state.config);
         state.savedSnapshot = snapshot();
         renderFeatureAccess();
       }
-      showToast(`Leveling ${input.checked ? 'unlocked' : 'locked'} for this server.`);
+      const featureLabel = input.dataset.ownerFeature === 'rngGame' ? 'GAG2 RNG Game' : 'Leveling';
+      showToast(`${featureLabel} ${input.checked ? 'unlocked' : 'locked'} for this server.`);
       await loadOwner();
     } catch (error) {
       input.checked = !input.checked;

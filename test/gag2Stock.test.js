@@ -557,6 +557,57 @@ test('GAG2 weather and sell payloads parse public live endpoints', () => {
   assert.doesNotMatch(mainSellContainer.components[0].content, /<@&345678901234567890>|<@&456789012345678901>|^## <:tomato/m);
 });
 
+test('GAG2 combines Rare, Mythic, and Secret sell subscriptions into one notification', () => {
+  const sell = parseSellPayload({
+    sell: {
+      nextRefreshUnix: 1785642600,
+      entries: [
+        { key: 'corn', name: 'Corn', multiplier: 2, rarity: 'Rare', tier: 'big' },
+        { key: 'venom_spitter', name: 'Venom Spitter', multiplier: 2, rarity: 'Mythic', tier: 'big' },
+        { key: 'eclipse_bloom', name: 'Eclipse Bloom', multiplier: 2, rarity: 'Secret', tier: 'big' },
+      ],
+    },
+  });
+  const payloads = buildTypePayloads('sell', sell, {
+    roleIds: {
+      rare_2x: '111111111111111111',
+      mythic_2x: '222222222222222222',
+      secret_2x: '333333333333333333',
+    },
+  });
+
+  assert.equal(payloads.length, 1);
+  const text = JSON.stringify(payloads[0].components);
+  assert.match(text, /<@&111111111111111111> <@&222222222222222222> <@&333333333333333333> Sell Price/);
+  assert.deepEqual(payloads[0].allowedMentions.roles, [
+    '111111111111111111',
+    '222222222222222222',
+    '333333333333333333',
+  ]);
+});
+
+test('GAG2 de-duplicates repeated sell subscription role IDs', () => {
+  const sell = parseSellPayload({
+    sell: {
+      nextRefreshUnix: 1785642600,
+      entries: [
+        { key: 'corn', name: 'Corn', multiplier: 2, rarity: 'Rare', tier: 'big' },
+        { key: 'venom_spitter', name: 'Venom Spitter', multiplier: 2, rarity: 'Mythic', tier: 'big' },
+        { key: 'eclipse_bloom', name: 'Eclipse Bloom', multiplier: 2, rarity: 'Secret', tier: 'big' },
+      ],
+    },
+  });
+  const sharedRoleId = '111111111111111111';
+  const payloads = buildTypePayloads('sell', sell, {
+    roleIds: { rare_2x: sharedRoleId, mythic_2x: sharedRoleId, secret_2x: sharedRoleId },
+  });
+
+  assert.equal(payloads.length, 1);
+  assert.deepEqual(payloads[0].allowedMentions.roles, [sharedRoleId]);
+  const heading = payloads[0].components[0].components[0].content.split('\n')[0];
+  assert.equal((heading.match(new RegExp(sharedRoleId, 'g')) || []).length, 1);
+});
+
 test('GAG2 current weather uses role mention while recent weather stays plain text', () => {
   const weather = parseWeatherPayload({
     weather: {
@@ -1484,6 +1535,186 @@ test('GAG2 sell serializes concurrent delivery to the same channel', async () =>
     poster.postEntry(state, target, entry),
   ]);
   assert.equal(sends, 1);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 sell reloads persisted delivery state after acquiring the channel lock', async () => {
+  const now = Date.parse('2026-07-13T15:52:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-reload-state.json');
+  fs.rmSync(statePath, { force: true });
+  const entry = parseSellPayload({
+    fetchedAt: '2026-07-13T15:51:30.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-07-13T16:00:00.000Z') / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.15, tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  fs.writeFileSync(statePath, JSON.stringify({
+    version: 2,
+    posts: {
+      [target.guildId]: {
+        sell: {
+          channelId: target.channelId,
+          lastPostedKey: buildTypePostKey('sell', entry),
+          lastSellNextRefreshAtMs: entry.nextRefreshAtMs,
+        },
+      },
+    },
+  }));
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map() },
+    send: async () => { sends += 1; return { id: `message-${sends}` }; },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+
+  await poster.postEntry({ posts: {} }, target, entry);
+
+  assert.equal(sends, 0);
+  fs.rmSync(statePath, { force: true });
+});
+
+test('GAG2 converges three simultaneous Sell Price posters to the deterministic oldest message', async () => {
+  const now = Date.parse('2026-08-02T06:20:00.000Z');
+  const statePaths = [1, 2, 3].map((id) => path.join(__dirname, `tmp-gag2-sell-instance-${id}-state.json`));
+  statePaths.forEach((statePath) => fs.rmSync(statePath, { force: true }));
+  const entry = parseSellPayload({
+    fetchedAt: '2026-08-02T06:19:59.000Z',
+    sell: {
+      nextRefreshUnix: Math.floor(Date.parse('2026-08-02T06:30:00.000Z') / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier: 1.15, rarity: 'Common', tier: 'normal' }],
+    },
+  });
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const messages = new Map();
+  let preflightCalls = 0;
+  let releasePreflight;
+  const allPreflight = new Promise((resolve) => { releasePreflight = resolve; });
+  let sendCalls = 0;
+  let releaseSends;
+  const allSent = new Promise((resolve) => { releaseSends = resolve; });
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: {
+      fetch: async () => {
+        if (preflightCalls < 3) {
+          preflightCalls += 1;
+          if (preflightCalls === 3) releasePreflight();
+          await allPreflight;
+          return new Map();
+        }
+        return new Map(messages);
+      },
+    },
+    send: async (payload) => {
+      sendCalls += 1;
+      const id = `15250033756518482${sendCalls}`;
+      const message = {
+        id,
+        author: { id: '123456789012345678', bot: true },
+        components: payload.components,
+        createdTimestamp: now + sendCalls,
+        delete: async () => { messages.delete(id); },
+      };
+      messages.set(id, message);
+      if (sendCalls === 3) releaseSends();
+      await allSent;
+      return message;
+    },
+  };
+  const client = {
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  };
+  const posters = statePaths.map((statePath) => new Gag2StockPoster(client, {
+    logSystem: () => null,
+    now: () => now,
+    statePath,
+  }));
+
+  await Promise.all(posters.map((poster) => poster.postEntry({ posts: {} }, target, entry)));
+
+  assert.equal(sendCalls, 3, 'the test forces every stateless instance through preflight');
+  assert.deepEqual([...messages.keys()], ['152500337565184821']);
+  for (const statePath of statePaths) {
+    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    assert.equal(saved.posts[target.guildId].sell.lastMessageId, '152500337565184821');
+    fs.rmSync(statePath, { force: true });
+  }
+});
+
+test('GAG2 Sell reconciliation preserves a different payload and allows the same crop in a later cycle', async () => {
+  const now = Date.parse('2026-08-02T06:20:00.000Z');
+  const statePath = path.join(__dirname, 'tmp-gag2-sell-legitimate-cycles-state.json');
+  fs.rmSync(statePath, { force: true });
+  const refreshOne = Date.parse('2026-08-02T06:30:00.000Z');
+  const refreshTwo = Date.parse('2026-08-02T06:40:00.000Z');
+  const refreshThree = Date.parse('2026-08-02T06:50:00.000Z');
+  const entry = (multiplier, nextRefreshAtMs) => parseSellPayload({
+    fetchedAt: new Date(now).toISOString(),
+    sell: {
+      nextRefreshUnix: Math.floor(nextRefreshAtMs / 1000),
+      entries: [{ key: 'carrot', name: 'Carrot', multiplier, rarity: 'Common', tier: 'normal' }],
+    },
+  });
+  const first = entry(1.1, refreshOne);
+  const changed = entry(1.2, refreshTwo);
+  const later = entry(1.2, refreshThree);
+  const target = {
+    guildId: '1493901002519347290',
+    type: 'sell',
+    channelId: '1525003375651848263',
+    roleIds: {},
+  };
+  const messages = new Map();
+  let sends = 0;
+  const channel = {
+    id: target.channelId,
+    isTextBased: () => true,
+    messages: { fetch: async () => new Map(messages) },
+    send: async (payload) => {
+      sends += 1;
+      const id = `15250033756518483${sends}`;
+      const message = {
+        id,
+        author: { id: '123456789012345678', bot: true },
+        components: payload.components,
+        createdTimestamp: now + sends,
+        delete: async () => { messages.delete(id); },
+      };
+      messages.set(id, message);
+      return message;
+    },
+  };
+  const poster = new Gag2StockPoster({
+    user: { id: '123456789012345678' },
+    channels: { cache: new Map([[channel.id, channel]]), fetch: async () => channel },
+  }, { now: () => now, statePath });
+  const state = { posts: {} };
+
+  await poster.postEntry(state, target, first);
+  await poster.postEntry(state, target, changed);
+  await poster.postEntry(state, target, later);
+
+  assert.equal(sends, 3);
+  assert.equal(messages.size, 3, 'different payloads and later cycles remain legitimate messages');
   fs.rmSync(statePath, { force: true });
 });
 

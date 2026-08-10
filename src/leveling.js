@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const {
+  assertCanvasFontsAvailable,
+  levelCardRendererIdentity,
+} = require('./canvasFonts');
+const {
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -15,15 +19,40 @@ const {
   isGuildLevelingEnabled,
 } = require('./serverConfig');
 
-const DATA_PATH = path.join(__dirname, '..', 'data', 'leveling.json');
+const DATA_PATH = process.env.LEVELING_DATA_PATH || path.join(__dirname, '..', 'data', 'leveling.json');
 const LEVEL_CARD_MEDIA_DIR = path.join(__dirname, '..', 'data', 'level-card-media');
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const ACCENT = 0xb9f547;
 const PAGE_SIZE = 10;
+const LEADERBOARD_HEIGHT = 205 + PAGE_SIZE * 82 + 54;
 const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
-const CANVAS_FONT_FAMILY = '"Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+const LEVEL_CARD_TEXT_TOP_ADJUSTMENT = 0.075;
+const CANVAS_UNICODE_FALLBACK = '"CoinSprite Unicode", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
+const CANVAS_FONT_FAMILY = '"Noto Sans Variable", ' + CANVAS_UNICODE_FALLBACK;
+const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
+  sans: CANVAS_FONT_FAMILY,
+  serif: '"Noto Serif Variable", ' + CANVAS_UNICODE_FALLBACK,
+  mono: '"Roboto Mono Variable", ' + CANVAS_UNICODE_FALLBACK,
+  rounded: '"Nunito Variable", ' + CANVAS_UNICODE_FALLBACK,
+  condensed: '"Oswald Variable", ' + CANVAS_UNICODE_FALLBACK,
+  handwriting: '"Caveat Variable", ' + CANVAS_UNICODE_FALLBACK,
+});
+
+class AuthoritativeLevelCardError extends Error {
+  constructor(message, reason = 'authoritative-render-failed') {
+    super(message);
+    this.name = 'AuthoritativeLevelCardError';
+    this.code = 'LEVEL_CARD_AUTHORITATIVE_UNAVAILABLE';
+    this.reason = reason;
+  }
+}
+
+function canonicalLevelCardUsername(user) {
+  return String(user?.globalName || user?.username || 'Member').slice(0, 100);
+}
 
 let cachedState = null;
 let cachedStateMtime = 0;
@@ -44,12 +73,12 @@ const DEFAULT_LEVEL_CARD_DESIGN = Object.freeze({
     surface: '#18201b', accent: '#b9f547', text: '#f4f7f2', muted: '#a3ada6',
     track: '#303a33', progress: '#b9f547',
   },
-  avatar: { x: 54, y: 68, size: 150, color: '#b9f547' },
-  username: { x: 236, y: 70, size: 34, color: '#f4f7f2' },
-  level: { x: 236, y: 130, size: 24, color: '#b9f547' },
-  rank: { x: 876, y: 68, size: 28, color: '#f4f7f2' },
-  xp: { x: 236, y: 269, size: 21, color: '#d8ded9' },
-  progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33' },
+  avatar: { x: 54, y: 68, size: 150, color: '#b9f547', visible: true, rotation: 0 },
+  username: { x: 236, y: 70, size: 34, color: '#f4f7f2', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  level: { x: 236, y: 130, size: 24, color: '#b9f547', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  rank: { x: 876, y: 68, size: 28, color: '#f4f7f2', visible: true, rotation: 0, fontFamily: 'sans', bold: true, italic: false, underline: false },
+  xp: { x: 236, y: 269, size: 21, color: '#d8ded9', visible: true, rotation: 0, fontFamily: 'sans', bold: false, italic: false, underline: false },
+  progress: { x: 236, y: 211, width: 698, height: 27, color: '#b9f547', trackColor: '#303a33', visible: true, rotation: 0 },
   layers: [],
 });
 
@@ -65,6 +94,30 @@ function clamp(value, minimum, maximum, fallback) {
 function safeColor(value, fallback) {
   const color = String(value || '').trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+}
+
+function normalizedRotation(value) {
+  const rotation = Number(value);
+  if (!Number.isFinite(rotation)) return 0;
+  return ((rotation + 180) % 360 + 360) % 360 - 180;
+}
+
+function cardElementOptions(input = {}, defaults = {}) {
+  return {
+    visible: input.visible !== false,
+    rotation: normalizedRotation(input.rotation ?? defaults.rotation),
+  };
+}
+
+function cardTextOptions(input = {}, defaults = {}) {
+  const bold = input.bold === undefined ? (input.weight ? input.weight !== 'normal' : defaults.bold !== false) : input.bold === true;
+  return {
+    ...cardElementOptions(input, defaults),
+    fontFamily: Object.hasOwn(LEVEL_CARD_FONT_FAMILIES, input.fontFamily) ? input.fontFamily : (defaults.fontFamily || 'sans'),
+    bold,
+    italic: input.italic === true,
+    underline: input.underline === true,
+  };
 }
 
 function safeCardMediaUrl(value, userId) {
@@ -97,12 +150,12 @@ function normalizeLevelCardDesign(value, userId) {
     },
     panelOpacity: clamp(source.panelOpacity, 0, 1, defaults.panelOpacity),
     colors: {},
-    avatar: point('avatar', { x: [0, 950], y: [0, 270], size: [32, 240] }),
-    username: point('username', { x: [0, 980], y: [20, 310], size: [12, 80] }),
-    level: point('level', { x: [0, 980], y: [20, 310], size: [12, 60] }),
-    rank: point('rank', { x: [0, 980], y: [20, 310], size: [12, 60] }),
-    xp: point('xp', { x: [0, 980], y: [20, 310], size: [12, 50] }),
-    progress: point('progress', { x: [0, 980], y: [0, 310], width: [40, 950], height: [6, 70] }),
+    avatar: { ...point('avatar', { x: [0, 950], y: [0, 270], size: [32, 240] }), ...cardElementOptions(source.avatar, defaults.avatar) },
+    username: { ...point('username', { x: [0, 980], y: [20, 310], size: [12, 80] }), ...cardTextOptions(source.username, defaults.username) },
+    level: { ...point('level', { x: [0, 980], y: [20, 310], size: [12, 60] }), ...cardTextOptions(source.level, defaults.level) },
+    rank: { ...point('rank', { x: [0, 980], y: [20, 310], size: [12, 60] }), ...cardTextOptions(source.rank, defaults.rank) },
+    xp: { ...point('xp', { x: [0, 980], y: [20, 310], size: [12, 50] }), ...cardTextOptions(source.xp, defaults.xp) },
+    progress: { ...point('progress', { x: [0, 980], y: [0, 310], width: [40, 950], height: [6, 70] }), ...cardElementOptions(source.progress, defaults.progress) },
     layers: [],
   };
   for (const key of Object.keys(defaults.colors)) design.colors[key] = safeColor(source.colors?.[key], defaults.colors[key]);
@@ -124,6 +177,7 @@ function normalizeLevelCardDesign(value, userId) {
       id: /^[a-z0-9_-]{1,40}$/i.test(String(layer.id || '')) ? String(layer.id) : `layer-${index + 1}`,
       x: clamp(layer.x, -500, 1000, 50), y: clamp(layer.y, -300, 320, 50),
       width: clamp(layer.width, 12, 800, 120), height: clamp(layer.height, 12, 320, 120),
+      ...cardElementOptions(layer),
     };
     if (layer.type === 'image') {
       const imageUrl = safeCardMediaUrl(layer.imageUrl, userId);
@@ -134,16 +188,22 @@ function normalizeLevelCardDesign(value, userId) {
       });
     } else if (layer.type === 'text') {
       const size = clamp(layer.size, 10, 96, 28);
+      const textOptions = cardTextOptions(layer, { fontFamily: 'sans', bold: true });
       design.layers.push({
-        ...base, type: 'text', text: String(layer.text || 'Text').replace(/[\r\n]+/g, ' ').slice(0, 120),
+        ...base, ...textOptions, type: 'text', text: String(layer.text || 'Text').replace(/[\r\n]+/g, ' ').slice(0, 120),
         x: clamp(base.x, 0, 1000 - base.width, 50),
         y: clamp(base.y, 0, 320 - size, 50),
         size, color: safeColor(layer.color, '#f4f7f2'),
-        weight: layer.weight === 'normal' ? 'normal' : 'bold',
+        weight: textOptions.bold ? 'bold' : 'normal',
       });
     }
   }
   return design;
+}
+
+function levelCardDesignHash(value, userId) {
+  const design = normalizeLevelCardDesign(value, userId);
+  return crypto.createHash('sha256').update(JSON.stringify(design)).digest('hex');
 }
 
 function normalizeRecord(value = {}) {
@@ -170,9 +230,11 @@ function normalizeState(value) {
   }
   for (const [userId, profile] of Object.entries(value.profiles || {})) {
     if (!/^\d{16,20}$/.test(userId)) continue;
+    const design = normalizeLevelCardDesign(profile?.design, userId);
     state.profiles[userId] = {
-      design: normalizeLevelCardDesign(profile?.design, userId),
+      design,
       updatedAt: Math.max(0, Number(profile?.updatedAt) || 0),
+      designHash: levelCardDesignHash(design, userId),
     };
   }
   return state;
@@ -318,20 +380,31 @@ function graphemes(value) {
   return Array.from(text);
 }
 
+function levelCardFont(item = {}, size = item.size) {
+  const family = LEVEL_CARD_FONT_FAMILIES[item.fontFamily] || LEVEL_CARD_FONT_FAMILIES.sans;
+  const style = item.italic ? 'italic' : 'normal';
+  const weight = item.bold === false || item.weight === 'normal' ? 'normal' : 'bold';
+  return `${style} ${weight} ${Math.max(1, Number(size) || 1)}px ${family}`;
+}
+
+function levelCardTextY(item = {}) {
+  const size = Math.max(1, Number(item.size) || 1);
+  return Number(item.y) - Math.max(1, Math.round(size * LEVEL_CARD_TEXT_TOP_ADJUSTMENT));
+}
+
 function fitCanvasText(context, value, options = {}) {
   const text = options.displayName === false
     ? String(value || '').normalize('NFC').replace(/[\u0000-\u001f\u007f]/g, '')
     : canvasDisplayName(value);
-  const weight = options.weight || 'bold';
   const minimum = Math.max(8, Number(options.minimum) || 14);
   let size = Math.max(minimum, Number(options.size) || 30);
   const maximumWidth = Math.max(20, Number(options.maximumWidth) || 500);
   while (size > minimum) {
-    context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+    context.font = levelCardFont(options, size);
     if (context.measureText(text).width <= maximumWidth) return { text, size };
     size -= 1;
   }
-  context.font = `${weight} ${size}px ${CANVAS_FONT_FAMILY}`;
+  context.font = levelCardFont(options, size);
   if (context.measureText(text).width <= maximumWidth) return { text, size };
   const parts = graphemes(text);
   while (parts.length > 1 && context.measureText(`${parts.join('')}\u2026`).width > maximumWidth) parts.pop();
@@ -385,14 +458,8 @@ async function leaderboardPage(interaction, page = 1) {
     };
   }));
   const ownerId = interaction.user.id;
-  const controls = maxPage > 1 ? [{
-    type: 1,
-    components: [
-      { type: 2, style: 2, label: 'Previous', custom_id: `leveling:leaderboard:${ownerId}:${currentPage - 1}`, disabled: currentPage <= 1 },
-      { type: 2, style: 2, label: `Page ${currentPage}/${maxPage}`, custom_id: `leveling:leaderboard:${ownerId}:${currentPage}`, disabled: true },
-      { type: 2, style: 2, label: 'Next', custom_id: `leveling:leaderboard:${ownerId}:${currentPage + 1}`, disabled: currentPage >= maxPage },
-    ],
-  }] : [];
+  const viewerIndex = entries.findIndex((entry) => entry.userId === String(ownerId));
+  const viewerRank = viewerIndex === -1 ? entries.length + 1 : viewerIndex + 1;
   const image = await renderLeaderboardCard({
     guildName: interaction.guild.name,
     rows,
@@ -400,7 +467,7 @@ async function leaderboardPage(interaction, page = 1) {
     maxPage,
     totalMembers: entries.length,
   });
-  return buildLeaderboardPayload(image, controls);
+  return buildLeaderboardPayload(image, { ownerId, currentPage, maxPage, viewerRank });
 }
 
 function dashboardBaseUrl() {
@@ -413,7 +480,7 @@ function dashboardBaseUrl() {
   }
 }
 
-function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET) {
+function levelCardRenderKey(secret = process.env.LEVEL_CARD_RENDER_SECRET) {
   const value = String(secret || '');
   return value ? crypto.createHmac('sha256', value).update('coinsprite-level-card-render-v1').digest('hex') : '';
 }
@@ -440,41 +507,98 @@ async function renderPublishedLevelCard(user, stats, options = {}) {
   const origin = options.origin === undefined ? levelCardRenderOrigin() : String(options.origin || '').replace(/\/+$/g, '');
   const key = options.key === undefined ? levelCardRenderKey() : String(options.key || '');
   const fetchImpl = options.fetchImpl || fetch;
-  if (origin && key) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    timeout.unref?.();
-    try {
-      const response = await fetchImpl(`${origin}/api/internal/level-card/${user.id}`, {
-        method: 'POST',
-        headers: {
-          Accept: 'image/png',
-          'Content-Type': 'application/json',
-          'X-CoinSprite-Render-Key': key,
-        },
-        body: JSON.stringify({
-          user: {
-            username: String(user?.username || '').slice(0, 100),
-            globalName: String(user?.globalName || '').slice(0, 100),
-            displayName: String(user?.displayName || '').slice(0, 100),
-            avatarUrl: cardAvatarUrl(user),
-          },
-          stats,
-        }),
-        signal: controller.signal,
-      });
-      if (response.ok) {
-        const image = Buffer.from(await response.arrayBuffer());
-        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-        if (image.length <= 10 * 1024 * 1024 && image.subarray(0, png.length).equals(png)) return image;
-      }
-    } catch {
-      // The local renderer keeps /level available during dashboard maintenance.
-    } finally {
-      clearTimeout(timeout);
-    }
+  const log = diagnosticLogger(options);
+  const identity = levelCardRendererIdentity();
+  if (!origin && !key) {
+    const profile = getLevelCardProfile(user?.id);
+    const username = profile.design.username;
+    log(`Level card render diagnostics: source=local renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${profile.designHash} saved-at=${profile.updatedAt} username-x=${username.x} username-y=${username.y} username-size=${username.size} username-font=${username.fontFamily} username-bold=${username.bold} username-italic=${username.italic}.`);
+    options.onMetadata?.({ ...profile, source: 'local', rendererVersion: identity.version, buildVersion: identity.buildVersion, fontManifestHash: identity.fontManifestHash });
+    return renderLevelCard(user, stats, profile.design);
   }
-  return renderLevelCard(user, stats);
+  if (!origin || !key) {
+    const reason = !origin ? 'origin-not-configured' : 'render-key-not-configured';
+    const message = `Authoritative level card renderer configuration is incomplete: ${reason}.`;
+    log(message);
+    throw new AuthoritativeLevelCardError(message, reason);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  timeout.unref?.();
+  try {
+    const response = await fetchImpl(`${origin}/api/internal/level-card/${user.id}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'image/png',
+        'Content-Type': 'application/json',
+        'X-CoinSprite-Render-Key': key,
+        'X-CoinSprite-Renderer-Version': identity.version,
+        'X-CoinSprite-Build-Version': identity.buildVersion,
+        'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
+      },
+      body: JSON.stringify({
+        user: {
+          username: String(user?.username || '').slice(0, 100),
+          globalName: String(user?.globalName || '').slice(0, 100),
+          displayName: canonicalLevelCardUsername(user),
+          avatarUrl: cardAvatarUrl(user),
+        },
+        stats,
+      }),
+      signal: controller.signal,
+    });
+    const responseVersion = String(response.headers?.get?.('x-coinsprite-renderer-version') || 'missing');
+    const responseBuild = String(response.headers?.get?.('x-coinsprite-build-version') || 'missing');
+    const responseManifest = String(response.headers?.get?.('x-coinsprite-font-manifest') || 'missing');
+    const designHash = String(response.headers?.get?.('x-coinsprite-design-hash') || 'missing');
+    const savedAt = String(response.headers?.get?.('x-coinsprite-saved-at') || 'missing');
+    const source = String(response.headers?.get?.('x-coinsprite-render-source') || 'missing');
+    const contentType = String(response.headers?.get?.('content-type') || 'unknown');
+    const image = response.ok ? Buffer.from(await response.arrayBuffer()) : null;
+    const bytes = image?.length ?? String(response.headers?.get?.('content-length') || 'not-read');
+    log(`Authoritative level card response: user=${user.id} status=${response.status || 'error'} source=${source} renderer=${responseVersion} build=${responseBuild} font-manifest=${responseManifest} design=${designHash} saved-at=${savedAt} content-type=${contentType} bytes=${bytes}.`);
+
+    if (!response.ok) throw new AuthoritativeLevelCardError(`Authoritative level card renderer returned HTTP ${response.status || 'error'}.`, `http-${response.status || 'error'}`);
+    if (responseVersion !== identity.version) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card renderer version mismatch: bot=${identity.version} panel=${responseVersion}.`, 'renderer-version-mismatch');
+    }
+    if (responseBuild !== identity.buildVersion) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card build mismatch: bot=${identity.buildVersion} panel=${responseBuild}.`, 'build-version-mismatch');
+    }
+    if (responseManifest !== identity.fontManifestHash) {
+      throw new AuthoritativeLevelCardError(`Authoritative level card font manifest mismatch: bot=${identity.fontManifestHash} panel=${responseManifest}.`, 'font-manifest-mismatch');
+    }
+    if (!/^[a-f0-9]{64}$/.test(designHash) || !/^\d+$/.test(savedAt) || source !== 'authoritative') {
+      throw new AuthoritativeLevelCardError('Authoritative level card renderer returned incomplete saved-design metadata.', 'invalid-render-metadata');
+    }
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!contentType.toLowerCase().startsWith('image/png')
+      || !image || image.length > 10 * 1024 * 1024
+      || !image.subarray(0, png.length).equals(png)) {
+      throw new AuthoritativeLevelCardError('Authoritative level card renderer returned an invalid PNG.', 'invalid-png');
+    }
+    const metadata = {
+      source, rendererVersion: responseVersion, buildVersion: responseBuild,
+      fontManifestHash: responseManifest, designHash, updatedAt: Number(savedAt),
+    };
+    options.onMetadata?.(metadata);
+    log(`Authoritative level card used: user=${user.id} source=${source} renderer=${responseVersion} build=${responseBuild} font-manifest=${responseManifest} design=${designHash} saved-at=${savedAt} bytes=${image.length}.`);
+    return image;
+  } catch (error) {
+    const failure = error instanceof AuthoritativeLevelCardError
+      ? error
+      : new AuthoritativeLevelCardError(
+        error?.name === 'AbortError'
+          ? 'Authoritative level card renderer timed out.'
+          : 'Authoritative level card renderer request failed.',
+        error?.name === 'AbortError' ? 'timeout' : 'request-failed',
+      );
+    log(`Authoritative level card failed: user=${user.id} reason=${failure.reason} message="${failure.message}".`);
+    throw failure;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function messageFingerprint(message) {
@@ -600,15 +724,31 @@ function bestMemberStats(userId) {
 }
 
 function getLevelCardDesign(userId) {
-  const profile = getState().profiles[String(userId)];
-  return normalizeLevelCardDesign(profile?.design, userId);
+  return getLevelCardProfile(userId).design;
+}
+
+function getLevelCardProfile(userId) {
+  const id = String(userId);
+  const saved = getState().profiles[id];
+  const design = normalizeLevelCardDesign(saved?.design, id);
+  return {
+    design,
+    updatedAt: Math.max(0, Number(saved?.updatedAt) || 0),
+    designHash: levelCardDesignHash(design, id),
+  };
 }
 
 function saveLevelCardDesign(userId, value) {
   const id = String(userId);
   if (!/^\d{16,20}$/.test(id)) throw new Error('A valid Discord user is required.');
   const design = normalizeLevelCardDesign(value, id);
-  getState().profiles[id] = { design, updatedAt: Date.now() };
+  const previousUpdatedAt = Math.max(0, Number(getState().profiles[id]?.updatedAt) || 0);
+  const profile = {
+    design,
+    updatedAt: Math.max(Date.now(), previousUpdatedAt + 1),
+    designHash: levelCardDesignHash(design, id),
+  };
+  getState().profiles[id] = profile;
   flushLevelingState();
 
   try {
@@ -638,7 +778,7 @@ function saveLevelCardDesign(userId, value) {
     console.error('Failed to cleanup level card media:', error);
   }
 
-  return design;
+  return cloneJson(profile);
 }
 
 function roundedRect(context, x, y, width, height, radius) {
@@ -652,25 +792,138 @@ function roundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
-async function loadLocalCardImage(url, userId) {
+function cardMediaSignatureMatches(body, extension) {
+  if (extension === 'png') {
+    return body.length >= 8 && body.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (extension === 'jpg') return body.length >= 3 && body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff;
+  return extension === 'webp'
+    && body.length >= 12
+    && body.subarray(0, 4).toString('ascii') === 'RIFF'
+    && body.subarray(8, 12).toString('ascii') === 'WEBP';
+}
+
+function withoutPngCaBxMetadata(body) {
+  if (!cardMediaSignatureMatches(body, 'png')) return body;
+  const chunks = [body.subarray(0, 8)];
+  let offset = 8;
+  let changed = false;
+  while (offset + 12 <= body.length) {
+    const length = body.readUInt32BE(offset);
+    const end = offset + 12 + length;
+    if (end > body.length) return body;
+    const type = body.subarray(offset + 4, offset + 8).toString('ascii');
+    if (type === 'caBX') changed = true;
+    else chunks.push(body.subarray(offset, end));
+    offset = end;
+    if (type === 'IEND') return changed ? Buffer.concat(chunks) : body;
+  }
+  return body;
+}
+
+function cardMediaError(error) {
+  return String(error?.message || error?.name || 'unknown error').replace(/\s+/g, ' ').slice(0, 160);
+}
+
+function diagnosticLogger(options) {
+  const reporter = typeof options.log === 'function' ? options.log : logCommandSystem;
+  return (message) => {
+    try {
+      reporter(message);
+    } catch {}
+  };
+}
+
+async function decodeCardMedia(body, extension, stage, log, loadImageImpl = loadImage) {
+  const decodedBody = extension === 'png' ? withoutPngCaBxMetadata(body) : body;
+  if (decodedBody !== body) log(`Level card media ${stage}: removed caBX metadata before decode.`);
+  try {
+    const image = await loadImageImpl(decodedBody);
+    log(`Level card media ${stage} decode result=ok dimensions=${image.width}x${image.height}.`);
+    return image;
+  } catch (error) {
+    log(`Level card media ${stage} decode error=${cardMediaError(error)}.`);
+    return null;
+  }
+}
+
+async function loadLocalCardImage(url, userId, options = {}) {
   const safe = safeCardMediaUrl(url, userId);
   if (!safe) return null;
   const match = safe.match(/^\/level-card-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp)$/);
   const filePath = path.join(LEVEL_CARD_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
+  const log = diagnosticLogger(options);
+  const loadImageImpl = options.loadImageImpl || loadImage;
   let fingerprint;
+  let metadata = null;
   try {
-    const metadata = fs.statSync(filePath);
+    metadata = fs.statSync(filePath);
     fingerprint = `${metadata.size}:${metadata.mtimeMs}`;
-  } catch {
-    levelCardAssetCache.delete(safe);
-    return null;
+    log(`Level card media ${safe}: local stat result=ok bytes=${metadata.size}.`);
+  } catch (error) {
+    fingerprint = 'remote';
+    const result = error?.code === 'ENOENT' ? 'miss' : `error=${cardMediaError(error)}`;
+    log(`Level card media ${safe}: local stat result=${result}.`);
   }
   const cached = levelCardAssetCache.get(safe);
   if (cached?.fingerprint === fingerprint) return cached.loading;
-  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch((error) => {
-    console.error(`[LevelCard] Failed to load image ${url}:`, error?.message || error);
-    return null;
-  });
+  const loading = (async () => {
+    if (metadata) {
+      try {
+        const body = fs.readFileSync(filePath);
+        log(`Level card media ${safe}: local read result=ok bytes=${body.length}.`);
+        const image = await decodeCardMedia(body, match[3], `${safe}: local`, log, loadImageImpl);
+        if (image) return image;
+      } catch (error) {
+        log(`Level card media ${safe}: local read error=${cardMediaError(error)}.`);
+      }
+      log(`Level card media ${safe}: local result=failed; attempting remote fallback.`);
+    }
+
+    let timer;
+    try {
+      const configuredOrigin = options.origin === undefined ? levelCardRenderOrigin() : options.origin;
+      let parsedOrigin;
+      try {
+        parsedOrigin = new URL(String(configuredOrigin || ''));
+      } catch {
+        log(`Level card media ${safe}: selected remote origin=invalid.`);
+        return null;
+      }
+      if (!['http:', 'https:'].includes(parsedOrigin.protocol)) {
+        log(`Level card media ${safe}: selected remote origin=unsupported protocol.`);
+        return null;
+      }
+      log(`Level card media ${safe}: selected remote origin=${parsedOrigin.origin}.`);
+      const controller = new AbortController();
+      timer = setTimeout(() => controller.abort(), options.timeoutMs || 5000);
+      timer.unref?.();
+      const response = await (options.fetchImpl || fetch)(`${parsedOrigin.origin}${safe}`, { signal: controller.signal });
+      const contentType = String(response.headers?.get?.('content-type') || 'unknown').split(';', 1)[0].trim().toLowerCase();
+      const statedLength = Number(response.headers?.get?.('content-length'));
+      if (!response.ok) {
+        log(`Level card media ${safe}: remote response status=${response.status || 'error'} content-type=${contentType} bytes=${Number.isFinite(statedLength) ? statedLength : 'not-read'}.`);
+        return null;
+      }
+      if (Number.isFinite(statedLength) && statedLength > LEVEL_CARD_MEDIA_MAX_BYTES) {
+        log(`Level card media ${safe}: remote response status=${response.status || 200} content-type=${contentType} bytes=${statedLength}; rejected=size limit.`);
+        return null;
+      }
+      const body = Buffer.from(await response.arrayBuffer());
+      log(`Level card media ${safe}: remote response status=${response.status || 200} content-type=${contentType} bytes=${body.length}.`);
+      if (!body.length || body.length > LEVEL_CARD_MEDIA_MAX_BYTES) return null;
+      if (!cardMediaSignatureMatches(body, match[3])) {
+        log(`Level card media ${safe}: remote decode skipped=signature mismatch for .${match[3]}.`);
+        return null;
+      }
+      return decodeCardMedia(body, match[3], `${safe}: remote`, log, loadImageImpl);
+    } catch (error) {
+      log(`Level card media ${safe}: remote fetch error=${cardMediaError(error)}.`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
   const entry = { fingerprint, loading };
   levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);
@@ -781,9 +1034,8 @@ const PODIUM_COLORS = Object.freeze({
 
 async function renderLeaderboardCard(options = {}) {
   const rows = Array.isArray(options.rows) ? options.rows.slice(0, PAGE_SIZE) : [];
-  const rowCount = Math.max(1, rows.length);
   const width = 1000;
-  const height = 205 + rowCount * 82 + 54;
+  const height = LEADERBOARD_HEIGHT;
   const canvas = createCanvas(width, height);
   const context = canvas.getContext('2d');
   const avatars = await Promise.all(rows.map((row) => loadDiscordAvatar(row.user)));
@@ -900,13 +1152,53 @@ async function renderLeaderboardCard(options = {}) {
   return canvas.toBuffer('image/png');
 }
 
-function buildLeaderboardPayload(image, controls = []) {
+function buildLeaderboardPayload(image, options = {}) {
+  const currentPage = Math.max(1, Math.floor(Number(options.currentPage) || 1));
+  const maxPage = Math.max(1, Math.floor(Number(options.maxPage) || 1));
+  const viewerRank = Math.max(1, Math.floor(Number(options.viewerRank) || 1));
+  const ownerId = String(options.ownerId || '0');
   return {
+    flags: COMPONENTS_V2_FLAG,
     content: null,
     allowedMentions: { parse: [], users: [], roles: [] },
     attachments: [],
     files: [{ attachment: image, name: 'leaderboard.png' }],
-    components: controls,
+    components: [{
+      type: 17,
+      accent_color: 0xffffff,
+      components: [
+        { type: 12, items: [{ media: { url: 'attachment://leaderboard.png' } }] },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 10, content: `You are placed **#${viewerRank}** in the leaderboard!` },
+        { type: 1, components: [{
+          type: 2,
+          style: 2,
+          label: `Page ${currentPage} / ${maxPage}`,
+          custom_id: `leveling:leaderboard-open:${ownerId}:${maxPage}`,
+        }] },
+      ],
+    }],
+  };
+}
+
+function leaderboardPageModal(ownerId, maxPage) {
+  const maximum = Math.max(1, Math.floor(Number(maxPage) || 1));
+  return {
+    custom_id: `leveling:leaderboard-submit:${ownerId}:${maximum}`,
+    title: 'Switch leaderboard page',
+    components: [{
+      type: 1,
+      components: [{
+        type: 4,
+        custom_id: 'page',
+        style: 1,
+        label: 'What page you wanna switch to?',
+        placeholder: `1 / ${maximum}`,
+        min_length: 1,
+        max_length: String(maximum).length,
+        required: true,
+      }],
+    }],
   };
 }
 
@@ -919,97 +1211,169 @@ function drawCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0
   context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
 }
 
+function canvasTextBounds(context, text, item, align = 'left') {
+  context.save();
+  context.textBaseline = 'top';
+  context.textAlign = align;
+  context.font = levelCardFont(item);
+  const metrics = context.measureText(String(text || ''));
+  let left = -(Number(metrics.actualBoundingBoxLeft) || 0);
+  let right = Number(metrics.actualBoundingBoxRight) || Number(metrics.width) || 1;
+  if (item.underline) {
+    const underlineLeft = align === 'right' ? -metrics.width : 0;
+    const underlineRight = align === 'right' ? 0 : metrics.width;
+    left = Math.min(left, underlineLeft);
+    right = Math.max(right, underlineRight);
+  }
+  const ascent = Number(metrics.actualBoundingBoxAscent) || 0;
+  const descent = Number(metrics.actualBoundingBoxDescent) || Number(item.size) || 1;
+  const underlineBottom = item.underline ? Number(item.size) * 1.08 + Math.max(1, Number(item.size) / 30) : descent;
+  context.restore();
+  return {
+    x: item.x + left,
+    y: item.y - ascent,
+    width: Math.max(1, right - left),
+    height: Math.max(1, ascent + Math.max(descent, underlineBottom)),
+  };
+}
+
+async function drawRotatedCardElement(context, bounds, rotation, draw) {
+  context.save();
+  const angle = normalizedRotation(rotation) * Math.PI / 180;
+  if (angle) {
+    const centerX = bounds.x + bounds.width / 2;
+    const centerY = bounds.y + bounds.height / 2;
+    context.translate(centerX, centerY);
+    context.rotate(angle);
+    context.translate(-centerX, -centerY);
+  }
+  try {
+    await draw();
+  } finally {
+    context.restore();
+  }
+}
+
+function drawCardUnderline(context, text, item, align = 'left') {
+  if (!item.underline) return;
+  context.font = levelCardFont(item);
+  const width = context.measureText(String(text || '')).width;
+  const start = align === 'right' ? item.x - width : item.x;
+  const y = item.y + Number(item.size) * 1.08;
+  context.save();
+  context.strokeStyle = item.color;
+  context.lineWidth = Math.max(1, Number(item.size) / 15);
+  context.beginPath();
+  context.moveTo(start, y);
+  context.lineTo(start + width, y);
+  context.stroke();
+  context.restore();
+}
+
+function drawCardText(context, text, item, align = 'left') {
+  context.textBaseline = 'top';
+  context.textAlign = align;
+  context.fillStyle = item.color;
+  context.font = levelCardFont(item);
+  // Skia's `top` baseline sits slightly below Chromium's for these WOFF2 fonts.
+  // Keep the editor's saved Y coordinate authoritative and compensate here only.
+  context.fillText(text, item.x, levelCardTextY(item));
+  drawCardUnderline(context, text, item, align);
+}
+
 async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(user?.id)) {
+  assertCanvasFontsAvailable();
   const userId = String(user?.id || '');
   const design = normalizeLevelCardDesign(inputDesign, userId);
   const canvas = createCanvas(1000, 320);
   const context = canvas.getContext('2d');
-  context.fillStyle = design.background.color;
-  roundedRect(context, 0, 0, 1000, 320, 30);
-  context.fill();
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
+  context.fillStyle = design.background.color;
+  context.fillRect(0, 0, 1000, 320);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
-  if (!background && design.background.imageUrl) {
-    console.warn(`[LevelCard] Background not loaded for user ${userId}: ${design.background.imageUrl}`);
-  }
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
-  context.restore();
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);
   context.fill();
   context.globalAlpha = 1;
 
-  const avatar = await loadDiscordAvatar(user);
-  context.save();
-  roundedRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
-  context.fillStyle = design.avatar.color;
-  context.fill();
-  roundedRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
-  context.clip();
-  if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-  else {
-    context.fillStyle = design.colors.track;
-    context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
-    context.fillStyle = design.colors.text;
-    context.font = `bold ${Math.round(design.avatar.size * .45)}px ${CANVAS_FONT_FAMILY}`;
-    context.textAlign = 'center';
-    context.fillText(graphemes(canvasDisplayName(user?.username || '?'))[0]?.toUpperCase() || '?', design.avatar.x + design.avatar.size / 2, design.avatar.y + design.avatar.size * .67);
+  if (design.avatar.visible) {
+    const avatar = await loadDiscordAvatar(user);
+    const bounds = { x: design.avatar.x, y: design.avatar.y, width: design.avatar.size, height: design.avatar.size };
+    await drawRotatedCardElement(context, bounds, design.avatar.rotation, () => {
+      context.save();
+      roundedRect(context, design.avatar.x - 5, design.avatar.y - 5, design.avatar.size + 10, design.avatar.size + 10, design.avatar.size / 2);
+      context.fillStyle = design.avatar.color;
+      context.fill();
+      roundedRect(context, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size, design.avatar.size / 2);
+      context.clip();
+      if (avatar) context.drawImage(avatar, design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      else {
+        context.fillStyle = design.colors.track;
+        context.fillRect(design.avatar.x, design.avatar.y, design.avatar.size, design.avatar.size);
+      }
+      context.restore();
+    });
   }
-  context.restore();
 
-  context.textBaseline = 'top';
-  context.textAlign = 'left';
-  context.fillStyle = design.username.color;
-  await drawCanvasDisplayName(context, user?.displayName || user?.globalName || user?.username, design.username.x, design.username.y, {
-    size: design.username.size,
-    minimum: 16,
-    maximumWidth: Math.max(120, design.rank.x - design.username.x - 145),
-  });
-  context.fillStyle = design.level.color;
-  context.font = `bold ${design.level.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`LEVEL ${number(stats.level)}`, design.level.x, design.level.y);
-  context.textAlign = 'right';
-  context.fillStyle = design.rank.color;
-  context.font = `bold ${design.rank.size}px ${CANVAS_FONT_FAMILY}`;
-  context.fillText(`#${number(stats.rank)}`, design.rank.x, design.rank.y);
-
-  roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
-  context.fillStyle = design.progress.trackColor;
-  context.fill();
-  const filled = Math.max(0, design.progress.width * Math.min(1, Number(stats.progressRatio) || 0));
-  if (filled > 0) {
-    roundedRect(context, design.progress.x, design.progress.y, filled, design.progress.height, design.progress.height / 2);
-    context.fillStyle = design.progress.color;
-    context.fill();
+  const displayName = canvasDisplayName(canonicalLevelCardUsername(user));
+  if (design.username.visible) {
+    const bounds = canvasTextBounds(context, displayName, design.username);
+    await drawRotatedCardElement(context, bounds, design.username.rotation, () => drawCardText(context, displayName, design.username));
   }
-  context.textAlign = 'left';
-  context.fillStyle = design.xp.color;
-  context.font = `${design.xp.size}px ${CANVAS_FONT_FAMILY}`;
+  const levelLabel = `LEVEL ${number(stats.level)}`;
+  if (design.level.visible) {
+    const bounds = canvasTextBounds(context, levelLabel, design.level);
+    await drawRotatedCardElement(context, bounds, design.level.rotation, () => drawCardText(context, levelLabel, design.level));
+  }
+  const rankLabel = `#${number(stats.rank)}`;
+  if (design.rank.visible) {
+    const bounds = canvasTextBounds(context, rankLabel, design.rank, 'right');
+    await drawRotatedCardElement(context, bounds, design.rank.rotation, () => drawCardText(context, rankLabel, design.rank, 'right'));
+  }
+
+  if (design.progress.visible) {
+    const bounds = { x: design.progress.x, y: design.progress.y, width: design.progress.width, height: design.progress.height };
+    await drawRotatedCardElement(context, bounds, design.progress.rotation, () => {
+      roundedRect(context, design.progress.x, design.progress.y, design.progress.width, design.progress.height, design.progress.height / 2);
+      context.fillStyle = design.progress.trackColor;
+      context.fill();
+      const filled = Math.max(0, design.progress.width * Math.min(1, Number(stats.progressRatio) || 0));
+      if (filled > 0) {
+        roundedRect(context, design.progress.x, design.progress.y, filled, design.progress.height, design.progress.height / 2);
+        context.fillStyle = design.progress.color;
+        context.fill();
+      }
+    });
+  }
   const xpLabel = stats.neededXp ? `${number(stats.progressXp)} / ${number(stats.neededXp)} XP` : `${number(stats.xp)} XP - MAX LEVEL`;
-  context.fillText(xpLabel, design.xp.x, design.xp.y);
+  if (design.xp.visible) {
+    const bounds = canvasTextBounds(context, xpLabel, design.xp);
+    await drawRotatedCardElement(context, bounds, design.xp.rotation, () => drawCardText(context, xpLabel, design.xp));
+  }
 
   for (const layer of design.layers) {
+    if (!layer.visible) continue;
     if (layer.type === 'image') {
       const image = await loadLocalCardImage(layer.imageUrl, userId);
-      if (image) context.drawImage(image, layer.x, layer.y, layer.width, layer.height);
+      if (image) {
+        const bounds = { x: layer.x, y: layer.y, width: layer.width, height: layer.height };
+        await drawRotatedCardElement(context, bounds, layer.rotation, () => context.drawImage(image, layer.x, layer.y, layer.width, layer.height));
+      }
     } else {
-      context.textAlign = 'left';
-      context.fillStyle = layer.color;
-      const fittedLayer = fitCanvasText(context, layer.text, {
-        displayName: false,
-        weight: layer.weight,
-        size: layer.size,
-        minimum: 10,
-        maximumWidth: Math.min(1000 - layer.x, layer.width),
-      });
-      context.fillText(fittedLayer.text, layer.x, layer.y);
+      const bounds = canvasTextBounds(context, layer.text, layer);
+      await drawRotatedCardElement(context, bounds, layer.rotation, () => drawCardText(context, layer.text, layer));
     }
   }
   context.restore();
   return canvas.toBuffer('image/png');
+}
+
+function renderSavedLevelCard(user, stats) {
+  return renderLevelCard(user, stats, getLevelCardDesign(user?.id));
 }
 
 function buildLevelCardPayload(user, stats, image) {
@@ -1157,7 +1521,7 @@ async function executeLevel(interaction) {
       id: user.id,
       username: user.username,
       globalName: user.globalName,
-      displayName: member?.displayName || user.globalName || user.username,
+      displayName: canonicalLevelCardUsername(user),
       displayAvatarURL: (options) => member?.displayAvatarURL?.(options) || user.displayAvatarURL?.(options),
       avatarURL: (options) => user.avatarURL?.(options),
     };
@@ -1166,7 +1530,7 @@ async function executeLevel(interaction) {
   } catch (error) {
     logCommandSystem(`Level card render failed for ${user.id}: ${error?.message || 'unknown error'}`);
     await interaction.editReply({
-      content: `**${safeName(user?.globalName || user?.username)}** \u00b7 Level **${number(stats.level)}** \u00b7 Rank **#${number(stats.rank)}**\n${number(stats.progressXp)} / ${number(stats.neededXp)} XP`,
+      content: 'The exact Discord level card is temporarily unavailable. Please try again shortly.',
       components: [profileEditButtonRow()],
       attachments: [],
       files: [],
@@ -1286,10 +1650,25 @@ async function handleLevelingInteraction(interaction) {
     await command.execute(interaction);
     return true;
   }
-  if (interaction.isButton?.() && interaction.customId.startsWith('leveling:leaderboard:')) {
-    const [, , ownerId, page] = interaction.customId.split(':');
+  if (interaction.isButton?.() && interaction.customId.startsWith('leveling:leaderboard-open:')) {
+    const [, , ownerId, maxPage] = interaction.customId.split(':');
     if (ownerId !== interaction.user.id) {
       await interaction.reply(v2Payload('These leaderboard controls belong to another member.', { ephemeral: true }));
+      return true;
+    }
+    await interaction.showModal(leaderboardPageModal(ownerId, maxPage));
+    return true;
+  }
+  if (interaction.isModalSubmit?.() && interaction.customId.startsWith('leveling:leaderboard-submit:')) {
+    const [, , ownerId, maxPage] = interaction.customId.split(':');
+    if (ownerId !== interaction.user.id) {
+      await interaction.reply(v2Payload('This leaderboard page picker belongs to another member.', { ephemeral: true }));
+      return true;
+    }
+    const page = Number(interaction.fields.getTextInputValue('page'));
+    const maximum = Math.max(1, Math.floor(Number(maxPage) || 1));
+    if (!Number.isInteger(page) || page < 1 || page > maximum) {
+      await interaction.reply(v2Payload(`Enter a page from **1** to **${maximum}**.`, { ephemeral: true }));
       return true;
     }
     await interaction.deferUpdate();
@@ -1305,6 +1684,7 @@ async function handleLevelingInteraction(interaction) {
 }
 
 module.exports = {
+  AuthoritativeLevelCardError,
   COMPONENTS_V2_FLAG,
   DATA_PATH,
   DEFAULT_LEVEL_CARD_DESIGN,
@@ -1314,11 +1694,14 @@ module.exports = {
   applyXpToRecord,
   bestMemberStats,
   buildLeaderboardPayload,
+  leaderboardPageModal,
   buildLevelCardPayload,
   buildLevelPayload,
+  canonicalLevelCardUsername,
   canvasDisplayName,
   flushLevelingState,
   getLevelCardDesign,
+  getLevelCardProfile,
   handleLevelingInteraction,
   handleLevelingMessage,
   leaderboardPage,
@@ -1332,7 +1715,10 @@ module.exports = {
   resetLevelingCache,
   renderLeaderboardCard,
   levelCardRenderOrigin,
+  levelCardDesignHash,
+  loadLocalCardImage,
   renderLevelCard,
+  renderSavedLevelCard,
   renderPublishedLevelCard,
   saveLevelCardDesign,
   levelCardRenderKey,

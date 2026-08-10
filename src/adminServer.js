@@ -14,6 +14,9 @@ const {
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { syncGuildApplicationCommands } = require('./applicationCommands');
+const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
+const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
   handleOwnerConsole,
   handleOwnerDisable,
@@ -30,14 +33,16 @@ const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
-  getLevelCardDesign,
+  canonicalLevelCardUsername,
+  getLevelCardProfile,
+  levelCardDesignHash,
   levelCardRenderKey,
+  normalizeLevelCardDesign,
   renderLevelCard,
   saveLevelCardDesign,
 } = require('./leveling');
 
-const ADMIN_DIR = path.join(__dirname, '..', 'admin');
-const SESSION_STORE_PATH = path.join(__dirname, '..', 'data', 'admin-sessions.json');
+const SESSION_STORE_PATH = process.env.ADMIN_SESSION_STORE_PATH || path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 const COOKIE_NAME = 'coinsprite_admin';
@@ -56,7 +61,6 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
 ]);
-
 const sessions = new Map();
 const directoryCache = new Map();
 let serverRef = null;
@@ -67,7 +71,7 @@ function getEnv() {
     clientSecret: process.env.DISCORD_CLIENT_SECRET,
     redirectUri: process.env.DISCORD_REDIRECT_URI,
     sessionSecret: process.env.SESSION_SECRET || process.env.DISCORD_CLIENT_SECRET,
-    renderSecret: process.env.LEVEL_CARD_RENDER_SECRET || process.env.DISCORD_CLIENT_SECRET || process.env.SESSION_SECRET,
+    renderSecret: process.env.LEVEL_CARD_RENDER_SECRET,
     host: process.env.ADMIN_WEB_HOST || '127.0.0.1',
     port: Number(process.env.ADMIN_WEB_PORT) || 3000,
     cookieSecure: /^(1|true|yes)$/i.test(String(process.env.ADMIN_COOKIE_SECURE || '')),
@@ -90,11 +94,33 @@ function send(res, status, body = '', headers = {}) {
   res.end(body);
 }
 
-function sendJson(res, status, payload) {
+function sendJson(res, status, payload, headers = {}) {
   send(res, status, JSON.stringify(payload), {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    ...headers,
   });
+}
+
+function levelCardRendererHeaders(profile, source = 'authoritative') {
+  const identity = levelCardRendererIdentity();
+  const headers = {
+    'X-CoinSprite-Renderer-Version': identity.version,
+    'X-CoinSprite-Build-Version': identity.buildVersion,
+    'X-CoinSprite-Font-Manifest': identity.fontManifestHash,
+  };
+  if (profile) {
+    headers['X-CoinSprite-Design-Hash'] = profile.designHash;
+    headers['X-CoinSprite-Saved-At'] = String(profile.updatedAt);
+    headers['X-CoinSprite-Render-Source'] = source;
+  }
+  return headers;
+}
+
+function logLevelCardDiagnostics(profile, source) {
+  const identity = levelCardRendererIdentity();
+  const username = profile.design.username;
+  logCommandSystem(`Level card render diagnostics: source=${source} renderer=${identity.version} build=${identity.buildVersion} font-manifest=${identity.fontManifestHash} design=${profile.designHash} saved-at=${profile.updatedAt} username-x=${username.x} username-y=${username.y} username-size=${username.size} username-font=${username.fontFamily} username-bold=${username.bold} username-italic=${username.italic}.`);
 }
 
 function redirect(res, location) {
@@ -309,7 +335,7 @@ function profileRenderIdentity(session) {
     id: user.id,
     username: user.username,
     globalName: user.globalName,
-    displayName: user.globalName || user.username,
+    displayName: canonicalLevelCardUsername(user),
     displayAvatarURL: () => avatarUrl,
     avatarURL: () => avatarUrl,
   };
@@ -324,7 +350,7 @@ function internalCardIdentity(userId, value = {}) {
   } catch {}
   const username = String(value.username || 'Member').slice(0, 100);
   const globalName = String(value.globalName || '').slice(0, 100);
-  const displayName = String(value.displayName || globalName || username).slice(0, 100);
+  const displayName = canonicalLevelCardUsername({ globalName, username });
   return {
     id: userId,
     username,
@@ -350,18 +376,32 @@ function internalCardStats(value = {}) {
   };
 }
 
-function serveAsset(res, pathname) {
+function versionedCacheControl(requestedVersion, currentVersion) {
+  return requestedVersion === currentVersion
+    ? 'public, max-age=31536000, immutable'
+    : 'no-store, max-age=0';
+}
+
+function serveAsset(res, pathname, requestedVersion = '') {
   const asset = PUBLIC_ASSETS.get(pathname);
   const filename = asset?.[0] || 'index.html';
   const contentType = asset?.[1] || 'text/html; charset=utf-8';
-  fs.readFile(path.join(ADMIN_DIR, filename), (error, data) => {
-    if (error) return send(res, 404, 'Not found');
-    send(res, 200, data, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-store, max-age=0',
-      Pragma: 'no-cache',
-      Expires: '0',
-    });
+  const loaded = loadAdminAsset(filename);
+  if (!loaded) return send(res, 404, 'Not found');
+  const index = filename === 'index.html';
+  return send(res, 200, loaded.data, {
+    'Content-Type': contentType,
+    'Cache-Control': index ? 'no-store, max-age=0' : versionedCacheControl(requestedVersion, loaded.version),
+    ...(index ? { Pragma: 'no-cache', Expires: '0' } : {}),
+  });
+}
+
+function serveAdminFont(res, pathname, requestedVersion = '') {
+  const loaded = loadAdminFont(pathname);
+  if (!loaded) return send(res, 404, 'Not found');
+  return send(res, 200, loaded.data, {
+    'Content-Type': loaded.contentType,
+    'Cache-Control': versionedCacheControl(requestedVersion, loaded.version),
   });
 }
 
@@ -527,10 +567,12 @@ function publicConfig(config) {
     features: {
       gag2Stock: true,
       leveling: config?.features?.leveling === true,
+      rngGame: config?.features?.rngGame === true,
       fullBot: false,
     },
     gag2Stock: config?.gag2Stock || {},
     leveling: config?.leveling || {},
+    rngGame: config?.rngGame || {},
   };
 }
 
@@ -574,7 +616,8 @@ async function routeRequest(req, res, env, client) {
   const pathname = url.pathname;
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
-  if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname);
+  if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
+  if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
@@ -646,17 +689,30 @@ async function routeRequest(req, res, env, client) {
   const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);
   if (req.method === 'POST' && internalCardMatch) {
     if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
+    const identity = levelCardRendererIdentity();
+    const requestedVersion = String(req.headers['x-coinsprite-renderer-version'] || '');
+    const requestedBuild = String(req.headers['x-coinsprite-build-version'] || '');
+    const requestedManifest = String(req.headers['x-coinsprite-font-manifest'] || '');
+    if (requestedVersion !== identity.version
+      || requestedBuild !== identity.buildVersion
+      || requestedManifest !== identity.fontManifestHash) {
+      logCommandSystem(`Authoritative level card identity mismatch: bot-renderer=${requestedVersion || 'missing'} panel-renderer=${identity.version} bot-build=${requestedBuild || 'missing'} panel-build=${identity.buildVersion} bot-font-manifest=${requestedManifest || 'missing'} panel-font-manifest=${identity.fontManifestHash}.`);
+      return sendJson(res, 409, { error: 'Level card renderer deployment versions do not match.' }, levelCardRendererHeaders());
+    }
     const body = await readJsonBody(req);
     const userId = internalCardMatch[1];
+    const profile = getLevelCardProfile(userId);
     const image = await renderLevelCard(
       internalCardIdentity(userId, body?.user),
       internalCardStats(body?.stats),
-      getLevelCardDesign(userId),
+      profile.design,
     );
+    logLevelCardDiagnostics(profile, 'authoritative');
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card.png"',
+      ...levelCardRendererHeaders(profile),
     });
   }
 
@@ -664,7 +720,7 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session) return;
     return sendJson(res, 200, {
-      design: getLevelCardDesign(session.user.id),
+      ...getLevelCardProfile(session.user.id),
       preview: profilePreview(session, client),
     });
   }
@@ -673,15 +729,28 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req);
-    const image = await renderLevelCard(
-      profileRenderIdentity(session),
-      bestMemberStats(session.user.id),
-      body?.design,
-    );
+    const profile = getLevelCardProfile(session.user.id);
+    const expectedHash = String(body?.designHash || '');
+    if (expectedHash && expectedHash !== profile.designHash) {
+      return sendJson(res, 409, { error: 'Saved level card changed before this preview rendered.', designHash: profile.designHash }, levelCardRendererHeaders(profile));
+    }
+    const draft = body?.draft === true;
+    const design = draft ? normalizeLevelCardDesign(body?.design, session.user.id) : profile.design;
+    const renderProfile = draft ? {
+      ...profile,
+      design,
+      designHash: levelCardDesignHash(design, session.user.id),
+    } : profile;
+    const user = profileRenderIdentity(session);
+    const stats = bestMemberStats(session.user.id);
+    const image = await renderLevelCard(user, stats, renderProfile.design);
+    const source = draft ? 'authoritative-draft' : 'authoritative';
+    logLevelCardDiagnostics(renderProfile, source);
     return send(res, 200, image, {
       'Content-Type': 'image/png',
       'Cache-Control': 'no-store',
       'Content-Disposition': 'inline; filename="level-card-preview.png"',
+      ...levelCardRendererHeaders(renderProfile, source),
     });
   }
 
@@ -689,7 +758,7 @@ async function routeRequest(req, res, env, client) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req);
-    return sendJson(res, 200, { design: saveLevelCardDesign(session.user.id, body?.design) });
+    return sendJson(res, 200, saveLevelCardDesign(session.user.id, body?.design));
   }
 
   if (req.method === 'POST' && pathname === '/api/profile/card/media') {
@@ -751,29 +820,40 @@ async function routeRequest(req, res, env, client) {
     const body = await readJsonBody(req);
     const hasStock = body?.gag2Stock && typeof body.gag2Stock === 'object' && !Array.isArray(body.gag2Stock);
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
-    if (!hasStock && !hasLeveling) return sendJson(res, 400, { error: 'GAG stock or leveling configuration is required.' });
+    const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
+    if (!hasStock && !hasLeveling && !hasRngGame) return sendJson(res, 400, { error: 'GAG stock, leveling, or RNG game configuration is required.' });
 
     const state = loadState();
     state.guilds[guildId] ||= ensureGuildConfig(guildId);
     if (hasLeveling && state.guilds[guildId].features?.leveling !== true) {
       return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
     }
+    if (hasRngGame && state.guilds[guildId].features?.rngGame !== true) {
+      return sendJson(res, 403, { error: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' });
+    }
     state.guilds[guildId].features = {
       gag2Stock: true,
       leveling: state.guilds[guildId].features?.leveling === true,
+      rngGame: state.guilds[guildId].features?.rngGame === true,
       fullBot: false,
     };
     if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
+    if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
     saveState(state);
     const config = getGuildConfigRaw(guildId);
+
+    if (hasLeveling || hasRngGame) {
+      await syncGuildApplicationCommands(auth.guild)
+        .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
+    }
 
     if (hasStock) {
       syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId })
         .then(() => syncGag2RoleAssignmentPanel(client, guildId))
         .catch((error) => logCommandSystem(`GAG stock setup sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config), progress: getGag2StockSetupProgress(guildId) });
   }
 
@@ -799,6 +879,17 @@ async function routeRequest(req, res, env, client) {
   return sendJson(res, 404, { error: 'Not found.' });
 }
 
+function createAdminRequestHandler(env, client) {
+  loadSessions();
+  return (req, res) => {
+    routeRequest(req, res, env, client).catch((error) => {
+      const status = error?.statusCode || 500;
+      logCommandSystem(`Admin request failed: ${error?.message || 'unknown error'}`);
+      sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
+    });
+  };
+}
+
 function startAdminServer(client) {
   if (serverRef) return serverRef;
   const env = getEnv();
@@ -809,17 +900,14 @@ function startAdminServer(client) {
 
   loadSessions();
   saveSessions();
-  serverRef = http.createServer((req, res) => {
-    routeRequest(req, res, env, client).catch((error) => {
-      const status = error?.statusCode || 500;
-      logCommandSystem(`Admin request failed: ${error?.message || 'unknown error'}`);
-      sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
-    });
-  });
+  serverRef = http.createServer(createAdminRequestHandler(env, client));
   serverRef.requestTimeout = 15_000;
   serverRef.headersTimeout = 20_000;
-  serverRef.listen(env.port, env.host, () => logCommandSystem(`CoinSprite dashboard listening on http://${env.host}:${env.port}.`));
+  serverRef.listen(env.port, env.host, () => {
+    logLevelCardRendererIdentity(logCommandSystem, 'Panel');
+    logCommandSystem(`CoinSprite dashboard listening on http://${env.host}:${env.port}.`);
+  });
   return serverRef;
 }
 
-module.exports = { decodeLevelingMedia, startAdminServer };
+module.exports = { createAdminRequestHandler, decodeLevelingMedia, levelCardRendererHeaders, startAdminServer };
