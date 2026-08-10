@@ -310,7 +310,6 @@ function autoRollEndedPayload(job, options = {}) {
 }
 
 function upgradeButton(kind, tier, balance, cost, actionId) {
-  if (tier >= 20) return { type: 2, style: 2, label: 'MAX', custom_id: `rng:power:max:${kind}`, disabled: true };
   const affordable = BigInt(balance) >= cost;
   const button = {
     type: 2,

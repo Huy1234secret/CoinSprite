@@ -182,7 +182,6 @@ class RngGameRepository {
       const player = playerRecord(this.statements.player.get(userId));
       const tier = kind === 'luck' ? player.luckTier : player.bigCropTier;
       if (!['luck', 'big'].includes(kind)) return { status: 'invalid-kind', duplicate: false };
-      if (tier >= 20) return { status: 'max', tier, duplicate: false };
       const cost = costForTier(tier);
       if (player.balance < cost) {
         return { status: 'insufficient', cost, missing: cost - player.balance, balance: player.balance, duplicate: false };

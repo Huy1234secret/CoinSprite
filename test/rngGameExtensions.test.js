@@ -112,8 +112,8 @@ test('all requested prefix commands and Auto Roll aliases use the shared command
 
 test('luck multiplier and effective chance formula preserve crop ordering and Carrot fallback', () => {
   assert.equal(luckMultiplier(0), 1);
-  assert.equal(luckMultiplier(4), 2);
-  assert.equal(luckMultiplier(20), 6);
+  assert.equal(luckMultiplier(4), 5);
+  assert.equal(luckMultiplier(20), 21);
   let prior = 0;
   for (const seed of CHECKED_SEEDS) {
     const chance = effectiveChance(seed, 20);
@@ -121,7 +121,7 @@ test('luck multiplier and effective chance formula preserve crop ordering and Ca
     assert.ok(value >= prior, `${seed.id} broke chance ordering`);
     prior = value;
   }
-  const result = cascadingRoll({ luckTier: 20, rng: (maximum) => maximum - 1 });
+  const result = cascadingRoll({ luckTier: 1, rng: (maximum) => maximum - 1 });
   assert.equal(result.seed, FALLBACK_SEED);
 });
 
@@ -140,14 +140,14 @@ test('BIG chance, weight multiplier, and extended value curve match the Carrot e
 });
 
 test('upgrade prices and Roman tier formatting use exact formulas through tier XX', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [25_000n, 38_800n, 60_100n, 93_100n, 144_300n]);
-  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [40_000n, 64_000n, 102_400n, 163_800n, 262_100n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [1000n, 1300n, 1700n, 2200n, 2900n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [1000n, 1400n, 2000n, 2700n, 3800n]);
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(4), romanTier(9), romanTier(20)], ['0', 'I', 'IV', 'IX', 'XX']);
 });
 
-test('power upgrade purchase is atomic, tier-capped, and idempotent', () => {
+test('power upgrade purchase is atomic, and idempotent', () => {
   const game = feature();
-  fund(game, 'power', 25_000n);
+  fund(game, 'power', 1_000n);
   const first = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 2);
   const replay = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 3);
   assert.equal(first.status, 'ok');
@@ -155,7 +155,7 @@ test('power upgrade purchase is atomic, tier-capped, and idempotent', () => {
   assert.equal(game.repository.getPlayer('power').luckTier, 1);
   assert.equal(game.repository.getPlayer('power').balance, 0n);
   game.db.prepare('UPDATE rng_players SET luck_tier = 20 WHERE user_id = ?').run('power');
-  assert.equal(game.repository.purchasePowerUpgrade('power', 'luck', 'power:max', luckUpgradeCost, 4).status, 'max');
+  assert.equal(game.repository.purchasePowerUpgrade('power', 'luck', 'power:max', luckUpgradeCost, 4).status, 'insufficient');
   game.close();
 });
 

@@ -35,7 +35,7 @@ function valueForWeight(seed, weightUnits, options = {}) {
 }
 
 function luckMultiplier(tier) {
-  return 1 + (Math.max(0, Math.min(20, Math.floor(Number(tier) || 0))) * 0.25);
+  return 1 + Math.max(0, Math.floor(Number(tier) || 0));
 }
 
 function effectiveChance(seed, luckTier = 0) {
@@ -43,13 +43,13 @@ function effectiveChance(seed, luckTier = 0) {
     return { numerator: seed.chanceNumerator, denominator: seed.chanceDenominator };
   }
   const baseChance = seed.chanceNumerator / seed.chanceDenominator;
-  const chance = 1 - ((1 - baseChance) ** luckMultiplier(luckTier));
+  const chance = Math.min(1.0, baseChance * luckMultiplier(luckTier));
   const numerator = Math.max(1, Math.min(LUCK_SCALE, Math.floor(chance * LUCK_SCALE)));
   return { numerator, denominator: LUCK_SCALE };
 }
 
 function bigChance(tier) {
-  const normalized = Math.max(0, Math.min(20, Math.floor(Number(tier) || 0)));
+  const normalized = Math.max(0, Math.min(200, Math.floor(Number(tier) || 0)));
   return { numerator: normalized, denominator: 200 };
 }
 

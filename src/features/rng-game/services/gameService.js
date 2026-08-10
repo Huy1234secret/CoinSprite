@@ -10,18 +10,18 @@ function upgradeCost(level) {
 }
 
 function exponentialUpgradeCost(base, growthNumerator, growthDenominator, tier) {
-  const normalizedTier = Math.max(0, Math.min(20, Math.floor(Number(tier) || 0)));
+  const normalizedTier = Math.max(0, Math.floor(Number(tier) || 0));
   const numerator = BigInt(base) * (BigInt(growthNumerator) ** BigInt(normalizedTier));
   const denominator = BigInt(growthDenominator) ** BigInt(normalizedTier);
   return ((numerator + (50n * denominator)) / (100n * denominator)) * 100n;
 }
 
 function luckUpgradeCost(tier) {
-  return exponentialUpgradeCost(5_000, 31, 20, tier);
+  return exponentialUpgradeCost(1000, 13, 10, tier);
 }
 
 function bigUpgradeCost(tier) {
-  return exponentialUpgradeCost(3_500, 8, 5, tier);
+  return exponentialUpgradeCost(1000, 14, 10, tier);
 }
 
 class RngGameService {
