@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const { SEEDS } = require('../data/seeds');
 const { cascadingRoll } = require('./rngService');
+const { emitSuccessfulRoll } = require('./rollEvent');
 const {
   AUTO_ROLL_INTERVAL_MS,
   autoRollPlan,
@@ -8,7 +9,7 @@ const {
   parseDuration,
 } = require('../utils/autoRoll');
 
-const AUTO_SELL_RARITIES = Object.freeze(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Super']);
+const AUTO_SELL_RARITIES = Object.freeze(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Secret', 'Super']);
 
 function normalizeAutoSellRarities(values) {
   const requested = new Set((values || []).map(String));
@@ -24,6 +25,7 @@ class AutoRollService {
     this.rng = options.rng;
     this.clock = options.clock || Date.now;
     this.onDiscovery = options.onDiscovery || (() => {});
+    this.onSuccessfulRoll = options.onSuccessfulRoll || (() => {});
   }
 
   preview(durationText, selectedRarities) {
@@ -65,6 +67,7 @@ class AutoRollService {
       bigCropTier: player.bigCropTier,
     }), now);
     if (result.discoveredNew) this.onDiscovery(result.job.userId, result.seed.id);
+    emitSuccessfulRoll(this.onSuccessfulRoll, result.job?.userId, result, 'auto-roll');
     return result;
   }
 }

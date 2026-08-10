@@ -3,6 +3,7 @@ const { SHECKLES_EMOJI } = require('../../../gag2Stock/catalog');
 // Crop art supplied for the RNG game. Keep every Discord emoji identifier in
 // this one registry so deployments can replace art without touching game logic.
 const CROP_EMOJIS = Object.freeze({
+  eclipse_bloom: '<:eclipsebloomfruit:1536043923816841296>',
   star_fruit: '<:starfruitfruit:1536043971233587332>',
   dragons_breath: '<:Dragons_BreathFruit:1536043921380089886>',
   hypno_bloom: '<:Hypno_BloomFruit:1536043951910293516>',
@@ -47,7 +48,7 @@ const RARITY_EMOJIS = Object.freeze({
   Legendary: process.env.RNG_RARITY_LEGENDARY_EMOJI || '<:RLegendary:1536072819237060650>',
   Mythic: process.env.RNG_RARITY_MYTHIC_EMOJI || '<:RMythic:1536072827105443871>',
   Super: process.env.RNG_RARITY_SUPER_EMOJI || '<a:RSUPER:1536072842800537600>',
-  Secret: process.env.RNG_RARITY_SECRET_EMOJI || '<a:RSecret:1536073173165146344>',
+  Secret: process.env.RNG_RARITY_SECRET_EMOJI || '<:RSecret:1536073173165146344>',
 });
 
 const FALLBACK_THUMBNAIL_URL = process.env.RNG_FALLBACK_THUMBNAIL_URL

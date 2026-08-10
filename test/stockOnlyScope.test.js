@@ -61,7 +61,7 @@ test('optional slash command visibility follows each server engine and owner loc
   const rngGame = featureCommandsForConfig({
     ...base, features: { ...base.features, rngGame: true }, rngGame: { enabled: true },
   }).map((command) => command.name);
-  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index']);
+  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat']);
   const farmingGame = featureCommandsForConfig({
     ...base, features: { ...base.features, farmingGame: true }, farmingGame: { enabled: true },
   }).map((command) => command.name);

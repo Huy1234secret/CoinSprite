@@ -163,6 +163,7 @@ class AutoRollRepository {
           }
         }
         this.statements.updateBalance.run(balance, BigInt(now), job.userId);
+        this.gameRepository.recordSaleEarnings(job.userId, total, BigInt(now));
       }
 
       const currentPlayer = playerRecord(this.statements.player.get(job.userId));
@@ -178,6 +179,13 @@ class AutoRollRepository {
         BigInt(scheduledTick),
       );
       const discoveredNew = Number(this.statements.discover.run(job.userId, instance.seed.id, BigInt(now)).changes) === 1;
+      this.gameRepository.recordSuccessfulRoll(
+        job.userId,
+        instance.seed.id,
+        instance.weightUnits,
+        BigInt(scheduledTick),
+        true,
+      );
       const completedRolls = job.completedRolls + 1;
       const summaryCounts = { ...job.summaryCounts, [instance.seed.id]: (job.summaryCounts[instance.seed.id] || 0) + 1 };
       const nextTickAt = scheduledTick + AUTO_ROLL_INTERVAL_MS;

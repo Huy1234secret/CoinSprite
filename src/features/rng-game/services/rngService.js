@@ -4,7 +4,7 @@ const { CHECKED_SEEDS, FALLBACK_SEED } = require('../data/seeds');
 const PROBABILITY_SCALE = 1_000_000_000n;
 const MAX_LUCK_TIER = 20;
 const MAX_BIG_CROP_TIER = 20;
-const RARITY_ORDER = Object.freeze([
+const LUCK_PROMOTION_RARITY_ORDER = Object.freeze([
   'Common',
   'Uncommon',
   'Rare',
@@ -12,6 +12,11 @@ const RARITY_ORDER = Object.freeze([
   'Legendary',
   'Mythic',
   'Super',
+]);
+const RARITY_ORDER = Object.freeze([
+  ...LUCK_PROMOTION_RARITY_ORDER.slice(0, -1),
+  'Secret',
+  LUCK_PROMOTION_RARITY_ORDER.at(-1),
 ]);
 const RARITY_LUCK_SHARE = Object.freeze({
   Common: 0.50,
@@ -24,7 +29,7 @@ const RARITY_LUCK_SHARE = Object.freeze({
 });
 const LUCK_PROMOTION_STRENGTH = 0.08;
 const PROMOTION_RATE_SCALE = 1_000_000n;
-const PROMOTION_RATE_UNITS = Object.freeze(Object.fromEntries(RARITY_ORDER.map((rarity) => [
+const PROMOTION_RATE_UNITS = Object.freeze(Object.fromEntries(LUCK_PROMOTION_RARITY_ORDER.map((rarity) => [
   rarity,
   BigInt(Math.round(LUCK_PROMOTION_STRENGTH * RARITY_LUCK_SHARE[rarity] * Number(PROMOTION_RATE_SCALE))),
 ])));
@@ -130,9 +135,9 @@ function applyLuckPromotions(distribution, tiers) {
   const tier = Math.max(0, Math.floor(Number(tiers) || 0));
   for (let step = 0; step < tier; step += 1) {
     const next = { ...current };
-    for (let index = 0; index < RARITY_ORDER.length - 1; index += 1) {
-      const rarity = RARITY_ORDER[index];
-      const nextRarity = RARITY_ORDER[index + 1];
+    for (let index = 0; index < LUCK_PROMOTION_RARITY_ORDER.length - 1; index += 1) {
+      const rarity = LUCK_PROMOTION_RARITY_ORDER[index];
+      const nextRarity = LUCK_PROMOTION_RARITY_ORDER[index + 1];
       const promoted = (current[rarity] * PROMOTION_RATE_UNITS[rarity]) / PROMOTION_RATE_SCALE;
       next[rarity] -= promoted;
       next[nextRarity] += promoted;
@@ -265,6 +270,7 @@ function luckProbabilityReport() {
 
 module.exports = {
   BASE_CROP_DISTRIBUTION,
+  LUCK_PROMOTION_RARITY_ORDER,
   LUCK_PROMOTION_STRENGTH,
   MAX_BIG_CROP_TIER,
   MAX_LUCK_TIER,

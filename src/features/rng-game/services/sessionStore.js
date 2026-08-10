@@ -101,6 +101,12 @@ class ViewStore extends ExpiringStore {
     this.records.set(id, view);
     return view;
   }
+
+  forOwner(ownerId) {
+    this.prune();
+    const id = String(ownerId);
+    return [...this.records.values()].filter((view) => view.ownerId === id);
+  }
 }
 
 class ActionStore extends ExpiringStore {
