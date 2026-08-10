@@ -28,7 +28,7 @@ test('GAG2 announces the Fall Harvest event and role-limit guidance', () => {
   const container = payload.components[0];
   const content = container.components[0].content;
   assert.equal(FALL_HARVEST_UPDATE_ID, 'gag2-fall-harvest-limited-event');
-  assert.equal(FALL_HARVEST_UPDATE_REVISION, 3);
+  assert.equal(FALL_HARVEST_UPDATE_REVISION, 4);
   assert.equal(container.accent_color, 0xC96F2B);
   assert.match(content, /^### 🍂 Fall Harvest is live/);
   assert.match(content, /Seed.*Gear.*Crate.*Sell-price/);

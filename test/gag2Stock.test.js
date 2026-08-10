@@ -88,7 +88,7 @@ test('GAG2 uses the new world-aware Garden Valley and Fall Harvest endpoints', (
   assert.equal(STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=main');
   assert.equal(FALL_STOCK_API_URL, 'https://gag.gg/api/seed-restock?world=fall');
   assert.equal(SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=main');
-  assert.equal(FALL_SELL_API_URL, FALL_STOCK_API_URL);
+  assert.equal(FALL_SELL_API_URL, 'https://gag.gg/api/fruit-stock?world=fall');
 });
 
 test('GAG2 never mixes a legacy stock source into a failed gag.gg cycle', async () => {
@@ -146,7 +146,7 @@ test('GAG2 reads embedded Fall sell prices from the Fall restock endpoint', asyn
     },
   });
 
-  assert.deepEqual(requested, [FALL_STOCK_API_URL]);
+  assert.deepEqual(requested, [FALL_SELL_API_URL]);
   assert.deepEqual(parsed.entries.map((entry) => entry.key), ['maple_apple', 'romanesco']);
 });
 
