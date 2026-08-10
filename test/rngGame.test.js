@@ -168,9 +168,9 @@ test('prefix and slash roll paths share one five-second cooldown', async () => {
   game.close();
 });
 
-test('configured game channel is enforced for slash and prefix economy commands', async () => {
+test('configured game channels and forum posts are enforced for slash and prefix economy commands', async () => {
   const game = feature({
-    getGuildPolicy: () => ({ unlocked: true, enabled: true, gameChannelIds: ['game', 'side-game'], cooldownBypassRoleIds: [] }),
+    getGuildPolicy: () => ({ unlocked: true, enabled: true, gameChannelIds: ['game', 'side-game', 'game-forum'], cooldownBypassRoleIds: [] }),
   });
   let slashReply;
   await game.handleInteraction({
@@ -182,7 +182,7 @@ test('configured game channel is enforced for slash and prefix economy commands'
     user: { id: 'channel-user' },
     reply: async (payload) => { slashReply = payload; },
   });
-  assert.match(slashReply.components[0].components[0].content, /only available in <#game>, <#side-game>/);
+  assert.match(slashReply.components[0].components[0].content, /only available in <#game>, <#side-game>, <#game-forum>/);
   let prefixReply;
   await game.handleMessage({
     content: 'c!roll',
@@ -192,8 +192,29 @@ test('configured game channel is enforced for slash and prefix economy commands'
     author: { id: 'channel-user', bot: false },
     reply: async (payload) => { prefixReply = payload; },
   });
-  assert.match(prefixReply.components[0].components[0].content, /only available in <#game>, <#side-game>/);
+  assert.match(prefixReply.components[0].components[0].content, /only available in <#game>, <#side-game>, <#game-forum>/);
   assert.equal(game.repository.inventoryState('channel-user').items.length, 0);
+  await game.handleInteraction({
+    isChatInputCommand: () => true,
+    commandName: 'balance',
+    guildId: 'guild',
+    channelId: 'slash-forum-post',
+    channel: { parentId: 'game-forum' },
+    member: { roles: [] },
+    user: { id: 'slash-forum-user' },
+    reply: async (payload) => { slashReply = payload; },
+  });
+  assert.match(slashReply.components[0].components[0].content, /Balance/);
+  await game.handleMessage({
+    content: 'c!balance',
+    guildId: 'guild',
+    channelId: 'prefix-forum-post',
+    channel: { parentId: 'game-forum' },
+    member: { roles: [] },
+    author: { id: 'prefix-forum-user', bot: false },
+    reply: async (payload) => { prefixReply = payload; },
+  });
+  assert.match(prefixReply.components[0].components[0].content, /Balance/);
   game.close();
 });
 

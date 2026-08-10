@@ -65,6 +65,7 @@ function prefixSource(message) {
     user: message.author,
     guildId: message.guildId,
     channelId: message.channelId,
+    parentChannelId: message.channel?.parentId || message.channel?.parent?.id || '',
     member: message.member,
     async reply(payload) {
       responseMessage = await message.reply(payload);
