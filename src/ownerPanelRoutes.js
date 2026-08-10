@@ -110,7 +110,6 @@ async function guildSummary(client, id, fallback, disabledGuilds) {
     features: {
       gag2Stock: true,
       leveling: config?.features?.leveling === true,
-      rngGame: config?.features?.rngGame === true,
       fullBot: false,
     },
     stock: {
@@ -262,7 +261,7 @@ async function handleOwnerFeatures(req, res, client, guildId, session, deps) {
   await syncGuildApplicationCommands(guild).catch((error) => {
     logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`);
   });
-  logCommandSystem(`Owner ${session.user.id} updated feature access for guild ${guildId}: leveling ${config.features.leveling ? 'unlocked' : 'locked'}, RNG game ${config.features.rngGame ? 'unlocked' : 'locked'}.`);
+  logCommandSystem(`Owner ${session.user.id} updated feature access for guild ${guildId}: leveling ${config.features.leveling ? 'unlocked' : 'locked'}.`);
   return deps.sendJson(res, 200, { guildId, features: config.features, config });
 }
 
