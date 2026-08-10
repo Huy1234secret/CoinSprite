@@ -6,7 +6,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('bot startup loads focused GAG stock, leveling, RNG game, and owner-panel services', () => {
+test('bot startup loads focused GAG stock, leveling, RNG game, Farming Game, and owner-panel services', () => {
   const source = read('index.js');
   assert.match(source, /startAdminServer/);
   assert.match(source, /startGag2StockPoster/);
@@ -15,7 +15,9 @@ test('bot startup loads focused GAG stock, leveling, RNG game, and owner-panel s
   assert.match(source, /handleLevelingInteraction/);
   assert.match(source, /handleLevelingMessage/);
   assert.match(source, /createRngGameFeature/);
+  assert.match(source, /createFarmingGameFeature/);
   assert.match(source, /rngGame\.handleInteraction/);
+  assert.match(source, /farmingGame\.handleInteraction/);
   assert.match(source, /rngGame\.handleMessage/);
   assert.match(source, /Events\.MessageCreate/);
   for (const removed of ['commandsPath', 'inviteRewards', 'dailyMessageStats', 'GuildMemberAdd', 'giveaway', 'ticketSystem']) {
@@ -30,6 +32,7 @@ test('bot registers stock setup globally and syncs optional commands per guild',
   assert.match(commands, /const STOCK_SETUP_COMMAND_NAME = 'stock-set-up'/);
   assert.match(commands, /LEVELING_COMMANDS/);
   assert.match(commands, /RNG_GAME_COMMANDS/);
+  assert.match(commands, /FARMING_GAME_COMMANDS/);
   assert.match(source, /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
   assert.match(source, /syncGuildApplicationCommands/);
   assert.match(commands, /guild\.commands\.set\(commands\)/);
@@ -57,7 +60,7 @@ test('optional slash command visibility follows each server engine and owner loc
   const rngGame = featureCommandsForConfig({
     ...base, features: { ...base.features, rngGame: true }, rngGame: { enabled: true },
   }).map((command) => command.name);
-  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index']);
+  assert.deepEqual(rngGame, ['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'my-farm', 'my-inventory']);
   assert.deepEqual(featureCommandsForConfig({ ...base, enabled: false }), []);
 });
 

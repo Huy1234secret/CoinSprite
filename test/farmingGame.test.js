@@ -1,0 +1,397 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const { featureCommandsForConfig } = require('../src/applicationCommands');
+const { createFarmingGameFeature } = require('../src/features/farming-game');
+const {
+  farmActionOptions,
+  farmPayload,
+  farmStatusText,
+  myInventoryPayload,
+  otherInventoryFields,
+} = require('../src/features/farming-game/components/builders');
+const { ITEMS, ITEM_BY_ID, STARTER_ITEM_QUANTITY } = require('../src/features/farming-game/data/items');
+const { FarmingGameRepository } = require('../src/features/farming-game/repositories/farmingRepository');
+const { PLOT_RECTS, anchorBounds } = require('../src/features/farming-game/renderer/config');
+const { FarmingGameService } = require('../src/features/farming-game/services/farmingService');
+const { generatePlotAnchors, validPlotAnchors } = require('../src/features/farming-game/utils/anchors');
+const { growthStage } = require('../src/features/farming-game/utils/growth');
+const {
+  filterOtherItems,
+  otherInventoryPageData,
+} = require('../src/features/farming-game/utils/inventory');
+const { inventoryCropFields } = require('../src/features/rng-game/components/builders');
+const { SEEDS } = require('../src/features/rng-game/data/seeds');
+
+function fakeRenderer() {
+  return { render: async () => Buffer.from('farm'), clear() {} };
+}
+
+function farmingFeature(options = {}) {
+  return createFarmingGameFeature({ databasePath: ':memory:', farmRenderer: fakeRenderer(), ...options });
+}
+
+function stack(itemId, quantity = 1n) {
+  return { itemId, quantity, item: ITEM_BY_ID[itemId], updatedAt: 1 };
+}
+
+function componentText(payload) {
+  return JSON.stringify(payload);
+}
+
+function addRngCrop(game, userId, seed = SEEDS.at(-1)) {
+  game.cropRepository.ensurePlayer(userId, 1);
+  return game.db.prepare(`INSERT INTO rng_inventory_items
+    (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
+    VALUES (?, ?, ?, ?, ?, ?, 0, ?)`)
+    .run(userId, seed.id, seed.displayName, seed.rarity, 125n, 7n, 1n);
+}
+
+test('starter seed grant and nine empty plots are persistent and idempotent', () => {
+  const game = farmingFeature();
+  game.farmingService.ensureProfile('starter');
+  assert.equal(game.repository.itemQuantity('starter', 'carrot_seed_package'), STARTER_ITEM_QUANTITY);
+  assert.equal(game.repository.plots('starter').length, 9);
+  assert.deepEqual(game.repository.plots('starter').map((plot) => plot.plotNumber), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.ok(game.repository.plots('starter').every((plot) => plot.cropId === null && plot.anchors.length === 0));
+
+  game.farmingService.ensureProfile('starter');
+  const restartedRepository = new FarmingGameRepository(game.db);
+  restartedRepository.ensureProfile('starter', 2);
+  assert.equal(restartedRepository.itemQuantity('starter', 'carrot_seed_package'), STARTER_ITEM_QUANTITY);
+  assert.equal(game.db.prepare(`SELECT COUNT(*) AS count FROM farm_item_stacks
+    WHERE owner_user_id = ? AND item_id = ?`).get('starter', 'carrot_seed_package').count, 1n);
+  game.close();
+});
+
+test('planting multiple plots consumes one package per plot and persists five safe anchors', () => {
+  let now = 100_000;
+  const game = farmingFeature({ clock: () => now, rng: () => 0 });
+  const result = game.farmingService.plant('planter', [1, 5, 9], 'carrot_seed_package');
+  assert.equal(result.status, 'ok');
+  assert.equal(result.remaining, STARTER_ITEM_QUANTITY - 3n);
+  const planted = game.repository.plots('planter').filter((plot) => plot.cropId);
+  assert.equal(planted.length, 3);
+  for (const plot of planted) {
+    assert.equal(plot.cropId, 'carrot');
+    assert.equal(plot.plantedAt, now);
+    assert.equal(plot.anchors.length, 5);
+    assert.equal(validPlotAnchors(plot.plotNumber, plot.anchors), true);
+  }
+  game.close();
+});
+
+test('anchor generation is bounded, separated, and has a deterministic fallback', () => {
+  for (const plot of PLOT_RECTS) {
+    let draw = 0;
+    const anchors = generatePlotAnchors(plot.number, (maximum) => (draw++ * 47) % maximum);
+    assert.equal(validPlotAnchors(plot.number, anchors), true);
+    for (let left = 0; left < anchors.length; left += 1) {
+      for (let right = left + 1; right < anchors.length; right += 1) {
+        assert.ok(Math.hypot(anchors[left].x - anchors[right].x, anchors[left].y - anchors[right].y) >= 38);
+      }
+    }
+    const fallback = generatePlotAnchors(plot.number, () => 0);
+    assert.equal(validPlotAnchors(plot.number, fallback), true);
+    assert.deepEqual(fallback, generatePlotAnchors(plot.number, () => 0));
+    const bounds = anchorBounds(plot.number);
+    assert.ok(fallback.every((anchor) => anchor.x >= bounds.minX && anchor.x <= bounds.maxX));
+  }
+});
+
+test('anchor coordinates remain unchanged across growth stages and repository restarts', () => {
+  let now = 1_000_000;
+  const game = farmingFeature({ clock: () => now, rng: () => 0 });
+  game.farmingService.plant('persistent', [4], 'carrot_seed_package');
+  const original = game.repository.plots('persistent')[3].anchors;
+  now += 4 * 60 * 1000;
+  assert.deepEqual(game.farmingService.farmState('persistent').plots[3].anchors, original);
+  assert.equal(game.farmingService.farmState('persistent').plots[3].stage, 4);
+  const restarted = new FarmingGameService({ repository: new FarmingGameRepository(game.db), clock: () => now });
+  assert.deepEqual(restarted.farmState('persistent').plots[3].anchors, original);
+  game.close();
+});
+
+test('growth stage boundaries advance at each minute and cap at stage six', () => {
+  const plantedAt = 0;
+  for (let stage = 0; stage <= 6; stage += 1) {
+    assert.equal(growthStage(plantedAt, plantedAt + (stage * 60 * 1000)), stage);
+    if (stage < 6) assert.equal(growthStage(plantedAt, plantedAt + ((stage + 1) * 60 * 1000) - 1), stage);
+  }
+  assert.equal(growthStage(plantedAt, plantedAt + (60 * 60 * 1000)), 6);
+});
+
+test('harvest is unavailable early, grants five carrots per ready plot, and cannot run twice', () => {
+  let now = 2_000_000;
+  const game = farmingFeature({ clock: () => now, rng: () => 0 });
+  game.farmingService.plant('harvester', [1, 2], 'carrot_seed_package');
+  now += (6 * 60 * 1000) - 1;
+  assert.equal(game.farmingService.harvest('harvester', [1, 2]).status, 'nothing-ready');
+  assert.equal(game.repository.itemQuantity('harvester', 'carrot'), 0n);
+  now += 1;
+  const result = game.farmingService.harvest('harvester', [1, 2]);
+  assert.deepEqual(result.plotNumbers, [1, 2]);
+  assert.equal(result.amount, 10n);
+  assert.equal(game.repository.itemQuantity('harvester', 'carrot'), 10n);
+  assert.ok(game.repository.plots('harvester').slice(0, 2).every((plot) => plot.cropId === null && plot.plantedAt === null && !plot.anchors.length));
+  assert.equal(game.farmingService.harvest('harvester', [1, 2]).status, 'nothing-ready');
+  assert.equal(game.repository.itemQuantity('harvester', 'carrot'), 10n);
+  game.close();
+});
+
+test('shovel clears only occupied plots and gives no refund', () => {
+  const game = farmingFeature({ clock: () => 3_000_000, rng: () => 0 });
+  game.farmingService.plant('shoveler', [3, 4], 'carrot_seed_package');
+  const afterPlant = game.repository.itemQuantity('shoveler', 'carrot_seed_package');
+  const result = game.farmingService.shovel('shoveler', [2, 3, 4]);
+  assert.equal(result.status, 'ok');
+  assert.deepEqual(result.plotNumbers, [3, 4]);
+  assert.equal(game.repository.itemQuantity('shoveler', 'carrot_seed_package'), afterPlant);
+  assert.ok(game.repository.plots('shoveler').slice(2, 4).every((plot) => !plot.cropId && !plot.anchors.length));
+  assert.equal(game.farmingService.shovel('shoveler', [3, 4]).status, 'nothing-occupied');
+  game.close();
+});
+
+test('stale or concurrent planting cannot overwrite occupied plots or double-consume seeds', () => {
+  const game = farmingFeature({ clock: () => 4_000_000, rng: () => 0 });
+  const first = game.farmingService.plant('race', [7], 'carrot_seed_package');
+  const anchors = game.repository.plots('race')[6].anchors;
+  const second = game.farmingService.plant('race', [7], 'carrot_seed_package');
+  assert.equal(first.status, 'ok');
+  assert.equal(second.status, 'plots-changed');
+  assert.equal(game.repository.itemQuantity('race', 'carrot_seed_package'), STARTER_ITEM_QUANTITY - 1n);
+  assert.deepEqual(game.repository.plots('race')[6].anchors, anchors);
+  game.close();
+});
+
+test('plot and action dropdown rules follow the latest selected plot state', () => {
+  let now = 5_000_000;
+  const game = farmingFeature({ clock: () => now, rng: () => 0 });
+  const empty = game.farmingService.farmState('menus');
+  assert.deepEqual(farmActionOptions(empty, new Set([1, 2])).map((option) => option.value), ['plant', 'gear']);
+  game.farmingService.plant('menus', [1], 'carrot_seed_package');
+  const mixed = game.farmingService.farmState('menus');
+  assert.deepEqual(farmActionOptions(mixed, new Set([1, 2])).map((option) => option.value), ['shovel', 'gear']);
+  now += 6 * 60 * 1000;
+  const ready = game.farmingService.farmState('menus');
+  assert.deepEqual(farmActionOptions(ready, new Set([1, 2])).map((option) => option.value), ['harvest', 'shovel', 'gear']);
+  const view = { id: 'view', selectedPlots: new Set() };
+  const payload = farmPayload('menus', ready, view, Buffer.from('farm'), { initial: false });
+  const actionMenu = payload.components[0].components.at(-1).components[0];
+  assert.equal(actionMenu.placeholder, 'Actions');
+  assert.equal(actionMenu.disabled, true);
+  assert.deepEqual(payload.attachments, []);
+  game.close();
+});
+
+test('farm status uses exact empty, countdown, and fully-grown formats', () => {
+  const empty = { plots: Array.from({ length: 9 }, (_, index) => ({ plotNumber: index + 1, occupied: false })) };
+  assert.equal(farmStatusText(empty), '* Your farm seems empty...');
+  const growing = { plots: [{ plotNumber: 1, occupied: true, ready: false, stage: 2, readyAt: 1_700_000_000_000 }] };
+  assert.match(farmStatusText(growing), /^-# \*\*#1\*\* - <:carrot_stage_2:/);
+  assert.match(farmStatusText(growing), /<t:1700000000:R>\.$/);
+  const ready = { plots: [{ plotNumber: 9, occupied: true, ready: true, stage: 6 }] };
+  assert.match(farmStatusText(ready), /\*\*\*Carrot is FULLY grown!\*\*\*/);
+});
+
+test('farm rendering returns a valid 1254 by 1254 PNG', async () => {
+  let now = 6_000_000;
+  const game = createFarmingGameFeature({ databasePath: ':memory:', clock: () => now, rng: () => 0 });
+  game.farmingService.plant('render', [1, 5, 9], 'carrot_seed_package');
+  now += 6 * 60 * 1000;
+  const image = await game.farmRenderer.render(game.farmingService.farmState('render'));
+  assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(image.readUInt32BE(16), 1254);
+  assert.equal(image.readUInt32BE(20), 1254);
+  game.close();
+});
+
+test('open farm views refresh at growth boundaries and shutdown clears their timers', async () => {
+  let now = 6_500_000;
+  const timers = [];
+  const cleared = [];
+  const game = farmingFeature({
+    clock: () => now,
+    rng: () => 0,
+    setTimer(callback, delay) {
+      const timer = { callback, delay, unref() {} };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer(timer) { cleared.push(timer); },
+  });
+  game.farmingService.plant('refresh', [1], 'carrot_seed_package');
+  let edits = 0;
+  const view = game.farmViews.createFarm('refresh', { editOriginal: async () => { edits += 1; } });
+  game.refreshScheduler.schedule(view);
+  assert.equal(timers[0].delay, 60_000);
+  now += 60_000;
+  await timers[0].callback();
+  assert.equal(edits, 1);
+  assert.equal(timers[1].delay, 60_000);
+  game.close();
+  assert.ok(cleared.includes(timers[1]));
+});
+
+test('farm controls reject non-owners and expired view tokens ephemerally', async () => {
+  let now = 7_000_000;
+  const game = farmingFeature({ clock: () => now, sessionTtlMs: 1_000 });
+  const view = game.farmViews.createFarm('owner');
+  let reply;
+  const wrongUserHandled = await game.handleInteraction({
+    customId: `farm:plot:select:${view.id}`,
+    user: { id: 'intruder' },
+    values: ['1'],
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    isRepliable: () => true,
+    reply: async (payload) => { reply = payload; },
+  });
+  assert.equal(wrongUserHandled, true);
+  assert.match(componentText(reply), /Not your farm/);
+  assert.ok(reply.flags);
+
+  now += 1_000;
+  reply = null;
+  await game.handleInteraction({
+    customId: `farm:plot:select:${view.id}`,
+    user: { id: 'owner' },
+    values: ['1'],
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    isRepliable: () => true,
+    reply: async (payload) => { reply = payload; },
+  });
+  assert.match(componentText(reply), /Expired farm controls/);
+  game.close();
+});
+
+test('/my-inventory switches types while keeping the type selector above controls', async () => {
+  const game = farmingFeature();
+  const view = game.inventoryViews.createInventory('switcher');
+  let edited;
+  const handled = await game.handleInteraction({
+    customId: `farm:inv:type:${view.id}`,
+    user: { id: 'switcher', username: 'Switcher' },
+    values: ['other'],
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    deferUpdate: async () => {},
+    editReply: async (payload) => { edited = payload; },
+    isRepliable: () => true,
+  });
+  assert.equal(handled, true);
+  assert.equal(view.type, 'other');
+  assert.equal(edited.components[0].components[0].custom_id, `farm:inv:type:${view.id}`);
+  assert.equal(edited.components[0].components[0].options.find((option) => option.value === 'other').default, true);
+  game.close();
+});
+
+test('Crops inventory keeps RNG fields, capacity, value, filters, and upgrade control', () => {
+  const game = farmingFeature();
+  addRngCrop(game, 'crop-view');
+  const cropState = game.cropGameService.inventory('crop-view');
+  const view = game.inventoryViews.createInventory('crop-view');
+  const payload = myInventoryPayload({ id: 'crop-view', username: 'Farmer' }, cropState, game.farmingService.inventory('crop-view'), view);
+  assert.deepEqual(payload.embeds[0].fields, inventoryCropFields(cropState.items));
+  assert.match(payload.embeds[0].description, /Capacity: 1 \/ 100/);
+  assert.match(payload.embeds[0].description, /Total value:/);
+  assert.ok(payload.components[1].components.some((component) => component.label === 'Filter'));
+  assert.ok(payload.components[1].components.some((component) => component.label === 'Upgrade'));
+  game.close();
+});
+
+test('Other inventory paginates six at a time and fields are one-column unit-value entries', () => {
+  const stacks = Array.from({ length: 7 }, (_, index) => ({
+    ...stack(index % 2 ? 'carrot' : 'carrot_seed_package', BigInt(index + 1)),
+    itemId: index % 2 ? 'carrot' : 'carrot_seed_package',
+  }));
+  const view = { otherPage: 1, otherFilters: {} };
+  const first = otherInventoryPageData(stacks, view);
+  assert.equal(first.pageItems.length, 6);
+  assert.equal(first.maxPage, 2);
+  view.otherPage = 2;
+  assert.equal(otherInventoryPageData(stacks, view).pageItems.length, 1);
+
+  const fields = otherInventoryFields([stack('carrot', 12n)]);
+  assert.equal(fields.length, 1);
+  assert.equal(fields[0].inline, false);
+  assert.match(fields[0].name, /Carrot ×12/);
+  assert.match(fields[0].value, /Type: consumable, ingredient/);
+  assert.match(fields[0].value, /Value: 4/);
+});
+
+test('Other item filters use OR within types and AND across name, rarity, and type', () => {
+  const stacks = [stack('carrot_seed_package', 5n), stack('carrot', 10n)];
+  assert.deepEqual(filterOtherItems(stacks, { itemTypes: ['seed', 'ingredient'] }).map((entry) => entry.itemId), [
+    'carrot_seed_package', 'carrot',
+  ]);
+  assert.deepEqual(filterOtherItems(stacks, { itemTypes: ['seed'] }).map((entry) => entry.itemId), ['carrot_seed_package']);
+  assert.deepEqual(filterOtherItems(stacks, {
+    name: 'carrot', rarity: 'Common', itemTypes: ['ingredient'],
+  }).map((entry) => entry.itemId), ['carrot']);
+  assert.deepEqual(filterOtherItems(stacks, {
+    name: 'package', rarity: 'Common', itemTypes: ['ingredient'],
+  }), []);
+  assert.deepEqual(filterOtherItems(stacks, {}), stacks);
+});
+
+test('Other inventory has no capacity text or Upgrade button', () => {
+  const game = farmingFeature();
+  const view = game.inventoryViews.createInventory('other-view');
+  view.type = 'other';
+  const payload = myInventoryPayload(
+    { id: 'other-view', username: 'Farmer' },
+    game.cropGameService.inventory('other-view'),
+    game.farmingService.inventory('other-view'),
+    view,
+  );
+  assert.doesNotMatch(componentText(payload), /Capacity/);
+  assert.doesNotMatch(componentText(payload), /"label":"Upgrade"/);
+  assert.ok(payload.embeds[0].fields.every((field) => field.inline === false));
+  game.close();
+});
+
+test('Farming commands register under the RNG guild feature and use its access policy', async () => {
+  const config = {
+    enabled: true,
+    features: { rngGame: true },
+    rngGame: { enabled: true },
+  };
+  const names = featureCommandsForConfig(config).map((command) => command.name);
+  assert.deepEqual(names.slice(-2), ['my-farm', 'my-inventory']);
+
+  const game = farmingFeature({
+    getGuildPolicy: () => ({ unlocked: true, enabled: true, gameChannelIds: ['farm-channel'] }),
+  });
+  let reply;
+  const handled = await game.handleInteraction({
+    isChatInputCommand: () => true,
+    commandName: 'my-inventory',
+    guildId: 'guild',
+    channelId: 'other-channel',
+    member: { roles: [] },
+    user: { id: 'policy-user', username: 'Policy' },
+    reply: async (payload) => { reply = payload; },
+  });
+  assert.equal(handled, true);
+  assert.match(componentText(reply), /only available in <#farm-channel>/);
+  game.close();
+});
+
+test('catalog is centralized and farming shutdown clears isolated stores without closing a shared database', () => {
+  assert.equal(Object.isFrozen(ITEMS), true);
+  assert.equal(Object.isFrozen(ITEMS[0]), true);
+  assert.deepEqual(ITEMS.map((item) => item.id), ['carrot_seed_package', 'carrot']);
+  const owner = farmingFeature();
+  const shared = createFarmingGameFeature({ db: owner.db, cropRepository: owner.cropRepository, cropGameService: owner.cropGameService });
+  shared.farmViews.createFarm('close');
+  shared.inventoryViews.createInventory('close');
+  shared.actions.create('close');
+  shared.close();
+  assert.equal(shared.farmViews.records.size, 0);
+  assert.equal(shared.inventoryViews.records.size, 0);
+  assert.equal(shared.actions.records.size, 0);
+  assert.equal(owner.db.open, true);
+  owner.close();
+});

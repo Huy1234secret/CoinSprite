@@ -27,6 +27,7 @@ const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
 const { createRngGameFeature } = require('./src/features/rng-game');
+const { createFarmingGameFeature } = require('./src/features/farming-game');
 const {
   GLOBAL_APPLICATION_COMMANDS,
   STOCK_SETUP_COMMAND_NAME,
@@ -41,16 +42,23 @@ const {
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const { role: runtimeRole, schedulerEnabled } = requireSchedulerRole();
-const rngGame = createRngGameFeature({
-  getGuildPolicy(guildId) {
-    const config = getGuildConfigRaw(guildId);
-    return {
-      unlocked: config?.enabled !== false && config?.features?.rngGame === true,
-      enabled: config?.rngGame?.enabled === true,
-      gameChannelIds: config?.rngGame?.gameChannelIds || [],
-      cooldownBypassRoleIds: config?.rngGame?.cooldownBypassRoleIds || [],
-    };
-  },
+function getRngGuildPolicy(guildId) {
+  const guildConfig = getGuildConfigRaw(guildId);
+  return {
+    unlocked: guildConfig?.enabled !== false && guildConfig?.features?.rngGame === true,
+    enabled: guildConfig?.rngGame?.enabled === true,
+    gameChannelIds: guildConfig?.rngGame?.gameChannelIds || [],
+    cooldownBypassRoleIds: guildConfig?.rngGame?.cooldownBypassRoleIds || [],
+  };
+}
+
+const rngGame = createRngGameFeature({ getGuildPolicy: getRngGuildPolicy });
+const farmingGame = createFarmingGameFeature({
+  db: rngGame.db,
+  cropRepository: rngGame.repository,
+  cropGameService: rngGame.gameService,
+  saleSessions: rngGame.saleSessions,
+  getGuildPolicy: getRngGuildPolicy,
 });
 
 function dashboardBaseUrl() {
@@ -147,6 +155,7 @@ if (runtimeStarter.capabilities.bot) {
 
     try {
       if (await rngGame.handleInteraction(interaction)) return;
+      if (await farmingGame.handleInteraction(interaction)) return;
       if (await handleGag2RoleAssignmentInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
       if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {
