@@ -12,10 +12,11 @@ function label(labelText, component, description) {
 }
 
 function rarityOptions(rarities, selected) {
+  const selectedSet = new Set(Array.isArray(selected) ? selected : (selected ? [selected] : []));
   return [...new Set(rarities || [])]
     .filter((rarity) => RARITIES[rarity])
     .map((rarity) => {
-      const option = { label: rarity, value: rarity, default: rarity === selected };
+      const option = { label: rarity, value: rarity, default: selectedSet.has(rarity) };
       const emoji = componentEmoji(RARITIES[rarity].emoji);
       if (emoji) option.emoji = emoji;
       return option;
@@ -58,30 +59,33 @@ function inventoryFilterModal(view, availableRarities) {
       placeholder: 'Bot will filter weight higher than or equal to this',
       max_length: 20,
       required: false,
+      ...(view.filters.weight ? { value: String(view.filters.weight).slice(0, 20) } : {}),
     }),
   ];
   const options = rarityOptions(availableRarities, view.filters.rarity);
-  if (options.length) components.push(label('Rarity filter', {
-    type: 3,
-    custom_id: 'rarity',
-    placeholder: 'Any rarity',
-    min_values: 0,
-    max_values: 1,
-    required: false,
-    options,
-  }));
+  if (options.length) {
+    components.push(label('Rarity', {
+      type: 3,
+      custom_id: 'rarity',
+      placeholder: 'Any rarity',
+      min_values: 0,
+      max_values: 1,
+      required: false,
+      options,
+    }));
+  }
   return { custom_id: `rng:inv:filter-submit:${view.id}`, title: 'Filter inventory', components };
 }
 
 function sellFilterModal(session, availableRarities) {
-  const options = rarityOptions(availableRarities, session.filters.rarity);
+  const options = rarityOptions(availableRarities, session.filters.rarities);
   const components = [];
   if (options.length) components.push(label('Rarity', {
     type: 3,
-    custom_id: 'rarity',
+    custom_id: 'rarities',
     placeholder: 'Any rarity',
     min_values: 0,
-    max_values: 1,
+    max_values: options.length,
     required: false,
     options,
   }));

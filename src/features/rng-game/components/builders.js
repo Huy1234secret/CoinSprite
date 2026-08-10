@@ -123,16 +123,23 @@ function inventoryPayload(user, state, view, options = {}) {
 
 function groupedSaleSummary(selectedItems, maximumLength = 3_000) {
   if (!selectedItems.length) return '-# No crops selected.';
-  const groups = new Map();
+  const cropGroups = new Map();
   for (const item of selectedItems) {
-    const key = `${item.seedId}:${item.weightUnits}`;
-    const current = groups.get(key) || { item, count: 0 };
+    const cropKey = item.seedId;
+    if (!cropGroups.has(cropKey)) cropGroups.set(cropKey, new Map());
+    const weightMap = cropGroups.get(cropKey);
+    const weightKey = item.weightUnits;
+    const current = weightMap.get(weightKey) || { item, count: 0 };
     current.count += 1;
-    groups.set(key, current);
+    weightMap.set(weightKey, current);
   }
-  const lines = [...groups.values()].map(({ item, count }) => {
-    const emoji = SEED_BY_ID.get(item.seedId)?.emoji || '';
-    return `${emoji} \`[${formatWeight(item.weightUnits)} kg]\`${count > 1 ? ` ×${count}` : ''}`.trim();
+  const lines = [...cropGroups.values()].map((weightMap) => {
+    const firstItem = [...weightMap.values()][0].item;
+    const emoji = SEED_BY_ID.get(firstItem.seedId)?.emoji || '';
+    const parts = [...weightMap.values()].map(({ item, count }) => {
+      return `\`[${formatWeight(item.weightUnits)} kg]\`${count > 1 ? ` ×${count}` : ''}`;
+    });
+    return `${emoji} ${parts.join(', ')}`.trim();
   });
   const shown = [];
   let length = 0;
@@ -141,7 +148,7 @@ function groupedSaleSummary(selectedItems, maximumLength = 3_000) {
     shown.push(line);
     length += line.length + 1;
   }
-  if (shown.length < lines.length) shown.push(`-# …and ${lines.length - shown.length} more weight group(s).`);
+  if (shown.length < lines.length) shown.push(`-# …and ${lines.length - shown.length} more crop(s).`);
   return shown.join('\n');
 }
 

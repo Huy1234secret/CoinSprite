@@ -22,6 +22,7 @@ function inventoryMatches(item, filters = {}) {
   if (name && !normalizeCropName(item.cropName).includes(name)) return false;
   if (filters.minimumWeightUnits != null && item.weightUnits < filters.minimumWeightUnits) return false;
   if (filters.rarity && item.rarity !== filters.rarity) return false;
+  if (filters.rarities?.length && !filters.rarities.includes(item.rarity)) return false;
   if (filters.cropIds?.size && !filters.cropIds.has(item.seedId)) return false;
   return true;
 }
