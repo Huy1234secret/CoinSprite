@@ -505,9 +505,12 @@ test('the stat payload uses the exact V2 layout, avatar, formatters, and safe me
   assert.equal(container.accent_color, 0xFFFFFF);
   assert.deepEqual(container.components.map((component) => component.type), [9, 14, 10, 14, 10]);
   assert.equal(container.components[0].accessory.media.url, 'https://cdn.example/avatar.png');
+  for (const component of [container.components[0].components[0], container.components[2], container.components[4]]) {
+    assert.doesNotMatch(component.content, /\n\n/, 'stat rows should render without blank-line gaps');
+  }
   assert.equal(
     container.components[0].components[0].content,
-    `### <@123456789012345678>'s Rollin stats\n\n* Has done 12,345 rolls\n\n-# 67 auto-rolls`,
+    `### <@123456789012345678>'s Rollin stats\n* Has done 12,345 rolls\n-# 67 auto-rolls`,
   );
   assert.match(container.components[2].content, new RegExp(`Highest rarity discovered: ${RARITY_EMOJIS.Secret}`));
   assert.match(container.components[2].content, new RegExp(`${ECLIPSE.emoji} Eclipse Bloom`));
@@ -515,7 +518,7 @@ test('the stat payload uses the exact V2 layout, avatar, formatters, and safe me
   assert.match(container.components[2].content, /Highest weight discovered: 45\.00 kg/);
   assert.equal(
     container.components[4].content,
-    `- Earning all time: 123,456,789 ${SHECKLES_EMOJI}\n\n`
+    `- Earning all time: 123,456,789 ${SHECKLES_EMOJI}\n`
       + `* Highest earning in one sale: 18,000,000 ${SHECKLES_EMOJI}`,
   );
 });
