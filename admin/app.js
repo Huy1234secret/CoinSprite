@@ -949,11 +949,11 @@
 
   function renderOwnerOverview(payload) {
     const metrics = [
-      ['ping', 'Bot ping', `${formatNumber(payload.bot.pingMs)} ms`, 'Discord gateway'],
-      ['uptime', 'Uptime', formatUptime(payload.bot.uptimeMs), payload.bot.tag],
-      ['communities', 'Communities', formatNumber(payload.bot.guildCount), `${formatNumber(payload.bot.totalUsers)} members`],
-      ['heap', 'Heap', payload.bot.memory.heapUsedLabel, 'Live process usage'],
-      ['storage', 'Storage', payload.storage.label, 'Live data and logs'],
+      ['ping', 'Bot ping', `${formatNumber(payload.bot.pingMs)} ms`, 'Discord gateway', null, null],
+      ['uptime', 'Uptime', formatUptime(payload.bot.uptimeMs), payload.bot.tag, null, null],
+      ['communities', 'Communities', formatNumber(payload.bot.guildCount), `${formatNumber(payload.bot.totalUsers)} members`, null, null],
+      ['heap', 'Heap', payload.bot.memory.heapUsedLabel, 'Live process usage', payload.bot.memory.usageRatio, payload.bot.memory.heapLimitLabel],
+      ['storage', 'Storage', payload.storage.label, 'Live data and logs', payload.storage.usageRatio, payload.storage.maxLabel],
     ];
     const rows = (payload.guilds || []).map((guild) => {
       const featureCount = 1 + Number(guild.features?.leveling === true) + Number(guild.features?.rngGame === true);
@@ -972,17 +972,31 @@
     </tr>`;
     }).join('');
     elements.ownerOverview.innerHTML = `
-      <section class="metric-grid">${metrics.map(([key, label, value, detail]) => `<article class="metric-card"><small>${label}</small><strong data-owner-metric="${key}">${escapeHtml(value)}</strong><span>${escapeHtml(detail)}</span></article>`).join('')}</section>
+      <section class="metric-grid">${metrics.map(([key, label, value, detail, ratio, maxLabel]) => {
+        const colorStyle = ratio > 0.85 ? 'color: #ef4444;' : '';
+        const maxInfo = maxLabel ? `<br><small style="opacity: 0.7;">Max: ${maxLabel} (${(ratio * 100).toFixed(1)}%)</small>` : '';
+        return `<article class="metric-card"><small>${label}</small><strong data-owner-metric="${key}" style="${colorStyle}">${escapeHtml(value)}</strong><span data-owner-metric-detail="${key}">${escapeHtml(detail)}${maxInfo}</span></article>`;
+      }).join('')}</section>
       <section class="fleet-panel"><header class="fleet-head"><h2>Community fleet</h2><span>${payload.guilds.length} connected</span></header><div class="fleet-table-wrap"><table class="fleet-table"><thead><tr><th>Community</th><th>Members</th><th>Status</th><th>Routes</th><th>Role sync</th><th>Feature access</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No communities available.</td></tr>'}</tbody></table></div></section>`;
   }
 
   async function pollOwnerMetrics() {
     if (state.currentView !== 'owner') return;
     const payload = await api('/api/owner/metrics');
-    const heap = elements.ownerOverview.querySelector('[data-owner-metric="heap"]');
-    const storage = elements.ownerOverview.querySelector('[data-owner-metric="storage"]');
-    if (heap) heap.textContent = payload.heap.label;
-    if (storage) storage.textContent = payload.storage.label;
+    
+    const updateMetric = (key, data, detailLabel) => {
+      const el = elements.ownerOverview.querySelector(`[data-owner-metric="${key}"]`);
+      if (el) {
+        el.textContent = data.label;
+        el.style.color = data.usageRatio > 0.85 ? '#ef4444' : '';
+      }
+      const detailEl = elements.ownerOverview.querySelector(`[data-owner-metric-detail="${key}"]`);
+      if (detailEl && data.maxLabel) {
+        detailEl.innerHTML = `${detailLabel}<br><small style="opacity: 0.7;">Max: ${data.maxLabel} (${(data.usageRatio * 100).toFixed(1)}%)</small>`;
+      }
+    };
+    if (payload.heap) updateMetric('heap', payload.heap, 'Live process usage');
+    if (payload.storage) updateMetric('storage', payload.storage, 'Live data and logs');
   }
 
   function startOwnerMetricPolling() {
