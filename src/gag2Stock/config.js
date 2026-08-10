@@ -5,7 +5,7 @@ const FALL_STOCK_API_URL = 'https://gag.gg/api/seed-restock?world=fall';
 const WEATHER_API_URL = 'https://api.gag2.gg/api/live/weather';
 const SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=main';
 // Fall Harvest publishes stock and sell data from the same world feed.
-const FALL_SELL_API_URL = FALL_STOCK_API_URL;
+const FALL_SELL_API_URL = 'https://gag.gg/api/fruit-stock?world=fall';
 const COMPONENTS_V2_FLAG = 32768;
 const GREEN = 0x57f287;
 const FALL_ORANGE = 0xC96F2B;
