@@ -194,17 +194,18 @@ test('max-tier power purchases return max-tier without charging and replay safel
   game.close();
 });
 
-test('upgrade UI explains Luck probabilities and disables maximum-tier purchases', () => {
+test('upgrade UI stays compact and disables maximum-tier purchases', () => {
   const payload = powerUpgradePayload(
     { id: 'user' },
     { balance: 10_000n, luckTier: 0, bigCropTier: 0 },
     { luckActionId: 'luck', bigActionId: 'big', luckCost: 10_000n, bigCost: 5_000n },
   );
   const luckCard = payload.components[0].components[1];
-  assert.match(luckCard.components[0].content, /gradually promotes crop rolls into higher rarities/);
-  assert.match(luckCard.components[0].content, /Current → next rarity probabilities/);
-  assert.match(luckCard.components[0].content, /1 in [\d,]+/);
-  assert.match(luckCard.components[0].content, /Upgrade cost: 10,000/);
+  const bigCard = payload.components[0].components[2];
+  assert.equal(luckCard.components[0].content, '* **Luck** Tier 0 → I\n-# Current luck: ×1');
+  assert.equal(bigCard.components[0].content, '* **BIG** Crop chance 0 → I\n-# Current: 0%');
+  assert.doesNotMatch(luckCard.components[0].content, /Upgrade cost|rarity probabilities|gradually promotes/);
+  assert.doesNotMatch(bigCard.components[0].content, /Upgrade cost/);
 
   const maxed = powerUpgradePayload(
     { id: 'user' },
