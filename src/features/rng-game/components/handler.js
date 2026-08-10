@@ -191,8 +191,9 @@ function createComponentHandler(context) {
       return true;
     }
     if (action === 'filter-submit' && interaction.isModalSubmit?.()) {
-      const rarity = valuesFromModal(interaction.fields, 'rarity')[0] || '';
-      if (rarity && !availableRarities(state.items).includes(rarity)) {
+      const rarities = valuesFromModal(interaction.fields, 'rarities') || [];
+      const invalidRarities = rarities.filter((r) => !availableRarities(state.items).includes(r));
+      if (invalidRarities.length) {
         await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
         return true;
       }
@@ -203,12 +204,12 @@ function createComponentHandler(context) {
         await interaction.reply(errorPayload(`Unknown crop name${unknown.length === 1 ? '' : 's'}\n${unknown.join(', ')}`, { ephemeral: true }));
         return true;
       }
-      if (!rarity && !normalizedNames.length) {
-        await interaction.reply(errorPayload('Sell filter required\nChoose a rarity, enter crop names, or use both.', { ephemeral: true }));
+      if (!rarities.length && !normalizedNames.length) {
+        await interaction.reply(errorPayload('Sell filter required\nChoose at least one rarity, enter crop names, or use both.', { ephemeral: true }));
         return true;
       }
       const cropIds = new Set(normalizedNames.map((name) => NORMALIZED_SEEDS.get(name).id));
-      session.filters = { rarity, cropIds };
+      session.filters = { rarities, cropIds };
       session.currentPage = 1;
       for (const item of filterInventory(state.items, session.filters)) session.selectedItemIds.add(item.id);
       await interaction.deferUpdate();
