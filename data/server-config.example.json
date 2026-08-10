@@ -9,6 +9,7 @@
       "features": {
         "gag2Stock": true,
         "leveling": false,
+        "rngGame": false,
         "fullBot": false
       },
       "channels": {
@@ -83,6 +84,11 @@
         "roleRewards": [],
         "roleBoosts": [],
         "stackRoleRewards": true
+      },
+      "rngGame": {
+        "enabled": false,
+        "gameChannelIds": [],
+        "cooldownBypassRoleIds": []
       }
     }
   }

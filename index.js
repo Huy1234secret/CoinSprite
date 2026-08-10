@@ -47,7 +47,7 @@ const rngGame = createRngGameFeature({
     return {
       unlocked: config?.enabled !== false && config?.features?.rngGame === true,
       enabled: config?.rngGame?.enabled === true,
-      gameChannelId: config?.rngGame?.gameChannelId || '',
+      gameChannelIds: config?.rngGame?.gameChannelIds || [],
       cooldownBypassRoleIds: config?.rngGame?.cooldownBypassRoleIds || [],
     };
   },

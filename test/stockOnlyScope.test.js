@@ -75,7 +75,7 @@ test('dashboard exposes one focused stylesheet and script', () => {
   assert.match(html, /id="levelingRewards"/);
   assert.match(html, /data-view="rng-game"/);
   assert.match(html, /id="rngGameView"/);
-  assert.match(html, /id="rngGameChannel"/);
+  assert.match(html, /id="rngGameChannels"/);
   assert.match(html, /id="rngCooldownBypassRoles" multiple/);
   assert.match(html, /V2 COMMANDS/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
@@ -112,6 +112,7 @@ test('only GAG stock is unlocked by default', () => {
   assert.equal(config.DEFAULT_LEVELING_CONFIG.enabled, false);
   assert.equal(config.DEFAULT_LEVELING_CONFIG.announcements.enabled, false);
   assert.equal(config.DEFAULT_RNG_GAME_CONFIG.enabled, false);
+  assert.deepEqual(config.DEFAULT_RNG_GAME_CONFIG.gameChannelIds, []);
   assert.deepEqual(config.DEFAULT_RNG_GAME_CONFIG.cooldownBypassRoleIds, []);
   assert.equal(config.isGuildFullBotEnabled('1493901002519347290'), false);
   const normalized = config.normalizeGag2StockConfig({
@@ -124,13 +125,16 @@ test('only GAG stock is unlocked by default', () => {
   assert.deepEqual(normalized.filters.sellMultipliers, ['4x']);
   assert.deepEqual(config.normalizeRngGameConfig({
     enabled: true,
-    gameChannelId: '223456789012345678',
+    gameChannelIds: ['223456789012345678', '223456789012345679', '223456789012345678', 'invalid'],
     cooldownBypassRoleIds: ['323456789012345678', '323456789012345678', 'invalid'],
   }), {
     enabled: true,
-    gameChannelId: '223456789012345678',
+    gameChannelIds: ['223456789012345678', '223456789012345679'],
     cooldownBypassRoleIds: ['323456789012345678'],
   });
+  assert.deepEqual(config.normalizeRngGameConfig({ gameChannelId: '223456789012345678' }).gameChannelIds, [
+    '223456789012345678',
+  ]);
 });
 
 test('adding RNG config at the current schema does not relock an enabled leveling server', () => {
@@ -151,7 +155,7 @@ test('adding RNG config at the current schema does not relock an enabled levelin
   assert.equal(state.guilds[guildId].features.rngGame, false);
   assert.deepEqual(state.guilds[guildId].rngGame, {
     enabled: false,
-    gameChannelId: '',
+    gameChannelIds: [],
     cooldownBypassRoleIds: [],
   });
 });
@@ -181,6 +185,14 @@ test('dashboard moves engine control to the header and only shows save dock for 
   assert.match(source, /elements\.saveDock\.hidden = !dirty && !state\.saving/);
   assert.match(html, /id="resetButton"/);
   assert.match(source, /function resetUnsavedChanges/);
+});
+
+test('RNG dashboard supports selecting multiple game channels', () => {
+  const html = read('admin/index.html');
+  const source = read('admin/app.js');
+  assert.match(html, /id="rngGameChannels" multiple/);
+  assert.match(source, /rngGame\.gameChannelIds = \[\.\.\.target\.selectedOptions\]/);
+  assert.match(source, /channelOptions\(rngGame\.gameChannelIds/);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {
