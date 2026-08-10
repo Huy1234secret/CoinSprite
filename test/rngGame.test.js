@@ -10,7 +10,7 @@ const {
   salePageData,
   salePayload,
 } = require('../src/features/rng-game/components/builders');
-const { RARITY_EMOJIS, SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
+const { CROP_EMOJIS, RARITY_EMOJIS, SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
@@ -138,6 +138,7 @@ test('seed registry uses the revised maximum crop values', () => {
     3_500, 2_250, 1_500, 1_000, 700, 450, 300, 200, 120, 80, 60, 40, 30, 20,
   ];
   assert.deepEqual(SEEDS.map((entry) => entry.maximumValue), expectedMaximums);
+  assert.equal(CROP_EMOJIS.briar_rose, '<:BriarRoseFruit:1536254839263068200>');
 });
 
 test('prefix and slash roll paths share one five-second cooldown', async () => {
