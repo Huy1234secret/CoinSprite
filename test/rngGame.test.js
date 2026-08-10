@@ -12,7 +12,14 @@ const {
 } = require('../src/features/rng-game/components/builders');
 const { CROP_EMOJIS, RARITY_EMOJIS, SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
 const { CHECKED_SEEDS, FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
-const { cascadingRoll, generateInstance, valueForWeight, weightBounds } = require('../src/features/rng-game/services/rngService');
+const {
+  PROBABILITY_SCALE,
+  baseCropDistribution,
+  cascadingRoll,
+  generateInstance,
+  valueForWeight,
+  weightBounds,
+} = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
 const { SaleSessionStore } = require('../src/features/rng-game/services/sessionStore');
 const { evaluateRngGameAccess } = require('../src/features/rng-game/services/accessPolicy');
@@ -43,66 +50,61 @@ function item(id, seed = SEEDS.at(-1), weightUnits = 10, value = 1n, rolledAt = 
   };
 }
 
-test('cascading rolls check seeds in rarest-first registry order', () => {
-  const calls = [];
-  const result = cascadingRoll({
-    rng(maximum) {
-      calls.push(maximum);
-      if (calls.length === 1) return CHECKED_SEEDS[0].chanceNumerator;
-      if (calls.length === 2) return 0;
-      return 0;
-    },
-  });
-  assert.equal(result.seed.id, 'dragons_breath');
-  assert.deepEqual(calls.slice(0, 2), [
-    CHECKED_SEEDS[0].chanceDenominator,
-    CHECKED_SEEDS[1].chanceDenominator,
-  ]);
+test('tier-zero crop weights are derived from the rarest-first cascade and sum exactly', () => {
+  const distribution = baseCropDistribution();
+  assert.deepEqual(distribution.map((entry) => entry.seed.id), SEEDS.map((seed) => seed.id));
+  assert.equal(distribution.reduce((sum, entry) => sum + entry.units, 0n), PROBABILITY_SCALE);
+  assert.equal(distribution[0].units, 1_000n, 'Star Fruit keeps its exact 0.0001% baseline');
+  const starFraction = distribution[0].fraction;
+  assert.deepEqual(starFraction, { numerator: 1n, denominator: 1_000_000n });
+  const dragonFraction = distribution[1].fraction;
+  assert.equal(
+    Number(dragonFraction.numerator) / Number(dragonFraction.denominator),
+    (1 - (1 / 1_000_000)) * (111 / 100_000_000),
+  );
 });
 
-test('Star Fruit succeeds at the last integer inside its configured rational check', () => {
-  const calls = [];
-  const result = cascadingRoll({
-    rng(maximum) {
-      calls.push(maximum);
-      return calls.length === 1 ? CHECKED_SEEDS[0].chanceNumerator - 1 : 0;
-    },
-  });
+test('Star Fruit succeeds at the last fixed-point unit assigned to it', () => {
+  const distribution = baseCropDistribution();
+  const superUnits = distribution
+    .filter((entry) => entry.seed.rarity === 'Super')
+    .reduce((sum, entry) => sum + entry.units, 0n);
+  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(distribution[0].units - 1n), 0];
+  const result = cascadingRoll({ rng: () => draws.shift() });
   assert.equal(result.seed.id, 'star_fruit');
-  assert.equal(calls.filter((maximum) => maximum > 3_000).length, 1);
+  assert.equal(draws.length, 0, 'rarity, crop, and weight are sampled once each');
 });
 
-test('a failed check continues and a successful check stops immediately', () => {
-  let checks = 0;
-  const result = cascadingRoll({
-    checkedSeeds: CHECKED_SEEDS.slice(0, 3),
-    rng(maximum) {
-      checks += 1;
-      if (checks === 1) return CHECKED_SEEDS[0].chanceNumerator;
-      if (checks === 2) return CHECKED_SEEDS[1].chanceNumerator - 1;
-      assert.equal(maximum, weightBounds(CHECKED_SEEDS[1]).maximum - weightBounds(CHECKED_SEEDS[1]).minimum + 1);
-      return 0;
-    },
-  });
+test('within-rarity sampling continues after a failed crop boundary and then stops', () => {
+  const distribution = baseCropDistribution();
+  const superUnits = distribution
+    .filter((entry) => entry.seed.rarity === 'Super')
+    .reduce((sum, entry) => sum + entry.units, 0n);
+  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(distribution[0].units), 0];
+  const result = cascadingRoll({ rng: () => draws.shift() });
   assert.equal(result.seed.id, 'dragons_breath');
-  assert.equal(checks, 3, 'two chance checks plus one weight draw');
+  assert.equal(draws.length, 0);
 });
 
 test('Carrot is the guaranteed fallback when every individual check fails', () => {
-  const result = cascadingRoll({ rng: (maximum) => maximum - 1 });
+  let draw = 0;
+  const result = cascadingRoll({ rng: (maximum) => (draw++ === 0 ? 0 : maximum - 1) });
   assert.equal(result.seed, FALLBACK_SEED);
   assert.equal(CHECKED_SEEDS.includes(FALLBACK_SEED), false);
   assert.equal(formatChanceWithRatio(FALLBACK_SEED), '50%');
 });
 
-test('rational checks use result < numerator exactly', () => {
+test('rational checks become exact fixed-point crop weights', () => {
   const rational = { ...SEEDS.at(-1), id: 'rational', fallback: false, chanceNumerator: 3, chanceDenominator: 25 };
+  const distribution = baseCropDistribution({ checkedSeeds: [rational], fallbackSeed: FALLBACK_SEED });
+  assert.equal(distribution[0].units, 120_000_000n);
+  assert.equal(distribution[1].units, 880_000_000n);
   const succeeds = cascadingRoll({ checkedSeeds: [rational], fallbackSeed: FALLBACK_SEED, rng: (() => {
-    const values = [2, 0];
+    const values = [0, 119_999_999, 0];
     return () => values.shift();
   })() });
   const fails = cascadingRoll({ checkedSeeds: [rational], fallbackSeed: FALLBACK_SEED, rng: (() => {
-    const values = [3, 0];
+    const values = [0, 120_000_000, 0];
     return () => values.shift();
   })() });
   assert.equal(succeeds.seed.id, 'rational');
@@ -406,24 +408,26 @@ test('selling is atomic and an operation replay cannot credit twice', () => {
 test('upgrade affordability is rechecked transactionally and duplicate operations are idempotent', () => {
   const game = feature();
   game.repository.ensurePlayer('upgrade');
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(2_999n, 'upgrade');
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(999n, 'upgrade');
   const denied = game.repository.upgrade('upgrade', 'upgrade:denied', upgradeCost, 1);
   assert.equal(denied.status, 'insufficient');
   assert.equal(game.repository.getPlayer('upgrade').inventoryCapacity, 100);
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(3_000n, 'upgrade');
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(1_000n, 'upgrade');
   const upgraded = game.repository.upgrade('upgrade', 'upgrade:once', upgradeCost, 2);
   const replay = game.repository.upgrade('upgrade', 'upgrade:once', upgradeCost, 3);
   assert.equal(upgraded.status, 'ok');
   assert.equal(replay.duplicate, true);
-  assert.equal(game.repository.getPlayer('upgrade').inventoryCapacity, 125);
+  assert.equal(game.repository.getPlayer('upgrade').inventoryCapacity, 110);
   assert.equal(game.repository.getPlayer('upgrade').balance, 0n);
   game.close();
 });
 
-test('upgrade cost uses exact rational growth and nearest-100 rounding', () => {
-  assert.equal(upgradeCost(0), 3_000n);
-  assert.equal(upgradeCost(1), 5_300n);
-  assert.equal(upgradeCost(2), 9_200n);
+test('inventory upgrade cost uses the exact polynomial formula', () => {
+  assert.equal(upgradeCost(0), 1_000n);
+  assert.equal(upgradeCost(1), 6_100n);
+  assert.equal(upgradeCost(5), 28_500n);
+  assert.equal(upgradeCost(10), 61_000n);
+  assert.equal(upgradeCost(20), 141_000n);
 });
 
 test('15-minute inactivity expiry releases the per-user sale lock', () => {

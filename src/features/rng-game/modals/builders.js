@@ -111,13 +111,13 @@ function autoRollModal(action) {
     components: [
       {
         type: 10,
-        content: `* When your inventory is full, the bot will automatically sell crops matching your selected rarities.\n\n- Every 1 minute costs 100 ${SHECKLES_EMOJI}.\n- The bot rolls once every 3 seconds.`,
+        content: `* When your inventory is full, the bot will automatically sell crops matching your selected rarities.\n\n- Every 1 minute costs 60 ${SHECKLES_EMOJI}.\n- The bot rolls once every 5 seconds.\n- Maximum duration: 24 hours.`,
       },
       label('Auto Roll duration', {
         type: 4,
         style: 1,
         custom_id: 'duration',
-        placeholder: 'Example: 50m, 4h 13m, 1d',
+        placeholder: 'Example: 50m, 4h 13m, or 1d',
         min_length: 2,
         max_length: 30,
         required: true,

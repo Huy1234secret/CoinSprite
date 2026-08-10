@@ -1,6 +1,6 @@
-const AUTO_ROLL_INTERVAL_MS = 3_000;
+const AUTO_ROLL_INTERVAL_MS = 5_000;
 const AUTO_ROLL_COST_PER_ROLL = 5n;
-const AUTO_ROLL_ROLLS_PER_MINUTE = 20;
+const AUTO_ROLL_ROLLS_PER_MINUTE = 12;
 const MAX_AUTO_ROLL_MINUTES = 24 * 60;
 
 function parseDuration(value) {
