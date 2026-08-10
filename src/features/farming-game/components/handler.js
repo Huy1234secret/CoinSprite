@@ -1,12 +1,9 @@
-const { ITEM_RARITIES, ITEM_TYPES, getItem } = require('../data/items');
-const { upgradeCost } = require('../../rng-game/services/gameService');
-const { parseWeightThreshold } = require('../../rng-game/utils/normalize');
+const { ITEMS, getItem } = require('../data/items');
 const {
   errorPayload,
   farmActionOptions,
   farmPayload,
   inventoryPageCount,
-  inventoryUpgradePromptPayload,
   myInventoryPayload,
   successPayload,
 } = require('./builders');
@@ -50,27 +47,29 @@ async function followUp(interaction, payload) {
   return null;
 }
 
-function availableRarities(items) {
-  return [...new Set((items || []).map((item) => item.rarity))];
+function categoryCatalog(category) {
+  return ITEMS.filter((item) => item.inventoryCategory === category);
+}
+
+function availableRarities(category) {
+  return [...new Set(categoryCatalog(category).map((item) => item.rarity))];
+}
+
+function availableItemTypes(category) {
+  return [...new Set(categoryCatalog(category).flatMap((item) => item.itemTypes))];
 }
 
 function createFarmingComponentHandler(context) {
   const {
-    actions,
-    cropGameService,
     farmingService,
     farmRenderer,
     farmViews,
     inventoryViews,
     refreshScheduler,
-    saleSessions,
   } = context;
 
-  function inventoryStates(ownerId) {
-    return {
-      crops: cropGameService.inventory(ownerId),
-      other: farmingService.inventory(ownerId),
-    };
+  function inventoryStacks(ownerId) {
+    return farmingService.inventory(ownerId);
   }
 
   async function rebuildFarm(interaction, view) {
@@ -82,9 +81,9 @@ function createFarmingComponentHandler(context) {
   }
 
   async function rebuildInventory(interaction, view) {
-    const state = inventoryStates(view.ownerId);
-    await interaction.editReply(myInventoryPayload(interaction.user, state.crops, state.other, view));
-    return state;
+    const stacks = inventoryStacks(view.ownerId);
+    await interaction.editReply(myInventoryPayload(interaction.user, stacks, view));
+    return stacks;
   }
 
   async function plotInteraction(interaction, parts) {
@@ -204,7 +203,7 @@ function createFarmingComponentHandler(context) {
       return true;
     }
     if (!await enforceOwner(interaction, view, 'inventory')) return true;
-    const state = inventoryStates(view.ownerId);
+    const stacks = inventoryStacks(view.ownerId);
 
     if (action === 'type' && interaction.isStringSelectMenu?.()) {
       const type = String(interaction.values?.[0] || '');
@@ -214,15 +213,15 @@ function createFarmingComponentHandler(context) {
       }
       view.type = type;
       await interaction.deferUpdate();
-      await interaction.editReply(myInventoryPayload(interaction.user, state.crops, state.other, view));
+      await interaction.editReply(myInventoryPayload(interaction.user, stacks, view));
       return true;
     }
     if (action === 'page' && interaction.isButton?.()) {
-      await interaction.showModal(inventoryPageModal(view, inventoryPageCount(state.crops, state.other, view)));
+      await interaction.showModal(inventoryPageModal(view, inventoryPageCount(stacks, view)));
       return true;
     }
     if (action === 'page-submit' && interaction.isModalSubmit?.()) {
-      const maximum = inventoryPageCount(state.crops, state.other, view);
+      const maximum = inventoryPageCount(stacks, view);
       const page = Number(textFromModal(interaction.fields, 'page').trim());
       if (!Number.isInteger(page) || page < 1 || page > maximum) {
         await interaction.reply(errorPayload(`Invalid page\nEnter a page from **1** to **${maximum}**.`, { ephemeral: true }));
@@ -231,88 +230,42 @@ function createFarmingComponentHandler(context) {
       if (view.type === 'other') view.otherPage = page;
       else view.cropPage = page;
       await interaction.deferUpdate();
-      await interaction.editReply(myInventoryPayload(interaction.user, state.crops, state.other, view));
+      await interaction.editReply(myInventoryPayload(interaction.user, stacks, view));
       return true;
     }
     if (action === 'filter' && interaction.isButton?.()) {
-      const modal = view.type === 'other'
-        ? otherFilterModal(view)
-        : cropsFilterModal(view, availableRarities(state.crops.items));
+      const category = view.type === 'other' ? 'other' : 'crops';
+      const modal = category === 'other'
+        ? otherFilterModal(view, availableRarities(category), availableItemTypes(category))
+        : cropsFilterModal(view, availableRarities(category), availableItemTypes(category));
       await interaction.showModal(modal);
       return true;
     }
     if (action === 'filter-submit' && interaction.isModalSubmit?.()) {
-      if (view.type === 'other') {
-        const rarity = String(valuesFromModal(interaction.fields, 'rarity')[0] || '');
-        const itemTypes = [...new Set(valuesFromModal(interaction.fields, 'types').map(String))];
-        if (rarity && !ITEM_RARITIES.includes(rarity)) {
-          await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
-          return true;
-        }
-        if (itemTypes.some((type) => !ITEM_TYPES.includes(type))) {
-          await interaction.reply(errorPayload('Invalid item type\nChoose item types shown in the form.', { ephemeral: true }));
-          return true;
-        }
-        view.otherFilters = { name: textFromModal(interaction.fields, 'name').trim(), rarity, itemTypes };
+      const category = view.type === 'other' ? 'other' : 'crops';
+      const rarity = String(valuesFromModal(interaction.fields, 'rarity')[0] || '');
+      const itemTypes = [...new Set(valuesFromModal(interaction.fields, 'types').map(String))];
+      if (rarity && !availableRarities(category).includes(rarity)) {
+        await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
+        return true;
+      }
+      if (itemTypes.some((type) => !availableItemTypes(category).includes(type))) {
+        await interaction.reply(errorPayload('Invalid item type\nChoose item types shown in the form.', { ephemeral: true }));
+        return true;
+      }
+      const filters = { name: textFromModal(interaction.fields, 'name').trim(), rarity, itemTypes };
+      if (category === 'other') {
+        view.otherFilters = filters;
         view.otherPage = 1;
       } else {
-        let minimumWeightUnits;
-        try {
-          minimumWeightUnits = parseWeightThreshold(textFromModal(interaction.fields, 'weight'));
-        } catch (error) {
-          await interaction.reply(errorPayload(`Invalid weight\n${error.message}`, { ephemeral: true }));
-          return true;
-        }
-        const rarity = String(valuesFromModal(interaction.fields, 'rarity')[0] || '');
-        if (rarity && !availableRarities(state.crops.items).includes(rarity)) {
-          await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
-          return true;
-        }
-        view.cropFilters = { name: textFromModal(interaction.fields, 'name').trim(), minimumWeightUnits, rarity };
+        view.cropFilters = filters;
         view.cropPage = 1;
       }
       await interaction.deferUpdate();
-      await interaction.editReply(myInventoryPayload(interaction.user, state.crops, state.other, view));
-      return true;
-    }
-    if (action === 'upgrade' && interaction.isButton?.()) {
-      if (view.type !== 'crops') {
-        await interaction.reply(errorPayload('Upgrade unavailable\nOther inventory has unlimited capacity.', { ephemeral: true }));
-        return true;
-      }
-      const cost = upgradeCost(state.crops.player.upgradeLevel);
-      const upgradeAction = actions.create(view.ownerId, { kind: 'inventory-upgrade', viewId: view.id, cost });
-      await interaction.reply(inventoryUpgradePromptPayload(upgradeAction, state.crops.player));
+      await interaction.editReply(myInventoryPayload(interaction.user, stacks, view));
       return true;
     }
     return false;
-  }
-
-  async function upgradeInteraction(interaction, parts) {
-    const token = parts[3];
-    const action = actions.get(token);
-    if (!action || action.kind !== 'inventory-upgrade') {
-      await respondExpired(interaction, 'upgrade confirmation');
-      return true;
-    }
-    if (!await enforceOwner(interaction, action, 'upgrade')) return true;
-    const claimed = actions.claim(token, interaction.user.id);
-    if (!claimed) {
-      await respondExpired(interaction, 'upgrade confirmation');
-      return true;
-    }
-    const result = cropGameService.upgrade(interaction.user.id, claimed.id);
-    if (result.status !== 'ok') {
-      await interaction.update(errorPayload(`Upgrade unavailable\nYou need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`, { initial: false })).catch(() => null);
-      return true;
-    }
-    await interaction.update(successPayload(`Inventory upgraded\nYour capacity is now **${result.inventoryCapacity}**.`, { initial: false })).catch(() => null);
-    const view = inventoryViews.get(claimed.viewId, { touch: false });
-    if (view?.editOriginal) {
-      const state = inventoryStates(view.ownerId);
-      await view.editOriginal(myInventoryPayload(interaction.user, state.crops, state.other, view)).catch(() => null);
-    }
-    return true;
   }
 
   return async function handleFarmingComponent(interaction) {
@@ -320,11 +273,6 @@ function createFarmingComponentHandler(context) {
     if (!customId.startsWith('farm:')) return false;
     const parts = customId.split(':');
     if (parts[1] === 'plot') return plotInteraction(interaction, parts);
-    if (parts[1] === 'inv' && saleSessions?.has?.(interaction.user.id)) {
-      await interaction.reply(errorPayload('Sale in progress\nFinish or deny your current sale before using inventory controls.', { ephemeral: true })).catch(() => null);
-      return true;
-    }
-    if (parts[1] === 'inv' && parts[2] === 'upgrade-confirm') return upgradeInteraction(interaction, parts);
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
     return false;
   };

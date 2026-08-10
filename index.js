@@ -64,9 +64,6 @@ function getFarmingGuildPolicy(guildId) {
 const rngGame = createRngGameFeature({ getGuildPolicy: getRngGuildPolicy });
 const farmingGame = createFarmingGameFeature({
   db: rngGame.db,
-  cropRepository: rngGame.repository,
-  cropGameService: rngGame.gameService,
-  saleSessions: rngGame.saleSessions,
   getGuildPolicy: getFarmingGuildPolicy,
 });
 

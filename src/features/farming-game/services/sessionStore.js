@@ -59,9 +59,9 @@ class FarmingViewStore extends FarmingExpiringStore {
       ownerId: String(ownerId),
       type: 'crops',
       cropPage: 1,
-      cropFilters: {},
+      cropFilters: { name: '', rarity: '', itemTypes: [] },
       otherPage: 1,
-      otherFilters: {},
+      otherFilters: { name: '', rarity: '', itemTypes: [] },
       editOriginal: data.editOriginal || null,
       lastActivityAt: this.clock(),
     };
@@ -70,31 +70,8 @@ class FarmingViewStore extends FarmingExpiringStore {
   }
 }
 
-class FarmingActionStore extends FarmingExpiringStore {
-  create(ownerId, data = {}) {
-    const id = token();
-    const action = {
-      id,
-      ownerId: String(ownerId),
-      used: false,
-      ...data,
-      lastActivityAt: this.clock(),
-    };
-    this.records.set(id, action);
-    return action;
-  }
-
-  claim(id, ownerId) {
-    const action = this.get(id);
-    if (!action || action.ownerId !== String(ownerId) || action.used) return null;
-    action.used = true;
-    return action;
-  }
-}
-
 module.exports = {
   FIFTEEN_MINUTES,
-  FarmingActionStore,
   FarmingExpiringStore,
   FarmingViewStore,
 };

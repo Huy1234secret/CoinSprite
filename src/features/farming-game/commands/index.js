@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { evaluateFarmingGameAccess } = require('../services/accessPolicy');
-const { lockedPayload } = require('../../rng-game/commands');
 const {
   errorPayload,
   farmPayload,
@@ -16,14 +15,12 @@ const FARMING_GAME_COMMANDS = [
 
 function createFarmingCommandHandlers(context) {
   const {
-    cropGameService,
     farmingService,
     farmRenderer,
     farmViews,
     getGuildPolicy,
     inventoryViews,
     refreshScheduler,
-    saleSessions,
   } = context;
 
   async function requireAccess(interaction) {
@@ -57,7 +54,6 @@ function createFarmingCommandHandlers(context) {
     try {
       const payload = myInventoryPayload(
         interaction.user,
-        cropGameService.inventory(interaction.user.id),
         farmingService.inventory(interaction.user.id),
         view,
       );
@@ -71,10 +67,6 @@ function createFarmingCommandHandlers(context) {
 
   async function handleSlash(interaction) {
     if (!interaction.isChatInputCommand?.() || !FARMING_GAME_COMMAND_NAMES.has(interaction.commandName)) return false;
-    if (interaction.commandName === 'my-inventory' && saleSessions?.has?.(interaction.user.id)) {
-      await interaction.reply(lockedPayload({ ephemeral: true }));
-      return true;
-    }
     if (!await requireAccess(interaction)) return true;
     if (interaction.commandName === 'my-farm') await executeFarm(interaction);
     else await executeInventory(interaction);

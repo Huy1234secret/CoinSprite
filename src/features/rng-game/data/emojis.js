@@ -1,4 +1,5 @@
 const { SHECKLES_EMOJI } = require('../../../gag2Stock/catalog');
+const { componentEmoji } = require('../../shared/emojis');
 
 // Crop art supplied for the RNG game. Keep every Discord emoji identifier in
 // this one registry so deployments can replace art without touching game logic.
@@ -59,13 +60,6 @@ function customEmojiImageUrl(emoji) {
   if (!match) return FALLBACK_THUMBNAIL_URL;
   const animated = String(emoji).startsWith('<a:');
   return `https://cdn.discordapp.com/emojis/${match[1]}.${animated ? 'gif' : 'png'}?size=256&quality=lossless`;
-}
-
-function componentEmoji(emoji) {
-  const custom = String(emoji || '').match(/^<(a?):([a-z0-9_]+):(\d{16,20})>$/i);
-  if (custom) return { id: custom[3], name: custom[2], animated: Boolean(custom[1]) };
-  const unicode = String(emoji || '').trim();
-  return unicode ? { name: unicode } : undefined;
 }
 
 module.exports = {

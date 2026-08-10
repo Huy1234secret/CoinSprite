@@ -1,13 +1,13 @@
 const { getItem } = require('../data/items');
-const { clampPage } = require('../../rng-game/utils/format');
+const { clampPage } = require('../../shared/format');
 
-const OTHER_INVENTORY_PAGE_SIZE = 6;
+const INVENTORY_PAGE_SIZE = 6;
 
 function normalizeItemName(value) {
   return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-function otherItemMatches(stack, filters = {}) {
+function inventoryStackMatches(stack, filters = {}) {
   const item = stack?.item || getItem(stack?.itemId);
   if (!item) return false;
   const name = normalizeItemName(filters.name);
@@ -17,22 +17,30 @@ function otherItemMatches(stack, filters = {}) {
   return true;
 }
 
-function filterOtherItems(stacks, filters = {}) {
-  return (stacks || []).filter((stack) => stack.quantity > 0n && otherItemMatches(stack, filters));
+function filterInventoryStacks(stacks, category, filters = {}) {
+  return (stacks || []).filter((stack) => {
+    const item = stack?.item || getItem(stack?.itemId);
+    return stack.quantity > 0n
+      && item?.inventoryCategory === category
+      && inventoryStackMatches(stack, filters);
+  });
 }
 
-function otherInventoryPageData(stacks, view) {
-  const filtered = filterOtherItems(stacks, view.otherFilters);
-  const maxPage = Math.max(1, Math.ceil(filtered.length / OTHER_INVENTORY_PAGE_SIZE));
-  view.otherPage = clampPage(view.otherPage, maxPage);
-  const start = (view.otherPage - 1) * OTHER_INVENTORY_PAGE_SIZE;
-  return { filtered, maxPage, pageItems: filtered.slice(start, start + OTHER_INVENTORY_PAGE_SIZE) };
+function inventoryPageData(stacks, view) {
+  const category = view.type === 'other' ? 'other' : 'crops';
+  const pageKey = category === 'other' ? 'otherPage' : 'cropPage';
+  const filters = category === 'other' ? view.otherFilters : view.cropFilters;
+  const filtered = filterInventoryStacks(stacks, category, filters);
+  const maxPage = Math.max(1, Math.ceil(filtered.length / INVENTORY_PAGE_SIZE));
+  view[pageKey] = clampPage(view[pageKey], maxPage);
+  const start = (view[pageKey] - 1) * INVENTORY_PAGE_SIZE;
+  return { category, filtered, maxPage, pageItems: filtered.slice(start, start + INVENTORY_PAGE_SIZE) };
 }
 
 module.exports = {
-  OTHER_INVENTORY_PAGE_SIZE,
-  filterOtherItems,
+  INVENTORY_PAGE_SIZE,
+  filterInventoryStacks,
+  inventoryPageData,
+  inventoryStackMatches,
   normalizeItemName,
-  otherInventoryPageData,
-  otherItemMatches,
 };

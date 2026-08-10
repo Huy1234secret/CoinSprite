@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { openSqliteDatabase } = require('../../shared/database');
 
+const DEFAULT_FARMING_DATABASE_PATH = path.join(__dirname, '..', '..', '..', '..', 'data', 'farming-game.sqlite');
 const FARMING_MIGRATIONS_PATH = path.join(__dirname, '..', 'migrations');
 
 function migrateFarmingGame(db, migrationsPath = FARMING_MIGRATIONS_PATH) {
@@ -21,4 +23,18 @@ function migrateFarmingGame(db, migrationsPath = FARMING_MIGRATIONS_PATH) {
   }
 }
 
-module.exports = { FARMING_MIGRATIONS_PATH, migrateFarmingGame };
+function openFarmingDatabase(options = {}) {
+  const databasePath = options.databasePath
+    || process.env.FARMING_GAME_DATABASE_PATH
+    || DEFAULT_FARMING_DATABASE_PATH;
+  const db = openSqliteDatabase(databasePath);
+  migrateFarmingGame(db, options.migrationsPath);
+  return db;
+}
+
+module.exports = {
+  DEFAULT_FARMING_DATABASE_PATH,
+  FARMING_MIGRATIONS_PATH,
+  migrateFarmingGame,
+  openFarmingDatabase,
+};
