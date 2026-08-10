@@ -66,6 +66,8 @@ const RECENT_SELL_DEDUPE_WINDOW_MS = 60 * 60 * 1000;
 const RECENT_STOCK_DEDUPE_WINDOW_MS = 15 * 60 * 1000;
 const RECENT_SELL_POST_KEY_LIMIT = 24;
 const RECENT_UNAVAILABLE_CLEANUP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const SELL_RECONCILIATION_MAX_RETRIES = 3;
+const SELL_RECONCILIATION_BACKOFF_MS = 1500;
 
 const POST_PERMISSION_LABELS = Object.freeze([
   [PermissionFlagsBits.ViewChannel, 'View Channel'],
@@ -282,6 +284,19 @@ function comparableComponent(value) {
   if (raw.accessory) component.accessory = comparableComponent(raw.accessory);
   const mediaUrl = raw.media?.url || raw.media?.proxy_url || raw.media?.proxyUrl;
   if (mediaUrl) component.media = { url: String(mediaUrl) };
+  if (Number.isInteger(raw.style)) component.style = raw.style;
+  if (typeof raw.label === 'string') component.label = raw.label;
+  if (typeof raw.url === 'string') component.url = raw.url;
+  const customId = raw.custom_id ?? raw.customId;
+  if (typeof customId === 'string') component.custom_id = customId;
+  if (raw.emoji) {
+    const emoji = {};
+    if (raw.emoji.name) emoji.name = raw.emoji.name;
+    if (raw.emoji.id) emoji.id = String(raw.emoji.id);
+    if (Object.keys(emoji).length) component.emoji = emoji;
+  }
+  if (raw.divider === true) component.divider = true;
+  if (Number.isInteger(raw.spacing)) component.spacing = raw.spacing;
   return component;
 }
 
@@ -310,8 +325,8 @@ function sellMessageNextRefreshAtMs(message) {
   const text = (Array.isArray(message?.components) ? message.components : [])
     .map(componentText)
     .join('\n');
-  const match = text.match(/\bRefresh\s+<t:(\d+):[A-Za-z]>/i);
-  return match ? Number(match[1]) * 1_000 : null;
+  const match = text.match(/\b(?:Refresh|Sell cycle)\s+(?:·\s*)?(?:Refresh\s+)?<t:(\d+):[A-Za-z]>/i);
+  return match ? Number(match[1]) * 1000 : null;
 }
 
 function compareMessageIds(left, right) {
@@ -324,7 +339,29 @@ function compareMessageIds(left, right) {
   }
 }
 
-async function findMatchingRecentSellMessages(channel, clientUserId, payload, entry, nowMs = Date.now()) {
+function findMatchingRecentSellMessages(channel, clientUserId, expectedRefreshAtMs, fingerprint, nowMs = Date.now()) {
+  if (typeof channel?.messages?.fetch !== 'function') return Promise.resolve([]);
+  return channel.messages.fetch({ limit: 25 }).catch(() => null).then((messages) => {
+    if (!messages || typeof messages.values !== 'function') return [];
+    const result = [];
+    for (const message of messages.values()) {
+      const ownMessage = clientUserId
+        ? message?.author?.id === clientUserId
+        : message?.author?.bot === true;
+      if (!ownMessage) continue;
+      const createdAtMs = messageCreatedAtMs(message);
+      if (createdAtMs && createdAtMs < nowMs - RECENT_SELL_DEDUPE_WINDOW_MS) continue;
+      const refreshAtMs = sellMessageNextRefreshAtMs(message);
+      if (expectedRefreshAtMs !== null && refreshAtMs !== expectedRefreshAtMs) continue;
+      if (componentFingerprint(message?.components) !== fingerprint) continue;
+      result.push({ message, refreshAtMs, createdAtMs });
+    }
+    return result.sort((left, right) => left.createdAtMs - right.createdAtMs
+      || compareMessageIds(left.message?.id, right.message?.id));
+  });
+}
+
+async function findMatchingRecentSellMessagesLegacy(channel, clientUserId, payload, entry, nowMs = Date.now()) {
   if (typeof channel?.messages?.fetch !== 'function') return [];
   const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
   if (!messages || typeof messages.values !== 'function') return [];
@@ -929,6 +966,42 @@ class Gag2StockPoster {
     return nextAt;
   }
 
+  async reconcileSellMessages(channel, entry, payloads, sentMessages) {
+    const clientUserId = this.client?.user?.id;
+    const expectedRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+    if (expectedRefreshAtMs === null) return null;
+    const partFingerprints = payloads.map((part) => componentFingerprint(part?.components));
+    let mainKeeper = null;
+    for (let attempt = 1; attempt <= SELL_RECONCILIATION_MAX_RETRIES; attempt++) {
+      if (attempt > 1) {
+        await new Promise((resolve) => setTimeout(resolve, SELL_RECONCILIATION_BACKOFF_MS * attempt));
+      }
+      let allClean = true;
+      for (let i = 0; i < partFingerprints.length; i++) {
+        const matches = await findMatchingRecentSellMessages(
+          channel, clientUserId, expectedRefreshAtMs, partFingerprints[i], this.now(),
+        );
+        if (!matches.length) continue;
+        const keeper = matches[0];
+        if (i === 0 && keeper?.message) mainKeeper = keeper.message;
+        if (matches.length <= 1) continue;
+        allClean = false;
+        const duplicates = matches.slice(1).filter((match) => typeof match.message?.delete === 'function');
+        const results = await Promise.allSettled(duplicates.map((match) => match.message.delete()));
+        const deleted = results.filter((r) => r.status === 'fulfilled').length;
+        if (deleted) {
+          this.logSystem(
+            `GAG2 sell reconciliation attempt ${attempt}: cycle=${expectedRefreshAtMs} `
+            + `part=${i} candidates=${matches.length} keeper=${keeper.message?.id} `
+            + `deleted=${duplicates.map((d) => d.message?.id).join(',')}`,
+          );
+        }
+      }
+      if (allClean) break;
+    }
+    return mainKeeper;
+  }
+
   stop() {
     this.started = false;
     if (this.timer) clearTimeout(this.timer);
@@ -1216,19 +1289,23 @@ class Gag2StockPoster {
       }
     }
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
-      const matches = await findMatchingRecentSellMessages(channel, this.client?.user?.id, payload, entry, this.now());
-      const existingMatch = chooseOldestSellMessage(matches);
-      const existing = existingMatch?.message;
-      if (existing) {
-        const removed = await removeDuplicateSellMessages(matches, existingMatch);
-        if (removed) {
-          this.logSystem(`GAG2 removed ${removed} duplicate sell announcement${removed === 1 ? '' : 's'} in ${target.channelId}.`);
+      const expectedRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+      let allPartsExist = true;
+      let firstMatchedMessageId = null;
+      for (const part of payloads) {
+        const fp = componentFingerprint(part?.components);
+        const matches = await findMatchingRecentSellMessages(channel, this.client?.user?.id, expectedRefreshAtMs, fp, this.now());
+        if (!matches.length) { allPartsExist = false; break; }
+        if (!firstMatchedMessageId && matches[0]?.message?.id) {
+          firstMatchedMessageId = matches[0].message.id;
         }
+      }
+      if (allPartsExist) {
         if (!bucket.lastPostedKey) {
           Object.assign(bucket, {
             channelId: target.channelId,
-            lastMessageId: existing.id || null,
-            lastPostedAt: new Date(Number(existing.createdTimestamp) || this.now()).toISOString(),
+            lastMessageId: firstMatchedMessageId || null,
+            lastPostedAt: new Date(this.now()).toISOString(),
             lastPostedKey: postKey,
           });
           updateSellPostMetadata(bucket, entry);
@@ -1295,22 +1372,13 @@ class Gag2StockPoster {
       }
     }
     let persistedMessages = sentMessages.length ? [...sentMessages] : (message ? [message] : []);
-    if (target.type === 'sell') {
-      const keepers = [];
-      let removed = 0;
-      for (const part of payloads) {
-        const matches = await findMatchingRecentSellMessages(channel, this.client?.user?.id, part, entry, this.now());
-        const keeper = chooseOldestSellMessage(matches);
-        if (!keeper) continue;
-        removed += await removeDuplicateSellMessages(matches, keeper);
-        keepers.push(keeper.message);
-      }
-      if (keepers.length) {
-        persistedMessages = keepers;
-        [message] = keepers;
-      }
-      if (removed) {
-        this.logSystem(`GAG2 removed ${removed} duplicate sell announcement${removed === 1 ? '' : 's'} in ${target.channelId}.`);
+    if (target.type === 'sell' && sentMessages.length) {
+      const keeperMessage = await this.reconcileSellMessages(channel, entry, payloads, sentMessages).catch((error) => {
+        this.logSystem(`GAG2 sell reconciliation failed: ${error?.message || 'unknown error'}`);
+        return null;
+      });
+      if (keeperMessage) {
+        message = keeperMessage;
       }
     }
     if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
@@ -1498,6 +1566,7 @@ async function startGag2StockPoster(client, options = {}) {
 module.exports = {
   activeFallTypes,
   Gag2StockPoster,
+  comparableComponent,
   componentFingerprint,
   diagnosePostPermissions,
   filterSellEntry,
@@ -1512,6 +1581,7 @@ module.exports = {
   chooseOldestSellMessage,
   removeDuplicateSellMessages,
   roleSpecsForTypes,
+  sellMessageNextRefreshAtMs,
   startGag2StockPoster,
   syncAllGag2StockSetups,
   syncGag2StockGuildSetup,

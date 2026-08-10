@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const { loadImage, createCanvas } = require('@napi-rs/canvas');
 const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const {
   ensureGuildConfig,
@@ -766,11 +767,23 @@ async function routeRequest(req, res, env, client) {
     const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
     const media = decodeLevelingMedia(body?.dataUrl);
     if (media.extension === 'gif') return sendJson(res, 400, { error: 'Card artwork must be PNG, JPG, or WEBP.' });
+    let imageData;
+    try {
+      const img = await loadImage(media.data);
+      const w = Math.min(img.width, 4000);
+      const h = Math.min(img.height, 4000);
+      const c = createCanvas(w, h);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      imageData = c.toBuffer('image/png');
+    } catch (err) {
+      return sendJson(res, 400, { error: 'This image could not be processed. Try saving it as a standard PNG or use a JPG/WEBP instead.' });
+    }
     const id = crypto.randomBytes(16).toString('hex');
     const directory = path.join(LEVEL_CARD_MEDIA_DIR, session.user.id);
     fs.mkdirSync(directory, { recursive: true });
-    fs.writeFileSync(path.join(directory, `${id}.${media.extension}`), media.data);
-    return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.${media.extension}` });
+    fs.writeFileSync(path.join(directory, `${id}.png`), imageData);
+    return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.png` });
   }
 
   const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/leveling-media$/);

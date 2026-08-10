@@ -17,6 +17,12 @@ const {
 } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
 const { logLevelCardRendererIdentity } = require('./src/canvasFonts');
+const {
+  createRuntimeStarter,
+  normalizeRuntimeRole,
+  requireSchedulerRole,
+  runtimeDiagnostic,
+} = require('./src/runtimeRole');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
@@ -31,15 +37,10 @@ const {
   handleLevelingInteraction,
   handleLevelingMessage,
 } = require('./src/leveling');
-const {
-  createRuntimeStarter,
-  normalizeRuntimeRole,
-  runtimeDiagnostic,
-} = require('./src/runtimeRole');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
-const runtimeRole = normalizeRuntimeRole();
+const { role: runtimeRole, schedulerEnabled } = requireSchedulerRole();
 const rngGame = createRngGameFeature({
   getGuildPolicy(guildId) {
     const config = getGuildConfigRaw(guildId);
@@ -103,8 +104,6 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   },
   async bot() {
-    // Optional features are guild commands so Discord only exposes them where
-    // the owner has unlocked the feature and enabled its engine.
     await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
       logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
     });
@@ -112,7 +111,9 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
 
     rngGame.startScheduler(client);
     await startGag2UpdateAnnouncement(client);
-    await startGag2StockPoster(client, { runtimeRole });
+    if (schedulerEnabled) {
+      await startGag2StockPoster(client, { runtimeRole });
+    }
   },
   async panel() {
     startAdminServer(client);

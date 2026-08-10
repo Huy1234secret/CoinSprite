@@ -5,10 +5,117 @@ const test = require('node:test');
 
 const {
   createRuntimeStarter,
+  normalizeRuntimeRole,
+  requireSchedulerRole,
+  resolveRuntimeRole,
   runtimeCapabilities,
   runtimeDiagnostic,
 } = require('../src/runtimeRole');
 const { startGag2StockPoster } = require('../src/gag2Stock/manager');
+
+function withEnv(overrides, fn) {
+  const saved = {};
+  for (const key of Object.keys(overrides)) {
+    saved[key] = process.env[key];
+    if (overrides[key] === undefined) delete process.env[key];
+    else process.env[key] = overrides[key];
+  }
+  try {
+    return fn();
+  } finally {
+    for (const key of Object.keys(saved)) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+}
+
+test('missing COINSPRITE_RUNTIME_ROLE throws', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: undefined }, () => {
+    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+  });
+});
+
+test('empty COINSPRITE_RUNTIME_ROLE throws', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: '' }, () => {
+    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+  });
+});
+
+test('invalid role throws', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'fish' }, () => {
+    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+  });
+});
+
+test('invalid role does not become combined', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'fish', NODE_ENV: '' }, () => {
+    assert.equal(resolveRuntimeRole(), null);
+  });
+});
+
+test('panel role disables scheduler', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'panel', NODE_ENV: '' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'panel');
+    assert.equal(result.schedulerEnabled, false);
+  });
+});
+
+test('bot role enables scheduler', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'bot', NODE_ENV: '' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'bot');
+    assert.equal(result.schedulerEnabled, true);
+  });
+});
+
+test('combined role enables scheduler in non-production', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'combined', NODE_ENV: '' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
+    assert.equal(result.schedulerEnabled, true);
+  });
+});
+
+test('combined role throws in production', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'combined', NODE_ENV: 'production' }, () => {
+    assert.throws(() => requireSchedulerRole(), /not allowed in production/);
+  });
+});
+
+test('combined role throws in staging', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'combined', NODE_ENV: 'staging' }, () => {
+    assert.throws(() => requireSchedulerRole(), /not allowed in production/);
+  });
+});
+
+test('case insensitive role matching', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'BOT', NODE_ENV: '' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'bot');
+    assert.equal(result.schedulerEnabled, true);
+  });
+});
+
+test('role with whitespace is trimmed', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: '  panel  ', NODE_ENV: '' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'panel');
+    assert.equal(result.schedulerEnabled, false);
+  });
+});
+
+test('exactly one bot runtime starts scheduler', () => {
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'bot', NODE_ENV: 'production' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.schedulerEnabled, true);
+  });
+  withEnv({ COINSPRITE_RUNTIME_ROLE: 'panel', NODE_ENV: 'production' }, () => {
+    const result = requireSchedulerRole();
+    assert.equal(result.schedulerEnabled, false);
+  });
+});
 
 test('runtime roles expose only their intended operational capabilities', () => {
   assert.deepEqual(runtimeCapabilities('bot'), {

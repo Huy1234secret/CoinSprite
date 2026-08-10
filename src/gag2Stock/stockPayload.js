@@ -532,6 +532,11 @@ function formatMoon(entry, roleIds = {}) {
   return lines.join('\n');
 }
 
+function sellCycleFooter(nextRefreshAtMs) {
+  if (!Number.isFinite(nextRefreshAtMs)) return '';
+  return `\n-# Sell cycle · Refresh ${formatTimestamp(nextRefreshAtMs)}`;
+}
+
 function formatMultiplier(multiplier) {
   const value = Number(multiplier);
   return Number.isFinite(value) ? value.toFixed(2) : '0.00';
@@ -604,6 +609,7 @@ function bonusRoleDisplayForSellItem(roleIds, item, type = 'sell') {
 function sellBonusContainers(entry, roleIds = {}, type = 'sell') {
   const entries = (entry?.entries || []).filter((item) => sellMultiplierBucket(item.multiplier));
   const buckets = ['4x', '2x'].filter((bucket) => entries.some((item) => sellMultiplierBucket(item.multiplier) === bucket));
+  const footer = sellCycleFooter(entry?.nextRefreshAtMs);
   return buckets.map((bucket) => {
     const bucketEntries = entries.filter((item) => sellMultiplierBucket(item.multiplier) === bucket);
     const bonusRoles = [...new Set(bucketEntries.map((item) => bonusRoleDisplayForSellItem(roleIds, item, type)).filter(Boolean))];
@@ -612,16 +618,17 @@ function sellBonusContainers(entry, roleIds = {}, type = 'sell') {
     return {
       type: 17,
       accent_color: SELL_BONUS_COLORS[bucket],
-      components: [{ type: 10, content: [title, ...lines].join('\n') }],
+      components: [{ type: 10, content: [title, ...lines].join('\n') + footer }],
     };
   });
 }
 
-function fallSellContainers(entry, roleIds = {}) {
+function fallSellContainers(entry, roleIds = {}, nextRefreshAtMs = null) {
   if (!entry?.entries?.length) return [];
   const bonusRoles = [...new Set(entry.entries
     .map((item) => bonusRoleDisplayForSellItem(roleIds, item, 'fallSell'))
     .filter(Boolean))];
+  const footer = sellCycleFooter(nextRefreshAtMs);
   return [{
     type: 17,
     accent_color: FALL_ORANGE,
@@ -630,7 +637,7 @@ function fallSellContainers(entry, roleIds = {}) {
       content: [
         `-# **🍂FALL HARVEST🍁**${bonusRoles.length ? ` ${bonusRoles.join(' ')}` : ''}`,
         ...entry.entries.map((item) => formatSellLine(item, roleIds, { type: 'fallSell' })),
-      ].join('\n'),
+      ].join('\n') + footer,
     }],
   }];
 }
@@ -650,7 +657,7 @@ function buildTypePayload(type, entry, options = {}) {
       ? stockCategoryComponents(entry, roleIds, fallRoleIds)
       : componentsForType(type, entry, roleIds),
   };
-  const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, roleIds) : [];
+  const eventContainers = type === 'sell' ? fallSellContainers(entry?.fall, roleIds, entry?.nextRefreshAtMs) : [];
   const components = addFallConfigButtonToLastContainer([
     ...bonusContainers,
     ...(includeMainContainer || !bonusContainers.length ? [mainContainer] : []),
@@ -707,6 +714,7 @@ module.exports = {
   parseSellPayload,
   parseStockPayload,
   parseWeatherPayload,
+  sellCycleFooter,
   splitPayloadByDisplayText,
   slugKey,
 };

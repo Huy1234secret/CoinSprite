@@ -6,6 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/entrypoints/combined.js",
+    "start:bot": "node src/entrypoints/bot.js",
+    "start:panel": "node src/entrypoints/panel.js",
     "test": "node --test",
     "predeploy:bot": "npm ci",
     "deploy:bot": "node src/entrypoints/bot.js",
