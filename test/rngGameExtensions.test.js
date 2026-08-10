@@ -1,10 +1,20 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { createCanvas } = require('@napi-rs/canvas');
+const { GlobalFonts, createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const { createRngGameFeature } = require('../src/features/rng-game');
 const { AutoRollScheduler } = require('../src/features/rng-game/services/autoRollService');
-const { CropIndexRenderer, INDEX_MAX_PAGE, indexPageModels } = require('../src/features/rng-game/services/indexRenderer');
+const {
+  CropIndexRenderer,
+  INDEX_CANVAS_HEIGHT,
+  INDEX_CANVAS_WIDTH,
+  INDEX_CARD_RADIUS,
+  INDEX_CARD_SIZE,
+  INDEX_MAX_PAGE,
+  fitIndexText,
+  indexPageModels,
+} = require('../src/features/rng-game/services/indexRenderer');
+const { INDEX_CANVAS_FONT_FAMILY } = require('../src/canvasFonts');
 const {
   bigChance,
   cascadingRoll,
@@ -301,10 +311,25 @@ test('Index models use six canonical slots and hide undiscovered card details', 
   assert.equal(models[1].averageValue, null);
 });
 
+test('Index uses rounded-square cards and a dedicated Unicode-safe text face', () => {
+  assert.equal(INDEX_CANVAS_WIDTH, 1_200);
+  assert.equal(INDEX_CANVAS_HEIGHT, 800);
+  assert.equal(INDEX_CARD_SIZE, 360);
+  assert.equal(INDEX_CARD_RADIUS, 24);
+  assert.equal(GlobalFonts.has(INDEX_CANVAS_FONT_FAMILY), true);
+
+  const context = createCanvas(500, 100).getContext('2d');
+  assert.equal(fitIndexText(context, '???', 200).text, '???');
+  assert.equal(fitIndexText(context, 'Dragon\u2019s Breath', 400).text, 'Dragon\u2019s Breath');
+});
+
 test('Index render cache is reused and invalidated only for the affected user', async () => {
   const image = createCanvas(16, 16);
   const renderer = new CropIndexRenderer({ loadImage: async () => image, studsPath: 'studs' });
   const first = await renderer.render('cache-user', [], 1);
+  const decoded = await loadImage(first);
+  assert.equal(decoded.width, INDEX_CANVAS_WIDTH);
+  assert.equal(decoded.height, INDEX_CANVAS_HEIGHT);
   const second = await renderer.render('cache-user', [], 1);
   assert.equal(first, second);
   renderer.invalidate('other-user');
