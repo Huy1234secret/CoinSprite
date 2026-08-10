@@ -6,6 +6,7 @@ const { createCanvas, GlobalFonts, loadImage } = require('@napi-rs/canvas');
 
 const {
   DEFAULT_LEVELING_CONFIG,
+  SCHEMA_VERSION,
   normalizeLevelingConfig,
   normalizeState,
 } = require('../src/serverConfig');
@@ -173,7 +174,7 @@ test('schema upgrade locks and disables leveling for every existing server', () 
       },
     },
   });
-  assert.equal(state.meta.schemaVersion, 10);
+  assert.equal(state.meta.schemaVersion, SCHEMA_VERSION);
   assert.equal(state.guilds['123456789012345678'].features.leveling, false);
   assert.equal(state.guilds['123456789012345678'].leveling.enabled, false);
 });

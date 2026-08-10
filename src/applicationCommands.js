@@ -25,6 +25,8 @@ function featureCommandsForConfig(config) {
   }
   if (config.features?.rngGame === true && config.rngGame?.enabled === true) {
     commands.push(...commandJson(RNG_GAME_COMMANDS));
+  }
+  if (config.features?.farmingGame === true && config.farmingGame?.enabled === true) {
     commands.push(...commandJson(FARMING_GAME_COMMANDS));
   }
   return commands;
