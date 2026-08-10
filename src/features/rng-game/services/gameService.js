@@ -17,11 +17,11 @@ function exponentialUpgradeCost(base, growthNumerator, growthDenominator, tier) 
 }
 
 function luckUpgradeCost(tier) {
-  return exponentialUpgradeCost(25_000, 31, 20, tier);
+  return exponentialUpgradeCost(5_000, 31, 20, tier);
 }
 
 function bigUpgradeCost(tier) {
-  return exponentialUpgradeCost(40_000, 8, 5, tier);
+  return exponentialUpgradeCost(3_500, 8, 5, tier);
 }
 
 class RngGameService {
