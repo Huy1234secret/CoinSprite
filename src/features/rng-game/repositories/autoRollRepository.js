@@ -1,4 +1,4 @@
-const { autoRollRefund } = require('../utils/autoRoll');
+const { autoRollRefund, AUTO_ROLL_INTERVAL_MS } = require('../utils/autoRoll');
 const { inventoryItem, playerRecord, SQLITE_INTEGER_MAX } = require('./gameRepository');
 
 function parseJson(value, fallback) {
@@ -180,7 +180,7 @@ class AutoRollRepository {
       const discoveredNew = Number(this.statements.discover.run(job.userId, instance.seed.id, BigInt(now)).changes) === 1;
       const completedRolls = job.completedRolls + 1;
       const summaryCounts = { ...job.summaryCounts, [instance.seed.id]: (job.summaryCounts[instance.seed.id] || 0) + 1 };
-      const nextTickAt = scheduledTick + 3_000;
+      const nextTickAt = scheduledTick + AUTO_ROLL_INTERVAL_MS;
       const item = inventoryItem(this.statements.item.get(inserted.lastInsertRowid));
       if (completedRolls >= job.plannedRolls) {
         const ended = finish('completed', '', completedRolls, summaryCounts);

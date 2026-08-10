@@ -1,7 +1,7 @@
-const AUTO_ROLL_INTERVAL_MS = 3_000;
+const AUTO_ROLL_INTERVAL_MS = 5_000;
 const AUTO_ROLL_COST_PER_ROLL = 5n;
-const AUTO_ROLL_ROLLS_PER_MINUTE = 20;
-const MAX_AUTO_ROLL_MINUTES = 24 * 60;
+const AUTO_ROLL_ROLLS_PER_MINUTE = 12;
+const MAX_AUTO_ROLL_MINUTES = 60;
 
 function parseDuration(value) {
   const text = String(value || '').trim().toLowerCase();
@@ -21,7 +21,7 @@ function parseDuration(value) {
   if (![days, hours, minutes].every(Number.isSafeInteger)) throw new RangeError('Duration is too large.');
   const durationMinutes = (days * 1_440) + (hours * 60) + minutes;
   if (durationMinutes < 1) throw new RangeError('Auto Roll must run for at least one minute.');
-  if (durationMinutes > MAX_AUTO_ROLL_MINUTES) throw new RangeError('Auto Roll cannot run for more than one day.');
+  if (durationMinutes > MAX_AUTO_ROLL_MINUTES) throw new RangeError('Auto Roll cannot run for more than one hour.');
   return { durationMinutes, normalized: normalizeDuration(durationMinutes) };
 }
 
@@ -37,7 +37,7 @@ function normalizeDuration(durationMinutes) {
 function autoRollPlan(durationMinutes) {
   const minutes = Math.floor(Number(durationMinutes));
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_AUTO_ROLL_MINUTES) {
-    throw new RangeError('Auto Roll duration must be between one minute and one day.');
+    throw new RangeError('Auto Roll duration must be between one minute and one hour.');
   }
   const plannedRolls = minutes * AUTO_ROLL_ROLLS_PER_MINUTE;
   return { durationMinutes: minutes, plannedRolls, totalCost: BigInt(plannedRolls) * AUTO_ROLL_COST_PER_ROLL };

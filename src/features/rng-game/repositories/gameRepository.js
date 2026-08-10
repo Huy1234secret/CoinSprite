@@ -157,7 +157,7 @@ class RngGameRepository {
       if (player.balance < cost) {
         return { status: 'insufficient', cost, missing: cost - player.balance, balance: player.balance, duplicate: false };
       }
-      const nextCapacity = BigInt(player.inventoryCapacity) + 25n;
+      const nextCapacity = BigInt(player.inventoryCapacity) + 10n;
       const nextLevel = BigInt(player.upgradeLevel) + 1n;
       const balance = player.balance - cost;
       this.statements.updateUpgrade.run(balance, nextCapacity, nextLevel, BigInt(now), userId);

@@ -70,23 +70,22 @@ function startOneMinute(game, userId, rarities = [], location = {}) {
   return game.autoRollService.start(userId, preview, { guildId: 'guild', channelId: 'channel', ...location });
 }
 
-test('duration parsing normalizes combinations and enforces one-minute/one-day bounds', () => {
+test('duration parsing normalizes combinations and enforces one-minute/one-hour bounds', () => {
   assert.deepEqual(parseDuration('1m'), { durationMinutes: 1, normalized: '1m' });
-  assert.deepEqual(parseDuration('4H 13M'), { durationMinutes: 253, normalized: '4h 13m' });
-  assert.deepEqual(parseDuration('13m 4h'), { durationMinutes: 253, normalized: '4h 13m' });
-  assert.deepEqual(parseDuration('1d'), { durationMinutes: 1_440, normalized: '1d' });
-  for (const invalid of ['', '0m', '-1m', '30s', '1.5h', '1m junk', '1d 1m', '45h 13m']) {
+  assert.deepEqual(parseDuration('45M'), { durationMinutes: 45, normalized: '45m' });
+  assert.deepEqual(parseDuration('1h'), { durationMinutes: 60, normalized: '1h' });
+  for (const invalid of ['', '0m', '-1m', '30s', '1.5h', '1m junk', '1d 1m', '4h 13m', '45h 13m']) {
     assert.throws(() => parseDuration(invalid), RangeError, invalid);
   }
 });
 
-test('Auto Roll pricing, refunding, and global three-second alignment are exact', () => {
-  assert.deepEqual(autoRollPlan(1), { durationMinutes: 1, plannedRolls: 20, totalCost: 100n });
-  assert.deepEqual(autoRollPlan(60), { durationMinutes: 60, plannedRolls: 1_200, totalCost: 6_000n });
-  assert.deepEqual(autoRollPlan(1_440), { durationMinutes: 1_440, plannedRolls: 28_800, totalCost: 144_000n });
+test('Auto Roll pricing, refunding, and global five-second alignment are exact', () => {
+  assert.deepEqual(autoRollPlan(1), { durationMinutes: 1, plannedRolls: 12, totalCost: 60n });
+  assert.deepEqual(autoRollPlan(60), { durationMinutes: 60, plannedRolls: 720, totalCost: 3_600n });
+  assert.throws(() => autoRollPlan(1_440), RangeError);
   assert.equal(autoRollRefund(200, 120), 400n);
-  assert.equal(nextGlobalTick(0), 3_000);
-  assert.equal(nextGlobalTick(3_001), 6_000);
+  assert.equal(nextGlobalTick(0), 5_000);
+  assert.equal(nextGlobalTick(5_001), 10_000);
 });
 
 test('all requested prefix commands and Auto Roll aliases use the shared command handlers', async () => {
@@ -126,8 +125,8 @@ test('luck multiplier and effective chance formula preserve crop ordering and Ca
 });
 
 test('BIG chance, weight multiplier, and extended value curve match the Carrot example', () => {
-  assert.deepEqual(bigChance(0), { numerator: 0, denominator: 500 });
-  assert.deepEqual(bigChance(20), { numerator: 20, denominator: 500 });
+  assert.deepEqual(bigChance(0), { numerator: 0, denominator: 1000 });
+  assert.deepEqual(bigChance(20), { numerator: 20, denominator: 1000 });
   const draws = [20, 0];
   const instance = generateInstance(FALLBACK_SEED, () => draws.shift(), { bigCropTier: 20 });
   assert.equal(instance.baseWeightUnits, 30);
@@ -140,14 +139,14 @@ test('BIG chance, weight multiplier, and extended value curve match the Carrot e
 });
 
 test('upgrade prices and Roman tier formatting use exact formulas through tier XX', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [1000n, 1100n, 1100n, 1200n, 1200n]);
-  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [1000n, 1100n, 1100n, 1200n, 1200n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [10000n, 20000n, 40000n, 70000n, 110000n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [5000n, 8000n, 12000n, 17000n, 23000n]);
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(4), romanTier(9), romanTier(20)], ['0', 'I', 'IV', 'IX', 'XX']);
 });
 
 test('power upgrade purchase is atomic, and idempotent', () => {
   const game = feature();
-  fund(game, 'power', 1_000n);
+  fund(game, 'power', 10_000n);
   const first = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 2);
   const replay = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 3);
   assert.equal(first.status, 'ok');
@@ -200,7 +199,7 @@ test('scheduler tick idempotency and the database lease protect multiple process
   fund(game, 'scheduled', 100n);
   const started = startOneMinute(game, 'scheduled');
   assert.equal(started.status, 'ok');
-  now = 3_000;
+  now = 5_000;
   assert.equal((await game.autoRollScheduler.runBoundary(now)).processed, 1);
   assert.equal(game.autoRollRepository.activeForUser('scheduled').completedRolls, 1);
   const competing = new AutoRollScheduler({
@@ -226,38 +225,38 @@ test('scheduler skips burst catch-up after downtime and uses only one global tim
   startOneMinute(game, 'late');
   game.autoRollScheduler.start();
   assert.equal(timers, 1, 'one scheduler timer, not one timer per user');
-  now = 9_000;
+  now = 15_000;
   await game.autoRollScheduler.runBoundary(now);
   const job = game.autoRollRepository.activeForUser('late');
   assert.equal(job.completedRolls, 1);
-  assert.equal(job.nextTickAt, 12_000);
+  assert.equal(job.nextTickAt, 20_000);
   game.close();
 });
 
 test('rolls missed through the purchased ending boundary remain unprocessed and are refunded', async () => {
   let now = 1_000;
   const game = feature({ clock: () => now });
-  fund(game, 'downtime', 100n);
+  fund(game, 'downtime', 60n);
   const started = startOneMinute(game, 'downtime');
-  assert.equal(started.job.endsAt, 63_000);
-  now = 63_000;
+  assert.equal(started.job.endsAt, 65_000);
+  now = 65_000;
   await game.autoRollScheduler.runBoundary(now);
   const job = game.db.prepare('SELECT * FROM rng_auto_roll_jobs WHERE user_id = ?').get('downtime');
   assert.equal(job.status, 'stopped');
   assert.equal(job.completed_rolls, 0n);
-  assert.equal(job.refund_paid, 100n);
-  assert.equal(game.repository.getPlayer('downtime').balance, 100n);
+  assert.equal(job.refund_paid, 60n);
+  assert.equal(game.repository.getPlayer('downtime').balance, 60n);
   game.close();
 });
 
 test('full inventory auto-sells all selected rarities before rolling', async () => {
   let now = 1_000;
   const game = feature({ clock: () => now });
-  fund(game, 'seller', 100n);
+  fund(game, 'seller', 60n);
   game.db.prepare('UPDATE rng_players SET inventory_capacity = 1 WHERE user_id = ?').run('seller');
   addItem(game, 'seller', { value: 7n });
   assert.equal(startOneMinute(game, 'seller', ['Common']).status, 'ok');
-  now = 3_000;
+  now = 5_000;
   await game.autoRollScheduler.runBoundary(now);
   const state = game.repository.inventoryState('seller');
   assert.equal(state.items.length, 1);
@@ -269,30 +268,30 @@ test('full inventory auto-sells all selected rarities before rolling', async () 
 test('Auto Roll stops without consuming the roll and atomically refunds when nothing can be sold', async () => {
   let now = 1_000;
   const game = feature({ clock: () => now });
-  fund(game, 'blocked', 100n);
+  fund(game, 'blocked', 60n);
   game.db.prepare('UPDATE rng_players SET inventory_capacity = 0 WHERE user_id = ?').run('blocked');
   assert.equal(startOneMinute(game, 'blocked').status, 'ok');
   assert.equal(game.repository.getPlayer('blocked').balance, 0n);
-  now = 3_000;
+  now = 5_000;
   await game.autoRollScheduler.runBoundary(now);
   const row = game.db.prepare('SELECT * FROM rng_auto_roll_jobs WHERE user_id = ?').get('blocked');
   assert.equal(row.status, 'stopped');
   assert.equal(row.completed_rolls, 0n);
-  assert.equal(row.refund_paid, 100n);
-  assert.equal(game.repository.getPlayer('blocked').balance, 100n);
+  assert.equal(row.refund_paid, 60n);
+  assert.equal(game.repository.getPlayer('blocked').balance, 60n);
   await game.autoRollScheduler.runBoundary(now);
-  assert.equal(game.repository.getPlayer('blocked').balance, 100n, 'refund is not duplicated');
+  assert.equal(game.repository.getPlayer('blocked').balance, 60n, 'refund is not duplicated');
   game.close();
 });
 
 test('automatic rolls aggregate summaries and create discoveries', async () => {
   let now = 1_000;
   const game = feature({ clock: () => now });
-  fund(game, 'summary', 100n);
+  fund(game, 'summary', 60n);
   startOneMinute(game, 'summary');
-  now = 3_000;
+  now = 5_000;
   await game.autoRollScheduler.runBoundary(now);
-  now = 6_000;
+  now = 10_000;
   await game.autoRollScheduler.runBoundary(now);
   const job = game.autoRollRepository.activeForUser('summary');
   assert.equal(job.summaryCounts.carrot, 2);
