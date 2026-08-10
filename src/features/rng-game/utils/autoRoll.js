@@ -1,5 +1,5 @@
 const AUTO_ROLL_INTERVAL_MS = 5_000;
-const AUTO_ROLL_COST_PER_ROLL = 5n;
+const AUTO_ROLL_COST_PER_MINUTE = 100n;
 const AUTO_ROLL_ROLLS_PER_MINUTE = 12;
 const MAX_AUTO_ROLL_MINUTES = 24 * 60;
 
@@ -40,7 +40,7 @@ function autoRollPlan(durationMinutes) {
     throw new RangeError('Auto Roll duration must be between one minute and one day.');
   }
   const plannedRolls = minutes * AUTO_ROLL_ROLLS_PER_MINUTE;
-  return { durationMinutes: minutes, plannedRolls, totalCost: BigInt(plannedRolls) * AUTO_ROLL_COST_PER_ROLL };
+  return { durationMinutes: minutes, plannedRolls, totalCost: BigInt(minutes) * AUTO_ROLL_COST_PER_MINUTE };
 }
 
 function nextGlobalTick(now = Date.now()) {
@@ -49,12 +49,16 @@ function nextGlobalTick(now = Date.now()) {
 }
 
 function autoRollRefund(plannedRolls, completedRolls) {
-  const remaining = Math.max(0, Number(plannedRolls) - Number(completedRolls));
-  return BigInt(remaining) * AUTO_ROLL_COST_PER_ROLL;
+  const planned = Math.max(0, Math.floor(Number(plannedRolls) || 0));
+  if (!planned) return 0n;
+  const completed = Math.max(0, Math.min(planned, Math.floor(Number(completedRolls) || 0)));
+  const remaining = planned - completed;
+  const totalCost = (BigInt(planned) * AUTO_ROLL_COST_PER_MINUTE) / BigInt(AUTO_ROLL_ROLLS_PER_MINUTE);
+  return (totalCost * BigInt(remaining)) / BigInt(planned);
 }
 
 module.exports = {
-  AUTO_ROLL_COST_PER_ROLL,
+  AUTO_ROLL_COST_PER_MINUTE,
   AUTO_ROLL_INTERVAL_MS,
   AUTO_ROLL_ROLLS_PER_MINUTE,
   MAX_AUTO_ROLL_MINUTES,
