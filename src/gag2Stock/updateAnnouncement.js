@@ -22,7 +22,7 @@ const BUG_PATCH_UPDATE_ID = 'gag2-bug-fixes-cycle-timer-sell-split';
 const PERFORMANCE_BOOST_UPDATE_ID = 'gag2-performance-boost-concurrent-broadcasts';
 const NOTIFICATION_ROLE_NOTICE_ID = 'gag2-notice-new-item-notification-roles';
 const FALL_HARVEST_UPDATE_ID = 'gag2-fall-harvest-limited-event';
-const FALL_HARVEST_UPDATE_REVISION = 3;
+const FALL_HARVEST_UPDATE_REVISION = 4;
 const RETRACTED_NOTIFICATION_ROLE_UPDATE_IDS = Object.freeze([
   'gag2-notification-role-update-eclipse',
   'gag2-notification-role-update-eclipse-channel-v2',
@@ -160,6 +160,7 @@ function buildFallHarvestUpdatePayload() {
         type: 10,
         content: [
           '### 🍂 Fall Harvest is live',
+          '- 🛠️ **Fall Harvest tracking has been fixed and is now updating correctly!**',
           '- Limited Fall Harvest **Seed**, **Gear**, **Crate**, and **Sell-price** stock can now appear inside the matching Garden Valley notification.',
           '- Every new event item includes its Discord emoji and rarity-colored notification role.',
           '- The dashboard now lets admins enable each event stock type only after its Garden Valley channel is configured.',
