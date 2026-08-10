@@ -126,8 +126,8 @@ test('luck multiplier and effective chance formula preserve crop ordering and Ca
 });
 
 test('BIG chance, weight multiplier, and extended value curve match the Carrot example', () => {
-  assert.deepEqual(bigChance(0), { numerator: 0, denominator: 200 });
-  assert.deepEqual(bigChance(20), { numerator: 20, denominator: 200 });
+  assert.deepEqual(bigChance(0), { numerator: 0, denominator: 500 });
+  assert.deepEqual(bigChance(20), { numerator: 20, denominator: 500 });
   const draws = [20, 0];
   const instance = generateInstance(FALLBACK_SEED, () => draws.shift(), { bigCropTier: 20 });
   assert.equal(instance.baseWeightUnits, 30);
@@ -140,8 +140,8 @@ test('BIG chance, weight multiplier, and extended value curve match the Carrot e
 });
 
 test('upgrade prices and Roman tier formatting use exact formulas through tier XX', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [1000n, 1300n, 1700n, 2200n, 2900n]);
-  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [1000n, 1400n, 2000n, 2700n, 3800n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [1000n, 1100n, 1100n, 1200n, 1200n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [1000n, 1100n, 1100n, 1200n, 1200n]);
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(4), romanTier(9), romanTier(20)], ['0', 'I', 'IV', 'IX', 'XX']);
 });
 

@@ -49,8 +49,8 @@ function effectiveChance(seed, luckTier = 0) {
 }
 
 function bigChance(tier) {
-  const normalized = Math.max(0, Math.min(200, Math.floor(Number(tier) || 0)));
-  return { numerator: normalized, denominator: 200 };
+  const normalized = Math.max(0, Math.min(500, Math.floor(Number(tier) || 0)));
+  return { numerator: normalized, denominator: 500 };
 }
 
 function generateInstance(seed, rng = secureRandomInt, options = {}) {
