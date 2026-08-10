@@ -4,6 +4,7 @@ CoinSprite is a focused Discord service for Grow a Garden stock alerts, a seed R
 
 - **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
 - **Seed RNG economy** — secure crop rolls, persistent inventories and balances, selling, filtering, pagination, and capacity upgrades.
+- **Farming game** — nine persistent plots, timestamp-based crop growth, planting, harvesting, shoveling, rendered farm images, and stack-based farming items.
 - **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
 - **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
 
@@ -64,7 +65,7 @@ The dashboard lets Discord administrators configure unlocked features:
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
-The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, and `/index`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, and `c!index`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
+The focused application commands include `/stock-set-up`, the Leveling commands, the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, and `/index`, plus Farming Game commands `/my-farm` and `/my-inventory`. Farming commands use the same per-server feature lock and allowed-channel policy as the RNG game. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, and `c!index`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
@@ -74,4 +75,4 @@ All dashboard writes require a same-session CSRF token. Guild edits require Disc
 npm test
 ```
 
-The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.
+The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, Farming Game persistence and rendering, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.
