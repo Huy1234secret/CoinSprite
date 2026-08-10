@@ -5,12 +5,12 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js",
+    "start": "node src/entrypoints/combined.js",
     "test": "node --test",
     "predeploy:bot": "npm ci",
-    "deploy:bot": "node index.js",
+    "deploy:bot": "node src/entrypoints/bot.js",
     "predeploy:panel": "npm ci",
-    "deploy:panel": "node index.js"
+    "deploy:panel": "node src/entrypoints/panel.js"
   },
   "keywords": [
     "discord",
