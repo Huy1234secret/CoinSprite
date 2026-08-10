@@ -8,7 +8,7 @@ const CROP_EMOJIS = Object.freeze({
   hypno_bloom: '<:Hypno_BloomFruit:1536043951910293516>',
   sun_bloom: '<:sunbloomfruit:1536043975625146500>',
   moon_bloom: '<:Moon_BloomFruit:1536043956415238164>',
-  briar_rose: '🌹',
+  briar_rose: '<:BriarRoseFruit:1536254839263068200>',
   venom_spitter: '<:Venom_SpitterFruit:1536043986748448841>',
   poison_apple: '<:Poison_AppleFruit:1536043962593185862>',
   pomegranate: '<:PomegranateFruit:1536043966968107110>',
