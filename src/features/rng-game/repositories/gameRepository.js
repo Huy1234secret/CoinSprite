@@ -157,7 +157,7 @@ class RngGameRepository {
       if (player.balance < cost) {
         return { status: 'insufficient', cost, missing: cost - player.balance, balance: player.balance, duplicate: false };
       }
-      const nextCapacity = BigInt(player.inventoryCapacity) + 25n;
+      const nextCapacity = BigInt(player.inventoryCapacity) + 10n;
       const nextLevel = BigInt(player.upgradeLevel) + 1n;
       const balance = player.balance - cost;
       this.statements.updateUpgrade.run(balance, nextCapacity, nextLevel, BigInt(now), userId);
@@ -180,8 +180,19 @@ class RngGameRepository {
       const prior = operationResult(this.statements.operation.get(operationKey));
       if (prior) return prior;
       const player = playerRecord(this.statements.player.get(userId));
-      const tier = kind === 'luck' ? player.luckTier : player.bigCropTier;
       if (!['luck', 'big'].includes(kind)) return { status: 'invalid-kind', duplicate: false };
+      const tier = kind === 'luck' ? player.luckTier : player.bigCropTier;
+      if (tier >= 20) {
+        const result = {
+          status: 'max-tier', kind, balance: player.balance,
+          luckTier: player.luckTier, bigCropTier: player.bigCropTier, duplicate: false,
+        };
+        this.statements.saveOperation.run(operationKey, userId, 'power-upgrade', JSON.stringify({
+          ...result,
+          balance: String(result.balance),
+        }), BigInt(now));
+        return result;
+      }
       const cost = costForTier(tier);
       if (player.balance < cost) {
         return { status: 'insufficient', cost, missing: cost - player.balance, balance: player.balance, duplicate: false };

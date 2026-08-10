@@ -1,24 +1,32 @@
 const { cascadingRoll } = require('./rngService');
 
 const ROLL_COOLDOWN_MS = 5_000;
+const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
 
-function upgradeCost(level) {
-  return exponentialUpgradeCost(1000, 6, 5, level);
+function normalizedTier(tier) {
+  return BigInt(Math.max(0, Math.floor(Number(tier) || 0)));
 }
 
-function exponentialUpgradeCost(base, growthNumerator, growthDenominator, tier) {
-  const normalizedTier = Math.max(0, Math.floor(Number(tier) || 0));
-  const numerator = BigInt(base) * (BigInt(growthNumerator) ** BigInt(normalizedTier));
-  const denominator = BigInt(growthDenominator) ** BigInt(normalizedTier);
-  return ((numerator + (50n * denominator)) / (100n * denominator)) * 100n;
+function sqliteSafeCost(cost) {
+  if (cost > SQLITE_INTEGER_MAX) {
+    throw new RangeError('Upgrade cost exceeds SQLite signed 64-bit range.');
+  }
+  return cost;
+}
+
+function upgradeCost(tier) {
+  const t = normalizedTier(tier);
+  return sqliteSafeCost(1_000n + (5_000n * t) + (100n * t * t));
 }
 
 function luckUpgradeCost(tier) {
-  return exponentialUpgradeCost(1000, 19, 10, tier);
+  const t = normalizedTier(tier);
+  return sqliteSafeCost(10_000n + (5_000n * t * (t + 1n)));
 }
 
 function bigUpgradeCost(tier) {
-  return exponentialUpgradeCost(5000, 21, 10, tier);
+  const t = normalizedTier(tier);
+  return sqliteSafeCost(5_000n + (2_500n * t) + (500n * t * t));
 }
 
 class RngGameService {
@@ -82,7 +90,7 @@ module.exports = {
   ROLL_COOLDOWN_MS,
   RngGameService,
   bigUpgradeCost,
-  exponentialUpgradeCost,
   luckUpgradeCost,
+  normalizedTier,
   upgradeCost,
 };

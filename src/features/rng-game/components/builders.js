@@ -1,10 +1,17 @@
 const { MessageFlags } = require('discord.js');
-const { SEEDS, SEED_BY_ID } = require('../data/seeds');
+const { RARITIES, SEEDS, SEED_BY_ID } = require('../data/seeds');
 const { SHECKLES_EMOJI, componentEmoji } = require('../data/emojis');
 const { filterInventory } = require('../utils/normalize');
 const { autoRollSummaryEntries } = require('../services/autoRollService');
-const { bigChance, luckMultiplier } = require('../services/rngService');
-const { formatMultiplier, formatPercent, romanTier } = require('../utils/upgrades');
+const {
+  MAX_BIG_CROP_TIER,
+  MAX_LUCK_TIER,
+  PROBABILITY_SCALE,
+  RARITY_ORDER,
+  bigChance,
+  rarityDistribution,
+} = require('../services/rngService');
+const { formatPercent, romanTier } = require('../utils/upgrades');
 const {
   ALLOWED_MENTIONS,
   clampPage,
@@ -229,7 +236,7 @@ function upgradePromptPayload(action, player, options = {}) {
     components: [
       { type: 10, content: `### Upgrade inventory\n\nYou'll need:\n\n-# * ${formatInteger(action.cost)} ${SHECKLES_EMOJI}` },
       { type: 14, divider: true, spacing: 1 },
-      { type: 10, content: '-# * Every upgrade gives +25 capacity.' },
+      { type: 10, content: '-# * Every upgrade gives +10 capacity.' },
       { type: 1, components: [{
         type: 2,
         style: affordable ? 3 : 4,
@@ -309,7 +316,16 @@ function autoRollEndedPayload(job, options = {}) {
   );
 }
 
-function upgradeButton(kind, tier, balance, cost, actionId) {
+function upgradeButton(kind, tier, balance, cost, actionId, maximumTier) {
+  if (tier >= maximumTier) {
+    return {
+      type: 2,
+      style: 2,
+      label: 'MAX',
+      custom_id: `rng:power:max:${kind}`,
+      disabled: true,
+    };
+  }
   const affordable = BigInt(balance) >= cost;
   const button = {
     type: 2,
@@ -323,9 +339,45 @@ function upgradeButton(kind, tier, balance, cost, actionId) {
   return button;
 }
 
+function formatLuckProbability(units) {
+  const value = BigInt(units);
+  if (value <= 0n) return '0%';
+  const percent = (Number(value) * 100) / Number(PROBABILITY_SCALE);
+  if (percent < 0.001) {
+    const oneIn = (PROBABILITY_SCALE + (value / 2n)) / value;
+    return `1 in ${formatInteger(oneIn)}`;
+  }
+  const decimals = percent >= 1 ? 2 : (percent >= 0.01 ? 3 : 4);
+  return `${percent.toFixed(decimals).replace(/\.?0+$/, '')}%`;
+}
+
+function luckProbabilityLines(tier) {
+  const current = rarityDistribution(tier);
+  const isMax = tier >= MAX_LUCK_TIER;
+  const next = isMax ? null : rarityDistribution(tier + 1);
+  return RARITY_ORDER.map((rarity) => {
+    const probabilities = next
+      ? `${formatLuckProbability(current[rarity])} → ${formatLuckProbability(next[rarity])}`
+      : formatLuckProbability(current[rarity]);
+    return `-# ${RARITIES[rarity].emoji} ${rarity}: ${probabilities}`;
+  }).join('\n');
+}
+
 function powerUpgradePayload(user, player, controls, options = {}) {
-  const luckText = `- **Luck** Upgrade ${romanTier(player.luckTier)}\n-# Current: ×${formatMultiplier(luckMultiplier(player.luckTier))}`;
-  const bigText = `- **BIG** Crop chance ${romanTier(player.bigCropTier)}\n-# Current: ${formatPercent(bigChance(player.bigCropTier).numerator / 2)}%`;
+  const luckAtMax = player.luckTier >= MAX_LUCK_TIER;
+  const luckHeading = luckAtMax
+    ? `- **Luck** Tier ${romanTier(player.luckTier)} — Maximum`
+    : `- **Luck** Tier ${romanTier(player.luckTier)} → ${romanTier(player.luckTier + 1)}`;
+  const luckText = `${luckHeading}\n-# Luck gradually promotes crop rolls into higher rarities.\n`
+    + `${luckAtMax ? '' : `-# Upgrade cost: ${formatInteger(controls.luckCost)} ${SHECKLES_EMOJI}\n`}`
+    + `-# Current${luckAtMax ? '' : ' → next'} rarity probabilities:\n${luckProbabilityLines(player.luckTier)}`;
+  const currentBig = bigChance(player.bigCropTier);
+  const nextBig = bigChance(Math.min(MAX_BIG_CROP_TIER, player.bigCropTier + 1));
+  const bigAtMax = player.bigCropTier >= MAX_BIG_CROP_TIER;
+  const bigText = `- **BIG** Crop chance ${romanTier(player.bigCropTier)}${bigAtMax ? ' — Maximum' : ` → ${romanTier(player.bigCropTier + 1)}`}\n`
+    + `-# Current: ${formatPercent((currentBig.numerator * 100) / currentBig.denominator)}%`
+    + `${bigAtMax ? '' : ` → ${formatPercent((nextBig.numerator * 100) / nextBig.denominator)}%`
+      + `\n-# Upgrade cost: ${formatInteger(controls.bigCost)} ${SHECKLES_EMOJI}`}`;
   return v2Payload([{
     type: 17,
     accent_color: WHITE,
@@ -334,12 +386,12 @@ function powerUpgradePayload(user, player, controls, options = {}) {
       {
         type: 9,
         components: [{ type: 10, content: luckText }],
-        accessory: upgradeButton('luck', player.luckTier, player.balance, controls.luckCost, controls.luckActionId),
+        accessory: upgradeButton('luck', player.luckTier, player.balance, controls.luckCost, controls.luckActionId, MAX_LUCK_TIER),
       },
       {
         type: 9,
         components: [{ type: 10, content: bigText }],
-        accessory: upgradeButton('big', player.bigCropTier, player.balance, controls.bigCost, controls.bigActionId),
+        accessory: upgradeButton('big', player.bigCropTier, player.balance, controls.bigCost, controls.bigActionId, MAX_BIG_CROP_TIER),
       },
     ],
   }], options);
@@ -380,6 +432,8 @@ module.exports = {
   inventoryPageData,
   inventoryPayload,
   indexPayload,
+  formatLuckProbability,
+  luckProbabilityLines,
   powerUpgradePayload,
   rollPayload,
   saleDeniedPayload,

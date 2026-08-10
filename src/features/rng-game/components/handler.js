@@ -326,7 +326,7 @@ function createComponentHandler(context) {
     }
     const result = gameService.purchasePowerUpgrade(interaction.user.id, action.upgradeKind, action.id);
     if (result.status !== 'ok') {
-      const reason = result.status === 'max'
+      const reason = result.status === 'max-tier'
         ? 'This upgrade is already at tier XX.'
         : `You need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`;
       await interaction.reply(errorPayload(`Upgrade unavailable\n${reason}`, { ephemeral: true })).catch(() => null);
