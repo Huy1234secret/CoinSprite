@@ -1,5 +1,5 @@
 const { ITEM_RARITIES, ITEM_TYPES } = require('../data/items');
-const { RARITY_EMOJIS, componentEmoji } = require('../../rng-game/data/emojis');
+const { componentEmoji } = require('../../shared/emojis');
 
 function label(labelText, component, description) {
   return {
@@ -12,12 +12,11 @@ function label(labelText, component, description) {
 
 function rarityOptions(rarities, selected) {
   const selectedSet = new Set(Array.isArray(selected) ? selected : (selected ? [selected] : []));
-  return [...new Set(rarities || [])].map((rarity) => {
-    const option = { label: rarity, value: rarity, default: selectedSet.has(rarity) };
-    const emoji = componentEmoji(RARITY_EMOJIS[rarity]);
-    if (emoji) option.emoji = emoji;
-    return option;
-  }).slice(0, 25);
+  return [...new Set(rarities || [])].map((rarity) => ({
+    label: rarity,
+    value: rarity,
+    default: selectedSet.has(rarity),
+  })).slice(0, 25);
 }
 
 function plantModal(view, seedStacks) {
@@ -67,26 +66,24 @@ function inventoryPageModal(view, maximum) {
   };
 }
 
-function cropsFilterModal(view, availableRarities) {
-  const options = rarityOptions(availableRarities, view.cropFilters.rarity);
+function inventoryFilterModal(view, category, availableRarities = ITEM_RARITIES, availableTypes = ITEM_TYPES) {
+  const isOther = category === 'other';
+  const filters = isOther ? view.otherFilters : view.cropFilters;
+  const options = rarityOptions(availableRarities, filters.rarity);
+  const typeOptions = [...new Set(availableTypes || [])].map((type) => ({
+    label: type.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase()),
+    value: type,
+    default: filters.itemTypes?.includes(type) || false,
+  })).slice(0, 25);
   const components = [
-    label('Name filter', {
+    label(isOther ? 'Item name' : 'Crop name', {
       type: 4,
       style: 1,
       custom_id: 'name',
-      placeholder: 'Crop name',
+      placeholder: isOther ? 'Optional item name' : 'Optional crop name',
       max_length: 80,
       required: false,
-      ...(view.cropFilters.name ? { value: String(view.cropFilters.name).slice(0, 80) } : {}),
-    }),
-    label('Weight filter', {
-      type: 4,
-      style: 1,
-      custom_id: 'weight',
-      placeholder: 'Minimum crop weight',
-      max_length: 20,
-      required: false,
-      ...(view.cropFilters.minimumWeightUnits ? { value: String(view.cropFilters.minimumWeightUnits / 100) } : {}),
+      ...(filters.name ? { value: String(filters.name).slice(0, 80) } : {}),
     }),
   ];
   if (options.length) components.push(label('Rarity', {
@@ -98,51 +95,33 @@ function cropsFilterModal(view, availableRarities) {
     required: false,
     options,
   }));
-  return { custom_id: `farm:inv:filter-submit:${view.id}`, title: 'Filter Crops inventory', components };
-}
-
-function otherFilterModal(view) {
+  if (typeOptions.length) components.push(label('Item type', {
+    type: 3,
+    custom_id: 'types',
+    placeholder: 'Any item type',
+    min_values: 0,
+    max_values: typeOptions.length,
+    required: false,
+    options: typeOptions,
+  }));
   return {
     custom_id: `farm:inv:filter-submit:${view.id}`,
-    title: 'Filter Other inventory',
-    components: [
-      label('Item name', {
-        type: 4,
-        style: 1,
-        custom_id: 'name',
-        placeholder: 'Optional item name',
-        max_length: 80,
-        required: false,
-        ...(view.otherFilters.name ? { value: String(view.otherFilters.name).slice(0, 80) } : {}),
-      }),
-      label('Rarity', {
-        type: 3,
-        custom_id: 'rarity',
-        placeholder: 'Any rarity',
-        min_values: 0,
-        max_values: 1,
-        required: false,
-        options: rarityOptions(ITEM_RARITIES, view.otherFilters.rarity),
-      }),
-      label('Item type', {
-        type: 3,
-        custom_id: 'types',
-        placeholder: 'Any item type',
-        min_values: 0,
-        max_values: ITEM_TYPES.length,
-        required: false,
-        options: ITEM_TYPES.map((type) => ({
-          label: type.replace(/(^|[-_ ])\w/g, (match) => match.toUpperCase()),
-          value: type,
-          default: view.otherFilters.itemTypes?.includes(type) || false,
-        })),
-      }),
-    ],
+    title: `Filter ${isOther ? 'Other' : 'Crops'} inventory`,
+    components,
   };
+}
+
+function cropsFilterModal(view, availableRarities, availableTypes) {
+  return inventoryFilterModal(view, 'crops', availableRarities, availableTypes);
+}
+
+function otherFilterModal(view, availableRarities, availableTypes) {
+  return inventoryFilterModal(view, 'other', availableRarities, availableTypes);
 }
 
 module.exports = {
   cropsFilterModal,
+  inventoryFilterModal,
   inventoryPageModal,
   label,
   otherFilterModal,

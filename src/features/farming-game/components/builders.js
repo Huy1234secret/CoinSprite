@@ -1,24 +1,22 @@
-const { MessageFlags } = require('discord.js');
 const { CARROT_STAGE_EMOJIS, PLOT_EMOJIS } = require('../data/growth');
 const { ITEM_BY_ID, getItem } = require('../data/items');
-const { RARITY_EMOJIS, SHECKLES_EMOJI, componentEmoji } = require('../../rng-game/data/emojis');
 const {
   ALLOWED_MENTIONS,
   formatInteger,
   safeUsername,
-  seedThumbnail,
-} = require('../../rng-game/utils/format');
+} = require('../../shared/format');
 const {
+  EPHEMERAL_FLAG,
+  WHITE,
   errorPayload,
-  inventoryCropFields,
-  inventoryPageData,
   textContainer,
   v2Payload,
-} = require('../../rng-game/components/builders');
-const { otherInventoryPageData } = require('../utils/inventory');
+} = require('../../shared/components');
+const { componentEmoji } = require('../../shared/emojis');
+const { inventoryPageData } = require('../utils/inventory');
 
-const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
-const WHITE = 0xFFFFFF;
+const FARMING_CURRENCY_EMOJI = '🪙';
+const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
 
 function farmStatusText(state) {
   const occupied = (state?.plots || []).filter((plot) => plot.occupied).sort((a, b) => a.plotNumber - b.plotNumber);
@@ -112,66 +110,41 @@ function inventoryTypeRow(view) {
   };
 }
 
-function cropPageData(state, view) {
-  const adapter = { page: view.cropPage, filters: view.cropFilters };
-  const page = inventoryPageData(state, adapter);
-  view.cropPage = adapter.page;
-  return page;
-}
-
-function cropsInventoryPayload(user, state, view, options = {}) {
-  const page = cropPageData(state, view);
-  const fields = inventoryCropFields(page.pageItems);
-  if (!fields.length) fields.push({ name: 'No crops found', value: '-# Adjust your filters or roll a crop.', inline: false });
-  return {
-    content: null,
-    allowedMentions: ALLOWED_MENTIONS,
-    embeds: [{
-      color: WHITE,
-      title: `${safeUsername(user?.username)}'s Inventory — Crops`.slice(0, 256),
-      description: `* Capacity: ${state.count} / ${state.player.inventoryCapacity}\n* Total value: ${formatInteger(state.totalValue)} ${SHECKLES_EMOJI}`,
-      thumbnail: { url: user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || seedThumbnail(null) },
-      fields,
-    }],
-    components: [
-      inventoryTypeRow(view),
-      {
-        type: 1,
-        components: [
-          { type: 2, style: 2, label: `Page ${view.cropPage} / ${page.maxPage}`, custom_id: `farm:inv:page:${view.id}` },
-          { type: 2, style: 2, label: 'Filter', custom_id: `farm:inv:filter:${view.id}` },
-          { type: 2, style: 3, label: 'Upgrade', custom_id: `farm:inv:upgrade:${view.id}` },
-        ],
-      },
-    ],
-    ...(options.ephemeral ? { flags: EPHEMERAL_FLAG } : {}),
-  };
-}
-
-function otherInventoryFields(stacks) {
+function farmingInventoryFields(stacks) {
   return (stacks || []).map((stack) => {
     const item = stack.item || getItem(stack.itemId);
-    const rarityEmoji = RARITY_EMOJIS[item.rarity] || '';
+    if (!item) return null;
     return {
       name: `${item.emoji} ${item.name} ×${formatInteger(stack.quantity)}`.slice(0, 256),
-      value: `-# Type: ${item.itemTypes.join(', ')} - ${rarityEmoji}\n-# Value: ${formatInteger(item.value)} ${SHECKLES_EMOJI}`.slice(0, 1_024),
+      value: `-# Rarity: ${item.rarity} • Type: ${item.itemTypes.join(', ')}\n`
+        + `-# Unit value: ${formatInteger(item.value)} ${FARMING_CURRENCY_EMOJI}`,
       inline: false,
     };
-  });
+  }).filter(Boolean);
 }
 
-function otherInventoryPayload(user, stacks, view, options = {}) {
-  const page = otherInventoryPageData(stacks, view);
-  const fields = otherInventoryFields(page.pageItems);
-  if (!fields.length) fields.push({ name: 'No items found', value: '-# Adjust or clear your Other inventory filters.', inline: false });
+function myInventoryPayload(user, farmingStacks, view, options = {}) {
+  const page = inventoryPageData(farmingStacks, view);
+  const label = page.category === 'crops' ? 'Crops' : 'Other';
+  const fields = farmingInventoryFields(page.pageItems);
+  if (!fields.length) {
+    fields.push({
+      name: page.category === 'crops' ? 'No crops found' : 'No items found',
+      value: `-# Adjust or clear your ${label} inventory filters.`,
+      inline: false,
+    });
+  }
+  const currentPage = page.category === 'crops' ? view.cropPage : view.otherPage;
   return {
     content: null,
     allowedMentions: ALLOWED_MENTIONS,
     embeds: [{
       color: WHITE,
-      title: `${safeUsername(user?.username)}'s Inventory — Other`.slice(0, 256),
-      description: '* Stack-based farming items',
-      thumbnail: { url: user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || seedThumbnail(null) },
+      title: `${safeUsername(user?.username)}'s Inventory — ${label}`.slice(0, 256),
+      description: page.category === 'crops'
+        ? '* Harvested Farming Game crops'
+        : '* Farming Game seed packages, tools, gear, consumables, and items',
+      thumbnail: { url: user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || FALLBACK_AVATAR_URL },
       fields,
     }],
     components: [
@@ -179,7 +152,7 @@ function otherInventoryPayload(user, stacks, view, options = {}) {
       {
         type: 1,
         components: [
-          { type: 2, style: 2, label: `Page ${view.otherPage} / ${page.maxPage}`, custom_id: `farm:inv:page:${view.id}` },
+          { type: 2, style: 2, label: `Page ${currentPage} / ${page.maxPage}`, custom_id: `farm:inv:page:${view.id}` },
           { type: 2, style: 2, label: 'Filter', custom_id: `farm:inv:filter:${view.id}` },
         ],
       },
@@ -188,37 +161,8 @@ function otherInventoryPayload(user, stacks, view, options = {}) {
   };
 }
 
-function myInventoryPayload(user, cropState, farmingStacks, view, options = {}) {
-  return view.type === 'other'
-    ? otherInventoryPayload(user, farmingStacks, view, options)
-    : cropsInventoryPayload(user, cropState, view, options);
-}
-
-function inventoryPageCount(cropState, farmingStacks, view) {
-  if (view.type === 'other') return otherInventoryPageData(farmingStacks, view).maxPage;
-  return cropPageData(cropState, view).maxPage;
-}
-
-function inventoryUpgradePromptPayload(action, player, options = {}) {
-  const affordable = player.balance >= action.cost;
-  const missing = affordable ? 0n : action.cost - player.balance;
-  const label = affordable ? 'Upgrade' : `You need ${formatInteger(missing)} more!`;
-  return v2Payload([{
-    type: 17,
-    accent_color: WHITE,
-    components: [
-      { type: 10, content: `### Upgrade inventory\n\nYou'll need:\n\n-# * ${formatInteger(action.cost)} ${SHECKLES_EMOJI}` },
-      { type: 14, divider: true, spacing: 1 },
-      { type: 10, content: '-# * Every upgrade gives +10 capacity.' },
-      { type: 1, components: [{
-        type: 2,
-        style: affordable ? 3 : 4,
-        label: label.slice(0, 80),
-        custom_id: `farm:inv:upgrade-confirm:${action.id}`,
-        disabled: !affordable,
-      }] },
-    ],
-  }], { ...options, ephemeral: true });
+function inventoryPageCount(farmingStacks, view) {
+  return inventoryPageData(farmingStacks, view).maxPage;
 }
 
 function successPayload(content, options = {}) {
@@ -226,19 +170,16 @@ function successPayload(content, options = {}) {
 }
 
 module.exports = {
+  FARMING_CURRENCY_EMOJI,
   ITEM_BY_ID,
-  cropPageData,
-  cropsInventoryPayload,
   errorPayload,
   farmActionOptions,
   farmPayload,
   farmStatusText,
+  farmingInventoryFields,
   inventoryPageCount,
   inventoryTypeRow,
-  inventoryUpgradePromptPayload,
   myInventoryPayload,
-  otherInventoryFields,
-  otherInventoryPayload,
   successPayload,
   textContainer,
 };

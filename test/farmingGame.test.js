@@ -3,26 +3,25 @@ const test = require('node:test');
 
 const { featureCommandsForConfig } = require('../src/applicationCommands');
 const { createFarmingGameFeature } = require('../src/features/farming-game');
+const { createRngGameFeature } = require('../src/features/rng-game');
 const {
+  farmingInventoryFields,
   farmActionOptions,
   farmPayload,
   farmStatusText,
   myInventoryPayload,
-  otherInventoryFields,
 } = require('../src/features/farming-game/components/builders');
 const { ITEMS, ITEM_BY_ID, STARTER_ITEM_QUANTITY } = require('../src/features/farming-game/data/items');
 const { FarmingGameRepository } = require('../src/features/farming-game/repositories/farmingRepository');
-const { PLOT_RECTS, anchorBounds } = require('../src/features/farming-game/renderer/config');
+const { PLOT_RECTS, STAGE_RENDER_HEIGHTS, anchorBounds } = require('../src/features/farming-game/renderer/config');
 const { FarmingGameService } = require('../src/features/farming-game/services/farmingService');
 const { evaluateFarmingGameAccess } = require('../src/features/farming-game/services/accessPolicy');
 const { generatePlotAnchors, validPlotAnchors } = require('../src/features/farming-game/utils/anchors');
 const { growthStage } = require('../src/features/farming-game/utils/growth');
 const {
-  filterOtherItems,
-  otherInventoryPageData,
+  filterInventoryStacks,
+  inventoryPageData,
 } = require('../src/features/farming-game/utils/inventory');
-const { inventoryCropFields } = require('../src/features/rng-game/components/builders');
-const { SEEDS } = require('../src/features/rng-game/data/seeds');
 
 function fakeRenderer() {
   return { render: async () => Buffer.from('farm'), clear() {} };
@@ -34,6 +33,28 @@ function farmingFeature(options = {}) {
 
 function stack(itemId, quantity = 1n) {
   return { itemId, quantity, item: ITEM_BY_ID[itemId], updatedAt: 1 };
+}
+
+function integratedGames(options = {}) {
+  const rng = createRngGameFeature({
+    databasePath: ':memory:',
+    rng: (maximum) => maximum - 1,
+    indexRenderer: { render: async () => Buffer.from('index'), invalidate() {}, clear() {} },
+    ...options.rng,
+  });
+  const farming = createFarmingGameFeature({
+    db: rng.db,
+    farmRenderer: fakeRenderer(),
+    ...options.farming,
+  });
+  return {
+    farming,
+    rng,
+    close() {
+      farming.close();
+      rng.close();
+    },
+  };
 }
 
 test('Farming access is independently locked and accepts configured forum posts without bypass state', () => {
@@ -51,14 +72,6 @@ test('Farming access is independently locked and accepts configured forum posts 
 
 function componentText(payload) {
   return JSON.stringify(payload);
-}
-
-function addRngCrop(game, userId, seed = SEEDS.at(-1)) {
-  game.cropRepository.ensurePlayer(userId, 1);
-  return game.db.prepare(`INSERT INTO rng_inventory_items
-    (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, ?)`)
-    .run(userId, seed.id, seed.displayName, seed.rarity, 125n, 7n, 1n);
 }
 
 test('starter seed grant and nine empty plots are persistent and idempotent', () => {
@@ -301,69 +314,217 @@ test('/my-inventory switches types while keeping the type selector above control
   game.close();
 });
 
-test('Crops inventory keeps RNG fields, capacity, value, filters, and upgrade control', () => {
-  const game = farmingFeature();
-  addRngCrop(game, 'crop-view');
-  const cropState = game.cropGameService.inventory('crop-view');
-  const view = game.inventoryViews.createInventory('crop-view');
-  const payload = myInventoryPayload({ id: 'crop-view', username: 'Farmer' }, cropState, game.farmingService.inventory('crop-view'), view);
-  assert.deepEqual(payload.embeds[0].fields, inventoryCropFields(cropState.items));
-  assert.match(payload.embeds[0].description, /Capacity: 1 \/ 100/);
-  assert.match(payload.embeds[0].description, /Total value:/);
-  assert.ok(payload.components[1].components.some((component) => component.label === 'Filter'));
-  assert.ok(payload.components[1].components.some((component) => component.label === 'Upgrade'));
+test('Farming inventory renders harvested crops and seed packages from stack categories with Farming currency', () => {
+  let now = 8_000_000;
+  const game = farmingFeature({ clock: () => now, rng: () => 0 });
+  game.farmingService.plant('farmer-inventory', [1], 'carrot_seed_package');
+  now += 6 * 60 * 1000;
+  game.farmingService.harvest('farmer-inventory', [1]);
+  const stacks = game.farmingService.inventory('farmer-inventory');
+  const view = game.inventoryViews.createInventory('farmer-inventory');
+
+  const cropsPayload = myInventoryPayload({ id: 'farmer-inventory', username: 'Farmer' }, stacks, view);
+  assert.match(componentText(cropsPayload), /ITcarrotcrop/);
+  assert.match(componentText(cropsPayload), /Carrot ×5/);
+  assert.match(componentText(cropsPayload), /Rarity: Common • Type: consumable, ingredient/);
+  assert.match(componentText(cropsPayload), /Unit value: 4 🪙/);
+
+  view.type = 'other';
+  const otherPayload = myInventoryPayload({ id: 'farmer-inventory', username: 'Farmer' }, stacks, view);
+  assert.match(componentText(otherPayload), /Carrot Seed Package/);
+  assert.match(componentText(otherPayload), /Unit value: 10 🪙/);
+  assert.equal(ITEM_BY_ID.carrot.inventoryCategory, 'crops');
+  assert.equal(ITEM_BY_ID.carrot_seed_package.inventoryCategory, 'other');
   game.close();
 });
 
-test('Other inventory paginates six at a time and fields are one-column unit-value entries', () => {
-  const stacks = Array.from({ length: 7 }, (_, index) => ({
-    ...stack(index % 2 ? 'carrot' : 'carrot_seed_package', BigInt(index + 1)),
-    itemId: index % 2 ? 'carrot' : 'carrot_seed_package',
+test('carrot render heights use seven positive, strictly increasing growth stages', () => {
+  assert.deepEqual(STAGE_RENDER_HEIGHTS, [28, 34, 40, 48, 56, 64, 72]);
+  assert.equal(STAGE_RENDER_HEIGHTS.length, 7);
+  assert.ok(STAGE_RENDER_HEIGHTS.every((height) => Number.isFinite(height) && height > 0));
+  for (let stage = 1; stage < STAGE_RENDER_HEIGHTS.length; stage += 1) {
+    assert.ok(STAGE_RENDER_HEIGHTS[stage] > STAGE_RENDER_HEIGHTS[stage - 1]);
+  }
+  assert.ok(STAGE_RENDER_HEIGHTS[1] > STAGE_RENDER_HEIGHTS[0]);
+});
+
+test('all seven carrot stages render proportionally, bottom-aligned, and inside the soil', async () => {
+  const game = createFarmingGameFeature({ databasePath: ':memory:' });
+  const plots = PLOT_RECTS.map((plot, index) => ({
+    plotNumber: plot.number,
+    occupied: index < STAGE_RENDER_HEIGHTS.length,
+    cropId: index < STAGE_RENDER_HEIGHTS.length ? 'carrot' : null,
+    plantedAt: index < STAGE_RENDER_HEIGHTS.length ? index : null,
+    stage: index < STAGE_RENDER_HEIGHTS.length ? index : 0,
+    anchors: index < STAGE_RENDER_HEIGHTS.length ? generatePlotAnchors(plot.number, () => 0) : [],
   }));
-  const view = { otherPage: 1, otherFilters: {} };
-  const first = otherInventoryPageData(stacks, view);
+
+  for (let stage = 0; stage < STAGE_RENDER_HEIGHTS.length; stage += 1) {
+    const sprite = await game.farmRenderer.stageSprite(stage);
+    const height = STAGE_RENDER_HEIGHTS[stage];
+    const width = Math.max(1, Math.round((sprite.width / sprite.height) * height));
+    const plot = PLOT_RECTS[stage];
+    for (const anchor of plots[stage].anchors) {
+      const left = Math.round(anchor.x - (width / 2));
+      const top = Math.round(anchor.y - height);
+      assert.equal(top + height, anchor.y, `stage ${stage} must stay bottom-aligned`);
+      assert.ok(left >= plot.x && left + width <= plot.x + plot.width, `stage ${stage} must fit horizontally`);
+      assert.ok(top >= plot.y && top + height <= plot.y + plot.height, `stage ${stage} must fit vertically`);
+    }
+  }
+
+  const image = await game.farmRenderer.render({ plots });
+  assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(image.readUInt32BE(16), 1254);
+  assert.equal(image.readUInt32BE(20), 1254);
+  game.close();
+});
+
+test('Farming inventory paginates six stack entries at a time and renders one-column unit values', () => {
+  const stacks = Array.from({ length: 7 }, (_, index) => stack('carrot', BigInt(index + 1)));
+  const view = { type: 'crops', cropPage: 1, cropFilters: {} };
+  const first = inventoryPageData(stacks, view);
   assert.equal(first.pageItems.length, 6);
   assert.equal(first.maxPage, 2);
-  view.otherPage = 2;
-  assert.equal(otherInventoryPageData(stacks, view).pageItems.length, 1);
+  view.cropPage = 2;
+  assert.equal(inventoryPageData(stacks, view).pageItems.length, 1);
 
-  const fields = otherInventoryFields([stack('carrot', 12n)]);
+  const fields = farmingInventoryFields([stack('carrot', 12n)]);
   assert.equal(fields.length, 1);
   assert.equal(fields[0].inline, false);
   assert.match(fields[0].name, /Carrot ×12/);
   assert.match(fields[0].value, /Type: consumable, ingredient/);
-  assert.match(fields[0].value, /Value: 4/);
+  assert.match(fields[0].value, /Unit value: 4 🪙/);
 });
 
-test('Other item filters use OR within types and AND across name, rarity, and type', () => {
+test('Farming stack filters enforce explicit category and use OR within types and AND across fields', () => {
   const stacks = [stack('carrot_seed_package', 5n), stack('carrot', 10n)];
-  assert.deepEqual(filterOtherItems(stacks, { itemTypes: ['seed', 'ingredient'] }).map((entry) => entry.itemId), [
-    'carrot_seed_package', 'carrot',
-  ]);
-  assert.deepEqual(filterOtherItems(stacks, { itemTypes: ['seed'] }).map((entry) => entry.itemId), ['carrot_seed_package']);
-  assert.deepEqual(filterOtherItems(stacks, {
+  assert.deepEqual(filterInventoryStacks(stacks, 'other', {}).map((entry) => entry.itemId), ['carrot_seed_package']);
+  assert.deepEqual(filterInventoryStacks(stacks, 'crops', {}).map((entry) => entry.itemId), ['carrot']);
+  assert.deepEqual(filterInventoryStacks(stacks, 'crops', { itemTypes: ['seed', 'ingredient'] }).map((entry) => entry.itemId), ['carrot']);
+  assert.deepEqual(filterInventoryStacks(stacks, 'other', { itemTypes: ['seed'] }).map((entry) => entry.itemId), ['carrot_seed_package']);
+  assert.deepEqual(filterInventoryStacks(stacks, 'crops', {
     name: 'carrot', rarity: 'Common', itemTypes: ['ingredient'],
   }).map((entry) => entry.itemId), ['carrot']);
-  assert.deepEqual(filterOtherItems(stacks, {
+  assert.deepEqual(filterInventoryStacks(stacks, 'crops', {
     name: 'package', rarity: 'Common', itemTypes: ['ingredient'],
   }), []);
-  assert.deepEqual(filterOtherItems(stacks, {}), stacks);
 });
 
-test('Other inventory has no capacity text or Upgrade button', () => {
+test('/my-inventory has no RNG weight, BIG, capacity, balance, or upgrade UI in either category', () => {
   const game = farmingFeature();
   const view = game.inventoryViews.createInventory('other-view');
-  view.type = 'other';
-  const payload = myInventoryPayload(
-    { id: 'other-view', username: 'Farmer' },
-    game.cropGameService.inventory('other-view'),
-    game.farmingService.inventory('other-view'),
+  const stacks = game.farmingService.inventory('other-view');
+  for (const type of ['crops', 'other']) {
+    view.type = type;
+    const payload = myInventoryPayload({ id: 'other-view', username: 'Farmer' }, stacks, view);
+    const text = componentText(payload);
+    assert.doesNotMatch(text, /Capacity|Total value|Sheckles|weight|\bBIG\b/i);
+    assert.doesNotMatch(text, /farm:inv:upgrade|"label":"Upgrade"/);
+    assert.ok(payload.embeds[0].fields.every((field) => field.inline === false));
+  }
+  game.close();
+});
+
+test('an RNG crop never appears in /my-inventory while a harvested Farming carrot does', () => {
+  let now = 9_000_000;
+  const games = integratedGames({
+    rng: { clock: () => now },
+    farming: { clock: () => now, rng: () => 0 },
+  });
+  const userId = 'independent-player';
+  const rngRoll = games.rng.gameService.roll(userId, { bypassCooldown: true });
+  assert.equal(rngRoll.status, 'ok');
+  assert.equal(games.rng.db.prepare('SELECT COUNT(*) AS count FROM rng_inventory_items WHERE owner_user_id = ?').get(userId).count, 1n);
+
+  games.farming.farmingService.ensureProfile(userId);
+  const view = games.farming.inventoryViews.createInventory(userId);
+  const beforeHarvest = myInventoryPayload(
+    { id: userId, username: 'Independent' },
+    games.farming.farmingService.inventory(userId),
     view,
   );
-  assert.doesNotMatch(componentText(payload), /Capacity/);
-  assert.doesNotMatch(componentText(payload), /"label":"Upgrade"/);
-  assert.ok(payload.embeds[0].fields.every((field) => field.inline === false));
-  game.close();
+  assert.equal(beforeHarvest.embeds[0].fields[0].name, 'No crops found');
+  assert.doesNotMatch(componentText(beforeHarvest), /kg|CarrotFruit/);
+
+  games.farming.farmingService.plant(userId, [1], 'carrot_seed_package');
+  now += 6 * 60 * 1000;
+  games.farming.farmingService.harvest(userId, [1]);
+  const afterHarvest = myInventoryPayload(
+    { id: userId, username: 'Independent' },
+    games.farming.farmingService.inventory(userId),
+    view,
+  );
+  assert.match(componentText(afterHarvest), /ITcarrotcrop/);
+  assert.match(componentText(afterHarvest), /Carrot ×5/);
+  assert.equal(games.rng.db.prepare('SELECT COUNT(*) AS count FROM rng_inventory_items WHERE owner_user_id = ?').get(userId).count, 1n);
+  games.close();
+});
+
+test('an active RNG sale session does not block /my-inventory or its controls', async () => {
+  const games = integratedGames();
+  const user = { id: 'sale-independent', username: 'Independent' };
+  games.rng.saleSessions.create(user.id);
+  let reply;
+  const handled = await games.farming.handleInteraction({
+    isChatInputCommand: () => true,
+    commandName: 'my-inventory',
+    user,
+    reply: async (payload) => { reply = payload; },
+  });
+  assert.equal(handled, true);
+  assert.match(componentText(reply), /Inventory — Crops/);
+  assert.doesNotMatch(componentText(reply), /Sale in progress|Finish or deny/);
+
+  const view = [...games.farming.inventoryViews.records.values()][0];
+  let edited;
+  const controlHandled = await games.farming.handleInteraction({
+    customId: `farm:inv:type:${view.id}`,
+    user,
+    values: ['other'],
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    deferUpdate: async () => {},
+    editReply: async (payload) => { edited = payload; },
+    isRepliable: () => true,
+  });
+  assert.equal(controlHandled, true);
+  assert.match(componentText(edited), /Carrot Seed Package/);
+  assert.doesNotMatch(componentText(edited), /Sale in progress|Finish or deny/);
+  games.close();
+});
+
+test('RNG inventory, sale, balance, and inventory upgrade remain unchanged beside Farming', async () => {
+  const games = integratedGames();
+  const user = {
+    id: 'rng-regression',
+    username: 'RNG Player',
+    displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png',
+  };
+  const roll = games.rng.gameService.roll(user.id, { bypassCooldown: true });
+  assert.equal(roll.status, 'ok');
+  assert.equal(games.rng.gameService.inventory(user.id).items.length, 1);
+
+  let inventoryReply;
+  const handled = await games.rng.handleInteraction({
+    isChatInputCommand: () => true,
+    commandName: 'inventory',
+    user,
+    reply: async (payload) => { inventoryReply = payload; },
+  });
+  assert.equal(handled, true);
+  assert.match(componentText(inventoryReply), /Capacity: 1 \/ 100/);
+  assert.match(componentText(inventoryReply), /kg/);
+
+  const sale = games.rng.gameService.sell(user.id, [roll.item.id], 'farming-isolation-sale');
+  assert.equal(sale.status, 'ok');
+  assert.equal(games.rng.gameService.balance(user.id), sale.total);
+  games.rng.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(5_000n, user.id);
+  const upgrade = games.rng.gameService.upgrade(user.id, 'farming-isolation-upgrade');
+  assert.equal(upgrade.status, 'ok');
+  assert.equal(upgrade.inventoryCapacity, 110);
+  assert.equal(games.rng.gameService.balance(user.id), 4_000n);
+  games.close();
 });
 
 test('Farming commands register under their own guild feature and use its access policy', async () => {
@@ -398,14 +559,15 @@ test('catalog is centralized and farming shutdown clears isolated stores without
   assert.equal(Object.isFrozen(ITEMS[0]), true);
   assert.deepEqual(ITEMS.map((item) => item.id), ['carrot_seed_package', 'carrot']);
   const owner = farmingFeature();
-  const shared = createFarmingGameFeature({ db: owner.db, cropRepository: owner.cropRepository, cropGameService: owner.cropGameService });
+  const shared = createFarmingGameFeature({ db: owner.db, farmRenderer: fakeRenderer() });
   shared.farmViews.createFarm('close');
   shared.inventoryViews.createInventory('close');
-  shared.actions.create('close');
   shared.close();
   assert.equal(shared.farmViews.records.size, 0);
   assert.equal(shared.inventoryViews.records.size, 0);
-  assert.equal(shared.actions.records.size, 0);
+  assert.equal('cropRepository' in shared, false);
+  assert.equal('cropGameService' in shared, false);
+  assert.equal('saleSessions' in shared, false);
   assert.equal(owner.db.open, true);
   owner.close();
 });
