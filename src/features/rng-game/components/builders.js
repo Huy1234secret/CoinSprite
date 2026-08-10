@@ -298,7 +298,7 @@ function autoRollStartedPayload(job, options = {}) {
 
 function autoRollEndedPayload(job, options = {}) {
   const summary = autoRollSummaryEntries(job)
-    .map(({ seed, count }) => `-# * ${seed.rarityEmoji} - ${seed.displayName} ×${count}`)
+    .map(({ seed, count }) => `-# * ${seed.rarityEmoji} - ${seed.emoji} ${seed.displayName} ×${count}`)
     .join('\n') || '-# * No crops were rolled.';
   const stopped = job.stoppedReason
     ? `\n\n-# * Stopped: ${job.stoppedReason}\n-# * Refund: ${formatInteger(job.refundPaid)} ${SHECKLES_EMOJI}`

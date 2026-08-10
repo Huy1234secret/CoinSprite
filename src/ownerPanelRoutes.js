@@ -147,10 +147,19 @@ async function ownerOverview(client) {
         heapUsedBytes: memory.heapUsed,
         rssLabel: formatBytes(memory.rss),
         heapUsedLabel: formatBytes(memory.heapUsed),
+        heapLimitBytes: memory.heapTotal,
+        heapLimitLabel: formatBytes(memory.heapTotal),
+        usageRatio: Math.min(memory.heapUsed / memory.heapTotal, 1)
       },
       metrics: getRuntimeMetrics(),
     },
-    storage: { bytes: storageBytes, label: formatBytes(storageBytes) },
+    storage: { 
+      bytes: storageBytes, 
+      maxBytes: 2 * 1024 * 1024 * 1024,
+      label: formatBytes(storageBytes),
+      maxLabel: formatBytes(2 * 1024 * 1024 * 1024),
+      usageRatio: Math.min(storageBytes / (2 * 1024 * 1024 * 1024), 1)
+    },
     guilds,
   };
 }
@@ -162,11 +171,24 @@ function ownerLiveMetrics(nowMs = Date.now()) {
       bytes: directoryBytes(DATA_DIR) + directoryBytes(LOGS_DIR),
     };
   }
+  const storageMaxBytes = 2 * 1024 * 1024 * 1024; // 2 GB arbitrary limit for UI
   const memory = process.memoryUsage();
   return {
     sampledAt: new Date(nowMs).toISOString(),
-    heap: { bytes: memory.heapUsed, label: formatBytes(memory.heapUsed) },
-    storage: { bytes: storageCache.bytes, label: formatBytes(storageCache.bytes) },
+    heap: { 
+      bytes: memory.heapUsed, 
+      maxBytes: memory.heapTotal,
+      label: formatBytes(memory.heapUsed),
+      maxLabel: formatBytes(memory.heapTotal),
+      usageRatio: Math.min(memory.heapUsed / memory.heapTotal, 1)
+    },
+    storage: { 
+      bytes: storageCache.bytes, 
+      maxBytes: storageMaxBytes,
+      label: formatBytes(storageCache.bytes),
+      maxLabel: formatBytes(storageMaxBytes),
+      usageRatio: Math.min(storageCache.bytes / storageMaxBytes, 1)
+    },
     runtime: getRuntimeMetrics(),
   };
 }
