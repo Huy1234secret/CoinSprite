@@ -21,12 +21,12 @@ function upgradeCost(tier) {
 
 function luckUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return sqliteSafeCost(100n + (950n * t * (t + 1n)));
+  return sqliteSafeCost(100n + (130n * t * (t + 1n)));
 }
 
 function bigUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return sqliteSafeCost(5_000n + (2_500n * t) + (500n * t * t));
+  return sqliteSafeCost(5_000n + (1_000n * t) + (250n * t * t));
 }
 
 class RngGameService {
