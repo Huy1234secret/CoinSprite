@@ -23,17 +23,18 @@ function isProductionLike() {
 }
 
 function requireSchedulerRole(value = process.env.COINSPRITE_RUNTIME_ROLE) {
-  const role = resolveRuntimeRole(value);
+  let role = resolveRuntimeRole(value);
   if (!role) {
-    throw new Error(
-      `COINSPRITE_RUNTIME_ROLE is missing or invalid ("${process.env.COINSPRITE_RUNTIME_ROLE || ''}"). `
-      + 'Set to "bot" for the stock poster or "panel" for the dashboard.'
+    console.warn(
+      `\n[WARNING] COINSPRITE_RUNTIME_ROLE is missing or invalid ("${process.env.COINSPRITE_RUNTIME_ROLE || ''}"). `
+      + 'Falling back to legacy "combined" role. Please configure your deployment to use "bot" or "panel" for isolation.\n'
     );
+    role = 'combined';
   }
   if (role === 'combined' && isProductionLike()) {
-    throw new Error(
-      'COINSPRITE_RUNTIME_ROLE="combined" is not allowed in production. '
-      + 'Use "bot" or "panel".'
+    console.warn(
+      '\n[WARNING] COINSPRITE_RUNTIME_ROLE="combined" is running in production. '
+      + 'This is not recommended and may cause duplicate background jobs. Use "bot" or "panel".\n'
     );
   }
   return { role, schedulerEnabled: isSchedulerEnabled(role) };

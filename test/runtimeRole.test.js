@@ -30,25 +30,31 @@ function withEnv(overrides, fn) {
   }
 }
 
-test('missing COINSPRITE_RUNTIME_ROLE throws', () => {
+test('missing COINSPRITE_RUNTIME_ROLE falls back to combined', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: undefined }, () => {
-    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
+    assert.equal(result.schedulerEnabled, true);
   });
 });
 
-test('empty COINSPRITE_RUNTIME_ROLE throws', () => {
+test('empty COINSPRITE_RUNTIME_ROLE falls back to combined', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: '' }, () => {
-    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
+    assert.equal(result.schedulerEnabled, true);
   });
 });
 
-test('invalid role throws', () => {
+test('invalid role falls back to combined', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: 'fish' }, () => {
-    assert.throws(() => requireSchedulerRole(), /missing or invalid/);
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
+    assert.equal(result.schedulerEnabled, true);
   });
 });
 
-test('invalid role does not become combined', () => {
+test('invalid role does not become combined in resolveRuntimeRole', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: 'fish', NODE_ENV: '' }, () => {
     assert.equal(resolveRuntimeRole(), null);
   });
@@ -78,15 +84,17 @@ test('combined role enables scheduler in non-production', () => {
   });
 });
 
-test('combined role throws in production', () => {
+test('combined role falls back with warning in production', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: 'combined', NODE_ENV: 'production' }, () => {
-    assert.throws(() => requireSchedulerRole(), /not allowed in production/);
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
   });
 });
 
-test('combined role throws in staging', () => {
+test('combined role falls back with warning in staging', () => {
   withEnv({ COINSPRITE_RUNTIME_ROLE: 'combined', NODE_ENV: 'staging' }, () => {
-    assert.throws(() => requireSchedulerRole(), /not allowed in production/);
+    const result = requireSchedulerRole();
+    assert.equal(result.role, 'combined');
   });
 });
 
