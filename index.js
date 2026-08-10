@@ -12,6 +12,7 @@ config();
 const { logCommandSystem, setLogClient } = require('./src/commandLogger');
 const {
   ensureGuildConfig,
+  getGuildConfigRaw,
   isGuildEnabled,
 } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
@@ -25,6 +26,7 @@ const {
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
+const { createRngGameFeature } = require('./src/features/rng-game');
 const {
   GLOBAL_APPLICATION_COMMANDS,
   STOCK_SETUP_COMMAND_NAME,
@@ -39,6 +41,18 @@ const {
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const { role: runtimeRole, schedulerEnabled } = requireSchedulerRole();
+const rngGame = createRngGameFeature({
+  getGuildPolicy(guildId) {
+    const config = getGuildConfigRaw(guildId);
+    return {
+      unlocked: config?.enabled !== false && config?.features?.rngGame === true,
+      enabled: config?.rngGame?.enabled === true,
+      gameChannelId: config?.rngGame?.gameChannelId || '',
+      cooldownBypassRoleIds: config?.rngGame?.cooldownBypassRoleIds || [],
+    };
+  },
+});
+
 function dashboardBaseUrl() {
   const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
   if (configured) return configured;
@@ -95,6 +109,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     });
     await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
+    rngGame.startScheduler(client);
     await startGag2UpdateAnnouncement(client);
     if (schedulerEnabled) {
       await startGag2StockPoster(client, { runtimeRole });
@@ -116,7 +131,7 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.GuildCreate, async (guild) => {
     ensureGuildConfig(guild.id);
     await syncGuildCommands(guild);
-    logCommandSystem(`CoinSprite stock and leveling configuration created for guild ${guild.id}.`);
+    logCommandSystem(`CoinSprite stock, leveling, and RNG configuration created for guild ${guild.id}.`);
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -131,6 +146,7 @@ if (runtimeStarter.capabilities.bot) {
     }
 
     try {
+      if (await rngGame.handleInteraction(interaction)) return;
       if (await handleGag2RoleAssignmentInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
       if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {
@@ -144,6 +160,7 @@ if (runtimeStarter.capabilities.bot) {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
+      if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
       logCommandSystem(`Message command handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
