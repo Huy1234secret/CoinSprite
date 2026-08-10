@@ -123,8 +123,8 @@ function statPayload(user, statistics, options = {}) {
         type: 9,
         components: [{
           type: 10,
-          content: `### <@${user.id}>'s Rollin stats\n\n`
-            + `* Has done ${formatInteger(statistics.totalRolls)} rolls\n\n`
+          content: `### <@${user.id}>'s Rollin stats\n`
+            + `* Has done ${formatInteger(statistics.totalRolls)} rolls\n`
             + `-# ${formatInteger(statistics.autoRolls)} auto-rolls`,
         }],
         accessory: {
@@ -135,15 +135,15 @@ function statPayload(user, statistics, options = {}) {
       { type: 14, divider: true, spacing: 1 },
       {
         type: 10,
-        content: `- Highest rarity discovered: ${highestRarity}\n\n`
-          + `* Best plant discovered: ${bestPlant}\n\n`
-          + `-# * Best Plant's Highest weight: ${formatWeight(statistics.bestSeedHighestWeightUnits)} kg\n\n`
+        content: `- Highest rarity discovered: ${highestRarity}\n`
+          + `* Best plant discovered: ${bestPlant}\n`
+          + `-# * Best Plant's Highest weight: ${formatWeight(statistics.bestSeedHighestWeightUnits)} kg\n`
           + `* Highest weight discovered: ${formatWeight(statistics.highestWeightUnits)} kg`,
       },
       { type: 14, divider: true, spacing: 1 },
       {
         type: 10,
-        content: `- Earning all time: ${formatInteger(statistics.totalSaleEarnings)} ${SHECKLES_EMOJI}\n\n`
+        content: `- Earning all time: ${formatInteger(statistics.totalSaleEarnings)} ${SHECKLES_EMOJI}\n`
           + `* Highest earning in one sale: ${formatInteger(statistics.highestSingleSale)} ${SHECKLES_EMOJI}`,
       },
     ],
