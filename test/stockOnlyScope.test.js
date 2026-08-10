@@ -191,8 +191,9 @@ test('RNG dashboard supports selecting multiple game channels', () => {
   const html = read('admin/index.html');
   const source = read('admin/app.js');
   assert.match(html, /id="rngGameChannels" multiple/);
+  assert.match(html, /Selecting a forum enables every post in it/);
   assert.match(source, /rngGame\.gameChannelIds = \[\.\.\.target\.selectedOptions\]/);
-  assert.match(source, /channelOptions\(rngGame\.gameChannelIds/);
+  assert.match(source, /channelOptions\(rngGame\.gameChannelIds\)/);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {

@@ -784,7 +784,7 @@
   function renderRngGame() {
     const rngGame = state.config.rngGame;
     elements.rngGameEnabled.checked = rngGame.enabled;
-    elements.rngGameChannels.innerHTML = channelOptions(rngGame.gameChannelIds, (channel) => channel.kind !== 'forum');
+    elements.rngGameChannels.innerHTML = channelOptions(rngGame.gameChannelIds);
     elements.rngGameChannels.options[0].textContent = 'Choose one or more game channels';
     const selected = new Set(rngGame.cooldownBypassRoleIds);
     const roles = state.directory.roles || [];

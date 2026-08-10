@@ -25,7 +25,13 @@ function evaluateRngGameAccess(source, getGuildPolicy) {
   if (!gameChannelIds.length) {
     return { allowed: false, reason: 'GAG2 RNG Game needs at least one game channel. Ask a server administrator to configure one in the dashboard.' };
   }
-  if (!gameChannelIds.includes(String(source.channelId || ''))) {
+  const sourceChannelIds = [
+    source.channelId,
+    source.parentChannelId,
+    source.channel?.parentId,
+    source.channel?.parent?.id,
+  ].map((channelId) => String(channelId || '')).filter(Boolean);
+  if (!sourceChannelIds.some((channelId) => gameChannelIds.includes(channelId))) {
     const channelList = gameChannelIds.map((channelId) => `<#${channelId}>`).join(', ');
     return { allowed: false, reason: `GAG2 RNG Game commands are only available in ${channelList}.` };
   }
