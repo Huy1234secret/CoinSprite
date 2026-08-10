@@ -30,11 +30,13 @@ Tickets, moderation, giveaways, invite rewards, and other general-purpose dashbo
    ```
 
 3. Add the exact redirect URI to the Discord Developer Portal and enable the **Message Content Intent** for message XP.
-4. Run `npm start` and open `http://127.0.0.1:3000/admin`.
+4. Run `npm start` for the combined local runtime and open `http://127.0.0.1:3000/admin`.
 
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
-Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. The `npm run deploy:bot` and `npm run deploy:panel` entrypoints enforce that clean lockfile install before startup so both runtimes receive the identical canvas and Fontsource packages.
+Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. Use `npm run deploy:bot` for the Discord gateway, command registration, GAG stock poster, update poster, and RNG auto-roll scheduler. Use `npm run deploy:panel` for the web panel only. `npm start` deliberately runs the combined role for local development.
+
+The panel role fails closed: it does not register Discord commands, attach Discord interaction/message handlers, or start any poster or scheduler. The GAG stock state is local rather than a shared distributed lease, so production must run exactly **one** `deploy:bot` scheduler-enabled replica. Panel replicas may scale separately. A startup diagnostic reports the runtime role, whether the stock poster is enabled, instance identity, PID, hostname, shard, and service name without logging credentials. Verify production logs contain one `role=bot stockPoster=enabled` instance and only `role=panel stockPoster=disabled` for panel services.
 
 For pixel-identical level cards, deploy the bot and panel from the same commit and `package-lock.json`, run `npm ci` in both deployments, and set identical `LEVEL_CARD_RENDER_SECRET` and `COINSPRITE_BUILD_VERSION` values. Point the bot's `PUBLIC_WEB_BASE_URL` at the panel. The renderer rejects a panel whose build, renderer, or installed-font manifest differs from the bot instead of falling back to a stale local card.
 
@@ -62,7 +64,7 @@ The dashboard lets Discord administrators configure unlocked features:
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
-The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, and `/balance`. The RNG game also supports the `c!roll` prefix command; both roll entry points share the same five-second per-user cooldown and SQLite inventory.
+The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, and `/index`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, and `c!index`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
@@ -72,4 +74,4 @@ All dashboard writes require a same-session CSRF token. Guild edits require Disc
 npm test
 ```
 
-The test suite covers GAG stock delivery and deduplication, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.
+The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.

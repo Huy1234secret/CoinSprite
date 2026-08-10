@@ -1,5 +1,7 @@
+const fs = require('fs');
 const { PermissionFlagsBits } = require('discord.js');
 const { logCommandSystem } = require('../commandLogger');
+const { runtimeCapabilities } = require('../runtimeRole');
 const {
   GAG2_FALL_STOCK_TYPES,
   GAG2_ROLE_FILTER_RARITIES,
@@ -302,6 +304,59 @@ async function findMatchingRecentBotMessage(channel, clientUserId, payload, nowM
     if (componentFingerprint(message?.components) === expected) return message;
   }
   return null;
+}
+
+function sellMessageNextRefreshAtMs(message) {
+  const text = (Array.isArray(message?.components) ? message.components : [])
+    .map(componentText)
+    .join('\n');
+  const match = text.match(/\bRefresh\s+<t:(\d+):[A-Za-z]>/i);
+  return match ? Number(match[1]) * 1_000 : null;
+}
+
+function compareMessageIds(left, right) {
+  try {
+    const leftId = BigInt(String(left || '0'));
+    const rightId = BigInt(String(right || '0'));
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+  } catch {
+    return String(left || '').localeCompare(String(right || ''));
+  }
+}
+
+async function findMatchingRecentSellMessages(channel, clientUserId, payload, entry, nowMs = Date.now()) {
+  if (typeof channel?.messages?.fetch !== 'function') return [];
+  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  if (!messages || typeof messages.values !== 'function') return [];
+  const expectedFingerprint = componentFingerprint(payload?.components);
+  const expectedRefreshAtMs = timestampMs(entry?.nextRefreshAtMs);
+  const matches = [];
+  for (const message of messages.values()) {
+    const ownMessage = clientUserId
+      ? message?.author?.id === clientUserId
+      : message?.author?.bot === true;
+    if (!ownMessage) continue;
+    const createdAtMs = messageCreatedAtMs(message);
+    if (createdAtMs && createdAtMs < nowMs - RECENT_SELL_DEDUPE_WINDOW_MS) continue;
+    if (componentFingerprint(message?.components) !== expectedFingerprint) continue;
+    const refreshAtMs = sellMessageNextRefreshAtMs(message);
+    if (expectedRefreshAtMs !== null && refreshAtMs !== expectedRefreshAtMs) continue;
+    matches.push({ message, createdAtMs, refreshAtMs });
+  }
+  return matches.sort((left, right) => left.createdAtMs - right.createdAtMs
+    || compareMessageIds(left.message?.id, right.message?.id));
+}
+
+function chooseOldestSellMessage(matches) {
+  return [...(matches || [])].sort((left, right) => left.createdAtMs - right.createdAtMs
+    || compareMessageIds(left.message?.id, right.message?.id))[0] || null;
+}
+
+async function removeDuplicateSellMessages(matches, keeper) {
+  const duplicates = (matches || []).filter((match) => match.message?.id !== keeper?.message?.id
+    && typeof match.message?.delete === 'function');
+  const results = await Promise.allSettled(duplicates.map((match) => match.message.delete()));
+  return results.filter((result) => result.status === 'fulfilled').length;
 }
 
 function stockNextRestockAtMs(entry) {
@@ -1078,7 +1133,9 @@ class Gag2StockPoster {
     // Different retry groups can overlap and arrive here with separate state
     // snapshots. Reload after the per-destination send lock is acquired so the
     // duplicate check always sees the last successful post.
-    if (STOCK_TYPE_GROUPS.stock.includes(target.type)) state = loadState(this.statePath);
+    if ((STOCK_TYPE_GROUPS.stock.includes(target.type) || target.type === 'sell') && fs.existsSync(this.statePath)) {
+      state = loadState(this.statePath);
+    }
     const bucket = postBucket(state, target.guildId, target.type);
     const postKey = buildTypePostKey(target.type, entry);
     if (STOCK_TYPE_GROUPS.stock.includes(target.type)) {
@@ -1108,7 +1165,8 @@ class Gag2StockPoster {
       }
     }
     const samePost = bucket.lastPostedKey === postKey && bucket.channelId === target.channelId;
-    if (samePost && target.type !== 'moon') {
+    const sameSellCycle = target.type !== 'sell' || sellEntryIsSameOrOlderCycle(bucket, entry);
+    if (samePost && sameSellCycle && target.type !== 'moon') {
       if (target.type === 'sell' && isApiRefreshDue(target.type, entry, this.now())) {
         this.nextSellDelayOverrideMs = this.sellUnchangedRetryMs;
       }
@@ -1158,8 +1216,14 @@ class Gag2StockPoster {
       }
     }
     if (target.type === 'sell' && (!bucket.lastPostedKey || sellEntryIsSameOrOlderCycle(bucket, entry))) {
-      const existing = await findMatchingRecentBotMessage(channel, this.client?.user?.id, payload, this.now());
+      const matches = await findMatchingRecentSellMessages(channel, this.client?.user?.id, payload, entry, this.now());
+      const existingMatch = chooseOldestSellMessage(matches);
+      const existing = existingMatch?.message;
       if (existing) {
+        const removed = await removeDuplicateSellMessages(matches, existingMatch);
+        if (removed) {
+          this.logSystem(`GAG2 removed ${removed} duplicate sell announcement${removed === 1 ? '' : 's'} in ${target.channelId}.`);
+        }
         if (!bucket.lastPostedKey) {
           Object.assign(bucket, {
             channelId: target.channelId,
@@ -1230,6 +1294,25 @@ class Gag2StockPoster {
         }
       }
     }
+    let persistedMessages = sentMessages.length ? [...sentMessages] : (message ? [message] : []);
+    if (target.type === 'sell') {
+      const keepers = [];
+      let removed = 0;
+      for (const part of payloads) {
+        const matches = await findMatchingRecentSellMessages(channel, this.client?.user?.id, part, entry, this.now());
+        const keeper = chooseOldestSellMessage(matches);
+        if (!keeper) continue;
+        removed += await removeDuplicateSellMessages(matches, keeper);
+        keepers.push(keeper.message);
+      }
+      if (keepers.length) {
+        persistedMessages = keepers;
+        [message] = keepers;
+      }
+      if (removed) {
+        this.logSystem(`GAG2 removed ${removed} duplicate sell announcement${removed === 1 ? '' : 's'} in ${target.channelId}.`);
+      }
+    }
     if (target.type === 'sell' && bucket.lastPostedKey && bucket.lastPostedKey !== postKey) {
       rememberSellPostKey(bucket, bucket.lastPostedKey);
     }
@@ -1239,7 +1322,7 @@ class Gag2StockPoster {
     Object.assign(bucket, {
       channelId: target.channelId,
       lastMessageId: message?.id || null,
-      lastMessageIds: sentMessages.length > 1 ? sentMessages.map((sent) => sent?.id).filter(Boolean) : undefined,
+      lastMessageIds: persistedMessages.length > 1 ? persistedMessages.map((sent) => sent?.id).filter(Boolean) : undefined,
       lastPostedAt: new Date(this.now()).toISOString(),
       lastPostedKey: postKey,
     });
@@ -1401,6 +1484,11 @@ async function syncAllGag2StockSetups(client, fetchers) {
 let activePoster = null;
 
 async function startGag2StockPoster(client, options = {}) {
+  const capabilities = runtimeCapabilities(options.runtimeRole);
+  if (!capabilities.stockPoster) {
+    (options.logSystem || logCommandSystem)('GAG2 stock poster refused to start in panel runtime.');
+    return null;
+  }
   if (activePoster) return activePoster;
   activePoster = new Gag2StockPoster(client, options);
   await activePoster.start();
@@ -1414,12 +1502,15 @@ module.exports = {
   diagnosePostPermissions,
   filterSellEntry,
   findMatchingRecentBotMessage,
+  findMatchingRecentSellMessages,
   filteredRoleSpecs,
   getGag2StockSetupProgress,
   isInactiveWeatherEntry,
   isRecentUnavailableMessage,
   currentGag2StockCycleAtMs,
   nextGag2StockTickAtMs,
+  chooseOldestSellMessage,
+  removeDuplicateSellMessages,
   roleSpecsForTypes,
   startGag2StockPoster,
   syncAllGag2StockSetups,

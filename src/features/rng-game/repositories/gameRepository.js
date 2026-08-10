@@ -11,6 +11,7 @@ function inventoryItem(row) {
     rarity: row.rarity,
     weightUnits: Number(row.weight_units),
     value: row.stored_value,
+    isBig: Boolean(row.is_big),
     rolledAt: Number(row.rolled_at),
   };
 }
@@ -22,6 +23,8 @@ function playerRecord(row) {
     balance: row.sheckle_balance,
     inventoryCapacity: Number(row.inventory_capacity),
     upgradeLevel: Number(row.inventory_upgrade_level),
+    luckTier: Number(row.luck_tier),
+    bigCropTier: Number(row.big_crop_tier),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
   };
@@ -52,14 +55,22 @@ class RngGameRepository {
       saveCooldown: db.prepare(`INSERT INTO rng_roll_cooldowns (user_id, available_at) VALUES (?, ?)
         ON CONFLICT(user_id) DO UPDATE SET available_at = excluded.available_at`),
       insertItem: db.prepare(`INSERT INTO rng_inventory_items
-        (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, rolled_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`),
+        (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+      discover: db.prepare(`INSERT OR IGNORE INTO rng_crop_discoveries
+        (user_id, seed_id, discovered_at) VALUES (?, ?, ?)`),
+      discoveries: db.prepare(`SELECT seed_id, discovered_at FROM rng_crop_discoveries
+        WHERE user_id = ? ORDER BY discovered_at, seed_id`),
       item: db.prepare('SELECT * FROM rng_inventory_items WHERE id = ?'),
       deleteOwnedItem: db.prepare('DELETE FROM rng_inventory_items WHERE id = ? AND owner_user_id = ?'),
       updateBalance: db.prepare('UPDATE rng_players SET sheckle_balance = ?, updated_at = ? WHERE user_id = ?'),
       touchPlayer: db.prepare('UPDATE rng_players SET updated_at = ? WHERE user_id = ?'),
       updateUpgrade: db.prepare(`UPDATE rng_players SET sheckle_balance = ?, inventory_capacity = ?,
         inventory_upgrade_level = ?, updated_at = ? WHERE user_id = ?`),
+      updatePowerUpgrade: db.prepare(`UPDATE rng_players SET sheckle_balance = ?, luck_tier = ?,
+        big_crop_tier = ?, updated_at = ? WHERE user_id = ?`),
+      activeAutoRoll: db.prepare(`SELECT id, next_tick_at, ends_at FROM rng_auto_roll_jobs
+        WHERE user_id = ? AND status = 'active' LIMIT 1`),
       operation: db.prepare('SELECT result_json FROM rng_operations WHERE operation_key = ?'),
       saveOperation: db.prepare(`INSERT INTO rng_operations
         (operation_key, user_id, operation_kind, result_json, created_at) VALUES (?, ?, ?, ?, ?)`),
@@ -80,7 +91,7 @@ class RngGameRepository {
           return { status: 'cooldown', remainingMs: Number(availableAt - currentTime) };
         }
       }
-      const instance = createInstance();
+      const instance = createInstance(player);
       const nextAvailableAt = currentTime + BigInt(cooldownMs);
       if (!bypassCooldown) this.statements.saveCooldown.run(userId, nextAvailableAt);
       const inserted = this.statements.insertItem.run(
@@ -90,13 +101,17 @@ class RngGameRepository {
         instance.seed.rarity,
         BigInt(instance.weightUnits),
         BigInt(instance.value),
+        instance.isBig ? 1 : 0,
         currentTime,
       );
+      const discoveredNew = Number(this.statements.discover.run(userId, instance.seed.id, currentTime).changes) === 1;
       this.statements.touchPlayer.run(currentTime, userId);
       return {
         status: 'ok',
         item: inventoryItem(this.statements.item.get(inserted.lastInsertRowid)),
         seed: instance.seed,
+        effectiveChance: instance.effectiveChance,
+        discoveredNew,
         availableAt: Number(nextAvailableAt),
       };
     }).immediate;
@@ -159,6 +174,31 @@ class RngGameRepository {
       }), BigInt(now));
       return result;
     }).immediate;
+
+    this.powerUpgradeTransaction = db.transaction((userId, kind, operationKey, costForTier, now) => {
+      this.ensurePlayer(userId, now);
+      const prior = operationResult(this.statements.operation.get(operationKey));
+      if (prior) return prior;
+      const player = playerRecord(this.statements.player.get(userId));
+      const tier = kind === 'luck' ? player.luckTier : player.bigCropTier;
+      if (!['luck', 'big'].includes(kind)) return { status: 'invalid-kind', duplicate: false };
+      if (tier >= 20) return { status: 'max', tier, duplicate: false };
+      const cost = costForTier(tier);
+      if (player.balance < cost) {
+        return { status: 'insufficient', cost, missing: cost - player.balance, balance: player.balance, duplicate: false };
+      }
+      const balance = player.balance - cost;
+      const luckTier = player.luckTier + (kind === 'luck' ? 1 : 0);
+      const bigCropTier = player.bigCropTier + (kind === 'big' ? 1 : 0);
+      this.statements.updatePowerUpgrade.run(balance, BigInt(luckTier), BigInt(bigCropTier), BigInt(now), userId);
+      const result = { status: 'ok', kind, cost, balance, luckTier, bigCropTier, duplicate: false };
+      this.statements.saveOperation.run(operationKey, userId, 'power-upgrade', JSON.stringify({
+        ...result,
+        cost: String(cost),
+        balance: String(balance),
+      }), BigInt(now));
+      return result;
+    }).immediate;
   }
 
   ensurePlayer(userId, now = Date.now()) {
@@ -184,6 +224,19 @@ class RngGameRepository {
     return { player, items, totalValue, count: items.length };
   }
 
+  discoveries(userId, now = Date.now()) {
+    this.ensurePlayer(userId, now);
+    return this.statements.discoveries.all(String(userId)).map((row) => ({
+      seedId: row.seed_id,
+      discoveredAt: Number(row.discovered_at),
+    }));
+  }
+
+  activeAutoRoll(userId) {
+    const row = this.statements.activeAutoRoll.get(String(userId));
+    return row ? { id: String(row.id), nextTickAt: Number(row.next_tick_at), endsAt: Number(row.ends_at) } : null;
+  }
+
   roll(userId, createInstance, options = {}) {
     return this.rollTransaction(
       String(userId),
@@ -201,6 +254,10 @@ class RngGameRepository {
 
   upgrade(userId, operationKey, costForLevel, now = Date.now()) {
     return this.upgradeTransaction(String(userId), String(operationKey), costForLevel, now);
+  }
+
+  purchasePowerUpgrade(userId, kind, operationKey, costForTier, now = Date.now()) {
+    return this.powerUpgradeTransaction(String(userId), String(kind), String(operationKey), costForTier, now);
   }
 }
 

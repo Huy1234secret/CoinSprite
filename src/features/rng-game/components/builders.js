@@ -1,7 +1,10 @@
 const { MessageFlags } = require('discord.js');
-const { SEED_BY_ID } = require('../data/seeds');
+const { SEEDS, SEED_BY_ID } = require('../data/seeds');
 const { SHECKLES_EMOJI, componentEmoji } = require('../data/emojis');
 const { filterInventory } = require('../utils/normalize');
+const { autoRollSummaryEntries } = require('../services/autoRollService');
+const { bigChance, luckMultiplier } = require('../services/rngService');
+const { formatMultiplier, formatPercent, romanTier } = require('../utils/upgrades');
 const {
   ALLOWED_MENTIONS,
   clampPage,
@@ -45,8 +48,12 @@ function errorPayload(content, options = {}) {
 
 function rollPayload(userId, instance, options = {}) {
   const seed = instance.seed;
-  const content = `<@${userId}>, You have rolled **${seed.displayName}**\n\n`
-    + `-# Rarity: ${seed.rarityEmoji} • \`${formatChanceWithRatio(seed)}\`\n`
+  const isBig = Boolean(instance.item?.isBig ?? instance.isBig);
+  const chance = instance.effectiveChance
+    ? { ...seed, chanceNumerator: instance.effectiveChance.numerator, chanceDenominator: instance.effectiveChance.denominator }
+    : seed;
+  const content = `<@${userId}>, You have rolled ${isBig ? '**BIG** ' : ''}**${seed.displayName}**\n\n`
+    + `-# Rarity: ${seed.rarityEmoji} • \`${formatChanceWithRatio(chance)}\`\n`
     + `-# Weight: \`${formatWeight(instance.item?.weightUnits ?? instance.weightUnits)}\` kg`;
   return v2Payload([{
     type: 17,
@@ -71,7 +78,7 @@ function inventoryCropFields(items) {
   (items || []).forEach((item, index) => {
     const seed = SEED_BY_ID.get(item.seedId);
     fields.push({
-      name: `${item.cropName} ${seed?.emoji || ''}`.trim().slice(0, 256),
+      name: `${item.isBig ? '**BIG** ' : ''}${item.cropName} ${seed?.emoji || ''}`.trim().slice(0, 256),
       value: `-# * ${seed?.rarityEmoji || ''}\n-# * ${formatWeight(item.weightUnits)} kg`.slice(0, 1_024),
       inline: true,
     });
@@ -235,17 +242,139 @@ function saleDeniedPayload(options = {}) {
   return textContainer('Sale cancelled\nYour crops were not changed.', { color: 0xEF4444, ...options });
 }
 
+function autoRollSubmitPayload(action, options = {}) {
+  return v2Payload([{
+    type: 17,
+    accent_color: WHITE,
+    components: [
+      { type: 10, content: '### Submit a duration' },
+      { type: 1, components: [{ type: 2, style: 2, label: 'Submit', custom_id: `rng:auto:form:${action.id}` }] },
+    ],
+  }], options);
+}
+
+function autoRollStatusPayload(job, options = {}) {
+  return textContainer(
+    `### Auto Roll already running\n\nYour current Auto Roll ends <t:${Math.ceil(job.endsAt / 1_000)}:R> (<t:${Math.ceil(job.endsAt / 1_000)}:F>).`,
+    options,
+  );
+}
+
+function autoRollPreviewPayload(action, balance, options = {}) {
+  const affordable = BigInt(balance) >= action.totalCost;
+  const missing = affordable ? 0n : action.totalCost - BigInt(balance);
+  const autoSell = action.selectedAutoSellRarities.length
+    ? action.selectedAutoSellRarities.join(', ')
+    : 'None — Auto Roll will stop when inventory is full';
+  return v2Payload([{
+    type: 17,
+    accent_color: 0x22C55E,
+    components: [
+      { type: 10, content: `### Auto roll for ${action.normalized}\n\n-# * Cost: ${formatInteger(action.totalCost)} ${SHECKLES_EMOJI}\n-# * Auto sell: ${autoSell}` },
+      { type: 1, components: [{
+        type: 2,
+        style: affordable ? 3 : 4,
+        label: affordable ? 'Start' : `You need ${formatInteger(missing)} more Sheckles!`.slice(0, 80),
+        custom_id: `rng:auto:start:${action.id}`,
+        disabled: !affordable,
+      }] },
+    ],
+  }], options);
+}
+
+function autoRollStartedPayload(job, options = {}) {
+  return textContainer(
+    `Auto Roll started\nYour first roll is <t:${Math.floor(job.nextTickAt / 1_000)}:R> and the purchased duration ends <t:${Math.floor(job.endsAt / 1_000)}:F>.`,
+    { color: 0x22C55E, ...options },
+  );
+}
+
+function autoRollEndedPayload(job, options = {}) {
+  const summary = autoRollSummaryEntries(job)
+    .map(({ seed, count }) => `-# * ${seed.rarityEmoji} - ${seed.displayName} ×${count}`)
+    .join('\n') || '-# * No crops were rolled.';
+  const stopped = job.stoppedReason
+    ? `\n\n-# * Stopped: ${job.stoppedReason}\n-# * Refund: ${formatInteger(job.refundPaid)} ${SHECKLES_EMOJI}`
+    : '';
+  return textContainer(
+    `<@${job.userId}> Your auto roll has ended! Purchase again to continue.\n\nSummary:\n\n${summary}${stopped}`,
+    { color: 0x22C55E, ...options },
+  );
+}
+
+function upgradeButton(kind, tier, balance, cost, actionId) {
+  if (tier >= 20) return { type: 2, style: 2, label: 'MAX', custom_id: `rng:power:max:${kind}`, disabled: true };
+  const affordable = BigInt(balance) >= cost;
+  const button = {
+    type: 2,
+    style: affordable ? 3 : 4,
+    label: formatInteger(cost),
+    custom_id: `rng:power:buy:${actionId}`,
+    disabled: !affordable,
+  };
+  const emoji = componentEmoji(SHECKLES_EMOJI);
+  if (emoji) button.emoji = emoji;
+  return button;
+}
+
+function powerUpgradePayload(user, player, controls, options = {}) {
+  const luckText = `- **Luck** Upgrade ${romanTier(player.luckTier)}\n-# Current: ×${formatMultiplier(luckMultiplier(player.luckTier))}`;
+  const bigText = `- **BIG** Crop chance ${romanTier(player.bigCropTier)}\n-# Current: ${formatPercent(bigChance(player.bigCropTier).numerator / 2)}%`;
+  return v2Payload([{
+    type: 17,
+    accent_color: WHITE,
+    components: [
+      { type: 10, content: `### <@${user.id}>'s Upgrades` },
+      {
+        type: 9,
+        components: [{ type: 10, content: luckText }],
+        accessory: upgradeButton('luck', player.luckTier, player.balance, controls.luckCost, controls.luckActionId),
+      },
+      {
+        type: 9,
+        components: [{ type: 10, content: bigText }],
+        accessory: upgradeButton('big', player.bigCropTier, player.balance, controls.bigCost, controls.bigActionId),
+      },
+    ],
+  }], options);
+}
+
+function indexPayload(userId, discoveredCount, view, image, options = {}) {
+  const filename = `rng-index-${view.id}.png`;
+  return {
+    ...v2Payload([{
+      type: 17,
+      accent_color: WHITE,
+      components: [
+        { type: 10, content: `### <@${userId}>'s Index\n\n- You have discovered: ${discoveredCount} / ${SEEDS.length} crops!` },
+        { type: 14, divider: true, spacing: 1 },
+        { type: 12, items: [{ media: { url: `attachment://${filename}` } }] },
+        { type: 1, components: [{ type: 2, style: 2, label: `Page ${view.page} / ${view.maxPage}`, custom_id: `rng:index:page:${view.id}` }] },
+      ],
+    }], options),
+    files: [{ attachment: image, name: filename }],
+    attachments: [],
+  };
+}
+
 module.exports = {
   COMPONENTS_V2_FLAG,
   EPHEMERAL_FLAG,
   INVENTORY_PAGE_SIZE,
   SELL_PAGE_SIZE,
   balancePayload,
+  autoRollEndedPayload,
+  autoRollPreviewPayload,
+  autoRollStartedPayload,
+  autoRollStatusPayload,
+  autoRollSubmitPayload,
   errorPayload,
   groupedSaleSummary,
   inventoryCropFields,
   inventoryPageData,
   inventoryPayload,
+  indexPayload,
+  powerUpgradePayload,
   rollPayload,
   saleDeniedPayload,
   saleFinishedPayload,

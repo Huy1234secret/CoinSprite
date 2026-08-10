@@ -31,9 +31,15 @@ const {
   handleLevelingInteraction,
   handleLevelingMessage,
 } = require('./src/leveling');
+const {
+  createRuntimeStarter,
+  normalizeRuntimeRole,
+  runtimeDiagnostic,
+} = require('./src/runtimeRole');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
+const runtimeRole = normalizeRuntimeRole();
 const rngGame = createRngGameFeature({
   getGuildPolicy(guildId) {
     const config = getGuildConfigRaw(guildId);
@@ -89,63 +95,77 @@ const client = new Client({
 
 setLogClient(client);
 
+const runtimeStarter = createRuntimeStarter(runtimeRole, {
+  async common() {
+    console.info(`Ready as ${client.user.tag}`);
+    logLevelCardRendererIdentity(logCommandSystem, 'Bot');
+    logCommandSystem(runtimeDiagnostic(runtimeRole, client));
+    for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
+  },
+  async bot() {
+    // Optional features are guild commands so Discord only exposes them where
+    // the owner has unlocked the feature and enabled its engine.
+    await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
+      logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
+    });
+    await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
+
+    rngGame.startScheduler(client);
+    await startGag2UpdateAnnouncement(client);
+    await startGag2StockPoster(client, { runtimeRole });
+  },
+  async panel() {
+    startAdminServer(client);
+  },
+});
+
 client.once(Events.ClientReady, async () => {
-  console.info(`Ready as ${client.user.tag}`);
-  logLevelCardRendererIdentity(logCommandSystem, 'Bot');
-  logCommandSystem(`Bot ready as ${client.user.tag}. GAG stock, leveling, RNG economy, and owner panel are active.`);
-
-  for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
-
-  // Optional features are guild commands so Discord only exposes them where the
-  // owner has unlocked the feature and the server has enabled its engine.
-  await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
-    logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
+  await runtimeStarter.start().catch((error) => {
+    logCommandSystem(`Runtime startup failed: ${error?.message || 'unknown error'}`);
+    console.error('CoinSprite runtime startup failed:', error);
   });
-  await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
-
-  startAdminServer(client);
-  await startGag2UpdateAnnouncement(client);
-  await startGag2StockPoster(client);
 });
 
-client.on(Events.GuildCreate, async (guild) => {
-  ensureGuildConfig(guild.id);
-  await syncGuildCommands(guild);
-  logCommandSystem(`CoinSprite stock, leveling, and RNG configuration created for guild ${guild.id}.`);
-});
+if (runtimeStarter.capabilities.bot) {
+  client.on(Events.GuildCreate, async (guild) => {
+    ensureGuildConfig(guild.id);
+    await syncGuildCommands(guild);
+    logCommandSystem(`CoinSprite stock, leveling, and RNG configuration created for guild ${guild.id}.`);
+  });
 
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!isGuildEnabled(interaction.guildId)) {
-    if (interaction.isRepliable?.()) {
-      await interaction.reply({
-        flags: COMPONENTS_V2_FLAG | EPHEMERAL,
-        components: [{ type: 17, accent_color: 0xff6b6b, components: [{ type: 10, content: '## CoinSprite is disabled\nAsk the bot owner to enable this server.' }] }],
-      }).catch(() => null);
+  client.on(Events.InteractionCreate, async (interaction) => {
+    if (!isGuildEnabled(interaction.guildId)) {
+      if (interaction.isRepliable?.()) {
+        await interaction.reply({
+          flags: COMPONENTS_V2_FLAG | EPHEMERAL,
+          components: [{ type: 17, accent_color: 0xff6b6b, components: [{ type: 10, content: '## CoinSprite is disabled\nAsk the bot owner to enable this server.' }] }],
+        }).catch(() => null);
+      }
+      return;
     }
-    return;
-  }
 
-  try {
-    if (await rngGame.handleInteraction(interaction)) return;
-    if (await handleGag2RoleAssignmentInteraction(interaction)) return;
-    if (await handleLevelingInteraction(interaction)) return;
-    if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {
-      await executeStockSetupCommand(interaction);
+    try {
+      if (await rngGame.handleInteraction(interaction)) return;
+      if (await handleGag2RoleAssignmentInteraction(interaction)) return;
+      if (await handleLevelingInteraction(interaction)) return;
+      if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {
+        await executeStockSetupCommand(interaction);
+      }
+    } catch (error) {
+      console.error('CoinSprite interaction failed:', error);
+      logCommandSystem(`CoinSprite interaction failed: ${error?.message || 'unknown error'}`);
     }
-  } catch (error) {
-    console.error('CoinSprite interaction failed:', error);
-    logCommandSystem(`CoinSprite interaction failed: ${error?.message || 'unknown error'}`);
-  }
-});
+  });
 
-client.on(Events.MessageCreate, async (message) => {
-  try {
-    if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
-    await handleLevelingMessage(message);
-  } catch (error) {
-    logCommandSystem(`Message command handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
-  }
-});
+  client.on(Events.MessageCreate, async (message) => {
+    try {
+      if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
+      await handleLevelingMessage(message);
+    } catch (error) {
+      logCommandSystem(`Message command handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
+    }
+  });
+}
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {

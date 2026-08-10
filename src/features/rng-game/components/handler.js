@@ -3,6 +3,10 @@ const { upgradeCost } = require('../services/gameService');
 const { filterInventory, normalizeCropName, parseWeightThreshold } = require('../utils/normalize');
 const {
   errorPayload,
+  autoRollPreviewPayload,
+  autoRollStartedPayload,
+  autoRollStatusPayload,
+  indexPayload,
   inventoryPageData,
   inventoryPayload,
   saleDeniedPayload,
@@ -10,9 +14,17 @@ const {
   salePageData,
   salePayload,
   textContainer,
+  powerUpgradePayload,
   upgradePromptPayload,
 } = require('./builders');
-const { inventoryFilterModal, inventoryPageModal, sellFilterModal } = require('../modals/builders');
+const {
+  autoRollModal,
+  indexPageModal,
+  inventoryFilterModal,
+  inventoryPageModal,
+  sellFilterModal,
+} = require('../modals/builders');
+const { createPowerUpgradeControls } = require('../services/upgradeService');
 
 const NORMALIZED_SEEDS = new Map(SEEDS.map((seed) => [normalizeCropName(seed.displayName), seed]));
 
@@ -49,7 +61,16 @@ function availableRarities(items) {
 }
 
 function createComponentHandler(context) {
-  const { actions, gameService, inventoryViews, saleSessions } = context;
+  const {
+    actions,
+    autoRollService,
+    gameService,
+    indexRenderer,
+    indexViews,
+    inventoryViews,
+    repository,
+    saleSessions,
+  } = context;
 
   async function inventoryInteraction(interaction, parts) {
     const action = parts[2];
@@ -227,6 +248,127 @@ function createComponentHandler(context) {
     return false;
   }
 
+  async function autoRollInteraction(interaction, parts) {
+    const actionName = parts[2];
+    const token = parts[3];
+    if (actionName === 'form' && interaction.isButton?.()) {
+      const action = actions.get(token);
+      if (!action || action.kind !== 'auto-form') {
+        await respondExpired(interaction, 'Auto Roll form');
+        return true;
+      }
+      if (!await enforceOwner(interaction, action, 'Auto Roll')) return true;
+      await interaction.showModal(autoRollModal(action));
+      return true;
+    }
+    if (actionName === 'submit' && interaction.isModalSubmit?.()) {
+      const formAction = actions.get(token);
+      if (!formAction || formAction.kind !== 'auto-form') {
+        await respondExpired(interaction, 'Auto Roll form');
+        return true;
+      }
+      if (!await enforceOwner(interaction, formAction, 'Auto Roll')) return true;
+      let preview;
+      try {
+        preview = autoRollService.preview(
+          textFromModal(interaction.fields, 'duration'),
+          valuesFromModal(interaction.fields, 'rarities'),
+        );
+      } catch (error) {
+        await interaction.reply(errorPayload(`Invalid Auto Roll duration\n${error.message}`, { ephemeral: true }));
+        return true;
+      }
+      actions.delete(formAction.id);
+      const previewAction = actions.create(formAction.ownerId, { kind: 'auto-preview', ...preview });
+      await interaction.deferUpdate();
+      await interaction.editReply(autoRollPreviewPayload(
+        previewAction,
+        gameService.balance(formAction.ownerId),
+        { initial: false },
+      )).catch(() => null);
+      return true;
+    }
+    if (actionName === 'start' && interaction.isButton?.()) {
+      const preview = actions.claim(token, interaction.user.id);
+      if (!preview || preview.kind !== 'auto-preview') {
+        await respondExpired(interaction, 'Auto Roll preview');
+        return true;
+      }
+      const result = autoRollService.start(interaction.user.id, preview, {
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+      });
+      if (result.status === 'already-active') {
+        await interaction.update(autoRollStatusPayload(result.job, { initial: false })).catch(() => null);
+        return true;
+      }
+      if (result.status === 'sale-active') {
+        await interaction.update(errorPayload('Sale in progress\nFinish or deny your sale before starting Auto Roll.', { initial: false })).catch(() => null);
+        return true;
+      }
+      if (result.status === 'insufficient') {
+        await interaction.update(errorPayload(`Auto Roll unavailable\nYou need **${result.missing.toLocaleString('en-US')}** more Sheckles.`, { initial: false })).catch(() => null);
+        return true;
+      }
+      await interaction.update(autoRollStartedPayload(result.job, { initial: false })).catch(() => null);
+      return true;
+    }
+    return false;
+  }
+
+  async function powerUpgradeInteraction(interaction, parts) {
+    if (parts[2] !== 'buy' || !interaction.isButton?.()) return false;
+    const action = actions.claim(parts[3], interaction.user.id);
+    if (!action || action.kind !== 'power-upgrade') {
+      await respondExpired(interaction, 'upgrade control');
+      return true;
+    }
+    const result = gameService.purchasePowerUpgrade(interaction.user.id, action.upgradeKind, action.id);
+    if (result.status !== 'ok') {
+      const reason = result.status === 'max'
+        ? 'This upgrade is already at tier XX.'
+        : `You need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`;
+      await interaction.reply(errorPayload(`Upgrade unavailable\n${reason}`, { ephemeral: true })).catch(() => null);
+      return true;
+    }
+    const player = repository.getPlayer(interaction.user.id);
+    const controls = createPowerUpgradeControls(actions, interaction.user.id, player);
+    await interaction.update(powerUpgradePayload(interaction.user, player, controls, { initial: false })).catch(() => null);
+    return true;
+  }
+
+  async function indexInteraction(interaction, parts) {
+    const action = parts[2];
+    const view = indexViews.get(parts[3]);
+    if (!view) {
+      await respondExpired(interaction, 'Index controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, view, 'Index')) return true;
+    if (action === 'page' && interaction.isButton?.()) {
+      await interaction.showModal(indexPageModal(view));
+      return true;
+    }
+    if (action === 'page-submit' && interaction.isModalSubmit?.()) {
+      const page = Number(textFromModal(interaction.fields, 'page').trim());
+      if (!Number.isInteger(page) || page < 1 || page > view.maxPage) {
+        await interaction.reply(errorPayload(`Invalid page\nEnter a page from **1** to **${view.maxPage}**.`, { ephemeral: true }));
+        return true;
+      }
+      view.page = page;
+      await interaction.deferUpdate();
+      const discoveries = repository.discoveries(view.ownerId);
+      try {
+        const image = await indexRenderer.render(view.ownerId, discoveries.map((entry) => entry.seedId), view.page);
+        await interaction.editReply(indexPayload(view.ownerId, discoveries.length, view, image, { initial: false }));
+      } catch {
+        await interaction.editReply(errorPayload('Index unavailable\nThe requested crop page could not be rendered.', { initial: false })).catch(() => null);
+      }
+      return true;
+    }
+    return false;
+  }
+
   return async function handleComponent(interaction) {
     const customId = String(interaction.customId || '');
     if (!customId.startsWith('rng:')) return false;
@@ -238,6 +380,9 @@ function createComponentHandler(context) {
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
     if (parts[1] === 'upgrade') return upgradeInteraction(interaction, parts);
     if (parts[1] === 'sale') return saleInteraction(interaction, parts);
+    if (parts[1] === 'auto') return autoRollInteraction(interaction, parts);
+    if (parts[1] === 'power') return powerUpgradeInteraction(interaction, parts);
+    if (parts[1] === 'index') return indexInteraction(interaction, parts);
     return false;
   };
 }

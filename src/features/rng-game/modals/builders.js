@@ -1,5 +1,6 @@
 const { RARITIES, SEED_BY_ID } = require('../data/seeds');
-const { componentEmoji } = require('../data/emojis');
+const { SHECKLES_EMOJI, componentEmoji } = require('../data/emojis');
+const { AUTO_SELL_RARITIES } = require('../services/autoRollService');
 
 function label(labelText, component, description) {
   return {
@@ -99,4 +100,58 @@ function sellFilterModal(session, availableRarities) {
   return { custom_id: `rng:sale:filter-submit:${session.id}`, title: 'Sell filter', components };
 }
 
-module.exports = { inventoryFilterModal, inventoryPageModal, rarityOptions, sellFilterModal };
+function autoRollModal(action) {
+  return {
+    custom_id: `rng:auto:submit:${action.id}`,
+    title: 'Configure Auto Roll',
+    components: [
+      {
+        type: 10,
+        content: `* When your inventory is full, the bot will automatically sell crops matching your selected rarities.\n\n- Every 1 minute costs 100 ${SHECKLES_EMOJI}.\n- The bot rolls once every 3 seconds.`,
+      },
+      label('Auto Roll duration', {
+        type: 4,
+        style: 1,
+        custom_id: 'duration',
+        placeholder: 'Example: 50m, 4h 13m, 1d',
+        min_length: 2,
+        max_length: 30,
+        required: true,
+      }),
+      label('Auto sell rarity', {
+        type: 3,
+        custom_id: 'rarities',
+        placeholder: 'Select rarities you want to sell',
+        min_values: 0,
+        max_values: AUTO_SELL_RARITIES.length,
+        required: false,
+        options: rarityOptions(AUTO_SELL_RARITIES),
+      }),
+    ],
+  };
+}
+
+function indexPageModal(view) {
+  return {
+    custom_id: `rng:index:page-submit:${view.id}`,
+    title: 'Switch Index page',
+    components: [label('What page do you want to switch to?', {
+      type: 4,
+      style: 1,
+      custom_id: 'page',
+      placeholder: `1 - ${view.maxPage}`,
+      min_length: 1,
+      max_length: String(view.maxPage).length,
+      required: true,
+    })],
+  };
+}
+
+module.exports = {
+  autoRollModal,
+  indexPageModal,
+  inventoryFilterModal,
+  inventoryPageModal,
+  rarityOptions,
+  sellFilterModal,
+};
