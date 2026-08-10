@@ -36,12 +36,6 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   roleBoosts: Object.freeze([]),
   stackRoleRewards: true,
 });
-const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
-  enabled: false,
-  gameChannelId: '',
-  cooldownBypassRoleIds: Object.freeze([]),
-});
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -82,7 +76,7 @@ function defaultFall() {
   };
 }
 
-const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, leveling: false, rngGame: false, fullBot: false });
+const DEFAULT_FEATURES = Object.freeze({ gag2Stock: true, leveling: false, fullBot: false });
 const DEFAULT_GAG2_STOCK_CONFIG = Object.freeze({
   enabled: true,
   channels: blankChannels(),
@@ -97,7 +91,6 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   channels: { commandLogThread: '' },
   gag2Stock: DEFAULT_GAG2_STOCK_CONFIG,
   leveling: DEFAULT_LEVELING_CONFIG,
-  rngGame: DEFAULT_RNG_GAME_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = Object.freeze({
   ...DEFAULT_GUILD_CONFIG,
@@ -297,18 +290,6 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
   };
 }
 
-function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
-  const source = isObject(value) ? value : {};
-  const roleIds = Array.isArray(source.cooldownBypassRoleIds)
-    ? source.cooldownBypassRoleIds.map(cleanId).filter(Boolean)
-    : defaults.cooldownBypassRoleIds;
-  return {
-    enabled: source.enabled === undefined ? defaults.enabled === true : source.enabled === true,
-    gameChannelId: cleanId(source.gameChannelId ?? defaults.gameChannelId),
-    cooldownBypassRoleIds: [...new Set(roleIds)].slice(0, 100),
-  };
-}
-
 function defaultConfigForGuild(guildId) {
   return clone(guildId === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
 }
@@ -317,23 +298,19 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const source = isObject(value) ? value : {};
   const defaults = defaultConfigForGuild(guildId);
   const leveling = normalizeLevelingConfig(source.leveling, defaults.leveling);
-  const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
-    rngGame.enabled = false;
   }
   return {
     enabled: source.enabled !== false,
     features: {
       gag2Stock: true,
       leveling: options.resetFeatureLocks ? false : source.features?.leveling === true,
-      rngGame: options.resetFeatureLocks ? false : source.features?.rngGame === true,
       fullBot: false,
     },
     channels: { commandLogThread: '' },
     gag2Stock: normalizeGag2StockConfig(source.gag2Stock, defaults.gag2Stock),
     leveling,
-    rngGame,
   };
 }
 
@@ -469,19 +446,14 @@ function setGuildFeatureAccess(guildId, features = {}) {
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].leveling ||= clone(DEFAULT_LEVELING_CONFIG);
-  state.guilds[id].rngGame ||= clone(DEFAULT_RNG_GAME_CONFIG);
   state.guilds[id].features = {
     gag2Stock: true,
     leveling: features.leveling === undefined
       ? state.guilds[id].features?.leveling === true
       : features.leveling === true,
-    rngGame: features.rngGame === undefined
-      ? state.guilds[id].features?.rngGame === true
-      : features.rngGame === true,
     fullBot: false,
   };
   if (!state.guilds[id].features.leveling) state.guilds[id].leveling.enabled = false;
-  if (!state.guilds[id].features.rngGame) state.guilds[id].rngGame.enabled = false;
   saveState(state);
   return getGuildConfigRaw(id);
 }
@@ -489,11 +461,6 @@ function setGuildFeatureAccess(guildId, features = {}) {
 function isGuildLevelingEnabled(guildId) {
   const config = getGuildConfig(guildId);
   return Boolean(config?.features?.leveling && config.leveling?.enabled !== false);
-}
-
-function isGuildRngGameEnabled(guildId) {
-  const config = getGuildConfig(guildId);
-  return Boolean(config?.features?.rngGame && config.rngGame?.enabled === true);
 }
 
 function updateGuildGag2StockRoleIds(guildId, type, value) {
@@ -517,7 +484,6 @@ module.exports = {
   DEFAULT_FEATURES,
   DEFAULT_GAG2_STOCK_CONFIG,
   DEFAULT_LEVELING_CONFIG,
-  DEFAULT_RNG_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -542,11 +508,9 @@ module.exports = {
   isGuildFullBotEnabled,
   isGuildGag2StockEnabled,
   isGuildLevelingEnabled,
-  isGuildRngGameEnabled,
   loadState,
   normalizeGag2StockConfig,
   normalizeLevelingConfig,
-  normalizeRngGameConfig,
   normalizeState,
   resolveLoggingChannelId,
   saveState,

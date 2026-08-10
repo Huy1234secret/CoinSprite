@@ -1,6 +1,5 @@
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { LEVELING_COMMANDS } = require('./leveling');
-const { RNG_GAME_COMMANDS } = require('./features/rng-game');
 const { getGuildConfigRaw } = require('./serverConfig');
 
 const STOCK_SETUP_COMMAND_NAME = 'stock-set-up';
@@ -21,9 +20,6 @@ function featureCommandsForConfig(config) {
   const commands = [];
   if (config.features?.leveling === true && config.leveling?.enabled === true) {
     commands.push(...commandJson(LEVELING_COMMANDS));
-  }
-  if (config.features?.rngGame === true && config.rngGame?.enabled === true) {
-    commands.push(...commandJson(RNG_GAME_COMMANDS));
   }
   return commands;
 }
