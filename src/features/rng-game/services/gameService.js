@@ -21,7 +21,7 @@ function upgradeCost(tier) {
 
 function luckUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return sqliteSafeCost(1000n + (950n * t * (t + 1n)));
+  return sqliteSafeCost(100n + (950n * t * (t + 1n)));
 }
 
 function bigUpgradeCost(tier) {
