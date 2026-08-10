@@ -54,14 +54,15 @@ test('tier-zero crop weights are derived from the rarest-first cascade and sum e
   const distribution = baseCropDistribution();
   assert.deepEqual(distribution.map((entry) => entry.seed.id), SEEDS.map((seed) => seed.id));
   assert.equal(distribution.reduce((sum, entry) => sum + entry.units, 0n), PROBABILITY_SCALE);
-  assert.equal(distribution[0].units, 1_000n, 'Star Fruit keeps its exact 0.0001% baseline');
-  const starFraction = distribution[0].fraction;
-  assert.deepEqual(starFraction, { numerator: 1n, denominator: 1_000_000n });
-  const dragonFraction = distribution[1].fraction;
-  assert.equal(
-    Number(dragonFraction.numerator) / Number(dragonFraction.denominator),
-    (1 - (1 / 1_000_000)) * (111 / 100_000_000),
-  );
+  const eclipse = distribution.find((entry) => entry.seed.id === 'eclipse_bloom');
+  const star = distribution.find((entry) => entry.seed.id === 'star_fruit');
+  const dragon = distribution.find((entry) => entry.seed.id === 'dragons_breath');
+  assert.equal(eclipse.units, 1_000n, 'Eclipse Bloom keeps its exact 0.0001% baseline');
+  assert.deepEqual(eclipse.fraction, { numerator: 1n, denominator: 1_000_000n });
+  assert.deepEqual(star.fraction, { numerator: 999_999n, denominator: 1_000_000_000_000n });
+  const actualDragonChance = Number(dragon.fraction.numerator) / Number(dragon.fraction.denominator);
+  const expectedDragonChance = (1 - (1 / 1_000_000)) ** 2 * (111 / 100_000_000);
+  assert.ok(Math.abs(actualDragonChance - expectedDragonChance) < Number.EPSILON);
 });
 
 test('Star Fruit succeeds at the last fixed-point unit assigned to it', () => {
@@ -69,7 +70,8 @@ test('Star Fruit succeeds at the last fixed-point unit assigned to it', () => {
   const superUnits = distribution
     .filter((entry) => entry.seed.rarity === 'Super')
     .reduce((sum, entry) => sum + entry.units, 0n);
-  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(distribution[0].units - 1n), 0];
+  const star = distribution.find((entry) => entry.seed.id === 'star_fruit');
+  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(star.units - 1n), 0];
   const result = cascadingRoll({ rng: () => draws.shift() });
   assert.equal(result.seed.id, 'star_fruit');
   assert.equal(draws.length, 0, 'rarity, crop, and weight are sampled once each');
@@ -80,7 +82,8 @@ test('within-rarity sampling continues after a failed crop boundary and then sto
   const superUnits = distribution
     .filter((entry) => entry.seed.rarity === 'Super')
     .reduce((sum, entry) => sum + entry.units, 0n);
-  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(distribution[0].units), 0];
+  const star = distribution.find((entry) => entry.seed.id === 'star_fruit');
+  const draws = [Number(PROBABILITY_SCALE - superUnits), Number(star.units), 0];
   const result = cascadingRoll({ rng: () => draws.shift() });
   assert.equal(result.seed.id, 'dragons_breath');
   assert.equal(draws.length, 0);
@@ -135,6 +138,7 @@ test('stored value is monotonic with weight and reaches configured endpoints', (
 
 test('seed registry uses the revised maximum crop values', () => {
   const expectedMaximums = [
+    18_000_000,
     4_000_000, 2_500_000, 1_800_000, 1_250_000, 850_000, 550_000, 350_000, 250_000,
     170_000, 120_000, 85_000, 60_000, 40_000, 26_000, 18_000, 12_500, 8_500, 5_500,
     3_500, 2_250, 1_500, 1_000, 700, 450, 300, 200, 120, 80, 60, 40, 30, 20,
@@ -320,7 +324,7 @@ test('rarity registry uses the configured custom Discord badges', () => {
     Legendary: '<:RLegendary:1536072819237060650>',
     Mythic: '<:RMythic:1536072827105443871>',
     Super: '<a:RSUPER:1536072842800537600>',
-    Secret: '<a:RSecret:1536073173165146344>',
+    Secret: '<:RSecret:1536073173165146344>',
   });
 });
 

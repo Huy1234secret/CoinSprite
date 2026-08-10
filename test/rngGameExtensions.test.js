@@ -129,14 +129,14 @@ test('BIG chance is 0.1% per tier and value is exactly four times the base-weigh
 });
 
 test('upgrade prices and Roman tier formatting use exact formulas through tier XX', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [10_000n, 20_000n, 40_000n, 70_000n, 110_000n]);
-  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [5_000n, 8_000n, 12_000n, 17_000n, 23_000n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [100n, 360n, 880n, 1_660n, 2_700n]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [500n, 1_440n, 2_920n, 4_940n, 7_500n]);
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(4), romanTier(9), romanTier(20)], ['0', 'I', 'IV', 'IX', 'XX']);
 });
 
 test('power upgrade purchase is atomic, and idempotent', () => {
   const game = feature();
-  fund(game, 'power', 10_000n);
+  fund(game, 'power', luckUpgradeCost(0));
   const first = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 2);
   const replay = game.repository.purchasePowerUpgrade('power', 'luck', 'power:one', luckUpgradeCost, 3);
   assert.equal(first.status, 'ok');

@@ -6,7 +6,7 @@ const {
   assertIndexCanvasFontAvailable,
 } = require('../../../canvasFonts');
 const { customEmojiImageUrl, SHECKLES_EMOJI } = require('../data/emojis');
-const { SEEDS } = require('../data/seeds');
+const { SEEDS, SEED_BY_ID } = require('../data/seeds');
 const { formatChance, formatInteger } = require('../utils/format');
 
 const INDEX_PAGE_SIZE = 6;
@@ -31,16 +31,29 @@ const OUTLINE_COLORS = Object.freeze({
   Epic: '#F472B6',
   Legendary: '#FACC15',
   Mythic: '#EF4444',
+  Secret: '#FACC15',
 });
 
 function discoveryHash(discoveredSeedIds) {
   return crypto.createHash('sha256').update([...discoveredSeedIds].sort().join('\0')).digest('hex').slice(0, 20);
 }
 
+function indexDiscoveryCount(discoveredSeedIds) {
+  return [...new Set(discoveredSeedIds || [])].filter((seedId) => SEED_BY_ID.has(seedId)).length;
+}
+
+function indexSeedsForUser(discoveredSeedIds) {
+  const discovered = new Set(discoveredSeedIds || []);
+  return SEEDS.filter((seed) => !seed.secretUntilDiscovered || discovered.has(seed.id));
+}
+
 function indexPageModels(discoveredSeedIds, page) {
   const discovered = new Set(discoveredSeedIds || []);
   const currentPage = Math.max(1, Math.min(INDEX_MAX_PAGE, Math.floor(Number(page) || 1)));
-  return SEEDS.slice((currentPage - 1) * INDEX_PAGE_SIZE, currentPage * INDEX_PAGE_SIZE).map((seed) => ({
+  return indexSeedsForUser(discovered).slice(
+    (currentPage - 1) * INDEX_PAGE_SIZE,
+    currentPage * INDEX_PAGE_SIZE,
+  ).map((seed) => ({
     seed,
     discovered: discovered.has(seed.id),
     displayName: discovered.has(seed.id) ? seed.displayName : '???',
@@ -351,5 +364,7 @@ module.exports = {
   discoveryHash,
   fitIndexText,
   indexPageModels,
+  indexDiscoveryCount,
+  indexSeedsForUser,
   roundedRect,
 };

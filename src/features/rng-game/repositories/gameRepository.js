@@ -1,5 +1,6 @@
 const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
 const DEFAULT_CAPACITY = 100n;
+const { statisticsModel } = require('../services/statisticsService');
 
 function inventoryItem(row) {
   if (!row) return null;
@@ -39,6 +40,40 @@ function operationResult(row) {
   return { ...parsed, duplicate: true };
 }
 
+function statisticsAggregate(row) {
+  if (!row) return null;
+  return {
+    userId: row.user_id,
+    totalRolls: row.total_rolls,
+    autoRolls: row.auto_rolls,
+    highestWeightUnits: Number(row.highest_weight_units),
+    totalSaleEarnings: row.total_sale_earnings,
+    highestSingleSale: row.highest_single_sale,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+function cropStatistic(row) {
+  if (!row) return null;
+  return {
+    userId: row.user_id,
+    seedId: row.seed_id,
+    rollCount: row.roll_count,
+    highestWeightUnits: Number(row.highest_weight_units),
+    firstRolledAt: Number(row.first_rolled_at),
+    lastRolledAt: Number(row.last_rolled_at),
+  };
+}
+
+function sqliteSafeStatistic(value, label) {
+  const integer = BigInt(value);
+  if (integer < 0n || integer > SQLITE_INTEGER_MAX) {
+    throw new RangeError(`${label} exceeds the SQLite signed 64-bit range.`);
+  }
+  return integer;
+}
+
 class RngGameRepository {
   constructor(db) {
     this.db = db;
@@ -46,7 +81,28 @@ class RngGameRepository {
       ensurePlayer: db.prepare(`INSERT OR IGNORE INTO rng_players
         (user_id, sheckle_balance, inventory_capacity, inventory_upgrade_level, created_at, updated_at)
         VALUES (?, 0, 100, 0, ?, ?)`),
+      ensureStatistics: db.prepare(`INSERT OR IGNORE INTO rng_player_statistics
+        (user_id, total_rolls, auto_rolls, highest_weight_units, total_sale_earnings,
+         highest_single_sale, created_at, updated_at)
+        VALUES (?, 0, 0, 0, 0, 0, ?, ?)`),
       player: db.prepare('SELECT * FROM rng_players WHERE user_id = ?'),
+      statistics: db.prepare('SELECT * FROM rng_player_statistics WHERE user_id = ?'),
+      cropStatistics: db.prepare(`SELECT * FROM rng_crop_statistics
+        WHERE user_id = ? ORDER BY seed_id`),
+      cropStatistic: db.prepare(`SELECT * FROM rng_crop_statistics
+        WHERE user_id = ? AND seed_id = ?`),
+      updateRollStatistics: db.prepare(`UPDATE rng_player_statistics SET
+        total_rolls = ?, auto_rolls = ?, highest_weight_units = ?, updated_at = ?
+        WHERE user_id = ?`),
+      updateSaleStatistics: db.prepare(`UPDATE rng_player_statistics SET
+        total_sale_earnings = ?, highest_single_sale = ?, updated_at = ?
+        WHERE user_id = ?`),
+      insertCropStatistic: db.prepare(`INSERT INTO rng_crop_statistics
+        (user_id, seed_id, roll_count, highest_weight_units, first_rolled_at, last_rolled_at)
+        VALUES (?, ?, ?, ?, ?, ?)`),
+      updateCropStatistic: db.prepare(`UPDATE rng_crop_statistics SET
+        roll_count = ?, highest_weight_units = ?, last_rolled_at = ?
+        WHERE user_id = ? AND seed_id = ?`),
       inventory: db.prepare(`SELECT * FROM rng_inventory_items
         WHERE owner_user_id = ? ORDER BY rolled_at DESC, id DESC`),
       inventoryCount: db.prepare('SELECT COUNT(*) AS count FROM rng_inventory_items WHERE owner_user_id = ?'),
@@ -105,6 +161,7 @@ class RngGameRepository {
         currentTime,
       );
       const discoveredNew = Number(this.statements.discover.run(userId, instance.seed.id, currentTime).changes) === 1;
+      this.recordSuccessfulRoll(userId, instance.seed.id, instance.weightUnits, currentTime, false);
       this.statements.touchPlayer.run(currentTime, userId);
       return {
         status: 'ok',
@@ -138,6 +195,7 @@ class RngGameRepository {
         if (Number(deleted.changes) !== 1) throw new Error('Inventory changed while completing the sale.');
       }
       this.statements.updateBalance.run(balance, BigInt(now), userId);
+      this.recordSaleEarnings(userId, total, BigInt(now));
       const result = { status: 'ok', itemCount: rows.length, total, balance, duplicate: false };
       this.statements.saveOperation.run(operationKey, userId, 'sale', JSON.stringify({
         status: result.status,
@@ -213,8 +271,54 @@ class RngGameRepository {
 
   ensurePlayer(userId, now = Date.now()) {
     const id = String(userId);
-    this.statements.ensurePlayer.run(id, BigInt(now), BigInt(now));
+    const timestamp = BigInt(now);
+    this.statements.ensurePlayer.run(id, timestamp, timestamp);
+    this.statements.ensureStatistics.run(id, timestamp, timestamp);
     return playerRecord(this.statements.player.get(id));
+  }
+
+  recordSuccessfulRoll(userId, seedId, weightUnits, now = Date.now(), isAutoRoll = false) {
+    const id = String(userId);
+    const timestamp = BigInt(now);
+    this.statements.ensureStatistics.run(id, timestamp, timestamp);
+    const aggregate = statisticsAggregate(this.statements.statistics.get(id));
+    const totalRolls = sqliteSafeStatistic(aggregate.totalRolls + 1n, 'Total roll count');
+    const autoRolls = sqliteSafeStatistic(
+      aggregate.autoRolls + (isAutoRoll ? 1n : 0n),
+      'Auto Roll count',
+    );
+    const finalWeight = sqliteSafeStatistic(weightUnits, 'Crop weight');
+    const highestWeight = finalWeight > BigInt(aggregate.highestWeightUnits)
+      ? finalWeight
+      : BigInt(aggregate.highestWeightUnits);
+    this.statements.updateRollStatistics.run(totalRolls, autoRolls, highestWeight, timestamp, id);
+
+    const existing = cropStatistic(this.statements.cropStatistic.get(id, String(seedId)));
+    if (!existing) {
+      this.statements.insertCropStatistic.run(id, String(seedId), 1n, finalWeight, timestamp, timestamp);
+      return;
+    }
+    const rollCount = sqliteSafeStatistic(existing.rollCount + 1n, 'Per-crop roll count');
+    const cropHighestWeight = finalWeight > BigInt(existing.highestWeightUnits)
+      ? finalWeight
+      : BigInt(existing.highestWeightUnits);
+    this.statements.updateCropStatistic.run(rollCount, cropHighestWeight, timestamp, id, String(seedId));
+  }
+
+  recordSaleEarnings(userId, proceeds, now = Date.now()) {
+    const id = String(userId);
+    const timestamp = BigInt(now);
+    this.statements.ensureStatistics.run(id, timestamp, timestamp);
+    const aggregate = statisticsAggregate(this.statements.statistics.get(id));
+    const saleTotal = sqliteSafeStatistic(proceeds, 'Sale proceeds');
+    const totalSaleEarnings = sqliteSafeStatistic(
+      aggregate.totalSaleEarnings + saleTotal,
+      'Total sale earnings',
+    );
+    const highestSingleSale = saleTotal > aggregate.highestSingleSale
+      ? saleTotal
+      : aggregate.highestSingleSale;
+    this.statements.updateSaleStatistics.run(totalSaleEarnings, highestSingleSale, timestamp, id);
   }
 
   getPlayer(userId, now = Date.now()) {
@@ -240,6 +344,20 @@ class RngGameRepository {
       seedId: row.seed_id,
       discoveredAt: Number(row.discovered_at),
     }));
+  }
+
+  cropStatistics(userId, now = Date.now()) {
+    this.ensurePlayer(userId, now);
+    return this.statements.cropStatistics.all(String(userId)).map(cropStatistic);
+  }
+
+  statistics(userId, now = Date.now()) {
+    const id = String(userId);
+    this.ensurePlayer(id, now);
+    const aggregate = statisticsAggregate(this.statements.statistics.get(id));
+    const discoveries = this.statements.discoveries.all(id).map((row) => ({ seedId: row.seed_id }));
+    const crops = this.statements.cropStatistics.all(id).map(cropStatistic);
+    return statisticsModel(aggregate, discoveries, crops);
   }
 
   activeAutoRoll(userId) {
@@ -271,4 +389,12 @@ class RngGameRepository {
   }
 }
 
-module.exports = { DEFAULT_CAPACITY, RngGameRepository, SQLITE_INTEGER_MAX, inventoryItem, playerRecord };
+module.exports = {
+  DEFAULT_CAPACITY,
+  RngGameRepository,
+  SQLITE_INTEGER_MAX,
+  cropStatistic,
+  inventoryItem,
+  playerRecord,
+  statisticsAggregate,
+};

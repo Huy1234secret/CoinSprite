@@ -1,12 +1,13 @@
 const { RNG_GAME_COMMANDS, createCommandHandlers } = require('./commands');
 const { createComponentHandler } = require('./components/handler');
-const { autoRollEndedPayload } = require('./components/builders');
+const { autoRollEndedPayload, indexPayload } = require('./components/builders');
 const { AutoRollRepository } = require('./repositories/autoRollRepository');
 const { openDatabase } = require('./repositories/database');
 const { RngGameRepository } = require('./repositories/gameRepository');
 const { AutoRollScheduler, AutoRollService } = require('./services/autoRollService');
 const { RngGameService } = require('./services/gameService');
-const { CropIndexRenderer } = require('./services/indexRenderer');
+const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
+const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
 
 function createRngGameFeature(options = {}) {
@@ -19,9 +20,55 @@ function createRngGameFeature(options = {}) {
   const actions = options.actions || new ActionStore({ clock, ttlMs: options.sessionTtlMs });
   const indexViews = options.indexViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
+  let discordClient = options.client || null;
+  const reportError = (error, event) => {
+    try {
+      options.onError?.(error, event);
+    } catch {
+      // Error reporting is also isolated from persisted game actions.
+    }
+  };
+
+  async function refreshOpenIndexViews(userId) {
+    const discoveries = repository.discoveries(userId);
+    const discoveredSeedIds = discoveries.map((entry) => entry.seedId);
+    const discoveredCount = indexDiscoveryCount(discoveredSeedIds);
+    await Promise.all(indexViews.forOwner(userId).map(async (view) => {
+      if (!view.editOriginal) return;
+      const image = await indexRenderer.render(userId, discoveredSeedIds, view.page);
+      await view.editOriginal(indexPayload(userId, discoveredCount, view, image, { initial: false }));
+    }));
+  }
+
   const onDiscovery = (userId, seedId) => {
     indexRenderer.invalidate(userId);
-    options.onDiscovery?.(userId, seedId);
+    Promise.resolve(refreshOpenIndexViews(userId)).catch((error) => {
+      reportError(error);
+    });
+    try {
+      Promise.resolve(options.onDiscovery?.(userId, seedId)).catch((error) => {
+        reportError(error);
+      });
+    } catch (error) {
+      reportError(error);
+    }
+  };
+  const announceSecretRoll = options.secretRollAnnouncer || createSecretRollAnnouncer({
+    channelId: options.secretRollChannelId,
+    getClient: () => discordClient || options.getClient?.(),
+    onError: options.onError ? reportError : undefined,
+  });
+  const onSuccessfulRoll = (event) => {
+    const listeners = [options.onSuccessfulRoll];
+    if (event?.seed?.id === 'eclipse_bloom') listeners.push(announceSecretRoll);
+    for (const listener of listeners) {
+      if (!listener) continue;
+      try {
+        Promise.resolve(listener(event)).catch((error) => reportError(error, event));
+      } catch (error) {
+        reportError(error, event);
+      }
+    }
   };
   const gameService = options.gameService || new RngGameService({
     repository,
@@ -30,6 +77,7 @@ function createRngGameFeature(options = {}) {
     clock,
     cooldownMs: options.cooldownMs,
     onDiscovery,
+    onSuccessfulRoll,
   });
   const autoRollService = options.autoRollService || new AutoRollService({
     repository: autoRollRepository,
@@ -37,8 +85,8 @@ function createRngGameFeature(options = {}) {
     rng: options.rng,
     clock,
     onDiscovery,
+    onSuccessfulRoll,
   });
-  let discordClient = options.client || null;
   async function notifyAutoRoll(job) {
     const client = discordClient || options.getClient?.();
     if (!client) throw new Error('Discord client is unavailable for Auto Roll notification.');

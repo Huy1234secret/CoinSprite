@@ -1,6 +1,11 @@
 const { MessageFlags } = require('discord.js');
 const { SEEDS, SEED_BY_ID } = require('../data/seeds');
-const { SHECKLES_EMOJI, componentEmoji } = require('../data/emojis');
+const {
+  RARITY_EMOJIS,
+  SHECKLES_EMOJI,
+  componentEmoji,
+  customEmojiImageUrl,
+} = require('../data/emojis');
 const { filterInventory } = require('../utils/normalize');
 const { autoRollSummaryEntries } = require('../services/autoRollService');
 const {
@@ -70,11 +75,79 @@ function rollPayload(userId, instance, options = {}) {
   }], options);
 }
 
+function secretRollAnnouncementPayload(event) {
+  const { seed } = event;
+  const cropName = `${event.isBig ? 'BIG ' : ''}${seed.displayName}`;
+  const payload = v2Payload([{
+    type: 17,
+    accent_color: 0xFACC15,
+    components: [{
+      type: 9,
+      components: [{
+        type: 10,
+        content: `### ${seed.rarityEmoji} <@${event.userId}> has rolled **${cropName}**, CONGRATS!\n`
+          + '-# Chance: `1/1m`\n'
+          + `-# Weight: ${formatWeight(event.finalWeightUnits)} kg`,
+      }],
+      accessory: { type: 11, media: { url: customEmojiImageUrl(seed.emoji) } },
+    }],
+  }]);
+  payload.allowedMentions = {
+    parse: [],
+    users: [String(event.userId)],
+    roles: [],
+    repliedUser: false,
+  };
+  return payload;
+}
+
 function balancePayload(user, balance, options = {}) {
   return textContainer(
     `### <@${user.id}>'s Balance\n- Sheckles: ${formatInteger(balance)} ${SHECKLES_EMOJI}`,
     options,
   );
+}
+
+function statPayload(user, statistics, options = {}) {
+  const highestRarity = statistics.highestRarity
+    ? (RARITY_EMOJIS[statistics.highestRarity] || 'None')
+    : 'None';
+  const bestPlant = statistics.bestSeed
+    ? `${statistics.bestSeed.emoji} ${statistics.bestSeed.displayName}`
+    : 'None';
+  return v2Payload([{
+    type: 17,
+    accent_color: WHITE,
+    components: [
+      {
+        type: 9,
+        components: [{
+          type: 10,
+          content: `### <@${user.id}>'s Rollin stats\n\n`
+            + `* Has done ${formatInteger(statistics.totalRolls)} rolls\n\n`
+            + `-# ${formatInteger(statistics.autoRolls)} auto-rolls`,
+        }],
+        accessory: {
+          type: 11,
+          media: { url: user.displayAvatarURL({ extension: 'png', size: 256 }) },
+        },
+      },
+      { type: 14, divider: true, spacing: 1 },
+      {
+        type: 10,
+        content: `- Highest rarity discovered: ${highestRarity}\n\n`
+          + `* Best plant discovered: ${bestPlant}\n\n`
+          + `-# * Best Plant's Highest weight: ${formatWeight(statistics.bestSeedHighestWeightUnits)} kg\n\n`
+          + `* Highest weight discovered: ${formatWeight(statistics.highestWeightUnits)} kg`,
+      },
+      { type: 14, divider: true, spacing: 1 },
+      {
+        type: 10,
+        content: `- Earning all time: ${formatInteger(statistics.totalSaleEarnings)} ${SHECKLES_EMOJI}\n\n`
+          + `* Highest earning in one sale: ${formatInteger(statistics.highestSingleSale)} ${SHECKLES_EMOJI}`,
+      },
+    ],
+  }], options);
 }
 
 function inventoryCropFields(items) {
@@ -402,6 +475,8 @@ module.exports = {
   indexPayload,
   powerUpgradePayload,
   rollPayload,
+  secretRollAnnouncementPayload,
+  statPayload,
   saleDeniedPayload,
   saleFinishedPayload,
   salePageData,

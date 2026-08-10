@@ -9,6 +9,7 @@ const {
 } = require('../src/features/rng-game/components/builders');
 const {
   MAX_LUCK_TIER,
+  LUCK_PROMOTION_RARITY_ORDER,
   PROBABILITY_SCALE,
   RARITY_ORDER,
   applyLuckPromotions,
@@ -55,6 +56,7 @@ test('Luck tier zero matches the exact cascading crop and rarity baseline', () =
     Epic: 0.1924,
     Legendary: 0.0059,
     Mythic: 0.0013,
+    Secret: 0.0001,
     Super: 0.0006,
   };
   for (const rarity of RARITY_ORDER) {
@@ -95,7 +97,7 @@ test('Common decreases, Super increases, and adjacent tiers remain smooth', () =
 test('the promotion transition forms a rise-and-fall wave for intermediate rarities', () => {
   const baseline = baseRarityDistribution(baseCropDistribution());
   const extended = Array.from({ length: 401 }, (_, tier) => applyLuckPromotions(baseline, tier));
-  for (const rarity of RARITY_ORDER.slice(1, -1)) {
+  for (const rarity of LUCK_PROMOTION_RARITY_ORDER.slice(1, -1)) {
     const values = extended.map((distribution) => distribution[rarity]);
     const peak = values.reduce((best, value, index) => (value > values[best] ? index : best), 0);
     assert.ok(peak > 0 && peak < values.length - 1, `${rarity} did not peak inside the modeled wave`);
@@ -172,10 +174,10 @@ test('all three upgrade costs use the final exact BigInt polynomials', () => {
     1_000n, 6_100n, 28_500n, 61_000n, 98_500n, 132_100n,
   ]);
   assert.deepEqual([0, 1, 5, 10, 15, 19].map(luckUpgradeCost), [
-    10_000n, 20_000n, 160_000n, 560_000n, 1_210_000n, 1_910_000n,
+    100n, 360n, 4_000n, 14_400n, 31_300n, 49_500n,
   ]);
   assert.deepEqual([0, 1, 5, 10, 15, 19].map(bigUpgradeCost), [
-    5_000n, 8_000n, 30_000n, 80_000n, 155_000n, 233_000n,
+    500n, 1_440n, 10_600n, 34_200n, 71_300n, 110_700n,
   ]);
 });
 

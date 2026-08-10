@@ -7,6 +7,7 @@ const RARITIES = Object.freeze({
   Epic: Object.freeze({ color: 0xA855F7, emoji: RARITY_EMOJIS.Epic }),
   Legendary: Object.freeze({ color: 0xF59E0B, emoji: RARITY_EMOJIS.Legendary }),
   Mythic: Object.freeze({ color: 0xF43F5E, emoji: RARITY_EMOJIS.Mythic }),
+  Secret: Object.freeze({ color: 0xFACC15, emoji: RARITY_EMOJIS.Secret }),
   Super: Object.freeze({ color: 0x00E5FF, emoji: RARITY_EMOJIS.Super }),
 });
 
@@ -27,12 +28,14 @@ function seed(id, displayName, rarity, numerator, denominator, minimumWeight, ma
     rarityColor: rarityConfig.color,
     rarityEmoji: rarityConfig.emoji,
     fallback: options.fallback === true,
+    secretUntilDiscovered: options.secretUntilDiscovered === true,
   });
 }
 
 // Order is gameplay data: every non-fallback entry is checked in this exact,
 // rarest-first sequence. Chances are individual conditional checks.
 const SEEDS = Object.freeze([
+  seed('eclipse_bloom', 'Eclipse Bloom', 'Secret', 1, 1_000_000, 6.3, 9, 12_600_000, 18_000_000, { secretUntilDiscovered: true }),
   seed('star_fruit', 'Star Fruit', 'Super', 1, 1_000_000, 5, 30, 150_000, 4_000_000),
   seed('dragons_breath', 'Dragon\u2019s Breath', 'Super', 111, 100_000_000, 4, 26, 100_000, 2_500_000),
   seed('hypno_bloom', 'Hypno Bloom', 'Super', 1, 800_000, 3, 22, 75_000, 1_800_000),

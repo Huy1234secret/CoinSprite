@@ -9,9 +9,10 @@ const {
   powerUpgradePayload,
   rollPayload,
   salePayload,
+  statPayload,
   textContainer,
 } = require('../components/builders');
-const { INDEX_MAX_PAGE } = require('../services/indexRenderer');
+const { INDEX_MAX_PAGE, indexDiscoveryCount } = require('../services/indexRenderer');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { evaluateRngGameAccess } = require('../services/accessPolicy');
 
@@ -26,7 +27,7 @@ const PREFIX_COMMANDS = Object.freeze(new Map([
   ['c!upgrade', 'upgrade'],
   ['c!index', 'index'],
 ]));
-const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index']);
+const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat']);
 
 const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('roll').setDescription('Roll a seed crop.'),
@@ -36,6 +37,7 @@ const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('auto-roll').setDescription('Buy and start a scheduled Auto Roll job.'),
   new SlashCommandBuilder().setName('upgrade').setDescription('View and purchase Luck or BIG crop upgrades.'),
   new SlashCommandBuilder().setName('index').setDescription('View your discovered crop Index.'),
+  new SlashCommandBuilder().setName('stat').setDescription('View your all-time RNG rolling statistics.'),
 ].map((data) => ({ data }));
 
 function lockedPayload(options = {}) {
@@ -102,7 +104,10 @@ function createCommandHandlers(context) {
   }
 
   async function executeRoll(source, access, options = {}) {
-    const result = gameService.roll(source.user.id, { bypassCooldown: access.bypassCooldown });
+    const result = gameService.roll(source.user.id, {
+      bypassCooldown: access.bypassCooldown,
+      source: options.rollSource || 'manual',
+    });
     if (result.status !== 'ok') {
       await source.reply(rollErrorPayload(result, { ephemeral: options.ephemeral }));
       return;
@@ -157,6 +162,10 @@ function createCommandHandlers(context) {
     await source.reply(balancePayload(source.user, gameService.balance(source.user.id)));
   }
 
+  async function executeStat(source) {
+    await source.reply(statPayload(source.user, gameService.statistics(source.user.id)));
+  }
+
   async function executeAutoRoll(source, options = {}) {
     const active = autoRollService.active(source.user.id);
     if (active) {
@@ -180,7 +189,14 @@ function createCommandHandlers(context) {
       await source.reply(textContainer('Loading your crop Index…'));
       const discoveries = repository.discoveries(source.user.id);
       const image = await indexRenderer.render(source.user.id, discoveries.map((entry) => entry.seedId), view.page);
-      await source.editReply(indexPayload(source.user.id, discoveries.length, view, image, { initial: false }));
+      await source.editReply(indexPayload(
+        source.user.id,
+        indexDiscoveryCount(discoveries.map((entry) => entry.seedId)),
+        view,
+        image,
+        { initial: false },
+      ));
+      view.editOriginal = (payload) => source.editReply?.(payload);
     } catch (error) {
       indexViews.delete(view.id);
       await source.editReply?.(errorPayload('Index unavailable\nThe crop page could not be rendered right now.', { initial: false })).catch?.(() => null);
@@ -196,6 +212,7 @@ function createCommandHandlers(context) {
     if (commandName === 'auto-roll') return executeAutoRoll(source, options);
     if (commandName === 'upgrade') return executeUpgrade(source);
     if (commandName === 'index') return executeIndex(source);
+    if (commandName === 'stat') return executeStat(source);
     return undefined;
   }
 
@@ -207,7 +224,7 @@ function createCommandHandlers(context) {
     }
     const access = await requireAccess(interaction, { ephemeral: true });
     if (!access) return true;
-    await execute(interaction.commandName, interaction, access, { ephemeral: true });
+    await execute(interaction.commandName, interaction, access, { ephemeral: true, rollSource: 'slash' });
     return true;
   }
 
@@ -223,7 +240,7 @@ function createCommandHandlers(context) {
     }
     const access = await requireAccess(source);
     if (!access) return true;
-    await execute(commandName, source, access);
+    await execute(commandName, source, access, { rollSource: 'prefix' });
     return true;
   }
 

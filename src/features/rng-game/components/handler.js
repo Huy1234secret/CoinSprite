@@ -25,6 +25,7 @@ const {
   sellFilterModal,
 } = require('../modals/builders');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
+const { indexDiscoveryCount } = require('../services/indexRenderer');
 
 const NORMALIZED_SEEDS = new Map(SEEDS.map((seed) => [normalizeCropName(seed.displayName), seed]));
 
@@ -361,7 +362,13 @@ function createComponentHandler(context) {
       const discoveries = repository.discoveries(view.ownerId);
       try {
         const image = await indexRenderer.render(view.ownerId, discoveries.map((entry) => entry.seedId), view.page);
-        await interaction.editReply(indexPayload(view.ownerId, discoveries.length, view, image, { initial: false }));
+        await interaction.editReply(indexPayload(
+          view.ownerId,
+          indexDiscoveryCount(discoveries.map((entry) => entry.seedId)),
+          view,
+          image,
+          { initial: false },
+        ));
       } catch {
         await interaction.editReply(errorPayload('Index unavailable\nThe requested crop page could not be rendered.', { initial: false })).catch(() => null);
       }

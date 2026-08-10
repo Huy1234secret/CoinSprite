@@ -1,4 +1,5 @@
 const { cascadingRoll } = require('./rngService');
+const { emitSuccessfulRoll } = require('./rollEvent');
 
 const ROLL_COOLDOWN_MS = 5_000;
 const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
@@ -37,6 +38,7 @@ class RngGameService {
     this.clock = options.clock || Date.now;
     this.cooldownMs = options.cooldownMs || ROLL_COOLDOWN_MS;
     this.onDiscovery = options.onDiscovery || (() => {});
+    this.onSuccessfulRoll = options.onSuccessfulRoll || (() => {});
   }
 
   roll(userId, options = {}) {
@@ -54,6 +56,7 @@ class RngGameService {
       isLocked: () => this.saleSessions.has(id) || Boolean(this.repository.activeAutoRoll(id)),
     });
     if (result.discoveredNew) this.onDiscovery(id, result.seed.id);
+    emitSuccessfulRoll(this.onSuccessfulRoll, id, result, options.source || 'manual');
     return result;
   }
 
@@ -63,6 +66,10 @@ class RngGameService {
 
   balance(userId) {
     return this.repository.getPlayer(String(userId), this.clock()).balance;
+  }
+
+  statistics(userId) {
+    return this.repository.statistics(String(userId), this.clock());
   }
 
   sell(userId, itemIds, sessionId) {
