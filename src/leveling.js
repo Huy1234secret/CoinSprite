@@ -667,7 +667,10 @@ async function loadLocalCardImage(url, userId) {
   }
   const cached = levelCardAssetCache.get(safe);
   if (cached?.fingerprint === fingerprint) return cached.loading;
-  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch(() => null);
+  const loading = Promise.resolve().then(() => loadImage(fs.readFileSync(filePath))).catch((error) => {
+    console.error(`[LevelCard] Failed to load image ${url}:`, error?.message || error);
+    return null;
+  });
   const entry = { fingerprint, loading };
   levelCardAssetCache.set(safe, entry);
   if (levelCardAssetCache.size > 200) levelCardAssetCache.delete(levelCardAssetCache.keys().next().value);
@@ -927,12 +930,12 @@ async function renderLevelCard(user, stats, inputDesign = getLevelCardDesign(use
   context.save();
   roundedRect(context, 0, 0, 1000, 320, 30);
   context.clip();
-  console.log("Loading background:", design.background.imageUrl);
   const background = await loadLocalCardImage(design.background.imageUrl, userId);
-  console.log("Background loaded?", !!background);
+  if (!background && design.background.imageUrl) {
+    console.warn(`[LevelCard] Background not loaded for user ${userId}: ${design.background.imageUrl}`);
+  }
   if (background) drawCover(context, background, 0, 0, 1000, 320, design.background.x, design.background.y, design.background.scale);
   context.restore();
-  console.log("Panel Opacity:", design.panelOpacity);
   context.globalAlpha = design.panelOpacity;
   context.fillStyle = design.colors.surface;
   roundedRect(context, 28, 28, 944, 264, 24);

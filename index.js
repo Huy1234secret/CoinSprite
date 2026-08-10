@@ -17,6 +17,7 @@ const {
   isGuildEnabled,
 } = require('./src/serverConfig');
 const { startAdminServer } = require('./src/adminServer');
+const { requireSchedulerRole } = require('./src/runtimeRole');
 const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
@@ -95,7 +96,12 @@ client.once(Events.ClientReady, async () => {
 
   startAdminServer(client);
   await startGag2UpdateAnnouncement(client);
-  await startGag2StockPoster(client);
+  if (schedulerEnabled) {
+    await startGag2StockPoster(client);
+    console.info(`GAG2 stock poster started (role=${runtimeRole}).`);
+  } else {
+    console.info(`GAG2 stock poster disabled (role=${runtimeRole}).`);
+  }
 });
 
 client.on(Events.GuildCreate, async (guild) => {
@@ -132,6 +138,9 @@ client.on(Events.MessageCreate, (message) => {
     logCommandSystem(`Leveling message handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);
   });
 });
+
+const { role: runtimeRole, schedulerEnabled } = requireSchedulerRole();
+console.info(`CoinSprite runtime role=${runtimeRole} schedulerEnabled=${schedulerEnabled} pid=${process.pid}`);
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
