@@ -17,7 +17,7 @@ function exponentialUpgradeCost(base, growthNumerator, growthDenominator, tier) 
 }
 
 function luckUpgradeCost(tier) {
-  return exponentialUpgradeCost(500, 20, 10, tier);
+  return exponentialUpgradeCost(500, 18, 10, tier);
 }
 
 function bigUpgradeCost(tier) {
