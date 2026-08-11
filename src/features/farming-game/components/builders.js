@@ -14,6 +14,7 @@ const {
 } = require('../../shared/components');
 const { componentEmoji } = require('../../shared/emojis');
 const { inventoryPageData } = require('../utils/inventory');
+const { formatCarrotWeight } = require('../utils/crops');
 
 const FARMING_CURRENCY_EMOJI = '🪙';
 const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
@@ -110,7 +111,22 @@ function inventoryTypeRow(view) {
   };
 }
 
-function farmingInventoryFields(stacks) {
+function farmingInventoryFields(crops) {
+  const fields = [];
+  (crops || []).forEach((crop, index) => {
+    const item = crop.item || getItem(crop.cropId);
+    if (!item) return;
+    fields.push({
+      name: `${item.emoji} ${item.name}`.slice(0, 256),
+      value: `-# ${formatCarrotWeight(crop.weightUnits)} kg - ${item.rarityEmoji || ''}`.slice(0, 1_024),
+      inline: true,
+    });
+    if ((index + 1) % 2 === 0) fields.push({ name: '\u200b', value: '\u200b', inline: true });
+  });
+  return fields;
+}
+
+function farmingStackFields(stacks) {
   return (stacks || []).map((stack) => {
     const item = stack.item || getItem(stack.itemId);
     if (!item) return null;
@@ -123,10 +139,12 @@ function farmingInventoryFields(stacks) {
   }).filter(Boolean);
 }
 
-function myInventoryPayload(user, farmingStacks, view, options = {}) {
-  const page = inventoryPageData(farmingStacks, view);
+function myInventoryPayload(user, farmingInventory, view, options = {}) {
+  const page = inventoryPageData(farmingInventory, view);
   const label = page.category === 'crops' ? 'Crops' : 'Other';
-  const fields = farmingInventoryFields(page.pageItems);
+  const fields = page.category === 'crops'
+    ? farmingInventoryFields(page.pageItems)
+    : farmingStackFields(page.pageItems);
   if (!fields.length) {
     fields.push({
       name: page.category === 'crops' ? 'No crops found' : 'No items found',
@@ -161,8 +179,8 @@ function myInventoryPayload(user, farmingStacks, view, options = {}) {
   };
 }
 
-function inventoryPageCount(farmingStacks, view) {
-  return inventoryPageData(farmingStacks, view).maxPage;
+function inventoryPageCount(farmingInventory, view) {
+  return inventoryPageData(farmingInventory, view).maxPage;
 }
 
 function successPayload(content, options = {}) {
@@ -177,6 +195,7 @@ module.exports = {
   farmPayload,
   farmStatusText,
   farmingInventoryFields,
+  farmingStackFields,
   inventoryPageCount,
   inventoryTypeRow,
   myInventoryPayload,

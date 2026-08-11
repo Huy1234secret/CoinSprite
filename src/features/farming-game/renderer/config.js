@@ -33,7 +33,15 @@ const ANCHOR_MARGIN_TOP = 78;
 const ANCHOR_MARGIN_BOTTOM = 16;
 const ANCHOR_MINIMUM_SEPARATION = 38;
 const ANCHOR_RETRY_LIMIT = 80;
-const STAGE_RENDER_HEIGHTS = Object.freeze([28, 34, 40, 48, 56, 64, FINAL_SPRITE_HEIGHT]);
+const STAGE_TARGET_VISIBLE_AREAS = Object.freeze([
+  700,
+  1_100,
+  2_200,
+  3_000,
+  4_200,
+  5_600,
+  7_200,
+]);
 
 function anchorBounds(plotNumber) {
   const plot = PLOT_BY_NUMBER[Number(plotNumber)];
@@ -57,6 +65,6 @@ module.exports = {
   FINAL_SPRITE_WIDTH,
   PLOT_BY_NUMBER,
   PLOT_RECTS,
-  STAGE_RENDER_HEIGHTS,
+  STAGE_TARGET_VISIBLE_AREAS,
   anchorBounds,
 };

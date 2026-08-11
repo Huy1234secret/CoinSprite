@@ -4,7 +4,6 @@ const { FarmingGameRepository } = require('./repositories/farmingRepository');
 const { migrateFarmingGame, openFarmingDatabase } = require('./repositories/database');
 const { FarmRenderer } = require('./renderer/farmRenderer');
 const { FarmingGameService } = require('./services/farmingService');
-const { FarmViewRefreshScheduler } = require('./services/refreshScheduler');
 const { FarmingViewStore } = require('./services/sessionStore');
 
 function createFarmingGameFeature(options = {}) {
@@ -20,19 +19,12 @@ function createFarmingGameFeature(options = {}) {
     repository,
     clock,
     rng: options.rng,
+    idGenerator: options.idGenerator,
     anchorGenerator: options.anchorGenerator,
   });
   const farmRenderer = options.farmRenderer || new FarmRenderer(options.rendererOptions);
   const farmViews = options.farmViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
-  const refreshScheduler = options.refreshScheduler || new FarmViewRefreshScheduler({
-    clock,
-    farmingService,
-    farmRenderer,
-    farmViews,
-    setTimer: options.setTimer,
-    clearTimer: options.clearTimer,
-  });
   const context = {
     db,
     farmingService,
@@ -40,7 +32,6 @@ function createFarmingGameFeature(options = {}) {
     farmViews,
     getGuildPolicy: options.getGuildPolicy,
     inventoryViews,
-    refreshScheduler,
     repository,
   };
   const commands = createFarmingCommandHandlers(context);
@@ -54,7 +45,6 @@ function createFarmingGameFeature(options = {}) {
       return handleComponent(interaction);
     },
     close() {
-      refreshScheduler.clear?.();
       farmRenderer.clear?.();
       farmViews.clear();
       inventoryViews.clear();

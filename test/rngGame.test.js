@@ -307,12 +307,18 @@ test('inventory pagination and AND filters are stable', () => {
 });
 
 test('inventory fields intentionally insert a desktop spacer after every two crops', () => {
-  const fields = inventoryCropFields([item(1), item(2), item(3), item(4)]);
+  const crops = [item(1), item(2), item(3), item(4)];
+  crops[0].isBig = true;
+  const fields = inventoryCropFields(crops);
   assert.equal(fields.length, 6);
   assert.deepEqual([fields[2].name, fields[5].name], ['\u200b', '\u200b']);
   assert.ok(fields.every((field) => field.inline));
-  assert.ok(fields[0].value.includes(RARITY_EMOJIS.Common));
-  assert.doesNotMatch(fields[0].value, /\bCommon\b/);
+  assert.deepEqual(fields[0], {
+    name: `${SEEDS.at(-1).emoji} Carrot`,
+    value: `-# 0.10 kg - ${RARITY_EMOJIS.Common}`,
+    inline: true,
+  });
+  assert.doesNotMatch(JSON.stringify(fields), /\bBIG\b|quantity|unit value|Type:|\bCommon\b/i);
 });
 
 test('rarity registry uses the configured custom Discord badges', () => {

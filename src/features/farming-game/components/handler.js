@@ -65,7 +65,6 @@ function createFarmingComponentHandler(context) {
     farmRenderer,
     farmViews,
     inventoryViews,
-    refreshScheduler,
   } = context;
 
   function inventoryStacks(ownerId) {
@@ -74,9 +73,10 @@ function createFarmingComponentHandler(context) {
 
   async function rebuildFarm(interaction, view) {
     const state = farmingService.farmState(view.ownerId);
-    const image = await farmRenderer.render(state);
+    const image = await farmRenderer.render(state, {
+      selectedPlotNumbers: [...view.selectedPlots],
+    });
     await interaction.editReply(farmPayload(view.ownerId, state, view, image, { initial: false }));
-    refreshScheduler?.schedule?.(view);
     return state;
   }
 
@@ -123,7 +123,7 @@ function createFarmingComponentHandler(context) {
         return true;
       }
       if (selectedAction === 'plant') {
-        const seedStacks = farmingService.inventory(view.ownerId).filter((stack) => (
+        const seedStacks = farmingService.inventory(view.ownerId).stacks.filter((stack) => (
           stack.quantity > 0n && stack.item?.itemTypes.includes('seed') && stack.item?.plantableCropId
         ));
         if (!seedStacks.length) {

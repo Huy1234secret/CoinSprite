@@ -4,8 +4,10 @@ const {
   FARM_BASE_IMAGE_PATH,
   FARM_CANVAS_HEIGHT,
   FARM_CANVAS_WIDTH,
-  STAGE_RENDER_HEIGHTS,
+  PLOT_BY_NUMBER,
+  STAGE_TARGET_VISIBLE_AREAS,
 } = require('./config');
+const { carrotWeightScale } = require('../utils/crops');
 
 function alphaBounds(context, width, height) {
   const pixels = context.getImageData(0, 0, width, height).data;
@@ -50,14 +52,54 @@ async function loadTrimmedImage(source, imageLoader = loadImage) {
   return canvas;
 }
 
-function renderKey(state) {
-  return JSON.stringify((state?.plots || []).map((plot) => [
-    plot.plotNumber,
-    plot.cropId,
-    plot.plantedAt,
-    plot.stage,
-    plot.anchors,
-  ]));
+function normalizeSelectedPlotNumbers(values) {
+  return [...new Set((values || []).map(Number).filter((number) => (
+    Number.isInteger(number) && number >= 1 && number <= 9
+  )))].sort((left, right) => left - right);
+}
+
+function renderKey(state, options = {}) {
+  return JSON.stringify({
+    plots: (state?.plots || []).map((plot) => [
+      plot.plotNumber,
+      plot.cropId,
+      plot.plantedAt,
+      plot.stage,
+      (plot.cropInstances || []).map((crop) => [crop.id, crop.weightUnits, crop.anchorX, crop.anchorY]),
+      plot.cropInstances ? undefined : plot.anchors,
+    ]),
+    selectedPlotNumbers: normalizeSelectedPlotNumbers(options.selectedPlotNumbers),
+  });
+}
+
+function stageRenderDimensions(sprite, stage, weightUnits) {
+  const normalizedStage = Math.max(0, Math.min(6, Math.floor(Number(stage) || 0)));
+  const targetArea = STAGE_TARGET_VISIBLE_AREAS[normalizedStage];
+  const aspectRatio = sprite.width / sprite.height;
+  const baseHeight = Math.sqrt(targetArea / aspectRatio);
+  const baseWidth = baseHeight * aspectRatio;
+  const scale = normalizedStage === 0 ? 1 : carrotWeightScale(weightUnits);
+  return {
+    width: Math.max(1, Math.round(baseWidth * scale)),
+    height: Math.max(1, Math.round(baseHeight * scale)),
+    scale,
+  };
+}
+
+function safeDrawRect(plot, anchor, width, height) {
+  const inset = 6;
+  const minimumX = plot.x + inset;
+  const maximumX = plot.x + plot.width - inset - width;
+  const minimumY = plot.y + inset;
+  const maximumY = plot.y + plot.height - inset - height;
+  const desiredX = Math.round(anchor.x - (width / 2));
+  const desiredY = Math.round(anchor.y - height);
+  return {
+    x: Math.max(minimumX, Math.min(maximumX, desiredX)),
+    y: Math.max(minimumY, Math.min(maximumY, desiredY)),
+    width,
+    height,
+  };
 }
 
 class FarmRenderer {
@@ -68,7 +110,7 @@ class FarmRenderer {
     this.baseImagePromise = null;
     this.spritePromises = new Map();
     this.renderCache = new Map();
-    this.maximumCacheEntries = options.maximumCacheEntries || 50;
+    this.maximumCacheEntries = options.maximumCacheEntries || 12;
   }
 
   baseImage() {
@@ -84,8 +126,8 @@ class FarmRenderer {
     return this.spritePromises.get(normalized);
   }
 
-  async render(state) {
-    const key = renderKey(state);
+  async render(state, options = {}) {
+    const key = renderKey(state, options);
     const cached = this.renderCache.get(key);
     if (cached) return cached;
     const canvas = createCanvas(FARM_CANVAS_WIDTH, FARM_CANVAS_HEIGHT);
@@ -96,12 +138,40 @@ class FarmRenderer {
       if (!plot.occupied || plot.cropId !== 'carrot' || !Array.isArray(plot.anchors)) continue;
       const stage = Math.max(0, Math.min(6, Number(plot.stage) || 0));
       const sprite = await this.stageSprite(stage);
-      const height = STAGE_RENDER_HEIGHTS[stage];
-      const width = Math.max(1, Math.round((sprite.width / sprite.height) * height));
-      const anchors = [...plot.anchors].sort((left, right) => left.y - right.y || left.x - right.x);
-      for (const anchor of anchors) {
-        context.drawImage(sprite, Math.round(anchor.x - (width / 2)), Math.round(anchor.y - height), width, height);
+      const plotRect = PLOT_BY_NUMBER[plot.plotNumber];
+      if (!plotRect) continue;
+      const crops = Array.isArray(plot.cropInstances) && plot.cropInstances.length
+        ? plot.cropInstances.map((crop) => ({
+          id: crop.id,
+          weightUnits: crop.weightUnits,
+          anchor: crop.anchor || { x: crop.anchorX, y: crop.anchorY },
+        }))
+        : plot.anchors.map((anchor, index) => ({ id: String(index), weightUnits: 50, anchor }));
+      crops.sort((left, right) => (
+        left.anchor.y - right.anchor.y || left.anchor.x - right.anchor.x || left.id.localeCompare(right.id)
+      ));
+      for (const crop of crops) {
+        const dimensions = stageRenderDimensions(sprite, stage, crop.weightUnits);
+        const draw = safeDrawRect(plotRect, crop.anchor, dimensions.width, dimensions.height);
+        context.drawImage(sprite, draw.x, draw.y, draw.width, draw.height);
       }
+    }
+    const selected = new Set(normalizeSelectedPlotNumbers(options.selectedPlotNumbers));
+    for (const plot of state?.plots || []) {
+      if (!selected.has(Number(plot.plotNumber))) continue;
+      const plotRect = PLOT_BY_NUMBER[plot.plotNumber];
+      if (!plotRect) continue;
+      context.save();
+      context.strokeStyle = '#FFFFFF';
+      context.lineWidth = 4;
+      context.setLineDash([14, 10]);
+      context.strokeRect(
+        plotRect.x + 6,
+        plotRect.y + 6,
+        plotRect.width - 12,
+        plotRect.height - 12,
+      );
+      context.restore();
     }
     const buffer = canvas.toBuffer('image/png');
     if (this.renderCache.size >= this.maximumCacheEntries) {
@@ -118,4 +188,12 @@ class FarmRenderer {
   }
 }
 
-module.exports = { FarmRenderer, alphaBounds, loadTrimmedImage, renderKey };
+module.exports = {
+  FarmRenderer,
+  alphaBounds,
+  loadTrimmedImage,
+  normalizeSelectedPlotNumbers,
+  renderKey,
+  safeDrawRect,
+  stageRenderDimensions,
+};
