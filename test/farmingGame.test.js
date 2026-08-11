@@ -35,6 +35,7 @@ const {
 } = require('../src/features/farming-game/renderer/farmRenderer');
 const {
   FarmingIndexRenderer,
+  INDEX_ARTWORK_INSET,
   INDEX_BACKGROUND_PATH,
   INDEX_CANVAS_HEIGHT,
   INDEX_CANVAS_WIDTH,
@@ -43,6 +44,8 @@ const {
   INDEX_ROW_WIDTH,
   INDEX_ROW_X,
   INDEX_ROW_Y,
+  fitText,
+  insetBox,
   rowValues,
 } = require('../src/features/farming-game/renderer/indexRenderer');
 const { FarmingGameService } = require('../src/features/farming-game/services/farmingService');
@@ -1186,7 +1189,7 @@ test('Farming Index catalog lookup is trimmed and case-insensitive and zero-user
   });
   const values = rowValues(entry);
   assert.deepEqual(values.seed.map((value) => value.split(':')[0]), ['Name', 'Rarity', 'Value', 'Grow Time', 'Your Total Planted']);
-  assert.deepEqual(values.crop.map((value) => value.split(':')[0]), ['Name', 'Rarity', 'Approx Value', 'Highest Weight', 'Total Harvested']);
+  assert.deepEqual(values.crop.map((value) => value.split(':')[0]), ['Name', 'Rarity', '~Value', 'Your Highest Weight', 'Total Harvested']);
   assert.match(values.seed[2], /CR Coin/);
   assert.doesNotMatch(JSON.stringify(values), /<:CRcoin:/);
   game.close();
@@ -1214,10 +1217,17 @@ test('Farming Index statistics survive sale and renderer uses the exact supplied
     seed: { x: 280, y: 190, width: 428, height: 304 },
     crop: { x: 966, y: 190, width: 428, height: 304 },
   });
+  assert.equal(INDEX_ARTWORK_INSET, 20);
+  assert.deepEqual(insetBox(INDEX_IMAGE_BOXES.seed), { x: 300, y: 210, width: 388, height: 264 });
+  assert.deepEqual(insetBox(INDEX_IMAGE_BOXES.crop), { x: 986, y: 210, width: 388, height: 264 });
   assert.deepEqual(INDEX_ROW_Y, [512, 572, 632, 692, 752]);
   assert.deepEqual(INDEX_ROW_X, { seed: 280, crop: 966 });
   assert.equal(INDEX_ROW_WIDTH, 428);
   assert.equal(INDEX_ROW_HEIGHT, 50);
+  const textContext = createCanvas(428, 50).getContext('2d');
+  const fitted = fitText(textContext, 'Your Highest Weight: 0.80 kg', 384);
+  assert.ok(fitted.size >= 14 && fitted.size <= 26);
+  assert.ok(textContext.measureText(fitted.text).width <= 384);
   const renderer = new FarmingIndexRenderer();
   const image = await renderer.render(afterSale);
   assert.deepEqual([...image.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
