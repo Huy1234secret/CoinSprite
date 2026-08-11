@@ -65,7 +65,9 @@ The dashboard lets Discord administrators configure unlocked features:
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 - multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
-The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, and `/index`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, and `c!index`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
+The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, and `/calculate-chance`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, and `c!calculate chance`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
+
+Signed-in players can also open `/chances` to compare every visible crop's base roll probability with the probability adjusted for their current Luck tier. Undiscovered crops remain masked, and Secret crops are excluded from the page and API response.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 

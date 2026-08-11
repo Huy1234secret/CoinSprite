@@ -129,6 +129,24 @@ function statPayload(user, statistics, options = {}) {
   }], options);
 }
 
+function chanceComparisonPayload(user, profile, pageUrl, options = {}) {
+  return v2Payload([{
+    type: 17,
+    accent_color: 0xB9F547,
+    components: [
+      {
+        type: 10,
+        content: `### <@${user.id}>'s Crop Chances\n`
+          + `- Luck Tier: **${profile.luckTier}**\n`
+          + `- Discovered: **${profile.discoveredCount} / ${profile.visibleTotal}** visible crops\n\n`
+          + '-# Compare each crop\'s true Tier 0 roll chance with your current Luck-adjusted chance.',
+      },
+      { type: 14, divider: true, spacing: 1 },
+      { type: 1, components: [{ type: 2, style: 5, label: 'Open Crop Chances', url: pageUrl }] },
+    ],
+  }], options);
+}
+
 function inventoryCropFields(items) {
   const fields = [];
   (items || []).forEach((item, index) => {
@@ -441,6 +459,7 @@ module.exports = {
   INVENTORY_PAGE_SIZE,
   SELL_PAGE_SIZE,
   balancePayload,
+  chanceComparisonPayload,
   autoRollEndedPayload,
   autoRollPreviewPayload,
   autoRollStartedPayload,

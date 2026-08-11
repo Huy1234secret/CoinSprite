@@ -16,6 +16,8 @@ const {
 const { logCommandSystem } = require('./commandLogger');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
+const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
+const { STUDS_TEXTURE_PATH } = require('./features/rng-game/services/indexRenderer');
 const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
   handleOwnerConsole,
@@ -60,6 +62,9 @@ const LEVELING_MEDIA_TYPES = Object.freeze({
 const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
+  ['/admin/chances.html', ['chances.html', 'text/html; charset=utf-8']],
+  ['/admin/chances.js', ['chances.js', 'application/javascript; charset=utf-8']],
+  ['/admin/chances.css', ['chances.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
@@ -405,6 +410,17 @@ function serveAdminFont(res, pathname, requestedVersion = '') {
   });
 }
 
+function serveStudsTexture(res) {
+  try {
+    return send(res, 200, fs.readFileSync(STUDS_TEXTURE_PATH), {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=3600',
+    });
+  } catch {
+    return send(res, 404, 'Not found');
+  }
+}
+
 function redirectBotAvatar(res, client) {
   const url = client.user?.displayAvatarURL?.({ extension: 'png', size: 128 });
   if (!url) return send(res, 404, 'Bot avatar unavailable');
@@ -576,9 +592,15 @@ function publicConfig(config) {
   };
 }
 
-async function handleAuthStart(req, res, env) {
+function safeOAuthReturnTo(value) {
+  const route = String(value || '');
+  return ['/admin', '/profile', '/chances'].includes(route) ? route : '/admin';
+}
+
+async function handleAuthStart(req, res, env, requestUrl) {
   const { session } = getSession(req, res, env);
   session.oauthState = crypto.randomBytes(24).toString('base64url');
+  session.oauthReturnTo = safeOAuthReturnTo(requestUrl?.searchParams?.get('returnTo'));
   saveSessions();
   const url = new URL('https://discord.com/oauth2/authorize');
   url.searchParams.set('response_type', 'code');
@@ -602,27 +624,31 @@ async function handleAuthCallback(req, res, env, url) {
     session.oauthState = null;
     session.csrfToken = crypto.randomBytes(24).toString('base64url');
     session.expiresAt = Date.now() + SESSION_TTL_MS;
+    const returnTo = safeOAuthReturnTo(session.oauthReturnTo);
+    session.oauthReturnTo = null;
     saveSessions();
     setSessionCookie(res, id, env);
-    return redirect(res, '/admin');
+    return redirect(res, returnTo);
   } catch (error) {
     logCommandSystem(`Admin OAuth callback failed: ${error?.message || 'unknown error'}`);
     return send(res, 502, 'Discord login failed.');
   }
 }
 
-async function routeRequest(req, res, env, client) {
+async function routeRequest(req, res, env, client, services = {}) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
+  if (req.method === 'GET' && (pathname === '/chances' || pathname === '/chances/')) return serveAsset(res, '/admin/chances.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
+  if (req.method === 'GET' && pathname === '/assets/rng/studs-texture.png') return serveStudsTexture(res);
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite-gag-stock' });
-  if (req.method === 'GET' && pathname === '/auth/discord') return handleAuthStart(req, res, env);
+  if (req.method === 'GET' && pathname === '/auth/discord') return handleAuthStart(req, res, env, url);
   if (req.method === 'GET' && pathname === '/auth/discord/callback') return handleAuthCallback(req, res, env, url);
 
   if (req.method === 'POST' && pathname === '/auth/logout') {
@@ -643,6 +669,14 @@ async function routeRequest(req, res, env, client) {
       csrfToken: session.csrfToken,
       guilds: await accessibleGuilds(client, session),
     });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/profile/crop-chances') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session) return;
+    const repository = services.rngGame?.repository || services.rngRepository;
+    if (!repository) return sendJson(res, 503, { error: 'Crop chances are temporarily unavailable.' });
+    return sendJson(res, 200, cropChanceProfile(repository, session.user.id));
   }
 
   if (req.method === 'GET' && pathname === '/api/owner/overview') {
@@ -881,10 +915,10 @@ async function routeRequest(req, res, env, client) {
   return sendJson(res, 404, { error: 'Not found.' });
 }
 
-function createAdminRequestHandler(env, client) {
+function createAdminRequestHandler(env, client, services = {}) {
   loadSessions();
   return (req, res) => {
-    routeRequest(req, res, env, client).catch((error) => {
+    routeRequest(req, res, env, client, services).catch((error) => {
       const status = error?.statusCode || 500;
       logCommandSystem(`Admin request failed: ${error?.message || 'unknown error'}`);
       sendJson(res, status, { error: status === 500 ? 'Internal server error.' : error.message });
@@ -892,7 +926,7 @@ function createAdminRequestHandler(env, client) {
   };
 }
 
-function startAdminServer(client) {
+function startAdminServer(client, services = {}) {
   if (serverRef) return serverRef;
   const env = getEnv();
   if (!env.clientId || !env.clientSecret || !env.redirectUri || !env.sessionSecret) {
@@ -902,7 +936,7 @@ function startAdminServer(client) {
 
   loadSessions();
   saveSessions();
-  serverRef = http.createServer(createAdminRequestHandler(env, client));
+  serverRef = http.createServer(createAdminRequestHandler(env, client, services));
   serverRef.requestTimeout = 15_000;
   serverRef.headersTimeout = 20_000;
   serverRef.listen(env.port, env.host, () => {
@@ -912,4 +946,11 @@ function startAdminServer(client) {
   return serverRef;
 }
 
-module.exports = { createAdminRequestHandler, decodeLevelingMedia, levelCardRendererHeaders, startAdminServer };
+module.exports = {
+  createAdminRequestHandler,
+  decodeLevelingMedia,
+  levelCardRendererHeaders,
+  routeRequest,
+  safeOAuthReturnTo,
+  startAdminServer,
+};

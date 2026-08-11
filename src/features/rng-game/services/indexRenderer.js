@@ -243,13 +243,14 @@ class CropIndexRenderer {
     context.fillRect(0, 0, width, height);
 
     const studs = await this.cachedImage('studs', this.studsPath);
+    let studsTile = null;
     if (studs) {
-      const tile = this.studsTileFor(studs);
+      studsTile = this.studsTileFor(studs);
       context.save();
       context.globalAlpha = 0.035;
       for (let x = -STUDS_TILE_SIZE / 2; x < width; x += STUDS_TILE_SIZE) {
         for (let y = -STUDS_TILE_SIZE / 2; y < height; y += STUDS_TILE_SIZE) {
-          context.drawImage(tile, x, y);
+          context.drawImage(studsTile, x, y);
         }
       }
       context.restore();
@@ -266,9 +267,24 @@ class CropIndexRenderer {
       const row = Math.floor(index / INDEX_COLUMNS);
       const x = INDEX_PADDING_X + (column * (cardWidth + INDEX_CARD_GAP));
       const y = INDEX_PADDING_Y + (row * (cardHeight + INDEX_CARD_GAP));
-      context.fillStyle = 'rgba(18, 22, 29, 0.96)';
+      context.fillStyle = '#12161D';
       roundedRect(context, x, y, cardWidth, cardHeight, INDEX_CARD_RADIUS);
       context.fill();
+      if (studsTile) {
+        context.save();
+        roundedRect(context, x, y, cardWidth, cardHeight, INDEX_CARD_RADIUS);
+        context.clip();
+        context.beginPath();
+        context.rect(x, y, cardWidth, 268);
+        context.clip();
+        context.globalAlpha = 0.035;
+        for (let tileX = -STUDS_TILE_SIZE / 2; tileX < width; tileX += STUDS_TILE_SIZE) {
+          for (let tileY = -STUDS_TILE_SIZE / 2; tileY < height; tileY += STUDS_TILE_SIZE) {
+            context.drawImage(studsTile, tileX, tileY);
+          }
+        }
+        context.restore();
+      }
       if (model.seed.rarity === 'Super') {
         context.drawImage(this.rainbowBorderFor(cardWidth, cardHeight), x, y);
       } else {

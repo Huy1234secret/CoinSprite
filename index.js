@@ -51,7 +51,10 @@ function getRngGuildPolicy(guildId) {
   };
 }
 
-const rngGame = createRngGameFeature({ getGuildPolicy: getRngGuildPolicy });
+const rngGame = createRngGameFeature({
+  getGuildPolicy: getRngGuildPolicy,
+  chancePageUrl: `${dashboardBaseUrl()}/chances`,
+});
 
 function dashboardBaseUrl() {
   const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
@@ -116,7 +119,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     }
   },
   async panel() {
-    startAdminServer(client);
+    startAdminServer(client, { rngGame });
   },
 });
 

@@ -3,6 +3,7 @@ const {
   autoRollStatusPayload,
   autoRollSubmitPayload,
   balancePayload,
+  chanceComparisonPayload,
   errorPayload,
   indexPayload,
   inventoryPayload,
@@ -13,6 +14,7 @@ const {
   textContainer,
 } = require('../components/builders');
 const { INDEX_MAX_PAGE, indexDiscoveryCount } = require('../services/indexRenderer');
+const { cropChanceProfile } = require('../services/chanceService');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { evaluateRngGameAccess } = require('../services/accessPolicy');
 
@@ -26,8 +28,10 @@ const PREFIX_COMMANDS = Object.freeze(new Map([
   ['c!auto-roll', 'auto-roll'],
   ['c!upgrade', 'upgrade'],
   ['c!index', 'index'],
+  ['c!stat', 'stat'],
+  ['c!calculate chance', 'calculate-chance'],
 ]));
-const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat']);
+const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat', 'calculate-chance']);
 
 const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('roll').setDescription('Roll a seed crop.'),
@@ -38,6 +42,7 @@ const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('upgrade').setDescription('View and purchase Luck or BIG crop upgrades.'),
   new SlashCommandBuilder().setName('index').setDescription('View your discovered crop Index.'),
   new SlashCommandBuilder().setName('stat').setDescription('View your all-time RNG rolling statistics.'),
+  new SlashCommandBuilder().setName('calculate-chance').setDescription('Compare base crop chances with your current Luck tier.'),
 ].map((data) => ({ data }));
 
 function lockedPayload(options = {}) {
@@ -93,6 +98,7 @@ function createCommandHandlers(context) {
     indexViews,
     inventoryViews,
     repository,
+    chancePageUrl,
     saleSessions,
   } = context;
 
@@ -166,6 +172,11 @@ function createCommandHandlers(context) {
     await source.reply(statPayload(source.user, gameService.statistics(source.user.id)));
   }
 
+  async function executeCalculateChance(source, options = {}) {
+    const profile = cropChanceProfile(repository, source.user.id);
+    await source.reply(chanceComparisonPayload(source.user, profile, chancePageUrl, options));
+  }
+
   async function executeAutoRoll(source, options = {}) {
     const active = autoRollService.active(source.user.id);
     if (active) {
@@ -213,6 +224,7 @@ function createCommandHandlers(context) {
     if (commandName === 'upgrade') return executeUpgrade(source);
     if (commandName === 'index') return executeIndex(source);
     if (commandName === 'stat') return executeStat(source);
+    if (commandName === 'calculate-chance') return executeCalculateChance(source, options);
     return undefined;
   }
 
