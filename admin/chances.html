@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a0d0c">
-  <meta name="description" content="Compare your CoinSprite crop chances at your current Luck tier.">
+  <meta name="description" content="Preview CoinSprite crop chances at any positive whole-number Luck multiplier.">
   <title>Crop Chances · CoinSprite</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
   <link rel="stylesheet" href="/admin/style.css">
@@ -42,7 +42,7 @@
     <section class="login-copy">
       <span class="eyebrow">Your RNG profile.</span>
       <h1>Know your <em>chances.</em></h1>
-      <p>Sign in with Discord to compare every visible crop’s base roll chance with your current Luck tier.</p>
+      <p>Sign in with Discord to compare every visible crop’s base roll chance with any preview Luck multiplier.</p>
       <a class="button primary login-button" href="/auth/discord?returnTo=%2Fchances">Continue with Discord <span aria-hidden="true">↗</span></a>
       <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
     </section>
@@ -63,12 +63,26 @@
         <img id="profileAvatar" alt="">
         <div><span class="eyebrow">YOUR RNG PROFILE</span><h1>Your Crop Chances</h1><p id="profileName">CoinSprite member</p></div>
       </div>
-      <div class="luck-card"><span>CURRENT LUCK</span><strong id="luckTier">Tier 0</strong><small id="discoverySummary">Discovered 0/0</small></div>
+      <div class="luck-card"><span>MY LUCK</span><strong id="luckTier">×1</strong><small id="discoverySummary">Discovered 0/0</small></div>
     </header>
 
     <section class="chance-intro" aria-labelledby="chanceIntroTitle">
-      <div><span class="step">01</span><div><h2 id="chanceIntroTitle">Base vs. your Luck</h2><p>Base chance means Luck Tier 0. Your chance uses your current Luck tier and the same probability pipeline as CoinSprite’s roll command.</p></div></div>
+      <div><span class="step">01</span><div><h2 id="chanceIntroTitle">Base vs. preview Luck</h2><p>Base chance means ×1 Luck. Preview chance uses the same authoritative probability pipeline as CoinSprite’s roll command without changing your saved game data.</p></div></div>
       <span class="calculation-badge">Server calculated</span>
+    </section>
+
+    <section class="luck-calculator" id="luckCalculator" aria-labelledby="luckCalculatorTitle">
+      <div class="luck-calculator-copy">
+        <span class="preview-only">Preview only</span>
+        <div><strong id="luckCalculatorTitle">Change Luck</strong><small id="previewStatus" role="status" aria-live="polite">Previewing your saved Luck.</small></div>
+      </div>
+      <div class="luck-controls">
+        <button class="luck-step" id="decreaseLuck" type="button" aria-label="Decrease preview Luck">−</button>
+        <label class="luck-input-wrap" for="luckInput"><span>Luck multiplier</span><b aria-hidden="true">×</b><input id="luckInput" type="text" value="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" aria-describedby="luckError"></label>
+        <button class="luck-step" id="increaseLuck" type="button" aria-label="Increase preview Luck">+</button>
+        <button class="button ghost small use-my-luck" id="useMyLuck" type="button">Use My Luck</button>
+      </div>
+      <span class="luck-error" id="luckError" aria-live="polite"></span>
     </section>
 
     <div class="new-player-note" id="newPlayerNote" hidden>

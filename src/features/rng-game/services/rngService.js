@@ -1,9 +1,13 @@
 const { randomInt } = require('crypto');
 const { CHECKED_SEEDS, FALLBACK_SEED } = require('../data/seeds');
+const {
+  BIG_CROP_CHANCE_DENOMINATOR,
+  BIG_CROP_CHANCE_UNITS_PER_TIER,
+  MAX_BIG_CROP_TIER,
+  MAX_LUCK_TIER,
+} = require('../config/upgrades');
 
 const PROBABILITY_SCALE = 1_000_000_000n;
-const MAX_LUCK_TIER = 20;
-const MAX_BIG_CROP_TIER = 20;
 const LUCK_PROMOTION_RARITY_ORDER = Object.freeze([
   'Common',
   'Uncommon',
@@ -130,27 +134,69 @@ function baseRarityDistribution(cropDistribution = BASE_CROP_DISTRIBUTION) {
   return distribution;
 }
 
-function applyLuckPromotions(distribution, tiers) {
-  let current = { ...distribution };
-  const tier = Math.max(0, Math.floor(Number(tiers) || 0));
-  for (let step = 0; step < tier; step += 1) {
-    const next = { ...current };
-    for (let index = 0; index < LUCK_PROMOTION_RARITY_ORDER.length - 1; index += 1) {
-      const rarity = LUCK_PROMOTION_RARITY_ORDER[index];
-      const nextRarity = LUCK_PROMOTION_RARITY_ORDER[index + 1];
-      const promoted = (current[rarity] * PROMOTION_RATE_UNITS[rarity]) / PROMOTION_RATE_SCALE;
-      next[rarity] -= promoted;
-      next[nextRarity] += promoted;
-    }
-    current = next;
+const BASE_RARITY_DISTRIBUTION = Object.freeze(baseRarityDistribution());
+const PROMOTION_STATES = new WeakMap();
+
+function nextLuckPromotionState(current) {
+  const next = { ...current };
+  for (let index = 0; index < LUCK_PROMOTION_RARITY_ORDER.length - 1; index += 1) {
+    const rarity = LUCK_PROMOTION_RARITY_ORDER[index];
+    const nextRarity = LUCK_PROMOTION_RARITY_ORDER[index + 1];
+    const promoted = (current[rarity] * PROMOTION_RATE_UNITS[rarity]) / PROMOTION_RATE_SCALE;
+    next[rarity] -= promoted;
+    next[nextRarity] += promoted;
   }
-  return Object.freeze(current);
+  return Object.freeze(next);
+}
+
+function promotionStates(distribution) {
+  const cached = PROMOTION_STATES.get(distribution);
+  if (cached) return cached;
+  // The fixed-point model has finitely many monotonic states. Cache them once so
+  // selecting an enormous preview multiplier never does work proportional to its value.
+  const states = [Object.freeze({ ...distribution })];
+  while (true) {
+    const current = states.at(-1);
+    const next = nextLuckPromotionState(current);
+    if (RARITY_ORDER.every((rarity) => next[rarity] === current[rarity])) break;
+    states.push(next);
+  }
+  const result = Object.freeze(states);
+  PROMOTION_STATES.set(distribution, result);
+  return result;
+}
+
+function promotionTier(value) {
+  if (typeof value === 'bigint') return value > 0n ? value : 0n;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return value > 0 ? BigInt(value) : 0n;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
+  return 0n;
+}
+
+function applyLuckPromotions(distribution, tiers) {
+  const states = promotionStates(distribution);
+  const tier = promotionTier(tiers);
+  const finalIndex = BigInt(states.length - 1);
+  return states[Number(tier >= finalIndex ? finalIndex : tier)];
 }
 
 function rarityDistribution(luckTier = 0, options = {}) {
   return applyLuckPromotions(
-    baseRarityDistribution(baseCropDistribution(options)),
+    options.checkedSeeds || options.fallbackSeed
+      ? baseRarityDistribution(baseCropDistribution(options))
+      : BASE_RARITY_DISTRIBUTION,
     normalizedTier(luckTier),
+  );
+}
+
+function previewRarityDistribution(luckMultiplier = 1n, options = {}) {
+  const multiplier = promotionTier(luckMultiplier);
+  if (multiplier < 1n) throw new RangeError('Luck multiplier must be a positive whole number.');
+  return applyLuckPromotions(
+    options.checkedSeeds || options.fallbackSeed
+      ? baseRarityDistribution(baseCropDistribution(options))
+      : BASE_RARITY_DISTRIBUTION,
+    multiplier - 1n,
   );
 }
 
@@ -207,7 +253,10 @@ function effectiveChance(seed) {
 }
 
 function bigChance(tier) {
-  return { numerator: normalizedTier(tier, MAX_BIG_CROP_TIER), denominator: 1_000 };
+  return {
+    numerator: normalizedTier(tier, MAX_BIG_CROP_TIER) * BIG_CROP_CHANCE_UNITS_PER_TIER,
+    denominator: BIG_CROP_CHANCE_DENOMINATOR,
+  };
 }
 
 function generateInstance(seed, rng = secureRandomInt, options = {}) {
@@ -270,6 +319,7 @@ function luckProbabilityReport() {
 
 module.exports = {
   BASE_CROP_DISTRIBUTION,
+  BASE_RARITY_DISTRIBUTION,
   LUCK_PROMOTION_RARITY_ORDER,
   LUCK_PROMOTION_STRENGTH,
   MAX_BIG_CROP_TIER,
@@ -289,6 +339,7 @@ module.exports = {
   fixedPointCropDistribution,
   generateInstance,
   luckProbabilityReport,
+  previewRarityDistribution,
   rarityDistribution,
   secureRandomInt,
   valueForWeight,

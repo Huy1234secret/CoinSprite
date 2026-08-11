@@ -7,9 +7,14 @@
     profileAvatar: $('#profileAvatar'), profileName: $('#profileName'), luckTier: $('#luckTier'),
     discoverySummary: $('#discoverySummary'), newPlayerNote: $('#newPlayerNote'),
     loadingState: $('#loadingState'), errorState: $('#errorState'), errorMessage: $('#errorMessage'),
-    retryButton: $('#retryButton'), cropGrid: $('#cropGrid'),
+    retryButton: $('#retryButton'), cropGrid: $('#cropGrid'), luckCalculator: $('#luckCalculator'),
+    luckInput: $('#luckInput'), decreaseLuck: $('#decreaseLuck'), increaseLuck: $('#increaseLuck'),
+    useMyLuck: $('#useMyLuck'), luckError: $('#luckError'), previewStatus: $('#previewStatus'),
   };
   let session = null;
+  let savedLuckMultiplier = '1';
+  let previewTimer = null;
+  let requestVersion = 0;
 
   function avatarUrl(user, size = 128) {
     if (user?.avatar) return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=${size}`;
@@ -82,38 +87,86 @@
     const comparison = document.createElement('div');
     comparison.className = 'chance-comparison';
     const change = document.createElement('span');
-    change.className = 'chance-change';
-    change.textContent = crop.discovered ? crop.change : '???';
+    change.className = `chance-change${crop.luckAffected === false ? ' unaffected' : ''}`;
+    change.textContent = crop.discovered ? (crop.luckAffected === false ? 'Same' : crop.change) : '???';
     comparison.append(
       chanceValue('Base chance', crop.discovered ? crop.baseChance : null),
       change,
-      chanceValue('Your chance', crop.discovered ? crop.currentChance : null),
+      chanceValue('Preview chance', crop.discovered ? crop.previewChance : null),
     );
     info.append(title, comparison);
+    if (crop.note) {
+      const note = document.createElement('p');
+      note.className = 'secret-chance-note';
+      note.textContent = crop.note;
+      info.append(note);
+    }
     article.append(upper, info);
     return article;
   }
 
   function renderProfile(profile) {
-    elements.luckTier.textContent = `Tier ${profile.luckTier}`;
+    savedLuckMultiplier = profile.luckMultiplier;
+    elements.luckTier.textContent = `×${savedLuckMultiplier}`;
     elements.discoverySummary.textContent = `Discovered ${profile.discoveredCount}/${profile.visibleTotal}`;
     elements.newPlayerNote.hidden = profile.discoveredCount !== 0;
     elements.cropGrid.replaceChildren(...profile.crops.map(cropCard));
+    const isSavedLuck = profile.previewLuckMultiplier === savedLuckMultiplier;
+    elements.previewStatus.textContent = isSavedLuck
+      ? 'Previewing your saved Luck.'
+      : `Previewing ×${profile.previewLuckMultiplier} Luck. Your saved Luck remains ×${savedLuckMultiplier}.`;
+    elements.luckCalculator.classList.remove('is-calculating');
     elements.loadingState.hidden = true;
     elements.errorState.hidden = true;
     elements.cropGrid.hidden = false;
   }
 
-  async function loadChances() {
-    elements.loadingState.hidden = false;
+  function validLuck(value) {
+    return /^[1-9]\d*$/.test(value);
+  }
+
+  function updateLuckControls() {
+    const valid = validLuck(elements.luckInput.value);
+    elements.luckInput.setAttribute('aria-invalid', String(!valid));
+    elements.luckError.textContent = valid ? '' : 'Enter a positive whole number using digits only.';
+    elements.decreaseLuck.disabled = !valid || BigInt(elements.luckInput.value) === 1n;
+    return valid;
+  }
+
+  function setPreviewLuck(value, load = true) {
+    clearTimeout(previewTimer);
+    const normalized = String(BigInt(value));
+    elements.luckInput.value = normalized;
+    updateLuckControls();
+    if (load) loadChances(normalized);
+  }
+
+  async function loadChances(previewLuckMultiplier) {
+    const version = ++requestVersion;
+    const hasCards = !elements.cropGrid.hidden;
+    elements.loadingState.hidden = hasCards;
     elements.errorState.hidden = true;
-    elements.cropGrid.hidden = true;
+    if (!hasCards) elements.cropGrid.hidden = true;
+    elements.luckCalculator.classList.add('is-calculating');
+    elements.previewStatus.textContent = 'Calculating preview chances…';
     try {
-      renderProfile(await api('/api/profile/crop-chances'));
+      const query = previewLuckMultiplier === undefined ? '' : `?luck=${encodeURIComponent(previewLuckMultiplier)}`;
+      const profile = await api(`/api/profile/crop-chances${query}`);
+      if (version !== requestVersion) return;
+      if (previewLuckMultiplier === undefined) elements.luckInput.value = profile.previewLuckMultiplier;
+      updateLuckControls();
+      renderProfile(profile);
     } catch (error) {
+      if (version !== requestVersion) return;
+      elements.luckCalculator.classList.remove('is-calculating');
       elements.loadingState.hidden = true;
-      elements.errorState.hidden = false;
-      elements.errorMessage.textContent = error.status === 401 ? 'Your session expired. Sign in again.' : error.message;
+      if (hasCards && error.status === 400) {
+        elements.luckError.textContent = error.message;
+        elements.previewStatus.textContent = 'Preview was not changed.';
+      } else {
+        elements.errorState.hidden = false;
+        elements.errorMessage.textContent = error.status === 401 ? 'Your session expired. Sign in again.' : error.message;
+      }
     }
   }
 
@@ -130,7 +183,30 @@
     }
   }
 
-  elements.retryButton.addEventListener('click', loadChances);
+  elements.retryButton.addEventListener('click', () => {
+    loadChances(validLuck(elements.luckInput.value) ? elements.luckInput.value : undefined);
+  });
+  elements.luckInput.addEventListener('input', () => {
+    clearTimeout(previewTimer);
+    requestVersion += 1;
+    if (!updateLuckControls()) {
+      elements.previewStatus.textContent = 'Preview was not changed.';
+      return;
+    }
+    previewTimer = setTimeout(() => loadChances(elements.luckInput.value), 180);
+  });
+  elements.luckInput.addEventListener('blur', () => {
+    if (validLuck(elements.luckInput.value)) elements.luckInput.value = String(BigInt(elements.luckInput.value));
+  });
+  elements.decreaseLuck.addEventListener('click', () => {
+    const current = validLuck(elements.luckInput.value) ? BigInt(elements.luckInput.value) : BigInt(savedLuckMultiplier);
+    setPreviewLuck(current > 1n ? current - 1n : 1n);
+  });
+  elements.increaseLuck.addEventListener('click', () => {
+    const current = validLuck(elements.luckInput.value) ? BigInt(elements.luckInput.value) : BigInt(savedLuckMultiplier);
+    setPreviewLuck(current + 1n);
+  });
+  elements.useMyLuck.addEventListener('click', () => setPreviewLuck(savedLuckMultiplier));
   elements.userChip.addEventListener('click', () => {
     const open = elements.accountMenu.hidden;
     elements.accountMenu.hidden = !open;

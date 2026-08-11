@@ -1,4 +1,8 @@
 const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
+const {
+  MAX_BIG_CROP_TIER,
+  MAX_LUCK_TIER,
+} = require('../config/upgrades');
 const DEFAULT_CAPACITY = 100n;
 const { statisticsModel } = require('../services/statisticsService');
 
@@ -240,7 +244,8 @@ class RngGameRepository {
       const player = playerRecord(this.statements.player.get(userId));
       if (!['luck', 'big'].includes(kind)) return { status: 'invalid-kind', duplicate: false };
       const tier = kind === 'luck' ? player.luckTier : player.bigCropTier;
-      if (tier >= 20) {
+      const maximumTier = kind === 'luck' ? MAX_LUCK_TIER : MAX_BIG_CROP_TIER;
+      if (tier >= maximumTier) {
         const result = {
           status: 'max-tier', kind, balance: player.balance,
           luckTier: player.luckTier, bigCropTier: player.bigCropTier, duplicate: false,
