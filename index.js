@@ -27,6 +27,7 @@ const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
 const { createRngGameFeature } = require('./src/features/rng-game');
+const { createFarmingGameFeature } = require('./src/features/farming-game');
 const {
   GLOBAL_APPLICATION_COMMANDS,
   STOCK_SETUP_COMMAND_NAME,
@@ -51,9 +52,22 @@ function getRngGuildPolicy(guildId) {
   };
 }
 
+function getFarmingGuildPolicy(guildId) {
+  const guildConfig = getGuildConfigRaw(guildId);
+  return {
+    unlocked: guildConfig?.enabled !== false && guildConfig?.features?.farmingGame === true,
+    enabled: guildConfig?.farmingGame?.enabled === true,
+    gameChannelIds: guildConfig?.farmingGame?.gameChannelIds || [],
+  };
+}
+
 const rngGame = createRngGameFeature({
   getGuildPolicy: getRngGuildPolicy,
   chancePageUrl: `${dashboardBaseUrl()}/chances`,
+});
+const farmingGame = createFarmingGameFeature({
+  db: rngGame.db,
+  getGuildPolicy: getFarmingGuildPolicy,
 });
 
 function dashboardBaseUrl() {
@@ -150,6 +164,7 @@ if (runtimeStarter.capabilities.bot) {
 
     try {
       if (await rngGame.handleInteraction(interaction)) return;
+      if (await farmingGame.handleInteraction(interaction)) return;
       if (await handleGag2RoleAssignmentInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
       if (interaction.isChatInputCommand?.() && interaction.commandName === STOCK_SETUP_COMMAND_NAME) {

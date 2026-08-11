@@ -3,7 +3,7 @@ const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileSto
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 11;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
@@ -42,6 +42,11 @@ const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   gameChannelIds: Object.freeze([]),
   cooldownBypassRoleIds: Object.freeze([]),
 });
+const DEFAULT_FARMING_GAME_CONFIG = Object.freeze({
+  enabled: false,
+  gameChannelIds: Object.freeze([]),
+});
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -86,6 +91,7 @@ const DEFAULT_FEATURES = Object.freeze({
   gag2Stock: true,
   leveling: false,
   rngGame: false,
+  farmingGame: false,
   fullBot: false,
 });
 const DEFAULT_GAG2_STOCK_CONFIG = Object.freeze({
@@ -103,6 +109,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   gag2Stock: DEFAULT_GAG2_STOCK_CONFIG,
   leveling: DEFAULT_LEVELING_CONFIG,
   rngGame: DEFAULT_RNG_GAME_CONFIG,
+  farmingGame: DEFAULT_FARMING_GAME_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = Object.freeze({
   ...DEFAULT_GUILD_CONFIG,
@@ -319,6 +326,19 @@ function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   };
 }
 
+function normalizeFarmingGameConfig(value, defaults = DEFAULT_FARMING_GAME_CONFIG) {
+  const source = isObject(value) ? value : {};
+  const channelIds = Array.isArray(source.gameChannelIds)
+    ? source.gameChannelIds
+    : (source.gameChannelId !== undefined
+      ? [source.gameChannelId]
+      : (Array.isArray(defaults.gameChannelIds) ? defaults.gameChannelIds : [defaults.gameChannelId]));
+  return {
+    enabled: source.enabled === undefined ? defaults.enabled === true : source.enabled === true,
+    gameChannelIds: [...new Set(channelIds.map(cleanId).filter(Boolean))].slice(0, 100),
+  };
+}
+
 function defaultConfigForGuild(guildId) {
   return clone(guildId === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
 }
@@ -328,9 +348,11 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const defaults = defaultConfigForGuild(guildId);
   const leveling = normalizeLevelingConfig(source.leveling, defaults.leveling);
   const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
+  const farmingGame = normalizeFarmingGameConfig(source.farmingGame, defaults.farmingGame);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
     rngGame.enabled = false;
+    farmingGame.enabled = false;
   }
   return {
     enabled: source.enabled !== false,
@@ -338,12 +360,14 @@ function normalizeGuildConfig(guildId, value, options = {}) {
       gag2Stock: true,
       leveling: options.resetFeatureLocks ? false : source.features?.leveling === true,
       rngGame: options.resetFeatureLocks ? false : source.features?.rngGame === true,
+      farmingGame: options.resetFeatureLocks ? false : source.features?.farmingGame === true,
       fullBot: false,
     },
     channels: { commandLogThread: '' },
     gag2Stock: normalizeGag2StockConfig(source.gag2Stock, defaults.gag2Stock),
     leveling,
     rngGame,
+    farmingGame,
   };
 }
 
@@ -480,6 +504,7 @@ function setGuildFeatureAccess(guildId, features = {}) {
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].leveling ||= clone(DEFAULT_LEVELING_CONFIG);
   state.guilds[id].rngGame ||= clone(DEFAULT_RNG_GAME_CONFIG);
+  state.guilds[id].farmingGame ||= clone(DEFAULT_FARMING_GAME_CONFIG);
   state.guilds[id].features = {
     gag2Stock: true,
     leveling: features.leveling === undefined
@@ -488,10 +513,14 @@ function setGuildFeatureAccess(guildId, features = {}) {
     rngGame: features.rngGame === undefined
       ? state.guilds[id].features?.rngGame === true
       : features.rngGame === true,
+    farmingGame: features.farmingGame === undefined
+      ? state.guilds[id].features?.farmingGame === true
+      : features.farmingGame === true,
     fullBot: false,
   };
   if (!state.guilds[id].features.leveling) state.guilds[id].leveling.enabled = false;
   if (!state.guilds[id].features.rngGame) state.guilds[id].rngGame.enabled = false;
+  if (!state.guilds[id].features.farmingGame) state.guilds[id].farmingGame.enabled = false;
   saveState(state);
   return getGuildConfigRaw(id);
 }
@@ -504,6 +533,11 @@ function isGuildLevelingEnabled(guildId) {
 function isGuildRngGameEnabled(guildId) {
   const config = getGuildConfig(guildId);
   return Boolean(config?.features?.rngGame && config.rngGame?.enabled === true);
+}
+
+function isGuildFarmingGameEnabled(guildId) {
+  const config = getGuildConfig(guildId);
+  return Boolean(config?.features?.farmingGame && config.farmingGame?.enabled === true);
 }
 
 function updateGuildGag2StockRoleIds(guildId, type, value) {
@@ -528,6 +562,7 @@ module.exports = {
   DEFAULT_GAG2_STOCK_CONFIG,
   DEFAULT_LEVELING_CONFIG,
   DEFAULT_RNG_GAME_CONFIG,
+  DEFAULT_FARMING_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -553,10 +588,12 @@ module.exports = {
   isGuildGag2StockEnabled,
   isGuildLevelingEnabled,
   isGuildRngGameEnabled,
+  isGuildFarmingGameEnabled,
   loadState,
   normalizeGag2StockConfig,
   normalizeLevelingConfig,
   normalizeRngGameConfig,
+  normalizeFarmingGameConfig,
   normalizeState,
   resolveLoggingChannelId,
   saveState,
