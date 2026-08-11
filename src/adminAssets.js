@@ -93,11 +93,7 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (![
-    'index.html', 'app.js', 'style.css',
-    'chances.html', 'chances.js', 'chances.css',
-    'farm-chances.html', 'farm-chances.js', 'farm-chances.css',
-  ].includes(filename)) return null;
+  if (!['index.html', 'app.js', 'style.css', 'chances.html', 'chances.js', 'chances.css'].includes(filename)) return null;
   try {
     let source = fs.readFileSync(path.join(ADMIN_DIR, filename));
     if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
@@ -105,9 +101,7 @@ function loadAdminAsset(filename) {
       let html = source.toString('utf8');
       const assetNames = filename === 'chances.html'
         ? ['style.css', 'chances.css', 'chances.js']
-        : filename === 'farm-chances.html'
-          ? ['style.css', 'farm-chances.css', 'farm-chances.js']
-          : ['style.css', 'app.js'];
+        : ['style.css', 'app.js'];
       for (const assetName of assetNames) {
         const asset = loadAdminAsset(assetName);
         if (asset) {

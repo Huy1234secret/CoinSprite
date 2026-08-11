@@ -17,9 +17,6 @@ const { logCommandSystem } = require('./commandLogger');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
-const {
-  farmingChanceProfile,
-} = require('./features/farming-game/services/chanceService');
 const { STUDS_TEXTURE_PATH } = require('./features/rng-game/services/indexRenderer');
 const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
@@ -68,9 +65,6 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/chances.html', ['chances.html', 'text/html; charset=utf-8']],
   ['/admin/chances.js', ['chances.js', 'application/javascript; charset=utf-8']],
   ['/admin/chances.css', ['chances.css', 'text/css; charset=utf-8']],
-  ['/admin/farm-chances.html', ['farm-chances.html', 'text/html; charset=utf-8']],
-  ['/admin/farm-chances.js', ['farm-chances.js', 'application/javascript; charset=utf-8']],
-  ['/admin/farm-chances.css', ['farm-chances.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
@@ -590,19 +584,17 @@ function publicConfig(config) {
       gag2Stock: true,
       leveling: config?.features?.leveling === true,
       rngGame: config?.features?.rngGame === true,
-      farmingGame: config?.features?.farmingGame === true,
       fullBot: false,
     },
     gag2Stock: config?.gag2Stock || {},
     leveling: config?.leveling || {},
     rngGame: config?.rngGame || {},
-    farmingGame: config?.farmingGame || {},
   };
 }
 
 function safeOAuthReturnTo(value) {
   const route = String(value || '');
-  return ['/admin', '/profile', '/chances', '/farm-chances'].includes(route) ? route : '/admin';
+  return ['/admin', '/profile', '/chances'].includes(route) ? route : '/admin';
 }
 
 async function handleAuthStart(req, res, env, requestUrl) {
@@ -649,7 +641,6 @@ async function routeRequest(req, res, env, client, services = {}) {
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
   if (req.method === 'GET' && (pathname === '/chances' || pathname === '/chances/')) return serveAsset(res, '/admin/chances.html');
-  if (req.method === 'GET' && (pathname === '/farm-chances' || pathname === '/farm-chances/')) return serveAsset(res, '/admin/farm-chances.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname === '/assets/rng/studs-texture.png') return serveStudsTexture(res);
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
@@ -686,24 +677,6 @@ async function routeRequest(req, res, env, client, services = {}) {
     const repository = services.rngGame?.repository || services.rngRepository;
     if (!repository) return sendJson(res, 503, { error: 'Crop chances are temporarily unavailable.' });
     return sendJson(res, 200, cropChanceProfile(repository, session.user.id));
-  }
-
-  if (req.method === 'GET' && pathname === '/api/profile/farming-crop-chances') {
-    const session = await requireSignedIn(req, res, env);
-    if (!session) return;
-    const repository = services.farmingGame?.repository || services.farmingRepository;
-    if (!repository) return sendJson(res, 503, { error: 'Farming crop chances are temporarily unavailable.' });
-    try {
-      return sendJson(res, 200, farmingChanceProfile(
-        repository,
-        session.user.id,
-        url.searchParams.get('luck'),
-        { catalog: services.farmingGame?.farmingService?.catalog },
-      ));
-    } catch (error) {
-      if (error instanceof RangeError) return sendJson(res, 400, { error: error.message });
-      throw error;
-    }
   }
 
   if (req.method === 'GET' && pathname === '/api/owner/overview') {
@@ -882,9 +855,8 @@ async function routeRequest(req, res, env, client, services = {}) {
     const hasStock = body?.gag2Stock && typeof body.gag2Stock === 'object' && !Array.isArray(body.gag2Stock);
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
     const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
-    const hasFarmingGame = body?.farmingGame && typeof body.farmingGame === 'object' && !Array.isArray(body.farmingGame);
-    if (!hasStock && !hasLeveling && !hasRngGame && !hasFarmingGame) {
-      return sendJson(res, 400, { error: 'GAG stock, leveling, RNG game, or Farming Game configuration is required.' });
+    if (!hasStock && !hasLeveling && !hasRngGame) {
+      return sendJson(res, 400, { error: 'GAG stock, leveling, or RNG game configuration is required.' });
     }
 
     const state = loadState();
@@ -895,24 +867,19 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (hasRngGame && state.guilds[guildId].features?.rngGame !== true) {
       return sendJson(res, 403, { error: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' });
     }
-    if (hasFarmingGame && state.guilds[guildId].features?.farmingGame !== true) {
-      return sendJson(res, 403, { error: 'Farming Game is locked for this server. Ask the bot owner to unlock it.' });
-    }
     state.guilds[guildId].features = {
       gag2Stock: true,
       leveling: state.guilds[guildId].features?.leveling === true,
       rngGame: state.guilds[guildId].features?.rngGame === true,
-      farmingGame: state.guilds[guildId].features?.farmingGame === true,
       fullBot: false,
     };
     if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
-    if (hasFarmingGame) state.guilds[guildId].farmingGame = mergePlain(state.guilds[guildId].farmingGame, body.farmingGame);
     saveState(state);
     const config = getGuildConfigRaw(guildId);
 
-    if (hasLeveling || hasRngGame || hasFarmingGame) {
+    if (hasLeveling || hasRngGame) {
       await syncGuildApplicationCommands(auth.guild)
         .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
@@ -922,7 +889,7 @@ async function routeRequest(req, res, env, client, services = {}) {
         .then(() => syncGag2RoleAssignmentPanel(client, guildId))
         .catch((error) => logCommandSystem(`GAG stock setup sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling', hasRngGame && 'RNG game', hasFarmingGame && 'Farming Game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config), progress: getGag2StockSetupProgress(guildId) });
   }
 
