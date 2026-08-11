@@ -119,10 +119,27 @@ function otherFilterModal(view, availableRarities, availableTypes) {
   return inventoryFilterModal(view, 'other', availableRarities, availableTypes);
 }
 
+function indexSearchModal(view) {
+  return {
+    custom_id: `farm:index:search-submit:${view.id}`,
+    title: 'Search Farming Index',
+    components: [label('Seed or crop name', {
+      type: 4,
+      style: 1,
+      custom_id: 'query',
+      placeholder: 'Example: Carrot or Carrot Seed Package',
+      min_length: 1,
+      max_length: 80,
+      required: true,
+    })],
+  };
+}
+
 module.exports = {
   cropsFilterModal,
   inventoryFilterModal,
   inventoryPageModal,
+  indexSearchModal,
   label,
   otherFilterModal,
   plantModal,

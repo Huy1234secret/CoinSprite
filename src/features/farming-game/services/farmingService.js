@@ -1,6 +1,7 @@
 const { generatePlotAnchors } = require('../utils/anchors');
 const { generateCarrot } = require('../utils/crops');
 const { enrichPlot } = require('../utils/growth');
+const { FARMING_CATALOG } = require('../data/catalog');
 
 class FarmingGameService {
   constructor(options) {
@@ -29,6 +30,22 @@ class FarmingGameService {
     return this.repository.inventoryState(String(userId), this.clock());
   }
 
+  balance(userId) {
+    return this.repository.ensureProfile(String(userId), this.clock()).balance;
+  }
+
+  indexState(userId) {
+    const ownerId = String(userId);
+    const now = this.clock();
+    return {
+      ownerId,
+      entries: FARMING_CATALOG.map((entry) => ({
+        ...entry,
+        statistics: this.repository.cropStatistics(ownerId, entry.crop.id, now),
+      })),
+    };
+  }
+
   plant(userId, plotNumbers, itemId) {
     return this.repository.plant(
       String(userId),
@@ -46,6 +63,15 @@ class FarmingGameService {
 
   shovel(userId, plotNumbers) {
     return this.repository.shovel(String(userId), plotNumbers, this.clock());
+  }
+
+  sellCrops(userId, cropIds, sessionId) {
+    return this.repository.sellCrops(
+      String(userId),
+      cropIds,
+      `crop-sale:${String(sessionId)}`,
+      this.clock(),
+    );
   }
 }
 
