@@ -45,6 +45,25 @@ function cropInstanceRecord(row) {
   };
 }
 
+function operationResult(row) {
+  if (!row) return null;
+  const parsed = JSON.parse(row.result_json);
+  if (parsed.total != null) parsed.total = BigInt(parsed.total);
+  if (parsed.balance != null) parsed.balance = BigInt(parsed.balance);
+  return { ...parsed, duplicate: true };
+}
+
+function cropStatisticsRecord(row, ownerUserId, cropId) {
+  return {
+    ownerUserId: String(row?.owner_user_id || ownerUserId),
+    cropId: String(row?.crop_id || cropId),
+    totalPlanted: row?.total_planted || 0n,
+    totalHarvested: row?.total_harvested || 0n,
+    highestWeightUnits: Number(row?.highest_weight_units || 0),
+    updatedAt: Number(row?.updated_at || 0),
+  };
+}
+
 function plotRecord(row, cropInstances = []) {
   if (!row) return null;
   const instances = [...cropInstances].sort((left, right) => (
@@ -137,6 +156,29 @@ class FarmingGameRepository {
       touchPlot: db.prepare(`UPDATE farm_plots SET updated_at = ?
         WHERE owner_user_id = ? AND plot_number = ?`),
       touchProfile: db.prepare('UPDATE farm_profiles SET updated_at = ? WHERE user_id = ?'),
+      cropById: db.prepare('SELECT * FROM farm_crop_instances WHERE id = ?'),
+      deleteInventoryCrop: db.prepare(`DELETE FROM farm_crop_instances
+        WHERE id = ? AND owner_user_id = ? AND state = 'inventory'`),
+      updateBalance: db.prepare('UPDATE farm_profiles SET coin_balance = ?, updated_at = ? WHERE user_id = ?'),
+      operation: db.prepare('SELECT * FROM farm_operations WHERE operation_key = ?'),
+      saveOperation: db.prepare(`INSERT INTO farm_operations
+        (operation_key, owner_user_id, operation_kind, result_json, created_at)
+        VALUES (?, ?, ?, ?, ?)`),
+      cropStatistics: db.prepare(`SELECT * FROM farm_crop_statistics
+        WHERE owner_user_id = ? AND crop_id = ?`),
+      recordPlanted: db.prepare(`INSERT INTO farm_crop_statistics
+        (owner_user_id, crop_id, total_planted, total_harvested, highest_weight_units, updated_at)
+        VALUES (?, ?, ?, 0, 0, ?)
+        ON CONFLICT(owner_user_id, crop_id) DO UPDATE SET
+          total_planted = farm_crop_statistics.total_planted + excluded.total_planted,
+          updated_at = excluded.updated_at`),
+      recordHarvested: db.prepare(`INSERT INTO farm_crop_statistics
+        (owner_user_id, crop_id, total_planted, total_harvested, highest_weight_units, updated_at)
+        VALUES (?, ?, 0, ?, ?, ?)
+        ON CONFLICT(owner_user_id, crop_id) DO UPDATE SET
+          total_harvested = farm_crop_statistics.total_harvested + excluded.total_harvested,
+          highest_weight_units = MAX(farm_crop_statistics.highest_weight_units, excluded.highest_weight_units),
+          updated_at = excluded.updated_at`),
     };
 
     this.ensureProfileTransaction = db.transaction((userId, now) => this.ensureProfileRecords(userId, now)).immediate;
@@ -183,6 +225,13 @@ class FarmingGameRepository {
         }
         this.statements.touchPlot.run(BigInt(now), userId, BigInt(plotNumber));
       });
+      const planted = cropsByPlot.flat();
+      this.statements.recordPlanted.run(
+        userId,
+        item.plantableCropId,
+        BigInt(planted.length),
+        BigInt(now),
+      );
       this.statements.touchProfile.run(BigInt(now), userId);
       return {
         status: 'ok',
@@ -226,6 +275,15 @@ class FarmingGameRepository {
         })));
         this.statements.touchPlot.run(BigInt(now), userId, BigInt(plotNumber));
       }
+      if (harvested.length) {
+        this.statements.recordHarvested.run(
+          userId,
+          'carrot',
+          BigInt(harvested.length),
+          BigInt(Math.max(...harvested.map((crop) => crop.weightUnits))),
+          BigInt(now),
+        );
+      }
       this.statements.touchProfile.run(BigInt(now), userId);
       return {
         status: 'ok',
@@ -261,6 +319,44 @@ class FarmingGameRepository {
         deletedCount,
       };
     }).immediate;
+
+    this.sellTransaction = db.transaction((userId, cropIds, operationKey, now) => {
+      this.ensureProfileRecords(userId, now);
+      const priorRow = this.statements.operation.get(operationKey);
+      if (priorRow) {
+        if (priorRow.owner_user_id !== userId || priorRow.operation_kind !== 'crop-sale') {
+          return { status: 'invalid-operation', duplicate: false };
+        }
+        return operationResult(priorRow);
+      }
+      const requested = Array.isArray(cropIds) ? cropIds.map((id) => String(id || '')) : [];
+      const uniqueIds = [...new Set(requested)];
+      if (!uniqueIds.length) return { status: 'empty', duplicate: false };
+      if (uniqueIds.length !== requested.length || uniqueIds.some((id) => !id)) {
+        return { status: 'invalid-crops', duplicate: false };
+      }
+      const rows = uniqueIds.map((id) => this.statements.cropById.get(id));
+      if (rows.some((row) => !row || row.owner_user_id !== userId || row.state !== 'inventory')) {
+        return { status: 'invalid-crops', duplicate: false };
+      }
+      const total = rows.reduce((sum, row) => sum + row.stored_value, 0n);
+      const profile = this.statements.profile.get(userId);
+      const balance = profile.coin_balance + total;
+      if (balance > SQLITE_INTEGER_MAX) throw new RangeError('Farming balance exceeds SQLite signed 64-bit range.');
+      for (const row of rows) {
+        const deleted = this.statements.deleteInventoryCrop.run(row.id, userId);
+        if (Number(deleted.changes) !== 1) throw new Error('Farming inventory changed while completing the sale.');
+      }
+      this.statements.updateBalance.run(balance, BigInt(now), userId);
+      const result = { status: 'ok', itemCount: rows.length, total, balance, duplicate: false };
+      this.statements.saveOperation.run(operationKey, userId, 'crop-sale', JSON.stringify({
+        status: result.status,
+        itemCount: result.itemCount,
+        total: String(total),
+        balance: String(balance),
+      }), BigInt(now));
+      return result;
+    }).immediate;
   }
 
   ensureProfileRecords(userId, now) {
@@ -285,6 +381,7 @@ class FarmingGameRepository {
     const row = this.statements.profile.get(String(userId));
     return row ? {
       userId: row.user_id,
+      balance: row.coin_balance,
       starterGranted: Boolean(row.starter_granted),
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
@@ -321,6 +418,13 @@ class FarmingGameRepository {
     };
   }
 
+  cropStatistics(userId, cropId, now = Date.now()) {
+    const id = String(userId);
+    const normalizedCropId = String(cropId);
+    this.ensureProfile(id, now);
+    return cropStatisticsRecord(this.statements.cropStatistics.get(id, normalizedCropId), id, normalizedCropId);
+  }
+
   itemQuantity(userId, itemId, now = Date.now()) {
     const id = String(userId);
     this.ensureProfile(id, now);
@@ -344,12 +448,17 @@ class FarmingGameRepository {
   shovel(userId, plotNumbers, now = Date.now()) {
     return this.shovelTransaction(String(userId), plotNumbers, now);
   }
+
+  sellCrops(userId, cropIds, operationKey, now = Date.now()) {
+    return this.sellTransaction(String(userId), cropIds, String(operationKey), now);
+  }
 }
 
 module.exports = {
   FarmingGameRepository,
   SQLITE_INTEGER_MAX,
   cropInstanceRecord,
+  cropStatisticsRecord,
   normalizePlotNumbers,
   parseAnchors,
   plotRecord,

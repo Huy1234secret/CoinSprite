@@ -1,8 +1,14 @@
 const { ITEMS, getItem } = require('../data/items');
+const { catalogIndexForName } = require('../data/catalog');
 const {
   errorPayload,
   farmActionOptions,
   farmPayload,
+  farmingIndexPayload,
+  farmingSaleDeniedPayload,
+  farmingSaleFinishedPayload,
+  farmingSalePageData,
+  farmingSalePayload,
   inventoryPageCount,
   myInventoryPayload,
   successPayload,
@@ -10,6 +16,7 @@ const {
 const {
   cropsFilterModal,
   inventoryPageModal,
+  indexSearchModal,
   otherFilterModal,
   plantModal,
 } = require('../modals/builders');
@@ -64,7 +71,10 @@ function createFarmingComponentHandler(context) {
     farmingService,
     farmRenderer,
     farmViews,
+    indexRenderer,
+    indexViews,
     inventoryViews,
+    saleSessions,
   } = context;
 
   function inventoryStacks(ownerId) {
@@ -268,12 +278,125 @@ function createFarmingComponentHandler(context) {
     return false;
   }
 
+  async function saleInteraction(interaction, parts) {
+    const action = parts[2];
+    const session = saleSessions.getByToken(parts[3], { touch: false });
+    if (!session || session.kind !== 'sale') {
+      await respondExpired(interaction, 'sale controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, session, 'sale')) return true;
+    saleSessions.getByToken(parts[3]);
+    const inventory = farmingService.inventory(session.ownerId);
+
+    if (action === 'select' && interaction.isStringSelectMenu?.()) {
+      const page = farmingSalePageData(inventory, session);
+      const visibleIds = new Set(page.pageCrops.map((crop) => crop.id));
+      for (const id of visibleIds) session.selectedCropIds.delete(id);
+      for (const value of interaction.values || []) {
+        const id = String(value);
+        if (visibleIds.has(id)) session.selectedCropIds.add(id);
+      }
+      await interaction.update(farmingSalePayload(inventory, session, { initial: false })).catch(() => null);
+      return true;
+    }
+    if ((action === 'prev' || action === 'next') && interaction.isButton?.()) {
+      const page = farmingSalePageData(inventory, session);
+      session.currentPage += action === 'prev' ? -1 : 1;
+      session.currentPage = Math.max(1, Math.min(page.maxPage, session.currentPage));
+      await interaction.update(farmingSalePayload(inventory, session, { initial: false })).catch(() => null);
+      return true;
+    }
+    if (action === 'deny' && interaction.isButton?.()) {
+      saleSessions.delete(session.ownerId);
+      await interaction.update(farmingSaleDeniedPayload({ initial: false })).catch(() => null);
+      return true;
+    }
+    if (action === 'confirm' && interaction.isButton?.()) {
+      if (session.processing) {
+        await interaction.reply(errorPayload('Sale already processing\nWait for the current sale to finish.', { ephemeral: true })).catch(() => null);
+        return true;
+      }
+      if (!session.selectedCropIds.size) {
+        await interaction.reply(errorPayload('No crops selected\nSelect at least one harvested Farming crop.', { ephemeral: true })).catch(() => null);
+        return true;
+      }
+      session.processing = true;
+      try {
+        const result = farmingService.sellCrops(session.ownerId, [...session.selectedCropIds], session.id);
+        if (result.status !== 'ok') {
+          session.processing = false;
+          await interaction.reply(errorPayload('Sale changed\nSome selected Farming crops are no longer available.', { ephemeral: true })).catch(() => null);
+          return true;
+        }
+        saleSessions.delete(session.ownerId);
+        await interaction.update(farmingSaleFinishedPayload(result.itemCount, result.total, { initial: false })).catch(() => null);
+      } catch (error) {
+        session.processing = false;
+        throw error;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  async function rebuildIndex(interaction, view) {
+    const state = farmingService.indexState(view.ownerId);
+    view.maxPage = Math.max(1, state.entries.length);
+    view.page = Math.max(1, Math.min(view.maxPage, view.page));
+    const image = await indexRenderer.render(state.entries[view.page - 1]);
+    await interaction.editReply(farmingIndexPayload(view.ownerId, view, image, { initial: false }));
+  }
+
+  async function indexInteraction(interaction, parts) {
+    const action = parts[2];
+    const view = indexViews.get(parts[3]);
+    if (!view || view.kind !== 'index') {
+      await respondExpired(interaction, 'Index controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, view, 'Index')) return true;
+    if (action === 'page' && interaction.isButton?.()) {
+      view.page = (view.page % view.maxPage) + 1;
+      await interaction.deferUpdate();
+      await rebuildIndex(interaction, view).catch(async () => {
+        await followUp(interaction, errorPayload('Index unavailable\nThe next Farming Index page could not be rendered.', { ephemeral: true }));
+      });
+      return true;
+    }
+    if (action === 'search' && interaction.isButton?.()) {
+      await interaction.showModal(indexSearchModal(view));
+      return true;
+    }
+    if (action === 'search-submit' && interaction.isModalSubmit?.()) {
+      const query = textFromModal(interaction.fields, 'query').trim();
+      const index = catalogIndexForName(query);
+      if (index < 0) {
+        await interaction.reply(errorPayload(`Crop not found\nNo Farming seed or crop matches **${query || 'that name'}**.`, { ephemeral: true }));
+        return true;
+      }
+      view.page = index + 1;
+      await interaction.deferUpdate();
+      await rebuildIndex(interaction, view).catch(async () => {
+        await followUp(interaction, errorPayload('Index unavailable\nThat Farming Index entry could not be rendered.', { ephemeral: true }));
+      });
+      return true;
+    }
+    return false;
+  }
+
   return async function handleFarmingComponent(interaction) {
     const customId = String(interaction.customId || '');
     if (!customId.startsWith('farm:')) return false;
     const parts = customId.split(':');
+    if (parts[1] !== 'sale' && saleSessions.has(interaction.user.id)) {
+      await interaction.reply(errorPayload('Sale in progress\nFinish or deny your current Farming crop sale first.', { ephemeral: true })).catch(() => null);
+      return true;
+    }
     if (parts[1] === 'plot') return plotInteraction(interaction, parts);
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
+    if (parts[1] === 'sale') return saleInteraction(interaction, parts);
+    if (parts[1] === 'index') return indexInteraction(interaction, parts);
     return false;
   };
 }

@@ -117,6 +117,19 @@ function backfillCropInstances(db) {
   migrate();
 }
 
+function backfillCropStatistics(db) {
+  const table = db.prepare(`SELECT 1 FROM sqlite_master
+    WHERE type = 'table' AND name = 'farm_crop_statistics'`).get();
+  if (!table) return;
+  db.prepare(`INSERT OR IGNORE INTO farm_crop_statistics
+    (owner_user_id, crop_id, total_planted, total_harvested, highest_weight_units, updated_at)
+    SELECT owner_user_id, crop_id, COUNT(*),
+      SUM(CASE WHEN state = 'inventory' THEN 1 ELSE 0 END),
+      MAX(CASE WHEN state = 'inventory' THEN weight_units ELSE 0 END), MAX(updated_at)
+    FROM farm_crop_instances
+    GROUP BY owner_user_id, crop_id`).run();
+}
+
 function migrateFarmingGame(db, migrationsPath = FARMING_MIGRATIONS_PATH) {
   db.exec(`CREATE TABLE IF NOT EXISTS farm_schema_migrations (
     version TEXT PRIMARY KEY,
@@ -134,6 +147,7 @@ function migrateFarmingGame(db, migrationsPath = FARMING_MIGRATIONS_PATH) {
     if (!applied.has(name)) apply(name, fs.readFileSync(path.join(migrationsPath, name), 'utf8'));
   }
   backfillCropInstances(db);
+  backfillCropStatistics(db);
 }
 
 function openFarmingDatabase(options = {}) {
@@ -149,6 +163,7 @@ module.exports = {
   DEFAULT_FARMING_DATABASE_PATH,
   FARMING_MIGRATIONS_PATH,
   backfillCropInstances,
+  backfillCropStatistics,
   migrateFarmingGame,
   openFarmingDatabase,
   stableSeedRotationDegrees,

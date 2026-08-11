@@ -3,8 +3,9 @@ const { createFarmingComponentHandler } = require('./components/handler');
 const { FarmingGameRepository } = require('./repositories/farmingRepository');
 const { migrateFarmingGame, openFarmingDatabase } = require('./repositories/database');
 const { FarmRenderer } = require('./renderer/farmRenderer');
+const { FarmingIndexRenderer } = require('./renderer/indexRenderer');
 const { FarmingGameService } = require('./services/farmingService');
-const { FarmingViewStore } = require('./services/sessionStore');
+const { FarmingSaleSessionStore, FarmingViewStore } = require('./services/sessionStore');
 
 function createFarmingGameFeature(options = {}) {
   const clock = options.clock || Date.now;
@@ -23,16 +24,22 @@ function createFarmingGameFeature(options = {}) {
     anchorGenerator: options.anchorGenerator,
   });
   const farmRenderer = options.farmRenderer || new FarmRenderer(options.rendererOptions);
+  const indexRenderer = options.indexRenderer || new FarmingIndexRenderer(options.indexRendererOptions);
   const farmViews = options.farmViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
+  const indexViews = options.indexViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
+  const saleSessions = options.saleSessions || new FarmingSaleSessionStore({ clock, ttlMs: options.sessionTtlMs });
   const context = {
     db,
     farmingService,
     farmRenderer,
     farmViews,
     getGuildPolicy: options.getGuildPolicy,
+    indexRenderer,
+    indexViews,
     inventoryViews,
     repository,
+    saleSessions,
   };
   const commands = createFarmingCommandHandlers(context);
   const handleComponent = createFarmingComponentHandler(context);
@@ -46,8 +53,11 @@ function createFarmingGameFeature(options = {}) {
     },
     close() {
       farmRenderer.clear?.();
+      indexRenderer.clear?.();
       farmViews.clear();
+      indexViews.clear();
       inventoryViews.clear();
+      saleSessions.clear();
       if (ownsDatabase && db.open) db.close();
     },
   };
