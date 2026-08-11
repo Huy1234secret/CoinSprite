@@ -130,6 +130,8 @@ test('normalized Luck sampling retains Carrot at the final tier-zero boundary', 
 
 test('BIG chance is 0.1% per tier, capped at exactly 5%, and value is four times base', () => {
   assert.deepEqual(bigChance(0), { numerator: 0, denominator: 1_000 });
+  assert.deepEqual(bigChance(1), { numerator: 1, denominator: 1_000 });
+  assert.deepEqual(bigChance(10), { numerator: 10, denominator: 1_000 });
   assert.deepEqual(bigChance(20), { numerator: 20, denominator: 1_000 });
   assert.deepEqual(bigChance(50), { numerator: 50, denominator: 1_000 });
   assert.deepEqual(bigChance(51), { numerator: 50, denominator: 1_000 });

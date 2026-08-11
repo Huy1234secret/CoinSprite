@@ -28,9 +28,7 @@ function powerUpgradePriceExponent(tier) {
 
 function scalePowerUpgradePrice(basePrice, tier) {
   const exponent = powerUpgradePriceExponent(tier);
-  const numerator = basePrice * (3n ** exponent);
-  const denominator = 2n ** exponent;
-  return sqliteSafeCost((numerator + denominator - 1n) / denominator);
+  return sqliteSafeCost(basePrice * (2n ** exponent));
 }
 
 function luckUpgradeCost(tier) {
