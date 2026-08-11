@@ -19,6 +19,8 @@ const INDEX_ROW_Y = Object.freeze([512, 572, 632, 692, 752]);
 const INDEX_ROW_HEIGHT = 50;
 const INDEX_ROW_WIDTH = 428;
 const INDEX_ROW_X = Object.freeze({ seed: 280, crop: 966 });
+const INDEX_ARTWORK_INSET = 20;
+const INDEX_STAT_FONT_WEIGHT = 700;
 
 function containDimensions(sourceWidth, sourceHeight, boxWidth, boxHeight) {
   const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
@@ -32,18 +34,28 @@ function indexFont(weight, size) {
   return `${weight} ${size}px "${INDEX_CANVAS_FONT_FAMILY}"`;
 }
 
-function fitText(context, value, maximumWidth, size = 24, minimum = 15) {
+function fitText(context, value, maximumWidth, size = 26, minimum = 14) {
   const original = String(value || '').replace(/[\u0000-\u001f\u007f]/g, '');
   let fontSize = size;
   while (fontSize > minimum) {
-    context.font = indexFont(650, fontSize);
+    context.font = indexFont(INDEX_STAT_FONT_WEIGHT, fontSize);
     if (context.measureText(original).width <= maximumWidth) return { text: original, size: fontSize };
     fontSize -= 1;
   }
-  context.font = indexFont(650, fontSize);
+  context.font = indexFont(INDEX_STAT_FONT_WEIGHT, fontSize);
   const characters = [...original];
   while (characters.length > 1 && context.measureText(`${characters.join('')}…`).width > maximumWidth) characters.pop();
   return { text: `${characters.join('')}…`, size: fontSize };
+}
+
+function insetBox(box, inset = INDEX_ARTWORK_INSET) {
+  const normalized = Math.max(0, Math.min(Number(inset) || 0, box.width / 2, box.height / 2));
+  return {
+    x: box.x + normalized,
+    y: box.y + normalized,
+    width: box.width - (normalized * 2),
+    height: box.height - (normalized * 2),
+  };
 }
 
 function drawContained(context, image, box) {
@@ -51,21 +63,6 @@ function drawContained(context, image, box) {
   const x = box.x + Math.round((box.width - dimensions.width) / 2);
   const y = box.y + Math.round((box.height - dimensions.height) / 2);
   context.drawImage(image, x, y, dimensions.width, dimensions.height);
-}
-
-function drawFallback(context, box, label) {
-  context.save();
-  context.strokeStyle = 'rgba(100, 67, 28, 0.55)';
-  context.lineWidth = 3;
-  context.setLineDash([12, 8]);
-  context.strokeRect(box.x + 34, box.y + 34, box.width - 68, box.height - 68);
-  context.setLineDash([]);
-  context.fillStyle = '#69451f';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.font = indexFont(650, 24);
-  context.fillText(label, box.x + (box.width / 2), box.y + (box.height / 2));
-  context.restore();
 }
 
 function rowValues(entry) {
@@ -82,21 +79,21 @@ function rowValues(entry) {
     crop: [
       `Name: ${crop.name}`,
       `Rarity: ${crop.rarity}`,
-      `Approx Value: ${formatInteger(crop.minimumValue)}–${formatInteger(crop.maximumValue)} CR Coin`,
-      `Highest Weight: ${formatCarrotWeight(statistics.highestWeightUnits)} kg`,
+      `~Value: ${formatInteger(crop.minimumValue)}–${formatInteger(crop.maximumValue)} CR Coin`,
+      `Your Highest Weight: ${formatCarrotWeight(statistics.highestWeightUnits)} kg`,
       `Total Harvested: ${formatInteger(statistics.totalHarvested)}`,
     ],
   };
 }
 
 function drawRows(context, values, x) {
-  context.fillStyle = '#4c3018';
+  context.fillStyle = '#53351d';
   context.textAlign = 'left';
   context.textBaseline = 'middle';
   values.forEach((value, index) => {
-    const fitted = fitText(context, value, INDEX_ROW_WIDTH - 40);
-    context.font = indexFont(650, fitted.size);
-    context.fillText(fitted.text, x + 20, INDEX_ROW_Y[index] + (INDEX_ROW_HEIGHT / 2));
+    const fitted = fitText(context, value, INDEX_ROW_WIDTH - 44);
+    context.font = indexFont(INDEX_STAT_FONT_WEIGHT, fitted.size);
+    context.fillText(fitted.text, x + 22, INDEX_ROW_Y[index] + (INDEX_ROW_HEIGHT / 2));
   });
 }
 
@@ -155,10 +152,8 @@ class FarmingIndexRenderer {
     const context = canvas.getContext('2d');
     context.imageSmoothingEnabled = false;
     drawContained(context, background, { x: 0, y: 0, width: INDEX_CANVAS_WIDTH, height: INDEX_CANVAS_HEIGHT });
-    if (seedImage) drawContained(context, seedImage, INDEX_IMAGE_BOXES.seed);
-    else drawFallback(context, INDEX_IMAGE_BOXES.seed, 'Seed artwork unavailable');
-    if (cropImage) drawContained(context, cropImage, INDEX_IMAGE_BOXES.crop);
-    else drawFallback(context, INDEX_IMAGE_BOXES.crop, 'Crop artwork unavailable');
+    if (seedImage) drawContained(context, seedImage, insetBox(INDEX_IMAGE_BOXES.seed));
+    if (cropImage) drawContained(context, cropImage, insetBox(INDEX_IMAGE_BOXES.crop));
     const values = rowValues(entry);
     drawRows(context, values.seed, INDEX_ROW_X.seed);
     drawRows(context, values.crop, INDEX_ROW_X.crop);
@@ -178,6 +173,7 @@ class FarmingIndexRenderer {
 
 module.exports = {
   INDEX_BACKGROUND_PATH,
+  INDEX_ARTWORK_INSET,
   INDEX_CANVAS_HEIGHT,
   INDEX_CANVAS_WIDTH,
   INDEX_IMAGE_BOXES,
@@ -187,6 +183,8 @@ module.exports = {
   INDEX_ROW_Y,
   FarmingIndexRenderer,
   containDimensions,
+  fitText,
+  insetBox,
   renderCacheKey,
   rowValues,
 };
