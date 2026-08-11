@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { SEEDS } = require('../data/seeds');
 const { cascadingRoll } = require('./rngService');
 const { emitSuccessfulRoll } = require('./rollEvent');
+const { autoRollCostPerRoll } = require('./economyService');
 const {
   AUTO_ROLL_INTERVAL_MS,
   autoRollPlan,
@@ -28,11 +29,15 @@ class AutoRollService {
     this.onSuccessfulRoll = options.onSuccessfulRoll || (() => {});
   }
 
-  preview(durationText, selectedRarities) {
+  preview(userId, durationText, selectedRarities) {
     const duration = parseDuration(durationText);
+    const player = this.repository.gameRepository.getPlayer(String(userId), this.clock());
+    const costPerRoll = autoRollCostPerRoll(player.luckTier, player.bigCropTier);
     return {
       ...duration,
-      ...autoRollPlan(duration.durationMinutes),
+      ...autoRollPlan(duration.durationMinutes, costPerRoll),
+      pricedLuckTier: player.luckTier,
+      pricedBigTier: player.bigCropTier,
       selectedAutoSellRarities: normalizeAutoSellRarities(selectedRarities),
     };
   }
@@ -46,11 +51,27 @@ class AutoRollService {
     const current = this.active(id);
     if (current) return { status: 'already-active', job: current };
     if (this.saleSessions.has(id)) return { status: 'sale-active' };
-    const plan = autoRollPlan(preview.durationMinutes);
+    const player = this.repository.gameRepository.getPlayer(id, this.clock());
+    const costPerRoll = autoRollCostPerRoll(player.luckTier, player.bigCropTier);
+    const plan = autoRollPlan(preview.durationMinutes, costPerRoll);
     const rarities = normalizeAutoSellRarities(preview.selectedAutoSellRarities);
+    if (BigInt(preview.costPerRoll) !== costPerRoll
+      || Number(preview.pricedLuckTier) !== player.luckTier
+      || Number(preview.pricedBigTier) !== player.bigCropTier) {
+      return {
+        status: 'price-changed',
+        preview: {
+          ...preview,
+          ...plan,
+          pricedLuckTier: player.luckTier,
+          pricedBigTier: player.bigCropTier,
+          selectedAutoSellRarities: rarities,
+        },
+      };
+    }
     const now = this.clock();
     const nextTickAt = nextGlobalTick(now);
-    return this.repository.startJob(id, {
+    const result = this.repository.startJob(id, {
       ...plan,
       guildId: String(location.guildId || ''),
       channelId: String(location.channelId || ''),
@@ -58,6 +79,18 @@ class AutoRollService {
       nextTickAt,
       endsAt: nextTickAt + (plan.plannedRolls * AUTO_ROLL_INTERVAL_MS),
     }, { now, isSaleLocked: () => this.saleSessions.has(id) });
+    if (result.status !== 'price-changed') return result;
+    const refreshedPlan = autoRollPlan(preview.durationMinutes, result.costPerRoll);
+    return {
+      status: 'price-changed',
+      preview: {
+        ...preview,
+        ...refreshedPlan,
+        pricedLuckTier: result.player.luckTier,
+        pricedBigTier: result.player.bigCropTier,
+        selectedAutoSellRarities: rarities,
+      },
+    };
   }
 
   processTick(jobId, scheduledTick, now = this.clock()) {

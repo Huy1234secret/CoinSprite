@@ -1,9 +1,15 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 const { GlobalFonts, createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const { createRngGameFeature } = require('../src/features/rng-game');
 const { AutoRollScheduler } = require('../src/features/rng-game/services/autoRollService');
+const { AutoRollRepository } = require('../src/features/rng-game/repositories/autoRollRepository');
+const { MIGRATIONS_PATH, openDatabase } = require('../src/features/rng-game/repositories/database');
+const { RngGameRepository } = require('../src/features/rng-game/repositories/gameRepository');
 const {
   CropIndexRenderer,
   INDEX_CANVAS_HEIGHT,
@@ -22,9 +28,10 @@ const {
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
 const {
+  BIG_UPGRADE_PRICES,
+  LUCK_UPGRADE_PRICES,
   bigUpgradeCost,
   luckUpgradeCost,
-  powerUpgradePriceExponent,
 } = require('../src/features/rng-game/services/gameService');
 const { FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const {
@@ -32,6 +39,7 @@ const {
   autoRollRefund,
   nextGlobalTick,
   parseDuration,
+  SQLITE_INTEGER_MAX,
 } = require('../src/features/rng-game/utils/autoRoll');
 const { romanTier } = require('../src/features/rng-game/utils/upgrades');
 
@@ -67,7 +75,7 @@ function addItem(game, userId, options = {}) {
 }
 
 function startOneMinute(game, userId, rarities = [], location = {}) {
-  const preview = game.autoRollService.preview('1m', rarities);
+  const preview = game.autoRollService.preview(userId, '1m', rarities);
   return game.autoRollService.start(userId, preview, { guildId: 'guild', channelId: 'channel', ...location });
 }
 
@@ -82,12 +90,50 @@ test('duration parsing normalizes combinations and enforces one-minute/one-day b
 });
 
 test('Auto Roll pricing, refunding, and global five-second alignment are exact', () => {
-  assert.deepEqual(autoRollPlan(1), { durationMinutes: 1, plannedRolls: 12, totalCost: 60n });
-  assert.deepEqual(autoRollPlan(60), { durationMinutes: 60, plannedRolls: 720, totalCost: 3_600n });
-  assert.deepEqual(autoRollPlan(1_440), { durationMinutes: 1_440, plannedRolls: 17_280, totalCost: 86_400n });
-  assert.equal(autoRollRefund(120, 72), 240n);
+  assert.deepEqual(autoRollPlan(1), { durationMinutes: 1, plannedRolls: 12, costPerRoll: 5n, totalCost: 60n });
+  assert.deepEqual(autoRollPlan(60, 24n), { durationMinutes: 60, plannedRolls: 720, costPerRoll: 24n, totalCost: 17_280n });
+  assert.deepEqual(autoRollPlan(1_440, 204n), { durationMinutes: 1_440, plannedRolls: 17_280, costPerRoll: 204n, totalCost: 3_525_120n });
+  assert.equal(autoRollRefund(120, 72, 24n), 1_152n);
   assert.equal(nextGlobalTick(0), 5_000);
   assert.equal(nextGlobalTick(5_001), 10_000);
+  assert.throws(() => autoRollPlan(1_440, SQLITE_INTEGER_MAX), /SQLite signed 64-bit/);
+});
+
+test('migration defaults existing Auto Roll jobs to five per roll and preserves refunds', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-auto-price-'));
+  const databasePath = path.join(directory, 'rng.sqlite');
+  const legacyMigrations = path.join(directory, 'legacy-migrations');
+  fs.mkdirSync(legacyMigrations);
+  try {
+    for (const name of fs.readdirSync(MIGRATIONS_PATH).filter((entry) => /^00[1-5]_.*\.sql$/.test(entry))) {
+      fs.copyFileSync(path.join(MIGRATIONS_PATH, name), path.join(legacyMigrations, name));
+    }
+    let db = openDatabase({ databasePath, migrationsPath: legacyMigrations });
+    let repository = new RngGameRepository(db);
+    repository.ensurePlayer('legacy-job', 1);
+    db.prepare('UPDATE rng_players SET inventory_capacity = 0, sheckle_balance = 0 WHERE user_id = ?').run('legacy-job');
+    db.prepare(`INSERT INTO rng_auto_roll_jobs
+      (user_id, guild_id, channel_id, status, duration_minutes, planned_rolls, completed_rolls,
+       cost_paid, refund_paid, selected_auto_sell_rarities, started_at, next_tick_at, ends_at,
+       finished_at, stopped_reason, summary_counts, created_at, updated_at)
+      VALUES (?, 'g', 'c', 'active', 1, 12, 2, 60, 0, '[]', 1000, 10000, 65000,
+       NULL, '', '{}', 1000, 1000)`).run('legacy-job');
+    db.close();
+
+    db = openDatabase({ databasePath });
+    repository = new RngGameRepository(db);
+    const autoRepository = new AutoRollRepository(db, repository);
+    const migrated = autoRepository.activeForUser('legacy-job');
+    assert.equal(migrated.costPerRoll, 5n);
+    const ended = autoRepository.processTick(migrated.id, migrated.nextTickAt, () => {
+      throw new Error('full inventory must stop before rolling');
+    }, migrated.nextTickAt);
+    assert.equal(ended.job.refundPaid, 50n);
+    assert.equal(repository.getPlayer('legacy-job').balance, 50n);
+    db.close();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('all requested prefix commands and Auto Roll aliases use the shared command handlers', async () => {
@@ -145,9 +191,10 @@ test('BIG chance is 0.1% per tier, capped at exactly 5%, and value is four times
 });
 
 test('upgrade prices and Roman tier formatting use exact formulas through new maximums', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [100n, 360n, 880n, 1_660n, 2_700n]);
-  assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [500n, 1_440n, 2_920n, 4_940n, 7_500n]);
-  assert.deepEqual([8, 9, 19, 29, 39, 49].map(powerUpgradePriceExponent), [0n, 1n, 2n, 3n, 4n, 4n]);
+  assert.deepEqual([0, 9, 19, 29, 39, 48].map(luckUpgradeCost), [2_000n, 69_000n, 1_316_000n, 7_825_000n, 25_858_000n, 53_935_000n]);
+  assert.deepEqual([0, 9, 19, 29, 39, 48, 49].map(bigUpgradeCost), [1_000n, 41_000n, 790_000n, 4_695_000n, 15_515_000n, 32_361_000n, 34_500_000n]);
+  assert.ok(LUCK_UPGRADE_PRICES.slice(2).every((price, index) => price >= LUCK_UPGRADE_PRICES[index + 1] + 1_000n));
+  assert.ok(BIG_UPGRADE_PRICES.slice(2).every((price, index) => price >= BIG_UPGRADE_PRICES[index + 1] + 1_000n));
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(20), romanTier(49), romanTier(50)], ['0', 'I', 'XX', 'XLIX', 'L']);
 });
 

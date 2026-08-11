@@ -13,6 +13,7 @@ const {
   bigChance,
 } = require('../services/rngService');
 const { formatMultiplier, formatPercent, romanTier } = require('../utils/upgrades');
+const { formatTokenLines } = require('../utils/tokens');
 const {
   ALLOWED_MENTIONS,
   clampPage,
@@ -80,11 +81,20 @@ function secretRollAnnouncementPayload(event) {
   return payload;
 }
 
-function balancePayload(user, balance, options = {}) {
-  return textContainer(
-    `### <@${user.id}>'s Balance\n- Sheckles: ${formatInteger(balance)} ${SHECKLES_EMOJI}`,
-    options,
-  );
+function balancePayload(user, wallet, options = {}) {
+  const balance = wallet && typeof wallet === 'object' ? wallet.balance : wallet;
+  const tokenBalance = wallet && typeof wallet === 'object' ? BigInt(wallet.tokenBalance || 0) : 0n;
+  const components = [{
+    type: 10,
+    content: `### <@${user.id}>'s Balance\n- Sheckles: ${formatInteger(balance)} ${SHECKLES_EMOJI}`,
+  }];
+  if (tokenBalance > 0n) {
+    components.push(
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: `${formatTokenLines(tokenBalance)}\n-# Total token value: ${formatInteger(tokenBalance)}` },
+    );
+  }
+  return v2Payload([{ type: 17, accent_color: WHITE, components }], options);
 }
 
 function statPayload(user, statistics, options = {}) {
@@ -351,7 +361,7 @@ function autoRollPreviewPayload(action, balance, options = {}) {
     type: 17,
     accent_color: 0x22C55E,
     components: [
-      { type: 10, content: `### Auto roll for ${action.normalized}\n\n-# * Cost: ${formatInteger(action.totalCost)} ${SHECKLES_EMOJI}\n-# * Auto sell: ${autoSell}` },
+      { type: 10, content: `### Auto roll for ${action.normalized}\n\n-# * Price per roll: ${formatInteger(action.costPerRoll)} ${SHECKLES_EMOJI}\n-# * Cost: ${formatInteger(action.totalCost)} ${SHECKLES_EMOJI}\n-# * Auto sell: ${autoSell}` },
       { type: 1, components: [{
         type: 2,
         style: affordable ? 3 : 4,
@@ -365,7 +375,7 @@ function autoRollPreviewPayload(action, balance, options = {}) {
 
 function autoRollStartedPayload(job, options = {}) {
   return textContainer(
-    `Auto Roll started\nYour first roll is <t:${Math.floor(job.nextTickAt / 1_000)}:R> and the purchased duration ends <t:${Math.floor(job.endsAt / 1_000)}:F>.`,
+    `Auto Roll started\nPrice snapshot: **${formatInteger(job.costPerRoll)}** ${SHECKLES_EMOJI} per roll. Your first roll is <t:${Math.floor(job.nextTickAt / 1_000)}:R> and the purchased duration ends <t:${Math.floor(job.endsAt / 1_000)}:F>.`,
     { color: 0x22C55E, ...options },
   );
 }

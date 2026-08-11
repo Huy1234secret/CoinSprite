@@ -9,6 +9,7 @@
     "start:bot": "node src/entrypoints/bot.js",
     "start:panel": "node src/entrypoints/panel.js",
     "test": "node --test",
+    "preview:rps": "node scripts/renderRpsPreviews.js",
     "report:rng-luck": "node scripts/rngLuckReport.js",
     "predeploy:bot": "npm ci",
     "deploy:bot": "node src/entrypoints/bot.js",

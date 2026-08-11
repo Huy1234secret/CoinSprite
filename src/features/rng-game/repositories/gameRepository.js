@@ -26,6 +26,7 @@ function playerRecord(row) {
   return {
     userId: row.user_id,
     balance: row.sheckle_balance,
+    tokenBalance: row.token_balance ?? 0n,
     inventoryCapacity: Number(row.inventory_capacity),
     upgradeLevel: Number(row.inventory_upgrade_level),
     luckTier: Number(row.luck_tier),

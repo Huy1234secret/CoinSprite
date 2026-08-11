@@ -18,10 +18,9 @@ const {
   indexSeedsForUser,
 } = require('../src/features/rng-game/services/indexRenderer');
 const {
-  LUCK_PROMOTION_RARITY_ORDER,
+  MAX_LUCK_RARITY_UNITS,
   PROBABILITY_SCALE,
   RARITY_ORDER,
-  applyLuckPromotions,
   baseRarityDistribution,
   cascadingRoll,
   generateInstance,
@@ -119,13 +118,11 @@ test('Eclipse Bloom has the exact Secret catalog data and is checked first', () 
   assert.equal(OUTLINE_COLORS.Secret, '#FACC15');
 });
 
-test('the rollable rarity list is complete while the Luck chain excludes Secret', () => {
+test('the rollable rarity list and direct maximum target include every rarity', () => {
   assert.deepEqual(RARITY_ORDER, [
     'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Secret', 'Super',
   ]);
-  assert.deepEqual(LUCK_PROMOTION_RARITY_ORDER, [
-    'Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Super',
-  ]);
+  assert.deepEqual(Object.keys(MAX_LUCK_RARITY_UNITS), RARITY_ORDER);
 });
 
 test('Secret remains exactly one in a million at every Luck tier', () => {
@@ -141,14 +138,10 @@ test('Secret remains exactly one in a million at every Luck tier', () => {
   for (const row of luckProbabilityReport()) assert.equal(row.probabilities.Secret, 1_000n);
 });
 
-test('Luck never promotes Mythic or Super into Secret', () => {
-  const initial = Object.fromEntries(RARITY_ORDER.map((rarity) => [rarity, 0n]));
-  initial.Mythic = 400_000_000n;
-  initial.Secret = 1_000n;
-  initial.Super = 599_999_000n;
-  const promoted = applyLuckPromotions(initial, 100);
-  assert.equal(promoted.Secret, 1_000n);
-  assert.ok(promoted.Super >= initial.Super);
+test('the direct maximum target never reallocates Mythic or Super into Secret', () => {
+  assert.equal(MAX_LUCK_RARITY_UNITS.Secret, 1_000n);
+  assert.equal(MAX_LUCK_RARITY_UNITS.Mythic, 1_000_000n);
+  assert.equal(MAX_LUCK_RARITY_UNITS.Super, 150_000n);
   assert.equal(baseRarityDistribution().Secret, 1_000n);
 });
 
@@ -341,7 +334,7 @@ test('an Auto Roll Secret sends exactly one announcement after persistence', asy
     clock: () => 1_000,
   });
   fund(game, 'auto-user');
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('auto-user', '1m', []);
   const started = game.autoRollService.start('auto-user', preview, { guildId: 'guild', channelId: 'channel' });
   const result = game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);

@@ -26,6 +26,7 @@ const {
 } = require('../modals/builders');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { indexDiscoveryCount } = require('../services/indexRenderer');
+const { createRpsComponentHandler } = require('./rpsHandler');
 
 const NORMALIZED_SEEDS = new Map(SEEDS.map((seed) => [normalizeCropName(seed.displayName), seed]));
 
@@ -72,6 +73,7 @@ function createComponentHandler(context) {
     repository,
     saleSessions,
   } = context;
+  const handleRpsComponent = createRpsComponentHandler(context);
 
   async function inventoryInteraction(interaction, parts) {
     const action = parts[2];
@@ -273,6 +275,7 @@ function createComponentHandler(context) {
       let preview;
       try {
         preview = autoRollService.preview(
+          formAction.ownerId,
           textFromModal(interaction.fields, 'duration'),
           valuesFromModal(interaction.fields, 'rarities'),
         );
@@ -300,6 +303,15 @@ function createComponentHandler(context) {
         guildId: interaction.guildId,
         channelId: interaction.channelId,
       });
+      if (result.status === 'price-changed') {
+        const refreshed = actions.create(interaction.user.id, { kind: 'auto-preview', ...result.preview });
+        await interaction.update(autoRollPreviewPayload(
+          refreshed,
+          gameService.balance(interaction.user.id),
+          { initial: false },
+        )).catch(() => null);
+        return true;
+      }
       if (result.status === 'already-active') {
         await interaction.update(autoRollStatusPayload(result.job, { initial: false })).catch(() => null);
         return true;
@@ -385,6 +397,7 @@ function createComponentHandler(context) {
       await interaction.reply(errorPayload('Sale in progress\nFinish or deny your current sale before using other RNG/economy controls.', { ephemeral: true })).catch(() => null);
       return true;
     }
+    if (parts[1] === 'rps' || parts[1] === 'exchange') return handleRpsComponent(interaction, parts);
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
     if (parts[1] === 'upgrade') return upgradeInteraction(interaction, parts);
     if (parts[1] === 'sale') return saleInteraction(interaction, parts);
