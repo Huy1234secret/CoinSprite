@@ -147,7 +147,7 @@ test('manual and automatic rolls use identical Luck sampling', () => {
   game.repository.ensurePlayer('manual');
   game.repository.ensurePlayer('automatic');
   game.db.prepare('UPDATE rng_players SET luck_tier = 10 WHERE user_id IN (?, ?)').run('manual', 'automatic');
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = 60 WHERE user_id = ?').run('automatic');
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = 100 WHERE user_id = ?').run('automatic');
   const manual = game.gameService.roll('manual');
   const preview = game.autoRollService.preview('1m', []);
   const started = game.autoRollService.start('automatic', preview, { guildId: 'guild', channelId: 'channel' });
