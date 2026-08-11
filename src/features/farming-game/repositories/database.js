@@ -20,6 +20,14 @@ function legacyWeightUnits(id) {
     + (sample % (CARROT_CONFIG.maximumWeightUnits - CARROT_CONFIG.minimumWeightUnits + 1));
 }
 
+function stableSeedRotationDegrees(id) {
+  const sample = Number.parseInt(
+    createHash('sha256').update(`seed-rotation\u0000${String(id)}`).digest('hex').slice(0, 8),
+    16,
+  );
+  return sample % 360;
+}
+
 function legacyAnchors(plotNumber, json) {
   try {
     const parsed = JSON.parse(json);
@@ -39,9 +47,9 @@ function backfillCropInstances(db) {
     WHERE type = 'table' AND name = 'farm_crop_instances'`).get();
   if (!table) return;
   const insert = db.prepare(`INSERT OR IGNORE INTO farm_crop_instances
-    (id, owner_user_id, crop_id, rarity, weight_units, stored_value, state,
+    (id, owner_user_id, crop_id, rarity, weight_units, stored_value, seed_rotation_degrees, state,
       plot_number, anchor_x, anchor_y, planted_at, harvested_at, created_at, updated_at)
-    VALUES (?, ?, 'carrot', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    VALUES (?, ?, 'carrot', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const migrate = db.transaction(() => {
     const occupiedPlots = db.prepare(`SELECT owner_user_id, plot_number, planted_at, anchors_json, updated_at
       FROM farm_plots WHERE crop_id = 'carrot' ORDER BY owner_user_id, plot_number`).all();
@@ -57,6 +65,7 @@ function backfillCropInstances(db) {
           CARROT_CONFIG.rarity,
           BigInt(weightUnits),
           BigInt(carrotValueForWeight(weightUnits)),
+          BigInt(stableSeedRotationDegrees(id)),
           'planted',
           BigInt(plotNumber),
           BigInt(anchor.x),
@@ -81,6 +90,7 @@ function backfillCropInstances(db) {
           CARROT_CONFIG.rarity,
           BigInt(weightUnits),
           BigInt(carrotValueForWeight(weightUnits)),
+          BigInt(stableSeedRotationDegrees(id)),
           'inventory',
           null,
           null,
@@ -96,6 +106,13 @@ function backfillCropInstances(db) {
     db.prepare(`UPDATE farm_plots SET crop_id = NULL, planted_at = NULL, anchors_json = NULL
       WHERE crop_id = 'carrot'`).run();
     db.prepare(`DELETE FROM farm_item_stacks WHERE item_id = 'carrot'`).run();
+    const missingRotations = db.prepare(`SELECT id FROM farm_crop_instances
+      WHERE seed_rotation_degrees IS NULL ORDER BY id`).all();
+    const setRotation = db.prepare(`UPDATE farm_crop_instances SET seed_rotation_degrees = ?
+      WHERE id = ? AND seed_rotation_degrees IS NULL`);
+    for (const row of missingRotations) {
+      setRotation.run(BigInt(stableSeedRotationDegrees(row.id)), row.id);
+    }
   }).immediate;
   migrate();
 }
@@ -134,4 +151,5 @@ module.exports = {
   backfillCropInstances,
   migrateFarmingGame,
   openFarmingDatabase,
+  stableSeedRotationDegrees,
 };

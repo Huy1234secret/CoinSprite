@@ -31,6 +31,7 @@ function cropInstanceRecord(row) {
     weightUnits: Number(row.weight_units),
     storedValue: row.stored_value,
     value: row.stored_value,
+    seedRotationDegrees: Number(row.seed_rotation_degrees),
     state: row.state,
     plotNumber: row.plot_number == null ? null : Number(row.plot_number),
     anchorX: row.anchor_x == null ? null : Number(row.anchor_x),
@@ -124,9 +125,9 @@ class FarmingGameRepository {
         WHERE owner_user_id = ? AND state = 'inventory'
         ORDER BY harvested_at DESC, created_at, id`),
       insertCrop: db.prepare(`INSERT INTO farm_crop_instances
-        (id, owner_user_id, crop_id, rarity, weight_units, stored_value, state,
+        (id, owner_user_id, crop_id, rarity, weight_units, stored_value, seed_rotation_degrees, state,
           plot_number, anchor_x, anchor_y, planted_at, harvested_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'planted', ?, ?, ?, ?, NULL, ?, ?)`),
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'planted', ?, ?, ?, ?, NULL, ?, ?)`),
       harvestPlot: db.prepare(`UPDATE farm_crop_instances SET
         state = 'inventory', plot_number = NULL, anchor_x = NULL, anchor_y = NULL,
         harvested_at = ?, updated_at = ?
@@ -171,6 +172,7 @@ class FarmingGameRepository {
             crop.rarity,
             BigInt(crop.weightUnits),
             BigInt(crop.storedValue),
+            BigInt(crop.seedRotationDegrees),
             BigInt(plotNumber),
             BigInt(crop.anchor.x),
             BigInt(crop.anchor.y),

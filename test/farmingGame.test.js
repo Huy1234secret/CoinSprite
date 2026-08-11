@@ -18,10 +18,13 @@ const { ITEMS, ITEM_BY_ID, STARTER_ITEM_QUANTITY } = require('../src/features/fa
 const { migrateFarmingGame } = require('../src/features/farming-game/repositories/database');
 const { FarmingGameRepository } = require('../src/features/farming-game/repositories/farmingRepository');
 const { openSqliteDatabase } = require('../src/features/shared/database');
-const { PLOT_RECTS, STAGE_TARGET_VISIBLE_AREAS, anchorBounds } = require('../src/features/farming-game/renderer/config');
+const { PLOT_RECTS, STAGE_TARGET_LONG_SIDES, anchorBounds } = require('../src/features/farming-game/renderer/config');
 const {
   FarmRenderer,
+  normalizedStageDimensions,
   renderKey,
+  rotatedBounds,
+  safeDrawCenter,
   safeDrawRect,
   stageRenderDimensions,
 } = require('../src/features/farming-game/renderer/farmRenderer');
@@ -65,6 +68,41 @@ function crop(id, weightUnits = 50, overrides = {}) {
     item: ITEM_BY_ID.carrot,
     ...overrides,
   };
+}
+
+function renderedVisibleArea(sprite, dimensions) {
+  const canvas = createCanvas(dimensions.width, dimensions.height);
+  const context = canvas.getContext('2d');
+  context.imageSmoothingEnabled = false;
+  context.drawImage(sprite, 0, 0, dimensions.width, dimensions.height);
+  const pixels = context.getImageData(0, 0, dimensions.width, dimensions.height).data;
+  let visible = 0;
+  for (let index = 3; index < pixels.length; index += 4) {
+    if (pixels[index] > 0) visible += 1;
+  }
+  return visible;
+}
+
+function rotatedRenderedVisibleArea(sprite, dimensions, rotationDegrees) {
+  const bounds = rotatedBounds(dimensions.width, dimensions.height, rotationDegrees);
+  const canvas = createCanvas(Math.ceil(bounds.width) + 4, Math.ceil(bounds.height) + 4);
+  const context = canvas.getContext('2d');
+  context.imageSmoothingEnabled = false;
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate((rotationDegrees * Math.PI) / 180);
+  context.drawImage(
+    sprite,
+    -(dimensions.width / 2),
+    -(dimensions.height / 2),
+    dimensions.width,
+    dimensions.height,
+  );
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let visible = 0;
+  for (let index = 3; index < pixels.length; index += 4) {
+    if (pixels[index] > 0) visible += 1;
+  }
+  return visible;
 }
 
 function integratedGames(options = {}) {
@@ -137,12 +175,46 @@ test('planting consumes one package per plot and creates five unique stable crop
     assert.equal(plot.plantedAt, now);
     assert.equal(plot.anchors.length, 5);
     assert.equal(plot.cropInstances.length, 5);
-    assert.ok(plot.cropInstances.every((instance) => instance.weightUnits === 20 && instance.storedValue === 2n));
+    assert.ok(plot.cropInstances.every((instance) => (
+      instance.weightUnits === 20
+        && instance.storedValue === 2n
+        && instance.seedRotationDegrees === 0
+    )));
     assert.equal(validPlotAnchors(plot.plotNumber, plot.anchors), true);
   }
   const instances = game.repository.plantedCropInstancesForOwner('planter');
   assert.equal(instances.length, 15);
   assert.equal(new Set(instances.map((instance) => instance.id)).size, 15);
+  assert.ok(instances.every((instance) => instance.seedRotationDegrees >= 0 && instance.seedRotationDegrees <= 359));
+  game.close();
+});
+
+test('seed rotation is generated exactly once per crop with injected RNG and remains stored', async () => {
+  const rotations = [7, 83, 159, 241, 359];
+  let cropIndex = 0;
+  let randomCalls = 0;
+  const game = farmingFeature({
+    clock: () => 200_000,
+    anchorGenerator: (plotNumber) => generatePlotAnchors(plotNumber, () => 0),
+    rng(maximum) {
+      randomCalls += 1;
+      if (maximum === 61) return cropIndex;
+      if (maximum === 360) return rotations[cropIndex++];
+      throw new Error(`Unexpected Farming RNG maximum: ${maximum}`);
+    },
+  });
+  game.farmingService.plant('rotations', [1], 'carrot_seed_package');
+  assert.equal(randomCalls, 10);
+  const firstRead = game.repository.plantedCropInstancesForOwner('rotations');
+  assert.deepEqual(firstRead.map((instance) => instance.seedRotationDegrees).sort((a, b) => a - b), rotations);
+  assert.ok(firstRead.every((instance) => instance.seedRotationDegrees >= 0 && instance.seedRotationDegrees <= 359));
+  await game.farmRenderer.render(game.farmingService.farmState('rotations'));
+  const secondRead = game.repository.plantedCropInstancesForOwner('rotations');
+  assert.deepEqual(
+    secondRead.map((instance) => [instance.id, instance.seedRotationDegrees]),
+    firstRead.map((instance) => [instance.id, instance.seedRotationDegrees]),
+  );
+  assert.equal(randomCalls, 10, 'rendering and reads must not call Farming RNG');
   game.close();
 });
 
@@ -172,16 +244,48 @@ test('migration preserves legacy planted anchors and stacked carrots without tou
   assert.ok([...planted, ...inventory].every((instance) => (
     instance.weightUnits >= 20 && instance.weightUnits <= 80
       && instance.storedValue >= 2n && instance.storedValue <= 12n
+      && instance.seedRotationDegrees >= 0 && instance.seedRotationDegrees <= 359
   )));
   assert.equal(db.prepare(`SELECT COUNT(*) AS count FROM farm_item_stacks WHERE item_id = 'carrot'`).get().count, 0n);
   assert.equal(db.prepare(`SELECT crop_id FROM farm_plots WHERE owner_user_id = 'legacy' AND plot_number = 1`).get().crop_id, null);
   assert.equal(db.prepare('SELECT marker FROM rng_inventory_items').get().marker, 'rng-kept');
-  const stable = [...planted, ...inventory].map((instance) => [instance.id, instance.weightUnits, instance.storedValue]);
+  const stable = [...planted, ...inventory].map((instance) => [
+    instance.id,
+    instance.weightUnits,
+    instance.storedValue,
+    instance.seedRotationDegrees,
+  ]);
   migrateFarmingGame(db);
   assert.deepEqual([
     ...repository.plantedCropInstancesForOwner('legacy'),
     ...repository.inventoryCropInstances('legacy'),
-  ].map((instance) => [instance.id, instance.weightUnits, instance.storedValue]), stable);
+  ].map((instance) => [
+    instance.id,
+    instance.weightUnits,
+    instance.storedValue,
+    instance.seedRotationDegrees,
+  ]), stable);
+  db.close();
+});
+
+test('migration backfills one stable seed rotation for existing crop instances', () => {
+  const db = openSqliteDatabase(':memory:');
+  db.exec(fs.readFileSync(require.resolve('../src/features/farming-game/migrations/001_farming_game.sql'), 'utf8'));
+  db.exec(fs.readFileSync(require.resolve('../src/features/farming-game/migrations/002_crop_instances.sql'), 'utf8'));
+  db.prepare(`INSERT INTO farm_profiles (user_id, starter_granted, created_at, updated_at)
+    VALUES ('pre-rotation', 1, 10, 10)`).run();
+  db.prepare(`INSERT INTO farm_crop_instances
+    (id, owner_user_id, crop_id, rarity, weight_units, stored_value, state,
+      plot_number, anchor_x, anchor_y, planted_at, harvested_at, created_at, updated_at)
+    VALUES ('existing-crop', 'pre-rotation', 'carrot', 'Common', 50, 7, 'planted',
+      1, 350, 430, 10, NULL, 10, 10)`).run();
+  migrateFarmingGame(db);
+  const first = db.prepare(`SELECT seed_rotation_degrees FROM farm_crop_instances
+    WHERE id = 'existing-crop'`).get().seed_rotation_degrees;
+  assert.ok(first >= 0n && first <= 359n);
+  migrateFarmingGame(db);
+  assert.equal(db.prepare(`SELECT seed_rotation_degrees FROM farm_crop_instances
+    WHERE id = 'existing-crop'`).get().seed_rotation_degrees, first);
   db.close();
 });
 
@@ -235,12 +339,14 @@ test('harvest atomically moves five stable instances per ready plot without crea
     id: cropInstance.id,
     weightUnits: cropInstance.weightUnits,
     storedValue: cropInstance.storedValue,
+    seedRotationDegrees: cropInstance.seedRotationDegrees,
   }));
   await game.farmRenderer.render(game.farmingService.farmState('harvester'));
   assert.deepEqual(game.repository.plantedCropInstancesForOwner('harvester').map((instance) => ({
     id: instance.id,
     weightUnits: instance.weightUnits,
     storedValue: instance.storedValue,
+    seedRotationDegrees: instance.seedRotationDegrees,
   })), stable);
   now += (6 * 60 * 1000) - 1;
   assert.equal(game.farmingService.harvest('harvester', [1, 2]).status, 'nothing-ready');
@@ -255,6 +361,7 @@ test('harvest atomically moves five stable instances per ready plot without crea
     id: instance.id,
     weightUnits: instance.weightUnits,
     storedValue: instance.storedValue,
+    seedRotationDegrees: instance.seedRotationDegrees,
   })).sort((a, b) => a.id.localeCompare(b.id)), stable.sort((a, b) => a.id.localeCompare(b.id)));
   assert.ok(inventory.every((instance) => instance.plotNumber === null && instance.anchor === null));
   assert.equal(game.db.prepare(`SELECT COUNT(*) AS count FROM farm_item_stacks
@@ -489,46 +596,167 @@ test('Farming inventory renders individual two-column crops while Other stays st
   game.close();
 });
 
-test('trimmed sprites and target visible areas make every later carrot stage larger', async () => {
-  assert.deepEqual(STAGE_TARGET_VISIBLE_AREAS, [700, 1_100, 2_200, 3_000, 4_200, 5_600, 7_200]);
-  assert.ok(STAGE_TARGET_VISIBLE_AREAS.every((area, index) => index === 0 || area > STAGE_TARGET_VISIBLE_AREAS[index - 1]));
+test('target longest sides and measured visible pixels strictly increase across every stage', async () => {
+  assert.deepEqual(STAGE_TARGET_LONG_SIDES, [28, 38, 50, 66, 78, 90, 102]);
+  assert.ok(STAGE_TARGET_LONG_SIDES.every((target, index) => index === 0 || target > STAGE_TARGET_LONG_SIDES[index - 1]));
   const game = createFarmingGameFeature({ databasePath: ':memory:' });
   const sprites = await Promise.all(Array.from({ length: 7 }, (_, stage) => game.farmRenderer.stageSprite(stage)));
   assert.deepEqual(sprites.map((sprite) => [sprite.width, sprite.height]), [
     [564, 640], [60, 72], [150, 110], [98, 180], [205, 250], [287, 330], [347, 380],
   ]);
-  const dimensions = sprites.map((sprite, stage) => stageRenderDimensions(sprite, stage, 50));
-  const areas = dimensions.map(({ width, height }) => width * height);
-  assert.ok(areas.every((area, index) => index === 0 || area > areas[index - 1]));
-  assert.ok(areas[3] > areas[2], 'stage 3 must have a larger visible footprint than stage 2');
-  const minimumStageSix = stageRenderDimensions(sprites[6], 6, 20);
-  assert.ok(minimumStageSix.width * minimumStageSix.height > 66 * 72, 'stage 6 must exceed the old render area');
+  const normalized = sprites.map((sprite, stage) => normalizedStageDimensions(sprite, stage));
+  assert.deepEqual(normalized.map(({ width, height }) => Math.max(width, height)), STAGE_TARGET_LONG_SIDES);
+  const normalizedVisibleAreas = normalized.map((dimensions, stage) => renderedVisibleArea(sprites[stage], dimensions));
+  assert.ok(normalizedVisibleAreas.every((area, index) => index === 0 || area > normalizedVisibleAreas[index - 1]));
+  assert.ok(normalizedVisibleAreas[3] > normalizedVisibleAreas[2], 'narrow stage 3 must visibly exceed stage 2');
+
+  for (const weightUnits of [20, 50, 80]) {
+    const dimensions = sprites.map((sprite, stage) => stageRenderDimensions(sprite, stage, weightUnits));
+    const visibleAreas = dimensions.map((entry, stage) => renderedVisibleArea(sprites[stage], entry));
+    assert.ok(visibleAreas.every((area, index) => index === 0 || area > visibleAreas[index - 1]),
+      `stage visible area must increase at weight ${weightUnits}`);
+    for (const rotation of [0, 47, 137, 271, 359]) {
+      const rotatedAreas = [...visibleAreas];
+      rotatedAreas[0] = rotatedRenderedVisibleArea(sprites[0], dimensions[0], rotation);
+      assert.ok(rotatedAreas.every((area, index) => index === 0 || area > rotatedAreas[index - 1]),
+        `rotated stage visible area must increase at weight ${weightUnits} and rotation ${rotation}`);
+    }
+  }
+
+  const mature = stageRenderDimensions(sprites[6], 6, 50);
+  const previousMatureVisibleArea = renderedVisibleArea(sprites[6], { width: 83, height: 91 });
+  assert.ok(renderedVisibleArea(sprites[6], mature) > previousMatureVisibleArea * 1.2,
+    'stage 6 must be substantially larger than the previous mature render');
   game.close();
 });
 
-test('area rendering preserves aspect ratios, weight scaling, bottom anchoring, and safe plot bounds', async () => {
+test('longest-side rendering preserves aspect ratios, weight scaling, soil anchoring, and safe bounds', async () => {
   const game = createFarmingGameFeature({ databasePath: ':memory:' });
   for (let stage = 0; stage < 7; stage += 1) {
     const sprite = await game.farmRenderer.stageSprite(stage);
     const plot = PLOT_RECTS[stage];
     const light = stageRenderDimensions(sprite, stage, 20);
     const heavy = stageRenderDimensions(sprite, stage, 80);
-    if (stage === 0) assert.deepEqual(light, heavy, 'seeds stay fixed size');
-    else {
-      assert.ok(heavy.width > light.width && heavy.height > light.height);
-      assert.ok(Math.abs((heavy.width / heavy.height) - (sprite.width / sprite.height)) < 0.03);
-    }
+    assert.ok(heavy.width > light.width && heavy.height > light.height);
+    assert.ok(Math.abs((heavy.width / heavy.height) - (sprite.width / sprite.height)) < 0.05);
     const anchor = { x: plot.x + (plot.width / 2), y: plot.y + plot.height - 16 };
-    const draw = safeDrawRect(plot, anchor, heavy.width, heavy.height);
-    assert.equal(draw.y + draw.height, anchor.y, `stage ${stage} stays bottom-aligned when it fits`);
-    assert.ok(draw.x >= plot.x + 6 && draw.x + draw.width <= plot.x + plot.width - 6);
-    assert.ok(draw.y >= plot.y + 6 && draw.y + draw.height <= plot.y + plot.height - 6);
-    const shifted = safeDrawRect(plot, { x: plot.x, y: plot.y }, heavy.width, heavy.height);
-    assert.ok(shifted.x >= plot.x + 6 && shifted.y >= plot.y + 6, `stage ${stage} is shifted inside safe bounds`);
+    if (stage === 0) {
+      const bounds = rotatedBounds(heavy.width, heavy.height, 47);
+      const center = safeDrawCenter(plot, anchor, bounds.width, bounds.height);
+      assert.ok(center.x - (bounds.width / 2) >= plot.x + 6);
+      assert.ok(center.x + (bounds.width / 2) <= plot.x + plot.width - 6);
+      assert.ok(center.y - (bounds.height / 2) >= plot.y + 6);
+      assert.ok(center.y + (bounds.height / 2) <= plot.y + plot.height - 6);
+    } else {
+      const draw = safeDrawRect(plot, anchor, heavy.width, heavy.height);
+      assert.equal(draw.y + draw.height, anchor.y, `stage ${stage} stays bottom-aligned when it fits`);
+      assert.ok(draw.x >= plot.x + 6 && draw.x + draw.width <= plot.x + plot.width - 6);
+      assert.ok(draw.y >= plot.y + 6 && draw.y + draw.height <= plot.y + plot.height - 6);
+      const shifted = safeDrawRect(plot, { x: plot.x, y: plot.y }, heavy.width, heavy.height);
+      assert.equal(shifted.width, heavy.width, 'clipping resolution must not resize crops');
+      assert.equal(shifted.height, heavy.height, 'clipping resolution must not resize crops');
+      assert.ok(shifted.x >= plot.x + 6 && shifted.y >= plot.y + 6, `stage ${stage} is shifted inside safe bounds`);
+    }
   }
   assert.equal(carrotWeightScale(20), 0.90);
   assert.equal(carrotWeightScale(80), 1.15);
   game.close();
+});
+
+test('stored seed rotations are deterministic, visually distinct at stage 0, and ignored later', async () => {
+  const transparent = createCanvas(1254, 1254);
+  const renderer = new FarmRenderer({
+    baseImagePath: 'transparent',
+    loadImage: async (source) => (source === 'transparent' ? transparent : loadImage(source)),
+  });
+  const plot = PLOT_RECTS[0];
+  const anchor = { x: plot.x + (plot.width / 2), y: plot.y + plot.height - 16 };
+  const state = (stage, seedRotationDegrees) => ({
+    plots: [{
+      plotNumber: 1,
+      occupied: true,
+      cropId: 'carrot',
+      plantedAt: 1,
+      stage,
+      anchors: [anchor],
+      cropInstances: [{
+        id: 'rotating-seed',
+        weightUnits: 50,
+        seedRotationDegrees,
+        anchorX: anchor.x,
+        anchorY: anchor.y,
+        anchor,
+      }],
+    }],
+  });
+
+  const first = await renderer.render(state(0, 37));
+  renderer.renderCache.clear();
+  const repeated = await renderer.render(state(0, 37));
+  assert.ok(first.equals(repeated), 're-rendering a stored rotation must be pixel-identical');
+  const zeroDegrees = await renderer.render(state(0, 0));
+  const ninetyDegrees = await renderer.render(state(0, 90));
+  assert.ok(!zeroDegrees.equals(ninetyDegrees), 'different stored rotations must change stage-0 pixels');
+  assert.notEqual(renderKey(state(0, 0)), renderKey(state(0, 90)));
+
+  const uprightA = await renderer.render(state(1, 0));
+  const uprightB = await renderer.render(state(1, 271));
+  assert.ok(uprightA.equals(uprightB), 'seed rotation must be ignored after stage 0');
+  renderer.clear();
+});
+
+test('rotated seeds and mature carrots keep every visible pixel inside plot safe bounds', async () => {
+  const transparent = createCanvas(1254, 1254);
+  const renderer = new FarmRenderer({
+    baseImagePath: 'transparent',
+    loadImage: async (source) => (source === 'transparent' ? transparent : loadImage(source)),
+  });
+  const plot = PLOT_RECTS[0];
+  const anchor = { x: plot.x + 38, y: plot.y + 78 };
+
+  async function visiblePixelCounts(stage, rotation) {
+    const buffer = await renderer.render({
+      plots: [{
+        plotNumber: 1,
+        occupied: true,
+        cropId: 'carrot',
+        plantedAt: 1,
+        stage,
+        anchors: [anchor],
+        cropInstances: [{
+          id: `edge-${stage}-${rotation}`,
+          weightUnits: 80,
+          seedRotationDegrees: rotation,
+          anchorX: anchor.x,
+          anchorY: anchor.y,
+          anchor,
+        }],
+      }],
+    });
+    const image = await loadImage(buffer);
+    const canvas = createCanvas(1254, 1254);
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, 1254, 1254).data;
+    let inside = 0;
+    let outside = 0;
+    for (let y = 0; y < 1254; y += 1) {
+      for (let x = 0; x < 1254; x += 1) {
+        if (pixels[((y * 1254) + x) * 4 + 3] === 0) continue;
+        if (x >= plot.x + 6 && x < plot.x + plot.width - 6
+          && y >= plot.y + 6 && y < plot.y + plot.height - 6) inside += 1;
+        else outside += 1;
+      }
+    }
+    return { inside, outside };
+  }
+
+  for (const [stage, rotation] of [[0, 47], [6, 271]]) {
+    const counts = await visiblePixelCounts(stage, rotation);
+    assert.ok(counts.inside > 0);
+    assert.equal(counts.outside, 0);
+  }
+  renderer.clear();
 });
 
 test('selected plot numbers are cached and rendered as sharp white dashed inset outlines', async () => {
