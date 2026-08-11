@@ -175,15 +175,18 @@ test('BIG crops store exactly four times base weight and base-weight value', () 
   assert.equal(instance.value, 32n);
 });
 
-test('all three upgrade costs use the final exact BigInt polynomials', () => {
-  assert.deepEqual([0, 1, 5, 10, 15, 19].map(upgradeCost), [
+test('power upgrade prices apply the exact capped tier-band multiplier and ceiling', () => {
+  assert.deepEqual([0, 1, 5, 10, 15, 19, 29, 39, 49].map(upgradeCost), [
     1_000n, 6_100n, 28_500n, 61_000n, 98_500n, 132_100n,
+    230_100n, 348_100n, 486_100n,
   ]);
-  assert.deepEqual([0, 1, 5, 10, 15, 19].map(luckUpgradeCost), [
-    100n, 360n, 4_000n, 14_400n, 31_300n, 49_500n,
+  assert.deepEqual([0, 1, 5, 9, 10, 15, 19, 29, 39, 49].map(luckUpgradeCost), [
+    100n, 360n, 4_000n, 17_700n, 21_600n, 46_950n, 111_375n,
+    382_050n, 1_027_182n, 1_612_913n,
   ]);
-  assert.deepEqual([0, 1, 5, 10, 15, 19].map(bigUpgradeCost), [
-    500n, 1_440n, 10_600n, 34_200n, 71_300n, 110_700n,
+  assert.deepEqual([0, 1, 5, 9, 10, 15, 19, 29, 39, 49].map(bigUpgradeCost), [
+    500n, 1_440n, 10_600n, 42_600n, 51_300n, 106_950n, 249_075n,
+    833_625n, 2_213_832n, 3_450_600n,
   ]);
 });
 
@@ -191,7 +194,7 @@ test('real Luck reaches ×50 and BIG chance reaches exactly 5% without another c
   const game = feature();
   game.repository.ensurePlayer('maxed');
   game.db.prepare(`UPDATE rng_players SET sheckle_balance = ?, luck_tier = 48,
-    big_crop_tier = 49 WHERE user_id = ?`).run(2_000_000n, 'maxed');
+    big_crop_tier = 49 WHERE user_id = ?`).run(6_000_000n, 'maxed');
   const luck = game.repository.purchasePowerUpgrade('maxed', 'luck', 'last:luck', luckUpgradeCost, 1);
   const big = game.repository.purchasePowerUpgrade('maxed', 'big', 'last:big', bigUpgradeCost, 2);
   assert.equal(luck.status, 'ok');
