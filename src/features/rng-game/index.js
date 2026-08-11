@@ -120,6 +120,7 @@ function createRngGameFeature(options = {}) {
     autoRollService,
     db,
     gameService,
+    chancePageUrl: options.chancePageUrl || 'https://panel.coin-sprite.com/chances',
     getGuildPolicy: options.getGuildPolicy,
     inventoryViews,
     indexRenderer,

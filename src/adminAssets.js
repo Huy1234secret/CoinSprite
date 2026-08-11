@@ -93,13 +93,16 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (!['index.html', 'app.js', 'style.css'].includes(filename)) return null;
+  if (!['index.html', 'app.js', 'style.css', 'chances.html', 'chances.js', 'chances.css'].includes(filename)) return null;
   try {
     let source = fs.readFileSync(path.join(ADMIN_DIR, filename));
-    if (filename === 'style.css') source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
-    if (filename === 'index.html') {
+    if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
+    if (filename.endsWith('.html')) {
       let html = source.toString('utf8');
-      for (const assetName of ['style.css', 'app.js']) {
+      const assetNames = filename === 'chances.html'
+        ? ['style.css', 'chances.css', 'chances.js']
+        : ['style.css', 'app.js'];
+      for (const assetName of assetNames) {
         const asset = loadAdminAsset(assetName);
         if (asset) {
           const pattern = new RegExp(`/admin/${assetName.replace('.', '\\.')}(?:\\?v=[^'"\\s>]+)?`, 'g');

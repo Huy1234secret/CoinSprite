@@ -87,14 +87,22 @@ test('Auto Roll pricing, refunding, and global five-second alignment are exact',
 });
 
 test('all requested prefix commands and Auto Roll aliases use the shared command handlers', async () => {
-  const aliases = ['c!roll', 'c!inventory', 'c!sell', 'c!balance', 'c!auto roll', 'c!auto-roll', 'c!upgrade', 'c!index'];
+  const aliases = [
+    'c!roll', 'c!inventory', 'c!sell', 'c!balance', 'c!auto roll', 'c!auto-roll',
+    'c!upgrade', 'c!index', 'c!stat', 'c!calculate chance',
+  ];
   for (const content of aliases) {
     const game = feature();
     let replies = 0;
     let edits = 0;
     const handled = await game.handleMessage({
       content,
-      author: { id: `user-${content}`, username: 'Prefix', bot: false },
+      author: {
+        id: `user-${content}`,
+        username: 'Prefix',
+        bot: false,
+        displayAvatarURL: () => 'https://cdn.example/prefix.png',
+      },
       reply: async () => {
         replies += 1;
         return { id: 'response', edit: async () => { edits += 1; } };
@@ -311,6 +319,75 @@ test('Index uses rounded-square cards and a dedicated Unicode-safe text face', (
   const context = createCanvas(500, 100).getContext('2d');
   assert.equal(fitIndexText(context, '???', 200).text, '???');
   assert.equal(fitIndexText(context, 'Dragon\u2019s Breath', 400).text, 'Dragon\u2019s Breath');
+});
+
+test('/calculate-chance and c!calculate chance use the signed-in player Luck profile', async () => {
+  const game = feature({ chancePageUrl: 'https://panel.example/chances' });
+  game.repository.getPlayer('chance-user');
+  game.db.prepare('UPDATE rng_players SET luck_tier = 6 WHERE user_id = ?').run('chance-user');
+  for (const kind of ['slash', 'prefix']) {
+    let payload;
+    if (kind === 'slash') {
+      await game.handleInteraction({
+        isChatInputCommand: () => true,
+        commandName: 'calculate-chance',
+        user: { id: 'chance-user' },
+        async reply(value) { payload = value; },
+      });
+    } else {
+      await game.handleMessage({
+        content: 'c!calculate chance',
+        author: { id: 'chance-user', bot: false },
+        async reply(value) { payload = value; },
+      });
+    }
+    const container = payload.components[0].components;
+    assert.match(container[0].content, /Luck Tier: \*\*6\*\*/);
+    assert.equal(container[2].components[0].url, 'https://panel.example/chances');
+  }
+  game.close();
+});
+
+test('Index cards confine studs above the divider and keep the image stage and crop on top', async () => {
+  const studs = createCanvas(176, 176);
+  const studsContext = studs.getContext('2d');
+  studsContext.fillStyle = '#FFFFFF';
+  studsContext.fillRect(0, 0, studs.width, studs.height);
+  const crop = createCanvas(32, 32);
+  const cropContext = crop.getContext('2d');
+  cropContext.fillStyle = '#00FF00';
+  cropContext.fillRect(0, 0, crop.width, crop.height);
+
+  const renderer = new CropIndexRenderer({
+    studsPath: 'synthetic-studs',
+    loadImage: async (source) => (source === 'synthetic-studs' ? studs : crop),
+  });
+  const buffer = await renderer.render('textured-index', [SEEDS[0].id], 1);
+  const image = await loadImage(buffer);
+  assert.equal(image.width, INDEX_CANVAS_WIDTH);
+  assert.equal(image.height, INDEX_CANVAS_HEIGHT);
+
+  const rendered = createCanvas(image.width, image.height);
+  const context = rendered.getContext('2d');
+  context.drawImage(image, 0, 0);
+  const pixelAt = (x, y) => [...context.getImageData(x, y, 1, 1).data];
+
+  const cardOrigins = [
+    [40, 30], [420, 30], [800, 30],
+    [40, 410], [420, 410], [800, 410],
+  ];
+  for (const [x, y] of cardOrigins) {
+    assert.notDeepEqual(pixelAt(x + 20, y + 120), [18, 22, 29, 255], 'upper card background receives studs');
+    assert.notDeepEqual(pixelAt(x + 180, y + 267), [18, 22, 29, 255], 'studs reach the row immediately above the divider');
+    assert.deepEqual(pixelAt(x + 180, y + 270), [18, 22, 29, 255], 'the card is solid immediately below the divider');
+    assert.deepEqual(pixelAt(x + 180, y + 350), [18, 22, 29, 255], 'the lower information area remains solid');
+  }
+  const texturedUpper = pixelAt(60, 150);
+  const imageStage = pixelAt(110, 160);
+  assert.ok(imageStage[0] < texturedUpper[0] && imageStage[1] < texturedUpper[1], 'image-stage fill is above the texture');
+  assert.deepEqual(pixelAt(220, 164), [0, 255, 0, 255], 'opaque crop artwork is not covered by studs');
+  assert.deepEqual(pixelAt(41, 31), pixelAt(20, 31), 'the rounded card corner clips the card texture');
+  renderer.clear();
 });
 
 test('Index render cache is reused and invalidated only for the affected user', async () => {
