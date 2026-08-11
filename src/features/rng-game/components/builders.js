@@ -134,8 +134,8 @@ function inventoryCropFields(items) {
   (items || []).forEach((item, index) => {
     const seed = SEED_BY_ID.get(item.seedId);
     fields.push({
-      name: `${item.isBig ? '**BIG** ' : ''}${item.cropName} ${seed?.emoji || ''}`.trim().slice(0, 256),
-      value: `-# * ${seed?.rarityEmoji || ''}\n-# * ${formatWeight(item.weightUnits)} kg`.slice(0, 1_024),
+      name: `${seed?.emoji || ''} ${item.cropName}`.trim().slice(0, 256),
+      value: `-# ${formatWeight(item.weightUnits)} kg - ${seed?.rarityEmoji || ''}`.slice(0, 1_024),
       inline: true,
     });
     if ((index + 1) % 2 === 0) fields.push({ name: '\u200b', value: '\u200b', inline: true });

@@ -1,4 +1,5 @@
 const { generatePlotAnchors } = require('../utils/anchors');
+const { generateCarrot } = require('../utils/crops');
 const { enrichPlot } = require('../utils/growth');
 
 class FarmingGameService {
@@ -6,6 +7,7 @@ class FarmingGameService {
     this.repository = options.repository;
     this.clock = options.clock || Date.now;
     this.rng = options.rng;
+    this.idGenerator = options.idGenerator;
     this.anchorGenerator = options.anchorGenerator
       || ((plotNumber) => generatePlotAnchors(plotNumber, this.rng));
   }
@@ -24,7 +26,7 @@ class FarmingGameService {
   }
 
   inventory(userId) {
-    return this.repository.itemStacks(String(userId), this.clock());
+    return this.repository.inventoryState(String(userId), this.clock());
   }
 
   plant(userId, plotNumbers, itemId) {
@@ -33,6 +35,7 @@ class FarmingGameService {
       plotNumbers,
       itemId,
       this.anchorGenerator,
+      () => generateCarrot(this.rng, this.idGenerator),
       this.clock(),
     );
   }

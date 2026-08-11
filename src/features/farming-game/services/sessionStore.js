@@ -44,7 +44,6 @@ class FarmingViewStore extends FarmingExpiringStore {
       kind: 'farm',
       ownerId: String(ownerId),
       selectedPlots: new Set(),
-      editOriginal: data.editOriginal || null,
       lastActivityAt: this.clock(),
     };
     this.records.set(id, view);
@@ -62,7 +61,6 @@ class FarmingViewStore extends FarmingExpiringStore {
       cropFilters: { name: '', rarity: '', itemTypes: [] },
       otherPage: 1,
       otherFilters: { name: '', rarity: '', itemTypes: [] },
-      editOriginal: data.editOriginal || null,
       lastActivityAt: this.clock(),
     };
     this.records.set(id, view);

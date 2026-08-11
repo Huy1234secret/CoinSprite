@@ -20,7 +20,6 @@ function createFarmingCommandHandlers(context) {
     farmViews,
     getGuildPolicy,
     inventoryViews,
-    refreshScheduler,
   } = context;
 
   async function requireAccess(interaction) {
@@ -36,10 +35,10 @@ function createFarmingCommandHandlers(context) {
     try {
       await interaction.reply(textContainer('Loading your farm…'));
       const state = farmingService.farmState(interaction.user.id);
-      const image = await farmRenderer.render(state);
+      const image = await farmRenderer.render(state, {
+        selectedPlotNumbers: [...view.selectedPlots],
+      });
       await interaction.editReply(farmPayload(interaction.user.id, state, view, image, { initial: false }));
-      view.editOriginal = (payload) => interaction.editReply(payload);
-      refreshScheduler?.schedule?.(view);
     } catch (error) {
       farmViews.delete(view.id);
       await interaction.editReply?.(errorPayload('Farm unavailable\nThe farm could not be rendered right now.', { initial: false })).catch?.(() => null);
@@ -58,7 +57,6 @@ function createFarmingCommandHandlers(context) {
         view,
       );
       await interaction.reply(payload);
-      view.editOriginal = (nextPayload) => interaction.editReply(nextPayload);
     } catch (error) {
       inventoryViews.delete(view.id);
       throw error;
