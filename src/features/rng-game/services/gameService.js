@@ -1,5 +1,11 @@
 const { cascadingRoll } = require('./rngService');
 const { emitSuccessfulRoll } = require('./rollEvent');
+const { MAX_BIG_CROP_TIER, MAX_LUCK_TIER } = require('../config/upgrades');
+const {
+  ceilPositiveFraction,
+  netExpectedValueFraction,
+  targetHoursFraction,
+} = require('./economyService');
 
 const ROLL_COOLDOWN_MS = 5_000;
 const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
@@ -9,7 +15,7 @@ function normalizedTier(tier) {
 }
 
 function sqliteSafeCost(cost) {
-  if (cost > SQLITE_INTEGER_MAX) {
+  if (cost < 0n || cost > SQLITE_INTEGER_MAX) {
     throw new RangeError('Upgrade cost exceeds SQLite signed 64-bit range.');
   }
   return cost;
@@ -20,25 +26,41 @@ function upgradeCost(tier) {
   return sqliteSafeCost(1_000n + (5_000n * t) + (100n * t * t));
 }
 
-function powerUpgradePriceExponent(tier) {
-  const nextTier = normalizedTier(tier) + 1n;
-  const exponent = nextTier / 10n;
-  return exponent > 4n ? 4n : exponent;
+function rawPowerUpgradePrice(upgradeNumber, kind) {
+  const n = BigInt(upgradeNumber);
+  const referenceLuck = Number(n - 1n > BigInt(MAX_LUCK_TIER) ? BigInt(MAX_LUCK_TIER) : n - 1n);
+  const referenceBig = Number(n - 1n > BigInt(MAX_BIG_CROP_TIER) ? BigInt(MAX_BIG_CROP_TIER) : n - 1n);
+  const hours = targetHoursFraction(n);
+  const net = netExpectedValueFraction(referenceLuck, referenceBig);
+  const kindNumerator = kind === 'big' ? 3n : 1n;
+  const kindDenominator = kind === 'big' ? 5n : 1n;
+  const numerator = 720n * hours.numerator * net.numerator * kindNumerator;
+  const denominator = hours.denominator * net.denominator * kindDenominator;
+  return ceilPositiveFraction(numerator, denominator * 1_000n) * 1_000n;
 }
 
-function scalePowerUpgradePrice(basePrice, tier) {
-  const exponent = powerUpgradePriceExponent(tier);
-  return sqliteSafeCost(basePrice * (2n ** exponent));
+function powerUpgradePriceTable(maximum, kind) {
+  const prices = [0n];
+  for (let n = 1; n <= maximum; n += 1) {
+    const rounded = rawPowerUpgradePrice(BigInt(n), kind);
+    prices.push(sqliteSafeCost(rounded > prices[n - 1] ? rounded : prices[n - 1] + 1_000n));
+  }
+  return Object.freeze(prices);
 }
+
+const LUCK_UPGRADE_PRICES = powerUpgradePriceTable(MAX_LUCK_TIER, 'luck');
+const BIG_UPGRADE_PRICES = powerUpgradePriceTable(MAX_BIG_CROP_TIER, 'big');
 
 function luckUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return scalePowerUpgradePrice(100n + (130n * t * (t + 1n)), t);
+  if (t >= BigInt(MAX_LUCK_TIER)) throw new RangeError('Luck is already at maximum tier.');
+  return LUCK_UPGRADE_PRICES[Number(t + 1n)];
 }
 
 function bigUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return scalePowerUpgradePrice(500n + (670n * t) + (270n * t * t), t);
+  if (t >= BigInt(MAX_BIG_CROP_TIER)) throw new RangeError('BIG crop chance is already at maximum tier.');
+  return BIG_UPGRADE_PRICES[Number(t + 1n)];
 }
 
 class RngGameService {
@@ -107,10 +129,11 @@ class RngGameService {
 module.exports = {
   ROLL_COOLDOWN_MS,
   RngGameService,
+  BIG_UPGRADE_PRICES,
+  LUCK_UPGRADE_PRICES,
   bigUpgradeCost,
   luckUpgradeCost,
   normalizedTier,
-  powerUpgradePriceExponent,
-  scalePowerUpgradePrice,
+  rawPowerUpgradePrice,
   upgradeCost,
 };

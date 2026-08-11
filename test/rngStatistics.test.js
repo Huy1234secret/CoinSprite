@@ -148,7 +148,7 @@ test('a successful prefix roll increments total rolls once', async () => {
 test('a successful Auto Roll increments total and Auto Roll counts once', () => {
   const game = feature({ clock: () => 1_000 });
   fund(game, 'auto-count', 60n);
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('auto-count', '1m', []);
   const started = game.autoRollService.start('auto-count', preview, { guildId: 'g', channelId: 'c' });
   game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   const statistics = game.repository.statistics('auto-count');
@@ -160,7 +160,7 @@ test('manual and Auto Roll crops combine into total rolls', () => {
   const game = feature({ clock: () => 1_000 });
   rollSeed(game.repository, 'combined', CARROT, { now: 1 });
   fund(game, 'combined', 60n);
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('combined', '1m', []);
   const started = game.autoRollService.start('combined', preview, { guildId: 'g', channelId: 'c' });
   game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   const statistics = game.repository.statistics('combined');
@@ -210,7 +210,7 @@ test('a failed roll transaction rolls back inventory, discovery, and statistics'
 test('duplicate Auto Roll ticks do not increment statistics twice', () => {
   const game = feature({ clock: () => 1_000 });
   fund(game, 'duplicate-tick', 60n);
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('duplicate-tick', '1m', []);
   const started = game.autoRollService.start('duplicate-tick', preview, { guildId: 'g', channelId: 'c' });
   const first = game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   const duplicate = game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
@@ -430,7 +430,7 @@ test('Auto Roll auto-sale batches increase earnings exactly once', () => {
   game.db.prepare('UPDATE rng_players SET inventory_capacity = 2 WHERE user_id = ?').run('auto-sale');
   insertItem(game, 'auto-sale', { value: 7n, rolledAt: 1 });
   insertItem(game, 'auto-sale', { value: 8n, rolledAt: 2 });
-  const preview = game.autoRollService.preview('1m', ['Common']);
+  const preview = game.autoRollService.preview('auto-sale', '1m', ['Common']);
   const started = game.autoRollService.start('auto-sale', preview, { guildId: 'g', channelId: 'c' });
   game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
@@ -463,12 +463,12 @@ test('failed sales do not update earnings', () => {
 
 test('starting balance, refunds, and purchases are excluded from earnings', () => {
   const game = feature({ clock: () => 1_000 });
-  fund(game, 'non-sale-money', 1_000n);
+  fund(game, 'non-sale-money', 2_000n);
   game.gameService.purchasePowerUpgrade('non-sale-money', 'big', 'purchase');
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('non-sale-money', '1m', []);
   const started = game.autoRollService.start('non-sale-money', preview, { guildId: 'g', channelId: 'c' });
   game.autoRollService.processTick(started.job.id, started.job.endsAt, started.job.endsAt);
-  assert.equal(bigUpgradeCost(0), 500n);
+  assert.equal(bigUpgradeCost(0), 1_000n);
   assert.equal(game.repository.statistics('non-sale-money').totalSaleEarnings, 0n);
   game.close();
 });
@@ -526,7 +526,7 @@ test('the stat payload uses the exact V2 layout, avatar, formatters, and safe me
 test('/stat returns the exact empty state and works during Auto Roll', async () => {
   const game = feature({ clock: () => 1_000 });
   fund(game, 'stat-empty', 60n);
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('stat-empty', '1m', []);
   game.autoRollService.start('stat-empty', preview, { guildId: 'g', channelId: 'c' });
   let payload;
   await game.handleInteraction({

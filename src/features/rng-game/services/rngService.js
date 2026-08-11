@@ -8,35 +8,31 @@ const {
 } = require('../config/upgrades');
 
 const PROBABILITY_SCALE = 1_000_000_000n;
-const LUCK_PROMOTION_RARITY_ORDER = Object.freeze([
+const RARITY_ORDER = Object.freeze([
   'Common',
   'Uncommon',
   'Rare',
   'Epic',
   'Legendary',
   'Mythic',
+  'Secret',
   'Super',
 ]);
-const RARITY_ORDER = Object.freeze([
-  ...LUCK_PROMOTION_RARITY_ORDER.slice(0, -1),
-  'Secret',
-  LUCK_PROMOTION_RARITY_ORDER.at(-1),
-]);
-const RARITY_LUCK_SHARE = Object.freeze({
-  Common: 0.50,
-  Uncommon: 0.40,
-  Rare: 0.35,
-  Epic: 0.30,
-  Legendary: 0.25,
-  Mythic: 0.20,
-  Super: 0.10,
+const MAX_LUCK_RARITY_UNITS = Object.freeze({
+  Common: 350_000_000n,
+  Uncommon: 300_000_000n,
+  Rare: 220_000_000n,
+  Epic: 108_849_000n,
+  Legendary: 20_000_000n,
+  Mythic: 1_000_000n,
+  Secret: 1_000n,
+  Super: 150_000n,
 });
-const LUCK_PROMOTION_STRENGTH = 0.08;
-const PROMOTION_RATE_SCALE = 1_000_000n;
-const PROMOTION_RATE_UNITS = Object.freeze(Object.fromEntries(LUCK_PROMOTION_RARITY_ORDER.map((rarity) => [
-  rarity,
-  BigInt(Math.round(LUCK_PROMOTION_STRENGTH * RARITY_LUCK_SHARE[rarity] * Number(PROMOTION_RATE_SCALE))),
-])));
+const LUCK_INTERPOLATION_MAX_TIER = BigInt(MAX_LUCK_TIER);
+
+if (RARITY_ORDER.reduce((sum, rarity) => sum + MAX_LUCK_RARITY_UNITS[rarity], 0n) !== PROBABILITY_SCALE) {
+  throw new Error('Maximum Luck rarity units must total exactly PROBABILITY_SCALE.');
+}
 
 function secureRandomInt(maximum) {
   return randomInt(maximum);
@@ -134,70 +130,81 @@ function baseRarityDistribution(cropDistribution = BASE_CROP_DISTRIBUTION) {
   return distribution;
 }
 
+function addRational(left, right) {
+  return rational(
+    (left.numerator * right.denominator) + (right.numerator * left.denominator),
+    left.denominator * right.denominator,
+  );
+}
+
 const BASE_RARITY_DISTRIBUTION = Object.freeze(baseRarityDistribution());
-const PROMOTION_STATES = new WeakMap();
 
-function nextLuckPromotionState(current) {
-  const next = { ...current };
-  for (let index = 0; index < LUCK_PROMOTION_RARITY_ORDER.length - 1; index += 1) {
-    const rarity = LUCK_PROMOTION_RARITY_ORDER[index];
-    const nextRarity = LUCK_PROMOTION_RARITY_ORDER[index + 1];
-    const promoted = (current[rarity] * PROMOTION_RATE_UNITS[rarity]) / PROMOTION_RATE_SCALE;
-    next[rarity] -= promoted;
-    next[nextRarity] += promoted;
+function luckProgress(tier) {
+  const supplied = typeof tier === 'bigint' ? tier : BigInt(normalizedTier(tier));
+  // Preview inputs remain unbounded BigInts, while the canonical smoothstep curve
+  // saturates at its explicitly defined tier-49 endpoint instead of extrapolating
+  // into negative probability units beyond M.
+  const t = supplied < 0n ? 0n : (supplied > LUCK_INTERPOLATION_MAX_TIER ? LUCK_INTERPOLATION_MAX_TIER : supplied);
+  const maximum = LUCK_INTERPOLATION_MAX_TIER;
+  return Object.freeze({
+    numerator: t * t * ((3n * maximum) - (2n * t)),
+    denominator: maximum * maximum * maximum,
+  });
+}
+
+function directLuckDistribution(baseDistribution, tier) {
+  const progress = luckProgress(tier);
+  const allocated = RARITY_ORDER.map((rarity, index) => {
+    const exactNumerator = (baseDistribution[rarity] * (progress.denominator - progress.numerator))
+      + (MAX_LUCK_RARITY_UNITS[rarity] * progress.numerator);
+    return {
+      rarity,
+      index,
+      units: exactNumerator / progress.denominator,
+      remainder: exactNumerator % progress.denominator,
+    };
+  });
+  let missing = PROBABILITY_SCALE - allocated.reduce((sum, entry) => sum + entry.units, 0n);
+  const byRemainder = [...allocated].sort((left, right) => {
+    if (left.remainder !== right.remainder) return left.remainder > right.remainder ? -1 : 1;
+    return left.index - right.index;
+  });
+  for (let index = 0; missing > 0n; index += 1, missing -= 1n) {
+    byRemainder[index].units += 1n;
   }
-  return Object.freeze(next);
+  return Object.freeze(Object.fromEntries(allocated.map((entry) => [entry.rarity, entry.units])));
 }
 
-function promotionStates(distribution) {
-  const cached = PROMOTION_STATES.get(distribution);
-  if (cached) return cached;
-  // The fixed-point model has finitely many monotonic states. Cache them once so
-  // selecting an enormous preview multiplier never does work proportional to its value.
-  const states = [Object.freeze({ ...distribution })];
-  while (true) {
-    const current = states.at(-1);
-    const next = nextLuckPromotionState(current);
-    if (RARITY_ORDER.every((rarity) => next[rarity] === current[rarity])) break;
-    states.push(next);
-  }
-  const result = Object.freeze(states);
-  PROMOTION_STATES.set(distribution, result);
-  return result;
-}
-
-function promotionTier(value) {
-  if (typeof value === 'bigint') return value > 0n ? value : 0n;
-  if (typeof value === 'number' && Number.isSafeInteger(value)) return value > 0 ? BigInt(value) : 0n;
-  if (typeof value === 'string' && /^\d+$/.test(value)) return BigInt(value);
-  return 0n;
-}
-
-function applyLuckPromotions(distribution, tiers) {
-  const states = promotionStates(distribution);
-  const tier = promotionTier(tiers);
-  const finalIndex = BigInt(states.length - 1);
-  return states[Number(tier >= finalIndex ? finalIndex : tier)];
-}
+const LUCK_RARITY_DISTRIBUTIONS = Object.freeze(Array.from(
+  { length: MAX_LUCK_TIER + 1 },
+  (_, tier) => directLuckDistribution(BASE_RARITY_DISTRIBUTION, BigInt(tier)),
+));
 
 function rarityDistribution(luckTier = 0, options = {}) {
-  return applyLuckPromotions(
-    options.checkedSeeds || options.fallbackSeed
-      ? baseRarityDistribution(baseCropDistribution(options))
-      : BASE_RARITY_DISTRIBUTION,
-    normalizedTier(luckTier),
-  );
+  const tier = normalizedTier(luckTier);
+  if (!options.checkedSeeds && !options.fallbackSeed) return LUCK_RARITY_DISTRIBUTIONS[tier];
+  return directLuckDistribution(baseRarityDistribution(baseCropDistribution(options)), BigInt(tier));
+}
+
+function positiveWholeBigInt(value) {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === 'string' && /^[1-9]\d*$/.test(value)) return BigInt(value);
+  throw new RangeError('Luck multiplier must be a positive whole number.');
 }
 
 function previewRarityDistribution(luckMultiplier = 1n, options = {}) {
-  const multiplier = promotionTier(luckMultiplier);
+  const multiplier = positiveWholeBigInt(luckMultiplier);
   if (multiplier < 1n) throw new RangeError('Luck multiplier must be a positive whole number.');
-  return applyLuckPromotions(
-    options.checkedSeeds || options.fallbackSeed
-      ? baseRarityDistribution(baseCropDistribution(options))
-      : BASE_RARITY_DISTRIBUTION,
-    multiplier - 1n,
-  );
+  const tier = multiplier - 1n;
+  const base = options.checkedSeeds || options.fallbackSeed
+    ? baseRarityDistribution(baseCropDistribution(options))
+    : BASE_RARITY_DISTRIBUTION;
+  if (base === BASE_RARITY_DISTRIBUTION) {
+    const bounded = tier > LUCK_INTERPOLATION_MAX_TIER ? LUCK_INTERPOLATION_MAX_TIER : tier;
+    return LUCK_RARITY_DISTRIBUTIONS[Number(bounded)];
+  }
+  return directLuckDistribution(base, tier);
 }
 
 function checkedRandomInt(rng, maximum) {
@@ -298,15 +305,43 @@ function averageValueForSeed(seed) {
   return Number(total) / (maximum - minimum + 1);
 }
 
-function expectedValueForLuckTier(luckTier = 0, options = {}) {
+const AVERAGE_VALUE_FRACTIONS = new Map();
+
+function averageValueFractionForSeed(seed) {
+  const cached = AVERAGE_VALUE_FRACTIONS.get(seed.id);
+  if (cached) return cached;
+  const { minimum, maximum } = weightBounds(seed);
+  let total = 0n;
+  for (let weight = minimum; weight <= maximum; weight += 1) total += valueForWeight(seed, weight);
+  const result = rational(total, BigInt(maximum - minimum + 1));
+  AVERAGE_VALUE_FRACTIONS.set(seed.id, result);
+  return result;
+}
+
+const EXPECTED_VALUE_FRACTIONS = new Map();
+
+function expectedValueFractionForLuckTier(luckTier = 0, options = {}) {
+  const tier = normalizedTier(luckTier);
+  if (!options.checkedSeeds && !options.fallbackSeed && EXPECTED_VALUE_FRACTIONS.has(tier)) {
+    return EXPECTED_VALUE_FRACTIONS.get(tier);
+  }
   const crops = baseCropDistribution(options);
-  const rarities = rarityDistribution(luckTier, options);
+  const rarities = rarityDistribution(tier, options);
   const rarityBase = baseRarityDistribution(crops);
-  return crops.reduce((expected, entry) => {
-    const rarityProbability = Number(rarities[entry.seed.rarity]) / Number(PROBABILITY_SCALE);
-    const withinRarity = Number(entry.units) / Number(rarityBase[entry.seed.rarity]);
-    return expected + (rarityProbability * withinRarity * averageValueForSeed(entry.seed));
-  }, 0);
+  const result = crops.reduce((expected, entry) => {
+    const average = averageValueFractionForSeed(entry.seed);
+    return addRational(expected, rational(
+      rarities[entry.seed.rarity] * entry.units * average.numerator,
+      PROBABILITY_SCALE * rarityBase[entry.seed.rarity] * average.denominator,
+    ));
+  }, { numerator: 0n, denominator: 1n });
+  if (!options.checkedSeeds && !options.fallbackSeed) EXPECTED_VALUE_FRACTIONS.set(tier, result);
+  return result;
+}
+
+function expectedValueForLuckTier(luckTier = 0, options = {}) {
+  const expected = expectedValueFractionForLuckTier(luckTier, options);
+  return Number(expected.numerator) / Number(expected.denominator);
 }
 
 function luckProbabilityReport() {
@@ -320,25 +355,27 @@ function luckProbabilityReport() {
 module.exports = {
   BASE_CROP_DISTRIBUTION,
   BASE_RARITY_DISTRIBUTION,
-  LUCK_PROMOTION_RARITY_ORDER,
-  LUCK_PROMOTION_STRENGTH,
+  LUCK_RARITY_DISTRIBUTIONS,
   MAX_BIG_CROP_TIER,
+  MAX_LUCK_RARITY_UNITS,
   MAX_LUCK_TIER,
   PROBABILITY_SCALE,
-  RARITY_LUCK_SHARE,
   RARITY_ORDER,
-  applyLuckPromotions,
+  addRational,
   averageValueForSeed,
+  averageValueFractionForSeed,
   baseCropDistribution,
   baseRarityDistribution,
   bigChance,
   cascadingBaseFractions,
   cascadingRoll,
   effectiveChance,
+  expectedValueFractionForLuckTier,
   expectedValueForLuckTier,
   fixedPointCropDistribution,
   generateInstance,
   luckProbabilityReport,
+  luckProgress,
   previewRarityDistribution,
   rarityDistribution,
   secureRandomInt,

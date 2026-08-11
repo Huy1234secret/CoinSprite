@@ -17,6 +17,11 @@ const { INDEX_MAX_PAGE, indexDiscoveryCount } = require('../services/indexRender
 const { cropChanceProfile } = require('../services/chanceService');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { evaluateRngGameAccess } = require('../services/accessPolicy');
+const { EXCHANGE_SHECKLES_PER_TOKEN } = require('../repositories/tokenRepository');
+const {
+  exchangePreviewPayload,
+  initialRpsPayload,
+} = require('../components/rpsBuilders');
 
 const PREFIX_ROLL = 'c!roll';
 const PREFIX_COMMANDS = Object.freeze(new Map([
@@ -31,19 +36,45 @@ const PREFIX_COMMANDS = Object.freeze(new Map([
   ['c!stat', 'stat'],
   ['c!calculate chance', 'calculate-chance'],
 ]));
-const RNG_GAME_COMMAND_NAMES = new Set(['roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat', 'calculate-chance']);
+const RNG_GAME_COMMAND_NAMES = new Set([
+  'roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat',
+  'calculate-chance', 'exchange-token', 'g-rps',
+]);
 
 const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('roll').setDescription('Roll a seed crop.'),
   new SlashCommandBuilder().setName('inventory').setDescription('View and manage your crop inventory.'),
   new SlashCommandBuilder().setName('sell').setDescription('Select crop instances to sell.'),
-  new SlashCommandBuilder().setName('balance').setDescription('View your Sheckle balance.'),
+  new SlashCommandBuilder().setName('balance').setDescription('View your Sheckle and token balances.'),
   new SlashCommandBuilder().setName('auto-roll').setDescription('Buy and start a scheduled Auto Roll job.'),
   new SlashCommandBuilder().setName('upgrade').setDescription('View and purchase Luck or BIG crop upgrades.'),
   new SlashCommandBuilder().setName('index').setDescription('View your discovered crop Index.'),
   new SlashCommandBuilder().setName('stat').setDescription('View your all-time RNG rolling statistics.'),
   new SlashCommandBuilder().setName('calculate-chance').setDescription('Compare base crop chances with your current Luck tier.'),
+  new SlashCommandBuilder()
+    .setName('exchange-token')
+    .setDescription('Exchange Sheckles for RPS tokens (1 token per 1,000 Sheckles).')
+    .addIntegerOption((option) => option
+      .setName('amount-token')
+      .setDescription('Token value to receive (up to 100 per four hours).')
+      .setRequired(true)
+      .setMinValue(1)
+      .setMaxValue(100)),
+  new SlashCommandBuilder().setName('g-rps').setDescription('Play Rock-Paper-Scissors with tokens.'),
 ].map((data) => ({ data }));
+
+function discordProfile(source) {
+  const member = source.member;
+  const user = source.user;
+  const avatarOwner = member && typeof member.displayAvatarURL === 'function' ? member : user;
+  return {
+    userId: String(user.id),
+    displayName: String(member?.displayName || user.globalName || user.username || 'Player'),
+    avatarUrl: typeof avatarOwner?.displayAvatarURL === 'function'
+      ? avatarOwner.displayAvatarURL({ extension: 'png', size: 256 })
+      : '',
+  };
+}
 
 function lockedPayload(options = {}) {
   return errorPayload('Sale in progress\nFinish or deny your current sale before using another RNG/economy command.', options);
@@ -98,8 +129,10 @@ function createCommandHandlers(context) {
     indexViews,
     inventoryViews,
     repository,
+    rpsService,
     chancePageUrl,
     saleSessions,
+    tokenRepository,
   } = context;
 
   async function requireAccess(source, options = {}) {
@@ -165,7 +198,44 @@ function createCommandHandlers(context) {
   }
 
   async function executeBalance(source) {
-    await source.reply(balancePayload(source.user, gameService.balance(source.user.id)));
+    await source.reply(balancePayload(source.user, repository.getPlayer(source.user.id)));
+  }
+
+  async function executeExchangeToken(source) {
+    const amount = BigInt(source.options?.getInteger?.('amount-token', true) ?? 0);
+    const allowance = tokenRepository.windowStatus(source.user.id);
+    if (amount < 1n || amount > allowance.remaining) {
+      await source.reply(errorPayload(
+        `Exchange limit\nYou can exchange **${allowance.remaining}** more token value during the current rolling four-hour window.`,
+        { ephemeral: true },
+      ));
+      return;
+    }
+    const sheckleCost = amount * EXCHANGE_SHECKLES_PER_TOKEN;
+    const player = repository.getPlayer(source.user.id);
+    const action = actions.create(source.user.id, {
+      kind: 'token-exchange',
+      tokenAmount: amount,
+      sheckleCost,
+    });
+    await source.reply(exchangePreviewPayload(
+      source.user.id,
+      amount,
+      sheckleCost,
+      action,
+      player.balance >= sheckleCost,
+    ));
+  }
+
+  async function executeRps(source) {
+    const result = rpsService.createGame(source.guildId, source.channelId, discordProfile(source));
+    if (result.status === 'already-active') {
+      await source.reply(errorPayload('RPS game already active\nFinish or wait for your current table to expire.', { ephemeral: true }));
+      return;
+    }
+    await source.reply(initialRpsPayload(result.game));
+    const message = await source.fetchReply?.().catch?.(() => null);
+    if (message?.id) rpsService.repository.setMessage(result.game.id, message.id);
   }
 
   async function executeStat(source) {
@@ -225,6 +295,8 @@ function createCommandHandlers(context) {
     if (commandName === 'index') return executeIndex(source);
     if (commandName === 'stat') return executeStat(source);
     if (commandName === 'calculate-chance') return executeCalculateChance(source, options);
+    if (commandName === 'exchange-token') return executeExchangeToken(source);
+    if (commandName === 'g-rps') return executeRps(source);
     return undefined;
   }
 

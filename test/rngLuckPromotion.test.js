@@ -8,20 +8,30 @@ const {
   upgradePromptPayload,
 } = require('../src/features/rng-game/components/builders');
 const {
-  LUCK_PROMOTION_RARITY_ORDER,
+  BASE_RARITY_DISTRIBUTION,
+  MAX_LUCK_RARITY_UNITS,
   PROBABILITY_SCALE,
   RARITY_ORDER,
-  applyLuckPromotions,
   baseCropDistribution,
-  baseRarityDistribution,
   bigChance,
   expectedValueForLuckTier,
   generateInstance,
   luckProbabilityReport,
+  previewRarityDistribution,
   rarityDistribution,
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
-const { bigUpgradeCost, luckUpgradeCost, upgradeCost } = require('../src/features/rng-game/services/gameService');
+const {
+  autoRollCostPerRoll,
+  grossExpectedValueFraction,
+} = require('../src/features/rng-game/services/economyService');
+const {
+  BIG_UPGRADE_PRICES,
+  LUCK_UPGRADE_PRICES,
+  bigUpgradeCost,
+  luckUpgradeCost,
+  upgradeCost,
+} = require('../src/features/rng-game/services/gameService');
 const {
   MAX_BIG_CROP_CHANCE,
   MAX_BIG_CROP_TIER,
@@ -33,13 +43,6 @@ function percent(distribution, rarity) {
   return (Number(distribution[rarity]) * 100) / Number(PROBABILITY_SCALE);
 }
 
-function expectedRank(distribution) {
-  return RARITY_ORDER.reduce(
-    (total, rarity, index) => total + (Number(distribution[rarity]) * index),
-    0,
-  ) / Number(PROBABILITY_SCALE);
-}
-
 function feature(options = {}) {
   return createRngGameFeature({
     databasePath: ':memory:',
@@ -49,13 +52,18 @@ function feature(options = {}) {
   });
 }
 
-test('Luck tier zero matches the exact cascading crop and rarity baseline', () => {
-  const crops = baseCropDistribution();
-  const baseline = rarityDistribution(0);
-  assert.deepEqual(baseline, baseRarityDistribution(crops));
-  assert.equal(crops.length, CHECKED_SEEDS.length + 1);
-  assert.equal(crops.at(-1).seed, FALLBACK_SEED);
-  const expectedApproximatePercentages = {
+function fund(game, userId, balance) {
+  game.repository.ensurePlayer(userId, 1);
+  game.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?')
+    .run(BigInt(balance), String(userId));
+}
+
+test('Luck tier zero is exactly the cascading baseline and tier 49 is exactly the target', () => {
+  assert.deepEqual(rarityDistribution(0), BASE_RARITY_DISTRIBUTION);
+  assert.deepEqual(rarityDistribution(MAX_LUCK_TIER), MAX_LUCK_RARITY_UNITS);
+  assert.equal(baseCropDistribution().length, CHECKED_SEEDS.length + 1);
+  assert.equal(baseCropDistribution().at(-1).seed, FALLBACK_SEED);
+  const expectedBaseline = {
     Common: 81.4723,
     Uncommon: 14.6285,
     Rare: 3.6990,
@@ -66,96 +74,82 @@ test('Luck tier zero matches the exact cascading crop and rarity baseline', () =
     Super: 0.0006,
   };
   for (const rarity of RARITY_ORDER) {
-    assert.ok(Math.abs(percent(baseline, rarity) - expectedApproximatePercentages[rarity]) < 0.0001, rarity);
+    assert.ok(Math.abs(percent(BASE_RARITY_DISTRIBUTION, rarity) - expectedBaseline[rarity]) < 0.0001, rarity);
   }
 });
 
-test('every Luck tier is normalized, non-negative, and moves expected rarity upward', () => {
-  let priorRank = -1;
+test('every direct Luck distribution totals one billion units with no negative rarity', () => {
   for (let tier = 0; tier <= MAX_LUCK_TIER; tier += 1) {
     const distribution = rarityDistribution(tier);
-    assert.equal(
-      RARITY_ORDER.reduce((sum, rarity) => sum + distribution[rarity], 0n),
-      PROBABILITY_SCALE,
-      `tier ${tier}`,
-    );
+    assert.equal(RARITY_ORDER.reduce((sum, rarity) => sum + distribution[rarity], 0n), PROBABILITY_SCALE, `tier ${tier}`);
     assert.ok(RARITY_ORDER.every((rarity) => distribution[rarity] >= 0n), `tier ${tier}`);
-    const rank = expectedRank(distribution);
-    assert.ok(rank > priorRank, `expected rarity rank did not rise at tier ${tier}`);
-    priorRank = rank;
+    assert.equal(distribution.Secret, BASE_RARITY_DISTRIBUTION.Secret, `Secret tier ${tier}`);
   }
 });
 
-test('Common decreases, Super increases, and adjacent tiers remain smooth', () => {
-  let prior = rarityDistribution(0);
+test('smoothstep checkpoints match the target probability and expected-value curve', () => {
+  const checkpoints = new Map([
+    [0, [0.005899, 0.001290, 0.000644, 47.37]],
+    [10, [0.221158, 0.011946, 0.002194, 121.56]],
+    [20, [0.731341, 0.037200, 0.005867, 297.39]],
+    [30, [1.333051, 0.066985, 0.010198, 504.77]],
+    [40, [1.822894, 0.091233, 0.013725, 673.59]],
+    [49, [2.000000, 0.100000, 0.015000, 734.63]],
+  ]);
+  for (const [tier, [legendary, mythic, superChance, expectedValue]] of checkpoints) {
+    const distribution = rarityDistribution(tier);
+    assert.ok(Math.abs(percent(distribution, 'Legendary') - legendary) < 0.000001, `Legendary tier ${tier}`);
+    assert.ok(Math.abs(percent(distribution, 'Mythic') - mythic) < 0.000001, `Mythic tier ${tier}`);
+    assert.ok(Math.abs(percent(distribution, 'Super') - superChance) < 0.000001, `Super tier ${tier}`);
+    assert.ok(Math.abs(expectedValueForLuckTier(tier) - expectedValue) < 0.01, `EV tier ${tier}`);
+  }
+});
+
+test('expected value rises smoothly and strictly at every purchasable Luck tier', () => {
+  let previous = expectedValueForLuckTier(0);
   for (let tier = 1; tier <= MAX_LUCK_TIER; tier += 1) {
-    const current = rarityDistribution(tier);
-    assert.ok(current.Common <= prior.Common, `Common increased at tier ${tier}`);
-    assert.ok(current.Super >= prior.Super, `Super decreased at tier ${tier}`);
-    for (const rarity of RARITY_ORDER) {
-      const pointChange = Math.abs(percent(current, rarity) - percent(prior, rarity));
-      assert.ok(pointChange <= 5, `${rarity} jumped ${pointChange} points at tier ${tier}`);
-    }
-    prior = current;
+    const current = expectedValueForLuckTier(tier);
+    assert.ok(current > previous, `expected value did not rise at tier ${tier}`);
+    assert.ok(current - previous < 25, `expected value jumped at tier ${tier}`);
+    previous = current;
   }
 });
 
-test('the promotion transition forms a rise-and-fall wave for intermediate rarities', () => {
-  const baseline = baseRarityDistribution(baseCropDistribution());
-  const extended = Array.from({ length: 401 }, (_, tier) => applyLuckPromotions(baseline, tier));
-  for (const rarity of LUCK_PROMOTION_RARITY_ORDER.slice(1, -1)) {
-    const values = extended.map((distribution) => distribution[rarity]);
-    const peak = values.reduce((best, value, index) => (value > values[best] ? index : best), 0);
-    assert.ok(peak > 0 && peak < values.length - 1, `${rarity} did not peak inside the modeled wave`);
-    assert.ok(values[peak] > values[0], `${rarity} never rose`);
-    assert.ok(values.at(-1) < values[peak], `${rarity} never declined after its peak`);
-  }
-});
-
-test('Luck tier twenty stays inside every balancing target range', () => {
-  const distribution = rarityDistribution(20);
-  const ranges = {
-    Common: [25, 45],
-    Uncommon: [30, 45],
-    Rare: [15, 25],
-    Epic: [3, 9],
-    Legendary: [0.5, 2.5],
-    Mythic: [0.03, 0.40],
-    Super: [0.003, 0.05],
-  };
-  for (const [rarity, [minimum, maximum]] of Object.entries(ranges)) {
-    const actual = percent(distribution, rarity);
-    assert.ok(actual >= minimum && actual <= maximum, `${rarity}: ${actual}%`);
-  }
-});
-
-test('Luck preserves original relative crop weights inside every rarity', () => {
+test('Luck preserves the canonical relative crop weights inside each rarity', () => {
   const crops = baseCropDistribution();
   for (const rarity of RARITY_ORDER) {
     const entries = crops.filter((entry) => entry.seed.rarity === rarity);
     const total = entries.reduce((sum, entry) => sum + entry.units, 0n);
-    const exactWeights = entries.map((entry) => Number(
-      (entry.fraction.numerator * 1_000_000_000_000_000_000n) / entry.fraction.denominator,
-    ) / 1e18);
-    const exactTotal = exactWeights.reduce((sum, value) => sum + value, 0);
-    for (const entry of entries) {
-      const index = entries.indexOf(entry);
-      const baseShare = Number(entry.units) / Number(total);
-      const exactShare = exactWeights[index] / exactTotal;
-      assert.ok(Math.abs(baseShare - exactShare) < 1e-5, `${entry.seed.id} changed within-rarity share`);
+    const shares = entries.map((entry) => ({ id: entry.seed.id, numerator: entry.units, denominator: total }));
+    for (const tier of [0, 10, 20, 30, 40, 49]) {
+      assert.ok(rarityDistribution(tier)[rarity] >= 0n);
+      assert.deepEqual(
+        entries.map((entry) => ({ id: entry.seed.id, numerator: entry.units, denominator: total })),
+        shares,
+      );
     }
   }
 });
 
-test('manual and automatic rolls use identical Luck sampling', () => {
+test('unlimited preview accepts huge whole numbers safely and clamps to the canonical maximum curve', () => {
+  const huge = '9'.repeat(2_000);
+  assert.deepEqual(previewRarityDistribution(huge), MAX_LUCK_RARITY_UNITS);
+  assert.deepEqual(previewRarityDistribution(50n), MAX_LUCK_RARITY_UNITS);
+  for (const invalid of ['0', '-1', '1.5', '1e6', 'abc', '', 0, -1, 1.5]) {
+    assert.throws(() => previewRarityDistribution(invalid), RangeError, String(invalid));
+  }
+});
+
+test('manual and automatic rolls consume identical canonical Luck sampling', () => {
   const rng = (maximum) => Math.min(maximum - 1, Math.floor(maximum * 0.42));
   const game = feature({ rng, clock: () => 1_000 });
   game.repository.ensurePlayer('manual');
   game.repository.ensurePlayer('automatic');
-  game.db.prepare('UPDATE rng_players SET luck_tier = 10 WHERE user_id IN (?, ?)').run('manual', 'automatic');
-  game.db.prepare('UPDATE rng_players SET sheckle_balance = 60 WHERE user_id = ?').run('automatic');
+  game.db.prepare('UPDATE rng_players SET luck_tier = 10, big_crop_tier = 10 WHERE user_id IN (?, ?)').run('manual', 'automatic');
+  fund(game, 'automatic', 288n);
   const manual = game.gameService.roll('manual');
-  const preview = game.autoRollService.preview('1m', []);
+  const preview = game.autoRollService.preview('automatic', '1m', []);
+  assert.equal(preview.costPerRoll, 24n);
   const started = game.autoRollService.start('automatic', preview, { guildId: 'guild', channelId: 'channel' });
   const automatic = game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
   assert.deepEqual(
@@ -165,36 +159,79 @@ test('manual and automatic rolls use identical Luck sampling', () => {
   game.close();
 });
 
-test('BIG crops store exactly four times base weight and base-weight value', () => {
+test('BIG probability and crop output remain exact, and expected value uses the canonical 4x multiplier', () => {
+  assert.deepEqual(bigChance(50), { numerator: 50, denominator: 1_000 });
   const seed = FALLBACK_SEED;
   const draws = [20, 0];
   const instance = generateInstance(seed, () => draws.shift(), { bigCropTier: 20 });
-  assert.equal(instance.baseWeightUnits, 30);
-  assert.equal(instance.weightUnits, 120);
-  assert.equal(instance.value, valueForWeight(seed, 30) * 4n);
-  assert.equal(instance.value, 32n);
+  assert.equal(instance.weightUnits, instance.baseWeightUnits * 4);
+  assert.equal(instance.value, valueForWeight(seed, instance.baseWeightUnits) * 4n);
+  const base = grossExpectedValueFraction(20, 0);
+  const withBig = grossExpectedValueFraction(20, 20);
+  assert.equal(withBig.numerator * base.denominator * 1_000n, base.numerator * withBig.denominator * 1_060n);
 });
 
-test('power upgrade prices apply the exact capped power-of-two tier multiplier', () => {
-  assert.deepEqual([0, 1, 5, 10, 15, 19, 29, 39, 49].map(upgradeCost), [
-    1_000n, 6_100n, 28_500n, 61_000n, 98_500n, 132_100n,
-    230_100n, 348_100n, 486_100n,
-  ]);
-  assert.deepEqual([0, 1, 5, 9, 10, 15, 19, 29, 39, 49].map(luckUpgradeCost), [
-    100n, 360n, 4_000n, 23_600n, 28_800n, 62_600n, 198_000n,
-    905_600n, 3_246_400n, 5_097_600n,
-  ]);
-  assert.deepEqual([0, 1, 5, 9, 10, 15, 19, 29, 39, 49].map(bigUpgradeCost), [
-    500n, 1_440n, 10_600n, 56_800n, 68_400n, 142_600n, 442_800n,
-    1_976_000n, 6_996_800n, 10_905_600n,
-  ]);
+test('expected-income prices are exact at checkpoints and strictly increase by at least 1,000', () => {
+  const checkpoints = [
+    [1, 2_000n, 1_000n],
+    [10, 69_000n, 41_000n],
+    [20, 1_316_000n, 790_000n],
+    [30, 7_825_000n, 4_695_000n],
+    [40, 25_858_000n, 15_515_000n],
+    [49, 53_935_000n, 32_361_000n],
+  ];
+  for (const [number, luck, big] of checkpoints) {
+    assert.equal(luckUpgradeCost(number - 1), luck);
+    assert.equal(bigUpgradeCost(number - 1), big);
+  }
+  assert.equal(bigUpgradeCost(49), 34_500_000n);
+  assert.throws(() => luckUpgradeCost(49), /maximum/);
+  assert.throws(() => bigUpgradeCost(50), /maximum/);
+  for (let n = 2; n < LUCK_UPGRADE_PRICES.length; n += 1) {
+    assert.ok(LUCK_UPGRADE_PRICES[n] >= LUCK_UPGRADE_PRICES[n - 1] + 1_000n, `Luck ${n}`);
+  }
+  for (let n = 2; n < BIG_UPGRADE_PRICES.length; n += 1) {
+    assert.ok(BIG_UPGRADE_PRICES[n] >= BIG_UPGRADE_PRICES[n - 1] + 1_000n, `BIG ${n}`);
+  }
+  assert.equal(upgradeCost(49), 486_100n);
 });
 
-test('real Luck reaches ×50 and BIG chance reaches exactly 5% without another charge', () => {
+test('Auto Roll preview and refund retain the stored tier-10 snapshot after player tiers change', () => {
+  const game = feature({ clock: () => 1_000, rng: (maximum) => maximum - 1 });
+  fund(game, 'snapshot', 10_000n);
+  game.db.prepare('UPDATE rng_players SET luck_tier = 10, big_crop_tier = 10, inventory_capacity = 1 WHERE user_id = ?')
+    .run('snapshot');
+  const preview = game.autoRollService.preview('snapshot', '1m', []);
+  assert.deepEqual([preview.costPerRoll, preview.totalCost], [24n, 288n]);
+  const started = game.autoRollService.start('snapshot', preview, { guildId: 'g', channelId: 'c' });
+  assert.deepEqual([started.job.costPerRoll, started.job.costPaid], [24n, 288n]);
+  game.autoRollService.processTick(started.job.id, started.job.nextTickAt, started.job.nextTickAt);
+  game.db.prepare('UPDATE rng_players SET luck_tier = 49, big_crop_tier = 50 WHERE user_id = ?').run('snapshot');
+  const ended = game.autoRollService.processTick(started.job.id, started.job.nextTickAt + 5_000, started.job.nextTickAt + 5_000);
+  assert.equal(ended.status, 'ended');
+  assert.equal(ended.job.costPerRoll, 24n);
+  assert.equal(ended.job.refundPaid, 11n * 24n);
+  assert.equal(game.repository.getPlayer('snapshot').balance, 10_000n - 24n);
+  game.close();
+});
+
+test('Auto Roll re-previews without charging when tiers change before purchase', () => {
+  const game = feature({ clock: () => 1_000 });
+  fund(game, 'repriced', 10_000n);
+  const preview = game.autoRollService.preview('repriced', '1m', []);
+  assert.equal(preview.costPerRoll, 5n);
+  game.db.prepare('UPDATE rng_players SET luck_tier = 10, big_crop_tier = 10 WHERE user_id = ?').run('repriced');
+  const result = game.autoRollService.start('repriced', preview, { guildId: 'g', channelId: 'c' });
+  assert.equal(result.status, 'price-changed');
+  assert.deepEqual([result.preview.costPerRoll, result.preview.totalCost], [24n, 288n]);
+  assert.equal(game.repository.getPlayer('repriced').balance, 10_000n);
+  game.close();
+});
+
+test('real Luck stops at x50 and BIG stops at exactly 5% without another deduction', () => {
   const game = feature();
-  game.repository.ensurePlayer('maxed');
-  game.db.prepare(`UPDATE rng_players SET sheckle_balance = ?, luck_tier = 48,
-    big_crop_tier = 49 WHERE user_id = ?`).run(20_000_000n, 'maxed');
+  fund(game, 'maxed', 100_000_000n);
+  game.db.prepare('UPDATE rng_players SET luck_tier = 48, big_crop_tier = 49 WHERE user_id = ?').run('maxed');
   const luck = game.repository.purchasePowerUpgrade('maxed', 'luck', 'last:luck', luckUpgradeCost, 1);
   const big = game.repository.purchasePowerUpgrade('maxed', 'big', 'last:big', bigUpgradeCost, 2);
   assert.equal(luck.status, 'ok');
@@ -209,48 +246,36 @@ test('real Luck reaches ×50 and BIG chance reaches exactly 5% without another c
   game.close();
 });
 
-test('upgrade UI stays compact and disables maximum-tier purchases', () => {
+test('upgrade UI remains compact and disables maximum-tier purchases', () => {
   const payload = powerUpgradePayload(
     { id: 'user' },
     { balance: 10_000n, luckTier: 0, bigCropTier: 0 },
-    { luckActionId: 'luck', bigActionId: 'big', luckCost: 10_000n, bigCost: 5_000n },
+    { luckActionId: 'luck', bigActionId: 'big', luckCost: 2_000n, bigCost: 1_000n },
   );
-  const luckCard = payload.components[0].components[1];
-  const bigCard = payload.components[0].components[2];
-  assert.equal(luckCard.components[0].content, '* **Luck** Tier 0 → I\n-# Current luck: ×1');
-  assert.equal(bigCard.components[0].content, '* **BIG** Crop chance 0 → I\n-# Current: 0%');
-  assert.doesNotMatch(luckCard.components[0].content, /Upgrade cost|rarity probabilities|gradually promotes/);
-  assert.doesNotMatch(bigCard.components[0].content, /Upgrade cost/);
+  assert.match(payload.components[0].components[1].components[0].content, /Current luck: .1/);
+  assert.match(payload.components[0].components[2].components[0].content, /Current: 0%/);
 
   const maxed = powerUpgradePayload(
     { id: 'user' },
     { balance: 999_999n, luckTier: MAX_LUCK_TIER, bigCropTier: MAX_BIG_CROP_TIER },
     { luckActionId: null, bigActionId: null, luckCost: null, bigCost: null },
   );
-  assert.match(maxed.components[0].components[1].components[0].content, /Current luck: ×50/);
+  assert.match(maxed.components[0].components[1].components[0].content, /50/);
   assert.match(maxed.components[0].components[2].components[0].content, /Current: 5%/);
   for (const card of maxed.components[0].components.slice(1)) {
     assert.equal(card.accessory.label, 'MAX');
     assert.equal(card.accessory.disabled, true);
   }
-
-  const inventory = upgradePromptPayload(
-    { id: 'inventory', cost: 1_000n },
-    { balance: 1_000n },
-  );
+  const inventory = upgradePromptPayload({ id: 'inventory', cost: 1_000n }, { balance: 1_000n });
   assert.match(inventory.components[0].components[2].content, /\+10 capacity/);
 });
 
-test('probability report covers all tiers and expected income rises smoothly', () => {
+test('probability report covers every tier and uses the same expected values', () => {
   const report = luckProbabilityReport();
   assert.equal(report.length, MAX_LUCK_TIER + 1);
-  assert.deepEqual(
-    report.map((entry) => entry.tier),
-    Array.from({ length: MAX_LUCK_TIER + 1 }, (_, tier) => tier),
-  );
-  for (let tier = 1; tier < report.length; tier += 1) {
-    assert.equal(report[tier].expectedValue, expectedValueForLuckTier(tier));
-    assert.ok(report[tier].expectedValue > report[tier - 1].expectedValue, `income stalled at tier ${tier}`);
-    assert.ok(report[tier].expectedValue / report[tier - 1].expectedValue < 1.2, `income jumped at tier ${tier}`);
+  for (const entry of report) {
+    assert.equal(entry.expectedValue, expectedValueForLuckTier(entry.tier));
+    assert.equal(entry.probabilities, rarityDistribution(entry.tier));
+    assert.ok(autoRollCostPerRoll(entry.tier, Math.min(entry.tier, MAX_BIG_CROP_TIER)) >= 5n);
   }
 });

@@ -2,6 +2,7 @@ const AUTO_ROLL_INTERVAL_MS = 5_000;
 const AUTO_ROLL_COST_PER_ROLL = 5n;
 const AUTO_ROLL_ROLLS_PER_MINUTE = 12;
 const MAX_AUTO_ROLL_MINUTES = 24 * 60;
+const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
 
 function parseDuration(value) {
   const text = String(value || '').trim().toLowerCase();
@@ -34,13 +35,22 @@ function normalizeDuration(durationMinutes) {
   return [days && `${days}d`, hours && `${hours}h`, minutes && `${minutes}m`].filter(Boolean).join(' ') || '0m';
 }
 
-function autoRollPlan(durationMinutes) {
+function autoRollPlan(durationMinutes, costPerRoll = AUTO_ROLL_COST_PER_ROLL) {
   const minutes = Math.floor(Number(durationMinutes));
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_AUTO_ROLL_MINUTES) {
     throw new RangeError('Auto Roll duration must be between one minute and one day.');
   }
+  const price = BigInt(costPerRoll);
+  if (price < AUTO_ROLL_COST_PER_ROLL) throw new RangeError('Auto Roll price cannot be below five Sheckles per roll.');
   const plannedRolls = minutes * AUTO_ROLL_ROLLS_PER_MINUTE;
-  return { durationMinutes: minutes, plannedRolls, totalCost: BigInt(plannedRolls) * AUTO_ROLL_COST_PER_ROLL };
+  const totalCost = BigInt(plannedRolls) * price;
+  if (totalCost > SQLITE_INTEGER_MAX) throw new RangeError('Auto Roll cost exceeds SQLite signed 64-bit range.');
+  return {
+    durationMinutes: minutes,
+    plannedRolls,
+    costPerRoll: price,
+    totalCost,
+  };
 }
 
 function nextGlobalTick(now = Date.now()) {
@@ -48,9 +58,9 @@ function nextGlobalTick(now = Date.now()) {
   return (Math.floor(timestamp / AUTO_ROLL_INTERVAL_MS) * AUTO_ROLL_INTERVAL_MS) + AUTO_ROLL_INTERVAL_MS;
 }
 
-function autoRollRefund(plannedRolls, completedRolls) {
+function autoRollRefund(plannedRolls, completedRolls, costPerRoll = AUTO_ROLL_COST_PER_ROLL) {
   const remaining = Math.max(0, Number(plannedRolls) - Number(completedRolls));
-  return BigInt(remaining) * AUTO_ROLL_COST_PER_ROLL;
+  return BigInt(remaining) * BigInt(costPerRoll);
 }
 
 module.exports = {
@@ -58,6 +68,7 @@ module.exports = {
   AUTO_ROLL_INTERVAL_MS,
   AUTO_ROLL_ROLLS_PER_MINUTE,
   MAX_AUTO_ROLL_MINUTES,
+  SQLITE_INTEGER_MAX,
   autoRollPlan,
   autoRollRefund,
   nextGlobalTick,

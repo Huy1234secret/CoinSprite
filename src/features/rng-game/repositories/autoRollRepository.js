@@ -1,5 +1,6 @@
 const { AUTO_ROLL_INTERVAL_MS, autoRollRefund } = require('../utils/autoRoll');
 const { inventoryItem, playerRecord, SQLITE_INTEGER_MAX } = require('./gameRepository');
+const { autoRollCostPerRoll } = require('../services/economyService');
 
 function parseJson(value, fallback) {
   try {
@@ -20,6 +21,7 @@ function autoRollJob(row) {
     durationMinutes: Number(row.duration_minutes),
     plannedRolls: Number(row.planned_rolls),
     completedRolls: Number(row.completed_rolls),
+    costPerRoll: row.cost_per_roll ?? 5n,
     costPaid: row.cost_paid,
     refundPaid: row.refund_paid,
     selectedAutoSellRarities: parseJson(row.selected_auto_sell_rarities, []),
@@ -49,9 +51,9 @@ class AutoRollRepository {
         WHERE status != 'active' AND notified_at IS NULL ORDER BY finished_at, id LIMIT ?`),
       insertJob: db.prepare(`INSERT INTO rng_auto_roll_jobs
         (user_id, guild_id, channel_id, status, duration_minutes, planned_rolls, completed_rolls,
-         cost_paid, refund_paid, selected_auto_sell_rarities, started_at, next_tick_at, ends_at,
+         cost_per_roll, cost_paid, refund_paid, selected_auto_sell_rarities, started_at, next_tick_at, ends_at,
          finished_at, stopped_reason, summary_counts, created_at, updated_at)
-        VALUES (?, ?, ?, 'active', ?, ?, 0, ?, 0, ?, ?, ?, ?, NULL, '', '{}', ?, ?)`),
+        VALUES (?, ?, ?, 'active', ?, ?, 0, ?, ?, 0, ?, ?, ?, ?, NULL, '', '{}', ?, ?)`),
       player: db.prepare('SELECT * FROM rng_players WHERE user_id = ?'),
       updateBalance: db.prepare('UPDATE rng_players SET sheckle_balance = ?, updated_at = ? WHERE user_id = ?'),
       inventory: db.prepare('SELECT * FROM rng_inventory_items WHERE owner_user_id = ? ORDER BY rolled_at, id'),
@@ -84,10 +86,16 @@ class AutoRollRepository {
       if (existing) return { status: 'already-active', job: existing };
       if (isSaleLocked?.()) return { status: 'sale-active' };
       const player = playerRecord(this.statements.player.get(userId));
-      if (player.balance < data.totalCost) {
-        return { status: 'insufficient', missing: data.totalCost - player.balance, balance: player.balance };
+      const costPerRoll = autoRollCostPerRoll(player.luckTier, player.bigCropTier);
+      const totalCost = BigInt(data.plannedRolls) * costPerRoll;
+      if (BigInt(data.costPerRoll) !== costPerRoll) {
+        return { status: 'price-changed', costPerRoll, totalCost, player };
       }
-      const balance = player.balance - data.totalCost;
+      if (totalCost > SQLITE_INTEGER_MAX) throw new RangeError('Auto Roll cost exceeds SQLite signed 64-bit range.');
+      if (player.balance < totalCost) {
+        return { status: 'insufficient', missing: totalCost - player.balance, balance: player.balance };
+      }
+      const balance = player.balance - totalCost;
       this.statements.updateBalance.run(balance, BigInt(now), userId);
       const inserted = this.statements.insertJob.run(
         userId,
@@ -95,7 +103,8 @@ class AutoRollRepository {
         data.channelId,
         BigInt(data.durationMinutes),
         BigInt(data.plannedRolls),
-        data.totalCost,
+        costPerRoll,
+        totalCost,
         JSON.stringify(data.selectedAutoSellRarities),
         BigInt(now),
         BigInt(data.nextTickAt),
@@ -123,7 +132,7 @@ class AutoRollRepository {
       }
 
       const finish = (status, stoppedReason, completedRolls, summaryCounts) => {
-        const refund = autoRollRefund(job.plannedRolls, completedRolls);
+        const refund = autoRollRefund(job.plannedRolls, completedRolls, job.costPerRoll);
         const player = playerRecord(this.statements.player.get(job.userId));
         const balance = player.balance + refund;
         if (balance > SQLITE_INTEGER_MAX) throw new RangeError('Sheckle balance exceeds SQLite signed 64-bit range.');

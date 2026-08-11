@@ -1,11 +1,16 @@
 const { RNG_GAME_COMMANDS, createCommandHandlers } = require('./commands');
 const { createComponentHandler } = require('./components/handler');
 const { autoRollEndedPayload, indexPayload } = require('./components/builders');
+const { canceledPayload } = require('./components/rpsBuilders');
 const { AutoRollRepository } = require('./repositories/autoRollRepository');
 const { openDatabase } = require('./repositories/database');
 const { RngGameRepository } = require('./repositories/gameRepository');
+const { RpsRepository } = require('./repositories/rpsRepository');
+const { TokenRepository } = require('./repositories/tokenRepository');
 const { AutoRollScheduler, AutoRollService } = require('./services/autoRollService');
 const { RngGameService } = require('./services/gameService');
+const { RpsTableRenderer } = require('./services/rpsRenderer');
+const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
@@ -15,11 +20,14 @@ function createRngGameFeature(options = {}) {
   const db = options.db || openDatabase({ databasePath: options.databasePath, migrationsPath: options.migrationsPath });
   const repository = options.repository || new RngGameRepository(db);
   const autoRollRepository = options.autoRollRepository || new AutoRollRepository(db, repository);
+  const tokenRepository = options.tokenRepository || new TokenRepository(db, repository);
+  const rpsRepository = options.rpsRepository || new RpsRepository(db, repository);
   const saleSessions = options.saleSessions || new SaleSessionStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const actions = options.actions || new ActionStore({ clock, ttlMs: options.sessionTtlMs });
   const indexViews = options.indexViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
+  const rpsRenderer = options.rpsRenderer || new RpsTableRenderer(options.rpsRendererOptions);
   let discordClient = options.client || null;
   const reportError = (error, event) => {
     try {
@@ -87,6 +95,14 @@ function createRngGameFeature(options = {}) {
     onDiscovery,
     onSuccessfulRoll,
   });
+  const rpsService = options.rpsService || new RpsService({
+    repository: rpsRepository,
+    clock,
+    randomInt: options.rpsRandomInt,
+    createId: options.rpsCreateId,
+    lobbyTimeoutMs: options.rpsLobbyTimeoutMs,
+    turnTimeoutMs: options.rpsTurnTimeoutMs,
+  });
   async function notifyAutoRoll(job) {
     const client = discordClient || options.getClient?.();
     if (!client) throw new Error('Discord client is unavailable for Auto Roll notification.');
@@ -113,6 +129,21 @@ function createRngGameFeature(options = {}) {
     setTimer: options.setTimer,
     clearTimer: options.clearTimer,
   });
+  async function notifyRpsExpired(game) {
+    const client = discordClient || options.getClient?.();
+    if (!client || !game.channelId || !game.messageId) return;
+    const channel = await client.channels.fetch(game.channelId);
+    const message = await channel?.messages?.fetch?.(game.messageId);
+    await message?.edit?.(canceledPayload(game, { initial: false }));
+  }
+  const rpsExpiryScheduler = options.rpsExpiryScheduler || new RpsExpiryScheduler({
+    service: rpsService,
+    notify: options.notifyRpsExpired || notifyRpsExpired,
+    onError: (error) => reportError(error),
+    setTimer: options.rpsSetTimer,
+    clearTimer: options.rpsClearTimer,
+    intervalMs: options.rpsExpiryPollMs,
+  });
   const context = {
     actions,
     autoRollRepository,
@@ -125,8 +156,15 @@ function createRngGameFeature(options = {}) {
     inventoryViews,
     indexRenderer,
     indexViews,
+    getBotUser: () => (discordClient || options.getClient?.())?.user || null,
+    reportError,
     repository,
+    rpsExpiryScheduler,
+    rpsRenderer,
+    rpsRepository,
+    rpsService,
     saleSessions,
+    tokenRepository,
   };
   const commands = createCommandHandlers(context);
   const handleComponent = createComponentHandler(context);
@@ -137,6 +175,7 @@ function createRngGameFeature(options = {}) {
     startScheduler(client) {
       discordClient = client || discordClient;
       autoRollScheduler.start();
+      rpsExpiryScheduler.start();
     },
     async handleInteraction(interaction) {
       if (await commands.handleSlash(interaction)) return true;
@@ -146,7 +185,9 @@ function createRngGameFeature(options = {}) {
     close() {
       actions.clear();
       autoRollScheduler.stop();
+      rpsExpiryScheduler.stop();
       indexRenderer.clear();
+      rpsRenderer.clear();
       indexViews.clear();
       inventoryViews.clear();
       saleSessions.clear();
