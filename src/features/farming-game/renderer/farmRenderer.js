@@ -5,7 +5,7 @@ const {
   FARM_CANVAS_HEIGHT,
   FARM_CANVAS_WIDTH,
   PLOT_BY_NUMBER,
-  STAGE_TARGET_VISIBLE_AREAS,
+  STAGE_TARGET_LONG_SIDES,
 } = require('./config');
 const { carrotWeightScale } = require('../utils/crops');
 
@@ -65,24 +65,67 @@ function renderKey(state, options = {}) {
       plot.cropId,
       plot.plantedAt,
       plot.stage,
-      (plot.cropInstances || []).map((crop) => [crop.id, crop.weightUnits, crop.anchorX, crop.anchorY]),
+      (plot.cropInstances || []).map((crop) => [
+        crop.id,
+        crop.weightUnits,
+        crop.seedRotationDegrees,
+        crop.anchorX,
+        crop.anchorY,
+      ]),
       plot.cropInstances ? undefined : plot.anchors,
     ]),
     selectedPlotNumbers: normalizeSelectedPlotNumbers(options.selectedPlotNumbers),
   });
 }
 
-function stageRenderDimensions(sprite, stage, weightUnits) {
+function normalizedStageDimensions(sprite, stage) {
   const normalizedStage = Math.max(0, Math.min(6, Math.floor(Number(stage) || 0)));
-  const targetArea = STAGE_TARGET_VISIBLE_AREAS[normalizedStage];
-  const aspectRatio = sprite.width / sprite.height;
-  const baseHeight = Math.sqrt(targetArea / aspectRatio);
-  const baseWidth = baseHeight * aspectRatio;
-  const scale = normalizedStage === 0 ? 1 : carrotWeightScale(weightUnits);
+  const target = STAGE_TARGET_LONG_SIDES[normalizedStage];
+  const longestSourceSide = Math.max(sprite.width, sprite.height);
+  const scale = target / longestSourceSide;
   return {
-    width: Math.max(1, Math.round(baseWidth * scale)),
-    height: Math.max(1, Math.round(baseHeight * scale)),
+    width: Math.max(1, Math.round(sprite.width * scale)),
+    height: Math.max(1, Math.round(sprite.height * scale)),
+  };
+}
+
+function stageRenderDimensions(sprite, stage, weightUnits) {
+  const normalized = normalizedStageDimensions(sprite, stage);
+  const scale = carrotWeightScale(weightUnits);
+  return {
+    width: Math.max(1, Math.round(normalized.width * scale)),
+    height: Math.max(1, Math.round(normalized.height * scale)),
     scale,
+  };
+}
+
+function normalizedRotationDegrees(value) {
+  const degrees = Number(value);
+  if (!Number.isFinite(degrees)) return 0;
+  return ((Math.round(degrees) % 360) + 360) % 360;
+}
+
+function rotatedBounds(width, height, rotationDegrees) {
+  const radians = (normalizedRotationDegrees(rotationDegrees) * Math.PI) / 180;
+  const cosine = Math.abs(Math.cos(radians));
+  const sine = Math.abs(Math.sin(radians));
+  return {
+    width: (width * cosine) + (height * sine),
+    height: (width * sine) + (height * cosine),
+  };
+}
+
+function safeDrawCenter(plot, anchor, boundsWidth, boundsHeight) {
+  const inset = 6;
+  const minimumX = plot.x + inset + (boundsWidth / 2);
+  const maximumX = plot.x + plot.width - inset - (boundsWidth / 2);
+  const minimumY = plot.y + inset + (boundsHeight / 2);
+  const maximumY = plot.y + plot.height - inset - (boundsHeight / 2);
+  const desiredX = Number(anchor.x);
+  const desiredY = Number(anchor.y) - (boundsHeight / 2);
+  return {
+    x: Math.max(minimumX, Math.min(maximumX, desiredX)),
+    y: Math.max(minimumY, Math.min(maximumY, desiredY)),
   };
 }
 
@@ -144,16 +187,39 @@ class FarmRenderer {
         ? plot.cropInstances.map((crop) => ({
           id: crop.id,
           weightUnits: crop.weightUnits,
+          seedRotationDegrees: crop.seedRotationDegrees,
           anchor: crop.anchor || { x: crop.anchorX, y: crop.anchorY },
         }))
-        : plot.anchors.map((anchor, index) => ({ id: String(index), weightUnits: 50, anchor }));
+        : plot.anchors.map((anchor, index) => ({
+          id: String(index),
+          weightUnits: 50,
+          seedRotationDegrees: (index * 73) % 360,
+          anchor,
+        }));
       crops.sort((left, right) => (
         left.anchor.y - right.anchor.y || left.anchor.x - right.anchor.x || left.id.localeCompare(right.id)
       ));
       for (const crop of crops) {
         const dimensions = stageRenderDimensions(sprite, stage, crop.weightUnits);
-        const draw = safeDrawRect(plotRect, crop.anchor, dimensions.width, dimensions.height);
-        context.drawImage(sprite, draw.x, draw.y, draw.width, draw.height);
+        if (stage === 0) {
+          const rotationDegrees = normalizedRotationDegrees(crop.seedRotationDegrees);
+          const bounds = rotatedBounds(dimensions.width, dimensions.height, rotationDegrees);
+          const center = safeDrawCenter(plotRect, crop.anchor, bounds.width, bounds.height);
+          context.save();
+          context.translate(center.x, center.y);
+          context.rotate((rotationDegrees * Math.PI) / 180);
+          context.drawImage(
+            sprite,
+            -(dimensions.width / 2),
+            -(dimensions.height / 2),
+            dimensions.width,
+            dimensions.height,
+          );
+          context.restore();
+        } else {
+          const draw = safeDrawRect(plotRect, crop.anchor, dimensions.width, dimensions.height);
+          context.drawImage(sprite, draw.x, draw.y, draw.width, draw.height);
+        }
       }
     }
     const selected = new Set(normalizeSelectedPlotNumbers(options.selectedPlotNumbers));
@@ -192,8 +258,12 @@ module.exports = {
   FarmRenderer,
   alphaBounds,
   loadTrimmedImage,
+  normalizedRotationDegrees,
+  normalizedStageDimensions,
   normalizeSelectedPlotNumbers,
   renderKey,
+  rotatedBounds,
+  safeDrawCenter,
   safeDrawRect,
   stageRenderDimensions,
 };

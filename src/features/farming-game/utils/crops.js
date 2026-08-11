@@ -14,6 +14,14 @@ function secureRandomInt(maximum) {
   return randomInt(maximum);
 }
 
+function injectedRandomInt(rng, maximum) {
+  const value = Number(rng(maximum));
+  if (!Number.isInteger(value) || value < 0 || value >= maximum) {
+    throw new RangeError(`Injected Farming RNG must return an integer from 0 through ${maximum - 1}.`);
+  }
+  return value;
+}
+
 function carrotValueForWeight(weightUnits) {
   const weight = Number(weightUnits);
   const {
@@ -33,10 +41,7 @@ function carrotValueForWeight(weightUnits) {
 
 function generateCarrot(rng = secureRandomInt, idGenerator = randomUUID) {
   const range = CARROT_CONFIG.maximumWeightUnits - CARROT_CONFIG.minimumWeightUnits + 1;
-  const offset = Number(rng(range));
-  if (!Number.isInteger(offset) || offset < 0 || offset >= range) {
-    throw new RangeError(`Injected Farming RNG must return an integer from 0 through ${range - 1}.`);
-  }
+  const offset = injectedRandomInt(rng, range);
   const weightUnits = CARROT_CONFIG.minimumWeightUnits + offset;
   return {
     id: String(idGenerator()),
@@ -44,6 +49,7 @@ function generateCarrot(rng = secureRandomInt, idGenerator = randomUUID) {
     rarity: CARROT_CONFIG.rarity,
     weightUnits,
     storedValue: carrotValueForWeight(weightUnits),
+    seedRotationDegrees: injectedRandomInt(rng, 360),
   };
 }
 
@@ -71,4 +77,5 @@ module.exports = {
   carrotWeightScale,
   formatCarrotWeight,
   generateCarrot,
+  injectedRandomInt,
 };
