@@ -15,8 +15,9 @@ const {
 const { componentEmoji } = require('../../shared/emojis');
 const { inventoryPageData } = require('../utils/inventory');
 const { formatCarrotWeight } = require('../utils/crops');
+const { FARMING_CURRENCY_EMOJI, formatFarmingCurrency } = require('../utils/currency');
+const { farmingUpgradeState } = require('../services/upgradeService');
 
-const FARMING_CURRENCY_EMOJI = '<:CRcoin:1536641284507443222>';
 const FARM_ACTION_EMOJIS = Object.freeze({
   gear: '<:SBusetoolgear:1536645344413220914>',
   plant: '<:SBplant:1536645341452177478>',
@@ -52,13 +53,13 @@ function farmActionOptions(state, selectedPlots) {
     return option;
   };
   const selected = new Set([...selectedPlots].map(Number));
-  if (!selected.size) return [actionOption('Use Gear/Tool', 'gear')];
+  if (!selected.size) return [actionOption('Use Tool/Gear', 'gear')];
   const plots = (state?.plots || []).filter((plot) => selected.has(plot.plotNumber));
   const options = [];
   if (plots.some((plot) => plot.ready)) options.push(actionOption('Harvest', 'harvest'));
   if (plots.length === selected.size && plots.every((plot) => plot.empty)) options.push(actionOption('Plant', 'plant'));
   if (plots.some((plot) => plot.occupied)) options.push({ label: 'Shovel', value: 'shovel' });
-  options.push(actionOption('Use Gear/Tool', 'gear'));
+  options.push(actionOption('Use Tool/Gear', 'gear'));
   return options;
 }
 
@@ -145,7 +146,7 @@ function farmingStackFields(stacks) {
     return {
       name: `${item.emoji} ${item.name} ×${formatInteger(stack.quantity)}`.slice(0, 256),
       value: `-# Rarity: ${item.rarity} • Type: ${item.itemTypes.join(', ')}\n`
-        + `-# Unit value: ${formatInteger(item.value)} ${FARMING_CURRENCY_EMOJI}`,
+        + `-# Unit value: ${formatFarmingCurrency(item.value)}`,
       inline: false,
     };
   }).filter(Boolean);
@@ -195,11 +196,45 @@ function inventoryPageCount(farmingInventory, view) {
   return inventoryPageData(farmingInventory, view).maxPage;
 }
 
-function farmingBalancePayload(user, balance, options = {}) {
-  return textContainer(
-    `### <@${user.id}>'s Farming Balance\n- Balance: ${formatInteger(balance)} ${FARMING_CURRENCY_EMOJI}`,
-    options,
-  );
+function farmingBalancePayload(user, profileOrBalance, view, options = {}) {
+  const profile = profileOrBalance && typeof profileOrBalance === 'object'
+    ? profileOrBalance
+    : { balance: profileOrBalance, luckTier: 0, bigCropTier: 0 };
+  const upgrades = farmingUpgradeState(profile);
+  const bigHundredths = (upgrades.bigCropChance.numerator * 10_000n) / upgrades.bigCropChance.denominator;
+  const bigPercentage = `${bigHundredths / 100n}.${String(bigHundredths % 100n).padStart(2, '0')}%`.replace('.00%', '%');
+  const luckLine = upgrades.luckMaximum
+    ? `- Luck: **×${upgrades.luckMultiplier} — MAX**`
+    : `- Luck: **×${upgrades.luckMultiplier}** • Next: ${formatFarmingCurrency(upgrades.luckCost)}`;
+  const bigLine = upgrades.bigCropMaximum
+    ? `- BIG Crop Chance: **${bigPercentage} — MAX**`
+    : `- BIG Crop Chance: **${bigPercentage}** • Next: ${formatFarmingCurrency(upgrades.bigCropCost)}`;
+  const components = [{
+    type: 10,
+    content: `### <@${user.id}>'s Farming Balance\n- Balance: ${formatFarmingCurrency(profile.balance)}\n${luckLine}\n${bigLine}`,
+  }];
+  if (view) {
+    components.push({ type: 14, divider: true, spacing: 1 }, {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          label: upgrades.luckMaximum ? 'Luck MAX' : 'Upgrade Luck',
+          custom_id: `farm:upgrade:luck:${view.id}`,
+          disabled: upgrades.luckMaximum,
+        },
+        {
+          type: 2,
+          style: 2,
+          label: upgrades.bigCropMaximum ? 'BIG MAX' : 'Upgrade BIG',
+          custom_id: `farm:upgrade:big:${view.id}`,
+          disabled: upgrades.bigCropMaximum,
+        },
+      ],
+    });
+  }
+  return v2Payload([{ type: 17, accent_color: WHITE, components }], options);
 }
 
 function groupedCropSaleSummary(crops) {
@@ -236,7 +271,7 @@ function cropSaleOption(crop, selected) {
   const item = crop.item || getItem(crop.cropId);
   const option = {
     label: `${item?.name || crop.cropId} • ${formatCarrotWeight(crop.weightUnits)} kg`.slice(0, 100),
-    description: `${crop.rarity} • ${formatInteger(crop.storedValue)} CR Coin`.slice(0, 100),
+    description: `${crop.rarity} • ${formatFarmingCurrency(crop.storedValue)}`.slice(0, 100),
     value: crop.id,
     default: selected,
   };
@@ -249,7 +284,7 @@ function farmingSalePayload(farmingInventory, session, options = {}) {
   const page = farmingSalePageData(farmingInventory, session);
   const components = [{
     type: 10,
-    content: `### Select crops to sell\n\n- Crops selected:\n${groupedCropSaleSummary(page.selectedCrops)}\n\n- Total value: ${formatInteger(page.total)} ${FARMING_CURRENCY_EMOJI}`,
+    content: `### Select crops to sell\n\n- Crops selected:\n${groupedCropSaleSummary(page.selectedCrops)}\n\n- Total value: ${formatFarmingCurrency(page.total)}`,
   }, { type: 14, divider: true, spacing: 1 }];
   if (page.pageCrops.length) {
     components.push({
@@ -283,9 +318,21 @@ function farmingSalePayload(farmingInventory, session, options = {}) {
   return v2Payload([{ type: 17, accent_color: WHITE, components }], options);
 }
 
-function farmingSaleFinishedPayload(itemCount, total, options = {}) {
+function farmingSaleFinishedPayload(itemCount, total, balance, options = {}) {
+  const balanceLine = balance == null ? '' : `\nResulting balance: **${formatFarmingCurrency(balance)}**.`;
   return textContainer(
-    `Sale complete\nSold **${itemCount}** Farming crop${itemCount === 1 ? '' : 's'} for **${formatInteger(total)}** ${FARMING_CURRENCY_EMOJI}.`,
+    `Sale complete\nSold **${itemCount}** Farming crop${itemCount === 1 ? '' : 's'} for **${formatFarmingCurrency(total)}**.${balanceLine}`,
+    { color: 0x22C55E, ...options },
+  );
+}
+
+function farmingDirectSalePayload(crop, itemCount, total, balance, options = {}) {
+  const item = crop || {};
+  return textContainer(
+    `Sale complete\n- Crop: ${item.emoji || ''} **${item.name || 'Crop'}**\n`
+      + `- Quantity sold: **${itemCount}**\n`
+      + `- Earned: **${formatFarmingCurrency(total)}**\n`
+      + `- Farming balance: **${formatFarmingCurrency(balance)}**`,
     { color: 0x22C55E, ...options },
   );
 }
@@ -332,6 +379,7 @@ module.exports = {
   farmPayload,
   farmStatusText,
   farmingBalancePayload,
+  farmingDirectSalePayload,
   farmingIndexPayload,
   farmingInventoryFields,
   farmingSaleDeniedPayload,

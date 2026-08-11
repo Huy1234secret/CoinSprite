@@ -68,7 +68,7 @@ The dashboard lets Discord administrators configure unlocked features:
 
 The focused application commands include `/stock-set-up`, the Leveling commands, the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, and `/calculate-chance`, plus Farming Game commands `/my-farm`, `/my-inventory`, `/sell-crop`, `/my-balance`, and `/my-index`. Farming commands use their own per-server owner lock, engine toggle, allowed-channel policy, inventory, and balance. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, and `c!calculate chance`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns within their respective game.
 
-Signed-in players can also open `/chances` to compare crop roll probabilities. Undiscovered crops remain masked, and Secret crops follow server-enforced discovery rules.
+Signed-in players can open `/chances` for RNG probabilities and `/farm-chances` for Farming probabilities. The Farming page supports read-only, arbitrary-size Luck previews while real Farming Luck remains capped at ×50 and BIG Crop Chance at 5%. Undiscovered crops remain masked, and Secret crops follow server-enforced discovery rules.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 

@@ -2,6 +2,7 @@ const { ITEMS, getItem } = require('../data/items');
 const { catalogIndexForName } = require('../data/catalog');
 const {
   errorPayload,
+  farmingBalancePayload,
   farmActionOptions,
   farmPayload,
   farmingIndexPayload,
@@ -75,6 +76,7 @@ function createFarmingComponentHandler(context) {
     indexViews,
     inventoryViews,
     saleSessions,
+    upgradeViews,
   } = context;
 
   function inventoryStacks(ownerId) {
@@ -330,7 +332,12 @@ function createFarmingComponentHandler(context) {
           return true;
         }
         saleSessions.delete(session.ownerId);
-        await interaction.update(farmingSaleFinishedPayload(result.itemCount, result.total, { initial: false })).catch(() => null);
+        await interaction.update(farmingSaleFinishedPayload(
+          result.itemCount,
+          result.total,
+          result.balance,
+          { initial: false },
+        )).catch(() => null);
       } catch (error) {
         session.processing = false;
         throw error;
@@ -370,7 +377,8 @@ function createFarmingComponentHandler(context) {
     }
     if (action === 'search-submit' && interaction.isModalSubmit?.()) {
       const query = textFromModal(interaction.fields, 'query').trim();
-      const index = catalogIndexForName(query);
+      const state = farmingService.indexState(view.ownerId);
+      const index = catalogIndexForName(query, state.entries);
       if (index < 0) {
         await interaction.reply(errorPayload(`Crop not found\nNo Farming seed or crop matches **${query || 'that name'}**.`, { ephemeral: true }));
         return true;
@@ -385,6 +393,40 @@ function createFarmingComponentHandler(context) {
     return false;
   }
 
+  async function upgradeInteraction(interaction, parts) {
+    const type = parts[2];
+    const view = upgradeViews.get(parts[3]);
+    if (!view || view.kind !== 'upgrade') {
+      await respondExpired(interaction, 'upgrade controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, view, 'Farming upgrades')) return true;
+    if (!interaction.isButton?.() || !['luck', 'big'].includes(type)) return false;
+    const profileBefore = farmingService.profile(view.ownerId);
+    const operationId = interaction.id
+      || `${view.id}:${type}:${type === 'luck' ? profileBefore.luckTier : profileBefore.bigCropTier}`;
+    const result = farmingService.purchaseUpgrade(view.ownerId, type, operationId);
+    const profile = farmingService.profile(view.ownerId);
+    await interaction.update(farmingBalancePayload(interaction.user, profile, view, { initial: false })).catch(() => null);
+    if (result.status === 'insufficient') {
+      await followUp(interaction, errorPayload(
+        'Not enough Farming currency\nSell harvested crops before buying this upgrade.',
+        { ephemeral: true },
+      ));
+    } else if (result.status === 'max-tier') {
+      await followUp(interaction, errorPayload(
+        'Upgrade already MAX\nNo Farming currency was charged.',
+        { ephemeral: true },
+      ));
+    } else if (result.status === 'ok') {
+      await followUp(interaction, successPayload(
+        'Upgrade purchased\nYour Farming upgrade was applied atomically.',
+        { ephemeral: true },
+      ));
+    }
+    return true;
+  }
+
   return async function handleFarmingComponent(interaction) {
     const customId = String(interaction.customId || '');
     if (!customId.startsWith('farm:')) return false;
@@ -397,6 +439,7 @@ function createFarmingComponentHandler(context) {
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
     if (parts[1] === 'sale') return saleInteraction(interaction, parts);
     if (parts[1] === 'index') return indexInteraction(interaction, parts);
+    if (parts[1] === 'upgrade') return upgradeInteraction(interaction, parts);
     return false;
   };
 }

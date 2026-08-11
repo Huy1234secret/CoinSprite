@@ -80,6 +80,18 @@ class FarmingViewStore extends FarmingExpiringStore {
     this.records.set(id, view);
     return view;
   }
+
+  createUpgrade(ownerId) {
+    const id = token();
+    const view = {
+      id,
+      kind: 'upgrade',
+      ownerId: String(ownerId),
+      lastActivityAt: this.clock(),
+    };
+    this.records.set(id, view);
+    return view;
+  }
 }
 
 class FarmingSaleSessionStore extends FarmingExpiringStore {

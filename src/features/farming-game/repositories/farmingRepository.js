@@ -6,6 +6,12 @@ const {
 const { growthStage } = require('../utils/growth');
 const { validPlotAnchors } = require('../utils/anchors');
 const { generateCarrot } = require('../utils/crops');
+const {
+  MAX_FARMING_BIG_CROP_TIER,
+  MAX_FARMING_LUCK_TIER,
+  farmingBigCropUpgradeCost,
+  farmingLuckUpgradeCost,
+} = require('../services/upgradeService');
 
 const SQLITE_INTEGER_MAX = 9_223_372_036_854_775_807n;
 
@@ -32,6 +38,7 @@ function cropInstanceRecord(row) {
     storedValue: row.stored_value,
     value: row.stored_value,
     seedRotationDegrees: Number(row.seed_rotation_degrees),
+    isBig: Boolean(row.is_big),
     state: row.state,
     plotNumber: row.plot_number == null ? null : Number(row.plot_number),
     anchorX: row.anchor_x == null ? null : Number(row.anchor_x),
@@ -50,6 +57,7 @@ function operationResult(row) {
   const parsed = JSON.parse(row.result_json);
   if (parsed.total != null) parsed.total = BigInt(parsed.total);
   if (parsed.balance != null) parsed.balance = BigInt(parsed.balance);
+  if (parsed.cost != null) parsed.cost = BigInt(parsed.cost);
   return { ...parsed, duplicate: true };
 }
 
@@ -143,10 +151,13 @@ class FarmingGameRepository {
       inventoryCrops: db.prepare(`SELECT * FROM farm_crop_instances
         WHERE owner_user_id = ? AND state = 'inventory'
         ORDER BY harvested_at DESC, created_at, id`),
+      inventoryCropsByCrop: db.prepare(`SELECT * FROM farm_crop_instances
+        WHERE owner_user_id = ? AND crop_id = ? AND state = 'inventory'
+        ORDER BY harvested_at, created_at, id`),
       insertCrop: db.prepare(`INSERT INTO farm_crop_instances
-        (id, owner_user_id, crop_id, rarity, weight_units, stored_value, seed_rotation_degrees, state,
+        (id, owner_user_id, crop_id, rarity, weight_units, stored_value, seed_rotation_degrees, is_big, state,
           plot_number, anchor_x, anchor_y, planted_at, harvested_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'planted', ?, ?, ?, ?, NULL, ?, ?)`),
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planted', ?, ?, ?, ?, NULL, ?, ?)`),
       harvestPlot: db.prepare(`UPDATE farm_crop_instances SET
         state = 'inventory', plot_number = NULL, anchor_x = NULL, anchor_y = NULL,
         harvested_at = ?, updated_at = ?
@@ -160,6 +171,10 @@ class FarmingGameRepository {
       deleteInventoryCrop: db.prepare(`DELETE FROM farm_crop_instances
         WHERE id = ? AND owner_user_id = ? AND state = 'inventory'`),
       updateBalance: db.prepare('UPDATE farm_profiles SET coin_balance = ?, updated_at = ? WHERE user_id = ?'),
+      updateLuckTier: db.prepare(`UPDATE farm_profiles SET luck_tier = ?, coin_balance = ?, updated_at = ?
+        WHERE user_id = ?`),
+      updateBigCropTier: db.prepare(`UPDATE farm_profiles SET big_crop_tier = ?, coin_balance = ?, updated_at = ?
+        WHERE user_id = ?`),
       operation: db.prepare('SELECT * FROM farm_operations WHERE operation_key = ?'),
       saveOperation: db.prepare(`INSERT INTO farm_operations
         (operation_key, owner_user_id, operation_kind, result_json, created_at)
@@ -215,6 +230,7 @@ class FarmingGameRepository {
             BigInt(crop.weightUnits),
             BigInt(crop.storedValue),
             BigInt(crop.seedRotationDegrees),
+            BigInt(crop.isBig ? 1 : 0),
             BigInt(plotNumber),
             BigInt(crop.anchor.x),
             BigInt(crop.anchor.y),
@@ -357,6 +373,95 @@ class FarmingGameRepository {
       }), BigInt(now));
       return result;
     }).immediate;
+
+    this.sellCropQuantityTransaction = db.transaction((userId, cropId, quantity, operationKey, now) => {
+      this.ensureProfileRecords(userId, now);
+      const priorRow = this.statements.operation.get(operationKey);
+      if (priorRow) {
+        if (priorRow.owner_user_id !== userId || priorRow.operation_kind !== 'crop-quantity-sale') {
+          return { status: 'invalid-operation', duplicate: false };
+        }
+        return operationResult(priorRow);
+      }
+      const item = getItem(cropId);
+      if (!item || item.inventoryCategory !== 'crops') return { status: 'invalid-crop', duplicate: false };
+      const rows = this.statements.inventoryCropsByCrop.all(userId, item.id);
+      const requested = quantity == null ? BigInt(rows.length) : BigInt(quantity);
+      if (requested <= 0n) return { status: 'invalid-quantity', duplicate: false };
+      if (!rows.length) return { status: 'empty', available: 0n, duplicate: false };
+      if (requested > BigInt(rows.length)) {
+        return { status: 'insufficient', available: BigInt(rows.length), duplicate: false };
+      }
+      const selected = rows.slice(0, Number(requested));
+      const total = selected.reduce((sum, row) => sum + row.stored_value, 0n);
+      const profile = this.statements.profile.get(userId);
+      const balance = profile.coin_balance + total;
+      if (balance > SQLITE_INTEGER_MAX) throw new RangeError('Farming balance exceeds SQLite signed 64-bit range.');
+      for (const row of selected) {
+        const deleted = this.statements.deleteInventoryCrop.run(row.id, userId);
+        if (Number(deleted.changes) !== 1) throw new Error('Farming inventory changed while completing the sale.');
+      }
+      this.statements.updateBalance.run(balance, BigInt(now), userId);
+      const result = {
+        status: 'ok', cropId: item.id, itemCount: selected.length, total, balance, duplicate: false,
+      };
+      this.statements.saveOperation.run(operationKey, userId, 'crop-quantity-sale', JSON.stringify({
+        ...result,
+        total: String(total),
+        balance: String(balance),
+      }), BigInt(now));
+      return result;
+    }).immediate;
+
+    this.purchaseUpgradeTransaction = db.transaction((userId, type, operationKey, now) => {
+      this.ensureProfileRecords(userId, now);
+      const operationKind = `farming-upgrade:${type}`;
+      const priorRow = this.statements.operation.get(operationKey);
+      if (priorRow) {
+        if (priorRow.owner_user_id !== userId || priorRow.operation_kind !== operationKind) {
+          return { status: 'invalid-operation', duplicate: false };
+        }
+        return operationResult(priorRow);
+      }
+      const profile = this.statements.profile.get(userId);
+      const config = type === 'luck'
+        ? {
+          tier: Number(profile.luck_tier),
+          maximum: MAX_FARMING_LUCK_TIER,
+          cost: farmingLuckUpgradeCost,
+          update: this.statements.updateLuckTier,
+        }
+        : type === 'big'
+          ? {
+            tier: Number(profile.big_crop_tier),
+            maximum: MAX_FARMING_BIG_CROP_TIER,
+            cost: farmingBigCropUpgradeCost,
+            update: this.statements.updateBigCropTier,
+          }
+          : null;
+      if (!config) return { status: 'invalid-upgrade', duplicate: false };
+      if (config.tier >= config.maximum) {
+        const result = {
+          status: 'max-tier', type, tier: config.tier, balance: profile.coin_balance, duplicate: false,
+        };
+        this.statements.saveOperation.run(operationKey, userId, operationKind, JSON.stringify({
+          ...result, balance: String(result.balance),
+        }), BigInt(now));
+        return result;
+      }
+      const cost = config.cost(config.tier);
+      if (profile.coin_balance < cost) {
+        return { status: 'insufficient', type, tier: config.tier, cost, balance: profile.coin_balance, duplicate: false };
+      }
+      const nextTier = config.tier + 1;
+      const balance = profile.coin_balance - cost;
+      config.update.run(BigInt(nextTier), balance, BigInt(now), userId);
+      const result = { status: 'ok', type, tier: nextTier, cost, balance, duplicate: false };
+      this.statements.saveOperation.run(operationKey, userId, operationKind, JSON.stringify({
+        ...result, cost: String(cost), balance: String(balance),
+      }), BigInt(now));
+      return result;
+    }).immediate;
   }
 
   ensureProfileRecords(userId, now) {
@@ -382,6 +487,8 @@ class FarmingGameRepository {
     return row ? {
       userId: row.user_id,
       balance: row.coin_balance,
+      luckTier: Number(row.luck_tier || 0),
+      bigCropTier: Number(row.big_crop_tier || 0),
       starterGranted: Boolean(row.starter_granted),
       createdAt: Number(row.created_at),
       updatedAt: Number(row.updated_at),
@@ -451,6 +558,16 @@ class FarmingGameRepository {
 
   sellCrops(userId, cropIds, operationKey, now = Date.now()) {
     return this.sellTransaction(String(userId), cropIds, String(operationKey), now);
+  }
+
+  sellCropQuantity(userId, cropId, quantity, operationKey, now = Date.now()) {
+    return this.sellCropQuantityTransaction(
+      String(userId), String(cropId), quantity == null ? null : BigInt(quantity), String(operationKey), now,
+    );
+  }
+
+  purchaseUpgrade(userId, type, operationKey, now = Date.now()) {
+    return this.purchaseUpgradeTransaction(String(userId), String(type), String(operationKey), now);
   }
 }
 

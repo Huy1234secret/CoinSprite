@@ -1,4 +1,5 @@
 const { randomInt, randomUUID } = require('crypto');
+const { farmingBigCropChance } = require('../services/upgradeService');
 
 const CARROT_CONFIG = Object.freeze({
   minimumWeight: 0.20,
@@ -39,17 +40,27 @@ function carrotValueForWeight(weightUnits) {
   );
 }
 
-function generateCarrot(rng = secureRandomInt, idGenerator = randomUUID) {
+function rollBigCrop(tier, rng = secureRandomInt) {
+  const chance = farmingBigCropChance(tier);
+  if (chance.numerator <= 0n) return false;
+  return BigInt(injectedRandomInt(rng, Number(chance.denominator))) < chance.numerator;
+}
+
+function generateCarrot(rng = secureRandomInt, idGenerator = randomUUID, options = {}) {
   const range = CARROT_CONFIG.maximumWeightUnits - CARROT_CONFIG.minimumWeightUnits + 1;
   const offset = injectedRandomInt(rng, range);
-  const weightUnits = CARROT_CONFIG.minimumWeightUnits + offset;
+  const baseWeightUnits = CARROT_CONFIG.minimumWeightUnits + offset;
+  const baseStoredValue = carrotValueForWeight(baseWeightUnits);
+  const seedRotationDegrees = injectedRandomInt(rng, 360);
+  const isBig = rollBigCrop(options.bigCropTier, rng);
   return {
     id: String(idGenerator()),
     cropId: 'carrot',
     rarity: CARROT_CONFIG.rarity,
-    weightUnits,
-    storedValue: carrotValueForWeight(weightUnits),
-    seedRotationDegrees: injectedRandomInt(rng, 360),
+    weightUnits: isBig ? baseWeightUnits * 4 : baseWeightUnits,
+    storedValue: isBig ? baseStoredValue * 4 : baseStoredValue,
+    seedRotationDegrees,
+    isBig,
   };
 }
 
@@ -78,4 +89,5 @@ module.exports = {
   formatCarrotWeight,
   generateCarrot,
   injectedRandomInt,
+  rollBigCrop,
 };

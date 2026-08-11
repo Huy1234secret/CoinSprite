@@ -58,14 +58,32 @@ function insetBox(box, inset = INDEX_ARTWORK_INSET) {
   };
 }
 
-function drawContained(context, image, box) {
+function silhouetteFor(image) {
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext('2d');
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0);
+  context.globalCompositeOperation = 'source-in';
+  context.fillStyle = '#080a08';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function drawContained(context, image, box, silhouette = false) {
+  const source = silhouette ? silhouetteFor(image) : image;
   const dimensions = containDimensions(image.width, image.height, box.width, box.height);
   const x = box.x + Math.round((box.width - dimensions.width) / 2);
   const y = box.y + Math.round((box.height - dimensions.height) / 2);
-  context.drawImage(image, x, y, dimensions.width, dimensions.height);
+  context.drawImage(source, x, y, dimensions.width, dimensions.height);
 }
 
 function rowValues(entry) {
+  if (entry.discovered === false) {
+    return {
+      seed: ['Name: ???', 'Rarity: ???', 'Value: ???', 'Grow Time: ???', 'Your Total Planted: ???'],
+      crop: ['Name: ???', 'Rarity: ???', '~Value: ???', 'Your Highest Weight: ???', 'Total Harvested: ???'],
+    };
+  }
   const { seed, crop, statistics } = entry;
   const durationMinutes = Math.max(1, Math.round(entry.growTimeMs / 60_000));
   return {
@@ -103,6 +121,7 @@ function renderCacheKey(entry) {
     String(entry.statistics.totalPlanted),
     String(entry.statistics.totalHarvested),
     entry.statistics.highestWeightUnits,
+    Boolean(entry.discovered),
   ]);
 }
 
@@ -152,8 +171,8 @@ class FarmingIndexRenderer {
     const context = canvas.getContext('2d');
     context.imageSmoothingEnabled = false;
     drawContained(context, background, { x: 0, y: 0, width: INDEX_CANVAS_WIDTH, height: INDEX_CANVAS_HEIGHT });
-    if (seedImage) drawContained(context, seedImage, insetBox(INDEX_IMAGE_BOXES.seed));
-    if (cropImage) drawContained(context, cropImage, insetBox(INDEX_IMAGE_BOXES.crop));
+    if (seedImage) drawContained(context, seedImage, insetBox(INDEX_IMAGE_BOXES.seed), entry.discovered === false);
+    if (cropImage) drawContained(context, cropImage, insetBox(INDEX_IMAGE_BOXES.crop), entry.discovered === false);
     const values = rowValues(entry);
     drawRows(context, values.seed, INDEX_ROW_X.seed);
     drawRows(context, values.crop, INDEX_ROW_X.crop);
@@ -185,6 +204,7 @@ module.exports = {
   containDimensions,
   fitText,
   insetBox,
+  silhouetteFor,
   renderCacheKey,
   rowValues,
 };

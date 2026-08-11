@@ -1153,6 +1153,91 @@ test('/sell-crop selects individual Farming instances and confirms with Farming 
   game.close();
 });
 
+test('/sell-crop autocomplete lists owned Farming crops and direct quantities are atomic', async () => {
+  let now = 22_500_000;
+  const games = integratedGames({
+    farming: { clock: () => now, rng: () => 0 },
+    rng: { clock: () => now },
+  });
+  const user = { id: 'direct-farming-seller', username: 'Direct Seller' };
+  games.farming.farmingService.plant(user.id, [1], 'carrot_seed_package');
+  now += 6 * 60_000;
+  games.farming.farmingService.harvest(user.id, [1]);
+  games.rng.repository.ensurePlayer(user.id);
+  games.rng.db.prepare('UPDATE rng_players SET sheckle_balance = ? WHERE user_id = ?').run(777n, user.id);
+
+  let choices;
+  assert.equal(await games.farming.handleInteraction({
+    isAutocomplete: () => true,
+    commandName: 'sell-crop',
+    user,
+    options: { getFocused: () => 'car' },
+    respond: async (value) => { choices = value; },
+  }), true);
+  assert.deepEqual(choices, [{ name: 'Carrot', value: 'carrot' }]);
+
+  let reply;
+  assert.equal(await games.farming.handleInteraction({
+    id: 'direct-sale-command',
+    isAutocomplete: () => false,
+    isChatInputCommand: () => true,
+    commandName: 'sell-crop',
+    user,
+    options: { getString: (name) => (name === 'crop' ? 'carrot' : '2') },
+    reply: async (payload) => { reply = payload; },
+  }), true);
+  assert.match(componentText(reply), /Quantity sold: \*\*2\*\*/);
+  assert.match(componentText(reply), /Farming balance/);
+  assert.ok(componentText(reply).includes(FARMING_CURRENCY_EMOJI));
+  assert.equal(games.farming.farmingService.inventory(user.id).crops.length, 3);
+  assert.equal(games.farming.farmingService.balance(user.id), 4n);
+  assert.equal(games.rng.gameService.balance(user.id), 777n);
+  assert.equal(games.rng.gameService.inventory(user.id).items.length, 0);
+
+  await games.farming.handleInteraction({
+    id: 'direct-sale-command',
+    isAutocomplete: () => false,
+    isChatInputCommand: () => true,
+    commandName: 'sell-crop',
+    user,
+    options: { getString: (name) => (name === 'crop' ? 'carrot' : '2') },
+    reply: async () => {},
+  });
+  assert.equal(games.farming.farmingService.inventory(user.id).crops.length, 3);
+  assert.equal(games.farming.farmingService.balance(user.id), 4n);
+
+  const before = games.farming.farmingService.inventory(user.id).crops.length;
+  for (const quantity of ['0', '-1', '1.5', '1e2', '999']) {
+    let error;
+    await games.farming.handleInteraction({
+      id: `invalid-direct-sale-${quantity}`,
+      isAutocomplete: () => false,
+      isChatInputCommand: () => true,
+      commandName: 'sell-crop',
+      user,
+      options: { getString: (name) => (name === 'crop' ? 'carrot' : quantity) },
+      reply: async (payload) => { error = payload; },
+    });
+    assert.ok(error.flags, quantity);
+  }
+  assert.equal(games.farming.farmingService.inventory(user.id).crops.length, before);
+  assert.equal(games.farming.farmingService.balance(user.id), 4n);
+
+  await games.farming.handleInteraction({
+    id: 'direct-sale-all',
+    isAutocomplete: () => false,
+    isChatInputCommand: () => true,
+    commandName: 'sell-crop',
+    user,
+    options: { getString: (name) => (name === 'crop' ? 'carrot' : 'all') },
+    reply: async () => {},
+  });
+  assert.equal(games.farming.farmingService.inventory(user.id).crops.length, 0);
+  assert.equal(games.farming.farmingService.balance(user.id), 10n);
+  assert.equal(games.rng.gameService.balance(user.id), 777n);
+  games.close();
+});
+
 test('/my-balance starts at zero, uses CRcoin, and reflects only Farming sales', async () => {
   const game = farmingFeature();
   const user = { id: 'new-balance', username: 'New Farmer' };
@@ -1173,6 +1258,52 @@ test('/my-balance starts at zero, uses CRcoin, and reflects only Farming sales',
   game.close();
 });
 
+test('Farming balance upgrade controls are owner-only and purchase from Farming currency', async () => {
+  const game = farmingFeature();
+  const user = { id: 'farming-upgrade-owner', username: 'Upgrade Owner' };
+  game.farmingService.ensureProfile(user.id);
+  game.db.prepare('UPDATE farm_profiles SET coin_balance = 1000 WHERE user_id = ?').run(user.id);
+  let balancePayload;
+  await game.handleInteraction({
+    isChatInputCommand: () => true,
+    commandName: 'my-balance',
+    user,
+    reply: async (payload) => { balancePayload = payload; },
+  });
+  assert.match(componentText(balancePayload), /Upgrade Luck/);
+  assert.ok(componentText(balancePayload).includes(FARMING_CURRENCY_EMOJI));
+  const view = [...game.upgradeViews.records.values()][0];
+
+  let intruderReply;
+  await game.handleInteraction({
+    id: 'intruder-upgrade',
+    customId: `farm:upgrade:luck:${view.id}`,
+    user: { id: 'not-the-owner' },
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    isRepliable: () => true,
+    reply: async (payload) => { intruderReply = payload; },
+  });
+  assert.match(componentText(intruderReply), /Not your Farming upgrades/);
+  assert.equal(game.farmingService.profile(user.id).luckTier, 0);
+
+  let updated;
+  await game.handleInteraction({
+    id: 'owner-upgrade',
+    customId: `farm:upgrade:luck:${view.id}`,
+    user,
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    isRepliable: () => true,
+    update: async (payload) => { updated = payload; },
+    followUp: async () => {},
+  });
+  assert.equal(game.farmingService.profile(user.id).luckTier, 1);
+  assert.match(componentText(updated), /Luck: \*\*×2\*\*/);
+  assert.equal(game.farmingService.profile(user.id).balance, 900n);
+  game.close();
+});
+
 test('Farming Index catalog lookup is trimmed and case-insensitive and zero-user stats are valid', () => {
   const game = farmingFeature();
   assert.equal(Object.isFrozen(FARMING_CATALOG), true);
@@ -1187,10 +1318,11 @@ test('Farming Index catalog lookup is trimmed and case-insensitive and zero-user
     ownerUserId: 'zero-index', cropId: 'carrot', totalPlanted: 0n, totalHarvested: 0n,
     highestWeightUnits: 0, updatedAt: 0,
   });
+  assert.equal(entry.discovered, false);
   const values = rowValues(entry);
   assert.deepEqual(values.seed.map((value) => value.split(':')[0]), ['Name', 'Rarity', 'Value', 'Grow Time', 'Your Total Planted']);
   assert.deepEqual(values.crop.map((value) => value.split(':')[0]), ['Name', 'Rarity', '~Value', 'Your Highest Weight', 'Total Harvested']);
-  assert.match(values.seed[2], /CR Coin/);
+  assert.ok([...values.seed, ...values.crop].every((value) => value.includes('???')));
   assert.doesNotMatch(JSON.stringify(values), /<:CRcoin:/);
   game.close();
 });

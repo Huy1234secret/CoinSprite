@@ -17,6 +17,9 @@ const { logCommandSystem } = require('./commandLogger');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
+const {
+  farmingChanceProfile,
+} = require('./features/farming-game/services/chanceService');
 const { STUDS_TEXTURE_PATH } = require('./features/rng-game/services/indexRenderer');
 const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
@@ -65,6 +68,9 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/chances.html', ['chances.html', 'text/html; charset=utf-8']],
   ['/admin/chances.js', ['chances.js', 'application/javascript; charset=utf-8']],
   ['/admin/chances.css', ['chances.css', 'text/css; charset=utf-8']],
+  ['/admin/farm-chances.html', ['farm-chances.html', 'text/html; charset=utf-8']],
+  ['/admin/farm-chances.js', ['farm-chances.js', 'application/javascript; charset=utf-8']],
+  ['/admin/farm-chances.css', ['farm-chances.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
@@ -596,7 +602,7 @@ function publicConfig(config) {
 
 function safeOAuthReturnTo(value) {
   const route = String(value || '');
-  return ['/admin', '/profile', '/chances'].includes(route) ? route : '/admin';
+  return ['/admin', '/profile', '/chances', '/farm-chances'].includes(route) ? route : '/admin';
 }
 
 async function handleAuthStart(req, res, env, requestUrl) {
@@ -643,6 +649,7 @@ async function routeRequest(req, res, env, client, services = {}) {
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
   if (req.method === 'GET' && (pathname === '/chances' || pathname === '/chances/')) return serveAsset(res, '/admin/chances.html');
+  if (req.method === 'GET' && (pathname === '/farm-chances' || pathname === '/farm-chances/')) return serveAsset(res, '/admin/farm-chances.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname === '/assets/rng/studs-texture.png') return serveStudsTexture(res);
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
@@ -679,6 +686,24 @@ async function routeRequest(req, res, env, client, services = {}) {
     const repository = services.rngGame?.repository || services.rngRepository;
     if (!repository) return sendJson(res, 503, { error: 'Crop chances are temporarily unavailable.' });
     return sendJson(res, 200, cropChanceProfile(repository, session.user.id));
+  }
+
+  if (req.method === 'GET' && pathname === '/api/profile/farming-crop-chances') {
+    const session = await requireSignedIn(req, res, env);
+    if (!session) return;
+    const repository = services.farmingGame?.repository || services.farmingRepository;
+    if (!repository) return sendJson(res, 503, { error: 'Farming crop chances are temporarily unavailable.' });
+    try {
+      return sendJson(res, 200, farmingChanceProfile(
+        repository,
+        session.user.id,
+        url.searchParams.get('luck'),
+        { catalog: services.farmingGame?.farmingService?.catalog },
+      ));
+    } catch (error) {
+      if (error instanceof RangeError) return sendJson(res, 400, { error: error.message });
+      throw error;
+    }
   }
 
   if (req.method === 'GET' && pathname === '/api/owner/overview') {

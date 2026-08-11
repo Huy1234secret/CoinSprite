@@ -22,12 +22,14 @@ function createFarmingGameFeature(options = {}) {
     rng: options.rng,
     idGenerator: options.idGenerator,
     anchorGenerator: options.anchorGenerator,
+    catalog: options.farmingCatalog,
   });
   const farmRenderer = options.farmRenderer || new FarmRenderer(options.rendererOptions);
   const indexRenderer = options.indexRenderer || new FarmingIndexRenderer(options.indexRendererOptions);
   const farmViews = options.farmViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexViews = options.indexViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
+  const upgradeViews = options.upgradeViews || new FarmingViewStore({ clock, ttlMs: options.sessionTtlMs });
   const saleSessions = options.saleSessions || new FarmingSaleSessionStore({ clock, ttlMs: options.sessionTtlMs });
   const context = {
     db,
@@ -40,6 +42,7 @@ function createFarmingGameFeature(options = {}) {
     inventoryViews,
     repository,
     saleSessions,
+    upgradeViews,
   };
   const commands = createFarmingCommandHandlers(context);
   const handleComponent = createFarmingComponentHandler(context);
@@ -48,6 +51,7 @@ function createFarmingGameFeature(options = {}) {
     ...context,
     commands: FARMING_GAME_COMMANDS,
     async handleInteraction(interaction) {
+      if (await commands.handleAutocomplete(interaction)) return true;
       if (await commands.handleSlash(interaction)) return true;
       return handleComponent(interaction);
     },
@@ -58,6 +62,7 @@ function createFarmingGameFeature(options = {}) {
       indexViews.clear();
       inventoryViews.clear();
       saleSessions.clear();
+      upgradeViews.clear();
       if (ownsDatabase && db.open) db.close();
     },
   };

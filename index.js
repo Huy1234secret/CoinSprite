@@ -133,7 +133,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     }
   },
   async panel() {
-    startAdminServer(client, { rngGame });
+    startAdminServer(client, { rngGame, farmingGame });
   },
 });
 
