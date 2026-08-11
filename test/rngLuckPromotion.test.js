@@ -8,13 +8,13 @@ const {
   upgradePromptPayload,
 } = require('../src/features/rng-game/components/builders');
 const {
-  MAX_LUCK_TIER,
   LUCK_PROMOTION_RARITY_ORDER,
   PROBABILITY_SCALE,
   RARITY_ORDER,
   applyLuckPromotions,
   baseCropDistribution,
   baseRarityDistribution,
+  bigChance,
   expectedValueForLuckTier,
   generateInstance,
   luckProbabilityReport,
@@ -22,6 +22,12 @@ const {
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
 const { bigUpgradeCost, luckUpgradeCost, upgradeCost } = require('../src/features/rng-game/services/gameService');
+const {
+  MAX_BIG_CROP_CHANCE,
+  MAX_BIG_CROP_TIER,
+  MAX_LUCK_MULTIPLIER,
+  MAX_LUCK_TIER,
+} = require('../src/features/rng-game/config/upgrades');
 
 function percent(distribution, rarity) {
   return (Number(distribution[rarity]) * 100) / Number(PROBABILITY_SCALE);
@@ -181,18 +187,22 @@ test('all three upgrade costs use the final exact BigInt polynomials', () => {
   ]);
 });
 
-test('max-tier power purchases return max-tier without charging and replay safely', () => {
+test('real Luck reaches ×50 and BIG chance reaches exactly 5% without another charge', () => {
   const game = feature();
   game.repository.ensurePlayer('maxed');
-  game.db.prepare(`UPDATE rng_players SET sheckle_balance = ?, luck_tier = 20,
-    big_crop_tier = 20 WHERE user_id = ?`).run(999_999n, 'maxed');
-  const luck = game.repository.purchasePowerUpgrade('maxed', 'luck', 'max:luck', luckUpgradeCost, 1);
-  const luckReplay = game.repository.purchasePowerUpgrade('maxed', 'luck', 'max:luck', luckUpgradeCost, 2);
-  const big = game.repository.purchasePowerUpgrade('maxed', 'big', 'max:big', bigUpgradeCost, 3);
-  assert.equal(luck.status, 'max-tier');
-  assert.equal(big.status, 'max-tier');
-  assert.equal(luckReplay.duplicate, true);
-  assert.equal(game.repository.getPlayer('maxed').balance, 999_999n);
+  game.db.prepare(`UPDATE rng_players SET sheckle_balance = ?, luck_tier = 48,
+    big_crop_tier = 49 WHERE user_id = ?`).run(2_000_000n, 'maxed');
+  const luck = game.repository.purchasePowerUpgrade('maxed', 'luck', 'last:luck', luckUpgradeCost, 1);
+  const big = game.repository.purchasePowerUpgrade('maxed', 'big', 'last:big', bigUpgradeCost, 2);
+  assert.equal(luck.status, 'ok');
+  assert.equal(luck.luckTier + 1, MAX_LUCK_MULTIPLIER);
+  assert.equal(big.status, 'ok');
+  assert.equal(big.bigCropTier, MAX_BIG_CROP_TIER);
+  assert.equal(bigChance(big.bigCropTier).numerator / bigChance(big.bigCropTier).denominator, MAX_BIG_CROP_CHANCE);
+  const balanceAtMaximum = game.repository.getPlayer('maxed').balance;
+  assert.equal(game.repository.purchasePowerUpgrade('maxed', 'luck', 'max:luck', luckUpgradeCost, 3).status, 'max-tier');
+  assert.equal(game.repository.purchasePowerUpgrade('maxed', 'big', 'max:big', bigUpgradeCost, 4).status, 'max-tier');
+  assert.equal(game.repository.getPlayer('maxed').balance, balanceAtMaximum);
   game.close();
 });
 
@@ -211,9 +221,11 @@ test('upgrade UI stays compact and disables maximum-tier purchases', () => {
 
   const maxed = powerUpgradePayload(
     { id: 'user' },
-    { balance: 999_999n, luckTier: 20, bigCropTier: 20 },
+    { balance: 999_999n, luckTier: MAX_LUCK_TIER, bigCropTier: MAX_BIG_CROP_TIER },
     { luckActionId: null, bigActionId: null, luckCost: null, bigCost: null },
   );
+  assert.match(maxed.components[0].components[1].components[0].content, /Current luck: ×50/);
+  assert.match(maxed.components[0].components[2].components[0].content, /Current: 5%/);
   for (const card of maxed.components[0].components.slice(1)) {
     assert.equal(card.accessory.label, 'MAX');
     assert.equal(card.accessory.disabled, true);
@@ -228,8 +240,11 @@ test('upgrade UI stays compact and disables maximum-tier purchases', () => {
 
 test('probability report covers all tiers and expected income rises smoothly', () => {
   const report = luckProbabilityReport();
-  assert.equal(report.length, 21);
-  assert.deepEqual(report.map((entry) => entry.tier), Array.from({ length: 21 }, (_, tier) => tier));
+  assert.equal(report.length, MAX_LUCK_TIER + 1);
+  assert.deepEqual(
+    report.map((entry) => entry.tier),
+    Array.from({ length: MAX_LUCK_TIER + 1 }, (_, tier) => tier),
+  );
   for (let tier = 1; tier < report.length; tier += 1) {
     assert.equal(report[tier].expectedValue, expectedValueForLuckTier(tier));
     assert.ok(report[tier].expectedValue > report[tier - 1].expectedValue, `income stalled at tier ${tier}`);

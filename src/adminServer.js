@@ -676,7 +676,14 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (!session) return;
     const repository = services.rngGame?.repository || services.rngRepository;
     if (!repository) return sendJson(res, 503, { error: 'Crop chances are temporarily unavailable.' });
-    return sendJson(res, 200, cropChanceProfile(repository, session.user.id));
+    try {
+      return sendJson(res, 200, cropChanceProfile(repository, session.user.id, {
+        previewLuckMultiplier: url.searchParams.has('luck') ? url.searchParams.get('luck') : undefined,
+      }));
+    } catch (error) {
+      if (error instanceof RangeError) return sendJson(res, 400, { error: error.message });
+      throw error;
+    }
   }
 
   if (req.method === 'GET' && pathname === '/api/owner/overview') {

@@ -48,7 +48,7 @@ test('crop chances endpoint requires sign-in and always reads the session user',
     getPlayer(userId) { calls.push(['player', userId]); return { luckTier: 4 }; },
     discoveries(userId) {
       calls.push(['discoveries', userId]);
-      return [{ seedId: 'eclipse_bloom' }, { seedId: 'star_fruit' }];
+      return [{ seedId: 'star_fruit' }];
     },
   };
   const { server, origin } = await startServer(repository);
@@ -66,10 +66,38 @@ test('crop chances endpoint requires sign-in and always reads the session user',
   assert.equal(signed.headers.get('cache-control'), 'no-store');
   const payload = await signed.json();
   assert.equal(payload.luckTier, 4);
+  assert.equal(payload.luckMultiplier, '5');
+  assert.equal(payload.previewLuckMultiplier, '5');
   assert.equal(payload.discoveredCount, 1);
   assert.equal(payload.visibleTotal, 32);
   assert.doesNotMatch(JSON.stringify(payload), /Eclipse Bloom|eclipse_bloom|Secret|another-user/);
   assert.deepEqual(calls, [['player', 'signed-user'], ['discoveries', 'signed-user']]);
+});
+
+test('crop chance preview accepts unlimited integers, rejects invalid syntax, and reveals discovered Secrets only', async (t) => {
+  const repository = {
+    getPlayer: () => ({ luckTier: 2 }),
+    discoveries: () => [{ seedId: 'eclipse_bloom' }],
+  };
+  const { server, origin } = await startServer(repository);
+  t.after(() => server.close());
+  const cookie = { Cookie: `coinsprite_admin=${encodeURIComponent(sessionId)}` };
+  const huge = '9'.repeat(400);
+  const response = await fetch(`${origin}/api/profile/crop-chances?luck=${huge}`, { headers: cookie });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.luckMultiplier, '3');
+  assert.equal(payload.previewLuckMultiplier, huge);
+  assert.equal(payload.visibleTotal, 33);
+  const secret = payload.crops.find((crop) => crop.name === 'Eclipse Bloom');
+  assert.ok(secret);
+  assert.deepEqual(secret.previewChance, secret.baseChance);
+  assert.equal(secret.note, 'Secret Crop — Luck does not affect this chance.');
+
+  for (const invalid of ['0', '-1', '1.5', '1e9', 'abc']) {
+    const rejected = await fetch(`${origin}/api/profile/crop-chances?luck=${encodeURIComponent(invalid)}`, { headers: cookie });
+    assert.equal(rejected.status, 400, invalid);
+  }
 });
 
 test('/chances and its dedicated static assets are served with the existing studs file', async (t) => {
@@ -84,6 +112,11 @@ test('/chances and its dedicated static assets are served with the existing stud
   assert.match(html, /\/admin\/chances\.css\?v=/);
   assert.match(html, /\/admin\/chances\.js\?v=/);
   assert.match(html, /\/auth\/discord\?returnTo=%2Fchances/);
+  assert.match(html, /id="luckInput"/);
+  assert.match(html, /Preview only/);
+  assert.match(html, /id="decreaseLuck"/);
+  assert.match(html, /id="increaseLuck"/);
+  assert.match(html, /Use My Luck/);
 
   for (const asset of ['/admin/chances.css', '/admin/chances.js']) {
     const response = await fetch(`${origin}${asset}`);
@@ -94,6 +127,17 @@ test('/chances and its dedicated static assets are served with the existing stud
   assert.equal(studs.headers.get('content-type'), 'image/png');
   const bytes = Buffer.from(await studs.arrayBuffer());
   assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+
+  const css = await (await fetch(`${origin}/admin/chances.css`)).text();
+  assert.match(css, /\.luck-calculator\s*\{[^}]*position:\s*sticky;[^}]*top:\s*94px;/s);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?\.luck-calculator\s*\{[^}]*position:\s*fixed;[^}]*env\(safe-area-inset-bottom\)/);
+  assert.match(css, /grid-template-columns:\s*repeat\(4,/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*?repeat\(2,/);
+  assert.match(css, /@media \(max-width: 700px\)[\s\S]*?grid-template-columns:\s*1fr;/);
+
+  const javascript = await (await fetch(`${origin}/admin/chances.js`)).text();
+  assert.match(javascript, /BigInt\(elements\.luckInput\.value\)/);
+  assert.match(javascript, /previewChance/);
 });
 
 test('OAuth return paths are restricted to signed-in CoinSprite pages', () => {

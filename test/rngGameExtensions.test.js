@@ -124,9 +124,11 @@ test('normalized Luck sampling retains Carrot at the final tier-zero boundary', 
   assert.equal(result.seed, FALLBACK_SEED);
 });
 
-test('BIG chance is 0.1% per tier and value is exactly four times the base-weight value', () => {
+test('BIG chance is 0.1% per tier, capped at exactly 5%, and value is four times base', () => {
   assert.deepEqual(bigChance(0), { numerator: 0, denominator: 1_000 });
   assert.deepEqual(bigChance(20), { numerator: 20, denominator: 1_000 });
+  assert.deepEqual(bigChance(50), { numerator: 50, denominator: 1_000 });
+  assert.deepEqual(bigChance(51), { numerator: 50, denominator: 1_000 });
   const draws = [20, 0];
   const instance = generateInstance(FALLBACK_SEED, () => draws.shift(), { bigCropTier: 20 });
   assert.equal(instance.baseWeightUnits, 30);
@@ -136,10 +138,10 @@ test('BIG chance is 0.1% per tier and value is exactly four times the base-weigh
   assert.equal(instance.value, 32n);
 });
 
-test('upgrade prices and Roman tier formatting use exact formulas through tier XX', () => {
+test('upgrade prices and Roman tier formatting use exact formulas through new maximums', () => {
   assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [100n, 360n, 880n, 1_660n, 2_700n]);
   assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [500n, 1_440n, 2_920n, 4_940n, 7_500n]);
-  assert.deepEqual([romanTier(0), romanTier(1), romanTier(4), romanTier(9), romanTier(20)], ['0', 'I', 'IV', 'IX', 'XX']);
+  assert.deepEqual([romanTier(0), romanTier(1), romanTier(20), romanTier(49), romanTier(50)], ['0', 'I', 'XX', 'XLIX', 'L']);
 });
 
 test('power upgrade purchase is atomic, and idempotent', () => {
@@ -151,7 +153,7 @@ test('power upgrade purchase is atomic, and idempotent', () => {
   assert.equal(replay.duplicate, true);
   assert.equal(game.repository.getPlayer('power').luckTier, 1);
   assert.equal(game.repository.getPlayer('power').balance, 0n);
-  game.db.prepare('UPDATE rng_players SET luck_tier = 20 WHERE user_id = ?').run('power');
+  game.db.prepare('UPDATE rng_players SET luck_tier = 49 WHERE user_id = ?').run('power');
   assert.equal(game.repository.purchasePowerUpgrade('power', 'luck', 'power:max', luckUpgradeCost, 4).status, 'max-tier');
   game.close();
 });

@@ -4,6 +4,7 @@ const {
   PROBABILITY_SCALE,
   baseCropDistribution,
   baseRarityDistribution,
+  previewRarityDistribution,
   rarityDistribution,
 } = require('./rngService');
 
@@ -22,10 +23,9 @@ function fraction(numerator, denominator) {
   return Object.freeze({ numerator: top / divisor, denominator: bottom / divisor });
 }
 
-function cropProbabilityDistribution(luckTier = 0, options = {}) {
+function cropProbabilityDistributionFromRarities(adjustedRarities, options = {}) {
   const crops = baseCropDistribution(options);
   const baseRarities = baseRarityDistribution(crops);
-  const adjustedRarities = rarityDistribution(luckTier, options);
   return Object.freeze(crops.map((entry) => {
     const rarityBase = baseRarities[entry.seed.rarity];
     if (rarityBase <= 0n) return Object.freeze({ seed: entry.seed, ...fraction(0n, 1n) });
@@ -37,6 +37,17 @@ function cropProbabilityDistribution(luckTier = 0, options = {}) {
       ),
     });
   }));
+}
+
+function cropProbabilityDistribution(luckTier = 0, options = {}) {
+  return cropProbabilityDistributionFromRarities(rarityDistribution(luckTier, options), options);
+}
+
+function cropProbabilityDistributionForMultiplier(luckMultiplier, options = {}) {
+  return cropProbabilityDistributionFromRarities(
+    previewRarityDistribution(luckMultiplier, options),
+    options,
+  );
 }
 
 function cropProbabilityForSeed(seedId, luckTier = 0, options = {}) {
@@ -86,21 +97,35 @@ function changeDisplay(base, current) {
   return `×${whole}${decimal ? `.${decimal}` : ''}`;
 }
 
-function visibleSeed(seed) {
-  return seed.secretUntilDiscovered !== true && seed.rarity !== 'Secret';
+function parsePreviewLuckMultiplier(value) {
+  const text = String(value);
+  if (!/^[1-9]\d*$/.test(text)) {
+    throw new RangeError('Luck must be a positive whole-number multiplier.');
+  }
+  return BigInt(text);
 }
 
-function cropChanceProfile(repository, userId) {
+function visibleSeed(seed, discoveredIds = new Set()) {
+  return (seed.secretUntilDiscovered !== true && seed.rarity !== 'Secret')
+    || discoveredIds.has(seed.id);
+}
+
+function cropChanceProfile(repository, userId, options = {}) {
   if (!repository?.getPlayer || !repository?.discoveries) {
     throw new TypeError('RNG repository is required for crop chance profiles.');
   }
   const id = String(userId);
   const player = repository.getPlayer(id);
   const luckTier = Math.max(0, Math.floor(Number(player?.luckTier) || 0));
+  const luckMultiplier = BigInt(luckTier) + 1n;
+  const previewLuckMultiplier = options.previewLuckMultiplier === undefined
+    ? luckMultiplier
+    : parsePreviewLuckMultiplier(options.previewLuckMultiplier);
   const discoveredIds = new Set(repository.discoveries(id).map((entry) => entry.seedId));
   const baseById = new Map(cropProbabilityDistribution(0).map((entry) => [entry.seed.id, entry]));
-  const currentById = new Map(cropProbabilityDistribution(luckTier).map((entry) => [entry.seed.id, entry]));
-  const seeds = SEEDS.filter(visibleSeed);
+  const previewById = new Map(cropProbabilityDistributionForMultiplier(previewLuckMultiplier)
+    .map((entry) => [entry.seed.id, entry]));
+  const seeds = SEEDS.filter((seed) => visibleSeed(seed, discoveredIds));
   const crops = seeds.map((seed, index) => {
     const discovered = discoveredIds.has(seed.id);
     const common = {
@@ -110,7 +135,8 @@ function cropChanceProfile(repository, userId) {
     };
     if (!discovered) return Object.freeze(common);
     const base = baseById.get(seed.id);
-    const current = currentById.get(seed.id);
+    const preview = previewById.get(seed.id);
+    const luckAffected = seed.rarity !== 'Secret';
     return Object.freeze({
       ...common,
       name: seed.displayName,
@@ -118,12 +144,16 @@ function cropChanceProfile(repository, userId) {
       outlineColor: `#${seed.rarityColor.toString(16).padStart(6, '0')}`,
       rainbowOutline: seed.rarity === 'Super',
       baseChance: probabilityDisplay(base),
-      currentChance: probabilityDisplay(current),
-      change: changeDisplay(base, current),
+      previewChance: probabilityDisplay(luckAffected ? preview : base),
+      change: changeDisplay(base, luckAffected ? preview : base),
+      luckAffected,
+      ...(luckAffected ? {} : { note: 'Secret Crop — Luck does not affect this chance.' }),
     });
   });
   return Object.freeze({
     luckTier,
+    luckMultiplier: String(luckMultiplier),
+    previewLuckMultiplier: String(previewLuckMultiplier),
     discoveredCount: crops.filter((crop) => crop.discovered).length,
     visibleTotal: crops.length,
     crops: Object.freeze(crops),
@@ -134,10 +164,12 @@ module.exports = {
   changeDisplay,
   cropChanceProfile,
   cropProbabilityDistribution,
+  cropProbabilityDistributionForMultiplier,
   cropProbabilityForSeed,
   fraction,
   oneInText,
   percentageText,
   probabilityDisplay,
+  parsePreviewLuckMultiplier,
   visibleSeed,
 };
