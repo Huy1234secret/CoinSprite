@@ -21,7 +21,11 @@ const {
   generateInstance,
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
-const { bigUpgradeCost, luckUpgradeCost } = require('../src/features/rng-game/services/gameService');
+const {
+  bigUpgradeCost,
+  luckUpgradeCost,
+  powerUpgradePriceExponent,
+} = require('../src/features/rng-game/services/gameService');
 const { FALLBACK_SEED, SEEDS } = require('../src/features/rng-game/data/seeds');
 const {
   autoRollPlan,
@@ -126,6 +130,8 @@ test('normalized Luck sampling retains Carrot at the final tier-zero boundary', 
 
 test('BIG chance is 0.1% per tier, capped at exactly 5%, and value is four times base', () => {
   assert.deepEqual(bigChance(0), { numerator: 0, denominator: 1_000 });
+  assert.deepEqual(bigChance(1), { numerator: 1, denominator: 1_000 });
+  assert.deepEqual(bigChance(10), { numerator: 10, denominator: 1_000 });
   assert.deepEqual(bigChance(20), { numerator: 20, denominator: 1_000 });
   assert.deepEqual(bigChance(50), { numerator: 50, denominator: 1_000 });
   assert.deepEqual(bigChance(51), { numerator: 50, denominator: 1_000 });
@@ -141,6 +147,7 @@ test('BIG chance is 0.1% per tier, capped at exactly 5%, and value is four times
 test('upgrade prices and Roman tier formatting use exact formulas through new maximums', () => {
   assert.deepEqual([0, 1, 2, 3, 4].map(luckUpgradeCost), [100n, 360n, 880n, 1_660n, 2_700n]);
   assert.deepEqual([0, 1, 2, 3, 4].map(bigUpgradeCost), [500n, 1_440n, 2_920n, 4_940n, 7_500n]);
+  assert.deepEqual([8, 9, 19, 29, 39, 49].map(powerUpgradePriceExponent), [0n, 1n, 2n, 3n, 4n, 4n]);
   assert.deepEqual([romanTier(0), romanTier(1), romanTier(20), romanTier(49), romanTier(50)], ['0', 'I', 'XX', 'XLIX', 'L']);
 });
 

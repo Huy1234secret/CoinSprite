@@ -20,14 +20,25 @@ function upgradeCost(tier) {
   return sqliteSafeCost(1_000n + (5_000n * t) + (100n * t * t));
 }
 
+function powerUpgradePriceExponent(tier) {
+  const nextTier = normalizedTier(tier) + 1n;
+  const exponent = nextTier / 10n;
+  return exponent > 4n ? 4n : exponent;
+}
+
+function scalePowerUpgradePrice(basePrice, tier) {
+  const exponent = powerUpgradePriceExponent(tier);
+  return sqliteSafeCost(basePrice * (2n ** exponent));
+}
+
 function luckUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return sqliteSafeCost(100n + (130n * t * (t + 1n)));
+  return scalePowerUpgradePrice(100n + (130n * t * (t + 1n)), t);
 }
 
 function bigUpgradeCost(tier) {
   const t = normalizedTier(tier);
-  return sqliteSafeCost(500n + (670n * t) + (270n * t * t));
+  return scalePowerUpgradePrice(500n + (670n * t) + (270n * t * t), t);
 }
 
 class RngGameService {
@@ -99,5 +110,7 @@ module.exports = {
   bigUpgradeCost,
   luckUpgradeCost,
   normalizedTier,
+  powerUpgradePriceExponent,
+  scalePowerUpgradePrice,
   upgradeCost,
 };
