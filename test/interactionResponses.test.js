@@ -5,6 +5,7 @@ const { MessageFlags } = require('discord.js');
 const {
   acknowledgeEphemeral,
   acknowledgeUpdate,
+  completeEphemeral,
   formatInteractionFailure,
   safeErrorMessage,
   safeControlKind,
@@ -52,10 +53,21 @@ test('acknowledgement helpers cover fresh, deferred, replied, expired, and raced
   }
 });
 
-test('safe interaction diagnostics contain routing context without custom IDs or callback secrets', () => {
+test('interaction diagnostics include selected control validation paths and payload sizes without secrets', () => {
   const error = discordError(10062);
+  error.name = 'DiscordAPIError50035';
+  error.code = 50035;
+  error.status = 400;
+  error.rawError = { errors: { components: { 0: { components: { 1: { components: { 1: {
+    custom_id: { _errors: [{ code: 'COMPONENT_CUSTOM_ID_DUPLICATED', message: 'Component custom id must be unique.' }] },
+  } } } } } } } };
+  error.requestBody = { json: {
+    flags: MessageFlags.IsComponentsV2,
+    components: [{ type: 17, components: [{ type: 10, content: 'guide' }] }],
+  } };
   const interaction = {
     customId: 'rng:info:command:v3:123456789012345678:1',
+    values: ['roll'],
     commandName: '',
     guildId: '123456789012345678',
     channelId: '223456789012345678',
@@ -65,8 +77,38 @@ test('safe interaction diagnostics contain routing context without custom IDs or
   };
   assert.equal(safeControlKind(interaction.customId), 'rng:info:command');
   const diagnostic = formatInteractionFailure(error, interaction, { operation: 'defer-update', startedAt: Date.now() - 5 });
-  assert.match(diagnostic, /kind=string-select.*control=rng:info:command.*code=10062/);
-  assert.doesNotMatch(diagnostic, /SECRET_CALLBACK_TOKEN|v3:123456789012345678|discord\.com/);
+  assert.match(diagnostic, /kind=string-select.*control=rng:info:command/);
+  assert.match(diagnostic, /customId="rng:info:command:v3:123456789012345678:1" selected="roll"/);
+  assert.match(diagnostic, /code=50035.*status=400/);
+  assert.match(diagnostic, /components\[0\]\.components\[1\]\.components\[1\]\.custom_id/);
+  assert.match(diagnostic, /COMPONENT_CUSTOM_ID_DUPLICATED.*Component custom id must be unique/);
+  assert.match(diagnostic, /payload=.*"embeds":0.*"components":2.*"componentTextChars":5/);
+  assert.doesNotMatch(diagnostic, /SECRET_CALLBACK_TOKEN|discord\.com/);
   const unsafeMessage = new Error('failed https://discord.com/api/v10/interactions/id/SECRET_CALLBACK_TOKEN/callback Bot secret');
   assert.doesNotMatch(safeErrorMessage(unsafeMessage), /SECRET_CALLBACK_TOKEN|discord\.com|Bot secret/);
+});
+
+test('ephemeral completion edits acknowledged interactions and never replies twice', async () => {
+  const payload = { flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral, components: [] };
+  for (const state of [{ deferred: true, replied: false }, { deferred: false, replied: true }]) {
+    const calls = [];
+    await completeEphemeral({
+      ...state,
+      editReply: async (value) => calls.push(['edit', value]),
+      reply: async () => calls.push(['reply']),
+      followUp: async () => calls.push(['follow']),
+    }, payload);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], 'edit');
+    assert.equal(calls[0][1].flags, MessageFlags.IsComponentsV2);
+  }
+
+  const freshCalls = [];
+  await completeEphemeral({
+    deferred: false,
+    replied: false,
+    reply: async (value) => freshCalls.push(value),
+  }, payload);
+  assert.equal(freshCalls.length, 1);
+  assert.equal(freshCalls[0].flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
 });
