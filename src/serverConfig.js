@@ -46,7 +46,7 @@ const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
     messageChannelId: '',
     messageId: '',
     publishedAt: '',
-    messageVersion: 2,
+    messageVersion: 3,
   }),
 });
 function clone(value) {

@@ -11,6 +11,7 @@ const {
 const { commandMention, normalizeCommandIds } = require('./mentions');
 
 const SECONDARY = 2;
+const MAX_TEXT_DISPLAY_LENGTH = 4_000;
 const OPTION_TYPE_NAMES = Object.freeze({
   3: 'Text',
   4: 'Integer',
@@ -24,12 +25,20 @@ const OPTION_TYPE_NAMES = Object.freeze({
 });
 
 function truncate(value, maximum) {
-  const text = String(value || '');
-  if (text.length <= maximum) return text;
-  return `${text.slice(0, Math.max(0, maximum - 1)).trimEnd()}…`;
+  const valueText = String(value || '');
+  if (valueText.length <= maximum) return valueText;
+  return `${valueText.slice(0, Math.max(0, maximum - 1)).trimEnd()}…`;
 }
 
-function textComponents(content, maximum = 4_000) {
+function escapeDiscordText(value) {
+  return String(value || '')
+    .replace(/[\r\n\0]+/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/([*_~|>`])/g, '\\$1')
+    .replace(/@/g, '@\u200b');
+}
+
+function textComponents(content, maximum = MAX_TEXT_DISPLAY_LENGTH) {
   const chunks = [];
   let current = '';
   for (const sourceLine of String(content || '').split('\n')) {
@@ -57,6 +66,18 @@ function prefixesText(command) {
   return command.prefixes.map((prefix) => `\`${prefix}\``).join(', ');
 }
 
+function configuredPrefix(command) {
+  const match = String(command.prefixes[0] || '').match(/^([^\s!]+!)/);
+  return match?.[1] || '';
+}
+
+function renderGuideTokens(value, commands, context = {}) {
+  return String(value || '').replace(/\[\[([a-z0-9:-]+)\]\]/gi, (_match, key) => {
+    const related = commandByKey(key, commands);
+    return related ? commandMention(related.path, context.commandIds) : `\`/${String(key).replaceAll(':', ' ')}\``;
+  });
+}
+
 function landingCommandLine(command, context) {
   const emoji = resolvedEmoji(command, context).text;
   const mention = commandMention(command.path, context.commandIds);
@@ -82,13 +103,13 @@ function landingContent(commands, context = {}) {
   const sections = [
     '# 🎲 RNG Game Commands',
     '',
-    '-# Choose a command below to view its usage, rules, and examples.',
+    '-# Choose a command below to open its complete player guide.',
   ];
-  if (context.notice) sections.push('', `> ${truncate(context.notice, 300)}`);
+  if (context.notice) sections.push('', `> ${escapeDiscordText(context.notice).slice(0, 300)}`);
   if (quickStart.length) {
     sections.push('', '## Quick Start', '', ...quickStart.map((command) => landingCommandLine(command, context)));
   }
-  sections.push('', '## Browse Commands', '', '*Select a command from the menu to open its full guide.*');
+  sections.push('', '## Browse Commands', '', '*Select a command to view usage, requirements, mechanics, results, and troubleshooting.*');
   for (const group of groupedCommands(commands)) {
     sections.push('', `### ${group.category}`, '', ...group.commands.map((command) => landingCommandLine(command, context)));
   }
@@ -96,12 +117,16 @@ function landingContent(commands, context = {}) {
   return sections.join('\n');
 }
 
-function selectCustomId(ownerId, page) {
-  return `rng:info:command:v${INFO_MESSAGE_VERSION}:${ownerId || '0'}:${page}`;
+function selectCustomId(ownerId, selectorPage) {
+  return `rng:info:command:v${INFO_MESSAGE_VERSION}:${ownerId || '0'}:${selectorPage}`;
 }
 
-function browseCustomId(ownerId, page, stateIndex) {
-  return `rng:info:browse:v${INFO_MESSAGE_VERSION}:${ownerId || '0'}:${page}:${stateIndex}`;
+function browseCustomId(ownerId, selectorPage, stateIndex, guidePage = 1) {
+  return `rng:info:browse:v${INFO_MESSAGE_VERSION}:${ownerId || '0'}:${selectorPage}:${stateIndex}:${guidePage}`;
+}
+
+function detailCustomId(ownerId, stateIndex, guidePage, selectorPage) {
+  return `rng:info:detail:v${INFO_MESSAGE_VERSION}:${ownerId}:${stateIndex}:${guidePage}:${selectorPage}`;
 }
 
 function homeCustomId(ownerId) {
@@ -109,13 +134,13 @@ function homeCustomId(ownerId) {
 }
 
 function commandSelector(commands, context = {}) {
-  const paginated = paginateCommands(commands, context.page);
+  const paginated = paginateCommands(commands, context.selectorPage ?? context.page);
   const options = paginated.commands.map((command) => {
     const emoji = resolvedEmoji(command, context).component;
     return {
       label: truncate(`/${command.path} — ${command.description}`, 100),
       value: truncate(command.key, 100),
-      description: truncate('Open usage, rules, and examples.', 100),
+      description: 'Open the complete command guide.',
       ...(emoji ? { emoji } : {}),
       ...(command.key === context.selectedKey ? { default: true } : {}),
     };
@@ -140,26 +165,21 @@ function commandSelector(commands, context = {}) {
       {
         type: 2,
         style: SECONDARY,
-        label: 'Previous',
-        custom_id: browseCustomId(context.ownerId, Math.max(1, paginated.page - 1), stateIndex),
+        label: 'Previous Commands',
+        custom_id: browseCustomId(context.ownerId, Math.max(1, paginated.page - 1), stateIndex, context.guidePage),
         disabled: paginated.page === 1,
       },
       {
         type: 2,
         style: SECONDARY,
-        label: 'Next',
-        custom_id: browseCustomId(context.ownerId, Math.min(paginated.pageCount, paginated.page + 1), stateIndex),
+        label: 'Next Commands',
+        custom_id: browseCustomId(context.ownerId, Math.min(paginated.pageCount, paginated.page + 1), stateIndex, context.guidePage),
         disabled: paginated.page === paginated.pageCount,
       },
     );
   }
   if (context.ownerId && context.ownerId !== '0' && context.selectedKey) {
-    buttons.push({
-      type: 2,
-      style: SECONDARY,
-      label: 'All Commands',
-      custom_id: homeCustomId(context.ownerId),
-    });
+    buttons.push({ type: 2, style: SECONDARY, label: 'All Commands', custom_id: homeCustomId(context.ownerId) });
   }
   if (buttons.length) rows.push({ type: 1, components: buttons });
   return { page: paginated.page, pageCount: paginated.pageCount, rows };
@@ -168,7 +188,7 @@ function commandSelector(commands, context = {}) {
 function infoMessagePayload(_botUserId, context = {}, options = {}) {
   const commands = context.commands || commandCatalog();
   const commandIds = normalizeCommandIds(context.commandIds);
-  const selector = commandSelector(commands, { ...context, commandIds });
+  const selector = commandSelector(commands, { ...context, commandIds, guidePage: 1 });
   return v2Payload([{
     type: 17,
     accent_color: WHITE,
@@ -180,45 +200,142 @@ function infoMessagePayload(_botUserId, context = {}, options = {}) {
   }], options);
 }
 
-function optionLines(options) {
-  return (options || []).map((option) => {
-    const type = OPTION_TYPE_NAMES[option.type];
-    const requirement = option.required ? ' Required.' : '';
-    const suffix = type ? ` (${type})` : '';
-    return `* \`${option.name}\`${suffix} — ${option.description || 'No description provided.'}${requirement}`;
+function optionLine(option) {
+  const attributes = [];
+  const type = OPTION_TYPE_NAMES[option.type];
+  if (type) attributes.push(type);
+  attributes.push(option.required ? 'required' : 'optional');
+  if (option.min_value !== undefined) attributes.push(`minimum \`${option.min_value}\``);
+  if (option.max_value !== undefined) attributes.push(`maximum \`${option.max_value}\``);
+  if (Array.isArray(option.choices) && option.choices.length) {
+    attributes.push(`choices: ${option.choices.map((choice) => `\`${choice.name}\``).join(', ')}`);
+  }
+  return `* \`${option.name}\` — ${option.description} *(${attributes.join('; ')})*`;
+}
+
+function listBlock(heading, values, commands, context, ordered = false) {
+  if (!values?.length) return '';
+  const lines = values.map((value, index) => `${ordered ? `${index + 1}.` : '*'} ${renderGuideTokens(value, commands, context)}`);
+  return `## ${heading}\n\n${lines.join('\n')}`;
+}
+
+function invocationBlock(command, context) {
+  const mention = commandMention(command.path, context.commandIds);
+  const blocks = [`## Invocations\n\n**Slash:** ${mention}`];
+  const prefix = configuredPrefix(command);
+  if (command.prefixes.length) {
+    blocks[0] += `\n**Configured prefix:** \`${prefix}\``;
+    blocks[0] += `\n**Prefix forms:** ${prefixesText(command)}`;
+    if (command.prefixes.length > 1) blocks[0] += `\n**Aliases:** ${command.prefixes.slice(1).map((value) => `\`${value}\``).join(', ')}`;
+  }
+  const slashArguments = command.options.map((option) => option.required ? `<${option.name}>` : `[${option.name}]`).join(' ');
+  const syntax = [`* ${mention}${slashArguments ? ` \`${slashArguments}\`` : ''}`, ...command.prefixes.map((value) => `* \`${value}\``)];
+  blocks.push(`### Exact Syntax\n\n${syntax.join('\n')}`);
+  if (command.options.length) blocks.push(`### Slash Arguments\n\n${command.options.map(optionLine).join('\n')}`);
+  if (command.controls.length) blocks.push(`### Interactive Inputs\n\n${command.controls.map((item) => `* ${renderGuideTokens(item, context.commands, context)}`).join('\n')}`);
+  return blocks.join('\n\n');
+}
+
+function guidePages(command, context = {}) {
+  const commands = context.commands || commandCatalog();
+  const renderContext = { ...context, commands };
+  const prefix = configuredPrefix(command);
+  const identity = [
+    `**Category:** ${command.category}`,
+    `**Slash:** ${commandMention(command.path, context.commandIds)}`,
+  ];
+  if (command.prefixes.length) identity.push(`**Prefix:** ${prefixesText(command)}`, `**Configured prefix:** \`${prefix}\``);
+  const pages = [
+    {
+      id: 'overview',
+      label: 'Overview',
+      blocks: [
+        `## At a Glance\n\n${identity.join('\n')}\n\n${command.purpose}`,
+        '## Availability\n\n* Server-only; the RNG feature must be owner-unlocked and enabled.\n* Use a configured RNG game channel or a post whose parent forum is configured.\n* The command and every guide control are limited to their invoking player where ownership applies.',
+        listBlock('Important', command.warnings, commands, renderContext),
+      ],
+    },
+    {
+      id: 'usage',
+      label: 'Usage & Requirements',
+      blocks: [
+        invocationBlock(command, renderContext),
+        listBlock('Requirements', command.requirements, commands, renderContext),
+        listBlock('How It Works', command.steps, commands, renderContext, true),
+      ],
+    },
+    {
+      id: 'mechanics',
+      label: 'Mechanics',
+      blocks: [listBlock('Mechanics, Costs & Limits', command.mechanics, commands, renderContext)],
+    },
+    {
+      id: 'results',
+      label: 'Results & Interactions',
+      blocks: [
+        listBlock('Results & Rewards', command.results, commands, renderContext),
+        listBlock('Related Systems', command.interactions, commands, renderContext),
+        listBlock('Restrictions & Conflicts', command.restrictions, commands, renderContext),
+      ],
+    },
+    {
+      id: 'troubleshooting',
+      label: 'Examples & Troubleshooting',
+      blocks: [
+        listBlock('Examples', [
+          ...(command.prefixes.length ? [`**Simplest prefix:** \`${command.prefixes[0]}\``] : []),
+          ...command.examples,
+        ], commands, renderContext),
+        listBlock('Common Problems', command.failures, commands, renderContext),
+        listBlock('Tips', command.tips, commands, renderContext),
+        listBlock('Warnings', command.warnings, commands, renderContext),
+      ],
+    },
+  ].map((page) => ({ ...page, blocks: page.blocks.filter(Boolean) }))
+    .filter((page) => page.blocks.length);
+
+  return pages.map((page, index) => {
+    const content = [
+      `# ${resolvedEmoji(command, context).text} \`/${command.path}\``,
+      '',
+      `-# ${page.label} • Page ${index + 1}/${pages.length}`,
+      '',
+      ...page.blocks,
+      '',
+      `-# *${command.purpose}*`,
+    ].join('\n');
+    if (content.length > MAX_TEXT_DISPLAY_LENGTH) {
+      throw new RangeError(`Guide page ${command.key}:${page.id} exceeds ${MAX_TEXT_DISPLAY_LENGTH} characters.`);
+    }
+    return Object.freeze({ ...page, content, page: index + 1, pageCount: pages.length });
   });
 }
 
-function detailContent(command, context = {}) {
-  const emoji = resolvedEmoji(command, context).text;
-  const mention = commandMention(command.path, context.commandIds);
-  const usage = command.prefixes.length
-    ? `**Slash:** ${mention} • **Prefix:** ${prefixesText(command)}`
-    : `**Slash:** ${mention}`;
-  const sections = [
-    `# ${emoji} \`/${command.path}\``,
-    '',
-    `-# ${command.description}`,
-    '',
-    '## How to Use',
-    '',
-    usage,
-    '',
-    '## What It Does',
-    '',
-    ...command.whatItDoes,
-  ];
-  const options = optionLines(command.options);
-  if (options.length) sections.push('', '## Options', '', ...options);
-  const examples = [mention];
-  for (const example of command.slashExamples) examples.push(`${mention} \`${example}\``);
-  examples.push(...command.prefixes.map((prefix) => `\`${prefix}\``));
-  if (examples.length) sections.push('', '## Examples', '', ...examples.map((example) => `* ${example}`));
-  if (command.important.length) {
-    sections.push('', '## Important', '', ...command.important.map((item) => `**${item}**`));
-  }
-  if (command.tip) sections.push('', `-# *Tip: ${command.tip}*`);
-  return sections.join('\n');
+function guideNavigation(command, commands, context, selectedPage, selectorPage) {
+  const stateIndex = commands.findIndex((candidate) => candidate.key === command.key) + 1;
+  return {
+    type: 1,
+    components: [
+      {
+        type: 2, style: SECONDARY, label: 'Previous',
+        custom_id: detailCustomId(context.ownerId, stateIndex, Math.max(1, selectedPage.page - 1), selectorPage),
+        disabled: selectedPage.page === 1,
+      },
+      {
+        type: 2, style: SECONDARY, label: `Page ${selectedPage.page}/${selectedPage.pageCount}`,
+        custom_id: detailCustomId(context.ownerId, stateIndex, selectedPage.page, selectorPage), disabled: true,
+      },
+      {
+        type: 2, style: SECONDARY, label: 'Next',
+        custom_id: detailCustomId(context.ownerId, stateIndex, Math.min(selectedPage.pageCount, selectedPage.page + 1), selectorPage),
+        disabled: selectedPage.page === selectedPage.pageCount,
+      },
+      {
+        type: 2, style: SECONDARY, label: 'Overview',
+        custom_id: detailCustomId(context.ownerId, stateIndex, 1, selectorPage), disabled: selectedPage.page === 1,
+      },
+    ],
+  };
 }
 
 function commandPayload(commandKey, context = {}, options = {}) {
@@ -232,19 +349,24 @@ function commandPayload(commandKey, context = {}, options = {}) {
     }, options);
   }
   const commandIds = normalizeCommandIds(context.commandIds);
-  const page = context.page || pageForCommand(command.key, commands);
+  const selectorPage = context.selectorPage ?? context.page ?? pageForCommand(command.key, commands);
+  const pages = guidePages(command, { ...context, commandIds, commands });
+  const guidePage = Math.max(1, Math.min(pages.length, Math.floor(Number(context.guidePage) || 1)));
+  const selectedPage = pages[guidePage - 1];
   const selector = commandSelector(commands, {
     ...context,
     commandIds,
     ownerId: context.ownerId,
-    page,
+    selectorPage,
+    guidePage,
     selectedKey: command.key,
   });
   return v2Payload([{
     type: 17,
     accent_color: WHITE,
     components: [
-      ...textComponents(detailContent(command, { ...context, commandIds })),
+      { type: 10, content: selectedPage.content },
+      guideNavigation(command, commands, context, selectedPage, selector.page),
       { type: 14, divider: true, spacing: 2 },
       ...selector.rows,
     ],
@@ -255,10 +377,14 @@ module.exports = {
   browseCustomId,
   commandPayload,
   commandSelector,
-  detailContent,
+  configuredPrefix,
+  detailCustomId,
+  escapeDiscordText,
+  guidePages,
   homeCustomId,
   infoMessagePayload,
   landingContent,
+  renderGuideTokens,
   selectCustomId,
   textComponents,
   truncate,

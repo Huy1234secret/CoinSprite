@@ -14,6 +14,7 @@ const {
 } = require('../services/rngService');
 const { formatMultiplier, formatPercent, romanTier } = require('../utils/upgrades');
 const { formatTokenList } = require('../utils/tokens');
+const { INVENTORY_PAGE_SIZE, SELL_PAGE_SIZE } = require('../config/interface');
 const {
   ALLOWED_MENTIONS,
   clampPage,
@@ -31,8 +32,6 @@ const {
   v2Payload,
 } = require('../../shared/components');
 
-const INVENTORY_PAGE_SIZE = 12;
-const SELL_PAGE_SIZE = 25;
 const WHITE = 0xFFFFFF;
 
 function rollPayload(userId, instance, options = {}) {
