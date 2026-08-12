@@ -127,6 +127,7 @@
         <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
         <button class="nav-item" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>GAG2 RNG Game</strong><small>Locked by owner</small></span></button>
+        <button class="nav-item" id="infoChannelNav" type="button" data-view="info-channel"><span class="nav-icon">&#x2139;&#xFE0F;</span><span><strong>Info Channel</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -249,6 +250,50 @@
           <div class="section-heading"><div><span class="step">02</span><h2>Command visibility</h2></div><p>These slash commands are registered only while owner access and the RNG game engine are both enabled.</p></div>
           <div class="leveling-command-strip">
             <span>GAME COMMANDS</span><code>/roll</code><code>/inventory</code><code>/sell</code><code>/balance</code><code>c!roll</code>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="infoChannelView" data-view-panel="info-channel" hidden>
+        <header class="workspace-head info-channel-head">
+          <div><span class="eyebrow">INFO CHANNEL</span><h1>Publish the game guide once.</h1><p>Maintain a permanent interactive wiki whose detailed topics always follow the live RNG, RPS, and Work source.</p></div>
+        </header>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">01</span><h2>Destination</h2></div><p>Choose a normal text or announcement channel where CoinSprite can keep one permanent message.</p></div>
+          <label class="field-card info-channel-selector"><span>Information channel<small>Requires View Channel, Send Messages, and Read Message History.</small></span><select id="infoChannelSelect" aria-describedby="infoChannelHelp"></select><small id="infoChannelHelp" class="microcopy">Forum, media, category, thread, archived, and inaccessible channels are excluded.</small></label>
+        </section>
+
+        <section class="section-block info-preview-section">
+          <div class="section-heading"><div><span class="step">02</span><h2>Live Discord preview</h2></div><p>Players use the topic dropdown; detailed pages are sent privately so the channel stays clean.</p></div>
+          <div class="discord-preview info-discord-preview" aria-label="Information message Discord preview">
+            <div class="discord-preview-head"><span>LIVE PREVIEW</span></div>
+            <div class="discord-message-row">
+              <div class="discord-avatar">C</div>
+              <div class="discord-message-body">
+                <div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div>
+                <div class="info-discord-container">
+                  <div class="info-preview-copy"><strong><span class="discord-mention">@CoinSprite</span>'s Information</strong><p>Everything you need to start, progress, and master the RNG game is here.<br>Choose a topic below to open the guide.</p></div>
+                  <hr>
+                  <button type="button" class="info-preview-select" disabled><span>Choose an information topic</span><b aria-hidden="true">⌄</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">03</span><h2>Publication</h2></div><p>Changing the destination never edits or deletes the old channel's message.</p></div>
+          <div class="info-publication-grid">
+            <article><span>Status</span><strong id="infoPublicationState">Not published</strong></article>
+            <article><span>Published channel</span><strong id="infoPublishedChannel">—</strong></article>
+            <article><span>Last published or updated</span><strong id="infoPublishedAt">—</strong></article>
+            <article><span>Discord message ID</span><strong id="infoMessageId">—</strong></article>
+          </div>
+          <p class="info-warning" id="infoPublicationWarning" role="alert" hidden></p>
+          <div class="info-actions">
+            <a class="button ghost" id="infoMessageLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Open Discord message</a>
+            <button class="button primary" id="infoPublishButton" type="button">Publish information</button>
           </div>
         </section>
       </section>
