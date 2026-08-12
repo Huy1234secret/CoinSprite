@@ -301,6 +301,49 @@ test('duplicate reveal, cancellation, and expiry never pay or refund twice', () 
   game.close();
 });
 
+test('RPS reveal acknowledges before changing payout state and ignores expired interaction tokens safely', async () => {
+  const game = feature();
+  fund(game, 'ack-host', { tokens: 100n });
+  const gameId = createBotGame(game, 'ack-host', 10n);
+  assert.equal(game.rpsService.commit(gameId, 'ack-host', 'paper').status, 'ready');
+  const events = [];
+  const reveal = game.rpsService.reveal.bind(game.rpsService);
+  game.rpsService.reveal = (...args) => {
+    events.push('reveal');
+    return reveal(...args);
+  };
+  const interaction = {
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:rps:reveal:${gameId}`,
+    user: { id: 'ack-host' },
+    deferred: false,
+    replied: false,
+    deferUpdate: async () => { events.push('defer'); interaction.deferred = true; },
+    editReply: async () => { events.push('edit'); },
+  };
+  assert.equal(await game.handleInteraction(interaction), true);
+  assert.deepEqual(events.slice(0, 2), ['defer', 'reveal']);
+  assert.equal(game.rpsService.game(gameId).state, RPS_STATES.FINISHED);
+
+  fund(game, 'expired-host', { tokens: 100n });
+  const expiredGameId = createBotGame(game, 'expired-host', 10n);
+  assert.equal(game.rpsService.commit(expiredGameId, 'expired-host', 'paper').status, 'ready');
+  const expired = {
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:rps:reveal:${expiredGameId}`,
+    user: { id: 'expired-host' },
+    deferred: false,
+    replied: false,
+    deferUpdate: async () => { const error = new Error('Unknown interaction'); error.code = 10062; throw error; },
+  };
+  assert.equal(await game.handleInteraction(expired), true);
+  assert.equal(game.rpsService.game(expiredGameId).state, RPS_STATES.READY_TO_REVEAL);
+  assert.equal(game.repository.getPlayer('expired-host').tokenBalance, 90n, 'no payout is applied after an expired acknowledgement');
+  game.close();
+});
+
 test('Bot replay rejects bets above 1000, preserves the menu state, and chooses a fresh Bot card', () => {
   const draws = [0, 2];
   const game = feature({ rpsRandomInt: () => draws.shift() });
