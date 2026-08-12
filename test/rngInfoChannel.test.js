@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -63,6 +64,8 @@ const {
   INFO_COMMAND_PAGE_SIZE,
   INFO_MESSAGE_VERSION,
   INFO_SELECT_CUSTOM_ID,
+  REQUIRED_GUIDE_FIELDS,
+  auditCommandCatalog,
   commandByKey,
   commandCatalog,
   paginateCommands,
@@ -70,7 +73,11 @@ const {
   slashCommands,
 } = require('../src/features/rng-game/info/catalog');
 const {
+  browseCustomId,
   commandPayload,
+  detailCustomId,
+  escapeDiscordText,
+  guidePages,
   infoMessagePayload,
   selectCustomId,
 } = require('../src/features/rng-game/info/builders');
@@ -83,6 +90,7 @@ const { InfoPublishError, InfoPublisher, restPayload } = require('../src/feature
 const { resolveEmoji } = require('../src/features/shared/emojis');
 const { RNG_GAME_COMMANDS, PREFIX_COMMANDS } = require('../src/features/rng-game/commands');
 const { WORK_COMMANDS } = require('../src/features/work/commands');
+const { WORK_GAMES } = require('../src/features/work/data');
 
 function allComponentNodes(payload) {
   const nodes = [];
@@ -101,7 +109,7 @@ function message(id, authorId = BOT_ID) {
 test('RNG configuration normalizes the backward-compatible Info Channel record', () => {
   assert.equal(SCHEMA_VERSION, 13);
   assert.deepEqual(DEFAULT_RNG_GAME_CONFIG.info, {
-    channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 2,
+    channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 3,
   });
   const legacy = normalizeRngGameConfig({ enabled: true, gameChannelId: CHANNEL_ID });
   assert.deepEqual(legacy.info, DEFAULT_RNG_GAME_CONFIG.info);
@@ -135,6 +143,11 @@ function commandIdsFor(commands = commandCatalog()) {
 
 function payloadText(payload) {
   return allComponentNodes(payload).filter((node) => node.content).map((node) => node.content).join('\n');
+}
+
+function commandGuideText(commandKey, commands = commandCatalog()) {
+  const command = commandByKey(commandKey, commands);
+  return guidePages(command, { commands, commandIds: commandIdsFor(commands) }).map((page) => page.content).join('\n');
 }
 
 test('landing page lists every registered command with real choices and safe clickable mentions', () => {
@@ -192,6 +205,41 @@ test('catalog derives selectable commands and prefixes from the live registries'
   assert.deepEqual(commandByKey('g-rps', commands).prefixes, []);
 });
 
+test('every registered player command has explicit, complete metadata and every slash argument is rendered', () => {
+  const commands = commandCatalog();
+  assert.deepEqual(auditCommandCatalog(commands), { commandCount: commands.length, optionCount: 1 });
+  assert.deepEqual(commands.map((command) => command.key), [
+    'roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat',
+    'calculate-chance', 'exchange-token', 'g-rps', 'g-work',
+  ]);
+  for (const command of commands) {
+    assert.equal(command.hasExplicitGuide, true, `${command.key} must not use fallback metadata`);
+    for (const field of REQUIRED_GUIDE_FIELDS) {
+      assert.ok(field === 'purpose' ? command[field] : command[field].length, `${command.key} has ${field}`);
+    }
+    const usage = guidePages(command, { commands }).find((page) => page.id === 'usage').content;
+    for (const option of command.options) {
+      assert.match(usage, new RegExp(`\\\\?\`${option.name}\\\\?\``));
+      assert.match(usage, new RegExp(option.description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+  }
+});
+
+test('auto-roll has a complete five-section guide derived from scheduler and economy rules', () => {
+  const text = commandGuideText('auto-roll');
+  assert.match(text, /Overview • Page 1\/5/);
+  assert.match(text, /Usage & Requirements • Page 2\/5/);
+  assert.match(text, /Mechanics • Page 3\/5/);
+  assert.match(text, /Results & Interactions • Page 4\/5/);
+  assert.match(text, /Examples & Troubleshooting • Page 5\/5/);
+  assert.match(text, /minimum `1 minute`, maximum `1 day`/);
+  assert.match(text, /`12` rolls per minute/);
+  assert.match(text, /max\(5, ceil\(\(gross expected crop value − 30\) \/ 4\)\)/);
+  assert.match(text, /unprocessed paid roll is refunded/i);
+  assert.match(text, /no manual cancel button/i);
+  assert.match(text, /Manual `\/roll` and `\/sell` are locked|Manual <\/roll:/);
+});
+
 test('emoji resolver handles Unicode, static custom, animated custom, and unavailable fallback', () => {
   const usable = { emojis: { cache: new Map([['723456789012345678', {}]]) } };
   assert.deepEqual(resolveEmoji('🎲', '🎮'), { text: '🎲', component: { name: '🎲' } });
@@ -208,7 +256,7 @@ test('emoji resolver handles Unicode, static custom, animated custom, and unavai
   });
 });
 
-test('roll selection renders a complete detail page and preserves the selected command menu', () => {
+test('roll selection renders a complete paginated guide and preserves the selected command menu', () => {
   const commands = commandCatalog();
   const payload = commandPayload('roll', {
     commands,
@@ -218,25 +266,32 @@ test('roll selection renders a complete detail page and preserves the selected c
   assert.equal(payload.flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
   const text = payloadText(payload);
   assert.match(text, /^# 🎲 `\/roll`/m);
-  assert.match(text, /## How to Use/);
+  assert.match(text, /Overview • Page 1\/5/);
   assert.match(text, /\*\*Slash:\*\* <\/roll:723456789012345678>/);
   assert.match(text, /\*\*Prefix:\*\* `c!roll`/);
-  assert.match(text, /## What It Does/);
-  assert.match(text, /## Examples/);
-  assert.match(text, /## Important/);
+  const completeGuide = commandGuideText('roll', commands);
+  assert.match(completeGuide, /## Invocations/);
+  assert.match(completeGuide, /5 seconds/);
+  assert.match(completeGuide, /inventory full/i);
+  assert.match(completeGuide, /## Results & Rewards/);
+  assert.match(completeGuide, /## Examples/);
+  assert.match(completeGuide, /## Common Problems/);
   const select = allComponentNodes(payload).find((node) => node.type === 3);
   assert.equal(select.custom_id, selectCustomId(ADMIN_ID, 1));
   assert.equal(select.options.find((option) => option.value === 'roll').default, true);
+  assert.ok(allComponentNodes(payload).some((node) => node.type === 2 && node.label === 'Next'));
 });
 
 test('prefix usage is shown only for supported commands and slash options come from command definitions', () => {
   const commands = commandCatalog();
   const context = { commands, commandIds: commandIdsFor(commands), ownerId: ADMIN_ID };
-  assert.match(payloadText(commandPayload('inventory', context)), /\*\*Prefix:\*\* `c!inventory`/);
-  assert.doesNotMatch(payloadText(commandPayload('g-rps', context)), /\*\*Prefix:\*\*/);
-  const exchange = payloadText(commandPayload('exchange-token', context));
-  assert.match(exchange, /## Options/);
-  assert.match(exchange, /`amount-token` \(Integer\)/);
+  assert.match(commandGuideText('inventory', commands), /\*\*Prefix:\*\* `c!inventory`/);
+  assert.doesNotMatch(commandGuideText('g-rps', commands), /\*\*Prefix:\*\*/);
+  const exchange = commandGuideText('exchange-token', commands);
+  assert.match(exchange, /### Slash Arguments/);
+  assert.match(exchange, /`amount-token` — Token value to receive \(up to 100 per four hours\)/);
+  assert.match(exchange, /Integer; required; minimum `1`; maximum `100`/);
+  assert.match(exchange, /<amount-token>/);
 });
 
 test('every selector option maps to a valid detail and all payload strings respect Discord limits', () => {
@@ -259,6 +314,76 @@ test('every selector option maps to a valid detail and all payload strings respe
   }
 });
 
+test('detail navigation preserves the command and selector while empty sections are omitted', () => {
+  const commands = commandCatalog();
+  const payload = commandPayload('auto-roll', {
+    commands,
+    commandIds: commandIdsFor(commands),
+    ownerId: ADMIN_ID,
+    selectorPage: 1,
+    guidePage: 3,
+  });
+  assert.match(payloadText(payload), /Mechanics • Page 3\/5/);
+  const select = allComponentNodes(payload).find((node) => node.type === 3);
+  assert.equal(select.options.find((option) => option.value === 'auto-roll').default, true);
+  assert.ok(allComponentNodes(payload).some((node) => node.custom_id === detailCustomId(ADMIN_ID, 5, 2, 1)));
+  assert.ok(allComponentNodes(payload).some((node) => node.custom_id === detailCustomId(ADMIN_ID, 5, 4, 1)));
+
+  const withoutOptionalSections = {
+    ...commandByKey('roll', commands), warnings: [], tips: [],
+  };
+  const pages = guidePages(withoutOptionalSections, { commands });
+  assert.doesNotMatch(pages[0].content, /## Important/);
+  assert.doesNotMatch(pages.at(-1).content, /## Tips|## Warnings/);
+});
+
+test('long guide content fails loudly instead of being truncated and rendered content has no placeholders', () => {
+  const commands = commandCatalog();
+  const tooLong = { ...commands[0], mechanics: ['x'.repeat(4_000)] };
+  assert.throws(() => guidePages(tooLong, { commands }), /exceeds 4000 characters/);
+  const rendered = [
+    payloadText(infoMessagePayload(BOT_ID, { commands, commandIds: commandIdsFor(commands) })),
+    ...commands.flatMap((command) => guidePages(command, { commands, commandIds: commandIdsFor(commands) }).map((page) => page.content)),
+  ].join('\n');
+  assert.doesNotMatch(rendered, /\[\[[a-z0-9:-]+\]\]|ACTUAL_COMMAND_ID|<actual|<supported argument>|<\/\{/i);
+});
+
+test('Work help is isolated from protected customer identities, rewards, mappings, and source data', () => {
+  const commands = commandCatalog();
+  const rendered = [
+    payloadText(infoMessagePayload(BOT_ID, { commands })),
+    commandGuideText('g-work', commands),
+  ].join('\n');
+  const lower = rendered.toLowerCase();
+  for (const game of WORK_GAMES) {
+    for (const customer of game.customers) {
+      assert.doesNotMatch(rendered, new RegExp(customer.message.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+      assert.ok(!lower.includes(JSON.stringify(customer).toLowerCase()), 'a customer record must never be rendered');
+      assert.ok(!lower.includes(`${customer.id}:${customer.reward}`), 'customer-to-reward pairs must never be rendered');
+      assert.ok(!lower.includes(customer.order.join(' → ').toLowerCase()), 'customer orders must never be copied into help');
+    }
+  }
+  assert.doesNotMatch(rendered, /customer\s*(?:#|id)?\s*\d+[^\n]{0,80}(?:reward|salary)|(?:reward|salary)[^\n]{0,80}customer\s*(?:#|id)?\s*\d+/i);
+  assert.doesNotMatch(rendered, /customer (?:reward range|selection (?:chance|weight)|reward table)|base reward/i);
+  assert.match(rendered, /customer identities and customer-specific rewards are intentionally left/i);
+  const guideSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'features', 'rng-game', 'info', 'guides.js'), 'utf8');
+  assert.doesNotMatch(guideSource, /require\(['"]\.\.\/\.\.\/work\/data['"]\)/);
+  const isolationCheck = execFileSync(process.execPath, ['-e', [
+    "require('./src/features/rng-game/info/catalog');",
+    "process.stdout.write(String(Boolean(require.cache[require.resolve('./src/features/work/data')])));",
+  ].join('')], { cwd: path.join(__dirname, '..'), encoding: 'utf8' });
+  assert.equal(isolationCheck.trim().endsWith('false'), true, 'loading information metadata must not load protected Work data');
+});
+
+test('notices escape mentions and Markdown while payloads disable mention parsing', () => {
+  const notice = '@everyone **open _this_** `now`';
+  assert.notEqual(escapeDiscordText(notice), notice);
+  const payload = infoMessagePayload(BOT_ID, { notice });
+  const rendered = payloadText(payload);
+  assert.doesNotMatch(rendered, /@everyone|\*\*open _this_\*\*|`now`/);
+  assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [], repliedUser: false });
+});
+
 test('more than 25 commands are paginated without hiding commands', () => {
   const definitions = Array.from({ length: 30 }, (_, index) => ({
     name: `command-${String(index).padStart(2, '0')}`,
@@ -276,7 +401,12 @@ test('more than 25 commands are paginated without hiding commands', () => {
     new Set(commands.map((command) => command.key)),
   );
   assert.equal(paginateCommands(commands, 99).page, 2);
-  assert.ok(allComponentNodes(first).some((node) => node.type === 2 && node.label === 'Next'));
+  const nextCommands = allComponentNodes(first).find((node) => node.type === 2 && node.label === 'Next Commands');
+  assert.equal(nextCommands.custom_id, browseCustomId('0', 2, 0, 1));
+  const detail = commandPayload(commands[25].key, { commands, ownerId: ADMIN_ID, selectorPage: 2 });
+  const detailSelect = allComponentNodes(detail).find((node) => node.type === 3);
+  assert.equal(detailSelect.custom_id, selectCustomId(ADMIN_ID, 2));
+  assert.equal(detailSelect.options.find((option) => option.value === commands[25].key).default, true);
   for (const command of commands) assert.match(payloadText(first), new RegExp(`/${command.path}`));
 });
 
@@ -309,6 +439,23 @@ test('command interactions keep private navigation, enforce ownership, and recov
   assert.match(payloadText(replies[0]), /<\/roll:723456789012345678>/);
   const privateSelect = allComponentNodes(replies[0]).find((node) => node.type === 3);
   assert.equal(privateSelect.custom_id, selectCustomId(ADMIN_ID, 1));
+
+  const nextGuidePage = allComponentNodes(replies[0]).find((node) => node.type === 2 && node.label === 'Next');
+  assert.equal(nextGuidePage.custom_id, detailCustomId(ADMIN_ID, 1, 2, 1));
+  const guideUpdates = [];
+  await handler({
+    customId: nextGuidePage.custom_id,
+    guildId: GUILD_ID,
+    client,
+    user: { id: ADMIN_ID },
+    isButton: () => true,
+    update: async (payload) => guideUpdates.push(payload),
+  });
+  assert.match(payloadText(guideUpdates[0]), /Usage & Requirements • Page 2\/5/);
+  assert.equal(
+    allComponentNodes(guideUpdates[0]).find((node) => node.type === 3).options.find((option) => option.value === 'roll').default,
+    true,
+  );
 
   await handler({
     customId: privateSelect.custom_id,
@@ -500,7 +647,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     inspect: async () => ({ state: 'not-published', canEdit: false, warning: '' }),
     publish: async (channelId, reference) => {
       calls.push({ channelId, reference });
-      return { action: reference.messageId ? 'updated' : 'published', message: message(MESSAGE_ID), messageVersion: 2 };
+      return { action: reference.messageId ? 'updated' : 'published', message: message(MESSAGE_ID), messageVersion: 3 };
     },
   };
   const { server, origin } = await startAdminApi(infoPublisher, guild);
@@ -548,7 +695,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     messageChannelId: CHANNEL_ID,
     messageId: MESSAGE_ID,
     publishedAt: '2023-11-14T22:13:20.000Z',
-    messageVersion: 2,
+    messageVersion: 3,
   });
 
   const patched = await fetch(`${origin}/api/guilds/${GUILD_ID}/config`, {
@@ -562,7 +709,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     messageChannelId: CHANNEL_ID,
     messageId: MESSAGE_ID,
     publishedAt: '2023-11-14T22:13:20.000Z',
-    messageVersion: 2,
+    messageVersion: 3,
   }, 'dashboard PATCH may select a new channel but cannot replace the server-owned message reference');
 
   setGuildFeatureAccess(GUILD_ID, { rngGame: false });

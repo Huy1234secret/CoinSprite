@@ -8,7 +8,8 @@ const { commandPayload, infoMessagePayload } = require('./builders');
 const { resolveRegisteredCommandIds } = require('./mentions');
 
 const SELECT_PATTERN = new RegExp(`^rng:info:command:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+)$`);
-const BROWSE_PATTERN = new RegExp(`^rng:info:browse:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+)$`);
+const BROWSE_PATTERN = new RegExp(`^rng:info:browse:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+):(\\d+)$`);
+const DETAIL_PATTERN = new RegExp(`^rng:info:detail:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+):(\\d+)$`);
 const HOME_PATTERN = new RegExp(`^rng:info:home:v${INFO_MESSAGE_VERSION}:(\\d+)$`);
 
 function featureError(policy) {
@@ -29,7 +30,7 @@ function createInfoHandler(context) {
     return ownerId === '0' || ownerId === String(interaction.user?.id || '');
   }
 
-  async function payloadContext(interaction, ownerId, page) {
+  async function payloadContext(interaction, ownerId, selectorPage) {
     const client = interaction.client || context.getClient?.() || context.client || null;
     return {
       botUserId: String(client?.user?.id || context.getBotUser?.()?.id || '0'),
@@ -37,12 +38,12 @@ function createInfoHandler(context) {
       commandIds: await resolveRegisteredCommandIds(client, interaction.guildId),
       commands,
       ownerId,
-      page,
+      selectorPage,
     };
   }
 
-  async function updateLanding(interaction, ownerId, page, notice = '') {
-    const view = await payloadContext(interaction, ownerId, page);
+  async function updateLanding(interaction, ownerId, selectorPage, notice = '') {
+    const view = await payloadContext(interaction, ownerId, selectorPage);
     await interaction.update(infoMessagePayload(view.botUserId, { ...view, notice }, { initial: false })).catch(() => null);
     return true;
   }
@@ -87,11 +88,27 @@ function createInfoHandler(context) {
       if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
       const page = Number(browseMatch[2]);
       const stateIndex = Number(browseMatch[3]);
+      const guidePage = Number(browseMatch[4]);
       if (stateIndex <= 0) return updateLanding(interaction, ownerId, page);
       const selected = commands[stateIndex - 1];
       if (!selected) return updateLanding(interaction, ownerId, page, 'That command guide is no longer available.');
       const view = await payloadContext(interaction, ownerId, page);
-      await interaction.update(commandPayload(selected.key, view, { initial: false })).catch(() => null);
+      await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
+      return true;
+    }
+
+    const detailMatch = customId.match(DETAIL_PATTERN);
+    if (detailMatch) {
+      if (!interaction.isButton?.()) return reject(interaction, 'That command control is malformed.');
+      const ownerId = detailMatch[1];
+      if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
+      const stateIndex = Number(detailMatch[2]);
+      const guidePage = Number(detailMatch[3]);
+      const selectorPage = Number(detailMatch[4]);
+      const selected = commands[stateIndex - 1];
+      if (!selected) return updateLanding(interaction, ownerId, selectorPage, 'That command guide is no longer available.');
+      const view = await payloadContext(interaction, ownerId, selectorPage);
+      await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
       return true;
     }
 
