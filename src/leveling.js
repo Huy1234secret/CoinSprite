@@ -18,6 +18,7 @@ const {
   getGuildConfig,
   isGuildLevelingEnabled,
 } = require('./serverConfig');
+const { acknowledgeEphemeral, acknowledgeUpdate } = require('./features/shared/interactionResponses');
 
 const DATA_PATH = process.env.LEVELING_DATA_PATH || path.join(__dirname, '..', 'data', 'leveling.json');
 const LEVEL_CARD_MEDIA_DIR = path.join(__dirname, '..', 'data', 'level-card-media');
@@ -1550,6 +1551,7 @@ async function executeLeaderboard(interaction) {
 }
 
 async function executeLevelSet(interaction) {
+  if (!await acknowledgeEphemeral(interaction)) return;
   const user = interaction.options.getUser('user', true);
   const level = interaction.options.getInteger('level', true);
   const config = levelingConfig(interaction.guildId);
@@ -1560,17 +1562,18 @@ async function executeLevelSet(interaction) {
   record.updatedAt = Date.now();
   scheduleSave();
   await syncRewardRoles(interaction.guild, user.id, targetLevel, config);
-  await interaction.reply(v2Payload(`## Level updated\n**${safeName(user.username)}** moved from level ${oldLevel} to **level ${targetLevel}**.`, { ephemeral: true }));
+  await interaction.editReply(v2Payload(`## Level updated\n**${safeName(user.username)}** moved from level ${oldLevel} to **level ${targetLevel}**.`));
 }
 
 async function executeXpAdd(interaction) {
+  if (!await acknowledgeEphemeral(interaction)) return;
   const user = interaction.options.getUser('user', true);
   const amount = interaction.options.getInteger('amount', true);
   const config = levelingConfig(interaction.guildId);
   const result = applyXpToRecord(userRecord(interaction.guildId, user.id), amount, config);
   scheduleSave();
   await syncRewardRoles(interaction.guild, user.id, result.newLevel, config);
-  await interaction.reply(v2Payload(`## XP added\n**${safeName(user.username)}** received **${number(amount)} XP** and is now level **${result.newLevel}**.`, { ephemeral: true }));
+  await interaction.editReply(v2Payload(`## XP added\n**${safeName(user.username)}** received **${number(amount)} XP** and is now level **${result.newLevel}**.`));
 }
 
 async function executeSetup(interaction) {
@@ -1671,7 +1674,7 @@ async function handleLevelingInteraction(interaction) {
       await interaction.reply(v2Payload(`Enter a page from **1** to **${maximum}**.`, { ephemeral: true }));
       return true;
     }
-    await interaction.deferUpdate();
+    if (!await acknowledgeUpdate(interaction)) return true;
     try {
       await interaction.editReply(await leaderboardPage(interaction, page));
     } catch (error) {

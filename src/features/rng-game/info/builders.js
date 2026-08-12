@@ -1,7 +1,6 @@
 const { v2Payload, WHITE } = require('../../shared/components');
 const { resolveEmoji } = require('../../shared/emojis');
 const {
-  CATEGORY_ORDER,
   INFO_MESSAGE_VERSION,
   commandByKey,
   commandCatalog,
@@ -78,42 +77,13 @@ function renderGuideTokens(value, commands, context = {}) {
   });
 }
 
-function landingCommandLine(command, context) {
-  const emoji = resolvedEmoji(command, context).text;
-  const mention = commandMention(command.path, context.commandIds);
-  const prefix = command.prefixes.length ? ` • **Prefix:** ${prefixesText(command)}` : '';
-  return `* ${emoji} ${mention}${prefix}`;
-}
-
-function groupedCommands(commands) {
-  const groups = new Map();
-  for (const command of commands) {
-    const values = groups.get(command.category) || [];
-    values.push(command);
-    groups.set(command.category, values);
-  }
-  const ordered = CATEGORY_ORDER.filter((category) => groups.has(category));
-  ordered.push(...[...groups.keys()].filter((category) => !ordered.includes(category)).sort());
-  return ordered.map((category) => ({ category, commands: groups.get(category) }));
-}
-
-function landingContent(commands, context = {}) {
-  const quickStartKeys = ['roll', 'inventory', 'index'];
-  const quickStart = quickStartKeys.map((key) => commandByKey(key, commands)).filter(Boolean);
+function landingContent(_commands, context = {}) {
   const sections = [
     '# 🎲 RNG Game Commands',
     '',
     '-# Choose a command below to open its complete player guide.',
   ];
   if (context.notice) sections.push('', `> ${escapeDiscordText(context.notice).slice(0, 300)}`);
-  if (quickStart.length) {
-    sections.push('', '## Quick Start', '', ...quickStart.map((command) => landingCommandLine(command, context)));
-  }
-  sections.push('', '## Browse Commands', '', '*Select a command to view usage, requirements, mechanics, results, and troubleshooting.*');
-  for (const group of groupedCommands(commands)) {
-    sections.push('', `### ${group.category}`, '', ...group.commands.map((command) => landingCommandLine(command, context)));
-  }
-  sections.push('', '-# *Tip: Slash-command mentions can be pressed to insert the command.*');
   return sections.join('\n');
 }
 
@@ -138,9 +108,9 @@ function commandSelector(commands, context = {}) {
   const options = paginated.commands.map((command) => {
     const emoji = resolvedEmoji(command, context).component;
     return {
-      label: truncate(`/${command.path} — ${command.description}`, 100),
+      label: truncate(`/${command.path}`, 100),
       value: truncate(command.key, 100),
-      description: 'Open the complete command guide.',
+      description: truncate(command.description, 100),
       ...(emoji ? { emoji } : {}),
       ...(command.key === context.selectedKey ? { default: true } : {}),
     };

@@ -27,6 +27,7 @@ const {
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { indexDiscoveryCount } = require('../services/indexRenderer');
 const { createRpsComponentHandler } = require('./rpsHandler');
+const { acknowledgeUpdate, sendEphemeral } = require('../../shared/interactionResponses');
 
 const NORMALIZED_SEEDS = new Map(SEEDS.map((seed) => [normalizeCropName(seed.displayName), seed]));
 
@@ -48,13 +49,13 @@ function textFromModal(fields, customId) {
 
 async function respondExpired(interaction, label = 'controls') {
   if (!interaction.isRepliable?.()) return;
-  await interaction.reply(errorPayload(`Expired ${label}\nRun the command again to open fresh controls.`, { ephemeral: true })).catch(() => null);
+  await sendEphemeral(interaction, errorPayload(`Expired ${label}\nRun the command again to open fresh controls.`, { ephemeral: true }));
 }
 
 async function enforceOwner(interaction, record, label) {
   const ownerId = record?.ownerId || record?.userId;
   if (ownerId === interaction.user.id) return true;
-  await interaction.reply(errorPayload(`Not your ${label}\nOnly the command invoker can use these controls.`, { ephemeral: true })).catch(() => null);
+  await sendEphemeral(interaction, errorPayload(`Not your ${label}\nOnly the command invoker can use these controls.`, { ephemeral: true }));
   return false;
 }
 
@@ -75,6 +76,10 @@ function createComponentHandler(context) {
   } = context;
   const handleRpsComponent = createRpsComponentHandler(context);
 
+  function acknowledge(interaction) {
+    return acknowledgeUpdate(interaction, { reportError: context.reportError, startedAt: Date.now() });
+  }
+
   async function inventoryInteraction(interaction, parts) {
     const action = parts[2];
     const token = parts[3];
@@ -84,40 +89,43 @@ function createComponentHandler(context) {
       return true;
     }
     if (!await enforceOwner(interaction, view, 'inventory')) return true;
-    const state = gameService.inventory(view.ownerId);
-
     if (action === 'page' && interaction.isButton?.()) {
+      const state = gameService.inventory(view.ownerId);
       const page = inventoryPageData(state, view);
       await interaction.showModal(inventoryPageModal(view, page.maxPage));
       return true;
     }
     if (action === 'page-submit' && interaction.isModalSubmit?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const state = gameService.inventory(view.ownerId);
       const pageData = inventoryPageData(state, view);
       const page = Number(textFromModal(interaction.fields, 'page').trim());
       if (!Number.isInteger(page) || page < 1 || page > pageData.maxPage) {
-        await interaction.reply(errorPayload(`Invalid page\nEnter a page from **1** to **${pageData.maxPage}**.`, { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload(`Invalid page\nEnter a page from **1** to **${pageData.maxPage}**.`, { ephemeral: true }));
         return true;
       }
       view.page = page;
-      await interaction.deferUpdate();
-      await interaction.editReply(inventoryPayload(interaction.user, state, view)).catch(() => null);
+      await interaction.editReply(inventoryPayload(interaction.user, state, view));
       return true;
     }
     if (action === 'filter' && interaction.isButton?.()) {
+      const state = gameService.inventory(view.ownerId);
       await interaction.showModal(inventoryFilterModal(view, availableRarities(state.items)));
       return true;
     }
     if (action === 'filter-submit' && interaction.isModalSubmit?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const state = gameService.inventory(view.ownerId);
       let minimumWeightUnits;
       try {
         minimumWeightUnits = parseWeightThreshold(textFromModal(interaction.fields, 'weight'));
       } catch (error) {
-        await interaction.reply(errorPayload(`Invalid weight\n${error.message}`, { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload(`Invalid weight\n${error.message}`, { ephemeral: true }));
         return true;
       }
       const rarity = valuesFromModal(interaction.fields, 'rarity')[0] || '';
       if (rarity && !availableRarities(state.items).includes(rarity)) {
-        await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
         return true;
       }
       view.filters = {
@@ -126,11 +134,11 @@ function createComponentHandler(context) {
         rarity,
       };
       view.page = 1;
-      await interaction.deferUpdate();
-      await interaction.editReply(inventoryPayload(interaction.user, state, view)).catch(() => null);
+      await interaction.editReply(inventoryPayload(interaction.user, state, view));
       return true;
     }
     if (action === 'upgrade' && interaction.isButton?.()) {
+      const state = gameService.inventory(view.ownerId);
       const cost = upgradeCost(state.player.upgradeLevel);
       const upgradeAction = actions.create(view.ownerId, { viewId: view.id, cost });
       await interaction.reply(upgradePromptPayload(upgradeAction, state.player));
@@ -141,6 +149,7 @@ function createComponentHandler(context) {
 
   async function upgradeInteraction(interaction, parts) {
     if (parts[2] !== 'confirm' || !interaction.isButton?.()) return false;
+    if (!await acknowledge(interaction)) return true;
     const action = actions.claim(parts[3], interaction.user.id);
     if (!action) {
       await respondExpired(interaction, 'upgrade confirmation');
@@ -148,10 +157,10 @@ function createComponentHandler(context) {
     }
     const result = gameService.upgrade(interaction.user.id, action.id);
     if (result.status !== 'ok') {
-      await interaction.update(errorPayload(`Upgrade unavailable\nYou need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`, { initial: false })).catch(() => null);
+      await interaction.editReply(errorPayload(`Upgrade unavailable\nYou need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`, { initial: false }));
       return true;
     }
-    await interaction.update(textContainer(`Inventory upgraded\nYour capacity is now **${result.inventoryCapacity}**.`, { color: 0x22C55E, initial: false })).catch(() => null);
+    await interaction.editReply(textContainer(`Inventory upgraded\nYour capacity is now **${result.inventoryCapacity}**.`, { color: 0x22C55E, initial: false }));
     const view = inventoryViews.get(action.viewId, { touch: false });
     if (view?.editOriginal) {
       const state = gameService.inventory(interaction.user.id);
@@ -169,9 +178,9 @@ function createComponentHandler(context) {
     }
     if (!await enforceOwner(interaction, session, 'sale')) return true;
     saleSessions.getByToken(parts[3]);
-    const state = gameService.inventory(session.userId);
-
     if (action === 'select' && interaction.isStringSelectMenu?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const state = gameService.inventory(session.userId);
       const page = salePageData(state, session);
       const visibleIds = new Set(page.pageItems.map((item) => item.id));
       for (const id of visibleIds) session.selectedItemIds.delete(id);
@@ -179,70 +188,76 @@ function createComponentHandler(context) {
         const id = String(value);
         if (visibleIds.has(id)) session.selectedItemIds.add(id);
       }
-      await interaction.update(salePayload(state, session, { initial: false })).catch(() => null);
+      await interaction.editReply(salePayload(state, session, { initial: false }));
       return true;
     }
     if ((action === 'prev' || action === 'next') && interaction.isButton?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const state = gameService.inventory(session.userId);
       const page = salePageData(state, session);
       session.currentPage += action === 'prev' ? -1 : 1;
       session.currentPage = Math.max(1, Math.min(page.maxPage, session.currentPage));
-      await interaction.update(salePayload(state, session, { initial: false })).catch(() => null);
+      await interaction.editReply(salePayload(state, session, { initial: false }));
       return true;
     }
     if (action === 'filter' && interaction.isButton?.()) {
+      const state = gameService.inventory(session.userId);
       await interaction.showModal(sellFilterModal(session, availableRarities(state.items)));
       return true;
     }
     if (action === 'filter-submit' && interaction.isModalSubmit?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const state = gameService.inventory(session.userId);
       const rarities = valuesFromModal(interaction.fields, 'rarities') || [];
       const invalidRarities = rarities.filter((r) => !availableRarities(state.items).includes(r));
       if (invalidRarities.length) {
-        await interaction.reply(errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload('Invalid rarity\nChoose a rarity shown in the form.', { ephemeral: true }));
         return true;
       }
       const rawNames = textFromModal(interaction.fields, 'crops');
       const normalizedNames = [...new Set(rawNames.split(',').map(normalizeCropName).filter(Boolean))];
       const unknown = normalizedNames.filter((name) => !NORMALIZED_SEEDS.has(name));
       if (unknown.length) {
-        await interaction.reply(errorPayload(`Unknown crop name${unknown.length === 1 ? '' : 's'}\n${unknown.join(', ')}`, { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload(`Unknown crop name${unknown.length === 1 ? '' : 's'}\n${unknown.join(', ')}`, { ephemeral: true }));
         return true;
       }
       if (!rarities.length && !normalizedNames.length) {
-        await interaction.reply(errorPayload('Sell filter required\nChoose at least one rarity, enter crop names, or use both.', { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload('Sell filter required\nChoose at least one rarity, enter crop names, or use both.', { ephemeral: true }));
         return true;
       }
       const cropIds = new Set(normalizedNames.map((name) => NORMALIZED_SEEDS.get(name).id));
       session.filters = { rarities, cropIds };
       session.currentPage = 1;
       for (const item of filterInventory(state.items, session.filters)) session.selectedItemIds.add(item.id);
-      await interaction.deferUpdate();
-      await interaction.editReply(salePayload(state, session, { initial: false })).catch(() => null);
+      await interaction.editReply(salePayload(state, session, { initial: false }));
       return true;
     }
     if (action === 'deny' && interaction.isButton?.()) {
+      if (!await acknowledge(interaction)) return true;
       saleSessions.delete(session.userId);
-      await interaction.update(saleDeniedPayload({ initial: false })).catch(() => null);
+      await interaction.editReply(saleDeniedPayload({ initial: false }));
       return true;
     }
     if (action === 'confirm' && interaction.isButton?.()) {
       if (session.processing) {
-        await interaction.reply(errorPayload('Sale already processing\nWait for the current sale to finish.', { ephemeral: true })).catch(() => null);
+        await sendEphemeral(interaction, errorPayload('Sale already processing\nWait for the current sale to finish.', { ephemeral: true }));
         return true;
       }
       if (!session.selectedItemIds.size) {
-        await interaction.reply(errorPayload('No crops selected\nSelect at least one crop to sell.', { ephemeral: true })).catch(() => null);
+        await sendEphemeral(interaction, errorPayload('No crops selected\nSelect at least one crop to sell.', { ephemeral: true }));
         return true;
       }
+      if (!await acknowledge(interaction)) return true;
       session.processing = true;
       try {
         const result = gameService.sell(session.userId, [...session.selectedItemIds], session.id);
         if (result.status !== 'ok') {
           session.processing = false;
-          await interaction.reply(errorPayload('Sale changed\nSome selected crops are no longer available. Refresh the sale and try again.', { ephemeral: true })).catch(() => null);
+          await sendEphemeral(interaction, errorPayload('Sale changed\nSome selected crops are no longer available. Refresh the sale and try again.', { ephemeral: true }));
           return true;
         }
         saleSessions.delete(session.userId);
-        await interaction.update(saleFinishedPayload(result.itemCount, result.total, { initial: false })).catch(() => null);
+        await interaction.editReply(saleFinishedPayload(result.itemCount, result.total, { initial: false }));
       } catch (error) {
         session.processing = false;
         throw error;
@@ -272,6 +287,7 @@ function createComponentHandler(context) {
         return true;
       }
       if (!await enforceOwner(interaction, formAction, 'Auto Roll')) return true;
+      if (!await acknowledge(interaction)) return true;
       let preview;
       try {
         preview = autoRollService.preview(
@@ -280,18 +296,17 @@ function createComponentHandler(context) {
           valuesFromModal(interaction.fields, 'rarities'),
         );
       } catch (error) {
-        await interaction.reply(errorPayload(`Invalid Auto Roll duration\n${error.message}`, { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload(`Invalid Auto Roll duration\n${error.message}`, { ephemeral: true }));
         return true;
       }
       actions.delete(formAction.id);
       if (formAction.previewId) actions.delete(formAction.previewId);
       const previewAction = actions.create(formAction.ownerId, { kind: 'auto-preview', ...preview });
-      await interaction.deferUpdate();
       await interaction.editReply(autoRollPreviewPayload(
         previewAction,
         gameService.balance(formAction.ownerId),
         { initial: false },
-      )).catch(() => null);
+      ));
       return true;
     }
     if (actionName === 'change' && interaction.isButton?.()) {
@@ -311,6 +326,7 @@ function createComponentHandler(context) {
       return true;
     }
     if (actionName === 'start' && interaction.isButton?.()) {
+      if (!await acknowledge(interaction)) return true;
       const preview = actions.claim(token, interaction.user.id);
       if (!preview || preview.kind !== 'auto-preview') {
         await respondExpired(interaction, 'Auto Roll preview');
@@ -322,26 +338,26 @@ function createComponentHandler(context) {
       });
       if (result.status === 'price-changed') {
         const refreshed = actions.create(interaction.user.id, { kind: 'auto-preview', ...result.preview });
-        await interaction.update(autoRollPreviewPayload(
+        await interaction.editReply(autoRollPreviewPayload(
           refreshed,
           gameService.balance(interaction.user.id),
           { initial: false },
-        )).catch(() => null);
+        ));
         return true;
       }
       if (result.status === 'already-active') {
-        await interaction.update(autoRollStatusPayload(result.job, { initial: false })).catch(() => null);
+        await interaction.editReply(autoRollStatusPayload(result.job, { initial: false }));
         return true;
       }
       if (result.status === 'sale-active') {
-        await interaction.update(errorPayload('Sale in progress\nFinish or deny your sale before starting Auto Roll.', { initial: false })).catch(() => null);
+        await interaction.editReply(errorPayload('Sale in progress\nFinish or deny your sale before starting Auto Roll.', { initial: false }));
         return true;
       }
       if (result.status === 'insufficient') {
-        await interaction.update(errorPayload(`Auto Roll unavailable\nYou need **${result.missing.toLocaleString('en-US')}** more Sheckles.`, { initial: false })).catch(() => null);
+        await interaction.editReply(errorPayload(`Auto Roll unavailable\nYou need **${result.missing.toLocaleString('en-US')}** more Sheckles.`, { initial: false }));
         return true;
       }
-      await interaction.update(autoRollStartedPayload(result.job, { initial: false })).catch(() => null);
+      await interaction.editReply(autoRollStartedPayload(result.job, { initial: false }));
       return true;
     }
     return false;
@@ -349,6 +365,7 @@ function createComponentHandler(context) {
 
   async function powerUpgradeInteraction(interaction, parts) {
     if (parts[2] !== 'buy' || !interaction.isButton?.()) return false;
+    if (!await acknowledge(interaction)) return true;
     const action = actions.claim(parts[3], interaction.user.id);
     if (!action || action.kind !== 'power-upgrade') {
       await respondExpired(interaction, 'upgrade control');
@@ -359,12 +376,12 @@ function createComponentHandler(context) {
       const reason = result.status === 'max-tier'
         ? 'This upgrade is already at tier XX.'
         : `You need **${result.missing?.toLocaleString?.('en-US') || 'more'}** more Sheckles.`;
-      await interaction.reply(errorPayload(`Upgrade unavailable\n${reason}`, { ephemeral: true })).catch(() => null);
+      await sendEphemeral(interaction, errorPayload(`Upgrade unavailable\n${reason}`, { ephemeral: true }));
       return true;
     }
     const player = repository.getPlayer(interaction.user.id);
     const controls = createPowerUpgradeControls(actions, interaction.user.id, player);
-    await interaction.update(powerUpgradePayload(interaction.user, player, controls, { initial: false })).catch(() => null);
+    await interaction.editReply(powerUpgradePayload(interaction.user, player, controls, { initial: false }));
     return true;
   }
 
@@ -381,13 +398,13 @@ function createComponentHandler(context) {
       return true;
     }
     if (action === 'page-submit' && interaction.isModalSubmit?.()) {
+      if (!await acknowledge(interaction)) return true;
       const page = Number(textFromModal(interaction.fields, 'page').trim());
       if (!Number.isInteger(page) || page < 1 || page > view.maxPage) {
-        await interaction.reply(errorPayload(`Invalid page\nEnter a page from **1** to **${view.maxPage}**.`, { ephemeral: true }));
+        await sendEphemeral(interaction, errorPayload(`Invalid page\nEnter a page from **1** to **${view.maxPage}**.`, { ephemeral: true }));
         return true;
       }
       view.page = page;
-      await interaction.deferUpdate();
       const discoveries = repository.discoveries(view.ownerId);
       try {
         const image = await indexRenderer.render(view.ownerId, discoveries.map((entry) => entry.seedId), view.page);
@@ -399,7 +416,7 @@ function createComponentHandler(context) {
           { initial: false },
         ));
       } catch {
-        await interaction.editReply(errorPayload('Index unavailable\nThe requested crop page could not be rendered.', { initial: false })).catch(() => null);
+        await interaction.editReply(errorPayload('Index unavailable\nThe requested crop page could not be rendered.', { initial: false }));
       }
       return true;
     }
@@ -411,7 +428,7 @@ function createComponentHandler(context) {
     if (!customId.startsWith('rng:')) return false;
     const parts = customId.split(':');
     if (parts[1] !== 'sale' && saleSessions.has(interaction.user.id)) {
-      await interaction.reply(errorPayload('Sale in progress\nFinish or deny your current sale before using other RNG/economy controls.', { ephemeral: true })).catch(() => null);
+      await sendEphemeral(interaction, errorPayload('Sale in progress\nFinish or deny your current sale before using other RNG/economy controls.', { ephemeral: true }));
       return true;
     }
     if (parts[1] === 'rps' || parts[1] === 'exchange') return handleRpsComponent(interaction, parts);

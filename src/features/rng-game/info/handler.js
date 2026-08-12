@@ -6,6 +6,11 @@ const {
 } = require('./catalog');
 const { commandPayload, infoMessagePayload } = require('./builders');
 const { resolveCachedCommandIds } = require('./mentions');
+const {
+  acknowledgeEphemeral,
+  acknowledgeUpdate,
+  sendEphemeral,
+} = require('../../shared/interactionResponses');
 
 const SELECT_PATTERN = new RegExp(`^rng:info:command:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+)$`);
 const BROWSE_PATTERN = new RegExp(`^rng:info:browse:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+):(\\d+)$`);
@@ -20,9 +25,11 @@ function featureError(policy) {
 
 function createInfoHandler(context) {
   const commands = context.commands || commandCatalog();
+  const buildCommandPayload = context.buildCommandPayload || commandPayload;
+  const buildInfoMessagePayload = context.buildInfoMessagePayload || infoMessagePayload;
 
   async function reject(interaction, message) {
-    await interaction.reply(errorPayload(`Information unavailable\n${message}`, { ephemeral: true })).catch(() => null);
+    await sendEphemeral(interaction, errorPayload(`Information unavailable\n${message}`, { ephemeral: true }));
     return true;
   }
 
@@ -45,13 +52,16 @@ function createInfoHandler(context) {
     };
   }
 
-  async function updateLanding(interaction, ownerId, selectorPage, notice = '') {
+  async function updateLanding(interaction, ownerId, selectorPage, notice = '', acknowledgement = {}) {
+    if (!await acknowledgeUpdate(interaction, acknowledgement)) return true;
     const view = payloadContext(interaction, ownerId, selectorPage);
-    await interaction.update(infoMessagePayload(view.botUserId, { ...view, notice }, { initial: false })).catch(() => null);
+    await interaction.editReply(await buildInfoMessagePayload(view.botUserId, { ...view, notice }, { initial: false }));
     return true;
   }
 
   return async function handleInfoInteraction(interaction) {
+    const startedAt = Date.now();
+    const acknowledgement = { reportError: context.reportError, startedAt };
     const customId = String(interaction.customId || '');
     if (!customId.startsWith('rng:info:')) return false;
     const policy = typeof context.getGuildPolicy === 'function'
@@ -68,19 +78,21 @@ function createInfoHandler(context) {
       const commandKey = String(interaction.values?.[0] || '');
       const command = commandByKey(commandKey, commands);
       const nextOwnerId = String(interaction.user?.id || ownerId);
+      const acknowledged = ownerId === '0'
+        ? await acknowledgeEphemeral(interaction, acknowledgement)
+        : await acknowledgeUpdate(interaction, acknowledgement);
+      if (!acknowledged) return true;
       const view = payloadContext(interaction, nextOwnerId, Number(selectMatch[2]));
       if (!command) {
-        const payload = infoMessagePayload(view.botUserId, {
+        const payload = await buildInfoMessagePayload(view.botUserId, {
           ...view,
           notice: 'That selection is stale. Choose a current command below.',
-        }, ownerId === '0' ? { ephemeral: true } : { initial: false });
-        if (ownerId === '0') await interaction.reply(payload).catch(() => null);
-        else await interaction.update(payload).catch(() => null);
+        }, ownerId === '0' ? {} : { initial: false });
+        await interaction.editReply(payload);
         return true;
       }
-      const payload = commandPayload(command.key, view, ownerId === '0' ? { ephemeral: true } : { initial: false });
-      if (ownerId === '0') await interaction.reply(payload).catch(() => null);
-      else await interaction.update(payload).catch(() => null);
+      const payload = await buildCommandPayload(command.key, view, ownerId === '0' ? {} : { initial: false });
+      await interaction.editReply(payload);
       return true;
     }
 
@@ -92,11 +104,12 @@ function createInfoHandler(context) {
       const page = Number(browseMatch[2]);
       const stateIndex = Number(browseMatch[3]);
       const guidePage = Number(browseMatch[4]);
-      if (stateIndex <= 0) return updateLanding(interaction, ownerId, page);
+      if (stateIndex <= 0) return updateLanding(interaction, ownerId, page, '', acknowledgement);
       const selected = commands[stateIndex - 1];
-      if (!selected) return updateLanding(interaction, ownerId, page, 'That command guide is no longer available.');
+      if (!selected) return updateLanding(interaction, ownerId, page, 'That command guide is no longer available.', acknowledgement);
+      if (!await acknowledgeUpdate(interaction, acknowledgement)) return true;
       const view = payloadContext(interaction, ownerId, page);
-      await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
+      await interaction.editReply(await buildCommandPayload(selected.key, { ...view, guidePage }, { initial: false }));
       return true;
     }
 
@@ -109,9 +122,10 @@ function createInfoHandler(context) {
       const guidePage = Number(detailMatch[3]);
       const selectorPage = Number(detailMatch[4]);
       const selected = commands[stateIndex - 1];
-      if (!selected) return updateLanding(interaction, ownerId, selectorPage, 'That command guide is no longer available.');
+      if (!selected) return updateLanding(interaction, ownerId, selectorPage, 'That command guide is no longer available.', acknowledgement);
+      if (!await acknowledgeUpdate(interaction, acknowledgement)) return true;
       const view = payloadContext(interaction, ownerId, selectorPage);
-      await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
+      await interaction.editReply(await buildCommandPayload(selected.key, { ...view, guidePage }, { initial: false }));
       return true;
     }
 
@@ -120,7 +134,7 @@ function createInfoHandler(context) {
       if (!interaction.isButton?.()) return reject(interaction, 'That command control is malformed.');
       const ownerId = homeMatch[1];
       if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
-      return updateLanding(interaction, ownerId, 1);
+      return updateLanding(interaction, ownerId, 1, '', acknowledgement);
     }
 
     return reject(interaction, 'This guide control is malformed or outdated. Republish the information message and try again.');

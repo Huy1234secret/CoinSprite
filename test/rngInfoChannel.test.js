@@ -151,7 +151,7 @@ function commandGuideText(commandKey, commands = commandCatalog()) {
   return guidePages(command, { commands, commandIds: commandIdsFor(commands) }).map((page) => page.content).join('\n');
 }
 
-test('landing page lists every registered command with real choices and safe clickable mentions', () => {
+test('landing page keeps command names and purposes in the selector without duplicate command lists', () => {
   const commands = commandCatalog();
   const commandIds = commandIdsFor(commands);
   const payload = infoMessagePayload(BOT_ID, { commands, commandIds });
@@ -163,16 +163,13 @@ test('landing page lists every registered command with real choices and safe cli
   assert.equal(container.type, 17);
   assert.equal(container.accent_color, 0xFFFFFF);
   assert.match(container.components[0].content, /^# 🎲 RNG Game Commands/m);
-  assert.match(container.components[0].content, /## Quick Start/);
-  assert.match(container.components[0].content, /## Browse Commands/);
-  for (const command of commands) {
-    assert.match(container.components[0].content, new RegExp(`</${command.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:723456789012345678>`));
-  }
+  assert.doesNotMatch(container.components[0].content, /## Quick Start|## Browse Commands|## Core Game|## Progression|## Tokens & Activities/);
   const select = allComponentNodes(payload).find((node) => node.type === 3);
   assert.equal(select.custom_id, INFO_SELECT_CUSTOM_ID);
   assert.equal(select.placeholder, 'Choose a command');
   assert.deepEqual(select.options.map((option) => option.value), commands.map((command) => command.key));
-  assert.ok(select.options.every((option) => option.label.startsWith('/')));
+  assert.deepEqual(select.options.map((option) => option.label), commands.map((command) => `/${command.path}`));
+  assert.deepEqual(select.options.map((option) => option.description), commands.map((command) => command.description));
 });
 
 test('command mention resolver supports parents, subcommands, guild IDs, and safe fallback', async () => {
@@ -424,7 +421,10 @@ test('more than 25 commands are paginated without hiding commands', () => {
   const detailSelect = allComponentNodes(detail).find((node) => node.type === 3);
   assert.equal(detailSelect.custom_id, selectCustomId(ADMIN_ID, 2));
   assert.equal(detailSelect.options.find((option) => option.value === commands[25].key).default, true);
-  for (const command of commands) assert.match(payloadText(first), new RegExp(`/${command.path}`));
+  assert.deepEqual(
+    [...firstOptions, ...secondOptions].map((option) => option.label),
+    commands.map((command) => `/${command.path}`),
+  );
 });
 
 test('command interactions keep private navigation, enforce ownership, and recover from stale selections', async () => {
@@ -450,6 +450,7 @@ test('command interactions keep private navigation, enforce ownership, and recov
     getGuildPolicy: () => ({ unlocked: true, enabled: true }),
     getClient: () => client,
   });
+  const publicAcknowledgements = [];
   assert.equal(await handler({
     customId: INFO_SELECT_CUSTOM_ID,
     guildId: GUILD_ID,
@@ -457,9 +458,11 @@ test('command interactions keep private navigation, enforce ownership, and recov
     user: { id: ADMIN_ID },
     values: ['roll'],
     isStringSelectMenu: () => true,
-    reply: async (payload) => replies.push(payload),
+    deferReply: async (options) => publicAcknowledgements.push(options),
+    editReply: async (payload) => replies.push(payload),
   }), true);
-  assert.equal(replies[0].flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
+  assert.deepEqual(publicAcknowledgements, [{ flags: MessageFlags.Ephemeral }]);
+  assert.equal(replies[0].flags, MessageFlags.IsComponentsV2);
   assert.match(payloadText(replies[0]), /<\/roll:723456789012345678>/);
   assert.equal(interactionCommandFetches, 0, 'interactions must not wait for command REST fetches');
   const privateSelect = allComponentNodes(replies[0]).find((node) => node.type === 3);
@@ -474,7 +477,8 @@ test('command interactions keep private navigation, enforce ownership, and recov
     client,
     user: { id: ADMIN_ID },
     isButton: () => true,
-    update: async (payload) => guideUpdates.push(payload),
+    deferUpdate: async () => {},
+    editReply: async (payload) => guideUpdates.push(payload),
   });
   assert.match(payloadText(guideUpdates[0]), /Usage & Requirements • Page 2\/5/);
   assert.equal(
@@ -489,7 +493,8 @@ test('command interactions keep private navigation, enforce ownership, and recov
     user: { id: ADMIN_ID },
     values: ['inventory'],
     isStringSelectMenu: () => true,
-    update: async (payload) => updates.push(payload),
+    deferUpdate: async () => {},
+    editReply: async (payload) => updates.push(payload),
   });
   assert.equal(updates[0].flags, undefined);
   assert.match(payloadText(updates[0]), /`\/inventory`/);
@@ -516,6 +521,8 @@ test('command interactions keep private navigation, enforce ownership, and recov
       guildId: GUILD_ID,
       client,
       user: { id: ADMIN_ID },
+      deferReply: async () => {},
+      editReply: async (payload) => stale.push(payload),
       reply: async (payload) => stale.push(payload),
     });
   }
@@ -531,6 +538,43 @@ test('command interactions keep private navigation, enforce ownership, and recov
     });
     assert.match(payloadText(policyReplies[0]), /locked|disabled/i);
   }
+});
+
+test('info selection acknowledges before delayed guide rendering and exposes edit failures', async () => {
+  const events = [];
+  let releaseRender;
+  const renderGate = new Promise((resolve) => { releaseRender = resolve; });
+  const handler = createInfoHandler({
+    getGuildPolicy: () => ({ unlocked: true, enabled: true }),
+    buildCommandPayload: async (...args) => {
+      events.push('render-start');
+      await renderGate;
+      events.push('render-finish');
+      return commandPayload(...args);
+    },
+  });
+  const interaction = {
+    customId: INFO_SELECT_CUSTOM_ID,
+    guildId: GUILD_ID,
+    user: { id: ADMIN_ID },
+    values: ['roll'],
+    isStringSelectMenu: () => true,
+    deferReply: async () => { events.push('ack'); },
+    editReply: async () => { events.push('edit'); },
+  };
+  const handling = handler(interaction);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(events, ['ack', 'render-start']);
+  releaseRender();
+  await handling;
+  assert.deepEqual(events, ['ack', 'render-start', 'render-finish', 'edit']);
+
+  await assert.rejects(handler({
+    ...interaction,
+    deferReply: async () => {},
+    editReply: async () => { throw new Error('Discord rejected edit'); },
+  }), /Discord rejected edit/);
 });
 
 test('publisher creates, edits, reposts, changes channels, and refuses foreign messages', async () => {
@@ -561,7 +605,9 @@ test('publisher creates, edits, reposts, changes channels, and refuses foreign m
   } });
 
   assert.equal((await publisher.publish(CHANNEL_ID)).action, 'published');
-  assert.match(payloadText(sent[0][1]), /<\/roll:723456789012345678>/);
+  const publishedSelect = allComponentNodes(sent[0][1]).find((node) => node.type === 3);
+  assert.equal(publishedSelect.options[0].label, '/roll');
+  assert.equal(publishedSelect.options[0].description, 'Roll a seed crop.');
   assert.equal((await publisher.publish(CHANNEL_ID, { messageChannelId: CHANNEL_ID, messageId: MESSAGE_ID })).action, 'updated');
   assert.equal(edits.length, 1);
   assert.equal(edits[0].flags, undefined, 'editing an existing V2 message does not resend initial-only flags');

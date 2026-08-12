@@ -19,6 +19,11 @@ const {
   roleSpecsForType,
 } = require('./catalog');
 const { loadState, saveState } = require('./stateStore');
+const {
+  acknowledgeEphemeral,
+  acknowledgeUpdate,
+  sendEphemeral,
+} = require('../features/shared/interactionResponses');
 
 const EPHEMERAL_FLAG = MessageFlags.Ephemeral ?? 64;
 const WHITE = 0xFFFFFF;
@@ -374,8 +379,7 @@ async function memberForInteraction(interaction) {
 
 async function replyUnavailable(interaction, type, message) {
   const payload = buildCategoryUnavailablePayload(type, message, true);
-  if (interaction.replied || interaction.deferred) return interaction.editReply(payload).catch(() => null);
-  return interaction.reply(payload).catch(() => null);
+  return sendEphemeral(interaction, payload);
 }
 
 async function handleOpenCategory(interaction, type) {
@@ -388,21 +392,25 @@ async function handleOpenCategory(interaction, type) {
     await replyUnavailable(interaction, type, 'This category is not connected to a stock channel right now.');
     return true;
   }
+  if (!await acknowledgeEphemeral(interaction)) return true;
   const member = await memberForInteraction(interaction);
-  await interaction.reply(await buildCategoryRolePayload(interaction.guild, member, config, type, { ephemeral: true }));
+  const payload = await buildCategoryRolePayload(interaction.guild, member, config, type);
+  payload.flags = COMPONENTS_V2_FLAG;
+  await interaction.editReply(payload);
   return true;
 }
 
 async function handleSelectCategory(interaction, type) {
+  if (!await acknowledgeUpdate(interaction)) return true;
   const config = getGuildConfig(interaction.guildId);
   if (!isGuildGag2StockEnabled(interaction.guildId) || !config || !isCategoryBound(config, type)) {
-    await interaction.update(buildCategoryUnavailablePayload(type, 'This category is no longer connected to a stock channel.', false)).catch(() => null);
+    await interaction.editReply(buildCategoryUnavailablePayload(type, 'This category is no longer connected to a stock channel.', false));
     return true;
   }
 
   const member = await memberForInteraction(interaction);
   if (!member?.roles?.cache) {
-    await interaction.update(buildCategoryUnavailablePayload(type, 'Could not read your server roles. Try again in a moment.', false)).catch(() => null);
+    await interaction.editReply(buildCategoryUnavailablePayload(type, 'Could not read your server roles. Try again in a moment.', false));
     return true;
   }
   const roleOptions = await roleOptionsForGuildCategory(interaction.guild, config, type);
@@ -411,7 +419,7 @@ async function handleSelectCategory(interaction, type) {
     .map((key) => byKey.get(key))
     .filter(Boolean);
 
-  await interaction.update(await buildCategoryRolePayload(interaction.guild, member, config, type, {
+  await interaction.editReply(await buildCategoryRolePayload(interaction.guild, member, config, type, {
     disabled: true,
     status: `Assigning ${selected.length} roles`,
   }));
@@ -420,7 +428,7 @@ async function handleSelectCategory(interaction, type) {
   if (!me?.permissions?.has?.(PermissionFlagsBits.ManageRoles)) {
     await interaction.editReply(await buildCategoryRolePayload(interaction.guild, member, config, type, {
       status: 'The bot needs Manage Roles permission to update notification roles.',
-    })).catch(() => null);
+    }));
     return true;
   }
 
@@ -439,7 +447,7 @@ async function handleSelectCategory(interaction, type) {
   const updatedMember = await memberForInteraction(interaction);
   await interaction.editReply(await buildCategoryRolePayload(interaction.guild, updatedMember, getGuildConfig(interaction.guildId) || config, type, {
     status: failed ? `${failed} role updates failed. Check the bot role position.` : '',
-  })).catch(() => null);
+  }));
   return true;
 }
 
@@ -447,7 +455,7 @@ async function handleGag2RoleAssignmentInteraction(interaction) {
   const parsed = parseCustomId(interaction.customId);
   if (!parsed) return false;
   if (!interaction.inGuild?.()) {
-    if (interaction.isRepliable?.()) await interaction.reply({ content: 'Role assignment only works inside a server.', flags: EPHEMERAL_FLAG }).catch(() => null);
+    if (interaction.isRepliable?.()) await sendEphemeral(interaction, { content: 'Role assignment only works inside a server.', flags: EPHEMERAL_FLAG });
     return true;
   }
   if (!categoryIsSelectable(parsed.type)) {

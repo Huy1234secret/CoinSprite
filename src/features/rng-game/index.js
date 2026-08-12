@@ -182,6 +182,7 @@ function createRngGameFeature(options = {}) {
     random: options.workRandom,
     createId: options.workCreateId,
     games: options.workGames,
+    reportError,
     sessionTtlMs: options.workSessionTtlMs,
     cooldownMs: options.workCooldownMs,
   });

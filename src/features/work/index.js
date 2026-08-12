@@ -21,6 +21,7 @@ function createWorkFeature(options) {
     clock,
     games: options.games || WORK_GAMES,
     getGuildPolicy: options.getGuildPolicy,
+    reportError: options.reportError,
     random,
     repository,
     service,

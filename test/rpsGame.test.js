@@ -516,7 +516,8 @@ test('/exchange-token confirmation rechecks and atomically updates the existing 
     isButton: () => true,
     customId: button.custom_id,
     user: { id: 'slash-user' },
-    update: async (payload) => { success = payload; },
+    deferUpdate: async () => {},
+    editReply: async (payload) => { success = payload; },
   });
   assert.match(success.components[0].components[0].content, /Exchange complete/);
   assert.deepEqual(
