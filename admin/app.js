@@ -86,6 +86,8 @@
     catalog: { items: {}, fallItems: {}, fallHarvestEndsAt: '' },
     savedSnapshot: '',
     savedConfig: null,
+    infoPublication: null,
+    infoPublishing: false,
     currentView: 'stock',
     saving: false,
     fallTimer: null,
@@ -115,8 +117,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'),
-    stockView: $('#stockView'), levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'), infoChannelNav: $('#infoChannelNav'),
+    stockView: $('#stockView'), levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), infoChannelView: $('#infoChannelView'), ownerView: $('#ownerView'), toast: $('#toast'),
     stockEnabled: $('#stockEnabled'), channelGrid: $('#channelGrid'), filterGrid: $('#filterGrid'),
     multiplierFilters: $('#multiplierFilters'), fallFilters: $('#fallFilters'), fallRoleFilters: $('#fallRoleFilters'),
     fallCountdown: $('#fallCountdown'), fallSection: $('#fallHarvestSection'), saveDock: $('#saveDock'),
@@ -138,6 +140,10 @@
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
     rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
     rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
+    infoChannelSelect: $('#infoChannelSelect'), infoPublicationState: $('#infoPublicationState'),
+    infoPublishedChannel: $('#infoPublishedChannel'), infoPublishedAt: $('#infoPublishedAt'),
+    infoMessageId: $('#infoMessageId'), infoPublicationWarning: $('#infoPublicationWarning'),
+    infoMessageLink: $('#infoMessageLink'), infoPublishButton: $('#infoPublishButton'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
     cardPreviewLabel: $('#cardPreviewLabel'),
@@ -297,6 +303,12 @@
     source.gameChannelIds = [...new Set(channelIds.map(String).filter(Boolean))].slice(0, 100);
     delete source.gameChannelId;
     source.cooldownBypassRoleIds = [...new Set((source.cooldownBypassRoleIds || []).map(String))].slice(0, 100);
+    source.info ||= {};
+    source.info.channelId = String(source.info.channelId || '');
+    source.info.messageChannelId = String(source.info.messageChannelId || '');
+    source.info.messageId = String(source.info.messageId || '');
+    source.info.publishedAt = String(source.info.publishedAt || '');
+    source.info.messageVersion = Math.max(1, Math.floor(Number(source.info.messageVersion) || 1));
     return source;
   }
 
@@ -794,6 +806,68 @@
     refreshDirty();
   }
 
+  function publicationFromConfig() {
+    const info = state.config?.rngGame?.info || {};
+    return {
+      state: info.messageId ? 'published' : 'not-published',
+      canEdit: Boolean(info.messageId),
+      warning: '',
+      ...info,
+      messageLink: info.messageChannelId && info.messageId
+        ? `https://discord.com/channels/${state.guildId}/${info.messageChannelId}/${info.messageId}` : '',
+    };
+  }
+
+  function displayChannel(channelId) {
+    if (!channelId) return '—';
+    const channel = (state.directory.channels || []).find((entry) => entry.id === channelId);
+    return channel ? `#${channel.name}` : `#${channelId}`;
+  }
+
+  function displayPublishedAt(value) {
+    const date = new Date(value);
+    return value && !Number.isNaN(date.getTime())
+      ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+      : '—';
+  }
+
+  function renderInfoChannel() {
+    const info = state.config.rngGame.info;
+    const usableChannels = (state.directory.channels || [])
+      .filter((channel) => !channel.archived && channel.infoUsable === true
+        && ['text', 'announcement'].includes(channel.kind));
+    elements.infoChannelSelect.innerHTML = channelOptions(info.channelId, (channel) => usableChannels.includes(channel));
+    elements.infoChannelSelect.options[0].textContent = usableChannels.length
+      ? 'Choose an information channel' : 'No usable information channels';
+    elements.infoChannelSelect.disabled = usableChannels.length === 0 || state.infoPublishing;
+
+    const publication = state.infoPublication || publicationFromConfig();
+    const labels = {
+      'not-published': 'Not published',
+      published: 'Published',
+      missing: 'Message missing',
+      inaccessible: 'Cannot access message',
+      'foreign-author': 'Authorship mismatch',
+    };
+    elements.infoPublicationState.textContent = labels[publication.state] || 'Not published';
+    elements.infoPublishedChannel.textContent = displayChannel(publication.messageChannelId);
+    elements.infoPublishedAt.textContent = displayPublishedAt(publication.publishedAt);
+    elements.infoMessageId.textContent = publication.messageId || '—';
+    elements.infoPublicationWarning.textContent = publication.warning || '';
+    elements.infoPublicationWarning.hidden = !publication.warning;
+    elements.infoMessageLink.href = publication.messageLink || '#';
+    elements.infoMessageLink.hidden = !publication.messageLink;
+
+    const sameChannel = Boolean(info.channelId && info.channelId === publication.messageChannelId);
+    let label = 'Publish information';
+    if (sameChannel && publication.canEdit) label = 'Update information';
+    else if (sameChannel && ['missing', 'inaccessible'].includes(publication.state)) label = 'Repost information';
+    elements.infoPublishButton.textContent = state.infoPublishing ? 'Publishing…' : label;
+    elements.infoPublishButton.disabled = state.infoPublishing || !info.channelId
+      || (sameChannel && publication.state === 'foreign-author');
+    refreshDirty();
+  }
+
   function renderFeatureAccess() {
     if (!state.config) return;
     const levelingUnlocked = state.config.features?.leveling === true;
@@ -808,13 +882,18 @@
     const rngLabel = elements.rngGameNav.querySelector('small');
     if (rngLabel) rngLabel.textContent = rngUnlocked ? 'Rolls & economy' : 'Locked by owner';
     elements.rngGameNav.title = rngUnlocked ? '' : 'The bot owner must unlock GAG2 RNG Game for this server.';
+    elements.infoChannelNav.disabled = !rngUnlocked;
+    elements.infoChannelNav.classList.toggle('is-locked', !rngUnlocked);
+    const infoLabel = elements.infoChannelNav.querySelector('small');
+    if (infoLabel) infoLabel.textContent = rngUnlocked ? 'Interactive game wiki' : 'Locked by owner';
+    elements.infoChannelNav.title = rngUnlocked ? '' : 'The bot owner must unlock GAG2 RNG Game for this server.';
     if ((!levelingUnlocked && state.currentView === 'leveling')
-      || (!rngUnlocked && state.currentView === 'rng-game')) setView('stock');
+      || (!rngUnlocked && ['rng-game', 'info-channel'].includes(state.currentView))) setView('stock');
   }
 
-  function snapshot() {
-    if (!state.config) return '';
-    const stock = state.config.gag2Stock;
+  function snapshot(config = state.config) {
+    if (!config) return '';
+    const stock = config.gag2Stock;
     return JSON.stringify({
       gag2Stock: {
         enabled: stock.enabled,
@@ -826,8 +905,8 @@
         fallRoleItems: stock.fall.roleItems,
         fallSellMultipliers: stock.fall.sellMultipliers,
       },
-      leveling: state.config.leveling,
-      rngGame: state.config.rngGame,
+      leveling: config.leveling,
+      rngGame: config.rngGame,
     });
   }
 
@@ -858,11 +937,12 @@
     elements.saveDock.hidden = true;
 
     try {
-      const [directoryPayload, configPayload, catalogPayload, progressPayload] = await Promise.all([
+      const [directoryPayload, configPayload, catalogPayload, progressPayload, infoPayload] = await Promise.all([
         api(`/api/guilds/${guildId}/directory`),
         api(`/api/guilds/${guildId}/config`),
         api(`/api/guilds/${guildId}/gag2-stock/catalog`),
         api(`/api/guilds/${guildId}/gag2-stock/setup-progress`).catch(() => null),
+        api(`/api/guilds/${guildId}/rng-game/info`).catch(() => null),
       ]);
       if (state.guildId !== guildId) return;
       state.directory = { channels: [], roles: [], ...directoryPayload.directory };
@@ -875,10 +955,12 @@
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
+      state.infoPublication = infoPayload?.publication || null;
       renderFeatureAccess();
       renderStock(progressPayload?.progress);
       renderLeveling();
       renderRngGame();
+      renderInfoChannel();
       if (progressPayload?.progress?.status === 'running') pollProgress();
     } catch (error) {
       showToast(error.message, 'error');
@@ -915,6 +997,7 @@
       renderStock(payload.progress);
       renderLeveling();
       renderRngGame();
+      renderInfoChannel();
       showToast('Dashboard settings updated.');
       pollProgress();
     } catch (error) {
@@ -1075,7 +1158,7 @@
       showToast('Leveling is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
       return;
     }
-    if (view === 'rng-game' && state.config?.features?.rngGame !== true) {
+    if (['rng-game', 'info-channel'].includes(view) && state.config?.features?.rngGame !== true) {
       showToast('GAG2 RNG Game is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
       return;
     }
@@ -1231,6 +1314,40 @@
     refreshDirty();
   }
 
+  function updateInfoChannelFromControl(target) {
+    if (!state.config || target !== elements.infoChannelSelect) return;
+    state.config.rngGame.info.channelId = String(target.value || '');
+    renderInfoChannel();
+  }
+
+  async function publishInfoChannel() {
+    if (!state.config || state.infoPublishing || !state.config.rngGame.info.channelId) return;
+    state.infoPublishing = true;
+    renderInfoChannel();
+    try {
+      const payload = await api(`/api/guilds/${state.guildId}/rng-game/info/publish`, {
+        method: 'POST',
+        body: JSON.stringify({ channelId: state.config.rngGame.info.channelId }),
+      });
+      const savedInfo = normalizeRngGameConfig(payload.config).info;
+      state.config.rngGame.info = clone(savedInfo);
+      if (state.savedConfig?.rngGame) state.savedConfig.rngGame.info = clone(savedInfo);
+      state.savedSnapshot = snapshot(state.savedConfig);
+      state.infoPublication = payload.publication;
+      const messages = {
+        published: 'Information guide published.',
+        updated: 'Information guide updated.',
+        reposted: 'Information guide reposted.',
+      };
+      showToast(messages[payload.action] || 'Information guide published.');
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      state.infoPublishing = false;
+      renderInfoChannel();
+    }
+  }
+
   function addLevelReward() {
     if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
     const rewards = state.config.leveling.roleRewards;
@@ -1258,6 +1375,7 @@
     renderStock();
     renderLeveling();
     renderRngGame();
+    renderInfoChannel();
     showToast('Unsaved changes reset.');
   }
 
@@ -2472,6 +2590,8 @@
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
+  elements.infoChannelView.addEventListener('change', (event) => updateInfoChannelFromControl(event.target));
+  elements.infoPublishButton.addEventListener('click', publishInfoChannel);
   elements.levelingMessagePreview.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-inline-message-display]');
     if (edit) return beginInlineMessageEdit(edit);
@@ -2672,6 +2792,7 @@
         state.savedConfig = clone(state.config);
         state.savedSnapshot = snapshot();
         renderFeatureAccess();
+        renderInfoChannel();
       }
       const featureLabel = input.dataset.ownerFeature === 'rngGame' ? 'GAG2 RNG Game' : 'Leveling';
       showToast(`${featureLabel} ${input.checked ? 'unlocked' : 'locked'} for this server.`);

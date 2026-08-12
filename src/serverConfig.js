@@ -2,8 +2,8 @@ const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
 const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
 
-const STORE_PATH = path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 12;
+const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
+const SCHEMA_VERSION = 13;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
 const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
@@ -41,6 +41,13 @@ const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   enabled: false,
   gameChannelIds: Object.freeze([]),
   cooldownBypassRoleIds: Object.freeze([]),
+  info: Object.freeze({
+    channelId: '',
+    messageChannelId: '',
+    messageId: '',
+    publishedAt: '',
+    messageVersion: 1,
+  }),
 });
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -312,10 +319,24 @@ function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   const roleIds = Array.isArray(source.cooldownBypassRoleIds)
     ? source.cooldownBypassRoleIds.map(cleanId).filter(Boolean)
     : defaults.cooldownBypassRoleIds;
+  const infoSource = isObject(source.info) ? source.info : {};
+  const infoDefaults = isObject(defaults.info) ? defaults.info : DEFAULT_RNG_GAME_CONFIG.info;
+  const publishedAt = String(infoSource.publishedAt ?? infoDefaults.publishedAt ?? '').trim();
   return {
     enabled: source.enabled === undefined ? defaults.enabled === true : source.enabled === true,
     gameChannelIds: [...new Set(channelIds.map(cleanId).filter(Boolean))].slice(0, 100),
     cooldownBypassRoleIds: [...new Set(roleIds)].slice(0, 100),
+    info: {
+      channelId: cleanId(infoSource.channelId ?? infoDefaults.channelId),
+      messageChannelId: cleanId(infoSource.messageChannelId ?? infoDefaults.messageChannelId),
+      messageId: cleanId(infoSource.messageId ?? infoDefaults.messageId),
+      publishedAt: publishedAt && !Number.isNaN(Date.parse(publishedAt))
+        ? new Date(publishedAt).toISOString()
+        : '',
+      messageVersion: Math.max(1, Math.min(1_000, Math.floor(Number(
+        infoSource.messageVersion ?? infoDefaults.messageVersion,
+      )) || 1)),
+    },
   };
 }
 
@@ -506,6 +527,18 @@ function isGuildRngGameEnabled(guildId) {
   return Boolean(config?.features?.rngGame && config.rngGame?.enabled === true);
 }
 
+function updateGuildRngInfo(guildId, value) {
+  const id = cleanId(guildId);
+  if (!id) return null;
+  const state = loadState();
+  state.guilds[id] ||= defaultConfigForGuild(id);
+  const normalized = normalizeRngGameConfig(state.guilds[id].rngGame, defaultConfigForGuild(id).rngGame);
+  normalized.info = normalizeRngGameConfig({ info: value }, normalized).info;
+  state.guilds[id].rngGame = normalized;
+  saveState(state);
+  return getGuildConfigRaw(id)?.rngGame?.info || null;
+}
+
 function updateGuildGag2StockRoleIds(guildId, type, value) {
   const id = cleanId(guildId);
   const key = String(type || '');
@@ -562,5 +595,6 @@ module.exports = {
   saveState,
   setGuildEnabled,
   setGuildFeatureAccess,
+  updateGuildRngInfo,
   updateGuildGag2StockRoleIds,
 };
