@@ -885,7 +885,7 @@
     elements.infoChannelNav.disabled = !rngUnlocked;
     elements.infoChannelNav.classList.toggle('is-locked', !rngUnlocked);
     const infoLabel = elements.infoChannelNav.querySelector('small');
-    if (infoLabel) infoLabel.textContent = rngUnlocked ? 'Interactive game wiki' : 'Locked by owner';
+    if (infoLabel) infoLabel.textContent = rngUnlocked ? 'Command browser' : 'Locked by owner';
     elements.infoChannelNav.title = rngUnlocked ? '' : 'The bot owner must unlock GAG2 RNG Game for this server.';
     if ((!levelingUnlocked && state.currentView === 'leveling')
       || (!rngUnlocked && ['rng-game', 'info-channel'].includes(state.currentView))) setView('stock');

@@ -60,34 +60,29 @@ const {
   infoChannelPermissionStatus,
 } = require('../src/adminServer');
 const {
+  INFO_COMMAND_PAGE_SIZE,
   INFO_MESSAGE_VERSION,
   INFO_SELECT_CUSTOM_ID,
-  INFO_TOPICS,
+  commandByKey,
+  commandCatalog,
+  paginateCommands,
   prefixCommands,
-  publicSeeds,
   slashCommands,
-  topicPages,
 } = require('../src/features/rng-game/info/catalog');
-const { infoMessagePayload, topicPayload } = require('../src/features/rng-game/info/builders');
+const {
+  commandPayload,
+  infoMessagePayload,
+  selectCustomId,
+} = require('../src/features/rng-game/info/builders');
 const { createInfoHandler } = require('../src/features/rng-game/info/handler');
+const {
+  commandMention,
+  resolveRegisteredCommandIds,
+} = require('../src/features/rng-game/info/mentions');
 const { InfoPublishError, InfoPublisher, restPayload } = require('../src/features/rng-game/info/publisher');
+const { resolveEmoji } = require('../src/features/shared/emojis');
 const { RNG_GAME_COMMANDS, PREFIX_COMMANDS } = require('../src/features/rng-game/commands');
 const { WORK_COMMANDS } = require('../src/features/work/commands');
-const { SEEDS } = require('../src/features/rng-game/data/seeds');
-const {
-  MAX_BIG_CROP_TIER,
-  MAX_LUCK_TIER,
-} = require('../src/features/rng-game/config/upgrades');
-const { AUTO_ROLL_INTERVAL_MS, MAX_AUTO_ROLL_MINUTES } = require('../src/features/rng-game/utils/autoRoll');
-const { EXCHANGE_WINDOW_LIMIT } = require('../src/features/rng-game/repositories/tokenRepository');
-const { MIN_BET, MAX_BET } = require('../src/features/rng-game/services/rpsRules');
-const { WORK_GAMES } = require('../src/features/work/data');
-const { WORK_RANKS, boostedReward } = require('../src/features/work/ranks');
-const {
-  WORK_STREAK_FAILURE_LIMIT,
-  WORK_STREAK_MAX,
-  WORK_STREAK_TIMEOUT_MS,
-} = require('../src/features/work/repositories/workRepository');
 
 function allComponentNodes(payload) {
   const nodes = [];
@@ -106,7 +101,7 @@ function message(id, authorId = BOT_ID) {
 test('RNG configuration normalizes the backward-compatible Info Channel record', () => {
   assert.equal(SCHEMA_VERSION, 13);
   assert.deepEqual(DEFAULT_RNG_GAME_CONFIG.info, {
-    channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 1,
+    channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 2,
   });
   const legacy = normalizeRngGameConfig({ enabled: true, gameChannelId: CHANNEL_ID });
   assert.deepEqual(legacy.info, DEFAULT_RNG_GAME_CONFIG.info);
@@ -134,8 +129,18 @@ test('RNG configuration normalizes the backward-compatible Info Channel record',
   assert.deepEqual(migrated.guilds[GUILD_ID].rngGame.info, DEFAULT_RNG_GAME_CONFIG.info);
 });
 
-test('initial information message is a safe white Components V2 topic menu', () => {
-  const payload = infoMessagePayload(BOT_ID);
+function commandIdsFor(commands = commandCatalog()) {
+  return new Map(commands.map((command) => [command.root, '723456789012345678']));
+}
+
+function payloadText(payload) {
+  return allComponentNodes(payload).filter((node) => node.content).map((node) => node.content).join('\n');
+}
+
+test('landing page lists every registered command with real choices and safe clickable mentions', () => {
+  const commands = commandCatalog();
+  const commandIds = commandIdsFor(commands);
+  const payload = infoMessagePayload(BOT_ID, { commands, commandIds });
   assert.equal(payload.flags, MessageFlags.IsComponentsV2);
   assert.equal(payload.embeds.length, 0);
   assert.deepEqual(payload.allowedMentions, { parse: [], users: [], roles: [], repliedUser: false });
@@ -143,126 +148,216 @@ test('initial information message is a safe white Components V2 topic menu', () 
   const container = payload.components[0];
   assert.equal(container.type, 17);
   assert.equal(container.accent_color, 0xFFFFFF);
-  assert.match(container.components[0].content, new RegExp(`<@${BOT_ID}>'s Information`));
-  assert.match(container.components[0].content, /Everything you need to start, progress, and master/);
-  assert.equal(container.components[1].type, 14);
-  const select = container.components[2].components[0];
+  assert.match(container.components[0].content, /^# 🎲 RNG Game Commands/m);
+  assert.match(container.components[0].content, /## Quick Start/);
+  assert.match(container.components[0].content, /## Browse Commands/);
+  for (const command of commands) {
+    assert.match(container.components[0].content, new RegExp(`</${command.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:723456789012345678>`));
+  }
+  const select = allComponentNodes(payload).find((node) => node.type === 3);
   assert.equal(select.custom_id, INFO_SELECT_CUSTOM_ID);
-  assert.equal(select.placeholder, 'Choose an information topic');
-  assert.equal(select.options.length, 16);
-  assert.ok(select.options.length <= 25);
-  for (const option of select.options) {
-    assert.ok(option.label.length <= 100);
-    assert.ok(option.description.length <= 100);
-    assert.ok(option.value.length <= 100);
-  }
+  assert.equal(select.placeholder, 'Choose a command');
+  assert.deepEqual(select.options.map((option) => option.value), commands.map((command) => command.key));
+  assert.ok(select.options.every((option) => option.label.startsWith('/')));
 });
 
-test('every topic and stateless page fits Discord limits and responds ephemerally', () => {
-  for (const topic of INFO_TOPICS) {
-    const result = topicPages(topic.id, { discoveries: [] });
-    assert.ok(result.pages.length >= 1, topic.id);
-    for (let page = 1; page <= result.pages.length; page += 1) {
-      const payload = topicPayload(topic.id, page, { discoveries: [] });
-      assert.equal(payload.flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
-      assert.equal(payload.embeds.length, 0);
-      for (const node of allComponentNodes(payload)) {
-        if (node.content) assert.ok(node.content.length <= 4_000, `${topic.id} text length`);
-        if (node.custom_id) assert.ok(node.custom_id.length <= 100, `${topic.id} custom ID length`);
-      }
-    }
-  }
+test('command mention resolver supports parents, subcommands, guild IDs, and safe fallback', async () => {
+  const ids = new Map([['roll', '723456789012345678']]);
+  assert.equal(commandMention('roll', ids), '</roll:723456789012345678>');
+  assert.equal(commandMention('roll boosted', ids), '</roll boosted:723456789012345678>');
+  assert.equal(commandMention('roll group boosted', ids), '</roll group boosted:723456789012345678>');
+  assert.equal(commandMention('inventory', ids), '`/inventory`');
+  assert.equal(commandMention('inventory', { inventory: 'not-an-id' }), '`/inventory`');
+
+  const client = {
+    application: { commands: { fetch: async () => new Map([['global', { name: 'roll', id: '723456789012345677' }]]) } },
+    guilds: {
+      cache: new Map([[GUILD_ID, {
+        commands: { fetch: async () => new Map([['guild', { name: 'roll', id: '723456789012345678' }]]) },
+      }]]),
+    },
+  };
+  assert.equal((await resolveRegisteredCommandIds(client, GUILD_ID)).get('roll'), '723456789012345678');
 });
 
-test('information catalog stays synchronized with command and gameplay sources', () => {
+test('catalog derives selectable commands and prefixes from the live registries', () => {
+  const commands = commandCatalog();
   assert.deepEqual(
     slashCommands().map((command) => command.name),
     [...RNG_GAME_COMMANDS, ...WORK_COMMANDS].map((command) => command.data.toJSON().name),
   );
   assert.deepEqual(prefixCommands(), [...PREFIX_COMMANDS].map(([prefix, slash]) => ({ prefix, slash })));
-  assert.equal(publicSeeds({ discoveries: [] }).length, SEEDS.filter((seed) => !seed.secretUntilDiscovered).length);
-  assert.equal(publicSeeds({ discoveries: [{ seedId: 'eclipse_bloom' }] }).length, SEEDS.length);
-
-  const luck = topicPages('luck').pages.join('\n');
-  assert.match(luck, new RegExp(`0–${MAX_LUCK_TIER}`));
-  const big = topicPages('big-crops').pages.join('\n');
-  assert.match(big, new RegExp(`0–${MAX_BIG_CROP_TIER}`));
-  const auto = topicPages('auto-roll').pages.join('\n');
-  assert.match(auto, new RegExp(`${AUTO_ROLL_INTERVAL_MS / 1_000}-second`));
-  assert.match(auto, new RegExp(`${MAX_AUTO_ROLL_MINUTES / 1_440} day`));
-  const tokens = topicPages('tokens').pages.join('\n');
-  assert.match(tokens, new RegExp(`1–${EXCHANGE_WINDOW_LIMIT}`));
-  const rps = topicPages('rps').pages.join('\n');
-  assert.match(rps, new RegExp(`${MIN_BET.toLocaleString('en-US')}–${MAX_BET.toLocaleString('en-US')}`));
-  const work = topicPages('work').pages.join('\n');
-  assert.match(work, new RegExp(`${WORK_RANKS.length}`));
-  assert.match(work, new RegExp(`${WORK_GAMES[0].customers.length}`));
+  assert.deepEqual(commands.map((command) => command.root), slashCommands().map((command) => command.name));
+  assert.ok(commandByKey('roll', commands).prefixes.includes('c!roll'));
+  assert.deepEqual(commandByKey('g-rps', commands).prefixes, []);
 });
 
-test('Work wiki derives streak limits, failure behavior, rank boosts, and rounding', () => {
-  const work = topicPages('work').pages.join('\n');
-  assert.match(work, new RegExp(`capped at \\*\\*${WORK_STREAK_MAX.toLocaleString()}`));
-  assert.match(work, new RegExp(`failure ${WORK_STREAK_FAILURE_LIMIT}`));
-  assert.match(work, new RegExp(`${WORK_STREAK_TIMEOUT_MS / 3_600_000} hours`));
-  assert.match(work, new RegExp(`\\+${WORK_RANKS.at(-1).salaryBoost}% rank salary`));
-  assert.match(work, new RegExp(`becomes \\*\\*${boostedReward(1, 50)}`));
-  assert.match(work, /Successful shifts do not clear accumulated failures/);
-  assert.match(work, /Work Stat shows rank progress, rank salary boost, current streak/);
+test('emoji resolver handles Unicode, static custom, animated custom, and unavailable fallback', () => {
+  const usable = { emojis: { cache: new Map([['723456789012345678', {}]]) } };
+  assert.deepEqual(resolveEmoji('🎲', '🎮'), { text: '🎲', component: { name: '🎲' } });
+  assert.deepEqual(resolveEmoji('<:roll:723456789012345678>', '🎲', usable), {
+    text: '<:roll:723456789012345678>',
+    component: { id: '723456789012345678', name: 'roll', animated: false },
+  });
+  assert.deepEqual(resolveEmoji('<a:roll:723456789012345678>', '🎲', usable), {
+    text: '<a:roll:723456789012345678>',
+    component: { id: '723456789012345678', name: 'roll', animated: true },
+  });
+  assert.deepEqual(resolveEmoji('<:missing:823456789012345678>', '🎲', usable), {
+    text: '🎲', component: { name: '🎲' },
+  });
 });
 
-test('secret crop facts are private until the interacting player discovers them', () => {
-  const hidden = topicPages('crops', { discoveries: [] }).pages.join('\n');
-  assert.doesNotMatch(hidden, /Eclipse Bloom|eclipse_bloom|Secret •/);
-  const revealed = topicPages('crops', { discoveries: [{ seedId: 'eclipse_bloom' }] }).pages.join('\n');
-  assert.match(revealed, /Eclipse Bloom/);
-  assert.match(revealed, /Secret/);
+test('roll selection renders a complete detail page and preserves the selected command menu', () => {
+  const commands = commandCatalog();
+  const payload = commandPayload('roll', {
+    commands,
+    commandIds: commandIdsFor(commands),
+    ownerId: ADMIN_ID,
+  }, { ephemeral: true });
+  assert.equal(payload.flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
+  const text = payloadText(payload);
+  assert.match(text, /^# 🎲 `\/roll`/m);
+  assert.match(text, /## How to Use/);
+  assert.match(text, /\*\*Slash:\*\* <\/roll:723456789012345678>/);
+  assert.match(text, /\*\*Prefix:\*\* `c!roll`/);
+  assert.match(text, /## What It Does/);
+  assert.match(text, /## Examples/);
+  assert.match(text, /## Important/);
+  const select = allComponentNodes(payload).find((node) => node.type === 3);
+  assert.equal(select.custom_id, selectCustomId(ADMIN_ID, 1));
+  assert.equal(select.options.find((option) => option.value === 'roll').default, true);
 });
 
-test('topic interaction supports every player, stateless pagination, and safe stale errors', async () => {
+test('prefix usage is shown only for supported commands and slash options come from command definitions', () => {
+  const commands = commandCatalog();
+  const context = { commands, commandIds: commandIdsFor(commands), ownerId: ADMIN_ID };
+  assert.match(payloadText(commandPayload('inventory', context)), /\*\*Prefix:\*\* `c!inventory`/);
+  assert.doesNotMatch(payloadText(commandPayload('g-rps', context)), /\*\*Prefix:\*\*/);
+  const exchange = payloadText(commandPayload('exchange-token', context));
+  assert.match(exchange, /## Options/);
+  assert.match(exchange, /`amount-token` \(Integer\)/);
+});
+
+test('every selector option maps to a valid detail and all payload strings respect Discord limits', () => {
+  const commands = commandCatalog();
+  const context = { commands, commandIds: commandIdsFor(commands), ownerId: ADMIN_ID };
+  const landing = infoMessagePayload(BOT_ID, context);
+  const options = allComponentNodes(landing).find((node) => node.type === 3).options;
+  assert.deepEqual(new Set(options.map((option) => option.value)), new Set(commands.map((command) => command.key)));
+  for (const option of options) assert.ok(commandByKey(option.value, commands));
+  for (const payload of [landing, ...commands.map((command) => commandPayload(command.key, context, { ephemeral: true }))]) {
+    for (const node of allComponentNodes(payload)) {
+      if (node.content) assert.ok(node.content.length <= 4_000);
+      if (node.custom_id) assert.ok(node.custom_id.length <= 100);
+      for (const option of node.options || []) {
+        assert.ok(option.label.length <= 100);
+        assert.ok(option.description.length <= 100);
+        assert.ok(option.value.length <= 100);
+      }
+    }
+  }
+});
+
+test('more than 25 commands are paginated without hiding commands', () => {
+  const definitions = Array.from({ length: 30 }, (_, index) => ({
+    name: `command-${String(index).padStart(2, '0')}`,
+    description: `Open command ${index}.`,
+  }));
+  const commands = commandCatalog(definitions);
+  const first = infoMessagePayload(BOT_ID, { commands, page: 1 });
+  const second = infoMessagePayload(BOT_ID, { commands, page: 2 });
+  const firstOptions = allComponentNodes(first).find((node) => node.type === 3).options;
+  const secondOptions = allComponentNodes(second).find((node) => node.type === 3).options;
+  assert.equal(firstOptions.length, INFO_COMMAND_PAGE_SIZE);
+  assert.equal(secondOptions.length, 5);
+  assert.deepEqual(
+    new Set([...firstOptions, ...secondOptions].map((option) => option.value)),
+    new Set(commands.map((command) => command.key)),
+  );
+  assert.equal(paginateCommands(commands, 99).page, 2);
+  assert.ok(allComponentNodes(first).some((node) => node.type === 2 && node.label === 'Next'));
+  for (const command of commands) assert.match(payloadText(first), new RegExp(`/${command.path}`));
+});
+
+test('command interactions keep private navigation, enforce ownership, and recover from stale selections', async () => {
   const replies = [];
   const updates = [];
+  const registered = new Map(commandCatalog().map((command) => [command.root, {
+    name: command.root,
+    id: '723456789012345678',
+  }]));
+  const client = {
+    user: { id: BOT_ID },
+    application: { commands: { fetch: async () => new Map() } },
+    guilds: { cache: new Map([[GUILD_ID, { commands: { fetch: async () => registered } }]]) },
+  };
   const handler = createInfoHandler({
     getGuildPolicy: () => ({ unlocked: true, enabled: true }),
-    repository: { discoveries: (userId) => userId === ADMIN_ID ? [{ seedId: 'eclipse_bloom' }] : [] },
+    getClient: () => client,
   });
-  const select = {
+  assert.equal(await handler({
     customId: INFO_SELECT_CUSTOM_ID,
     guildId: GUILD_ID,
+    client,
     user: { id: ADMIN_ID },
-    values: ['work'],
+    values: ['roll'],
     isStringSelectMenu: () => true,
     reply: async (payload) => replies.push(payload),
-  };
-  assert.equal(await handler(select), true);
+  }), true);
   assert.equal(replies[0].flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
-  const work = topicPages('work');
-  if (work.pages.length > 1) {
-    const button = {
-      customId: `rng:info:page:v${INFO_MESSAGE_VERSION}:work:2`,
-      guildId: GUILD_ID,
-      user: { id: '999999999999999999' },
-      isButton: () => true,
-      update: async (payload) => updates.push(payload),
-    };
-    assert.equal(await handler(button), true);
-    assert.equal(updates[0].flags, undefined);
-  }
-  for (const customId of ['rng:info:broken', 'rng:info:page:v999:work:1']) {
-    const staleReplies = [];
+  assert.match(payloadText(replies[0]), /<\/roll:723456789012345678>/);
+  const privateSelect = allComponentNodes(replies[0]).find((node) => node.type === 3);
+  assert.equal(privateSelect.custom_id, selectCustomId(ADMIN_ID, 1));
+
+  await handler({
+    customId: privateSelect.custom_id,
+    guildId: GUILD_ID,
+    client,
+    user: { id: ADMIN_ID },
+    values: ['inventory'],
+    isStringSelectMenu: () => true,
+    update: async (payload) => updates.push(payload),
+  });
+  assert.equal(updates[0].flags, undefined);
+  assert.match(payloadText(updates[0]), /`\/inventory`/);
+
+  const denied = [];
+  await handler({
+    customId: privateSelect.custom_id,
+    guildId: GUILD_ID,
+    client,
+    user: { id: '999999999999999999' },
+    values: ['roll'],
+    isStringSelectMenu: () => true,
+    reply: async (payload) => denied.push(payload),
+  });
+  assert.match(payloadText(denied[0]), /Only the player/i);
+
+  const stale = [];
+  for (const request of [
+    { customId: INFO_SELECT_CUSTOM_ID, values: ['removed-command'], isStringSelectMenu: () => true },
+    { customId: 'rng:info:topic:v1', isButton: () => true },
+  ]) {
     await handler({
-      customId, guildId: GUILD_ID, user: { id: ADMIN_ID }, isButton: () => true,
-      reply: async (payload) => staleReplies.push(payload),
+      ...request,
+      guildId: GUILD_ID,
+      client,
+      user: { id: ADMIN_ID },
+      reply: async (payload) => stale.push(payload),
     });
-    assert.equal(staleReplies[0].flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
   }
+  assert.match(payloadText(stale[0]), /selection is stale/i);
+  assert.match(payloadText(stale[1]), /malformed or outdated/i);
+
   for (const policy of [{ unlocked: false, enabled: true }, { unlocked: true, enabled: false }]) {
-    const denied = createInfoHandler({ getGuildPolicy: () => policy });
-    const deniedReplies = [];
-    await denied({
-      customId: INFO_SELECT_CUSTOM_ID, guildId: GUILD_ID, user: { id: ADMIN_ID }, values: ['work'],
-      isStringSelectMenu: () => true, reply: async (payload) => deniedReplies.push(payload),
+    const deniedHandler = createInfoHandler({ getGuildPolicy: () => policy });
+    const policyReplies = [];
+    await deniedHandler({
+      customId: INFO_SELECT_CUSTOM_ID, guildId: GUILD_ID, user: { id: ADMIN_ID }, values: ['roll'],
+      isStringSelectMenu: () => true, reply: async (payload) => policyReplies.push(payload),
     });
-    assert.match(deniedReplies[0].components[0].components[0].content, /locked|disabled/i);
+    assert.match(payloadText(policyReplies[0]), /locked|disabled/i);
   }
 });
 
@@ -273,19 +368,28 @@ test('publisher creates, edits, reposts, changes channels, and refuses foreign m
   const channels = new Map();
   const firstChannel = {
     id: CHANNEL_ID,
+    guildId: GUILD_ID,
     messages: { fetch: async (id) => { fetched.push(id); const item = message(id); item.edit = async (payload) => { edits.push(payload); return item; }; return item; } },
     send: async (payload) => { sent.push([CHANNEL_ID, payload]); return message(MESSAGE_ID); },
   };
   const secondChannel = {
     id: SECOND_CHANNEL_ID,
+    guildId: GUILD_ID,
     messages: { fetch: async () => { throw new Error('old channel should not be fetched'); } },
     send: async (payload) => { sent.push([SECOND_CHANNEL_ID, payload]); return message('523456789012345679'); },
   };
   channels.set(CHANNEL_ID, firstChannel);
   channels.set(SECOND_CHANNEL_ID, secondChannel);
-  const publisher = new InfoPublisher({ client: { user: { id: BOT_ID }, channels: { cache: channels } } });
+  const registered = new Map([['roll', { name: 'roll', id: '723456789012345678' }]]);
+  const publisher = new InfoPublisher({ client: {
+    user: { id: BOT_ID },
+    application: { commands: { cache: new Map() } },
+    channels: { cache: channels },
+    guilds: { cache: new Map([[GUILD_ID, { commands: { cache: registered } }]]) },
+  } });
 
   assert.equal((await publisher.publish(CHANNEL_ID)).action, 'published');
+  assert.match(payloadText(sent[0][1]), /<\/roll:723456789012345678>/);
   assert.equal((await publisher.publish(CHANNEL_ID, { messageChannelId: CHANNEL_ID, messageId: MESSAGE_ID })).action, 'updated');
   assert.equal(edits.length, 1);
   assert.equal(edits[0].flags, undefined, 'editing an existing V2 message does not resend initial-only flags');
@@ -396,7 +500,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     inspect: async () => ({ state: 'not-published', canEdit: false, warning: '' }),
     publish: async (channelId, reference) => {
       calls.push({ channelId, reference });
-      return { action: reference.messageId ? 'updated' : 'published', message: message(MESSAGE_ID), messageVersion: 1 };
+      return { action: reference.messageId ? 'updated' : 'published', message: message(MESSAGE_ID), messageVersion: 2 };
     },
   };
   const { server, origin } = await startAdminApi(infoPublisher, guild);
@@ -444,7 +548,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     messageChannelId: CHANNEL_ID,
     messageId: MESSAGE_ID,
     publishedAt: '2023-11-14T22:13:20.000Z',
-    messageVersion: 1,
+    messageVersion: 2,
   });
 
   const patched = await fetch(`${origin}/api/guilds/${GUILD_ID}/config`, {
@@ -458,7 +562,7 @@ test('publishing API enforces admin auth, CSRF, owner lock, guild channels, type
     messageChannelId: CHANNEL_ID,
     messageId: MESSAGE_ID,
     publishedAt: '2023-11-14T22:13:20.000Z',
-    messageVersion: 1,
+    messageVersion: 2,
   }, 'dashboard PATCH may select a new channel but cannot replace the server-owned message reference');
 
   setGuildFeatureAccess(GUILD_ID, { rngGame: false });
@@ -476,9 +580,9 @@ test('dashboard includes locked navigation, usable-channel filtering, preview, s
   const css = fs.readFileSync(path.join(root, 'admin', 'style.css'), 'utf8');
   assert.match(html, /data-view="info-channel"/);
   assert.ok(html.indexOf('data-view="info-channel"') > html.indexOf('data-view="rng-game"'));
-  assert.match(html, /Interactive game wiki|Locked by owner/);
+  assert.match(source, /Command browser|Locked by owner/);
   assert.match(html, /id="infoChannelSelect"/);
-  assert.match(html, /Choose an information topic/);
+  assert.match(html, /Choose a command/);
   assert.match(html, /id="infoPublicationState"/);
   assert.match(html, /id="infoMessageLink"/);
   assert.match(html, /id="infoPublishButton"/);

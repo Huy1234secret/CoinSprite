@@ -1,5 +1,6 @@
 const { infoMessagePayload } = require('./builders');
 const { INFO_MESSAGE_VERSION } = require('./catalog');
+const { resolveRegisteredCommandIds } = require('./mentions');
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -63,6 +64,26 @@ class InfoPublisher {
     if (cached) return cached;
     if (!this.client.channels.fetch) return null;
     return this.client.channels.fetch(channelId).catch(() => null);
+  }
+
+  async channelGuildId(channelId) {
+    const channel = await this.gatewayChannel(channelId);
+    const gatewayGuildId = String(channel?.guildId || channel?.guild?.id || '');
+    if (gatewayGuildId) return gatewayGuildId;
+    if (!this.token) return '';
+    const response = await this.request(`/channels/${channelId}`);
+    if (!response.ok) return '';
+    const raw = await response.json();
+    return String(raw?.guild_id || '');
+  }
+
+  async payloadContext(channelId) {
+    const guildId = await this.channelGuildId(channelId);
+    return {
+      client: this.client,
+      commandIds: await resolveRegisteredCommandIds(this.client, guildId),
+      guildId,
+    };
   }
 
   async fetchMessage(channelId, messageId) {
@@ -132,7 +153,8 @@ class InfoPublisher {
   async publish(channelId, reference = {}) {
     const destination = String(channelId || '');
     const botUserId = await this.botUserId();
-    const payload = infoMessagePayload(botUserId);
+    const context = await this.payloadContext(destination);
+    const payload = infoMessagePayload(botUserId, context);
     const sameChannel = String(reference.messageChannelId || '') === destination;
     const messageId = String(reference.messageId || '');
     if (sameChannel && messageId) {
@@ -142,7 +164,7 @@ class InfoPublisher {
         if (authorId !== botUserId) {
           throw new InfoPublishError('The stored message was not authored by CoinSprite and will not be edited.', 409);
         }
-        const editPayload = infoMessagePayload(botUserId, { initial: false });
+        const editPayload = infoMessagePayload(botUserId, context, { initial: false });
         const message = await this.editMessage(destination, messageId, existing.message, editPayload, existing.transport);
         return { action: 'updated', message, botUserId, messageVersion: INFO_MESSAGE_VERSION };
       }

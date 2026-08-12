@@ -160,6 +160,7 @@ function createRngGameFeature(options = {}) {
     inventoryViews,
     indexRenderer,
     indexViews,
+    getClient: () => discordClient || options.getClient?.() || null,
     getBotUser: () => (discordClient || options.getClient?.())?.user || null,
     reportError,
     repository,
