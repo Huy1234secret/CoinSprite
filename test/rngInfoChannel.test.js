@@ -84,6 +84,7 @@ const {
 const { createInfoHandler } = require('../src/features/rng-game/info/handler');
 const {
   commandMention,
+  resolveCachedCommandIds,
   resolveRegisteredCommandIds,
 } = require('../src/features/rng-game/info/mentions');
 const { InfoPublishError, InfoPublisher, restPayload } = require('../src/features/rng-game/info/publisher');
@@ -191,6 +192,22 @@ test('command mention resolver supports parents, subcommands, guild IDs, and saf
     },
   };
   assert.equal((await resolveRegisteredCommandIds(client, GUILD_ID)).get('roll'), '723456789012345678');
+});
+
+test('interaction-safe command ID resolution uses caches without making Discord REST requests', () => {
+  let fetches = 0;
+  const client = {
+    application: { commands: {
+      cache: new Map([['roll', { name: 'roll', id: '723456789012345677' }]]),
+      fetch: async () => { fetches += 1; return new Map(); },
+    } },
+    guilds: { cache: new Map([[GUILD_ID, { commands: {
+      cache: new Map([['roll', { name: 'roll', id: '723456789012345678' }]]),
+      fetch: async () => { fetches += 1; return new Map(); },
+    } }]]) },
+  };
+  assert.equal(resolveCachedCommandIds(client, GUILD_ID).get('roll'), '723456789012345678');
+  assert.equal(fetches, 0);
 });
 
 test('catalog derives selectable commands and prefixes from the live registries', () => {
@@ -417,10 +434,17 @@ test('command interactions keep private navigation, enforce ownership, and recov
     name: command.root,
     id: '723456789012345678',
   }]));
+  let interactionCommandFetches = 0;
   const client = {
     user: { id: BOT_ID },
-    application: { commands: { fetch: async () => new Map() } },
-    guilds: { cache: new Map([[GUILD_ID, { commands: { fetch: async () => registered } }]]) },
+    application: { commands: {
+      cache: new Map(),
+      fetch: async () => { interactionCommandFetches += 1; return new Map(); },
+    } },
+    guilds: { cache: new Map([[GUILD_ID, { commands: {
+      cache: registered,
+      fetch: async () => { interactionCommandFetches += 1; return registered; },
+    } }]]) },
   };
   const handler = createInfoHandler({
     getGuildPolicy: () => ({ unlocked: true, enabled: true }),
@@ -437,6 +461,7 @@ test('command interactions keep private navigation, enforce ownership, and recov
   }), true);
   assert.equal(replies[0].flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
   assert.match(payloadText(replies[0]), /<\/roll:723456789012345678>/);
+  assert.equal(interactionCommandFetches, 0, 'interactions must not wait for command REST fetches');
   const privateSelect = allComponentNodes(replies[0]).find((node) => node.type === 3);
   assert.equal(privateSelect.custom_id, selectCustomId(ADMIN_ID, 1));
 

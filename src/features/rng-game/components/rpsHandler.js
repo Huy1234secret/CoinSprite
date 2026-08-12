@@ -33,8 +33,17 @@ function userProfile(user, member) {
   };
 }
 
+function unknownInteraction(error) {
+  return Number(error?.code || error?.rawError?.code) === 10062;
+}
+
 async function ephemeralError(interaction, title, message) {
-  await interaction.reply(errorPayload(`${title}\n${message}`, { ephemeral: true })).catch(() => null);
+  const payload = errorPayload(`${title}\n${message}`, { ephemeral: true });
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp?.(payload).catch?.(() => null);
+  } else {
+    await interaction.reply(payload).catch(() => null);
+  }
 }
 
 function createRpsComponentHandler(context) {
@@ -57,6 +66,19 @@ function createRpsComponentHandler(context) {
     };
   }
 
+  async function acknowledgeUpdate(interaction) {
+    if (interaction.deferred || interaction.replied) return true;
+    try {
+      await interaction.deferUpdate();
+      return true;
+    } catch (error) {
+      // Another deployment may already have acknowledged this token, or Discord may
+      // have expired it. Never mutate game state after that point.
+      if (unknownInteraction(error)) return false;
+      throw error;
+    }
+  }
+
   async function payloadFor(game) {
     if ([RPS_STATES.CANCELED, RPS_STATES.EXPIRED].includes(game.state)) {
       return canceledPayload(game, { initial: false });
@@ -67,7 +89,7 @@ function createRpsComponentHandler(context) {
   }
 
   async function editRendered(interaction, game) {
-    if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
+    if (!await acknowledgeUpdate(interaction)) return false;
     try {
       await interaction.editReply(await payloadFor(game));
       return true;
@@ -327,6 +349,10 @@ function createRpsComponentHandler(context) {
 
   async function revealInteraction(interaction, game) {
     if (!interaction.isButton?.() || !await participantOnly(interaction, game)) return true;
+    // Acknowledge before the atomic result/payout transition. This prevents a busy
+    // database or event loop from consuming Discord's interaction deadline after
+    // gameplay state has already changed.
+    if (!await acknowledgeUpdate(interaction)) return true;
     const result = rpsService.reveal(game.id, interaction.user.id);
     if (result.status !== 'ok') {
       await ephemeralError(interaction, 'Result unavailable', 'Every player must commit before the result can be shown.');
