@@ -71,7 +71,7 @@ function content(payload) {
 }
 
 function interaction(overrides = {}) {
-  const calls = { replies: [], updates: [], edits: [], followUps: [] };
+  const calls = { acknowledgements: [], replies: [], updates: [], edits: [], followUps: [] };
   const value = {
     customId: '',
     commandName: '',
@@ -87,6 +87,8 @@ function interaction(overrides = {}) {
     isButton: () => false,
     reply: async (payload) => { calls.replies.push(payload); },
     update: async (payload) => { calls.updates.push(payload); },
+    deferUpdate: async () => { calls.acknowledgements.push('update'); value.deferred = true; },
+    editReply: async (payload) => { calls.updates.push(payload); },
     followUp: async (payload) => { calls.followUps.push(payload); },
     ...overrides,
   };
@@ -455,9 +457,9 @@ test('expired component edits stale controls and sends the requested ephemeral e
     isButton: () => true,
   });
   await game.handleInteraction(press.value);
-  assert.equal(press.calls.edits.length, 1);
-  assert.match(content(press.calls.edits[0]), /Shift Expired/);
-  assert.match(content(press.calls.replies[0]), /This work shift has expired\. Run \/g-work to start another\./);
+  assert.equal(press.calls.updates.length, 1);
+  assert.match(content(press.calls.updates[0]), /Shift Expired/);
+  assert.match(content(press.calls.followUps[0]), /This work shift has expired\. Run \/g-work to start another\./);
   game.close();
 });
 

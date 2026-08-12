@@ -8,18 +8,22 @@ const {
   statPayload,
   workError,
 } = require('./builders');
+const { acknowledgeUpdate, sendEphemeral } = require('../../shared/interactionResponses');
 
 const NOT_OWNER = "These aren't your work controls. Run /g-work to start your own shift.";
 const EXPIRED = 'This work shift has expired. Run /g-work to start another.';
 
 async function ephemeral(interaction, message) {
   const payload = workError(message);
-  if (interaction.deferred || interaction.replied) return interaction.followUp?.(payload);
-  return interaction.reply(payload);
+  return sendEphemeral(interaction, payload);
 }
 
 function createWorkComponentHandler(context) {
   const { service, games, random, repository } = context;
+
+  function acknowledge(interaction) {
+    return acknowledgeUpdate(interaction, { reportError: context.reportError, startedAt: Date.now() });
+  }
 
   async function ownerCheck(interaction, ownerId) {
     if (String(interaction.user?.id) === String(ownerId)) return true;
@@ -28,15 +32,17 @@ function createWorkComponentHandler(context) {
   }
 
   async function expireInteraction(interaction, session) {
-    await interaction.message?.edit?.(expiredPayload(session.userId, session, { initial: false })).catch?.(() => null);
+    if (!await acknowledge(interaction)) return;
+    await interaction.editReply(expiredPayload(session.userId, session, { initial: false }));
     await ephemeral(interaction, EXPIRED);
   }
 
   async function menuInteraction(interaction, ownerId) {
     if (!interaction.isStringSelectMenu?.() || !await ownerCheck(interaction, ownerId)) return true;
     const action = interaction.values?.[0];
+    if (!await acknowledge(interaction)) return true;
     if (action === 'check-stat') {
-      await interaction.update(statPayload(ownerId, service.profile(ownerId), games, { initial: false }));
+      await interaction.editReply(statPayload(ownerId, service.profile(ownerId), games, { initial: false }));
       return true;
     }
     if (action !== 'work') {
@@ -57,7 +63,7 @@ function createWorkComponentHandler(context) {
       return true;
     }
     const customer = service.customer(result.session);
-    await interaction.update(gamePayload(ownerId, result.session, customer, { initial: false }));
+    await interaction.editReply(gamePayload(ownerId, result.session, customer, { initial: false }));
     if (interaction.message?.id && result.session.messageId !== interaction.message.id) {
       repository.setMessage(result.session.id, interaction.message.id, context.clock());
     }
@@ -66,6 +72,7 @@ function createWorkComponentHandler(context) {
 
   async function ingredientInteraction(interaction, sessionId, rawSlotIndex) {
     if (!interaction.isButton?.()) return true;
+    if (!await acknowledge(interaction)) return true;
     const session = repository.session(sessionId);
     if (session && !await ownerCheck(interaction, session.userId)) return true;
     if (!session) {
@@ -87,7 +94,7 @@ function createWorkComponentHandler(context) {
       return true;
     }
     if (result.status === 'advanced') {
-      await interaction.update(gamePayload(
+      await interaction.editReply(gamePayload(
         result.session.userId,
         result.session,
         service.customer(result.session),
@@ -96,7 +103,7 @@ function createWorkComponentHandler(context) {
       return true;
     }
     if (result.status === 'failed') {
-      await interaction.update(failedPayload(
+      await interaction.editReply(failedPayload(
         result.session.userId,
         result.session,
         result.expectedIngredient,
@@ -106,7 +113,7 @@ function createWorkComponentHandler(context) {
       return true;
     }
     if (result.status === 'completed') {
-      await interaction.update(completePayload(result.session.userId, result, { initial: false }));
+      await interaction.editReply(completePayload(result.session.userId, result, { initial: false }));
       return true;
     }
     const messages = {
@@ -121,6 +128,7 @@ function createWorkComponentHandler(context) {
 
   async function quitInteraction(interaction, sessionId) {
     if (!interaction.isButton?.()) return true;
+    if (!await acknowledge(interaction)) return true;
     const session = repository.session(sessionId);
     if (session && !await ownerCheck(interaction, session.userId)) return true;
     if (!session) {
@@ -140,7 +148,7 @@ function createWorkComponentHandler(context) {
       await ephemeral(interaction, 'This work shift has already ended.');
       return true;
     }
-    await interaction.update(canceledPayload(result.session.userId, { initial: false }));
+    await interaction.editReply(canceledPayload(result.session.userId, { initial: false }));
     return true;
   }
 
@@ -152,7 +160,8 @@ function createWorkComponentHandler(context) {
     if (action === 'menu') return menuInteraction(interaction, id);
     if (action === 'back') {
       if (!interaction.isButton?.() || !await ownerCheck(interaction, id)) return true;
-      await interaction.update(homePayload(id, random, { initial: false }));
+      if (!await acknowledge(interaction)) return true;
+      await interaction.editReply(homePayload(id, random, { initial: false }));
       return true;
     }
     if (action === 'ingredient') return ingredientInteraction(interaction, id, extra);

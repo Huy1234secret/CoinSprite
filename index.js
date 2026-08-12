@@ -27,6 +27,7 @@ const { startGag2StockPoster } = require('./src/gag2Stock/manager');
 const { handleGag2RoleAssignmentInteraction } = require('./src/gag2Stock/roleAssignment');
 const { startGag2UpdateAnnouncement } = require('./src/gag2Stock/updateAnnouncement');
 const { createRngGameFeature } = require('./src/features/rng-game');
+const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
   GLOBAL_APPLICATION_COMMANDS,
   STOCK_SETUP_COMMAND_NAME,
@@ -54,6 +55,9 @@ function getRngGuildPolicy(guildId) {
 const rngGame = createRngGameFeature({
   getGuildPolicy: getRngGuildPolicy,
   chancePageUrl: `${dashboardBaseUrl()}/chances`,
+  onError(error) {
+    logCommandSystem(`RNG game event failed: ${safeErrorMessage(error)}`);
+  },
 });
 
 function dashboardBaseUrl() {
@@ -138,17 +142,17 @@ if (runtimeStarter.capabilities.bot) {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (!isGuildEnabled(interaction.guildId)) {
-      if (interaction.isRepliable?.()) {
-        await interaction.reply({
-          flags: COMPONENTS_V2_FLAG | EPHEMERAL,
-          components: [{ type: 17, accent_color: 0xff6b6b, components: [{ type: 10, content: '## CoinSprite is disabled\nAsk the bot owner to enable this server.' }] }],
-        }).catch(() => null);
-      }
-      return;
-    }
-
+    const startedAt = Date.now();
     try {
+      if (!isGuildEnabled(interaction.guildId)) {
+        if (interaction.isRepliable?.()) {
+          await interaction.reply({
+            flags: COMPONENTS_V2_FLAG | EPHEMERAL,
+            components: [{ type: 17, accent_color: 0xff6b6b, components: [{ type: 10, content: '## CoinSprite is disabled\nAsk the bot owner to enable this server.' }] }],
+          });
+        }
+        return;
+      }
       if (await rngGame.handleInteraction(interaction)) return;
       if (await handleGag2RoleAssignmentInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
@@ -156,8 +160,9 @@ if (runtimeStarter.capabilities.bot) {
         await executeStockSetupCommand(interaction);
       }
     } catch (error) {
-      console.error('CoinSprite interaction failed:', error);
-      logCommandSystem(`CoinSprite interaction failed: ${error?.message || 'unknown error'}`);
+      const diagnostic = formatInteractionFailure(error, interaction, { startedAt });
+      console.error(`CoinSprite interaction failed: ${diagnostic}`);
+      logCommandSystem(`CoinSprite interaction failed: ${diagnostic}`);
     }
   });
 

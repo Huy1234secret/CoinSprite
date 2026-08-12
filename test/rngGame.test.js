@@ -420,7 +420,8 @@ test('Deny clears the sale session and disables the old sale controls', async ()
     isRepliable: () => true,
     customId: `rng:sale:deny:${session.id}`,
     user: { id: 'deny' },
-    update: async (payload) => { updated = payload; },
+    deferUpdate: async () => {},
+    editReply: async (payload) => { updated = payload; },
     reply: async () => {},
   });
   assert.equal(game.saleSessions.has('deny'), false);

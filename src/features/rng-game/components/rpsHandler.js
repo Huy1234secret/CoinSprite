@@ -2,6 +2,10 @@ const { RPS_STATES } = require('../config/rps');
 const { higherBetModal, rpsBetModal } = require('../modals/rpsBuilders');
 const { errorPayload } = require('./builders');
 const {
+  acknowledgeUpdate,
+  sendEphemeral,
+} = require('../../shared/interactionResponses');
+const {
   canceledPayload,
   exchangeSuccessPayload,
   lobbyPayload,
@@ -33,17 +37,9 @@ function userProfile(user, member) {
   };
 }
 
-function unknownInteraction(error) {
-  return Number(error?.code || error?.rawError?.code) === 10062;
-}
-
 async function ephemeralError(interaction, title, message) {
   const payload = errorPayload(`${title}\n${message}`, { ephemeral: true });
-  if (interaction.deferred || interaction.replied) {
-    await interaction.followUp?.(payload).catch?.(() => null);
-  } else {
-    await interaction.reply(payload).catch(() => null);
-  }
+  await sendEphemeral(interaction, payload);
 }
 
 function createRpsComponentHandler(context) {
@@ -66,17 +62,8 @@ function createRpsComponentHandler(context) {
     };
   }
 
-  async function acknowledgeUpdate(interaction) {
-    if (interaction.deferred || interaction.replied) return true;
-    try {
-      await interaction.deferUpdate();
-      return true;
-    } catch (error) {
-      // Another deployment may already have acknowledged this token, or Discord may
-      // have expired it. Never mutate game state after that point.
-      if (unknownInteraction(error)) return false;
-      throw error;
-    }
+  function acknowledge(interaction) {
+    return acknowledgeUpdate(interaction, { reportError, startedAt: Date.now() });
   }
 
   async function payloadFor(game) {
@@ -89,24 +76,19 @@ function createRpsComponentHandler(context) {
   }
 
   async function editRendered(interaction, game) {
-    if (!await acknowledgeUpdate(interaction)) return false;
+    if (!await acknowledge(interaction)) return false;
     try {
       await interaction.editReply(await payloadFor(game));
       return true;
     } catch (error) {
       reportError?.(error);
-      await interaction.editReply(renderFailurePayload(game, { initial: false })).catch(() => null);
+      await interaction.editReply(renderFailurePayload(game, { initial: false }));
       return false;
     }
   }
 
   function freshGame(gameId) {
-    let game = rpsService.game(gameId);
-    if (game && ![RPS_STATES.FINISHED, RPS_STATES.CANCELED, RPS_STATES.EXPIRED].includes(game.state)
-      && game.expiresAt <= rpsService.now()) {
-      game = rpsService.repository.expire(gameId, rpsService.now()).game;
-    }
-    return game;
+    return rpsService.game(gameId);
   }
 
   async function hostOnly(interaction, game) {
@@ -123,6 +105,7 @@ function createRpsComponentHandler(context) {
 
   async function handleExchange(interaction, parts) {
     if (parts[2] !== 'confirm' || !interaction.isButton?.()) return false;
+    if (!await acknowledge(interaction)) return true;
     const action = actions.claim(parts[3], interaction.user.id);
     if (!action || action.kind !== 'token-exchange') {
       await ephemeralError(interaction, 'Expired exchange', 'Run `/exchange-token` again to create a fresh confirmation.');
@@ -137,10 +120,10 @@ function createRpsComponentHandler(context) {
       const message = result.status === 'rate-limited'
         ? `Your rolling four-hour allowance has only **${result.remaining}** token value remaining.`
         : `You need **${result.missing?.toLocaleString?.('en-US') || 'more'}** additional Sheckles.`;
-      await interaction.update(errorPayload(`Exchange unavailable\n${message}`, { initial: false })).catch(() => null);
+      await interaction.editReply(errorPayload(`Exchange unavailable\n${message}`, { initial: false }));
       return true;
     }
-    await interaction.update(exchangeSuccessPayload(interaction.user.id, result, { initial: false })).catch(() => null);
+    await interaction.editReply(exchangeSuccessPayload(interaction.user.id, result, { initial: false }));
     return true;
   }
 
@@ -151,16 +134,14 @@ function createRpsComponentHandler(context) {
       return true;
     }
     const mode = interaction.values?.[0];
+    if (mode === 'bot') await interaction.showModal(rpsBetModal(game.id, 'bot-bet'));
+    else if (!await acknowledge(interaction)) return true;
     const selected = rpsService.chooseMode(game.id, interaction.user.id, mode);
     if (selected.status !== 'ok') {
       await ephemeralError(interaction, 'RPS unavailable', 'This game can no longer change mode.');
       return true;
     }
-    if (mode === 'bot') {
-      await interaction.showModal(rpsBetModal(game.id, 'bot-bet'));
-    } else {
-      await interaction.update(opponentPickerPayload(selected.game, { initial: false }));
-    }
+    if (mode !== 'bot') await interaction.editReply(opponentPickerPayload(selected.game, { initial: false }));
     return true;
   }
 
@@ -189,17 +170,18 @@ function createRpsComponentHandler(context) {
       }
       profiles.push(userProfile(user, collectionGet(interaction.members, id)));
     }
+    await interaction.showModal(rpsBetModal(game.id, 'human-bet'));
     const result = rpsService.chooseOpponents(game.id, interaction.user.id, profiles);
     if (result.status !== 'ok') {
       await ephemeralError(interaction, 'RPS unavailable', 'The opponent list could not be saved.');
       return true;
     }
-    await interaction.showModal(rpsBetModal(game.id, 'human-bet'));
     return true;
   }
 
   async function betModalInteraction(interaction, game, action) {
     if (!interaction.isModalSubmit?.() || !await hostOnly(interaction, game)) return true;
+    if (!await acknowledge(interaction)) return true;
     let result;
     try {
       result = action === 'human-bet'
@@ -226,18 +208,18 @@ function createRpsComponentHandler(context) {
 
   async function acceptInteraction(interaction, game) {
     if (!interaction.isButton?.() || !await participantOnly(interaction, game)) return true;
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.accept(game.id, interaction.user.id);
     if (result.status === 'unauthorized' || result.status === 'stale') {
       await ephemeralError(interaction, 'Stale lobby', 'This lobby is no longer accepting responses.');
       return true;
     }
     if (result.status === 'insufficient') {
-      if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
       await editRendered(interaction, result.game);
       await interaction.followUp?.(errorPayload(
         `Insufficient token balance\nNo one was charged. Missing funds: ${result.userIds.map((id) => `<@${id}>`).join(', ')}`,
         { ephemeral: true },
-      )).catch?.(() => null);
+      ));
       return true;
     }
     if (['waiting', 'started'].includes(result.status)) await editRendered(interaction, result.game);
@@ -250,8 +232,9 @@ function createRpsComponentHandler(context) {
       await ephemeralError(interaction, 'Stale table', 'A table cannot be canceled after its round starts.');
       return true;
     }
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.cancel(game.id);
-    await interaction.update(canceledPayload(result.game, { initial: false })).catch(() => null);
+    await interaction.editReply(canceledPayload(result.game, { initial: false }));
     return true;
   }
 
@@ -261,9 +244,10 @@ function createRpsComponentHandler(context) {
       await ephemeralError(interaction, 'Stale lobby', 'This table is no longer accepting responses.');
       return true;
     }
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.decline(game.id, interaction.user.id);
     if (result.status === 'canceled') {
-      await interaction.update(canceledPayload(result.game, { initial: false })).catch(() => null);
+      await interaction.editReply(canceledPayload(result.game, { initial: false }));
       return true;
     }
     if (result.status !== 'declined') {
@@ -280,17 +264,17 @@ function createRpsComponentHandler(context) {
       await ephemeralError(interaction, 'Stale lobby', 'This round has already started or ended.');
       return true;
     }
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.hostStart(game.id, interaction.user.id);
     if (result.status === 'not-enough-players') {
       await ephemeralError(interaction, 'Not enough players', 'At least two accepted players are required to start.');
       return true;
     }
     if (result.status === 'insufficient') {
-      await interaction.deferUpdate();
       await interaction.followUp?.(errorPayload(
         `Insufficient token balance\nNo one was charged. Missing funds: ${result.userIds.map((id) => `<@${id}>`).join(', ')}`,
         { ephemeral: true },
-      )).catch?.(() => null);
+      ));
       return true;
     }
     if (result.status !== 'started') {
@@ -313,6 +297,7 @@ function createRpsComponentHandler(context) {
 
   async function higherSubmitInteraction(interaction, game) {
     if (!interaction.isModalSubmit?.() || !await participantOnly(interaction, game)) return true;
+    if (!await acknowledge(interaction)) return true;
     let result;
     try {
       result = rpsService.proposeHigherBet(game.id, interaction.user.id, modalText(interaction, 'bet'));
@@ -333,6 +318,7 @@ function createRpsComponentHandler(context) {
 
   async function pickInteraction(interaction, game) {
     if (!interaction.isStringSelectMenu?.() || !await participantOnly(interaction, game)) return true;
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.commit(game.id, interaction.user.id, interaction.values?.[0]);
     if (!['ok', 'ready'].includes(result.status)) {
       const message = result.status === 'not-turn'
@@ -352,7 +338,7 @@ function createRpsComponentHandler(context) {
     // Acknowledge before the atomic result/payout transition. This prevents a busy
     // database or event loop from consuming Discord's interaction deadline after
     // gameplay state has already changed.
-    if (!await acknowledgeUpdate(interaction)) return true;
+    if (!await acknowledge(interaction)) return true;
     const result = rpsService.reveal(game.id, interaction.user.id);
     if (result.status !== 'ok') {
       await ephemeralError(interaction, 'Result unavailable', 'Every player must commit before the result can be shown.');
@@ -374,6 +360,7 @@ function createRpsComponentHandler(context) {
       await interaction.showModal(rpsBetModal(game.id, action));
       return true;
     }
+    if (!await acknowledge(interaction)) return true;
     let result;
     try {
       result = game.mode === 'human'
@@ -407,10 +394,15 @@ function createRpsComponentHandler(context) {
     if (parts[1] !== 'rps') return false;
     const action = parts[2];
     const gameId = parts[3];
-    const game = freshGame(gameId);
+    let game = freshGame(gameId);
     if (!game) {
       await ephemeralError(interaction, 'Unknown RPS game', 'This game no longer exists.');
       return true;
+    }
+    if (![RPS_STATES.FINISHED, RPS_STATES.CANCELED, RPS_STATES.EXPIRED].includes(game.state)
+      && game.expiresAt <= rpsService.now()) {
+      if (!await acknowledge(interaction)) return true;
+      game = rpsService.repository.expire(gameId, rpsService.now()).game;
     }
     if (game.state === RPS_STATES.EXPIRED) {
       await ephemeralError(interaction, 'RPS game expired', 'Any escrowed tokens were refunded exactly once.');
