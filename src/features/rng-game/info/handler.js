@@ -1,10 +1,15 @@
 const { errorPayload } = require('../../shared/components');
 const {
   INFO_MESSAGE_VERSION,
-  INFO_SELECT_CUSTOM_ID,
-  TOPIC_BY_ID,
+  commandByKey,
+  commandCatalog,
 } = require('./catalog');
-const { topicPayload } = require('./builders');
+const { commandPayload, infoMessagePayload } = require('./builders');
+const { resolveRegisteredCommandIds } = require('./mentions');
+
+const SELECT_PATTERN = new RegExp(`^rng:info:command:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+)$`);
+const BROWSE_PATTERN = new RegExp(`^rng:info:browse:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+)$`);
+const HOME_PATTERN = new RegExp(`^rng:info:home:v${INFO_MESSAGE_VERSION}:(\\d+)$`);
 
 function featureError(policy) {
   if (policy?.unlocked !== true) return 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.';
@@ -13,18 +18,32 @@ function featureError(policy) {
 }
 
 function createInfoHandler(context) {
-  function topicContext(userId) {
-    let discoveries = [];
-    try {
-      discoveries = context.repository?.discoveries?.(String(userId)) || [];
-    } catch {
-      discoveries = [];
-    }
-    return { discoveries };
-  }
+  const commands = context.commands || commandCatalog();
 
   async function reject(interaction, message) {
     await interaction.reply(errorPayload(`Information unavailable\n${message}`, { ephemeral: true })).catch(() => null);
+    return true;
+  }
+
+  function ownedBy(interaction, ownerId) {
+    return ownerId === '0' || ownerId === String(interaction.user?.id || '');
+  }
+
+  async function payloadContext(interaction, ownerId, page) {
+    const client = interaction.client || context.getClient?.() || context.client || null;
+    return {
+      botUserId: String(client?.user?.id || context.getBotUser?.()?.id || '0'),
+      client,
+      commandIds: await resolveRegisteredCommandIds(client, interaction.guildId),
+      commands,
+      ownerId,
+      page,
+    };
+  }
+
+  async function updateLanding(interaction, ownerId, page, notice = '') {
+    const view = await payloadContext(interaction, ownerId, page);
+    await interaction.update(infoMessagePayload(view.botUserId, { ...view, notice }, { initial: false })).catch(() => null);
     return true;
   }
 
@@ -37,27 +56,54 @@ function createInfoHandler(context) {
     const unavailable = featureError(policy);
     if (unavailable) return reject(interaction, unavailable);
 
-    if (customId === INFO_SELECT_CUSTOM_ID) {
-      if (!interaction.isStringSelectMenu?.()) return reject(interaction, 'That information control is malformed.');
-      const topicId = String(interaction.values?.[0] || '');
-      if (!TOPIC_BY_ID.has(topicId)) return reject(interaction, 'That topic no longer exists. Choose another topic.');
-      await interaction.reply(topicPayload(topicId, 1, topicContext(interaction.user.id), { ephemeral: true }));
+    const selectMatch = customId.match(SELECT_PATTERN);
+    if (selectMatch) {
+      if (!interaction.isStringSelectMenu?.()) return reject(interaction, 'That command control is malformed.');
+      const ownerId = selectMatch[1];
+      if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
+      const commandKey = String(interaction.values?.[0] || '');
+      const command = commandByKey(commandKey, commands);
+      const nextOwnerId = String(interaction.user?.id || ownerId);
+      const view = await payloadContext(interaction, nextOwnerId, Number(selectMatch[2]));
+      if (!command) {
+        const payload = infoMessagePayload(view.botUserId, {
+          ...view,
+          notice: 'That selection is stale. Choose a current command below.',
+        }, ownerId === '0' ? { ephemeral: true } : { initial: false });
+        if (ownerId === '0') await interaction.reply(payload).catch(() => null);
+        else await interaction.update(payload).catch(() => null);
+        return true;
+      }
+      const payload = commandPayload(command.key, view, ownerId === '0' ? { ephemeral: true } : { initial: false });
+      if (ownerId === '0') await interaction.reply(payload).catch(() => null);
+      else await interaction.update(payload).catch(() => null);
       return true;
     }
 
-    const match = customId.match(/^rng:info:page:v(\d+):([a-z0-9-]+):(\d+)$/);
-    if (!match || !interaction.isButton?.()) return reject(interaction, 'That information control is malformed.');
-    if (Number(match[1]) !== INFO_MESSAGE_VERSION) {
-      return reject(interaction, 'This guide control is outdated. Choose the topic again from the information message.');
+    const browseMatch = customId.match(BROWSE_PATTERN);
+    if (browseMatch) {
+      if (!interaction.isButton?.()) return reject(interaction, 'That command control is malformed.');
+      const ownerId = browseMatch[1];
+      if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
+      const page = Number(browseMatch[2]);
+      const stateIndex = Number(browseMatch[3]);
+      if (stateIndex <= 0) return updateLanding(interaction, ownerId, page);
+      const selected = commands[stateIndex - 1];
+      if (!selected) return updateLanding(interaction, ownerId, page, 'That command guide is no longer available.');
+      const view = await payloadContext(interaction, ownerId, page);
+      await interaction.update(commandPayload(selected.key, view, { initial: false })).catch(() => null);
+      return true;
     }
-    if (!TOPIC_BY_ID.has(match[2])) return reject(interaction, 'That topic no longer exists. Choose another topic.');
-    await interaction.update(topicPayload(
-      match[2],
-      Number(match[3]),
-      topicContext(interaction.user.id),
-      { initial: false },
-    )).catch(() => null);
-    return true;
+
+    const homeMatch = customId.match(HOME_PATTERN);
+    if (homeMatch) {
+      if (!interaction.isButton?.()) return reject(interaction, 'That command control is malformed.');
+      const ownerId = homeMatch[1];
+      if (!ownedBy(interaction, ownerId)) return reject(interaction, 'Only the player who opened this guide can control it.');
+      return updateLanding(interaction, ownerId, 1);
+    }
+
+    return reject(interaction, 'This guide control is malformed or outdated. Republish the information message and try again.');
   };
 }
 

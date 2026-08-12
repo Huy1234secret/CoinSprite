@@ -135,7 +135,7 @@ test('only GAG stock is unlocked by default', () => {
     gameChannelIds: ['223456789012345678', '223456789012345679'],
     cooldownBypassRoleIds: ['323456789012345678'],
     info: {
-      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 1,
+      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 2,
     },
   });
   assert.deepEqual(config.normalizeRngGameConfig({ gameChannelId: '223456789012345678' }).gameChannelIds, [
@@ -166,7 +166,7 @@ test('schema migration keeps enabled optional features unlocked', () => {
     gameChannelIds: ['223456789012345678'],
     cooldownBypassRoleIds: [],
     info: {
-      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 1,
+      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 2,
     },
   });
   assert.deepEqual(Object.keys(state.guilds[guildId].features).sort(), [
