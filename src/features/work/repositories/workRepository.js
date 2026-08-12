@@ -1,6 +1,10 @@
 const { SQLITE_INTEGER_MAX } = require('../../rng-game/repositories/gameRepository');
 const { boostedReward } = require('../ranks');
 
+const WORK_STREAK_MAX = 1_000;
+const WORK_STREAK_TIMEOUT_MS = 12 * 60 * 60 * 1_000;
+const WORK_STREAK_FAILURE_LIMIT = 5;
+
 function jsonArray(value, label) {
   try {
     const parsed = JSON.parse(value);
@@ -19,6 +23,8 @@ function workProfile(row) {
     completedShifts: row.completed_shifts,
     failedShifts: row.failed_shifts,
     totalTokenSalary: row.total_token_salary,
+    workStreak: Number(row.work_streak),
+    streakFailures: Number(row.streak_failures),
     lastShiftEndAt: row.last_shift_end_at === null ? null : Number(row.last_shift_end_at),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
@@ -42,6 +48,7 @@ function workSession(row) {
     currentProgress: Number(row.current_progress),
     baseReward: row.base_reward,
     salaryBoost: Number(row.salary_boost),
+    streakBoost: Number(row.streak_boost),
     failedSlotIndex: row.failed_slot_index === null ? null : Number(row.failed_slot_index),
     state: row.state,
     startedAt: Number(row.started_at),
@@ -76,8 +83,8 @@ class WorkRepository {
       insertSession: db.prepare(`INSERT INTO rng_work_sessions
         (session_id, user_id, guild_id, channel_id, message_id, game_id, customer_id,
          game_message, expected_recipe_json, button_slots_json, consumed_slots_json,
-         current_progress, base_reward, salary_boost, state, started_at, expires_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, ?, 'active', ?, ?, ?)`),
+         current_progress, base_reward, salary_boost, streak_boost, state, started_at, expires_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 0, ?, ?, ?, 'active', ?, ?, ?)`),
       advanceSession: db.prepare(`UPDATE rng_work_sessions SET consumed_slots_json = ?,
         current_progress = ?, updated_at = ? WHERE session_id = ? AND state = 'active'`),
       resolveSession: db.prepare(`UPDATE rng_work_sessions SET state = ?, consumed_slots_json = ?,
@@ -85,25 +92,39 @@ class WorkRepository {
         WHERE session_id = ? AND state = 'active'`),
       expireSession: db.prepare(`UPDATE rng_work_sessions SET state = 'expired', completed_at = ?, updated_at = ?
         WHERE session_id = ? AND state = 'active'`),
-      failProfile: db.prepare(`UPDATE rng_work_profiles SET failed_shifts = ?,
-        last_shift_end_at = ?, updated_at = ? WHERE user_id = ?`),
+      failProfile: db.prepare(`UPDATE rng_work_profiles SET failed_shifts = ?, work_streak = ?,
+        streak_failures = ?, last_shift_end_at = ?, updated_at = ? WHERE user_id = ?`),
       completeProfile: db.prepare(`UPDATE rng_work_profiles SET total_xp = ?, completed_shifts = ?,
-        total_token_salary = ?, last_shift_end_at = ?, updated_at = ? WHERE user_id = ?`),
+        total_token_salary = ?, work_streak = ?, streak_failures = ?, last_shift_end_at = ?,
+        updated_at = ? WHERE user_id = ?`),
       cooldownProfile: db.prepare(`UPDATE rng_work_profiles SET last_shift_end_at = ?,
+        updated_at = ? WHERE user_id = ?`),
+      resetStreak: db.prepare(`UPDATE rng_work_profiles SET work_streak = 0, streak_failures = 0,
         updated_at = ? WHERE user_id = ?`),
       playerWallet: db.prepare('SELECT token_balance FROM rng_players WHERE user_id = ?'),
       updateWallet: db.prepare('UPDATE rng_players SET token_balance = ?, updated_at = ? WHERE user_id = ?'),
     };
 
+    const currentProfile = (userId, now) => {
+      let profile = this.ensureProfile(userId, now);
+      if (profile.workStreak > 0 && profile.lastShiftEndAt !== null
+        && now - profile.lastShiftEndAt >= WORK_STREAK_TIMEOUT_MS) {
+        this.statements.resetStreak.run(BigInt(now), userId);
+        profile = workProfile(this.statements.profile.get(userId));
+      }
+      return profile;
+    };
+
+    this.profileTransaction = db.transaction((userId, now) => currentProfile(userId, now)).immediate;
+
     this.startTransaction = db.transaction((definition, now, ttlMs, cooldownMs) => {
       const userId = String(definition.userId);
-      this.ensureProfile(userId, now);
+      const profile = currentProfile(userId, now);
       const activeRow = this.statements.activeForUser.get(userId);
       if (activeRow) {
         if (Number(activeRow.expires_at) > now) return { status: 'already-active', session: workSession(activeRow) };
         this.statements.expireSession.run(BigInt(now), BigInt(now), activeRow.session_id);
       }
-      const profile = workProfile(this.statements.profile.get(userId));
       const availableAt = profile.lastShiftEndAt === null ? 0 : profile.lastShiftEndAt + cooldownMs;
       if (availableAt > now) return { status: 'cooldown', availableAt };
       this.statements.insertSession.run(
@@ -119,6 +140,7 @@ class WorkRepository {
         JSON.stringify(definition.buttonSlots),
         BigInt(definition.baseReward),
         BigInt(definition.salaryBoost),
+        BigInt(definition.streakBoost),
         BigInt(now),
         BigInt(now + ttlMs),
         BigInt(now),
@@ -141,14 +163,24 @@ class WorkRepository {
       if (session.consumedSlots.includes(slotIndex)) return { status: 'consumed', session };
       const expectedIngredient = session.expectedRecipe[session.currentProgress];
       if (slot.ingredient !== expectedIngredient) {
-        this.ensureProfile(userId, now);
-        const profile = workProfile(this.statements.profile.get(userId));
+        const profile = currentProfile(userId, now);
         const failedShifts = sqliteSafe(profile.failedShifts + 1n, 'Failed shift count');
+        const nextFailureCount = profile.workStreak > 0 ? profile.streakFailures + 1 : 0;
+        const streakBroken = nextFailureCount >= WORK_STREAK_FAILURE_LIMIT;
+        const workStreak = streakBroken ? 0 : profile.workStreak;
+        const streakFailures = streakBroken ? 0 : nextFailureCount;
         this.statements.resolveSession.run(
           'failed', JSON.stringify(session.consumedSlots), BigInt(session.currentProgress),
           BigInt(slotIndex), BigInt(now), BigInt(now), session.id,
         );
-        this.statements.failProfile.run(failedShifts, BigInt(now), BigInt(now), userId);
+        this.statements.failProfile.run(
+          failedShifts,
+          BigInt(workStreak),
+          BigInt(streakFailures),
+          BigInt(now),
+          BigInt(now),
+          userId,
+        );
         return {
           status: 'failed',
           expectedIngredient,
@@ -163,27 +195,35 @@ class WorkRepository {
         return { status: 'advanced', session: workSession(this.statements.session.get(session.id)) };
       }
 
-      this.ensureProfile(userId, now);
-      const profile = workProfile(this.statements.profile.get(userId));
+      const profile = currentProfile(userId, now);
       const finalReward = boostedReward(session.baseReward, session.salaryBoost);
       const player = this.statements.playerWallet.get(userId);
       const tokenBalance = sqliteSafe(player.token_balance + finalReward, 'Token balance');
       const totalXp = sqliteSafe(profile.totalXp + session.baseReward, 'Work XP');
       const completedShifts = sqliteSafe(profile.completedShifts + 1n, 'Completed shift count');
       const totalTokenSalary = sqliteSafe(profile.totalTokenSalary + finalReward, 'Total token salary');
+      const workStreak = Math.min(WORK_STREAK_MAX, profile.workStreak + 1);
       this.statements.resolveSession.run(
         'completed', JSON.stringify(consumedSlots), BigInt(progress), null,
         BigInt(now), BigInt(now), session.id,
       );
       this.statements.updateWallet.run(tokenBalance, BigInt(now), userId);
       this.statements.completeProfile.run(
-        totalXp, completedShifts, totalTokenSalary, BigInt(now), BigInt(now), userId,
+        totalXp,
+        completedShifts,
+        totalTokenSalary,
+        BigInt(workStreak),
+        BigInt(profile.streakFailures),
+        BigInt(now),
+        BigInt(now),
+        userId,
       );
       return {
         status: 'completed',
         finalReward,
         previousXp: profile.totalXp,
         totalXp,
+        workStreak,
         session: workSession(this.statements.session.get(session.id)),
       };
     }).immediate;
@@ -226,7 +266,7 @@ class WorkRepository {
   }
 
   profile(userId, now = Date.now()) {
-    return this.ensureProfile(userId, now);
+    return this.profileTransaction(String(userId), Number(now));
   }
 
   session(sessionId) {
@@ -260,4 +300,12 @@ class WorkRepository {
   }
 }
 
-module.exports = { WorkRepository, sqliteSafe, workProfile, workSession };
+module.exports = {
+  WORK_STREAK_FAILURE_LIMIT,
+  WORK_STREAK_MAX,
+  WORK_STREAK_TIMEOUT_MS,
+  WorkRepository,
+  sqliteSafe,
+  workProfile,
+  workSession,
+};

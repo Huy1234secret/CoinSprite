@@ -64,7 +64,8 @@ class WorkService {
       expectedRecipe: customer.order,
       buttonSlots: shuffleIngredients(customer.order, this.random),
       baseReward: customer.reward,
-      salaryBoost: rank.salaryBoost,
+      salaryBoost: rank.salaryBoost + profile.workStreak,
+      streakBoost: profile.workStreak,
     }, { now, ttlMs: this.sessionTtlMs, cooldownMs: this.cooldownMs });
   }
 
