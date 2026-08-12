@@ -1,4 +1,4 @@
-const { RNG_GAME_COMMANDS, createCommandHandlers } = require('./commands');
+const { RNG_GAME_COMMANDS: BASE_RNG_GAME_COMMANDS, createCommandHandlers } = require('./commands');
 const { createComponentHandler } = require('./components/handler');
 const { autoRollEndedPayload, indexPayload } = require('./components/builders');
 const { canceledPayload } = require('./components/rpsBuilders');
@@ -14,6 +14,9 @@ const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
+const { WORK_COMMANDS, createWorkFeature } = require('../work');
+
+const RNG_GAME_COMMANDS = Object.freeze([...BASE_RNG_GAME_COMMANDS, ...WORK_COMMANDS]);
 
 function createRngGameFeature(options = {}) {
   const clock = options.clock || Date.now;
@@ -168,9 +171,23 @@ function createRngGameFeature(options = {}) {
   };
   const commands = createCommandHandlers(context);
   const handleComponent = createComponentHandler(context);
+  const work = options.workFeature || createWorkFeature({
+    db,
+    playerRepository: repository,
+    getGuildPolicy: options.getGuildPolicy,
+    clock,
+    random: options.workRandom,
+    createId: options.workCreateId,
+    games: options.workGames,
+    sessionTtlMs: options.workSessionTtlMs,
+    cooldownMs: options.workCooldownMs,
+  });
 
   return {
     ...context,
+    work,
+    workRepository: work.repository,
+    workService: work.service,
     commands: RNG_GAME_COMMANDS,
     startScheduler(client) {
       discordClient = client || discordClient;
@@ -179,7 +196,8 @@ function createRngGameFeature(options = {}) {
     },
     async handleInteraction(interaction) {
       if (await commands.handleSlash(interaction)) return true;
-      return handleComponent(interaction);
+      if (await handleComponent(interaction)) return true;
+      return work.handleInteraction(interaction);
     },
     handleMessage: commands.handlePrefix,
     close() {
