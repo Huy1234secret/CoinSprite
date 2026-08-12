@@ -1,4 +1,5 @@
 const { v2Payload, WHITE } = require('../../shared/components');
+const { assertValidMessagePayload } = require('../../shared/discordPayload');
 const { resolveEmoji } = require('../../shared/emojis');
 const {
   INFO_MESSAGE_VERSION,
@@ -159,7 +160,7 @@ function infoMessagePayload(_botUserId, context = {}, options = {}) {
   const commands = context.commands || commandCatalog();
   const commandIds = normalizeCommandIds(context.commandIds);
   const selector = commandSelector(commands, { ...context, commandIds, guidePage: 1 });
-  return v2Payload([{
+  return assertValidMessagePayload(v2Payload([{
     type: 17,
     accent_color: WHITE,
     components: [
@@ -167,7 +168,7 @@ function infoMessagePayload(_botUserId, context = {}, options = {}) {
       { type: 14, divider: true, spacing: 2 },
       ...selector.rows,
     ],
-  }], options);
+  }], options));
 }
 
 function optionLine(option) {
@@ -206,7 +207,7 @@ function invocationBlock(command, context) {
   return blocks.join('\n\n');
 }
 
-function guidePages(command, context = {}) {
+function guideSections(command, context = {}) {
   const commands = context.commands || commandCatalog();
   const renderContext = { ...context, commands };
   const prefix = configuredPrefix(command);
@@ -264,24 +265,75 @@ function guidePages(command, context = {}) {
   ].map((page) => ({ ...page, blocks: page.blocks.filter(Boolean) }))
     .filter((page) => page.blocks.length);
 
-  return pages.map((page, index) => {
-    const content = [
-      `# ${resolvedEmoji(command, context).text} \`/${command.path}\``,
-      '',
-      `-# ${page.label} • Page ${index + 1}/${pages.length}`,
-      '',
-      ...page.blocks,
-      '',
-      `-# *${command.purpose}*`,
-    ].join('\n');
-    if (content.length > MAX_TEXT_DISPLAY_LENGTH) {
-      throw new RangeError(`Guide page ${command.key}:${page.id} exceeds ${MAX_TEXT_DISPLAY_LENGTH} characters.`);
+  return pages;
+}
+
+function packChunks(chunks, separator, maximum) {
+  const packed = [];
+  let current = '';
+  for (const chunk of chunks.filter((value) => value !== '')) {
+    const candidate = current ? `${current}${separator}${chunk}` : chunk;
+    if (candidate.length <= maximum) current = candidate;
+    else {
+      if (current) packed.push(current);
+      current = chunk;
     }
-    return Object.freeze({ ...page, content, page: index + 1, pageCount: pages.length });
+  }
+  if (current) packed.push(current);
+  return packed;
+}
+
+function splitByCharacters(value, maximum) {
+  const chunks = [];
+  let current = '';
+  for (const character of Array.from(String(value || ''))) {
+    if (current && current.length + character.length > maximum) {
+      chunks.push(current);
+      current = character;
+    } else current += character;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function splitParagraph(paragraph, maximum) {
+  const lines = String(paragraph || '').split('\n').flatMap((line) => (
+    line.length > maximum ? splitByCharacters(line, maximum) : [line]
+  ));
+  return packChunks(lines, '\n', maximum);
+}
+
+function splitSection(section, maximum) {
+  const paragraphs = String(section || '').split(/\n{2,}/).flatMap((paragraph) => (
+    paragraph.length > maximum ? splitParagraph(paragraph, maximum) : [paragraph]
+  ));
+  return packChunks(paragraphs, '\n\n', maximum);
+}
+
+function guidePages(command, context = {}) {
+  const blocks = guideSections(command, context).flatMap((section) => section.blocks);
+  const title = `# ${resolvedEmoji(command, context).text} \`/${command.path}\``;
+  const singleContent = `${title}\n\n${blocks.join('\n\n')}`;
+  if (singleContent.length <= MAX_TEXT_DISPLAY_LENGTH) {
+    return [Object.freeze({ content: singleContent, page: 1, pageCount: 1 })];
+  }
+
+  const maximumIndicator = '-# Page 9999999999999999/9999999999999999';
+  const maximumBodyLength = MAX_TEXT_DISPLAY_LENGTH - title.length - maximumIndicator.length - 4;
+  if (maximumBodyLength < 1) throw new RangeError(`Guide title ${command.key} leaves no room for guide content.`);
+  const fragments = blocks.flatMap((block) => splitSection(block, maximumBodyLength));
+  const bodies = packChunks(fragments, '\n\n', maximumBodyLength);
+  return bodies.map((body, index) => {
+    const content = `${title}\n\n-# Page ${index + 1}/${bodies.length}\n\n${body}`;
+    if (content.length > MAX_TEXT_DISPLAY_LENGTH) {
+      throw new RangeError(`Guide page ${command.key}:${index + 1} exceeds ${MAX_TEXT_DISPLAY_LENGTH} characters.`);
+    }
+    return Object.freeze({ content, page: index + 1, pageCount: bodies.length });
   });
 }
 
 function guideNavigation(command, commands, context, selectedPage, selectorPage) {
+  if (selectedPage.pageCount === 1) return null;
   const stateIndex = commands.findIndex((candidate) => candidate.key === command.key) + 1;
   return {
     type: 1,
@@ -293,16 +345,13 @@ function guideNavigation(command, commands, context, selectedPage, selectorPage)
       },
       {
         type: 2, style: SECONDARY, label: `Page ${selectedPage.page}/${selectedPage.pageCount}`,
-        custom_id: detailCustomId(context.ownerId, stateIndex, selectedPage.page, selectorPage), disabled: true,
+        custom_id: `rng:info:page:v${INFO_MESSAGE_VERSION}:${context.ownerId}:${stateIndex}:${selectedPage.page}:${selectorPage}`,
+        disabled: true,
       },
       {
         type: 2, style: SECONDARY, label: 'Next',
         custom_id: detailCustomId(context.ownerId, stateIndex, Math.min(selectedPage.pageCount, selectedPage.page + 1), selectorPage),
         disabled: selectedPage.page === selectedPage.pageCount,
-      },
-      {
-        type: 2, style: SECONDARY, label: 'Overview',
-        custom_id: detailCustomId(context.ownerId, stateIndex, 1, selectorPage), disabled: selectedPage.page === 1,
       },
     ],
   };
@@ -331,16 +380,17 @@ function commandPayload(commandKey, context = {}, options = {}) {
     guidePage,
     selectedKey: command.key,
   });
-  return v2Payload([{
+  const navigation = guideNavigation(command, commands, context, selectedPage, selector.page);
+  return assertValidMessagePayload(v2Payload([{
     type: 17,
     accent_color: WHITE,
     components: [
       { type: 10, content: selectedPage.content },
-      guideNavigation(command, commands, context, selectedPage, selector.page),
+      ...(navigation ? [navigation] : []),
       { type: 14, divider: true, spacing: 2 },
       ...selector.rows,
     ],
-  }], options);
+  }], options));
 }
 
 module.exports = {

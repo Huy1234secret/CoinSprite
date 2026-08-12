@@ -89,6 +89,11 @@ const {
 } = require('../src/features/rng-game/info/mentions');
 const { InfoPublishError, InfoPublisher, restPayload } = require('../src/features/rng-game/info/publisher');
 const { resolveEmoji } = require('../src/features/shared/emojis');
+const {
+  DISCORD_MESSAGE_LIMITS,
+  messagePayloadErrors,
+  payloadMetrics,
+} = require('../src/features/shared/discordPayload');
 const { RNG_GAME_COMMANDS, PREFIX_COMMANDS } = require('../src/features/rng-game/commands');
 const { WORK_COMMANDS } = require('../src/features/work/commands');
 const { WORK_GAMES } = require('../src/features/work/data');
@@ -231,7 +236,7 @@ test('every registered player command has explicit, complete metadata and every 
     for (const field of REQUIRED_GUIDE_FIELDS) {
       assert.ok(field === 'purpose' ? command[field] : command[field].length, `${command.key} has ${field}`);
     }
-    const usage = guidePages(command, { commands }).find((page) => page.id === 'usage').content;
+    const usage = guidePages(command, { commands }).map((page) => page.content).join('\n');
     for (const option of command.options) {
       assert.match(usage, new RegExp(`\\\\?\`${option.name}\\\\?\``));
       assert.match(usage, new RegExp(option.description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
@@ -239,13 +244,18 @@ test('every registered player command has explicit, complete metadata and every 
   }
 });
 
-test('auto-roll has a complete five-section guide derived from scheduler and economy rules', () => {
+test('auto-roll guide is dynamically paginated without losing scheduler and economy rules', () => {
+  const pages = guidePages(commandByKey('auto-roll'), {
+    commands: commandCatalog(),
+    commandIds: commandIdsFor(),
+  });
   const text = commandGuideText('auto-roll');
-  assert.match(text, /Overview • Page 1\/5/);
-  assert.match(text, /Usage & Requirements • Page 2\/5/);
-  assert.match(text, /Mechanics • Page 3\/5/);
-  assert.match(text, /Results & Interactions • Page 4\/5/);
-  assert.match(text, /Examples & Troubleshooting • Page 5\/5/);
+  assert.ok(pages.length > 1);
+  assert.match(pages[0].content, /Page 1\/\d+/);
+  assert.match(pages.at(-1).content, new RegExp(`Page ${pages.length}/${pages.length}`));
+  assert.match(text, /## Mechanics, Costs & Limits/);
+  assert.match(text, /## Results & Rewards/);
+  assert.match(text, /## Common Problems/);
   assert.match(text, /minimum `1 minute`, maximum `1 day`/);
   assert.match(text, /`12` rolls per minute/);
   assert.match(text, /max\(5, ceil\(\(gross expected crop value − 30\) \/ 4\)\)/);
@@ -270,7 +280,7 @@ test('emoji resolver handles Unicode, static custom, animated custom, and unavai
   });
 });
 
-test('roll selection renders a complete paginated guide and preserves the selected command menu', () => {
+test('short roll guide stays on one page without pagination controls', () => {
   const commands = commandCatalog();
   const payload = commandPayload('roll', {
     commands,
@@ -280,7 +290,7 @@ test('roll selection renders a complete paginated guide and preserves the select
   assert.equal(payload.flags, MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral);
   const text = payloadText(payload);
   assert.match(text, /^# 🎲 `\/roll`/m);
-  assert.match(text, /Overview • Page 1\/5/);
+  assert.doesNotMatch(text, /Page 1\/1/);
   assert.match(text, /\*\*Slash:\*\* <\/roll:723456789012345678>/);
   assert.match(text, /\*\*Prefix:\*\* `c!roll`/);
   const completeGuide = commandGuideText('roll', commands);
@@ -293,7 +303,9 @@ test('roll selection renders a complete paginated guide and preserves the select
   const select = allComponentNodes(payload).find((node) => node.type === 3);
   assert.equal(select.custom_id, selectCustomId(ADMIN_ID, 1));
   assert.equal(select.options.find((option) => option.value === 'roll').default, true);
-  assert.ok(allComponentNodes(payload).some((node) => node.type === 2 && node.label === 'Next'));
+  assert.equal(guidePages(commandByKey('roll', commands), { commands }).length, 1);
+  assert.equal(allComponentNodes(payload).some((node) => ['Previous', 'Next'].includes(node.label)), false);
+  assert.equal(allComponentNodes(payload).some((node) => /^Page \d+\/\d+$/.test(node.label || '')), false);
 });
 
 test('prefix usage is shown only for supported commands and slash options come from command definitions', () => {
@@ -315,46 +327,93 @@ test('every selector option maps to a valid detail and all payload strings respe
   const options = allComponentNodes(landing).find((node) => node.type === 3).options;
   assert.deepEqual(new Set(options.map((option) => option.value)), new Set(commands.map((command) => command.key)));
   for (const option of options) assert.ok(commandByKey(option.value, commands));
-  for (const payload of [landing, ...commands.map((command) => commandPayload(command.key, context, { ephemeral: true }))]) {
-    for (const node of allComponentNodes(payload)) {
-      if (node.content) assert.ok(node.content.length <= 4_000);
-      if (node.custom_id) assert.ok(node.custom_id.length <= 100);
-      for (const option of node.options || []) {
-        assert.ok(option.label.length <= 100);
-        assert.ok(option.description.length <= 100);
-        assert.ok(option.value.length <= 100);
-      }
+  const payloads = [landing];
+  for (const command of commands) {
+    const pages = guidePages(command, context);
+    for (let guidePage = 1; guidePage <= pages.length; guidePage += 1) {
+      payloads.push(commandPayload(command.key, { ...context, guidePage }, { ephemeral: true }));
     }
+  }
+  for (const payload of payloads) {
+    assert.deepEqual(messagePayloadErrors(payload), []);
+    const metrics = payloadMetrics(payload);
+    assert.ok(metrics.components <= DISCORD_MESSAGE_LIMITS.components);
+    assert.ok(metrics.embedChars <= DISCORD_MESSAGE_LIMITS.embedTotal);
+    assert.ok(metrics.customIds.every((length) => length <= DISCORD_MESSAGE_LIMITS.componentCustomId));
+    assert.ok(metrics.labels.every((length) => length <= DISCORD_MESSAGE_LIMITS.buttonLabel));
   }
 });
 
-test('detail navigation preserves the command and selector while empty sections are omitted', () => {
+test('payload validation identifies duplicate custom IDs and nested embed limit paths', () => {
+  const payload = {
+    embeds: [{
+      description: 'x'.repeat(DISCORD_MESSAGE_LIMITS.embedDescription + 1),
+      fields: Array.from({ length: DISCORD_MESSAGE_LIMITS.embedFields + 1 }, (_, index) => ({
+        name: `Field ${index}`,
+        value: 'value',
+      })),
+    }],
+    components: [{
+      type: 1,
+      components: [
+        { type: 2, style: 2, label: 'First', custom_id: 'duplicate' },
+        { type: 2, style: 2, label: 'x'.repeat(DISCORD_MESSAGE_LIMITS.buttonLabel + 1), custom_id: 'duplicate' },
+      ],
+    }],
+  };
+  const errors = messagePayloadErrors(payload);
+  assert.ok(errors.some((error) => error.path === 'embeds[0].description'));
+  assert.ok(errors.some((error) => error.path === 'embeds[0].fields'));
+  assert.ok(errors.some((error) => error.path === 'components[0].components[1].label'));
+  assert.ok(errors.some((error) => (
+    error.path === 'components[0].components[1].custom_id' && /unique/.test(error.message)
+  )));
+});
+
+test('detail navigation preserves command state and sets boundary buttons correctly', () => {
   const commands = commandCatalog();
-  const payload = commandPayload('auto-roll', {
+  const pages = guidePages(commandByKey('auto-roll', commands), { commands, commandIds: commandIdsFor(commands) });
+  const context = {
     commands,
     commandIds: commandIdsFor(commands),
     ownerId: ADMIN_ID,
     selectorPage: 1,
-    guidePage: 3,
-  });
-  assert.match(payloadText(payload), /Mechanics • Page 3\/5/);
-  const select = allComponentNodes(payload).find((node) => node.type === 3);
+  };
+  const first = commandPayload('auto-roll', { ...context, guidePage: 1 });
+  assert.match(payloadText(first), new RegExp(`Page 1/${pages.length}`));
+  const firstNodes = allComponentNodes(first);
+  const select = firstNodes.find((node) => node.type === 3);
   assert.equal(select.options.find((option) => option.value === 'auto-roll').default, true);
-  assert.ok(allComponentNodes(payload).some((node) => node.custom_id === detailCustomId(ADMIN_ID, 5, 2, 1)));
-  assert.ok(allComponentNodes(payload).some((node) => node.custom_id === detailCustomId(ADMIN_ID, 5, 4, 1)));
+  assert.equal(firstNodes.find((node) => node.label === 'Previous').disabled, true);
+  assert.equal(firstNodes.find((node) => node.label === 'Next').disabled, false);
+  assert.equal(firstNodes.find((node) => /^Page /.test(node.label || '')).disabled, true);
+  const firstCustomIds = firstNodes.filter((node) => node.custom_id).map((node) => node.custom_id);
+  assert.equal(new Set(firstCustomIds).size, firstCustomIds.length);
+
+  const last = commandPayload('auto-roll', { ...context, guidePage: pages.length });
+  const lastNodes = allComponentNodes(last);
+  assert.equal(lastNodes.find((node) => node.label === 'Previous').disabled, false);
+  assert.equal(lastNodes.find((node) => node.label === 'Next').disabled, true);
+  assert.ok(lastNodes.some((node) => node.custom_id === detailCustomId(ADMIN_ID, 5, pages.length - 1, 1)));
 
   const withoutOptionalSections = {
     ...commandByKey('roll', commands), warnings: [], tips: [],
   };
-  const pages = guidePages(withoutOptionalSections, { commands });
-  assert.doesNotMatch(pages[0].content, /## Important/);
-  assert.doesNotMatch(pages.at(-1).content, /## Tips|## Warnings/);
+  const optionalText = guidePages(withoutOptionalSections, { commands }).map((page) => page.content).join('\n');
+  assert.doesNotMatch(optionalText, /## Important/);
+  assert.doesNotMatch(optionalText, /## Tips|## Warnings/);
 });
 
-test('long guide content fails loudly instead of being truncated and rendered content has no placeholders', () => {
+test('oversized guide sections split safely across valid pages without truncation', () => {
   const commands = commandCatalog();
-  const tooLong = { ...commands[0], mechanics: ['x'.repeat(4_000)] };
-  assert.throws(() => guidePages(tooLong, { commands }), /exceeds 4000 characters/);
+  const longLine = '🙂'.repeat(2_500);
+  const tooLong = { ...commands[0], mechanics: [`First paragraph.\n\n${longLine}\n${'final line '.repeat(600)}`] };
+  const pages = guidePages(tooLong, { commands });
+  assert.ok(pages.length > 1);
+  assert.ok(pages.every((page) => page.content.length <= DISCORD_MESSAGE_LIMITS.textDisplay));
+  assert.match(pages.map((page) => page.content).join('\n'), /First paragraph/);
+  assert.equal(pages.map((page) => page.content).join('\n').includes(longLine), false, 'page breaks split an oversized line');
+  assert.equal(pages.map((page) => page.content).join('').replace(/[^🙂]/gu, '').length, longLine.length);
   const rendered = [
     payloadText(infoMessagePayload(BOT_ID, { commands, commandIds: commandIdsFor(commands) })),
     ...commands.flatMap((command) => guidePages(command, { commands, commandIds: commandIdsFor(commands) }).map((page) => page.content)),
@@ -427,6 +486,30 @@ test('more than 25 commands are paginated without hiding commands', () => {
   );
 });
 
+test('selecting roll replaces the deferred ephemeral response exactly once', async () => {
+  const handler = createInfoHandler({ getGuildPolicy: () => ({ unlocked: true, enabled: true }) });
+  const calls = [];
+  let deferred = false;
+  const interaction = {
+    customId: INFO_SELECT_CUSTOM_ID,
+    guildId: GUILD_ID,
+    user: { id: ADMIN_ID },
+    values: ['roll'],
+    get deferred() { return deferred; },
+    replied: false,
+    isStringSelectMenu: () => true,
+    deferReply: async (options) => { deferred = true; calls.push(['defer', options]); },
+    editReply: async (payload) => calls.push(['edit', payload]),
+    reply: async () => calls.push(['reply']),
+    update: async () => calls.push(['update']),
+  };
+  assert.equal(await handler(interaction), true);
+  assert.deepEqual(calls.map(([operation]) => operation), ['defer', 'edit']);
+  assert.deepEqual(calls[0][1], { flags: MessageFlags.Ephemeral });
+  assert.match(payloadText(calls[1][1]), /`\/roll`/);
+  assert.deepEqual(messagePayloadErrors(calls[1][1]), []);
+});
+
 test('command interactions keep private navigation, enforce ownership, and recover from stale selections', async () => {
   const replies = [];
   const updates = [];
@@ -468,8 +551,18 @@ test('command interactions keep private navigation, enforce ownership, and recov
   const privateSelect = allComponentNodes(replies[0]).find((node) => node.type === 3);
   assert.equal(privateSelect.custom_id, selectCustomId(ADMIN_ID, 1));
 
-  const nextGuidePage = allComponentNodes(replies[0]).find((node) => node.type === 2 && node.label === 'Next');
-  assert.equal(nextGuidePage.custom_id, detailCustomId(ADMIN_ID, 1, 2, 1));
+  await handler({
+    customId: privateSelect.custom_id,
+    guildId: GUILD_ID,
+    client,
+    user: { id: ADMIN_ID },
+    values: ['auto-roll'],
+    isStringSelectMenu: () => true,
+    deferUpdate: async () => {},
+    editReply: async (payload) => updates.push(payload),
+  });
+  const nextGuidePage = allComponentNodes(updates[0]).find((node) => node.type === 2 && node.label === 'Next');
+  assert.equal(nextGuidePage.custom_id, detailCustomId(ADMIN_ID, 5, 2, 1));
   const guideUpdates = [];
   await handler({
     customId: nextGuidePage.custom_id,
@@ -480,11 +573,22 @@ test('command interactions keep private navigation, enforce ownership, and recov
     deferUpdate: async () => {},
     editReply: async (payload) => guideUpdates.push(payload),
   });
-  assert.match(payloadText(guideUpdates[0]), /Usage & Requirements • Page 2\/5/);
+  assert.match(payloadText(guideUpdates[0]), /Page 2\/\d+/);
   assert.equal(
-    allComponentNodes(guideUpdates[0]).find((node) => node.type === 3).options.find((option) => option.value === 'roll').default,
+    allComponentNodes(guideUpdates[0]).find((node) => node.type === 3).options.find((option) => option.value === 'auto-roll').default,
     true,
   );
+
+  const deniedPagination = [];
+  await handler({
+    customId: nextGuidePage.custom_id,
+    guildId: GUILD_ID,
+    client,
+    user: { id: '999999999999999999' },
+    isButton: () => true,
+    reply: async (payload) => deniedPagination.push(payload),
+  });
+  assert.match(payloadText(deniedPagination[0]), /Only the player/i);
 
   await handler({
     customId: privateSelect.custom_id,
@@ -496,8 +600,8 @@ test('command interactions keep private navigation, enforce ownership, and recov
     deferUpdate: async () => {},
     editReply: async (payload) => updates.push(payload),
   });
-  assert.equal(updates[0].flags, undefined);
-  assert.match(payloadText(updates[0]), /`\/inventory`/);
+  assert.equal(updates[1].flags, undefined);
+  assert.match(payloadText(updates[1]), /`\/inventory`/);
 
   const denied = [];
   await handler({
@@ -512,6 +616,7 @@ test('command interactions keep private navigation, enforce ownership, and recov
   assert.match(payloadText(denied[0]), /Only the player/i);
 
   const stale = [];
+  const staleAcknowledgements = [];
   for (const request of [
     { customId: INFO_SELECT_CUSTOM_ID, values: ['removed-command'], isStringSelectMenu: () => true },
     { customId: 'rng:info:topic:v1', isButton: () => true },
@@ -521,13 +626,26 @@ test('command interactions keep private navigation, enforce ownership, and recov
       guildId: GUILD_ID,
       client,
       user: { id: ADMIN_ID },
-      deferReply: async () => {},
+      deferReply: async (options) => staleAcknowledgements.push(options),
       editReply: async (payload) => stale.push(payload),
       reply: async (payload) => stale.push(payload),
     });
   }
-  assert.match(payloadText(stale[0]), /selection is stale/i);
+  assert.deepEqual(staleAcknowledgements, [{ flags: MessageFlags.Ephemeral }]);
+  assert.match(payloadText(stale[0]), /not a supported RNG command/i);
   assert.match(payloadText(stale[1]), /malformed or outdated/i);
+
+  const unknownPage = [];
+  await handler({
+    customId: detailCustomId(ADMIN_ID, 999, 1, 1),
+    guildId: GUILD_ID,
+    client,
+    user: { id: ADMIN_ID },
+    isButton: () => true,
+    deferUpdate: async () => {},
+    editReply: async (payload) => unknownPage.push(payload),
+  });
+  assert.match(payloadText(unknownPage[0]), /no longer available/i);
 
   for (const policy of [{ unlocked: false, enabled: true }, { unlocked: true, enabled: false }]) {
     const deniedHandler = createInfoHandler({ getGuildPolicy: () => policy });
@@ -570,11 +688,43 @@ test('info selection acknowledges before delayed guide rendering and exposes edi
   await handling;
   assert.deepEqual(events, ['ack', 'render-start', 'render-finish', 'edit']);
 
+  let deferred = false;
+  let completed = false;
+  let deferCalls = 0;
+  let replyCalls = 0;
+  let editCalls = 0;
+  const editError = new Error('Discord rejected edit');
   await assert.rejects(handler({
     ...interaction,
-    deferReply: async () => {},
-    editReply: async () => { throw new Error('Discord rejected edit'); },
+    get deferred() { return deferred; },
+    replied: false,
+    deferReply: async () => { deferCalls += 1; deferred = true; },
+    reply: async () => { replyCalls += 1; },
+    editReply: async () => {
+      editCalls += 1;
+      if (editCalls === 1) throw editError;
+      completed = true;
+    },
   }), /Discord rejected edit/);
+  assert.equal(deferCalls, 1);
+  assert.equal(replyCalls, 0);
+  assert.equal(editCalls, 2, 'the failed detail edit is replaced by one safe completion edit');
+  assert.equal(completed, true, 'the deferred thinking response is completed on the error path');
+
+  const freshErrors = [];
+  const brokenPolicyHandler = createInfoHandler({
+    getGuildPolicy: () => { throw new Error('Policy unavailable'); },
+  });
+  await assert.rejects(brokenPolicyHandler({
+    customId: INFO_SELECT_CUSTOM_ID,
+    guildId: GUILD_ID,
+    user: { id: ADMIN_ID },
+    values: ['roll'],
+    isStringSelectMenu: () => true,
+    reply: async (payload) => freshErrors.push(payload),
+  }), /Policy unavailable/);
+  assert.equal(freshErrors.length, 1);
+  assert.match(payloadText(freshErrors[0]), /could not finish this guide/i);
 });
 
 test('publisher creates, edits, reposts, changes channels, and refuses foreign messages', async () => {
