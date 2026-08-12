@@ -5,7 +5,7 @@ const {
   commandCatalog,
 } = require('./catalog');
 const { commandPayload, infoMessagePayload } = require('./builders');
-const { resolveRegisteredCommandIds } = require('./mentions');
+const { resolveCachedCommandIds } = require('./mentions');
 
 const SELECT_PATTERN = new RegExp(`^rng:info:command:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+)$`);
 const BROWSE_PATTERN = new RegExp(`^rng:info:browse:v${INFO_MESSAGE_VERSION}:(\\d+):(\\d+):(\\d+):(\\d+)$`);
@@ -30,12 +30,15 @@ function createInfoHandler(context) {
     return ownerId === '0' || ownerId === String(interaction.user?.id || '');
   }
 
-  async function payloadContext(interaction, ownerId, selectorPage) {
+  function payloadContext(interaction, ownerId, selectorPage) {
     const client = interaction.client || context.getClient?.() || context.client || null;
     return {
       botUserId: String(client?.user?.id || context.getBotUser?.()?.id || '0'),
       client,
-      commandIds: await resolveRegisteredCommandIds(client, interaction.guildId),
+      // Interaction callbacks have a short acknowledgement window. Command registration
+      // performs the network work at startup; controls use only that populated cache and
+      // safely fall back to plain slash syntax if an ID is temporarily unavailable.
+      commandIds: resolveCachedCommandIds(client, interaction.guildId),
       commands,
       ownerId,
       selectorPage,
@@ -43,7 +46,7 @@ function createInfoHandler(context) {
   }
 
   async function updateLanding(interaction, ownerId, selectorPage, notice = '') {
-    const view = await payloadContext(interaction, ownerId, selectorPage);
+    const view = payloadContext(interaction, ownerId, selectorPage);
     await interaction.update(infoMessagePayload(view.botUserId, { ...view, notice }, { initial: false })).catch(() => null);
     return true;
   }
@@ -65,7 +68,7 @@ function createInfoHandler(context) {
       const commandKey = String(interaction.values?.[0] || '');
       const command = commandByKey(commandKey, commands);
       const nextOwnerId = String(interaction.user?.id || ownerId);
-      const view = await payloadContext(interaction, nextOwnerId, Number(selectMatch[2]));
+      const view = payloadContext(interaction, nextOwnerId, Number(selectMatch[2]));
       if (!command) {
         const payload = infoMessagePayload(view.botUserId, {
           ...view,
@@ -92,7 +95,7 @@ function createInfoHandler(context) {
       if (stateIndex <= 0) return updateLanding(interaction, ownerId, page);
       const selected = commands[stateIndex - 1];
       if (!selected) return updateLanding(interaction, ownerId, page, 'That command guide is no longer available.');
-      const view = await payloadContext(interaction, ownerId, page);
+      const view = payloadContext(interaction, ownerId, page);
       await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
       return true;
     }
@@ -107,7 +110,7 @@ function createInfoHandler(context) {
       const selectorPage = Number(detailMatch[4]);
       const selected = commands[stateIndex - 1];
       if (!selected) return updateLanding(interaction, ownerId, selectorPage, 'That command guide is no longer available.');
-      const view = await payloadContext(interaction, ownerId, selectorPage);
+      const view = payloadContext(interaction, ownerId, selectorPage);
       await interaction.update(commandPayload(selected.key, { ...view, guidePage }, { initial: false })).catch(() => null);
       return true;
     }

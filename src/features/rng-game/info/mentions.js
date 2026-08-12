@@ -36,6 +36,23 @@ function collectionValues(collection) {
   return Object.values(collection);
 }
 
+function addCommandIds(result, commands) {
+  for (const command of collectionValues(commands)) {
+    if (command?.name && COMMAND_ID_PATTERN.test(String(command.id || ''))) {
+      result.set(String(command.name), String(command.id));
+    }
+  }
+}
+
+function resolveCachedCommandIds(client, guildId) {
+  const result = new Map();
+  if (!client) return result;
+  addCommandIds(result, client.application?.commands?.cache);
+  const guild = client.guilds?.cache?.get?.(String(guildId || '')) || null;
+  addCommandIds(result, guild?.commands?.cache);
+  return result;
+}
+
 async function fetchManagerCommands(manager) {
   if (!manager) return [];
   const cached = collectionValues(manager.cache);
@@ -52,21 +69,13 @@ async function resolveRegisteredCommandIds(client, guildId) {
   const result = new Map();
   if (!client) return result;
 
-  for (const command of await fetchManagerCommands(client.application?.commands)) {
-    if (command?.name && COMMAND_ID_PATTERN.test(String(command.id || ''))) {
-      result.set(String(command.name), String(command.id));
-    }
-  }
+  addCommandIds(result, await fetchManagerCommands(client.application?.commands));
 
   let guild = client.guilds?.cache?.get?.(String(guildId || '')) || null;
   if (!guild && guildId && typeof client.guilds?.fetch === 'function') {
     guild = await client.guilds.fetch(String(guildId)).catch(() => null);
   }
-  for (const command of await fetchManagerCommands(guild?.commands)) {
-    if (command?.name && COMMAND_ID_PATTERN.test(String(command.id || ''))) {
-      result.set(String(command.name), String(command.id));
-    }
-  }
+  addCommandIds(result, await fetchManagerCommands(guild?.commands));
   return result;
 }
 
@@ -76,5 +85,6 @@ module.exports = {
   commandPath,
   commandRoot,
   normalizeCommandIds,
+  resolveCachedCommandIds,
   resolveRegisteredCommandIds,
 };
