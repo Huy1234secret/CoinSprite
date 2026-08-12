@@ -13,6 +13,7 @@ const {
   RPS_STATES,
 } = require('../src/features/rng-game/config/rps');
 const { balancePayload } = require('../src/features/rng-game/components/builders');
+const { roundPayload } = require('../src/features/rng-game/components/rpsBuilders');
 const { RpsTableRenderer } = require('../src/features/rng-game/services/rpsRenderer');
 const { MAX_BET, parseBet, payoutFor, resolveRps } = require('../src/features/rng-game/services/rpsRules');
 const {
@@ -24,6 +25,7 @@ const {
   TOKEN_DENOMINATIONS,
   decomposeTokens,
   formatTokenLines,
+  formatTokenList,
 } = require('../src/features/rng-game/utils/tokens');
 
 function fakeIndexRenderer() {
@@ -110,6 +112,13 @@ test('token line formatting uses only owned denominations in descending order', 
   assert.doesNotMatch(formatTokenLines(235n), /Token50|Token1:/);
 });
 
+test('token list formatting is comma-separated with backticked quantities', () => {
+  assert.equal(
+    formatTokenList(235n),
+    '<:Token100:1536768536289091614> `×2`, <:Token10:1536768531314774146> `×3`, <:Token5:1536768528424894514> `×1`',
+  );
+});
+
 test('exchange costs 1,000 Sheckles per token and enforces 100 tokens per rolling four hours atomically', () => {
   const game = feature();
   fund(game, 'exchange', { sheckles: 200_000n });
@@ -152,7 +161,24 @@ test('balance payload preserves Sheckles and lists only nonzero token denominati
   assert.match(components[2].content, /Token10/);
   assert.match(components[2].content, /Token5/);
   assert.doesNotMatch(components[2].content, /Token50|Token1:/);
+  assert.equal(components[2].content.split('\n')[0], formatTokenList(235n));
   assert.match(components[2].content, /Total token value: 235/);
+});
+
+test('RPS bet text uses normal-size text without the subtext prefix', () => {
+  const game = {
+    id: 'bet-format',
+    mode: 'bot',
+    state: RPS_STATES.IN_PROGRESS,
+    hostUserId: 'host',
+    bet: 10n,
+    currentTurn: 0,
+    participants: [{ userId: 'host', choice: null, resultStatus: null }],
+  };
+  const payload = roundPayload(game, Buffer.from('png'));
+  const content = payload.components[0].components[0].content;
+  assert.match(content, /\nBet:/);
+  assert.doesNotMatch(content, /-# Bet:/);
 });
 
 test('RPS resolves every standard two-player outcome and draw', () => {

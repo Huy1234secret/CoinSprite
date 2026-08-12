@@ -97,7 +97,7 @@ function betText(game, final = false) {
   const label = game.mode === 'bot' ? 'Bet' : 'Bet each';
   const resultLabel = final ? (game.resultType === 'draw' ? 'Refund each' : 'Payout') : (game.mode === 'bot' ? 'Potential payout' : 'Pot');
   const resultValue = final && game.resultType === 'draw' ? game.bet : game.bet * participants;
-  return `-# ${label}: ${formatTokenBreakdown(game.bet)} · \`TT: ${game.bet}\` · ${resultLabel}: ${resultValue}`;
+  return `${label}: ${formatTokenBreakdown(game.bet)} · \`TT: ${game.bet}\` · ${resultLabel}: ${resultValue}`;
 }
 
 function lobbyPayload(game, image, options = {}) {

@@ -13,7 +13,7 @@ const {
   bigChance,
 } = require('../services/rngService');
 const { formatMultiplier, formatPercent, romanTier } = require('../utils/upgrades');
-const { formatTokenLines } = require('../utils/tokens');
+const { formatTokenList } = require('../utils/tokens');
 const {
   ALLOWED_MENTIONS,
   clampPage,
@@ -91,7 +91,7 @@ function balancePayload(user, wallet, options = {}) {
   if (tokenBalance > 0n) {
     components.push(
       { type: 14, divider: true, spacing: 1 },
-      { type: 10, content: `${formatTokenLines(tokenBalance)}\n-# Total token value: ${formatInteger(tokenBalance)}` },
+      { type: 10, content: `${formatTokenList(tokenBalance)}\n-# Total token value: ${formatInteger(tokenBalance)}` },
     );
   }
   return v2Payload([{ type: 17, accent_color: WHITE, components }], options);
