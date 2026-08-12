@@ -35,6 +35,12 @@ function formatTokenLines(value) {
     .join('\n');
 }
 
+function formatTokenList(value) {
+  return decomposeTokens(value)
+    .map((entry) => `${entry.emoji} \`×${entry.quantity.toLocaleString('en-US')}\``)
+    .join(', ');
+}
+
 function formatTokenBreakdown(value) {
   return decomposeTokens(value)
     .map((entry) => `${entry.emoji} ×${entry.quantity.toLocaleString('en-US')}`)
@@ -46,5 +52,6 @@ module.exports = {
   decomposeTokens,
   formatTokenBreakdown,
   formatTokenLines,
+  formatTokenList,
   tokenValue,
 };
