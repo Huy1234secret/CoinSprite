@@ -3,7 +3,7 @@ const { WORK_GAMES } = require('../data');
 const { unlockedDifficulties, workRank } = require('../ranks');
 
 const WORK_SESSION_TTL_MS = 2 * 60 * 1_000;
-const WORK_COOLDOWN_MS = 60 * 1_000;
+const WORK_COOLDOWN_MS = 60 * 60 * 1_000;
 
 function randomIndex(length, random) {
   if (!Number.isInteger(length) || length < 1) throw new RangeError('Cannot select from an empty work registry.');

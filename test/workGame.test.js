@@ -24,7 +24,7 @@ const {
   workProgress,
   workRank,
 } = require('../src/features/work/ranks');
-const { shuffleIngredients } = require('../src/features/work/services/workService');
+const { WORK_COOLDOWN_MS, shuffleIngredients } = require('../src/features/work/services/workService');
 const { COMPONENTS_V2_FLAG } = require('../src/features/shared/components');
 
 function feature(options = {}) {
@@ -33,7 +33,6 @@ function feature(options = {}) {
     databasePath: ':memory:',
     workRandom: () => 0,
     workCreateId: () => `work-session-${++id}`,
-    workCooldownMs: 60_000,
     ...options,
   });
 }
@@ -245,14 +244,14 @@ test('completion credits boosted tokens, base XP, and rank-up exactly once', () 
   const session = start(game).session;
   const result = finishRecipe(game, session);
   assert.equal(result.status, 'completed');
-  assert.equal(result.finalReward, 31n);
+  assert.equal(result.finalReward, 1n);
   assert.equal(result.previousXp, 249n);
-  assert.equal(result.totalXp, 279n);
-  assert.equal(game.repository.getPlayer('worker').tokenBalance, 31n);
+  assert.equal(result.totalXp, 250n);
+  assert.equal(game.repository.getPlayer('worker').tokenBalance, 1n);
   assert.match(content(completePayload('worker', result)), /Rank up! You are now Beginner — Level 3/);
   const replay = game.workService.press(session.id, 'worker', session.buttonSlots[0].index);
   assert.equal(replay.status, 'resolved');
-  assert.equal(game.repository.getPlayer('worker').tokenBalance, 31n);
+  assert.equal(game.repository.getPlayer('worker').tokenBalance, 1n);
   assert.equal(game.workService.profile('worker').completedShifts, 1n);
   game.close();
 });
@@ -286,10 +285,11 @@ test('only one active work session is allowed and resolved sessions enter cooldo
   const first = start(game);
   assert.equal(start(game).status, 'already-active');
   assert.equal(game.workService.cancel(first.session.id, 'worker').status, 'canceled');
-  assert.deepEqual(start(game), { status: 'cooldown', availableAt: 70_000 });
-  now = 69_999;
+  assert.equal(WORK_COOLDOWN_MS, 60 * 60 * 1_000);
+  assert.deepEqual(start(game), { status: 'cooldown', availableAt: 3_610_000 });
+  now = 3_609_999;
   assert.equal(start(game).status, 'cooldown');
-  now = 70_000;
+  now = 3_610_000;
   assert.equal(start(game).status, 'ok');
   game.close();
 });
@@ -366,11 +366,12 @@ test('expired component edits stale controls and sends the requested ephemeral e
 });
 
 test('all customer definitions exactly preserve IDs, rewards, orders, and invariants', () => {
-  const expectedRewards = [30, 30, 40, 40, 50, 55, 80, 85, 90, 95, 100, 105, 145, 145, 155, 155, 165, 165, 175, 175];
+  const expectedRewards = [1, 4, 7, 9, 12, 15, 8, 12, 17, 21, 26, 30, 15, 20, 25, 30, 35, 40, 45, 50];
   const expectedLengths = [3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12];
   assert.equal(BURGER_CUSTOMERS.length, 20);
   assert.deepEqual(BURGER_CUSTOMERS.map((customer) => customer.id), Array.from({ length: 20 }, (_, index) => index + 1));
   assert.deepEqual(BURGER_CUSTOMERS.map((customer) => customer.reward), expectedRewards);
+  assert.equal(WORK_INGREDIENTS.cheese, '<:cheese:1537045258838478848>');
   assert.deepEqual(BURGER_CUSTOMERS.map((customer) => customer.order.length), expectedLengths);
   for (const customer of BURGER_CUSTOMERS) {
     assert.equal(customer.order[0], 'bunbottom');

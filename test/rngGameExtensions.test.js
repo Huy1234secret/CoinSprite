@@ -6,7 +6,9 @@ const test = require('node:test');
 const { GlobalFonts, createCanvas, loadImage } = require('@napi-rs/canvas');
 
 const { createRngGameFeature } = require('../src/features/rng-game');
-const { AutoRollScheduler } = require('../src/features/rng-game/services/autoRollService');
+const { autoRollPreviewPayload } = require('../src/features/rng-game/components/builders');
+const { autoRollModal } = require('../src/features/rng-game/modals/builders');
+const { AUTO_SELL_RARITIES, AutoRollScheduler } = require('../src/features/rng-game/services/autoRollService');
 const { AutoRollRepository } = require('../src/features/rng-game/repositories/autoRollRepository');
 const { MIGRATIONS_PATH, openDatabase } = require('../src/features/rng-game/repositories/database');
 const { RngGameRepository } = require('../src/features/rng-game/repositories/gameRepository');
@@ -97,6 +99,65 @@ test('Auto Roll pricing, refunding, and global five-second alignment are exact',
   assert.equal(nextGlobalTick(0), 5_000);
   assert.equal(nextGlobalTick(5_001), 10_000);
   assert.throws(() => autoRollPlan(1_440, SQLITE_INTEGER_MAX), /SQLite signed 64-bit/);
+});
+
+test('Auto Sell lists Super immediately above Secret', () => {
+  assert.deepEqual(AUTO_SELL_RARITIES.slice(-2), ['Super', 'Secret']);
+  const modal = autoRollModal({ id: 'form', normalized: '4h', selectedAutoSellRarities: ['Super'] });
+  const duration = modal.components.find((entry) => entry.component?.custom_id === 'duration').component;
+  const rarities = modal.components.find((entry) => entry.component?.custom_id === 'rarities').component;
+  assert.equal(duration.value, '4h');
+  assert.deepEqual(rarities.options.slice(-2).map((option) => option.label), ['Super', 'Secret']);
+  assert.equal(rarities.options.find((option) => option.value === 'Super').default, true);
+});
+
+test('Auto Roll preview always offers an enabled gray Change duration control', () => {
+  const action = {
+    id: 'preview',
+    normalized: '1d',
+    totalCost: 10_000n,
+    costPerRoll: 5n,
+    selectedAutoSellRarities: ['Super'],
+  };
+  const payload = autoRollPreviewPayload(action, 0n);
+  const buttons = payload.components[0].components.flatMap((component) => component.components || []);
+  const start = buttons.find((button) => button.custom_id === 'rng:auto:start:preview');
+  const change = buttons.find((button) => button.custom_id === 'rng:auto:change:preview');
+  assert.equal(start.disabled, true);
+  assert.deepEqual(
+    { label: change.label, style: change.style, disabled: change.disabled || false },
+    { label: 'Change duration', style: 2, disabled: false },
+  );
+});
+
+test('Change duration reopens a prefilled owner-only Auto Roll form', async () => {
+  const game = feature();
+  const preview = game.actions.create('owner', {
+    kind: 'auto-preview',
+    normalized: '4h 13m',
+    selectedAutoSellRarities: ['Super', 'Secret'],
+    durationMinutes: 253,
+    plannedRolls: 3_036,
+    costPerRoll: 5n,
+    totalCost: 15_180n,
+  });
+  let modal;
+  await game.handleInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:auto:change:${preview.id}`,
+    user: { id: 'owner' },
+    showModal: async (payload) => { modal = payload; },
+  });
+  const duration = modal.components.find((entry) => entry.component?.custom_id === 'duration').component;
+  const rarities = modal.components.find((entry) => entry.component?.custom_id === 'rarities').component;
+  assert.equal(duration.value, '4h 13m');
+  assert.deepEqual(rarities.options.filter((option) => option.default).map((option) => option.value), ['Super', 'Secret']);
+  assert.equal(game.actions.get(preview.id).kind, 'auto-preview', 'dismissing the modal keeps the prior quote usable');
+  const formId = modal.custom_id.split(':').at(-1);
+  assert.equal(game.actions.get(formId).kind, 'auto-form');
+  assert.equal(game.actions.get(formId).previewId, preview.id);
+  game.close();
 });
 
 test('migration defaults existing Auto Roll jobs to five per roll and preserves refunds', () => {

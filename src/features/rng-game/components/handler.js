@@ -284,6 +284,7 @@ function createComponentHandler(context) {
         return true;
       }
       actions.delete(formAction.id);
+      if (formAction.previewId) actions.delete(formAction.previewId);
       const previewAction = actions.create(formAction.ownerId, { kind: 'auto-preview', ...preview });
       await interaction.deferUpdate();
       await interaction.editReply(autoRollPreviewPayload(
@@ -291,6 +292,22 @@ function createComponentHandler(context) {
         gameService.balance(formAction.ownerId),
         { initial: false },
       )).catch(() => null);
+      return true;
+    }
+    if (actionName === 'change' && interaction.isButton?.()) {
+      const preview = actions.get(token);
+      if (!preview || preview.kind !== 'auto-preview') {
+        await respondExpired(interaction, 'Auto Roll preview');
+        return true;
+      }
+      if (!await enforceOwner(interaction, preview, 'Auto Roll')) return true;
+      const formAction = actions.create(preview.ownerId, {
+        kind: 'auto-form',
+        previewId: preview.id,
+        normalized: preview.normalized,
+        selectedAutoSellRarities: preview.selectedAutoSellRarities,
+      });
+      await interaction.showModal(autoRollModal(formAction));
       return true;
     }
     if (actionName === 'start' && interaction.isButton?.()) {

@@ -13,7 +13,12 @@ const {
   RPS_STATES,
 } = require('../src/features/rng-game/config/rps');
 const { balancePayload } = require('../src/features/rng-game/components/builders');
-const { roundPayload } = require('../src/features/rng-game/components/rpsBuilders');
+const {
+  initialRpsPayload,
+  lobbyPayload,
+  opponentPickerPayload,
+  roundPayload,
+} = require('../src/features/rng-game/components/rpsBuilders');
 const { RpsTableRenderer } = require('../src/features/rng-game/services/rpsRenderer');
 const { MAX_BET, parseBet, payoutFor, resolveRps } = require('../src/features/rng-game/services/rpsRules');
 const {
@@ -314,6 +319,94 @@ test('Bot replay rejects bets above 1000, preserves the menu state, and chooses 
   game.close();
 });
 
+test('pre-round tables expose host cancellation and release the host for a new table', () => {
+  const game = feature();
+  const created = game.rpsService.createGame('guild', 'channel', profile('host'));
+  const initialButtons = initialRpsPayload(created.game).components[0].components
+    .flatMap((component) => component.components || []);
+  assert.ok(initialButtons.some((button) => button.label === 'Cancel Table'));
+  game.rpsService.chooseMode(created.game.id, 'host', 'human');
+  const pickerButtons = opponentPickerPayload(game.rpsService.game(created.game.id)).components[0].components
+    .flatMap((component) => component.components || []);
+  assert.ok(pickerButtons.some((button) => button.label === 'Cancel Table'));
+  const canceled = game.rpsService.cancel(created.game.id);
+  assert.equal(canceled.game.state, RPS_STATES.CANCELED);
+  assert.equal(game.rpsRepository.activeGameForUser('host'), null);
+  assert.equal(game.rpsService.createGame('guild', 'channel', profile('host')).status, 'ok');
+  game.close();
+});
+
+test('host can start with two accepted players while waiting players are removed without charge', () => {
+  const game = feature();
+  ['a', 'b', 'c', 'd'].forEach((id) => fund(game, id, { tokens: 1_000n }));
+  const gameId = createHumanLobby(game, ['a', 'b', 'c', 'd']);
+  let lobby = game.rpsService.game(gameId);
+  assert.equal(lobby.participants.find((participant) => participant.userId === 'a').accepted, true);
+  let startButton = lobbyPayload(lobby, Buffer.from('png')).components[0].components
+    .flatMap((component) => component.components || [])
+    .find((button) => button.custom_id === `rng:rps:start:${gameId}`);
+  assert.equal(startButton.style, 1);
+  assert.equal(startButton.disabled, true);
+  assert.equal(game.rpsService.accept(gameId, 'b').status, 'waiting');
+  lobby = game.rpsService.game(gameId);
+  startButton = lobbyPayload(lobby, Buffer.from('png')).components[0].components
+    .flatMap((component) => component.components || [])
+    .find((button) => button.custom_id === `rng:rps:start:${gameId}`);
+  assert.equal(startButton.disabled, false);
+  const started = game.rpsService.hostStart(gameId, 'a');
+  assert.equal(started.status, 'started');
+  assert.deepEqual(started.game.participants.map((participant) => participant.userId), ['a', 'b']);
+  assert.deepEqual(['a', 'b', 'c', 'd'].map((id) => game.repository.getPlayer(id).tokenBalance), [900n, 900n, 1_000n, 1_000n]);
+  assert.equal(game.rpsRepository.activeGameForUser('c'), null);
+  assert.equal(game.rpsRepository.activeGameForUser('d'), null);
+  game.close();
+});
+
+test('NO removes an invited player, preserves a viable lobby, and cancels a two-player lobby safely', () => {
+  const game = feature();
+  ['a', 'b', 'c', 'x', 'y'].forEach((id) => fund(game, id, { tokens: 1_000n }));
+  const gameId = createHumanLobby(game, ['a', 'b', 'c']);
+  game.rpsService.accept(gameId, 'b');
+  const declined = game.rpsService.decline(gameId, 'c');
+  assert.equal(declined.status, 'declined');
+  assert.deepEqual(declined.game.participants.map((participant) => participant.userId), ['a', 'b']);
+  assert.equal(game.rpsRepository.activeGameForUser('c'), null);
+  assert.equal(game.rpsService.hostStart(gameId, 'a').status, 'started');
+
+  const twoPlayer = createHumanLobby(game, ['x', 'y']);
+  const canceled = game.rpsService.decline(twoPlayer, 'y');
+  assert.equal(canceled.status, 'canceled');
+  assert.equal(canceled.game.state, RPS_STATES.CANCELED);
+  assert.equal(game.rpsRepository.activeGameForUser('x'), null);
+  assert.equal(game.rpsRepository.activeGameForUser('y'), null);
+  game.close();
+});
+
+test('finished PvP tables offer only change/same bet and replay through a fresh consent lobby', () => {
+  const game = feature();
+  fund(game, 'a', { tokens: 1_000n });
+  fund(game, 'b', { tokens: 1_000n });
+  const gameId = createHumanLobby(game, ['a', 'b']);
+  assert.equal(acceptAll(game, gameId, ['a', 'b']).status, 'started');
+  game.rpsService.commit(gameId, 'a', 'paper');
+  game.rpsService.commit(gameId, 'b', 'rock');
+  const finished = game.rpsService.reveal(gameId, 'a').game;
+  const replay = roundPayload(finished, Buffer.from('png')).components[0].components
+    .flatMap((component) => component.components || [])
+    .find((component) => component.custom_id === `rng:rps:replay:${gameId}`);
+  assert.deepEqual(replay.options.map(({ label, value }) => ({ label, value })), [
+    { label: 'Change bet', value: 'change' },
+    { label: 'Same bet', value: '1' },
+  ]);
+  const replayed = game.rpsService.replayHuman(gameId, 'a', finished.bet);
+  assert.equal(replayed.status, 'ok');
+  assert.equal(replayed.game.state, RPS_STATES.LOBBY);
+  assert.equal(replayed.game.participants.find((participant) => participant.userId === 'a').accepted, true);
+  assert.equal(replayed.game.participants.find((participant) => participant.userId === 'b').accepted, false);
+  assert.ok(replayed.game.participants.every((participant) => participant.choice === null));
+  game.close();
+});
+
 test('lobby authorization, turn authorization, higher bets, and terminal-state guards are authoritative', () => {
   const game = feature();
   ['a', 'b', 'c', 'intruder'].forEach((id) => fund(game, id, { tokens: 1_000n }));
@@ -323,7 +416,9 @@ test('lobby authorization, turn authorization, higher bets, and terminal-state g
   game.rpsService.accept(gameId, 'b');
   const higher = game.rpsService.proposeHigherBet(gameId, 'c', '150');
   assert.equal(higher.status, 'ok');
-  assert.ok(higher.game.participants.every((participant) => participant.accepted === false));
+  assert.equal(higher.game.participants.find((participant) => participant.userId === 'a').accepted, true);
+  assert.ok(higher.game.participants.filter((participant) => participant.userId !== 'a')
+    .every((participant) => participant.accepted === false));
   assert.equal(game.rpsService.proposeHigherBet(gameId, 'b', '150').status, 'not-higher');
   assert.equal(acceptAll(game, gameId, ['a', 'b', 'c']).status, 'started');
   assert.deepEqual(game.rpsService.commit(gameId, 'b', 'rock'), { status: 'not-turn', currentUserId: 'a' });
