@@ -10,7 +10,7 @@ const {
   parseDuration,
 } = require('../utils/autoRoll');
 
-const AUTO_SELL_RARITIES = Object.freeze(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Secret', 'Super']);
+const AUTO_SELL_RARITIES = Object.freeze(['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Super', 'Secret']);
 
 function normalizeAutoSellRarities(values) {
   const requested = new Set((values || []).map(String));

@@ -362,13 +362,21 @@ function autoRollPreviewPayload(action, balance, options = {}) {
     accent_color: 0x22C55E,
     components: [
       { type: 10, content: `### Auto roll for ${action.normalized}\n\n-# * Price per roll: ${formatInteger(action.costPerRoll)} ${SHECKLES_EMOJI}\n-# * Cost: ${formatInteger(action.totalCost)} ${SHECKLES_EMOJI}\n-# * Auto sell: ${autoSell}` },
-      { type: 1, components: [{
-        type: 2,
-        style: affordable ? 3 : 4,
-        label: affordable ? 'Start' : `You need ${formatInteger(missing)} more Sheckles!`.slice(0, 80),
-        custom_id: `rng:auto:start:${action.id}`,
-        disabled: !affordable,
-      }] },
+      { type: 1, components: [
+        {
+          type: 2,
+          style: affordable ? 3 : 4,
+          label: affordable ? 'Start' : `You need ${formatInteger(missing)} more Sheckles!`.slice(0, 80),
+          custom_id: `rng:auto:start:${action.id}`,
+          disabled: !affordable,
+        },
+        {
+          type: 2,
+          style: 2,
+          label: 'Change duration',
+          custom_id: `rng:auto:change:${action.id}`,
+        },
+      ] },
     ],
   }], options);
 }

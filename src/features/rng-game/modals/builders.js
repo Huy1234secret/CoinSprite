@@ -121,6 +121,7 @@ function autoRollModal(action) {
         min_length: 2,
         max_length: 30,
         required: true,
+        ...(action.normalized ? { value: action.normalized } : {}),
       }),
       label('Auto sell rarity', {
         type: 3,
@@ -129,7 +130,7 @@ function autoRollModal(action) {
         min_values: 0,
         max_values: AUTO_SELL_RARITIES.length,
         required: false,
-        options: rarityOptions(AUTO_SELL_RARITIES),
+        options: rarityOptions(AUTO_SELL_RARITIES, action.selectedAutoSellRarities),
       }),
     ],
   };

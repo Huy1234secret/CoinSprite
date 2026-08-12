@@ -36,6 +36,10 @@ function initialRpsPayload(game, options = {}) {
           ],
         }],
       },
+      {
+        type: 1,
+        components: [{ type: 2, style: 4, label: 'Cancel Table', custom_id: `rng:rps:cancel:${game.id}` }],
+      },
     ],
   }], options);
 }
@@ -56,6 +60,10 @@ function opponentPickerPayload(game, options = {}) {
           min_values: 1,
           max_values: 3,
         }],
+      },
+      {
+        type: 1,
+        components: [{ type: 2, style: 4, label: 'Cancel Table', custom_id: `rng:rps:cancel:${game.id}` }],
       },
     ],
   }], options);
@@ -113,9 +121,17 @@ function lobbyPayload(game, image, options = {}) {
     {
       type: 1,
       components: [
-        { type: 2, style: 4, label: 'NO', custom_id: `rng:rps:cancel:${game.id}` },
+        { type: 2, style: 4, label: 'NO', custom_id: `rng:rps:decline:${game.id}` },
         { type: 2, style: 2, label: 'BET!', custom_id: `rng:rps:accept:${game.id}` },
         { type: 2, style: 3, label: 'HIGHER BET!!!', custom_id: `rng:rps:higher:${game.id}` },
+        {
+          type: 2,
+          style: 1,
+          label: 'Start [Host only]',
+          custom_id: `rng:rps:start:${game.id}`,
+          disabled: game.participants.filter((participant) => participant.accepted).length < 2,
+        },
+        { type: 2, style: 4, label: 'Cancel Table', custom_id: `rng:rps:cancel:${game.id}` },
       ],
     },
   ];
@@ -148,6 +164,17 @@ function revealButton(game) {
 }
 
 function replayMenu(game) {
+  const options = [
+    { label: 'Change bet', value: 'change' },
+    { label: 'Same bet', value: '1' },
+  ];
+  if (game.mode === 'bot') {
+    options.push(
+      { label: '×2 Bet', value: '2' },
+      { label: '×4 Bet', value: '4' },
+      { label: '×10 Bet', value: '10' },
+    );
+  }
   return {
     type: 1,
     components: [{
@@ -156,13 +183,7 @@ function replayMenu(game) {
       placeholder: 'Select an option',
       min_values: 1,
       max_values: 1,
-      options: [
-        { label: 'Change bet', value: 'change' },
-        { label: 'Same bet', value: '1' },
-        { label: '×2 Bet', value: '2' },
-        { label: '×4 Bet', value: '4' },
-        { label: '×10 Bet', value: '10' },
-      ],
+      options,
     }],
   };
 }
@@ -197,8 +218,11 @@ function roundPayload(game, image, options = {}) {
   const afterImage = [
     { type: 10, content: prompt },
   ];
-  if (finished && game.mode === 'bot') {
-    afterImage.push({ type: 10, content: '-# Wanna play again with the Bot?' }, replayMenu(game));
+  if (finished) {
+    const replayPrompt = game.mode === 'bot'
+      ? '-# Wanna play again with the Bot?'
+      : '-# Wanna play again with the same table?';
+    afterImage.push({ type: 10, content: replayPrompt }, replayMenu(game));
   } else if (ready) {
     afterImage.push(revealButton(game));
   } else if (!finished) {

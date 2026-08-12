@@ -182,7 +182,9 @@ function createRpsComponentHandler(context) {
     try {
       result = action === 'human-bet'
         ? rpsService.startHumanLobby(game.id, interaction.user.id, modalText(interaction, 'bet'))
-        : rpsService.startBotRound(game.id, interaction.user.id, modalText(interaction, 'bet'));
+        : action === 'human-replay-bet'
+          ? rpsService.replayHuman(game.id, interaction.user.id, modalText(interaction, 'bet'))
+          : rpsService.startBotRound(game.id, interaction.user.id, modalText(interaction, 'bet'));
     } catch (error) {
       await ephemeralError(interaction, 'Invalid bet', error.message);
       return true;
@@ -221,13 +223,59 @@ function createRpsComponentHandler(context) {
   }
 
   async function cancelInteraction(interaction, game) {
-    if (!interaction.isButton?.() || !await participantOnly(interaction, game)) return true;
-    if (game.state !== RPS_STATES.LOBBY) {
-      await ephemeralError(interaction, 'Stale lobby', 'This table can no longer be canceled from the lobby controls.');
+    if (!interaction.isButton?.() || !await hostOnly(interaction, game)) return true;
+    if (![RPS_STATES.CHOOSING_MODE, RPS_STATES.LOBBY].includes(game.state)) {
+      await ephemeralError(interaction, 'Stale table', 'A table cannot be canceled after its round starts.');
       return true;
     }
     const result = rpsService.cancel(game.id);
     await interaction.update(canceledPayload(result.game, { initial: false })).catch(() => null);
+    return true;
+  }
+
+  async function declineInteraction(interaction, game) {
+    if (!interaction.isButton?.() || !await participantOnly(interaction, game)) return true;
+    if (game.state !== RPS_STATES.LOBBY) {
+      await ephemeralError(interaction, 'Stale lobby', 'This table is no longer accepting responses.');
+      return true;
+    }
+    const result = rpsService.decline(game.id, interaction.user.id);
+    if (result.status === 'canceled') {
+      await interaction.update(canceledPayload(result.game, { initial: false })).catch(() => null);
+      return true;
+    }
+    if (result.status !== 'declined') {
+      await ephemeralError(interaction, 'Response unavailable', 'You can no longer leave this lobby.');
+      return true;
+    }
+    await editRendered(interaction, result.game);
+    return true;
+  }
+
+  async function hostStartInteraction(interaction, game) {
+    if (!interaction.isButton?.() || !await hostOnly(interaction, game)) return true;
+    if (game.state !== RPS_STATES.LOBBY) {
+      await ephemeralError(interaction, 'Stale lobby', 'This round has already started or ended.');
+      return true;
+    }
+    const result = rpsService.hostStart(game.id, interaction.user.id);
+    if (result.status === 'not-enough-players') {
+      await ephemeralError(interaction, 'Not enough players', 'At least two accepted players are required to start.');
+      return true;
+    }
+    if (result.status === 'insufficient') {
+      await interaction.deferUpdate();
+      await interaction.followUp?.(errorPayload(
+        `Insufficient token balance\nNo one was charged. Missing funds: ${result.userIds.map((id) => `<@${id}>`).join(', ')}`,
+        { ephemeral: true },
+      )).catch?.(() => null);
+      return true;
+    }
+    if (result.status !== 'started') {
+      await ephemeralError(interaction, 'Start unavailable', 'This lobby can no longer start.');
+      return true;
+    }
+    await editRendered(interaction, result.game);
     return true;
   }
 
@@ -290,18 +338,21 @@ function createRpsComponentHandler(context) {
 
   async function replayInteraction(interaction, game) {
     if (!interaction.isStringSelectMenu?.() || !await hostOnly(interaction, game)) return true;
-    if (game.mode !== 'bot' || game.state !== RPS_STATES.FINISHED) {
+    if (!['bot', 'human'].includes(game.mode) || game.state !== RPS_STATES.FINISHED) {
       await ephemeralError(interaction, 'Replay unavailable', 'This replay control is stale.');
       return true;
     }
     const selection = interaction.values?.[0];
     if (selection === 'change') {
-      await interaction.showModal(rpsBetModal(game.id, 'replay-bet'));
+      const action = game.mode === 'human' ? 'human-replay-bet' : 'replay-bet';
+      await interaction.showModal(rpsBetModal(game.id, action));
       return true;
     }
     let result;
     try {
-      result = rpsService.replay(game.id, interaction.user.id, selection);
+      result = game.mode === 'human'
+        ? rpsService.replayHuman(game.id, interaction.user.id, game.bet)
+        : rpsService.replay(game.id, interaction.user.id, selection);
     } catch (error) {
       await ephemeralError(interaction, 'Replay bet unavailable', error.message);
       return true;
@@ -309,7 +360,9 @@ function createRpsComponentHandler(context) {
     if (result.status !== 'ok') {
       const message = result.status === 'insufficient'
         ? `You need **${result.missing}** more token value.`
-        : 'You are already participating in another active game.';
+        : result.status === 'participant-busy'
+          ? `<@${result.userId}> is already at another active table.`
+          : 'You are already participating in another active game.';
       await ephemeralError(interaction, 'Replay unavailable', message);
       return true;
     }
@@ -339,8 +392,12 @@ function createRpsComponentHandler(context) {
     }
     if (action === 'mode') return modeInteraction(interaction, game);
     if (action === 'opponents') return opponentsInteraction(interaction, game);
-    if (['bot-bet', 'human-bet', 'replay-bet'].includes(action)) return betModalInteraction(interaction, game, action);
+    if (['bot-bet', 'human-bet', 'replay-bet', 'human-replay-bet'].includes(action)) {
+      return betModalInteraction(interaction, game, action);
+    }
     if (action === 'accept') return acceptInteraction(interaction, game);
+    if (action === 'decline') return declineInteraction(interaction, game);
+    if (action === 'start') return hostStartInteraction(interaction, game);
     if (action === 'cancel') return cancelInteraction(interaction, game);
     if (action === 'higher') return higherInteraction(interaction, game);
     if (action === 'higher-submit') return higherSubmitInteraction(interaction, game);

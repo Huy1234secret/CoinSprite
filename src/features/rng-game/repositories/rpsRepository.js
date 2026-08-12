@@ -65,7 +65,9 @@ class RpsRepository {
         (game_id, user_id, seat, display_name, avatar_url) VALUES (?, ?, ?, ?, ?)`),
       insertActive: db.prepare('INSERT INTO rng_rps_active_players (user_id, game_id) VALUES (?, ?)'),
       deleteActiveForGame: db.prepare('DELETE FROM rng_rps_active_players WHERE game_id = ?'),
+      deleteActiveParticipant: db.prepare('DELETE FROM rng_rps_active_players WHERE user_id = ? AND game_id = ?'),
       deleteInvites: db.prepare('DELETE FROM rng_rps_participants WHERE game_id = ? AND seat > 0'),
+      deleteParticipant: db.prepare('DELETE FROM rng_rps_participants WHERE game_id = ? AND user_id = ?'),
       setMode: db.prepare('UPDATE rng_rps_games SET mode = ?, updated_at = ? WHERE game_id = ?'),
       setMessage: db.prepare('UPDATE rng_rps_games SET message_id = ?, updated_at = ? WHERE game_id = ?'),
       startLobby: db.prepare(`UPDATE rng_rps_games SET state = ?, bet = ?, current_turn = 0,
@@ -93,6 +95,33 @@ class RpsRepository {
       dueGames: db.prepare(`SELECT game_id FROM rng_rps_games
         WHERE state IN ('CHOOSING_MODE', 'LOBBY', 'IN_PROGRESS', 'READY_TO_REVEAL') AND expires_at <= ?
         ORDER BY expires_at, game_id`),
+    };
+
+    const startAcceptedHumanRound = (game, now, expiresAt) => {
+      const participants = this.participants(game.id);
+      const accepted = participants.filter((participant) => participant.accepted);
+      if (accepted.length < 2) return { status: 'not-enough-players' };
+      const insufficient = accepted.filter((participant) => (
+        this.gameRepository.getPlayer(participant.userId, now).tokenBalance < game.bet
+      ));
+      if (insufficient.length) return { status: 'insufficient', userIds: insufficient.map((entry) => entry.userId) };
+      for (const participant of participants.filter((entry) => !entry.accepted)) {
+        this.statements.deleteActiveParticipant.run(participant.userId, game.id);
+        this.statements.deleteParticipant.run(game.id, participant.userId);
+      }
+      for (const participant of accepted) {
+        const debit = this.statements.debitPlayer.run(game.bet, BigInt(now), participant.userId, game.bet);
+        if (Number(debit.changes) !== 1) throw new Error('RPS participant balance changed during atomic escrow.');
+        this.statements.markDebited.run(game.id, participant.userId);
+      }
+      this.statements.startHumanRound.run(
+        RPS_STATES.IN_PROGRESS,
+        game.bet * BigInt(accepted.length),
+        BigInt(expiresAt),
+        BigInt(now),
+        game.id,
+      );
+      return { status: 'started' };
     };
 
     this.createTransaction = db.transaction((gameId, guildId, channelId, profile, now, expiresAt) => {
@@ -123,7 +152,8 @@ class RpsRepository {
 
     this.startLobbyTransaction = db.transaction((gameId, hostUserId, bet, now, expiresAt) => {
       const game = this.game(gameId);
-      if (!game || game.hostUserId !== hostUserId || game.mode !== 'human' || game.state !== RPS_STATES.CHOOSING_MODE) {
+      if (!game || game.hostUserId !== hostUserId || game.mode !== 'human'
+        || ![RPS_STATES.CHOOSING_MODE, RPS_STATES.FINISHED].includes(game.state)) {
         return { status: 'stale' };
       }
       if (game.participants.length < 2 || game.participants.length > 4) return { status: 'invalid-participants' };
@@ -134,7 +164,8 @@ class RpsRepository {
       for (const participant of game.participants) {
         if (!this.statements.active.get(participant.userId)) this.statements.insertActive.run(participant.userId, gameId);
       }
-      this.statements.resetAcceptances.run(gameId);
+      this.statements.clearRoundParticipants.run(gameId);
+      this.statements.accept.run(gameId, hostUserId);
       this.statements.startLobby.run(RPS_STATES.LOBBY, bet, BigInt(expiresAt), BigInt(now), gameId);
       return { status: 'ok' };
     }).immediate;
@@ -169,23 +200,35 @@ class RpsRepository {
       this.statements.accept.run(gameId, userId);
       const participants = this.participants(gameId);
       if (!participants.every((participant) => participant.accepted)) return { status: 'waiting' };
-      const insufficient = participants.filter((participant) => (
-        this.gameRepository.getPlayer(participant.userId, now).tokenBalance < game.bet
-      ));
-      if (insufficient.length) return { status: 'insufficient', userIds: insufficient.map((entry) => entry.userId) };
-      for (const participant of participants) {
-        const debit = this.statements.debitPlayer.run(game.bet, BigInt(now), participant.userId, game.bet);
-        if (Number(debit.changes) !== 1) throw new Error('RPS participant balance changed during atomic escrow.');
-        this.statements.markDebited.run(gameId, participant.userId);
+      return startAcceptedHumanRound(game, now, expiresAt);
+    }).immediate;
+
+    this.hostStartTransaction = db.transaction((gameId, hostUserId, now, expiresAt) => {
+      const game = this.game(gameId);
+      if (!game || game.mode !== 'human' || game.state !== RPS_STATES.LOBBY
+        || game.hostUserId !== hostUserId) return { status: 'stale' };
+      return startAcceptedHumanRound(game, now, expiresAt);
+    }).immediate;
+
+    this.declineTransaction = db.transaction((gameId, userId, now) => {
+      const game = this.game(gameId);
+      if (!game || game.mode !== 'human' || game.state !== RPS_STATES.LOBBY) return { status: 'stale' };
+      if (!game.participants.some((participant) => participant.userId === userId)) return { status: 'unauthorized' };
+      if (game.hostUserId === userId) {
+        this.statements.clearDebits.run(gameId);
+        this.statements.finish.run(RPS_STATES.CANCELED, 'draw', null, BigInt(now), BigInt(now), gameId);
+        this.statements.deleteActiveForGame.run(gameId);
+        return { status: 'canceled' };
       }
-      this.statements.startHumanRound.run(
-        RPS_STATES.IN_PROGRESS,
-        game.bet * BigInt(participants.length),
-        BigInt(expiresAt),
-        BigInt(now),
-        gameId,
-      );
-      return { status: 'started' };
+      this.statements.deleteActiveParticipant.run(userId, gameId);
+      this.statements.deleteParticipant.run(gameId, userId);
+      if (this.participants(gameId).length < 2) {
+        this.statements.clearDebits.run(gameId);
+        this.statements.finish.run(RPS_STATES.CANCELED, 'draw', null, BigInt(now), BigInt(now), gameId);
+        this.statements.deleteActiveForGame.run(gameId);
+        return { status: 'canceled' };
+      }
+      return { status: 'declined' };
     }).immediate;
 
     this.higherBetTransaction = db.transaction((gameId, userId, bet, now, expiresAt) => {
@@ -195,6 +238,7 @@ class RpsRepository {
       if (bet <= game.bet) return { status: 'not-higher', currentBet: game.bet };
       this.statements.setHigherBet.run(bet, BigInt(expiresAt), BigInt(now), gameId);
       this.statements.resetAcceptances.run(gameId);
+      this.statements.accept.run(gameId, game.hostUserId);
       return { status: 'ok' };
     }).immediate;
 
@@ -337,6 +381,24 @@ class RpsRepository {
   accept(gameId, userId, now, expiresAt) {
     const result = this.acceptTransaction(String(gameId), String(userId), now, expiresAt);
     return { ...result, ...(['waiting', 'started', 'insufficient'].includes(result.status) ? { game: this.game(gameId) } : {}) };
+  }
+
+  hostStart(gameId, hostUserId, now, expiresAt) {
+    const result = this.hostStartTransaction(String(gameId), String(hostUserId), now, expiresAt);
+    return {
+      ...result,
+      ...(['started', 'not-enough-players', 'insufficient'].includes(result.status)
+        ? { game: this.game(gameId) }
+        : {}),
+    };
+  }
+
+  decline(gameId, userId, now = Date.now()) {
+    const result = this.declineTransaction(String(gameId), String(userId), now);
+    return {
+      ...result,
+      ...(['declined', 'canceled'].includes(result.status) ? { game: this.game(gameId) } : {}),
+    };
   }
 
   proposeHigherBet(gameId, userId, bet, now, expiresAt) {

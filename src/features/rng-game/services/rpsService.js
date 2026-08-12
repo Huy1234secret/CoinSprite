@@ -70,9 +70,25 @@ class RpsService {
     return this.startBotRound(gameId, hostUserId, game.bet * factor);
   }
 
+  replayHuman(gameId, hostUserId, rawBet) {
+    const game = this.game(gameId);
+    if (!game || game.mode !== 'human' || game.hostUserId !== String(hostUserId)
+      || game.state !== RPS_STATES.FINISHED) return { status: 'stale' };
+    return this.startHumanLobby(gameId, hostUserId, rawBet);
+  }
+
   accept(gameId, userId) {
     const now = this.now();
     return this.repository.accept(gameId, userId, now, now + this.turnTimeoutMs);
+  }
+
+  hostStart(gameId, hostUserId) {
+    const now = this.now();
+    return this.repository.hostStart(gameId, hostUserId, now, now + this.turnTimeoutMs);
+  }
+
+  decline(gameId, userId) {
+    return this.repository.decline(gameId, userId, this.now());
   }
 
   proposeHigherBet(gameId, userId, rawBet) {
