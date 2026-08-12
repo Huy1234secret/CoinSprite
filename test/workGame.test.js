@@ -26,6 +26,11 @@ const {
 } = require('../src/features/work/ranks');
 const { WORK_COOLDOWN_MS, shuffleIngredients } = require('../src/features/work/services/workService');
 const { COMPONENTS_V2_FLAG } = require('../src/features/shared/components');
+const {
+  WORK_STREAK_FAILURE_LIMIT,
+  WORK_STREAK_MAX,
+  WORK_STREAK_TIMEOUT_MS,
+} = require('../src/features/work/repositories/workRepository');
 
 function feature(options = {}) {
   let id = 0;
@@ -143,6 +148,14 @@ test('rank progress is local, clamped, and renders Ascendant as max rank', () =>
   assert.match(content(payload), /██████████ 100% — MAX RANK/);
 });
 
+test('work stats replace salary ranges with rank boost and work streak', () => {
+  const payload = statPayload('worker', { totalXp: 0n, workStreak: 42 }, WORK_GAMES);
+  const text = content(payload);
+  assert.match(text, /-# Rank boost: \+0% salary\./);
+  assert.match(text, /-# 🔥Work Streak: 42 `\+42% salary\.`/);
+  assert.doesNotMatch(text, /Salary:|per completed order|Token1/);
+});
+
 test('salary reward uses exact integer round-half-up', () => {
   assert.equal(boostedReward(30, 0), 30n);
   assert.equal(boostedReward(30, 2), 31n);
@@ -253,6 +266,89 @@ test('completion credits boosted tokens, base XP, and rank-up exactly once', () 
   assert.equal(replay.status, 'resolved');
   assert.equal(game.repository.getPlayer('worker').tokenBalance, 1n);
   assert.equal(game.workService.profile('worker').completedShifts, 1n);
+  assert.equal(game.workService.profile('worker').workStreak, 1);
+  game.close();
+});
+
+test('streak salary is captured at shift start and uses round-half-up reward math', () => {
+  const game = feature();
+  game.workRepository.ensureProfile('worker', 1);
+  game.db.prepare(`UPDATE rng_work_profiles SET work_streak = 50, last_shift_end_at = NULL
+    WHERE user_id = ?`).run('worker');
+  const session = start(game).session;
+  assert.equal(session.streakBoost, 50);
+  assert.equal(session.salaryBoost, 50);
+  const result = finishRecipe(game, session);
+  assert.equal(result.finalReward, 2n, 'base reward 1 with +50% rounds half up to 2');
+  assert.equal(game.workService.profile('worker').workStreak, 51);
+  game.close();
+});
+
+test('work streak caps at +1000% while rank boost remains additive', () => {
+  const game = feature();
+  game.workRepository.ensureProfile('worker', 1);
+  game.db.prepare(`UPDATE rng_work_profiles SET total_xp = 80000, work_streak = ?,
+    last_shift_end_at = NULL WHERE user_id = ?`).run(BigInt(WORK_STREAK_MAX), 'worker');
+  const session = start(game).session;
+  assert.equal(session.streakBoost, 1_000);
+  assert.equal(session.salaryBoost, 1_150);
+  finishRecipe(game, session);
+  assert.equal(game.workService.profile('worker').workStreak, 1_000);
+  game.close();
+});
+
+test('work streak expires at exactly twelve hours of inactivity', () => {
+  let now = 50_000;
+  const game = feature({ clock: () => now });
+  game.workRepository.ensureProfile('worker', now);
+  game.db.prepare(`UPDATE rng_work_profiles SET work_streak = 25, streak_failures = 3,
+    last_shift_end_at = ? WHERE user_id = ?`).run(BigInt(now), 'worker');
+  now += WORK_STREAK_TIMEOUT_MS - 1;
+  assert.deepEqual(
+    [game.workService.profile('worker').workStreak, game.workService.profile('worker').streakFailures],
+    [25, 3],
+  );
+  now += 1;
+  assert.deepEqual(
+    [game.workService.profile('worker').workStreak, game.workService.profile('worker').streakFailures],
+    [0, 0],
+  );
+  game.close();
+});
+
+test('the fifth failure breaks an active streak without changing lifetime failures', () => {
+  let now = 10_000;
+  const game = feature({ clock: () => now });
+  game.workRepository.ensureProfile('worker', now);
+  game.db.prepare(`UPDATE rng_work_profiles SET work_streak = 10, last_shift_end_at = ?
+    WHERE user_id = ?`).run(BigInt(now), 'worker');
+  for (let failure = 1; failure <= WORK_STREAK_FAILURE_LIMIT; failure += 1) {
+    now += 60 * 60 * 1_000;
+    const session = start(game).session;
+    const wrong = session.buttonSlots.find((slot) => slot.ingredient !== session.expectedRecipe[0]);
+    assert.equal(game.workService.press(session.id, 'worker', wrong.index).status, 'failed');
+    const profile = game.workService.profile('worker');
+    if (failure < WORK_STREAK_FAILURE_LIMIT) {
+      assert.equal(profile.workStreak, 10);
+      assert.equal(profile.streakFailures, failure);
+    } else {
+      assert.equal(profile.workStreak, 0);
+      assert.equal(profile.streakFailures, 0);
+    }
+    assert.equal(profile.failedShifts, BigInt(failure));
+  }
+  game.close();
+});
+
+test('successful work increments streak without clearing accumulated streak failures', () => {
+  const game = feature();
+  game.workRepository.ensureProfile('worker', 1);
+  game.db.prepare(`UPDATE rng_work_profiles SET work_streak = 3, streak_failures = 2,
+    last_shift_end_at = NULL WHERE user_id = ?`).run('worker');
+  finishRecipe(game, start(game).session);
+  const profile = game.workService.profile('worker');
+  assert.equal(profile.workStreak, 4);
+  assert.equal(profile.streakFailures, 2);
   game.close();
 });
 
@@ -396,6 +492,34 @@ test('migration 007 preserves an existing wallet balance', () => {
   migrate(db, allMigrations);
   assert.equal(db.prepare("SELECT token_balance FROM rng_players WHERE user_id = 'worker'").get().token_balance, 987n);
   assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rng_work_sessions'").get());
+  db.close();
+  fs.rmSync(directory, { recursive: true, force: true });
+});
+
+test('migration 008 preserves work profiles and initializes streak state', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'coinsprite-streak-'));
+  const databasePath = path.join(directory, 'rng.sqlite');
+  const allMigrations = path.join(__dirname, '..', 'src', 'features', 'rng-game', 'migrations');
+  const previousMigrations = path.join(directory, 'migrations');
+  fs.mkdirSync(previousMigrations);
+  for (const name of fs.readdirSync(allMigrations).filter((name) => name < '008_work_streaks.sql')) {
+    fs.copyFileSync(path.join(allMigrations, name), path.join(previousMigrations, name));
+  }
+  const db = openDatabase({ databasePath, migrationsPath: previousMigrations });
+  db.prepare(`INSERT INTO rng_players
+    (user_id, sheckle_balance, inventory_capacity, inventory_upgrade_level, token_balance, created_at, updated_at)
+    VALUES ('worker', 0, 100, 0, 77, 1, 1)`).run();
+  db.prepare(`INSERT INTO rng_work_profiles
+    (user_id, total_xp, completed_shifts, failed_shifts, total_token_salary, created_at, updated_at)
+    VALUES ('worker', 123, 4, 2, 55, 1, 1)`).run();
+  migrate(db, allMigrations);
+  const profile = db.prepare("SELECT * FROM rng_work_profiles WHERE user_id = 'worker'").get();
+  assert.deepEqual(
+    [profile.total_xp, profile.completed_shifts, profile.failed_shifts, profile.total_token_salary],
+    [123n, 4n, 2n, 55n],
+  );
+  assert.deepEqual([profile.work_streak, profile.streak_failures], [0n, 0n]);
+  assert.equal(db.prepare("SELECT token_balance FROM rng_players WHERE user_id = 'worker'").get().token_balance, 77n);
   db.close();
   fs.rmSync(directory, { recursive: true, force: true });
 });

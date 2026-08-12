@@ -2,7 +2,7 @@ const { componentEmoji } = require('../../shared/emojis');
 const { errorPayload, v2Payload, WHITE } = require('../../shared/components');
 const { formatTokenList } = require('../../rng-game/utils/tokens');
 const { WORK_HOME_MESSAGES, WORK_INGREDIENTS } = require('../data');
-const { boostedReward, progressBar, unlockedDifficulties, workProgress, workRank } = require('../ranks');
+const { progressBar, workProgress, workRank } = require('../ranks');
 
 const SECONDARY = 2;
 const SUCCESS = 3;
@@ -39,17 +39,9 @@ function homePayload(userId, random = (maximum) => Math.floor(Math.random() * ma
   }], options);
 }
 
-function eligibleCustomers(games, rank) {
-  const unlocked = new Set(unlockedDifficulties(rank.level));
-  return games.flatMap((game) => game.customers).filter((customer) => unlocked.has(customer.difficulty));
-}
-
-function statPayload(userId, profile, games, options = {}) {
+function statPayload(userId, profile, _games, options = {}) {
   const progress = workProgress(profile.totalXp);
-  const customers = eligibleCustomers(games, progress.rank);
-  const rewards = customers.map((customer) => boostedReward(customer.reward, progress.rank.salaryBoost));
-  const minimum = rewards.reduce((lowest, value) => (value < lowest ? value : lowest));
-  const maximum = rewards.reduce((highest, value) => (value > highest ? value : highest));
+  const workStreak = Number(profile.workStreak || 0);
   const progressText = progress.nextRank
     ? `${progressBar(progress.percent)} ${progress.percent}% — ${progress.currentRankXp}/${progress.requiredXp} XP`
     : `${progressBar(100)} 100% — MAX RANK`;
@@ -64,7 +56,7 @@ function statPayload(userId, profile, games, options = {}) {
       { type: 14, divider: true, spacing: 1 },
       {
         type: 10,
-        content: `-# Salary: ~${formatTokenList(minimum)} – ${formatTokenList(maximum)} per completed order • Rank boost: +${progress.rank.salaryBoost}%`,
+        content: `-# Rank boost: +${progress.rank.salaryBoost}% salary.\n-# 🔥Work Streak: ${workStreak} \`+${workStreak}% salary.\``,
       },
       { type: 1, components: [{ type: 2, style: SECONDARY, label: 'Back', custom_id: `work:back:${userId}` }] },
     ],
