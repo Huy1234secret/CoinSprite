@@ -15,7 +15,6 @@ const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRend
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
 const { WORK_COMMANDS, createWorkFeature } = require('../work');
-const { createInfoHandler } = require('./info/handler');
 
 const RNG_GAME_COMMANDS = Object.freeze([...BASE_RNG_GAME_COMMANDS, ...WORK_COMMANDS]);
 
@@ -172,7 +171,6 @@ function createRngGameFeature(options = {}) {
     tokenRepository,
   };
   const commands = createCommandHandlers(context);
-  const handleInfoInteraction = createInfoHandler(context);
   const handleComponent = createComponentHandler(context);
   const work = options.workFeature || createWorkFeature({
     db,
@@ -200,7 +198,6 @@ function createRngGameFeature(options = {}) {
     },
     async handleInteraction(interaction) {
       if (await commands.handleSlash(interaction)) return true;
-      if (await handleInfoInteraction(interaction)) return true;
       if (await handleComponent(interaction)) return true;
       return work.handleInteraction(interaction);
     },

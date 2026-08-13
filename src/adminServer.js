@@ -12,14 +12,12 @@ const {
   getGuildConfigRaw,
   loadState,
   saveState,
-  updateGuildRngInfo,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
 const { STUDS_TEXTURE_PATH } = require('./features/rng-game/services/indexRenderer');
-const { InfoPublisher } = require('./features/rng-game/info/publisher');
 const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
   handleOwnerConsole,
@@ -523,67 +521,6 @@ function channelKind(channel) {
   return 'text';
 }
 
-const INFO_CHANNEL_TYPES = new Set([ChannelType.GuildText, ChannelType.GuildAnnouncement]);
-const INFO_CHANNEL_PERMISSIONS = Object.freeze([
-  ['View Channel', PermissionFlagsBits.ViewChannel],
-  ['Send Messages', PermissionFlagsBits.SendMessages],
-  ['Read Message History', PermissionFlagsBits.ReadMessageHistory],
-]);
-
-function infoChannelPermissionStatus(channel, botMember) {
-  const permissions = channel?.permissionsFor?.(botMember);
-  const missing = INFO_CHANNEL_PERMISSIONS
-    .filter(([, flag]) => !permissions?.has?.(flag))
-    .map(([label]) => label);
-  return { usable: INFO_CHANNEL_TYPES.has(channel?.type) && missing.length === 0, missing };
-}
-
-async function resolveInfoChannel(guild, channelId) {
-  const id = String(channelId || '');
-  if (!/^\d{16,20}$/.test(id)) {
-    const error = new Error('Choose a valid information channel.');
-    error.statusCode = 400;
-    throw error;
-  }
-  const channel = guild.channels.cache?.get?.(id) || await guild.channels.fetch(id).catch(() => null);
-  if (!channel || String(channel.guildId || channel.guild?.id || '') !== String(guild.id)) {
-    const error = new Error('The information channel must belong to this server.');
-    error.statusCode = 400;
-    throw error;
-  }
-  if (!INFO_CHANNEL_TYPES.has(channel.type)) {
-    const error = new Error('Information can only be published in a normal text or announcement channel.');
-    error.statusCode = 400;
-    throw error;
-  }
-  const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
-  const permissionStatus = infoChannelPermissionStatus(channel, botMember);
-  if (permissionStatus.missing.length) {
-    const error = new Error(`CoinSprite is missing ${permissionStatus.missing.join(', ')} in that channel.`);
-    error.statusCode = 403;
-    throw error;
-  }
-  return channel;
-}
-
-function infoPublication(guildId, info, status = {}) {
-  const messageChannelId = String(info?.messageChannelId || '');
-  const messageId = String(info?.messageId || '');
-  return {
-    state: status.state || (messageId ? 'published' : 'not-published'),
-    canEdit: status.canEdit === true,
-    warning: String(status.warning || ''),
-    channelId: String(info?.channelId || ''),
-    messageChannelId,
-    messageId,
-    publishedAt: String(info?.publishedAt || ''),
-    messageVersion: Number(info?.messageVersion) || 1,
-    messageLink: messageChannelId && messageId
-      ? `https://discord.com/channels/${guildId}/${messageChannelId}/${messageId}`
-      : '',
-  };
-}
-
 async function fetchGuildDirectory(guild, force = false) {
   const cached = directoryCache.get(guild.id);
   if (!force && cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
@@ -605,20 +542,15 @@ async function fetchGuildDirectory(guild, force = false) {
   const missing = required.filter(([, flag]) => !botMember?.permissions?.has?.(flag)).map(([label]) => label);
 
   const directory = {
-    channels: allChannels.filter((channel) => channelKind(channel) !== 'category').map((channel) => {
-      const infoPermissions = infoChannelPermissionStatus(channel, botMember);
-      return {
-        id: channel.id,
-        name: channel.name,
-        kind: channelKind(channel),
-        parentId: channel.parentId || null,
-        parentName: channel.parentId ? parentNames.get(channel.parentId) || null : null,
-        archived: Boolean(channel.archived),
-        rawPosition: Number(channel.rawPosition) || 0,
-        infoUsable: infoPermissions.usable,
-        infoMissing: infoPermissions.missing,
-      };
-    }).sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '') || a.rawPosition - b.rawPosition || a.name.localeCompare(b.name)),
+    channels: allChannels.filter((channel) => channelKind(channel) !== 'category').map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      kind: channelKind(channel),
+      parentId: channel.parentId || null,
+      parentName: channel.parentId ? parentNames.get(channel.parentId) || null : null,
+      archived: Boolean(channel.archived),
+      rawPosition: Number(channel.rawPosition) || 0,
+    })).sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '') || a.rawPosition - b.rawPosition || a.name.localeCompare(b.name)),
     roles: [...roles.values()]
       .filter((role) => role.id !== guild.id && !role.managed)
       .map((role) => ({
@@ -796,52 +728,6 @@ async function routeRequest(req, res, env, client, services = {}) {
     return sendJson(res, 200, { guildId: directoryMatch[1], directory: await fetchGuildDirectory(auth.guild, force) });
   }
 
-  const rngInfoMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/rng-game\/info(?:\/(publish))?$/);
-  if (req.method === 'GET' && rngInfoMatch && !rngInfoMatch[2]) {
-    const guildId = rngInfoMatch[1];
-    const auth = await requireGuildAdmin(req, res, env, client, guildId);
-    if (!auth) return;
-    const config = getGuildConfigRaw(guildId);
-    if (config?.features?.rngGame !== true) {
-      return sendJson(res, 403, { error: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' });
-    }
-    const info = config.rngGame?.info || {};
-    const publisher = services.infoPublisher || new InfoPublisher({ client, token: env.botToken });
-    const status = await publisher.inspect(info);
-    return sendJson(res, 200, { guildId, publication: infoPublication(guildId, info, status) });
-  }
-  if (req.method === 'POST' && rngInfoMatch?.[2] === 'publish') {
-    const guildId = rngInfoMatch[1];
-    const auth = await requireGuildAdmin(req, res, env, client, guildId);
-    if (!auth || !requireCsrf(req, res, auth.session)) return;
-    const config = getGuildConfigRaw(guildId);
-    if (config?.features?.rngGame !== true) {
-      return sendJson(res, 403, { error: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' });
-    }
-    const body = await readJsonBody(req);
-    const channel = await resolveInfoChannel(auth.guild, body?.channelId);
-    const publisher = services.infoPublisher || new InfoPublisher({ client, token: env.botToken });
-    const published = await publisher.publish(channel.id, config.rngGame?.info || {});
-    const messageId = String(published.message?.id || '');
-    if (!/^\d{16,20}$/.test(messageId)) {
-      return sendJson(res, 502, { error: 'Discord returned an invalid information message reference.' });
-    }
-    const info = updateGuildRngInfo(guildId, {
-      channelId: channel.id,
-      messageChannelId: channel.id,
-      messageId,
-      publishedAt: new Date(Number(services.clock?.() ?? Date.now())).toISOString(),
-      messageVersion: published.messageVersion,
-    });
-    logCommandSystem(`Admin ${auth.session.user.id} ${published.action} the RNG information message for guild ${guildId} in channel ${channel.id}.`);
-    return sendJson(res, 200, {
-      guildId,
-      action: published.action,
-      config: publicConfig(getGuildConfigRaw(guildId)),
-      publication: infoPublication(guildId, info, { state: 'published', canEdit: true }),
-    });
-  }
-
   const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);
   if (req.method === 'POST' && internalCardMatch) {
     if (!hasInternalRenderKey(req, env.renderSecret)) return sendJson(res, 403, { error: 'Forbidden.' });
@@ -981,12 +867,6 @@ async function routeRequest(req, res, env, client, services = {}) {
       return sendJson(res, 400, { error: 'GAG stock, leveling, or RNG game configuration is required.' });
     }
 
-    let requestedInfoChannelId;
-    if (hasRngGame && body.rngGame.info && typeof body.rngGame.info === 'object' && !Array.isArray(body.rngGame.info)) {
-      requestedInfoChannelId = String(body.rngGame.info.channelId || '');
-      if (requestedInfoChannelId) requestedInfoChannelId = (await resolveInfoChannel(auth.guild, requestedInfoChannelId)).id;
-    }
-
     const state = loadState();
     state.guilds[guildId] ||= ensureGuildConfig(guildId);
     if (hasLeveling && state.guilds[guildId].features?.leveling !== true) {
@@ -1003,14 +883,7 @@ async function routeRequest(req, res, env, client, services = {}) {
     };
     if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
-    if (hasRngGame) {
-      const currentInfo = state.guilds[guildId].rngGame?.info || {};
-      state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
-      state.guilds[guildId].rngGame.info = {
-        ...currentInfo,
-        channelId: requestedInfoChannelId === undefined ? String(currentInfo.channelId || '') : requestedInfoChannelId,
-      };
-    }
+    if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
     saveState(state);
     const config = getGuildConfigRaw(guildId);
 
@@ -1084,10 +957,7 @@ function startAdminServer(client, services = {}) {
 module.exports = {
   createAdminRequestHandler,
   decodeLevelingMedia,
-  infoChannelPermissionStatus,
-  infoPublication,
   levelCardRendererHeaders,
-  resolveInfoChannel,
   routeRequest,
   safeOAuthReturnTo,
   startAdminServer,

@@ -80,6 +80,7 @@ test('dashboard exposes one focused stylesheet and script', () => {
   assert.match(html, /id="rngGameView"/);
   assert.match(html, /id="rngGameChannels"/);
   assert.match(html, /id="rngCooldownBypassRoles" multiple/);
+  assert.doesNotMatch(html, /infoChannelNav|infoChannelView|RNG Game Commands/);
   assert.match(html, /V2 COMMANDS/);
   assert.match(html, /CoinSprite <em>bot\.<\/em>/);
   assert.match(html, /1525195196864925817/);
@@ -130,13 +131,11 @@ test('only GAG stock is unlocked by default', () => {
     enabled: true,
     gameChannelIds: ['223456789012345678', '223456789012345679', '223456789012345678', 'invalid'],
     cooldownBypassRoleIds: ['323456789012345678', '323456789012345678', 'invalid'],
+    info: { channelId: '423456789012345678', messageId: '523456789012345678' },
   }), {
     enabled: true,
     gameChannelIds: ['223456789012345678', '223456789012345679'],
     cooldownBypassRoleIds: ['323456789012345678'],
-    info: {
-      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 3,
-    },
   });
   assert.deepEqual(config.normalizeRngGameConfig({ gameChannelId: '223456789012345678' }).gameChannelIds, [
     '223456789012345678',
@@ -165,9 +164,6 @@ test('schema migration keeps enabled optional features unlocked', () => {
     enabled: true,
     gameChannelIds: ['223456789012345678'],
     cooldownBypassRoleIds: [],
-    info: {
-      channelId: '', messageChannelId: '', messageId: '', publishedAt: '', messageVersion: 3,
-    },
   });
   assert.deepEqual(Object.keys(state.guilds[guildId].features).sort(), [
     'fullBot', 'gag2Stock', 'leveling', 'rngGame',
@@ -211,6 +207,19 @@ test('RNG dashboard supports selecting multiple game channels', () => {
   assert.match(html, /Selecting a forum enables every post in it/);
   assert.match(source, /rngGame\.gameChannelIds = \[\.\.\.target\.selectedOptions\]/);
   assert.match(source, /channelOptions\(rngGame\.gameChannelIds\)/);
+});
+
+test('RNG information publishing is absent from the web panel and Discord bot', () => {
+  const html = read('admin/index.html');
+  const dashboard = read('admin/app.js');
+  const server = read('src/adminServer.js');
+  const feature = read('src/features/rng-game/index.js');
+  assert.doesNotMatch(html, /info-channel|infoChannel|Publish information|RNG Game Commands/);
+  assert.doesNotMatch(dashboard, /infoChannel|infoPublication|rng-game\/info/);
+  assert.doesNotMatch(server, /InfoPublisher|rng-game\/info|updateGuildRngInfo/);
+  assert.doesNotMatch(feature, /createInfoHandler|handleInfoInteraction/);
+  const infoDirectory = path.join(root, 'src/features/rng-game/info');
+  assert.deepEqual(fs.existsSync(infoDirectory) ? fs.readdirSync(infoDirectory) : [], []);
 });
 
 test('notification settings use searchable dropdown item pickers', () => {
