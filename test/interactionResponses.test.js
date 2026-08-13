@@ -63,11 +63,11 @@ test('interaction diagnostics include selected control validation paths and payl
   } } } } } } } };
   error.requestBody = { json: {
     flags: MessageFlags.IsComponentsV2,
-    components: [{ type: 17, components: [{ type: 10, content: 'guide' }] }],
+    components: [{ type: 17, components: [{ type: 10, content: 'trade' }] }],
   } };
   const interaction = {
-    customId: 'rng:info:command:v3:123456789012345678:1',
-    values: ['roll'],
+    customId: 'rng:sale:select:123456789012345678',
+    values: ['crop-1'],
     commandName: '',
     guildId: '123456789012345678',
     channelId: '223456789012345678',
@@ -75,10 +75,10 @@ test('interaction diagnostics include selected control validation paths and payl
     replied: false,
     isStringSelectMenu: () => true,
   };
-  assert.equal(safeControlKind(interaction.customId), 'rng:info:command');
+  assert.equal(safeControlKind(interaction.customId), 'rng:sale:select');
   const diagnostic = formatInteractionFailure(error, interaction, { operation: 'defer-update', startedAt: Date.now() - 5 });
-  assert.match(diagnostic, /kind=string-select.*control=rng:info:command/);
-  assert.match(diagnostic, /customId="rng:info:command:v3:123456789012345678:1" selected="roll"/);
+  assert.match(diagnostic, /kind=string-select.*control=rng:sale:select/);
+  assert.match(diagnostic, /customId="rng:sale:select:123456789012345678" selected="crop-1"/);
   assert.match(diagnostic, /code=50035.*status=400/);
   assert.match(diagnostic, /components\[0\]\.components\[1\]\.components\[1\]\.custom_id/);
   assert.match(diagnostic, /COMPONENT_CUSTOM_ID_DUPLICATED.*Component custom id must be unique/);
