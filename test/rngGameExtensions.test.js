@@ -517,6 +517,24 @@ test('Index cards confine studs above the divider and keep the image stage and c
   renderer.clear();
 });
 
+test('Secret Index cards use a black-to-white gradient outline', async () => {
+  const renderer = new CropIndexRenderer({ loadImage: async () => { throw new Error('missing'); } });
+  const buffer = await renderer.render('secret-outline', ['eclipse_bloom'], 1);
+  const image = await loadImage(buffer);
+  const rendered = createCanvas(image.width, image.height);
+  const context = rendered.getContext('2d');
+  context.drawImage(image, 0, 0);
+  const pixelAt = (x, y) => [...context.getImageData(x, y, 1, 1).data];
+  const dark = pixelAt(220, 31);
+  const light = pixelAt(220, 389);
+  assert.equal(dark[0], dark[1]);
+  assert.equal(dark[1], dark[2]);
+  assert.equal(light[0], light[1]);
+  assert.equal(light[1], light[2]);
+  assert.ok(light[0] > dark[0], 'the diagonal Secret outline fades from black toward white');
+  renderer.clear();
+});
+
 test('Index render cache is reused and invalidated only for the affected user', async () => {
   const image = createCanvas(16, 16);
   const renderer = new CropIndexRenderer({ loadImage: async () => image, studsPath: 'studs' });
