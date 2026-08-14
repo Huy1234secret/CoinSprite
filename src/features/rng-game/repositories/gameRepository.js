@@ -17,6 +17,9 @@ function inventoryItem(row) {
     weightUnits: Number(row.weight_units),
     value: row.stored_value,
     isBig: Boolean(row.is_big),
+    modifierSnapshot: (() => {
+      try { return JSON.parse(row.modifier_snapshot_json || '{}'); } catch { return {}; }
+    })(),
     rolledAt: Number(row.rolled_at),
   };
 }
@@ -82,6 +85,8 @@ function sqliteSafeStatistic(value, label) {
 class RngGameRepository {
   constructor(db) {
     this.db = db;
+    this.hasModifierSnapshot = db.pragma('table_info(rng_inventory_items)')
+      .some((column) => column.name === 'modifier_snapshot_json');
     this.statements = {
       ensurePlayer: db.prepare(`INSERT OR IGNORE INTO rng_players
         (user_id, sheckle_balance, inventory_capacity, inventory_upgrade_level, created_at, updated_at)
@@ -115,9 +120,13 @@ class RngGameRepository {
       cooldown: db.prepare('SELECT available_at FROM rng_roll_cooldowns WHERE user_id = ?'),
       saveCooldown: db.prepare(`INSERT INTO rng_roll_cooldowns (user_id, available_at) VALUES (?, ?)
         ON CONFLICT(user_id) DO UPDATE SET available_at = excluded.available_at`),
-      insertItem: db.prepare(`INSERT INTO rng_inventory_items
-        (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+      insertItem: db.prepare(this.hasModifierSnapshot
+        ? `INSERT INTO rng_inventory_items
+          (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, modifier_snapshot_json, rolled_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        : `INSERT INTO rng_inventory_items
+          (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
       discover: db.prepare(`INSERT OR IGNORE INTO rng_crop_discoveries
         (user_id, seed_id, discovered_at) VALUES (?, ?, ?)`),
       discoveries: db.prepare(`SELECT seed_id, discovered_at FROM rng_crop_discoveries
@@ -137,7 +146,7 @@ class RngGameRepository {
         (operation_key, user_id, operation_kind, result_json, created_at) VALUES (?, ?, ?, ?, ?)`),
     };
 
-    this.rollTransaction = db.transaction((userId, createInstance, now, cooldownMs, isLocked, bypassCooldown) => {
+    this.rollTransaction = db.transaction((userId, createInstance, now, cooldownMs, isLocked, bypassCooldown, afterInsert) => {
       this.ensurePlayer(userId, now);
       const player = playerRecord(this.statements.player.get(userId));
       const itemCount = this.statements.inventoryCount.get(userId).count;
@@ -155,7 +164,7 @@ class RngGameRepository {
       const instance = createInstance(player);
       const nextAvailableAt = currentTime + BigInt(cooldownMs);
       if (!bypassCooldown) this.statements.saveCooldown.run(userId, nextAvailableAt);
-      const inserted = this.statements.insertItem.run(
+      const insertArguments = [
         userId,
         instance.seed.id,
         instance.seed.displayName,
@@ -163,10 +172,13 @@ class RngGameRepository {
         BigInt(instance.weightUnits),
         BigInt(instance.value),
         instance.isBig ? 1 : 0,
-        currentTime,
-      );
+      ];
+      if (this.hasModifierSnapshot) insertArguments.push(JSON.stringify(instance.modifierSnapshot || {}));
+      insertArguments.push(currentTime);
+      const inserted = this.statements.insertItem.run(...insertArguments);
       const discoveredNew = Number(this.statements.discover.run(userId, instance.seed.id, currentTime).changes) === 1;
       this.recordSuccessfulRoll(userId, instance.seed.id, instance.weightUnits, currentTime, false);
+      if (afterInsert) afterInsert(instance);
       this.statements.touchPlayer.run(currentTime, userId);
       return {
         status: 'ok',
@@ -379,6 +391,7 @@ class RngGameRepository {
       options.cooldownMs ?? 5_000,
       options.isLocked,
       options.bypassCooldown === true,
+      options.afterInsert,
     );
   }
 

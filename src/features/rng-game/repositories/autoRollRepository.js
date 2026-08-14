@@ -61,8 +61,8 @@ class AutoRollRepository {
       item: db.prepare('SELECT * FROM rng_inventory_items WHERE id = ?'),
       deleteItem: db.prepare('DELETE FROM rng_inventory_items WHERE id = ? AND owner_user_id = ?'),
       insertItem: db.prepare(`INSERT INTO rng_inventory_items
-        (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, rolled_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+        (owner_user_id, seed_id, crop_name, rarity, weight_units, stored_value, is_big, modifier_snapshot_json, rolled_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
       discover: db.prepare(`INSERT OR IGNORE INTO rng_crop_discoveries
         (user_id, seed_id, discovered_at) VALUES (?, ?, ?)`),
       insertTick: db.prepare(`INSERT OR IGNORE INTO rng_auto_roll_ticks
@@ -122,7 +122,7 @@ class AutoRollRepository {
       return true;
     }).immediate;
 
-    this.tickTransaction = db.transaction((jobId, scheduledTick, now, createInstance) => {
+    this.tickTransaction = db.transaction((jobId, scheduledTick, now, createInstance, afterInsert) => {
       const row = this.statements.job.get(BigInt(jobId));
       const job = autoRollJob(row);
       if (!job || job.status !== 'active') return { status: 'inactive', job };
@@ -185,6 +185,7 @@ class AutoRollRepository {
         BigInt(instance.weightUnits),
         BigInt(instance.value),
         instance.isBig ? 1 : 0,
+        JSON.stringify(instance.modifierSnapshot || {}),
         BigInt(scheduledTick),
       );
       const discoveredNew = Number(this.statements.discover.run(job.userId, instance.seed.id, BigInt(now)).changes) === 1;
@@ -195,6 +196,7 @@ class AutoRollRepository {
         BigInt(scheduledTick),
         true,
       );
+      if (afterInsert) afterInsert(job.userId, instance);
       const completedRolls = job.completedRolls + 1;
       const summaryCounts = { ...job.summaryCounts, [instance.seed.id]: (job.summaryCounts[instance.seed.id] || 0) + 1 };
       const nextTickAt = scheduledTick + AUTO_ROLL_INTERVAL_MS;
@@ -252,8 +254,8 @@ class AutoRollRepository {
     return this.statements.unnotified.all(BigInt(Math.max(1, Math.min(500, limit)))).map(autoRollJob);
   }
 
-  processTick(jobId, scheduledTick, createInstance, now = Date.now()) {
-    return this.tickTransaction(String(jobId), Number(scheduledTick), Number(now), createInstance);
+  processTick(jobId, scheduledTick, createInstance, now = Date.now(), afterInsert) {
+    return this.tickTransaction(String(jobId), Number(scheduledTick), Number(now), createInstance, afterInsert);
   }
 
   markNotified(jobId, now = Date.now()) {

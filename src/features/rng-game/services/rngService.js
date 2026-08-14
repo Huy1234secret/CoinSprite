@@ -8,6 +8,10 @@ const {
 } = require('../config/upgrades');
 
 const PROBABILITY_SCALE = 1_000_000_000n;
+const BIG_CHANCE_BPS_DENOMINATOR = 10_000;
+const MAX_EFFECTIVE_BIG_CHANCE_BPS = 1_000;
+const MAX_WEIGHT_MULTIPLIER_BPS = 17_500;
+const MAX_VALUE_BONUS_BPS = 2_000;
 const RARITY_ORDER = Object.freeze([
   'Common',
   'Uncommon',
@@ -180,10 +184,54 @@ const LUCK_RARITY_DISTRIBUTIONS = Object.freeze(Array.from(
   (_, tier) => directLuckDistribution(BASE_RARITY_DISTRIBUTION, BigInt(tier)),
 ));
 
+function rarityTargets(modifier) {
+  if (modifier.kind === 'rarity' && RARITY_ORDER.includes(modifier.rarity)) return [modifier.rarity];
+  if (modifier.kind !== 'rarity-group') return [];
+  const gameplayOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Super', 'Secret'];
+  const minimum = gameplayOrder.indexOf(modifier.minimumRarity);
+  if (minimum < 0) return [];
+  return gameplayOrder.slice(minimum).filter((rarity) => !(modifier.excludeSecret && rarity === 'Secret'));
+}
+
+function applyRarityModifiers(distribution, modifiers = [], baseDistribution = BASE_RARITY_DISTRIBUTION) {
+  const result = Object.fromEntries(RARITY_ORDER.map((rarity) => [rarity, BigInt(distribution[rarity] || 0n)]));
+  const petBase = { ...result };
+  for (const modifier of modifiers || []) {
+    const numerator = BigInt(modifier.numerator || 1);
+    const denominator = BigInt(modifier.denominator || 1);
+    if (numerator <= denominator || denominator <= 0n) continue;
+    for (const rarity of rarityTargets(modifier)) {
+      if (rarity === 'Common') continue;
+      const current = result[rarity];
+      let desired;
+      if (modifier.baseOnly) {
+        desired = current + ((baseDistribution[rarity] * (numerator - denominator)) / denominator);
+      } else {
+        desired = (current * numerator) / denominator;
+      }
+      if (modifier.phase === 'pet') {
+        const petCap = (petBase[rarity] * 150n) / 100n;
+        if (desired > petCap) desired = petCap;
+      }
+      const requested = desired > current ? desired - current : 0n;
+      const moved = requested < result.Common ? requested : result.Common;
+      result[rarity] += moved;
+      result.Common -= moved;
+    }
+  }
+  if (RARITY_ORDER.reduce((sum, rarity) => sum + result[rarity], 0n) !== PROBABILITY_SCALE) {
+    throw new Error('Modified rarity units must total exactly PROBABILITY_SCALE.');
+  }
+  return Object.freeze(result);
+}
+
 function rarityDistribution(luckTier = 0, options = {}) {
   const tier = normalizedTier(luckTier);
-  if (!options.checkedSeeds && !options.fallbackSeed) return LUCK_RARITY_DISTRIBUTIONS[tier];
-  return directLuckDistribution(baseRarityDistribution(baseCropDistribution(options)), BigInt(tier));
+  const custom = options.checkedSeeds || options.fallbackSeed;
+  const base = custom ? baseRarityDistribution(baseCropDistribution(options)) : BASE_RARITY_DISTRIBUTION;
+  const luck = custom ? directLuckDistribution(base, BigInt(tier)) : LUCK_RARITY_DISTRIBUTIONS[tier];
+  if (!options.rarityModifiers?.length) return luck;
+  return applyRarityModifiers(luck, options.rarityModifiers, base);
 }
 
 function positiveWholeBigInt(value) {
@@ -270,14 +318,42 @@ function generateInstance(seed, rng = secureRandomInt, options = {}) {
   const { minimum, maximum } = weightBounds(seed);
   const baseWeightUnits = minimum + checkedRandomInt(rng, maximum - minimum + 1);
   const chance = bigChance(options.bigCropTier);
-  const isBig = chance.numerator > 0 && checkedRandomInt(rng, chance.denominator) < chance.numerator;
-  const baseValue = valueForWeight(seed, baseWeightUnits);
+  const baseBigBps = Math.floor((chance.numerator * BIG_CHANCE_BPS_DENOMINATOR) / chance.denominator);
+  const effectiveBigChanceBps = Math.min(
+    MAX_EFFECTIVE_BIG_CHANCE_BPS,
+    Math.max(0, baseBigBps + Math.floor(Number(options.bigBonusBps) || 0)),
+  );
+  const isBig = effectiveBigChanceBps > 0
+    && checkedRandomInt(rng, BIG_CHANCE_BPS_DENOMINATOR) < effectiveBigChanceBps;
+  const weightMultiplierBps = Math.max(0, Math.min(
+    MAX_WEIGHT_MULTIPLIER_BPS,
+    Math.floor(Number(options.weightMultiplierBps) || 10_000),
+  ));
+  const weightedBaseUnits = Math.max(0, Math.floor((baseWeightUnits * weightMultiplierBps) / 10_000));
+  const valueBonusBps = Math.max(0, Math.min(
+    MAX_VALUE_BONUS_BPS,
+    Math.floor(Number(options.valueBonusBps) || 0),
+  ));
+  const weightedValue = valueForWeight(seed, weightedBaseUnits, { clamp: false });
+  const baseValue = (weightedValue * BigInt(10_000 + valueBonusBps)) / 10_000n;
+  const modifierSnapshot = Object.freeze({
+    rarityModifiers: (options.rarityModifiers || []).map((entry) => ({ ...entry })),
+    weightMultiplierBps,
+    valueBonusBps,
+    bigBonusBps: Math.floor(Number(options.bigBonusBps) || 0),
+    effectiveBigChanceBps,
+    wateringCanItemId: options.wateringCanItemId || null,
+    equippedPetInstanceIds: [...(options.equippedPetInstanceIds || [])],
+    activeItemIds: [...(options.activeItemIds || [])],
+  });
   return {
     seed,
     baseWeightUnits,
-    weightUnits: isBig ? baseWeightUnits * 4 : baseWeightUnits,
+    weightedBaseUnits,
+    weightUnits: isBig ? weightedBaseUnits * 4 : weightedBaseUnits,
     isBig,
     value: isBig ? baseValue * 4n : baseValue,
+    modifierSnapshot,
   };
 }
 
@@ -355,6 +431,7 @@ function luckProbabilityReport() {
 module.exports = {
   BASE_CROP_DISTRIBUTION,
   BASE_RARITY_DISTRIBUTION,
+  BIG_CHANCE_BPS_DENOMINATOR,
   LUCK_RARITY_DISTRIBUTIONS,
   MAX_BIG_CROP_TIER,
   MAX_LUCK_RARITY_UNITS,
@@ -362,6 +439,7 @@ module.exports = {
   PROBABILITY_SCALE,
   RARITY_ORDER,
   addRational,
+  applyRarityModifiers,
   averageValueForSeed,
   averageValueFractionForSeed,
   baseCropDistribution,

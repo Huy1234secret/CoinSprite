@@ -1,6 +1,7 @@
 const { SEEDS } = require('../data/seeds');
 const { upgradeCost } = require('../services/gameService');
 const { filterInventory, normalizeCropName, parseWeightThreshold } = require('../utils/normalize');
+const { formatInteger } = require('../utils/format');
 const {
   errorPayload,
   autoRollPreviewPayload,
@@ -23,11 +24,24 @@ const {
   inventoryFilterModal,
   inventoryPageModal,
   sellFilterModal,
+  petEquipModal,
+  shopPurchaseModal,
 } = require('../modals/builders');
+const { ITEM_BY_ID } = require('../data/items');
+const { PET_SLOT_PRICES } = require('../data/pets');
+const {
+  purchasePreviewPayload,
+  purchaseResultPayload,
+  shopPayload,
+  unlockPreviewPayload,
+} = require('./itemBuilders');
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { indexDiscoveryCount } = require('../services/indexRenderer');
 const { createRpsComponentHandler } = require('./rpsHandler');
-const { acknowledgeUpdate, sendEphemeral } = require('../../shared/interactionResponses');
+const {
+  acknowledgeUpdate,
+  sendEphemeral,
+} = require('../../shared/interactionResponses');
 
 const NORMALIZED_SEEDS = new Map(SEEDS.map((seed) => [normalizeCropName(seed.displayName), seed]));
 
@@ -70,14 +84,25 @@ function createComponentHandler(context) {
     gameService,
     indexRenderer,
     indexViews,
+    itemRepository,
     inventoryViews,
     repository,
     saleSessions,
+    shopService,
+    shopViews,
   } = context;
   const handleRpsComponent = createRpsComponentHandler(context);
 
   function acknowledge(interaction) {
     return acknowledgeUpdate(interaction, { reportError: context.reportError, startedAt: Date.now() });
+  }
+
+  function fullInventoryState(userId) {
+    return {
+      crops: gameService.inventory(userId),
+      itemInventory: itemRepository.itemInventory(userId),
+      pets: itemRepository.petState(userId),
+    };
   }
 
   async function inventoryInteraction(interaction, parts) {
@@ -89,6 +114,24 @@ function createComponentHandler(context) {
       return true;
     }
     if (!await enforceOwner(interaction, view, 'inventory')) return true;
+    if (action === 'type' && interaction.isStringSelectMenu?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const type = String(interaction.values?.[0] || '');
+      if (!['crops', 'items', 'pets'].includes(type)) {
+        await sendEphemeral(interaction, errorPayload('Invalid inventory type\nChoose Crops, Items, or Pets.', { ephemeral: true }));
+        return true;
+      }
+      view.type = type;
+      view.page = 1;
+      await interaction.editReply(inventoryPayload(interaction.user, fullInventoryState(view.ownerId), view, { initial: false }));
+      return true;
+    }
+    if ((action === 'prev' || action === 'next') && interaction.isButton?.()) {
+      if (!await acknowledge(interaction)) return true;
+      view.page += action === 'prev' ? -1 : 1;
+      await interaction.editReply(inventoryPayload(interaction.user, fullInventoryState(view.ownerId), view, { initial: false }));
+      return true;
+    }
     if (action === 'page' && interaction.isButton?.()) {
       const state = gameService.inventory(view.ownerId);
       const page = inventoryPageData(state, view);
@@ -105,7 +148,7 @@ function createComponentHandler(context) {
         return true;
       }
       view.page = page;
-      await interaction.editReply(inventoryPayload(interaction.user, state, view));
+      await interaction.editReply(inventoryPayload(interaction.user, fullInventoryState(view.ownerId), view, { initial: false }));
       return true;
     }
     if (action === 'filter' && interaction.isButton?.()) {
@@ -134,7 +177,7 @@ function createComponentHandler(context) {
         rarity,
       };
       view.page = 1;
-      await interaction.editReply(inventoryPayload(interaction.user, state, view));
+      await interaction.editReply(inventoryPayload(interaction.user, fullInventoryState(view.ownerId), view, { initial: false }));
       return true;
     }
     if (action === 'upgrade' && interaction.isButton?.()) {
@@ -163,8 +206,12 @@ function createComponentHandler(context) {
     await interaction.editReply(textContainer(`Inventory upgraded\nYour capacity is now **${result.inventoryCapacity}**.`, { color: 0x22C55E, initial: false }));
     const view = inventoryViews.get(action.viewId, { touch: false });
     if (view?.editOriginal) {
-      const state = gameService.inventory(interaction.user.id);
-      await view.editOriginal(inventoryPayload(interaction.user, state, view)).catch(() => null);
+      await view.editOriginal(inventoryPayload(
+        interaction.user,
+        fullInventoryState(interaction.user.id),
+        view,
+        { initial: false },
+      )).catch(() => null);
     }
     return true;
   }
@@ -423,6 +470,243 @@ function createComponentHandler(context) {
     return false;
   }
 
+  async function shopInteraction(interaction, parts) {
+    const actionName = parts[2];
+    if (actionName === 'confirm' || actionName === 'cancel') {
+      const action = actions.get(parts[3]);
+      if (!action || action.kind !== 'shop-purchase') {
+        await respondExpired(interaction, 'purchase confirmation');
+        return true;
+      }
+      if (!await enforceOwner(interaction, action, 'purchase')) return true;
+      if (!await acknowledge(interaction)) return true;
+      const claimed = actions.claim(action.id, interaction.user.id);
+      if (!claimed) {
+        await interaction.editReply(errorPayload('Purchase already handled\nOpen the shop again to make another purchase.', { initial: false }));
+        return true;
+      }
+      if (actionName === 'cancel') {
+        await interaction.editReply(textContainer('Purchase cancelled\nYour balance, stock, and inventory were not changed.', { color: 0x64748B, initial: false }));
+        return true;
+      }
+      let result;
+      try {
+        result = shopService.purchase(
+          interaction.user.id,
+          claimed.itemId,
+          claimed.amount,
+          `shop-purchase:${claimed.id}`,
+        );
+      } catch (error) {
+        if (error instanceof RangeError) {
+          await interaction.editReply(errorPayload(`Purchase unavailable\n${error.message}`, { initial: false }));
+          return true;
+        }
+        throw error;
+      }
+      if (result.status !== 'ok') {
+        let message = 'The purchase could not be completed.';
+        if (result.status === 'stock') message = `Only **${result.available || 0}** remain in the current restock.`;
+        if (result.status === 'insufficient') message = `You need **${formatInteger(result.missing)}** more Sheckles.`;
+        if (result.status === 'stale-restock') message = 'The shop restocked. Select the item again to use current stock and pricing.';
+        await interaction.editReply(errorPayload(`Purchase unavailable\n${message}`, { initial: false }));
+        return true;
+      }
+      await interaction.editReply(purchaseResultPayload(result, { initial: false }));
+      const view = shopViews.get(claimed.viewId, { touch: false });
+      if (view?.editOriginal) {
+        const page = await shopService.page(view.page);
+        view.page = page.page;
+        await view.editOriginal(shopPayload(page, view, { initial: false })).catch(() => null);
+      }
+      return true;
+    }
+
+    if (actionName === 'amount' && interaction.isModalSubmit?.()) {
+      const view = shopViews.get(parts[3]);
+      if (!view) {
+        await respondExpired(interaction, 'shop controls');
+        return true;
+      }
+      if (!await enforceOwner(interaction, view, 'shop')) return true;
+      const item = ITEM_BY_ID.get(parts[4]);
+      const amountText = textFromModal(interaction.fields, 'amount').trim();
+      if (!item || !/^[1-9]\d*$/.test(amountText)) {
+        await sendEphemeral(interaction, errorPayload('Invalid purchase amount\nEnter a positive whole number.', { ephemeral: true }));
+        return true;
+      }
+      let amount;
+      try {
+        amount = BigInt(amountText);
+        if (amount > 9_223_372_036_854_775_807n) throw new RangeError('amount overflow');
+      } catch {
+        await sendEphemeral(interaction, errorPayload('Invalid purchase amount\nThe amount is too large.', { ephemeral: true }));
+        return true;
+      }
+      const state = shopService.state();
+      const current = state.items.find((entry) => entry.id === item.id);
+      if (!current || current.stockRemaining < amount) {
+        await sendEphemeral(interaction, errorPayload(`Not enough stock\nOnly **${current?.stockRemaining || 0}** remain. Nothing was charged.`, { ephemeral: true }));
+        return true;
+      }
+      const total = current.price * amount;
+      const player = repository.getPlayer(interaction.user.id);
+      if (player.balance < total) {
+        await sendEphemeral(interaction, errorPayload(`Insufficient balance\nYou need **${formatInteger(total - player.balance)}** more Sheckles.`, { ephemeral: true }));
+        return true;
+      }
+      const purchaseAction = actions.create(interaction.user.id, {
+        kind: 'shop-purchase',
+        viewId: view.id,
+        itemId: item.id,
+        amount,
+        previewPrice: current.price,
+      });
+      await interaction.reply(purchasePreviewPayload(purchaseAction, item));
+      return true;
+    }
+
+    const view = shopViews.get(parts[3]);
+    if (!view) {
+      await respondExpired(interaction, 'shop controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, view, 'shop')) return true;
+    if (actionName === 'select' && interaction.isStringSelectMenu?.()) {
+      const item = ITEM_BY_ID.get(String(interaction.values?.[0] || ''));
+      const state = shopService.state();
+      const current = state.items.find((entry) => entry.id === item?.id);
+      if (!item || !current) {
+        await sendEphemeral(interaction, errorPayload('Item unavailable\nRefresh the shop and choose an item shown on the current page.', { ephemeral: true }));
+        return true;
+      }
+      if (current.stockRemaining <= 0n) {
+        await sendEphemeral(interaction, errorPayload('Out of stock\nThis item cannot be purchased until a future restock.', { ephemeral: true }));
+        return true;
+      }
+      await interaction.showModal(shopPurchaseModal(view, item));
+      return true;
+    }
+    if ((actionName === 'prev' || actionName === 'next') && interaction.isButton?.()) {
+      if (!await acknowledge(interaction)) return true;
+      view.page += actionName === 'prev' ? -1 : 1;
+      const page = await shopService.page(view.page);
+      view.page = page.page;
+      await interaction.editReply(shopPayload(page, view, { initial: false }));
+      return true;
+    }
+    return false;
+  }
+
+  async function petInteraction(interaction, parts) {
+    const actionName = parts[2];
+    if (actionName === 'unlock' || actionName === 'cancel') {
+      const action = actions.get(parts[3]);
+      if (!action || action.kind !== 'pet-slot-unlock') {
+        await respondExpired(interaction, 'pet slot confirmation');
+        return true;
+      }
+      if (!await enforceOwner(interaction, action, 'pet slot confirmation')) return true;
+      if (!await acknowledge(interaction)) return true;
+      const claimed = actions.claim(action.id, interaction.user.id);
+      if (!claimed) {
+        await interaction.editReply(errorPayload('Pet slot already handled\nRefresh your inventory.', { initial: false }));
+        return true;
+      }
+      if (actionName === 'cancel') {
+        await interaction.editReply(textContainer('Pet slot unlock cancelled\nYour balance was not changed.', { color: 0x64748B, initial: false }));
+        return true;
+      }
+      const result = itemRepository.unlockSlot(
+        interaction.user.id,
+        claimed.slotNumber,
+        `pet-slot-unlock:${claimed.id}`,
+      );
+      if (result.status !== 'ok') {
+        const reason = result.status === 'insufficient'
+          ? `You need **${formatInteger(result.missing)}** more Sheckles.`
+          : 'That slot is already unlocked or unavailable.';
+        await interaction.editReply(errorPayload(`Pet slot unavailable\n${reason}`, { initial: false }));
+        return true;
+      }
+      await interaction.editReply(textContainer(
+        `Pet slot unlocked\nSlot **${result.slotNumber}** is ready. Your balance is **${formatInteger(result.balance)}** Sheckles.`,
+        { color: 0x22C55E, initial: false },
+      ));
+      const view = inventoryViews.get(claimed.viewId, { touch: false });
+      if (view?.editOriginal) {
+        await view.editOriginal(inventoryPayload(
+          interaction.user,
+          fullInventoryState(interaction.user.id),
+          view,
+          { initial: false },
+        )).catch(() => null);
+      }
+      return true;
+    }
+
+    const view = inventoryViews.get(parts[3]);
+    if (!view) {
+      await respondExpired(interaction, 'inventory controls');
+      return true;
+    }
+    if (!await enforceOwner(interaction, view, 'inventory')) return true;
+    const slotNumber = Number(parts[4]);
+    if (![1, 2, 3].includes(slotNumber)) {
+      await sendEphemeral(interaction, errorPayload('Invalid pet slot\nRefresh your inventory.', { ephemeral: true }));
+      return true;
+    }
+    if (actionName === 'unlock-preview' && interaction.isButton?.()) {
+      const state = itemRepository.petState(view.ownerId);
+      const slot = state.slots.find((entry) => entry.slotNumber === slotNumber);
+      if (!slot || slot.unlocked) {
+        await sendEphemeral(interaction, errorPayload('Slot already unlocked\nRefresh your inventory.', { ephemeral: true }));
+        return true;
+      }
+      const action = actions.create(view.ownerId, {
+        kind: 'pet-slot-unlock',
+        viewId: view.id,
+        slotNumber,
+        cost: PET_SLOT_PRICES[slotNumber],
+      });
+      await interaction.reply(unlockPreviewPayload(action));
+      return true;
+    }
+    if (actionName === 'equip' && interaction.isButton?.()) {
+      const selection = itemRepository.availablePetSpecies(view.ownerId, slotNumber);
+      if (!selection.slot?.unlocked) {
+        await sendEphemeral(interaction, errorPayload('Pet slot locked\nUnlock this slot before equipping a pet.', { ephemeral: true }));
+        return true;
+      }
+      if (!selection.available.length && !selection.slot.pet) {
+        await sendEphemeral(interaction, errorPayload('No pet available\nHatch another pet or free one from a different slot.', { ephemeral: true }));
+        return true;
+      }
+      await interaction.showModal(petEquipModal(view, slotNumber, selection));
+      return true;
+    }
+    if (actionName === 'equip-submit' && interaction.isModalSubmit?.()) {
+      if (!await acknowledge(interaction)) return true;
+      const petId = valuesFromModal(interaction.fields, 'pet')[0] || '';
+      const result = itemRepository.equipPet(view.ownerId, slotNumber, petId);
+      if (result.status !== 'ok') {
+        await sendEphemeral(interaction, errorPayload(
+          'Pet unavailable\nYou do not own an unequipped copy of that pet, or the slot is locked.',
+          { ephemeral: true },
+        ));
+        return true;
+      }
+      await interaction.editReply(inventoryPayload(
+        interaction.user,
+        fullInventoryState(view.ownerId),
+        view,
+        { initial: false },
+      ));
+      return true;
+    }
+    return false;
+  }
+
   return async function handleComponent(interaction) {
     const customId = String(interaction.customId || '');
     if (!customId.startsWith('rng:')) return false;
@@ -438,6 +722,8 @@ function createComponentHandler(context) {
     if (parts[1] === 'auto') return autoRollInteraction(interaction, parts);
     if (parts[1] === 'power') return powerUpgradeInteraction(interaction, parts);
     if (parts[1] === 'index') return indexInteraction(interaction, parts);
+    if (parts[1] === 'shop') return shopInteraction(interaction, parts);
+    if (parts[1] === 'pet') return petInteraction(interaction, parts);
     return false;
   };
 }

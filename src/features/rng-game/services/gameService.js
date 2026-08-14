@@ -67,6 +67,7 @@ class RngGameService {
   constructor(options) {
     this.repository = options.repository;
     this.saleSessions = options.saleSessions;
+    this.itemRepository = options.itemRepository || null;
     this.rng = options.rng;
     this.clock = options.clock || Date.now;
     this.cooldownMs = options.cooldownMs || ROLL_COOLDOWN_MS;
@@ -78,15 +79,30 @@ class RngGameService {
     const id = String(userId);
     if (this.saleSessions.has(id)) return { status: 'locked' };
     if (this.repository.activeAutoRoll(id)) return { status: 'auto-active' };
-    const result = this.repository.roll(id, (player) => cascadingRoll({
-      rng: this.rng,
-      luckTier: player.luckTier,
-      bigCropTier: player.bigCropTier,
-    }), {
-      now: this.clock(),
+    const now = this.clock();
+    const result = this.repository.roll(id, (player) => {
+      const modifiers = this.itemRepository?.resolveRollModifiers(id, now) || {};
+      return cascadingRoll({
+        rng: this.rng,
+        luckTier: player.luckTier,
+        bigCropTier: player.bigCropTier,
+        ...modifiers,
+      });
+    }, {
+      now,
       cooldownMs: this.cooldownMs,
       bypassCooldown: options.bypassCooldown === true,
       isLocked: () => this.saleSessions.has(id) || Boolean(this.repository.activeAutoRoll(id)),
+      afterInsert: (instance) => {
+        if (instance.modifierSnapshot?.wateringCanItemId) {
+          const consumed = this.itemRepository?.consumeWateringCharge(
+            id,
+            instance.modifierSnapshot.wateringCanItemId,
+            now,
+          );
+          if (this.itemRepository && !consumed) throw new Error('Watering-can charge changed during the roll.');
+        }
+      },
     });
     if (result.discoveredNew) this.onDiscovery(id, result.seed.id);
     emitSuccessfulRoll(this.onSuccessfulRoll, id, result, options.source || 'manual');

@@ -95,6 +95,9 @@ class ViewStore extends ExpiringStore {
       ownerId: String(ownerId),
       page: 1,
       filters: {},
+      ...data,
+      id,
+      ownerId: String(ownerId),
       editOriginal: data.editOriginal || null,
       lastActivityAt: this.clock(),
     };

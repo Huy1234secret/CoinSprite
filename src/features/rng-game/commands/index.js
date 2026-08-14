@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const {
+  COMPONENTS_V2_FLAG,
   autoRollStatusPayload,
   autoRollSubmitPayload,
   balancePayload,
@@ -22,6 +23,14 @@ const {
   exchangePreviewPayload,
   initialRpsPayload,
 } = require('../components/rpsBuilders');
+const { ITEMS, ITEM_BY_ID } = require('../data/items');
+const {
+  eggOpeningPayload,
+  hatchedPetsPayload,
+  itemUseError,
+  shopPayload,
+  useResultPayload,
+} = require('../components/itemBuilders');
 
 const PREFIX_ROLL = 'c!roll';
 const PREFIX_COMMANDS = Object.freeze(new Map([
@@ -35,10 +44,11 @@ const PREFIX_COMMANDS = Object.freeze(new Map([
   ['c!index', 'index'],
   ['c!stat', 'stat'],
   ['c!calculate chance', 'calculate-chance'],
+  ['c!shop', 'shop'],
 ]));
 const RNG_GAME_COMMAND_NAMES = new Set([
   'roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat',
-  'calculate-chance', 'exchange-token', 'g-rps',
+  'calculate-chance', 'exchange-token', 'g-rps', 'shop', 'use',
 ]);
 
 const RNG_GAME_COMMANDS = [
@@ -51,6 +61,20 @@ const RNG_GAME_COMMANDS = [
   new SlashCommandBuilder().setName('index').setDescription('View your discovered crop Index.'),
   new SlashCommandBuilder().setName('stat').setDescription('View your all-time RNG rolling statistics.'),
   new SlashCommandBuilder().setName('calculate-chance').setDescription('Compare base crop chances with your current Luck tier.'),
+  new SlashCommandBuilder().setName('shop').setDescription('Browse the globally restocked item shop.'),
+  new SlashCommandBuilder()
+    .setName('use')
+    .setDescription('Use an item from your item inventory.')
+    .addStringOption((option) => option
+      .setName('item')
+      .setDescription('Item to use.')
+      .setRequired(true)
+      .addChoices(...ITEMS.map((item) => ({ name: item.displayName, value: item.id }))))
+    .addIntegerOption((option) => option
+      .setName('amount')
+      .setDescription('Amount to use (defaults to 1).')
+      .setRequired(false)
+      .setMinValue(1)),
   new SlashCommandBuilder()
     .setName('exchange-token')
     .setDescription('Exchange Sheckles for RPS tokens (1 token per 1,000 Sheckles).')
@@ -97,9 +121,37 @@ function rollErrorPayload(result, options = {}) {
   return errorPayload('Roll failed\nThe crop could not be rolled right now.', options);
 }
 
+const PREFIX_USE_ITEMS = Object.freeze([...ITEMS].sort((left, right) => (
+  right.displayName.length - left.displayName.length
+)));
+
+function parsePrefixUse(content) {
+  const raw = String(content || '').trim().replace(/\s+/g, ' ');
+  if (!/^c!use(?:\s|$)/i.test(raw)) return null;
+  const argument = raw.replace(/^c!use\s*/i, '');
+  const lower = argument.toLowerCase();
+  const item = PREFIX_USE_ITEMS.find((candidate) => {
+    const name = candidate.displayName.toLowerCase();
+    return lower === name || lower.startsWith(`${name} `);
+  });
+  if (!item) return { status: 'invalid', usage: 'c!use <item name> [amount]' };
+  const remainder = argument.slice(item.displayName.length).trim();
+  if (remainder && !/^[1-9]\d*$/.test(remainder)) {
+    return { status: 'invalid', usage: `c!use ${item.displayName} [amount]` };
+  }
+  try {
+    const amount = remainder ? BigInt(remainder) : 1n;
+    if (amount > 9_223_372_036_854_775_807n) throw new RangeError('amount overflow');
+    return { status: 'ok', itemId: item.id, amount };
+  } catch {
+    return { status: 'invalid', usage: `c!use ${item.displayName} [amount]` };
+  }
+}
+
 function prefixSource(message) {
   let responseMessage = null;
   return {
+    id: message.id,
     user: message.author,
     guildId: message.guildId,
     channelId: message.channelId,
@@ -127,12 +179,17 @@ function createCommandHandlers(context) {
     getGuildPolicy,
     indexRenderer,
     indexViews,
+    itemRepository,
     inventoryViews,
     repository,
     rpsService,
     chancePageUrl,
     saleSessions,
+    shopService,
+    shopViews,
     tokenRepository,
+    hatchDelay,
+    reportError,
   } = context;
 
   async function requireAccess(source, options = {}) {
@@ -159,14 +216,79 @@ function createCommandHandlers(context) {
   }
 
   async function executeInventory(source) {
-    const state = gameService.inventory(source.user.id);
-    const view = inventoryViews.create(source.user.id);
+    const state = {
+      crops: gameService.inventory(source.user.id),
+      itemInventory: itemRepository.itemInventory(source.user.id),
+      pets: itemRepository.petState(source.user.id),
+    };
+    const view = inventoryViews.create(source.user.id, { type: 'crops' });
     try {
       await source.reply(inventoryPayload(source.user, state, view));
       view.editOriginal = (payload) => source.editReply?.(payload);
     } catch (error) {
       inventoryViews.delete(view.id);
       throw error;
+    }
+  }
+
+  async function executeShop(source) {
+    const view = shopViews.create(source.user.id, { page: 1 });
+    try {
+      const deferred = typeof source.deferReply === 'function';
+      if (deferred) await source.deferReply({ flags: COMPONENTS_V2_FLAG });
+      const page = await shopService.page(view.page);
+      if (deferred) await source.editReply(shopPayload(page, view, { initial: false }));
+      else await source.reply(shopPayload(page, view));
+      view.editOriginal = (payload) => source.editReply?.(payload);
+    } catch (error) {
+      shopViews.delete(view.id);
+      throw error;
+    }
+  }
+
+  async function executeUse(source, options = {}) {
+    const itemId = options.itemId || source.options?.getString?.('item', true);
+    const item = ITEM_BY_ID.get(String(itemId || ''));
+    let amount;
+    try {
+      amount = options.amount ?? BigInt(source.options?.getInteger?.('amount') ?? 1);
+      amount = BigInt(amount);
+    } catch {
+      amount = 0n;
+    }
+    if (!item || amount < 1n) {
+      await source.reply(errorPayload(
+        `Invalid item or amount\nUsage: \`${options.usage || '/use item:<item> amount:<optional>'}\`. Item names may contain spaces.`,
+        { ephemeral: options.ephemeral },
+      ));
+      return;
+    }
+    const operationKey = `use:${source.id || options.operationId || `${source.user.id}:${Date.now()}`}`;
+    let result;
+    try {
+      result = itemRepository.use(source.user.id, item.id, amount, operationKey);
+    } catch (error) {
+      if (error instanceof RangeError) {
+        await source.reply(errorPayload(`Invalid amount\n${error.message}`, { ephemeral: options.ephemeral }));
+        return;
+      }
+      throw error;
+    }
+    if (result.status !== 'ok') {
+      await source.reply(itemUseError(result, { ephemeral: options.ephemeral }));
+      return;
+    }
+    if (result.kind !== 'egg') {
+      await source.reply(useResultPayload(item, result, { ephemeral: options.ephemeral }));
+      return;
+    }
+    const instances = result.pets || [];
+    await source.reply(eggOpeningPayload(item, instances, { ephemeral: options.ephemeral }));
+    await hatchDelay(5_000);
+    try {
+      await source.editReply?.(hatchedPetsPayload(instances, { initial: false }));
+    } catch (error) {
+      reportError?.(error, { kind: 'egg-animation-edit', userId: String(source.user.id) });
     }
   }
 
@@ -297,6 +419,8 @@ function createCommandHandlers(context) {
     if (commandName === 'calculate-chance') return executeCalculateChance(source, options);
     if (commandName === 'exchange-token') return executeExchangeToken(source);
     if (commandName === 'g-rps') return executeRps(source);
+    if (commandName === 'shop') return executeShop(source);
+    if (commandName === 'use') return executeUse(source, options);
     return undefined;
   }
 
@@ -314,8 +438,10 @@ function createCommandHandlers(context) {
 
   async function handlePrefix(message) {
     if (message.author?.bot) return false;
-    const content = String(message.content || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    const commandName = PREFIX_COMMANDS.get(content);
+    const rawContent = String(message.content || '').trim();
+    const content = rawContent.toLowerCase().replace(/\s+/g, ' ');
+    const useArguments = parsePrefixUse(rawContent);
+    const commandName = useArguments ? 'use' : PREFIX_COMMANDS.get(content);
     if (!commandName) return false;
     const source = prefixSource(message);
     if (saleSessions.has(message.author.id)) {
@@ -324,7 +450,15 @@ function createCommandHandlers(context) {
     }
     const access = await requireAccess(source);
     if (!access) return true;
-    await execute(commandName, source, access, { rollSource: 'prefix' });
+    if (useArguments?.status === 'invalid') {
+      await source.reply(errorPayload(`Invalid item or amount\nUsage: \`${useArguments.usage}\`. Item names are case-insensitive and may contain spaces.`));
+      return true;
+    }
+    await execute(commandName, source, access, {
+      rollSource: 'prefix',
+      operationId: message.id,
+      ...(useArguments?.status === 'ok' ? useArguments : {}),
+    });
     return true;
   }
 
@@ -340,5 +474,6 @@ module.exports = {
   createCommandHandlers,
   lockedPayload,
   prefixSource,
+  parsePrefixUse,
   rollErrorPayload,
 };
