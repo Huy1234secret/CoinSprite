@@ -111,7 +111,7 @@ test('Eclipse Bloom has the exact Secret catalog data and is checked first', () 
     secretUntilDiscovered: true,
   });
   assert.equal(ECLIPSE.emoji, '<:eclipsebloomfruit:1536043923816841296>');
-  assert.equal(ECLIPSE.rarityEmoji, '<:RSecret:1536073173165146344>');
+  assert.equal(ECLIPSE.rarityEmoji, '<a:RSecret:1536073173165146344>');
   assert.equal(ECLIPSE.rarityColor, 0xFACC15);
   assert.equal(CROP_EMOJIS.eclipse_bloom, ECLIPSE.emoji);
   assert.equal(RARITY_EMOJIS.Secret, ECLIPSE.rarityEmoji);
@@ -262,7 +262,7 @@ test('the Secret announcement payload is yellow, V2, exact, and pings only the r
   assert.equal(section.type, 9);
   assert.equal(
     section.components[0].content,
-    '### <:RSecret:1536073173165146344> <@123456789012345678> has rolled **BIG Eclipse Bloom**, CONGRATS!\n'
+    '### <a:RSecret:1536073173165146344> <@123456789012345678> has rolled **BIG Eclipse Bloom**, CONGRATS!\n'
       + '-# Chance: `1/1m`\n'
       + '-# Weight: 30.60 kg',
   );

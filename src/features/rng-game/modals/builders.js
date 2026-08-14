@@ -152,11 +152,66 @@ function indexPageModal(view) {
   };
 }
 
+function shopPurchaseModal(view, item) {
+  return {
+    custom_id: `rng:shop:amount:${view.id}:${item.id}`,
+    title: `Purchase ${item.displayName}`.slice(0, 45),
+    components: [label('Purchase amount', {
+      type: 4,
+      style: 1,
+      custom_id: 'amount',
+      placeholder: 'Enter a positive whole number',
+      value: '1',
+      min_length: 1,
+      max_length: 18,
+      required: true,
+    })],
+  };
+}
+
+function petEquipModal(view, slotNumber, selection) {
+  const options = selection.available.map(({ pet, count }) => {
+    const option = {
+      label: `${pet.displayName} x${count}`.slice(0, 100),
+      description: pet.perk.slice(0, 100),
+      value: pet.id,
+    };
+    const emoji = componentEmoji(pet.emoji);
+    if (emoji) option.emoji = emoji;
+    return option;
+  });
+  if (selection.slot?.pet) options.unshift({
+    label: 'Unequip',
+    description: 'Leave this slot empty.',
+    value: 'unequip',
+    emoji: { name: '❌' },
+  });
+  return {
+    custom_id: `rng:pet:equip-submit:${view.id}:${slotNumber}`,
+    title: 'What pet should be equipped in this slot?',
+    components: [label('Pet', {
+      type: 3,
+      custom_id: 'pet',
+      placeholder: options.length ? 'Select a pet' : 'No unequipped pets available',
+      min_values: 1,
+      max_values: 1,
+      required: true,
+      options: options.length ? options : [{
+        label: 'No pets available',
+        value: 'unavailable',
+        description: 'Hatch another pet before equipping this slot.',
+      }],
+    })],
+  };
+}
+
 module.exports = {
   autoRollModal,
   indexPageModal,
   inventoryFilterModal,
   inventoryPageModal,
+  petEquipModal,
   rarityOptions,
   sellFilterModal,
+  shopPurchaseModal,
 };

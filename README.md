@@ -3,7 +3,7 @@
 CoinSprite is a focused Discord service for Grow a Garden stock alerts, a seed RNG economy, and community leveling. The runtime contains four product surfaces:
 
 - **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
-- **Seed RNG economy** — secure crop rolls, persistent inventories and balances, selling, filtering, pagination, and capacity upgrades.
+- **Seed RNG economy** — secure crop rolls, persistent crop/item/pet inventories and balances, a global item shop, consumable effects, pet hatching/equipment, selling, filtering, pagination, and capacity upgrades.
 - **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
 - **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
 
@@ -65,7 +65,17 @@ The dashboard lets Discord administrators configure unlocked features:
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 - multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
-The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, and `/calculate-chance`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, and `c!calculate chance`. Prefix and slash entry points share the same services, locks, persistence, and cooldowns.
+The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, and `/use`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
+
+### Shop, items, and pets
+
+`/shop` and `c!shop` open an owner-bound Components V2 shop. Global stock is replaced every 30 minutes on fixed wall-clock boundaries; every catalogue item independently rolls its restock chance and inclusive stock range. Restock epochs and stock survive restarts, and purchase confirmation rechecks the current price, stock, and BigInt balance in one idempotent transaction.
+
+`/use item:<item> amount:<amount>` and `c!use <item name> [amount]` consume owned items atomically. Timed mushrooms target one crop rarity, timed sprinklers improve crop weight and BIG chance, watering cans add successful-roll charges, and Common Eggs hatch pets. Reusing the same timed item extends duration without multiplying its strength. Different mushroom rarities may coexist, only one sprinkler may be active, and watering-can charges are consumed only after a crop instance commits. Manual and Auto Rolls resolve the same persisted modifier snapshot; combined crop weight is capped at ×1.75 and effective BIG chance at 10%.
+
+The unified `/inventory` and `c!inventory` response has Crops, Items, and Pets views. Item storage is unlimited. Pet slot 1 is free, slot 2 costs 100,000 Sheckles, and slot 3 costs 1,000,000 Sheckles. Only equipped pet instances grant perks, so duplicate species can fill multiple slots only when the player owns enough copies.
+
+Egg animations live in `images/egg_open`. The current supplied filename convention is rarity-prefixed PascalCase: `CFrog.gif`, `CBunny.gif`, `UCOwl.gif`, `MDeer.gif`, `RTurtle.gif`, `LRobin.gif`, `LBee.gif`, `LButterfly.gif`, `MMonkey.gif`, `MFirefly.gif`, `MGoldenDragonfly.gif`, `MUnicorn.gif`, and `LBear.gif`. The centralized pet catalogue maps species to these filenames. A missing species animation falls back to `default.gif`, then to the pet emoji PNG.
 
 Signed-in players can also open `/chances` to compare every visible crop's base roll probability with the probability adjusted for their current Luck tier. Undiscovered crops remain masked, and Secret crops are excluded from the page and API response.
 
@@ -75,6 +85,7 @@ All dashboard writes require a same-session CSRF token. Guild edits require Disc
 
 ```bash
 npm test
+npm run report:rng-items-pets
 ```
 
-The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements.
+The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements. The deterministic item/pet balance report prints representative Tier 0, 10, 25, and maximum expected values plus all global modifier caps.

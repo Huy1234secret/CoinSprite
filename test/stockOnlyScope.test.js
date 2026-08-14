@@ -59,7 +59,7 @@ test('optional slash command visibility follows each server engine and owner loc
   }).map((command) => command.name);
   assert.deepEqual(rngGame, [
     'roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat',
-    'calculate-chance', 'exchange-token', 'g-rps', 'g-work',
+    'calculate-chance', 'shop', 'use', 'exchange-token', 'g-rps', 'g-work',
   ]);
   assert.deepEqual(featureCommandsForConfig({ ...base, enabled: false }), []);
 });

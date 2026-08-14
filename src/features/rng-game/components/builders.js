@@ -179,28 +179,133 @@ function inventoryPageData(state, view) {
 }
 
 function inventoryPayload(user, state, view, options = {}) {
-  const page = inventoryPageData(state, view);
-  const fields = inventoryCropFields(page.pageItems);
-  if (!fields.length) fields.push({ name: 'No crops found', value: '-# Adjust your filters or roll a crop.', inline: false });
-  return {
-    content: null,
-    allowedMentions: ALLOWED_MENTIONS,
-    embeds: [{
-      color: WHITE,
-      title: `${safeUsername(user?.username)}'s Inventory`.slice(0, 256),
-      description: `* Capacity: ${state.count} / ${state.player.inventoryCapacity}\n* Total value: ${formatInteger(state.totalValue)} ${SHECKLES_EMOJI}`,
-      thumbnail: { url: user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || seedThumbnail(null) },
-      fields,
-    }],
-    components: [{
-      type: 1,
-      components: [
+  const crops = state.crops || state;
+  const inventoryType = ['crops', 'items', 'pets'].includes(view.type) ? view.type : 'crops';
+  view.type = inventoryType;
+  const avatar = user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || seedThumbnail(null);
+  const inner = [{
+    type: 9,
+    components: [{ type: 10, content: `### ${safeUsername(user?.username)}'s Inventory` }],
+    accessory: { type: 11, media: { url: avatar } },
+  }];
+
+  if (inventoryType === 'crops') {
+    const page = inventoryPageData(crops, view);
+    inner.push({
+      type: 10,
+      content: `- Capacity: ${crops.count} / ${crops.player.inventoryCapacity}\n- Total value: ${formatInteger(crops.totalValue)} ${SHECKLES_EMOJI}`,
+    });
+    if (page.pageItems.length) {
+      for (const item of page.pageItems) {
+        const seed = SEED_BY_ID.get(item.seedId);
+        inner.push({
+          type: 10,
+          content: `${seed?.emoji || ''} **${item.cropName}**\n-# ${formatWeight(item.weightUnits)} kg • ${seed?.rarityEmoji || ''} ${item.rarity} • ${formatInteger(item.value)} ${SHECKLES_EMOJI}`,
+        });
+      }
+    } else {
+      inner.push({ type: 10, content: '-# No crops match the current filters. Adjust the filters or roll a crop.' });
+    }
+    inner.push(
+      { type: 14, divider: true, spacing: 1 },
+      inventoryTypeRow(view),
+      { type: 1, components: [
         { type: 2, style: 2, label: `Page ${view.page} / ${page.maxPage}`, custom_id: `rng:inv:page:${view.id}` },
         { type: 2, style: 2, label: 'Filter', custom_id: `rng:inv:filter:${view.id}` },
         { type: 2, style: 3, label: 'Upgrade', custom_id: `rng:inv:upgrade:${view.id}` },
+      ] },
+    );
+  } else if (inventoryType === 'items') {
+    const entries = state.itemInventory || [];
+    const maxPage = Math.max(1, Math.ceil(entries.length / INVENTORY_PAGE_SIZE));
+    view.page = clampPage(view.page, maxPage);
+    const shown = entries.slice((view.page - 1) * INVENTORY_PAGE_SIZE, view.page * INVENTORY_PAGE_SIZE);
+    if (!shown.length) {
+      inner.push({ type: 10, content: '-# You do not own any items. Visit /shop to purchase some.' });
+    } else {
+      for (const entry of shown) {
+        inner.push({
+          type: 10,
+          content: `${entry.item.emoji} **${entry.item.displayName} x${entry.quantity}**\n-# Type: ${entry.item.type} • ${RARITY_EMOJIS[entry.item.rarity] || ''} ${entry.item.rarity}`,
+        });
+      }
+    }
+    inner.push({ type: 14, divider: true, spacing: 1 }, inventoryTypeRow(view));
+    if (maxPage > 1) inner.push(inventoryNavigationRow(view, maxPage));
+  } else {
+    const petState = state.pets || { slots: [], collection: [] };
+    for (const slot of petState.slots) {
+      if (!slot.unlocked) {
+        const button = {
+          type: 2,
+          style: 2,
+          label: formatInteger(slot.price),
+          custom_id: `rng:pet:unlock-preview:${view.id}:${slot.slotNumber}`,
+        };
+        const emoji = componentEmoji(SHECKLES_EMOJI);
+        if (emoji) button.emoji = emoji;
+        inner.push({
+          type: 9,
+          components: [{ type: 10, content: `**Slot ${slot.slotNumber}**: Locked` }],
+          accessory: button,
+        });
+      } else {
+        const pet = slot.pet?.pet;
+        inner.push({
+          type: 9,
+          components: [{
+            type: 10,
+            content: pet
+              ? `**Slot ${slot.slotNumber}**: ${pet.displayName} ${pet.emoji}\n-# ${pet.perk}`
+              : `**Slot ${slot.slotNumber}**: Empty\n-# Equip an owned pet to activate its perk.`,
+          }],
+          accessory: {
+            type: 2,
+            style: 2,
+            label: pet ? 'Change pet' : 'Equip a pet',
+            custom_id: `rng:pet:equip:${view.id}:${slot.slotNumber}`,
+          },
+        });
+      }
+    }
+    inner.push({ type: 14, divider: true, spacing: 1 });
+    const collection = petState.collection.length
+      ? petState.collection.map(({ pet, count }) => (
+        `${pet.emoji} **${pet.displayName} x${count}**\n-# ${RARITY_EMOJIS[pet.rarity] || ''} ${pet.rarity} • ${pet.perk}`
+      )).join('\n\n')
+      : '-# You have not hatched any pets. Use a Common Egg to hatch one.';
+    inner.push({ type: 10, content: `### Pet Collection\n${collection}` });
+    inner.push({ type: 14, divider: true, spacing: 1 }, inventoryTypeRow(view));
+  }
+  return v2Payload([{ type: 17, accent_color: WHITE, components: inner }], options);
+}
+
+function inventoryTypeRow(view) {
+  return {
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: `rng:inv:type:${view.id}`,
+      placeholder: 'Select inventory type',
+      min_values: 1,
+      max_values: 1,
+      options: [
+        { label: 'Crops', value: 'crops', default: view.type === 'crops' },
+        { label: 'Items', value: 'items', default: view.type === 'items' },
+        { label: 'Pets', value: 'pets', default: view.type === 'pets' },
       ],
     }],
-    ...(options.ephemeral ? { flags: EPHEMERAL_FLAG } : {}),
+  };
+}
+
+function inventoryNavigationRow(view, maxPage) {
+  return {
+    type: 1,
+    components: [
+      { type: 2, style: 2, label: 'Previous', custom_id: `rng:inv:prev:${view.id}`, disabled: view.page <= 1 },
+      { type: 2, style: 2, label: `Page ${view.page} / ${maxPage}`, custom_id: `rng:inv:current:${view.id}`, disabled: true },
+      { type: 2, style: 2, label: 'Next', custom_id: `rng:inv:next:${view.id}`, disabled: view.page >= maxPage },
+    ],
   };
 }
 
@@ -485,8 +590,10 @@ module.exports = {
   errorPayload,
   groupedSaleSummary,
   inventoryCropFields,
+  inventoryNavigationRow,
   inventoryPageData,
   inventoryPayload,
+  inventoryTypeRow,
   indexPayload,
   powerUpgradePayload,
   rollPayload,

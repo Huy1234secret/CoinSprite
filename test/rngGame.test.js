@@ -330,7 +330,7 @@ test('rarity registry uses the configured custom Discord badges', () => {
     Legendary: '<:RLegendary:1536072819237060650>',
     Mythic: '<:RMythic:1536072827105443871>',
     Super: '<a:RSUPER:1536072842800537600>',
-    Secret: '<:RSecret:1536073173165146344>',
+    Secret: '<a:RSecret:1536073173165146344>',
   });
 });
 

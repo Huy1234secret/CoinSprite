@@ -23,6 +23,7 @@ class AutoRollService {
   constructor(options) {
     this.repository = options.repository;
     this.saleSessions = options.saleSessions;
+    this.itemRepository = options.itemRepository || null;
     this.rng = options.rng;
     this.clock = options.clock || Date.now;
     this.onDiscovery = options.onDiscovery || (() => {});
@@ -94,11 +95,24 @@ class AutoRollService {
   }
 
   processTick(jobId, scheduledTick, now = this.clock()) {
-    const result = this.repository.processTick(jobId, scheduledTick, (player) => cascadingRoll({
-      rng: this.rng,
-      luckTier: player.luckTier,
-      bigCropTier: player.bigCropTier,
-    }), now);
+    const result = this.repository.processTick(jobId, scheduledTick, (player) => {
+      const modifiers = this.itemRepository?.resolveRollModifiers(player.userId, now) || {};
+      return cascadingRoll({
+        rng: this.rng,
+        luckTier: player.luckTier,
+        bigCropTier: player.bigCropTier,
+        ...modifiers,
+      });
+    }, now, (userId, instance) => {
+      if (instance.modifierSnapshot?.wateringCanItemId) {
+        const consumed = this.itemRepository?.consumeWateringCharge(
+          userId,
+          instance.modifierSnapshot.wateringCanItemId,
+          now,
+        );
+        if (this.itemRepository && !consumed) throw new Error('Watering-can charge changed during Auto Roll.');
+      }
+    });
     if (result.discoveredNew) this.onDiscovery(result.job.userId, result.seed.id);
     emitSuccessfulRoll(this.onSuccessfulRoll, result.job?.userId, result, 'auto-roll');
     return result;

@@ -49,7 +49,7 @@ const RARITY_EMOJIS = Object.freeze({
   Legendary: process.env.RNG_RARITY_LEGENDARY_EMOJI || '<:RLegendary:1536072819237060650>',
   Mythic: process.env.RNG_RARITY_MYTHIC_EMOJI || '<:RMythic:1536072827105443871>',
   Super: process.env.RNG_RARITY_SUPER_EMOJI || '<a:RSUPER:1536072842800537600>',
-  Secret: process.env.RNG_RARITY_SECRET_EMOJI || '<:RSecret:1536073173165146344>',
+  Secret: process.env.RNG_RARITY_SECRET_EMOJI || '<a:RSecret:1536073173165146344>',
 });
 
 const FALLBACK_THUMBNAIL_URL = process.env.RNG_FALLBACK_THUMBNAIL_URL

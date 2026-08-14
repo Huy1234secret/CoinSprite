@@ -5,10 +5,13 @@ const { canceledPayload } = require('./components/rpsBuilders');
 const { AutoRollRepository } = require('./repositories/autoRollRepository');
 const { openDatabase } = require('./repositories/database');
 const { RngGameRepository } = require('./repositories/gameRepository');
+const { ItemPetRepository } = require('./repositories/itemPetRepository');
 const { RpsRepository } = require('./repositories/rpsRepository');
 const { TokenRepository } = require('./repositories/tokenRepository');
 const { AutoRollScheduler, AutoRollService } = require('./services/autoRollService');
 const { RngGameService } = require('./services/gameService');
+const { ShopCardRenderer } = require('./services/shopCardRenderer');
+const { ShopRestockScheduler, ShopService } = require('./services/shopService');
 const { RpsTableRenderer } = require('./services/rpsRenderer');
 const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
@@ -22,15 +25,25 @@ function createRngGameFeature(options = {}) {
   const clock = options.clock || Date.now;
   const db = options.db || openDatabase({ databasePath: options.databasePath, migrationsPath: options.migrationsPath });
   const repository = options.repository || new RngGameRepository(db);
+  const itemRepository = options.itemRepository || new ItemPetRepository(db, repository, {
+    restockRng: options.restockRng,
+    hatchRng: options.hatchRng,
+  });
   const autoRollRepository = options.autoRollRepository || new AutoRollRepository(db, repository);
   const tokenRepository = options.tokenRepository || new TokenRepository(db, repository);
   const rpsRepository = options.rpsRepository || new RpsRepository(db, repository);
   const saleSessions = options.saleSessions || new SaleSessionStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
+  const shopViews = options.shopViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const actions = options.actions || new ActionStore({ clock, ttlMs: options.sessionTtlMs });
   const indexViews = options.indexViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
   const rpsRenderer = options.rpsRenderer || new RpsTableRenderer(options.rpsRendererOptions);
+  const shopRenderer = options.shopRenderer || new ShopCardRenderer(options.shopRendererOptions);
+  const hatchDelay = options.hatchDelay || ((milliseconds) => new Promise((resolve) => {
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref?.();
+  }));
   let discordClient = options.client || null;
   const reportError = (error, event) => {
     try {
@@ -83,6 +96,7 @@ function createRngGameFeature(options = {}) {
   };
   const gameService = options.gameService || new RngGameService({
     repository,
+    itemRepository,
     saleSessions,
     rng: options.rng,
     clock,
@@ -92,11 +106,24 @@ function createRngGameFeature(options = {}) {
   });
   const autoRollService = options.autoRollService || new AutoRollService({
     repository: autoRollRepository,
+    itemRepository,
     saleSessions,
     rng: options.rng,
     clock,
     onDiscovery,
     onSuccessfulRoll,
+  });
+  const shopService = options.shopService || new ShopService({
+    repository: itemRepository,
+    renderer: shopRenderer,
+    clock,
+  });
+  const shopScheduler = options.shopScheduler || new ShopRestockScheduler({
+    repository: itemRepository,
+    clock,
+    setTimer: options.shopSetTimer,
+    clearTimer: options.shopClearTimer,
+    onError: (error) => reportError(error),
   });
   const rpsService = options.rpsService || new RpsService({
     repository: rpsRepository,
@@ -159,10 +186,16 @@ function createRngGameFeature(options = {}) {
     inventoryViews,
     indexRenderer,
     indexViews,
+    itemRepository,
+    hatchDelay,
     getClient: () => discordClient || options.getClient?.() || null,
     getBotUser: () => (discordClient || options.getClient?.())?.user || null,
     reportError,
     repository,
+    shopRenderer,
+    shopScheduler,
+    shopService,
+    shopViews,
     rpsExpiryScheduler,
     rpsRenderer,
     rpsRepository,
@@ -194,6 +227,7 @@ function createRngGameFeature(options = {}) {
     startScheduler(client) {
       discordClient = client || discordClient;
       autoRollScheduler.start();
+      shopScheduler.start();
       rpsExpiryScheduler.start();
     },
     async handleInteraction(interaction) {
@@ -205,11 +239,14 @@ function createRngGameFeature(options = {}) {
     close() {
       actions.clear();
       autoRollScheduler.stop();
+      shopScheduler.stop();
       rpsExpiryScheduler.stop();
       indexRenderer.clear();
       rpsRenderer.clear();
+      shopRenderer.clear?.();
       indexViews.clear();
       inventoryViews.clear();
+      shopViews.clear();
       saleSessions.clear();
       if (!options.db && db.open) db.close();
     },

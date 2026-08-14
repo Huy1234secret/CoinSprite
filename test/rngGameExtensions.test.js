@@ -193,7 +193,17 @@ test('migration defaults existing Auto Roll jobs to five per roll and preserves 
     assert.equal(repository.getPlayer('legacy-job').balance, 50n);
     db.close();
   } finally {
-    fs.rmSync(directory, { recursive: true, force: true });
+    try {
+      fs.rmSync(directory, { recursive: true, force: true });
+    } catch (error) {
+      if (error.code !== 'EPERM') throw error;
+      // Windows can retain the just-closed SQLite handle until the test worker
+      // begins exiting. Retry then so the fixture is still cleaned up without
+      // turning a successful migration assertion into a platform-only failure.
+      process.once('exit', () => {
+        try { fs.rmSync(directory, { recursive: true, force: true }); } catch { /* best effort at process teardown */ }
+      });
+    }
   }
 });
 
