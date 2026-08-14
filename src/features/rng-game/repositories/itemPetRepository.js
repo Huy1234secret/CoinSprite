@@ -1,11 +1,16 @@
 const { randomInt } = require('crypto');
-const { ITEMS, ITEM_BY_ID } = require('../data/items');
+const {
+  ITEMS,
+  ITEM_BY_ID,
+  SHOP_ITEM_CONFIG_VERSION,
+} = require('../data/items');
 const { PETS, PET_BY_ID, PET_SLOT_PRICES } = require('../data/pets');
+const { combinedPetBonuses, personalizedItemPrice } = require('../services/shopPricingService');
 const { SQLITE_INTEGER_MAX } = require('./gameRepository');
 
 const RESTOCK_INTERVAL_MS = 30 * 60 * 1_000;
 const MAX_HATCH_AMOUNT = 10;
-const MAX_WEIGHT_MULTIPLIER_BPS = 17_500;
+const MAX_WEIGHT_MULTIPLIER_BPS = 25_000;
 const MAX_PET_VALUE_BONUS_BPS = 2_000;
 
 function checkedAmount(value, maximum = SQLITE_INTEGER_MAX) {
@@ -101,7 +106,11 @@ class ItemPetRepository {
         WHERE user_id = ? AND item_id = ? AND charges > 0`),
       deleteEmptyCharges: db.prepare('DELETE FROM rng_watering_can_charges WHERE user_id = ? AND charges = 0'),
       restock: db.prepare('SELECT * FROM rng_shop_restocks WHERE restock_epoch = ?'),
-      insertRestock: db.prepare('INSERT OR IGNORE INTO rng_shop_restocks (restock_epoch, created_at) VALUES (?, ?)'),
+      insertRestock: db.prepare(`INSERT OR IGNORE INTO rng_shop_restocks
+        (restock_epoch, created_at, config_version) VALUES (?, ?, ?)`),
+      updateRestock: db.prepare(`UPDATE rng_shop_restocks SET created_at = ?, config_version = ?
+        WHERE restock_epoch = ?`),
+      deleteStockForEpoch: db.prepare('DELETE FROM rng_shop_stock WHERE restock_epoch = ?'),
       insertStock: db.prepare('INSERT INTO rng_shop_stock (restock_epoch, item_id, price, stock) VALUES (?, ?, ?, ?)'),
       stockForEpoch: db.prepare('SELECT * FROM rng_shop_stock WHERE restock_epoch = ? ORDER BY item_id'),
       stockItem: db.prepare('SELECT * FROM rng_shop_stock WHERE restock_epoch = ? AND item_id = ?'),
@@ -129,8 +138,16 @@ class ItemPetRepository {
     };
 
     this.restockTransaction = db.transaction((epoch, now, rng) => {
-      if (this.statements.restock.get(BigInt(epoch))) return { created: false, epoch };
-      if (Number(this.statements.insertRestock.run(BigInt(epoch), BigInt(now)).changes) !== 1) {
+      const existing = this.statements.restock.get(BigInt(epoch));
+      if (existing && Number(existing.config_version) === SHOP_ITEM_CONFIG_VERSION) {
+        return { created: false, epoch };
+      }
+      if (existing) {
+        this.statements.deleteStockForEpoch.run(BigInt(epoch));
+        this.statements.updateRestock.run(BigInt(now), BigInt(SHOP_ITEM_CONFIG_VERSION), BigInt(epoch));
+      } else if (Number(this.statements.insertRestock.run(
+        BigInt(epoch), BigInt(now), BigInt(SHOP_ITEM_CONFIG_VERSION),
+      ).changes) !== 1) {
         return { created: false, epoch };
       }
       for (const catalogueItem of ITEMS) {
@@ -141,23 +158,37 @@ class ItemPetRepository {
             catalogueItem.stock.maximum - catalogueItem.stock.minimum + 1,
           )
           : 0;
-        this.statements.insertStock.run(BigInt(epoch), catalogueItem.id, catalogueItem.price, BigInt(stock));
+        this.statements.insertStock.run(BigInt(epoch), catalogueItem.id, catalogueItem.minimumPrice, BigInt(stock));
       }
       return { created: true, epoch };
     }).immediate;
 
-    this.purchaseTransaction = db.transaction((userId, itemId, amount, operationKey, now, epoch) => {
+    this.purchaseTransaction = db.transaction((userId, itemId, amount, operationKey, now, epoch, preview) => {
       this.gameRepository.ensurePlayer(userId, now);
       const prior = jsonResult(this.statements.operation.get(operationKey));
       if (prior) return prior;
       const catalogueItem = ITEM_BY_ID.get(itemId);
       if (!catalogueItem) return { status: 'invalid-item', duplicate: false };
+      if (Number(preview?.restockEpoch) !== epoch) return { status: 'stale-restock', duplicate: false };
       const row = this.statements.stockItem.get(BigInt(epoch), itemId);
       if (!row) return { status: 'stale-restock', duplicate: false };
-      if (row.stock < amount) return { status: 'stock', available: row.stock, duplicate: false };
-      const total = row.price * amount;
-      if (total > SQLITE_INTEGER_MAX) throw new RangeError('Purchase total exceeds the SQLite signed 64-bit range.');
       const player = this.statements.player.get(userId);
+      const quote = personalizedItemPrice(
+        catalogueItem,
+        Number(player.luck_tier),
+        Number(player.big_crop_tier),
+      );
+      let previewPrice = -1n;
+      try { previewPrice = BigInt(preview?.price); } catch { previewPrice = -1n; }
+      if (Number(preview?.configVersion) !== catalogueItem.configVersion
+        || Number(preview?.pricedLuckTier) !== quote.pricedLuckTier
+        || Number(preview?.pricedBigTier) !== quote.pricedBigTier
+        || previewPrice !== quote.price) {
+        return { status: 'price-changed', restockEpoch: epoch, quote, duplicate: false };
+      }
+      if (row.stock < amount) return { status: 'stock', available: row.stock, duplicate: false };
+      const total = quote.price * amount;
+      if (total > SQLITE_INTEGER_MAX) throw new RangeError('Purchase total exceeds the SQLite signed 64-bit range.');
       if (player.sheckle_balance < total) {
         return { status: 'insufficient', total, missing: total - player.sheckle_balance, balance: player.sheckle_balance, duplicate: false };
       }
@@ -171,8 +202,10 @@ class ItemPetRepository {
       this.statements.addItem.run(userId, itemId, amount, BigInt(now));
       const quantity = existingQuantity + amount;
       const result = {
-        status: 'ok', itemId, amount, price: row.price, total, balance, quantity,
-        stock: row.stock - amount, restockEpoch: epoch, duplicate: false,
+        status: 'ok', itemId, amount, price: quote.price, total, balance, quantity,
+        stock: row.stock - amount, restockEpoch: epoch,
+        pricedLuckTier: quote.pricedLuckTier, pricedBigTier: quote.pricedBigTier,
+        configVersion: quote.configVersion, duplicate: false,
       };
       this.statements.saveOperation.run(operationKey, userId, 'shop-purchase', stringifyResult(result), BigInt(now));
       return result;
@@ -340,11 +373,11 @@ class ItemPetRepository {
     };
   }
 
-  purchase(userId, itemId, amountValue, operationKey, now = Date.now()) {
+  purchase(userId, itemId, amountValue, operationKey, preview, now = Date.now()) {
     const amount = checkedAmount(amountValue);
     this.ensureRestock(now);
     return this.purchaseTransaction(
-      String(userId), String(itemId), amount, String(operationKey), Number(now), currentRestockEpoch(now),
+      String(userId), String(itemId), amount, String(operationKey), Number(now), currentRestockEpoch(now), preview,
     );
   }
 
@@ -385,6 +418,18 @@ class ItemPetRepository {
     })).filter((entry) => entry.item);
   }
 
+  activeBoosts(userId, now = Date.now()) {
+    const id = String(userId);
+    this.gameRepository.ensurePlayer(id, now);
+    const timed = this.activeEffects(id, now);
+    const charges = this.statements.charges.all(id).map((row) => ({
+      itemId: row.item_id,
+      item: ITEM_BY_ID.get(row.item_id) || null,
+      charges: row.charges,
+    })).filter((entry) => entry.item?.effect.kind === 'watering-can');
+    return { timed, charges };
+  }
+
   petState(userId, now = Date.now()) {
     const id = String(userId);
     this.ensurePetSlots(id, now);
@@ -400,7 +445,13 @@ class ItemPetRepository {
       pet,
       count: instances.filter((entry) => entry.petId === pet.id).length,
     })).filter((entry) => entry.count > 0);
-    return { slots, instances, collection };
+    const player = this.gameRepository.getPlayer(id, now);
+    const bonuses = combinedPetBonuses(
+      slots.filter((slot) => slot.unlocked && slot.pet).map((slot) => slot.pet.pet),
+      player.luckTier,
+      player.bigCropTier,
+    );
+    return { slots, instances, collection, bonuses };
   }
 
   availablePetSpecies(userId, slotNumber, now = Date.now()) {
@@ -453,7 +504,9 @@ class ItemPetRepository {
       const effect = active.item.effect;
       if (effect.weightBps) weightMultiplierBps = multiplyBps(weightMultiplierBps, effect.weightBps);
       if (effect.bigBonusBps) bigBonusBps += effect.bigBonusBps;
-      if (effect.kind === 'rarity') rarityModifiers.push({ ...effect, phase: 'item', sourceId: active.item.id });
+      if (effect.kind === 'rarity' || effect.kind === 'rarity-flat') {
+        rarityModifiers.push({ ...effect, phase: 'item', sourceId: active.item.id });
+      }
     }
     if (watering) weightMultiplierBps = multiplyBps(weightMultiplierBps, watering.item.effect.weightBps);
     return {

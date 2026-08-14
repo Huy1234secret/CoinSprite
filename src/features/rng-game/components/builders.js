@@ -178,6 +178,18 @@ function inventoryPageData(state, view) {
   return { filtered, maxPage, pageItems: filtered.slice(start, start + INVENTORY_PAGE_SIZE) };
 }
 
+function fixedDecimal(numerator, denominator, places = 3) {
+  const scale = 10n ** BigInt(places);
+  const scaled = (BigInt(numerator) * scale) / BigInt(denominator);
+  const whole = scaled / scale;
+  const decimals = String(scaled % scale).padStart(places, '0').replace(/0+$/, '');
+  return decimals ? `${whole}.${decimals}` : String(whole);
+}
+
+function probabilityPercent(units) {
+  return `${fixedDecimal(units, 10_000_000n, 6)}%`;
+}
+
 function inventoryPayload(user, state, view, options = {}) {
   const crops = state.crops || state;
   const inventoryType = ['crops', 'items', 'pets'].includes(view.type) ? view.type : 'crops';
@@ -217,6 +229,20 @@ function inventoryPayload(user, state, view, options = {}) {
     );
   } else if (inventoryType === 'items') {
     const entries = state.itemInventory || [];
+    const boosts = state.boosts || { timed: [], charges: [] };
+    const activeLines = [
+      ...boosts.timed.map((entry) => (
+        `${entry.item.emoji} **${entry.item.displayName}** — ${entry.item.description}\n-# Expires <t:${Math.floor(entry.endsAt / 1_000)}:R> • Manual + Auto Rolls`
+      )),
+      ...boosts.charges.map((entry) => (
+        `${entry.item.emoji} **${entry.item.displayName}** — ${entry.item.description}\n-# Remaining charges: **${entry.charges}** • Manual + Auto Rolls`
+      )),
+    ];
+    inner.push({
+      type: 10,
+      content: `### Active Boosts\n${activeLines.length ? activeLines.join('\n\n') : '-# No item boosts are currently active.'}`,
+    });
+    inner.push({ type: 14, divider: true, spacing: 1 });
     const maxPage = Math.max(1, Math.ceil(entries.length / INVENTORY_PAGE_SIZE));
     view.page = clampPage(view.page, maxPage);
     const shown = entries.slice((view.page - 1) * INVENTORY_PAGE_SIZE, view.page * INVENTORY_PAGE_SIZE);
@@ -268,6 +294,17 @@ function inventoryPayload(user, state, view, options = {}) {
         });
       }
     }
+    const equipped = petState.slots.some((slot) => slot.unlocked && slot.pet);
+    const bonuses = petState.bonuses;
+    const bonusLines = equipped && bonuses ? [
+      `- Crop weight: **×${fixedDecimal(bonuses.weightMultiplierBps, 10_000n)}**`,
+      `- Stored crop value: **+${fixedDecimal(bonuses.valueBonusBps, 100n, 2)}%**`,
+      `- BIG chance: **+${fixedDecimal(bonuses.bigBonusBps, 100n, 2)} percentage points** (effective ${fixedDecimal(bonuses.effectiveBigChanceBps, 100n, 2)}%)`,
+      ...bonuses.rarityChanges.map((entry) => (
+        `- ${entry.rarity} odds: **${probabilityPercent(entry.before)} → ${probabilityPercent(entry.after)}**`
+      )),
+    ] : ['-# Equip a pet to activate and combine pet bonuses.'];
+    inner.push({ type: 10, content: `### Equipped Pet Bonuses\n${bonusLines.join('\n')}` });
     inner.push({ type: 14, divider: true, spacing: 1 });
     const collection = petState.collection.length
       ? petState.collection.map(({ pet, count }) => (

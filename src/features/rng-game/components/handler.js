@@ -101,6 +101,7 @@ function createComponentHandler(context) {
     return {
       crops: gameService.inventory(userId),
       itemInventory: itemRepository.itemInventory(userId),
+      boosts: itemRepository.activeBoosts(userId),
       pets: itemRepository.petState(userId),
     };
   }
@@ -496,6 +497,7 @@ function createComponentHandler(context) {
           claimed.itemId,
           claimed.amount,
           `shop-purchase:${claimed.id}`,
+          claimed,
         );
       } catch (error) {
         if (error instanceof RangeError) {
@@ -505,6 +507,22 @@ function createComponentHandler(context) {
         throw error;
       }
       if (result.status !== 'ok') {
+        if (result.status === 'price-changed') {
+          const refreshed = actions.create(interaction.user.id, {
+            kind: 'shop-purchase',
+            viewId: claimed.viewId,
+            itemId: claimed.itemId,
+            amount: claimed.amount,
+            restockEpoch: result.restockEpoch,
+            configVersion: result.quote.configVersion,
+            pricedLuckTier: result.quote.pricedLuckTier,
+            pricedBigTier: result.quote.pricedBigTier,
+            price: result.quote.price,
+            pricing: result.quote,
+          });
+          await interaction.editReply(purchasePreviewPayload(refreshed, ITEM_BY_ID.get(claimed.itemId), { initial: false }));
+          return true;
+        }
         let message = 'The purchase could not be completed.';
         if (result.status === 'stock') message = `Only **${result.available || 0}** remain in the current restock.`;
         if (result.status === 'insufficient') message = `You need **${formatInteger(result.missing)}** more Sheckles.`;
@@ -515,7 +533,7 @@ function createComponentHandler(context) {
       await interaction.editReply(purchaseResultPayload(result, { initial: false }));
       const view = shopViews.get(claimed.viewId, { touch: false });
       if (view?.editOriginal) {
-        const page = await shopService.page(view.page);
+        const page = await shopService.page(view.ownerId, view.page);
         view.page = page.page;
         await view.editOriginal(shopPayload(page, view, { initial: false })).catch(() => null);
       }
@@ -543,7 +561,7 @@ function createComponentHandler(context) {
         await sendEphemeral(interaction, errorPayload('Invalid purchase amount\nThe amount is too large.', { ephemeral: true }));
         return true;
       }
-      const state = shopService.state();
+      const state = shopService.state(view.ownerId);
       const current = state.items.find((entry) => entry.id === item.id);
       if (!current || current.stockRemaining < amount) {
         await sendEphemeral(interaction, errorPayload(`Not enough stock\nOnly **${current?.stockRemaining || 0}** remain. Nothing was charged.`, { ephemeral: true }));
@@ -560,7 +578,12 @@ function createComponentHandler(context) {
         viewId: view.id,
         itemId: item.id,
         amount,
-        previewPrice: current.price,
+        restockEpoch: state.restockEpoch,
+        configVersion: current.pricing.configVersion,
+        pricedLuckTier: current.pricing.pricedLuckTier,
+        pricedBigTier: current.pricing.pricedBigTier,
+        price: current.price,
+        pricing: current.pricing,
       });
       await interaction.reply(purchasePreviewPayload(purchaseAction, item));
       return true;
@@ -574,7 +597,7 @@ function createComponentHandler(context) {
     if (!await enforceOwner(interaction, view, 'shop')) return true;
     if (actionName === 'select' && interaction.isStringSelectMenu?.()) {
       const item = ITEM_BY_ID.get(String(interaction.values?.[0] || ''));
-      const state = shopService.state();
+      const state = shopService.state(view.ownerId);
       const current = state.items.find((entry) => entry.id === item?.id);
       if (!item || !current) {
         await sendEphemeral(interaction, errorPayload('Item unavailable\nRefresh the shop and choose an item shown on the current page.', { ephemeral: true }));
@@ -590,7 +613,7 @@ function createComponentHandler(context) {
     if ((actionName === 'prev' || actionName === 'next') && interaction.isButton?.()) {
       if (!await acknowledge(interaction)) return true;
       view.page += actionName === 'prev' ? -1 : 1;
-      const page = await shopService.page(view.page);
+      const page = await shopService.page(view.ownerId, view.page);
       view.page = page.page;
       await interaction.editReply(shopPayload(page, view, { initial: false }));
       return true;

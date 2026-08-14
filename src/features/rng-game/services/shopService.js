@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { nextRestockAt, RESTOCK_INTERVAL_MS } = require('../repositories/itemPetRepository');
+const { personalizedCatalogue } = require('./shopPricingService');
 
 const SHOP_PAGE_SIZE = 6;
 
@@ -10,12 +11,28 @@ class ShopService {
     this.clock = options.clock || Date.now;
   }
 
-  state() {
-    return this.repository.shopState(this.clock());
+  state(userId) {
+    const state = this.repository.shopState(this.clock());
+    const player = this.repository.gameRepository.getPlayer(String(userId), this.clock());
+    const quotes = new Map(personalizedCatalogue(
+      state.items,
+      player.luckTier,
+      player.bigCropTier,
+    ).map((quote) => [quote.itemId, quote]));
+    return {
+      ...state,
+      pricedLuckTier: player.luckTier,
+      pricedBigTier: player.bigCropTier,
+      items: state.items.map((item) => ({
+        ...item,
+        price: quotes.get(item.id).price,
+        pricing: quotes.get(item.id),
+      })),
+    };
   }
 
-  async page(pageNumber = 1) {
-    const state = this.state();
+  async page(userId, pageNumber = 1) {
+    const state = this.state(userId);
     const maxPage = Math.max(1, Math.ceil(state.items.length / SHOP_PAGE_SIZE));
     const page = Math.max(1, Math.min(maxPage, Math.floor(Number(pageNumber) || 1)));
     const items = state.items.slice((page - 1) * SHOP_PAGE_SIZE, page * SHOP_PAGE_SIZE);
@@ -26,8 +43,8 @@ class ShopService {
     return { ...state, page, maxPage, items, cards };
   }
 
-  purchase(userId, itemId, amount, operationKey) {
-    return this.repository.purchase(userId, itemId, amount, operationKey, this.clock());
+  purchase(userId, itemId, amount, operationKey, preview) {
+    return this.repository.purchase(userId, itemId, amount, operationKey, preview, this.clock());
   }
 }
 

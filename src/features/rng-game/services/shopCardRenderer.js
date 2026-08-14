@@ -157,8 +157,16 @@ class ShopCardRenderer {
     const sheckles = await this.cachedImage('sheckles', customEmojiImageUrl(SHECKLES_EMOJI));
     if (sheckles) context.drawImage(sheckles, 234, 138, 38, 38);
     context.fillStyle = '#FFFFFF';
-    context.font = font(700, 25);
-    context.fillText(formatInteger(item.price), sheckles ? 282 : 234, 169);
+    const priceText = formatInteger(item.price);
+    let priceSize = 25;
+    const priceX = sheckles ? 282 : 234;
+    while (priceSize > 14) {
+      context.font = font(700, priceSize);
+      if (context.measureText(priceText).width <= 398 - priceX - 12) break;
+      priceSize -= 1;
+    }
+    context.font = font(700, priceSize);
+    context.fillText(priceText, priceX, 169);
 
     const out = BigInt(item.stockRemaining) <= 0n;
     context.fillStyle = out ? '#EF4444' : '#22C55E';

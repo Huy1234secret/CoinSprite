@@ -26,6 +26,6 @@ if (PETS.reduce((sum, entry) => sum + entry.hatchWeight, 0) !== 10_000) {
 }
 
 const PET_BY_ID = new Map(PETS.map((entry) => [entry.id, entry]));
-const PET_SLOT_PRICES = Object.freeze({ 1: 0n, 2: 100_000n, 3: 1_000_000n });
+const PET_SLOT_PRICES = Object.freeze({ 1: 0n, 2: 10_000_000n, 3: 50_000_000n });
 
 module.exports = Object.freeze({ PETS, PET_BY_ID, PET_SLOT_PRICES });

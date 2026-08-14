@@ -9,9 +9,10 @@ const {
 
 const PROBABILITY_SCALE = 1_000_000_000n;
 const BIG_CHANCE_BPS_DENOMINATOR = 10_000;
-const MAX_EFFECTIVE_BIG_CHANCE_BPS = 1_000;
-const MAX_WEIGHT_MULTIPLIER_BPS = 17_500;
+const MAX_EFFECTIVE_BIG_CHANCE_BPS = 1_500;
+const MAX_WEIGHT_MULTIPLIER_BPS = 25_000;
 const MAX_VALUE_BONUS_BPS = 2_000;
+const MIN_COMMON_PROBABILITY_UNITS = PROBABILITY_SCALE / 10n;
 const RARITY_ORDER = Object.freeze([
   'Common',
   'Uncommon',
@@ -185,7 +186,8 @@ const LUCK_RARITY_DISTRIBUTIONS = Object.freeze(Array.from(
 ));
 
 function rarityTargets(modifier) {
-  if (modifier.kind === 'rarity' && RARITY_ORDER.includes(modifier.rarity)) return [modifier.rarity];
+  if ((modifier.kind === 'rarity' || modifier.kind === 'rarity-flat')
+    && RARITY_ORDER.includes(modifier.rarity)) return [modifier.rarity];
   if (modifier.kind !== 'rarity-group') return [];
   const gameplayOrder = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Super', 'Secret'];
   const minimum = gameplayOrder.indexOf(modifier.minimumRarity);
@@ -196,31 +198,89 @@ function rarityTargets(modifier) {
 function applyRarityModifiers(distribution, modifiers = [], baseDistribution = BASE_RARITY_DISTRIBUTION) {
   const result = Object.fromEntries(RARITY_ORDER.map((rarity) => [rarity, BigInt(distribution[rarity] || 0n)]));
   const petBase = { ...result };
-  for (const modifier of modifiers || []) {
+  const petModifiers = (modifiers || []).filter((modifier) => modifier.phase === 'pet');
+  const temporaryModifiers = (modifiers || []).filter((modifier) => modifier.phase !== 'pet');
+
+  // Permanent pet modifiers are resolved first and retain the existing 1.50x
+  // per-rarity cap. They can never consume the final 10% Common allocation.
+  for (const modifier of petModifiers) {
     const numerator = BigInt(modifier.numerator || 1);
     const denominator = BigInt(modifier.denominator || 1);
     if (numerator <= denominator || denominator <= 0n) continue;
     for (const rarity of rarityTargets(modifier)) {
-      if (rarity === 'Common') continue;
+      if (rarity === 'Common' || rarity === 'Secret') continue;
       const current = result[rarity];
-      let desired;
-      if (modifier.baseOnly) {
-        desired = current + ((baseDistribution[rarity] * (numerator - denominator)) / denominator);
-      } else {
-        desired = (current * numerator) / denominator;
-      }
-      if (modifier.phase === 'pet') {
-        const petCap = (petBase[rarity] * 150n) / 100n;
-        if (desired > petCap) desired = petCap;
-      }
+      let desired = (current * numerator) / denominator;
+      const petCap = (petBase[rarity] * 150n) / 100n;
+      if (desired > petCap) desired = petCap;
       const requested = desired > current ? desired - current : 0n;
-      const moved = requested < result.Common ? requested : result.Common;
+      const available = result.Common > MIN_COMMON_PROBABILITY_UNITS
+        ? result.Common - MIN_COMMON_PROBABILITY_UNITS
+        : 0n;
+      const moved = requested < available ? requested : available;
       result[rarity] += moved;
       result.Common -= moved;
     }
   }
+
+  // Temporary mushroom bonuses are calculated from the post-pet distribution.
+  // If their combined demand would cross the Common floor, all temporary gains
+  // are reduced proportionally instead of making catalogue order matter.
+  const requests = [];
+  const seenSources = new Set();
+  for (const modifier of temporaryModifiers) {
+    if (modifier.sourceId && seenSources.has(modifier.sourceId)) continue;
+    if (modifier.sourceId) seenSources.add(modifier.sourceId);
+    const numerator = BigInt(modifier.numerator || 1);
+    const denominator = BigInt(modifier.denominator || 1);
+    for (const rarity of rarityTargets(modifier)) {
+      if (rarity === 'Common') continue;
+      // Secret is deliberately isolated from multipliers. Only the configured
+      // flat +0.025 percentage-point effect can alter it.
+      if (rarity === 'Secret' && modifier.kind !== 'rarity-flat') continue;
+      const current = result[rarity];
+      let desired = current;
+      if (modifier.kind === 'rarity-flat') {
+        desired += BigInt(modifier.addedProbabilityUnits || 0);
+      } else if (denominator > 0n && numerator > denominator) {
+        desired = modifier.baseOnly
+          ? current + ((baseDistribution[rarity] * (numerator - denominator)) / denominator)
+          : (current * numerator) / denominator;
+      }
+      const requested = desired > current ? desired - current : 0n;
+      if (requested > 0n) requests.push({ rarity, requested, index: requests.length });
+    }
+  }
+  const totalRequested = requests.reduce((sum, entry) => sum + entry.requested, 0n);
+  const available = result.Common > MIN_COMMON_PROBABILITY_UNITS
+    ? result.Common - MIN_COMMON_PROBABILITY_UNITS
+    : 0n;
+  if (totalRequested > 0n && available > 0n) {
+    const allocations = requests.map((entry) => {
+      const numerator = entry.requested * available;
+      return totalRequested <= available
+        ? { ...entry, moved: entry.requested, remainder: 0n }
+        : { ...entry, moved: numerator / totalRequested, remainder: numerator % totalRequested };
+    });
+    let missing = (totalRequested <= available ? totalRequested : available)
+      - allocations.reduce((sum, entry) => sum + entry.moved, 0n);
+    const byRemainder = [...allocations].sort((left, right) => {
+      if (left.remainder !== right.remainder) return left.remainder > right.remainder ? -1 : 1;
+      return left.index - right.index;
+    });
+    for (let index = 0; missing > 0n; index += 1, missing -= 1n) {
+      byRemainder[index % byRemainder.length].moved += 1n;
+    }
+    for (const allocation of allocations) {
+      result[allocation.rarity] += allocation.moved;
+      result.Common -= allocation.moved;
+    }
+  }
   if (RARITY_ORDER.reduce((sum, rarity) => sum + result[rarity], 0n) !== PROBABILITY_SCALE) {
     throw new Error('Modified rarity units must total exactly PROBABILITY_SCALE.');
+  }
+  if (result.Common < MIN_COMMON_PROBABILITY_UNITS) {
+    throw new Error('Modified Common rarity probability fell below the 10% floor.');
   }
   return Object.freeze(result);
 }
@@ -434,8 +494,12 @@ module.exports = {
   BIG_CHANCE_BPS_DENOMINATOR,
   LUCK_RARITY_DISTRIBUTIONS,
   MAX_BIG_CROP_TIER,
+  MAX_EFFECTIVE_BIG_CHANCE_BPS,
   MAX_LUCK_RARITY_UNITS,
   MAX_LUCK_TIER,
+  MAX_VALUE_BONUS_BPS,
+  MAX_WEIGHT_MULTIPLIER_BPS,
+  MIN_COMMON_PROBABILITY_UNITS,
   PROBABILITY_SCALE,
   RARITY_ORDER,
   addRational,

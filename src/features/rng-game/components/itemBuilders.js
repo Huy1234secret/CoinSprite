@@ -33,7 +33,7 @@ function shopPayload(pageData, view, options = {}) {
     name: `shop-${item.id}-${pageData.restockEpoch}.png`,
   }));
   const components = [
-    { type: 10, content: `### CoinSprite shop\n-# Restock <t:${Math.floor(pageData.nextRestockAt / 1_000)}:R>` },
+    { type: 10, content: `### CoinSprite shop\n-# Personalized for Luck ${pageData.pricedLuckTier} • BIG ${pageData.pricedBigTier} • Restock <t:${Math.floor(pageData.nextRestockAt / 1_000)}:R>` },
     {
       type: 12,
       items: files.map((file) => ({ media: { url: `attachment://${file.name}` } })),
@@ -68,13 +68,57 @@ function shopPayload(pageData, view, options = {}) {
   };
 }
 
+function pricingDecimal(numerator, denominator, places = 2) {
+  const scale = 10n ** BigInt(places);
+  const scaled = (BigInt(numerator) * scale) / BigInt(denominator);
+  const whole = scaled / scale;
+  const remainder = String(scaled % scale).padStart(places, '0').replace(/0+$/, '');
+  return remainder ? `${whole}.${remainder}` : String(whole);
+}
+
 function purchasePreviewPayload(action, item, options = {}) {
-  const total = BigInt(action.amount) * BigInt(action.previewPrice);
+  const pricing = action.pricing;
+  const total = BigInt(action.amount) * BigInt(action.price);
+  const probability = (units) => `${pricingDecimal(units, 10_000_000n, 6)}%`;
+  const multiplier = (bps) => `×${pricingDecimal(bps, 10_000n, 3)}`;
+  const percentBps = (bps) => `${pricingDecimal(bps, 100n, 2)}%`;
+  let relevant;
+  if (item.effect.kind === 'rarity' || item.effect.kind === 'rarity-flat') {
+    relevant = `${item.effect.rarity} odds: **${probability(pricing.baseline.rarityUnits[item.effect.rarity])} → ${probability(pricing.boosted.rarityUnits[item.effect.rarity])}**`;
+  } else if (item.effect.kind === 'sprinkler') {
+    relevant = `Weight: **${multiplier(pricing.baseline.weightMultiplierBps)} → ${multiplier(pricing.boosted.weightMultiplierBps)}**\n- BIG chance: **${percentBps(pricing.baseline.effectiveBigChanceBps)} → ${percentBps(pricing.boosted.effectiveBigChanceBps)}**`;
+  } else if (item.effect.kind === 'watering-can') {
+    relevant = `Weight on the next successful roll: **${multiplier(pricing.baseline.weightMultiplierBps)} → ${multiplier(pricing.boosted.weightMultiplierBps)}**`;
+  } else {
+    relevant = 'Result: **1 random permanent pet**';
+  }
+  const duration = item.durationMs >= 60 * 60 * 1_000
+    ? `${item.durationMs / (60 * 60 * 1_000)} hour`
+    : item.durationMs > 0
+      ? `${item.durationMs / (60 * 1_000)} minutes`
+      : item.effect.kind === 'watering-can' ? '1 charge' : 'Instant';
+  const content = [
+    '### Confirm purchase',
+    `${item.emoji} **${item.displayName} x${action.amount}**`,
+    '',
+    `- Permanent tiers: **Luck ${pricing.pricedLuckTier} • BIG ${pricing.pricedBigTier}**`,
+    `- ${relevant}`,
+    `- Duration: **${duration}** • Estimated affected rolls: **${pricing.affectedRolls}**`,
+    '',
+    '### Price breakdown',
+    `- Minimum price: ${formatInteger(pricing.minimumPrice)} ${SHECKLES_EMOJI}`,
+    `- Permanent-tier scaling (${multiplier(pricing.tierScaleBps)}): ${formatInteger(pricing.progressionFloor)} ${SHECKLES_EMOJI}`,
+    `- Expected-effect pricing (+${pricingDecimal(BigInt(pricing.priceMarginBps) - 10_000n, 100n, 2)}% margin): ${formatInteger(pricing.upliftPrice)} ${SHECKLES_EMOJI}`,
+    `- Final rounded price: **${formatInteger(pricing.price)}** ${SHECKLES_EMOJI} each`,
+    `- Exact total: **${formatInteger(total)}** ${SHECKLES_EMOJI}`,
+    '',
+    '-# Stock, permanent tiers, configuration, and price will be checked again when you confirm.',
+  ].join('\n');
   return v2Payload([{
     type: 17,
     accent_color: WHITE,
     components: [
-      { type: 10, content: `### Confirm purchase\n${item.emoji} **${item.displayName} x${action.amount}**\n\n- Price: ${formatInteger(action.previewPrice)} ${SHECKLES_EMOJI} each\n- Total: **${formatInteger(total)}** ${SHECKLES_EMOJI}\n\n-# Stock and balance will be checked again when you confirm.` },
+      { type: 10, content },
       { type: 1, components: [
         { type: 2, style: 3, label: 'Confirm', custom_id: `rng:shop:confirm:${action.id}` },
         { type: 2, style: 2, label: 'Cancel', custom_id: `rng:shop:cancel:${action.id}` },
@@ -94,7 +138,7 @@ function purchaseResultPayload(result, options = {}) {
 function useResultPayload(item, result, options = {}) {
   let effect;
   if (result.kind === 'watering-can') {
-    effect = `${item.description}\n- Remaining charges: **${result.charges}**\n-# One charge is consumed only after a crop is successfully stored; crop weight is capped at ×1.75.`;
+    effect = `${item.description}\n- Remaining charges: **${result.charges}**\n-# One charge is consumed only after a crop is successfully stored; crop weight is capped at ×2.50.`;
   } else {
     effect = `${item.description}\n- Active until: <t:${Math.floor(result.endsAt / 1_000)}:R>\n-# Reusing the same item extends duration without increasing strength${item.type === 'Sprinkler' ? '; only one sprinkler can be active' : ''}.`;
   }

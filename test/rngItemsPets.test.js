@@ -11,21 +11,34 @@ const {
   eggAnimationSource,
   eggOpeningPayload,
   hatchedPetsPayload,
+  purchasePreviewPayload,
   shopPayload,
 } = require('../src/features/rng-game/components/itemBuilders');
 const { parsePrefixUse } = require('../src/features/rng-game/commands');
-const { ITEMS, ITEM_BY_ID } = require('../src/features/rng-game/data/items');
+const {
+  ITEMS,
+  ITEM_BY_ID,
+  SHOP_ITEM_CONFIG_VERSION,
+} = require('../src/features/rng-game/data/items');
 const { PETS, PET_SLOT_PRICES } = require('../src/features/rng-game/data/pets');
 const { SEEDS } = require('../src/features/rng-game/data/seeds');
 const { assertValidMessagePayload } = require('../src/features/shared/discordPayload');
 const { COMPONENTS_V2_FLAG } = require('../src/features/shared/components');
 const {
+  MAX_EFFECTIVE_BIG_CHANCE_BPS,
+  MAX_VALUE_BONUS_BPS,
+  MAX_WEIGHT_MULTIPLIER_BPS,
   PROBABILITY_SCALE,
+  MIN_COMMON_PROBABILITY_UNITS,
   applyRarityModifiers,
   generateInstance,
   rarityDistribution,
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
+const {
+  niceRoundUp,
+  personalizedItemPrice,
+} = require('../src/features/rng-game/services/shopPricingService');
 const { ShopCardRenderer, SHOP_CARD_HEIGHT, SHOP_CARD_WIDTH } = require('../src/features/rng-game/services/shopCardRenderer');
 const {
   RESTOCK_INTERVAL_MS,
@@ -60,6 +73,19 @@ function addPet(game, userId, petId, now = 1) {
   game.itemRepository.ensurePetSlots(userId, now);
   return String(game.db.prepare('INSERT INTO rng_pet_instances (owner_user_id, pet_id, hatched_at) VALUES (?, ?, ?)')
     .run(String(userId), String(petId), BigInt(now)).lastInsertRowid);
+}
+
+function purchasePreview(game, userId, itemId) {
+  const state = game.shopService.state(userId);
+  const current = state.items.find((item) => item.id === itemId);
+  return {
+    restockEpoch: state.restockEpoch,
+    configVersion: current.pricing.configVersion,
+    pricedLuckTier: current.pricing.pricedLuckTier,
+    pricedBigTier: current.pricing.pricedBigTier,
+    price: current.price,
+    pricing: current.pricing,
+  };
 }
 
 function user(id = 'user') {
@@ -124,6 +150,145 @@ test('prefix /use parsing is case-insensitive, longest-name-first, and validates
   assert.equal(parsePrefixUse('c!shop'), null);
 });
 
+test('authoritative item minimums, effects, restock scarcity, and configuration version are exact', () => {
+  const expected = {
+    secret_mushroom: [8_000_000n, 200, 1, 1, 'rarity-flat'],
+    super_mushroom: [1_500_000n, 400, 1, 1, 'rarity'],
+    mythic_mushroom: [750_000n, 700, 1, 1, 'rarity'],
+    legendary_mushroom: [400_000n, 1_000, 1, 1, 'rarity'],
+    epic_mushroom: [150_000n, 1_800, 1, 2, 'rarity'],
+    rare_mushroom: [50_000n, 3_000, 1, 3, 'rarity'],
+    legendary_sprinkler: [2_500_000n, 200, 1, 1, 'sprinkler'],
+    super_sprinkler: [1_000_000n, 400, 1, 1, 'sprinkler'],
+    rare_sprinkler: [350_000n, 900, 1, 1, 'sprinkler'],
+    uncommon_sprinkler: [125_000n, 1_800, 1, 2, 'sprinkler'],
+    common_sprinkler: [40_000n, 3_500, 2, 4, 'sprinkler'],
+    super_watering_can: [100_000n, 2_000, 1, 3, 'watering-can'],
+    common_watering_can: [5_000n, 5_000, 3, 8, 'watering-can'],
+    common_egg: [2_500_000n, 800, 1, 2, 'egg'],
+  };
+  for (const item of ITEMS) {
+    assert.deepEqual([
+      item.minimumPrice,
+      item.restockChanceBps,
+      item.stock.minimum,
+      item.stock.maximum,
+      item.effect.kind,
+    ], expected[item.id]);
+    assert.equal(item.configVersion, SHOP_ITEM_CONFIG_VERSION);
+    assert.equal(item.priceMarginBps, 13_500);
+  }
+  assert.equal(ITEM_BY_ID.get('secret_mushroom').effect.addedProbabilityUnits, 250_000);
+  assert.equal(ITEM_BY_ID.get('super_mushroom').effect.numerator, 10);
+  assert.equal(ITEM_BY_ID.get('legendary_sprinkler').effect.weightBps, 15_000);
+  assert.equal(ITEM_BY_ID.get('super_watering_can').effect.weightBps, 20_000);
+});
+
+test('personalized prices use only permanent tiers and never fall below minimums', () => {
+  const game = feature({ clock: () => 1, restockRng: () => 0 });
+  const initial = game.shopService.state('priced-player');
+  const initialPrices = new Map(initial.items.map((item) => [item.id, item.price]));
+  assert.equal(initialPrices.get('secret_mushroom'), 8_000_000n);
+  assert.equal(initialPrices.get('common_egg'), 2_500_000n);
+
+  addPet(game, 'priced-player', 'bear', 1);
+  game.itemRepository.equipPet('priced-player', 1, 'bear', 1);
+  grantItem(game, 'priced-player', 'rare_mushroom', 1, 1);
+  game.itemRepository.use('priced-player', 'rare_mushroom', 1, 'price-active-item', 1);
+  const manipulated = game.shopService.state('priced-player');
+  assert.deepEqual(
+    manipulated.items.map((item) => item.price),
+    initial.items.map((item) => item.price),
+    'pets and active consumables are excluded from pricing',
+  );
+
+  game.db.prepare('UPDATE rng_players SET luck_tier = 49, big_crop_tier = 50 WHERE user_id = ?')
+    .run('priced-player');
+  const maximum = game.shopService.state('priced-player');
+  for (const item of maximum.items) {
+    assert.ok(item.price > initialPrices.get(item.id));
+    assert.ok(item.price >= item.minimumPrice);
+    assert.equal(typeof item.price, 'bigint');
+  }
+  assert.equal(maximum.items.find((item) => item.id === 'secret_mushroom').price, 11_600_000n);
+  assert.equal(maximum.items.find((item) => item.id === 'common_egg').price, 3_650_000n);
+  game.close();
+});
+
+test('personalized price arithmetic stays exact above Number.MAX_SAFE_INTEGER', () => {
+  const minimumPrice = 9_007_199_254_740_993n;
+  const item = {
+    id: 'bigint-safe-egg',
+    minimumPrice,
+    affectedRolls: 0,
+    priceMarginBps: 13_500,
+    configVersion: SHOP_ITEM_CONFIG_VERSION,
+    effect: { kind: 'egg' },
+  };
+  const quote = personalizedItemPrice(item, 49, 50);
+  const exactFloor = ((minimumPrice * 14_440n) + 9_999n) / 10_000n;
+  assert.equal(quote.progressionFloor, exactFloor);
+  assert.equal(quote.price, niceRoundUp(exactFloor));
+  assert.equal(quote.price % 100_000n, 0n);
+  assert.ok(quote.price > BigInt(Number.MAX_SAFE_INTEGER));
+});
+
+test('a maximum-value normal Super crop cannot buy a Secret Mushroom at any permanent tier', () => {
+  const maximumNormalSuper = BigInt(Math.max(
+    ...SEEDS.filter((seed) => seed.rarity === 'Super').map((seed) => seed.maximumValue),
+  ));
+  const secret = ITEM_BY_ID.get('secret_mushroom');
+  for (let luckTier = 0; luckTier <= 49; luckTier += 1) {
+    for (let bigTier = 0; bigTier <= 50; bigTier += 1) {
+      assert.ok(personalizedItemPrice(secret, luckTier, bigTier).price > maximumNormalSuper);
+    }
+  }
+});
+
+test('purchase confirmation refreshes a stale permanent-tier price without charging', () => {
+  const game = feature({ clock: () => 1, restockRng: () => 0 });
+  fund(game, 'stale-price', 1_000_000n);
+  const preview = purchasePreview(game, 'stale-price', 'rare_mushroom');
+  const stockBefore = game.itemRepository.shopState(1).items
+    .find((item) => item.id === 'rare_mushroom').stockRemaining;
+  game.db.prepare('UPDATE rng_players SET luck_tier = 1 WHERE user_id = ?').run('stale-price');
+  const changed = game.itemRepository.purchase(
+    'stale-price', 'rare_mushroom', 1, 'stale-price-operation', preview, 1,
+  );
+  assert.equal(changed.status, 'price-changed');
+  assert.equal(changed.quote.pricedLuckTier, 1);
+  assert.equal(game.repository.getPlayer('stale-price').balance, 1_000_000n);
+  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'rare_mushroom').stockRemaining, stockBefore);
+  const refreshed = {
+    restockEpoch: changed.restockEpoch,
+    configVersion: changed.quote.configVersion,
+    pricedLuckTier: changed.quote.pricedLuckTier,
+    pricedBigTier: changed.quote.pricedBigTier,
+    price: changed.quote.price,
+    pricing: changed.quote,
+  };
+  const purchased = game.itemRepository.purchase(
+    'stale-price', 'rare_mushroom', 1, 'refreshed-price-operation', refreshed, 1,
+  );
+  assert.equal(purchased.status, 'ok');
+  assert.equal(purchased.price, 51_000n);
+  game.close();
+});
+
+test('purchase preview explains tiers, effect, duration, and each deterministic price component', () => {
+  const item = ITEM_BY_ID.get('secret_mushroom');
+  const pricing = personalizedItemPrice(item, 0, 0);
+  const payload = purchasePreviewPayload({
+    id: 'price-preview', amount: 1n, price: pricing.price, pricing,
+  }, item);
+  const rendered = JSON.stringify(payload);
+  assert.match(rendered, /Luck 0.*BIG 0/);
+  assert.match(rendered, /0\.0001%.*0\.0251%/);
+  assert.match(rendered, /Estimated affected rolls.*720/);
+  assert.match(rendered, /Minimum price|Permanent-tier scaling|Expected-effect pricing|Final rounded price|Exact total/);
+  assertValidMessagePayload(payload);
+});
+
 test('shop pages render six cards and expose exactly the displayed stable IDs', () => {
   const displayed = ITEMS.slice(0, 6).map((item, index) => ({
     ...item, stockRemaining: BigInt(index), price: item.price,
@@ -131,6 +296,8 @@ test('shop pages render six cards and expose exactly the displayed stable IDs', 
   const page = {
     restockEpoch: 0,
     nextRestockAt: RESTOCK_INTERVAL_MS,
+    pricedLuckTier: 0,
+    pricedBigTier: 0,
     page: 1,
     maxPage: 3,
     items: displayed,
@@ -196,15 +363,17 @@ test('restocks are restart-safe and a boundary epoch cannot be rolled twice', ()
 
 test('purchases atomically recheck stock and balance and replay idempotently', () => {
   const game = feature({ clock: () => 1, restockRng: () => 0 });
-  fund(game, 'buyer', 1_000n);
-  const first = game.itemRepository.purchase('buyer', 'common_watering_can', 2, 'purchase:one', 1);
-  const replay = game.itemRepository.purchase('buyer', 'common_watering_can', 2, 'purchase:one', 1);
+  fund(game, 'buyer', 20_000n);
+  const canPreview = purchasePreview(game, 'buyer', 'common_watering_can');
+  const first = game.itemRepository.purchase('buyer', 'common_watering_can', 2, 'purchase:one', canPreview, 1);
+  const replay = game.itemRepository.purchase('buyer', 'common_watering_can', 2, 'purchase:one', canPreview, 1);
   assert.equal(first.status, 'ok');
   assert.equal(replay.duplicate, true);
-  assert.equal(game.repository.getPlayer('buyer').balance, 500n);
+  assert.equal(game.repository.getPlayer('buyer').balance, 10_000n);
   assert.equal(game.itemRepository.itemInventory('buyer')[0].quantity, 2n);
-  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'common_watering_can').stockRemaining, 3n);
-  const insufficient = game.itemRepository.purchase('buyer', 'common_egg', 1, 'purchase:poor', 1);
+  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'common_watering_can').stockRemaining, 1n);
+  const eggPreview = purchasePreview(game, 'buyer', 'common_egg');
+  const insufficient = game.itemRepository.purchase('buyer', 'common_egg', 1, 'purchase:poor', eggPreview, 1);
   assert.equal(insufficient.status, 'insufficient');
   assert.equal(game.itemRepository.itemInventory('buyer').some((entry) => entry.itemId === 'common_egg'), false);
   game.close();
@@ -329,8 +498,8 @@ test('missing egg animations fall back to default.gif, then to the pet emoji PNG
 
 test('pet slot prices and unlocking are atomic and idempotent', () => {
   const game = feature();
-  assert.deepEqual(PET_SLOT_PRICES, { 1: 0n, 2: 100_000n, 3: 1_000_000n });
-  fund(game, 'slots', 100_000n);
+  assert.deepEqual(PET_SLOT_PRICES, { 1: 0n, 2: 10_000_000n, 3: 50_000_000n });
+  fund(game, 'slots', 10_000_000n);
   const first = game.itemRepository.unlockSlot('slots', 2, 'unlock:2', 10);
   const replay = game.itemRepository.unlockSlot('slots', 2, 'unlock:2', 11);
   assert.equal(first.status, 'ok');
@@ -343,7 +512,7 @@ test('pet slot prices and unlocking are atomic and idempotent', () => {
 
 test('duplicate pet equipment is limited by actual instances and unequipping frees a copy', () => {
   const game = feature();
-  fund(game, 'equipper', 100_000n);
+  fund(game, 'equipper', 10_000_000n);
   game.itemRepository.unlockSlot('equipper', 2, 'unlock:equip', 1);
   addPet(game, 'equipper', 'bunny', 2);
   assert.equal(game.itemRepository.equipPet('equipper', 1, 'bunny', 3).status, 'ok');
@@ -372,6 +541,72 @@ test('timed effects expire, extend linearly, and reject a different active sprin
   assert.equal(game.itemRepository.itemInventory('effects').find((entry) => entry.itemId === 'rare_sprinkler').quantity, 1n);
   now = extended.endsAt;
   assert.equal(game.itemRepository.activeEffects('effects', now).length, 0);
+  game.close();
+});
+
+test('reusing Secret Mushroom extends duration without stacking its fixed bonus', () => {
+  let now = 1_000;
+  const game = feature({ clock: () => now });
+  grantItem(game, 'secret-extension', 'secret_mushroom', 2, now);
+  const first = game.itemRepository.use(
+    'secret-extension', 'secret_mushroom', 1, 'use:secret-first', now,
+  );
+  now += 5_000;
+  const second = game.itemRepository.use(
+    'secret-extension', 'secret_mushroom', 1, 'use:secret-second', now,
+  );
+  assert.equal(second.endsAt - first.endsAt, 60 * 60 * 1_000);
+  const modifiers = game.itemRepository.resolveRollModifiers('secret-extension', now)
+    .rarityModifiers.filter((entry) => entry.rarity === 'Secret');
+  assert.equal(modifiers.length, 1);
+  const base = rarityDistribution(49);
+  const boosted = applyRarityModifiers(base, modifiers);
+  assert.equal(boosted.Secret, base.Secret + 250_000n);
+  assert.equal(Object.values(boosted).reduce((sum, units) => sum + units, 0n), PROBABILITY_SCALE);
+  game.close();
+});
+
+test('Items and Pets inventory display exact active and capped combined bonuses', () => {
+  const game = feature({ clock: () => 1_000 });
+  grantItem(game, 'boost-summary', 'rare_sprinkler', 1, 1_000);
+  grantItem(game, 'boost-summary', 'super_watering_can', 3, 1_000);
+  game.itemRepository.use('boost-summary', 'rare_sprinkler', 1, 'summary:sprinkler', 1_000);
+  game.itemRepository.use('boost-summary', 'super_watering_can', 3, 'summary:watering', 1_000);
+  const itemView = { id: 'boost-items', ownerId: 'boost-summary', type: 'items', page: 1, filters: {} };
+  const itemPayload = inventoryPayload(user('boost-summary'), {
+    crops: game.gameService.inventory('boost-summary'),
+    itemInventory: game.itemRepository.itemInventory('boost-summary'),
+    boosts: game.itemRepository.activeBoosts('boost-summary', 1_000),
+    pets: game.itemRepository.petState('boost-summary', 1_000),
+  }, itemView);
+  const itemText = JSON.stringify(itemPayload);
+  assert.match(itemText, /Active Boosts/);
+  assert.match(itemText, /Rare Sprinkler.*Crop weight ×1\.20.*BIG chance \+1\.00 percentage point/);
+  assert.match(itemText, /Expires <t:1801:R>.*Manual \+ Auto Rolls/);
+  assert.match(itemText, /Super Watering Can.*Remaining charges.*3.*Manual \+ Auto Rolls/);
+
+  fund(game, 'boost-summary', 60_000_000n);
+  game.itemRepository.unlockSlot('boost-summary', 2, 'summary:slot-2', 1_000);
+  game.itemRepository.unlockSlot('boost-summary', 3, 'summary:slot-3', 1_000);
+  for (let index = 0; index < 3; index += 1) addPet(game, 'boost-summary', 'bear', 1_000 + index);
+  for (let slot = 1; slot <= 3; slot += 1) game.itemRepository.equipPet('boost-summary', slot, 'bear', 2_000 + slot);
+  const petState = game.itemRepository.petState('boost-summary', 3_000);
+  const petView = { id: 'boost-pets', ownerId: 'boost-summary', type: 'pets', page: 1, filters: {} };
+  const petPayload = inventoryPayload(user('boost-summary'), {
+    crops: game.gameService.inventory('boost-summary'),
+    itemInventory: [],
+    pets: petState,
+  }, petView);
+  const petText = JSON.stringify(petPayload);
+  assert.match(petText, /Equipped Pet Bonuses/);
+  assert.match(petText, /Crop weight.*×1\.259/);
+  assert.match(petText, /BIG chance.*\+0\.75 percentage points/);
+  assert.ok(petState.bonuses.weightMultiplierBps <= MAX_WEIGHT_MULTIPLIER_BPS);
+  assert.ok(petState.bonuses.valueBonusBps <= MAX_VALUE_BONUS_BPS);
+  assert.ok(petState.bonuses.effectiveBigChanceBps <= MAX_EFFECTIVE_BIG_CHANCE_BPS);
+  assert.ok(petState.bonuses.boosted.rarityUnits.Common >= MIN_COMMON_PROBABILITY_UNITS);
+  assertValidMessagePayload(itemPayload);
+  assertValidMessagePayload(petPayload);
   game.close();
 });
 
@@ -406,23 +641,54 @@ test('manual and Auto Roll resolve the same active modifier snapshot', () => {
   const started = game.autoRollService.start('auto-modifiers', preview, { guildId: 'g', channelId: 'c' });
   now = started.job.nextTickAt;
   const automatic = game.autoRollService.processTick(started.job.id, now, now);
-  assert.equal(manual.item.modifierSnapshot.weightMultiplierBps, 10_800);
-  assert.equal(automatic.item.modifierSnapshot.weightMultiplierBps, 10_800);
+  assert.equal(manual.item.modifierSnapshot.weightMultiplierBps, 12_000);
+  assert.equal(automatic.item.modifierSnapshot.weightMultiplierBps, 12_000);
   assert.equal(manual.item.modifierSnapshot.bigBonusBps, automatic.item.modifierSnapshot.bigBonusBps);
   game.close();
 });
 
-test('rarity modifiers preserve 100%, pet caps, and Secret Mushroom base-only semantics', () => {
+test('rarity modifiers preserve 100%, pet caps, Common floor, and exact Secret Mushroom semantics', () => {
   const luck = rarityDistribution(49);
   const modified = applyRarityModifiers(luck, [
     { kind: 'rarity', rarity: 'Mythic', numerator: 200, denominator: 100, phase: 'pet' },
     { kind: 'rarity', rarity: 'Mythic', numerator: 200, denominator: 100, phase: 'pet' },
-    { kind: 'rarity', rarity: 'Secret', numerator: 125, denominator: 100, baseOnly: true, phase: 'item' },
+    { kind: 'rarity-flat', rarity: 'Secret', addedProbabilityUnits: 250_000, phase: 'item', sourceId: 'secret_mushroom' },
   ]);
   assert.equal(Object.values(modified).reduce((sum, units) => sum + units, 0n), PROBABILITY_SCALE);
   assert.ok(modified.Mythic <= (luck.Mythic * 150n) / 100n);
-  const base = rarityDistribution(0);
-  assert.equal(modified.Secret, luck.Secret + ((base.Secret * 25n) / 100n));
+  assert.equal(modified.Secret, luck.Secret + 250_000n);
+  assert.ok(modified.Common >= MIN_COMMON_PROBABILITY_UNITS);
+});
+
+test('maximum-tier pet and simultaneous mushroom stacking preserves every rarity cap', () => {
+  const base = rarityDistribution(49);
+  const unicorn = PETS.find((pet) => pet.id === 'unicorn');
+  const petModifiers = Array.from({ length: 3 }, () => ({
+    ...unicorn.effect,
+    phase: 'pet',
+    sourceId: unicorn.id,
+  }));
+  const mushroomModifiers = ITEMS.filter((item) => item.type === 'Mushroom').map((item) => ({
+    ...item.effect,
+    phase: 'item',
+    sourceId: item.id,
+  }));
+  const modified = applyRarityModifiers(base, [...petModifiers, ...mushroomModifiers]);
+  assert.equal(Object.values(modified).reduce((sum, units) => sum + units, 0n), PROBABILITY_SCALE);
+  assert.ok(modified.Common >= MIN_COMMON_PROBABILITY_UNITS);
+  assert.equal(modified.Secret, base.Secret + 250_000n);
+  assert.ok(modified.Epic <= PROBABILITY_SCALE);
+  assert.ok(modified.Legendary <= PROBABILITY_SCALE);
+  assert.ok(modified.Mythic <= PROBABILITY_SCALE);
+  assert.ok(modified.Super <= PROBABILITY_SCALE);
+
+  const floorLimited = applyRarityModifiers(base, [
+    { kind: 'rarity', rarity: 'Rare', numerator: 100, denominator: 1, phase: 'item', sourceId: 'test-rare' },
+    { kind: 'rarity', rarity: 'Epic', numerator: 100, denominator: 1, phase: 'item', sourceId: 'test-epic' },
+    { kind: 'rarity', rarity: 'Legendary', numerator: 100, denominator: 1, phase: 'item', sourceId: 'test-legendary' },
+  ]);
+  assert.equal(floorLimited.Common, MIN_COMMON_PROBABILITY_UNITS);
+  assert.equal(Object.values(floorLimited).reduce((sum, units) => sum + units, 0n), PROBABILITY_SCALE);
 });
 
 test('weight, value, and BIG bonuses use fixed point and obey global caps', () => {
@@ -434,9 +700,9 @@ test('weight, value, and BIG bonuses use fixed point and obey global caps', () =
     weightMultiplierBps: 99_999,
     valueBonusBps: 2_000,
   });
-  assert.equal(instance.modifierSnapshot.weightMultiplierBps, 17_500);
-  assert.equal(instance.modifierSnapshot.effectiveBigChanceBps, 1_000);
-  assert.equal(instance.weightedBaseUnits, Math.floor((20 * 17_500) / 10_000));
+  assert.equal(instance.modifierSnapshot.weightMultiplierBps, 25_000);
+  assert.equal(instance.modifierSnapshot.effectiveBigChanceBps, 1_500);
+  assert.equal(instance.weightedBaseUnits, Math.floor((20 * 25_000) / 10_000));
   const expected = (valueForWeight(seed, instance.weightedBaseUnits, { clamp: false }) * 12_000n) / 10_000n;
   assert.equal(instance.value, expected * 4n);
   assert.equal(instance.isBig, true);
