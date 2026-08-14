@@ -451,6 +451,7 @@ test('shop card renderer returns a consistent PNG even when all emoji downloads 
   const image = await loadImage(first);
   assert.equal(image.width, SHOP_CARD_WIDTH);
   assert.equal(image.height, SHOP_CARD_HEIGHT);
+  assert.equal(SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT, 'Discord gallery cards must be square to avoid cover-cropping');
   renderer.clear();
 });
 
