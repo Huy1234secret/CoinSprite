@@ -12,6 +12,8 @@
     "preview:rps": "node scripts/renderRpsPreviews.js",
     "report:rng-luck": "node scripts/rngLuckReport.js",
     "report:rng-items-pets": "node scripts/rngItemsPetsReport.js",
+    "report:shop-balance": "node scripts/shopBalanceReport.js",
+    "report:pet-value": "node scripts/petValueReport.js",
     "predeploy:bot": "npm ci",
     "deploy:bot": "node src/entrypoints/bot.js",
     "predeploy:panel": "npm ci",

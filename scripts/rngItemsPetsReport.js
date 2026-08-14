@@ -22,7 +22,7 @@ const tiers = [0, 10, 25, 'maximum'].map((label) => {
 
 assert.equal(PETS.reduce((sum, pet) => sum + pet.hatchWeight, 0), 10_000);
 assert.equal(ITEMS.length, 14);
-assert.ok(ITEMS.every((item) => item.price > 0n && item.restockChanceBps > 0));
+assert.ok(ITEMS.every((item) => item.minimumPrice > 0n && item.restockChanceBps > 0));
 assert.ok(PETS.every((pet) => pet.hatchWeight > 0 && pet.perk && pet.effect.kind));
 
 console.log('CoinSprite RNG balance report');
@@ -34,8 +34,9 @@ console.log(JSON.stringify({
   caps: {
     perRarityPetMultiplier: '1.50x',
     petValueBonus: '20%',
-    combinedWeightMultiplier: '1.75x',
-    effectiveBigChance: '10%',
+    combinedWeightMultiplier: '2.50x',
+    effectiveBigChance: '15%',
+    commonProbabilityFloor: '10%',
   },
   tiers,
 }, null, 2));

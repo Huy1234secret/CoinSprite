@@ -218,6 +218,7 @@ function createCommandHandlers(context) {
     const state = {
       crops: gameService.inventory(source.user.id),
       itemInventory: itemRepository.itemInventory(source.user.id),
+      boosts: itemRepository.activeBoosts(source.user.id),
       pets: itemRepository.petState(source.user.id),
     };
     const view = inventoryViews.create(source.user.id, { type: 'crops' });
@@ -234,7 +235,7 @@ function createCommandHandlers(context) {
     const view = shopViews.create(source.user.id, { page: 1 });
     try {
       await source.reply(textContainer('Loading the item shop\u2026'));
-      const page = await shopService.page(view.page);
+      const page = await shopService.page(source.user.id, view.page);
       await source.editReply(shopPayload(page, view, { initial: false }));
       view.editOriginal = (payload) => source.editReply?.(payload);
     } catch (error) {
