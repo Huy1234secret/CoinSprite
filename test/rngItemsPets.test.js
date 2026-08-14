@@ -18,6 +18,7 @@ const { ITEMS, ITEM_BY_ID } = require('../src/features/rng-game/data/items');
 const { PETS, PET_SLOT_PRICES } = require('../src/features/rng-game/data/pets');
 const { SEEDS } = require('../src/features/rng-game/data/seeds');
 const { assertValidMessagePayload } = require('../src/features/shared/discordPayload');
+const { COMPONENTS_V2_FLAG } = require('../src/features/shared/components');
 const {
   PROBABILITY_SCALE,
   applyRarityModifiers,
@@ -76,15 +77,38 @@ test('/shop, c!shop, /use, and c!use are registered and routed', async () => {
   assert.equal(commands.get('use').options.find((option) => option.name === 'item').choices.length, ITEMS.length);
 
   const game = feature({ restockRng: () => 9_999 });
+  let loadingReply;
   let shopReply;
   assert.equal(await game.handleMessage({
     id: 'prefix-shop',
     content: 'c!shop',
     author: { ...user('shop-user'), bot: false },
-    reply: async (payload) => { shopReply = payload; return { edit: async () => {} }; },
+    reply: async (payload) => {
+      loadingReply = payload;
+      return { edit: async (edited) => { shopReply = edited; } };
+    },
   }), true);
+  assert.match(JSON.stringify(loadingReply), /Loading the item shop/);
+  assert.equal(loadingReply.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
   assert.match(shopReply.components[0].components[0].content, /CoinSprite shop/);
+  assert.equal(shopReply.flags, undefined, 'edits inherit the initial Components V2 message flag');
   assert.equal(shopReply.files.length, 6);
+
+  let slashLoading;
+  let slashShop;
+  let deferCalls = 0;
+  assert.equal(await game.handleInteraction({
+    id: 'slash-shop',
+    commandName: 'shop',
+    isChatInputCommand: () => true,
+    user: user('slash-shop-user'),
+    deferReply: async () => { deferCalls += 1; },
+    reply: async (payload) => { slashLoading = payload; },
+    editReply: async (payload) => { slashShop = payload; },
+  }), true);
+  assert.equal(deferCalls, 0, 'Components V2 cannot be established by a deferred interaction response');
+  assert.equal(slashLoading.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
+  assert.match(slashShop.components[0].components[0].content, /CoinSprite shop/);
   game.close();
 });
 
