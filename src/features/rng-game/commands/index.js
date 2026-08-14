@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 const {
-  COMPONENTS_V2_FLAG,
   autoRollStatusPayload,
   autoRollSubmitPayload,
   balancePayload,
@@ -234,11 +233,9 @@ function createCommandHandlers(context) {
   async function executeShop(source) {
     const view = shopViews.create(source.user.id, { page: 1 });
     try {
-      const deferred = typeof source.deferReply === 'function';
-      if (deferred) await source.deferReply({ flags: COMPONENTS_V2_FLAG });
+      await source.reply(textContainer('Loading the item shop\u2026'));
       const page = await shopService.page(view.page);
-      if (deferred) await source.editReply(shopPayload(page, view, { initial: false }));
-      else await source.reply(shopPayload(page, view));
+      await source.editReply(shopPayload(page, view, { initial: false }));
       view.editOriginal = (payload) => source.editReply?.(payload);
     } catch (error) {
       shopViews.delete(view.id);
