@@ -13,6 +13,7 @@ const {
   INDEX_MAX_PAGE,
   INDEX_PAGE_SIZE,
   OUTLINE_COLORS,
+  SECRET_OUTLINE_COLORS,
   indexDiscoveryCount,
   indexPageModels,
   indexSeedsForUser,
@@ -115,7 +116,8 @@ test('Eclipse Bloom has the exact Secret catalog data and is checked first', () 
   assert.equal(ECLIPSE.rarityColor, 0xFACC15);
   assert.equal(CROP_EMOJIS.eclipse_bloom, ECLIPSE.emoji);
   assert.equal(RARITY_EMOJIS.Secret, ECLIPSE.rarityEmoji);
-  assert.equal(OUTLINE_COLORS.Secret, '#FACC15');
+  assert.equal(OUTLINE_COLORS.Secret, undefined);
+  assert.deepEqual(SECRET_OUTLINE_COLORS, ['#000000', '#FFFFFF']);
 });
 
 test('the rollable rarity list and direct maximum target include every rarity', () => {

@@ -31,8 +31,8 @@ const OUTLINE_COLORS = Object.freeze({
   Epic: '#F472B6',
   Legendary: '#FACC15',
   Mythic: '#EF4444',
-  Secret: '#FACC15',
 });
+const SECRET_OUTLINE_COLORS = Object.freeze(['#000000', '#FFFFFF']);
 
 function discoveryHash(discoveredSeedIds) {
   return crypto.createHash('sha256').update([...discoveredSeedIds].sort().join('\0')).digest('hex').slice(0, 20);
@@ -132,6 +132,7 @@ class CropIndexRenderer {
     this.imageCache = new Map();
     this.renderCache = new Map();
     this.rainbowBorder = null;
+    this.secretBorder = null;
     this.studsTile = null;
   }
 
@@ -156,6 +157,22 @@ class CropIndexRenderer {
     roundedRect(context, 1, 1, width - 2, height - 2, INDEX_CARD_RADIUS);
     context.stroke();
     this.rainbowBorder = canvas;
+    return canvas;
+  }
+
+  secretBorderFor(width, height) {
+    if (this.secretBorder) return this.secretBorder;
+    const canvas = createCanvas(width, height);
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, width, height);
+    SECRET_OUTLINE_COLORS.forEach((color, index, colors) => {
+      gradient.addColorStop(index / (colors.length - 1), color);
+    });
+    context.strokeStyle = gradient;
+    context.lineWidth = 2;
+    roundedRect(context, 1, 1, width - 2, height - 2, INDEX_CARD_RADIUS);
+    context.stroke();
+    this.secretBorder = canvas;
     return canvas;
   }
 
@@ -287,6 +304,8 @@ class CropIndexRenderer {
       }
       if (model.seed.rarity === 'Super') {
         context.drawImage(this.rainbowBorderFor(cardWidth, cardHeight), x, y);
+      } else if (model.seed.rarity === 'Secret') {
+        context.drawImage(this.secretBorderFor(cardWidth, cardHeight), x, y);
       } else {
         context.strokeStyle = OUTLINE_COLORS[model.seed.rarity] || '#FFFFFF';
         context.lineWidth = 2;
@@ -361,6 +380,7 @@ class CropIndexRenderer {
     this.renderCache.clear();
     this.imageCache.clear();
     this.rainbowBorder = null;
+    this.secretBorder = null;
     this.studsTile = null;
   }
 }
@@ -375,6 +395,7 @@ module.exports = {
   INDEX_PAGE_SIZE,
   INDEX_ROWS,
   OUTLINE_COLORS,
+  SECRET_OUTLINE_COLORS,
   STUDS_TEXTURE_PATH,
   CropIndexRenderer,
   discoveryHash,
