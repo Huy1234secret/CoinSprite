@@ -22,6 +22,7 @@ const {
   exchangePreviewPayload,
   initialRpsPayload,
 } = require('../components/rpsBuilders');
+const { initialRoulettePayload } = require('../components/rouletteBuilders');
 const { ITEMS, ITEM_BY_ID } = require('../data/items');
 const {
   eggOpeningPayload,
@@ -47,7 +48,7 @@ const PREFIX_COMMANDS = Object.freeze(new Map([
 ]));
 const RNG_GAME_COMMAND_NAMES = new Set([
   'roll', 'inventory', 'sell', 'balance', 'auto-roll', 'upgrade', 'index', 'stat',
-  'calculate-chance', 'exchange-token', 'g-rps', 'shop', 'use',
+  'calculate-chance', 'exchange-token', 'g-rps', 'g-roulette', 'shop', 'use',
 ]);
 
 const RNG_GAME_COMMANDS = [
@@ -84,6 +85,7 @@ const RNG_GAME_COMMANDS = [
       .setMinValue(1)
       .setMaxValue(100)),
   new SlashCommandBuilder().setName('g-rps').setDescription('Play Rock-Paper-Scissors with tokens.'),
+  new SlashCommandBuilder().setName('g-roulette').setDescription('Play European Roulette with tokens.'),
 ].map((data) => ({ data }));
 
 function discordProfile(source) {
@@ -182,6 +184,7 @@ function createCommandHandlers(context) {
     inventoryViews,
     repository,
     rpsService,
+    rouletteService,
     chancePageUrl,
     saleSessions,
     shopService,
@@ -358,6 +361,17 @@ function createCommandHandlers(context) {
     if (message?.id) rpsService.repository.setMessage(result.game.id, message.id);
   }
 
+  async function executeRoulette(source) {
+    const result = rouletteService.createGame(source.guildId, source.channelId, discordProfile(source));
+    if (result.status === 'already-active') {
+      await source.reply(errorPayload('Casino game already active\nFinish or wait for your current table to expire.', { ephemeral: true }));
+      return;
+    }
+    await source.reply(initialRoulettePayload(result.game));
+    const message = await source.fetchReply?.().catch?.(() => null);
+    if (message?.id) rouletteService.repository.setMessage(result.game.id, message.id, rouletteService.now());
+  }
+
   async function executeStat(source) {
     await source.reply(statPayload(source.user, gameService.statistics(source.user.id)));
   }
@@ -417,6 +431,7 @@ function createCommandHandlers(context) {
     if (commandName === 'calculate-chance') return executeCalculateChance(source, options);
     if (commandName === 'exchange-token') return executeExchangeToken(source);
     if (commandName === 'g-rps') return executeRps(source);
+    if (commandName === 'g-roulette') return executeRoulette(source);
     if (commandName === 'shop') return executeShop(source);
     if (commandName === 'use') return executeUse(source, options);
     return undefined;

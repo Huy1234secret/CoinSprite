@@ -2,11 +2,13 @@ const { RNG_GAME_COMMANDS: BASE_RNG_GAME_COMMANDS, createCommandHandlers } = req
 const { createComponentHandler } = require('./components/handler');
 const { autoRollEndedPayload, indexPayload } = require('./components/builders');
 const { canceledPayload } = require('./components/rpsBuilders');
+const { rouletteTerminalPayload } = require('./components/rouletteBuilders');
 const { AutoRollRepository } = require('./repositories/autoRollRepository');
 const { openDatabase } = require('./repositories/database');
 const { RngGameRepository } = require('./repositories/gameRepository');
 const { ItemPetRepository } = require('./repositories/itemPetRepository');
 const { RpsRepository } = require('./repositories/rpsRepository');
+const { RouletteRepository } = require('./repositories/rouletteRepository');
 const { TokenRepository } = require('./repositories/tokenRepository');
 const { AutoRollScheduler, AutoRollService } = require('./services/autoRollService');
 const { RngGameService } = require('./services/gameService');
@@ -14,6 +16,8 @@ const { ShopPageRenderer } = require('./services/shopCardRenderer');
 const { ShopRestockScheduler, ShopService } = require('./services/shopService');
 const { RpsTableRenderer } = require('./services/rpsRenderer');
 const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
+const { RouletteTableRenderer } = require('./services/rouletteRenderer');
+const { RouletteExpiryScheduler, RouletteService } = require('./services/rouletteService');
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
@@ -32,6 +36,7 @@ function createRngGameFeature(options = {}) {
   const autoRollRepository = options.autoRollRepository || new AutoRollRepository(db, repository);
   const tokenRepository = options.tokenRepository || new TokenRepository(db, repository);
   const rpsRepository = options.rpsRepository || new RpsRepository(db, repository);
+  const rouletteRepository = options.rouletteRepository || new RouletteRepository(db, repository);
   const saleSessions = options.saleSessions || new SaleSessionStore({ clock, ttlMs: options.sessionTtlMs });
   const inventoryViews = options.inventoryViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const shopViews = options.shopViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
@@ -39,6 +44,7 @@ function createRngGameFeature(options = {}) {
   const indexViews = options.indexViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
   const rpsRenderer = options.rpsRenderer || new RpsTableRenderer(options.rpsRendererOptions);
+  const rouletteRenderer = options.rouletteRenderer || new RouletteTableRenderer(options.rouletteRendererOptions);
   const shopRenderer = options.shopRenderer || new ShopPageRenderer(options.shopRendererOptions);
   const hatchDelay = options.hatchDelay || ((milliseconds) => new Promise((resolve) => {
     const timer = setTimeout(resolve, milliseconds);
@@ -133,6 +139,13 @@ function createRngGameFeature(options = {}) {
     lobbyTimeoutMs: options.rpsLobbyTimeoutMs,
     turnTimeoutMs: options.rpsTurnTimeoutMs,
   });
+  const rouletteService = options.rouletteService || new RouletteService({
+    repository: rouletteRepository,
+    clock,
+    randomInt: options.rouletteRandomInt,
+    createId: options.rouletteCreateId,
+    timeouts: options.rouletteTimeouts,
+  });
   async function notifyAutoRoll(job) {
     const client = discordClient || options.getClient?.();
     if (!client) throw new Error('Discord client is unavailable for Auto Roll notification.');
@@ -174,6 +187,21 @@ function createRngGameFeature(options = {}) {
     clearTimer: options.rpsClearTimer,
     intervalMs: options.rpsExpiryPollMs,
   });
+  async function notifyRouletteExpired(game) {
+    const client = discordClient || options.getClient?.();
+    if (!client || !game.channelId || !game.messageId) return;
+    const channel = await client.channels.fetch(game.channelId);
+    const message = await channel?.messages?.fetch?.(game.messageId);
+    await message?.edit?.(rouletteTerminalPayload(game, { initial: false }));
+  }
+  const rouletteExpiryScheduler = options.rouletteExpiryScheduler || new RouletteExpiryScheduler({
+    service: rouletteService,
+    notify: options.notifyRouletteExpired || notifyRouletteExpired,
+    onError: (error) => reportError(error),
+    setTimer: options.rouletteSetTimer,
+    clearTimer: options.rouletteClearTimer,
+    intervalMs: options.rouletteExpiryPollMs,
+  });
   const context = {
     actions,
     autoRollRepository,
@@ -200,6 +228,10 @@ function createRngGameFeature(options = {}) {
     rpsRenderer,
     rpsRepository,
     rpsService,
+    rouletteExpiryScheduler,
+    rouletteRenderer,
+    rouletteRepository,
+    rouletteService,
     saleSessions,
     tokenRepository,
   };
@@ -229,6 +261,7 @@ function createRngGameFeature(options = {}) {
       autoRollScheduler.start();
       shopScheduler.start();
       rpsExpiryScheduler.start();
+      rouletteExpiryScheduler.start();
     },
     async handleInteraction(interaction) {
       if (await commands.handleSlash(interaction)) return true;
@@ -241,8 +274,10 @@ function createRngGameFeature(options = {}) {
       autoRollScheduler.stop();
       shopScheduler.stop();
       rpsExpiryScheduler.stop();
+      rouletteExpiryScheduler.stop();
       indexRenderer.clear();
       rpsRenderer.clear();
+      rouletteRenderer.clear();
       shopRenderer.clear?.();
       indexViews.clear();
       inventoryViews.clear();
