@@ -57,15 +57,16 @@ class RpsRepository {
       game: db.prepare('SELECT * FROM rng_rps_games WHERE game_id = ?'),
       participants: db.prepare('SELECT * FROM rng_rps_participants WHERE game_id = ? ORDER BY seat'),
       participant: db.prepare('SELECT * FROM rng_rps_participants WHERE game_id = ? AND user_id = ?'),
-      active: db.prepare('SELECT game_id FROM rng_rps_active_players WHERE user_id = ?'),
+      active: db.prepare('SELECT game_type, game_id FROM rng_casino_active_players WHERE user_id = ?'),
       insertGame: db.prepare(`INSERT INTO rng_rps_games
         (game_id, guild_id, channel_id, host_user_id, state, created_at, expires_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
       insertParticipant: db.prepare(`INSERT INTO rng_rps_participants
         (game_id, user_id, seat, display_name, avatar_url) VALUES (?, ?, ?, ?, ?)`),
-      insertActive: db.prepare('INSERT INTO rng_rps_active_players (user_id, game_id) VALUES (?, ?)'),
-      deleteActiveForGame: db.prepare('DELETE FROM rng_rps_active_players WHERE game_id = ?'),
-      deleteActiveParticipant: db.prepare('DELETE FROM rng_rps_active_players WHERE user_id = ? AND game_id = ?'),
+      insertActive: db.prepare("INSERT INTO rng_casino_active_players (user_id, game_type, game_id) VALUES (?, 'rps', ?)"),
+      deleteActiveForGame: db.prepare("DELETE FROM rng_casino_active_players WHERE game_type = 'rps' AND game_id = ?"),
+      deleteActiveParticipant: db.prepare("DELETE FROM rng_casino_active_players WHERE user_id = ? AND game_type = 'rps' AND game_id = ?"),
+      deleteActiveGuests: db.prepare("DELETE FROM rng_casino_active_players WHERE game_type = 'rps' AND game_id = ? AND user_id <> ?"),
       deleteInvites: db.prepare('DELETE FROM rng_rps_participants WHERE game_id = ? AND seat > 0'),
       deleteParticipant: db.prepare('DELETE FROM rng_rps_participants WHERE game_id = ? AND user_id = ?'),
       setMode: db.prepare('UPDATE rng_rps_games SET mode = ?, updated_at = ? WHERE game_id = ?'),
@@ -140,12 +141,18 @@ class RpsRepository {
     this.setInvitesTransaction = db.transaction((gameId, hostUserId, profiles, now) => {
       const game = this.game(gameId);
       if (!game || game.hostUserId !== hostUserId || game.state !== RPS_STATES.CHOOSING_MODE) return { status: 'stale' };
+      for (const profile of profiles) {
+        this.gameRepository.ensurePlayer(profile.userId, now);
+        const active = this.statements.active.get(profile.userId);
+        if (active && active.game_id !== gameId) return { status: 'participant-busy', userId: profile.userId };
+      }
       this.statements.setMode.run('human', BigInt(now), gameId);
+      this.statements.deleteActiveGuests.run(gameId, hostUserId);
       this.statements.deleteInvites.run(gameId);
       for (let index = 0; index < profiles.length; index += 1) {
         const profile = profiles[index];
-        this.gameRepository.ensurePlayer(profile.userId, now);
         this.statements.insertParticipant.run(gameId, profile.userId, BigInt(index + 1), profile.displayName, profile.avatarUrl);
+        if (!this.statements.active.get(profile.userId)) this.statements.insertActive.run(profile.userId, gameId);
       }
       return { status: 'ok' };
     }).immediate;
@@ -332,7 +339,10 @@ class RpsRepository {
 
   activeGameForUser(userId) {
     const active = this.statements.active.get(String(userId));
-    return active ? this.game(active.game_id) : null;
+    if (!active) return null;
+    return active.game_type === 'rps'
+      ? this.game(active.game_id)
+      : { id: active.game_id, gameType: active.game_type };
   }
 
   create(gameId, guildId, channelId, hostProfile, now, expiresAt) {

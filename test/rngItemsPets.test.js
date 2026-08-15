@@ -722,7 +722,7 @@ test('weight, value, and BIG bonuses use fixed point and obey global caps', () =
   assert.equal(instance.isBig, true);
 });
 
-test('shop page renderer returns one cached 2x3 composite and centers the final two items', async () => {
+test('shop page renderer returns one cached 1920x1080 3x2 composite and centers the final two items', async () => {
   const renderer = new ShopPageRenderer({ loadImage: async () => { throw new Error('missing'); } });
   const items = ITEMS.slice(0, 6).map((item, index) => ({ ...item, stockRemaining: BigInt(index) }));
   const options = { restockEpoch: 0, page: 1, catalogueVersion: SHOP_ITEM_CONFIG_VERSION };
@@ -732,6 +732,12 @@ test('shop page renderer returns one cached 2x3 composite and centers the final 
   const image = await loadImage(first);
   assert.equal(image.width, SHOP_PAGE_WIDTH);
   assert.equal(image.height, SHOP_PAGE_HEIGHT);
+  assert.deepEqual([SHOP_PAGE_WIDTH, SHOP_PAGE_HEIGHT], [1920, 1080]);
+  assert.equal(SHOP_PAGE_WIDTH / SHOP_PAGE_HEIGHT, 16 / 9);
+  const fullPositions = pageCardPositions(6);
+  assert.equal(new Set(fullPositions.slice(0, 3).map((position) => position.y)).size, 1);
+  assert.equal(new Set(fullPositions.slice(3).map((position) => position.y)).size, 1);
+  assert.ok(fullPositions[0].x < fullPositions[1].x && fullPositions[1].x < fullPositions[2].x);
 
   const finalPageItems = ITEMS.slice(12).map((item) => ({ ...item, stockRemaining: 1n }));
   const finalPage = await renderer.render(finalPageItems, {
@@ -743,7 +749,9 @@ test('shop page renderer returns one cached 2x3 composite and centers the final 
   const finalPositions = pageCardPositions(2);
   assert.equal(finalPositions.length, 2);
   assert.equal(finalPositions[0].y, finalPositions[1].y);
-  assert.ok(finalPositions[0].y > 24, 'the two-card final page is vertically centered');
+  assert.equal((finalPositions[0].x + finalPositions[1].x + 592) / 2, SHOP_PAGE_WIDTH / 2,
+    'the two-card group is horizontally centered');
+  assert.ok(finalPositions[0].y > 48, 'the two-card final page is vertically centered');
 
   const changedStock = await renderer.render(
     items.map((item, index) => (index === 0 ? { ...item, stockRemaining: 99n } : item)),

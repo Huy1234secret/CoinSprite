@@ -38,6 +38,7 @@ const {
 const { createPowerUpgradeControls } = require('../services/upgradeService');
 const { indexDiscoveryCount } = require('../services/indexRenderer');
 const { createRpsComponentHandler } = require('./rpsHandler');
+const { createRouletteComponentHandler } = require('./rouletteHandler');
 const {
   acknowledgeUpdate,
   sendEphemeral,
@@ -92,6 +93,7 @@ function createComponentHandler(context) {
     shopViews,
   } = context;
   const handleRpsComponent = createRpsComponentHandler(context);
+  const handleRouletteComponent = createRouletteComponentHandler(context);
 
   function acknowledge(interaction) {
     return acknowledgeUpdate(interaction, { reportError: context.reportError, startedAt: Date.now() });
@@ -733,6 +735,7 @@ function createComponentHandler(context) {
       return true;
     }
     if (parts[1] === 'rps' || parts[1] === 'exchange') return handleRpsComponent(interaction, parts);
+    if (parts[1] === 'roulette') return handleRouletteComponent(interaction, parts);
     if (parts[1] === 'inv') return inventoryInteraction(interaction, parts);
     if (parts[1] === 'upgrade') return upgradeInteraction(interaction, parts);
     if (parts[1] === 'sale') return saleInteraction(interaction, parts);

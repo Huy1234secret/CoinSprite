@@ -5,18 +5,14 @@ const { RARITIES } = require('../data/seeds');
 const { formatInteger } = require('../utils/format');
 const { roundedRect } = require('./indexRenderer');
 
-const SHOP_CARD_WIDTH = 420;
-const SHOP_CARD_HEIGHT = 420;
-const SHOP_PAGE_COLUMNS = 2;
-const SHOP_PAGE_ROWS = 3;
+const SHOP_CARD_WIDTH = 592;
+const SHOP_CARD_HEIGHT = 480;
+const SHOP_PAGE_COLUMNS = 3;
+const SHOP_PAGE_ROWS = 2;
 const SHOP_PAGE_GAP = 24;
-const SHOP_PAGE_PADDING = 24;
-const SHOP_PAGE_WIDTH = (SHOP_PAGE_PADDING * 2)
-  + (SHOP_CARD_WIDTH * SHOP_PAGE_COLUMNS)
-  + (SHOP_PAGE_GAP * (SHOP_PAGE_COLUMNS - 1));
-const SHOP_PAGE_HEIGHT = (SHOP_PAGE_PADDING * 2)
-  + (SHOP_CARD_HEIGHT * SHOP_PAGE_ROWS)
-  + (SHOP_PAGE_GAP * (SHOP_PAGE_ROWS - 1));
+const SHOP_PAGE_PADDING = 48;
+const SHOP_PAGE_WIDTH = 1_920;
+const SHOP_PAGE_HEIGHT = 1_080;
 const IMAGE_TIMEOUT_MS = 8_000;
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -70,20 +66,21 @@ function fitText(context, value, maximumWidth, startSize = 37, minimumSize = 22)
 function pageCardPositions(countValue) {
   const count = Math.max(0, Math.min(SHOP_PAGE_COLUMNS * SHOP_PAGE_ROWS, Math.floor(Number(countValue) || 0)));
   if (!count) return [];
-  const rowsUsed = Math.ceil(count / SHOP_PAGE_COLUMNS);
-  const usedHeight = (rowsUsed * SHOP_CARD_HEIGHT) + ((rowsUsed - 1) * SHOP_PAGE_GAP);
+  const rows = count <= SHOP_PAGE_COLUMNS ? [count] : [SHOP_PAGE_COLUMNS, count - SHOP_PAGE_COLUMNS];
+  const usedHeight = (rows.length * SHOP_CARD_HEIGHT) + ((rows.length - 1) * SHOP_PAGE_GAP);
   const startY = Math.floor((SHOP_PAGE_HEIGHT - usedHeight) / 2);
-  return Array.from({ length: count }, (_, index) => {
-    const row = Math.floor(index / SHOP_PAGE_COLUMNS);
-    const column = index % SHOP_PAGE_COLUMNS;
-    const isCenteredLastCard = count % SHOP_PAGE_COLUMNS === 1 && index === count - 1;
-    return Object.freeze({
-      x: isCenteredLastCard
-        ? Math.floor((SHOP_PAGE_WIDTH - SHOP_CARD_WIDTH) / 2)
-        : SHOP_PAGE_PADDING + (column * (SHOP_CARD_WIDTH + SHOP_PAGE_GAP)),
-      y: startY + (row * (SHOP_CARD_HEIGHT + SHOP_PAGE_GAP)),
-    });
+  const positions = [];
+  rows.forEach((rowCount, row) => {
+    const usedWidth = (rowCount * SHOP_CARD_WIDTH) + ((rowCount - 1) * SHOP_PAGE_GAP);
+    const startX = Math.floor((SHOP_PAGE_WIDTH - usedWidth) / 2);
+    for (let column = 0; column < rowCount; column += 1) {
+      positions.push(Object.freeze({
+        x: startX + (column * (SHOP_CARD_WIDTH + SHOP_PAGE_GAP)),
+        y: startY + (row * (SHOP_CARD_HEIGHT + SHOP_PAGE_GAP)),
+      }));
+    }
   });
+  return positions;
 }
 
 class ShopPageRenderer {
@@ -105,20 +102,20 @@ class ShopPageRenderer {
   }
 
   drawFallback(context, item) {
-    const centerX = 110;
-    const centerY = 215;
-    const gradient = context.createRadialGradient(centerX - 12, centerY - 16, 4, centerX, centerY, 68);
+    const centerX = 144;
+    const centerY = 257;
+    const gradient = context.createRadialGradient(centerX - 16, centerY - 20, 4, centerX, centerY, 92);
     gradient.addColorStop(0, 'rgba(255,255,255,0.95)');
     gradient.addColorStop(1, 'rgba(255,255,255,0.16)');
     context.fillStyle = gradient;
     context.beginPath();
-    context.arc(centerX, centerY, 66, 0, Math.PI * 2);
+    context.arc(centerX, centerY, 90, 0, Math.PI * 2);
     context.fill();
     context.fillStyle = '#111827';
     context.textAlign = 'center';
-    context.font = font(700, 36);
+    context.font = font(700, 44);
     const initials = item.displayName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2);
-    context.fillText(initials, centerX, centerY + 12);
+    context.fillText(initials, centerX, centerY + 15);
     context.textAlign = 'left';
   }
 
@@ -140,74 +137,74 @@ class ShopPageRenderer {
     context.fillStyle = '#FFFFFF';
     for (let index = 0; index < 18; index += 1) {
       context.beginPath();
-      context.arc(20 + ((index * 71) % 390), 20 + ((index * 61) % 390), 3 + (index % 8), 0, Math.PI * 2);
+      context.arc(20 + ((index * 97) % 550), 20 + ((index * 71) % 440), 3 + (index % 8), 0, Math.PI * 2);
       context.fill();
     }
     context.restore();
 
     context.fillStyle = 'rgba(3, 7, 18, 0.42)';
-    roundedRect(context, 22, 102, 176, 282, 26);
+    roundedRect(context, 24, 108, 240, 334, 26);
     context.fill();
     context.strokeStyle = 'rgba(255,255,255,0.13)';
     context.lineWidth = 2;
-    roundedRect(context, 23, 103, 174, 280, 25);
+    roundedRect(context, 25, 109, 238, 332, 25);
     context.stroke();
 
     const art = await this.cachedImage(`item:${item.id}`, customEmojiImageUrl(item.emoji));
     if (art) {
-      const maximum = 148;
+      const maximum = 202;
       const scale = Math.min(maximum / art.width, maximum / art.height);
       const width = art.width * scale;
       const height = art.height * scale;
-      context.drawImage(art, 110 - (width / 2), 215 - (height / 2), width, height);
+      context.drawImage(art, 144 - (width / 2), 257 - (height / 2), width, height);
     } else {
       this.drawFallback(context, item);
     }
 
     const badgeColor = RARITIES[item.rarity]?.color || 0xFFFFFF;
     context.fillStyle = `#${badgeColor.toString(16).padStart(6, '0')}`;
-    roundedRect(context, 36, 330, 148, 36, 18);
+    roundedRect(context, 50, 388, 188, 38, 19);
     context.fill();
     context.fillStyle = item.rarity === 'Secret' || item.rarity === 'Legendary' ? '#111827' : '#FFFFFF';
     context.textAlign = 'center';
-    context.font = font(700, 16);
-    context.fillText(item.rarity.toUpperCase(), 110, 354);
+    context.font = font(700, 18);
+    context.fillText(item.rarity.toUpperCase(), 144, 413);
     context.textAlign = 'left';
 
-    const fitted = fitText(context, item.displayName, 376, 32, 20);
+    const fitted = fitText(context, item.displayName, 536, 36, 22);
     context.fillStyle = '#FFFFFF';
     context.font = font(700, fitted.size);
-    context.fillText(fitted.text, 22, 48);
+    context.fillText(fitted.text, 28, 52);
 
     context.fillStyle = 'rgba(255,255,255,0.72)';
-    context.font = font(600, 18);
-    context.fillText(item.type, 22, 78);
+    context.font = font(600, 21);
+    context.fillText(item.type, 28, 84);
 
     context.fillStyle = 'rgba(3,7,18,0.42)';
-    roundedRect(context, 216, 112, 182, 90, 20);
+    roundedRect(context, 286, 124, 282, 126, 22);
     context.fill();
     const sheckles = await this.cachedImage('sheckles', customEmojiImageUrl(SHECKLES_EMOJI));
-    if (sheckles) context.drawImage(sheckles, 234, 138, 38, 38);
+    if (sheckles) context.drawImage(sheckles, 310, 162, 48, 48);
     context.fillStyle = '#FFFFFF';
     const priceText = formatInteger(item.price);
-    let priceSize = 25;
-    const priceX = sheckles ? 282 : 234;
-    while (priceSize > 14) {
+    let priceSize = 32;
+    const priceX = sheckles ? 370 : 310;
+    while (priceSize > 18) {
       context.font = font(700, priceSize);
-      if (context.measureText(priceText).width <= 398 - priceX - 12) break;
+      if (context.measureText(priceText).width <= 568 - priceX - 16) break;
       priceSize -= 1;
     }
     context.font = font(700, priceSize);
-    context.fillText(priceText, priceX, 169);
+    context.fillText(priceText, priceX, 198);
 
     const out = BigInt(item.stockRemaining) <= 0n;
     context.fillStyle = out ? '#EF4444' : '#22C55E';
-    roundedRect(context, 216, 230, 182, 80, 20);
+    roundedRect(context, 286, 282, 282, 112, 22);
     context.fill();
     context.fillStyle = '#FFFFFF';
     context.textAlign = 'center';
-    context.font = font(700, out ? 20 : 24);
-    context.fillText(out ? 'OUT OF STOCK' : `Stock: x${item.stockRemaining}`, 307, 280);
+    context.font = font(700, out ? 25 : 31);
+    context.fillText(out ? 'OUT OF STOCK' : `Stock: x${item.stockRemaining}`, 427, 351);
     context.textAlign = 'left';
     return canvas;
   }
@@ -263,6 +260,8 @@ module.exports = {
   SHOP_CARD_HEIGHT,
   SHOP_CARD_WIDTH,
   SHOP_PAGE_HEIGHT,
+  SHOP_PAGE_COLUMNS,
+  SHOP_PAGE_ROWS,
   SHOP_PAGE_WIDTH,
   ShopPageRenderer,
   THEMES,
