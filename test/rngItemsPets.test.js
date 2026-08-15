@@ -36,10 +36,11 @@ const {
   valueForWeight,
 } = require('../src/features/rng-game/services/rngService');
 const {
-  niceRoundUp,
-  personalizedItemPrice,
-} = require('../src/features/rng-game/services/shopPricingService');
-const { ShopCardRenderer, SHOP_CARD_HEIGHT, SHOP_CARD_WIDTH } = require('../src/features/rng-game/services/shopCardRenderer');
+  SHOP_PAGE_HEIGHT,
+  SHOP_PAGE_WIDTH,
+  ShopPageRenderer,
+  pageCardPositions,
+} = require('../src/features/rng-game/services/shopCardRenderer');
 const {
   RESTOCK_INTERVAL_MS,
   currentRestockEpoch,
@@ -80,11 +81,8 @@ function purchasePreview(game, userId, itemId) {
   const current = state.items.find((item) => item.id === itemId);
   return {
     restockEpoch: state.restockEpoch,
-    configVersion: current.pricing.configVersion,
-    pricedLuckTier: current.pricing.pricedLuckTier,
-    pricedBigTier: current.pricing.pricedBigTier,
+    configVersion: current.configVersion,
     price: current.price,
-    pricing: current.pricing,
   };
 }
 
@@ -118,7 +116,7 @@ test('/shop, c!shop, /use, and c!use are registered and routed', async () => {
   assert.equal(loadingReply.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
   assert.match(shopReply.components[0].components[0].content, /CoinSprite shop/);
   assert.equal(shopReply.flags, undefined, 'edits inherit the initial Components V2 message flag');
-  assert.equal(shopReply.files.length, 6);
+  assert.equal(shopReply.files.length, 1);
 
   let slashLoading;
   let slashShop;
@@ -150,168 +148,165 @@ test('prefix /use parsing is case-insensitive, longest-name-first, and validates
   assert.equal(parsePrefixUse('c!shop'), null);
 });
 
-test('authoritative item minimums, effects, restock scarcity, and configuration version are exact', () => {
+test('authoritative fixed prices, effects, restock scarcity, and configuration version are exact', () => {
   const expected = {
-    secret_mushroom: [8_000_000n, 200, 1, 1, 'rarity-flat'],
-    super_mushroom: [1_500_000n, 400, 1, 1, 'rarity'],
-    mythic_mushroom: [750_000n, 700, 1, 1, 'rarity'],
-    legendary_mushroom: [400_000n, 1_000, 1, 1, 'rarity'],
-    epic_mushroom: [150_000n, 1_800, 1, 2, 'rarity'],
-    rare_mushroom: [50_000n, 3_000, 1, 3, 'rarity'],
-    legendary_sprinkler: [2_500_000n, 200, 1, 1, 'sprinkler'],
-    super_sprinkler: [1_000_000n, 400, 1, 1, 'sprinkler'],
-    rare_sprinkler: [350_000n, 900, 1, 1, 'sprinkler'],
-    uncommon_sprinkler: [125_000n, 1_800, 1, 2, 'sprinkler'],
-    common_sprinkler: [40_000n, 3_500, 2, 4, 'sprinkler'],
+    secret_mushroom: [6_000_000n, 200, 1, 1, 'rarity-flat'],
+    super_mushroom: [1_000_000n, 400, 1, 1, 'rarity'],
+    mythic_mushroom: [500_000n, 700, 1, 1, 'rarity'],
+    legendary_mushroom: [350_000n, 1_000, 1, 1, 'rarity'],
+    epic_mushroom: [75_000n, 1_800, 1, 2, 'rarity'],
+    rare_mushroom: [15_000n, 3_000, 1, 3, 'rarity'],
+    super_sprinkler: [1_500_000n, 200, 1, 1, 'sprinkler'],
+    legendary_sprinkler: [750_000n, 400, 1, 1, 'sprinkler'],
+    rare_sprinkler: [250_000n, 900, 1, 1, 'sprinkler'],
+    uncommon_sprinkler: [75_000n, 1_800, 1, 2, 'sprinkler'],
+    common_sprinkler: [25_000n, 3_500, 2, 4, 'sprinkler'],
     super_watering_can: [100_000n, 2_000, 1, 3, 'watering-can'],
     common_watering_can: [5_000n, 5_000, 3, 8, 'watering-can'],
-    common_egg: [2_500_000n, 800, 1, 2, 'egg'],
+    common_egg: [2_000_000n, 800, 1, 2, 'egg'],
   };
   for (const item of ITEMS) {
     assert.deepEqual([
-      item.minimumPrice,
+      item.price,
       item.restockChanceBps,
       item.stock.minimum,
       item.stock.maximum,
       item.effect.kind,
     ], expected[item.id]);
     assert.equal(item.configVersion, SHOP_ITEM_CONFIG_VERSION);
-    assert.equal(item.priceMarginBps, 13_500);
   }
   assert.equal(ITEM_BY_ID.get('secret_mushroom').effect.addedProbabilityUnits, 250_000);
   assert.equal(ITEM_BY_ID.get('super_mushroom').effect.numerator, 10);
-  assert.equal(ITEM_BY_ID.get('legendary_sprinkler').effect.weightBps, 15_000);
+  assert.equal(ITEM_BY_ID.get('super_sprinkler').effect.weightBps, 15_000);
   assert.equal(ITEM_BY_ID.get('super_watering_can').effect.weightBps, 20_000);
 });
 
-test('personalized prices use only permanent tiers and never fall below minimums', () => {
+test('every player sees the same fixed prices regardless of tiers, pets, or active items', () => {
   const game = feature({ clock: () => 1, restockRng: () => 0 });
-  const initial = game.shopService.state('priced-player');
+  const initial = game.shopService.state('fixed-price-player');
   const initialPrices = new Map(initial.items.map((item) => [item.id, item.price]));
-  assert.equal(initialPrices.get('secret_mushroom'), 8_000_000n);
-  assert.equal(initialPrices.get('common_egg'), 2_500_000n);
+  assert.equal(initialPrices.get('secret_mushroom'), 6_000_000n);
+  assert.equal(initialPrices.get('common_egg'), 2_000_000n);
 
-  addPet(game, 'priced-player', 'bear', 1);
-  game.itemRepository.equipPet('priced-player', 1, 'bear', 1);
-  grantItem(game, 'priced-player', 'rare_mushroom', 1, 1);
-  game.itemRepository.use('priced-player', 'rare_mushroom', 1, 'price-active-item', 1);
-  const manipulated = game.shopService.state('priced-player');
+  addPet(game, 'fixed-price-player', 'bear', 1);
+  game.itemRepository.equipPet('fixed-price-player', 1, 'bear', 1);
+  grantItem(game, 'fixed-price-player', 'rare_mushroom', 1, 1);
+  game.itemRepository.use('fixed-price-player', 'rare_mushroom', 1, 'fixed-price-active-item', 1);
+  game.db.prepare('UPDATE rng_players SET luck_tier = 49, big_crop_tier = 50 WHERE user_id = ?')
+    .run('fixed-price-player');
+  const manipulated = game.shopService.state('fixed-price-player');
   assert.deepEqual(
     manipulated.items.map((item) => item.price),
     initial.items.map((item) => item.price),
-    'pets and active consumables are excluded from pricing',
+    'permanent tiers, pets, and active consumables cannot personalize Shop prices',
   );
-
-  game.db.prepare('UPDATE rng_players SET luck_tier = 49, big_crop_tier = 50 WHERE user_id = ?')
-    .run('priced-player');
-  const maximum = game.shopService.state('priced-player');
-  for (const item of maximum.items) {
-    assert.ok(item.price > initialPrices.get(item.id));
-    assert.ok(item.price >= item.minimumPrice);
-    assert.equal(typeof item.price, 'bigint');
-  }
-  assert.equal(maximum.items.find((item) => item.id === 'secret_mushroom').price, 11_600_000n);
-  assert.equal(maximum.items.find((item) => item.id === 'common_egg').price, 3_650_000n);
+  assert.ok(manipulated.items.every((item) => typeof item.price === 'bigint'));
   game.close();
 });
 
-test('personalized price arithmetic stays exact above Number.MAX_SAFE_INTEGER', () => {
-  const minimumPrice = 9_007_199_254_740_993n;
-  const item = {
-    id: 'bigint-safe-egg',
-    minimumPrice,
-    affectedRolls: 0,
-    priceMarginBps: 13_500,
-    configVersion: SHOP_ITEM_CONFIG_VERSION,
-    effect: { kind: 'egg' },
-  };
-  const quote = personalizedItemPrice(item, 49, 50);
-  const exactFloor = ((minimumPrice * 14_440n) + 9_999n) / 10_000n;
-  assert.equal(quote.progressionFloor, exactFloor);
-  assert.equal(quote.price, niceRoundUp(exactFloor));
-  assert.equal(quote.price % 100_000n, 0n);
-  assert.ok(quote.price > BigInt(Number.MAX_SAFE_INTEGER));
-});
-
-test('a maximum-value normal Super crop cannot buy a Secret Mushroom at any permanent tier', () => {
+test('a maximum-value normal Super crop cannot buy a fixed-price Secret Mushroom', () => {
   const maximumNormalSuper = BigInt(Math.max(
     ...SEEDS.filter((seed) => seed.rarity === 'Super').map((seed) => seed.maximumValue),
   ));
   const secret = ITEM_BY_ID.get('secret_mushroom');
-  for (let luckTier = 0; luckTier <= 49; luckTier += 1) {
-    for (let bigTier = 0; bigTier <= 50; bigTier += 1) {
-      assert.ok(personalizedItemPrice(secret, luckTier, bigTier).price > maximumNormalSuper);
-    }
-  }
+  assert.ok(secret.price > maximumNormalSuper);
 });
 
-test('purchase confirmation refreshes a stale permanent-tier price without charging', () => {
+test('permanent-tier changes do not invalidate a fixed-price purchase preview', () => {
   const game = feature({ clock: () => 1, restockRng: () => 0 });
-  fund(game, 'stale-price', 1_000_000n);
-  const preview = purchasePreview(game, 'stale-price', 'rare_mushroom');
+  fund(game, 'fixed-checkout', 1_000_000n);
+  const preview = purchasePreview(game, 'fixed-checkout', 'rare_mushroom');
   const stockBefore = game.itemRepository.shopState(1).items
     .find((item) => item.id === 'rare_mushroom').stockRemaining;
-  game.db.prepare('UPDATE rng_players SET luck_tier = 1 WHERE user_id = ?').run('stale-price');
-  const changed = game.itemRepository.purchase(
-    'stale-price', 'rare_mushroom', 1, 'stale-price-operation', preview, 1,
-  );
-  assert.equal(changed.status, 'price-changed');
-  assert.equal(changed.quote.pricedLuckTier, 1);
-  assert.equal(game.repository.getPlayer('stale-price').balance, 1_000_000n);
-  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'rare_mushroom').stockRemaining, stockBefore);
-  const refreshed = {
-    restockEpoch: changed.restockEpoch,
-    configVersion: changed.quote.configVersion,
-    pricedLuckTier: changed.quote.pricedLuckTier,
-    pricedBigTier: changed.quote.pricedBigTier,
-    price: changed.quote.price,
-    pricing: changed.quote,
-  };
+  game.db.prepare('UPDATE rng_players SET luck_tier = 49, big_crop_tier = 50 WHERE user_id = ?').run('fixed-checkout');
   const purchased = game.itemRepository.purchase(
-    'stale-price', 'rare_mushroom', 1, 'refreshed-price-operation', refreshed, 1,
+    'fixed-checkout', 'rare_mushroom', 1, 'fixed-price-operation', preview, 1,
   );
   assert.equal(purchased.status, 'ok');
-  assert.equal(purchased.price, 51_000n);
+  assert.equal(purchased.price, 15_000n);
+  assert.equal(game.repository.getPlayer('fixed-checkout').balance, 985_000n);
+  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'rare_mushroom').stockRemaining, stockBefore - 1n);
   game.close();
 });
 
-test('purchase preview explains tiers, effect, duration, and each deterministic price component', () => {
+test('purchase confirmation rejects a stale fixed price without charging or consuming stock', () => {
+  const game = feature({ clock: () => 1, restockRng: () => 0 });
+  fund(game, 'stale-fixed-price', 1_000_000n);
+  const preview = purchasePreview(game, 'stale-fixed-price', 'rare_mushroom');
+  preview.price += 1n;
+  const stockBefore = game.itemRepository.shopState(1).items
+    .find((item) => item.id === 'rare_mushroom').stockRemaining;
+  const result = game.itemRepository.purchase(
+    'stale-fixed-price', 'rare_mushroom', 1, 'stale-fixed-price-operation', preview, 1,
+  );
+  assert.equal(result.status, 'price-changed');
+  assert.equal(result.current.price, 15_000n);
+  assert.equal(result.current.configVersion, SHOP_ITEM_CONFIG_VERSION);
+  assert.equal(game.repository.getPlayer('stale-fixed-price').balance, 1_000_000n);
+  assert.equal(game.itemRepository.shopState(1).items.find((item) => item.id === 'rare_mushroom').stockRemaining, stockBefore);
+  game.close();
+});
+
+test('purchase preview shows the fixed price without personalized pricing details', () => {
   const item = ITEM_BY_ID.get('secret_mushroom');
-  const pricing = personalizedItemPrice(item, 0, 0);
   const payload = purchasePreviewPayload({
-    id: 'price-preview', amount: 1n, price: pricing.price, pricing,
+    id: 'price-preview', amount: 1n, price: item.price, configVersion: item.configVersion,
   }, item);
   const rendered = JSON.stringify(payload);
-  assert.match(rendered, /Luck 0.*BIG 0/);
-  assert.match(rendered, /0\.0001%.*0\.0251%/);
-  assert.match(rendered, /Estimated affected rolls.*720/);
-  assert.match(rendered, /Minimum price|Permanent-tier scaling|Expected-effect pricing|Final rounded price|Exact total/);
+  assert.match(rendered, /Fixed price.*6,000,000/);
+  assert.match(rendered, /Exact total.*6,000,000/);
+  assert.doesNotMatch(rendered, /Personalized|Permanent tiers|Luck 0|BIG 0|price breakdown/i);
   assertValidMessagePayload(payload);
 });
 
-test('shop pages render six cards and expose exactly the displayed stable IDs', () => {
+test('shop pages attach one composite image and expose exactly the displayed stable IDs', () => {
   const displayed = ITEMS.slice(0, 6).map((item, index) => ({
     ...item, stockRemaining: BigInt(index), price: item.price,
   }));
   const page = {
     restockEpoch: 0,
     nextRestockAt: RESTOCK_INTERVAL_MS,
-    pricedLuckTier: 0,
-    pricedBigTier: 0,
     page: 1,
     maxPage: 3,
     items: displayed,
-    cards: displayed.map((item) => ({ item, image: Buffer.from(item.id) })),
+    image: Buffer.from('composite-shop-page'),
   };
   const payload = shopPayload(page, { id: 'shop-view', page: 1 });
   const container = payload.components[0].components;
-  assert.equal(container.find((component) => component.type === 12).items.length, 6);
+  assert.equal(container.find((component) => component.type === 12).items.length, 1);
   const select = container.flatMap((component) => component.components || []).find((component) => component.type === 3);
   assert.equal(select.placeholder, 'Select item to purchase');
   assert.deepEqual(select.options.map((option) => option.value), displayed.map((item) => item.id));
   assert.match(select.options[0].description, /OUT OF STOCK/);
-  assert.equal(payload.files.length, 6);
+  assert.equal(payload.files.length, 1);
+  assert.doesNotMatch(JSON.stringify(payload), /Personalized for Luck/);
+  assert.match(container[0].content, /^### CoinSprite shop\n-# Restock /);
+  assert.ok(container.some((component) => component.type === 14));
+  assert.ok(container.flatMap((component) => component.components || []).some((component) => component.label === 'Page 1 / 3'));
   assertValidMessagePayload(payload);
+});
+
+test('the 14-item catalogue paginates as 6, 6, and 2 without repeats or filler entries', async () => {
+  const renderedPages = [];
+  const game = feature({
+    clock: () => 1,
+    restockRng: () => 0,
+    shopRenderer: {
+      render: async (items, options) => {
+        renderedPages.push({ ids: items.map((item) => item.id), options });
+        return Buffer.from(`page-${options.page}`);
+      },
+      clear() {},
+    },
+  });
+  const pages = await Promise.all([1, 2, 3].map((page) => game.shopService.page('any-player', page)));
+  assert.deepEqual(pages.map((page) => page.items.length), [6, 6, 2]);
+  assert.deepEqual(pages.map((page) => page.maxPage), [3, 3, 3]);
+  assert.deepEqual(pages.flatMap((page) => page.items.map((item) => item.id)), ITEMS.map((item) => item.id));
+  assert.deepEqual(renderedPages.map((entry) => entry.ids.length), [6, 6, 2]);
+  assert.deepEqual(renderedPages.map((entry) => entry.options.page), [1, 2, 3]);
+  assert.ok(renderedPages.every((entry) => entry.options.catalogueVersion === SHOP_ITEM_CONFIG_VERSION));
+  game.close();
 });
 
 test('fixed restock boundaries use independent item rolls and do not carry stock', () => {
@@ -431,7 +426,26 @@ test('inventory type switching edits the owner view and rejects other users', as
 
 test('pet hatch boundaries total exactly 100% and persist every rolled instance', () => {
   const game = feature();
+  assert.deepEqual(Object.fromEntries(PETS.map((pet) => [pet.id, pet.hatchWeight])), {
+    frog: 3_000,
+    bunny: 3_000,
+    owl: 1_800,
+    deer: 800,
+    turtle: 800,
+    robin: 160,
+    bee: 140,
+    butterfly: 100,
+    monkey: 50,
+    firefly: 50,
+    golden_dragonfly: 40,
+    unicorn: 35,
+    bear: 25,
+  });
   assert.equal(PETS.reduce((sum, pet) => sum + pet.hatchWeight, 0), 10_000);
+  assert.deepEqual(PETS.reduce((totals, pet) => ({
+    ...totals,
+    [pet.rarity]: (totals[pet.rarity] || 0) + pet.hatchWeight,
+  }), {}), { Common: 6_000, Uncommon: 1_800, Rare: 1_600, Legendary: 400, Mythic: 200 });
   let cumulative = 0;
   for (const pet of PETS) {
     cumulative += pet.hatchWeight;
@@ -708,16 +722,41 @@ test('weight, value, and BIG bonuses use fixed point and obey global caps', () =
   assert.equal(instance.isBig, true);
 });
 
-test('shop card renderer returns a consistent PNG even when all emoji downloads fail', async () => {
-  const renderer = new ShopCardRenderer({ loadImage: async () => { throw new Error('missing'); } });
-  const item = { ...ITEM_BY_ID.get('common_egg'), stockRemaining: 0n };
-  const first = await renderer.render(item, 0);
-  const second = await renderer.render(item, 0);
-  assert.equal(first, second, 'identical card state is cached');
+test('shop page renderer returns one cached 2x3 composite and centers the final two items', async () => {
+  const renderer = new ShopPageRenderer({ loadImage: async () => { throw new Error('missing'); } });
+  const items = ITEMS.slice(0, 6).map((item, index) => ({ ...item, stockRemaining: BigInt(index) }));
+  const options = { restockEpoch: 0, page: 1, catalogueVersion: SHOP_ITEM_CONFIG_VERSION };
+  const first = await renderer.render(items, options);
+  const second = await renderer.render(items, options);
+  assert.equal(first, second, 'identical composite page state is cached');
   const image = await loadImage(first);
-  assert.equal(image.width, SHOP_CARD_WIDTH);
-  assert.equal(image.height, SHOP_CARD_HEIGHT);
-  assert.equal(SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT, 'Discord gallery cards must be square to avoid cover-cropping');
+  assert.equal(image.width, SHOP_PAGE_WIDTH);
+  assert.equal(image.height, SHOP_PAGE_HEIGHT);
+
+  const finalPageItems = ITEMS.slice(12).map((item) => ({ ...item, stockRemaining: 1n }));
+  const finalPage = await renderer.render(finalPageItems, {
+    restockEpoch: 0, page: 3, catalogueVersion: SHOP_ITEM_CONFIG_VERSION,
+  });
+  const finalImage = await loadImage(finalPage);
+  assert.equal(finalImage.width, SHOP_PAGE_WIDTH);
+  assert.equal(finalImage.height, SHOP_PAGE_HEIGHT);
+  const finalPositions = pageCardPositions(2);
+  assert.equal(finalPositions.length, 2);
+  assert.equal(finalPositions[0].y, finalPositions[1].y);
+  assert.ok(finalPositions[0].y > 24, 'the two-card final page is vertically centered');
+
+  const changedStock = await renderer.render(
+    items.map((item, index) => (index === 0 ? { ...item, stockRemaining: 99n } : item)),
+    options,
+  );
+  assert.notEqual(changedStock, first, 'stock values participate in the composite cache key');
+  assert.notEqual(await renderer.render(items, { ...options, restockEpoch: 1 }), first, 'restock epoch participates in the composite cache key');
+  assert.notEqual(await renderer.render(items, { ...options, page: 2 }), first, 'page participates in the composite cache key');
+  assert.notEqual(await renderer.render(items, { ...options, catalogueVersion: SHOP_ITEM_CONFIG_VERSION + 1 }), first, 'catalogue version participates in the composite cache key');
+  assert.notEqual(await renderer.render(
+    items.map((item, index) => (index === 0 ? { ...item, price: item.price + 1n } : item)),
+    options,
+  ), first, 'prices participate in the composite cache key');
   renderer.clear();
 });
 

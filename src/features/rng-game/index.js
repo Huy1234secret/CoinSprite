@@ -10,7 +10,7 @@ const { RpsRepository } = require('./repositories/rpsRepository');
 const { TokenRepository } = require('./repositories/tokenRepository');
 const { AutoRollScheduler, AutoRollService } = require('./services/autoRollService');
 const { RngGameService } = require('./services/gameService');
-const { ShopCardRenderer } = require('./services/shopCardRenderer');
+const { ShopPageRenderer } = require('./services/shopCardRenderer');
 const { ShopRestockScheduler, ShopService } = require('./services/shopService');
 const { RpsTableRenderer } = require('./services/rpsRenderer');
 const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
@@ -39,7 +39,7 @@ function createRngGameFeature(options = {}) {
   const indexViews = options.indexViews || new ViewStore({ clock, ttlMs: options.sessionTtlMs });
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
   const rpsRenderer = options.rpsRenderer || new RpsTableRenderer(options.rpsRendererOptions);
-  const shopRenderer = options.shopRenderer || new ShopCardRenderer(options.shopRendererOptions);
+  const shopRenderer = options.shopRenderer || new ShopPageRenderer(options.shopRendererOptions);
   const hatchDelay = options.hatchDelay || ((milliseconds) => new Promise((resolve) => {
     const timer = setTimeout(resolve, milliseconds);
     timer.unref?.();

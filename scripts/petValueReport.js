@@ -10,7 +10,6 @@ const {
 const {
   combinedPetBonuses,
   fractionToNumber,
-  personalizedItemPrice,
   subtractFraction,
 } = require('../src/features/rng-game/services/shopPricingService');
 
@@ -51,8 +50,8 @@ for (const pet of PETS.filter((entry) => entry.rarity === 'Common')) {
 const mythicWeight = PETS.filter((pet) => pet.rarity === 'Mythic')
   .reduce((sum, pet) => sum + pet.hatchWeight, 0);
 const expectedEggsForMythic = Math.ceil(10_000 / mythicWeight);
-const tierZeroEgg = personalizedItemPrice(ITEM_BY_ID.get('common_egg'), 0, 0);
-const expectedMythicAcquisitionCost = tierZeroEgg.price * BigInt(expectedEggsForMythic);
+const eggPrice = ITEM_BY_ID.get('common_egg').price;
+const expectedMythicAcquisitionCost = eggPrice * BigInt(expectedEggsForMythic);
 assert.ok(expectedMythicAcquisitionCost >= 100_000_000n, 'Expected Mythic pet acquisition must remain expensive.');
 
 let maximumThreePet = null;
@@ -77,7 +76,7 @@ console.table(rows);
 console.table([{
   mythicHatchChance: `${mythicWeight / 100}%`,
   expectedEggsForMythic,
-  tierZeroEggPrice: String(tierZeroEgg.price),
+  fixedEggPrice: String(eggPrice),
   expectedMythicAcquisitionCost: String(expectedMythicAcquisitionCost),
   maximumThreePetCombination: maximumThreePet.pets.join(' + '),
   maximumTierEV: fractionToNumber(maximumThreePet.fraction).toFixed(4),

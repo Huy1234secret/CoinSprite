@@ -7,6 +7,16 @@ const { roundedRect } = require('./indexRenderer');
 
 const SHOP_CARD_WIDTH = 420;
 const SHOP_CARD_HEIGHT = 420;
+const SHOP_PAGE_COLUMNS = 2;
+const SHOP_PAGE_ROWS = 3;
+const SHOP_PAGE_GAP = 24;
+const SHOP_PAGE_PADDING = 24;
+const SHOP_PAGE_WIDTH = (SHOP_PAGE_PADDING * 2)
+  + (SHOP_CARD_WIDTH * SHOP_PAGE_COLUMNS)
+  + (SHOP_PAGE_GAP * (SHOP_PAGE_COLUMNS - 1));
+const SHOP_PAGE_HEIGHT = (SHOP_PAGE_PADDING * 2)
+  + (SHOP_CARD_HEIGHT * SHOP_PAGE_ROWS)
+  + (SHOP_PAGE_GAP * (SHOP_PAGE_ROWS - 1));
 const IMAGE_TIMEOUT_MS = 8_000;
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -57,11 +67,30 @@ function fitText(context, value, maximumWidth, startSize = 37, minimumSize = 22)
   return { text: `${shown}…`, size: minimumSize };
 }
 
-class ShopCardRenderer {
+function pageCardPositions(countValue) {
+  const count = Math.max(0, Math.min(SHOP_PAGE_COLUMNS * SHOP_PAGE_ROWS, Math.floor(Number(countValue) || 0)));
+  if (!count) return [];
+  const rowsUsed = Math.ceil(count / SHOP_PAGE_COLUMNS);
+  const usedHeight = (rowsUsed * SHOP_CARD_HEIGHT) + ((rowsUsed - 1) * SHOP_PAGE_GAP);
+  const startY = Math.floor((SHOP_PAGE_HEIGHT - usedHeight) / 2);
+  return Array.from({ length: count }, (_, index) => {
+    const row = Math.floor(index / SHOP_PAGE_COLUMNS);
+    const column = index % SHOP_PAGE_COLUMNS;
+    const isCenteredLastCard = count % SHOP_PAGE_COLUMNS === 1 && index === count - 1;
+    return Object.freeze({
+      x: isCenteredLastCard
+        ? Math.floor((SHOP_PAGE_WIDTH - SHOP_CARD_WIDTH) / 2)
+        : SHOP_PAGE_PADDING + (column * (SHOP_CARD_WIDTH + SHOP_PAGE_GAP)),
+      y: startY + (row * (SHOP_CARD_HEIGHT + SHOP_PAGE_GAP)),
+    });
+  });
+}
+
+class ShopPageRenderer {
   constructor(options = {}) {
     assertIndexCanvasFontAvailable();
     this.loadImage = options.loadImage || ((source) => fetchCanvasImage(source, options.fetchImpl));
-    this.maxCacheEntries = Math.max(24, Number(options.maxCacheEntries) || 256);
+    this.maxCacheEntries = Math.max(6, Number(options.maxCacheEntries) || 96);
     this.imageCache = new Map();
     this.renderCache = new Map();
   }
@@ -93,7 +122,7 @@ class ShopCardRenderer {
     context.textAlign = 'left';
   }
 
-  async renderUncached(item) {
+  async renderCard(item) {
     const canvas = createCanvas(SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT);
     const context = canvas.getContext('2d');
     const [start, end] = THEMES[item.rarity] || THEMES.Common;
@@ -101,9 +130,12 @@ class ShopCardRenderer {
     background.addColorStop(0, start);
     background.addColorStop(1, end);
     context.fillStyle = background;
-    context.fillRect(0, 0, SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT);
+    roundedRect(context, 0, 0, SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT, 28);
+    context.fill();
 
     context.save();
+    roundedRect(context, 0, 0, SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT, 28);
+    context.clip();
     context.globalAlpha = 0.08;
     context.fillStyle = '#FFFFFF';
     for (let index = 0; index < 18; index += 1) {
@@ -177,13 +209,40 @@ class ShopCardRenderer {
     context.font = font(700, out ? 20 : 24);
     context.fillText(out ? 'OUT OF STOCK' : `Stock: x${item.stockRemaining}`, 307, 280);
     context.textAlign = 'left';
+    return canvas;
+  }
+
+  async renderUncached(items) {
+    const canvas = createCanvas(SHOP_PAGE_WIDTH, SHOP_PAGE_HEIGHT);
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#080B14';
+    context.fillRect(0, 0, SHOP_PAGE_WIDTH, SHOP_PAGE_HEIGHT);
+    const cards = await Promise.all(items.map((item) => this.renderCard(item)));
+    const positions = pageCardPositions(items.length);
+    cards.forEach((card, index) => {
+      const position = positions[index];
+      context.drawImage(card, position.x, position.y, SHOP_CARD_WIDTH, SHOP_CARD_HEIGHT);
+    });
     return canvas.toBuffer('image/png');
   }
 
-  render(item, restockEpoch) {
-    const key = `${item.id}:${restockEpoch}:${item.price}:${item.stockRemaining}`;
+  render(items, options = {}) {
+    if (!Array.isArray(items) || items.length < 1 || items.length > SHOP_PAGE_COLUMNS * SHOP_PAGE_ROWS) {
+      throw new RangeError('A Shop composite page must contain between one and six items.');
+    }
+    const key = JSON.stringify({
+      restockEpoch: Number(options.restockEpoch),
+      page: Number(options.page),
+      catalogueVersion: Number(options.catalogueVersion),
+      items: items.map((item) => ({
+        id: item.id,
+        configVersion: item.configVersion,
+        price: String(item.price),
+        stock: String(item.stockRemaining),
+      })),
+    });
     if (!this.renderCache.has(key)) {
-      this.renderCache.set(key, this.renderUncached(item).catch((error) => {
+      this.renderCache.set(key, this.renderUncached(items).catch((error) => {
         this.renderCache.delete(key);
         throw error;
       }));
@@ -200,4 +259,13 @@ class ShopCardRenderer {
   }
 }
 
-module.exports = { SHOP_CARD_HEIGHT, SHOP_CARD_WIDTH, ShopCardRenderer, THEMES, fetchCanvasImage };
+module.exports = {
+  SHOP_CARD_HEIGHT,
+  SHOP_CARD_WIDTH,
+  SHOP_PAGE_HEIGHT,
+  SHOP_PAGE_WIDTH,
+  ShopPageRenderer,
+  THEMES,
+  fetchCanvasImage,
+  pageCardPositions,
+};

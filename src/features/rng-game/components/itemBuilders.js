@@ -28,15 +28,15 @@ function shopSelectOption(item) {
 }
 
 function shopPayload(pageData, view, options = {}) {
-  const files = pageData.cards.map(({ item, image }) => ({
-    attachment: image,
-    name: `shop-${item.id}-${pageData.restockEpoch}.png`,
-  }));
+  const file = {
+    attachment: pageData.image,
+    name: `shop-page-${pageData.page}-${pageData.restockEpoch}.png`,
+  };
   const components = [
-    { type: 10, content: `### CoinSprite shop\n-# Personalized for Luck ${pageData.pricedLuckTier} • BIG ${pageData.pricedBigTier} • Restock <t:${Math.floor(pageData.nextRestockAt / 1_000)}:R>` },
+    { type: 10, content: `### CoinSprite shop\n-# Restock <t:${Math.floor(pageData.nextRestockAt / 1_000)}:R>` },
     {
       type: 12,
-      items: files.map((file) => ({ media: { url: `attachment://${file.name}` } })),
+      items: [{ media: { url: `attachment://${file.name}` } }],
     },
     { type: 14, divider: true, spacing: 1 },
     {
@@ -50,48 +50,24 @@ function shopPayload(pageData, view, options = {}) {
         options: pageData.items.map(shopSelectOption),
       }],
     },
-  ];
-  if (pageData.maxPage > 1) {
-    components.push({
+    {
       type: 1,
       components: [
         { type: 2, style: 2, label: 'Previous', custom_id: `rng:shop:prev:${view.id}`, disabled: pageData.page <= 1 },
         { type: 2, style: 2, label: `Page ${pageData.page} / ${pageData.maxPage}`, custom_id: `rng:shop:page:${view.id}`, disabled: true },
         { type: 2, style: 2, label: 'Next', custom_id: `rng:shop:next:${view.id}`, disabled: pageData.page >= pageData.maxPage },
       ],
-    });
-  }
+    },
+  ];
   return {
     ...v2Payload([{ type: 17, accent_color: WHITE, components }], options),
-    files,
+    files: [file],
     attachments: [],
   };
 }
 
-function pricingDecimal(numerator, denominator, places = 2) {
-  const scale = 10n ** BigInt(places);
-  const scaled = (BigInt(numerator) * scale) / BigInt(denominator);
-  const whole = scaled / scale;
-  const remainder = String(scaled % scale).padStart(places, '0').replace(/0+$/, '');
-  return remainder ? `${whole}.${remainder}` : String(whole);
-}
-
 function purchasePreviewPayload(action, item, options = {}) {
-  const pricing = action.pricing;
   const total = BigInt(action.amount) * BigInt(action.price);
-  const probability = (units) => `${pricingDecimal(units, 10_000_000n, 6)}%`;
-  const multiplier = (bps) => `×${pricingDecimal(bps, 10_000n, 3)}`;
-  const percentBps = (bps) => `${pricingDecimal(bps, 100n, 2)}%`;
-  let relevant;
-  if (item.effect.kind === 'rarity' || item.effect.kind === 'rarity-flat') {
-    relevant = `${item.effect.rarity} odds: **${probability(pricing.baseline.rarityUnits[item.effect.rarity])} → ${probability(pricing.boosted.rarityUnits[item.effect.rarity])}**`;
-  } else if (item.effect.kind === 'sprinkler') {
-    relevant = `Weight: **${multiplier(pricing.baseline.weightMultiplierBps)} → ${multiplier(pricing.boosted.weightMultiplierBps)}**\n- BIG chance: **${percentBps(pricing.baseline.effectiveBigChanceBps)} → ${percentBps(pricing.boosted.effectiveBigChanceBps)}**`;
-  } else if (item.effect.kind === 'watering-can') {
-    relevant = `Weight on the next successful roll: **${multiplier(pricing.baseline.weightMultiplierBps)} → ${multiplier(pricing.boosted.weightMultiplierBps)}**`;
-  } else {
-    relevant = 'Result: **1 random permanent pet**';
-  }
   const duration = item.durationMs >= 60 * 60 * 1_000
     ? `${item.durationMs / (60 * 60 * 1_000)} hour`
     : item.durationMs > 0
@@ -101,18 +77,12 @@ function purchasePreviewPayload(action, item, options = {}) {
     '### Confirm purchase',
     `${item.emoji} **${item.displayName} x${action.amount}**`,
     '',
-    `- Permanent tiers: **Luck ${pricing.pricedLuckTier} • BIG ${pricing.pricedBigTier}**`,
-    `- ${relevant}`,
-    `- Duration: **${duration}** • Estimated affected rolls: **${pricing.affectedRolls}**`,
-    '',
-    '### Price breakdown',
-    `- Minimum price: ${formatInteger(pricing.minimumPrice)} ${SHECKLES_EMOJI}`,
-    `- Permanent-tier scaling (${multiplier(pricing.tierScaleBps)}): ${formatInteger(pricing.progressionFloor)} ${SHECKLES_EMOJI}`,
-    `- Expected-effect pricing (+${pricingDecimal(BigInt(pricing.priceMarginBps) - 10_000n, 100n, 2)}% margin): ${formatInteger(pricing.upliftPrice)} ${SHECKLES_EMOJI}`,
-    `- Final rounded price: **${formatInteger(pricing.price)}** ${SHECKLES_EMOJI} each`,
+    `- Effect: **${item.description}**`,
+    `- Duration: **${duration}**`,
+    `- Fixed price: **${formatInteger(action.price)}** ${SHECKLES_EMOJI} each`,
     `- Exact total: **${formatInteger(total)}** ${SHECKLES_EMOJI}`,
     '',
-    '-# Stock, permanent tiers, configuration, and price will be checked again when you confirm.',
+    '-# Stock, catalogue version, and fixed price will be checked again when you confirm.',
   ].join('\n');
   return v2Payload([{
     type: 17,

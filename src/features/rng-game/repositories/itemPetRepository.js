@@ -5,7 +5,7 @@ const {
   SHOP_ITEM_CONFIG_VERSION,
 } = require('../data/items');
 const { PETS, PET_BY_ID, PET_SLOT_PRICES } = require('../data/pets');
-const { combinedPetBonuses, personalizedItemPrice } = require('../services/shopPricingService');
+const { combinedPetBonuses } = require('../services/shopPricingService');
 const { SQLITE_INTEGER_MAX } = require('./gameRepository');
 
 const RESTOCK_INTERVAL_MS = 30 * 60 * 1_000;
@@ -158,7 +158,7 @@ class ItemPetRepository {
             catalogueItem.stock.maximum - catalogueItem.stock.minimum + 1,
           )
           : 0;
-        this.statements.insertStock.run(BigInt(epoch), catalogueItem.id, catalogueItem.minimumPrice, BigInt(stock));
+        this.statements.insertStock.run(BigInt(epoch), catalogueItem.id, catalogueItem.price, BigInt(stock));
       }
       return { created: true, epoch };
     }).immediate;
@@ -173,21 +173,20 @@ class ItemPetRepository {
       const row = this.statements.stockItem.get(BigInt(epoch), itemId);
       if (!row) return { status: 'stale-restock', duplicate: false };
       const player = this.statements.player.get(userId);
-      const quote = personalizedItemPrice(
-        catalogueItem,
-        Number(player.luck_tier),
-        Number(player.big_crop_tier),
-      );
+      const current = Object.freeze({
+        itemId: catalogueItem.id,
+        configVersion: catalogueItem.configVersion,
+        price: catalogueItem.price,
+      });
       let previewPrice = -1n;
       try { previewPrice = BigInt(preview?.price); } catch { previewPrice = -1n; }
       if (Number(preview?.configVersion) !== catalogueItem.configVersion
-        || Number(preview?.pricedLuckTier) !== quote.pricedLuckTier
-        || Number(preview?.pricedBigTier) !== quote.pricedBigTier
-        || previewPrice !== quote.price) {
-        return { status: 'price-changed', restockEpoch: epoch, quote, duplicate: false };
+        || previewPrice !== catalogueItem.price
+        || row.price !== catalogueItem.price) {
+        return { status: 'price-changed', restockEpoch: epoch, current, duplicate: false };
       }
       if (row.stock < amount) return { status: 'stock', available: row.stock, duplicate: false };
-      const total = quote.price * amount;
+      const total = catalogueItem.price * amount;
       if (total > SQLITE_INTEGER_MAX) throw new RangeError('Purchase total exceeds the SQLite signed 64-bit range.');
       if (player.sheckle_balance < total) {
         return { status: 'insufficient', total, missing: total - player.sheckle_balance, balance: player.sheckle_balance, duplicate: false };
@@ -202,10 +201,9 @@ class ItemPetRepository {
       this.statements.addItem.run(userId, itemId, amount, BigInt(now));
       const quantity = existingQuantity + amount;
       const result = {
-        status: 'ok', itemId, amount, price: quote.price, total, balance, quantity,
+        status: 'ok', itemId, amount, price: catalogueItem.price, total, balance, quantity,
         stock: row.stock - amount, restockEpoch: epoch,
-        pricedLuckTier: quote.pricedLuckTier, pricedBigTier: quote.pricedBigTier,
-        configVersion: quote.configVersion, duplicate: false,
+        configVersion: catalogueItem.configVersion, duplicate: false,
       };
       this.statements.saveOperation.run(operationKey, userId, 'shop-purchase', stringifyResult(result), BigInt(now));
       return result;
@@ -367,7 +365,7 @@ class ItemPetRepository {
       nextRestockAt: nextRestockAt(now),
       items: ITEMS.map((catalogueItem) => ({
         ...catalogueItem,
-        price: rows.get(catalogueItem.id)?.price ?? catalogueItem.price,
+        price: catalogueItem.price,
         stockRemaining: rows.get(catalogueItem.id)?.stock ?? 0n,
       })),
     };
