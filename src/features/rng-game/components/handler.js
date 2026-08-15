@@ -514,11 +514,8 @@ function createComponentHandler(context) {
             itemId: claimed.itemId,
             amount: claimed.amount,
             restockEpoch: result.restockEpoch,
-            configVersion: result.quote.configVersion,
-            pricedLuckTier: result.quote.pricedLuckTier,
-            pricedBigTier: result.quote.pricedBigTier,
-            price: result.quote.price,
-            pricing: result.quote,
+            configVersion: result.current.configVersion,
+            price: result.current.price,
           });
           await interaction.editReply(purchasePreviewPayload(refreshed, ITEM_BY_ID.get(claimed.itemId), { initial: false }));
           return true;
@@ -579,11 +576,8 @@ function createComponentHandler(context) {
         itemId: item.id,
         amount,
         restockEpoch: state.restockEpoch,
-        configVersion: current.pricing.configVersion,
-        pricedLuckTier: current.pricing.pricedLuckTier,
-        pricedBigTier: current.pricing.pricedBigTier,
+        configVersion: current.configVersion,
         price: current.price,
-        pricing: current.pricing,
       });
       await interaction.reply(purchasePreviewPayload(purchaseAction, item));
       return true;

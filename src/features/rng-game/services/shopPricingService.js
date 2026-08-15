@@ -12,9 +12,6 @@ const {
   weightBounds,
 } = require('./rngService');
 
-const PRICE_SCALE_BPS = 10_000n;
-const ROLLS_PER_30_MINUTES = 360n;
-const ROLLS_PER_HOUR = 720n;
 const weightedAverageCache = new Map();
 
 function greatestCommonDivisor(left, right) {
@@ -50,17 +47,6 @@ function ceilFraction(value) {
 
 function fractionToNumber(value) {
   return Number(value.numerator) / Number(value.denominator);
-}
-
-function niceRoundUp(value) {
-  const amount = BigInt(value);
-  if (amount <= 0n) return 0n;
-  let increment;
-  if (amount < 100_000n) increment = 1_000n;
-  else if (amount < 1_000_000n) increment = 10_000n;
-  else if (amount < 10_000_000n) increment = 50_000n;
-  else increment = 100_000n;
-  return ((amount + increment - 1n) / increment) * increment;
 }
 
 function normalizedBps(value, fallback, maximum) {
@@ -133,43 +119,24 @@ function effectOptionsForItem(item) {
   return {};
 }
 
-function permanentTierScaleBps(luckTier, bigTier) {
-  const luck = BigInt(Math.max(0, Math.floor(Number(luckTier) || 0)));
-  const big = BigInt(Math.max(0, Math.floor(Number(bigTier) || 0)));
-  return 10_000n + (60n * luck) + (30n * big);
-}
-
-function personalizedItemPrice(item, luckTier = 0, bigTier = 0, options = {}) {
-  const pricedLuckTier = Math.max(0, Math.floor(Number(luckTier) || 0));
-  const pricedBigTier = Math.max(0, Math.floor(Number(bigTier) || 0));
-  const baseline = options.baseline || expectedRollValue(pricedLuckTier, pricedBigTier);
+function itemBalanceQuote(item, luckTier = 0, bigTier = 0, options = {}) {
+  const evaluatedLuckTier = Math.max(0, Math.floor(Number(luckTier) || 0));
+  const evaluatedBigTier = Math.max(0, Math.floor(Number(bigTier) || 0));
+  const baseline = options.baseline || expectedRollValue(evaluatedLuckTier, evaluatedBigTier);
   const boosted = item.effect?.kind === 'egg'
     ? baseline
-    : expectedRollValue(pricedLuckTier, pricedBigTier, effectOptionsForItem(item));
+    : expectedRollValue(evaluatedLuckTier, evaluatedBigTier, effectOptionsForItem(item));
   const difference = subtractFraction(boosted.fraction, baseline.fraction);
   const upliftPerRoll = difference.numerator > 0n ? difference : fraction(0n);
   const affectedRolls = BigInt(item.affectedRolls || 0);
   const expectedUplift = multiplyFraction(upliftPerRoll, affectedRolls);
-  const marginBps = BigInt(item.priceMarginBps);
-  const upliftPrice = ceilFraction(multiplyFraction(expectedUplift, marginBps, PRICE_SCALE_BPS));
-  const tierScaleBps = permanentTierScaleBps(pricedLuckTier, pricedBigTier);
-  const progressionFloor = ceilFraction(fraction(item.minimumPrice * tierScaleBps, PRICE_SCALE_BPS));
-  const unroundedPrice = progressionFloor > upliftPrice ? progressionFloor : upliftPrice;
-  const price = niceRoundUp(unroundedPrice);
-  if (price < item.minimumPrice) throw new Error(`Personalized price fell below minimum for ${item.id}.`);
   return Object.freeze({
     itemId: item.id,
     configVersion: item.configVersion,
-    pricedLuckTier,
-    pricedBigTier,
-    minimumPrice: item.minimumPrice,
-    tierScaleBps,
-    progressionFloor,
-    upliftPrice,
-    unroundedPrice,
-    price,
+    evaluatedLuckTier,
+    evaluatedBigTier,
+    price: item.price,
     affectedRolls,
-    priceMarginBps: item.priceMarginBps,
     baseline,
     boosted,
     upliftPerRoll,
@@ -177,9 +144,9 @@ function personalizedItemPrice(item, luckTier = 0, bigTier = 0, options = {}) {
   });
 }
 
-function personalizedCatalogue(items, luckTier = 0, bigTier = 0) {
+function balanceCatalogue(items, luckTier = 0, bigTier = 0) {
   const baseline = expectedRollValue(luckTier, bigTier);
-  return items.map((item) => personalizedItemPrice(item, luckTier, bigTier, { baseline }));
+  return items.map((item) => itemBalanceQuote(item, luckTier, bigTier, { baseline }));
 }
 
 function combinedPetBonuses(pets, luckTier = 0, bigTier = 0) {
@@ -229,20 +196,15 @@ function combinedPetBonuses(pets, luckTier = 0, bigTier = 0) {
 }
 
 module.exports = {
-  PRICE_SCALE_BPS,
-  ROLLS_PER_30_MINUTES,
-  ROLLS_PER_HOUR,
   averageWeightedValueFractionForSeed,
+  balanceCatalogue,
   ceilFraction,
   combinedPetBonuses,
   effectOptionsForItem,
   expectedRollValue,
   fraction,
   fractionToNumber,
+  itemBalanceQuote,
   multiplyFraction,
-  niceRoundUp,
-  permanentTierScaleBps,
-  personalizedCatalogue,
-  personalizedItemPrice,
   subtractFraction,
 };
