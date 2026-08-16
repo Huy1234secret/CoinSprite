@@ -25,18 +25,21 @@ function rouletteResultAssetPath(game) {
 async function loadRouletteStateImage(game, renderer, onError) {
   let assetPath;
   let extension;
+  let kind;
   if (game.state === ROULETTE_STATES.SPINNING) {
     assetPath = rouletteSpinAssetPath(game);
     extension = 'gif';
+    kind = 'spin';
   } else if (game.state === ROULETTE_STATES.FINISHED) {
     assetPath = rouletteResultAssetPath(game);
     extension = 'png';
+    kind = 'result';
   } else {
-    return { image: await renderer.render(game), extension: 'png', fallback: false };
+    return { image: await renderer.render(game), extension: 'png', kind: 'table', fallback: false };
   }
 
   try {
-    return { image: await fs.readFile(assetPath), extension, assetPath, fallback: false };
+    return { image: await fs.readFile(assetPath), extension, kind, assetPath, fallback: false };
   } catch (cause) {
     const error = new Error(`Roulette asset unavailable: ${assetPath}`, { cause });
     onError?.(error, {
@@ -46,7 +49,7 @@ async function loadRouletteStateImage(game, renderer, onError) {
       revision: game.revision,
       state: game.state,
     });
-    return { image: await renderer.render(game), extension: 'png', assetPath, fallback: true };
+    return { image: await renderer.render(game), extension: 'png', kind, assetPath, fallback: true };
   }
 }
 

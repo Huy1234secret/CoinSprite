@@ -232,10 +232,13 @@ function createRngGameFeature(options = {}) {
       if (!authoritative || authoritative.state !== ROULETTE_STATES.SPINNING || authoritative.revision !== game.revision) return;
       const message = await rouletteMessage(authoritative);
       if (!message?.edit) return;
-      const media = await loadRouletteStateImage(authoritative, rouletteRenderer, reportError);
+      const [tableImage, media] = await Promise.all([
+        rouletteRenderer.render(authoritative),
+        loadRouletteStateImage(authoritative, rouletteRenderer, reportError),
+      ]);
       const latest = rouletteService.game(game.id);
       if (!latest || latest.state !== ROULETTE_STATES.SPINNING || latest.revision !== authoritative.revision) return;
-      await message.edit(rouletteSpinningPayload(authoritative, media.image, { initial: false, extension: media.extension }));
+      await message.edit(rouletteSpinningPayload(authoritative, tableImage, media.image, { initial: false, extension: media.extension }));
     });
   }
   async function notifyRouletteFinished(game) {
@@ -244,10 +247,13 @@ function createRngGameFeature(options = {}) {
       if (!authoritative || authoritative.state !== ROULETTE_STATES.FINISHED || authoritative.revision !== game.revision) return;
       const message = await rouletteMessage(authoritative);
       if (!message?.edit) return;
-      const media = await loadRouletteStateImage(authoritative, rouletteRenderer, reportError);
+      const [tableImage, media] = await Promise.all([
+        rouletteRenderer.render(authoritative),
+        loadRouletteStateImage(authoritative, rouletteRenderer, reportError),
+      ]);
       const latest = rouletteService.game(game.id);
       if (!latest || latest.state !== ROULETTE_STATES.FINISHED || latest.revision !== authoritative.revision) return;
-      await message.edit(rouletteResultPayload(authoritative, media.image, { initial: false }));
+      await message.edit(rouletteResultPayload(authoritative, tableImage, media.image, { initial: false }));
     });
   }
   const rouletteRevealScheduler = options.rouletteRevealScheduler || new RouletteRevealScheduler({

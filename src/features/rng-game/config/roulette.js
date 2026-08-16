@@ -5,7 +5,8 @@ const ROULETTE_CANVAS_HEIGHT = 700;
 const ROULETTE_IMAGE_DIRECTORY = path.join(__dirname, '..', '..', '..', '..', 'images', 'roulette');
 const ROULETTE_RESULT_IMAGE_DIRECTORY = path.join(__dirname, '..', '..', '..', '..');
 const ROULETTE_TABLE_ASSET = 'roulette table.png';
-const ROULETTE_SPIN_DURATION_MS = 8_000;
+const ROULETTE_SPIN_DURATION_MS = 10_000;
+const ROULETTE_MAX_PLAYERS = 4;
 
 const ROULETTE_STATES = Object.freeze({
   CHOOSING_MODE: 'CHOOSING_MODE',
@@ -107,24 +108,47 @@ function anchorFor(type, target) {
   throw new Error(`Unknown roulette anchor: ${type}:${target}`);
 }
 
+const ROULETTE_ACTION_OPTIONS = Object.freeze([
+  Object.freeze({ label: 'Place Bet', value: 'place-bet', emoji: '<:PlaceBet:1538455949931450472>', description: 'Choose a roulette position and wager tokens.' }),
+  Object.freeze({ label: 'Clear Bets', value: 'clear-bets', emoji: '<:ClearBet:1538455945598738482>', description: 'Refund and remove all of your bets before the spin.' }),
+  Object.freeze({ label: 'Spin [Host only]', value: 'spin', emoji: '<:SpinRoulette:1538455952657748018>', description: 'Start the 10-second spin when all bettors are ready.' }),
+  Object.freeze({ label: 'Cancel Table [Host only]', value: 'cancel', emoji: '<:CancelTable:1538455943304454205>', description: 'Close the table and refund all unresolved bets.' }),
+]);
+
 const ROULETTE_BET_OPTIONS = Object.freeze([
-  ['Straight Number', 'straight'], ['Split', 'split'], ['Street', 'street'], ['Corner', 'corner'],
-  ['Six Line', 'six_line'], ['Trio 0-1-2', 'trio_012'], ['Trio 0-2-3', 'trio_023'],
-  ['First Four 0-1-2-3', 'first_four'], ['1st 12', 'dozen_1'], ['2nd 12', 'dozen_2'],
-  ['3rd 12', 'dozen_3'], ['Column 1', 'column_1'], ['Column 2', 'column_2'],
-  ['Column 3', 'column_3'], ['Red', 'red'], ['Black', 'black'], ['Even', 'even'], ['Odd', 'odd'],
-  ['1 to 18', 'low'], ['19 to 36', 'high'],
-].map(([label, value]) => Object.freeze({ label, value })));
+  ['Straight Up', 'straight', '<:StraightUp:1538461704017543168>', 'One exact number • pays 35:1 profit.'],
+  ['Split', 'split', '<:Split:1538461701949624400>', 'Two adjacent numbers • pays 17:1 profit.'],
+  ['Street', 'street', '<:Street:1538461705686753370>', 'One row of three numbers • pays 11:1.'],
+  ['Corner', 'corner', '<:Corner:1538461685201772605>', 'Four touching numbers • pays 8:1.'],
+  ['Six Line', 'six_line', '<:SixLine:1538461700162850877>', 'Two adjacent streets • pays 5:1.'],
+  ['Trio 0-1-2', 'trio_012', '<:Trio:1538461709990109214>', 'Covers 0, 1 and 2 • pays 11:1.'],
+  ['Trio 0-2-3', 'trio_023', '<:Trio:1538461709990109214>', 'Covers 0, 2 and 3 • pays 11:1.'],
+  ['Basket 0-1-2-3', 'first_four', '<:Basket:1538461679237730394>', 'European first four • pays 8:1.'],
+  ['1st Dozen', 'dozen_1', '<:Dozen:1538461687877861537>', 'Covers 1 through 12 • pays 2:1.'],
+  ['2nd Dozen', 'dozen_2', '<:Dozen:1538461687877861537>', 'Covers 13 through 24 • pays 2:1.'],
+  ['3rd Dozen', 'dozen_3', '<:Dozen:1538461687877861537>', 'Covers 25 through 36 • pays 2:1.'],
+  ['Column 1', 'column_1', '<:Column:1538461683234644071>', 'Covers 1, 4, 7 … 34 • pays 2:1.'],
+  ['Column 2', 'column_2', '<:Column:1538461683234644071>', 'Covers 2, 5, 8 … 35 • pays 2:1.'],
+  ['Column 3', 'column_3', '<:Column:1538461683234644071>', 'Covers 3, 6, 9 … 36 • pays 2:1.'],
+  ['Red', 'red', '<:Red:1538461698434924574>', 'Covers every red number • pays 1:1.'],
+  ['Black', 'black', '<:Black:1538461681276157983>', 'Covers every black number • pays 1:1.'],
+  ['Even', 'even', '<:Even:1538461690436259870>', 'Covers even numbers 2–36 • pays 1:1.'],
+  ['Odd', 'odd', '<:Odd:1538461696711073822>', 'Covers odd numbers 1–35 • pays 1:1.'],
+  ['Low', 'low', '<:Low:1538461694437892126>', 'Covers numbers 1–18 • pays 1:1.'],
+  ['High', 'high', '<:High:1538461692416229437>', 'Covers numbers 19–36 • pays 1:1.'],
+].map(([label, value, emoji, description]) => Object.freeze({ label, value, emoji, description })));
 
 module.exports = {
   RED_NUMBERS,
   RED_NUMBER_SET,
+  ROULETTE_ACTION_OPTIONS,
   ROULETTE_BET_OPTIONS,
   ROULETTE_CANVAS_HEIGHT,
   ROULETTE_CANVAS_WIDTH,
   ROULETTE_GEOMETRY,
   ROULETTE_IMAGE_DIRECTORY,
   ROULETTE_LIMITS,
+  ROULETTE_MAX_PLAYERS,
   ROULETTE_RESULT_IMAGE_DIRECTORY,
   ROULETTE_SPIN_DURATION_MS,
   ROULETTE_STATES,

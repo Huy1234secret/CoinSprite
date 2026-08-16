@@ -29,7 +29,12 @@ class RouletteService {
   createGame(guildId, channelId, hostProfile) {
     const now = this.now();
     this.expireDue();
-    return this.repository.create(this.createId(), guildId, channelId, hostProfile, now, now + this.timeouts.choosing);
+    return this.repository.create(this.createId(), guildId, channelId, hostProfile, now, now + this.timeouts.betting);
+  }
+
+  join(gameId, profile) {
+    const now = this.now();
+    return this.repository.join(gameId, profile, now, now + this.timeouts.betting);
   }
 
   chooseMode(gameId, hostUserId, mode) {
@@ -70,6 +75,11 @@ class RouletteService {
   setReady(gameId, userId, ready, operationKey = `roulette-ready:${this.createOperationId()}`) {
     const now = this.now();
     return this.repository.ready(gameId, userId, ready, operationKey, now, now + this.timeouts.betting);
+  }
+
+  toggleReady(gameId, userId, operationKey = `roulette-ready:${this.createOperationId()}`) {
+    const now = this.now();
+    return this.repository.toggleReady(gameId, userId, operationKey, now, now + this.timeouts.betting);
   }
 
   leave(gameId, userId, operationKey) {
