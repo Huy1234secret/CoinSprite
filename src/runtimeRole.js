@@ -47,7 +47,7 @@ function runtimeCapabilities(value) {
     role,
     bot: isValid && (role === 'bot' || role === 'combined'),
     panel: isValid && (role === 'panel' || role === 'combined'),
-    stockPoster: isValid && (role === 'bot' || role === 'combined'),
+    scheduler: isValid && (role === 'bot' || role === 'combined'),
   });
 }
 
@@ -66,13 +66,13 @@ function runtimeInstanceInfo(role, client) {
     shard: shardIds.length ? shardIds.join(',') : 'none',
     serviceName: String(serviceName).slice(0, 120),
     instanceId: String(process.env.COINSPRITE_INSTANCE_ID || `${os.hostname()}:${process.pid}`).slice(0, 180),
-    stockPoster: capabilities.stockPoster ? 'enabled' : 'disabled',
+    scheduler: capabilities.scheduler ? 'enabled' : 'disabled',
   });
 }
 
 function runtimeDiagnostic(role, client) {
   const info = runtimeInstanceInfo(role, client);
-  return `CoinSprite runtime role=${info.role} stockPoster=${info.stockPoster} instance=${info.instanceId} pid=${info.pid} hostname=${info.hostname} shard=${info.shard} service=${info.serviceName}`;
+  return `CoinSprite runtime role=${info.role} scheduler=${info.scheduler} instance=${info.instanceId} pid=${info.pid} hostname=${info.hostname} shard=${info.shard} service=${info.serviceName}`;
 }
 
 function createRuntimeStarter(role, initializers = {}) {

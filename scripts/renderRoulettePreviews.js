@@ -86,6 +86,9 @@ async function main() {
     bet(participants[2].userId, 'odd', '', 3),
     bet(participants[3].userId, 'column_2', '', 4),
   ];
+  const resultPreview = (number, specs) => game(`result-${number}`, specs.map(([type, target], index) => (
+    bet(participants[index % participants.length].userId, type, target, index)
+  )), { finished: true, winningNumber: number, winningColor: number === 0 ? 'green' : ([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(number) ? 'red' : 'black') });
   const previews = [
     ['00-sparse-table.png', game('sparse-table', sparse), false],
     ['01-straight-anchors.png', game('straight-anchors', straightBets()), true],
@@ -94,6 +97,21 @@ async function main() {
     ['04-four-user-stack.png', game('four-user-stack', stacked), false],
     ['05-dense-table.png', game('dense-table', denseSpecs), false],
     ['06-finished-result.png', game('finished-result', finished, { finished: true, winningNumber: 17, winningColor: 'black' }), false],
+    ['result-0.png', resultPreview(0, [
+      ['straight', '0'], ['trio_012', ''], ['trio_023', ''], ['first_four', ''], ['red', ''],
+    ]), false],
+    ['result-9.png', resultPreview(9, [
+      ['straight', '9'], ['split', '6-9'], ['split', '8-9'], ['split', '9-12'], ['red', ''], ['odd', ''], ['low', ''], ['black', ''],
+    ]), false],
+    ['result-17.png', resultPreview(17, [
+      ['straight', '17'], ['split', '14-17'], ['corner', '16-17-19-20'], ['black', ''], ['odd', ''], ['column_2', ''], ['red', ''],
+    ]), false],
+    ['result-36.png', resultPreview(36, [
+      ['straight', '36'], ['split', '33-36'], ['corner', '32-33-35-36'], ['red', ''], ['even', ''], ['high', ''], ['column_3', ''], ['odd', ''],
+    ]), false],
+    ['result-multiple-users.png', resultPreview(9, [
+      ['straight', '9'], ['red', ''], ['split', '8-9'], ['odd', ''], ['black', ''], ['even', ''], ['dozen_2', ''], ['high', ''],
+    ]), false],
   ];
   for (const [filename, state, guides] of previews) {
     fs.writeFileSync(path.join(outputDirectory, filename), await renderer.render(state, { guides }));

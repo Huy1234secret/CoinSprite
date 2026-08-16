@@ -12,7 +12,7 @@ const {
   anchorFor,
   numberCoordinates,
 } = require('../config/roulette');
-const { canonicalBet } = require('./rouletteRules');
+const { betCoversResult, canonicalBet, winningBetRegions } = require('./rouletteRules');
 
 const CHIP_RADIUS = 26;
 const SEAT_COLORS = Object.freeze(['#38bdf8', '#f472b6', '#a3e635', '#c084fc']);
@@ -49,6 +49,11 @@ function clusteredBets(game) {
     });
   }
   return result;
+}
+
+function winningChipBets(game) {
+  if (game?.state !== ROULETTE_STATES.FINISHED || game.winningNumber == null) return [];
+  return clusteredBets(game).filter((bet) => betCoversResult(bet, game.winningNumber));
 }
 
 class RouletteTableRenderer {
@@ -125,9 +130,67 @@ class RouletteTableRenderer {
     context.restore();
   }
 
+  highlightWinningRegion(context, bet) {
+    const gold = '#fde047';
+    const point = anchorFor(bet.type, bet.target);
+    context.save();
+    context.strokeStyle = gold;
+    context.fillStyle = 'rgba(250, 204, 21, 0.15)';
+    context.lineWidth = 4;
+    context.shadowColor = 'rgba(250, 204, 21, 0.72)';
+    context.shadowBlur = 7;
+
+    if (bet.type === 'straight') {
+      const { bounds } = numberCoordinates(Number(bet.target));
+      roundedRect(context, bounds.left + 7, bounds.top + 7, bounds.right - bounds.left - 14, bounds.bottom - bounds.top - 14, Number(bet.target) === 0 ? 24 : 8);
+      context.fill();
+      context.stroke();
+    } else if (bet.type === 'split') {
+      const [firstNumber, secondNumber] = bet.covered;
+      const first = numberCoordinates(firstNumber);
+      const second = numberCoordinates(secondNumber);
+      context.beginPath();
+      if (Math.abs(first.x - second.x) > Math.abs(first.y - second.y)) {
+        context.moveTo(point.x, point.y - 28);
+        context.lineTo(point.x, point.y + 28);
+      } else {
+        context.moveTo(point.x - 28, point.y);
+        context.lineTo(point.x + 28, point.y);
+      }
+      context.stroke();
+    } else if (bet.type === 'street') {
+      roundedRect(context, point.x - 27, point.y - 7, 54, 14, 7);
+      context.fill();
+      context.stroke();
+    } else if (bet.type === 'corner') {
+      context.beginPath();
+      context.arc(point.x, point.y, 15, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    } else if (bet.type === 'six_line') {
+      roundedRect(context, point.x - 8, point.y - 31, 16, 62, 8);
+      context.fill();
+      context.stroke();
+    } else if (['trio_012', 'trio_023', 'first_four'].includes(bet.type)) {
+      context.beginPath();
+      context.arc(point.x, point.y, bet.type === 'first_four' ? 19 : 15, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    } else if (point.bounds) {
+      const { bounds } = point;
+      roundedRect(context, bounds.left + 5, bounds.top + 5, bounds.right - bounds.left - 10, bounds.bottom - bounds.top - 10, 12);
+      context.fill();
+      context.stroke();
+    }
+    context.restore();
+  }
+
+  highlightWinningRegions(context, number) {
+    for (const bet of winningBetRegions(number)) this.highlightWinningRegion(context, bet);
+  }
+
   async drawChip(context, participant, bet, finished, winningNumber) {
-    const canonical = canonicalBet(bet.type, bet.target);
-    const winner = finished && canonical.covered.includes(winningNumber);
+    const winner = finished && betCoversResult(bet, winningNumber);
     context.save();
     if (finished && !winner) context.globalAlpha = 0.38;
     context.shadowColor = 'rgba(0, 0, 0, 0.85)';
@@ -164,14 +227,22 @@ class RouletteTableRenderer {
       context.fillText(initials(participant.displayName), bet.x, bet.y + 1);
     }
     context.restore();
-    if (winner) {
-      context.shadowColor = '#facc15';
-      context.shadowBlur = 24;
-    }
-    context.strokeStyle = winner ? '#fde047' : '#ffffff';
-    context.lineWidth = winner ? 6 : 3;
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = 3;
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS + (winner ? 7 : 3), 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS + 3, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+  }
+
+  drawWinningChipGlow(context, bet) {
+    context.save();
+    context.shadowColor = '#facc15';
+    context.shadowBlur = 26;
+    context.strokeStyle = '#fde047';
+    context.lineWidth = 7;
+    context.beginPath();
+    context.arc(bet.x, bet.y, CHIP_RADIUS + 8, 0, Math.PI * 2);
     context.stroke();
     context.restore();
   }
@@ -238,11 +309,20 @@ class RouletteTableRenderer {
     const context = canvas.getContext('2d');
     context.drawImage(await this.table(), 0, 0);
     const finished = game.state === ROULETTE_STATES.FINISHED && game.winningNumber != null;
-    if (finished) this.highlightResult(context, game.winningNumber);
+    if (finished) {
+      this.highlightWinningRegions(context, game.winningNumber);
+      this.highlightResult(context, game.winningNumber);
+    }
     const participants = new Map(game.participants.map((participant) => [participant.userId, participant]));
-    for (const bet of clusteredBets(game)) {
+    const bets = clusteredBets(game);
+    for (const bet of bets) {
       const participant = participants.get(bet.userId);
       if (participant) await this.drawChip(context, participant, bet, finished, game.winningNumber);
+    }
+    if (finished) {
+      for (const bet of bets.filter((entry) => betCoversResult(entry, game.winningNumber))) {
+        this.drawWinningChipGlow(context, bet);
+      }
     }
     if (options.guides) this.drawGuides(context);
     return canvas.toBuffer('image/png');
@@ -251,4 +331,12 @@ class RouletteTableRenderer {
   clear() { this.assetPromise = null; this.avatarCache.clear(); }
 }
 
-module.exports = { CHIP_RADIUS, CLUSTER_OFFSETS, RouletteTableRenderer, SEAT_COLORS, clusteredBets, initials };
+module.exports = {
+  CHIP_RADIUS,
+  CLUSTER_OFFSETS,
+  RouletteTableRenderer,
+  SEAT_COLORS,
+  clusteredBets,
+  initials,
+  winningChipBets,
+};

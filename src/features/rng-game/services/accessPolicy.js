@@ -13,17 +13,17 @@ function evaluateRngGameAccess(source, getGuildPolicy) {
   if (typeof getGuildPolicy !== 'function') return { allowed: true, bypassCooldown: false };
   const policy = getGuildPolicy(String(source.guildId || '')) || {};
   if (policy.unlocked !== true) {
-    return { allowed: false, reason: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' };
+    return { allowed: false, reason: 'RNG Game is locked for this server. Ask the bot owner to unlock it.' };
   }
   if (policy.enabled !== true) {
-    return { allowed: false, reason: 'GAG2 RNG Game is disabled for this server. Ask a server administrator to enable it.' };
+    return { allowed: false, reason: 'RNG Game is disabled for this server. Ask a server administrator to enable it.' };
   }
   const configuredChannels = Array.isArray(policy.gameChannelIds)
     ? policy.gameChannelIds
     : [policy.gameChannelId];
   const gameChannelIds = [...new Set(configuredChannels.map((channelId) => String(channelId || '')).filter(Boolean))];
   if (!gameChannelIds.length) {
-    return { allowed: false, reason: 'GAG2 RNG Game needs at least one game channel. Ask a server administrator to configure one in the dashboard.' };
+    return { allowed: false, reason: 'RNG Game needs at least one game channel. Ask a server administrator to configure one in the dashboard.' };
   }
   const sourceChannelIds = [
     source.channelId,
@@ -33,7 +33,7 @@ function evaluateRngGameAccess(source, getGuildPolicy) {
   ].map((channelId) => String(channelId || '')).filter(Boolean);
   if (!sourceChannelIds.some((channelId) => gameChannelIds.includes(channelId))) {
     const channelList = gameChannelIds.map((channelId) => `<#${channelId}>`).join(', ');
-    return { allowed: false, reason: `GAG2 RNG Game commands are only available in ${channelList}.` };
+    return { allowed: false, reason: `RNG Game commands are only available in ${channelList}.` };
   }
   const bypassRoles = new Set((policy.cooldownBypassRoleIds || []).map(String));
   return {

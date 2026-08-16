@@ -1,21 +1,11 @@
 const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
-const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
+const { ALLOWED_GUILD_IDS, isGuildAllowlisted } = require('./guildAllowlist');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
-const DEFAULT_GUILD_ID = process.env.DEFAULT_GUILD_ID || '1493901002519347290';
-const DEFAULT_GAG2_STOCK_CHANNEL_ID = '1525184164930916433';
-const GAG2_BASE_STOCK_ROLE_KEYS = ['seed', 'gear', 'crate', 'weather', 'moon', 'sell'];
-const GAG2_FALL_STOCK_TYPES = ['seed', 'gear', 'crate', 'sell'];
-const GAG2_FALL_ROLE_KEYS = GAG2_FALL_STOCK_TYPES.map((type) => FALL_ROLE_TYPES[type]);
-const GAG2_STOCK_ROLE_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, ...GAG2_FALL_ROLE_KEYS];
-const GAG2_STOCK_CHANNEL_KEYS = [...GAG2_BASE_STOCK_ROLE_KEYS, 'roleAssign', 'updates'];
-const GAG2_ROLE_FILTER_RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'super'];
-const GAG2_SELL_FILTER_RARITIES = [...GAG2_ROLE_FILTER_RARITIES, 'secret'];
-const GAG2_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
-const GAG2_FALL_SELL_MULTIPLIERS = ['normal', '2x', '4x'];
+const DEFAULT_GUILD_ID = ALLOWED_GUILD_IDS[1];
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
   enabled: false,
   xp: Object.freeze({ min: 15, max: 25, cooldownSeconds: 60 }),
@@ -50,72 +40,19 @@ function isObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-function blankChannels() {
-  return Object.fromEntries(GAG2_STOCK_CHANNEL_KEYS.map((key) => [key, '']));
-}
-
-function blankRoleIds() {
-  return Object.fromEntries(GAG2_STOCK_ROLE_KEYS.map((key) => [key, {}]));
-}
-
-function defaultFilters() {
-  return {
-    rarities: {
-      seed: [...GAG2_ROLE_FILTER_RARITIES],
-      gear: [...GAG2_ROLE_FILTER_RARITIES],
-      crate: [...GAG2_ROLE_FILTER_RARITIES],
-      sell: [...GAG2_SELL_FILTER_RARITIES],
-    },
-    roleItems: Object.fromEntries(['seed', 'gear', 'crate'].map((type) => [
-      type,
-      roleSpecsForType(type).map((spec) => spec.key),
-    ])),
-    sellMultipliers: [...GAG2_SELL_MULTIPLIERS],
-  };
-}
-
-function defaultFall() {
-  return {
-    enabledTypes: [],
-    roleItems: Object.fromEntries(['seed', 'gear', 'crate'].map((type) => [type, []])),
-    sellMultipliers: [...GAG2_FALL_SELL_MULTIPLIERS],
-  };
-}
-
 const DEFAULT_FEATURES = Object.freeze({
-  gag2Stock: true,
   leveling: false,
   rngGame: false,
   fullBot: false,
-});
-const DEFAULT_GAG2_STOCK_CONFIG = Object.freeze({
-  enabled: true,
-  channels: blankChannels(),
-  roleIds: blankRoleIds(),
-  filters: defaultFilters(),
-  fall: defaultFall(),
-  rolesSyncedAt: '',
 });
 const DEFAULT_GUILD_CONFIG = Object.freeze({
   enabled: true,
   features: DEFAULT_FEATURES,
   channels: { commandLogThread: '' },
-  gag2Stock: DEFAULT_GAG2_STOCK_CONFIG,
   leveling: DEFAULT_LEVELING_CONFIG,
   rngGame: DEFAULT_RNG_GAME_CONFIG,
 });
-const DEFAULT_COINSPRITE_GUILD_CONFIG = Object.freeze({
-  ...DEFAULT_GUILD_CONFIG,
-  gag2Stock: {
-    ...DEFAULT_GAG2_STOCK_CONFIG,
-    channels: {
-      ...blankChannels(),
-      seed: DEFAULT_GAG2_STOCK_CHANNEL_ID,
-      gear: DEFAULT_GAG2_STOCK_CHANNEL_ID,
-      crate: DEFAULT_GAG2_STOCK_CHANNEL_ID,
-    },
-  },
-});
+const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
 const DEFAULT_STATE = Object.freeze({
   meta: { schemaVersion: SCHEMA_VERSION, disabledGuilds: {} },
   guilds: { [DEFAULT_GUILD_ID]: DEFAULT_COINSPRITE_GUILD_CONFIG },
@@ -124,74 +61,6 @@ const DEFAULT_STATE = Object.freeze({
 function cleanId(value) {
   const text = String(value || '').trim();
   return /^\d{16,20}$/.test(text) ? text : '';
-}
-
-function normalizeSelection(value, allowed, fallback = allowed) {
-  if (!Array.isArray(value)) return [...fallback];
-  const selected = new Set(value.map((item) => String(item || '').trim().toLowerCase()));
-  return allowed.filter((item) => selected.has(item));
-}
-
-function normalizeRoleIdMap(value) {
-  if (!isObject(value)) return {};
-  return Object.fromEntries(Object.entries(value)
-    .map(([key, id]) => [String(key || '').trim(), cleanId(id)])
-    .filter(([key, id]) => key && id));
-}
-
-function normalizeFilters(value, defaults = defaultFilters()) {
-  const source = isObject(value) ? value : {};
-  const rarities = {
-    seed: normalizeSelection(source.rarities?.seed, GAG2_ROLE_FILTER_RARITIES, defaults.rarities.seed),
-    gear: normalizeSelection(source.rarities?.gear, GAG2_ROLE_FILTER_RARITIES, defaults.rarities.gear),
-    crate: normalizeSelection(source.rarities?.crate, GAG2_ROLE_FILTER_RARITIES, defaults.rarities.crate),
-    sell: normalizeSelection(source.rarities?.sell, GAG2_SELL_FILTER_RARITIES, defaults.rarities.sell),
-  };
-  const roleItems = {};
-  for (const type of ['seed', 'gear', 'crate']) {
-    const specs = roleSpecsForType(type);
-    const allowed = specs.map((spec) => spec.key);
-    const rarityFallback = specs.filter((spec) => rarities[type].includes(spec.rarity)).map((spec) => spec.key);
-    roleItems[type] = normalizeSelection(source.roleItems?.[type], allowed, defaults.roleItems?.[type] || rarityFallback);
-    if (!Array.isArray(source.roleItems?.[type])) roleItems[type] = rarityFallback;
-  }
-  return {
-    rarities,
-    roleItems,
-    sellMultipliers: normalizeSelection(source.sellMultipliers, GAG2_SELL_MULTIPLIERS, defaults.sellMultipliers),
-  };
-}
-
-function normalizeFall(value, defaults = defaultFall()) {
-  const source = isObject(value) ? value : {};
-  const enabledTypes = normalizeSelection(source.enabledTypes, GAG2_FALL_STOCK_TYPES, defaults.enabledTypes);
-  const roleItems = {};
-  for (const type of ['seed', 'gear', 'crate']) {
-    const allowed = roleSpecsForType(FALL_ROLE_TYPES[type]).map((spec) => spec.key);
-    roleItems[type] = normalizeSelection(source.roleItems?.[type], allowed, defaults.roleItems?.[type] || []);
-  }
-  const sellMultipliers = normalizeSelection(
-    source.sellMultipliers,
-    GAG2_FALL_SELL_MULTIPLIERS,
-    defaults.sellMultipliers || GAG2_FALL_SELL_MULTIPLIERS,
-  );
-  return { enabledTypes, roleItems, sellMultipliers };
-}
-
-function normalizeGag2StockConfig(value, defaults = DEFAULT_GAG2_STOCK_CONFIG) {
-  const source = isObject(value) ? value : {};
-  const channels = {};
-  const roleIds = {};
-  for (const key of GAG2_STOCK_CHANNEL_KEYS) channels[key] = cleanId(source.channels?.[key] ?? defaults.channels?.[key]);
-  for (const key of GAG2_STOCK_ROLE_KEYS) roleIds[key] = normalizeRoleIdMap(source.roleIds?.[key] ?? defaults.roleIds?.[key]);
-  return {
-    enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
-    channels,
-    roleIds,
-    filters: normalizeFilters(source.filters, defaults.filters || defaultFilters()),
-    fall: normalizeFall(source.fall, defaults.fall || defaultFall()),
-    rolesSyncedAt: String(source.rolesSyncedAt || ''),
-  };
 }
 
 function clampNumber(value, minimum, maximum, fallback, integer = true) {
@@ -335,13 +204,11 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   return {
     enabled: source.enabled !== false,
     features: {
-      gag2Stock: true,
       leveling: options.resetFeatureLocks ? false : source.features?.leveling === true,
       rngGame: options.resetFeatureLocks ? false : source.features?.rngGame === true,
       fullBot: false,
     },
-    channels: { commandLogThread: '' },
-    gag2Stock: normalizeGag2StockConfig(source.gag2Stock, defaults.gag2Stock),
+    channels: { commandLogThread: cleanId(source.channels?.commandLogThread) },
     leveling,
     rngGame,
   };
@@ -380,10 +247,10 @@ function normalizeState(value) {
 }
 
 function loadState() {
-  const raw = readJsonFile(STORE_PATH, { label: 'GAG stock configuration', fallback: DEFAULT_STATE });
+  const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-stock-only.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-15.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;
@@ -395,7 +262,7 @@ function saveState(state) {
 
 function ensureGuildConfig(guildId) {
   const id = cleanId(guildId);
-  if (!id) return null;
+  if (!id || !isGuildAllowlisted(id)) return null;
   const state = loadState();
   if (!state.guilds[id]) {
     state.guilds[id] = defaultConfigForGuild(id);
@@ -431,7 +298,9 @@ function getGuildConfigValue(guildId, selector, fallback = null) {
 }
 
 function getConfiguredGuildIds({ includeDisabled = false } = {}) {
-  return Object.entries(loadState().guilds).filter(([, config]) => includeDisabled || config.enabled).map(([id]) => id);
+  return Object.entries(loadState().guilds)
+    .filter(([id, config]) => isGuildAllowlisted(id) && (includeDisabled || config.enabled))
+    .map(([id]) => id);
 }
 
 function getEnabledGuildIds() {
@@ -444,7 +313,7 @@ function getDisabledGuilds() {
 
 function setGuildEnabled(guildId, enabled, details = {}) {
   const id = cleanId(guildId);
-  if (!id) return null;
+  if (!id || !isGuildAllowlisted(id)) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].enabled = enabled !== false;
@@ -468,20 +337,14 @@ function isGuildFullBotEnabled() {
   return false;
 }
 
-function isGuildGag2StockEnabled(guildId) {
-  const config = getGuildConfig(guildId);
-  return Boolean(config?.features?.gag2Stock && config.gag2Stock?.enabled !== false);
-}
-
 function setGuildFeatureAccess(guildId, features = {}) {
   const id = cleanId(guildId);
-  if (!id) return null;
+  if (!id || !isGuildAllowlisted(id)) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].leveling ||= clone(DEFAULT_LEVELING_CONFIG);
   state.guilds[id].rngGame ||= clone(DEFAULT_RNG_GAME_CONFIG);
   state.guilds[id].features = {
-    gag2Stock: true,
     leveling: features.leveling === undefined
       ? state.guilds[id].features?.leveling === true
       : features.leveling === true,
@@ -506,38 +369,18 @@ function isGuildRngGameEnabled(guildId) {
   return Boolean(config?.features?.rngGame && config.rngGame?.enabled === true);
 }
 
-function updateGuildGag2StockRoleIds(guildId, type, value) {
-  const id = cleanId(guildId);
-  const key = String(type || '');
-  if (!id || !GAG2_STOCK_ROLE_KEYS.includes(key)) return null;
-  const state = loadState();
-  state.guilds[id] ||= defaultConfigForGuild(id);
-  state.guilds[id].gag2Stock = normalizeGag2StockConfig(state.guilds[id].gag2Stock, defaultConfigForGuild(id).gag2Stock);
-  state.guilds[id].gag2Stock.roleIds[key] = normalizeRoleIdMap(value);
-  state.guilds[id].gag2Stock.rolesSyncedAt = new Date().toISOString();
-  saveState(state);
-  return getGuildConfigRaw(id);
-}
-
-function resolveLoggingChannelId() {
-  return '';
+function resolveLoggingChannelId(config, _feature, _type, fallback = '') {
+  return cleanId(fallback || config?.channels?.commandLogThread);
 }
 
 module.exports = {
   DEFAULT_FEATURES,
-  DEFAULT_GAG2_STOCK_CONFIG,
   DEFAULT_LEVELING_CONFIG,
   DEFAULT_RNG_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
   DEFAULT_STATE,
-  GAG2_STOCK_CHANNEL_KEYS,
-  GAG2_FALL_ROLE_KEYS,
-  GAG2_FALL_STOCK_TYPES,
-  GAG2_ROLE_FILTER_RARITIES,
-  GAG2_SELL_FILTER_RARITIES,
-  GAG2_SELL_MULTIPLIERS,
   SCHEMA_VERSION,
   STORE_PATH,
   deleteGuildConfig,
@@ -550,11 +393,9 @@ module.exports = {
   getGuildConfigValue,
   isGuildEnabled,
   isGuildFullBotEnabled,
-  isGuildGag2StockEnabled,
   isGuildLevelingEnabled,
   isGuildRngGameEnabled,
   loadState,
-  normalizeGag2StockConfig,
   normalizeLevelingConfig,
   normalizeRngGameConfig,
   normalizeState,
@@ -562,5 +403,4 @@ module.exports = {
   saveState,
   setGuildEnabled,
   setGuildFeatureAccess,
-  updateGuildGag2StockRoleIds,
 };

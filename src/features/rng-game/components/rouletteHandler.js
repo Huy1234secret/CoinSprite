@@ -319,7 +319,11 @@ function createRouletteComponentHandler(context) {
     if (action === 'toggle-ready') return toggleReadyInteraction(interaction, game);
     if (action === 'bet') return betInteraction(interaction, game);
     if (action === 'bet-submit') return betSubmitInteraction(interaction, game, parts[4]);
-    if (['replay', 'new-bets'].includes(action)) return replayInteraction(interaction, game);
+    if (action === 'replay') return replayInteraction(interaction, game);
+    if (action === 'new-bets') {
+      await ephemeralError(interaction, 'Old control unavailable', 'Use **Play Again** on the current result message.');
+      return true;
+    }
     if (action === 'retry') {
       if (!interaction.isButton?.() || !await participantOnly(interaction, game)) return true;
       if (!await acknowledge(interaction)) return true;

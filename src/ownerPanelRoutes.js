@@ -8,6 +8,7 @@ const {
   setGuildFeatureAccess,
 } = require('./serverConfig');
 const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
+const { isGuildAllowlisted } = require('./guildAllowlist');
 const { getRuntimeMetrics } = require('./runtimeMetrics');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 
@@ -62,7 +63,7 @@ function addGuildRecord(records, keyOrGuild, maybeGuild = null) {
   const guild = maybeGuild?.id ? maybeGuild : (typeof keyOrGuild === 'object' ? keyOrGuild : null);
   const candidate = typeof keyOrGuild === 'string' ? keyOrGuild : keyOrGuild?.id;
   const id = /^\d{16,20}$/.test(String(candidate || '')) ? String(candidate) : String(guild?.id || '');
-  if (!/^\d{16,20}$/.test(id)) return;
+  if (!/^\d{16,20}$/.test(id) || !isGuildAllowlisted(id)) return;
   records.set(id, guild || records.get(id) || { id });
 }
 
@@ -93,9 +94,6 @@ async function guildSummary(client, id, fallback, disabledGuilds) {
   const guild = client.guilds.cache.get(id) || await client.guilds.fetch(id).catch(() => null);
   const source = guild || fallback || { id };
   const config = getGuildConfigRaw(id);
-  const gag2Stock = config?.gag2Stock || {};
-  const channels = gag2Stock.channels || {};
-  const configuredChannels = Object.values(channels).filter(Boolean).length;
   const configBytes = Buffer.byteLength(JSON.stringify(config || {}));
 
   return {
@@ -108,16 +106,9 @@ async function guildSummary(client, id, fallback, disabledGuilds) {
     disabled: disabledGuilds[id] || null,
     partial: !guild,
     features: {
-      gag2Stock: true,
       leveling: config?.features?.leveling === true,
       rngGame: config?.features?.rngGame === true,
       fullBot: false,
-    },
-    stock: {
-      enabled: gag2Stock.enabled !== false,
-      configuredChannels,
-      totalChannels: Object.keys(channels).length,
-      rolesSyncedAt: gag2Stock.rolesSyncedAt || '',
     },
     storage: { bytes: configBytes, label: formatBytes(configBytes) },
   };
@@ -194,13 +185,14 @@ function ownerLiveMetrics(nowMs = Date.now()) {
 }
 
 async function getGuild(client, guildId) {
+  if (!isGuildAllowlisted(guildId)) return null;
   return client.guilds.cache.get(guildId) || client.guilds.fetch(guildId).catch(() => null);
 }
 
 async function notifyGuildOwner(guild, reason, actorId) {
   const owner = await guild.fetchOwner().catch(() => null);
   const content = [
-    `CoinSprite GAG stock has been disabled in **${guild.name}**.`,
+    `CoinSprite has been disabled in **${guild.name}**.`,
     `Reason: ${reason}`,
     `Actioned by owner panel user ${actorId}.`,
   ].join('\n');
@@ -240,7 +232,7 @@ async function handleOwnerDisable(req, res, client, guildId, session, deps) {
   });
   await guild.commands.set([]).catch(() => null);
   const notification = await notifyGuildOwner(guild, reason, session.user.id);
-  logCommandSystem(`Owner ${session.user.id} disabled GAG stock for guild ${guildId}. Notification: ${notification}.`);
+  logCommandSystem(`Owner ${session.user.id} disabled CoinSprite for guild ${guildId}. Notification: ${notification}.`);
   return deps.sendJson(res, 200, { guildId, disabled: result.disabled, notification });
 }
 
@@ -250,7 +242,7 @@ async function handleOwnerEnable(req, res, client, guildId, session, deps) {
 
   const result = setGuildEnabled(guildId, true, {});
   await syncGuildApplicationCommands(guild).catch(() => null);
-  logCommandSystem(`Owner ${session.user.id} enabled GAG stock for guild ${guildId}.`);
+  logCommandSystem(`Owner ${session.user.id} enabled CoinSprite for guild ${guildId}.`);
   return deps.sendJson(res, 200, { guildId, config: result.config });
 }
 

@@ -14,6 +14,7 @@ const {
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
+const { isGuildAllowlisted } = require('./guildAllowlist');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
@@ -28,10 +29,6 @@ const {
   handleOwnerOverview,
   isOwnerSession,
 } = require('./ownerPanelRoutes');
-const { getGag2StockSetupProgress, syncGag2StockGuildSetup } = require('./gag2Stock/manager');
-const { syncGag2RoleAssignmentPanel } = require('./gag2Stock/roleAssignment');
-const { FALL_ROLE_TYPES, roleSpecsForType } = require('./gag2Stock/catalog');
-const { FALL_HARVEST_END_AT_MS } = require('./gag2Stock/config');
 const {
   LEVEL_CARD_MEDIA_DIR,
   bestMemberStats,
@@ -468,6 +465,10 @@ async function requireOwner(req, res, env, client) {
 async function requireGuildAdmin(req, res, env, client, guildId) {
   const session = await requireSignedIn(req, res, env);
   if (!session) return null;
+  if (!isGuildAllowlisted(guildId)) {
+    sendJson(res, 404, { error: 'Guild is not available to CoinSprite.' });
+    return null;
+  }
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     sendJson(res, 404, { error: 'Guild is not available to the bot.' });
@@ -494,7 +495,9 @@ async function accessibleGuilds(client, session) {
     ? getConfiguredGuildIds({ includeDisabled: true })
     : getEnabledGuildIds();
   const visible = new Map();
-  for (const guild of client.guilds.cache.values()) visible.set(guild.id, guild);
+  for (const guild of client.guilds.cache.values()) {
+    if (isGuildAllowlisted(guild.id)) visible.set(guild.id, guild);
+  }
   for (const id of ids) {
     if (!visible.has(id)) {
       const guild = await client.guilds.fetch(id).catch(() => null);
@@ -561,7 +564,7 @@ async function fetchGuildDirectory(guild, force = false) {
         editable: role.editable !== false,
       }))
       .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name)),
-    gag2StockPermissions: { usable: missing.length === 0, missing: missing.map((label) => ({ label })) },
+    botPermissions: { usable: missing.length === 0, missing: missing.map((label) => ({ label })) },
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
   return directory;
@@ -582,12 +585,10 @@ function publicConfig(config) {
   return {
     enabled: config?.enabled !== false,
     features: {
-      gag2Stock: true,
       leveling: config?.features?.leveling === true,
       rngGame: config?.features?.rngGame === true,
       fullBot: false,
     },
-    gag2Stock: config?.gag2Stock || {},
     leveling: config?.leveling || {},
     rngGame: config?.rngGame || {},
   };
@@ -648,7 +649,7 @@ async function routeRequest(req, res, env, client, services = {}) {
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
-  if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite-gag-stock' });
+  if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite' });
   if (req.method === 'GET' && pathname === '/auth/discord') return handleAuthStart(req, res, env, url);
   if (req.method === 'GET' && pathname === '/auth/discord/callback') return handleAuthCallback(req, res, env, url);
 
@@ -860,11 +861,10 @@ async function routeRequest(req, res, env, client, services = {}) {
     const auth = await requireGuildAdmin(req, res, env, client, guildId);
     if (!auth || !requireCsrf(req, res, auth.session)) return;
     const body = await readJsonBody(req);
-    const hasStock = body?.gag2Stock && typeof body.gag2Stock === 'object' && !Array.isArray(body.gag2Stock);
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
     const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
-    if (!hasStock && !hasLeveling && !hasRngGame) {
-      return sendJson(res, 400, { error: 'GAG stock, leveling, or RNG game configuration is required.' });
+    if (!hasLeveling && !hasRngGame) {
+      return sendJson(res, 400, { error: 'Leveling or RNG game configuration is required.' });
     }
 
     const state = loadState();
@@ -873,15 +873,13 @@ async function routeRequest(req, res, env, client, services = {}) {
       return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
     }
     if (hasRngGame && state.guilds[guildId].features?.rngGame !== true) {
-      return sendJson(res, 403, { error: 'GAG2 RNG Game is locked for this server. Ask the bot owner to unlock it.' });
+      return sendJson(res, 403, { error: 'RNG Game is locked for this server. Ask the bot owner to unlock it.' });
     }
     state.guilds[guildId].features = {
-      gag2Stock: true,
       leveling: state.guilds[guildId].features?.leveling === true,
       rngGame: state.guilds[guildId].features?.rngGame === true,
       fullBot: false,
     };
-    if (hasStock) state.guilds[guildId].gag2Stock = mergePlain(state.guilds[guildId].gag2Stock, body.gag2Stock);
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
     saveState(state);
@@ -892,32 +890,8 @@ async function routeRequest(req, res, env, client, services = {}) {
         .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
 
-    if (hasStock) {
-      syncGag2StockGuildSetup(client, guildId, { progressGuildId: guildId })
-        .then(() => syncGag2RoleAssignmentPanel(client, guildId))
-        .catch((error) => logCommandSystem(`GAG stock setup sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
-    }
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasStock && 'GAG stock', hasLeveling && 'leveling', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
-    return sendJson(res, 200, { guildId, config: publicConfig(config), progress: getGag2StockSetupProgress(guildId) });
-  }
-
-  const progressMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/gag2-stock\/setup-progress$/);
-  if (req.method === 'GET' && progressMatch) {
-    const auth = await requireGuildAdmin(req, res, env, client, progressMatch[1]);
-    if (!auth) return;
-    return sendJson(res, 200, { guildId: progressMatch[1], progress: getGag2StockSetupProgress(progressMatch[1]) });
-  }
-
-  const catalogMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/gag2-stock\/catalog$/);
-  if (req.method === 'GET' && catalogMatch) {
-    const auth = await requireGuildAdmin(req, res, env, client, catalogMatch[1]);
-    if (!auth) return;
-    const types = ['seed', 'gear', 'crate', 'sell'];
-    return sendJson(res, 200, {
-      items: Object.fromEntries(types.map((type) => [type, roleSpecsForType(type)])),
-      fallItems: Object.fromEntries(types.map((type) => [type, roleSpecsForType(FALL_ROLE_TYPES[type])])),
-      fallHarvestEndsAt: new Date(FALL_HARVEST_END_AT_MS).toISOString(),
-    });
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    return sendJson(res, 200, { guildId, config: publicConfig(config) });
   }
 
   return sendJson(res, 404, { error: 'Not found.' });
