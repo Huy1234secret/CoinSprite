@@ -28,7 +28,7 @@ function game(id, bets, options = {}) {
     guildId: 'preview',
     channelId: 'preview',
     hostUserId: participants[0].userId,
-    mode: 'human',
+    mode: null,
     state: options.finished ? ROULETTE_STATES.FINISHED : ROULETTE_STATES.BETTING,
     winningNumber: options.finished ? options.winningNumber : null,
     winningColor: options.finished ? options.winningColor : null,
@@ -67,6 +67,11 @@ async function main() {
   const outputDirectory = path.resolve(process.argv[2] || path.join('work', 'roulette-previews'));
   fs.mkdirSync(outputDirectory, { recursive: true });
   const renderer = new RouletteTableRenderer();
+  const sparse = [
+    bet(participants[0].userId, 'straight', '17', 0),
+    bet(participants[1].userId, 'split', '20-23', 1),
+    bet(participants[2].userId, 'red', '', 2),
+  ];
   const stacked = participants.map((participant, index) => bet(participant.userId, 'red', '', index));
   const denseSpecs = [
     ['straight', '0'], ['straight', '17'], ['straight', '32'], ['split', '8-11'],
@@ -82,6 +87,7 @@ async function main() {
     bet(participants[3].userId, 'column_2', '', 4),
   ];
   const previews = [
+    ['00-sparse-table.png', game('sparse-table', sparse), false],
     ['01-straight-anchors.png', game('straight-anchors', straightBets()), true],
     ['02-inside-anchors.png', game('inside-anchors', insideBets()), true],
     ['03-outside-bets.png', game('outside-bets', outsideBets()), true],

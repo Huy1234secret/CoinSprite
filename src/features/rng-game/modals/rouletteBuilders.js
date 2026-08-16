@@ -12,9 +12,10 @@ function textInput(label, customId, placeholder, maximum = 50) {
 
 function rouletteBetModal(gameId, betType) {
   const target = TARGET_LABELS[betType];
+  const betLabel = ROULETTE_BET_OPTIONS.find((option) => option.value === betType)?.label || 'Roulette';
   return {
     custom_id: `rng:roulette:bet-submit:${gameId}:${betType}`,
-    title: 'Place roulette bet',
+    title: `Place ${betLabel} bet`.slice(0, 45),
     components: [
       ...(target ? [textInput(target[0], 'target', target[1])] : []),
       textInput('Token amount', 'amount', 'min: 1, max total: 1000', 4),
@@ -23,3 +24,4 @@ function rouletteBetModal(gameId, betType) {
 }
 
 module.exports = { TARGET_LABELS, rouletteBetModal };
+const { ROULETTE_BET_OPTIONS } = require('../config/roulette');

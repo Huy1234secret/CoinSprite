@@ -22,7 +22,10 @@ const {
   exchangePreviewPayload,
   initialRpsPayload,
 } = require('../components/rpsBuilders');
-const { initialRoulettePayload } = require('../components/rouletteBuilders');
+const {
+  rouletteBettingPayload,
+  rouletteRenderFailurePayload,
+} = require('../components/rouletteBuilders');
 const { ITEMS, ITEM_BY_ID } = require('../data/items');
 const {
   eggOpeningPayload,
@@ -184,6 +187,7 @@ function createCommandHandlers(context) {
     inventoryViews,
     repository,
     rpsService,
+    rouletteRenderer,
     rouletteService,
     chancePageUrl,
     saleSessions,
@@ -367,7 +371,14 @@ function createCommandHandlers(context) {
       await source.reply(errorPayload('Casino game already active\nFinish or wait for your current table to expire.', { ephemeral: true }));
       return;
     }
-    await source.reply(initialRoulettePayload(result.game));
+    let payload;
+    try {
+      payload = rouletteBettingPayload(result.game, await rouletteRenderer.render(result.game));
+    } catch (error) {
+      reportError?.(error, { kind: 'roulette-initial-render', gameId: result.game.id, revision: result.game.revision });
+      payload = rouletteRenderFailurePayload(result.game);
+    }
+    await source.reply(payload);
     const message = await source.fetchReply?.().catch?.(() => null);
     if (message?.id) rouletteService.repository.setMessage(result.game.id, message.id, rouletteService.now());
   }

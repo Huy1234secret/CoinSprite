@@ -14,13 +14,13 @@ const {
 } = require('../config/roulette');
 const { canonicalBet } = require('./rouletteRules');
 
-const CHIP_RADIUS = 18;
+const CHIP_RADIUS = 26;
 const SEAT_COLORS = Object.freeze(['#38bdf8', '#f472b6', '#a3e635', '#c084fc']);
 const CLUSTER_OFFSETS = Object.freeze({
   1: Object.freeze([[0, 0]]),
-  2: Object.freeze([[-22, 0], [22, 0]]),
-  3: Object.freeze([[-22, 15], [22, 15], [0, -23]]),
-  4: Object.freeze([[-22, -22], [22, -22], [-22, 22], [22, 22]]),
+  2: Object.freeze([[-33, 0], [33, 0]]),
+  3: Object.freeze([[-33, 22], [33, 22], [0, -34]]),
+  4: Object.freeze([[-33, -33], [33, -33], [-33, 33], [33, 33]]),
 });
 
 function roundedRect(context, x, y, width, height, radius) {
@@ -129,45 +129,49 @@ class RouletteTableRenderer {
     const canonical = canonicalBet(bet.type, bet.target);
     const winner = finished && canonical.covered.includes(winningNumber);
     context.save();
-    if (finished && !winner) context.globalAlpha = 0.46;
+    if (finished && !winner) context.globalAlpha = 0.38;
     context.shadowColor = 'rgba(0, 0, 0, 0.85)';
-    context.shadowBlur = 8;
+    context.shadowBlur = 12;
     context.fillStyle = '#0b1018';
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS + 5, 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS + 6, 0, Math.PI * 2);
     context.fill();
     context.shadowBlur = 0;
     context.fillStyle = SEAT_COLORS[participant.seat % SEAT_COLORS.length];
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS + 2, 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS + 3, 0, Math.PI * 2);
     context.fill();
     context.fillStyle = '#f8fafc';
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS - 3, 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS - 4, 0, Math.PI * 2);
     context.fill();
     context.save();
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS - 5, 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS - 7, 0, Math.PI * 2);
     context.clip();
     const avatar = await this.avatar(participant.avatarUrl);
     if (avatar) {
       const size = Math.min(avatar.width, avatar.height);
       context.drawImage(avatar, (avatar.width - size) / 2, (avatar.height - size) / 2, size, size,
-        bet.x - CHIP_RADIUS + 5, bet.y - CHIP_RADIUS + 5, (CHIP_RADIUS - 5) * 2, (CHIP_RADIUS - 5) * 2);
+        bet.x - CHIP_RADIUS + 7, bet.y - CHIP_RADIUS + 7, (CHIP_RADIUS - 7) * 2, (CHIP_RADIUS - 7) * 2);
     } else {
       context.fillStyle = '#182235';
       context.fillRect(bet.x - CHIP_RADIUS, bet.y - CHIP_RADIUS, CHIP_RADIUS * 2, CHIP_RADIUS * 2);
       context.fillStyle = '#ffffff';
-      context.font = `800 12px "${INDEX_CANVAS_FONT_FAMILY}", sans-serif`;
+      context.font = `800 15px "${INDEX_CANVAS_FONT_FAMILY}", sans-serif`;
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.fillText(initials(participant.displayName), bet.x, bet.y + 1);
     }
     context.restore();
+    if (winner) {
+      context.shadowColor = '#facc15';
+      context.shadowBlur = 24;
+    }
     context.strokeStyle = winner ? '#fde047' : '#ffffff';
-    context.lineWidth = winner ? 5 : 2;
+    context.lineWidth = winner ? 6 : 3;
     context.beginPath();
-    context.arc(bet.x, bet.y, CHIP_RADIUS + (winner ? 5 : 2), 0, Math.PI * 2);
+    context.arc(bet.x, bet.y, CHIP_RADIUS + (winner ? 7 : 3), 0, Math.PI * 2);
     context.stroke();
     context.restore();
   }

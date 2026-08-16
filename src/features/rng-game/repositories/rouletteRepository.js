@@ -1,5 +1,9 @@
 const { SQLITE_INTEGER_MAX } = require('./gameRepository');
-const { ROULETTE_LIMITS, ROULETTE_STATES } = require('../config/roulette');
+const {
+  ROULETTE_LIMITS,
+  ROULETTE_MAX_PLAYERS,
+  ROULETTE_STATES,
+} = require('../config/roulette');
 const { canonicalBet, rouletteColor, totalReturn } = require('../services/rouletteRules');
 
 function participantModel(row) {
@@ -147,10 +151,28 @@ class RouletteRepository {
       this.gameRepository.ensurePlayer(profile.userId, now);
       const active = this.statements.active.get(profile.userId);
       if (active) return { status: 'already-active', gameId: active.game_id, gameType: active.game_type };
-      this.statements.insertGame.run(id, guildId, channelId, profile.userId, ROULETTE_STATES.CHOOSING_MODE, BigInt(now), BigInt(expiresAt), BigInt(now));
+      this.statements.insertGame.run(id, guildId, channelId, profile.userId, ROULETTE_STATES.BETTING, BigInt(now), BigInt(expiresAt), BigInt(now));
       this.statements.insertParticipant.run(id, profile.userId, 0n, profile.displayName, profile.avatarUrl, 1n);
       this.statements.insertActive.run(profile.userId, id);
       return { status: 'ok' };
+    }).immediate;
+
+    this.joinTransaction = db.transaction((gameId, profile, now, expiresAt) => {
+      if (profile.bot === true) return { status: 'bot' };
+      this.gameRepository.ensurePlayer(profile.userId, now);
+      const game = this.game(gameId);
+      if (!game || game.state !== ROULETTE_STATES.BETTING || game.expiresAt <= now) return { status: 'stale' };
+      if (game.participants.some((participant) => participant.userId === profile.userId)) return { status: 'already-joined' };
+      if (game.participants.length >= ROULETTE_MAX_PLAYERS) return { status: 'full' };
+      const active = this.statements.active.get(profile.userId);
+      if (active) return { status: 'participant-busy', gameId: active.game_id, gameType: active.game_type };
+      const occupied = new Set(game.participants.map((participant) => participant.seat));
+      const seat = Array.from({ length: ROULETTE_MAX_PLAYERS }, (_, index) => index).find((index) => !occupied.has(index));
+      if (seat === undefined) return { status: 'full' };
+      this.statements.insertParticipant.run(gameId, profile.userId, BigInt(seat), profile.displayName, profile.avatarUrl, 1n);
+      this.statements.insertActive.run(profile.userId, gameId);
+      this.statements.touch.run(BigInt(expiresAt), BigInt(now), gameId);
+      return { status: 'ok', seat };
     }).immediate;
 
     this.chooseModeTransaction = db.transaction((gameId, hostUserId, mode, now, expiresAt) => {
@@ -307,16 +329,35 @@ class RouletteRepository {
       return { status: 'ok', duplicate: false };
     }).immediate;
 
+    this.toggleReadyTransaction = db.transaction((gameId, userId, operationKey, now, expiresAt) => {
+      const prior = this.statements.operation.get(operationKey);
+      if (prior) return prior.game_id === gameId && prior.user_id === userId && prior.operation_type === 'READY'
+        ? { status: 'ok', duplicate: true }
+        : { status: 'operation-conflict', duplicate: true };
+      const game = this.game(gameId);
+      if (!game || game.state !== ROULETTE_STATES.BETTING) return { status: 'stale', duplicate: false };
+      const participant = this.statements.participant.get(gameId, userId);
+      if (!participant || !participant.accepted) return { status: 'unauthorized', duplicate: false };
+      const ready = !Boolean(participant.ready);
+      if (ready && participant.escrowed_total < 1n) return { status: 'no-bets', duplicate: false };
+      this.statements.setReady.run(ready ? 1n : 0n, gameId, userId);
+      this.statements.insertOperation.run(operationKey, gameId, userId, null, 'READY', 0n, 0n, BigInt(now));
+      this.statements.touch.run(BigInt(expiresAt), BigInt(now), gameId);
+      return { status: 'ok', ready, duplicate: false };
+    }).immediate;
+
     this.beginSpinTransaction = db.transaction((gameId, hostUserId, chooseResult, now, revealAt) => {
       const game = this.game(gameId);
       if (!game) return { status: 'missing' };
       if (game.hostUserId !== hostUserId) return { status: 'unauthorized', duplicate: false };
       if ([ROULETTE_STATES.SPINNING, ROULETTE_STATES.FINISHED].includes(game.state)) return { status: 'ok', duplicate: true };
       if (game.state !== ROULETTE_STATES.BETTING) return { status: 'stale', duplicate: false };
-      const openBettors = new Set(game.bets.filter((bet) => bet.state === 'OPEN').map((bet) => bet.userId));
-      if (!game.participants.length || game.participants.some((participant) => (
-        !participant.ready || participant.escrowedTotal < 1n || !openBettors.has(participant.userId)
-      ))) return { status: 'not-ready', duplicate: false };
+      const openBettors = new Set(game.bets.filter((bet) => bet.state === 'OPEN' && bet.amount > 0n).map((bet) => bet.userId));
+      if (!openBettors.size) return { status: 'no-wagers', duplicate: false };
+      const bettors = game.participants.filter((participant) => participant.escrowedTotal > 0n);
+      if (bettors.some((participant) => !participant.ready || !openBettors.has(participant.userId))) {
+        return { status: 'not-ready', duplicate: false };
+      }
       const result = Number(chooseResult());
       if (!Number.isInteger(result) || result < 0 || result > 36) throw new RangeError('Roulette RNG must return an integer from 0 to 36.');
       const spinning = this.statements.beginSpin.run(
@@ -379,6 +420,16 @@ class RouletteRepository {
     const result = this.createTransaction(String(id), String(guildId || ''), String(channelId || ''), profile, now, expiresAt);
     return { ...result, game: result.status === 'ok' ? this.game(id) : null };
   }
+  join(gameId, profile, now, expiresAt) {
+    const normalized = {
+      userId: String(profile.userId),
+      displayName: String(profile.displayName || 'Player'),
+      avatarUrl: String(profile.avatarUrl || ''),
+      bot: profile.bot === true,
+    };
+    const result = this.joinTransaction(String(gameId), normalized, now, expiresAt);
+    return { ...result, game: this.game(gameId) };
+  }
   setMessage(gameId, messageId, now) { this.statements.setMessage.run(String(messageId), BigInt(now), String(gameId)); return this.game(gameId); }
   chooseMode(gameId, hostUserId, mode, now, expiresAt) { const result = this.chooseModeTransaction(String(gameId), String(hostUserId), String(mode), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   invite(gameId, hostUserId, profiles, now, expiresAt) { const result = this.inviteTransaction(String(gameId), String(hostUserId), profiles, now, expiresAt); return { ...result, game: this.game(gameId) }; }
@@ -396,6 +447,7 @@ class RouletteRepository {
   undo(gameId, userId, operationKey, now, expiresAt) { const result = this.undoTransaction(String(gameId), String(userId), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   clear(gameId, userId, operationKey, now, expiresAt) { const result = this.clearTransaction(String(gameId), String(userId), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   ready(gameId, userId, ready, operationKey, now, expiresAt) { const result = this.readyTransaction(String(gameId), String(userId), Boolean(ready), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
+  toggleReady(gameId, userId, operationKey, now, expiresAt) { const result = this.toggleReadyTransaction(String(gameId), String(userId), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   beginSpin(gameId, hostUserId, chooseResult, now, revealAt) { const result = this.beginSpinTransaction(String(gameId), String(hostUserId), chooseResult, now, revealAt); return { ...result, game: this.game(gameId) }; }
   finishSpin(gameId, now) { const result = this.finishSpinTransaction(String(gameId), now); return { ...result, game: this.game(gameId) }; }
 
