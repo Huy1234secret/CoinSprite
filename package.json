@@ -1,7 +1,7 @@
 {
   "name": "coinsprite",
   "version": "1.0.0",
-  "description": "Grow a Garden stock alerts, seed RNG economy, community leveling, and owner controls for Discord.",
+  "description": "A Discord RNG economy, multiplayer casino, community leveling, and owner dashboard.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -22,8 +22,8 @@
   },
   "keywords": [
     "discord",
-    "grow-a-garden",
-    "stock-alerts",
+    "rng-game",
+    "roulette",
     "leveling"
   ],
   "author": "",

@@ -114,7 +114,59 @@ function rouletteColor(number) {
 
 function totalReturn(bet, result) {
   const canonical = canonicalBet(bet.type, bet.target);
-  return canonical.covered.includes(Number(result)) ? BigInt(bet.amount) * canonical.multiplier : 0n;
+  return betCoversResult(canonical, result) ? BigInt(bet.amount) * canonical.multiplier : 0n;
 }
 
-module.exports = { FIXED_BETS, canonicalBet, parseBetAmount, parseNumbers, range, rouletteColor, totalReturn };
+function freezeBet(bet) {
+  return Object.freeze({ ...bet, covered: Object.freeze([...bet.covered]) });
+}
+
+function legalBetRegions() {
+  const regions = [];
+  for (let number = 0; number <= 36; number += 1) regions.push(canonicalBet('straight', number));
+
+  // The supplied European table exposes the regular 1-36 split grid. Zero-side
+  // bets are represented by the two trios and the basket shown on the asset.
+  for (let first = 1; first <= 36; first += 1) {
+    if (first % 3 !== 0) regions.push(canonicalBet('split', `${first}-${first + 1}`));
+    if (first <= 33) regions.push(canonicalBet('split', `${first}-${first + 3}`));
+  }
+  for (let first = 1; first <= 34; first += 3) regions.push(canonicalBet('street', first));
+  for (let first = 1; first <= 32; first += 1) {
+    if (first % 3 !== 0) regions.push(canonicalBet('corner', `${first}-${first + 1}-${first + 3}-${first + 4}`));
+  }
+  for (let first = 1; first <= 31; first += 3) regions.push(canonicalBet('six_line', first));
+
+  for (const type of Object.keys(FIXED_BETS)) regions.push(canonicalBet(type));
+  return Object.freeze(regions.map(freezeBet));
+}
+
+const LEGAL_BET_REGIONS = legalBetRegions();
+
+function betCoversResult(bet, result) {
+  const number = Number(result);
+  if (!Number.isInteger(number) || number < 0 || number > 36) return false;
+  const canonical = Array.isArray(bet?.covered) ? bet : canonicalBet(bet?.type, bet?.target);
+  return canonical.covered.includes(number);
+}
+
+function winningBetRegions(resultNumber) {
+  const number = Number(resultNumber);
+  if (!Number.isInteger(number) || number < 0 || number > 36) {
+    throw new RangeError('Roulette result must be a whole number from 0 to 36.');
+  }
+  return LEGAL_BET_REGIONS.filter((bet) => betCoversResult(bet, number));
+}
+
+module.exports = {
+  FIXED_BETS,
+  LEGAL_BET_REGIONS,
+  betCoversResult,
+  canonicalBet,
+  parseBetAmount,
+  parseNumbers,
+  range,
+  rouletteColor,
+  totalReturn,
+  winningBetRegions,
+};

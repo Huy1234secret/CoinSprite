@@ -1,68 +1,18 @@
 {
   "meta": {
-    "schemaVersion": 10,
+    "schemaVersion": 15,
     "disabledGuilds": {}
   },
   "guilds": {
-    "1493901002519347290": {
+    "YOUR_ALLOWED_GUILD_ID": {
       "enabled": true,
       "features": {
-        "gag2Stock": true,
         "leveling": false,
         "rngGame": false,
         "fullBot": false
       },
       "channels": {
         "commandLogThread": ""
-      },
-      "gag2Stock": {
-        "enabled": true,
-        "channels": {
-          "seed": "",
-          "gear": "",
-          "crate": "",
-          "weather": "",
-          "moon": "",
-          "sell": "",
-          "roleAssign": "",
-          "updates": ""
-        },
-        "roleIds": {
-          "seed": {},
-          "gear": {},
-          "crate": {},
-          "weather": {},
-          "moon": {},
-          "sell": {},
-          "fallSeed": {},
-          "fallGear": {},
-          "fallCrate": {},
-          "fallSell": {}
-        },
-        "filters": {
-          "rarities": {
-            "seed": ["common", "uncommon", "rare", "epic", "legendary", "mythic", "super"],
-            "gear": ["common", "uncommon", "rare", "epic", "legendary", "mythic", "super"],
-            "crate": ["common", "uncommon", "rare", "epic", "legendary", "mythic", "super"],
-            "sell": ["common", "uncommon", "rare", "epic", "legendary", "mythic", "super", "secret"]
-          },
-          "roleItems": {
-            "seed": [],
-            "gear": [],
-            "crate": []
-          },
-          "sellMultipliers": ["normal", "2x", "4x"]
-        },
-        "fall": {
-          "enabledTypes": [],
-          "roleItems": {
-            "seed": [],
-            "gear": [],
-            "crate": [],
-            "sell": []
-          }
-        },
-        "rolesSyncedAt": ""
       },
       "leveling": {
         "enabled": false,
@@ -71,7 +21,7 @@
         "announcements": {
           "enabled": false,
           "channelId": "",
-          "message": "GG {user}! You reached level {level}.",
+          "template": "## ✦ Level {level} reached\nGG {user}! You reached level {level}.\n\n`{bar}` {progress_xp} / {needed_xp} XP toward level {next_level}",
           "layout": {
             "container": true,
             "accentColor": "#b9f547",

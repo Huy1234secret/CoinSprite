@@ -124,9 +124,8 @@
       </div>
 
       <nav class="nav-list" aria-label="Dashboard">
-        <button class="nav-item active" type="button" data-view="stock"><span class="nav-icon"><img src="https://cdn.discordapp.com/emojis/1525195196864925817.webp?size=32&amp;quality=lossless" alt=""></span><span><strong>GAG2 Stock</strong><small>Feeds & filters</small></span></button>
-        <button class="nav-item" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
-        <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>GAG2 RNG Game</strong><small>Locked by owner</small></span></button>
+        <button class="nav-item active" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
+        <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>RNG Game</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -135,39 +134,7 @@
     <section class="workspace">
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-      <section class="view active" id="stockView" data-view-panel="stock">
-        <header class="workspace-head">
-          <div><span class="eyebrow">GAG2 STOCK</span><h1>A Live stock notification!</h1></div>
-          <div class="head-actions">
-            <label class="switch-card header-switch"><span><strong>Stock engine</strong><small>Post live GAG updates</small></span><input id="stockEnabled" type="checkbox"><i></i></label>
-          </div>
-        </header>
-
-        <section class="section-block">
-          <div class="section-heading"><div><span class="step">01</span><h2>Destinations</h2></div><p>One channel per signal. Reuse channels when you want a combined feed.</p></div>
-          <div class="channel-grid" id="channelGrid"></div>
-        </section>
-
-        <section class="section-block">
-          <div class="section-heading"><div><span class="step">02</span><h2>Alert filters</h2></div><p>Select seeds that you need roles for them! Suggest selecting necessary seeds to prevent Discord Role Limitation</p></div>
-          <div class="filter-grid" id="filterGrid"></div>
-          <div class="multiplier-panel">
-            <div><strong>Sell multipliers</strong><small>Notify when Garden Guide values hit these multipliers.</small></div>
-            <div class="chip-row" id="multiplierFilters"></div>
-          </div>
-        </section>
-
-        <section class="section-block fall-harvest" id="fallHarvestSection">
-          <div class="fall-breeze" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="section-heading"><div><span class="step">03</span><h2>Fall Harvest</h2></div><div class="fall-heading-meta"><p>Layer seasonal inventory into the matching stock feeds.</p><aside class="fall-countdown" id="fallCountdown"><span>Event ends in</span><strong>Loading…</strong></aside></div></div>
-          <div class="event-grid" id="fallFilters"></div>
-          <p class="microcopy">Fall role selections only affect Fall Harvest alerts and activate with their matching toggle above.</p>
-          <div class="filter-grid fall-role-grid" id="fallRoleFilters"></div>
-        </section>
-
-      </section>
-
-      <section class="view" id="levelingView" data-view-panel="leveling" hidden>
+      <section class="view active" id="levelingView" data-view-panel="leveling">
         <header class="workspace-head">
           <div><span class="eyebrow">LEVELING</span><h1>Turn activity into progress.</h1><p>Balanced XP, clean rewards, and a leaderboard your community can actually enjoy.</p></div>
           <div class="head-actions">
@@ -231,7 +198,7 @@
 
       <section class="view" id="rngGameView" data-view-panel="rng-game" hidden>
         <header class="workspace-head rng-game-head">
-          <div><span class="eyebrow">GAG2 RNG GAME</span><h1>Roll crops. Build an economy.</h1><p>Choose where game commands can be used and which roles can roll without a cooldown.</p></div>
+          <div><span class="eyebrow">RNG GAME</span><h1>Roll crops. Build an economy.</h1><p>Choose where game commands can be used and which roles can roll without a cooldown.</p></div>
           <div class="head-actions">
             <label class="switch-card header-switch"><span><strong>RNG game engine</strong><small>Register and enable game commands</small></span><input id="rngGameEnabled" type="checkbox"><i></i></label>
           </div>

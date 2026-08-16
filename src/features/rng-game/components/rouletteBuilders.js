@@ -7,6 +7,7 @@ const {
   ROULETTE_STATES,
 } = require('../config/roulette');
 const { TOKEN_DENOMINATIONS } = require('../utils/tokens');
+const { totalReturn, winningBetRegions } = require('../services/rouletteRules');
 
 const WHITE = 0xFFFFFF;
 const GREY = 0x9CA3AF;
@@ -131,17 +132,38 @@ function rouletteSpinningPayload(game, tableImage, spinImage, options = {}) {
 
 function signed(value) { return value > 0n ? `+${value}` : String(value); }
 
+function winningPositionLabels(resultNumber) {
+  return winningBetRegions(resultNumber).map(canonicalBetLabel);
+}
+
+function resultParticipantComponents(game) {
+  return [...game.participants]
+    .sort((left, right) => left.seat - right.seat)
+    .map((participant) => {
+      const bets = game.bets
+        .filter((bet) => bet.userId === participant.userId && bet.state !== 'REFUNDED')
+        .sort((left, right) => left.createdSequence - right.createdSequence);
+      const lines = bets.length ? bets.map((bet) => {
+        const returned = totalReturn(bet, game.winningNumber);
+        const settlement = returned > 0n ? `Won ${formatTokenAmount(returned)}` : 'Lost';
+        return `-# • ${canonicalBetLabel(bet)} — ${formatTokenAmount(bet.amount)} — ${settlement}`;
+      }) : ['-# • No bets placed'];
+      lines.push(`-# Net: ${signed(participant.resultNet)} tokens`);
+      return { type: 10, content: `<@${participant.userId}>:\n${lines.join('\n')}` };
+    });
+}
+
 function rouletteResultPayload(game, tableImage, resultImage, options = {}) {
-  const lines = game.participants.map((participant) => (
-    `<@${participant.userId}> — Staked: ${participant.resultStake} • Returned: ${participant.resultReturn} • Net: ${signed(participant.resultNet)}`
-  )).join('\n');
+  const winningPositions = winningPositionLabels(game.winningNumber).join(' • ');
   const color = game.winningColor === 'green' ? GREEN : (game.winningColor === 'red' ? RED : BLACK);
   return rouletteImagePayload([
     { image: tableImage, name: `roulette-table-${game.id}-v${game.revision}.png` },
     { image: resultImage, name: `roulette-result-${game.winningNumber}-${game.id}-v${game.revision}.png` },
-  ], [{ type: 10, content: `### Roulette Result: ${game.winningNumber} ${game.winningColor}\n${lines}` }], [{ type: 1, components: [
+  ], [
+    { type: 10, content: `### Roulette Result: ${game.winningNumber} ${game.winningColor}\nWinning positions: ${winningPositions}` },
+    ...resultParticipantComponents(game),
+  ], [{ type: 1, components: [
     { type: 2, style: 3, label: 'Play Again', custom_id: `rng:roulette:replay:${game.id}` },
-    { type: 2, style: 1, label: 'New Bets', custom_id: `rng:roulette:new-bets:${game.id}` },
     { type: 2, style: 2, label: 'Rules', custom_id: `rng:roulette:rules:${game.id}` },
   ] }], color, options);
 }
@@ -190,6 +212,7 @@ module.exports = {
   canonicalBetLabel,
   formatTokenAmount,
   participantStatusLines,
+  resultParticipantComponents,
   rouletteBetSelectorPayload,
   rouletteBettingPayload,
   rouletteImagePayload,
@@ -198,4 +221,5 @@ module.exports = {
   rouletteRulesPayload,
   rouletteSpinningPayload,
   rouletteTerminalPayload,
+  winningPositionLabels,
 };

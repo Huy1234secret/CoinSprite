@@ -1,16 +1,9 @@
-const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { LEVELING_COMMANDS } = require('./leveling');
 const { RNG_GAME_COMMANDS } = require('./features/rng-game');
 const { getGuildConfigRaw } = require('./serverConfig');
+const { isGuildAllowlisted } = require('./guildAllowlist');
 
-const STOCK_SETUP_COMMAND_NAME = 'stock-set-up';
-const STOCK_SETUP_COMMAND = new SlashCommandBuilder()
-  .setName(STOCK_SETUP_COMMAND_NAME)
-  .setDescription('Set up GAG2 stock auto-posting in the dashboard.')
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .toJSON();
-
-const GLOBAL_APPLICATION_COMMANDS = Object.freeze([STOCK_SETUP_COMMAND]);
+const GLOBAL_APPLICATION_COMMANDS = Object.freeze([]);
 
 function commandJson(commands) {
   return commands.map((command) => command.data.toJSON());
@@ -29,7 +22,7 @@ function featureCommandsForConfig(config) {
 }
 
 async function syncGuildApplicationCommands(guild) {
-  if (!guild?.id || !guild.commands?.set) return [];
+  if (!guild?.id || !isGuildAllowlisted(guild.id) || !guild.commands?.set) return [];
   const commands = featureCommandsForConfig(getGuildConfigRaw(guild.id));
   await guild.commands.set(commands);
   return commands;
@@ -37,8 +30,6 @@ async function syncGuildApplicationCommands(guild) {
 
 module.exports = {
   GLOBAL_APPLICATION_COMMANDS,
-  STOCK_SETUP_COMMAND,
-  STOCK_SETUP_COMMAND_NAME,
   featureCommandsForConfig,
   syncGuildApplicationCommands,
 };

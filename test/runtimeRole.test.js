@@ -11,7 +11,6 @@ const {
   runtimeCapabilities,
   runtimeDiagnostic,
 } = require('../src/runtimeRole');
-const { startGag2StockPoster } = require('../src/gag2Stock/manager');
 
 function withEnv(overrides, fn) {
   const saved = {};
@@ -127,13 +126,13 @@ test('exactly one bot runtime starts scheduler', () => {
 
 test('runtime roles expose only their intended operational capabilities', () => {
   assert.deepEqual(runtimeCapabilities('bot'), {
-    role: 'bot', bot: true, panel: false, stockPoster: true,
+    role: 'bot', bot: true, panel: false, scheduler: true,
   });
   assert.deepEqual(runtimeCapabilities('panel'), {
-    role: 'panel', bot: false, panel: true, stockPoster: false,
+    role: 'panel', bot: false, panel: true, scheduler: false,
   });
   assert.deepEqual(runtimeCapabilities('combined'), {
-    role: 'combined', bot: true, panel: true, stockPoster: true,
+    role: 'combined', bot: true, panel: true, scheduler: true,
   });
 });
 
@@ -165,16 +164,6 @@ test('one bot plus two panel runtimes starts one operational scheduler owner', a
   assert.equal(operationalStarts, 1);
 });
 
-test('stock poster fails closed when called from a panel runtime', async () => {
-  const logs = [];
-  const result = await startGag2StockPoster({}, {
-    runtimeRole: 'panel',
-    logSystem: (line) => logs.push(line),
-  });
-  assert.equal(result, null);
-  assert.match(logs[0], /refused to start in panel runtime/i);
-});
-
 test('deployment scripts use explicit runtime entrypoints', () => {
   const root = path.join(__dirname, '..');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -191,7 +180,7 @@ test('deployment scripts use explicit runtime entrypoints', () => {
 test('runtime diagnostics identify topology without including credentials', () => {
   const line = runtimeDiagnostic('panel', { shard: { ids: [0] } });
   assert.match(line, /role=panel/);
-  assert.match(line, /stockPoster=disabled/);
+  assert.match(line, /scheduler=disabled/);
   assert.match(line, /shard=0/);
   assert.doesNotMatch(line, /token|secret|password/i);
 });

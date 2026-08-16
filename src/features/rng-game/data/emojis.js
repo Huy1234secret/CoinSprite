@@ -1,5 +1,6 @@
-const { SHECKLES_EMOJI } = require('../../../gag2Stock/catalog');
 const { componentEmoji } = require('../../shared/emojis');
+
+const SHECKLES_EMOJI = '<:sheckles:1525368044824825976>';
 
 // Crop art supplied for the RNG game. Keep every Discord emoji identifier in
 // this one registry so deployments can replace art without touching game logic.

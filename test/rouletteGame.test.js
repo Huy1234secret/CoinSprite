@@ -23,9 +23,23 @@ const {
   participantStatusLines,
   rouletteBetSelectorPayload,
   rouletteBettingPayload,
+  rouletteResultPayload,
 } = require('../src/features/rng-game/components/rouletteBuilders');
-const { canonicalBet, rouletteColor, totalReturn } = require('../src/features/rng-game/services/rouletteRules');
-const { CLUSTER_OFFSETS, CHIP_RADIUS, RouletteTableRenderer, clusteredBets } = require('../src/features/rng-game/services/rouletteRenderer');
+const {
+  LEGAL_BET_REGIONS,
+  betCoversResult,
+  canonicalBet,
+  rouletteColor,
+  totalReturn,
+  winningBetRegions,
+} = require('../src/features/rng-game/services/rouletteRules');
+const {
+  CLUSTER_OFFSETS,
+  CHIP_RADIUS,
+  RouletteTableRenderer,
+  clusteredBets,
+  winningChipBets,
+} = require('../src/features/rng-game/services/rouletteRenderer');
 const { rouletteResultAssetPath, rouletteSpinAssetPath } = require('../src/features/rng-game/services/rouletteMedia');
 const { RouletteRevealScheduler } = require('../src/features/rng-game/services/rouletteService');
 const { SQLITE_INTEGER_MAX } = require('../src/features/rng-game/repositories/gameRepository');
@@ -313,6 +327,75 @@ test('zero loses every outside bet and wins only canonical zero-area coverage', 
   assert.equal(totalReturn({ type: 'trio_012', target: '', amount: 10n }, 0), 120n);
 });
 
+test('winning regions completely enumerate canonical positions for 0, 1, 9, 17, and 36', () => {
+  const keys = (number) => winningBetRegions(number).map((bet) => bet.anchorKey);
+  assert.deepEqual(keys(0), ['straight:0', 'trio_012:0-1-2', 'trio_023:0-2-3', 'first_four:0-1-2-3']);
+  assert.deepEqual(keys(1), [
+    'straight:1', 'split:1-2', 'split:1-4', 'street:1', 'corner:1-2-4-5', 'six_line:1',
+    'trio_012:0-1-2', 'first_four:0-1-2-3', 'dozen_1:1', 'column_1:1', 'red:red', 'odd:odd', 'low:low',
+  ]);
+  assert.deepEqual(keys(9), [
+    'straight:9', 'split:6-9', 'split:8-9', 'split:9-12', 'street:7', 'corner:5-6-8-9',
+    'corner:8-9-11-12', 'six_line:4', 'six_line:7', 'dozen_1:1', 'column_3:3', 'red:red', 'odd:odd', 'low:low',
+  ]);
+  assert.deepEqual(keys(17), [
+    'straight:17', 'split:14-17', 'split:16-17', 'split:17-18', 'split:17-20', 'street:16',
+    'corner:13-14-16-17', 'corner:14-15-17-18', 'corner:16-17-19-20', 'corner:17-18-20-21',
+    'six_line:13', 'six_line:16', 'dozen_2:2', 'column_2:2', 'black:black', 'odd:odd', 'low:low',
+  ]);
+  assert.deepEqual(keys(36), [
+    'straight:36', 'split:33-36', 'split:35-36', 'street:34', 'corner:32-33-35-36', 'six_line:31',
+    'dozen_3:3', 'column_3:3', 'red:red', 'even:even', 'high:high',
+  ]);
+});
+
+test('result 9 includes every requested outside category and every inside position containing 9', () => {
+  const winning = winningBetRegions(9);
+  const types = new Set(winning.map((bet) => bet.type));
+  for (const type of ['red', 'odd', 'low', 'dozen_1', 'column_3']) assert.equal(types.has(type), true, type);
+
+  const insideTypes = new Set(['straight', 'split', 'street', 'corner', 'six_line', 'trio_012', 'trio_023', 'first_four']);
+  const expected = LEGAL_BET_REGIONS.filter((bet) => insideTypes.has(bet.type) && bet.covered.includes(9)).map((bet) => bet.anchorKey);
+  assert.deepEqual(winning.filter((bet) => insideTypes.has(bet.type)).map((bet) => bet.anchorKey), expected);
+});
+
+test('zero winning regions contain no splits or outside bets', () => {
+  const zero = winningBetRegions(0);
+  assert.deepEqual(zero.map((bet) => bet.type), ['straight', 'trio_012', 'trio_023', 'first_four']);
+  assert.equal(zero.some((bet) => /^(dozen|column)|^(red|black|odd|even|low|high)$/.test(bet.type)), false);
+});
+
+test('settlement and highlighting consume the same covered-number definitions', () => {
+  for (const result of [0, 1, 9, 17, 36]) {
+    for (const region of winningBetRegions(result)) {
+      assert.equal(betCoversResult(region, result), true);
+      assert.equal(totalReturn({ ...region, amount: 1n }, result), region.multiplier);
+    }
+  }
+});
+
+test('result payload lists every player bet settlement and all winning positions within component limits', () => {
+  const game = {
+    id: 'message', revision: 4, winningNumber: 9, winningColor: 'red',
+    participants: [
+      { userId: 'player-a', seat: 0, resultNet: 190n },
+      { userId: 'player-b', seat: 1, resultNet: -50n },
+    ],
+    bets: [
+      { ...canonicalBet('split', '8-9'), userId: 'player-a', amount: 10n, state: 'SETTLED', createdSequence: 1 },
+      { ...canonicalBet('red'), userId: 'player-a', amount: 20n, state: 'SETTLED', createdSequence: 2 },
+      { ...canonicalBet('straight', '17'), userId: 'player-b', amount: 50n, state: 'SETTLED', createdSequence: 3 },
+    ],
+  };
+  const payload = rouletteResultPayload(game, Buffer.from('table'), Buffer.from('result'));
+  const text = payload.components[0].components.filter((component) => component.type === 10).map((component) => component.content).join('\n');
+  assert.match(text, /Winning positions: Straight Up 9.*1st Dozen.*Column 3.*Red.*Odd.*Low/);
+  assert.match(text, /<@player-a>:\n-# • Split 8–9 .* Won 180/);
+  assert.match(text, /Red .* Won 40/);
+  assert.match(text, /<@player-b>:\n-# • Straight Up 17 .* Lost/);
+  for (const component of payload.components[0].components.filter((entry) => entry.type === 10)) assert.ok(component.content.length <= 4000);
+});
+
 test('bet placement debits atomically, aggregates a position, and is idempotent', () => {
   const game = feature();
   fund(game, 'host', 100n);
@@ -598,7 +681,7 @@ test('manual Spin shows the matching neutral GIF, then the stored result PNG and
   assert.equal(resultPayload.components[0].components.filter((entry) => entry.type === 12).length, 2);
   assert.equal(path.basename(rouletteResultAssetPath(finished)), '17.png');
   assert.match(resultPayload.components[0].components[0].content, /Roulette Result: 17 black/);
-  assert.deepEqual(resultPayload.components[0].components.flatMap((entry) => entry.components || []).map((entry) => entry.label), ['Play Again', 'New Bets', 'Rules']);
+  assert.deepEqual(resultPayload.components[0].components.flatMap((entry) => entry.components || []).map((entry) => entry.label), ['Play Again', 'Rules']);
   assert.equal(rngCalls, 1);
   now += 60_000;
   assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.FINISHED);
@@ -610,7 +693,7 @@ test('manual Spin shows the matching neutral GIF, then the stored result PNG and
     user: { id: 'intruder' },
     reply: async (payload) => { replayDenied = payload; },
   });
-  assert.match(replayDenied.components[0].components[0].content, /Only the command invoker/);
+  assert.match(replayDenied.components[0].components[0].content, /Old control unavailable/);
   assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.FINISHED);
   await game.handleInteraction({
     id: 'host-replay',
@@ -876,6 +959,19 @@ test('finished render includes zero treatment and retry rendering never mutates 
   assert.equal(game.repository.getPlayer('host').tokenBalance, beforeBalance);
   assert.equal(game.rouletteService.game(id).revision, beforeRevision);
   game.close();
+});
+
+test('finished tables style every winning player chip and no losing chip as a winner', () => {
+  const state = {
+    id: 'multi-winner', state: ROULETTE_STATES.FINISHED, winningNumber: 9, winningColor: 'red',
+    participants: [0, 1, 2].map((seat) => ({ ...profile(`p${seat}`), seat })),
+    bets: [
+      { ...canonicalBet('red'), id: '1', userId: 'p0', amount: 10n, state: 'SETTLED', createdSequence: 1 },
+      { ...canonicalBet('split', '8-9'), id: '2', userId: 'p1', amount: 10n, state: 'SETTLED', createdSequence: 2 },
+      { ...canonicalBet('black'), id: '3', userId: 'p2', amount: 10n, state: 'SETTLED', createdSequence: 3 },
+    ],
+  };
+  assert.deepEqual(winningChipBets(state).map((bet) => bet.id).sort(), ['1', '2']);
 });
 
 test('serialized renders suppress an older revision edit', async () => {

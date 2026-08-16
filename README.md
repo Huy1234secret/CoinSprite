@@ -1,8 +1,7 @@
 # CoinSprite
 
-CoinSprite is a focused Discord service for Grow a Garden stock alerts, a seed RNG economy, and community leveling. The runtime contains four product surfaces:
+CoinSprite is a focused Discord service for a seed RNG economy, multiplayer casino games, and community leveling. The runtime contains three product surfaces:
 
-- **GAG stock** — live seed, gear, crate, weather, moon, sell-price, update, and Fall Harvest alerts.
 - **Seed RNG economy** — secure crop rolls, persistent crop/item/pet inventories and balances, a global item shop, consumable effects, pet hatching/equipment, selling, filtering, pagination, and capacity upgrades.
 - **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
 - **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
@@ -34,9 +33,9 @@ Tickets, moderation, giveaways, invite rewards, and other general-purpose dashbo
 
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
-Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. Use `npm run deploy:bot` for the Discord gateway, command registration, GAG stock poster, update poster, and RNG auto-roll scheduler. Use `npm run deploy:panel` for the web panel only. `npm start` deliberately runs the combined role for local development.
+Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. Use `npm run deploy:bot` for the Discord gateway, command registration, and RNG schedulers. Use `npm run deploy:panel` for the web panel only. `npm start` deliberately runs the combined role for local development.
 
-The panel role fails closed: it does not register Discord commands, attach Discord interaction/message handlers, or start any poster or scheduler. The GAG stock state is local rather than a shared distributed lease, so production must run exactly **one** `deploy:bot` scheduler-enabled replica. Panel replicas may scale separately. A startup diagnostic reports the runtime role, whether the stock poster is enabled, instance identity, PID, hostname, shard, and service name without logging credentials. Verify production logs contain one `role=bot stockPoster=enabled` instance and only `role=panel stockPoster=disabled` for panel services.
+The panel role fails closed: it does not register Discord commands, attach Discord interaction/message handlers, or start game schedulers. Production should run exactly **one** `deploy:bot` scheduler-enabled replica; panel replicas may scale separately. Startup diagnostics report the runtime role, scheduler state, instance identity, PID, hostname, shard, and service name without logging credentials.
 
 For pixel-identical level cards, deploy the bot and panel from the same commit and `package-lock.json`, run `npm ci` in both deployments, and set identical `LEVEL_CARD_RENDER_SECRET` and `COINSPRITE_BUILD_VERSION` values. Point the bot's `PUBLIC_WEB_BASE_URL` at the panel. The renderer rejects a panel whose build, renderer, or installed-font manifest differs from the bot instead of falling back to a stale local card.
 
@@ -52,20 +51,16 @@ Production verification:
 
 Guild settings are stored in `data/server-config.json`, while member XP is stored atomically in `data/leveling.json`.
 
-GAG Stock is always unlocked. Every optional feature defaults locked and disabled for every server; the bot owner can independently unlock Leveling and the RNG Game from the fleet's **Feature access** dropdown.
+Every optional feature defaults locked and disabled for every server; the bot owner can independently unlock Leveling and the RNG Game from the fleet's **Feature access** dropdown. CoinSprite leaves any guild outside the immutable two-guild deployment allowlist before initializing commands or features.
 
 The dashboard lets Discord administrators configure unlocked features:
 
-- destinations for seed, gear, crate, weather, moon, sell, role-selection, and update feeds;
-- rarity and sell-multiplier filters;
-- Fall Harvest feed participation;
-- automatic notification-role synchronization;
 - XP range, cooldown, progression curve, maximum level, opt-in channel multipliers, and role XP boosts;
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 - multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
-The focused application commands include `/stock-set-up`, the Leveling commands, and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
+The focused application commands include the Leveling commands and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
 
 ### European Roulette
 
@@ -94,4 +89,4 @@ npm run report:shop-balance
 npm run report:pet-value
 ```
 
-The test suite covers GAG stock delivery and duplicate convergence, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, permissions, role assignment, Fall Harvest handling, and update announcements. The deterministic reports print fixed-price Shop and pet-value checkpoints, verify restock scarcity, Super-over-Legendary ordering, expected uplift, fixed-point egg odds, and money-loop safety, enumerate all three-pet combinations, and fail if probability or modifier caps are violated.
+The test suite covers guild allowlist enforcement, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, roulette settlement and rendering, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, and permissions. The deterministic reports print fixed-price Shop and pet-value checkpoints, verify restock scarcity, Super-over-Legendary ordering, expected uplift, fixed-point egg odds, and money-loop safety, enumerate all three-pet combinations, and fail if probability or modifier caps are violated.
