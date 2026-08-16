@@ -3,7 +3,9 @@ const path = require('path');
 const ROULETTE_CANVAS_WIDTH = 1_568;
 const ROULETTE_CANVAS_HEIGHT = 700;
 const ROULETTE_IMAGE_DIRECTORY = path.join(__dirname, '..', '..', '..', '..', 'images', 'roulette');
+const ROULETTE_RESULT_IMAGE_DIRECTORY = path.join(__dirname, '..', '..', '..', '..');
 const ROULETTE_TABLE_ASSET = 'roulette table.png';
+const ROULETTE_SPIN_DURATION_MS = 8_000;
 
 const ROULETTE_STATES = Object.freeze({
   CHOOSING_MODE: 'CHOOSING_MODE',
@@ -123,6 +125,8 @@ module.exports = {
   ROULETTE_GEOMETRY,
   ROULETTE_IMAGE_DIRECTORY,
   ROULETTE_LIMITS,
+  ROULETTE_RESULT_IMAGE_DIRECTORY,
+  ROULETTE_SPIN_DURATION_MS,
   ROULETTE_STATES,
   ROULETTE_TABLE_ASSET,
   ROULETTE_TIMEOUTS,
