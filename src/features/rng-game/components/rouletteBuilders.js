@@ -83,8 +83,7 @@ function participantStatusLines(game) {
   }).join('\n');
 }
 
-function rouletteImagePayload(game, image, before, after, color, options = {}) {
-  const filename = `roulette-${game.id}-${game.revision}.png`;
+function rouletteImagePayload(game, image, before, after, color, options = {}, filename = `roulette-${game.id}-${game.revision}.png`) {
   const payload = v2Payload([{
     type: 17,
     accent_color: color,
@@ -131,6 +130,18 @@ function rouletteBettingPayload(game, image, options = {}) {
   ], bettingControls(game), WHITE, options);
 }
 
+function rouletteSpinningPayload(game, image, options = {}) {
+  const extension = options.extension === 'png' ? 'png' : 'gif';
+  const payloadOptions = { ...options };
+  delete payloadOptions.extension;
+  const filename = `roulette-spin-${game.id}-v${game.revision}.${extension}`;
+  return rouletteImagePayload(game, image, [
+    { type: 10, content: '### Roulette is spinning…\n-# No more bets' },
+  ], [{ type: 1, components: [
+    { type: 2, style: 2, label: 'Rules', custom_id: `rng:roulette:rules:${game.id}` },
+  ] }], WHITE, payloadOptions, filename);
+}
+
 function signed(value) { return value > 0n ? `+${value}` : String(value); }
 
 function rouletteResultPayload(game, image, options = {}) {
@@ -144,7 +155,7 @@ function rouletteResultPayload(game, image, options = {}) {
     { type: 2, style: 3, label: 'Play Again', custom_id: `rng:roulette:replay:${game.id}` },
     { type: 2, style: 1, label: 'New Bets', custom_id: `rng:roulette:new-bets:${game.id}` },
     { type: 2, style: 2, label: 'Rules', custom_id: `rng:roulette:rules:${game.id}` },
-  ] }], color, options);
+  ] }], color, options, `roulette-result-${game.winningNumber}-${game.id}-v${game.revision}.png`);
 }
 
 function rouletteTerminalPayload(game, options = {}) {
@@ -196,5 +207,6 @@ module.exports = {
   rouletteRenderFailurePayload,
   rouletteResultPayload,
   rouletteRulesPayload,
+  rouletteSpinningPayload,
   rouletteTerminalPayload,
 };

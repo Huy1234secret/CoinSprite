@@ -11,6 +11,8 @@ const {
   ROULETTE_CANVAS_WIDTH,
   ROULETTE_GEOMETRY,
   ROULETTE_IMAGE_DIRECTORY,
+  ROULETTE_RESULT_IMAGE_DIRECTORY,
+  ROULETTE_SPIN_DURATION_MS,
   ROULETTE_STATES,
   ROULETTE_TABLE_ASSET,
   anchorFor,
@@ -19,7 +21,10 @@ const {
 const { initialRoulettePayload } = require('../src/features/rng-game/components/rouletteBuilders');
 const { canonicalBet, rouletteColor, totalReturn } = require('../src/features/rng-game/services/rouletteRules');
 const { CLUSTER_OFFSETS, CHIP_RADIUS, RouletteTableRenderer, clusteredBets } = require('../src/features/rng-game/services/rouletteRenderer');
+const { rouletteResultAssetPath, rouletteSpinAssetPath } = require('../src/features/rng-game/services/rouletteMedia');
+const { RouletteRevealScheduler } = require('../src/features/rng-game/services/rouletteService');
 const { SQLITE_INTEGER_MAX } = require('../src/features/rng-game/repositories/gameRepository');
+const { openDatabase } = require('../src/features/rng-game/repositories/database');
 
 let ids = 0;
 function profile(userId) { return { userId, displayName: userId.toUpperCase(), avatarUrl: '' }; }
@@ -102,13 +107,14 @@ test('only the command invoker may choose Roulette mode', async () => {
   game.close();
 });
 
-test('roulette scheduler follows feature start and stop lifecycle', () => {
+test('roulette expiry and reveal schedulers follow feature start and stop lifecycle', () => {
   const calls = [];
-  const scheduler = { start: () => calls.push('start'), stop: () => calls.push('stop') };
-  const game = feature({ rouletteExpiryScheduler: scheduler });
+  const expiry = { start: () => calls.push('expiry-start'), stop: () => calls.push('expiry-stop') };
+  const reveal = { schedule: () => {}, start: () => calls.push('reveal-start'), stop: () => calls.push('reveal-stop') };
+  const game = feature({ rouletteExpiryScheduler: expiry, rouletteRevealScheduler: reveal });
   game.startScheduler(null);
   game.close();
-  assert.deepEqual(calls, ['start', 'stop']);
+  assert.deepEqual(calls, ['expiry-start', 'reveal-start', 'expiry-stop', 'reveal-stop']);
 });
 
 test('human lobby validates busy players, joins, removes waiters, and starts with two', () => {
@@ -161,6 +167,7 @@ test('red, black, color, column orientation, coverage, and multipliers are canon
     assert.deepEqual(result.covered, covered);
     assert.equal(result.multiplier, multiplier);
   }
+  assert.equal(totalReturn({ type: 'split', target: '17-20', amount: 10n }, 17), 180n);
 });
 
 test('every legal split, street, corner, and six line is accepted and illegal geometry rejected', () => {
@@ -247,7 +254,7 @@ test('undo refunds exactly the last delta and clear refunds once while allowing 
 });
 
 test('changing bets clears readiness and all participants must bet and ready before spin', () => {
-  const game = feature({ rouletteRandomInt: () => 36 });
+  const game = feature({ clock: () => 1_000, rouletteRandomInt: () => 36 });
   ['a', 'b'].forEach((user) => fund(game, user, 100n));
   const id = humanLobby(game, ['a', 'b']);
   game.rouletteService.accept(id, 'b');
@@ -260,12 +267,36 @@ test('changing bets clears readiness and all participants must bet and ready bef
   place(game, id, 'a', 'even', '', 1, 'a-even');
   assert.equal(game.rouletteService.game(id).participants.find((entry) => entry.userId === 'a').ready, false);
   game.rouletteService.setReady(id, 'a', true);
-  assert.equal(game.rouletteService.spin(id, 'a').status, 'ok');
+  const spun = game.rouletteService.beginSpin(id, 'a');
+  assert.equal(spun.status, 'ok');
+  assert.equal(spun.game.state, ROULETTE_STATES.SPINNING);
+  assert.equal(spun.game.spinStartedAt, 1_000);
+  assert.equal(spun.game.revealAt, 1_000 + ROULETTE_SPIN_DURATION_MS);
+  game.close();
+});
+
+test('BETTING stays manual and only the host can select an outcome', () => {
+  let now = 1_000;
+  let rngCalls = 0;
+  const game = feature({ clock: () => now, rouletteRandomInt: () => { rngCalls += 1; return 17; } });
+  fund(game, 'host', 100n);
+  const id = botTable(game);
+  place(game, id, 'host', 'straight', '17', 10, 'manual-bet');
+  game.rouletteService.setReady(id, 'host', true);
+  now += 5_000;
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.BETTING);
+  assert.equal(game.rouletteService.spinningGames().length, 0);
+  assert.equal(rngCalls, 0);
+  assert.equal(game.rouletteService.beginSpin(id, 'intruder').status, 'unauthorized');
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.BETTING);
+  assert.equal(rngCalls, 0);
   game.close();
 });
 
 test('multiplayer settlement is independent, sums multiple wins, and duplicate spin never repays', () => {
-  const game = feature({ rouletteRandomInt: () => 1 });
+  let now = 1_000;
+  let rngCalls = 0;
+  const game = feature({ clock: () => now, rouletteRandomInt: () => { rngCalls += 1; return 1; } });
   ['a', 'b'].forEach((user) => fund(game, user, 1_000n));
   const id = humanLobby(game, ['a', 'b']);
   game.rouletteService.accept(id, 'b');
@@ -275,14 +306,36 @@ test('multiplayer settlement is independent, sums multiple wins, and duplicate s
   place(game, id, 'b', 'black', '', 30, 'b-black');
   game.rouletteService.setReady(id, 'a', true);
   game.rouletteService.setReady(id, 'b', true);
-  const result = game.rouletteService.spin(id, 'a');
+  const result = game.rouletteService.beginSpin(id, 'a');
   assert.equal(result.game.winningNumber, 1);
+  assert.equal(result.game.state, ROULETTE_STATES.SPINNING);
+  assert.equal(rngCalls, 1);
+  assert.equal(game.repository.getPlayer('a').tokenBalance, 970n);
+  assert.equal(game.repository.getPlayer('b').tokenBalance, 970n);
+  assert.equal(game.rouletteRepository.activeGameForUser('a').state, ROULETTE_STATES.SPINNING);
+  assert.equal(game.rouletteService.finishSpin(id).status, 'not-due');
+  assert.equal(game.rouletteService.beginSpin(id, 'a').duplicate, true);
+  assert.equal(rngCalls, 1);
+  assert.equal(game.rouletteService.undo(id, 'a', 'spin-undo').status, 'stale');
+  assert.equal(game.rouletteService.clear(id, 'a', 'spin-clear').status, 'stale');
+  assert.equal(game.rouletteService.setReady(id, 'a', false, 'spin-unready').status, 'stale');
+  assert.equal(game.rouletteService.leave(id, 'b', 'spin-leave').status, 'stale');
+  assert.equal(game.rouletteService.cancel(id).status, 'stale');
+  assert.equal(game.repository.getPlayer('a').tokenBalance, 970n);
+  now += ROULETTE_SPIN_DURATION_MS;
+  assert.equal(game.rouletteService.expireDue().length, 0);
+  assert.equal(game.rouletteService.finishSpin(id).status, 'ok');
   assert.equal(game.repository.getPlayer('a').tokenBalance, 1_370n);
   assert.equal(game.repository.getPlayer('b').tokenBalance, 970n);
   const paid = game.repository.getPlayer('a').tokenBalance;
-  assert.equal(game.rouletteService.spin(id, 'a').duplicate, true);
+  assert.equal(game.rouletteService.finishSpin(id).duplicate, true);
   assert.equal(game.repository.getPlayer('a').tokenBalance, paid);
+  assert.equal(rngCalls, 1);
   assert.equal(game.rouletteRepository.activeGameForUser('a'), null);
+  now += 60_000;
+  assert.equal(game.rouletteService.expireDue().length, 0);
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.FINISHED);
+  assert.equal(game.rouletteService.replay(id, 'b').status, 'stale');
   game.close();
 });
 
@@ -345,14 +398,254 @@ test('spin acknowledgement failure leaves result, escrow, and balance unchanged'
   game.close();
 });
 
+test('manual Spin shows the matching neutral GIF, then the stored result PNG and host controls', async () => {
+  let now = 1_000;
+  let rngCalls = 0;
+  let scheduled;
+  const revealScheduler = {
+    schedule: (game) => { scheduled = game; },
+    start() {},
+    stop() {},
+  };
+  const game = feature({
+    clock: () => now,
+    rouletteRandomInt: () => { rngCalls += 1; return 17; },
+    rouletteRevealScheduler: revealScheduler,
+  });
+  fund(game, 'host', 100n);
+  const id = botTable(game);
+  place(game, id, 'host', 'straight', '17', 10, 'media-bet');
+  game.rouletteService.setReady(id, 'host', true);
+
+  let denied;
+  await game.handleInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:spin:${id}`,
+    user: { id: 'intruder' },
+    reply: async (payload) => { denied = payload; },
+  });
+  assert.match(denied.components[0].components[0].content, /Only the command invoker/);
+  assert.equal(rngCalls, 0);
+
+  let spinningPayload;
+  await game.handleInteraction({
+    id: 'host-spin',
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:spin:${id}`,
+    user: { id: 'host' },
+    deferUpdate: async () => {},
+    editReply: async (payload) => { spinningPayload = payload; },
+  });
+  const spinning = game.rouletteService.game(id);
+  assert.equal(spinning.state, ROULETTE_STATES.SPINNING);
+  assert.equal(spinning.winningNumber, 17);
+  assert.equal(spinning.revealAt - spinning.spinStartedAt, ROULETTE_SPIN_DURATION_MS);
+  assert.equal(scheduled.id, id);
+  assert.equal(rngCalls, 1);
+  assert.equal(game.repository.getPlayer('host').tokenBalance, 90n);
+  assert.equal(spinningPayload.files[0].name, `roulette-spin-${id}-v${spinning.revision}.gif`);
+  assert.deepEqual(spinningPayload.files[0].attachment.subarray(0, 3), Buffer.from('GIF'));
+  const spinComponents = spinningPayload.components[0].components;
+  assert.equal(spinComponents.find((entry) => entry.type === 12).items.length, 1);
+  assert.deepEqual(spinComponents.flatMap((entry) => entry.components || []).map((entry) => entry.label), ['Rules']);
+  assert.equal(path.basename(rouletteSpinAssetPath(spinning)), '17.gif');
+
+  let blocked;
+  await game.handleInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:cancel:${id}`,
+    user: { id: 'host' },
+    reply: async (payload) => { blocked = payload; },
+  });
+  assert.match(blocked.components[0].components[0].content, /No controls can change/);
+  assert.equal(game.repository.getPlayer('host').tokenBalance, 90n);
+
+  now += ROULETTE_SPIN_DURATION_MS;
+  assert.equal(game.rouletteService.finishSpin(id).status, 'ok');
+  game.rouletteService.randomInt = () => { throw new Error('finishSpin must not call RNG'); };
+  assert.equal(game.rouletteService.finishSpin(id).duplicate, true);
+  let resultPayload;
+  await game.handleInteraction({
+    id: 'result-retry',
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:retry:${id}`,
+    user: { id: 'host' },
+    deferUpdate: async () => {},
+    editReply: async (payload) => { resultPayload = payload; },
+  });
+  const finished = game.rouletteService.game(id);
+  assert.equal(finished.state, ROULETTE_STATES.FINISHED);
+  assert.equal(resultPayload.files[0].name, `roulette-result-17-${id}-v${finished.revision}.png`);
+  assert.deepEqual([...resultPayload.files[0].attachment.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(path.basename(rouletteResultAssetPath(finished)), '17.png');
+  assert.match(resultPayload.components[0].components[0].content, /Roulette Result: 17 black/);
+  assert.deepEqual(resultPayload.components[0].components.flatMap((entry) => entry.components || []).map((entry) => entry.label), ['Play Again', 'New Bets', 'Rules']);
+  assert.equal(rngCalls, 1);
+  now += 60_000;
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.FINISHED);
+  let replayDenied;
+  await game.handleInteraction({
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:new-bets:${id}`,
+    user: { id: 'intruder' },
+    reply: async (payload) => { replayDenied = payload; },
+  });
+  assert.match(replayDenied.components[0].components[0].content, /Only the command invoker/);
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.FINISHED);
+  await game.handleInteraction({
+    id: 'host-replay',
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:replay:${id}`,
+    user: { id: 'host' },
+    deferUpdate: async () => {},
+    editReply: async () => {},
+  });
+  const replayed = game.rouletteService.game(id);
+  assert.equal(replayed.state, ROULETTE_STATES.BETTING);
+  assert.equal(replayed.winningNumber, null);
+  assert.equal(replayed.spinStartedAt, null);
+  assert.equal(replayed.revealAt, null);
+  game.close();
+});
+
+test('a slow GIF message edit cannot overwrite the final PNG', async () => {
+  let now = 1_000;
+  let releaseGif;
+  const edits = [];
+  const message = {
+    edit: async (payload) => { edits.push(payload.files[0].name); },
+  };
+  const client = {
+    channels: { fetch: async () => ({ messages: { fetch: async () => message } }) },
+  };
+  const game = feature({ client, clock: () => now, rouletteRandomInt: () => 5 });
+  fund(game, 'host', 100n);
+  const id = botTable(game);
+  game.rouletteRepository.setMessage(id, 'discord-message', now);
+  place(game, id, 'host', 'straight', '5', 1, 'slow-gif-bet');
+  game.rouletteService.setReady(id, 'host', true);
+  const spin = game.handleInteraction({
+    id: 'slow-spin',
+    isChatInputCommand: () => false,
+    isButton: () => true,
+    customId: `rng:roulette:spin:${id}`,
+    user: { id: 'host' },
+    deferUpdate: async () => {},
+    editReply: async (payload) => {
+      edits.push(payload.files[0].name);
+      await new Promise((resolve) => { releaseGif = resolve; });
+    },
+  });
+  while (!releaseGif) await new Promise((resolve) => setImmediate(resolve));
+  now += ROULETTE_SPIN_DURATION_MS;
+  const finish = game.rouletteRevealScheduler.finish(id);
+  while (game.rouletteService.game(id).state !== ROULETTE_STATES.FINISHED) await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(edits.length, 1);
+  releaseGif();
+  await spin;
+  await finish;
+  assert.match(edits[0], /roulette-spin/);
+  assert.match(edits[1], /roulette-result-5/);
+  game.close();
+});
+
+test('reveal recovery preserves the original deadline before restart and settles overdue spins after restart', async () => {
+  let now = 1_000;
+  const db = openDatabase({ databasePath: ':memory:' });
+  const idleScheduler = { schedule() {}, start() {}, stop() {} };
+  const original = feature({ db, clock: () => now, rouletteRandomInt: () => 8, rouletteRevealScheduler: idleScheduler });
+  fund(original, 'restart-host', 100n);
+  const id = botTable(original, 'restart-host');
+  place(original, id, 'restart-host', 'straight', '8', 1, 'restart-bet');
+  original.rouletteService.setReady(id, 'restart-host', true);
+  const started = original.rouletteService.beginSpin(id, 'restart-host').game;
+  assert.equal(started.revealAt, 9_000);
+  original.close();
+
+  now = 5_000;
+  const recovered = feature({
+    db,
+    clock: () => now,
+    rouletteRandomInt: () => { throw new Error('recovery must not reroll'); },
+    rouletteRevealScheduler: idleScheduler,
+  });
+  const timerCalls = [];
+  const restored = [];
+  const revealed = [];
+  const scheduler = new RouletteRevealScheduler({
+    service: recovered.rouletteService,
+    notifySpinning: async (game) => restored.push([game.id, game.winningNumber, game.revealAt]),
+    notifyFinished: async (game) => revealed.push([game.id, game.winningNumber]),
+    setTimer: (callback, delay) => {
+      const timer = { callback, delay, unref() {} };
+      timerCalls.push(timer);
+      return timer;
+    },
+    clearTimer: () => {},
+  });
+  await scheduler.recover();
+  assert.deepEqual(restored, [[id, 8, 9_000]]);
+  assert.equal(timerCalls.at(-1).delay, 4_000);
+  assert.equal(recovered.rouletteService.game(id).state, ROULETTE_STATES.SPINNING);
+  now = 8_999;
+  assert.equal((await scheduler.finish(id)).status, 'not-due');
+  assert.equal(timerCalls.at(-1).delay, 1);
+  now = 9_000;
+  assert.equal((await scheduler.finish(id)).status, 'ok');
+  const paid = recovered.repository.getPlayer('restart-host').tokenBalance;
+  assert.equal((await scheduler.finish(id)).duplicate, true);
+  assert.equal(recovered.repository.getPlayer('restart-host').tokenBalance, paid);
+  assert.deepEqual(revealed.map((entry) => entry[1]), [8, 8]);
+
+  now = 10_000;
+  recovered.rouletteService.randomInt = () => 22;
+  const overdueId = botTable(recovered, 'restart-host');
+  place(recovered, overdueId, 'restart-host', 'straight', '22', 1, 'overdue-bet');
+  recovered.rouletteService.setReady(overdueId, 'restart-host', true);
+  assert.equal(recovered.rouletteService.beginSpin(overdueId, 'restart-host').game.revealAt, 18_000);
+  recovered.close();
+
+  now = 18_001;
+  const afterRestart = feature({
+    db,
+    clock: () => now,
+    rouletteRandomInt: () => { throw new Error('overdue recovery must not reroll'); },
+    rouletteRevealScheduler: idleScheduler,
+  });
+  const overdueReveals = [];
+  const overdueScheduler = new RouletteRevealScheduler({
+    service: afterRestart.rouletteService,
+    notifyFinished: async (game) => overdueReveals.push(game.winningNumber),
+  });
+  await overdueScheduler.recover();
+  assert.equal(afterRestart.rouletteService.game(overdueId).state, ROULETTE_STATES.FINISHED);
+  assert.deepEqual(overdueReveals, [22]);
+  assert.equal(afterRestart.rouletteService.expireDue().length, 0);
+  scheduler.stop();
+  overdueScheduler.stop();
+  afterRestart.close();
+  db.close();
+});
+
 test('overflow during settlement rolls the whole transaction back', () => {
-  const game = feature({ rouletteRandomInt: () => 1 });
+  let now = 1_000;
+  const game = feature({ clock: () => now, rouletteRandomInt: () => 1 });
   fund(game, 'host', SQLITE_INTEGER_MAX);
   const id = botTable(game);
   place(game, id, 'host', 'straight', '1', 1, 'overflow-bet');
   game.rouletteService.setReady(id, 'host', true);
-  assert.throws(() => game.rouletteService.spin(id, 'host'), /signed 64-bit/);
-  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.BETTING);
+  assert.equal(game.rouletteService.beginSpin(id, 'host').game.state, ROULETTE_STATES.SPINNING);
+  now += ROULETTE_SPIN_DURATION_MS;
+  assert.throws(() => game.rouletteService.finishSpin(id), /signed 64-bit/);
+  assert.equal(game.rouletteService.game(id).state, ROULETTE_STATES.SPINNING);
+  assert.equal(game.rouletteService.game(id).bets[0].state, 'OPEN');
   assert.equal(game.repository.getPlayer('host').tokenBalance, SQLITE_INTEGER_MAX - 1n);
   game.close();
 });
@@ -372,6 +665,27 @@ test('RPS and Roulette share one authoritative active-player lock', () => {
 });
 
 test('asset, output, anchors, clusters, and deterministic rendering match the 1568x700 table', async () => {
+  for (let number = 0; number <= 36; number += 1) {
+    const spinPath = path.join(ROULETTE_IMAGE_DIRECTORY, `${number}.gif`);
+    const resultPath = path.join(ROULETTE_RESULT_IMAGE_DIRECTORY, `${number}.png`);
+    const readHeader = (filePath, length) => {
+      const descriptor = fs.openSync(filePath, 'r');
+      try {
+        const header = Buffer.alloc(length);
+        assert.equal(fs.readSync(descriptor, header, 0, length, 0), length);
+        return header;
+      } finally {
+        fs.closeSync(descriptor);
+      }
+    };
+    assert.ok(fs.statSync(spinPath).size > 0);
+    assert.ok(fs.statSync(resultPath).size > 0);
+    assert.match(readHeader(spinPath, 6).toString('ascii'), /^GIF8[79]a$/);
+    assert.deepEqual([...readHeader(resultPath, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.equal(path.basename(spinPath, '.gif'), path.basename(resultPath, '.png'));
+    assert.equal(rouletteSpinAssetPath({ winningNumber: number }), spinPath);
+    assert.equal(rouletteResultAssetPath({ winningNumber: number }), resultPath);
+  }
   const sourcePath = path.join(ROULETTE_IMAGE_DIRECTORY, ROULETTE_TABLE_ASSET);
   assert.equal(fs.existsSync(sourcePath), true);
   const source = await loadImage(sourcePath);

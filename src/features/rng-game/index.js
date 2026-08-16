@@ -2,7 +2,12 @@ const { RNG_GAME_COMMANDS: BASE_RNG_GAME_COMMANDS, createCommandHandlers } = req
 const { createComponentHandler } = require('./components/handler');
 const { autoRollEndedPayload, indexPayload } = require('./components/builders');
 const { canceledPayload } = require('./components/rpsBuilders');
-const { rouletteTerminalPayload } = require('./components/rouletteBuilders');
+const {
+  rouletteResultPayload,
+  rouletteSpinningPayload,
+  rouletteTerminalPayload,
+} = require('./components/rouletteBuilders');
+const { ROULETTE_STATES } = require('./config/roulette');
 const { AutoRollRepository } = require('./repositories/autoRollRepository');
 const { openDatabase } = require('./repositories/database');
 const { RngGameRepository } = require('./repositories/gameRepository');
@@ -17,7 +22,8 @@ const { ShopRestockScheduler, ShopService } = require('./services/shopService');
 const { RpsTableRenderer } = require('./services/rpsRenderer');
 const { RpsExpiryScheduler, RpsService } = require('./services/rpsService');
 const { RouletteTableRenderer } = require('./services/rouletteRenderer');
-const { RouletteExpiryScheduler, RouletteService } = require('./services/rouletteService');
+const { loadRouletteStateImage } = require('./services/rouletteMedia');
+const { RouletteExpiryScheduler, RouletteRevealScheduler, RouletteService } = require('./services/rouletteService');
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
@@ -45,6 +51,16 @@ function createRngGameFeature(options = {}) {
   const indexRenderer = options.indexRenderer || new CropIndexRenderer(options.indexRendererOptions);
   const rpsRenderer = options.rpsRenderer || new RpsTableRenderer(options.rpsRendererOptions);
   const rouletteRenderer = options.rouletteRenderer || new RouletteTableRenderer(options.rouletteRendererOptions);
+  const rouletteEditQueues = new Map();
+  function rouletteQueueEdit(gameId, edit) {
+    const id = String(gameId);
+    const prior = rouletteEditQueues.get(id) || Promise.resolve();
+    const task = prior.catch(() => {}).then(edit).finally(() => {
+      if (rouletteEditQueues.get(id) === task) rouletteEditQueues.delete(id);
+    });
+    rouletteEditQueues.set(id, task);
+    return task;
+  }
   const shopRenderer = options.shopRenderer || new ShopPageRenderer(options.shopRendererOptions);
   const hatchDelay = options.hatchDelay || ((milliseconds) => new Promise((resolve) => {
     const timer = setTimeout(resolve, milliseconds);
@@ -144,7 +160,9 @@ function createRngGameFeature(options = {}) {
     clock,
     randomInt: options.rouletteRandomInt,
     createId: options.rouletteCreateId,
+    spinDurationMs: options.rouletteSpinDurationMs,
     timeouts: options.rouletteTimeouts,
+    onError: (error) => reportError(error),
   });
   async function notifyAutoRoll(job) {
     const client = discordClient || options.getClient?.();
@@ -202,6 +220,46 @@ function createRngGameFeature(options = {}) {
     clearTimer: options.rouletteClearTimer,
     intervalMs: options.rouletteExpiryPollMs,
   });
+  async function rouletteMessage(game) {
+    const client = discordClient || options.getClient?.();
+    if (!client || !game.channelId || !game.messageId) return null;
+    const channel = await client.channels.fetch(game.channelId);
+    return channel?.messages?.fetch?.(game.messageId) || null;
+  }
+  async function notifyRouletteSpinning(game) {
+    await rouletteQueueEdit(game.id, async () => {
+      const authoritative = rouletteService.game(game.id);
+      if (!authoritative || authoritative.state !== ROULETTE_STATES.SPINNING || authoritative.revision !== game.revision) return;
+      const message = await rouletteMessage(authoritative);
+      if (!message?.edit) return;
+      const media = await loadRouletteStateImage(authoritative, rouletteRenderer, reportError);
+      const latest = rouletteService.game(game.id);
+      if (!latest || latest.state !== ROULETTE_STATES.SPINNING || latest.revision !== authoritative.revision) return;
+      await message.edit(rouletteSpinningPayload(authoritative, media.image, { initial: false, extension: media.extension }));
+    });
+  }
+  async function notifyRouletteFinished(game) {
+    await rouletteQueueEdit(game.id, async () => {
+      const authoritative = rouletteService.game(game.id);
+      if (!authoritative || authoritative.state !== ROULETTE_STATES.FINISHED || authoritative.revision !== game.revision) return;
+      const message = await rouletteMessage(authoritative);
+      if (!message?.edit) return;
+      const media = await loadRouletteStateImage(authoritative, rouletteRenderer, reportError);
+      const latest = rouletteService.game(game.id);
+      if (!latest || latest.state !== ROULETTE_STATES.FINISHED || latest.revision !== authoritative.revision) return;
+      await message.edit(rouletteResultPayload(authoritative, media.image, { initial: false }));
+    });
+  }
+  const rouletteRevealScheduler = options.rouletteRevealScheduler || new RouletteRevealScheduler({
+    service: rouletteService,
+    notifySpinning: options.notifyRouletteSpinning || notifyRouletteSpinning,
+    notifyFinished: options.notifyRouletteFinished || notifyRouletteFinished,
+    onError: (error) => reportError(error),
+    setTimer: options.rouletteRevealSetTimer || options.rouletteSetTimer,
+    clearTimer: options.rouletteRevealClearTimer || options.rouletteClearTimer,
+    intervalMs: options.rouletteRevealPollMs,
+  });
+  rouletteService.setSpinStartedHandler?.((game) => rouletteRevealScheduler.schedule(game));
   const context = {
     actions,
     autoRollRepository,
@@ -229,6 +287,8 @@ function createRngGameFeature(options = {}) {
     rpsRepository,
     rpsService,
     rouletteExpiryScheduler,
+    rouletteQueueEdit,
+    rouletteRevealScheduler,
     rouletteRenderer,
     rouletteRepository,
     rouletteService,
@@ -262,6 +322,7 @@ function createRngGameFeature(options = {}) {
       shopScheduler.start();
       rpsExpiryScheduler.start();
       rouletteExpiryScheduler.start();
+      rouletteRevealScheduler.start();
     },
     async handleInteraction(interaction) {
       if (await commands.handleSlash(interaction)) return true;
@@ -275,6 +336,7 @@ function createRngGameFeature(options = {}) {
       shopScheduler.stop();
       rpsExpiryScheduler.stop();
       rouletteExpiryScheduler.stop();
+      rouletteRevealScheduler.stop();
       indexRenderer.clear();
       rpsRenderer.clear();
       rouletteRenderer.clear();

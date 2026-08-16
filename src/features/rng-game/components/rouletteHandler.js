@@ -10,8 +10,10 @@ const {
   rouletteRenderFailurePayload,
   rouletteResultPayload,
   rouletteRulesPayload,
+  rouletteSpinningPayload,
   rouletteTerminalPayload,
 } = require('./rouletteBuilders');
+const { loadRouletteStateImage } = require('../services/rouletteMedia');
 
 function modalText(interaction, customId) {
   try { return interaction.fields.getTextInputValue(customId) || ''; } catch { return ''; }
@@ -33,8 +35,7 @@ async function ephemeralError(interaction, title, message) {
 }
 
 function createRouletteComponentHandler(context) {
-  const { reportError, rouletteRenderer, rouletteService } = context;
-  const renderQueues = new Map();
+  const { reportError, rouletteQueueEdit, rouletteRenderer, rouletteService } = context;
 
   function acknowledge(interaction) { return acknowledgeUpdate(interaction, { reportError, startedAt: Date.now() }); }
   function operationKey(interaction, action) { return `roulette:${action}:${interaction.id || randomUUID()}`; }
@@ -54,16 +55,18 @@ function createRouletteComponentHandler(context) {
   async function payloadFor(game) {
     if ([ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)) return rouletteTerminalPayload(game, { initial: false });
     if (game.state === ROULETTE_STATES.LOBBY) return rouletteLobbyPayload(game, { initial: false });
-    const image = await rouletteRenderer.render(game);
-    return game.state === ROULETTE_STATES.FINISHED
-      ? rouletteResultPayload(game, image, { initial: false })
-      : rouletteBettingPayload(game, image, { initial: false });
+    if ([ROULETTE_STATES.SPINNING, ROULETTE_STATES.FINISHED].includes(game.state)) {
+      const media = await loadRouletteStateImage(game, rouletteRenderer, reportError);
+      return game.state === ROULETTE_STATES.SPINNING
+        ? rouletteSpinningPayload(game, media.image, { initial: false, extension: media.extension })
+        : rouletteResultPayload(game, media.image, { initial: false });
+    }
+    return rouletteBettingPayload(game, await rouletteRenderer.render(game), { initial: false });
   }
 
   async function editRendered(interaction, requestedGame) {
     const gameId = requestedGame.id;
-    const prior = renderQueues.get(gameId) || Promise.resolve();
-    const task = prior.catch(() => {}).then(async () => {
+    return rouletteQueueEdit(gameId, async () => {
       const authoritative = rouletteService.game(gameId);
       if (!authoritative || authoritative.revision !== requestedGame.revision) return false;
       try {
@@ -78,11 +81,7 @@ function createRouletteComponentHandler(context) {
         if (latest?.revision === authoritative.revision) await interaction.editReply(rouletteRenderFailurePayload(authoritative, { initial: false }));
         return false;
       }
-    }).finally(() => {
-      if (renderQueues.get(gameId) === task) renderQueues.delete(gameId);
     });
-    renderQueues.set(gameId, task);
-    return task;
   }
 
   async function modeInteraction(interaction, game) {
@@ -218,9 +217,9 @@ function createRouletteComponentHandler(context) {
 
   async function spinInteraction(interaction, game) {
     if (!interaction.isButton?.() || !await hostOnly(interaction, game)) return true;
-    // Discord acknowledgement must succeed before the RNG and atomic settlement.
+    // Discord acknowledgement must succeed before the outcome is selected and persisted.
     if (!await acknowledge(interaction)) return true;
-    const result = rouletteService.spin(game.id, interaction.user.id);
+    const result = rouletteService.beginSpin(game.id, interaction.user.id);
     if (result.status !== 'ok') await ephemeralError(interaction, 'Spin unavailable', 'Every remaining player needs at least one bet and must be Ready.');
     else await editRendered(interaction, result.game);
     return true;
@@ -228,7 +227,7 @@ function createRouletteComponentHandler(context) {
 
   async function cancelInteraction(interaction, game) {
     if (!interaction.isButton?.() || !await hostOnly(interaction, game)) return true;
-    if ([ROULETTE_STATES.FINISHED, ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)) {
+    if ([ROULETTE_STATES.SPINNING, ROULETTE_STATES.FINISHED, ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)) {
       await ephemeralError(interaction, 'Stale table', 'This Roulette table has already ended.');
       return true;
     }
@@ -253,7 +252,7 @@ function createRouletteComponentHandler(context) {
     const gameId = parts[3];
     let game = rouletteService.game(gameId);
     if (!game) { await ephemeralError(interaction, 'Unknown Roulette game', 'This table no longer exists.'); return true; }
-    if (![ROULETTE_STATES.FINISHED, ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)
+    if (![ROULETTE_STATES.SPINNING, ROULETTE_STATES.FINISHED, ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)
       && game.expiresAt <= rouletteService.now()) {
       if (!await acknowledge(interaction)) return true;
       game = rouletteService.repository.refundAll(game.id, ROULETTE_STATES.EXPIRED, rouletteService.now()).game;
@@ -261,6 +260,10 @@ function createRouletteComponentHandler(context) {
       return true;
     }
     if (action === 'rules') { await sendEphemeral(interaction, rouletteRulesPayload()); return true; }
+    if (game.state === ROULETTE_STATES.SPINNING) {
+      await ephemeralError(interaction, 'Roulette is spinning', 'No controls can change this table until the persisted result is revealed.');
+      return true;
+    }
     if (game.state === ROULETTE_STATES.EXPIRED) { await ephemeralError(interaction, 'Roulette game expired', 'All unresolved bets were refunded exactly once.'); return true; }
     if (action === 'mode') return modeInteraction(interaction, game);
     if (action === 'opponents') return opponentsInteraction(interaction, game);

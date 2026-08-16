@@ -1,8 +1,13 @@
 const { randomInt, randomUUID } = require('crypto');
-const { ROULETTE_STATES, ROULETTE_TIMEOUTS } = require('../config/roulette');
+const {
+  ROULETTE_SPIN_DURATION_MS,
+  ROULETTE_STATES,
+  ROULETTE_TIMEOUTS,
+} = require('../config/roulette');
 const { canonicalBet, parseBetAmount } = require('./rouletteRules');
 
 const ROULETTE_EXPIRY_POLL_MS = 30 * 1_000;
+const ROULETTE_REVEAL_POLL_MS = 30 * 1_000;
 
 class RouletteService {
   constructor(options) {
@@ -12,10 +17,14 @@ class RouletteService {
     this.createId = options.createId || randomUUID;
     this.createOperationId = options.createOperationId || randomUUID;
     this.timeouts = { ...ROULETTE_TIMEOUTS, ...(options.timeouts || {}) };
+    this.spinDurationMs = options.spinDurationMs ?? ROULETTE_SPIN_DURATION_MS;
+    this.onSpinStarted = options.onSpinStarted || (() => {});
+    this.onError = options.onError || (() => {});
   }
 
   now() { return Number(this.clock()); }
   game(gameId) { return this.repository.game(gameId); }
+  setSpinStartedHandler(handler) { this.onSpinStarted = handler || (() => {}); }
 
   createGame(guildId, channelId, hostProfile) {
     const now = this.now();
@@ -68,9 +77,28 @@ class RouletteService {
     return this.repository.leave(gameId, String(userId), String(operationKey), now, now + this.timeouts.betting);
   }
 
-  spin(gameId, hostUserId) {
-    return this.repository.settle(gameId, hostUserId, () => this.randomInt(37), this.now());
+  beginSpin(gameId, hostUserId) {
+    const now = this.now();
+    const result = this.repository.beginSpin(
+      gameId,
+      hostUserId,
+      () => this.randomInt(37),
+      now,
+      now + this.spinDurationMs,
+    );
+    if (result.status === 'ok' && !result.duplicate) {
+      try {
+        Promise.resolve(this.onSpinStarted(result.game)).catch(this.onError);
+      } catch (error) {
+        this.onError(error);
+      }
+    }
+    return result;
   }
+
+  spin(gameId, hostUserId) { return this.beginSpin(gameId, hostUserId); }
+  finishSpin(gameId) { return this.repository.finishSpin(gameId, this.now()); }
+  spinningGames(limit = 100) { return this.repository.spinning(limit); }
 
   cancel(gameId) { return this.repository.refundAll(gameId, ROULETTE_STATES.CANCELED, this.now()); }
   replay(gameId, hostUserId) {
@@ -81,6 +109,101 @@ class RouletteService {
   expireDue() {
     const now = this.now();
     return this.repository.due(now).map((gameId) => this.repository.refundAll(gameId, ROULETTE_STATES.EXPIRED, now).game);
+  }
+}
+
+class RouletteRevealScheduler {
+  constructor(options) {
+    this.service = options.service;
+    this.notifySpinning = options.notifySpinning || (async () => {});
+    this.notifyFinished = options.notifyFinished || (async () => {});
+    this.onError = options.onError || (() => {});
+    this.setTimer = options.setTimer || setTimeout;
+    this.clearTimer = options.clearTimer || clearTimeout;
+    this.intervalMs = options.intervalMs || ROULETTE_REVEAL_POLL_MS;
+    this.gameTimers = new Map();
+    this.running = new Map();
+    this.pollTimer = null;
+    this.started = false;
+  }
+
+  schedule(game) {
+    if (!game || game.state !== ROULETTE_STATES.SPINNING || game.revealAt == null) return false;
+    const existing = this.gameTimers.get(game.id);
+    if (existing !== undefined) this.clearTimer(existing);
+    const delay = Math.max(0, game.revealAt - this.service.now());
+    const timer = this.setTimer(() => {
+      this.gameTimers.delete(game.id);
+      void this.finish(game.id);
+    }, delay);
+    timer?.unref?.();
+    this.gameTimers.set(game.id, timer);
+    return true;
+  }
+
+  finish(gameId) {
+    const id = String(gameId);
+    if (this.running.has(id)) return this.running.get(id);
+    const pending = this.gameTimers.get(id);
+    if (pending !== undefined) this.clearTimer(pending);
+    this.gameTimers.delete(id);
+    const task = Promise.resolve().then(async () => {
+      const result = this.service.finishSpin(id);
+      if (result.status === 'not-due') {
+        this.schedule(result.game);
+        return result;
+      }
+      if (result.status === 'ok' && result.game?.state === ROULETTE_STATES.FINISHED) {
+        await this.notifyFinished(result.game);
+      }
+      return result;
+    }).catch((error) => {
+      this.onError(error);
+      return null;
+    }).finally(() => {
+      if (this.running.get(id) === task) this.running.delete(id);
+    });
+    this.running.set(id, task);
+    return task;
+  }
+
+  async recover() {
+    const games = this.service.spinningGames();
+    const now = this.service.now();
+    await Promise.all(games.map(async (game) => {
+      if (game.revealAt == null || game.revealAt <= now) {
+        await this.finish(game.id);
+        return;
+      }
+      try { await this.notifySpinning(game); } catch (error) { this.onError(error); }
+      this.schedule(game);
+    }));
+    return games;
+  }
+
+  schedulePoll() {
+    if (!this.started || this.pollTimer) return;
+    this.pollTimer = this.setTimer(async () => {
+      this.pollTimer = null;
+      try { await this.recover(); } catch (error) { this.onError(error); }
+      this.schedulePoll();
+    }, this.intervalMs);
+    this.pollTimer?.unref?.();
+  }
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    Promise.resolve(this.recover()).catch(this.onError);
+    this.schedulePoll();
+  }
+
+  stop() {
+    this.started = false;
+    if (this.pollTimer !== null) this.clearTimer(this.pollTimer);
+    this.pollTimer = null;
+    for (const timer of this.gameTimers.values()) this.clearTimer(timer);
+    this.gameTimers.clear();
   }
 }
 
@@ -121,4 +244,10 @@ class RouletteExpiryScheduler {
   stop() { if (this.timer) this.clearTimer(this.timer); this.timer = null; }
 }
 
-module.exports = { ROULETTE_EXPIRY_POLL_MS, RouletteExpiryScheduler, RouletteService };
+module.exports = {
+  ROULETTE_EXPIRY_POLL_MS,
+  ROULETTE_REVEAL_POLL_MS,
+  RouletteExpiryScheduler,
+  RouletteRevealScheduler,
+  RouletteService,
+};

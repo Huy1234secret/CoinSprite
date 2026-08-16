@@ -42,6 +42,8 @@ function gameModel(row, participants = [], bets = []) {
     state: row.state,
     winningNumber: row.winning_number == null ? null : Number(row.winning_number),
     winningColor: row.winning_color,
+    spinStartedAt: row.spin_started_at == null ? null : Number(row.spin_started_at),
+    revealAt: row.reveal_at == null ? null : Number(row.reveal_at),
     revision: Number(row.revision),
     createdAt: Number(row.created_at),
     updatedAt: Number(row.updated_at),
@@ -119,21 +121,26 @@ class RouletteRepository {
         WHERE game_id = ?`),
       refundUserBets: db.prepare("UPDATE rng_roulette_bets SET state = 'REFUNDED', updated_at = ? WHERE game_id = ? AND user_id = ? AND state = 'OPEN'"),
       settleBets: db.prepare("UPDATE rng_roulette_bets SET state = 'SETTLED', updated_at = ? WHERE game_id = ? AND state = 'OPEN'"),
-      markSpinning: db.prepare(`UPDATE rng_roulette_games SET state = ?, updated_at = ?
+      beginSpin: db.prepare(`UPDATE rng_roulette_games SET state = ?, winning_number = ?, winning_color = ?,
+        spin_started_at = ?, reveal_at = ?, revision = revision + 1, expires_at = ?, updated_at = ?
         WHERE game_id = ? AND state = ?`),
       resetParticipantResults: db.prepare(`UPDATE rng_roulette_participants SET ready = 0, escrowed_total = 0,
         result_stake = 0, result_return = 0, result_net = 0 WHERE game_id = ?`),
       setParticipantResult: db.prepare(`UPDATE rng_roulette_participants SET ready = 0, escrowed_total = 0,
         result_stake = ?, result_return = ?, result_net = ? WHERE game_id = ? AND user_id = ?`),
-      finish: db.prepare(`UPDATE rng_roulette_games SET state = ?, winning_number = ?, winning_color = ?,
-        revision = revision + 1, expires_at = ?, updated_at = ? WHERE game_id = ?`),
+      finishSpin: db.prepare(`UPDATE rng_roulette_games SET state = ?, revision = revision + 1,
+        expires_at = ?, updated_at = ? WHERE game_id = ? AND state = ?`),
       terminal: db.prepare(`UPDATE rng_roulette_games SET state = ?, revision = revision + 1,
         expires_at = ?, updated_at = ? WHERE game_id = ?`),
       replay: db.prepare(`UPDATE rng_roulette_games SET state = ?, winning_number = NULL, winning_color = NULL,
-        revision = revision + 1, expires_at = ?, updated_at = ? WHERE game_id = ?`),
+        spin_started_at = NULL, reveal_at = NULL, revision = revision + 1, expires_at = ?, updated_at = ?
+        WHERE game_id = ?`),
       deleteBets: db.prepare('DELETE FROM rng_roulette_bets WHERE game_id = ?'),
       due: db.prepare(`SELECT game_id FROM rng_roulette_games
-        WHERE state NOT IN ('FINISHED', 'CANCELED', 'EXPIRED') AND expires_at <= ? ORDER BY expires_at LIMIT ?`),
+        WHERE state NOT IN ('SPINNING', 'FINISHED', 'CANCELED', 'EXPIRED')
+        AND expires_at <= ? ORDER BY expires_at LIMIT ?`),
+      spinning: db.prepare(`SELECT game_id FROM rng_roulette_games
+        WHERE state = 'SPINNING' ORDER BY reveal_at, game_id LIMIT ?`),
     };
 
     this.createTransaction = db.transaction((id, guildId, channelId, profile, now, expiresAt) => {
@@ -300,16 +307,41 @@ class RouletteRepository {
       return { status: 'ok', duplicate: false };
     }).immediate;
 
-    this.settleTransaction = db.transaction((gameId, hostUserId, chooseResult, now) => {
+    this.beginSpinTransaction = db.transaction((gameId, hostUserId, chooseResult, now, revealAt) => {
+      const game = this.game(gameId);
+      if (!game) return { status: 'missing' };
+      if (game.hostUserId !== hostUserId) return { status: 'unauthorized', duplicate: false };
+      if ([ROULETTE_STATES.SPINNING, ROULETTE_STATES.FINISHED].includes(game.state)) return { status: 'ok', duplicate: true };
+      if (game.state !== ROULETTE_STATES.BETTING) return { status: 'stale', duplicate: false };
+      const openBettors = new Set(game.bets.filter((bet) => bet.state === 'OPEN').map((bet) => bet.userId));
+      if (!game.participants.length || game.participants.some((participant) => (
+        !participant.ready || participant.escrowedTotal < 1n || !openBettors.has(participant.userId)
+      ))) return { status: 'not-ready', duplicate: false };
+      const result = Number(chooseResult());
+      if (!Number.isInteger(result) || result < 0 || result > 36) throw new RangeError('Roulette RNG must return an integer from 0 to 36.');
+      const spinning = this.statements.beginSpin.run(
+        ROULETTE_STATES.SPINNING,
+        BigInt(result),
+        rouletteColor(result),
+        BigInt(now),
+        BigInt(revealAt),
+        BigInt(revealAt),
+        BigInt(now),
+        gameId,
+        ROULETTE_STATES.BETTING,
+      );
+      if (Number(spinning.changes) !== 1) return { status: 'stale', duplicate: false };
+      return { status: 'ok', duplicate: false };
+    }).immediate;
+
+    this.finishSpinTransaction = db.transaction((gameId, now) => {
       const game = this.game(gameId);
       if (!game) return { status: 'missing' };
       if (game.state === ROULETTE_STATES.FINISHED) return { status: 'ok', duplicate: true };
-      if (game.state !== ROULETTE_STATES.BETTING || game.hostUserId !== hostUserId) return { status: 'stale', duplicate: false };
-      if (!game.participants.length || game.participants.some((participant) => !participant.ready || participant.escrowedTotal < 1n)) return { status: 'not-ready', duplicate: false };
-      const spinning = this.statements.markSpinning.run(ROULETTE_STATES.SPINNING, BigInt(now), gameId, ROULETTE_STATES.BETTING);
-      if (Number(spinning.changes) !== 1) return { status: 'stale', duplicate: false };
-      const result = Number(chooseResult());
-      if (!Number.isInteger(result) || result < 0 || result > 36) throw new RangeError('Roulette RNG must return an integer from 0 to 36.');
+      if (game.state !== ROULETTE_STATES.SPINNING) return { status: 'stale', duplicate: false };
+      if (game.revealAt == null || now < game.revealAt) return { status: 'not-due', duplicate: false };
+      const result = game.winningNumber;
+      if (!Number.isInteger(result) || result < 0 || result > 36) throw new Error('Persisted Roulette spin is missing its winning number.');
       const returns = new Map(game.participants.map((participant) => [participant.userId, 0n]));
       for (const bet of game.bets.filter((entry) => entry.state === 'OPEN')) returns.set(bet.userId, returns.get(bet.userId) + totalReturn(bet, result));
       for (const participant of game.participants) {
@@ -319,7 +351,14 @@ class RouletteRepository {
         this.statements.setParticipantResult.run(participant.escrowedTotal, returned, returned - participant.escrowedTotal, gameId, participant.userId);
       }
       this.statements.settleBets.run(BigInt(now), gameId);
-      this.statements.finish.run(ROULETTE_STATES.FINISHED, BigInt(result), rouletteColor(result), BigInt(now), BigInt(now), gameId);
+      const finished = this.statements.finishSpin.run(
+        ROULETTE_STATES.FINISHED,
+        BigInt(now),
+        BigInt(now),
+        gameId,
+        ROULETTE_STATES.SPINNING,
+      );
+      if (Number(finished.changes) !== 1) throw new Error('Roulette spin changed state during settlement.');
       this.statements.deleteActiveGame.run(gameId);
       return { status: 'ok', duplicate: false };
     }).immediate;
@@ -357,13 +396,15 @@ class RouletteRepository {
   undo(gameId, userId, operationKey, now, expiresAt) { const result = this.undoTransaction(String(gameId), String(userId), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   clear(gameId, userId, operationKey, now, expiresAt) { const result = this.clearTransaction(String(gameId), String(userId), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
   ready(gameId, userId, ready, operationKey, now, expiresAt) { const result = this.readyTransaction(String(gameId), String(userId), Boolean(ready), String(operationKey), now, expiresAt); return { ...result, game: this.game(gameId) }; }
-  settle(gameId, hostUserId, chooseResult, now) { const result = this.settleTransaction(String(gameId), String(hostUserId), chooseResult, now); return { ...result, game: this.game(gameId) }; }
+  beginSpin(gameId, hostUserId, chooseResult, now, revealAt) { const result = this.beginSpinTransaction(String(gameId), String(hostUserId), chooseResult, now, revealAt); return { ...result, game: this.game(gameId) }; }
+  finishSpin(gameId, now) { const result = this.finishSpinTransaction(String(gameId), now); return { ...result, game: this.game(gameId) }; }
 
   refundAll(gameId, state, now) {
     const transaction = this.db.transaction(() => {
       const game = this.game(gameId);
       if (!game) return { status: 'missing' };
       if ([ROULETTE_STATES.FINISHED, ROULETTE_STATES.CANCELED, ROULETTE_STATES.EXPIRED].includes(game.state)) return { status: 'ok', duplicate: true };
+      if (game.state === ROULETTE_STATES.SPINNING) return { status: 'stale', duplicate: false };
       for (const participant of game.participants) {
         if (participant.escrowedTotal > 0n) {
           const player = this.gameRepository.ensurePlayer(participant.userId, now);
@@ -454,6 +495,7 @@ class RouletteRepository {
   }
 
   due(now, limit = 100) { return this.statements.due.all(BigInt(now), BigInt(limit)).map((row) => row.game_id); }
+  spinning(limit = 100) { return this.statements.spinning.all(BigInt(limit)).map((row) => this.game(row.game_id)); }
 }
 
 module.exports = { RouletteRepository, betModel, gameModel, participantModel, safeCredit };
