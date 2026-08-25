@@ -51,8 +51,7 @@ test('global command synchronization sends an empty list and guild commands rema
 
 test('schema 15 strips obsolete stock data while preserving unrelated settings', () => {
   const config = require('../src/serverConfig');
-  const { ALLOWED_GUILD_IDS } = require('../src/guildAllowlist');
-  const guildId = ALLOWED_GUILD_IDS[1];
+  const guildId = '123456789012345678';
   const state = config.normalizeState({
     meta: {
       schemaVersion: 14,

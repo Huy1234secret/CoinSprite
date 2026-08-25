@@ -1,7 +1,6 @@
 const { LEVELING_COMMANDS } = require('./leveling');
 const { RNG_GAME_COMMANDS } = require('./features/rng-game');
 const { getGuildConfigRaw } = require('./serverConfig');
-const { isGuildAllowlisted } = require('./guildAllowlist');
 
 const GLOBAL_APPLICATION_COMMANDS = Object.freeze([]);
 
@@ -22,7 +21,7 @@ function featureCommandsForConfig(config) {
 }
 
 async function syncGuildApplicationCommands(guild) {
-  if (!guild?.id || !isGuildAllowlisted(guild.id) || !guild.commands?.set) return [];
+  if (!guild?.id || !guild.commands?.set) return [];
   const commands = featureCommandsForConfig(getGuildConfigRaw(guild.id));
   await guild.commands.set(commands);
   return commands;

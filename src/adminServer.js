@@ -14,7 +14,6 @@ const {
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
-const { isGuildAllowlisted } = require('./guildAllowlist');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
 const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
@@ -465,10 +464,6 @@ async function requireOwner(req, res, env, client) {
 async function requireGuildAdmin(req, res, env, client, guildId) {
   const session = await requireSignedIn(req, res, env);
   if (!session) return null;
-  if (!isGuildAllowlisted(guildId)) {
-    sendJson(res, 404, { error: 'Guild is not available to CoinSprite.' });
-    return null;
-  }
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     sendJson(res, 404, { error: 'Guild is not available to the bot.' });
@@ -495,9 +490,7 @@ async function accessibleGuilds(client, session) {
     ? getConfiguredGuildIds({ includeDisabled: true })
     : getEnabledGuildIds();
   const visible = new Map();
-  for (const guild of client.guilds.cache.values()) {
-    if (isGuildAllowlisted(guild.id)) visible.set(guild.id, guild);
-  }
+  for (const guild of client.guilds.cache.values()) visible.set(guild.id, guild);
   for (const id of ids) {
     if (!visible.has(id)) {
       const guild = await client.guilds.fetch(id).catch(() => null);
