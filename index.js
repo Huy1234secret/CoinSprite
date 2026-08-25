@@ -24,11 +24,7 @@ const {
   runtimeDiagnostic,
 } = require('./src/runtimeRole');
 const { createRngGameFeature } = require('./src/features/rng-game');
-const {
-  createGuildCreateHandler,
-  isGuildAllowlisted,
-  leaveUnauthorizedGuilds,
-} = require('./src/guildAllowlist');
+const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
   GLOBAL_APPLICATION_COMMANDS,
@@ -93,17 +89,13 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     console.info(`Ready as ${client.user.tag}`);
     logLevelCardRendererIdentity(logCommandSystem, 'Bot');
     logCommandSystem(runtimeDiagnostic(runtimeRole, client));
-    for (const guild of client.guilds.cache.values()) {
-      if (isGuildAllowlisted(guild.id)) ensureGuildConfig(guild.id);
-    }
+    for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   },
   async bot() {
     await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
       logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
     });
-    await Promise.all([...client.guilds.cache.values()]
-      .filter((guild) => isGuildAllowlisted(guild.id))
-      .map(syncGuildCommands));
+    await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
     rngGame.startScheduler(client);
   },
@@ -113,7 +105,6 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
 });
 
 client.once(Events.ClientReady, async () => {
-  await leaveUnauthorizedGuilds(client.guilds.cache.values(), { log: logCommandSystem });
   await runtimeStarter.start().catch((error) => {
     logCommandSystem(`Runtime startup failed: ${error?.message || 'unknown error'}`);
     console.error('CoinSprite runtime startup failed:', error);
@@ -131,15 +122,6 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.InteractionCreate, async (interaction) => {
     const startedAt = Date.now();
     try {
-      if (interaction.guildId && !isGuildAllowlisted(interaction.guildId)) {
-        if (interaction.isRepliable?.()) {
-          await interaction.reply({
-            flags: EPHEMERAL,
-            content: 'CoinSprite is unavailable in this server.',
-          });
-        }
-        return;
-      }
       if (!isGuildEnabled(interaction.guildId)) {
         if (interaction.isRepliable?.()) {
           await interaction.reply({
@@ -160,7 +142,6 @@ if (runtimeStarter.capabilities.bot) {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
-      if (message.guildId && !isGuildAllowlisted(message.guildId)) return;
       if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {

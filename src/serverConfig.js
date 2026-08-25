@@ -1,11 +1,10 @@
 const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
-const { ALLOWED_GUILD_IDS, isGuildAllowlisted } = require('./guildAllowlist');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
 const SCHEMA_VERSION = 15;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
-const DEFAULT_GUILD_ID = ALLOWED_GUILD_IDS[1];
+const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
   enabled: false,
   xp: Object.freeze({ min: 15, max: 25, cooldownSeconds: 60 }),
@@ -55,7 +54,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
 const DEFAULT_STATE = Object.freeze({
   meta: { schemaVersion: SCHEMA_VERSION, disabledGuilds: {} },
-  guilds: { [DEFAULT_GUILD_ID]: DEFAULT_COINSPRITE_GUILD_CONFIG },
+  guilds: DEFAULT_GUILD_ID ? { [DEFAULT_GUILD_ID]: DEFAULT_COINSPRITE_GUILD_CONFIG } : {},
 });
 
 function cleanId(value) {
@@ -188,8 +187,8 @@ function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   };
 }
 
-function defaultConfigForGuild(guildId) {
-  return clone(guildId === DEFAULT_GUILD_ID ? DEFAULT_COINSPRITE_GUILD_CONFIG : DEFAULT_GUILD_CONFIG);
+function defaultConfigForGuild() {
+  return clone(DEFAULT_GUILD_CONFIG);
 }
 
 function normalizeGuildConfig(guildId, value, options = {}) {
@@ -239,7 +238,9 @@ function normalizeState(value) {
     const id = cleanId(guildId);
     if (id) guilds[id] = normalizeGuildConfig(id, config, { resetFeatureLocks });
   }
-  if (!guilds[DEFAULT_GUILD_ID]) guilds[DEFAULT_GUILD_ID] = defaultConfigForGuild(DEFAULT_GUILD_ID);
+  if (DEFAULT_GUILD_ID && !guilds[DEFAULT_GUILD_ID]) {
+    guilds[DEFAULT_GUILD_ID] = defaultConfigForGuild(DEFAULT_GUILD_ID);
+  }
   return {
     meta: { schemaVersion: SCHEMA_VERSION, disabledGuilds: normalizeDisabledGuilds(source.meta?.disabledGuilds) },
     guilds,
@@ -262,7 +263,7 @@ function saveState(state) {
 
 function ensureGuildConfig(guildId) {
   const id = cleanId(guildId);
-  if (!id || !isGuildAllowlisted(id)) return null;
+  if (!id) return null;
   const state = loadState();
   if (!state.guilds[id]) {
     state.guilds[id] = defaultConfigForGuild(id);
@@ -273,7 +274,7 @@ function ensureGuildConfig(guildId) {
 
 function deleteGuildConfig(guildId) {
   const id = cleanId(guildId);
-  if (!id || id === DEFAULT_GUILD_ID) return false;
+  if (!id || (DEFAULT_GUILD_ID && id === DEFAULT_GUILD_ID)) return false;
   const state = loadState();
   if (!state.guilds[id]) return false;
   delete state.guilds[id];
@@ -299,7 +300,7 @@ function getGuildConfigValue(guildId, selector, fallback = null) {
 
 function getConfiguredGuildIds({ includeDisabled = false } = {}) {
   return Object.entries(loadState().guilds)
-    .filter(([id, config]) => isGuildAllowlisted(id) && (includeDisabled || config.enabled))
+    .filter(([, config]) => includeDisabled || config.enabled)
     .map(([id]) => id);
 }
 
@@ -313,7 +314,7 @@ function getDisabledGuilds() {
 
 function setGuildEnabled(guildId, enabled, details = {}) {
   const id = cleanId(guildId);
-  if (!id || !isGuildAllowlisted(id)) return null;
+  if (!id) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].enabled = enabled !== false;
@@ -339,7 +340,7 @@ function isGuildFullBotEnabled() {
 
 function setGuildFeatureAccess(guildId, features = {}) {
   const id = cleanId(guildId);
-  if (!id || !isGuildAllowlisted(id)) return null;
+  if (!id) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].leveling ||= clone(DEFAULT_LEVELING_CONFIG);

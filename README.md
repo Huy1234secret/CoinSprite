@@ -51,7 +51,7 @@ Production verification:
 
 Guild settings are stored in `data/server-config.json`, while member XP is stored atomically in `data/leveling.json`.
 
-Every optional feature defaults locked and disabled for every server; the bot owner can independently unlock Leveling and the RNG Game from the fleet's **Feature access** dropdown. CoinSprite leaves any guild outside the immutable two-guild deployment allowlist before initializing commands or features.
+Every optional feature defaults locked and disabled for every server; the bot owner can independently unlock Leveling and the RNG Game from the fleet's **Feature access** dropdown. When CoinSprite joins a server, it creates that server's configuration and makes it available in the owner panel.
 
 The dashboard lets Discord administrators configure unlocked features:
 
@@ -89,4 +89,4 @@ npm run report:shop-balance
 npm run report:pet-value
 ```
 
-The test suite covers guild allowlist enforcement, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, roulette settlement and rendering, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, and permissions. The deterministic reports print fixed-price Shop and pet-value checkpoints, verify restock scarcity, Super-over-Legendary ordering, expected uplift, fixed-point egg odds, and money-loop safety, enumerate all three-pet combinations, and fail if probability or modifier caps are violated.
+The test suite covers multi-server onboarding, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, roulette settlement and rendering, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, and permissions. The deterministic reports print fixed-price Shop and pet-value checkpoints, verify restock scarcity, Super-over-Legendary ordering, expected uplift, fixed-point egg odds, and money-loop safety, enumerate all three-pet combinations, and fail if probability or modifier caps are violated.

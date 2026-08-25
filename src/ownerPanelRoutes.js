@@ -8,7 +8,6 @@ const {
   setGuildFeatureAccess,
 } = require('./serverConfig');
 const { getOwnerConsoleEntries, logCommandSystem } = require('./commandLogger');
-const { isGuildAllowlisted } = require('./guildAllowlist');
 const { getRuntimeMetrics } = require('./runtimeMetrics');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 
@@ -63,7 +62,7 @@ function addGuildRecord(records, keyOrGuild, maybeGuild = null) {
   const guild = maybeGuild?.id ? maybeGuild : (typeof keyOrGuild === 'object' ? keyOrGuild : null);
   const candidate = typeof keyOrGuild === 'string' ? keyOrGuild : keyOrGuild?.id;
   const id = /^\d{16,20}$/.test(String(candidate || '')) ? String(candidate) : String(guild?.id || '');
-  if (!/^\d{16,20}$/.test(id) || !isGuildAllowlisted(id)) return;
+  if (!/^\d{16,20}$/.test(id)) return;
   records.set(id, guild || records.get(id) || { id });
 }
 
@@ -185,7 +184,6 @@ function ownerLiveMetrics(nowMs = Date.now()) {
 }
 
 async function getGuild(client, guildId) {
-  if (!isGuildAllowlisted(guildId)) return null;
   return client.guilds.cache.get(guildId) || client.guilds.fetch(guildId).catch(() => null);
 }
 
