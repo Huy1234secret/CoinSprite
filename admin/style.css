@@ -301,6 +301,33 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .leveling-command-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 14px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px; background: rgba(17,22,20,.66); }
 .leveling-command-strip > span { margin-right: 5px; color: var(--lime); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
 .leveling-command-strip code { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft); background: rgba(0,0,0,.16); font-size: 9px; }
+.xp-drop-head-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.xp-drop-head-actions .compact-switch { min-width: 260px; }
+.compact-variable-guide { grid-template-columns: repeat(4,minmax(0,1fr)); max-height: 170px; margin: 14px 0 10px; overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(7,11,9,.35); }
+.xp-drop-message-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
+.xp-drop-preview-frame { border-left: 5px solid var(--accent-color); }
+.xp-drop-fake-claim { margin-top: 10px; padding: 8px 13px; border: 0; border-radius: 4px; color: #fff; background: #248046; font-size: 12px; font-weight: 700; opacity: 1; }
+.xp-drop-list { display: grid; gap: 12px; }
+.xp-drop-card { overflow: hidden; border: 1px solid var(--line); border-top: 3px solid var(--crate-color); border-radius: 15px; background: rgba(7,11,9,.42); }
+.xp-drop-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.018); }
+.xp-drop-card > header > div { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.xp-drop-card > header strong, .xp-drop-card > header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xp-drop-card > header strong { font-size: 12px; }.xp-drop-card > header small { margin-top: 2px; color: var(--muted); font-size: 8px; }
+.crate-number { width: 28px; height: 28px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 8px; color: var(--crate-color); background: color-mix(in srgb,var(--crate-color) 11%,transparent); font-size: 9px; font-weight: 900; }
+.crate-enabled { display: flex; align-items: center; gap: 5px; color: var(--soft); font-size: 9px; font-weight: 800; }.crate-enabled input { accent-color: var(--crate-color); }
+.xp-drop-card-body { display: grid; grid-template-columns: 180px minmax(0,1fr); gap: 12px; padding: 14px; }
+.xp-drop-art { min-height: 180px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; overflow: hidden; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 12px; color: var(--muted); background: rgba(0,0,0,.16); text-align: center; }
+.xp-drop-art img { width: 100%; height: 118px; object-fit: contain; border-radius: 8px; }.xp-drop-art > span { height: 90px; display: grid; place-items: center; color: var(--crate-color); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
+.xp-drop-art small { font-size: 7px; line-height: 1.45; }
+.xp-drop-fields { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; }
+.xp-drop-fields > label { min-width: 0; display: grid; align-content: start; gap: 5px; }.xp-drop-fields > label.wide { grid-column: span 2; }
+.xp-drop-fields > label > span:first-child { color: var(--muted); font-size: 8px; font-weight: 850; letter-spacing: .04em; }
+.xp-drop-fields input, .xp-drop-fields select, .xp-drop-test-panel select { width: 100%; min-width: 0; }
+.xp-drop-fields label > small { color: var(--muted); font-size: 7px; }
+.crate-color-input { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: center; gap: 5px; }.crate-color-input input { height: 34px; padding: 2px; }.crate-color-input code { overflow: hidden; color: var(--soft); font-size: 9px; }
+.xp-drop-fields .crate-multi-claim { grid-template-columns: auto minmax(0,1fr); align-items: center; padding: 9px; border: 1px solid var(--line); border-radius: 9px; }.crate-multi-claim input { width: auto; accent-color: var(--crate-color); }.crate-multi-claim span strong, .crate-multi-claim span small { display: block; }.crate-multi-claim span strong { color: var(--soft); font-size: 9px; }.crate-multi-claim span small { margin-top: 2px; color: var(--muted); font-size: 7px; }
+.xp-drop-test-panel { display: grid; grid-template-columns: minmax(180px,1fr) minmax(140px,.65fr) minmax(160px,.8fr) auto; align-items: end; gap: 10px; margin-top: 12px; padding: 13px; border: 1px solid rgba(185,245,71,.18); border-radius: 13px; background: rgba(185,245,71,.035); }
+.xp-drop-test-panel > div strong, .xp-drop-test-panel > div small { display: block; }.xp-drop-test-panel > div strong { font-size: 11px; }.xp-drop-test-panel > div small { margin-top: 3px; color: var(--muted); font-size: 8px; }.xp-drop-test-panel label { display: grid; gap: 5px; }.xp-drop-test-panel label span { color: var(--muted); font-size: 8px; font-weight: 850; }
 .save-dock { position: fixed; z-index: 45; bottom: 22px; left: 50%; width: min(500px, calc(100vw - 36px)); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 13px 12px 18px; transform: translateX(-50%); border: 1px solid rgba(185,245,71,.28); border-radius: 16px; background: rgba(12,17,14,.96); box-shadow: 0 18px 55px rgba(0,0,0,.46); backdrop-filter: blur(18px); animation: save-dock-in .18s ease-out; }
 .save-dock[hidden] { display: none; }
 .save-dock span { color: var(--warning); font-size: 11px; font-weight: 800; }
@@ -442,6 +469,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 @media (max-width: 1120px) {
   .metric-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .leveling-settings-grid, .rng-settings-grid, .ignored-channel-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .compact-variable-guide { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .xp-drop-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .xp-drop-test-panel { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .studio-grid { grid-template-columns: 150px minmax(0,1fr); }
   .inspector-panel { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
   .inspector-fields { grid-template-columns: repeat(4,minmax(0,1fr)); }
@@ -467,6 +497,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .section-heading p { text-align: left; }
   .switch-card { min-width: 0; }
   .leveling-announcement-grid { grid-template-columns: 1fr; }
+  .xp-drop-message-grid { grid-template-columns: 1fr; }
+  .xp-drop-card-body { grid-template-columns: 140px minmax(0,1fr); }
   .composer-panels { grid-template-columns: 1fr; }
   .composer-editor { border-right: 0; border-bottom: 1px solid var(--line); }
   .field-card.wide { grid-column: auto; }
@@ -499,6 +531,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .section-block { padding: 20px 16px; }
   .metric-grid { grid-template-columns: 1fr; }
   .leveling-settings-grid, .rng-settings-grid, .ignored-channel-list { grid-template-columns: 1fr; }
+  .compact-variable-guide, .xp-drop-fields, .xp-drop-test-panel { grid-template-columns: 1fr; }
+  .xp-drop-card-body { grid-template-columns: 1fr; }
+  .xp-drop-fields > label.wide { grid-column: auto; }
+  .xp-drop-card > header { align-items: flex-start; flex-direction: column; }
   .curve-preview { grid-template-columns: 1fr; }
   .curve-preview > div { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .reward-row { grid-template-columns: 34px minmax(0,1fr) auto; }

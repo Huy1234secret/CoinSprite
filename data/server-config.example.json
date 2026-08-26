@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 15,
+    "schemaVersion": 16,
     "disabledGuilds": {}
   },
   "guilds": {
@@ -33,7 +33,13 @@
         "channelMultipliers": {},
         "roleRewards": [],
         "roleBoosts": [],
-        "stackRoleRewards": true
+        "stackRoleRewards": true,
+        "xpDrops": {
+          "enabled": false,
+          "dropTemplate": "## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}",
+          "claimTemplate": "## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining",
+          "crates": []
+        }
       },
       "rngGame": {
         "enabled": false,

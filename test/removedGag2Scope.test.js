@@ -41,7 +41,7 @@ test('global command synchronization sends an empty list and guild commands rema
     ...base,
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
-  }).map((command) => command.name), ['level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup']);
+  }).map((command) => command.name), ['level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
   assert.ok(featureCommandsForConfig({
     ...base,
     features: { ...base.features, rngGame: true },
@@ -49,7 +49,7 @@ test('global command synchronization sends an empty list and guild commands rema
   }).some((command) => command.name === 'shop'));
 });
 
-test('schema 15 strips obsolete stock data while preserving unrelated settings', () => {
+test('current schema strips obsolete stock data while preserving unrelated settings', () => {
   const config = require('../src/serverConfig');
   const guildId = '123456789012345678';
   const state = config.normalizeState({
@@ -71,7 +71,7 @@ test('schema 15 strips obsolete stock data while preserving unrelated settings',
     },
   });
 
-  assert.equal(state.meta.schemaVersion, 15);
+  assert.equal(state.meta.schemaVersion, config.SCHEMA_VERSION);
   assert.equal(state.guilds[guildId].enabled, false);
   assert.equal(state.meta.disabledGuilds[guildId].reason, 'maintenance');
   assert.equal(state.guilds[guildId].channels.commandLogThread, '223456789012345678');
@@ -90,8 +90,12 @@ test('dashboard retains leveling and RNG controls without stock navigation or AP
   assert.match(html, /data-view="leveling"/);
   assert.match(html, /data-view="rng-game"/);
   assert.match(html, /id="rngGameChannels" multiple/);
+  assert.match(html, /id="xpDropList"/);
+  assert.match(html, /id="xpDropTestButton"/);
   assert.match(dashboard, /normalizeLevelingConfig/);
   assert.match(dashboard, /normalizeRngGameConfig/);
+  assert.match(dashboard, /sendXpDropTest/);
+  assert.match(server, /xp-drops\\\/test/);
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 

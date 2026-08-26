@@ -174,25 +174,48 @@
         </section>
 
         <section class="section-block">
-          <div class="section-heading"><div><span class="step">03</span><h2>XP channels</h2></div><p>Enable the channels that award XP, then tune each channel from ×0 to ×10.</p></div>
+          <div class="section-heading reward-heading"><div><span class="step">03</span><h2>XP drops</h2></div><div class="xp-drop-head-actions"><label class="switch-card compact-switch"><span><strong>Scheduled drops</strong><small>Roll each crate on its timer</small></span><input id="xpDropsEnabled" type="checkbox"><i></i></label><button class="button small ghost" id="xpDropAdd" type="button">+ Add crate</button></div></div>
+          <p class="microcopy">Drop collectible crates on a schedule, or force one instantly with <code>/drop-crate</code>. Claim buttons on test messages behave normally but never award XP.</p>
+          <div class="variable-guide compact-variable-guide" id="xpDropVariables"></div>
+          <div class="xp-drop-message-grid">
+            <section class="message-composer">
+              <header class="composer-toolbar"><div><strong>Drop message</strong><small>Click the message to edit it with Markdown and crate variables.</small></div></header>
+              <div class="discord-preview"><div class="discord-preview-head"><span>DROP PREVIEW</span></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropMessagePreview"></div></div>
+            </section>
+            <section class="message-composer">
+              <header class="composer-toolbar"><div><strong>Claim message</strong><small>This private confirmation is shown after a successful claim.</small></div></header>
+              <div class="discord-preview"><div class="discord-preview-head"><span>CLAIM PREVIEW</span></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropClaimPreview"></div></div>
+            </section>
+          </div>
+          <div class="xp-drop-list" id="xpDropList"></div>
+          <section class="xp-drop-test-panel">
+            <div><strong>Send a test crate</strong><small>Test claims consume slots and show the claim message, but award 0 XP.</small></div>
+            <label><span>Crate</span><select id="xpDropTestCrate"></select></label>
+            <label><span>Channel</span><select id="xpDropTestChannel"></select></label>
+            <button class="button small" id="xpDropTestButton" type="button">Send test</button>
+          </section>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading"><div><span class="step">04</span><h2>XP channels</h2></div><p>Enable the channels that award XP, then tune each channel from ×0 to ×10.</p></div>
           <div class="ignored-channel-list" id="levelingChannels"></div>
         </section>
 
         <section class="section-block">
-          <div class="section-heading reward-heading"><div><span class="step">04</span><h2>Role XP boosts</h2></div><button class="button small ghost" id="levelingAddBoost" type="button">+ Add role boost</button></div>
+          <div class="section-heading reward-heading"><div><span class="step">05</span><h2>Role XP boosts</h2></div><button class="button small ghost" id="levelingAddBoost" type="button">+ Add role boost</button></div>
           <div class="reward-list" id="levelingBoosts"></div>
           <p class="microcopy">A member's highest matching role boost is used. Channel and role multipliers combine, capped at ×10.</p>
         </section>
 
         <section class="section-block">
-          <div class="section-heading reward-heading"><div><span class="step">05</span><h2>Role rewards</h2></div><button class="button small ghost" id="levelingAddReward" type="button">+ Add reward</button></div>
+          <div class="section-heading reward-heading"><div><span class="step">06</span><h2>Role rewards</h2></div><button class="button small ghost" id="levelingAddReward" type="button">+ Add reward</button></div>
           <label class="switch-card compact-switch reward-mode"><span><strong>Stack reward roles</strong><small>Keep earlier roles as members level up</small></span><input id="levelingStackRewards" type="checkbox"><i></i></label>
           <div class="reward-list" id="levelingRewards"></div>
           <p class="microcopy">CoinSprite can only grant roles below its highest Discord role. Managed integration roles are excluded.</p>
         </section>
 
         <section class="leveling-command-strip">
-          <span>V2 COMMANDS</span><code>/level</code><code>/leaderboard</code><code>/level-set</code><code>/xp-add</code><code>/leveling-setup</code>
+          <span>V2 COMMANDS</span><code>/level</code><code>/leaderboard</code><code>/level-set</code><code>/xp-add</code><code>/drop-crate</code><code>/leveling-setup</code>
         </section>
       </section>
 

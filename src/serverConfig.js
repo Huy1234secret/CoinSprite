@@ -2,7 +2,7 @@ const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
@@ -25,6 +25,12 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   roleRewards: Object.freeze([]),
   roleBoosts: Object.freeze([]),
   stackRoleRewards: true,
+  xpDrops: Object.freeze({
+    enabled: false,
+    dropTemplate: '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}',
+    claimTemplate: '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining',
+    crates: Object.freeze([]),
+  }),
 });
 const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   enabled: false,
@@ -90,6 +96,29 @@ function cleanHexColor(value, fallback = '#b9f547') {
   return /^#[0-9a-f]{6}$/.test(text) ? text : fallback;
 }
 
+function cleanXpDropId(value, fallback = '') {
+  const text = String(value || '').trim().toLowerCase();
+  return /^[a-z0-9_-]{1,40}$/.test(text) ? text : fallback;
+}
+
+function durationSeconds(value, fallback = 0) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text || text === '0') return fallback;
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*([smhd])$/);
+  if (!match) return fallback;
+  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 };
+  const seconds = Number(match[1]) * multipliers[match[2]];
+  return Number.isFinite(seconds) ? Math.round(seconds) : fallback;
+}
+
+function cleanDuration(value, fallback, { optional = false } = {}) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (optional && (!text || text === '0')) return '';
+  const seconds = durationSeconds(text, 0);
+  if (seconds < 1 || seconds > 365 * 24 * 60 * 60) return fallback;
+  return text.replace(/\s+/g, '');
+}
+
 function normalizeMultiplierMap(value, defaults = {}) {
   const source = isObject(value) ? value : defaults;
   return Object.fromEntries(Object.entries(source).map(([id, multiplier]) => [
@@ -134,6 +163,33 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     .slice(0, 3000) || defaults.announcements.template;
   const layoutSource = isObject(source.announcements?.layout) ? source.announcements.layout : {};
   const layoutDefaults = defaults.announcements.layout || DEFAULT_LEVELING_CONFIG.announcements.layout;
+  const xpDropSource = isObject(source.xpDrops) ? source.xpDrops : {};
+  const xpDropDefaults = defaults.xpDrops || DEFAULT_LEVELING_CONFIG.xpDrops;
+  const seenCrateIds = new Set();
+  const crates = (Array.isArray(xpDropSource.crates) ? xpDropSource.crates : xpDropDefaults.crates)
+    .map((crate, index) => {
+      const fallbackId = `crate-${index + 1}`;
+      let id = cleanXpDropId(crate?.id, fallbackId);
+      while (seenCrateIds.has(id)) id = `${fallbackId}-${seenCrateIds.size + 1}`.slice(0, 40);
+      seenCrateIds.add(id);
+      const minimum = clampNumber(crate?.xp?.min ?? crate?.xpMin, 1, 1_000_000, 50);
+      const maximum = clampNumber(crate?.xp?.max ?? crate?.xpMax, minimum, 1_000_000, Math.max(minimum, 100));
+      return {
+        id,
+        enabled: crate?.enabled !== false,
+        name: String(crate?.name || `Crate ${index + 1}`).trim().slice(0, 80) || `Crate ${index + 1}`,
+        imageUrl: cleanWebUrl(crate?.imageUrl),
+        xp: { min: minimum, max: maximum },
+        channelId: cleanId(crate?.channelId),
+        dropEvery: cleanDuration(crate?.dropEvery, '30m'),
+        chancePercent: clampNumber(crate?.chancePercent, 0, 100, 100, false),
+        claimLimit: clampNumber(crate?.claimLimit, 1, 1000, 1),
+        despawnAfter: cleanDuration(crate?.despawnAfter, '', { optional: true }),
+        allowMultipleClaims: crate?.allowMultipleClaims === true,
+        containerColor: cleanHexColor(crate?.containerColor, '#b9f547'),
+      };
+    })
+    .slice(0, 100);
   return {
     enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false,
     xp: {
@@ -167,6 +223,14 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     stackRoleRewards: source.stackRoleRewards === undefined
       ? defaults.stackRoleRewards !== false
       : source.stackRoleRewards !== false,
+    xpDrops: {
+      enabled: xpDropSource.enabled === undefined ? xpDropDefaults.enabled === true : xpDropSource.enabled === true,
+      dropTemplate: String(xpDropSource.dropTemplate || xpDropDefaults.dropTemplate)
+        .trim().slice(0, 3000) || xpDropDefaults.dropTemplate,
+      claimTemplate: String(xpDropSource.claimTemplate || xpDropDefaults.claimTemplate)
+        .trim().slice(0, 3000) || xpDropDefaults.claimTemplate,
+      crates,
+    },
   };
 }
 
@@ -251,7 +315,7 @@ function loadState() {
   const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-15.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-16.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;
@@ -384,6 +448,7 @@ module.exports = {
   DEFAULT_STATE,
   SCHEMA_VERSION,
   STORE_PATH,
+  durationSeconds,
   deleteGuildConfig,
   ensureGuildConfig,
   getConfiguredGuildIds,

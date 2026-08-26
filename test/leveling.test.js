@@ -7,6 +7,7 @@ const { createCanvas, GlobalFonts, loadImage } = require('@napi-rs/canvas');
 const {
   DEFAULT_LEVELING_CONFIG,
   SCHEMA_VERSION,
+  durationSeconds,
   normalizeLevelingConfig,
   normalizeState,
 } = require('../src/serverConfig');
@@ -33,8 +34,11 @@ const {
   renderLeaderboardCard,
   renderLevelCard,
   renderPublishedLevelCard,
+  reserveXpDropClaim,
   resolvedAnnouncementLayout,
   xpThresholdForLevel,
+  xpDropMessagePayload,
+  xpDropTemplateText,
   xpMultiplierForMessage,
 } = require('../src/leveling');
 const { ownerLiveMetrics } = require('../src/ownerPanelRoutes');
@@ -154,13 +158,76 @@ test('legacy three-field announcements migrate into the unified editor template'
   assert.equal(config.announcements.progress, undefined);
 });
 
-test('leveling image upload accepts real image bytes and rejects disguised files', () => {
+test('leveling image upload accepts real image bytes and rejects disguised files', async () => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
-  const media = decodeLevelingMedia(png);
+  const media = await decodeLevelingMedia(png);
   assert.equal(media.extension, 'png');
   assert.equal(media.contentType, 'image/png');
   assert.ok(media.data.length > 8);
-  assert.throws(() => decodeLevelingMedia(`data:image/png;base64,${Buffer.from('not an image').toString('base64')}`), /does not match/);
+  await assert.rejects(() => decodeLevelingMedia(`data:image/png;base64,${Buffer.from('not an image').toString('base64')}`), /does not match/);
+});
+
+test('XP drop configuration normalizes timers, limits, images, and duplicate IDs', () => {
+  const config = normalizeLevelingConfig({
+    xpDrops: {
+      enabled: true,
+      dropTemplate: 'Drop {crate_name}',
+      claimTemplate: '{user} claimed {xp}',
+      crates: [
+        {
+          id: 'Common Crate', name: 'Common Crate', imageUrl: 'https://example.com/crate.gif',
+          xp: { min: -2, max: 2_000_000 }, channelId: '123456789012345678',
+          dropEvery: '2 h', chancePercent: 150, claimLimit: 0, despawnAfter: '0',
+          allowMultipleClaims: true, containerColor: '#FF00AA',
+        },
+        { id: 'crate-1', name: 'Second', dropEvery: 'bad', despawnAfter: '15m' },
+      ],
+    },
+  });
+  assert.equal(config.xpDrops.enabled, true);
+  assert.equal(config.xpDrops.crates[0].id, 'crate-1');
+  assert.notEqual(config.xpDrops.crates[1].id, config.xpDrops.crates[0].id);
+  assert.deepEqual(config.xpDrops.crates[0].xp, { min: 1, max: 1_000_000 });
+  assert.equal(config.xpDrops.crates[0].dropEvery, '2h');
+  assert.equal(config.xpDrops.crates[0].chancePercent, 100);
+  assert.equal(config.xpDrops.crates[0].claimLimit, 1);
+  assert.equal(config.xpDrops.crates[0].despawnAfter, '');
+  assert.equal(config.xpDrops.crates[0].containerColor, '#ff00aa');
+  assert.equal(config.xpDrops.crates[1].dropEvery, '30m');
+  assert.equal(durationSeconds('1.5h'), 5400);
+});
+
+test('XP drop payload renders crate variables, image, claim button, and remaining slots', () => {
+  const drop = {
+    id: 'abcdefabcdefabcdefabcdef', crateName: 'Common Crate', imageUrl: 'https://example.com/crate.gif',
+    xpMin: 50, xpMax: 100, claimLimit: 3, claims: ['123456789012345678'],
+    color: '#ff00aa', chancePercent: 25, dropEvery: '30m', despawnAfter: '',
+    dropTemplate: '## {crate_name}\n{xp_min}-{xp_max} XP · {claims_left}/{claim_limit}{separator}{server}',
+  };
+  assert.equal(
+    xpDropTemplateText('{crate_name} {xp} {user}', drop, { xp: 75, userId: '223456789012345678' }),
+    'Common Crate 75 <@223456789012345678>',
+  );
+  const payload = xpDropMessagePayload(drop, { serverName: 'Garden' });
+  assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
+  assert.equal(payload.components[0].accent_color, 0xff00aa);
+  assert.deepEqual(payload.components[0].components.map((component) => component.type), [10, 14, 10, 12, 14, 1]);
+  assert.ok(payload.components[0].components.length <= 10);
+  assert.equal(payload.components[0].components.at(-1).components[0].custom_id, 'leveling:xp-drop:abcdefabcdefabcdefabcdef');
+  assert.equal(payload.components[0].components.at(-1).components[0].disabled, false);
+});
+
+test('XP drop claims enforce per-user and total limits while allowing configured repeats', () => {
+  const drop = { claimLimit: 2, allowMultipleClaims: false, claims: [], expiresAt: 0 };
+  assert.deepEqual(reserveXpDropClaim(drop, '123456789012345678'), { accepted: true, reason: 'claimed', claimsLeft: 1 });
+  assert.deepEqual(reserveXpDropClaim(drop, '123456789012345678'), { accepted: false, reason: 'duplicate', claimsLeft: 1 });
+  assert.deepEqual(reserveXpDropClaim(drop, '223456789012345678'), { accepted: true, reason: 'claimed', claimsLeft: 0 });
+  assert.equal(reserveXpDropClaim(drop, '323456789012345678').reason, 'full');
+
+  const repeatable = { claimLimit: 2, allowMultipleClaims: true, claims: [], expiresAt: 0 };
+  assert.equal(reserveXpDropClaim(repeatable, '123456789012345678').accepted, true);
+  assert.equal(reserveXpDropClaim(repeatable, '123456789012345678').accepted, true);
+  assert.equal(reserveXpDropClaim({ claimLimit: 1, allowMultipleClaims: false, claims: [], expiresAt: 999 }, '123456789012345678', 1000).reason, 'expired');
 });
 
 test('schema upgrade locks and disables leveling for every existing server', () => {
@@ -243,8 +310,11 @@ test('legacy text level fallback uses Components V2 and the leveling command set
   assert.equal(payload.components[0].components[0].type, 10);
   assert.equal(progressBar(.5).length, 12);
   assert.deepEqual(LEVELING_COMMANDS.map((command) => command.data.name), [
-    'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup',
+    'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate',
   ]);
+  const dropCommand = LEVELING_COMMANDS.find((command) => command.data.name === 'drop-crate').data.toJSON();
+  assert.equal(dropCommand.options.find((option) => option.name === 'crate').required, true);
+  assert.equal(dropCommand.options.find((option) => option.name === 'channel').required, false);
 });
 
 test('level card design keeps editable layers safe and scoped to the signed-in user', () => {

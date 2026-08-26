@@ -33,6 +33,7 @@ const {
 const {
   handleLevelingInteraction,
   handleLevelingMessage,
+  startXpDropScheduler,
 } = require('./src/leveling');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
@@ -98,6 +99,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
     rngGame.startScheduler(client);
+    startXpDropScheduler(client);
   },
   async panel() {
     startAdminServer(client, { rngGame });

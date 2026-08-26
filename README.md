@@ -3,7 +3,7 @@
 CoinSprite is a focused Discord service for a seed RNG economy, multiplayer casino games, and community leveling. The runtime contains three product surfaces:
 
 - **Seed RNG economy** — secure crop rolls, persistent crop/item/pet inventories and balances, a global item shop, consumable effects, pet hatching/equipment, selling, filtering, pagination, and capacity upgrades.
-- **Leveling** — anti-spam message XP, channel and role boosts, live-composed level-up cards, leaderboards, and milestone roles.
+- **Leveling** — anti-spam message XP, channel and role boosts, scheduled claimable XP crates, live-composed messages, leaderboards, and milestone roles.
 - **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
 
 Tickets, moderation, giveaways, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
@@ -57,10 +57,11 @@ The dashboard lets Discord administrators configure unlocked features:
 
 - XP range, cooldown, progression curve, maximum level, opt-in channel multipliers, and role XP boosts;
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
+- scheduled XP crates with per-crate images, XP ranges, channels, `s`/`m`/`h`/`d` intervals, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages, and zero-XP test sends;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 - multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
-The focused application commands include the Leveling commands and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
+The focused application commands include the Leveling commands (including `/drop-crate`) and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
 
 ### European Roulette
 
