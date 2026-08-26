@@ -23,7 +23,7 @@ fs.writeFileSync(process.env.SERVER_CONFIG_STORE_PATH, JSON.stringify({
         channelMultipliers: {}, roleRewards: [], roleBoosts: [], stackRoleRewards: true,
         xpDrops: {
           enabled: true,
-          dropTemplate: '## {crate_name}\n{claims_left} left',
+          dropTemplate: '## {crate_name}\n{claims_left} left · {list_claimed_user}',
           claimTemplate: '{user} would receive {xp} XP',
           crates: [{
             id: 'common', enabled: true, name: 'Common Crate', imageUrl: '',
@@ -110,6 +110,7 @@ test('test crate claims update limits and confirmation without awarding XP', asy
   assert.equal(before, 0);
   assert.equal(after, 0);
   assert.equal(edits.length, 1);
+  assert.match(edits[0].components[0].components[0].content, /<@523456789012345678>/);
   assert.match(replies[0].components[0].components[0].content, /no XP was awarded/i);
   flushLevelingState();
 });

@@ -1522,12 +1522,36 @@ function levelUpAnnouncementPayload(content, config) {
 
 function xpDropTemplateText(template, crate, values = {}) {
   const claimsLeft = Math.max(0, Number(values.claimsLeft ?? crate.claimLimit) || 0);
+  const claimCounts = new Map();
+  for (const id of crate.claims || []) {
+    const userId = String(id || '');
+    if (/^\d{16,20}$/.test(userId)) claimCounts.set(userId, (claimCounts.get(userId) || 0) + 1);
+  }
+  const claimedUsers = [...claimCounts.entries()];
+  let claimedUserList = claimedUsers.length ? '' : 'No claims yet';
+  if (claimedUsers.length) {
+    const parts = [];
+    let used = 0;
+    for (let index = 0; index < claimedUsers.length; index += 1) {
+      const [userId, count] = claimedUsers[index];
+      const entry = `<@${userId}>${count > 1 ? ` ×${count}` : ''}`;
+      const separatorLength = parts.length ? 2 : 0;
+      if (used + separatorLength + entry.length > 1200) {
+        parts.push(`+${claimedUsers.length - index} more`);
+        break;
+      }
+      parts.push(entry);
+      used += separatorLength + entry.length;
+    }
+    claimedUserList = parts.join(', ');
+  }
   const replacements = {
     crate_name: safeName(crate.name || crate.crateName || 'XP Crate'),
     xp_min: number(crate.xp?.min ?? crate.xpMin),
     xp_max: number(crate.xp?.max ?? crate.xpMax),
     claim_limit: number(crate.claimLimit),
     claims_left: number(claimsLeft),
+    list_claimed_user: claimedUserList,
     chance: String(crate.chancePercent ?? 100),
     drop_every: String(crate.dropEvery || 'manual'),
     despawn_time: String(crate.despawnAfter || 'never'),
