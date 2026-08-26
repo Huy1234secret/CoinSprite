@@ -359,10 +359,22 @@
   const XP_DROP_VARIABLES = [
     ['{crate_name}', 'Crate name'], ['{xp_min}', 'Minimum XP'], ['{xp_max}', 'Maximum XP'],
     ['{xp}', 'Claimed XP'], ['{claim_limit}', 'Total claim slots'], ['{claims_left}', 'Remaining claims'],
+    ['{list_claimed_user}', 'Members who claimed'],
     ['{chance}', 'Drop chance percent'], ['{drop_every}', 'Drop interval'], ['{despawn_time}', 'Despawn interval or never'],
     ['{user}', 'Claiming member mention'], ['{username}', 'Claiming display name'], ['{level}', 'Member level'],
     ['{total_xp}', 'Member total XP'], ['{server}', 'Server name'], ['{channel}', 'Drop channel'], ['{separator}', 'Discord divider'],
   ];
+
+  function xpDropDurationEditor(value, index, field, label, optional = false) {
+    const match = String(value || '').match(/^(\d+(?:\.\d+)?)([smhd])$/i);
+    const amount = match?.[1] || (optional ? '' : '30');
+    const unit = match?.[2]?.toLowerCase() || 'm';
+    const units = [['s', 'Seconds'], ['m', 'Minutes'], ['h', 'Hours'], ['d', 'Days']];
+    return `<span class="xp-drop-duration" role="group" aria-label="${escapeHtml(label)}">
+      <input type="number" min="0" max="31536000" step="any" inputmode="decimal" value="${escapeHtml(amount)}" placeholder="${optional ? 'Never' : '30'}" data-xp-drop-field="${field}" data-xp-drop-duration-part="amount" data-xp-drop-index="${index}" aria-label="${escapeHtml(label)} amount">
+      <select data-xp-drop-field="${field}" data-xp-drop-duration-part="unit" data-xp-drop-index="${index}" aria-label="${escapeHtml(label)} unit">${units.map(([key, name]) => `<option value="${key}" ${key === unit ? 'selected' : ''}>${name}</option>`).join('')}</select>
+    </span>`;
+  }
 
   function renderXpDropMessagePreviews() {
     const xpDrops = state.config.leveling.xpDrops;
@@ -391,10 +403,10 @@
             <label><span>Minimum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.min}" data-xp-drop-field="xpMin" data-xp-drop-index="${index}"></label>
             <label><span>Maximum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.max}" data-xp-drop-field="xpMax" data-xp-drop-index="${index}"></label>
             <label class="wide"><span>Default channel</span><select data-xp-drop-field="channelId" data-xp-drop-index="${index}">${channelOptions(crate.channelId, (channel) => channel.kind !== 'forum')}</select></label>
-            <label><span>Drop every</span><input type="text" maxlength="16" value="${escapeHtml(crate.dropEvery)}" placeholder="30m" data-xp-drop-field="dropEvery" data-xp-drop-index="${index}"><small>Use s, m, h, or d</small></label>
+            <label><span>Drop every</span>${xpDropDurationEditor(crate.dropEvery, index, 'dropEvery', 'Drop every')}<small>Choose an amount and time unit</small></label>
             <label><span>Chance (%)</span><input type="number" min="0" max="100" step="0.01" value="${crate.chancePercent}" data-xp-drop-field="chancePercent" data-xp-drop-index="${index}"></label>
             <label><span>Claim limit</span><input type="number" min="1" max="1000" value="${crate.claimLimit}" data-xp-drop-field="claimLimit" data-xp-drop-index="${index}"></label>
-            <label><span>Despawn after</span><input type="text" maxlength="16" value="${escapeHtml(crate.despawnAfter)}" placeholder="None / 0" data-xp-drop-field="despawnAfter" data-xp-drop-index="${index}"><small>Empty or 0 means never</small></label>
+            <label><span>Despawn after</span>${xpDropDurationEditor(crate.despawnAfter, index, 'despawnAfter', 'Despawn after', true)}<small>Leave the amount empty for no despawn</small></label>
             <label><span>Container color</span><span class="crate-color-input"><input type="color" value="${crate.containerColor}" data-xp-drop-field="containerColor" data-xp-drop-index="${index}"><code>${crate.containerColor}</code></span></label>
             <label class="wide crate-multi-claim"><input type="checkbox" data-xp-drop-field="allowMultipleClaims" data-xp-drop-index="${index}" ${crate.allowMultipleClaims ? 'checked' : ''}><span><strong>Allow a person to claim multiple times</strong><small>Off by default. When on, one member can consume more than one claim slot.</small></span></label>
           </div>
@@ -491,7 +503,7 @@
       .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
-      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
     return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
@@ -530,6 +542,7 @@
       .replaceAll('{xp}', formatNumber(claimed))
       .replaceAll('{claim_limit}', formatNumber(crate?.claimLimit ?? 3))
       .replaceAll('{claims_left}', formatNumber(Math.max(0, (crate?.claimLimit ?? 3) - 1)))
+      .replaceAll('{list_claimed_user}', '@GardenHero, @PixelFarmer')
       .replaceAll('{chance}', String(crate?.chancePercent ?? 35))
       .replaceAll('{drop_every}', crate?.dropEvery || '30m')
       .replaceAll('{despawn_time}', crate?.despawnAfter || 'never')
@@ -1161,7 +1174,14 @@
           crate.xp.min = Math.round(clampNumber(target.value, 1, 1_000_000, crate.xp.min));
           crate.xp.max = Math.max(crate.xp.min, crate.xp.max);
         } else if (field === 'xpMax') crate.xp.max = Math.round(clampNumber(target.value, crate.xp.min, 1_000_000, crate.xp.max));
-        else if (field === 'dropEvery' || field === 'despawnAfter') crate[field] = target.value.slice(0, 16);
+        else if (field === 'dropEvery' || field === 'despawnAfter') {
+          const duration = target.closest('.xp-drop-duration');
+          if (duration) {
+            const amount = duration.querySelector('[data-xp-drop-duration-part="amount"]')?.value.trim() || '';
+            const unit = duration.querySelector('[data-xp-drop-duration-part="unit"]')?.value || 'm';
+            crate[field] = amount && Number(amount) > 0 ? `${amount}${unit}`.slice(0, 16) : '';
+          } else crate[field] = target.value.slice(0, 16);
+        }
         else if (field === 'chancePercent') crate.chancePercent = clampNumber(target.value, 0, 100, crate.chancePercent);
         else if (field === 'claimLimit') crate.claimLimit = Math.round(clampNumber(target.value, 1, 1000, crate.claimLimit));
         else if (field === 'containerColor') {

@@ -95,6 +95,8 @@ test('dashboard retains leveling and RNG controls without stock navigation or AP
   assert.match(dashboard, /normalizeLevelingConfig/);
   assert.match(dashboard, /normalizeRngGameConfig/);
   assert.match(dashboard, /sendXpDropTest/);
+  assert.match(dashboard, /list_claimed_user/);
+  assert.match(dashboard, /data-xp-drop-duration-part/);
   assert.match(server, /xp-drops\\\/test/);
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });

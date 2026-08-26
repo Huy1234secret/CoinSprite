@@ -57,7 +57,7 @@ The dashboard lets Discord administrators configure unlocked features:
 
 - XP range, cooldown, progression curve, maximum level, opt-in channel multipliers, and role XP boosts;
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
-- scheduled XP crates with per-crate images, XP ranges, channels, `s`/`m`/`h`/`d` intervals, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages, and zero-XP test sends;
+- scheduled XP crates with per-crate images, XP ranges, channels, guided `s`/`m`/`h`/`d` duration inputs, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages (including `{list_claimed_user}`), and zero-XP test sends;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 - multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
