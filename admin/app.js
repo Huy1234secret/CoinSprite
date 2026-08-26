@@ -75,6 +75,7 @@
     consoleEntries: [],
     consoleAfter: 0,
     levelingComposerPanel: '',
+    xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
     cardSelection: 'background',
@@ -113,6 +114,9 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
+    xpDropsEnabled: $('#xpDropsEnabled'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
+    xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'),
+    xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
     rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
     rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
@@ -199,6 +203,12 @@
     return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
   }
 
+  function normalizeDurationInput(value, fallback = '30m', optional = false) {
+    const text = String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+    if (optional && (!text || text === '0')) return '';
+    return /^\d+(?:\.\d+)?[smhd]$/.test(text) && Number.parseFloat(text) > 0 ? text : fallback;
+  }
+
   function normalizeLevelingConfig(config) {
     const source = clone(config?.leveling || {});
     source.enabled = source.enabled === true;
@@ -237,6 +247,31 @@
       multiplier: Math.round(clampNumber(boost.multiplier, 0, 10, 1)),
     })).filter((boost) => boost.roleId).slice(0, 100);
     source.stackRoleRewards = source.stackRoleRewards !== false;
+    source.xpDrops ||= {};
+    source.xpDrops.enabled = source.xpDrops.enabled === true;
+    source.xpDrops.dropTemplate = String(source.xpDrops.dropTemplate || '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}').slice(0, 3000);
+    source.xpDrops.claimTemplate = String(source.xpDrops.claimTemplate || '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining').slice(0, 3000);
+    const usedCrateIds = new Set();
+    source.xpDrops.crates = (source.xpDrops.crates || []).map((crate, index) => {
+      let id = String(crate.id || `crate-${index + 1}`).toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 40) || `crate-${index + 1}`;
+      while (usedCrateIds.has(id)) id = `${id.slice(0, 34)}-${index + 1}`;
+      usedCrateIds.add(id);
+      const minimum = Math.round(clampNumber(crate.xp?.min ?? crate.xpMin, 1, 1_000_000, 50));
+      return {
+        id,
+        enabled: crate.enabled !== false,
+        name: String(crate.name || `Crate ${index + 1}`).trim().slice(0, 80) || `Crate ${index + 1}`,
+        imageUrl: String(crate.imageUrl || '').slice(0, 2000),
+        xp: { min: minimum, max: Math.round(clampNumber(crate.xp?.max ?? crate.xpMax, minimum, 1_000_000, Math.max(100, minimum))) },
+        channelId: String(crate.channelId || ''),
+        dropEvery: normalizeDurationInput(crate.dropEvery, '30m'),
+        chancePercent: clampNumber(crate.chancePercent, 0, 100, 100),
+        claimLimit: Math.round(clampNumber(crate.claimLimit, 1, 1000, 1)),
+        despawnAfter: normalizeDurationInput(crate.despawnAfter, '', true),
+        allowMultipleClaims: crate.allowMultipleClaims === true,
+        containerColor: /^#[0-9a-f]{6}$/i.test(crate.containerColor || '') ? crate.containerColor.toLowerCase() : '#b9f547',
+      };
+    }).slice(0, 100);
     return source;
   }
 
@@ -321,6 +356,85 @@
     </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role boosts yet</strong><span>Add a role and choose an XP multiplier from ×0 to ×10.</span></div>';
   }
 
+  const XP_DROP_VARIABLES = [
+    ['{crate_name}', 'Crate name'], ['{xp_min}', 'Minimum XP'], ['{xp_max}', 'Maximum XP'],
+    ['{xp}', 'Claimed XP'], ['{claim_limit}', 'Total claim slots'], ['{claims_left}', 'Remaining claims'],
+    ['{chance}', 'Drop chance percent'], ['{drop_every}', 'Drop interval'], ['{despawn_time}', 'Despawn interval or never'],
+    ['{user}', 'Claiming member mention'], ['{username}', 'Claiming display name'], ['{level}', 'Member level'],
+    ['{total_xp}', 'Member total XP'], ['{server}', 'Server name'], ['{channel}', 'Drop channel'], ['{separator}', 'Discord divider'],
+  ];
+
+  function renderXpDropMessagePreviews() {
+    const xpDrops = state.config.leveling.xpDrops;
+    const selectedId = elements.xpDropTestCrate.value;
+    const crate = xpDrops.crates.find((item) => item.id === selectedId) || xpDrops.crates[0] || {
+      name: 'Common Crate', imageUrl: '', containerColor: '#b9f547', claimLimit: 3,
+    };
+    const color = /^#[0-9a-f]{6}$/i.test(crate.containerColor || '') ? crate.containerColor : '#b9f547';
+    const image = previewMediaUrl(crate.imageUrl);
+    elements.xpDropMessagePreview.style.setProperty('--accent-color', color);
+    elements.xpDropClaimPreview.style.setProperty('--accent-color', color);
+    elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${image ? `<img class="discord-thumbnail" src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>'}</div><div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
+    elements.xpDropClaimPreview.innerHTML = inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message');
+  }
+
+  function renderXpDropList() {
+    const crates = state.config.leveling.xpDrops.crates;
+    elements.xpDropList.innerHTML = crates.length ? crates.map((crate, index) => {
+      const image = previewMediaUrl(crate.imageUrl);
+      return `<article class="xp-drop-card" style="--crate-color:${crate.containerColor}" data-xp-drop-card="${index}">
+        <header><div><span class="crate-number">${String(index + 1).padStart(2, '0')}</span><div><strong>${escapeHtml(crate.name)}</strong><small>${crate.enabled ? 'Scheduled' : 'Paused'} · ${escapeHtml(crate.dropEvery)} · ${crate.chancePercent}% chance</small></div></div><div><label class="crate-enabled"><input type="checkbox" data-xp-drop-field="enabled" data-xp-drop-index="${index}" ${crate.enabled ? 'checked' : ''}><span>Enabled</span></label><button type="button" class="reward-remove" data-remove-xp-drop="${index}">Remove</button></div></header>
+        <div class="xp-drop-card-body">
+          <div class="xp-drop-art">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)} image">` : '<span>NO IMAGE</span>'}<label class="media-upload">Upload image<input type="file" accept="image/*" data-xp-drop-media="${index}"></label><small>Any decodable image or GIF, up to 10 MB</small></div>
+          <div class="xp-drop-fields">
+            <label class="wide"><span>Crate name</span><input type="text" maxlength="80" value="${escapeHtml(crate.name)}" data-xp-drop-field="name" data-xp-drop-index="${index}"></label>
+            <label><span>Minimum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.min}" data-xp-drop-field="xpMin" data-xp-drop-index="${index}"></label>
+            <label><span>Maximum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.max}" data-xp-drop-field="xpMax" data-xp-drop-index="${index}"></label>
+            <label class="wide"><span>Default channel</span><select data-xp-drop-field="channelId" data-xp-drop-index="${index}">${channelOptions(crate.channelId, (channel) => channel.kind !== 'forum')}</select></label>
+            <label><span>Drop every</span><input type="text" maxlength="16" value="${escapeHtml(crate.dropEvery)}" placeholder="30m" data-xp-drop-field="dropEvery" data-xp-drop-index="${index}"><small>Use s, m, h, or d</small></label>
+            <label><span>Chance (%)</span><input type="number" min="0" max="100" step="0.01" value="${crate.chancePercent}" data-xp-drop-field="chancePercent" data-xp-drop-index="${index}"></label>
+            <label><span>Claim limit</span><input type="number" min="1" max="1000" value="${crate.claimLimit}" data-xp-drop-field="claimLimit" data-xp-drop-index="${index}"></label>
+            <label><span>Despawn after</span><input type="text" maxlength="16" value="${escapeHtml(crate.despawnAfter)}" placeholder="None / 0" data-xp-drop-field="despawnAfter" data-xp-drop-index="${index}"><small>Empty or 0 means never</small></label>
+            <label><span>Container color</span><span class="crate-color-input"><input type="color" value="${crate.containerColor}" data-xp-drop-field="containerColor" data-xp-drop-index="${index}"><code>${crate.containerColor}</code></span></label>
+            <label class="wide crate-multi-claim"><input type="checkbox" data-xp-drop-field="allowMultipleClaims" data-xp-drop-index="${index}" ${crate.allowMultipleClaims ? 'checked' : ''}><span><strong>Allow a person to claim multiple times</strong><small>Off by default. When on, one member can consume more than one claim slot.</small></span></label>
+          </div>
+        </div>
+      </article>`;
+    }).join('') : '<div class="empty-state reward-empty"><strong>No XP crates yet</strong><span>Add a crate to configure scheduled drops and test claims.</span></div>';
+  }
+
+  function renderXpDrops() {
+    const xpDrops = state.config.leveling.xpDrops;
+    const selectedCrate = elements.xpDropTestCrate.value;
+    const selectedChannel = elements.xpDropTestChannel.value;
+    elements.xpDropsEnabled.checked = xpDrops.enabled;
+    elements.xpDropVariables.innerHTML = XP_DROP_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('');
+    renderXpDropList();
+    elements.xpDropTestCrate.innerHTML = xpDrops.crates.length
+      ? xpDrops.crates.map((crate) => `<option value="${escapeHtml(crate.id)}" ${crate.id === selectedCrate ? 'selected' : ''}>${escapeHtml(crate.name)}</option>`).join('')
+      : '<option value="">Add a crate first</option>';
+    elements.xpDropTestChannel.innerHTML = channelOptions(selectedChannel, (channel) => channel.kind !== 'forum');
+    elements.xpDropTestChannel.options[0].textContent = 'Use the crate default channel';
+    elements.xpDropTestButton.disabled = state.xpDropTesting || !xpDrops.crates.length;
+    elements.xpDropTestButton.textContent = state.xpDropTesting ? 'Sending…' : 'Send test';
+    renderXpDropMessagePreviews();
+  }
+
+  function addXpDrop() {
+    const crates = state.config?.leveling?.xpDrops?.crates;
+    if (!crates || crates.length >= 100) return;
+    const id = `crate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.slice(0, 40);
+    const defaultChannel = (state.directory.channels || []).find((channel) => !channel.archived && channel.kind !== 'forum')?.id || '';
+    crates.push({
+      id, enabled: true, name: `Crate ${crates.length + 1}`, imageUrl: '', xp: { min: 50, max: 100 },
+      channelId: defaultChannel, dropEvery: '30m', chancePercent: 100, claimLimit: 1,
+      despawnAfter: '', allowMultipleClaims: false, containerColor: '#b9f547',
+    });
+    renderXpDrops();
+    refreshDirty();
+    elements.xpDropList.lastElementChild?.querySelector('[data-xp-drop-field="name"]')?.focus();
+  }
+
   function validHttpUrl(value) {
     try { return ['http:', 'https:'].includes(new URL(String(value || '')).protocol); } catch { return false; }
   }
@@ -377,7 +491,7 @@
       .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
-      .replace(/\{(?:user|user_profile|username|level|next_level|server|bar|progress_xp|needed_xp|total_xp|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
     return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
@@ -394,6 +508,11 @@
   }
 
   function previewMessageValue(template) {
+    const xpDrops = state.config?.leveling?.xpDrops;
+    const crate = xpDrops?.crates?.find((item) => item.id === elements.xpDropTestCrate?.value) || xpDrops?.crates?.[0];
+    const minimum = crate?.xp?.min ?? 50;
+    const maximum = crate?.xp?.max ?? 100;
+    const claimed = Math.round((Number(minimum) + Number(maximum)) / 2);
     return String(template || '')
       .replaceAll('{user}', '@GardenHero')
       .replaceAll('{user_profile}', 'https://cdn.discordapp.com/embed/avatars/0.png')
@@ -404,7 +523,17 @@
       .replaceAll('{bar}', '■■■■■■■■□□□□')
       .replaceAll('{progress_xp}', '280')
       .replaceAll('{needed_xp}', '420')
-      .replaceAll('{total_xp}', '3,160');
+      .replaceAll('{total_xp}', '3,160')
+      .replaceAll('{crate_name}', crate?.name || 'Common Crate')
+      .replaceAll('{xp_min}', formatNumber(minimum))
+      .replaceAll('{xp_max}', formatNumber(maximum))
+      .replaceAll('{xp}', formatNumber(claimed))
+      .replaceAll('{claim_limit}', formatNumber(crate?.claimLimit ?? 3))
+      .replaceAll('{claims_left}', formatNumber(Math.max(0, (crate?.claimLimit ?? 3) - 1)))
+      .replaceAll('{chance}', String(crate?.chancePercent ?? 35))
+      .replaceAll('{drop_every}', crate?.dropEvery || '30m')
+      .replaceAll('{despawn_time}', crate?.despawnAfter || 'never')
+      .replaceAll('{channel}', '#general');
   }
 
   function renderedEditableTemplate(template) {
@@ -447,12 +576,12 @@
     if (input && display) display.innerHTML = `${renderedEditableTemplate(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
-  function inlineTemplateEditor(template) {
-    return `<div class="inline-message-editor" data-inline-message-editor data-template-field="template">
-      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit level-up message">${renderedEditableTemplate(template)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
+  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message') {
+    return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}">
+      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
-        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="template" maxlength="3000" rows="5" spellcheck="true" aria-label="Level-up message template">${escapeHtml(template)}</textarea>
+        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}" maxlength="3000" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
       </div>
       <div class="inline-message-actions"><span>Markdown and variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
     </div>`;
@@ -481,11 +610,11 @@
       return;
     }
     if (panel === 'thumbnail') {
-      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload PNG, JPG, WEBP, or GIF up to 5 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="thumbnail"></label></div>`;
+      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload any decodable image or GIF up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-leveling-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function readMediaFile(file) {
@@ -500,13 +629,13 @@
   async function uploadLevelingMedia(input) {
     const file = input.files?.[0];
     if (!file) return;
-    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+    if (!file.type.startsWith('image/')) {
       input.value = '';
-      return showToast('Upload a PNG, JPG, WEBP, or GIF image.', 'error');
+      return showToast('Upload an image file.', 'error');
     }
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > 10 * 1024 * 1024) {
       input.value = '';
-      return showToast('Images must be 5 MB or smaller.', 'error');
+      return showToast('Images must be 10 MB or smaller.', 'error');
     }
     const label = input.closest('.media-upload');
     label?.classList.add('uploading');
@@ -533,6 +662,61 @@
     } finally {
       label?.classList.remove('uploading');
       input.value = '';
+    }
+  }
+
+  async function uploadXpDropMedia(input) {
+    const file = input.files?.[0];
+    const index = Number(input.dataset.xpDropMedia);
+    const crate = state.config?.leveling?.xpDrops?.crates?.[index];
+    if (!file || !crate) return;
+    if (!file.type.startsWith('image/')) {
+      input.value = '';
+      return showToast('Upload an image file.', 'error');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      input.value = '';
+      return showToast('Images must be 10 MB or smaller.', 'error');
+    }
+    const label = input.closest('.media-upload');
+    label?.classList.add('uploading');
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/leveling-media`, {
+        method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
+      });
+      crate.imageUrl = result.url;
+      renderXpDrops();
+      refreshDirty();
+      showToast('Crate image uploaded. Apply changes when you are ready.');
+    } catch (error) {
+      showToast(error.message || 'Image upload failed.', 'error');
+    } finally {
+      label?.classList.remove('uploading');
+      input.value = '';
+    }
+  }
+
+  async function sendXpDropTest() {
+    if (state.xpDropTesting || !state.config) return;
+    const crateId = elements.xpDropTestCrate.value;
+    if (!crateId) return showToast('Add a crate before sending a test.', 'error');
+    state.xpDropTesting = true;
+    renderXpDrops();
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/xp-drops/test`, {
+        method: 'POST',
+        body: JSON.stringify({
+          crateId,
+          channelId: elements.xpDropTestChannel.value,
+          xpDrops: state.config.leveling.xpDrops,
+        }),
+      });
+      showToast(`Test crate sent to <#${result.channelId}>. Claims will not award XP.`);
+    } catch (error) {
+      showToast(error.message || 'The test crate could not be sent.', 'error');
+    } finally {
+      state.xpDropTesting = false;
+      renderXpDrops();
     }
   }
 
@@ -579,6 +763,7 @@
     renderLevelingRewards();
     renderLevelingBoosts();
     renderMessagePreview();
+    renderXpDrops();
     refreshDirty();
   }
 
@@ -898,12 +1083,15 @@
     if (target.matches('[data-inline-message-input]')) {
       const field = target.dataset.inlineTemplateField;
       const limits = { template: 3000 };
-      if (limits[field]) leveling.announcements[field] = target.value.slice(0, limits[field]);
+      if (target.dataset.inlineTemplateScope === 'xpDrops') {
+        if (['dropTemplate', 'claimTemplate'].includes(field)) leveling.xpDrops[field] = target.value.slice(0, 3000);
+      } else if (limits[field]) leveling.announcements[field] = target.value.slice(0, limits[field]);
       syncInlineEditorVisual(target);
       refreshDirty();
       return;
     }
     if (target === elements.levelingEnabled) leveling.enabled = target.checked;
+    if (target === elements.xpDropsEnabled) leveling.xpDrops.enabled = target.checked;
     if (target === elements.levelingXpMin) {
       leveling.xp.min = Math.round(clampNumber(target.value, 1, 1000, 15));
       leveling.xp.max = Math.max(leveling.xp.min, leveling.xp.max);
@@ -960,6 +1148,37 @@
     if (target.matches('[data-level-boost-multiplier]')) {
       const boost = leveling.roleBoosts[Number(target.dataset.levelBoostMultiplier)];
       if (boost) boost.multiplier = Math.round(clampNumber(target.value, 0, 10, 1));
+    }
+    if (target.matches('[data-xp-drop-field]')) {
+      const index = Number(target.dataset.xpDropIndex);
+      const crate = leveling.xpDrops.crates[index];
+      const field = target.dataset.xpDropField;
+      if (crate) {
+        if (field === 'enabled' || field === 'allowMultipleClaims') crate[field] = target.checked;
+        else if (field === 'name') crate.name = target.value.slice(0, 80);
+        else if (field === 'channelId') crate.channelId = target.value;
+        else if (field === 'xpMin') {
+          crate.xp.min = Math.round(clampNumber(target.value, 1, 1_000_000, crate.xp.min));
+          crate.xp.max = Math.max(crate.xp.min, crate.xp.max);
+        } else if (field === 'xpMax') crate.xp.max = Math.round(clampNumber(target.value, crate.xp.min, 1_000_000, crate.xp.max));
+        else if (field === 'dropEvery' || field === 'despawnAfter') crate[field] = target.value.slice(0, 16);
+        else if (field === 'chancePercent') crate.chancePercent = clampNumber(target.value, 0, 100, crate.chancePercent);
+        else if (field === 'claimLimit') crate.claimLimit = Math.round(clampNumber(target.value, 1, 1000, crate.claimLimit));
+        else if (field === 'containerColor') {
+          crate.containerColor = target.value;
+          target.closest('.xp-drop-card')?.style.setProperty('--crate-color', target.value);
+          const code = target.closest('.crate-color-input')?.querySelector('code');
+          if (code) code.textContent = target.value;
+        }
+        const card = target.closest('.xp-drop-card');
+        const heading = card?.querySelector('header strong');
+        const summary = card?.querySelector('header small');
+        if (heading) heading.textContent = crate.name || 'Unnamed crate';
+        if (summary) summary.textContent = `${crate.enabled ? 'Scheduled' : 'Paused'} · ${crate.dropEvery || 'invalid interval'} · ${crate.chancePercent}% chance`;
+        const testOption = [...elements.xpDropTestCrate.options].find((option) => option.value === crate.id);
+        if (testOption) testOption.textContent = crate.name || 'Unnamed crate';
+        renderXpDropMessagePreviews();
+      }
     }
     refreshDirty();
   }
@@ -2142,35 +2361,57 @@
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
-  elements.levelingMessagePreview.addEventListener('click', (event) => {
-    const edit = event.target.closest('[data-inline-message-display]');
-    if (edit) return beginInlineMessageEdit(edit);
-    const done = event.target.closest('[data-inline-message-done]');
-    if (done) finishInlineMessageEdit(done.closest('[data-inline-message-editor]'));
-  });
-  elements.levelingMessagePreview.addEventListener('keydown', (event) => {
-    const edit = event.target.closest('[data-inline-message-display]');
-    if (edit && ['Enter', ' '].includes(event.key)) {
-      event.preventDefault();
-      beginInlineMessageEdit(edit);
-      return;
-    }
-    if (event.target.matches('[data-inline-message-input]') && event.key === 'Escape') event.target.blur();
-  });
-  elements.levelingMessagePreview.addEventListener('focusout', (event) => {
-    const editor = event.target.closest('[data-inline-message-editor]');
-    if (!editor) return;
-    window.setTimeout(() => {
-      if (!editor.contains(document.activeElement)) finishInlineMessageEdit(editor);
-    }, 0);
-  });
-  elements.levelingMessagePreview.addEventListener('scroll', (event) => {
-    const input = event.target.closest?.('[data-inline-message-input]');
-    const mirror = input?.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-highlight]');
-    if (input && mirror) mirror.style.transform = `translateY(-${input.scrollTop}px)`;
-  }, true);
+  for (const preview of [elements.levelingMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
+    preview.addEventListener('click', (event) => {
+      const edit = event.target.closest('[data-inline-message-display]');
+      if (edit) return beginInlineMessageEdit(edit);
+      const done = event.target.closest('[data-inline-message-done]');
+      if (done) finishInlineMessageEdit(done.closest('[data-inline-message-editor]'));
+    });
+    preview.addEventListener('keydown', (event) => {
+      const edit = event.target.closest('[data-inline-message-display]');
+      if (edit && ['Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        beginInlineMessageEdit(edit);
+        return;
+      }
+      if (event.target.matches('[data-inline-message-input]') && event.key === 'Escape') event.target.blur();
+    });
+    preview.addEventListener('focusout', (event) => {
+      const editor = event.target.closest('[data-inline-message-editor]');
+      if (!editor) return;
+      window.setTimeout(() => {
+        if (!editor.contains(document.activeElement)) finishInlineMessageEdit(editor);
+      }, 0);
+    });
+    preview.addEventListener('scroll', (event) => {
+      const input = event.target.closest?.('[data-inline-message-input]');
+      const mirror = input?.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-highlight]');
+      if (input && mirror) mirror.style.transform = `translateY(-${input.scrollTop}px)`;
+    }, true);
+  }
   elements.levelingAddReward.addEventListener('click', addLevelReward);
   elements.levelingAddBoost.addEventListener('click', addLevelBoost);
+  elements.xpDropAdd.addEventListener('click', addXpDrop);
+  elements.xpDropTestButton.addEventListener('click', sendXpDropTest);
+  elements.xpDropTestCrate.addEventListener('change', renderXpDropMessagePreviews);
+  elements.xpDropVariables.addEventListener('click', async (event) => {
+    const variable = event.target.closest('[data-copy-variable]');
+    if (!variable) return;
+    await navigator.clipboard?.writeText?.(variable.dataset.copyVariable).catch(() => null);
+    showToast(`${variable.dataset.copyVariable} copied.`);
+  });
+  elements.xpDropList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-xp-drop]');
+    if (!button || !state.config) return;
+    state.config.leveling.xpDrops.crates.splice(Number(button.dataset.removeXpDrop), 1);
+    renderXpDrops();
+    refreshDirty();
+  });
+  elements.xpDropList.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-xp-drop-media]');
+    if (upload) uploadXpDropMedia(upload);
+  });
   elements.levelingContainerAdd.addEventListener('click', () => {
     state.config.leveling.announcements.layout.container = !state.config.leveling.announcements.layout.container;
     renderMessagePreview();

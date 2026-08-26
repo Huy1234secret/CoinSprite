@@ -11,6 +11,7 @@ const {
   getGuildConfig,
   getGuildConfigRaw,
   loadState,
+  normalizeLevelingConfig,
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
@@ -38,6 +39,8 @@ const {
   normalizeLevelCardDesign,
   renderLevelCard,
   saveLevelCardDesign,
+  findXpDropCrate,
+  sendXpDrop,
 } = require('./leveling');
 
 const SESSION_STORE_PATH = process.env.ADMIN_SESSION_STORE_PATH || path.join(__dirname, '..', 'data', 'admin-sessions.json');
@@ -47,8 +50,8 @@ const COOKIE_NAME = 'coinsprite_admin';
 const SESSION_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
 const MAX_BODY_BYTES = 512 * 1024;
-const MAX_LEVELING_MEDIA_BYTES = 5 * 1024 * 1024;
-const MAX_LEVELING_MEDIA_BODY_BYTES = 7 * 1024 * 1024;
+const MAX_LEVELING_MEDIA_BYTES = 10 * 1024 * 1024;
+const MAX_LEVELING_MEDIA_BODY_BYTES = 14 * 1024 * 1024;
 const LEVELING_MEDIA_TYPES = Object.freeze({
   gif: { extension: 'gif', contentType: 'image/gif' },
   jpeg: { extension: 'jpg', contentType: 'image/jpeg' },
@@ -249,17 +252,24 @@ async function readJsonBody(req, maxBytes = MAX_BODY_BYTES) {
   }
 }
 
-function decodeLevelingMedia(dataUrl) {
-  const match = String(dataUrl || '').match(/^data:image\/(png|jpeg|webp|gif);base64,([a-z0-9+/=]+)$/i);
+async function decodeLevelingMedia(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i);
   if (!match) {
-    const error = new Error('Upload a PNG, JPG, WEBP, or GIF image.');
+    const error = new Error('Upload a valid image file.');
     error.statusCode = 400;
     throw error;
   }
-  const type = match[1].toLowerCase();
+  const mimeType = match[1].toLowerCase();
+  const type = ({
+    'image/gif': 'gif',
+    'image/jpeg': 'jpeg',
+    'image/jpg': 'jpeg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+  })[mimeType];
   const data = Buffer.from(match[2], 'base64');
   if (!data.length || data.length > MAX_LEVELING_MEDIA_BYTES) {
-    const error = new Error('Images must be 5 MB or smaller.');
+    const error = new Error('Images must be 10 MB or smaller.');
     error.statusCode = data.length ? 413 : 400;
     throw error;
   }
@@ -269,13 +279,28 @@ function decodeLevelingMedia(dataUrl) {
       ? data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff
       : type === 'gif'
         ? ['GIF87a', 'GIF89a'].includes(data.subarray(0, 6).toString('ascii'))
-        : data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP';
-  if (!valid) {
+        : type === 'webp' && data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (type && !valid) {
     const error = new Error('The uploaded file does not match its image type.');
     error.statusCode = 400;
     throw error;
   }
-  return { data, ...LEVELING_MEDIA_TYPES[type] };
+  if (type) return { data, ...LEVELING_MEDIA_TYPES[type] };
+
+  try {
+    const image = await loadImage(data);
+    if (!image.width || !image.height || image.width * image.height > 40_000_000) throw new Error('unsupported dimensions');
+    const scale = Math.min(1, 4096 / image.width, 4096 / image.height);
+    const canvas = createCanvas(Math.max(1, Math.round(image.width * scale)), Math.max(1, Math.round(image.height * scale)));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    const normalized = canvas.toBuffer('image/png');
+    if (normalized.length > MAX_LEVELING_MEDIA_BYTES) throw new Error('normalized image too large');
+    return { data: normalized, extension: 'png', contentType: 'image/png' };
+  } catch {
+    const error = new Error('That image type could not be decoded. Try PNG, JPG, WEBP, GIF, or another standard image format.');
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 function serveLevelingMedia(res, pathname) {
@@ -801,7 +826,7 @@ async function routeRequest(req, res, env, client, services = {}) {
     const session = await requireSignedIn(req, res, env);
     if (!session || !requireCsrf(req, res, session)) return;
     const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
-    const media = decodeLevelingMedia(body?.dataUrl);
+    const media = await decodeLevelingMedia(body?.dataUrl);
     if (media.extension === 'gif') return sendJson(res, 400, { error: 'Card artwork must be PNG, JPG, or WEBP.' });
     let imageData;
     try {
@@ -831,7 +856,7 @@ async function routeRequest(req, res, env, client, services = {}) {
       return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
     }
     const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
-    const media = decodeLevelingMedia(body?.dataUrl);
+    const media = await decodeLevelingMedia(body?.dataUrl);
     const id = crypto.randomBytes(16).toString('hex');
     const directory = path.join(LEVELING_MEDIA_DIR, guildId);
     fs.mkdirSync(directory, { recursive: true });
@@ -841,6 +866,38 @@ async function routeRequest(req, res, env, client, services = {}) {
       try { origin = new URL(env.redirectUri).origin; } catch { origin = `http://${req.headers.host || `${env.host}:${env.port}`}`; }
     }
     return sendJson(res, 201, { url: `${origin}/leveling-media/${guildId}/${id}.${media.extension}` });
+  }
+
+  const xpDropTestMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/xp-drops\/test$/);
+  if (req.method === 'POST' && xpDropTestMatch) {
+    const guildId = xpDropTestMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    if (getGuildConfigRaw(guildId)?.features?.leveling !== true) {
+      return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
+    }
+    const body = await readJsonBody(req);
+    const savedLeveling = getGuildConfigRaw(guildId)?.leveling || {};
+    const leveling = normalizeLevelingConfig({
+      ...savedLeveling,
+      xpDrops: body?.xpDrops && typeof body.xpDrops === 'object' ? body.xpDrops : savedLeveling.xpDrops,
+    });
+    const crate = findXpDropCrate(leveling, body?.crateId);
+    if (!crate) return sendJson(res, 400, { error: 'Choose an existing crate.' });
+    const sent = await sendXpDrop({
+      guild: auth.guild,
+      crate,
+      channelId: String(body?.channelId || crate.channelId),
+      test: true,
+      templates: leveling.xpDrops,
+    });
+    return sendJson(res, 201, {
+      ok: true,
+      crateId: crate.id,
+      channelId: sent.channel.id,
+      messageId: sent.message.id,
+      messageUrl: sent.message.url || '',
+    });
   }
 
   const configMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/config$/);

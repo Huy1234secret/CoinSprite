@@ -7,6 +7,7 @@ const {
   levelCardRendererIdentity,
 } = require('./canvasFonts');
 const {
+  ChannelType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -15,10 +16,11 @@ const { readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
 const { logCommandSystem } = require('./commandLogger');
 const {
   DEFAULT_LEVELING_CONFIG,
+  durationSeconds,
   getGuildConfig,
   isGuildLevelingEnabled,
 } = require('./serverConfig');
-const { acknowledgeEphemeral, acknowledgeUpdate } = require('./features/shared/interactionResponses');
+const { acknowledgeEphemeral, acknowledgeUpdate, completeEphemeral } = require('./features/shared/interactionResponses');
 
 const DATA_PATH = process.env.LEVELING_DATA_PATH || path.join(__dirname, '..', 'data', 'leveling.json');
 const LEVEL_CARD_MEDIA_DIR = path.join(__dirname, '..', 'data', 'level-card-media');
@@ -31,6 +33,7 @@ const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const LEVEL_CARD_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 const LEVEL_CARD_TEXT_TOP_ADJUSTMENT = 0.075;
+const XP_DROP_SCHEDULER_INTERVAL_MS = 5_000;
 const CANVAS_UNICODE_FALLBACK = '"CoinSprite Unicode", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Sans", "DejaVu Sans", sans-serif';
 const CANVAS_FONT_FAMILY = '"Noto Sans Variable", ' + CANVAS_UNICODE_FALLBACK;
 const LEVEL_CARD_FONT_FAMILIES = Object.freeze({
@@ -59,12 +62,13 @@ let cachedState = null;
 let cachedStateMtime = 0;
 let lastCheckTime = 0;
 let saveTimer = null;
+let xpDropSchedulerTimer = null;
 const levelCardAssetCache = new Map();
 const avatarImageCache = new Map();
 const emojiImageCache = new Map();
 
 function blankState() {
-  return { version: 2, guilds: {}, profiles: {} };
+  return { version: 3, guilds: {}, profiles: {} };
 }
 
 const DEFAULT_LEVEL_CARD_DESIGN = Object.freeze({
@@ -218,6 +222,35 @@ function normalizeRecord(value = {}) {
   };
 }
 
+function normalizeActiveXpDrop(value = {}) {
+  const xpMin = Math.max(1, Math.min(1_000_000, Math.floor(Number(value.xpMin) || 1)));
+  const claims = Array.isArray(value.claims)
+    ? value.claims.map(String).filter((id) => /^\d{16,20}$/.test(id)).slice(0, 1000)
+    : [];
+  return {
+    id: /^[a-f0-9]{24}$/.test(String(value.id || '')) ? String(value.id) : '',
+    messageId: /^\d{16,20}$/.test(String(value.messageId || '')) ? String(value.messageId) : '',
+    channelId: /^\d{16,20}$/.test(String(value.channelId || '')) ? String(value.channelId) : '',
+    crateId: String(value.crateId || '').slice(0, 40),
+    crateName: String(value.crateName || 'XP Crate').slice(0, 80),
+    imageUrl: safeMediaUrl(value.imageUrl),
+    xpMin,
+    xpMax: Math.max(xpMin, Math.min(1_000_000, Math.floor(Number(value.xpMax) || xpMin))),
+    claimLimit: Math.max(1, Math.min(1000, Math.floor(Number(value.claimLimit) || 1))),
+    allowMultipleClaims: value.allowMultipleClaims === true,
+    color: safeColor(value.color, '#b9f547'),
+    dropTemplate: String(value.dropTemplate || '').slice(0, 3000),
+    claimTemplate: String(value.claimTemplate || '').slice(0, 3000),
+    dropEvery: String(value.dropEvery || '').slice(0, 32),
+    chancePercent: Math.max(0, Math.min(100, Number(value.chancePercent) || 0)),
+    despawnAfter: String(value.despawnAfter || '').slice(0, 32),
+    test: value.test === true,
+    claims,
+    createdAt: Math.max(0, Number(value.createdAt) || 0),
+    expiresAt: Math.max(0, Number(value.expiresAt) || 0),
+  };
+}
+
 function normalizeState(value) {
   const state = blankState();
   if (!value || typeof value !== 'object') return state;
@@ -227,7 +260,20 @@ function normalizeState(value) {
     for (const [userId, record] of Object.entries(guild?.users || {})) {
       if (/^\d{16,20}$/.test(userId)) users[userId] = normalizeRecord(record);
     }
-    state.guilds[guildId] = { users };
+    const schedule = {};
+    for (const [crateId, entry] of Object.entries(guild?.xpDrops?.schedule || {})) {
+      if (!/^[a-z0-9_-]{1,40}$/.test(crateId)) continue;
+      schedule[crateId] = {
+        intervalMs: Math.max(1000, Number(entry?.intervalMs) || 0),
+        nextAt: Math.max(0, Number(entry?.nextAt) || 0),
+      };
+    }
+    const active = {};
+    for (const [dropId, entry] of Object.entries(guild?.xpDrops?.active || {})) {
+      const drop = normalizeActiveXpDrop({ ...entry, id: dropId });
+      if (drop.id && drop.channelId && drop.messageId) active[drop.id] = drop;
+    }
+    state.guilds[guildId] = { users, xpDrops: { schedule, active } };
   }
   for (const [userId, profile] of Object.entries(value.profiles || {})) {
     if (!/^\d{16,20}$/.test(userId)) continue;
@@ -284,9 +330,17 @@ function resetLevelingCache() {
 }
 
 function guildUsers(guildId) {
+  return guildLevelingState(guildId).users;
+}
+
+function guildLevelingState(guildId) {
   const state = getState();
-  state.guilds[guildId] ||= { users: {} };
-  return state.guilds[guildId].users;
+  state.guilds[guildId] ||= { users: {}, xpDrops: { schedule: {}, active: {} } };
+  state.guilds[guildId].users ||= {};
+  state.guilds[guildId].xpDrops ||= { schedule: {}, active: {} };
+  state.guilds[guildId].xpDrops.schedule ||= {};
+  state.guilds[guildId].xpDrops.active ||= {};
+  return state.guilds[guildId];
 }
 
 function userRecord(guildId, userId) {
@@ -1466,6 +1520,287 @@ function levelUpAnnouncementPayload(content, config) {
   };
 }
 
+function xpDropTemplateText(template, crate, values = {}) {
+  const claimsLeft = Math.max(0, Number(values.claimsLeft ?? crate.claimLimit) || 0);
+  const replacements = {
+    crate_name: safeName(crate.name || crate.crateName || 'XP Crate'),
+    xp_min: number(crate.xp?.min ?? crate.xpMin),
+    xp_max: number(crate.xp?.max ?? crate.xpMax),
+    claim_limit: number(crate.claimLimit),
+    claims_left: number(claimsLeft),
+    chance: String(crate.chancePercent ?? 100),
+    drop_every: String(crate.dropEvery || 'manual'),
+    despawn_time: String(crate.despawnAfter || 'never'),
+    user: values.userId ? `<@${values.userId}>` : '@member',
+    username: safeName(values.username || 'Member'),
+    xp: number(values.xp),
+    total_xp: number(values.totalXp),
+    level: number(values.level),
+    server: safeName(values.serverName || 'Server'),
+    channel: values.channelId ? `<#${values.channelId}>` : '#channel',
+  };
+  let output = String(template || '');
+  for (const [key, value] of Object.entries(replacements)) output = output.replaceAll(`{${key}}`, value);
+  return output;
+}
+
+function xpDropMessagePayload(drop, options = {}) {
+  const claimsLeft = Math.max(0, drop.claimLimit - drop.claims.length);
+  const content = xpDropTemplateText(drop.dropTemplate, drop, {
+    claimsLeft,
+    serverName: options.serverName,
+    channelId: drop.channelId,
+  });
+  const contentParts = content.split(/\{separator\}/gi);
+  const boundedContent = contentParts.length > 4
+    ? [...contentParts.slice(0, 3), contentParts.slice(3).join('\n')].join('{separator}')
+    : content;
+  const components = announcementContentComponents(boundedContent, {
+    galleryUrls: drop.imageUrl ? [drop.imageUrl] : [],
+  });
+  if (components.length) components.push({ type: 14, divider: true, spacing: 1 });
+  components.push({
+    type: 1,
+    components: [{
+      type: 2,
+      style: 3,
+      custom_id: `leveling:xp-drop:${drop.id}`,
+      label: claimsLeft ? `Claim ${String(drop.crateName || 'XP crate').slice(0, 68)}` : 'Fully claimed',
+      disabled: options.disabled === true || claimsLeft === 0,
+    }],
+  });
+  return {
+    flags: COMPONENTS_V2_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: accentColorValue(drop.color),
+      components,
+    }],
+  };
+}
+
+function xpDropClaimPayload(content, color) {
+  return {
+    flags: COMPONENTS_V2_FLAG | EPHEMERAL_FLAG,
+    allowedMentions: { parse: [], users: [], roles: [] },
+    components: [{
+      type: 17,
+      accent_color: accentColorValue(color),
+      components: announcementContentComponents(content),
+    }],
+  };
+}
+
+function findXpDropCrate(config, value) {
+  const needle = String(value || '').trim().toLowerCase();
+  return (config?.xpDrops?.crates || []).find((crate) => (
+    crate.id.toLowerCase() === needle || crate.name.toLowerCase() === needle
+  )) || null;
+}
+
+async function resolveXpDropChannel(guild, channelId) {
+  const id = String(channelId || '');
+  if (!id) return null;
+  const channel = guild?.channels?.cache?.get?.(id)
+    || await guild?.channels?.fetch?.(id).catch(() => null);
+  return channel?.isTextBased?.() && typeof channel.send === 'function' ? channel : null;
+}
+
+async function expireXpDrop(client, guildId, dropId) {
+  const drops = guildLevelingState(String(guildId)).xpDrops.active;
+  const drop = drops[dropId];
+  if (!drop) return false;
+  delete drops[dropId];
+  scheduleSave();
+  const guild = client?.guilds?.cache?.get?.(String(guildId))
+    || await client?.guilds?.fetch?.(String(guildId)).catch(() => null);
+  const channel = guild ? await resolveXpDropChannel(guild, drop.channelId) : null;
+  const message = await channel?.messages?.fetch?.(drop.messageId).catch(() => null);
+  if (message?.delete) await message.delete().catch(() => null);
+  return true;
+}
+
+function scheduleXpDropExpiry(guild, drop) {
+  if (!drop.expiresAt) return;
+  const delay = Math.max(0, drop.expiresAt - Date.now());
+  const timer = setTimeout(() => {
+    if (Date.now() < drop.expiresAt) return scheduleXpDropExpiry(guild, drop);
+    return expireXpDrop(guild.client, guild.id, drop.id).catch((error) => {
+      logCommandSystem(`XP drop despawn failed in ${guild.id}: ${error?.message || 'unknown error'}`);
+    });
+  }, Math.min(delay, 2_147_000_000));
+  timer.unref?.();
+}
+
+async function sendXpDrop({ guild, crate, channelId, test = false, templates } = {}) {
+  const destinationId = String(channelId || crate?.channelId || '');
+  const channel = await resolveXpDropChannel(guild, destinationId);
+  if (!channel) throw Object.assign(new Error('Choose a text channel where CoinSprite can send the crate.'), { statusCode: 400 });
+  const xpDrops = templates || levelingConfig(guild.id).xpDrops;
+  const now = Date.now();
+  const despawnSeconds = durationSeconds(crate.despawnAfter, 0);
+  const drop = normalizeActiveXpDrop({
+    id: crypto.randomBytes(12).toString('hex'),
+    channelId: channel.id,
+    crateId: crate.id,
+    crateName: crate.name,
+    imageUrl: crate.imageUrl,
+    xpMin: crate.xp.min,
+    xpMax: crate.xp.max,
+    claimLimit: crate.claimLimit,
+    allowMultipleClaims: crate.allowMultipleClaims,
+    color: crate.containerColor,
+    dropTemplate: xpDrops.dropTemplate,
+    claimTemplate: xpDrops.claimTemplate,
+    dropEvery: crate.dropEvery,
+    chancePercent: crate.chancePercent,
+    despawnAfter: crate.despawnAfter,
+    test,
+    claims: [],
+    createdAt: now,
+    expiresAt: despawnSeconds ? now + despawnSeconds * 1000 : 0,
+  });
+  const sent = await channel.send(xpDropMessagePayload(drop, { serverName: guild.name }));
+  drop.messageId = String(sent.id);
+  guildLevelingState(guild.id).xpDrops.active[drop.id] = drop;
+  scheduleSave();
+  scheduleXpDropExpiry(guild, drop);
+  logCommandSystem(`${test ? 'Test XP drop' : 'XP drop'} ${drop.crateId} sent in ${guild.id}/${channel.id}.`);
+  return { drop, message: sent, channel };
+}
+
+function reserveXpDropClaim(drop, userId, nowMs = Date.now()) {
+  const id = String(userId || '');
+  if (drop.expiresAt && nowMs >= drop.expiresAt) return { accepted: false, reason: 'expired', claimsLeft: 0 };
+  const claimsLeft = Math.max(0, drop.claimLimit - drop.claims.length);
+  if (!claimsLeft) return { accepted: false, reason: 'full', claimsLeft: 0 };
+  if (!drop.allowMultipleClaims && drop.claims.includes(id)) return { accepted: false, reason: 'duplicate', claimsLeft };
+  drop.claims.push(id);
+  return { accepted: true, reason: 'claimed', claimsLeft: Math.max(0, drop.claimLimit - drop.claims.length) };
+}
+
+async function handleXpDropClaim(interaction) {
+  if (!await acknowledgeEphemeral(interaction)) return true;
+  const dropId = String(interaction.customId || '').split(':')[2] || '';
+  const drops = guildLevelingState(String(interaction.guildId)).xpDrops.active;
+  const drop = drops[dropId];
+  const unavailable = (copy) => completeEphemeral(interaction, v2Payload(`## Crate unavailable\n${copy}`, { color: 0xed4245 }));
+  if (!drop || drop.messageId !== String(interaction.message?.id || '')) {
+    await unavailable('This crate is no longer active.');
+    return true;
+  }
+  const reservation = reserveXpDropClaim(drop, interaction.user.id);
+  if (reservation.reason === 'expired') {
+    await expireXpDrop(interaction.client, interaction.guildId, dropId);
+    await unavailable('This crate has despawned.');
+    return true;
+  }
+  if (reservation.reason === 'full') {
+    await unavailable('Every claim has already been taken.');
+    return true;
+  }
+  if (reservation.reason === 'duplicate') {
+    await unavailable('You already claimed this crate.');
+    return true;
+  }
+
+  const xp = crypto.randomInt(drop.xpMin, Math.max(drop.xpMin, drop.xpMax) + 1);
+  const claimsLeft = reservation.claimsLeft;
+  let stats = memberStats(interaction.guildId, interaction.user.id);
+  let result = null;
+  let config = null;
+  if (!drop.test) {
+    config = levelingConfig(interaction.guildId);
+    result = applyXpToRecord(userRecord(interaction.guildId, interaction.user.id), xp, config);
+    stats = memberStats(interaction.guildId, interaction.user.id, config);
+  }
+  if (!claimsLeft) delete drops[dropId];
+  flushLevelingState();
+  if (result) await syncRewardRoles(interaction.guild, interaction.user.id, result.newLevel, config);
+
+  const publicPayload = xpDropMessagePayload(drop, {
+    disabled: claimsLeft === 0,
+    serverName: interaction.guild?.name,
+  });
+  delete publicPayload.flags;
+  await interaction.message?.edit?.(publicPayload).catch((error) => {
+    logCommandSystem(`XP drop claim counter update failed in ${interaction.guildId}: ${error?.message || 'unknown error'}`);
+  });
+  let claimText = xpDropTemplateText(drop.claimTemplate, drop, {
+    claimsLeft,
+    userId: interaction.user.id,
+    username: interaction.member?.displayName || interaction.user.globalName || interaction.user.username,
+    xp,
+    totalXp: stats.xp,
+    level: stats.level,
+    serverName: interaction.guild?.name,
+    channelId: interaction.channelId,
+  });
+  if (drop.test) claimText = `-# Test crate — no XP was awarded.\n${claimText}`;
+  await completeEphemeral(interaction, xpDropClaimPayload(claimText, drop.color));
+  return true;
+}
+
+async function runXpDropScheduler(client, options = {}) {
+  const now = Number(options.nowMs) || Date.now();
+  const random = options.random || Math.random;
+  const sends = [];
+  let dirty = false;
+  for (const guild of client?.guilds?.cache?.values?.() || []) {
+    const config = levelingConfig(guild.id);
+    const dropState = guildLevelingState(guild.id).xpDrops;
+    for (const [dropId, drop] of Object.entries(dropState.active)) {
+      if (drop.expiresAt && now >= drop.expiresAt) {
+        sends.push(expireXpDrop(client, guild.id, dropId));
+      }
+    }
+    const enabledCrates = config.enabled && config.xpDrops?.enabled
+      ? config.xpDrops.crates.filter((crate) => crate.enabled && crate.channelId)
+      : [];
+    const activeIds = new Set(enabledCrates.map((crate) => crate.id));
+    for (const crateId of Object.keys(dropState.schedule)) {
+      if (!activeIds.has(crateId)) {
+        delete dropState.schedule[crateId];
+        dirty = true;
+      }
+    }
+    for (const crate of enabledCrates) {
+      const intervalMs = durationSeconds(crate.dropEvery, 1800) * 1000;
+      const scheduled = dropState.schedule[crate.id];
+      if (!scheduled || scheduled.intervalMs !== intervalMs) {
+        dropState.schedule[crate.id] = { intervalMs, nextAt: now + intervalMs };
+        dirty = true;
+        continue;
+      }
+      if (now < scheduled.nextAt) continue;
+      scheduled.nextAt = now + intervalMs;
+      dirty = true;
+      if (random() * 100 >= crate.chancePercent) continue;
+      sends.push(sendXpDrop({ guild, crate, templates: config.xpDrops }).catch((error) => {
+        logCommandSystem(`Scheduled XP drop ${crate.id} failed in ${guild.id}: ${error?.message || 'unknown error'}`);
+      }));
+    }
+  }
+  if (dirty) scheduleSave();
+  await Promise.all(sends);
+  return sends.length;
+}
+
+function startXpDropScheduler(client, options = {}) {
+  if (xpDropSchedulerTimer) clearInterval(xpDropSchedulerTimer);
+  const tick = () => runXpDropScheduler(client).catch((error) => {
+    logCommandSystem(`XP drop scheduler failed: ${error?.message || 'unknown error'}`);
+  });
+  xpDropSchedulerTimer = setInterval(tick, Math.max(1000, Number(options.intervalMs) || XP_DROP_SCHEDULER_INTERVAL_MS));
+  xpDropSchedulerTimer.unref?.();
+  tick();
+  return () => {
+    clearInterval(xpDropSchedulerTimer);
+    xpDropSchedulerTimer = null;
+  };
+}
+
 async function announceLevelUp(message, result, config) {
   if (!config.announcements.enabled) return;
   const channel = config.announcements.channelId
@@ -1576,6 +1911,32 @@ async function executeXpAdd(interaction) {
   await interaction.editReply(v2Payload(`## XP added\n**${safeName(user.username)}** received **${number(amount)} XP** and is now level **${result.newLevel}**.`));
 }
 
+async function executeDropCrate(interaction) {
+  if (!await acknowledgeEphemeral(interaction)) return;
+  const config = levelingConfig(interaction.guildId);
+  const requested = interaction.options.getString('crate', true);
+  const crate = findXpDropCrate(config, requested);
+  if (!crate) {
+    await interaction.editReply(v2Payload('## Crate not found\nChoose a configured crate from the autocomplete list.'));
+    return;
+  }
+  const selectedChannel = interaction.options.getChannel('channel');
+  try {
+    const { channel } = await sendXpDrop({
+      guild: interaction.guild,
+      crate,
+      channelId: selectedChannel?.id || crate.channelId,
+      templates: config.xpDrops,
+    });
+    await interaction.editReply(v2Payload(`## Crate dropped\n**${safeName(crate.name)}** was sent to <#${channel.id}>.`, {
+      allowedMentions: { parse: [], users: [], roles: [] },
+      color: accentColorValue(crate.containerColor),
+    }));
+  } catch (error) {
+    await interaction.editReply(v2Payload(`## Drop failed\n${safeName(error?.message || 'The crate could not be sent.')}`, { color: 0xed4245 }));
+  }
+}
+
 async function executeSetup(interaction) {
   await interaction.reply(v2Payload([
     '## \u219f Leveling setup',
@@ -1630,12 +1991,37 @@ const LEVELING_COMMANDS = [
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     execute: executeSetup,
   },
+  {
+    data: new SlashCommandBuilder()
+      .setName('drop-crate')
+      .setDescription('Drop a configured XP crate now.')
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addStringOption((option) => option.setName('crate').setDescription('Configured crate to drop').setAutocomplete(true).setRequired(true))
+      .addChannelOption((option) => option.setName('channel').setDescription('Override the crate default channel').addChannelTypes(
+        ChannelType.GuildText,
+        ChannelType.GuildAnnouncement,
+        ChannelType.PublicThread,
+        ChannelType.PrivateThread,
+        ChannelType.AnnouncementThread,
+      )),
+    execute: executeDropCrate,
+  },
 ];
 
 const commandMap = new Map(LEVELING_COMMANDS.map((command) => [command.data.name, command]));
-const ADMIN_COMMAND_NAMES = new Set(['level-set', 'xp-add', 'leveling-setup']);
+const ADMIN_COMMAND_NAMES = new Set(['level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
 
 async function handleLevelingInteraction(interaction) {
+  if (interaction.isAutocomplete?.() && interaction.commandName === 'drop-crate') {
+    const config = levelingConfig(interaction.guildId);
+    const focused = String(interaction.options.getFocused?.() || '').toLowerCase();
+    const choices = (config.xpDrops?.crates || [])
+      .filter((crate) => !focused || crate.name.toLowerCase().includes(focused))
+      .slice(0, 25)
+      .map((crate) => ({ name: crate.name, value: crate.id }));
+    await interaction.respond(choices);
+    return true;
+  }
   if (interaction.isChatInputCommand?.()) {
     const command = commandMap.get(interaction.commandName);
     if (!command) return false;
@@ -1652,6 +2038,9 @@ async function handleLevelingInteraction(interaction) {
     }
     await command.execute(interaction);
     return true;
+  }
+  if (interaction.isButton?.() && interaction.customId.startsWith('leveling:xp-drop:')) {
+    return handleXpDropClaim(interaction);
   }
   if (interaction.isButton?.() && interaction.customId.startsWith('leveling:leaderboard-open:')) {
     const [, , ownerId, maxPage] = interaction.customId.split(':');
@@ -1707,8 +2096,10 @@ module.exports = {
   getLevelCardProfile,
   handleLevelingInteraction,
   handleLevelingMessage,
+  handleXpDropClaim,
   leaderboardPage,
   levelUpAnnouncementPayload,
+  findXpDropCrate,
   levelForXp,
   memberStats,
   normalizeLevelCardDesign,
@@ -1726,6 +2117,12 @@ module.exports = {
   saveLevelCardDesign,
   levelCardRenderKey,
   sortedLeaderboard,
+  sendXpDrop,
+  startXpDropScheduler,
+  runXpDropScheduler,
+  reserveXpDropClaim,
+  xpDropMessagePayload,
+  xpDropTemplateText,
   xpThresholdForLevel,
   xpMultiplierForMessage,
 };
