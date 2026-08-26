@@ -887,7 +887,7 @@ async function routeRequest(req, res, env, client, services = {}) {
     const sent = await sendXpDrop({
       guild: auth.guild,
       crate,
-      channelId: String(body?.channelId || crate.channelId),
+      channelId: String(body?.channelId || ''),
       test: true,
       templates: leveling.xpDrops,
     });

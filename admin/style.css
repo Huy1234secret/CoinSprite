@@ -303,6 +303,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .leveling-command-strip code { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--soft); background: rgba(0,0,0,.16); font-size: 9px; }
 .xp-drop-head-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
 .xp-drop-head-actions .compact-switch { min-width: 260px; }
+.xp-drop-channel-card { min-width: 300px; min-height: 78px; display: grid; grid-template-columns: minmax(105px,.72fr) minmax(145px,1fr); align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: rgba(7,11,9,.42); }
+.xp-drop-channel-card > span { min-width: 0; display: grid; gap: 3px; }.xp-drop-channel-card strong { font-size: 10px; }.xp-drop-channel-card small { color: var(--muted); font-size: 8px; line-height: 1.35; }
+.xp-drop-channel-card select { width: 100%; min-width: 0; height: 39px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #0a0f0d; font-size: 10px; transition: border-color .14s ease, background .14s ease, box-shadow .14s ease; }
+.xp-drop-channel-card select:hover { border-color: rgba(185,245,71,.25); }.xp-drop-channel-card select:focus { border-color: rgba(185,245,71,.52); background: #0d1310; box-shadow: 0 0 0 3px rgba(185,245,71,.07); outline: 0; }
 .compact-variable-guide { grid-template-columns: repeat(4,minmax(0,1fr)); max-height: 170px; margin: 14px 0 10px; overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: rgba(7,11,9,.35); }
 .xp-drop-message-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
 .xp-drop-preview-frame { border-left: 5px solid var(--accent-color); }
@@ -479,6 +483,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .compact-variable-guide { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .xp-drop-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .xp-drop-test-panel { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .xp-drop-heading { align-items: flex-start; flex-direction: column; }
+  .xp-drop-head-actions { width: 100%; justify-content: flex-start; }
   .studio-grid { grid-template-columns: 150px minmax(0,1fr); }
   .inspector-panel { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
   .inspector-fields { grid-template-columns: repeat(4,minmax(0,1fr)); }
@@ -539,6 +545,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .metric-grid { grid-template-columns: 1fr; }
   .leveling-settings-grid, .rng-settings-grid, .ignored-channel-list { grid-template-columns: 1fr; }
   .compact-variable-guide, .xp-drop-fields, .xp-drop-test-panel { grid-template-columns: 1fr; }
+  .xp-drop-head-actions { align-items: stretch; flex-direction: column; }
+  .xp-drop-head-actions .compact-switch, .xp-drop-channel-card { width: 100%; min-width: 0; }
+  .xp-drop-channel-card { grid-template-columns: 1fr; }
   .xp-drop-card-body { grid-template-columns: 1fr; }
   .xp-drop-fields > label.wide { grid-column: auto; }
   .xp-drop-card > header { align-items: flex-start; flex-direction: column; }

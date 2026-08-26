@@ -27,6 +27,7 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   stackRoleRewards: true,
   xpDrops: Object.freeze({
     enabled: false,
+    channelId: '',
     dropTemplate: '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}',
     claimTemplate: '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining',
     crates: Object.freeze([]),
@@ -225,6 +226,7 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
       : source.stackRoleRewards !== false,
     xpDrops: {
       enabled: xpDropSource.enabled === undefined ? xpDropDefaults.enabled === true : xpDropSource.enabled === true,
+      channelId: cleanId(xpDropSource.channelId),
       dropTemplate: String(xpDropSource.dropTemplate || xpDropDefaults.dropTemplate)
         .trim().slice(0, 3000) || xpDropDefaults.dropTemplate,
       claimTemplate: String(xpDropSource.claimTemplate || xpDropDefaults.claimTemplate)

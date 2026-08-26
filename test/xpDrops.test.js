@@ -23,11 +23,12 @@ fs.writeFileSync(process.env.SERVER_CONFIG_STORE_PATH, JSON.stringify({
         channelMultipliers: {}, roleRewards: [], roleBoosts: [], stackRoleRewards: true,
         xpDrops: {
           enabled: true,
+          channelId,
           dropTemplate: '## {crate_name}\n{claims_left} left · {list_claimed_user}',
           claimTemplate: '{user} would receive {xp} XP',
           crates: [{
             id: 'common', enabled: true, name: 'Common Crate', imageUrl: '',
-            xp: { min: 50, max: 50 }, channelId, dropEvery: '1s', chancePercent: 100,
+            xp: { min: 50, max: 50 }, channelId: '923456789012345678', dropEvery: '1s', chancePercent: 100,
             claimLimit: 2, despawnAfter: '', allowMultipleClaims: false, containerColor: '#b9f547',
           }],
         },

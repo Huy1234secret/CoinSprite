@@ -171,6 +171,7 @@ test('XP drop configuration normalizes timers, limits, images, and duplicate IDs
   const config = normalizeLevelingConfig({
     xpDrops: {
       enabled: true,
+      channelId: '923456789012345678',
       dropTemplate: 'Drop {crate_name}',
       claimTemplate: '{user} claimed {xp}',
       crates: [
@@ -185,6 +186,7 @@ test('XP drop configuration normalizes timers, limits, images, and duplicate IDs
     },
   });
   assert.equal(config.xpDrops.enabled, true);
+  assert.equal(config.xpDrops.channelId, '923456789012345678');
   assert.equal(config.xpDrops.crates[0].id, 'crate-1');
   assert.notEqual(config.xpDrops.crates[1].id, config.xpDrops.crates[0].id);
   assert.deepEqual(config.xpDrops.crates[0].xp, { min: 1, max: 1_000_000 });

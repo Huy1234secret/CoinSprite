@@ -114,7 +114,7 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
-    xpDropsEnabled: $('#xpDropsEnabled'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
+    xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
     rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
@@ -249,6 +249,7 @@
     source.stackRoleRewards = source.stackRoleRewards !== false;
     source.xpDrops ||= {};
     source.xpDrops.enabled = source.xpDrops.enabled === true;
+    source.xpDrops.channelId = String(source.xpDrops.channelId || '');
     source.xpDrops.dropTemplate = String(source.xpDrops.dropTemplate || '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}').slice(0, 3000);
     source.xpDrops.claimTemplate = String(source.xpDrops.claimTemplate || '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining').slice(0, 3000);
     const usedCrateIds = new Set();
@@ -286,10 +287,10 @@
     return source;
   }
 
-  function channelOptions(selected, include = () => true) {
+  function channelOptions(selected, include = () => true, emptyLabel = 'Not routed') {
     const multiple = Array.isArray(selected);
     const selectedIds = new Set((multiple ? selected : [selected]).map(String).filter(Boolean));
-    const options = [`<option value="" ${multiple ? 'disabled' : ''}>Not routed</option>`];
+    const options = [`<option value="" ${multiple ? 'disabled' : ''}>${escapeHtml(emptyLabel)}</option>`];
     let lastParent = null;
     for (const channel of state.directory.channels.filter((item) => !item.archived && include(item))) {
       if (channel.parentName && channel.parentName !== lastParent) {
@@ -402,7 +403,7 @@
             <label class="wide"><span>Crate name</span><input type="text" maxlength="80" value="${escapeHtml(crate.name)}" data-xp-drop-field="name" data-xp-drop-index="${index}"></label>
             <label><span>Minimum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.min}" data-xp-drop-field="xpMin" data-xp-drop-index="${index}"></label>
             <label><span>Maximum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.max}" data-xp-drop-field="xpMax" data-xp-drop-index="${index}"></label>
-            <label class="wide"><span>Default channel</span><select data-xp-drop-field="channelId" data-xp-drop-index="${index}">${channelOptions(crate.channelId, (channel) => channel.kind !== 'forum')}</select></label>
+            <label class="wide"><span>Fallback channel</span><select data-xp-drop-field="channelId" data-xp-drop-index="${index}">${channelOptions(crate.channelId, (channel) => channel.kind !== 'forum', 'Use global crate channel')}</select><small>Used only when no global crate channel is selected</small></label>
             <label><span>Drop every</span>${xpDropDurationEditor(crate.dropEvery, index, 'dropEvery', 'Drop every')}<small>Choose an amount and time unit</small></label>
             <label><span>Chance (%)</span><input type="number" min="0" max="100" step="0.01" value="${crate.chancePercent}" data-xp-drop-field="chancePercent" data-xp-drop-index="${index}"></label>
             <label><span>Claim limit</span><input type="number" min="1" max="1000" value="${crate.claimLimit}" data-xp-drop-field="claimLimit" data-xp-drop-index="${index}"></label>
@@ -420,13 +421,14 @@
     const selectedCrate = elements.xpDropTestCrate.value;
     const selectedChannel = elements.xpDropTestChannel.value;
     elements.xpDropsEnabled.checked = xpDrops.enabled;
+    elements.xpDropChannel.innerHTML = channelOptions(xpDrops.channelId, (channel) => channel.kind !== 'forum', 'Choose a drop channel');
     elements.xpDropVariables.innerHTML = XP_DROP_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('');
     renderXpDropList();
     elements.xpDropTestCrate.innerHTML = xpDrops.crates.length
       ? xpDrops.crates.map((crate) => `<option value="${escapeHtml(crate.id)}" ${crate.id === selectedCrate ? 'selected' : ''}>${escapeHtml(crate.name)}</option>`).join('')
       : '<option value="">Add a crate first</option>';
     elements.xpDropTestChannel.innerHTML = channelOptions(selectedChannel, (channel) => channel.kind !== 'forum');
-    elements.xpDropTestChannel.options[0].textContent = 'Use the crate default channel';
+    elements.xpDropTestChannel.options[0].textContent = 'Use configured crate drop channel';
     elements.xpDropTestButton.disabled = state.xpDropTesting || !xpDrops.crates.length;
     elements.xpDropTestButton.textContent = state.xpDropTesting ? 'Sending…' : 'Send test';
     renderXpDropMessagePreviews();
@@ -436,10 +438,9 @@
     const crates = state.config?.leveling?.xpDrops?.crates;
     if (!crates || crates.length >= 100) return;
     const id = `crate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.slice(0, 40);
-    const defaultChannel = (state.directory.channels || []).find((channel) => !channel.archived && channel.kind !== 'forum')?.id || '';
     crates.push({
       id, enabled: true, name: `Crate ${crates.length + 1}`, imageUrl: '', xp: { min: 50, max: 100 },
-      channelId: defaultChannel, dropEvery: '30m', chancePercent: 100, claimLimit: 1,
+      channelId: '', dropEvery: '30m', chancePercent: 100, claimLimit: 1,
       despawnAfter: '', allowMultipleClaims: false, containerColor: '#b9f547',
     });
     renderXpDrops();
@@ -1105,6 +1106,7 @@
     }
     if (target === elements.levelingEnabled) leveling.enabled = target.checked;
     if (target === elements.xpDropsEnabled) leveling.xpDrops.enabled = target.checked;
+    if (target === elements.xpDropChannel) leveling.xpDrops.channelId = target.value;
     if (target === elements.levelingXpMin) {
       leveling.xp.min = Math.round(clampNumber(target.value, 1, 1000, 15));
       leveling.xp.max = Math.max(leveling.xp.min, leveling.xp.max);

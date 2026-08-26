@@ -91,6 +91,7 @@ test('dashboard retains leveling and RNG controls without stock navigation or AP
   assert.match(html, /data-view="rng-game"/);
   assert.match(html, /id="rngGameChannels" multiple/);
   assert.match(html, /id="xpDropList"/);
+  assert.match(html, /id="xpDropChannel"/);
   assert.match(html, /id="xpDropTestButton"/);
   assert.match(dashboard, /normalizeLevelingConfig/);
   assert.match(dashboard, /normalizeRngGameConfig/);
