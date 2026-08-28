@@ -171,6 +171,7 @@ test('XP drop configuration normalizes timers, limits, images, and duplicate IDs
   const config = normalizeLevelingConfig({
     xpDrops: {
       enabled: true,
+      channelId: '923456789012345678',
       dropTemplate: 'Drop {crate_name}',
       claimTemplate: '{user} claimed {xp}',
       crates: [
@@ -185,6 +186,7 @@ test('XP drop configuration normalizes timers, limits, images, and duplicate IDs
     },
   });
   assert.equal(config.xpDrops.enabled, true);
+  assert.equal(config.xpDrops.channelId, '923456789012345678');
   assert.equal(config.xpDrops.crates[0].id, 'crate-1');
   assert.notEqual(config.xpDrops.crates[1].id, config.xpDrops.crates[0].id);
   assert.deepEqual(config.xpDrops.crates[0].xp, { min: 1, max: 1_000_000 });
@@ -200,13 +202,13 @@ test('XP drop configuration normalizes timers, limits, images, and duplicate IDs
 test('XP drop payload renders crate variables, image, claim button, and remaining slots', () => {
   const drop = {
     id: 'abcdefabcdefabcdefabcdef', crateName: 'Common Crate', imageUrl: 'https://example.com/crate.gif',
-    xpMin: 50, xpMax: 100, claimLimit: 3, claims: ['123456789012345678'],
+    xpMin: 50, xpMax: 100, claimLimit: 4, claims: ['123456789012345678', '123456789012345678', '223456789012345678'],
     color: '#ff00aa', chancePercent: 25, dropEvery: '30m', despawnAfter: '',
     dropTemplate: '## {crate_name}\n{xp_min}-{xp_max} XP · {claims_left}/{claim_limit}{separator}{server}',
   };
   assert.equal(
-    xpDropTemplateText('{crate_name} {xp} {user}', drop, { xp: 75, userId: '223456789012345678' }),
-    'Common Crate 75 <@223456789012345678>',
+    xpDropTemplateText('{crate_name} {xp} {user} · {list_claimed_user}', drop, { xp: 75, userId: '223456789012345678' }),
+    'Common Crate 75 <@223456789012345678> · <@123456789012345678> ×2, <@223456789012345678>',
   );
   const payload = xpDropMessagePayload(drop, { serverName: 'Garden' });
   assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
@@ -215,6 +217,14 @@ test('XP drop payload renders crate variables, image, claim button, and remainin
   assert.ok(payload.components[0].components.length <= 10);
   assert.equal(payload.components[0].components.at(-1).components[0].custom_id, 'leveling:xp-drop:abcdefabcdefabcdefabcdef');
   assert.equal(payload.components[0].components.at(-1).components[0].disabled, false);
+});
+
+test('XP drop claimed-user list has an empty state and remains bounded for Discord messages', () => {
+  assert.equal(xpDropTemplateText('{list_claimed_user}', { claimLimit: 1, claims: [] }), 'No claims yet');
+  const claims = Array.from({ length: 100 }, (_, index) => String(10_000_000_000_000_000n + BigInt(index)));
+  const output = xpDropTemplateText('{list_claimed_user}', { claimLimit: 100, claims });
+  assert.ok(output.length <= 1220);
+  assert.match(output, /\+\d+ more$/);
 });
 
 test('XP drop claims enforce per-user and total limits while allowing configured repeats', () => {

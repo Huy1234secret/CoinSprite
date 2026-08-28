@@ -36,6 +36,7 @@
         "stackRoleRewards": true,
         "xpDrops": {
           "enabled": false,
+          "channelId": "",
           "dropTemplate": "## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}",
           "claimTemplate": "## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining",
           "crates": []

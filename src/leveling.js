@@ -1522,12 +1522,36 @@ function levelUpAnnouncementPayload(content, config) {
 
 function xpDropTemplateText(template, crate, values = {}) {
   const claimsLeft = Math.max(0, Number(values.claimsLeft ?? crate.claimLimit) || 0);
+  const claimCounts = new Map();
+  for (const id of crate.claims || []) {
+    const userId = String(id || '');
+    if (/^\d{16,20}$/.test(userId)) claimCounts.set(userId, (claimCounts.get(userId) || 0) + 1);
+  }
+  const claimedUsers = [...claimCounts.entries()];
+  let claimedUserList = claimedUsers.length ? '' : 'No claims yet';
+  if (claimedUsers.length) {
+    const parts = [];
+    let used = 0;
+    for (let index = 0; index < claimedUsers.length; index += 1) {
+      const [userId, count] = claimedUsers[index];
+      const entry = `<@${userId}>${count > 1 ? ` ×${count}` : ''}`;
+      const separatorLength = parts.length ? 2 : 0;
+      if (used + separatorLength + entry.length > 1200) {
+        parts.push(`+${claimedUsers.length - index} more`);
+        break;
+      }
+      parts.push(entry);
+      used += separatorLength + entry.length;
+    }
+    claimedUserList = parts.join(', ');
+  }
   const replacements = {
     crate_name: safeName(crate.name || crate.crateName || 'XP Crate'),
     xp_min: number(crate.xp?.min ?? crate.xpMin),
     xp_max: number(crate.xp?.max ?? crate.xpMax),
     claim_limit: number(crate.claimLimit),
     claims_left: number(claimsLeft),
+    list_claimed_user: claimedUserList,
     chance: String(crate.chancePercent ?? 100),
     drop_every: String(crate.dropEvery || 'manual'),
     despawn_time: String(crate.despawnAfter || 'never'),
@@ -1634,10 +1658,10 @@ function scheduleXpDropExpiry(guild, drop) {
 }
 
 async function sendXpDrop({ guild, crate, channelId, test = false, templates } = {}) {
-  const destinationId = String(channelId || crate?.channelId || '');
+  const xpDrops = templates || levelingConfig(guild.id).xpDrops;
+  const destinationId = String(channelId || xpDrops?.channelId || crate?.channelId || '');
   const channel = await resolveXpDropChannel(guild, destinationId);
   if (!channel) throw Object.assign(new Error('Choose a text channel where CoinSprite can send the crate.'), { statusCode: 400 });
-  const xpDrops = templates || levelingConfig(guild.id).xpDrops;
   const now = Date.now();
   const despawnSeconds = durationSeconds(crate.despawnAfter, 0);
   const drop = normalizeActiveXpDrop({
@@ -1756,7 +1780,7 @@ async function runXpDropScheduler(client, options = {}) {
       }
     }
     const enabledCrates = config.enabled && config.xpDrops?.enabled
-      ? config.xpDrops.crates.filter((crate) => crate.enabled && crate.channelId)
+      ? config.xpDrops.crates.filter((crate) => crate.enabled && (config.xpDrops.channelId || crate.channelId))
       : [];
     const activeIds = new Set(enabledCrates.map((crate) => crate.id));
     for (const crateId of Object.keys(dropState.schedule)) {
@@ -1925,7 +1949,7 @@ async function executeDropCrate(interaction) {
     const { channel } = await sendXpDrop({
       guild: interaction.guild,
       crate,
-      channelId: selectedChannel?.id || crate.channelId,
+      channelId: selectedChannel?.id,
       templates: config.xpDrops,
     });
     await interaction.editReply(v2Payload(`## Crate dropped\n**${safeName(crate.name)}** was sent to <#${channel.id}>.`, {
@@ -1997,7 +2021,7 @@ const LEVELING_COMMANDS = [
       .setDescription('Drop a configured XP crate now.')
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
       .addStringOption((option) => option.setName('crate').setDescription('Configured crate to drop').setAutocomplete(true).setRequired(true))
-      .addChannelOption((option) => option.setName('channel').setDescription('Override the crate default channel').addChannelTypes(
+      .addChannelOption((option) => option.setName('channel').setDescription('Override the configured crate drop channel').addChannelTypes(
         ChannelType.GuildText,
         ChannelType.GuildAnnouncement,
         ChannelType.PublicThread,
