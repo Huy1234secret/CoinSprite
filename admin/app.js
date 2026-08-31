@@ -75,6 +75,8 @@
     consoleEntries: [],
     consoleAfter: 0,
     levelingComposerPanel: '',
+    memberMessageEvent: 'join',
+    memberMessageComposerPanel: '',
     xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
@@ -95,8 +97,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), rngGameNav: $('#rngGameNav'),
-    levelingView: $('#levelingView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), rngGameNav: $('#rngGameNav'),
+    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -114,6 +116,14 @@
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
+    welcomeMessagesEnabled: $('#welcomeMessagesEnabled'), welcomeEventEnabled: $('#welcomeEventEnabled'),
+    welcomeEventChannel: $('#welcomeEventChannel'), welcomeEventReset: $('#welcomeEventReset'),
+    welcomeEventStep: $('#welcomeEventStep'), welcomeEventTitle: $('#welcomeEventTitle'), welcomeEventDescription: $('#welcomeEventDescription'),
+    welcomeEventToggleCopy: $('#welcomeEventToggleCopy'), welcomePreviewLabel: $('#welcomePreviewLabel'),
+    welcomeVariablesToggle: $('#welcomeVariablesToggle'), welcomeContainerAdd: $('#welcomeContainerAdd'),
+    welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'),
+    welcomeComposerPanel: $('#welcomeComposerPanel'), welcomeDiscordFrame: $('#welcomeDiscordFrame'),
+    welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
@@ -276,6 +286,40 @@
     return source;
   }
 
+  const MEMBER_MESSAGE_DEFAULTS = Object.freeze({
+    enabled: true,
+    join: Object.freeze({ enabled: false, channelId: '', template: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!', layout: Object.freeze({ container: true, accentColor: '#57f287', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
+    leave: Object.freeze({ enabled: false, channelId: '', template: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.', layout: Object.freeze({ container: true, accentColor: '#ed4245', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
+    boost: Object.freeze({ enabled: false, channelId: '', template: '## Thank you for boosting, {user}! 💜\n{server} now has **{boost_count} boosts** and is at **Boost Level {boost_level}**.', layout: Object.freeze({ container: true, accentColor: '#f47fff', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
+  });
+
+  function validMemberMediaTemplate(value) {
+    const text = String(value || '').trim();
+    if (['{user_avatar}', '{server_icon}'].includes(text.toLowerCase())) return true;
+    try { return ['http:', 'https:'].includes(new URL(text).protocol); } catch { return false; }
+  }
+
+  function normalizeMemberMessagesConfig(config) {
+    const source = clone(config?.memberMessages || {});
+    source.enabled = source.enabled !== false;
+    for (const type of ['join', 'leave', 'boost']) {
+      const defaults = MEMBER_MESSAGE_DEFAULTS[type];
+      const event = source[type] && typeof source[type] === 'object' && !Array.isArray(source[type]) ? source[type] : {};
+      event.enabled = event.enabled === true;
+      event.channelId = String(event.channelId || '');
+      event.template = String(event.template || defaults.template).trim().slice(0, 3000) || defaults.template;
+      event.layout = event.layout && typeof event.layout === 'object' && !Array.isArray(event.layout) ? event.layout : {};
+      event.layout.container = event.layout.container !== false;
+      event.layout.accentColor = /^#[0-9a-f]{6}$/i.test(event.layout.accentColor || '') ? event.layout.accentColor.toLowerCase() : defaults.layout.accentColor;
+      event.layout.thumbnailEnabled = event.layout.thumbnailEnabled === true;
+      event.layout.thumbnailUrl = validMemberMediaTemplate(event.layout.thumbnailUrl) ? String(event.layout.thumbnailUrl).trim() : '';
+      event.layout.galleryUrls = [...new Set((Array.isArray(event.layout.galleryUrls) ? event.layout.galleryUrls : [])
+        .map((url) => String(url).trim()).filter(validMemberMediaTemplate))].slice(0, 10);
+      source[type] = event;
+    }
+    return source;
+  }
+
   function normalizeRngGameConfig(config) {
     const source = clone(config?.rngGame || {});
     source.enabled = source.enabled === true;
@@ -290,6 +334,7 @@
   function channelOptions(selected, include = () => true, emptyLabel = 'Not routed') {
     const multiple = Array.isArray(selected);
     const selectedIds = new Set((multiple ? selected : [selected]).map(String).filter(Boolean));
+    const listedIds = new Set();
     const options = [`<option value="" ${multiple ? 'disabled' : ''}>${escapeHtml(emptyLabel)}</option>`];
     let lastParent = null;
     for (const channel of state.directory.channels.filter((item) => !item.archived && include(item))) {
@@ -298,7 +343,11 @@
         lastParent = channel.parentName;
       }
       const prefix = channel.kind === 'thread' ? '⌁' : channel.kind === 'forum' ? '▦' : '#';
+      listedIds.add(channel.id);
       options.push(`<option value="${channel.id}" ${selectedIds.has(channel.id) ? 'selected' : ''}>${prefix} ${escapeHtml(channel.name)}</option>`);
+    }
+    for (const id of selectedIds) {
+      if (!listedIds.has(id)) options.push(`<option value="${escapeHtml(id)}" selected disabled>Unavailable channel (${escapeHtml(id)})</option>`);
     }
     return options.join('');
   }
@@ -520,38 +569,31 @@
     }).join('');
   }
 
-  function previewMessageValue(template) {
+  function interpolateTemplate(template, values = {}) {
+    return String(template || '').replace(/\{([a-z0-9_]+)\}/gi, (token, key) => (
+      Object.prototype.hasOwnProperty.call(values, key) ? String(values[key] ?? '') : token
+    ));
+  }
+
+  function previewMessageValue(template, extraValues = {}) {
     const xpDrops = state.config?.leveling?.xpDrops;
     const crate = xpDrops?.crates?.find((item) => item.id === elements.xpDropTestCrate?.value) || xpDrops?.crates?.[0];
     const minimum = crate?.xp?.min ?? 50;
     const maximum = crate?.xp?.max ?? 100;
     const claimed = Math.round((Number(minimum) + Number(maximum)) / 2);
-    return String(template || '')
-      .replaceAll('{user}', '@GardenHero')
-      .replaceAll('{user_profile}', 'https://cdn.discordapp.com/embed/avatars/0.png')
-      .replaceAll('{username}', 'GardenHero')
-      .replaceAll('{level}', '12')
-      .replaceAll('{next_level}', '13')
-      .replaceAll('{server}', 'Grow a Garden')
-      .replaceAll('{bar}', '■■■■■■■■□□□□')
-      .replaceAll('{progress_xp}', '280')
-      .replaceAll('{needed_xp}', '420')
-      .replaceAll('{total_xp}', '3,160')
-      .replaceAll('{crate_name}', crate?.name || 'Common Crate')
-      .replaceAll('{xp_min}', formatNumber(minimum))
-      .replaceAll('{xp_max}', formatNumber(maximum))
-      .replaceAll('{xp}', formatNumber(claimed))
-      .replaceAll('{claim_limit}', formatNumber(crate?.claimLimit ?? 3))
-      .replaceAll('{claims_left}', formatNumber(Math.max(0, (crate?.claimLimit ?? 3) - 1)))
-      .replaceAll('{list_claimed_user}', '@GardenHero, @PixelFarmer')
-      .replaceAll('{chance}', String(crate?.chancePercent ?? 35))
-      .replaceAll('{drop_every}', crate?.dropEvery || '30m')
-      .replaceAll('{despawn_time}', crate?.despawnAfter || 'never')
-      .replaceAll('{channel}', '#general');
+    return interpolateTemplate(template, {
+      user: '@GardenHero', user_profile: 'https://cdn.discordapp.com/embed/avatars/0.png', username: 'GardenHero',
+      level: '12', next_level: '13', server: 'Grow a Garden', bar: '■■■■■■■■□□□□', progress_xp: '280',
+      needed_xp: '420', total_xp: '3,160', crate_name: crate?.name || 'Common Crate', xp_min: formatNumber(minimum),
+      xp_max: formatNumber(maximum), xp: formatNumber(claimed), claim_limit: formatNumber(crate?.claimLimit ?? 3),
+      claims_left: formatNumber(Math.max(0, (crate?.claimLimit ?? 3) - 1)), list_claimed_user: '@GardenHero, @PixelFarmer',
+      chance: String(crate?.chancePercent ?? 35), drop_every: crate?.dropEvery || '30m', despawn_time: crate?.despawnAfter || 'never',
+      channel: '#general', ...extraValues,
+    });
   }
 
-  function renderedEditableTemplate(template) {
-    const preview = previewMessageValue(template);
+  function renderedEditableTemplate(template, previewValues = {}) {
+    const preview = previewMessageValue(template, previewValues);
     return preview.split(/\{separator\}/gi)
       .map((segment, index) => `${index ? '<div class="discord-separator"></div>' : ''}<div class="discord-text">${discordMarkdown(segment)}</div>`)
       .join('');
@@ -569,7 +611,8 @@
     input.style.height = `${height}px`;
     sourceShell.style.height = `${height}px`;
     mirror.style.transform = `translateY(-${input.scrollTop}px)`;
-    display.innerHTML = `${renderedEditableTemplate(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+    const previewValues = input.dataset.inlineTemplateScope === 'memberMessages' ? memberMessagePreviewValues(state.memberMessageEvent) : {};
+    display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
   function beginInlineMessageEdit(trigger) {
@@ -587,12 +630,15 @@
     editor.classList.remove('editing');
     const input = editor.querySelector('[data-inline-message-input]');
     const display = editor.querySelector('[data-inline-message-display]');
-    if (input && display) display.innerHTML = `${renderedEditableTemplate(input.value)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+    if (input && display) {
+      const previewValues = input.dataset.inlineTemplateScope === 'memberMessages' ? memberMessagePreviewValues(state.memberMessageEvent) : {};
+      display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
+    }
   }
 
-  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message') {
+  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}) {
     return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}">
-      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
+      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
         <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}" maxlength="3000" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
@@ -759,6 +805,174 @@
     if (renderTools) renderComposerPanel();
   }
 
+  const MEMBER_MESSAGE_META = Object.freeze({
+    join: { title: 'Join message', description: 'Sent after a new member joins this Discord server.', toggle: 'Send when a member joins', preview: 'JOIN PREVIEW', step: '01' },
+    leave: { title: 'Leave message', description: 'Sent after a member leaves or is removed from this Discord server.', toggle: 'Send when a member leaves', preview: 'LEAVE PREVIEW', step: '02' },
+    boost: { title: 'Boost message', description: 'Sent for a new server boost, with duplicate Discord events collapsed into one post.', toggle: 'Send when a member boosts', preview: 'BOOST PREVIEW', step: '03' },
+  });
+  const MEMBER_MESSAGE_COMMON_VARIABLES = [
+    ['{user}', 'Member mention'], ['{username}', 'Discord username'], ['{display_name}', 'Server display name'],
+    ['{user_id}', 'Member ID'], ['{user_avatar}', 'Member avatar URL'], ['{server}', 'Server name'],
+    ['{server_icon}', 'Server icon URL'], ['{member_count}', 'Current member count'], ['{channel}', 'Selected channel mention'],
+    ['{timestamp}', 'Event time'], ['{separator}', 'Discord divider'],
+  ];
+  const MEMBER_MESSAGE_EVENT_VARIABLES = Object.freeze({
+    join: [['{joined_at}', 'Server join time'], ['{account_created}', 'Account creation time'], ['{account_age}', 'Discord account age']],
+    leave: [['{joined_at}', 'Original join time'], ['{time_in_server}', 'Time spent in server']],
+    boost: [['{boost_count}', 'Current boost count'], ['{boost_level}', 'Current boost level'], ['{boost_since}', 'Boost start time']],
+  });
+
+  function currentMemberMessage() {
+    return state.config?.memberMessages?.[state.memberMessageEvent];
+  }
+
+  function memberMessagePreviewValues(type) {
+    return {
+      user: '@GardenHero', username: 'GardenHero', display_name: 'Garden Hero', user_id: '123456789012345678',
+      user_avatar: 'https://cdn.discordapp.com/embed/avatars/0.png', server: 'Grow a Garden',
+      server_icon: 'https://cdn.discordapp.com/embed/avatars/1.png', member_count: type === 'leave' ? '1,248' : '1,249',
+      channel: '#welcome', timestamp: 'Today at 12:00', joined_at: 'Today at 12:00', account_created: 'June 12, 2021',
+      account_age: '5 years', time_in_server: '8 months', boost_count: '24', boost_level: '2', boost_since: 'Today at 12:00',
+    };
+  }
+
+  function memberMessagePreviewMediaUrl(value, type = state.memberMessageEvent) {
+    const resolved = interpolateTemplate(value, memberMessagePreviewValues(type));
+    return validHttpUrl(resolved) ? resolved.trim() : '';
+  }
+
+  function renderWelcomeComposerPanel() {
+    const panel = state.memberMessageComposerPanel;
+    const event = currentMemberMessage();
+    if (!event) return;
+    const layout = event.layout;
+    elements.welcomeComposerPanel.hidden = !panel;
+    elements.welcomeComposerPanel.dataset.panel = panel;
+    elements.welcomeVariablesToggle.classList.toggle('active', panel === 'variables');
+    elements.welcomeThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
+    elements.welcomeGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMemberMediaTemplate));
+    if (!panel) return;
+    if (panel === 'variables') {
+      const variables = [...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]];
+      elements.welcomeComposerPanel.innerHTML = `<div class="variable-guide">${variables.map(([token, meaning]) => `<button type="button" data-insert-member-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
+      return;
+    }
+    if (panel === 'thumbnail') {
+      elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_avatar}, {server_icon}, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-welcome-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_avatar} or https://example.com/image.png" data-welcome-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-welcome-media-upload="thumbnail"></label></div>`;
+      return;
+    }
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{server_icon} or https://example.com/image.png" data-welcome-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-welcome-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-welcome-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+  }
+
+  function renderWelcomeMessagePreview(renderTools = true) {
+    const event = currentMemberMessage();
+    if (!event) return;
+    const layout = event.layout;
+    const values = memberMessagePreviewValues(state.memberMessageEvent);
+    const text = inlineTemplateEditor(event.template, 'template', 'memberMessages', `${state.memberMessageEvent} message`, values);
+    const thumbnailUrl = layout.thumbnailEnabled ? memberMessagePreviewMediaUrl(layout.thumbnailUrl) : '';
+    const thumbnail = layout.thumbnailEnabled
+      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+      : '';
+    const gallery = layout.galleryUrls.map((url) => memberMessagePreviewMediaUrl(url)).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
+    elements.welcomeDiscordFrame.classList.toggle('has-container', layout.container);
+    elements.welcomeDiscordFrame.classList.toggle('no-container', !layout.container);
+    elements.welcomeDiscordFrame.style.setProperty('--accent-color', layout.accentColor);
+    elements.welcomeAccentButton.hidden = !layout.container;
+    elements.welcomeAccentColor.value = layout.accentColor;
+    elements.welcomeContainerAdd.classList.toggle('active', layout.container);
+    elements.welcomeContainerAdd.textContent = layout.container ? 'Container on' : 'Container off';
+    elements.welcomeMessagePreview.innerHTML = `<div class="discord-section"><div>${text}</div>${thumbnail}</div>${galleryHtml}`;
+    if (renderTools) renderWelcomeComposerPanel();
+  }
+
+  function renderWelcomeMessages() {
+    const config = state.config?.memberMessages;
+    const event = currentMemberMessage();
+    if (!config || !event) return;
+    const meta = MEMBER_MESSAGE_META[state.memberMessageEvent];
+    elements.welcomeMessagesEnabled.checked = config.enabled;
+    elements.welcomeEventEnabled.checked = event.enabled;
+    elements.welcomeEventChannel.innerHTML = channelOptions(event.channelId, (channel) => channel.sendable === true && channel.kind !== 'forum', 'Choose a message channel');
+    elements.welcomeEventStep.textContent = meta.step;
+    elements.welcomeEventTitle.textContent = meta.title;
+    elements.welcomeEventDescription.textContent = meta.description;
+    elements.welcomeEventToggleCopy.textContent = meta.toggle;
+    elements.welcomePreviewLabel.textContent = meta.preview;
+    elements.welcomeEventReset.textContent = `Reset ${state.memberMessageEvent} default`;
+    document.querySelectorAll('[data-member-event]').forEach((button) => {
+      const active = button.dataset.memberEvent === state.memberMessageEvent;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    renderWelcomeMessagePreview();
+    refreshDirty();
+  }
+
+  function toggleWelcomeComposerPanel(panel) {
+    state.memberMessageComposerPanel = state.memberMessageComposerPanel === panel ? '' : panel;
+    renderWelcomeComposerPanel();
+  }
+
+  function insertMemberMessageVariable(token) {
+    const event = currentMemberMessage();
+    if (!event) return;
+    let input = elements.welcomeMessagePreview.querySelector('[data-inline-message-input]');
+    if (!input) return;
+    if (!input.closest('[data-inline-message-editor]')?.classList.contains('editing')) {
+      beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
+      input = elements.welcomeMessagePreview.querySelector('[data-inline-message-input]');
+    }
+    const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+    input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 3000);
+    event.template = input.value;
+    syncInlineEditorVisual(input);
+    input.focus();
+    input.setSelectionRange(Math.min(input.value.length, start + token.length), Math.min(input.value.length, start + token.length));
+    refreshDirty();
+  }
+
+  async function uploadWelcomeMedia(input) {
+    const file = input.files?.[0];
+    const event = currentMemberMessage();
+    if (!file || !event) return;
+    if (!file.type.startsWith('image/')) {
+      input.value = '';
+      return showToast('Upload an image file.', 'error');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      input.value = '';
+      return showToast('Images must be 10 MB or smaller.', 'error');
+    }
+    const label = input.closest('.media-upload');
+    label?.classList.add('uploading');
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/message-media`, {
+        method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
+      });
+      const layout = event.layout;
+      if (input.dataset.welcomeMediaUpload === 'thumbnail') {
+        layout.thumbnailUrl = result.url;
+        layout.thumbnailEnabled = true;
+      } else {
+        const index = Number(input.dataset.mediaIndex);
+        if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url;
+        else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url);
+      }
+      renderWelcomeMessagePreview();
+      refreshDirty();
+      showToast('Image uploaded. Apply changes when you are ready.');
+    } catch (error) {
+      showToast(error.message || 'Image upload failed.', 'error');
+    } finally {
+      label?.classList.remove('uploading');
+      input.value = '';
+    }
+  }
+
   function renderLeveling() {
     const leveling = state.config.leveling;
     elements.levelingEnabled.checked = leveling.enabled;
@@ -809,11 +1023,9 @@
     if (rngLabel) rngLabel.textContent = rngUnlocked ? 'Rolls & economy' : 'Locked by owner';
     elements.rngGameNav.title = rngUnlocked ? '' : 'The bot owner must unlock RNG Game for this server.';
     if (!levelingUnlocked && state.currentView === 'leveling') {
-      if (rngUnlocked) setView('rng-game');
-      else if (state.me?.owner) setView('owner');
+      setView('member-messages');
     } else if (!rngUnlocked && state.currentView === 'rng-game') {
-      if (levelingUnlocked) setView('leveling');
-      else if (state.me?.owner) setView('owner');
+      setView('member-messages');
     }
   }
 
@@ -821,6 +1033,7 @@
     if (!config) return '';
     return JSON.stringify({
       leveling: config.leveling,
+      memberMessages: config.memberMessages,
       rngGame: config.rngGame,
     });
   }
@@ -852,12 +1065,14 @@
       state.config = {
         ...configPayload.config,
         leveling: normalizeLevelingConfig(configPayload.config),
+        memberMessages: normalizeMemberMessagesConfig(configPayload.config),
         rngGame: normalizeRngGameConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderLeveling();
+      renderWelcomeMessages();
       renderRngGame();
     } catch (error) {
       showToast(error.message, 'error');
@@ -873,8 +1088,9 @@
     elements.saveState.textContent = 'Applying changes…';
     try {
       const leveling = clone(state.config.leveling);
+      const memberMessages = clone(state.config.memberMessages);
       const rngGame = clone(state.config.rngGame);
-      const body = {};
+      const body = { memberMessages };
       if (state.config.features?.leveling === true) body.leveling = leveling;
       if (state.config.features?.rngGame === true) body.rngGame = rngGame;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
@@ -884,12 +1100,14 @@
       state.config = {
         ...payload.config,
         leveling: normalizeLevelingConfig(payload.config),
+        memberMessages: normalizeMemberMessagesConfig(payload.config),
         rngGame: normalizeRngGameConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderLeveling();
+      renderWelcomeMessages();
       renderRngGame();
       showToast('Dashboard settings updated.');
     } catch (error) {
@@ -1205,6 +1423,36 @@
     refreshDirty();
   }
 
+  function updateMemberMessagesFromControl(target) {
+    if (!state.config?.memberMessages) return;
+    const config = state.config.memberMessages;
+    const event = currentMemberMessage();
+    if (!event) return;
+    if (target.matches('[data-inline-message-input]')) {
+      event.template = target.value.slice(0, 3000);
+      syncInlineEditorVisual(target);
+      refreshDirty();
+      return;
+    }
+    if (target === elements.welcomeMessagesEnabled) config.enabled = target.checked;
+    if (target === elements.welcomeEventEnabled) event.enabled = target.checked;
+    if (target === elements.welcomeEventChannel) event.channelId = target.value;
+    if (target.matches('[data-welcome-thumbnail-url]')) {
+      event.layout.thumbnailUrl = target.value.slice(0, 2000);
+      event.layout.thumbnailEnabled = Boolean(target.value.trim());
+      renderWelcomeMessagePreview(false);
+    }
+    if (target.matches('[data-welcome-gallery-url]')) {
+      event.layout.galleryUrls[Number(target.dataset.welcomeGalleryUrl)] = target.value.slice(0, 2000);
+      renderWelcomeMessagePreview(false);
+    }
+    if (target === elements.welcomeAccentColor) {
+      event.layout.accentColor = target.value;
+      renderWelcomeMessagePreview();
+    }
+    refreshDirty();
+  }
+
   function updateRngGameFromControl(target) {
     if (!state.config) return;
     const rngGame = state.config.rngGame;
@@ -1238,11 +1486,20 @@
     refreshDirty();
   }
 
+  function resetCurrentMemberMessage() {
+    if (!state.config?.memberMessages) return;
+    state.config.memberMessages[state.memberMessageEvent] = clone(MEMBER_MESSAGE_DEFAULTS[state.memberMessageEvent]);
+    state.memberMessageComposerPanel = '';
+    renderWelcomeMessages();
+    showToast(`${MEMBER_MESSAGE_META[state.memberMessageEvent].title} reset to its default.`);
+  }
+
   function resetUnsavedChanges() {
     if (!state.savedConfig || state.saving) return;
     state.config = clone(state.savedConfig);
     renderFeatureAccess();
     renderLeveling();
+    renderWelcomeMessages();
     renderRngGame();
     showToast('Unsaved changes reset.');
   }
@@ -2381,9 +2638,11 @@
   });
   elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
+  elements.welcomeMessagesView.addEventListener('input', (event) => updateMemberMessagesFromControl(event.target));
+  elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
-  for (const preview of [elements.levelingMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
+  for (const preview of [elements.levelingMessagePreview, elements.welcomeMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
     preview.addEventListener('click', (event) => {
       const edit = event.target.closest('[data-inline-message-display]');
       if (edit) return beginInlineMessageEdit(edit);
@@ -2476,6 +2735,55 @@
     const upload = event.target.closest('[data-leveling-media-upload]');
     if (upload) uploadLevelingMedia(upload);
   });
+  elements.welcomeMessagesView.querySelector('.member-message-tabs').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-member-event]');
+    if (!button || button.dataset.memberEvent === state.memberMessageEvent) return;
+    state.memberMessageEvent = button.dataset.memberEvent;
+    state.memberMessageComposerPanel = '';
+    renderWelcomeMessages();
+  });
+  elements.welcomeEventReset.addEventListener('click', resetCurrentMemberMessage);
+  elements.welcomeContainerAdd.addEventListener('click', () => {
+    const event = currentMemberMessage();
+    if (!event) return;
+    event.layout.container = !event.layout.container;
+    renderWelcomeMessagePreview();
+    refreshDirty();
+  });
+  elements.welcomeVariablesToggle.addEventListener('click', () => toggleWelcomeComposerPanel('variables'));
+  elements.welcomeThumbnailAdd.addEventListener('click', () => toggleWelcomeComposerPanel('thumbnail'));
+  elements.welcomeGalleryAdd.addEventListener('click', () => toggleWelcomeComposerPanel('gallery'));
+  elements.welcomeAccentButton.addEventListener('click', () => elements.welcomeAccentColor.click());
+  elements.welcomeComposerPanel.addEventListener('click', (event) => {
+    const variable = event.target.closest('[data-insert-member-variable]');
+    if (variable) return insertMemberMessageVariable(variable.dataset.insertMemberVariable);
+    const current = currentMemberMessage();
+    if (!current) return;
+    if (event.target.closest('[data-remove-welcome-thumbnail]')) {
+      current.layout.thumbnailEnabled = false;
+      current.layout.thumbnailUrl = '';
+      renderWelcomeMessagePreview();
+      refreshDirty();
+      return;
+    }
+    if (event.target.closest('[data-add-welcome-gallery-url]')) {
+      if (current.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+      current.layout.galleryUrls.push('');
+      renderWelcomeComposerPanel();
+      refreshDirty();
+      elements.welcomeComposerPanel.querySelector('[data-welcome-gallery-url]:last-of-type')?.focus();
+      return;
+    }
+    const remove = event.target.closest('[data-remove-welcome-gallery]');
+    if (!remove) return;
+    current.layout.galleryUrls.splice(Number(remove.dataset.removeWelcomeGallery), 1);
+    renderWelcomeMessagePreview();
+    refreshDirty();
+  });
+  elements.welcomeComposerPanel.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-welcome-media-upload]');
+    if (upload) uploadWelcomeMedia(upload);
+  });
   elements.levelingRewards.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-level-reward]');
     if (!button || !state.config) return;
@@ -2513,7 +2821,7 @@
       if (!state.guilds.some((guild) => guild.id === guildId)) state.guilds.push({ id: guildId, name: `Guild ${guildId}` });
       renderSession();
       await loadGuild(guildId);
-      const preferred = state.config?.features?.leveling ? 'leveling' : (state.config?.features?.rngGame ? 'rng-game' : 'owner');
+      const preferred = state.config?.features?.leveling ? 'leveling' : 'member-messages';
       setView(preferred);
       return;
     }
@@ -2534,6 +2842,7 @@
       if (state.guildId === input.dataset.guildId && state.config) {
         state.config.features = payload.features;
         state.config.leveling = normalizeLevelingConfig(payload.config);
+        state.config.memberMessages = normalizeMemberMessagesConfig(payload.config);
         state.config.rngGame = normalizeRngGameConfig(payload.config);
         state.savedConfig = clone(state.config);
         state.savedSnapshot = snapshot();

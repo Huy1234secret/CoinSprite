@@ -304,7 +304,7 @@ async function decodeLevelingMedia(dataUrl) {
 }
 
 function serveLevelingMedia(res, pathname) {
-  const match = pathname.match(/^\/leveling-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp|gif)$/);
+  const match = pathname.match(/^\/(?:leveling|message)-media\/(\d{16,20})\/([a-f0-9]{32})\.(png|jpg|webp|gif)$/);
   if (!match) return send(res, 404, 'Not found');
   const filePath = path.join(LEVELING_MEDIA_DIR, match[1], `${match[2]}.${match[3]}`);
   const contentType = match[3] === 'jpg' ? 'image/jpeg' : `image/${match[3]}`;
@@ -542,6 +542,18 @@ function channelKind(channel) {
   return 'text';
 }
 
+function channelSendable(channel, botMember) {
+  if (!botMember || !channel?.isTextBased?.()) return false;
+  try {
+    const permissions = channel.permissionsFor?.(botMember);
+    return Boolean(permissions?.has?.(PermissionFlagsBits.ViewChannel)
+      && permissions.has(PermissionFlagsBits.SendMessages)
+      && (!channel.isThread?.() || permissions.has(PermissionFlagsBits.SendMessagesInThreads)));
+  } catch {
+    return false;
+  }
+}
+
 async function fetchGuildDirectory(guild, force = false) {
   const cached = directoryCache.get(guild.id);
   if (!force && cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
@@ -570,6 +582,7 @@ async function fetchGuildDirectory(guild, force = false) {
       parentId: channel.parentId || null,
       parentName: channel.parentId ? parentNames.get(channel.parentId) || null : null,
       archived: Boolean(channel.archived),
+      sendable: channelSendable(channel, botMember),
       rawPosition: Number(channel.rawPosition) || 0,
     })).sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '') || a.rawPosition - b.rawPosition || a.name.localeCompare(b.name)),
     roles: [...roles.values()]
@@ -608,6 +621,7 @@ function publicConfig(config) {
       fullBot: false,
     },
     leveling: config?.leveling || {},
+    memberMessages: config?.memberMessages || {},
     rngGame: config?.rngGame || {},
   };
 }
@@ -665,6 +679,7 @@ async function routeRequest(req, res, env, client, services = {}) {
   if (req.method === 'GET' && pathname === '/assets/rng/studs-texture.png') return serveStudsTexture(res);
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
+  if (req.method === 'GET' && pathname.startsWith('/message-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/level-card-media/')) return serveLevelCardMedia(res, pathname);
   if (req.method === 'GET' && pathname === '/bot-avatar.png') return redirectBotAvatar(res, client);
   if (req.method === 'GET' && pathname === '/healthz') return sendJson(res, 200, { ok: true, service: 'coinsprite' });
@@ -847,12 +862,12 @@ async function routeRequest(req, res, env, client, services = {}) {
     return sendJson(res, 201, { url: `/level-card-media/${session.user.id}/${id}.png` });
   }
 
-  const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/leveling-media$/);
+  const levelingMediaMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/(leveling|message)-media$/);
   if (req.method === 'POST' && levelingMediaMatch) {
     const guildId = levelingMediaMatch[1];
     const auth = await requireGuildAdmin(req, res, env, client, guildId);
     if (!auth || !requireCsrf(req, res, auth.session)) return;
-    if (getGuildConfigRaw(guildId)?.features?.leveling !== true) {
+    if (levelingMediaMatch[2] === 'leveling' && getGuildConfigRaw(guildId)?.features?.leveling !== true) {
       return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
     }
     const body = await readJsonBody(req, MAX_LEVELING_MEDIA_BODY_BYTES);
@@ -865,7 +880,7 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (!/^https?:\/\//i.test(origin)) {
       try { origin = new URL(env.redirectUri).origin; } catch { origin = `http://${req.headers.host || `${env.host}:${env.port}`}`; }
     }
-    return sendJson(res, 201, { url: `${origin}/leveling-media/${guildId}/${id}.${media.extension}` });
+    return sendJson(res, 201, { url: `${origin}/${levelingMediaMatch[2]}-media/${guildId}/${id}.${media.extension}` });
   }
 
   const xpDropTestMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/xp-drops\/test$/);
@@ -912,9 +927,10 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (!auth || !requireCsrf(req, res, auth.session)) return;
     const body = await readJsonBody(req);
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
+    const hasMemberMessages = body?.memberMessages && typeof body.memberMessages === 'object' && !Array.isArray(body.memberMessages);
     const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
-    if (!hasLeveling && !hasRngGame) {
-      return sendJson(res, 400, { error: 'Leveling or RNG game configuration is required.' });
+    if (!hasLeveling && !hasMemberMessages && !hasRngGame) {
+      return sendJson(res, 400, { error: 'Leveling, Welcome Messages, or RNG game configuration is required.' });
     }
 
     const state = loadState();
@@ -931,6 +947,7 @@ async function routeRequest(req, res, env, client, services = {}) {
       fullBot: false,
     };
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
+    if (hasMemberMessages) state.guilds[guildId].memberMessages = mergePlain(state.guilds[guildId].memberMessages, body.memberMessages);
     if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
     saveState(state);
     const config = getGuildConfigRaw(guildId);
@@ -940,7 +957,7 @@ async function routeRequest(req, res, env, client, services = {}) {
         .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
 
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasMemberMessages && 'Welcome Messages', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config) });
   }
 
