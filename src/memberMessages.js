@@ -120,6 +120,7 @@ function memberMessagePayload(type, member, eventConfig, options = {}) {
     label: `${type} message`,
     fallbackText: '-# Member update',
     fallbackColor: 0x57f287,
+    mediaDescriptions: false,
     allowedUsers: /^\d{16,20}$/.test(userId) ? [userId] : [],
   });
 }

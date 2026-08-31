@@ -15,6 +15,7 @@ const {
   handleGuildMemberRemove,
   handleGuildMemberUpdate,
   interpolateTemplate,
+  memberMessagePayload,
   memberMessageValues,
   resetBoostDeduplication,
   sendMemberMessage,
@@ -178,6 +179,25 @@ test('join and leave handlers deliver safe Components V2 payloads', async () => 
   assert.equal(sends[0].components[0].type, 17);
   assert.match(sends[0].components[0].components[0].content, new RegExp(`<@${USER_ID}>`));
   assert.match(sends[1].components[0].components[0].content, /Garden Hero/);
+});
+
+test('join, leave, and boost media omit Discord image descriptions', () => {
+  const { member } = fixture();
+  const config = eventConfig({
+    layout: {
+      ...eventConfig().layout,
+      thumbnailEnabled: true,
+      thumbnailUrl: '{user_avatar}',
+      galleryUrls: ['https://example.com/banner.png'],
+    },
+  });
+  for (const type of ['join', 'leave', 'boost']) {
+    const components = memberMessagePayload(type, member, config).components[0].components;
+    const thumbnail = components.find((component) => component.type === 9).accessory;
+    const galleryItem = components.find((component) => component.type === 12).items[0];
+    assert.equal(Object.hasOwn(thumbnail, 'description'), false, `${type} thumbnail should not have alt text`);
+    assert.equal(Object.hasOwn(galleryItem, 'description'), false, `${type} gallery image should not have alt text`);
+  }
 });
 
 test('member-update and system-message boost signals produce one announcement', async () => {
