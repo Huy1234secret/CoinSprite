@@ -85,6 +85,7 @@
     templateTab: 'editor',
     templateComposerPanel: '',
     templateJsonValid: true,
+    templateSaving: false,
     templatePickerContext: '',
     xpDropTesting: false,
     profile: null,
@@ -120,28 +121,28 @@
     levelingChannels: $('#levelingChannels'),
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
     levelingAddReward: $('#levelingAddReward'), levelingBoosts: $('#levelingBoosts'), levelingAddBoost: $('#levelingAddBoost'),
-    levelingContainerAdd: $('#levelingContainerAdd'), levelingThumbnailAdd: $('#levelingThumbnailAdd'),
+    levelingContainerAdd: $('#levelingContainerAdd'), levelingAdditionalContainerAdd: $('#levelingAdditionalContainerAdd'), levelingThumbnailAdd: $('#levelingThumbnailAdd'),
     levelingGalleryAdd: $('#levelingGalleryAdd'), levelingVariablesToggle: $('#levelingVariablesToggle'),
     levelingComposerPanel: $('#levelingComposerPanel'),
-    levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'),
+    levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'), levelingAdditionalContainers: $('#levelingAdditionalContainers'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
     welcomeMessagesEnabled: $('#welcomeMessagesEnabled'), welcomeEventEnabled: $('#welcomeEventEnabled'),
     welcomeEventChannel: $('#welcomeEventChannel'), welcomeEventReset: $('#welcomeEventReset'),
     welcomeEventStep: $('#welcomeEventStep'), welcomeEventTitle: $('#welcomeEventTitle'), welcomeEventDescription: $('#welcomeEventDescription'),
     welcomeEventToggleCopy: $('#welcomeEventToggleCopy'), welcomePreviewLabel: $('#welcomePreviewLabel'),
-    welcomeVariablesToggle: $('#welcomeVariablesToggle'), welcomeContainerAdd: $('#welcomeContainerAdd'),
+    welcomeVariablesToggle: $('#welcomeVariablesToggle'), welcomeContainerAdd: $('#welcomeContainerAdd'), welcomeAdditionalContainerAdd: $('#welcomeAdditionalContainerAdd'),
     welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'),
     welcomeComposerPanel: $('#welcomeComposerPanel'), welcomeDiscordFrame: $('#welcomeDiscordFrame'),
-    welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
+    welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAdditionalContainers: $('#welcomeAdditionalContainers'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
     levelingUseTemplate: $('#levelingUseTemplate'), levelingSaveAsTemplate: $('#levelingSaveAsTemplate'),
     welcomeUseTemplate: $('#welcomeUseTemplate'), welcomeSaveAsTemplate: $('#welcomeSaveAsTemplate'),
     templateManager: $('#templateManager'), templateTotalCount: $('#templateTotalCount'), templateFolderCreate: $('#templateFolderCreate'),
     templateFolderList: $('#templateFolderList'), templateSearch: $('#templateSearch'), templateListCreate: $('#templateListCreate'), templateList: $('#templateList'),
     templateCreateButton: $('#templateCreateButton'), templateEmptyCreate: $('#templateEmptyCreate'), templateEmptyState: $('#templateEmptyState'), templateEditor: $('#templateEditor'),
     templateStatusBadge: $('#templateStatusBadge'), templateEditorTitle: $('#templateEditorTitle'), templateTimestamps: $('#templateTimestamps'),
-    templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'), templateResetButton: $('#templateResetButton'), templateSaveButton: $('#templateSaveButton'),
-    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'),
-    templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'),
+    templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'),
+    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'),
+    templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'), templateAdditionalContainers: $('#templateAdditionalContainers'),
     templateAccentButton: $('#templateAccentButton'), templateAccentColor: $('#templateAccentColor'), templateCharacterCount: $('#templateCharacterCount'),
     templateJsonEditor: $('#templateJsonEditor'), templateJsonError: $('#templateJsonError'), templateJsonFormat: $('#templateJsonFormat'), templateJsonCopy: $('#templateJsonCopy'), templateJsonImport: $('#templateJsonImport'), templateResolvedPayload: $('#templateResolvedPayload'),
     templateName: $('#templateName'), templateDescription: $('#templateDescription'), templateFolderSelect: $('#templateFolderSelect'), templateChannel: $('#templateChannel'), templateEnabled: $('#templateEnabled'),
@@ -252,6 +253,28 @@
     return /^\d+(?:\.\d+)?[smhd]$/.test(text) && Number.parseFloat(text) > 0 ? text : fallback;
   }
 
+  const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
+
+  function newAdditionalContainer(accentColor = '#b9f547') {
+    return {
+      content: '',
+      layout: {
+        container: true,
+        accentColor: /^#[0-9a-f]{6}$/i.test(accentColor) ? accentColor.toLowerCase() : '#b9f547',
+        thumbnailEnabled: false,
+        thumbnailUrl: '',
+        galleryUrls: [],
+      },
+    };
+  }
+
+  function normalizeAdditionalContainersClient(value, normalizeLayout, maximumContent = 3000) {
+    return (Array.isArray(value) ? value : []).slice(0, MAX_ADDITIONAL_MESSAGE_CONTAINERS).map((container) => ({
+      content: String(container?.content || '').slice(0, maximumContent),
+      layout: { ...normalizeLayout(container?.layout), container: true },
+    }));
+  }
+
   function normalizeLevelingConfig(config) {
     const source = clone(config?.leveling || {});
     source.enabled = source.enabled === true;
@@ -278,6 +301,17 @@
     source.announcements.layout.thumbnailEnabled = source.announcements.layout.thumbnailEnabled === true;
     source.announcements.layout.thumbnailUrl = String(source.announcements.layout.thumbnailUrl || '').slice(0, 2000);
     source.announcements.layout.galleryUrls = (source.announcements.layout.galleryUrls || []).map(String).slice(0, 10);
+    source.announcements.additionalContainers = normalizeAdditionalContainersClient(source.announcements.additionalContainers, (layout) => {
+      const normalized = layout && typeof layout === 'object' && !Array.isArray(layout) ? layout : {};
+      return {
+        container: true,
+        accentColor: /^#[0-9a-f]{6}$/i.test(normalized.accentColor || '') ? normalized.accentColor.toLowerCase() : source.announcements.layout.accentColor,
+        thumbnailEnabled: normalized.thumbnailEnabled === true,
+        thumbnailUrl: validMediaTemplate(normalized.thumbnailUrl) ? String(normalized.thumbnailUrl).trim() : '',
+        galleryUrls: [...new Set((Array.isArray(normalized.galleryUrls) ? normalized.galleryUrls : [])
+          .map((url) => String(url).trim()).filter(validMediaTemplate))].slice(0, 10),
+      };
+    });
     source.channelMultipliers = Object.fromEntries(Object.entries(source.channelMultipliers || {}).map(([id, multiplier]) => [
       String(id), Math.round(clampNumber(multiplier, 0, 10, 1)),
     ]));
@@ -321,9 +355,9 @@
 
   const MEMBER_MESSAGE_DEFAULTS = Object.freeze({
     enabled: true,
-    join: Object.freeze({ enabled: false, channelId: '', template: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!', layout: Object.freeze({ container: true, accentColor: '#57f287', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
-    leave: Object.freeze({ enabled: false, channelId: '', template: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.', layout: Object.freeze({ container: true, accentColor: '#ed4245', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
-    boost: Object.freeze({ enabled: false, channelId: '', template: '## Thank you for boosting, {user}! 💜\n{server} now has **{boost_count} boosts** and is at **Boost Level {boost_level}**.', layout: Object.freeze({ container: true, accentColor: '#f47fff', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }) }),
+    join: Object.freeze({ enabled: false, channelId: '', template: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!', layout: Object.freeze({ container: true, accentColor: '#57f287', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }), additionalContainers: Object.freeze([]) }),
+    leave: Object.freeze({ enabled: false, channelId: '', template: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.', layout: Object.freeze({ container: true, accentColor: '#ed4245', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }), additionalContainers: Object.freeze([]) }),
+    boost: Object.freeze({ enabled: false, channelId: '', template: '## Thank you for boosting, {user}! 💜\n{server} now has **{boost_count} boosts** and is at **Boost Level {boost_level}**.', layout: Object.freeze({ container: true, accentColor: '#f47fff', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]) }), additionalContainers: Object.freeze([]) }),
   });
 
   function validMemberMediaTemplate(value) {
@@ -348,6 +382,11 @@
       event.layout.thumbnailUrl = validMemberMediaTemplate(event.layout.thumbnailUrl) ? String(event.layout.thumbnailUrl).trim() : '';
       event.layout.galleryUrls = [...new Set((Array.isArray(event.layout.galleryUrls) ? event.layout.galleryUrls : [])
         .map((url) => String(url).trim()).filter(validMemberMediaTemplate))].slice(0, 10);
+      event.additionalContainers = normalizeAdditionalContainersClient(event.additionalContainers, (layout) => {
+        const normalized = normalizeTemplateLayoutClient(layout);
+        normalized.accentColor = /^#[0-9a-f]{6}$/i.test(layout?.accentColor || '') ? normalized.accentColor : event.layout.accentColor;
+        return normalized;
+      });
       source[type] = event;
     }
     return source;
@@ -673,12 +712,13 @@
     }
   }
 
-  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}, maxLength = 3000) {
-    return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}">
+  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}, maxLength = 3000, additionalContainerIndex = null) {
+    const containerData = Number.isInteger(additionalContainerIndex) ? ` data-additional-container-index="${additionalContainerIndex}"` : '';
+    return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}"${containerData}>
       <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
-        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}" maxlength="${maxLength}" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
+        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}"${containerData} maxlength="${maxLength}" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
       </div>
       <div class="inline-message-actions"><span>Markdown and variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
     </div>`;
@@ -742,7 +782,11 @@
         method: 'POST',
         body: JSON.stringify({ dataUrl }),
       });
-      const layout = state.config.leveling.announcements.layout;
+      const containerIndex = Number(input.dataset.additionalContainerIndex);
+      const layout = Number.isInteger(containerIndex)
+        ? state.config.leveling.announcements.additionalContainers[containerIndex]?.layout
+        : state.config.leveling.announcements.layout;
+      if (!layout) throw new Error('That container no longer exists.');
       if (input.dataset.levelingMediaUpload === 'thumbnail') {
         layout.thumbnailUrl = result.url;
         layout.thumbnailEnabled = true;
@@ -825,10 +869,10 @@
   function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia }) {
     const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
     const thumbnail = layout.thumbnailEnabled
-      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
       : '';
     const gallery = (layout.galleryUrls || []).map(resolveMedia).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
+    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
     frame.classList.toggle('has-container', layout.container);
     frame.classList.toggle('no-container', !layout.container);
     frame.style.setProperty('--accent-color', layout.accentColor);
@@ -837,6 +881,25 @@
     containerButton.classList.toggle('active', layout.container);
     containerButton.textContent = layout.container ? 'Container on' : 'Container off';
     preview.innerHTML = `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
+  }
+
+  function renderAdditionalContainerEditors({ root, containers, prefix, scope, previewValues, resolveMedia, maxLength }) {
+    root.innerHTML = containers.map((container, containerIndex) => {
+      const layout = container.layout;
+      const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
+      const thumbnail = layout.thumbnailEnabled
+        ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+        : '';
+      const gallery = layout.galleryUrls.map(resolveMedia).filter(Boolean);
+      const galleryPreview = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
+      const galleryRows = layout.galleryUrls.map((url, mediaIndex) => `<div class="media-entry"><span>${mediaIndex + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"></label><button type="button" data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}" aria-label="Remove gallery image ${mediaIndex + 1}">&times;</button></div>`).join('');
+      const content = inlineTemplateEditor(container.content, 'content', scope, `container ${containerIndex + 2} message`, previewValues, maxLength, containerIndex);
+      return `<section class="additional-container-card" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
+        <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
+        <div class="discord-section"><div>${content}</div>${thumbnail}</div>${galleryPreview}
+        <details class="additional-container-media"><summary>Images</summary><div class="media-entry"><span>Thumb</span><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="Image URL or supported variable" data-${prefix}-additional-thumbnail-url="${containerIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"></label></div><div class="additional-gallery-head"><strong>Gallery</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}"></label></div><div class="media-list">${galleryRows || '<p>No gallery images yet.</p>'}</div></details>
+      </section>`;
+    }).join('');
   }
 
   function renderMessagePreview(renderTools = true) {
@@ -848,6 +911,12 @@
       accentButton: elements.levelingAccentButton, accentInput: elements.levelingAccentColor,
       containerButton: elements.levelingContainerAdd, layout, contentHtml: text, resolveMedia: previewMediaUrl,
     });
+    renderAdditionalContainerEditors({
+      root: elements.levelingAdditionalContainers,
+      containers: announcements.additionalContainers,
+      prefix: 'leveling', scope: 'announcements', previewValues: {}, resolveMedia: previewMediaUrl, maxLength: 3000,
+    });
+    elements.levelingAdditionalContainerAdd.disabled = announcements.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
     if (renderTools) renderComposerPanel();
   }
 
@@ -923,6 +992,13 @@
       containerButton: elements.welcomeContainerAdd, layout, contentHtml: text,
       resolveMedia: (url) => memberMessagePreviewMediaUrl(url),
     });
+    renderAdditionalContainerEditors({
+      root: elements.welcomeAdditionalContainers,
+      containers: event.additionalContainers,
+      prefix: 'welcome', scope: 'memberMessages', previewValues: values,
+      resolveMedia: (url) => memberMessagePreviewMediaUrl(url), maxLength: 3000,
+    });
+    elements.welcomeAdditionalContainerAdd.disabled = event.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
     if (renderTools) renderWelcomeComposerPanel();
   }
 
@@ -957,16 +1033,19 @@
   function insertMemberMessageVariable(token) {
     const event = currentMemberMessage();
     if (!event) return;
-    let input = elements.welcomeMessagePreview.querySelector('[data-inline-message-input]');
+    let input = elements.welcomeMessagesView.querySelector('[data-inline-message-editor].editing [data-inline-message-input]')
+      || elements.welcomeMessagePreview.querySelector('[data-inline-message-input]');
     if (!input) return;
     if (!input.closest('[data-inline-message-editor]')?.classList.contains('editing')) {
       beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
-      input = elements.welcomeMessagePreview.querySelector('[data-inline-message-input]');
+      input = elements.welcomeMessagesView.querySelector('[data-inline-message-editor].editing [data-inline-message-input]') || input;
     }
     const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
     const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
     input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 3000);
-    event.template = input.value;
+    const containerIndex = Number(input.dataset.additionalContainerIndex);
+    if (Number.isInteger(containerIndex) && event.additionalContainers[containerIndex]) event.additionalContainers[containerIndex].content = input.value;
+    else event.template = input.value;
     syncInlineEditorVisual(input);
     input.focus();
     input.setSelectionRange(Math.min(input.value.length, start + token.length), Math.min(input.value.length, start + token.length));
@@ -991,7 +1070,9 @@
       const result = await api(`/api/guilds/${state.guildId}/message-media`, {
         method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
       });
-      const layout = event.layout;
+      const containerIndex = Number(input.dataset.additionalContainerIndex);
+      const layout = Number.isInteger(containerIndex) ? event.additionalContainers[containerIndex]?.layout : event.layout;
+      if (!layout) throw new Error('That container no longer exists.');
       if (input.dataset.welcomeMediaUpload === 'thumbnail') {
         layout.thumbnailUrl = result.url;
         layout.thumbnailEnabled = true;
@@ -1054,6 +1135,7 @@
       id: String(item.id || ''), folderId: folderIds.has(String(item.folderId || '')) ? String(item.folderId) : null,
       name: String(item.name || 'Template').trim().slice(0, 80), description: String(item.description || '').trim().slice(0, 500),
       version: 1, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
+      additionalContainers: normalizeAdditionalContainersClient(item.additionalContainers, normalizeTemplateLayoutClient, 4000),
       defaultChannelId: String(item.defaultChannelId || ''), enabled: item.enabled !== false,
       createdAt: String(item.createdAt || ''), updatedAt: String(item.updatedAt || ''),
     })).filter((item) => item.id);
@@ -1065,37 +1147,58 @@
       version: 1,
       content: String(draft?.content || '').slice(0, 4000),
       layout: normalizeTemplateLayoutClient(draft?.layout),
+      additionalContainers: normalizeAdditionalContainersClient(draft?.additionalContainers, normalizeTemplateLayoutClient, 4000),
     };
+  }
+
+  function parseTemplateLayoutClient(layout, label = 'layout') {
+    if (!layout || typeof layout !== 'object' || Array.isArray(layout)) throw new Error(`${label} must be an object.`);
+    const unknownLayout = Object.keys(layout).filter((key) => !['container', 'accentColor', 'thumbnailEnabled', 'thumbnailUrl', 'galleryUrls'].includes(key));
+    if (unknownLayout.length) throw new Error(`Unknown ${label} field${unknownLayout.length === 1 ? '' : 's'}: ${unknownLayout.join(', ')}.`);
+    if (typeof layout.container !== 'boolean') throw new Error(`${label}.container must be true or false.`);
+    if (typeof layout.thumbnailEnabled !== 'boolean') throw new Error(`${label}.thumbnailEnabled must be true or false.`);
+    if (!/^#[0-9a-f]{6}$/i.test(String(layout.accentColor || ''))) throw new Error(`${label}.accentColor must be a six-digit hex color.`);
+    if (!Array.isArray(layout.galleryUrls)) throw new Error(`${label}.galleryUrls must be an array.`);
+    if (layout.galleryUrls.length > 10) throw new Error('A gallery supports up to 10 images.');
+    if (layout.thumbnailUrl && !validTemplateMedia(layout.thumbnailUrl)) throw new Error(`${label} thumbnail must be an HTTP/HTTPS URL or a supported media variable.`);
+    layout.galleryUrls.forEach((url, index) => {
+      if (!validTemplateMedia(url)) throw new Error(`${label} gallery image ${index + 1} must be an HTTP/HTTPS URL or a supported media variable.`);
+    });
+    return normalizeTemplateLayoutClient(layout);
   }
 
   function parseTemplateJsonText(text) {
     let parsed;
     try { parsed = JSON.parse(text); } catch (error) { throw new Error(`Invalid JSON: ${error.message}`); }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Template JSON must be an object.');
-    const unknown = Object.keys(parsed).filter((key) => !['version', 'content', 'layout'].includes(key));
+    const unknown = Object.keys(parsed).filter((key) => !['version', 'content', 'layout', 'additionalContainers'].includes(key));
     if (unknown.length) throw new Error(`Unknown template field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`);
     if (parsed.version !== 1) throw new Error('Template JSON version must be 1.');
     if (typeof parsed.content !== 'string') throw new Error('content must be a string.');
     if (parsed.content.length > 4000) throw new Error('content must be 4000 characters or fewer.');
     if ((parsed.content.match(/\{separator\}/gi) || []).length > 4) throw new Error('Templates support up to 4 dividers.');
-    if (!parsed.layout || typeof parsed.layout !== 'object' || Array.isArray(parsed.layout)) throw new Error('layout must be an object.');
-    const unknownLayout = Object.keys(parsed.layout).filter((key) => !['container', 'accentColor', 'thumbnailEnabled', 'thumbnailUrl', 'galleryUrls'].includes(key));
-    if (unknownLayout.length) throw new Error(`Unknown layout field${unknownLayout.length === 1 ? '' : 's'}: ${unknownLayout.join(', ')}.`);
-    if (typeof parsed.layout.container !== 'boolean') throw new Error('layout.container must be true or false.');
-    if (typeof parsed.layout.thumbnailEnabled !== 'boolean') throw new Error('layout.thumbnailEnabled must be true or false.');
-    if (!/^#[0-9a-f]{6}$/i.test(String(parsed.layout.accentColor || ''))) throw new Error('layout.accentColor must be a six-digit hex color.');
-    if (!Array.isArray(parsed.layout.galleryUrls)) throw new Error('layout.galleryUrls must be an array.');
-    if (parsed.layout.galleryUrls.length > 10) throw new Error('A gallery supports up to 10 images.');
-    if (parsed.layout.thumbnailUrl && !validTemplateMedia(parsed.layout.thumbnailUrl)) throw new Error('Thumbnail must be an HTTP/HTTPS URL or a supported media variable.');
-    parsed.layout.galleryUrls.forEach((url, index) => {
-      if (!validTemplateMedia(url)) throw new Error(`Gallery image ${index + 1} must be an HTTP/HTTPS URL or a supported media variable.`);
+    const layout = parseTemplateLayoutClient(parsed.layout);
+    const additional = parsed.additionalContainers === undefined ? [] : parsed.additionalContainers;
+    if (!Array.isArray(additional)) throw new Error('additionalContainers must be an array.');
+    if (additional.length > MAX_ADDITIONAL_MESSAGE_CONTAINERS) throw new Error(`Templates support up to ${MAX_ADDITIONAL_MESSAGE_CONTAINERS} additional containers.`);
+    const additionalContainers = additional.map((container, index) => {
+      if (!container || typeof container !== 'object' || Array.isArray(container)) throw new Error(`Additional container ${index + 1} must be an object.`);
+      const unknownContainer = Object.keys(container).filter((key) => !['content', 'layout'].includes(key));
+      if (unknownContainer.length) throw new Error(`Unknown additional container ${index + 1} field${unknownContainer.length === 1 ? '' : 's'}: ${unknownContainer.join(', ')}.`);
+      if (typeof container.content !== 'string') throw new Error(`Additional container ${index + 1} content must be a string.`);
+      if (container.content.length > 4000) throw new Error(`Additional container ${index + 1} content must be 4000 characters or fewer.`);
+      if ((container.content.match(/\{separator\}/gi) || []).length > 4) throw new Error(`Additional container ${index + 1} supports up to 4 dividers.`);
+      return { content: container.content, layout: { ...parseTemplateLayoutClient(container.layout, `additionalContainers[${index}].layout`), container: true } };
     });
-    return { version: 1, content: parsed.content, layout: normalizeTemplateLayoutClient(parsed.layout) };
+    return { version: 1, content: parsed.content, layout, additionalContainers };
   }
 
   function templateVariableNames(item = state.templateDraft) {
     const found = new Set();
-    const values = [item?.content, item?.layout?.thumbnailUrl, ...(item?.layout?.galleryUrls || [])];
+    const values = [
+      item?.content, item?.layout?.thumbnailUrl, ...(item?.layout?.galleryUrls || []),
+      ...(item?.additionalContainers || []).flatMap((container) => [container.content, container.layout?.thumbnailUrl, ...(container.layout?.galleryUrls || [])]),
+    ];
     for (const value of values) String(value || '').replace(/\{([a-z0-9_]+)\}/gi, (token, key) => {
       found.add(key.toLowerCase()); return token;
     });
@@ -1180,19 +1283,30 @@
   function resolvedTemplatePayloadPreview() {
     if (!state.templateDraft) return {};
     const values = genericTemplatePreviewValues();
-    const content = interpolateTemplate(state.templateDraft.content, values);
-    const layout = state.templateDraft.layout;
-    const textComponents = content.split(/\{separator\}/gi).slice(0, 5).flatMap((part, index) => {
-      const result = [];
-      if (index) result.push({ type: 14, divider: true, spacing: 1 });
-      if (part.trim()) result.push({ type: 10, content: part.trim() });
-      return result;
-    });
-    if (!textComponents.length) textComponents.push({ type: 10, content: '-# Message template' });
-    const inner = textComponents;
-    const gallery = layout.galleryUrls.map(templatePreviewMediaUrl).filter(Boolean);
-    if (gallery.length) inner.push({ type: 12, items: gallery.map((url) => ({ media: { url } })) });
-    const components = layout.container ? [{ type: 17, accent_color: Number.parseInt(layout.accentColor.slice(1), 16), components: inner }] : inner;
+    const buildContainer = (content, layout, forceContainer = false) => {
+      const inner = interpolateTemplate(content, values).split(/\{separator\}/gi).slice(0, 5).flatMap((part, index) => {
+        const result = [];
+        if (index) result.push({ type: 14, divider: true, spacing: 1 });
+        if (part.trim()) result.push({ type: 10, content: part.trim() });
+        return result;
+      });
+      if (!inner.length) inner.push({ type: 10, content: '-# Message template' });
+      const thumbnailUrl = layout.thumbnailEnabled ? templatePreviewMediaUrl(layout.thumbnailUrl) : '';
+      if (thumbnailUrl) {
+        const firstTextIndex = inner.findIndex((component) => component.type === 10);
+        if (firstTextIndex >= 0) {
+          const firstText = inner[firstTextIndex];
+          inner.splice(firstTextIndex, 1, { type: 9, components: [firstText], accessory: { type: 11, media: { url: thumbnailUrl } } });
+        }
+      }
+      const gallery = layout.galleryUrls.map(templatePreviewMediaUrl).filter(Boolean);
+      if (gallery.length) inner.push({ type: 12, items: gallery.map((url) => ({ media: { url } })) });
+      return layout.container || forceContainer
+        ? [{ type: 17, accent_color: Number.parseInt(layout.accentColor.slice(1), 16), components: inner }]
+        : inner;
+    };
+    const components = buildContainer(state.templateDraft.content, state.templateDraft.layout);
+    for (const container of state.templateDraft.additionalContainers) components.push(...buildContainer(container.content, container.layout, true));
     return { flags: 32768, allowedMentions: { parse: [], users: [], roles: [] }, components };
   }
 
@@ -1205,7 +1319,7 @@
     const unresolved = used.filter((name) => name !== 'separator' && !generic.has(name));
     elements.templateSendHint.textContent = unresolved.length
       ? `Direct sending is blocked until these context variables are removed: ${unresolved.map((name) => `{${name}}`).join(', ')}`
-      : 'Test messages are labeled and all sends disable role/user pings.';
+      : 'Test and live sends use the same visible content. Role/user pings stay disabled.';
     return unresolved;
   }
 
@@ -1213,11 +1327,10 @@
     const dirty = templateIsDirty();
     elements.templateStatusBadge.textContent = dirty ? 'UNSAVED' : 'SAVED';
     elements.templateStatusBadge.classList.toggle('unsaved', dirty);
-    elements.templateSaveButton.disabled = !dirty || !state.templateJsonValid;
-    elements.templateResetButton.disabled = !dirty;
     const unresolved = templateVariableNames().filter((name) => !['server', 'server_icon', 'channel', 'timestamp', 'separator'].includes(name));
     elements.templateSendTest.disabled = dirty || Boolean(unresolved.length);
     elements.templateSendNow.disabled = dirty || !state.templateDraft?.enabled || Boolean(unresolved.length);
+    refreshDirty();
   }
 
   function renderTemplateComposerPanel() {
@@ -1252,6 +1365,13 @@
       accentButton: elements.templateAccentButton, accentInput: elements.templateAccentColor,
       containerButton: elements.templateContainerAdd, layout: draft.layout, contentHtml, resolveMedia: templatePreviewMediaUrl,
     });
+    renderAdditionalContainerEditors({
+      root: elements.templateAdditionalContainers,
+      containers: draft.additionalContainers,
+      prefix: 'template', scope: 'messageTemplate', previewValues: genericTemplatePreviewValues(),
+      resolveMedia: templatePreviewMediaUrl, maxLength: 4000,
+    });
+    elements.templateAdditionalContainerAdd.disabled = draft.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
     elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
     if (renderTools) renderTemplateComposerPanel();
     if (updateJson) syncTemplateJson();
@@ -1357,18 +1477,35 @@
   }
 
   async function saveMessageTemplate() {
-    if (!state.templateDraft || !templateIsDirty() || !state.templateJsonValid) return;
-    const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}`, {
-      method: 'PATCH', body: JSON.stringify({
-        name: state.templateDraft.name, description: state.templateDraft.description,
-        folderId: state.templateDraft.folderId, defaultChannelId: state.templateDraft.defaultChannelId,
-        enabled: state.templateDraft.enabled, document: templateDocument(),
-      }),
-    });
-    replaceTemplateCollection(payload, payload.item.id);
-    state.templateFolderId = payload.item.folderId || 'unfiled';
-    renderTemplateWorkspace();
-    showToast('Message template saved.');
+    if (!state.templateDraft || state.templateSaving || !templateIsDirty() || !state.templateJsonValid) return;
+    state.templateSaving = true;
+    refreshDirty();
+    try {
+      const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}`, {
+        method: 'PATCH', body: JSON.stringify({
+          name: state.templateDraft.name, description: state.templateDraft.description,
+          folderId: state.templateDraft.folderId, defaultChannelId: state.templateDraft.defaultChannelId,
+          enabled: state.templateDraft.enabled, document: templateDocument(),
+        }),
+      });
+      replaceTemplateCollection(payload, payload.item.id);
+      state.templateFolderId = payload.item.folderId || 'unfiled';
+      renderTemplateWorkspace();
+      showToast('Message template saved.');
+    } finally {
+      state.templateSaving = false;
+      refreshDirty();
+    }
+  }
+
+  function resetTemplateDraft() {
+    const stored = currentStoredTemplate();
+    if (!stored || state.templateSaving) return;
+    state.templateDraft = clone(stored);
+    state.templateSavedSnapshot = templateSnapshot();
+    state.templateJsonValid = true;
+    renderTemplateEditor();
+    showToast('Unsaved template changes reset.');
   }
 
   async function duplicateMessageTemplate() {
@@ -1427,18 +1564,21 @@
 
   function insertTemplateVariable(token) {
     if (!state.templateDraft) return;
-    let input = elements.templateMessagePreview.querySelector('[data-inline-message-input]');
+    let input = elements.messageTemplatesView.querySelector('[data-inline-message-editor].editing [data-inline-message-input]')
+      || elements.templateMessagePreview.querySelector('[data-inline-message-input]');
     if (!input) return;
     if (!input.closest('[data-inline-message-editor]')?.classList.contains('editing')) beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
-    input = elements.templateMessagePreview.querySelector('[data-inline-message-input]');
+    input = elements.messageTemplatesView.querySelector('[data-inline-message-editor].editing [data-inline-message-input]') || input;
     const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
     const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
     input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 4000);
-    state.templateDraft.content = input.value;
+    const containerIndex = Number(input.dataset.additionalContainerIndex);
+    if (Number.isInteger(containerIndex) && state.templateDraft.additionalContainers[containerIndex]) state.templateDraft.additionalContainers[containerIndex].content = input.value;
+    else state.templateDraft.content = input.value;
     syncInlineEditorVisual(input);
     input.focus();
     input.setSelectionRange(Math.min(input.value.length, start + token.length), Math.min(input.value.length, start + token.length));
-    elements.templateCharacterCount.textContent = `${input.value.length} / 4000`;
+    if (!Number.isInteger(containerIndex)) elements.templateCharacterCount.textContent = `${input.value.length} / 4000`;
     syncTemplateJson();
     renderTemplateVariableReference();
     refreshTemplateDirty();
@@ -1455,7 +1595,9 @@
     label?.classList.add('uploading');
     try {
       const result = await api(`/api/guilds/${state.guildId}/message-media`, { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
-      const layout = state.templateDraft.layout;
+      const containerIndex = Number(input.dataset.additionalContainerIndex);
+      const layout = Number.isInteger(containerIndex) ? state.templateDraft.additionalContainers[containerIndex]?.layout : state.templateDraft.layout;
+      if (!layout) throw new Error('That container no longer exists.');
       if (input.dataset.templateMediaUpload === 'thumbnail') {
         layout.thumbnailUrl = result.url; layout.thumbnailEnabled = true;
       } else {
@@ -1492,6 +1634,7 @@
       const documentValue = parseTemplateJsonText(elements.templateJsonEditor.value);
       state.templateDraft.content = documentValue.content;
       state.templateDraft.layout = documentValue.layout;
+      state.templateDraft.additionalContainers = documentValue.additionalContainers;
       state.templateJsonValid = true;
       elements.templateJsonError.hidden = true;
       renderTemplateComposerPreview(true, false);
@@ -1510,9 +1653,11 @@
     const draft = state.templateDraft;
     if (!draft) return;
     if (target.matches('[data-inline-message-input]') && target.dataset.inlineTemplateScope === 'messageTemplate') {
-      draft.content = target.value.slice(0, 4000);
+      const containerIndex = Number(target.dataset.additionalContainerIndex);
+      if (Number.isInteger(containerIndex) && draft.additionalContainers[containerIndex]) draft.additionalContainers[containerIndex].content = target.value.slice(0, 4000);
+      else draft.content = target.value.slice(0, 4000);
       syncInlineEditorVisual(target);
-      elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
+      if (!Number.isInteger(containerIndex)) elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
       syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       renderTemplateVariableReference();
@@ -1535,6 +1680,12 @@
       renderTemplateComposerPreview();
       return;
     }
+    if (target.matches('[data-template-additional-accent]')) {
+      const container = draft.additionalContainers[Number(target.dataset.templateAdditionalAccent)];
+      if (container) container.layout.accentColor = target.value;
+      renderTemplateComposerPreview();
+      return;
+    }
     if (target.matches('[data-template-thumbnail-url]')) {
       draft.layout.thumbnailUrl = target.value.slice(0, 2000);
       draft.layout.thumbnailEnabled = Boolean(target.value.trim());
@@ -1543,6 +1694,22 @@
     }
     if (target.matches('[data-template-gallery-url]')) {
       draft.layout.galleryUrls[Number(target.dataset.templateGalleryUrl)] = target.value.slice(0, 2000);
+      renderTemplateComposerPreview(false);
+      return;
+    }
+    if (target.matches('[data-template-additional-thumbnail-url]')) {
+      const container = draft.additionalContainers[Number(target.dataset.templateAdditionalThumbnailUrl)];
+      if (container) {
+        container.layout.thumbnailUrl = target.value.slice(0, 2000);
+        container.layout.thumbnailEnabled = validTemplateMedia(target.value);
+      }
+      renderTemplateComposerPreview(false);
+      return;
+    }
+    if (target.matches('[data-template-additional-gallery-url]')) {
+      const [containerIndex, mediaIndex] = target.dataset.templateAdditionalGalleryUrl.split(':').map(Number);
+      const container = draft.additionalContainers[containerIndex];
+      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
       renderTemplateComposerPreview(false);
       return;
     }
@@ -1586,11 +1753,17 @@
     if (state.templatePickerContext === 'leveling') {
       state.config.leveling.announcements.template = item.content.slice(0, 3000);
       state.config.leveling.announcements.layout = clone(item.layout);
+      state.config.leveling.announcements.additionalContainers = clone(item.additionalContainers).map((container) => ({
+        ...container, content: container.content.slice(0, 3000),
+      }));
       renderMessagePreview();
     } else {
       const event = currentMemberMessage();
       event.template = item.content.slice(0, 3000);
       event.layout = clone(item.layout);
+      event.additionalContainers = clone(item.additionalContainers).map((container) => ({
+        ...container, content: container.content.slice(0, 3000),
+      }));
       renderWelcomeMessagePreview();
     }
     elements.templatePickerDialog.close();
@@ -1604,7 +1777,7 @@
     const name = await confirmAction({ title: 'Save as a message template', copy: 'This creates an independent snapshot you can organize and edit later.', input: true, inputLabel: 'Template name', confirmLabel: 'Save template' });
     if (!name) return;
     const payload = await api(`/api/guilds/${state.guildId}/message-templates`, {
-      method: 'POST', body: JSON.stringify({ name, content: defaults.template, layout: defaults.layout }),
+      method: 'POST', body: JSON.stringify({ name, content: defaults.template, layout: defaults.layout, additionalContainers: defaults.additionalContainers }),
     });
     state.messageTemplates = normalizeMessageTemplatesClient(payload.messageTemplates);
     renderTemplateFolders(); renderTemplateList();
@@ -1677,11 +1850,16 @@
   }
 
   function refreshDirty() {
-    const dirty = snapshot() !== state.savedSnapshot;
-    elements.saveDock.hidden = !dirty && !state.saving;
-    elements.saveState.textContent = state.saving ? 'Applying changes…' : 'Unsaved changes';
-    elements.saveButton.disabled = !dirty || state.saving;
-    elements.resetButton.disabled = !dirty || state.saving;
+    const templateMode = state.currentView === 'message-templates';
+    const dirty = templateMode ? templateIsDirty() : snapshot() !== state.savedSnapshot;
+    const saving = templateMode ? state.templateSaving : state.saving;
+    elements.saveDock.hidden = !dirty && !saving;
+    elements.saveState.textContent = saving
+      ? templateMode ? 'Saving template…' : 'Applying changes…'
+      : templateMode ? 'Unsaved template changes' : 'Unsaved changes';
+    elements.saveButton.textContent = templateMode ? 'Save changes' : 'Apply changes';
+    elements.saveButton.disabled = !dirty || saving || (templateMode && !state.templateJsonValid);
+    elements.resetButton.disabled = !dirty || saving;
   }
 
   async function loadGuild(guildId) {
@@ -1922,6 +2100,7 @@
       stopOwnerMetricPolling();
       if (view === 'message-templates') updateTemplateDeepLink();
     }
+    refreshDirty();
   }
 
   function confirmAction({ title, copy, input = false, inputLabel = 'Reason', inputValue = '', confirmLabel = 'Confirm' }) {
@@ -1969,7 +2148,12 @@
       const limits = { template: 3000 };
       if (target.dataset.inlineTemplateScope === 'xpDrops') {
         if (['dropTemplate', 'claimTemplate'].includes(field)) leveling.xpDrops[field] = target.value.slice(0, 3000);
-      } else if (limits[field]) leveling.announcements[field] = target.value.slice(0, limits[field]);
+      } else {
+        const containerIndex = Number(target.dataset.additionalContainerIndex);
+        if (Number.isInteger(containerIndex) && leveling.announcements.additionalContainers[containerIndex]) {
+          leveling.announcements.additionalContainers[containerIndex].content = target.value.slice(0, 3000);
+        } else if (limits[field]) leveling.announcements[field] = target.value.slice(0, limits[field]);
+      }
       syncInlineEditorVisual(target);
       refreshDirty();
       return;
@@ -2003,6 +2187,19 @@
       leveling.announcements.layout.accentColor = target.value;
       renderMessagePreview();
     }
+    if (target.matches('[data-leveling-additional-accent]')) {
+      const container = leveling.announcements.additionalContainers[Number(target.dataset.levelingAdditionalAccent)];
+      if (container) container.layout.accentColor = target.value;
+      renderMessagePreview();
+    }
+    if (target.matches('[data-leveling-additional-thumbnail-url]')) {
+      const container = leveling.announcements.additionalContainers[Number(target.dataset.levelingAdditionalThumbnailUrl)];
+      if (container) {
+        container.layout.thumbnailUrl = target.value.slice(0, 2000);
+        container.layout.thumbnailEnabled = validMediaTemplate(target.value);
+      }
+      renderMessagePreview(false);
+    }
     if (target === elements.levelingStackRewards) leveling.stackRoleRewards = target.checked;
     if (target.matches('[data-leveling-channel]')) {
       if (target.checked) leveling.channelMultipliers[target.value] = 1;
@@ -2014,6 +2211,12 @@
     }
     if (target.matches('[data-leveling-gallery-url]')) {
       leveling.announcements.layout.galleryUrls[Number(target.dataset.levelingGalleryUrl)] = target.value.slice(0, 2000);
+      renderMessagePreview(false);
+    }
+    if (target.matches('[data-leveling-additional-gallery-url]')) {
+      const [containerIndex, mediaIndex] = target.dataset.levelingAdditionalGalleryUrl.split(':').map(Number);
+      const container = leveling.announcements.additionalContainers[containerIndex];
+      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
       renderMessagePreview(false);
     }
     if (target.matches('[data-level-reward-level]')) {
@@ -2081,7 +2284,9 @@
     const event = currentMemberMessage();
     if (!event) return;
     if (target.matches('[data-inline-message-input]')) {
-      event.template = target.value.slice(0, 3000);
+      const containerIndex = Number(target.dataset.additionalContainerIndex);
+      if (Number.isInteger(containerIndex) && event.additionalContainers[containerIndex]) event.additionalContainers[containerIndex].content = target.value.slice(0, 3000);
+      else event.template = target.value.slice(0, 3000);
       syncInlineEditorVisual(target);
       refreshDirty();
       return;
@@ -2101,6 +2306,25 @@
     if (target === elements.welcomeAccentColor) {
       event.layout.accentColor = target.value;
       renderWelcomeMessagePreview();
+    }
+    if (target.matches('[data-welcome-additional-accent]')) {
+      const container = event.additionalContainers[Number(target.dataset.welcomeAdditionalAccent)];
+      if (container) container.layout.accentColor = target.value;
+      renderWelcomeMessagePreview();
+    }
+    if (target.matches('[data-welcome-additional-thumbnail-url]')) {
+      const container = event.additionalContainers[Number(target.dataset.welcomeAdditionalThumbnailUrl)];
+      if (container) {
+        container.layout.thumbnailUrl = target.value.slice(0, 2000);
+        container.layout.thumbnailEnabled = validMemberMediaTemplate(target.value);
+      }
+      renderWelcomeMessagePreview(false);
+    }
+    if (target.matches('[data-welcome-additional-gallery-url]')) {
+      const [containerIndex, mediaIndex] = target.dataset.welcomeAdditionalGalleryUrl.split(':').map(Number);
+      const container = event.additionalContainers[containerIndex];
+      if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000);
+      renderWelcomeMessagePreview(false);
     }
     refreshDirty();
   }
@@ -3288,8 +3512,14 @@
       redoCardDesign();
     }
   });
-  elements.saveButton.addEventListener('click', saveConfig);
-  elements.resetButton.addEventListener('click', resetUnsavedChanges);
+  elements.saveButton.addEventListener('click', () => {
+    if (state.currentView === 'message-templates') saveMessageTemplate().catch((error) => showToast(error.message, 'error'));
+    else saveConfig();
+  });
+  elements.resetButton.addEventListener('click', () => {
+    if (state.currentView === 'message-templates') resetTemplateDraft();
+    else resetUnsavedChanges();
+  });
   elements.logoutButton.addEventListener('click', async () => {
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
@@ -3306,7 +3536,12 @@
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
-  for (const preview of [elements.levelingMessagePreview, elements.welcomeMessagePreview, elements.templateMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
+  for (const preview of [
+    elements.levelingMessagePreview, elements.levelingAdditionalContainers,
+    elements.welcomeMessagePreview, elements.welcomeAdditionalContainers,
+    elements.templateMessagePreview, elements.templateAdditionalContainers,
+    elements.xpDropMessagePreview, elements.xpDropClaimPreview,
+  ]) {
     preview.addEventListener('click', (event) => {
       const edit = event.target.closest('[data-inline-message-display]');
       if (edit) return beginInlineMessageEdit(edit);
@@ -3362,6 +3597,39 @@
     renderMessagePreview();
     refreshDirty();
   });
+  elements.levelingAdditionalContainerAdd.addEventListener('click', () => {
+    const announcements = state.config?.leveling?.announcements;
+    if (!announcements || announcements.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return;
+    announcements.additionalContainers.push(newAdditionalContainer(announcements.layout.accentColor));
+    renderMessagePreview();
+    refreshDirty();
+    elements.levelingAdditionalContainers.lastElementChild?.querySelector('[data-inline-message-display]')?.focus();
+  });
+  elements.levelingAdditionalContainers.addEventListener('click', (event) => {
+    const announcements = state.config?.leveling?.announcements;
+    if (!announcements) return;
+    const removeContainer = event.target.closest('[data-remove-leveling-additional-container]');
+    if (removeContainer) {
+      announcements.additionalContainers.splice(Number(removeContainer.dataset.removeLevelingAdditionalContainer), 1);
+      renderMessagePreview(); refreshDirty(); return;
+    }
+    const addGallery = event.target.closest('[data-add-leveling-additional-gallery]');
+    if (addGallery) {
+      const layout = announcements.additionalContainers[Number(addGallery.dataset.addLevelingAdditionalGallery)]?.layout;
+      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+      layout.galleryUrls.push(''); renderMessagePreview(); refreshDirty(); return;
+    }
+    const removeGallery = event.target.closest('[data-remove-leveling-additional-gallery]');
+    if (removeGallery) {
+      const [containerIndex, mediaIndex] = removeGallery.dataset.removeLevelingAdditionalGallery.split(':').map(Number);
+      announcements.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
+      renderMessagePreview(); refreshDirty();
+    }
+  });
+  elements.levelingAdditionalContainers.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-leveling-media-upload]');
+    if (upload) uploadLevelingMedia(upload);
+  });
   elements.levelingVariablesToggle.addEventListener('click', () => toggleComposerPanel('variables'));
   elements.levelingThumbnailAdd.addEventListener('click', () => toggleComposerPanel('thumbnail'));
   elements.levelingGalleryAdd.addEventListener('click', () => toggleComposerPanel('gallery'));
@@ -3413,6 +3681,38 @@
     event.layout.container = !event.layout.container;
     renderWelcomeMessagePreview();
     refreshDirty();
+  });
+  elements.welcomeAdditionalContainerAdd.addEventListener('click', () => {
+    const current = currentMemberMessage();
+    if (!current || current.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return;
+    current.additionalContainers.push(newAdditionalContainer(current.layout.accentColor));
+    renderWelcomeMessagePreview(); refreshDirty();
+    elements.welcomeAdditionalContainers.lastElementChild?.querySelector('[data-inline-message-display]')?.focus();
+  });
+  elements.welcomeAdditionalContainers.addEventListener('click', (event) => {
+    const current = currentMemberMessage();
+    if (!current) return;
+    const removeContainer = event.target.closest('[data-remove-welcome-additional-container]');
+    if (removeContainer) {
+      current.additionalContainers.splice(Number(removeContainer.dataset.removeWelcomeAdditionalContainer), 1);
+      renderWelcomeMessagePreview(); refreshDirty(); return;
+    }
+    const addGallery = event.target.closest('[data-add-welcome-additional-gallery]');
+    if (addGallery) {
+      const layout = current.additionalContainers[Number(addGallery.dataset.addWelcomeAdditionalGallery)]?.layout;
+      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+      layout.galleryUrls.push(''); renderWelcomeMessagePreview(); refreshDirty(); return;
+    }
+    const removeGallery = event.target.closest('[data-remove-welcome-additional-gallery]');
+    if (removeGallery) {
+      const [containerIndex, mediaIndex] = removeGallery.dataset.removeWelcomeAdditionalGallery.split(':').map(Number);
+      current.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
+      renderWelcomeMessagePreview(); refreshDirty();
+    }
+  });
+  elements.welcomeAdditionalContainers.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-welcome-media-upload]');
+    if (upload) uploadWelcomeMedia(upload);
   });
   elements.welcomeVariablesToggle.addEventListener('click', () => toggleWelcomeComposerPanel('variables'));
   elements.welcomeThumbnailAdd.addEventListener('click', () => toggleWelcomeComposerPanel('thumbnail'));
@@ -3484,22 +3784,42 @@
     state.templateTab = tab.dataset.templateTab;
     renderTemplateEditor();
   });
-  elements.templateSaveButton.addEventListener('click', () => saveMessageTemplate().catch((error) => showToast(error.message, 'error')));
-  elements.templateResetButton.addEventListener('click', () => {
-    const stored = currentStoredTemplate();
-    if (!stored) return;
-    state.templateDraft = clone(stored);
-    state.templateSavedSnapshot = templateSnapshot();
-    state.templateJsonValid = true;
-    renderTemplateEditor();
-    showToast('Unsaved template changes reset.');
-  });
   elements.templateDuplicateButton.addEventListener('click', () => duplicateMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateDeleteButton.addEventListener('click', () => deleteMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateContainerAdd.addEventListener('click', () => {
     if (!state.templateDraft) return;
     state.templateDraft.layout.container = !state.templateDraft.layout.container;
     renderTemplateComposerPreview();
+  });
+  elements.templateAdditionalContainerAdd.addEventListener('click', () => {
+    if (!state.templateDraft || state.templateDraft.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return;
+    state.templateDraft.additionalContainers.push(newAdditionalContainer(state.templateDraft.layout.accentColor));
+    renderTemplateComposerPreview();
+    elements.templateAdditionalContainers.lastElementChild?.querySelector('[data-inline-message-display]')?.focus();
+  });
+  elements.templateAdditionalContainers.addEventListener('click', (event) => {
+    if (!state.templateDraft) return;
+    const removeContainer = event.target.closest('[data-remove-template-additional-container]');
+    if (removeContainer) {
+      state.templateDraft.additionalContainers.splice(Number(removeContainer.dataset.removeTemplateAdditionalContainer), 1);
+      renderTemplateComposerPreview(); return;
+    }
+    const addGallery = event.target.closest('[data-add-template-additional-gallery]');
+    if (addGallery) {
+      const layout = state.templateDraft.additionalContainers[Number(addGallery.dataset.addTemplateAdditionalGallery)]?.layout;
+      if (!layout || layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+      layout.galleryUrls.push(''); renderTemplateComposerPreview(); return;
+    }
+    const removeGallery = event.target.closest('[data-remove-template-additional-gallery]');
+    if (removeGallery) {
+      const [containerIndex, mediaIndex] = removeGallery.dataset.removeTemplateAdditionalGallery.split(':').map(Number);
+      state.templateDraft.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1);
+      renderTemplateComposerPreview();
+    }
+  });
+  elements.templateAdditionalContainers.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-template-media-upload]');
+    if (upload) uploadTemplateMedia(upload);
   });
   elements.templateVariablesToggle.addEventListener('click', () => {
     state.templateComposerPanel = state.templateComposerPanel === 'variables' ? '' : 'variables'; renderTemplateComposerPanel();

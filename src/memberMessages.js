@@ -115,11 +115,16 @@ function memberMessagePayload(type, member, eventConfig, options = {}) {
   });
   const layout = resolvedLayout(eventConfig?.layout, values);
   const content = interpolateTemplate(eventConfig?.template, values).slice(0, 4000);
+  const additionalContainers = (eventConfig?.additionalContainers || []).map((container) => ({
+    content: interpolateTemplate(container.content, values).slice(0, 4000),
+    layout: resolvedLayout(container.layout, values),
+  }));
   const userId = String(member?.user?.id || member?.id || '');
   return componentMessagePayload(content, layout, {
     label: `${type} message`,
     fallbackText: '-# Member update',
     fallbackColor: 0x57f287,
+    additionalContainers,
     allowedUsers: /^\d{16,20}$/.test(userId) ? [userId] : [],
   });
 }
@@ -147,7 +152,9 @@ async function sendMemberMessage(type, member, options = {}) {
   }
   const values = memberMessageValues(type, member, { channelId: channel.id, nowMs: options.nowMs });
   const layout = resolvedLayout(eventConfig.layout, values);
-  const needsEmbedLinks = Boolean((layout.thumbnailEnabled && layout.thumbnailUrl) || layout.galleryUrls.length);
+  const additionalLayouts = (eventConfig.additionalContainers || []).map((container) => resolvedLayout(container.layout, values));
+  const needsEmbedLinks = Boolean((layout.thumbnailEnabled && layout.thumbnailUrl) || layout.galleryUrls.length
+    || additionalLayouts.some((item) => (item.thumbnailEnabled && item.thumbnailUrl) || item.galleryUrls.length));
   const permissions = await deliveryPermissions(channel, guild, needsEmbedLinks);
   if (!permissions.ok) {
     log(`Welcome Messages: ${type} delivery skipped in guild ${guildId} because CoinSprite lacks ${permissions.missing.join(', ')} in channel ${channel.id}.`);

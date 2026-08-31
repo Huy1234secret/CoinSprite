@@ -18,6 +18,7 @@ const MESSAGE_TEMPLATE_LIMITS = Object.freeze({
   content: 4000,
   media: 10,
   separators: 4,
+  additionalContainers: 2,
 });
 const GENERIC_TEMPLATE_VARIABLES = Object.freeze([
   'server', 'server_icon', 'channel', 'timestamp', 'separator',
@@ -118,6 +119,13 @@ function normalizeTemplateLayout(value) {
   };
 }
 
+function normalizeAdditionalTemplateContainers(value) {
+  return (Array.isArray(value) ? value : []).slice(0, MESSAGE_TEMPLATE_LIMITS.additionalContainers).map((container) => ({
+    content: cleanContent(container?.content),
+    layout: { ...normalizeTemplateLayout(container?.layout), container: true },
+  }));
+}
+
 function normalizeMessageTemplatesConfig(value) {
   const source = isObject(value) ? value : {};
   const folderIds = new Set();
@@ -146,6 +154,7 @@ function normalizeMessageTemplatesConfig(value) {
         version: TEMPLATE_VERSION,
         content: cleanContent(item?.content),
         layout: normalizeTemplateLayout(item?.layout),
+        additionalContainers: normalizeAdditionalTemplateContainers(item?.additionalContainers),
         defaultChannelId: cleanDiscordId(item?.defaultChannelId),
         enabled: item?.enabled !== false,
         createdAt,
@@ -176,31 +185,51 @@ function validateMediaTemplate(value, label) {
   return cleaned;
 }
 
+function parseTemplateContent(value, label = 'Template content') {
+  if (typeof value !== 'string') throw new MessageTemplateError(`${label} must be a string.`);
+  if (value.length > MESSAGE_TEMPLATE_LIMITS.content) throw new MessageTemplateError(`${label} must be ${MESSAGE_TEMPLATE_LIMITS.content} characters or fewer.`);
+  const separators = value.match(/\{separator\}/gi)?.length || 0;
+  if (separators > MESSAGE_TEMPLATE_LIMITS.separators) throw new MessageTemplateError(`${label} supports up to ${MESSAGE_TEMPLATE_LIMITS.separators} dividers.`);
+  return cleanContent(value);
+}
+
+function parseTemplateLayout(value, label = 'Layout') {
+  assertAllowedFields(value, ['container', 'accentColor', 'thumbnailEnabled', 'thumbnailUrl', 'galleryUrls'], label);
+  if (typeof value.container !== 'boolean') throw new MessageTemplateError(`${label}.container must be true or false.`);
+  if (typeof value.thumbnailEnabled !== 'boolean') throw new MessageTemplateError(`${label}.thumbnailEnabled must be true or false.`);
+  if (!/^#[0-9a-f]{6}$/i.test(String(value.accentColor || ''))) throw new MessageTemplateError(`${label}.accentColor must be a six-digit hex color.`);
+  if (!Array.isArray(value.galleryUrls)) throw new MessageTemplateError(`${label}.galleryUrls must be an array.`);
+  if (value.galleryUrls.length > MESSAGE_TEMPLATE_LIMITS.media) throw new MessageTemplateError(`A gallery supports up to ${MESSAGE_TEMPLATE_LIMITS.media} images.`);
+  const mediaPrefix = label === 'Layout' ? '' : `${label} `;
+  const thumbnailUrl = validateMediaTemplate(value.thumbnailUrl, `${mediaPrefix}Thumbnail`);
+  const galleryUrls = [...new Set(value.galleryUrls.map((url, index) => validateMediaTemplate(url, `${mediaPrefix}Gallery image ${index + 1}`)).filter(Boolean))];
+  return {
+    container: value.container,
+    accentColor: cleanHexColor(value.accentColor),
+    thumbnailEnabled: value.thumbnailEnabled,
+    thumbnailUrl,
+    galleryUrls,
+  };
+}
+
 function parseTemplateDocument(value) {
-  assertAllowedFields(value, ['version', 'content', 'layout'], 'Template JSON');
+  assertAllowedFields(value, ['version', 'content', 'layout', 'additionalContainers'], 'Template JSON');
   if (Number(value.version) !== TEMPLATE_VERSION) throw new MessageTemplateError(`Template JSON version must be ${TEMPLATE_VERSION}.`);
-  if (typeof value.content !== 'string') throw new MessageTemplateError('Template JSON content must be a string.');
-  if (value.content.length > MESSAGE_TEMPLATE_LIMITS.content) throw new MessageTemplateError(`Template content must be ${MESSAGE_TEMPLATE_LIMITS.content} characters or fewer.`);
-  const separators = value.content.match(/\{separator\}/gi)?.length || 0;
-  if (separators > MESSAGE_TEMPLATE_LIMITS.separators) throw new MessageTemplateError(`Templates support up to ${MESSAGE_TEMPLATE_LIMITS.separators} dividers.`);
-  assertAllowedFields(value.layout, ['container', 'accentColor', 'thumbnailEnabled', 'thumbnailUrl', 'galleryUrls'], 'Layout');
-  if (typeof value.layout.container !== 'boolean') throw new MessageTemplateError('layout.container must be true or false.');
-  if (typeof value.layout.thumbnailEnabled !== 'boolean') throw new MessageTemplateError('layout.thumbnailEnabled must be true or false.');
-  if (!/^#[0-9a-f]{6}$/i.test(String(value.layout.accentColor || ''))) throw new MessageTemplateError('layout.accentColor must be a six-digit hex color.');
-  if (!Array.isArray(value.layout.galleryUrls)) throw new MessageTemplateError('layout.galleryUrls must be an array.');
-  if (value.layout.galleryUrls.length > MESSAGE_TEMPLATE_LIMITS.media) throw new MessageTemplateError(`A gallery supports up to ${MESSAGE_TEMPLATE_LIMITS.media} images.`);
-  const thumbnailUrl = validateMediaTemplate(value.layout.thumbnailUrl, 'Thumbnail');
-  const galleryUrls = [...new Set(value.layout.galleryUrls.map((url, index) => validateMediaTemplate(url, `Gallery image ${index + 1}`)).filter(Boolean))];
+  const additional = value.additionalContainers === undefined ? [] : value.additionalContainers;
+  if (!Array.isArray(additional)) throw new MessageTemplateError('additionalContainers must be an array.');
+  if (additional.length > MESSAGE_TEMPLATE_LIMITS.additionalContainers) throw new MessageTemplateError(`Templates support up to ${MESSAGE_TEMPLATE_LIMITS.additionalContainers} additional containers.`);
   return {
     version: TEMPLATE_VERSION,
-    content: cleanContent(value.content),
-    layout: {
-      container: value.layout.container,
-      accentColor: cleanHexColor(value.layout.accentColor),
-      thumbnailEnabled: value.layout.thumbnailEnabled,
-      thumbnailUrl,
-      galleryUrls,
-    },
+    content: parseTemplateContent(value.content, 'Template content'),
+    layout: parseTemplateLayout(value.layout),
+    additionalContainers: additional.map((container, index) => {
+      const label = `Additional container ${index + 1}`;
+      assertAllowedFields(container, ['content', 'layout'], label);
+      return {
+        content: parseTemplateContent(container.content, `${label} content`),
+        layout: { ...parseTemplateLayout(container.layout, `${label} layout`), container: true },
+      };
+    }),
   };
 }
 
@@ -210,6 +239,7 @@ function templateDocument(item) {
     version: TEMPLATE_VERSION,
     content: normalized?.content || '',
     layout: normalized?.layout || clone(DEFAULT_TEMPLATE_LAYOUT),
+    additionalContainers: normalized?.additionalContainers || [],
   };
 }
 
@@ -266,10 +296,10 @@ function deleteFolder(collection, id, now = new Date()) {
 }
 
 function createTemplate(collection, body = {}, now = new Date()) {
-  assertAllowedFields(body, ['name', 'description', 'folderId', 'defaultChannelId', 'enabled', 'content', 'layout', 'document'], 'Template');
+  assertAllowedFields(body, ['name', 'description', 'folderId', 'defaultChannelId', 'enabled', 'content', 'layout', 'additionalContainers', 'document'], 'Template');
   if (collection.items.length >= MESSAGE_TEMPLATE_LIMITS.templates) throw new MessageTemplateError(`A server can have up to ${MESSAGE_TEMPLATE_LIMITS.templates} templates.`);
-  if (body.document !== undefined && (body.content !== undefined || body.layout !== undefined)) {
-    throw new MessageTemplateError('Provide either document or content/layout, not both.');
+  if (body.document !== undefined && (body.content !== undefined || body.layout !== undefined || body.additionalContainers !== undefined)) {
+    throw new MessageTemplateError('Provide either document or content/layout/additionalContainers, not both.');
   }
   if (body.description !== undefined && String(body.description).length > MESSAGE_TEMPLATE_LIMITS.description) {
     throw new MessageTemplateError(`Description must be ${MESSAGE_TEMPLATE_LIMITS.description} characters or fewer.`);
@@ -278,7 +308,12 @@ function createTemplate(collection, body = {}, now = new Date()) {
   if (body.enabled !== undefined && typeof body.enabled !== 'boolean') throw new MessageTemplateError('enabled must be true or false.');
   const document = body.document !== undefined
     ? parseTemplateDocument(body.document)
-    : parseTemplateDocument({ version: TEMPLATE_VERSION, content: String(body.content || ''), layout: body.layout || clone(DEFAULT_TEMPLATE_LAYOUT) });
+    : parseTemplateDocument({
+      version: TEMPLATE_VERSION,
+      content: String(body.content || ''),
+      layout: body.layout || clone(DEFAULT_TEMPLATE_LAYOUT),
+      additionalContainers: body.additionalContainers || [],
+    });
   const timestamp = cleanTimestamp(now);
   const item = {
     id: nextId('template'),
@@ -346,7 +381,12 @@ function deleteTemplate(collection, id) {
 }
 
 function itemVariableNames(item) {
-  return templateVariables(item?.content, item?.layout?.thumbnailUrl, item?.layout?.galleryUrls);
+  return templateVariables(
+    item?.content,
+    item?.layout?.thumbnailUrl,
+    item?.layout?.galleryUrls,
+    (item?.additionalContainers || []).flatMap((container) => [container.content, container.layout?.thumbnailUrl, container.layout?.galleryUrls]),
+  );
 }
 
 function unresolvedVariables(item, supported = GENERIC_TEMPLATE_VARIABLES) {
@@ -372,10 +412,14 @@ function buildTemplatePayload(item, guild, channel, options = {}) {
   const values = genericTemplateValues(guild, channel, options.nowMs);
   const layout = resolvedLayout(item.layout, values);
   const body = interpolateTemplate(item.content, values).slice(0, MESSAGE_TEMPLATE_LIMITS.content);
-  const content = options.test ? `-# TEST MESSAGE · ${item.name}\n${body}` : body;
-  return componentMessagePayload(content, layout, {
-    label: options.test ? 'Template test' : item.name,
-    fallbackText: options.test ? `-# TEST MESSAGE · ${item.name}` : '-# Message template',
+  const additionalContainers = (item.additionalContainers || []).map((container) => ({
+    content: interpolateTemplate(container.content, values).slice(0, MESSAGE_TEMPLATE_LIMITS.content),
+    layout: resolvedLayout(container.layout, values),
+  }));
+  return componentMessagePayload(body, layout, {
+    label: item.name,
+    fallbackText: '-# Message template',
+    additionalContainers,
     allowedUsers: [],
   });
 }
@@ -400,7 +444,9 @@ async function sendTemplate(item, guild, options = {}) {
   if (!channel || unsupportedDestination(channel)) throw new MessageTemplateError('The selected destination is unavailable or unsupported.', 400, 'MISSING_CHANNEL');
   const payload = buildTemplatePayload(item, guild, channel, options);
   const resolved = resolvedLayout(item.layout, genericTemplateValues(guild, channel, options.nowMs));
-  const needsEmbedLinks = Boolean((resolved.thumbnailEnabled && resolved.thumbnailUrl) || resolved.galleryUrls.length);
+  const resolvedAdditional = (item.additionalContainers || []).map((container) => resolvedLayout(container.layout, genericTemplateValues(guild, channel, options.nowMs)));
+  const needsEmbedLinks = Boolean((resolved.thumbnailEnabled && resolved.thumbnailUrl) || resolved.galleryUrls.length
+    || resolvedAdditional.some((layout) => (layout.thumbnailEnabled && layout.thumbnailUrl) || layout.galleryUrls.length));
   const permissions = await deliveryPermissions(channel, guild, needsEmbedLinks);
   if (!permissions.ok) throw new MessageTemplateError(`CoinSprite is missing ${permissions.missing.join(', ')} in that channel.`, 403, 'MISSING_PERMISSIONS');
   let message;

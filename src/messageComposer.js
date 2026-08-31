@@ -42,7 +42,7 @@ function resolvedLayout(layout = {}, values = {}) {
   };
 }
 
-function messageContentComponents(content, layout = {}, label = 'Message', options = {}) {
+function messageContentComponents(content, layout = {}, _label = 'Message', options = {}) {
   const rawParts = String(content || '').split(/\{separator\}/gi);
   const parts = rawParts.length > 5
     ? [...rawParts.slice(0, 4), rawParts.slice(4).join('\n')]
@@ -61,7 +61,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
       components.push({
         type: 9,
         components: [{ type: 10, content: text }],
-        accessory: { type: 11, media: { url: thumbnailUrl }, description: `${label} thumbnail` },
+        accessory: { type: 11, media: { url: thumbnailUrl } },
       });
       thumbnailPlaced = true;
     } else components.push({ type: 10, content: text });
@@ -73,7 +73,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
     components.unshift({
       type: 9,
       components: [first?.type === 10 ? first : { type: 10, content: options.fallbackText || '-# Message' }],
-      accessory: { type: 11, media: { url: thumbnailUrl }, description: `${label} thumbnail` },
+      accessory: { type: 11, media: { url: thumbnailUrl } },
     });
   }
 
@@ -81,7 +81,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
   if (galleryUrls.length) {
     components.push({
       type: 12,
-      items: galleryUrls.map((url) => ({ media: { url }, description: `${label} image` })),
+      items: galleryUrls.map((url) => ({ media: { url } })),
     });
   }
   return components;
@@ -90,14 +90,25 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
 function componentMessagePayload(content, layout = {}, options = {}) {
   const inner = messageContentComponents(content, layout, options.label, { fallbackText: options.fallbackText });
   const allowedUsers = [...new Set((options.allowedUsers || []).map(String).filter((id) => /^\d{16,20}$/.test(id)))];
+  const components = layout.container === false ? inner : [{
+    type: 17,
+    accent_color: accentColorValue(layout.accentColor, options.fallbackColor),
+    components: inner,
+  }];
+  for (const [index, container] of (options.additionalContainers || []).slice(0, 2).entries()) {
+    const containerLayout = container?.layout || {};
+    components.push({
+      type: 17,
+      accent_color: accentColorValue(containerLayout.accentColor, options.fallbackColor),
+      components: messageContentComponents(container?.content, containerLayout, `${options.label || 'Message'} container ${index + 2}`, {
+        fallbackText: options.fallbackText,
+      }),
+    });
+  }
   return {
     flags: COMPONENTS_V2_FLAG,
     allowedMentions: { parse: [], users: allowedUsers, roles: [] },
-    components: layout.container === false ? inner : [{
-      type: 17,
-      accent_color: accentColorValue(layout.accentColor, options.fallbackColor),
-      components: inner,
-    }],
+    components,
   };
 }
 

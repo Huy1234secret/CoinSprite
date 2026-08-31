@@ -23,6 +23,7 @@ const {
 const { acknowledgeEphemeral, acknowledgeUpdate, completeEphemeral } = require('./features/shared/interactionResponses');
 const {
   accentColorValue: sharedAccentColorValue,
+  componentMessagePayload,
   messageContentComponents: sharedMessageContentComponents,
 } = require('./messageComposer');
 
@@ -1470,16 +1471,12 @@ function announcementContentComponents(content, layout = {}) {
 
 function levelUpAnnouncementPayload(content, config) {
   const layout = config.announcements?.layout || {};
-  const inner = announcementContentComponents(content, layout);
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    allowedMentions: { parse: [], users: [], roles: [] },
-    components: layout.container === false ? inner : [{
-      type: 17,
-      accent_color: accentColorValue(layout.accentColor),
-      components: inner,
-    }],
-  };
+  return componentMessagePayload(content, layout, {
+    label: 'Level-up',
+    fallbackText: '-# Level up',
+    fallbackColor: ACCENT,
+    additionalContainers: config.announcements?.additionalContainers,
+  });
 }
 
 function xpDropTemplateText(template, crate, values = {}) {
@@ -1809,6 +1806,10 @@ async function announceLevelUp(message, result, config) {
     announcements: {
       ...config.announcements,
       layout: resolvedAnnouncementLayout(layout, message, result.newLevel, templateValues),
+      additionalContainers: (config.announcements?.additionalContainers || []).map((container) => ({
+        content: announcementText(container.content, message, result.newLevel, templateValues),
+        layout: resolvedAnnouncementLayout(container.layout, message, result.newLevel, templateValues),
+      })),
     },
   };
   const payload = levelUpAnnouncementPayload(content, resolvedConfig);

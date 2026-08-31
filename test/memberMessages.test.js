@@ -15,6 +15,7 @@ const {
   handleGuildMemberRemove,
   handleGuildMemberUpdate,
   interpolateTemplate,
+  memberMessagePayload,
   memberMessageValues,
   resetBoostDeduplication,
   sendMemberMessage,
@@ -117,7 +118,21 @@ test('Welcome Messages defaults and normalization are backward compatible and st
   assert.equal(normalized.join.layout.accentColor, '#57f287');
   assert.equal(normalized.join.layout.thumbnailUrl, '');
   assert.deepEqual(normalized.join.layout.galleryUrls, ['https://example.com/one.png', '{user_avatar}']);
+  assert.deepEqual(normalized.join.additionalContainers, []);
   assert.equal(normalized.join.unknown, undefined);
+
+  const withAdditional = normalizeMemberMessagesConfig({
+    join: {
+      additionalContainers: Array(3).fill(null).map((_, index) => ({
+        content: `Container ${index + 2} {server}`,
+        layout: { container: false, accentColor: index ? '#123456' : 'invalid', thumbnailEnabled: true, thumbnailUrl: '{user_avatar}', galleryUrls: ['https://example.com/banner.png', 'javascript:bad'] },
+      })),
+    },
+  });
+  assert.equal(withAdditional.join.additionalContainers.length, 2);
+  assert.equal(withAdditional.join.additionalContainers[0].layout.container, true);
+  assert.equal(withAdditional.join.additionalContainers[0].layout.accentColor, '#57f287');
+  assert.deepEqual(withAdditional.join.additionalContainers[0].layout.galleryUrls, ['https://example.com/banner.png']);
 });
 
 test('all three Welcome Messages event configs survive a state serialization round trip', () => {
@@ -178,6 +193,40 @@ test('join and leave handlers deliver safe Components V2 payloads', async () => 
   assert.equal(sends[0].components[0].type, 17);
   assert.match(sends[0].components[0].components[0].content, new RegExp(`<@${USER_ID}>`));
   assert.match(sends[1].components[0].components[0].content, /Garden Hero/);
+});
+
+test('join, leave, and boost media omit Discord image descriptions', () => {
+  const { member } = fixture();
+  const config = eventConfig({
+    layout: {
+      ...eventConfig().layout,
+      thumbnailEnabled: true,
+      thumbnailUrl: '{user_avatar}',
+      galleryUrls: ['https://example.com/banner.png'],
+    },
+    additionalContainers: [{
+      content: 'A second container for {server}',
+      layout: {
+        ...eventConfig().layout,
+        accentColor: '#123456',
+        thumbnailEnabled: true,
+        thumbnailUrl: '{server_icon}',
+        galleryUrls: ['https://example.com/second-banner.png'],
+      },
+    }],
+  });
+  for (const type of ['join', 'leave', 'boost']) {
+    const payload = memberMessagePayload(type, member, config);
+    const components = payload.components[0].components;
+    const thumbnail = components.find((component) => component.type === 9).accessory;
+    const galleryItem = components.find((component) => component.type === 12).items[0];
+    assert.equal(Object.hasOwn(thumbnail, 'description'), false, `${type} thumbnail should not have alt text`);
+    assert.equal(Object.hasOwn(galleryItem, 'description'), false, `${type} gallery image should not have alt text`);
+    assert.equal(payload.components.length, 2);
+    assert.equal(payload.components[1].accent_color, 0x123456);
+    assert.match(payload.components[1].components[0].components[0].content, /A second container for Sprite Garden/);
+    assert.doesNotMatch(JSON.stringify(payload), /"description"/);
+  }
 });
 
 test('member-update and system-message boost signals produce one announcement', async () => {
