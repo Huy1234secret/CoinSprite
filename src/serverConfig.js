@@ -1,8 +1,12 @@
 const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
+const {
+  DEFAULT_MESSAGE_TEMPLATES_CONFIG,
+  normalizeMessageTemplatesConfig,
+} = require('./messageTemplates');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
@@ -89,6 +93,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   channels: { commandLogThread: '' },
   leveling: DEFAULT_LEVELING_CONFIG,
   memberMessages: DEFAULT_MEMBER_MESSAGES_CONFIG,
+  messageTemplates: DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   rngGame: DEFAULT_RNG_GAME_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
@@ -328,6 +333,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const defaults = defaultConfigForGuild(guildId);
   const leveling = normalizeLevelingConfig(source.leveling, defaults.leveling);
   const memberMessages = normalizeMemberMessagesConfig(source.memberMessages, defaults.memberMessages);
+  const messageTemplates = normalizeMessageTemplatesConfig(source.messageTemplates);
   const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
@@ -343,6 +349,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
     channels: { commandLogThread: cleanId(source.channels?.commandLogThread) },
     leveling,
     memberMessages,
+    messageTemplates,
     rngGame,
   };
 }
@@ -385,7 +392,7 @@ function loadState() {
   const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-17.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-18.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;
@@ -512,6 +519,7 @@ module.exports = {
   DEFAULT_FEATURES,
   DEFAULT_LEVELING_CONFIG,
   DEFAULT_MEMBER_MESSAGES_CONFIG,
+  DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   DEFAULT_RNG_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
@@ -535,6 +543,7 @@ module.exports = {
   loadState,
   normalizeLevelingConfig,
   normalizeMemberMessagesConfig,
+  normalizeMessageTemplatesConfig,
   normalizeRngGameConfig,
   normalizeState,
   resolveLoggingChannelId,

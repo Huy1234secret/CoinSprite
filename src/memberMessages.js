@@ -1,12 +1,17 @@
 const {
-  MessageFlags,
   MessageType,
-  PermissionFlagsBits,
 } = require('discord.js');
 const { logCommandSystem } = require('./commandLogger');
 const { getGuildConfig } = require('./serverConfig');
+const {
+  COMPONENTS_V2_FLAG,
+  componentMessagePayload,
+  deliveryPermissions,
+  interpolateTemplate,
+  messageContentComponents,
+  resolvedLayout,
+} = require('./messageComposer');
 
-const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
 const BOOST_DEDUPE_WINDOW_MS = 30_000;
 const BOOST_SYSTEM_MESSAGE_TYPES = new Set([
   MessageType.GuildBoost,
@@ -19,21 +24,6 @@ const BOOST_SYSTEM_MESSAGE_TYPES = new Set([
   MessageType.UserPremiumGuildSubscriptionTier3,
 ].filter(Number.isInteger));
 const recentBoostAnnouncements = new Map();
-
-function interpolateTemplate(template, values = {}) {
-  return String(template || '').replace(/\{([a-z0-9_]+)\}/gi, (token, key) => (
-    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key] ?? '') : token
-  ));
-}
-
-function safeMediaUrl(value) {
-  try {
-    const url = new URL(String(value || ''));
-    return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
-  } catch {
-    return '';
-  }
-}
 
 function avatarUrl(user) {
   try {
@@ -118,56 +108,6 @@ function memberMessageValues(type, member, options = {}) {
   return values;
 }
 
-function accentColorValue(value) {
-  const hex = String(value || '').replace(/^#/, '');
-  return /^[0-9a-f]{6}$/i.test(hex) ? Number.parseInt(hex, 16) : 0x57f287;
-}
-
-function resolvedLayout(layout = {}, values = {}) {
-  const resolve = (url) => safeMediaUrl(interpolateTemplate(url, values));
-  return {
-    ...layout,
-    thumbnailUrl: resolve(layout.thumbnailUrl),
-    galleryUrls: [...new Set((layout.galleryUrls || []).map(resolve).filter(Boolean))].slice(0, 10),
-  };
-}
-
-function messageContentComponents(content, layout = {}, label = 'Member message') {
-  const rawParts = String(content || '').split(/\{separator\}/gi);
-  const parts = rawParts.length > 5
-    ? [...rawParts.slice(0, 4), rawParts.slice(4).join('\n')]
-    : rawParts;
-  const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
-  const components = [];
-  let thumbnailPlaced = false;
-
-  for (let index = 0; index < parts.length; index += 1) {
-    const text = parts[index].trim();
-    if (index > 0 && components.length && components.at(-1)?.type !== 14) {
-      components.push({ type: 14, divider: true, spacing: 1 });
-    }
-    if (!text) continue;
-    if (thumbnailUrl && !thumbnailPlaced) {
-      components.push({
-        type: 9,
-        components: [{ type: 10, content: text }],
-        accessory: { type: 11, media: { url: thumbnailUrl }, description: `${label} thumbnail` },
-      });
-      thumbnailPlaced = true;
-    } else components.push({ type: 10, content: text });
-  }
-  if (!components.length) components.push({ type: 10, content: '-# Member update' });
-
-  const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
-  if (galleryUrls.length) {
-    components.push({
-      type: 12,
-      items: galleryUrls.map((url) => ({ media: { url }, description: `${label} image` })),
-    });
-  }
-  return components;
-}
-
 function memberMessagePayload(type, member, eventConfig, options = {}) {
   const values = memberMessageValues(type, member, {
     ...options,
@@ -175,17 +115,13 @@ function memberMessagePayload(type, member, eventConfig, options = {}) {
   });
   const layout = resolvedLayout(eventConfig?.layout, values);
   const content = interpolateTemplate(eventConfig?.template, values).slice(0, 4000);
-  const inner = messageContentComponents(content, layout, `${type} message`);
   const userId = String(member?.user?.id || member?.id || '');
-  return {
-    flags: COMPONENTS_V2_FLAG,
-    allowedMentions: { parse: [], users: /^\d{16,20}$/.test(userId) ? [userId] : [], roles: [] },
-    components: layout.container === false ? inner : [{
-      type: 17,
-      accent_color: accentColorValue(layout.accentColor),
-      components: inner,
-    }],
-  };
+  return componentMessagePayload(content, layout, {
+    label: `${type} message`,
+    fallbackText: '-# Member update',
+    fallbackColor: 0x57f287,
+    allowedUsers: /^\d{16,20}$/.test(userId) ? [userId] : [],
+  });
 }
 
 async function resolveDeliveryChannel(guild, channelId) {
@@ -193,21 +129,6 @@ async function resolveDeliveryChannel(guild, channelId) {
   return guild.channels?.cache?.get?.(channelId)
     || await guild.channels?.fetch?.(channelId).catch(() => null)
     || null;
-}
-
-async function deliveryPermissions(channel, guild, needsEmbedLinks) {
-  if (!channel?.isTextBased?.() || typeof channel.send !== 'function') return { ok: false, missing: ['message-capable channel'] };
-  const botMember = guild?.members?.me || await guild?.members?.fetchMe?.().catch(() => null);
-  let permissions = null;
-  try { permissions = channel.permissionsFor?.(botMember); } catch {}
-  const required = [
-    ['ViewChannel', PermissionFlagsBits.ViewChannel],
-    ['SendMessages', PermissionFlagsBits.SendMessages],
-  ];
-  if (channel.isThread?.()) required.push(['SendMessagesInThreads', PermissionFlagsBits.SendMessagesInThreads]);
-  if (needsEmbedLinks) required.push(['EmbedLinks', PermissionFlagsBits.EmbedLinks]);
-  const missing = required.filter(([, flag]) => !permissions?.has?.(flag)).map(([name]) => name);
-  return { ok: missing.length === 0, missing };
 }
 
 async function sendMemberMessage(type, member, options = {}) {

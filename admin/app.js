@@ -77,6 +77,15 @@
     levelingComposerPanel: '',
     memberMessageEvent: 'join',
     memberMessageComposerPanel: '',
+    messageTemplates: { folders: [], items: [] },
+    templateFolderId: 'all',
+    templateSelectedId: '',
+    templateDraft: null,
+    templateSavedSnapshot: '',
+    templateTab: 'editor',
+    templateComposerPanel: '',
+    templateJsonValid: true,
+    templatePickerContext: '',
     xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
@@ -94,11 +103,11 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const elements = {
-    appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'),
+    appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), rngGameNav: $('#rngGameNav'),
-    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), rngGameNav: $('#rngGameNav'),
+    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -124,6 +133,20 @@
     welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'),
     welcomeComposerPanel: $('#welcomeComposerPanel'), welcomeDiscordFrame: $('#welcomeDiscordFrame'),
     welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
+    levelingUseTemplate: $('#levelingUseTemplate'), levelingSaveAsTemplate: $('#levelingSaveAsTemplate'),
+    welcomeUseTemplate: $('#welcomeUseTemplate'), welcomeSaveAsTemplate: $('#welcomeSaveAsTemplate'),
+    templateManager: $('#templateManager'), templateTotalCount: $('#templateTotalCount'), templateFolderCreate: $('#templateFolderCreate'),
+    templateFolderList: $('#templateFolderList'), templateSearch: $('#templateSearch'), templateListCreate: $('#templateListCreate'), templateList: $('#templateList'),
+    templateCreateButton: $('#templateCreateButton'), templateEmptyCreate: $('#templateEmptyCreate'), templateEmptyState: $('#templateEmptyState'), templateEditor: $('#templateEditor'),
+    templateStatusBadge: $('#templateStatusBadge'), templateEditorTitle: $('#templateEditorTitle'), templateTimestamps: $('#templateTimestamps'),
+    templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'), templateResetButton: $('#templateResetButton'), templateSaveButton: $('#templateSaveButton'),
+    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'),
+    templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'),
+    templateAccentButton: $('#templateAccentButton'), templateAccentColor: $('#templateAccentColor'), templateCharacterCount: $('#templateCharacterCount'),
+    templateJsonEditor: $('#templateJsonEditor'), templateJsonError: $('#templateJsonError'), templateJsonFormat: $('#templateJsonFormat'), templateJsonCopy: $('#templateJsonCopy'), templateJsonImport: $('#templateJsonImport'), templateResolvedPayload: $('#templateResolvedPayload'),
+    templateName: $('#templateName'), templateDescription: $('#templateDescription'), templateFolderSelect: $('#templateFolderSelect'), templateChannel: $('#templateChannel'), templateEnabled: $('#templateEnabled'),
+    templateVariableReference: $('#templateVariableReference'), templateSendHint: $('#templateSendHint'), templateSendChannel: $('#templateSendChannel'), templateSendTest: $('#templateSendTest'), templateSendNow: $('#templateSendNow'),
+    templateShareLink: $('#templateShareLink'), templateCopyLink: $('#templateCopyLink'), templatePickerDialog: $('#templatePickerDialog'), templatePickerSearch: $('#templatePickerSearch'), templatePickerList: $('#templatePickerList'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
@@ -172,9 +195,17 @@
   }
 
   let toastTimer = null;
-  function showToast(message, kind = '') {
+  function showToast(message, kind = '', link = '') {
     window.clearTimeout(toastTimer);
-    elements.toast.textContent = message;
+    elements.toast.replaceChildren(document.createTextNode(message));
+    if (link) {
+      const anchor = document.createElement('a');
+      anchor.href = link;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.textContent = ' Open message';
+      elements.toast.append(anchor);
+    }
     elements.toast.className = `toast${kind ? ` ${kind}` : ''}`;
     elements.toast.hidden = false;
     toastTimer = window.setTimeout(() => { elements.toast.hidden = true; }, 3800);
@@ -183,6 +214,8 @@
   function renderSession() {
     const user = state.me?.user;
     const profileRoute = location.pathname.startsWith('/profile');
+    const returnTo = `${location.pathname}${location.search}`;
+    elements.loginButton.href = `/auth/discord?returnTo=${encodeURIComponent(returnTo)}`;
     elements.loginPanel.hidden = Boolean(user);
     elements.appShell.hidden = !user || profileRoute;
     elements.profileShell.hidden = !user || !profileRoute;
@@ -611,7 +644,9 @@
     input.style.height = `${height}px`;
     sourceShell.style.height = `${height}px`;
     mirror.style.transform = `translateY(-${input.scrollTop}px)`;
-    const previewValues = input.dataset.inlineTemplateScope === 'memberMessages' ? memberMessagePreviewValues(state.memberMessageEvent) : {};
+    const previewValues = input.dataset.inlineTemplateScope === 'memberMessages'
+      ? memberMessagePreviewValues(state.memberMessageEvent)
+      : input.dataset.inlineTemplateScope === 'messageTemplate' ? genericTemplatePreviewValues() : {};
     display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
@@ -631,17 +666,19 @@
     const input = editor.querySelector('[data-inline-message-input]');
     const display = editor.querySelector('[data-inline-message-display]');
     if (input && display) {
-      const previewValues = input.dataset.inlineTemplateScope === 'memberMessages' ? memberMessagePreviewValues(state.memberMessageEvent) : {};
+      const previewValues = input.dataset.inlineTemplateScope === 'memberMessages'
+        ? memberMessagePreviewValues(state.memberMessageEvent)
+        : input.dataset.inlineTemplateScope === 'messageTemplate' ? genericTemplatePreviewValues() : {};
       display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
     }
   }
 
-  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}) {
+  function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}, maxLength = 3000) {
     return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}">
       <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
-        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}" maxlength="3000" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
+        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}" maxlength="${maxLength}" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
       </div>
       <div class="inline-message-actions"><span>Markdown and variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
     </div>`;
@@ -785,23 +822,32 @@
     renderComposerPanel();
   }
 
+  function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia }) {
+    const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
+    const thumbnail = layout.thumbnailEnabled
+      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+      : '';
+    const gallery = (layout.galleryUrls || []).map(resolveMedia).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
+    frame.classList.toggle('has-container', layout.container);
+    frame.classList.toggle('no-container', !layout.container);
+    frame.style.setProperty('--accent-color', layout.accentColor);
+    accentButton.hidden = !layout.container;
+    accentInput.value = layout.accentColor;
+    containerButton.classList.toggle('active', layout.container);
+    containerButton.textContent = layout.container ? 'Container on' : 'Container off';
+    preview.innerHTML = `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
+  }
+
   function renderMessagePreview(renderTools = true) {
     const announcements = state.config.leveling.announcements;
     const layout = announcements.layout;
     const text = inlineTemplateEditor(announcements.template);
-    const thumbnail = layout.thumbnailEnabled
-      ? previewMediaUrl(layout.thumbnailUrl) ? `<img class="discord-thumbnail" src="${escapeHtml(previewMediaUrl(layout.thumbnailUrl))}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
-      : '';
-    const gallery = layout.galleryUrls.map(previewMediaUrl).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
-    elements.levelingDiscordFrame.classList.toggle('has-container', layout.container);
-    elements.levelingDiscordFrame.classList.toggle('no-container', !layout.container);
-    elements.levelingDiscordFrame.style.setProperty('--accent-color', layout.accentColor);
-    elements.levelingAccentButton.hidden = !layout.container;
-    elements.levelingAccentColor.value = layout.accentColor;
-    elements.levelingContainerAdd.classList.toggle('active', layout.container);
-    elements.levelingContainerAdd.textContent = layout.container ? 'Container on' : 'Container off';
-    elements.levelingMessagePreview.innerHTML = `<div class="discord-section"><div>${text}</div>${thumbnail}</div>${galleryHtml}`;
+    renderDiscordComposerPreview({
+      frame: elements.levelingDiscordFrame, preview: elements.levelingMessagePreview,
+      accentButton: elements.levelingAccentButton, accentInput: elements.levelingAccentColor,
+      containerButton: elements.levelingContainerAdd, layout, contentHtml: text, resolveMedia: previewMediaUrl,
+    });
     if (renderTools) renderComposerPanel();
   }
 
@@ -871,20 +917,12 @@
     const layout = event.layout;
     const values = memberMessagePreviewValues(state.memberMessageEvent);
     const text = inlineTemplateEditor(event.template, 'template', 'memberMessages', `${state.memberMessageEvent} message`, values);
-    const thumbnailUrl = layout.thumbnailEnabled ? memberMessagePreviewMediaUrl(layout.thumbnailUrl) : '';
-    const thumbnail = layout.thumbnailEnabled
-      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="Message thumbnail">` : '<div class="discord-thumbnail placeholder">IMG</div>'
-      : '';
-    const gallery = layout.galleryUrls.map((url) => memberMessagePreviewMediaUrl(url)).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="Gallery preview">`).join('')}</div>` : '';
-    elements.welcomeDiscordFrame.classList.toggle('has-container', layout.container);
-    elements.welcomeDiscordFrame.classList.toggle('no-container', !layout.container);
-    elements.welcomeDiscordFrame.style.setProperty('--accent-color', layout.accentColor);
-    elements.welcomeAccentButton.hidden = !layout.container;
-    elements.welcomeAccentColor.value = layout.accentColor;
-    elements.welcomeContainerAdd.classList.toggle('active', layout.container);
-    elements.welcomeContainerAdd.textContent = layout.container ? 'Container on' : 'Container off';
-    elements.welcomeMessagePreview.innerHTML = `<div class="discord-section"><div>${text}</div>${thumbnail}</div>${galleryHtml}`;
+    renderDiscordComposerPreview({
+      frame: elements.welcomeDiscordFrame, preview: elements.welcomeMessagePreview,
+      accentButton: elements.welcomeAccentButton, accentInput: elements.welcomeAccentColor,
+      containerButton: elements.welcomeContainerAdd, layout, contentHtml: text,
+      resolveMedia: (url) => memberMessagePreviewMediaUrl(url),
+    });
     if (renderTools) renderWelcomeComposerPanel();
   }
 
@@ -973,6 +1011,606 @@
     }
   }
 
+  const TEMPLATE_LAYOUT_DEFAULTS = Object.freeze({
+    container: true, accentColor: '#b9f547', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]),
+  });
+  const GENERIC_TEMPLATE_VARIABLES = [
+    ['{server}', 'Server name'], ['{server_icon}', 'Server icon URL'], ['{channel}', 'Destination channel'],
+    ['{timestamp}', 'Current Discord timestamp'], ['{separator}', 'Discord divider'],
+  ];
+
+  function genericTemplatePreviewValues() {
+    return {
+      server: 'Grow a Garden', server_icon: 'https://cdn.discordapp.com/embed/avatars/1.png',
+      channel: '#announcements', timestamp: 'Today at 12:00',
+    };
+  }
+
+  function validTemplateMedia(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return ['{server_icon}', '{user_avatar}', '{user_profile}'].includes(text) || validHttpUrl(text);
+  }
+
+  function normalizeTemplateLayoutClient(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    return {
+      container: source.container !== false,
+      accentColor: /^#[0-9a-f]{6}$/i.test(source.accentColor || '') ? source.accentColor.toLowerCase() : '#b9f547',
+      thumbnailEnabled: source.thumbnailEnabled === true,
+      thumbnailUrl: validTemplateMedia(source.thumbnailUrl) ? String(source.thumbnailUrl).trim() : '',
+      galleryUrls: [...new Set((Array.isArray(source.galleryUrls) ? source.galleryUrls : [])
+        .map((url) => String(url).trim()).filter(validTemplateMedia))].slice(0, 10),
+    };
+  }
+
+  function normalizeMessageTemplatesClient(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const folders = (Array.isArray(source.folders) ? source.folders : []).map((folder) => ({
+      id: String(folder.id || ''), name: String(folder.name || 'Folder').trim().slice(0, 80),
+      createdAt: String(folder.createdAt || ''), updatedAt: String(folder.updatedAt || ''),
+    })).filter((folder) => folder.id);
+    const folderIds = new Set(folders.map((folder) => folder.id));
+    const items = (Array.isArray(source.items) ? source.items : []).map((item) => ({
+      id: String(item.id || ''), folderId: folderIds.has(String(item.folderId || '')) ? String(item.folderId) : null,
+      name: String(item.name || 'Template').trim().slice(0, 80), description: String(item.description || '').trim().slice(0, 500),
+      version: 1, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
+      defaultChannelId: String(item.defaultChannelId || ''), enabled: item.enabled !== false,
+      createdAt: String(item.createdAt || ''), updatedAt: String(item.updatedAt || ''),
+    })).filter((item) => item.id);
+    return { folders, items };
+  }
+
+  function templateDocument(draft = state.templateDraft) {
+    return {
+      version: 1,
+      content: String(draft?.content || '').slice(0, 4000),
+      layout: normalizeTemplateLayoutClient(draft?.layout),
+    };
+  }
+
+  function parseTemplateJsonText(text) {
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (error) { throw new Error(`Invalid JSON: ${error.message}`); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Template JSON must be an object.');
+    const unknown = Object.keys(parsed).filter((key) => !['version', 'content', 'layout'].includes(key));
+    if (unknown.length) throw new Error(`Unknown template field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`);
+    if (parsed.version !== 1) throw new Error('Template JSON version must be 1.');
+    if (typeof parsed.content !== 'string') throw new Error('content must be a string.');
+    if (parsed.content.length > 4000) throw new Error('content must be 4000 characters or fewer.');
+    if ((parsed.content.match(/\{separator\}/gi) || []).length > 4) throw new Error('Templates support up to 4 dividers.');
+    if (!parsed.layout || typeof parsed.layout !== 'object' || Array.isArray(parsed.layout)) throw new Error('layout must be an object.');
+    const unknownLayout = Object.keys(parsed.layout).filter((key) => !['container', 'accentColor', 'thumbnailEnabled', 'thumbnailUrl', 'galleryUrls'].includes(key));
+    if (unknownLayout.length) throw new Error(`Unknown layout field${unknownLayout.length === 1 ? '' : 's'}: ${unknownLayout.join(', ')}.`);
+    if (typeof parsed.layout.container !== 'boolean') throw new Error('layout.container must be true or false.');
+    if (typeof parsed.layout.thumbnailEnabled !== 'boolean') throw new Error('layout.thumbnailEnabled must be true or false.');
+    if (!/^#[0-9a-f]{6}$/i.test(String(parsed.layout.accentColor || ''))) throw new Error('layout.accentColor must be a six-digit hex color.');
+    if (!Array.isArray(parsed.layout.galleryUrls)) throw new Error('layout.galleryUrls must be an array.');
+    if (parsed.layout.galleryUrls.length > 10) throw new Error('A gallery supports up to 10 images.');
+    if (parsed.layout.thumbnailUrl && !validTemplateMedia(parsed.layout.thumbnailUrl)) throw new Error('Thumbnail must be an HTTP/HTTPS URL or a supported media variable.');
+    parsed.layout.galleryUrls.forEach((url, index) => {
+      if (!validTemplateMedia(url)) throw new Error(`Gallery image ${index + 1} must be an HTTP/HTTPS URL or a supported media variable.`);
+    });
+    return { version: 1, content: parsed.content, layout: normalizeTemplateLayoutClient(parsed.layout) };
+  }
+
+  function templateVariableNames(item = state.templateDraft) {
+    const found = new Set();
+    const values = [item?.content, item?.layout?.thumbnailUrl, ...(item?.layout?.galleryUrls || [])];
+    for (const value of values) String(value || '').replace(/\{([a-z0-9_]+)\}/gi, (token, key) => {
+      found.add(key.toLowerCase()); return token;
+    });
+    return [...found];
+  }
+
+  function templateSnapshot() {
+    return state.templateDraft ? JSON.stringify({
+      name: state.templateDraft.name, description: state.templateDraft.description,
+      folderId: state.templateDraft.folderId, defaultChannelId: state.templateDraft.defaultChannelId,
+      enabled: state.templateDraft.enabled, ...templateDocument(),
+    }) : '';
+  }
+
+  function templateIsDirty() {
+    return Boolean(state.templateDraft && templateSnapshot() !== state.templateSavedSnapshot);
+  }
+
+  function currentStoredTemplate() {
+    return state.messageTemplates.items.find((item) => item.id === state.templateSelectedId) || null;
+  }
+
+  function formatTemplateDate(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString() : 'Unknown';
+  }
+
+  function templateFolderName(folderId) {
+    return state.messageTemplates.folders.find((folder) => folder.id === folderId)?.name || 'Unfiled';
+  }
+
+  function updateTemplateDeepLink() {
+    if (!state.guildId || state.currentView !== 'message-templates') return;
+    const params = new URLSearchParams({ guild: state.guildId, view: 'message-templates' });
+    if (state.templateSelectedId) params.set('template', state.templateSelectedId);
+    const linkedFolder = state.templateDraft?.folderId || (!['all', 'unfiled'].includes(state.templateFolderId) ? state.templateFolderId : '');
+    if (linkedFolder) params.set('folder', linkedFolder);
+    history.replaceState(null, '', `/admin?${params}`);
+    if (state.templateDraft) elements.templateShareLink.value = `${location.origin}/admin?${params}`;
+  }
+
+  function renderTemplateFolders() {
+    const total = state.messageTemplates.items.length;
+    const unfiled = state.messageTemplates.items.filter((item) => !item.folderId).length;
+    elements.templateTotalCount.textContent = `${total} template${total === 1 ? '' : 's'}`;
+    const special = [
+      ['all', '⌘', 'All templates', total], ['unfiled', '◇', 'Unfiled', unfiled],
+    ];
+    const rows = special.map(([id, icon, name, count]) => `<div class="template-folder-row${state.templateFolderId === id ? ' active' : ''}"><button type="button" data-template-folder="${id}"><i>${icon}</i><span>${name}</span><b>${count}</b></button></div>`);
+    for (const folder of state.messageTemplates.folders) {
+      const count = state.messageTemplates.items.filter((item) => item.folderId === folder.id).length;
+      rows.push(`<div class="template-folder-row${state.templateFolderId === folder.id ? ' active' : ''}"><button type="button" data-template-folder="${escapeHtml(folder.id)}"><i>□</i><span>${escapeHtml(folder.name)}</span><b>${count}</b></button><span class="template-folder-actions"><button type="button" data-template-folder-rename="${escapeHtml(folder.id)}" aria-label="Rename ${escapeHtml(folder.name)}" title="Rename folder">✎</button><button type="button" data-template-folder-delete="${escapeHtml(folder.id)}" aria-label="Delete ${escapeHtml(folder.name)}" title="Delete folder">×</button></span></div>`);
+    }
+    elements.templateFolderList.innerHTML = rows.join('');
+  }
+
+  function visibleTemplates(folderId = state.templateFolderId) {
+    const search = elements.templateSearch.value.trim().toLowerCase();
+    return state.messageTemplates.items.filter((item) => {
+      const inFolder = folderId === 'all' || (folderId === 'unfiled' ? !item.folderId : item.folderId === folderId);
+      return inFolder && (!search || item.name.toLowerCase().includes(search));
+    }).sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt) || left.name.localeCompare(right.name));
+  }
+
+  function renderTemplateList() {
+    const items = visibleTemplates();
+    elements.templateList.innerHTML = items.length ? items.map((item) => `<button class="template-list-item${item.id === state.templateSelectedId ? ' active' : ''}${item.enabled ? '' : ' is-disabled'}" type="button" data-template-id="${escapeHtml(item.id)}"><span><strong>${escapeHtml(item.name)}</strong><i aria-label="${item.enabled ? 'Enabled' : 'Disabled'}"></i></span><small>${escapeHtml(templateFolderName(item.folderId))} · Updated ${escapeHtml(formatTemplateDate(item.updatedAt))}</small></button>`).join('') : `<div class="template-list-empty">${state.messageTemplates.items.length ? 'No templates match this collection or search.' : 'No templates yet. Create a blank template to get started.'}</div>`;
+  }
+
+  function templatePreviewMediaUrl(value) {
+    const resolved = interpolateTemplate(value, genericTemplatePreviewValues());
+    return validHttpUrl(resolved) ? resolved.trim() : '';
+  }
+
+  function syncTemplateJson(force = false) {
+    if (!state.templateDraft || (!force && document.activeElement === elements.templateJsonEditor)) return;
+    elements.templateJsonEditor.value = JSON.stringify(templateDocument(), null, 2);
+    state.templateJsonValid = true;
+    elements.templateJsonError.hidden = true;
+  }
+
+  function resolvedTemplatePayloadPreview() {
+    if (!state.templateDraft) return {};
+    const values = genericTemplatePreviewValues();
+    const content = interpolateTemplate(state.templateDraft.content, values);
+    const layout = state.templateDraft.layout;
+    const textComponents = content.split(/\{separator\}/gi).slice(0, 5).flatMap((part, index) => {
+      const result = [];
+      if (index) result.push({ type: 14, divider: true, spacing: 1 });
+      if (part.trim()) result.push({ type: 10, content: part.trim() });
+      return result;
+    });
+    if (!textComponents.length) textComponents.push({ type: 10, content: '-# Message template' });
+    const inner = textComponents;
+    const gallery = layout.galleryUrls.map(templatePreviewMediaUrl).filter(Boolean);
+    if (gallery.length) inner.push({ type: 12, items: gallery.map((url) => ({ media: { url } })) });
+    const components = layout.container ? [{ type: 17, accent_color: Number.parseInt(layout.accentColor.slice(1), 16), components: inner }] : inner;
+    return { flags: 32768, allowedMentions: { parse: [], users: [], roles: [] }, components };
+  }
+
+  function renderTemplateVariableReference() {
+    const generic = new Set(GENERIC_TEMPLATE_VARIABLES.map(([token]) => token.slice(1, -1)));
+    const used = templateVariableNames();
+    const chips = GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<span class="template-variable-chip"><code>${escapeHtml(token)}</code><small>Generic · ${escapeHtml(meaning)}</small></span>`);
+    for (const name of used.filter((name) => name !== 'separator' && !generic.has(name))) chips.push(`<span class="template-variable-chip context"><code>{${escapeHtml(name)}}</code><small>Context-specific</small></span>`);
+    elements.templateVariableReference.innerHTML = chips.join('');
+    const unresolved = used.filter((name) => name !== 'separator' && !generic.has(name));
+    elements.templateSendHint.textContent = unresolved.length
+      ? `Direct sending is blocked until these context variables are removed: ${unresolved.map((name) => `{${name}}`).join(', ')}`
+      : 'Test messages are labeled and all sends disable role/user pings.';
+    return unresolved;
+  }
+
+  function refreshTemplateDirty() {
+    const dirty = templateIsDirty();
+    elements.templateStatusBadge.textContent = dirty ? 'UNSAVED' : 'SAVED';
+    elements.templateStatusBadge.classList.toggle('unsaved', dirty);
+    elements.templateSaveButton.disabled = !dirty || !state.templateJsonValid;
+    elements.templateResetButton.disabled = !dirty;
+    const unresolved = templateVariableNames().filter((name) => !['server', 'server_icon', 'channel', 'timestamp', 'separator'].includes(name));
+    elements.templateSendTest.disabled = dirty || Boolean(unresolved.length);
+    elements.templateSendNow.disabled = dirty || !state.templateDraft?.enabled || Boolean(unresolved.length);
+  }
+
+  function renderTemplateComposerPanel() {
+    const panel = state.templateComposerPanel;
+    const draft = state.templateDraft;
+    if (!draft) return;
+    const layout = draft.layout;
+    elements.templateComposerPanel.hidden = !panel;
+    elements.templateComposerPanel.dataset.panel = panel;
+    elements.templateVariablesToggle.classList.toggle('active', panel === 'variables');
+    elements.templateThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
+    elements.templateGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
+    if (!panel) return;
+    if (panel === 'variables') {
+      elements.templateComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-template-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
+      return;
+    }
+    if (panel === 'thumbnail') {
+      elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, a supported context media variable, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-template-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-template-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-template-media-upload="thumbnail"></label></div>`;
+      return;
+    }
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-template-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-template-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-template-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-template-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-template-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+  }
+
+  function renderTemplateComposerPreview(renderTools = true, updateJson = true) {
+    const draft = state.templateDraft;
+    if (!draft) return;
+    const contentHtml = inlineTemplateEditor(draft.content, 'content', 'messageTemplate', 'message template', genericTemplatePreviewValues(), 4000);
+    renderDiscordComposerPreview({
+      frame: elements.templateDiscordFrame, preview: elements.templateMessagePreview,
+      accentButton: elements.templateAccentButton, accentInput: elements.templateAccentColor,
+      containerButton: elements.templateContainerAdd, layout: draft.layout, contentHtml, resolveMedia: templatePreviewMediaUrl,
+    });
+    elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
+    if (renderTools) renderTemplateComposerPanel();
+    if (updateJson) syncTemplateJson();
+    elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+    renderTemplateVariableReference();
+    refreshTemplateDirty();
+  }
+
+  function templateFolderOptions(selected) {
+    return [`<option value="">Unfiled</option>`, ...state.messageTemplates.folders.map((folder) => `<option value="${escapeHtml(folder.id)}"${folder.id === selected ? ' selected' : ''}>${escapeHtml(folder.name)}</option>`)].join('');
+  }
+
+  function renderTemplateEditor() {
+    const draft = state.templateDraft;
+    elements.templateEmptyState.hidden = Boolean(draft);
+    elements.templateEditor.hidden = !draft;
+    if (!draft) return;
+    elements.templateEditorTitle.textContent = draft.name;
+    elements.templateTimestamps.textContent = `Created ${formatTemplateDate(draft.createdAt)} · Updated ${formatTemplateDate(draft.updatedAt)}`;
+    elements.templateName.value = draft.name;
+    elements.templateDescription.value = draft.description;
+    elements.templateFolderSelect.innerHTML = templateFolderOptions(draft.folderId);
+    elements.templateChannel.innerHTML = channelOptions(draft.defaultChannelId, (channel) => channel.sendable === true && channel.kind !== 'forum', 'No default channel');
+    elements.templateSendChannel.innerHTML = channelOptions(draft.defaultChannelId, (channel) => channel.sendable === true && channel.kind !== 'forum', 'Choose a message channel');
+    elements.templateEnabled.checked = draft.enabled;
+    document.querySelectorAll('[data-template-tab]').forEach((button) => {
+      const active = button.dataset.templateTab === state.templateTab;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('[data-template-panel]').forEach((panel) => {
+      const active = panel.dataset.templatePanel === state.templateTab;
+      panel.hidden = !active;
+      panel.classList.toggle('active', active);
+    });
+    renderTemplateComposerPreview();
+    syncTemplateJson(true);
+    updateTemplateDeepLink();
+  }
+
+  function renderTemplateWorkspace() {
+    renderTemplateFolders();
+    renderTemplateList();
+    renderTemplateEditor();
+  }
+
+  async function selectMessageTemplate(id, options = {}) {
+    const item = state.messageTemplates.items.find((entry) => entry.id === id);
+    if (!item) return false;
+    if (!options.force && id !== state.templateSelectedId && templateIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved template changes?', copy: 'Your current template edits have not been saved.', confirmLabel: 'Discard' });
+      if (!confirmed) return false;
+    }
+    state.templateSelectedId = item.id;
+    state.templateDraft = clone(item);
+    state.templateSavedSnapshot = templateSnapshot();
+    state.templateComposerPanel = '';
+    state.templateJsonValid = true;
+    if (options.reveal) state.templateFolderId = item.folderId || 'unfiled';
+    renderTemplateWorkspace();
+    return true;
+  }
+
+  function replaceTemplateCollection(payload, selectedId = state.templateSelectedId, options = {}) {
+    const preservedDraft = options.preserveDraft && state.templateDraft?.id === selectedId ? clone(state.templateDraft) : null;
+    state.messageTemplates = normalizeMessageTemplatesClient(payload.messageTemplates || payload);
+    const selected = state.messageTemplates.items.find((item) => item.id === selectedId);
+    if (selected) {
+      state.templateSelectedId = selected.id;
+      state.templateDraft = clone(selected);
+      state.templateSavedSnapshot = templateSnapshot();
+      if (preservedDraft) {
+        if (preservedDraft.folderId && !state.messageTemplates.folders.some((folder) => folder.id === preservedDraft.folderId)) preservedDraft.folderId = null;
+        state.templateDraft = preservedDraft;
+      }
+    } else {
+      state.templateSelectedId = '';
+      state.templateDraft = null;
+      state.templateSavedSnapshot = '';
+    }
+    renderTemplateWorkspace();
+  }
+
+  async function createMessageTemplate() {
+    if (templateIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved template changes?', copy: 'Creating a new template will close the current draft.', confirmLabel: 'Discard and create' });
+      if (!confirmed) return;
+    }
+    const base = 'Untitled template';
+    let name = base;
+    let number = 2;
+    while (state.messageTemplates.items.some((item) => item.name.toLowerCase() === name.toLowerCase())) name = `${base} ${number++}`;
+    const folderId = !['all', 'unfiled'].includes(state.templateFolderId) ? state.templateFolderId : null;
+    const payload = await api(`/api/guilds/${state.guildId}/message-templates`, {
+      method: 'POST', body: JSON.stringify({ name, folderId, content: '', layout: clone(TEMPLATE_LAYOUT_DEFAULTS) }),
+    });
+    replaceTemplateCollection(payload, payload.item.id);
+    state.templateFolderId = payload.item.folderId || 'unfiled';
+    renderTemplateWorkspace();
+    elements.templateName.focus();
+    elements.templateName.select();
+    showToast('Blank template created.');
+  }
+
+  async function saveMessageTemplate() {
+    if (!state.templateDraft || !templateIsDirty() || !state.templateJsonValid) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}`, {
+      method: 'PATCH', body: JSON.stringify({
+        name: state.templateDraft.name, description: state.templateDraft.description,
+        folderId: state.templateDraft.folderId, defaultChannelId: state.templateDraft.defaultChannelId,
+        enabled: state.templateDraft.enabled, document: templateDocument(),
+      }),
+    });
+    replaceTemplateCollection(payload, payload.item.id);
+    state.templateFolderId = payload.item.folderId || 'unfiled';
+    renderTemplateWorkspace();
+    showToast('Message template saved.');
+  }
+
+  async function duplicateMessageTemplate() {
+    if (!state.templateDraft) return;
+    if (templateIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved template changes?', copy: 'Duplicate uses the last saved version of this template.', confirmLabel: 'Discard and duplicate' });
+      if (!confirmed) return;
+    }
+    const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}/duplicate`, { method: 'POST', body: '{}' });
+    replaceTemplateCollection(payload, payload.item.id);
+    state.templateFolderId = payload.item.folderId || 'unfiled';
+    renderTemplateWorkspace();
+    showToast('Template duplicated.');
+  }
+
+  async function deleteMessageTemplate() {
+    if (!state.templateDraft) return;
+    const confirmed = await confirmAction({ title: 'Delete this template?', copy: `“${state.templateDraft.name}” will be permanently removed.`, confirmLabel: 'Delete' });
+    if (!confirmed) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}`, { method: 'DELETE', body: '{}' });
+    replaceTemplateCollection(payload, '');
+    showToast('Template deleted.');
+  }
+
+  async function createTemplateFolder() {
+    const name = await confirmAction({ title: 'Create a folder', copy: 'Folders keep related message templates together.', input: true, inputLabel: 'Folder name', confirmLabel: 'Create folder' });
+    if (!name) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-template-folders`, { method: 'POST', body: JSON.stringify({ name }) });
+    replaceTemplateCollection(payload, state.templateSelectedId, { preserveDraft: true });
+    state.templateFolderId = payload.folder.id;
+    renderTemplateWorkspace();
+    showToast('Template folder created.');
+  }
+
+  async function renameTemplateFolder(folderId) {
+    const folder = state.messageTemplates.folders.find((entry) => entry.id === folderId);
+    if (!folder) return;
+    const name = await confirmAction({ title: 'Rename folder', copy: 'Choose a short, recognizable folder name.', input: true, inputLabel: 'Folder name', inputValue: folder.name, confirmLabel: 'Rename' });
+    if (!name) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-template-folders/${folderId}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+    replaceTemplateCollection(payload, state.templateSelectedId, { preserveDraft: true });
+    showToast('Folder renamed.');
+  }
+
+  async function deleteTemplateFolder(folderId) {
+    const folder = state.messageTemplates.folders.find((entry) => entry.id === folderId);
+    if (!folder) return;
+    const count = state.messageTemplates.items.filter((item) => item.folderId === folderId).length;
+    const confirmed = await confirmAction({ title: 'Delete this folder?', copy: `${count} template${count === 1 ? '' : 's'} will move to Unfiled; no templates will be deleted.`, confirmLabel: 'Delete folder' });
+    if (!confirmed) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-template-folders/${folderId}`, { method: 'DELETE', body: '{}' });
+    state.templateFolderId = 'unfiled';
+    replaceTemplateCollection(payload, state.templateSelectedId, { preserveDraft: true });
+    showToast(`Folder deleted. ${payload.moved || 0} template${payload.moved === 1 ? '' : 's'} moved to Unfiled.`);
+  }
+
+  function insertTemplateVariable(token) {
+    if (!state.templateDraft) return;
+    let input = elements.templateMessagePreview.querySelector('[data-inline-message-input]');
+    if (!input) return;
+    if (!input.closest('[data-inline-message-editor]')?.classList.contains('editing')) beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
+    input = elements.templateMessagePreview.querySelector('[data-inline-message-input]');
+    const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+    input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 4000);
+    state.templateDraft.content = input.value;
+    syncInlineEditorVisual(input);
+    input.focus();
+    input.setSelectionRange(Math.min(input.value.length, start + token.length), Math.min(input.value.length, start + token.length));
+    elements.templateCharacterCount.textContent = `${input.value.length} / 4000`;
+    syncTemplateJson();
+    renderTemplateVariableReference();
+    refreshTemplateDirty();
+  }
+
+  async function uploadTemplateMedia(input) {
+    const file = input.files?.[0];
+    if (!file || !state.templateDraft) return;
+    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
+      input.value = '';
+      return showToast(file.size > 10 * 1024 * 1024 ? 'Images must be 10 MB or smaller.' : 'Upload an image file.', 'error');
+    }
+    const label = input.closest('.media-upload');
+    label?.classList.add('uploading');
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/message-media`, { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
+      const layout = state.templateDraft.layout;
+      if (input.dataset.templateMediaUpload === 'thumbnail') {
+        layout.thumbnailUrl = result.url; layout.thumbnailEnabled = true;
+      } else {
+        const index = Number(input.dataset.mediaIndex);
+        if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url;
+        else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url);
+      }
+      renderTemplateComposerPreview();
+      showToast('Template image uploaded. Save the template when ready.');
+    } catch (error) { showToast(error.message || 'Image upload failed.', 'error'); }
+    finally { label?.classList.remove('uploading'); input.value = ''; }
+  }
+
+  async function sendCurrentTemplate(mode) {
+    if (!state.templateDraft || templateIsDirty()) return showToast('Save template changes before sending.', 'error');
+    const channelId = elements.templateSendChannel.value || state.templateDraft.defaultChannelId;
+    if (!channelId) return showToast('Choose a destination channel.', 'error');
+    if (mode === 'send') {
+      const channel = state.directory.channels.find((entry) => entry.id === channelId);
+      const confirmed = await confirmAction({ title: 'Send this message now?', copy: `“${state.templateDraft.name}” will be posted in #${channel?.name || channelId}. Mentions remain disabled.`, confirmLabel: 'Send now' });
+      if (!confirmed) return;
+    }
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}/send`, {
+        method: 'POST', body: JSON.stringify({ mode, channelId, confirm: mode === 'send' }),
+      });
+      showToast(`${mode === 'test' ? 'Test message' : 'Message'} sent to #${result.channelName}.`, '', result.messageUrl);
+    } catch (error) { showToast(error.message || 'The message could not be sent.', 'error'); }
+  }
+
+  function updateTemplateJsonFromInput(showSuccess = false) {
+    if (!state.templateDraft) return false;
+    try {
+      const documentValue = parseTemplateJsonText(elements.templateJsonEditor.value);
+      state.templateDraft.content = documentValue.content;
+      state.templateDraft.layout = documentValue.layout;
+      state.templateJsonValid = true;
+      elements.templateJsonError.hidden = true;
+      renderTemplateComposerPreview(true, false);
+      if (showSuccess) showToast('JSON imported into the visual editor. Save to persist it.');
+      return true;
+    } catch (error) {
+      state.templateJsonValid = false;
+      elements.templateJsonError.textContent = error.message;
+      elements.templateJsonError.hidden = false;
+      refreshTemplateDirty();
+      return false;
+    }
+  }
+
+  function updateTemplateDraftFromControl(target) {
+    const draft = state.templateDraft;
+    if (!draft) return;
+    if (target.matches('[data-inline-message-input]') && target.dataset.inlineTemplateScope === 'messageTemplate') {
+      draft.content = target.value.slice(0, 4000);
+      syncInlineEditorVisual(target);
+      elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
+      syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      renderTemplateVariableReference();
+      refreshTemplateDirty();
+      return;
+    }
+    if (target === elements.templateName) {
+      draft.name = target.value.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 80);
+      elements.templateEditorTitle.textContent = draft.name.trim() || 'Untitled template';
+    }
+    if (target === elements.templateDescription) draft.description = target.value.slice(0, 500);
+    if (target === elements.templateFolderSelect) draft.folderId = target.value || null;
+    if (target === elements.templateChannel) {
+      draft.defaultChannelId = target.value;
+      elements.templateSendChannel.value = target.value;
+    }
+    if (target === elements.templateEnabled) draft.enabled = target.checked;
+    if (target === elements.templateAccentColor) {
+      draft.layout.accentColor = target.value;
+      renderTemplateComposerPreview();
+      return;
+    }
+    if (target.matches('[data-template-thumbnail-url]')) {
+      draft.layout.thumbnailUrl = target.value.slice(0, 2000);
+      draft.layout.thumbnailEnabled = Boolean(target.value.trim());
+      renderTemplateComposerPreview(false);
+      return;
+    }
+    if (target.matches('[data-template-gallery-url]')) {
+      draft.layout.galleryUrls[Number(target.dataset.templateGalleryUrl)] = target.value.slice(0, 2000);
+      renderTemplateComposerPreview(false);
+      return;
+    }
+    updateTemplateDeepLink();
+    refreshTemplateDirty();
+  }
+
+  function renderTemplatePicker() {
+    const search = elements.templatePickerSearch.value.trim().toLowerCase();
+    const items = state.messageTemplates.items.filter((item) => !search || item.name.toLowerCase().includes(search));
+    elements.templatePickerList.innerHTML = items.length ? items.map((item) => `<button type="button" data-pick-template="${escapeHtml(item.id)}"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(templateFolderName(item.folderId))}${item.description ? ` · ${escapeHtml(item.description)}` : ''}</small></button>`).join('') : '<p class="template-list-empty">No matching templates.</p>';
+  }
+
+  function openTemplatePicker(context) {
+    if (!state.messageTemplates.items.length) {
+      setView('message-templates');
+      showToast('Create a message template first.', 'error');
+      return;
+    }
+    state.templatePickerContext = context;
+    elements.templatePickerSearch.value = '';
+    renderTemplatePicker();
+    elements.templatePickerDialog.showModal();
+    elements.templatePickerSearch.focus();
+  }
+
+  function contextVariableSet(context) {
+    if (context === 'leveling') return new Set(LEVELING_VARIABLES.map(([token]) => token.slice(1, -1)));
+    return new Set([...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]].map(([token]) => token.slice(1, -1)));
+  }
+
+  async function applyTemplateSnapshot(templateId) {
+    const item = state.messageTemplates.items.find((entry) => entry.id === templateId);
+    if (!item) return;
+    const supported = contextVariableSet(state.templatePickerContext);
+    const unavailable = templateVariableNames(item).filter((name) => name !== 'separator' && !supported.has(name));
+    if (unavailable.length) {
+      const confirmed = await confirmAction({ title: 'Some variables are unavailable', copy: `${unavailable.map((name) => `{${name}}`).join(', ')} will remain unresolved in this destination context. Apply the snapshot anyway?`, confirmLabel: 'Apply anyway' });
+      if (!confirmed) return;
+    }
+    if (state.templatePickerContext === 'leveling') {
+      state.config.leveling.announcements.template = item.content.slice(0, 3000);
+      state.config.leveling.announcements.layout = clone(item.layout);
+      renderMessagePreview();
+    } else {
+      const event = currentMemberMessage();
+      event.template = item.content.slice(0, 3000);
+      event.layout = clone(item.layout);
+      renderWelcomeMessagePreview();
+    }
+    elements.templatePickerDialog.close();
+    refreshDirty();
+    showToast(`Applied “${item.name}” as a snapshot.`);
+  }
+
+  async function saveComposerAsTemplate(context) {
+    const defaults = context === 'leveling' ? state.config.leveling.announcements : currentMemberMessage();
+    if (!defaults) return;
+    const name = await confirmAction({ title: 'Save as a message template', copy: 'This creates an independent snapshot you can organize and edit later.', input: true, inputLabel: 'Template name', confirmLabel: 'Save template' });
+    if (!name) return;
+    const payload = await api(`/api/guilds/${state.guildId}/message-templates`, {
+      method: 'POST', body: JSON.stringify({ name, content: defaults.template, layout: defaults.layout }),
+    });
+    state.messageTemplates = normalizeMessageTemplatesClient(payload.messageTemplates);
+    renderTemplateFolders(); renderTemplateList();
+    showToast(`Saved “${payload.item.name}” as a template.`);
+  }
+
   function renderLeveling() {
     const leveling = state.config.leveling;
     elements.levelingEnabled.checked = leveling.enabled;
@@ -1056,9 +1694,10 @@
     elements.saveDock.hidden = true;
 
     try {
-      const [directoryPayload, configPayload] = await Promise.all([
+      const [directoryPayload, configPayload, templatesPayload] = await Promise.all([
         api(`/api/guilds/${guildId}/directory`),
         api(`/api/guilds/${guildId}/config`),
+        api(`/api/guilds/${guildId}/message-templates`),
       ]);
       if (state.guildId !== guildId) return;
       state.directory = { channels: [], roles: [], ...directoryPayload.directory };
@@ -1070,10 +1709,21 @@
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
+      state.messageTemplates = normalizeMessageTemplatesClient(templatesPayload.messageTemplates);
+      state.templateFolderId = 'all';
+      state.templateSelectedId = '';
+      state.templateDraft = null;
+      state.templateSavedSnapshot = '';
       renderFeatureAccess();
       renderLeveling();
       renderWelcomeMessages();
       renderRngGame();
+      renderTemplateWorkspace();
+      const deepLink = new URLSearchParams(location.search);
+      const requestedTemplate = deepLink.get('template');
+      const requestedFolder = deepLink.get('folder');
+      if (requestedFolder && state.messageTemplates.folders.some((folder) => folder.id === requestedFolder)) state.templateFolderId = requestedFolder;
+      if (requestedTemplate) await selectMessageTemplate(requestedTemplate, { force: true, reveal: !requestedFolder });
     } catch (error) {
       showToast(error.message, 'error');
       elements.serverMeta.textContent = `Could not load this community: ${error.message}`;
@@ -1270,14 +1920,16 @@
     else {
       stopConsolePolling();
       stopOwnerMetricPolling();
+      if (view === 'message-templates') updateTemplateDeepLink();
     }
   }
 
-  function confirmAction({ title, copy, input = false, confirmLabel = 'Confirm' }) {
+  function confirmAction({ title, copy, input = false, inputLabel = 'Reason', inputValue = '', confirmLabel = 'Confirm' }) {
     elements.dialogTitle.textContent = title;
     elements.dialogCopy.textContent = copy;
     elements.dialogInputWrap.hidden = !input;
-    elements.dialogInput.value = '';
+    elements.dialogInputWrap.firstChild.nodeValue = inputLabel;
+    elements.dialogInput.value = inputValue;
     elements.dialogConfirm.textContent = confirmLabel;
     elements.dialog.showModal();
     if (input) elements.dialogInput.focus();
@@ -2524,7 +3176,13 @@
       state.guilds = payload.guilds || [];
       renderSession();
       if (location.pathname.startsWith('/profile')) await loadProfile();
-      else if (state.guilds.length) await loadGuild(state.guilds[0].id);
+      else if (state.guilds.length) {
+        const deepLink = new URLSearchParams(location.search);
+        const requestedGuild = deepLink.get('guild');
+        const guildId = state.guilds.some((guild) => guild.id === requestedGuild) ? requestedGuild : state.guilds[0].id;
+        await loadGuild(guildId);
+        if (deepLink.get('view') === 'message-templates') setView('message-templates');
+      }
     } catch (error) {
       state.me = null;
       state.guilds = [];
@@ -2640,9 +3298,15 @@
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('input', (event) => updateMemberMessagesFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
+  elements.messageTemplatesView.addEventListener('input', (event) => {
+    if (event.target === elements.templateSearch) return renderTemplateList();
+    if (event.target === elements.templateJsonEditor) return updateTemplateJsonFromInput();
+    updateTemplateDraftFromControl(event.target);
+  });
+  elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
-  for (const preview of [elements.levelingMessagePreview, elements.welcomeMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
+  for (const preview of [elements.levelingMessagePreview, elements.welcomeMessagePreview, elements.templateMessagePreview, elements.xpDropMessagePreview, elements.xpDropClaimPreview]) {
     preview.addEventListener('click', (event) => {
       const edit = event.target.closest('[data-inline-message-display]');
       if (edit) return beginInlineMessageEdit(edit);
@@ -2784,6 +3448,121 @@
     const upload = event.target.closest('[data-welcome-media-upload]');
     if (upload) uploadWelcomeMedia(upload);
   });
+  for (const button of [elements.templateCreateButton, elements.templateListCreate, elements.templateEmptyCreate]) {
+    button.addEventListener('click', () => createMessageTemplate().catch((error) => showToast(error.message, 'error')));
+  }
+  elements.templateFolderCreate.addEventListener('click', () => createTemplateFolder().catch((error) => showToast(error.message, 'error')));
+  elements.templateFolderList.addEventListener('click', async (event) => {
+    const rename = event.target.closest('[data-template-folder-rename]');
+    if (rename) return renameTemplateFolder(rename.dataset.templateFolderRename).catch((error) => showToast(error.message, 'error'));
+    const remove = event.target.closest('[data-template-folder-delete]');
+    if (remove) return deleteTemplateFolder(remove.dataset.templateFolderDelete).catch((error) => showToast(error.message, 'error'));
+    const folder = event.target.closest('[data-template-folder]');
+    if (!folder) return;
+    const nextFolderId = folder.dataset.templateFolder;
+    const items = visibleTemplates(nextFolderId);
+    if (state.templateSelectedId && !items.some((item) => item.id === state.templateSelectedId) && templateIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved template changes?', copy: 'Opening this collection will close the current draft.', confirmLabel: 'Discard' });
+      if (!confirmed) return;
+    }
+    state.templateFolderId = nextFolderId;
+    renderTemplateFolders();
+    renderTemplateList();
+    updateTemplateDeepLink();
+    if (state.templateSelectedId && !items.some((item) => item.id === state.templateSelectedId)) {
+      if (items[0]) selectMessageTemplate(items[0].id, { force: true }).catch((error) => showToast(error.message, 'error'));
+      else { state.templateSelectedId = ''; state.templateDraft = null; state.templateSavedSnapshot = ''; renderTemplateEditor(); }
+    }
+  });
+  elements.templateList.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-template-id]');
+    if (item) selectMessageTemplate(item.dataset.templateId).catch((error) => showToast(error.message, 'error'));
+  });
+  elements.templateEditor.querySelector('.template-tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-template-tab]');
+    if (!tab) return;
+    state.templateTab = tab.dataset.templateTab;
+    renderTemplateEditor();
+  });
+  elements.templateSaveButton.addEventListener('click', () => saveMessageTemplate().catch((error) => showToast(error.message, 'error')));
+  elements.templateResetButton.addEventListener('click', () => {
+    const stored = currentStoredTemplate();
+    if (!stored) return;
+    state.templateDraft = clone(stored);
+    state.templateSavedSnapshot = templateSnapshot();
+    state.templateJsonValid = true;
+    renderTemplateEditor();
+    showToast('Unsaved template changes reset.');
+  });
+  elements.templateDuplicateButton.addEventListener('click', () => duplicateMessageTemplate().catch((error) => showToast(error.message, 'error')));
+  elements.templateDeleteButton.addEventListener('click', () => deleteMessageTemplate().catch((error) => showToast(error.message, 'error')));
+  elements.templateContainerAdd.addEventListener('click', () => {
+    if (!state.templateDraft) return;
+    state.templateDraft.layout.container = !state.templateDraft.layout.container;
+    renderTemplateComposerPreview();
+  });
+  elements.templateVariablesToggle.addEventListener('click', () => {
+    state.templateComposerPanel = state.templateComposerPanel === 'variables' ? '' : 'variables'; renderTemplateComposerPanel();
+  });
+  elements.templateThumbnailAdd.addEventListener('click', () => {
+    state.templateComposerPanel = state.templateComposerPanel === 'thumbnail' ? '' : 'thumbnail'; renderTemplateComposerPanel();
+  });
+  elements.templateGalleryAdd.addEventListener('click', () => {
+    state.templateComposerPanel = state.templateComposerPanel === 'gallery' ? '' : 'gallery'; renderTemplateComposerPanel();
+  });
+  elements.templateAccentButton.addEventListener('click', () => elements.templateAccentColor.click());
+  elements.templateComposerPanel.addEventListener('click', (event) => {
+    const variable = event.target.closest('[data-insert-template-variable]');
+    if (variable) return insertTemplateVariable(variable.dataset.insertTemplateVariable);
+    if (!state.templateDraft) return;
+    if (event.target.closest('[data-remove-template-thumbnail]')) {
+      state.templateDraft.layout.thumbnailEnabled = false;
+      state.templateDraft.layout.thumbnailUrl = '';
+      return renderTemplateComposerPreview();
+    }
+    if (event.target.closest('[data-add-template-gallery]')) {
+      if (state.templateDraft.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+      state.templateDraft.layout.galleryUrls.push('');
+      renderTemplateComposerPanel(); syncTemplateJson(); refreshTemplateDirty();
+      return elements.templateComposerPanel.querySelector('[data-template-gallery-url]:last-of-type')?.focus();
+    }
+    const remove = event.target.closest('[data-remove-template-gallery]');
+    if (!remove) return;
+    state.templateDraft.layout.galleryUrls.splice(Number(remove.dataset.removeTemplateGallery), 1);
+    renderTemplateComposerPreview();
+  });
+  elements.templateComposerPanel.addEventListener('change', (event) => {
+    const upload = event.target.closest('[data-template-media-upload]');
+    if (upload) uploadTemplateMedia(upload);
+  });
+  elements.templateJsonFormat.addEventListener('click', () => {
+    if (!updateTemplateJsonFromInput()) return;
+    syncTemplateJson(true);
+    showToast('Template JSON formatted.');
+  });
+  elements.templateJsonImport.addEventListener('click', () => {
+    if (!updateTemplateJsonFromInput(true)) elements.templateJsonEditor.focus();
+    else syncTemplateJson(true);
+  });
+  elements.templateJsonCopy.addEventListener('click', async () => {
+    await navigator.clipboard?.writeText?.(elements.templateJsonEditor.value).catch(() => null);
+    showToast('Template JSON copied.');
+  });
+  elements.templateSendTest.addEventListener('click', () => sendCurrentTemplate('test'));
+  elements.templateSendNow.addEventListener('click', () => sendCurrentTemplate('send'));
+  elements.templateCopyLink.addEventListener('click', async () => {
+    await navigator.clipboard?.writeText?.(elements.templateShareLink.value).catch(() => null);
+    showToast('Authenticated template link copied.');
+  });
+  elements.levelingUseTemplate.addEventListener('click', () => openTemplatePicker('leveling'));
+  elements.welcomeUseTemplate.addEventListener('click', () => openTemplatePicker('memberMessages'));
+  elements.levelingSaveAsTemplate.addEventListener('click', () => saveComposerAsTemplate('leveling').catch((error) => showToast(error.message, 'error')));
+  elements.welcomeSaveAsTemplate.addEventListener('click', () => saveComposerAsTemplate('memberMessages').catch((error) => showToast(error.message, 'error')));
+  elements.templatePickerSearch.addEventListener('input', renderTemplatePicker);
+  elements.templatePickerList.addEventListener('click', (event) => {
+    const item = event.target.closest('[data-pick-template]');
+    if (item) applyTemplateSnapshot(item.dataset.pickTemplate).catch((error) => showToast(error.message, 'error'));
+  });
   elements.levelingRewards.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-level-reward]');
     if (!button || !state.config) return;
@@ -2866,7 +3645,8 @@
   window.addEventListener('beforeunload', (event) => {
     const dashboardDirty = state.config && snapshot() !== state.savedSnapshot;
     const profileDirty = state.profile && cardSnapshot() !== state.profileSavedSnapshot;
-    if (!dashboardDirty && !profileDirty) return;
+    const messageTemplateDirty = templateIsDirty();
+    if (!dashboardDirty && !profileDirty && !messageTemplateDirty) return;
     event.preventDefault();
     event.returnValue = '';
   });
