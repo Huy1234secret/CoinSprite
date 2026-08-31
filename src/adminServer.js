@@ -12,6 +12,7 @@ const {
   getGuildConfigRaw,
   loadState,
   normalizeLevelingConfig,
+  normalizeMessageTemplatesConfig,
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
@@ -42,6 +43,17 @@ const {
   findXpDropCrate,
   sendXpDrop,
 } = require('./leveling');
+const {
+  createFolder,
+  createTemplate,
+  deleteFolder,
+  deleteTemplate,
+  duplicateTemplate,
+  renameFolder,
+  sendTemplate,
+  templateById,
+  updateTemplate,
+} = require('./messageTemplates');
 
 const SESSION_STORE_PATH = process.env.ADMIN_SESSION_STORE_PATH || path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
@@ -86,7 +98,7 @@ function getEnv() {
 
 function securityHeaders() {
   return {
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' https://cdn.discordapp.com data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com",
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com",
     'Cross-Origin-Opener-Policy': 'same-origin',
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
@@ -622,13 +634,38 @@ function publicConfig(config) {
     },
     leveling: config?.leveling || {},
     memberMessages: config?.memberMessages || {},
+    messageTemplates: normalizeMessageTemplatesConfig(config?.messageTemplates),
     rngGame: config?.rngGame || {},
   };
 }
 
 function safeOAuthReturnTo(value) {
   const route = String(value || '');
-  return ['/admin', '/profile', '/chances'].includes(route) ? route : '/admin';
+  if (['/admin', '/profile', '/chances'].includes(route)) return route;
+  let parsed;
+  try { parsed = new URL(route, 'http://coinsprite.local'); } catch { return '/admin'; }
+  if (parsed.origin !== 'http://coinsprite.local' || parsed.pathname !== '/admin') return '/admin';
+  const safe = new URLSearchParams();
+  const guildId = String(parsed.searchParams.get('guild') || '');
+  const view = String(parsed.searchParams.get('view') || '');
+  const templateId = String(parsed.searchParams.get('template') || '');
+  const folderId = String(parsed.searchParams.get('folder') || '');
+  if (/^\d{16,20}$/.test(guildId)) safe.set('guild', guildId);
+  if (view === 'message-templates') safe.set('view', view);
+  if (/^[a-zA-Z0-9_-]{8,64}$/.test(templateId)) safe.set('template', templateId);
+  if (/^[a-zA-Z0-9_-]{8,64}$/.test(folderId)) safe.set('folder', folderId);
+  const query = safe.toString();
+  return query ? `/admin?${query}` : '/admin';
+}
+
+function mutateGuildMessageTemplates(guildId, mutation) {
+  const state = loadState();
+  if (!state.guilds[guildId]) throw Object.assign(new Error('Guild is not configured.'), { statusCode: 404 });
+  const collection = normalizeMessageTemplatesConfig(state.guilds[guildId].messageTemplates);
+  const result = mutation(collection);
+  state.guilds[guildId].messageTemplates = collection;
+  saveState(state);
+  return { result, collection: normalizeMessageTemplatesConfig(getGuildConfigRaw(guildId)?.messageTemplates) };
 }
 
 async function handleAuthStart(req, res, env, requestUrl) {
@@ -760,6 +797,97 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (!auth) return;
     const force = url.searchParams.get('refresh') === '1';
     return sendJson(res, 200, { guildId: directoryMatch[1], directory: await fetchGuildDirectory(auth.guild, force) });
+  }
+
+  const templateCollectionMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates$/);
+  if (req.method === 'GET' && templateCollectionMatch) {
+    const guildId = templateCollectionMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth) return;
+    return sendJson(res, 200, {
+      guildId,
+      messageTemplates: normalizeMessageTemplatesConfig(getGuildConfigRaw(guildId)?.messageTemplates),
+    });
+  }
+  if (req.method === 'POST' && templateCollectionMatch) {
+    const guildId = templateCollectionMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    const body = await readJsonBody(req);
+    const saved = mutateGuildMessageTemplates(guildId, (collection) => createTemplate(collection, body));
+    logCommandSystem(`Admin ${auth.session.user.id} created message template ${saved.result.id} in guild ${guildId}.`);
+    return sendJson(res, 201, { guildId, item: saved.result, messageTemplates: saved.collection });
+  }
+
+  const templateFolderCollectionMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-template-folders$/);
+  if (req.method === 'POST' && templateFolderCollectionMatch) {
+    const guildId = templateFolderCollectionMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    const body = await readJsonBody(req);
+    const saved = mutateGuildMessageTemplates(guildId, (collection) => createFolder(collection, body));
+    logCommandSystem(`Admin ${auth.session.user.id} created message template folder ${saved.result.id} in guild ${guildId}.`);
+    return sendJson(res, 201, { guildId, folder: saved.result, messageTemplates: saved.collection });
+  }
+
+  const templateFolderMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-template-folders\/([a-zA-Z0-9_-]{8,64})$/);
+  if (templateFolderMatch && ['PATCH', 'DELETE'].includes(req.method)) {
+    const guildId = templateFolderMatch[1];
+    const folderId = templateFolderMatch[2];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    const body = req.method === 'PATCH' ? await readJsonBody(req) : null;
+    const saved = req.method === 'PATCH'
+      ? mutateGuildMessageTemplates(guildId, (collection) => renameFolder(collection, folderId, body))
+      : mutateGuildMessageTemplates(guildId, (collection) => deleteFolder(collection, folderId));
+    logCommandSystem(`Admin ${auth.session.user.id} ${req.method === 'PATCH' ? 'renamed' : 'deleted'} message template folder ${folderId} in guild ${guildId}${req.method === 'DELETE' ? `; ${saved.result.moved} template(s) moved to Unfiled` : ''}.`);
+    return sendJson(res, 200, { guildId, folder: saved.result.folder || saved.result, moved: saved.result.moved || 0, messageTemplates: saved.collection });
+  }
+
+  const templateActionMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-zA-Z0-9_-]{8,64})\/(duplicate|send)$/);
+  if (req.method === 'POST' && templateActionMatch) {
+    const guildId = templateActionMatch[1];
+    const templateId = templateActionMatch[2];
+    const action = templateActionMatch[3];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    if (action === 'duplicate') {
+      const saved = mutateGuildMessageTemplates(guildId, (collection) => duplicateTemplate(collection, templateId));
+      logCommandSystem(`Admin ${auth.session.user.id} duplicated message template ${templateId} as ${saved.result.id} in guild ${guildId}.`);
+      return sendJson(res, 201, { guildId, item: saved.result, messageTemplates: saved.collection });
+    }
+    const body = await readJsonBody(req);
+    if (!['test', 'send'].includes(body?.mode)) return sendJson(res, 400, { error: 'Send mode must be test or send.' });
+    if (body.mode === 'send' && body.confirm !== true) return sendJson(res, 400, { error: 'Confirm this send before continuing.' });
+    const item = templateById(normalizeMessageTemplatesConfig(getGuildConfigRaw(guildId)?.messageTemplates), templateId);
+    const sent = await sendTemplate(item, auth.guild, {
+      channelId: body.channelId,
+      test: body.mode === 'test',
+    });
+    logCommandSystem(`Admin ${auth.session.user.id} ${body.mode === 'test' ? 'test-sent' : 'sent'} message template ${templateId} to channel ${sent.channel.id} in guild ${guildId}.`);
+    return sendJson(res, 201, {
+      ok: true,
+      mode: body.mode,
+      channelId: sent.channel.id,
+      channelName: String(sent.channel.name || sent.channel.id),
+      messageId: String(sent.message?.id || ''),
+      messageUrl: String(sent.message?.url || ''),
+    });
+  }
+
+  const templateItemMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/message-templates\/([a-zA-Z0-9_-]{8,64})$/);
+  if (templateItemMatch && ['PATCH', 'DELETE'].includes(req.method)) {
+    const guildId = templateItemMatch[1];
+    const templateId = templateItemMatch[2];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    let saved;
+    if (req.method === 'PATCH') {
+      const body = await readJsonBody(req);
+      saved = mutateGuildMessageTemplates(guildId, (collection) => updateTemplate(collection, templateId, body));
+    } else saved = mutateGuildMessageTemplates(guildId, (collection) => deleteTemplate(collection, templateId));
+    logCommandSystem(`Admin ${auth.session.user.id} ${req.method === 'PATCH' ? 'updated' : 'deleted'} message template ${templateId} in guild ${guildId}.`);
+    return sendJson(res, 200, { guildId, item: saved.result, messageTemplates: saved.collection });
   }
 
   const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);

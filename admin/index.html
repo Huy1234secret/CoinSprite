@@ -42,7 +42,7 @@
       <span class="eyebrow">Built for Discord.</span>
       <h1>CoinSprite <em>bot.</em></h1>
       <p>Simple tools for a smoother Discord community.</p>
-      <a class="button primary login-button" href="/auth/discord">Continue with Discord <span aria-hidden="true">↗</span></a>
+      <a class="button primary login-button" id="loginButton" href="/auth/discord">Continue with Discord <span aria-hidden="true">↗</span></a>
       <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
     </section>
     <section class="signal-card" aria-label="Product preview">
@@ -126,6 +126,7 @@
       <nav class="nav-list" aria-label="Dashboard">
         <button class="nav-item active" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="welcomeMessagesNav" type="button" data-view="member-messages"><span class="nav-icon">&#x1F44B;</span><span><strong>Welcome Messages</strong><small>Join, leave &amp; boost</small></span></button>
+        <button class="nav-item" id="messageTemplatesNav" type="button" data-view="message-templates"><span class="nav-icon">&#x2398;</span><span><strong>Message Templates</strong><small>Compose &amp; reuse</small></span></button>
         <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>RNG Game</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
@@ -164,6 +165,7 @@
             <section class="message-composer wide">
               <header class="composer-toolbar">
                 <div><strong>Live Discord message</strong><small>Click any text inside the message to edit exactly what members will see.</small></div>
+                <div class="composer-template-actions"><button class="button tiny ghost" id="levelingUseTemplate" type="button">Use template</button><button class="button tiny ghost" id="levelingSaveAsTemplate" type="button">Save as template</button></div>
               </header>
               <div class="discord-preview" aria-label="Live Discord preview">
                 <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="levelingVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="levelingContainerAdd" type="button">Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">Gallery</button></div></div>
@@ -241,7 +243,7 @@
             <label class="switch-card compact-switch"><span><strong>Event message</strong><small id="welcomeEventToggleCopy">Send when a member joins</small></span><input id="welcomeEventEnabled" type="checkbox"><i></i></label>
             <label class="field-card"><span>Destination channel<small>Only channels where CoinSprite can post are listed</small></span><select id="welcomeEventChannel"></select></label>
             <section class="message-composer wide">
-              <header class="composer-toolbar"><div><strong>Live Discord message</strong><small>Click the message to edit. Variables are inserted at your cursor.</small></div></header>
+              <header class="composer-toolbar"><div><strong>Live Discord message</strong><small>Click the message to edit. Variables are inserted at your cursor.</small></div><div class="composer-template-actions"><button class="button tiny ghost" id="welcomeUseTemplate" type="button">Use template</button><button class="button tiny ghost" id="welcomeSaveAsTemplate" type="button">Save as template</button></div></header>
               <div class="discord-preview" aria-label="Welcome message Discord preview">
                 <div class="discord-preview-head"><span id="welcomePreviewLabel">JOIN PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="welcomeVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="welcomeContainerAdd" type="button">Container</button><button class="composer-add" id="welcomeThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="welcomeGalleryAdd" type="button">Gallery</button></div></div>
                 <div class="preview-tool-panel" id="welcomeComposerPanel" hidden></div>
@@ -250,6 +252,80 @@
             </section>
           </div>
         </section>
+      </section>
+
+      <section class="view" id="messageTemplatesView" data-view-panel="message-templates" hidden>
+        <header class="workspace-head template-page-head">
+          <div><span class="eyebrow">MESSAGE TEMPLATES</span><h1>Compose once. Reuse anywhere.</h1><p>Organize polished Discord messages, inspect their JSON, and send them safely.</p></div>
+          <button class="button primary" id="templateCreateButton" type="button">+ New template</button>
+        </header>
+
+        <div class="template-manager" id="templateManager">
+          <aside class="template-folders" aria-label="Template folders">
+            <header><div><span>COLLECTIONS</span><small id="templateTotalCount">0 templates</small></div><button type="button" id="templateFolderCreate" aria-label="Create folder" title="Create folder">+</button></header>
+            <nav id="templateFolderList" aria-label="Folders"></nav>
+          </aside>
+
+          <section class="template-library" aria-label="Template list">
+            <header><label><span class="sr-only">Search templates</span><input id="templateSearch" type="search" maxlength="80" placeholder="Search templates…"></label><button type="button" id="templateListCreate" aria-label="Create template">+</button></header>
+            <div class="template-list" id="templateList"></div>
+          </section>
+
+          <section class="template-detail" aria-label="Selected template workspace">
+            <div class="template-empty" id="templateEmptyState">
+              <span aria-hidden="true">&#x2398;</span><h2>Select a template</h2><p>Choose one from the library or create a blank template to begin.</p><button class="button primary small" id="templateEmptyCreate" type="button">Create template</button>
+            </div>
+
+            <div id="templateEditor" hidden>
+              <header class="template-detail-head">
+                <div><span id="templateStatusBadge">SAVED</span><h2 id="templateEditorTitle">Untitled template</h2><p id="templateTimestamps"></p></div>
+                <div><button class="button tiny ghost" id="templateDuplicateButton" type="button">Duplicate</button><button class="button tiny danger" id="templateDeleteButton" type="button">Delete</button><button class="button tiny ghost" id="templateResetButton" type="button">Reset</button><button class="button tiny primary" id="templateSaveButton" type="button">Save changes</button></div>
+              </header>
+
+              <div class="template-tabs" role="tablist" aria-label="Template sections">
+                <button class="active" type="button" role="tab" aria-selected="true" data-template-tab="editor">Message Editor</button>
+                <button type="button" role="tab" aria-selected="false" data-template-tab="json">JSON</button>
+                <button type="button" role="tab" aria-selected="false" data-template-tab="settings">Settings</button>
+                <button type="button" role="tab" aria-selected="false" data-template-tab="share">Use &amp; Share</button>
+              </div>
+
+              <section class="template-tab-panel active" data-template-panel="editor">
+                <section class="message-composer wide template-composer">
+                  <header class="composer-toolbar"><div><strong>Live Discord message</strong><small>Edit Markdown in the preview and insert variables at your cursor.</small></div><strong id="templateCharacterCount">0 / 4000</strong></header>
+                  <div class="discord-preview" aria-label="Template Discord preview">
+                    <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="templateVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="templateContainerAdd" type="button">Container</button><button class="composer-add" id="templateThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="templateGalleryAdd" type="button">Gallery</button></div></div>
+                    <div class="preview-tool-panel" id="templateComposerPanel" hidden></div>
+                    <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="templateDiscordFrame"><button class="discord-accent-button" id="templateAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="templateAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="templateMessagePreview"></div></div></div></div>
+                  </div>
+                </section>
+              </section>
+
+              <section class="template-tab-panel" data-template-panel="json" hidden>
+                <div class="template-json-head"><div><h3>Normalized template JSON</h3><p>The server rejects unknown fields and normalizes every import.</p></div><div><button class="button tiny ghost" id="templateJsonFormat" type="button">Format JSON</button><button class="button tiny ghost" id="templateJsonCopy" type="button">Copy JSON</button><button class="button tiny" id="templateJsonImport" type="button">Import / replace</button></div></div>
+                <label class="template-code-label"><span class="sr-only">Editable template JSON</span><textarea id="templateJsonEditor" rows="18" spellcheck="false" aria-describedby="templateJsonError"></textarea></label>
+                <p class="template-inline-error" id="templateJsonError" role="alert" hidden></p>
+                <details class="resolved-payload"><summary>Resolved Discord payload preview</summary><pre id="templateResolvedPayload"></pre></details>
+              </section>
+
+              <section class="template-tab-panel" data-template-panel="settings" hidden>
+                <div class="template-settings-grid">
+                  <label class="field-card"><span>Template name<small>Shown only inside the dashboard</small></span><input id="templateName" type="text" maxlength="80" required></label>
+                  <label class="field-card"><span>Folder<small>Use Unfiled when no folder is needed</small></span><select id="templateFolderSelect"></select></label>
+                  <label class="field-card template-description-field"><span>Description<small>Optional note for other administrators</small></span><textarea id="templateDescription" maxlength="500" rows="3"></textarea></label>
+                  <label class="field-card"><span>Default destination<small>Only channels CoinSprite can view and send to</small></span><select id="templateChannel"></select></label>
+                  <label class="switch-card compact-switch"><span><strong>Template enabled</strong><small>Disabled templates cannot be sent normally</small></span><input id="templateEnabled" type="checkbox"><i></i></label>
+                </div>
+                <section class="template-variable-reference"><header><div><h3>Available variables</h3><p>Generic variables work when sending directly. Context variables are preserved for Leveling and Welcome Messages.</p></div></header><div id="templateVariableReference"></div></section>
+                <section class="template-send-panel"><div><strong>Deliver this template</strong><small id="templateSendHint">Save changes before sending.</small></div><label><span>Channel</span><select id="templateSendChannel"></select></label><button class="button small ghost" id="templateSendTest" type="button">Send test</button><button class="button small primary" id="templateSendNow" type="button">Send now</button></section>
+              </section>
+
+              <section class="template-tab-panel" data-template-panel="share" hidden>
+                <section class="template-share-card"><span class="step">LINK</span><div><h3>Authenticated template link</h3><p>This opens the selected server, folder, and template. Anyone following it must still sign in and have Administrator permission.</p><label><span class="sr-only">Template link</span><input id="templateShareLink" type="text" readonly></label></div><button class="button small primary" id="templateCopyLink" type="button">Copy template link</button></section>
+                <section class="template-share-card"><span class="step">USE</span><div><h3>Use as a snapshot</h3><p>Open Leveling or Welcome Messages and choose <strong>Use template</strong>. Future template edits will not change the active feature configuration.</p></div></section>
+              </section>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section class="view" id="rngGameView" data-view-panel="rng-game" hidden>
@@ -302,6 +378,17 @@
       <p id="dialogCopy"></p>
       <label id="dialogInputWrap" hidden>Reason<textarea id="dialogInput" maxlength="500" rows="4"></textarea></label>
       <div><button class="button ghost" value="cancel">Cancel</button><button class="button danger" id="dialogConfirm" value="confirm">Confirm</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="templatePickerDialog" class="dialog template-picker-dialog">
+    <form method="dialog">
+      <span class="dialog-icon">&#x2398;</span>
+      <h2>Use a message template</h2>
+      <p>Applying a template copies its current message and layout as a snapshot.</p>
+      <label class="template-picker-search">Search templates<input id="templatePickerSearch" type="search" maxlength="80" placeholder="Search by name"></label>
+      <div id="templatePickerList" class="template-picker-list"></div>
+      <div><button class="button ghost" value="cancel">Cancel</button></div>
     </form>
   </dialog>
 </body>

@@ -21,6 +21,10 @@ const {
   isGuildLevelingEnabled,
 } = require('./serverConfig');
 const { acknowledgeEphemeral, acknowledgeUpdate, completeEphemeral } = require('./features/shared/interactionResponses');
+const {
+  accentColorValue: sharedAccentColorValue,
+  messageContentComponents: sharedMessageContentComponents,
+} = require('./messageComposer');
 
 const DATA_PATH = process.env.LEVELING_DATA_PATH || path.join(__dirname, '..', 'data', 'leveling.json');
 const LEVEL_CARD_MEDIA_DIR = path.join(__dirname, '..', 'data', 'level-card-media');
@@ -1457,53 +1461,11 @@ function resolvedAnnouncementLayout(layout = {}, message, level, values = {}) {
 }
 
 function accentColorValue(value) {
-  const hex = String(value || '').replace(/^#/, '');
-  return /^[0-9a-f]{6}$/i.test(hex) ? Number.parseInt(hex, 16) : ACCENT;
+  return sharedAccentColorValue(value, ACCENT);
 }
 
 function announcementContentComponents(content, layout = {}) {
-  const rawParts = String(content || '').split(/\{separator\}/gi);
-  const parts = rawParts.length > 5
-    ? [...rawParts.slice(0, 4), rawParts.slice(4).join('\n')]
-    : rawParts;
-  const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
-  const components = [];
-  let thumbnailPlaced = false;
-
-  for (let index = 0; index < parts.length; index += 1) {
-    const text = parts[index].trim();
-    if (index > 0 && components.length && components.at(-1)?.type !== 14) {
-      components.push({ type: 14, divider: true, spacing: 1 });
-    }
-    if (!text) continue;
-    if (thumbnailUrl && !thumbnailPlaced) {
-      components.push({
-        type: 9,
-        components: [{ type: 10, content: text }],
-        accessory: { type: 11, media: { url: thumbnailUrl }, description: 'Level-up thumbnail' },
-      });
-      thumbnailPlaced = true;
-    } else components.push({ type: 10, content: text });
-  }
-
-  if (!components.length) components.push({ type: 10, content: '-# Level up' });
-  if (thumbnailUrl && !thumbnailPlaced) {
-    const first = components.shift();
-    components.unshift({
-      type: 9,
-      components: [first.type === 10 ? first : { type: 10, content: '-# Level up' }],
-      accessory: { type: 11, media: { url: thumbnailUrl }, description: 'Level-up thumbnail' },
-    });
-  }
-
-  const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
-  if (galleryUrls.length) {
-    components.push({
-      type: 12,
-      items: galleryUrls.map((url) => ({ media: { url }, description: 'Level-up image' })),
-    });
-  }
-  return components;
+  return sharedMessageContentComponents(content, layout, 'Level-up', { fallbackText: '-# Level up' });
 }
 
 function levelUpAnnouncementPayload(content, config) {
