@@ -50,6 +50,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
   const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
   const components = [];
   let thumbnailPlaced = false;
+  const mediaDescription = (description) => (options.mediaDescriptions === false ? {} : { description });
 
   for (let index = 0; index < parts.length; index += 1) {
     const text = parts[index].trim();
@@ -61,7 +62,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
       components.push({
         type: 9,
         components: [{ type: 10, content: text }],
-        accessory: { type: 11, media: { url: thumbnailUrl }, description: `${label} thumbnail` },
+        accessory: { type: 11, media: { url: thumbnailUrl }, ...mediaDescription(`${label} thumbnail`) },
       });
       thumbnailPlaced = true;
     } else components.push({ type: 10, content: text });
@@ -73,7 +74,7 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
     components.unshift({
       type: 9,
       components: [first?.type === 10 ? first : { type: 10, content: options.fallbackText || '-# Message' }],
-      accessory: { type: 11, media: { url: thumbnailUrl }, description: `${label} thumbnail` },
+      accessory: { type: 11, media: { url: thumbnailUrl }, ...mediaDescription(`${label} thumbnail`) },
     });
   }
 
@@ -81,14 +82,17 @@ function messageContentComponents(content, layout = {}, label = 'Message', optio
   if (galleryUrls.length) {
     components.push({
       type: 12,
-      items: galleryUrls.map((url) => ({ media: { url }, description: `${label} image` })),
+      items: galleryUrls.map((url) => ({ media: { url }, ...mediaDescription(`${label} image`) })),
     });
   }
   return components;
 }
 
 function componentMessagePayload(content, layout = {}, options = {}) {
-  const inner = messageContentComponents(content, layout, options.label, { fallbackText: options.fallbackText });
+  const inner = messageContentComponents(content, layout, options.label, {
+    fallbackText: options.fallbackText,
+    mediaDescriptions: options.mediaDescriptions,
+  });
   const allowedUsers = [...new Set((options.allowedUsers || []).map(String).filter((id) => /^\d{16,20}$/.test(id)))];
   return {
     flags: COMPONENTS_V2_FLAG,
