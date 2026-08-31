@@ -6,7 +6,8 @@ const {
 } = require('./messageTemplates');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
+const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
@@ -24,6 +25,7 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
       thumbnailUrl: '',
       galleryUrls: Object.freeze([]),
     }),
+    additionalContainers: Object.freeze([]),
   }),
   channelMultipliers: Object.freeze({}),
   roleRewards: Object.freeze([]),
@@ -65,6 +67,7 @@ function defaultMemberMessageEvent(type) {
       thumbnailUrl: '',
       galleryUrls: Object.freeze([]),
     }),
+    additionalContainers: Object.freeze([]),
   });
 }
 
@@ -140,6 +143,27 @@ function cleanMemberMessageMediaUrl(value) {
 function cleanHexColor(value, fallback = '#b9f547') {
   const text = String(value || '').trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(text) ? text : fallback;
+}
+
+function normalizeAdditionalMessageContainers(value, options = {}) {
+  const cleanMedia = options.cleanMedia || cleanWebUrl;
+  const fallbackColor = options.fallbackColor || '#b9f547';
+  const maximumContent = options.maximumContent || 3000;
+  return (Array.isArray(value) ? value : []).slice(0, MAX_ADDITIONAL_MESSAGE_CONTAINERS).map((container) => {
+    const source = isObject(container) ? container : {};
+    const layout = isObject(source.layout) ? source.layout : {};
+    return {
+      content: String(source.content || '').replace(/\u0000/g, '').slice(0, maximumContent),
+      layout: {
+        container: true,
+        accentColor: cleanHexColor(layout.accentColor, fallbackColor),
+        thumbnailEnabled: layout.thumbnailEnabled === true,
+        thumbnailUrl: cleanMedia(layout.thumbnailUrl),
+        galleryUrls: [...new Set((Array.isArray(layout.galleryUrls) ? layout.galleryUrls : [])
+          .map(cleanMedia).filter(Boolean))].slice(0, 10),
+      },
+    };
+  });
 }
 
 function cleanXpDropId(value, fallback = '') {
@@ -262,6 +286,10 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
           .map(cleanLevelingMediaUrl).filter(Boolean))].slice(0, 10),
       },
+      additionalContainers: normalizeAdditionalMessageContainers(source.announcements?.additionalContainers, {
+        cleanMedia: cleanLevelingMediaUrl,
+        fallbackColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor),
+      }),
     },
     channelMultipliers,
     roleRewards,
@@ -319,6 +347,10 @@ function normalizeMemberMessagesConfig(value, defaults = DEFAULT_MEMBER_MESSAGES
         galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
           .map(cleanMemberMessageMediaUrl).filter(Boolean))].slice(0, 10),
       },
+      additionalContainers: normalizeAdditionalMessageContainers(eventSource.additionalContainers, {
+        cleanMedia: cleanMemberMessageMediaUrl,
+        fallbackColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor || DEFAULT_MEMBER_MESSAGE_COLORS[type]),
+      }),
     };
   }
   return normalized;
@@ -392,7 +424,7 @@ function loadState() {
   const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-18.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-19.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;

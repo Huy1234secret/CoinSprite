@@ -58,7 +58,7 @@ function newTemplate(collection, overrides = {}, now = '2026-08-31T00:00:00.000Z
   }, now);
 }
 
-test('schema 18 adds bounded message-template defaults while preserving existing guild settings', () => {
+test('schema 19 adds bounded message-template and additional-container defaults while preserving existing guild settings', () => {
   const state = normalizeState({
     meta: { schemaVersion: 17, disabledGuilds: {} },
     guilds: {
@@ -69,7 +69,7 @@ test('schema 18 adds bounded message-template defaults while preserving existing
       },
     },
   });
-  assert.equal(SCHEMA_VERSION, 18);
+  assert.equal(SCHEMA_VERSION, 19);
   assert.deepEqual(DEFAULT_GUILD_CONFIG.messageTemplates, DEFAULT_MESSAGE_TEMPLATES_CONFIG);
   assert.deepEqual(state.guilds[GUILD_A].messageTemplates, { folders: [], items: [] });
   assert.equal(state.guilds[GUILD_A].leveling.xp.min, 22);
@@ -153,13 +153,19 @@ test('strict JSON accepts the versioned document and rejects unknown, unsafe, an
     version: 1,
     content: '## Welcome {server}',
     layout: { container: true, accentColor: '#B9F547', thumbnailEnabled: true, thumbnailUrl: '{server_icon}', galleryUrls: ['https://example.com/one.png'] },
+    additionalContainers: [{
+      content: 'Second block in {channel}',
+      layout: { container: false, accentColor: '#123456', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: [] },
+    }],
   });
   assert.equal(document.layout.accentColor, '#b9f547');
+  assert.equal(document.additionalContainers[0].layout.container, true);
   assert.throws(() => parseTemplateDocument({ ...document, webhookToken: 'secret' }), /Unknown template json field/i);
   assert.throws(() => parseTemplateDocument({ ...document, layout: { ...document.layout, script: '<script>' } }), /Unknown layout field/);
   assert.throws(() => parseTemplateDocument({ ...document, layout: { ...document.layout, thumbnailUrl: 'javascript:alert(1)' } }), /Thumbnail must/);
   assert.throws(() => parseTemplateDocument({ ...document, content: 'x'.repeat(4001) }), /4000/);
   assert.throws(() => parseTemplateDocument({ ...document, content: '{separator}'.repeat(5) }), /up to 4/);
+  assert.throws(() => parseTemplateDocument({ ...document, additionalContainers: Array(3).fill(document.additionalContainers[0]) }), /up to 2 additional containers/);
   assert.throws(() => createTemplate(newCollection(), { name: 'Unsafe', unknown: true }), /Unknown template field/);
 });
 
@@ -201,6 +207,10 @@ test('generic variables and Components V2 payloads resolve with safe mentions an
   const item = newTemplate(collection, {
     content: '{server} in {channel} at {timestamp}{separator}No pings <@&123456789012345678>',
     layout: { ...DEFAULT_TEMPLATE_LAYOUT, thumbnailEnabled: true, thumbnailUrl: '{server_icon}', galleryUrls: ['https://example.com/gallery.png'] },
+    additionalContainers: [{
+      content: 'More news for {server}',
+      layout: { ...DEFAULT_TEMPLATE_LAYOUT, accentColor: '#123456', thumbnailEnabled: true, thumbnailUrl: 'https://example.com/extra.png', galleryUrls: ['https://example.com/extra-gallery.png'] },
+    }],
   });
   const { channel, guild } = sendFixture();
   const payload = buildTemplatePayload(item, guild, channel, { nowMs: 1_700_000_000_000 });
@@ -211,6 +221,10 @@ test('generic variables and Components V2 payloads resolve with safe mentions an
   assert.match(payload.components[0].components[0].components[0].content, /Sprite Garden in <#523456789012345678> at <t:1700000000:F>/);
   assert.ok(payload.components[0].components.some((component) => component.type === 14));
   assert.equal(payload.components[0].components.at(-1).type, 12);
+  assert.equal(payload.components[1].type, 17);
+  assert.equal(payload.components[1].accent_color, 0x123456);
+  assert.match(payload.components[1].components[0].components[0].content, /More news for Sprite Garden/);
+  assert.doesNotMatch(JSON.stringify(payload), /"description"/);
 });
 
 test('unresolved context variables block direct sending but remain preserved for feature snapshots', () => {
@@ -232,7 +246,8 @@ test('test and normal delivery recheck channels and Discord permissions', async 
   const allowed = sendFixture();
   const testSend = await sendTemplate(item, allowed.guild, { test: true });
   assert.equal(allowed.sent.length, 1);
-  assert.match(testSend.payload.components[0].components[0].content, /TEST MESSAGE/);
+  assert.doesNotMatch(JSON.stringify(testSend.payload), /TEST MESSAGE/);
+  assert.match(testSend.payload.components[0].components[0].content, /Welcome to Sprite Garden/);
   assert.deepEqual(testSend.payload.allowedMentions, { parse: [], users: [], roles: [] });
   await sendTemplate(item, allowed.guild, { test: false });
   assert.equal(allowed.sent.length, 2);
@@ -354,7 +369,12 @@ test('authenticated deep links are bounded and the dashboard wires all snapshot 
   assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="share"/);
   assert.match(html, /id="levelingUseTemplate"[\s\S]*id="levelingSaveAsTemplate"/);
   assert.match(html, /id="welcomeUseTemplate"[\s\S]*id="welcomeSaveAsTemplate"/);
+  assert.match(html, /id="levelingAdditionalContainerAdd"[\s\S]*id="welcomeAdditionalContainerAdd"[\s\S]*id="templateAdditionalContainerAdd"/);
+  assert.doesNotMatch(html, /id="template(?:Reset|Save)Button"/);
+  assert.match(app, /state\.currentView === 'message-templates'[\s\S]*saveMessageTemplate/);
+  assert.match(app, /templateMode \? 'Save changes' : 'Apply changes'/);
   assert.match(app, /state\.config\.leveling\.announcements\.template = item\.content/);
+  assert.match(app, /announcements\.additionalContainers = clone\(item\.additionalContainers\)/);
   assert.match(app, /const event = currentMemberMessage\(\);[\s\S]*event\.template = item\.content/);
   assert.match(app, /MEMBER_MESSAGE_EVENT_VARIABLES\[state\.memberMessageEvent\]/);
   assert.match(app, /deepLink\.get\('template'\)/);

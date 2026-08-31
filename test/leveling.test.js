@@ -79,6 +79,10 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
         thumbnailUrl: '{user_profile}',
         galleryUrls: ['https://example.com/one.png', '{user_profile}', 'not-a-url'],
       },
+      additionalContainers: Array(3).fill(null).map((_, index) => ({
+        content: `Extra ${index + 1} for {user}`,
+        layout: { container: false, accentColor: index ? '#123456' : 'invalid', thumbnailEnabled: true, thumbnailUrl: '{user_profile}', galleryUrls: ['https://example.com/extra.png', 'not-a-url'] },
+      })),
     },
     channelMultipliers: { '123456789012345678': -2, bad: 4, '123456789012345679': 99 },
     roleRewards: [
@@ -99,6 +103,10 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
   assert.equal(config.announcements.layout.accentColor, '#ff00aa');
   assert.equal(config.announcements.layout.thumbnailUrl, '{user_profile}');
   assert.deepEqual(config.announcements.layout.galleryUrls, ['https://example.com/one.png', '{user_profile}']);
+  assert.equal(config.announcements.additionalContainers.length, 2);
+  assert.equal(config.announcements.additionalContainers[0].layout.container, true);
+  assert.equal(config.announcements.additionalContainers[0].layout.accentColor, '#ff00aa');
+  assert.deepEqual(config.announcements.additionalContainers[0].layout.galleryUrls, ['https://example.com/extra.png']);
   assert.deepEqual(config.roleRewards, [
     { level: 10, roleId: '223456789012345678' },
     { level: 25, roleId: '423456789012345678' },
@@ -277,18 +285,27 @@ test('channel and role XP multipliers combine and cap at ten', () => {
 
 test('level-up composer builds container, thumbnail, separator, and gallery components', () => {
   const payload = levelUpAnnouncementPayload('**hi**{separator}Level 12!', {
-    announcements: { layout: {
-      container: true,
-      accentColor: '#ff00aa',
-      thumbnailEnabled: true,
-      thumbnailUrl: 'https://example.com/thumb.png',
-      galleryUrls: ['https://example.com/one.png', 'https://example.com/two.png'],
-    } },
+    announcements: {
+      layout: {
+        container: true,
+        accentColor: '#ff00aa',
+        thumbnailEnabled: true,
+        thumbnailUrl: 'https://example.com/thumb.png',
+        galleryUrls: ['https://example.com/one.png', 'https://example.com/two.png'],
+      },
+      additionalContainers: [{
+        content: 'Another level-up block',
+        layout: { container: true, accentColor: '#123456', thumbnailEnabled: true, thumbnailUrl: 'https://example.com/extra.png', galleryUrls: ['https://example.com/extra-gallery.png'] },
+      }],
+    },
   });
   assert.equal(payload.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
   assert.equal(payload.components[0].type, 17);
   assert.equal(payload.components[0].accent_color, 0xff00aa);
   assert.deepEqual(payload.components[0].components.map((component) => component.type), [9, 14, 10, 12]);
+  assert.equal(payload.components[1].accent_color, 0x123456);
+  assert.deepEqual(payload.components[1].components.map((component) => component.type), [9, 12]);
+  assert.doesNotMatch(JSON.stringify(payload), /"description"/);
 });
 
 test('XP curve and level calculation agree at boundaries', () => {
