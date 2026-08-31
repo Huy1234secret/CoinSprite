@@ -124,7 +124,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .workspace-head .eyebrow { margin-bottom: 10px; }
 .workspace-head h1 { margin: 0; font-size: clamp(34px, 4vw, 52px); line-height: 1; letter-spacing: -.045em; }
 .workspace-head p { margin: 12px 0 0; color: var(--muted); line-height: 1.55; }
-.rng-game-head > div:first-child { min-width: 0; }
+.rng-game-head > div:first-child, .welcome-messages-head > div:first-child { min-width: 0; }
 .head-actions { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
 .switch-card { min-width: 230px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.14); cursor: pointer; }
 .switch-card > span { display: grid; gap: 3px; }
@@ -162,8 +162,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .single-setting-grid { grid-template-columns: minmax(0,1fr); }
 
 @media (max-width: 1320px) {
-  .rng-game-head { align-items: flex-start; flex-direction: column; }
-  .rng-game-head .head-actions, .rng-game-head .header-switch { width: 100%; }
+  .rng-game-head, .welcome-messages-head { align-items: flex-start; flex-direction: column; }
+  .rng-game-head .head-actions, .rng-game-head .header-switch, .welcome-messages-head .head-actions, .welcome-messages-head .header-switch { width: 100%; }
 }
 .field-card textarea { resize: vertical; min-height: 84px; padding: 11px; line-height: 1.5; }
 .setting-card input:hover, .field-card select:hover, .field-card textarea:hover, .reward-row input:hover, .reward-row select:hover { border-color: rgba(185,245,71,.25); }
@@ -231,7 +231,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .discord-frame.has-container { padding: 12px 12px 12px 16px; border-radius: 4px; background: #2b2d31; }
 .discord-accent-button { position: absolute; z-index: 2; top: 0; bottom: 0; left: 0; width: 5px; padding: 0; border: 0; border-radius: 4px 0 0 4px; background: var(--accent-color); cursor: pointer; }
 .discord-accent-button:hover { width: 8px; filter: brightness(1.16); }
-#levelingAccentColor { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+#levelingAccentColor, #welcomeAccentColor { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .discord-section { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 12px; }
 .discord-text h1, .discord-text h2, .discord-text h3 { margin: 0 0 4px; color: #f2f3f5; line-height: 1.25; }
 .discord-text h1 { font-size: 18px; }.discord-text h2 { font-size: 16px; }.discord-text h3 { font-size: 14px; }
@@ -339,6 +339,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .xp-drop-fields .crate-multi-claim { grid-template-columns: auto minmax(0,1fr); align-items: center; padding: 9px; border: 1px solid var(--line); border-radius: 9px; }.crate-multi-claim input { width: auto; accent-color: var(--crate-color); }.crate-multi-claim span strong, .crate-multi-claim span small { display: block; }.crate-multi-claim span strong { color: var(--soft); font-size: 9px; }.crate-multi-claim span small { margin-top: 2px; color: var(--muted); font-size: 7px; }
 .xp-drop-test-panel { display: grid; grid-template-columns: minmax(180px,1fr) minmax(140px,.65fr) minmax(160px,.8fr) auto; align-items: end; gap: 10px; margin-top: 12px; padding: 13px; border: 1px solid rgba(185,245,71,.18); border-radius: 13px; background: rgba(185,245,71,.035); }
 .xp-drop-test-panel > div strong, .xp-drop-test-panel > div small { display: block; }.xp-drop-test-panel > div strong { font-size: 11px; }.xp-drop-test-panel > div small { margin-top: 3px; color: var(--muted); font-size: 8px; }.xp-drop-test-panel label { display: grid; gap: 5px; }.xp-drop-test-panel label span { color: var(--muted); font-size: 8px; font-weight: 850; }
+.member-message-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; padding: 7px; border: 1px solid var(--line); border-radius: 16px; background: rgba(17,22,20,.74); }
+.member-message-tabs button { min-width: 0; display: grid; gap: 4px; padding: 13px 15px; border: 1px solid transparent; border-radius: 11px; color: var(--muted); background: transparent; text-align: left; cursor: pointer; transition: .18s ease; }
+.member-message-tabs button:hover { color: var(--text); background: rgba(255,255,255,.025); }
+.member-message-tabs button.active { border-color: rgba(185,245,71,.25); color: var(--text); background: rgba(185,245,71,.08); }
+.member-message-tabs span { font-size: 12px; font-weight: 850; }.member-message-tabs small { color: var(--muted); font-size: 8px; }
+.member-message-editor { margin-top: 12px; }.member-message-heading { margin-bottom: 6px; }.member-message-actions { display: flex; gap: 8px; }
+.member-message-description { margin: 0 0 20px 39px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .save-dock { position: fixed; z-index: 45; bottom: 22px; left: 50%; width: min(500px, calc(100vw - 36px)); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 13px 12px 18px; transform: translateX(-50%); border: 1px solid rgba(185,245,71,.28); border-radius: 16px; background: rgba(12,17,14,.96); box-shadow: 0 18px 55px rgba(0,0,0,.46); backdrop-filter: blur(18px); animation: save-dock-in .18s ease-out; }
 .save-dock[hidden] { display: none; }
 .save-dock span { color: var(--warning); font-size: 11px; font-weight: 800; }
@@ -544,6 +551,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .section-block { padding: 20px 16px; }
   .metric-grid { grid-template-columns: 1fr; }
   .leveling-settings-grid, .rng-settings-grid, .ignored-channel-list { grid-template-columns: 1fr; }
+  .member-message-tabs { grid-template-columns: 1fr; }
+  .member-message-tabs button { grid-template-columns: auto 1fr; align-items: center; }
+  .member-message-description { margin-left: 0; }
   .compact-variable-guide, .xp-drop-fields, .xp-drop-test-panel { grid-template-columns: 1fr; }
   .xp-drop-head-actions { align-items: stretch; flex-direction: column; }
   .xp-drop-head-actions .compact-switch, .xp-drop-channel-card { width: 100%; min-width: 0; }

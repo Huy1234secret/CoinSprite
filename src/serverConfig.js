@@ -2,7 +2,7 @@ const path = require('path');
 const { backupFileOnce, readJsonFile, writeJsonAtomic } = require('./jsonFileStore');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
 const DEFAULT_LEVELING_CONFIG = Object.freeze({
@@ -38,6 +38,38 @@ const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   gameChannelIds: Object.freeze([]),
   cooldownBypassRoleIds: Object.freeze([]),
 });
+const DEFAULT_MEMBER_MESSAGE_TEMPLATES = Object.freeze({
+  join: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!',
+  leave: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.',
+  boost: '## Thank you for boosting, {user}! 💜\n{server} now has **{boost_count} boosts** and is at **Boost Level {boost_level}**.',
+});
+const DEFAULT_MEMBER_MESSAGE_COLORS = Object.freeze({
+  join: '#57f287',
+  leave: '#ed4245',
+  boost: '#f47fff',
+});
+
+function defaultMemberMessageEvent(type) {
+  return Object.freeze({
+    enabled: false,
+    channelId: '',
+    template: DEFAULT_MEMBER_MESSAGE_TEMPLATES[type],
+    layout: Object.freeze({
+      container: true,
+      accentColor: DEFAULT_MEMBER_MESSAGE_COLORS[type],
+      thumbnailEnabled: false,
+      thumbnailUrl: '',
+      galleryUrls: Object.freeze([]),
+    }),
+  });
+}
+
+const DEFAULT_MEMBER_MESSAGES_CONFIG = Object.freeze({
+  enabled: true,
+  join: defaultMemberMessageEvent('join'),
+  leave: defaultMemberMessageEvent('leave'),
+  boost: defaultMemberMessageEvent('boost'),
+});
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -56,6 +88,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   features: DEFAULT_FEATURES,
   channels: { commandLogThread: '' },
   leveling: DEFAULT_LEVELING_CONFIG,
+  memberMessages: DEFAULT_MEMBER_MESSAGES_CONFIG,
   rngGame: DEFAULT_RNG_GAME_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
@@ -90,6 +123,13 @@ function cleanWebUrl(value) {
 function cleanLevelingMediaUrl(value) {
   const text = String(value || '').trim();
   return text.toLowerCase() === '{user_profile}' ? '{user_profile}' : cleanWebUrl(text);
+}
+
+const MEMBER_MEDIA_VARIABLES = new Set(['{user_avatar}', '{server_icon}']);
+
+function cleanMemberMessageMediaUrl(value) {
+  const text = String(value || '').trim();
+  return MEMBER_MEDIA_VARIABLES.has(text.toLowerCase()) ? text.toLowerCase() : cleanWebUrl(text);
 }
 
 function cleanHexColor(value, fallback = '#b9f547') {
@@ -253,6 +293,32 @@ function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   };
 }
 
+function normalizeMemberMessagesConfig(value, defaults = DEFAULT_MEMBER_MESSAGES_CONFIG) {
+  const source = isObject(value) ? value : {};
+  const normalized = { enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false };
+  for (const type of ['join', 'leave', 'boost']) {
+    const eventSource = isObject(source[type]) ? source[type] : {};
+    const eventDefaults = isObject(defaults[type]) ? defaults[type] : DEFAULT_MEMBER_MESSAGES_CONFIG[type];
+    const layoutSource = isObject(eventSource.layout) ? eventSource.layout : {};
+    const layoutDefaults = eventDefaults.layout || DEFAULT_MEMBER_MESSAGES_CONFIG[type].layout;
+    normalized[type] = {
+      enabled: eventSource.enabled === undefined ? eventDefaults.enabled === true : eventSource.enabled === true,
+      channelId: cleanId(eventSource.channelId),
+      template: String(eventSource.template || eventDefaults.template || DEFAULT_MEMBER_MESSAGE_TEMPLATES[type])
+        .trim().slice(0, 3000) || DEFAULT_MEMBER_MESSAGE_TEMPLATES[type],
+      layout: {
+        container: layoutSource.container === undefined ? layoutDefaults.container !== false : layoutSource.container !== false,
+        accentColor: cleanHexColor(layoutSource.accentColor, layoutDefaults.accentColor || DEFAULT_MEMBER_MESSAGE_COLORS[type]),
+        thumbnailEnabled: layoutSource.thumbnailEnabled === true,
+        thumbnailUrl: cleanMemberMessageMediaUrl(layoutSource.thumbnailUrl),
+        galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
+          .map(cleanMemberMessageMediaUrl).filter(Boolean))].slice(0, 10),
+      },
+    };
+  }
+  return normalized;
+}
+
 function defaultConfigForGuild() {
   return clone(DEFAULT_GUILD_CONFIG);
 }
@@ -261,6 +327,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const source = isObject(value) ? value : {};
   const defaults = defaultConfigForGuild(guildId);
   const leveling = normalizeLevelingConfig(source.leveling, defaults.leveling);
+  const memberMessages = normalizeMemberMessagesConfig(source.memberMessages, defaults.memberMessages);
   const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
@@ -275,6 +342,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
     },
     channels: { commandLogThread: cleanId(source.channels?.commandLogThread) },
     leveling,
+    memberMessages,
     rngGame,
   };
 }
@@ -317,7 +385,7 @@ function loadState() {
   const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-16.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-17.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;
@@ -443,6 +511,7 @@ function resolveLoggingChannelId(config, _feature, _type, fallback = '') {
 module.exports = {
   DEFAULT_FEATURES,
   DEFAULT_LEVELING_CONFIG,
+  DEFAULT_MEMBER_MESSAGES_CONFIG,
   DEFAULT_RNG_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
@@ -465,6 +534,7 @@ module.exports = {
   isGuildRngGameEnabled,
   loadState,
   normalizeLevelingConfig,
+  normalizeMemberMessagesConfig,
   normalizeRngGameConfig,
   normalizeState,
   resolveLoggingChannelId,

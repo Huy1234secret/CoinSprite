@@ -35,6 +35,12 @@ const {
   handleLevelingMessage,
   startXpDropScheduler,
 } = require('./src/leveling');
+const {
+  handleBoostSystemMessage,
+  handleGuildMemberAdd,
+  handleGuildMemberRemove,
+  handleGuildMemberUpdate,
+} = require('./src/memberMessages');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
@@ -121,6 +127,24 @@ client.on(Events.GuildCreate, createGuildCreateHandler({
 }));
 
 if (runtimeStarter.capabilities.bot) {
+  client.on(Events.GuildMemberAdd, async (member) => {
+    await handleGuildMemberAdd(member).catch((error) => {
+      logCommandSystem(`Welcome Messages join handler failed in guild ${member?.guild?.id || 'unknown'}: ${error?.message || 'unknown error'}`);
+    });
+  });
+
+  client.on(Events.GuildMemberRemove, async (member) => {
+    await handleGuildMemberRemove(member).catch((error) => {
+      logCommandSystem(`Welcome Messages leave handler failed in guild ${member?.guild?.id || 'unknown'}: ${error?.message || 'unknown error'}`);
+    });
+  });
+
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    await handleGuildMemberUpdate(oldMember, newMember).catch((error) => {
+      logCommandSystem(`Welcome Messages boost handler failed in guild ${newMember?.guild?.id || 'unknown'}: ${error?.message || 'unknown error'}`);
+    });
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
     const startedAt = Date.now();
     try {
@@ -144,6 +168,7 @@ if (runtimeStarter.capabilities.bot) {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
+      await handleBoostSystemMessage(message);
       if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
