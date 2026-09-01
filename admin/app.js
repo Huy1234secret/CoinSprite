@@ -20,6 +20,7 @@
     { family: 'Oswald Variable', italic: false },
     { family: 'Caveat Variable', italic: false },
   ]);
+  const DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || { version: '', emojiCount: 0, groups: [] };
   const cardFontLoads = new Map();
   const CARD_PREVIEW_DEBOUNCE_MS = 350;
   const CARD_SNAP_DISTANCE = 6;
@@ -64,7 +65,7 @@
     guilds: [],
     guildId: '',
     config: null,
-    directory: { channels: [], roles: [], botPermissions: { usable: true, missing: [] } },
+    directory: { channels: [], roles: [], emojis: { bot: [], group: [], errors: {} }, botPermissions: { usable: true, missing: [] } },
     savedSnapshot: '',
     savedConfig: null,
     currentView: 'leveling',
@@ -87,6 +88,17 @@
     templateJsonValid: true,
     templateSaving: false,
     templatePickerContext: '',
+    reactionRoles: { items: [] },
+    reactionRoleSelectedId: '',
+    reactionRoleDraft: null,
+    reactionRoleSavedSnapshot: '',
+    reactionRoleTab: 'message',
+    reactionRoleComposerPanel: '',
+    reactionRoleSaving: false,
+    emojiSection: 'bot',
+    emojiCategory: DEFAULT_EMOJI_DATA.groups[0]?.id || '',
+    emojiPickerItems: [],
+    emojiTarget: null,
     xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
@@ -107,8 +119,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), rngGameNav: $('#rngGameNav'),
-    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), rngGameNav: $('#rngGameNav'),
+    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -122,7 +134,7 @@
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
     levelingAddReward: $('#levelingAddReward'), levelingBoosts: $('#levelingBoosts'), levelingAddBoost: $('#levelingAddBoost'),
     levelingContainerAdd: $('#levelingContainerAdd'), levelingAdditionalContainerAdd: $('#levelingAdditionalContainerAdd'), levelingThumbnailAdd: $('#levelingThumbnailAdd'),
-    levelingGalleryAdd: $('#levelingGalleryAdd'), levelingVariablesToggle: $('#levelingVariablesToggle'),
+    levelingGalleryAdd: $('#levelingGalleryAdd'), levelingVariablesToggle: $('#levelingVariablesToggle'), levelingEmojiToggle: $('#levelingEmojiToggle'),
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'), levelingAdditionalContainers: $('#levelingAdditionalContainers'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
@@ -131,7 +143,7 @@
     welcomeEventStep: $('#welcomeEventStep'), welcomeEventTitle: $('#welcomeEventTitle'), welcomeEventDescription: $('#welcomeEventDescription'),
     welcomeEventToggleCopy: $('#welcomeEventToggleCopy'), welcomePreviewLabel: $('#welcomePreviewLabel'),
     welcomeVariablesToggle: $('#welcomeVariablesToggle'), welcomeContainerAdd: $('#welcomeContainerAdd'), welcomeAdditionalContainerAdd: $('#welcomeAdditionalContainerAdd'),
-    welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'),
+    welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'), welcomeEmojiToggle: $('#welcomeEmojiToggle'),
     welcomeComposerPanel: $('#welcomeComposerPanel'), welcomeDiscordFrame: $('#welcomeDiscordFrame'),
     welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAdditionalContainers: $('#welcomeAdditionalContainers'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
     levelingUseTemplate: $('#levelingUseTemplate'), levelingSaveAsTemplate: $('#levelingSaveAsTemplate'),
@@ -141,7 +153,7 @@
     templateCreateButton: $('#templateCreateButton'), templateEmptyCreate: $('#templateEmptyCreate'), templateEmptyState: $('#templateEmptyState'), templateEditor: $('#templateEditor'),
     templateStatusBadge: $('#templateStatusBadge'), templateEditorTitle: $('#templateEditorTitle'), templateTimestamps: $('#templateTimestamps'),
     templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'),
-    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'),
+    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'), templateEmojiToggle: $('#templateEmojiToggle'),
     templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'), templateAdditionalContainers: $('#templateAdditionalContainers'),
     templateAccentButton: $('#templateAccentButton'), templateAccentColor: $('#templateAccentColor'), templateCharacterCount: $('#templateCharacterCount'),
     templateJsonEditor: $('#templateJsonEditor'), templateJsonError: $('#templateJsonError'), templateJsonFormat: $('#templateJsonFormat'), templateJsonCopy: $('#templateJsonCopy'), templateJsonImport: $('#templateJsonImport'), templateResolvedPayload: $('#templateResolvedPayload'),
@@ -149,10 +161,15 @@
     templateVariableReference: $('#templateVariableReference'), templateSendHint: $('#templateSendHint'), templateSendChannel: $('#templateSendChannel'), templateSendTest: $('#templateSendTest'), templateSendNow: $('#templateSendNow'),
     templateShareLink: $('#templateShareLink'), templateCopyLink: $('#templateCopyLink'), templatePickerDialog: $('#templatePickerDialog'), templatePickerSearch: $('#templatePickerSearch'), templatePickerList: $('#templatePickerList'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
-    xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'),
+    xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
     rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
     rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
+    reactionRoleCreate: $('#reactionRoleCreate'), reactionRoleEmptyCreate: $('#reactionRoleEmptyCreate'), reactionRoleCount: $('#reactionRoleCount'), reactionRoleList: $('#reactionRoleList'),
+    reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
+    reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleThumbnailToggle: $('#reactionRoleThumbnailToggle'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
+    reactionRoleComposerPanel: $('#reactionRoleComposerPanel'), reactionRoleDiscordFrame: $('#reactionRoleDiscordFrame'), reactionRoleAccentButton: $('#reactionRoleAccentButton'), reactionRoleAccentColor: $('#reactionRoleAccentColor'), reactionRoleMessagePreview: $('#reactionRoleMessagePreview'), reactionRoleAdditionalContainers: $('#reactionRoleAdditionalContainers'), reactionRoleControlPreview: $('#reactionRoleControlPreview'), reactionRoleControls: $('#reactionRoleControls'), reactionRoleAddControl: $('#reactionRoleAddControl'), reactionRoleChannel: $('#reactionRoleChannel'), reactionRolePermissionStatus: $('#reactionRolePermissionStatus'), reactionRoleFinalPreview: $('#reactionRoleFinalPreview'), reactionRoleSaveDraft: $('#reactionRoleSaveDraft'), reactionRolePublish: $('#reactionRolePublish'),
+    emojiPickerDialog: $('#emojiPickerDialog'), emojiPickerClose: $('#emojiPickerClose'), emojiPickerSearch: $('#emojiPickerSearch'), emojiPickerStatus: $('#emojiPickerStatus'), emojiPickerCategories: $('#emojiPickerCategories'), emojiPickerGrid: $('#emojiPickerGrid'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
     cardPreviewLabel: $('#cardPreviewLabel'),
@@ -437,7 +454,11 @@
 
   function roleOptions(selected) {
     const roles = state.directory.roles || [];
-    return ['<option value="">Choose a Discord role</option>', ...roles.map((role) => `<option value="${role.id}" style="color:${roleColor(role.id)}" ${role.id === selected ? 'selected' : ''} ${role.editable === false ? 'disabled' : ''}>\u25cf @${escapeHtml(role.name)}${role.editable === false ? ' (above CoinSprite)' : ''}</option>`)].join('');
+    return ['<option value="">Choose a Discord role</option>', ...roles.map((role) => {
+      const unavailable = role.editable === false || role.managed === true || role.administrator === true;
+      const reason = role.administrator ? ' (Administrator blocked)' : role.managed ? ' (managed role)' : role.editable === false ? ' (above CoinSprite)' : '';
+      return `<option value="${role.id}" style="color:${roleColor(role.id)}" ${role.id === selected ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>\u25cf @${escapeHtml(role.name)}${reason}</option>`;
+    })].join('');
   }
 
   function roleColor(roleId) {
@@ -707,7 +728,7 @@
     if (input && display) {
       const previewValues = input.dataset.inlineTemplateScope === 'memberMessages'
         ? memberMessagePreviewValues(state.memberMessageEvent)
-        : input.dataset.inlineTemplateScope === 'messageTemplate' ? genericTemplatePreviewValues() : {};
+        : ['messageTemplate', 'reactionRole'].includes(input.dataset.inlineTemplateScope) ? genericTemplatePreviewValues() : {};
       display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
     }
   }
@@ -1140,6 +1161,412 @@
       createdAt: String(item.createdAt || ''), updatedAt: String(item.updatedAt || ''),
     })).filter((item) => item.id);
     return { folders, items };
+  }
+
+  function normalizePickerEmoji(value) {
+    const id = /^\d{16,20}$/.test(String(value?.id || '')) ? String(value.id) : '';
+    const name = String(value?.name || '').trim().slice(0, 100);
+    return { id, name, animated: Boolean(id && value?.animated), source: id && value?.source === 'bot' ? 'bot' : id ? 'group' : 'default' };
+  }
+
+  function clientReactionId(prefix) {
+    const random = window.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 24)
+      || `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(0, 24);
+    return `${prefix}_${random}`;
+  }
+
+  function normalizeReactionRolesClient(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const items = (Array.isArray(source.items) ? source.items : []).map((item, itemIndex) => {
+      const message = item?.message && typeof item.message === 'object' ? item.message : {};
+      const dropdown = item?.dropdown && typeof item.dropdown === 'object' ? item.dropdown : {};
+      return {
+        id: String(item?.id || ''),
+        name: String(item?.name || `Reaction Roles ${itemIndex + 1}`).trim().slice(0, 80),
+        enabled: item?.enabled !== false,
+        message: {
+          content: String(message.content || '## Choose your roles\nUse the controls below to update your server roles.').slice(0, 4000),
+          layout: normalizeTemplateLayoutClient(message.layout),
+          additionalContainers: normalizeAdditionalContainersClient(message.additionalContainers, normalizeTemplateLayoutClient, 4000),
+          sourceTemplateId: String(message.sourceTemplateId || ''),
+        },
+        interactionType: item?.interactionType === 'dropdown' ? 'dropdown' : 'button',
+        buttons: (Array.isArray(item?.buttons) ? item.buttons : []).slice(0, 25).map((button, index) => ({
+          id: String(button?.id || clientReactionId('button')),
+          emoji: normalizePickerEmoji(button?.emoji),
+          label: String(button?.label || button?.name || `Role ${index + 1}`).trim().slice(0, 80),
+          style: ['Primary', 'Secondary', 'Success', 'Danger'].includes(button?.style) ? button.style : 'Secondary',
+          roleId: String(button?.roleId || ''), sortOrder: index,
+        })),
+        dropdown: {
+          placeholder: String(dropdown.placeholder || 'Choose your roles').trim().slice(0, 150),
+          allowMultiple: dropdown.allowMultiple === true,
+          options: (Array.isArray(dropdown.options) ? dropdown.options : []).slice(0, 25).map((option, index) => ({
+            id: String(option?.id || clientReactionId('option')),
+            emoji: normalizePickerEmoji(option?.emoji),
+            title: String(option?.title || option?.label || `Role ${index + 1}`).trim().slice(0, 100),
+            description: String(option?.description || '').trim().slice(0, 100),
+            roleId: String(option?.roleId || ''), sortOrder: index,
+          })),
+        },
+        channelId: String(item?.channelId || ''), publishedMessageId: String(item?.publishedMessageId || ''),
+        createdAt: String(item?.createdAt || ''), updatedAt: String(item?.updatedAt || ''),
+      };
+    }).filter((item) => item.id);
+    return { items };
+  }
+
+  function reactionRoleSnapshot() {
+    const draft = state.reactionRoleDraft;
+    return draft ? JSON.stringify({
+      name: draft.name, enabled: draft.enabled, message: draft.message,
+      interactionType: draft.interactionType, buttons: draft.buttons,
+      dropdown: draft.dropdown, channelId: draft.channelId, publishedMessageId: draft.publishedMessageId,
+    }) : '';
+  }
+
+  function reactionRoleIsDirty() {
+    return Boolean(state.reactionRoleDraft && reactionRoleSnapshot() !== state.reactionRoleSavedSnapshot);
+  }
+
+  function reactionRoleEntries(draft = state.reactionRoleDraft) {
+    return draft?.interactionType === 'dropdown' ? draft.dropdown.options : draft?.buttons || [];
+  }
+
+  function reactionRoleEmojiHtml(emoji) {
+    const normalized = normalizePickerEmoji(emoji);
+    if (!normalized.name) return '<span aria-hidden="true">＋</span>';
+    if (!normalized.id) return `<span aria-hidden="true">${escapeHtml(normalized.name)}</span>`;
+    const item = [...(state.directory.emojis?.bot || []), ...(state.directory.emojis?.group || [])].find((entry) => entry.id === normalized.id);
+    return item?.url ? `<img src="${escapeHtml(item.url)}" alt="" width="24" height="24">` : `<span aria-hidden="true">:${escapeHtml(normalized.name)}:</span>`;
+  }
+
+  function renderReactionRoleList() {
+    const items = state.reactionRoles.items;
+    elements.reactionRoleCount.textContent = `${items.length} saved`;
+    elements.reactionRoleList.innerHTML = items.length ? items.map((item) => `<button type="button" class="${item.id === state.reactionRoleSelectedId ? 'active ' : ''}${item.enabled ? '' : 'is-disabled'}" data-reaction-role-id="${escapeHtml(item.id)}"><span><strong>${escapeHtml(item.name)}</strong><i aria-label="${item.enabled ? 'Enabled' : 'Disabled'}"></i></span><small>${item.interactionType === 'dropdown' ? 'Dropdown' : 'Buttons'} · ${reactionRoleEntries(item).length} role${reactionRoleEntries(item).length === 1 ? '' : 's'}</small></button>`).join('') : '<div class="template-list-empty">No Reaction Role templates yet.</div>';
+  }
+
+  function renderReactionRoleControlPreview() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    if (draft.interactionType === 'dropdown') {
+      elements.reactionRoleControlPreview.innerHTML = `<div class="rr-preview-select">${escapeHtml(draft.dropdown.placeholder)} · ${draft.dropdown.options.length} option${draft.dropdown.options.length === 1 ? '' : 's'}</div>`;
+      return;
+    }
+    elements.reactionRoleControlPreview.innerHTML = draft.buttons.map((button) => `<button type="button" class="rr-preview-button ${button.style.toLowerCase()}" disabled>${reactionRoleEmojiHtml(button.emoji)} ${escapeHtml(button.label)}</button>`).join('');
+  }
+
+  function renderReactionRoleComposerPanel() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    const panel = state.reactionRoleComposerPanel;
+    const layout = draft.message.layout;
+    elements.reactionRoleComposerPanel.hidden = !panel;
+    elements.reactionRoleVariablesToggle.classList.toggle('active', panel === 'variables');
+    elements.reactionRoleThumbnailToggle.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
+    elements.reactionRoleGalleryToggle.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
+    if (!panel) return;
+    if (panel === 'variables') {
+      elements.reactionRoleComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-reaction-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
+      return;
+    }
+    if (panel === 'thumbnail') {
+      elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, an image URL, or an upload.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-reaction-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-reaction-thumbnail-url><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="thumbnail"></label></div>`;
+      return;
+    }
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" data-reaction-gallery-url="${index}" placeholder="https://example.com/image.png"><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-reaction-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-reaction-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+  }
+
+  function renderReactionRoleMessage() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    const content = inlineTemplateEditor(draft.message.content, 'content', 'reactionRole', 'Reaction Role message', genericTemplatePreviewValues(), 4000);
+    renderDiscordComposerPreview({
+      frame: elements.reactionRoleDiscordFrame, preview: elements.reactionRoleMessagePreview,
+      accentButton: elements.reactionRoleAccentButton, accentInput: elements.reactionRoleAccentColor,
+      containerButton: elements.reactionRoleContainerToggle, layout: draft.message.layout,
+      contentHtml: content, resolveMedia: templatePreviewMediaUrl,
+    });
+    renderAdditionalContainerEditors({
+      root: elements.reactionRoleAdditionalContainers, containers: draft.message.additionalContainers,
+      prefix: 'reaction', scope: 'reactionRole', previewValues: genericTemplatePreviewValues(),
+      resolveMedia: templatePreviewMediaUrl, maxLength: 4000,
+    });
+    elements.reactionRoleAdditionalContainer.disabled = draft.message.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
+    renderReactionRoleComposerPanel();
+    renderReactionRoleControlPreview();
+  }
+
+  function renderReactionRoleControls() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    document.querySelectorAll('[data-reaction-mode]').forEach((button) => button.classList.toggle('active', button.dataset.reactionMode === draft.interactionType));
+    elements.reactionRoleAddControl.textContent = draft.interactionType === 'dropdown' ? '+ Add option' : '+ Add button';
+    elements.reactionRoleAddControl.disabled = reactionRoleEntries().length >= 25;
+    if (draft.interactionType === 'button') {
+      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings">${draft.buttons.map((button, index) => `<article class="rr-control-row" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label>Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-rr-button-label="${index}"></label><label>Role<select data-rr-button-role="${index}">${roleOptions(button.roleId)}</select></label><label>Style<select data-rr-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
+    } else {
+      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings"><label>Placeholder<input class="reaction-role-composer-input" type="text" maxlength="150" value="${escapeHtml(draft.dropdown.placeholder)}" data-rr-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-rr-allow-multiple${draft.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Add selected roles and remove unselected roles managed by this template.</small></span></label></div><div class="rr-dropdown-options">${draft.dropdown.options.map((option, index) => `<article class="rr-control-row dropdown" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Selection title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-rr-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-rr-option-description="${index}"></label><label>Role<select data-rr-option-role="${index}">${roleOptions(option.roleId)}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
+    }
+  }
+
+  function renderReactionRoleChannel() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    elements.reactionRoleChannel.innerHTML = channelOptions(draft.channelId, (channel) => channel.sendable === true && channel.kind !== 'forum', 'Choose a message channel');
+    const channel = state.directory.channels.find((entry) => entry.id === draft.channelId);
+    const manageRolesMissing = (state.directory.botPermissions?.missing || []).some((item) => item.label === 'Manage Roles');
+    const ready = Boolean(channel?.sendable && !manageRolesMissing);
+    elements.reactionRolePermissionStatus.className = `rr-permission-status ${ready ? 'ok' : 'error'}`;
+    elements.reactionRolePermissionStatus.textContent = ready ? 'CoinSprite can send messages and manage roles here.' : manageRolesMissing ? 'CoinSprite needs Manage Roles before publishing.' : 'Choose a sendable text channel.';
+    const controls = draft.interactionType === 'button'
+      ? draft.buttons.map((button) => `<button type="button" class="rr-preview-button ${button.style.toLowerCase()}" disabled>${reactionRoleEmojiHtml(button.emoji)} ${escapeHtml(button.label)}</button>`).join('')
+      : `<div class="rr-preview-select">${escapeHtml(draft.dropdown.placeholder)} · ${draft.dropdown.options.length} option${draft.dropdown.options.length === 1 ? '' : 's'}</div>`;
+    elements.reactionRoleFinalPreview.innerHTML = `<div class="rr-final-message"><article style="--accent:${escapeHtml(draft.message.layout.accentColor)}">${renderedEditableTemplate(draft.message.content, genericTemplatePreviewValues())}</article><div class="rr-final-controls">${controls}</div></div>`;
+    elements.reactionRolePublish.disabled = state.reactionRoleSaving || !ready || !reactionRoleEntries().length;
+  }
+
+  function renderReactionRoleEditor() {
+    const draft = state.reactionRoleDraft;
+    elements.reactionRoleEmpty.hidden = Boolean(draft);
+    elements.reactionRoleEditor.hidden = !draft;
+    if (!draft) return;
+    elements.reactionRoleName.value = draft.name;
+    elements.reactionRoleEnabled.checked = draft.enabled;
+    elements.reactionRolePublishedState.textContent = draft.publishedMessageId ? `Published message ${draft.publishedMessageId}` : 'Not published';
+    elements.reactionRoleStatus.textContent = reactionRoleIsDirty() ? 'UNSAVED' : 'SAVED';
+    elements.reactionRoleStatus.classList.toggle('unsaved', reactionRoleIsDirty());
+    document.querySelectorAll('[data-reaction-tab]').forEach((button) => {
+      const active = button.dataset.reactionTab === state.reactionRoleTab;
+      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('[data-reaction-panel]').forEach((panel) => {
+      const active = panel.dataset.reactionPanel === state.reactionRoleTab;
+      panel.hidden = !active; panel.classList.toggle('active', active);
+    });
+    renderReactionRoleMessage();
+    renderReactionRoleControls();
+    renderReactionRoleChannel();
+    refreshDirty();
+  }
+
+  function renderReactionRoles() {
+    renderReactionRoleList();
+    renderReactionRoleEditor();
+  }
+
+  function replaceReactionRoles(payload, selectedId = state.reactionRoleSelectedId) {
+    state.reactionRoles = normalizeReactionRolesClient(payload.reactionRoles || payload);
+    const item = state.reactionRoles.items.find((entry) => entry.id === selectedId) || null;
+    state.reactionRoleSelectedId = item?.id || '';
+    state.reactionRoleDraft = item ? clone(item) : null;
+    state.reactionRoleSavedSnapshot = reactionRoleSnapshot();
+    renderReactionRoles();
+  }
+
+  async function selectReactionRole(id) {
+    if (id === state.reactionRoleSelectedId) return;
+    if (reactionRoleIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved Reaction Role changes?', copy: 'Your current draft has not been saved.', confirmLabel: 'Discard' });
+      if (!confirmed) return;
+    }
+    const item = state.reactionRoles.items.find((entry) => entry.id === id);
+    if (!item) return;
+    state.reactionRoleSelectedId = item.id; state.reactionRoleDraft = clone(item);
+    state.reactionRoleSavedSnapshot = reactionRoleSnapshot(); state.reactionRoleTab = 'message'; state.reactionRoleComposerPanel = '';
+    renderReactionRoles();
+  }
+
+  async function createReactionRole() {
+    if (reactionRoleIsDirty()) {
+      const confirmed = await confirmAction({ title: 'Discard unsaved Reaction Role changes?', copy: 'Creating a template closes this draft.', confirmLabel: 'Discard and create' });
+      if (!confirmed) return;
+    }
+    const payload = await api(`/api/guilds/${state.guildId}/reaction-roles`, { method: 'POST', body: JSON.stringify({ name: `Reaction Roles ${state.reactionRoles.items.length + 1}` }) });
+    replaceReactionRoles(payload, payload.item.id); state.reactionRoleTab = 'message';
+    elements.reactionRoleName.focus(); elements.reactionRoleName.select(); showToast('Reaction Role template created.');
+  }
+
+  function reactionRoleUpdateBody() {
+    const draft = state.reactionRoleDraft;
+    return {
+      name: draft.name, enabled: draft.enabled, message: draft.message,
+      interactionType: draft.interactionType, buttons: draft.buttons,
+      dropdown: draft.dropdown, channelId: draft.channelId, publishedMessageId: draft.publishedMessageId,
+    };
+  }
+
+  async function saveReactionRole() {
+    if (!state.reactionRoleDraft || state.reactionRoleSaving || !reactionRoleIsDirty()) return state.reactionRoleDraft;
+    state.reactionRoleSaving = true; refreshDirty();
+    try {
+      const payload = await api(`/api/guilds/${state.guildId}/reaction-roles/${state.reactionRoleDraft.id}`, { method: 'PATCH', body: JSON.stringify(reactionRoleUpdateBody()) });
+      replaceReactionRoles(payload, payload.item.id); showToast('Reaction Role draft saved.'); return payload.item;
+    } finally { state.reactionRoleSaving = false; refreshDirty(); }
+  }
+
+  async function duplicateReactionRole() {
+    if (!state.reactionRoleDraft) return;
+    if (reactionRoleIsDirty()) return showToast('Save or reset changes before duplicating.', 'error');
+    const payload = await api(`/api/guilds/${state.guildId}/reaction-roles/${state.reactionRoleDraft.id}/duplicate`, { method: 'POST', body: '{}' });
+    replaceReactionRoles(payload, payload.item.id); showToast('Reaction Role template duplicated.');
+  }
+
+  async function deleteReactionRole() {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    const confirmed = await confirmAction({ title: 'Delete this Reaction Role template?', copy: `“${draft.name}” will be removed. Its existing Discord message will stop responding.`, confirmLabel: 'Delete' });
+    if (!confirmed) return;
+    const payload = await api(`/api/guilds/${state.guildId}/reaction-roles/${draft.id}`, { method: 'DELETE', body: '{}' });
+    replaceReactionRoles(payload, ''); showToast('Reaction Role template deleted.');
+  }
+
+  async function publishReactionRole() {
+    if (!state.reactionRoleDraft || state.reactionRoleSaving) return;
+    if (reactionRoleIsDirty()) await saveReactionRole();
+    const confirmed = await confirmAction({ title: state.reactionRoleDraft.publishedMessageId ? 'Update the published message?' : 'Publish this Reaction Role message?', copy: 'CoinSprite will recheck the channel, role hierarchy, and permissions before sending.', confirmLabel: state.reactionRoleDraft.publishedMessageId ? 'Update message' : 'Publish' });
+    if (!confirmed) return;
+    state.reactionRoleSaving = true; renderReactionRoleChannel();
+    try {
+      const payload = await api(`/api/guilds/${state.guildId}/reaction-roles/${state.reactionRoleDraft.id}/publish`, { method: 'POST', body: '{}' });
+      replaceReactionRoles(payload, payload.item.id);
+      showToast(payload.updated ? 'Published Reaction Role message updated.' : 'Reaction Role message published.', '', payload.messageUrl);
+    } finally { state.reactionRoleSaving = false; refreshDirty(); }
+  }
+
+  function customEmojiMarkup(emoji) {
+    const item = normalizePickerEmoji(emoji);
+    if (!item.id) return item.name;
+    return `<${item.animated ? 'a' : ''}:${item.name}:${item.id}>`;
+  }
+
+  function defaultEmojiItems(groupId = '') {
+    const groups = groupId ? DEFAULT_EMOJI_DATA.groups.filter((group) => group.id === groupId) : DEFAULT_EMOJI_DATA.groups;
+    return groups.flatMap((group) => group.emojis.map(([character, name]) => ({
+      id: '', name: character, character, animated: false, source: 'default', searchName: name, groupId: group.id,
+    })));
+  }
+
+  function pickerItems(section = state.emojiSection, allDefaults = false) {
+    if (section === 'default') return defaultEmojiItems(allDefaults ? '' : state.emojiCategory);
+    return (state.directory.emojis?.[section] || []).map((emoji) => ({ ...normalizePickerEmoji(emoji), url: String(emoji.url || ''), searchName: String(emoji.name || '') }));
+  }
+
+  function renderEmojiCategories(search) {
+    const visible = state.emojiSection === 'default';
+    elements.emojiPickerCategories.hidden = !visible;
+    elements.emojiPickerCategories.replaceChildren();
+    if (!visible) return;
+    const fragment = document.createDocumentFragment();
+    for (const group of DEFAULT_EMOJI_DATA.groups) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.emojiCategory = group.id;
+      button.textContent = group.icon; button.title = group.name; button.setAttribute('aria-label', group.name);
+      const active = !search && group.id === state.emojiCategory;
+      button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active));
+      fragment.append(button);
+    }
+    elements.emojiPickerCategories.append(fragment);
+  }
+
+  function renderEmojiPicker() {
+    const search = elements.emojiPickerSearch.value.trim().toLowerCase();
+    document.querySelectorAll('[data-emoji-section]').forEach((button) => {
+      const active = button.dataset.emojiSection === state.emojiSection;
+      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
+    });
+    const failed = state.emojiSection !== 'default' && state.directory.emojis?.errors?.[state.emojiSection];
+    renderEmojiCategories(search);
+    const items = pickerItems(state.emojiSection, Boolean(search)).filter((emoji) => !search || `${emoji.searchName || emoji.name} ${emoji.name}`.toLowerCase().includes(search));
+    state.emojiPickerItems = items;
+    const activeGroup = DEFAULT_EMOJI_DATA.groups.find((group) => group.id === state.emojiCategory);
+    elements.emojiPickerStatus.className = `emoji-picker-status${failed ? ' error' : ''}`;
+    elements.emojiPickerStatus.textContent = failed
+      ? `${state.emojiSection === 'bot' ? 'Bot' : 'Group'} emojis could not be loaded. The other sections still work.`
+      : state.emojiSection === 'default'
+        ? `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found across all categories' : ` · ${activeGroup?.name || 'Default Emojis'}`} · Unicode ${DEFAULT_EMOJI_DATA.version}`
+        : `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found' : ''}`;
+    elements.emojiPickerGrid.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('div'); empty.className = 'emoji-picker-empty';
+      empty.textContent = search ? 'No emojis match this search.' : `No ${state.emojiSection === 'bot' ? 'Bot' : state.emojiSection === 'group' ? 'Group' : 'Default'} Emojis are available.`;
+      elements.emojiPickerGrid.append(empty); return;
+    }
+    const fragment = document.createDocumentFragment();
+    for (const [index, emoji] of items.entries()) {
+      const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'gridcell');
+      button.dataset.emojiIndex = String(index); button.setAttribute('aria-label', emoji.searchName || emoji.name); button.title = emoji.searchName || emoji.name;
+      if (emoji.animated) button.classList.add('animated');
+      if (emoji.id && emoji.url) {
+        const image = document.createElement('img'); image.src = emoji.url; image.alt = ''; image.loading = 'lazy'; button.append(image);
+      } else button.textContent = emoji.name;
+      fragment.append(button);
+    }
+    elements.emojiPickerGrid.append(fragment);
+    elements.emojiPickerGrid.scrollTop = 0;
+  }
+
+  function preferredInlineInput(scope) {
+    const roots = {
+      leveling: elements.levelingView,
+      memberMessages: elements.welcomeMessagesView,
+      messageTemplate: elements.messageTemplatesView,
+      reactionRole: elements.reactionRolesView,
+      xpDrop: elements.xpDropMessagePreview,
+      xpClaim: elements.xpDropClaimPreview,
+    };
+    const root = roots[scope];
+    if (!root) return null;
+    const active = document.activeElement?.matches?.('[data-inline-message-input]') && root.contains(document.activeElement) ? document.activeElement : null;
+    const editing = root.querySelector('[data-inline-message-editor].editing [data-inline-message-input]');
+    const input = active || editing || root.querySelector('[data-inline-message-input]');
+    if (input && !input.closest('[data-inline-message-editor]')?.classList.contains('editing')) {
+      beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
+    }
+    return root.querySelector('[data-inline-message-editor].editing [data-inline-message-input]') || input;
+  }
+
+  function openEmojiPicker(target) {
+    const resolved = typeof target === 'string' ? { type: 'text', scope: target, input: preferredInlineInput(target) } : target;
+    if (resolved?.type === 'text' && !resolved.input) return showToast('Open a message editor before choosing an emoji.', 'error');
+    if (resolved?.type === 'text') {
+      resolved.start = Number.isInteger(resolved.input.selectionStart) ? resolved.input.selectionStart : resolved.input.value.length;
+      resolved.end = Number.isInteger(resolved.input.selectionEnd) ? resolved.input.selectionEnd : resolved.start;
+    }
+    state.emojiTarget = resolved;
+    state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
+    state.emojiSection = pickerItems('bot').length ? 'bot' : pickerItems('group').length ? 'group' : 'default';
+    elements.emojiPickerSearch.value = '';
+    renderEmojiPicker();
+    elements.emojiPickerDialog.showModal();
+    elements.emojiPickerSearch.focus();
+  }
+
+  function closeEmojiPicker() {
+    if (elements.emojiPickerDialog.open) elements.emojiPickerDialog.close();
+  }
+
+  function applyPickedEmoji(emoji) {
+    const target = state.emojiTarget;
+    if (!target) return;
+    const normalized = normalizePickerEmoji(emoji);
+    if (target.type === 'text') {
+      const input = target.input;
+      const insertion = customEmojiMarkup(normalized);
+      const maximum = Number(input.maxLength) > 0 ? Number(input.maxLength) : 4000;
+      input.value = `${input.value.slice(0, target.start)}${insertion}${input.value.slice(target.end)}`.slice(0, maximum);
+      const cursor = Math.min(input.value.length, target.start + insertion.length);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      closeEmojiPicker();
+      window.setTimeout(() => { input.focus(); input.setSelectionRange(cursor, cursor); }, 0);
+      return;
+    }
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    const entries = target.type === 'button' ? draft.buttons : draft.dropdown.options;
+    if (entries[target.index]) entries[target.index].emoji = normalized;
+    closeEmojiPicker(); renderReactionRoleEditor();
   }
 
   function templateDocument(draft = state.templateDraft) {
@@ -1738,6 +2165,7 @@
 
   function contextVariableSet(context) {
     if (context === 'leveling') return new Set(LEVELING_VARIABLES.map(([token]) => token.slice(1, -1)));
+    if (context === 'reactionRoles') return new Set(GENERIC_TEMPLATE_VARIABLES.map(([token]) => token.slice(1, -1)));
     return new Set([...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]].map(([token]) => token.slice(1, -1)));
   }
 
@@ -1757,6 +2185,13 @@
         ...container, content: container.content.slice(0, 3000),
       }));
       renderMessagePreview();
+    } else if (state.templatePickerContext === 'reactionRoles') {
+      if (!state.reactionRoleDraft) return;
+      state.reactionRoleDraft.message = {
+        content: item.content.slice(0, 4000), layout: clone(item.layout),
+        additionalContainers: clone(item.additionalContainers), sourceTemplateId: item.id,
+      };
+      renderReactionRoleEditor();
     } else {
       const event = currentMemberMessage();
       event.template = item.content.slice(0, 3000);
@@ -1851,13 +2286,14 @@
 
   function refreshDirty() {
     const templateMode = state.currentView === 'message-templates';
-    const dirty = templateMode ? templateIsDirty() : snapshot() !== state.savedSnapshot;
-    const saving = templateMode ? state.templateSaving : state.saving;
+    const reactionMode = state.currentView === 'reaction-roles';
+    const dirty = templateMode ? templateIsDirty() : reactionMode ? reactionRoleIsDirty() : snapshot() !== state.savedSnapshot;
+    const saving = templateMode ? state.templateSaving : reactionMode ? state.reactionRoleSaving : state.saving;
     elements.saveDock.hidden = !dirty && !saving;
     elements.saveState.textContent = saving
-      ? templateMode ? 'Saving template…' : 'Applying changes…'
-      : templateMode ? 'Unsaved template changes' : 'Unsaved changes';
-    elements.saveButton.textContent = templateMode ? 'Save changes' : 'Apply changes';
+      ? templateMode ? 'Saving template…' : reactionMode ? 'Saving Reaction Role…' : 'Applying changes…'
+      : templateMode ? 'Unsaved template changes' : reactionMode ? 'Unsaved Reaction Role changes' : 'Unsaved changes';
+    elements.saveButton.textContent = templateMode || reactionMode ? 'Save changes' : 'Apply changes';
     elements.saveButton.disabled = !dirty || saving || (templateMode && !state.templateJsonValid);
     elements.resetButton.disabled = !dirty || saving;
   }
@@ -1872,13 +2308,14 @@
     elements.saveDock.hidden = true;
 
     try {
-      const [directoryPayload, configPayload, templatesPayload] = await Promise.all([
+      const [directoryPayload, configPayload, templatesPayload, reactionRolesPayload] = await Promise.all([
         api(`/api/guilds/${guildId}/directory`),
         api(`/api/guilds/${guildId}/config`),
         api(`/api/guilds/${guildId}/message-templates`),
+        api(`/api/guilds/${guildId}/reaction-roles`),
       ]);
       if (state.guildId !== guildId) return;
-      state.directory = { channels: [], roles: [], ...directoryPayload.directory };
+      state.directory = { channels: [], roles: [], emojis: { bot: [], group: [], errors: {} }, ...directoryPayload.directory };
       state.config = {
         ...configPayload.config,
         leveling: normalizeLevelingConfig(configPayload.config),
@@ -1892,11 +2329,16 @@
       state.templateSelectedId = '';
       state.templateDraft = null;
       state.templateSavedSnapshot = '';
+      state.reactionRoles = normalizeReactionRolesClient(reactionRolesPayload.reactionRoles);
+      state.reactionRoleSelectedId = '';
+      state.reactionRoleDraft = null;
+      state.reactionRoleSavedSnapshot = '';
       renderFeatureAccess();
       renderLeveling();
       renderWelcomeMessages();
       renderRngGame();
       renderTemplateWorkspace();
+      renderReactionRoles();
       const deepLink = new URLSearchParams(location.search);
       const requestedTemplate = deepLink.get('template');
       const requestedFolder = deepLink.get('folder');
@@ -2327,6 +2769,75 @@
       renderWelcomeMessagePreview(false);
     }
     refreshDirty();
+  }
+
+  function updateReactionRoleFromControl(target) {
+    const draft = state.reactionRoleDraft;
+    if (!draft) return;
+    if (target.matches('[data-inline-message-input]')) {
+      const index = Number(target.dataset.additionalContainerIndex);
+      if (Number.isInteger(index) && draft.message.additionalContainers[index]) draft.message.additionalContainers[index].content = target.value.slice(0, 4000);
+      else draft.message.content = target.value.slice(0, 4000);
+      syncInlineEditorVisual(target); refreshDirty(); return;
+    }
+    if (target === elements.reactionRoleName) { draft.name = target.value.slice(0, 80); renderReactionRoleList(); }
+    if (target === elements.reactionRoleEnabled) draft.enabled = target.checked;
+    if (target === elements.reactionRoleAccentColor) { draft.message.layout.accentColor = target.value; renderReactionRoleMessage(); }
+    if (target === elements.reactionRoleChannel) { draft.channelId = target.value; renderReactionRoleChannel(); }
+    if (target.matches('[data-reaction-thumbnail-url]')) {
+      draft.message.layout.thumbnailUrl = target.value.slice(0, 2000); draft.message.layout.thumbnailEnabled = validTemplateMedia(target.value); renderReactionRoleMessage();
+    }
+    if (target.matches('[data-reaction-gallery-url]')) {
+      draft.message.layout.galleryUrls[Number(target.dataset.reactionGalleryUrl)] = target.value.slice(0, 2000); renderReactionRoleMessage();
+    }
+    if (target.matches('[data-reaction-additional-accent]')) {
+      const container = draft.message.additionalContainers[Number(target.dataset.reactionAdditionalAccent)]; if (container) container.layout.accentColor = target.value; renderReactionRoleMessage();
+    }
+    if (target.matches('[data-reaction-additional-thumbnail-url]')) {
+      const container = draft.message.additionalContainers[Number(target.dataset.reactionAdditionalThumbnailUrl)];
+      if (container) { container.layout.thumbnailUrl = target.value.slice(0, 2000); container.layout.thumbnailEnabled = validTemplateMedia(target.value); }
+      renderReactionRoleMessage();
+    }
+    if (target.matches('[data-reaction-additional-gallery-url]')) {
+      const [containerIndex, mediaIndex] = target.dataset.reactionAdditionalGalleryUrl.split(':').map(Number);
+      const container = draft.message.additionalContainers[containerIndex]; if (container) container.layout.galleryUrls[mediaIndex] = target.value.slice(0, 2000); renderReactionRoleMessage();
+    }
+    if (target.matches('[data-rr-button-label]')) { draft.buttons[Number(target.dataset.rrButtonLabel)].label = target.value.slice(0, 80); renderReactionRoleControlPreview(); }
+    if (target.matches('[data-rr-button-role]')) draft.buttons[Number(target.dataset.rrButtonRole)].roleId = target.value;
+    if (target.matches('[data-rr-button-style]')) { draft.buttons[Number(target.dataset.rrButtonStyle)].style = target.value; renderReactionRoleControlPreview(); }
+    if (target.matches('[data-rr-dropdown-placeholder]')) { draft.dropdown.placeholder = target.value.slice(0, 150); renderReactionRoleControlPreview(); }
+    if (target.matches('[data-rr-allow-multiple]')) draft.dropdown.allowMultiple = target.checked;
+    if (target.matches('[data-rr-option-title]')) { draft.dropdown.options[Number(target.dataset.rrOptionTitle)].title = target.value.slice(0, 100); renderReactionRoleControlPreview(); }
+    if (target.matches('[data-rr-option-description]')) draft.dropdown.options[Number(target.dataset.rrOptionDescription)].description = target.value.slice(0, 100);
+    if (target.matches('[data-rr-option-role]')) draft.dropdown.options[Number(target.dataset.rrOptionRole)].roleId = target.value;
+    elements.reactionRoleStatus.textContent = 'UNSAVED'; elements.reactionRoleStatus.classList.add('unsaved'); refreshDirty();
+  }
+
+  function insertReactionRoleVariable(token) {
+    const input = preferredInlineInput('reactionRole');
+    if (!input) return;
+    const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+    input.value = `${input.value.slice(0, start)}${token}${input.value.slice(end)}`.slice(0, 4000);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus(); input.setSelectionRange(start + token.length, start + token.length);
+  }
+
+  async function uploadReactionRoleMedia(input) {
+    const file = input.files?.[0]; const draft = state.reactionRoleDraft;
+    if (!file || !draft) return;
+    if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) { input.value = ''; return showToast(file.size > 10 * 1024 * 1024 ? 'Images must be 10 MB or smaller.' : 'Upload an image file.', 'error'); }
+    const label = input.closest('.media-upload'); label?.classList.add('uploading');
+    try {
+      const result = await api(`/api/guilds/${state.guildId}/message-media`, { method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }) });
+      const containerIndex = Number(input.dataset.additionalContainerIndex);
+      const layout = Number.isInteger(containerIndex) ? draft.message.additionalContainers[containerIndex]?.layout : draft.message.layout;
+      if (!layout) throw new Error('That container no longer exists.');
+      if (input.dataset.reactionMediaUpload === 'thumbnail') { layout.thumbnailUrl = result.url; layout.thumbnailEnabled = true; }
+      else { const index = Number(input.dataset.mediaIndex); if (Number.isInteger(index) && index >= 0 && index < layout.galleryUrls.length) layout.galleryUrls[index] = result.url; else if (layout.galleryUrls.length < 10) layout.galleryUrls.push(result.url); }
+      renderReactionRoleMessage(); refreshDirty(); showToast('Image uploaded. Save the Reaction Role when ready.');
+    } catch (error) { showToast(error.message || 'Image upload failed.', 'error'); }
+    finally { label?.classList.remove('uploading'); input.value = ''; }
   }
 
   function updateRngGameFromControl(target) {
@@ -3405,7 +3916,7 @@
         const requestedGuild = deepLink.get('guild');
         const guildId = state.guilds.some((guild) => guild.id === requestedGuild) ? requestedGuild : state.guilds[0].id;
         await loadGuild(guildId);
-        if (deepLink.get('view') === 'message-templates') setView('message-templates');
+        if (['message-templates', 'reaction-roles'].includes(deepLink.get('view'))) setView(deepLink.get('view'));
       }
     } catch (error) {
       state.me = null;
@@ -3514,10 +4025,15 @@
   });
   elements.saveButton.addEventListener('click', () => {
     if (state.currentView === 'message-templates') saveMessageTemplate().catch((error) => showToast(error.message, 'error'));
+    else if (state.currentView === 'reaction-roles') saveReactionRole().catch((error) => showToast(error.message, 'error'));
     else saveConfig();
   });
   elements.resetButton.addEventListener('click', () => {
     if (state.currentView === 'message-templates') resetTemplateDraft();
+    else if (state.currentView === 'reaction-roles') {
+      const stored = state.reactionRoles.items.find((item) => item.id === state.reactionRoleSelectedId);
+      if (stored) { state.reactionRoleDraft = clone(stored); state.reactionRoleSavedSnapshot = reactionRoleSnapshot(); renderReactionRoles(); showToast('Unsaved Reaction Role changes reset.'); }
+    }
     else resetUnsavedChanges();
   });
   elements.logoutButton.addEventListener('click', async () => {
@@ -3534,12 +4050,15 @@
     updateTemplateDraftFromControl(event.target);
   });
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
+  elements.reactionRolesView.addEventListener('input', (event) => updateReactionRoleFromControl(event.target));
+  elements.reactionRolesView.addEventListener('change', (event) => updateReactionRoleFromControl(event.target));
   elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
   elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
   for (const preview of [
     elements.levelingMessagePreview, elements.levelingAdditionalContainers,
     elements.welcomeMessagePreview, elements.welcomeAdditionalContainers,
     elements.templateMessagePreview, elements.templateAdditionalContainers,
+    elements.reactionRoleMessagePreview, elements.reactionRoleAdditionalContainers,
     elements.xpDropMessagePreview, elements.xpDropClaimPreview,
   ]) {
     preview.addEventListener('click', (event) => {
@@ -3883,6 +4402,88 @@
     const item = event.target.closest('[data-pick-template]');
     if (item) applyTemplateSnapshot(item.dataset.pickTemplate).catch((error) => showToast(error.message, 'error'));
   });
+  for (const button of [elements.reactionRoleCreate, elements.reactionRoleEmptyCreate]) button.addEventListener('click', () => createReactionRole().catch((error) => showToast(error.message, 'error')));
+  elements.reactionRoleList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-reaction-role-id]');
+    if (button) selectReactionRole(button.dataset.reactionRoleId).catch((error) => showToast(error.message, 'error'));
+  });
+  elements.reactionRoleEditor.querySelector('.reaction-role-tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-reaction-tab]'); if (!tab) return;
+    state.reactionRoleTab = tab.dataset.reactionTab; renderReactionRoleEditor();
+  });
+  elements.reactionRoleEditor.addEventListener('click', (event) => {
+    const mode = event.target.closest('[data-reaction-mode]');
+    if (mode && state.reactionRoleDraft) { state.reactionRoleDraft.interactionType = mode.dataset.reactionMode; renderReactionRoleEditor(); return; }
+    const emoji = event.target.closest('[data-reaction-emoji]');
+    if (emoji) { const [type, index] = emoji.dataset.reactionEmoji.split(':'); openEmojiPicker({ type: type === 'button' ? 'button' : 'option', index: Number(index) }); return; }
+    const remove = event.target.closest('[data-rr-remove]');
+    if (remove) { reactionRoleEntries().splice(Number(remove.dataset.rrRemove), 1); renderReactionRoleEditor(); return; }
+    const move = event.target.closest('[data-rr-move]');
+    if (move) {
+      const [from, delta] = move.dataset.rrMove.split(':').map(Number); const entries = reactionRoleEntries(); const to = from + delta;
+      if (entries[from] && entries[to]) { const [item] = entries.splice(from, 1); entries.splice(to, 0, item); entries.forEach((entry, index) => { entry.sortOrder = index; }); renderReactionRoleEditor(); }
+    }
+  });
+  elements.reactionRoleAddControl.addEventListener('click', () => {
+    const draft = state.reactionRoleDraft; if (!draft || reactionRoleEntries().length >= 25) return;
+    const used = new Set(reactionRoleEntries().map((entry) => entry.roleId));
+    const role = (state.directory.roles || []).find((entry) => entry.editable !== false && !entry.administrator && !used.has(entry.id));
+    if (draft.interactionType === 'button') draft.buttons.push({ id: clientReactionId('button'), emoji: { id: '', name: '🎭', animated: false, source: 'default' }, label: role?.name || `Role ${draft.buttons.length + 1}`, style: 'Secondary', roleId: role?.id || '', sortOrder: draft.buttons.length });
+    else draft.dropdown.options.push({ id: clientReactionId('option'), emoji: { id: '', name: '🎭', animated: false, source: 'default' }, title: role?.name || `Role ${draft.dropdown.options.length + 1}`, description: '', roleId: role?.id || '', sortOrder: draft.dropdown.options.length });
+    renderReactionRoleEditor();
+  });
+  elements.reactionRoleDuplicate.addEventListener('click', () => duplicateReactionRole().catch((error) => showToast(error.message, 'error')));
+  elements.reactionRoleDelete.addEventListener('click', () => deleteReactionRole().catch((error) => showToast(error.message, 'error')));
+  elements.reactionRoleSaveDraft.addEventListener('click', () => saveReactionRole().catch((error) => showToast(error.message, 'error')));
+  elements.reactionRolePublish.addEventListener('click', () => publishReactionRole().catch((error) => showToast(error.message, 'error')));
+  elements.reactionRoleUseTemplate.addEventListener('click', () => openTemplatePicker('reactionRoles'));
+  elements.reactionRoleContainerToggle.addEventListener('click', () => { if (!state.reactionRoleDraft) return; state.reactionRoleDraft.message.layout.container = !state.reactionRoleDraft.message.layout.container; renderReactionRoleEditor(); });
+  elements.reactionRoleAdditionalContainer.addEventListener('click', () => { const draft = state.reactionRoleDraft; if (!draft || draft.message.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return; draft.message.additionalContainers.push(newAdditionalContainer(draft.message.layout.accentColor)); renderReactionRoleEditor(); });
+  elements.reactionRoleVariablesToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'variables' ? '' : 'variables'; renderReactionRoleComposerPanel(); });
+  elements.reactionRoleThumbnailToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'thumbnail' ? '' : 'thumbnail'; renderReactionRoleComposerPanel(); });
+  elements.reactionRoleGalleryToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'gallery' ? '' : 'gallery'; renderReactionRoleComposerPanel(); });
+  elements.reactionRoleAccentButton.addEventListener('click', () => elements.reactionRoleAccentColor.click());
+  elements.reactionRoleComposerPanel.addEventListener('click', (event) => {
+    const variable = event.target.closest('[data-insert-reaction-variable]'); if (variable) return insertReactionRoleVariable(variable.dataset.insertReactionVariable);
+    const draft = state.reactionRoleDraft; if (!draft) return;
+    if (event.target.closest('[data-remove-reaction-thumbnail]')) { draft.message.layout.thumbnailEnabled = false; draft.message.layout.thumbnailUrl = ''; renderReactionRoleEditor(); return; }
+    if (event.target.closest('[data-add-reaction-gallery]')) { if (draft.message.layout.galleryUrls.length < 10) draft.message.layout.galleryUrls.push(''); renderReactionRoleEditor(); return; }
+    const remove = event.target.closest('[data-remove-reaction-gallery]'); if (remove) { draft.message.layout.galleryUrls.splice(Number(remove.dataset.removeReactionGallery), 1); renderReactionRoleEditor(); }
+  });
+  elements.reactionRoleComposerPanel.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
+  elements.reactionRoleAdditionalContainers.addEventListener('click', (event) => {
+    const draft = state.reactionRoleDraft; if (!draft) return;
+    const remove = event.target.closest('[data-remove-reaction-additional-container]'); if (remove) { draft.message.additionalContainers.splice(Number(remove.dataset.removeReactionAdditionalContainer), 1); renderReactionRoleEditor(); return; }
+    const addGallery = event.target.closest('[data-add-reaction-additional-gallery]'); if (addGallery) { const layout = draft.message.additionalContainers[Number(addGallery.dataset.addReactionAdditionalGallery)]?.layout; if (layout?.galleryUrls.length < 10) layout.galleryUrls.push(''); renderReactionRoleEditor(); return; }
+    const removeGallery = event.target.closest('[data-remove-reaction-additional-gallery]'); if (removeGallery) { const [containerIndex, mediaIndex] = removeGallery.dataset.removeReactionAdditionalGallery.split(':').map(Number); draft.message.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1); renderReactionRoleEditor(); }
+  });
+  elements.reactionRoleAdditionalContainers.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
+
+  elements.levelingEmojiToggle.addEventListener('click', () => openEmojiPicker('leveling'));
+  elements.welcomeEmojiToggle.addEventListener('click', () => openEmojiPicker('memberMessages'));
+  elements.templateEmojiToggle.addEventListener('click', () => openEmojiPicker('messageTemplate'));
+  elements.xpDropEmojiToggle.addEventListener('click', () => openEmojiPicker('xpDrop'));
+  elements.xpClaimEmojiToggle.addEventListener('click', () => openEmojiPicker('xpClaim'));
+  elements.reactionRoleEmojiToggle.addEventListener('click', () => openEmojiPicker('reactionRole'));
+  elements.emojiPickerClose.addEventListener('click', closeEmojiPicker);
+  elements.emojiPickerSearch.addEventListener('input', renderEmojiPicker);
+  document.querySelector('.emoji-picker-tabs').addEventListener('click', (event) => { const tab = event.target.closest('[data-emoji-section]'); if (!tab) return; state.emojiSection = tab.dataset.emojiSection; renderEmojiPicker(); });
+  elements.emojiPickerCategories.addEventListener('click', (event) => {
+    const category = event.target.closest('[data-emoji-category]');
+    if (!category) return;
+    state.emojiCategory = category.dataset.emojiCategory;
+    elements.emojiPickerSearch.value = '';
+    renderEmojiPicker();
+  });
+  elements.emojiPickerGrid.addEventListener('click', (event) => { const button = event.target.closest('[data-emoji-index]'); if (button) applyPickedEmoji(state.emojiPickerItems[Number(button.dataset.emojiIndex)]); });
+  elements.emojiPickerGrid.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+    const buttons = [...elements.emojiPickerGrid.querySelectorAll('[data-emoji-index]')]; const current = buttons.indexOf(event.target.closest('[data-emoji-index]')); if (current < 0) return;
+    event.preventDefault(); const columns = Math.max(1, Math.round(elements.emojiPickerGrid.clientWidth / (buttons[0].offsetWidth + 6)));
+    const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' ? -columns : event.key === 'ArrowDown' ? columns : 0;
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, current + delta)); buttons[next]?.focus();
+  });
+  elements.emojiPickerDialog.addEventListener('click', (event) => { if (event.target !== elements.emojiPickerDialog) return; const box = elements.emojiPickerDialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeEmojiPicker(); });
   elements.levelingRewards.addEventListener('click', (event) => {
     const button = event.target.closest('[data-remove-level-reward]');
     if (!button || !state.config) return;

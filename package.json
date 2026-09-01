@@ -11,6 +11,7 @@
     "test": "node --test --test-concurrency=1",
     "preview:rps": "node scripts/renderRpsPreviews.js",
     "preview:roulette": "node scripts/renderRoulettePreviews.js",
+    "generate:emoji-data": "node scripts/generateEmojiData.js",
     "report:rng-luck": "node scripts/rngLuckReport.js",
     "report:rng-items-pets": "node scripts/rngItemsPetsReport.js",
     "report:shop-balance": "node scripts/shopBalanceReport.js",

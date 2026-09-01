@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 16,
+    "schemaVersion": 20,
     "disabledGuilds": {}
   },
   "guilds": {
@@ -41,6 +41,16 @@
           "claimTemplate": "## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining",
           "crates": []
         }
+      },
+      "memberMessages": {
+        "enabled": true
+      },
+      "messageTemplates": {
+        "folders": [],
+        "items": []
+      },
+      "reactionRoles": {
+        "items": []
       },
       "rngGame": {
         "enabled": false,

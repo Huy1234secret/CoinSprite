@@ -13,6 +13,7 @@ const {
   loadState,
   normalizeLevelingConfig,
   normalizeMessageTemplatesConfig,
+  normalizeReactionRolesConfig,
   saveState,
 } = require('./serverConfig');
 const { logCommandSystem } = require('./commandLogger');
@@ -54,6 +55,16 @@ const {
   templateById,
   updateTemplate,
 } = require('./messageTemplates');
+const {
+  configuredRoleIds,
+  createReactionRoleTemplate,
+  deleteReactionRoleTemplate,
+  duplicateReactionRoleTemplate,
+  publishReactionRoleTemplate,
+  reactionRoleById,
+  updateReactionRoleTemplate,
+  validateReactionRoleRoles,
+} = require('./reactionRoles');
 
 const SESSION_STORE_PATH = process.env.ADMIN_SESSION_STORE_PATH || path.join(__dirname, '..', 'data', 'admin-sessions.json');
 const LEVELING_MEDIA_DIR = path.join(__dirname, '..', 'data', 'leveling-media');
@@ -71,6 +82,7 @@ const LEVELING_MEDIA_TYPES = Object.freeze({
   webp: { extension: 'webp', contentType: 'image/webp' },
 });
 const PUBLIC_ASSETS = new Map([
+  ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/admin/chances.html', ['chances.html', 'text/html; charset=utf-8']],
@@ -566,6 +578,36 @@ function channelSendable(channel, botMember) {
   }
 }
 
+function sanitizedEmoji(emoji, source) {
+  const id = String(emoji?.id || '');
+  const name = String(emoji?.name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100);
+  if (!/^\d{16,20}$/.test(id) || !name) return null;
+  const animated = emoji?.animated === true;
+  let url = '';
+  try { url = String(emoji.imageURL?.({ extension: animated ? 'gif' : 'png', size: 64 }) || emoji.url || ''); } catch {}
+  if (!/^https:\/\//i.test(url)) url = `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=64&quality=lossless`;
+  return { id, name, animated, url, source };
+}
+
+async function fetchDirectoryEmojis(guild) {
+  const applicationManager = guild?.client?.application?.emojis;
+  const [applicationResult, guildResult] = await Promise.all([
+    applicationManager?.fetch ? applicationManager.fetch().then((items) => ({ items, error: false })).catch(() => ({ items: new Map(), error: true })) : Promise.resolve({ items: new Map(), error: true }),
+    guild?.emojis?.fetch ? guild.emojis.fetch().then((items) => ({ items, error: false })).catch(() => ({ items: new Map(), error: true })) : Promise.resolve({ items: guild?.emojis?.cache || new Map(), error: !guild?.emojis?.cache }),
+  ]);
+  const seen = new Set();
+  const normalize = (values, source, availableOnly = false) => [...values.values()]
+    .filter((emoji) => !availableOnly || emoji?.available !== false)
+    .map((emoji) => sanitizedEmoji(emoji, source))
+    .filter((emoji) => emoji && !seen.has(emoji.id) && seen.add(emoji.id))
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }));
+  return {
+    bot: normalize(applicationResult.items, 'bot'),
+    group: normalize(guildResult.items, 'group', true),
+    errors: { bot: applicationResult.error, group: guildResult.error },
+  };
+}
+
 async function fetchGuildDirectory(guild, force = false) {
   const cached = directoryCache.get(guild.id);
   if (!force && cached && Date.now() - cached.createdAt < DIRECTORY_CACHE_TTL_MS) return cached.directory;
@@ -576,6 +618,7 @@ async function fetchGuildDirectory(guild, force = false) {
   const activeThreads = await guild.channels.fetchActiveThreads().catch(() => null);
   const allChannels = [...baseChannels, ...Array.from(activeThreads?.threads?.values?.() || [])];
   const roles = await guild.roles.fetch().catch(() => guild.roles.cache);
+  const emojis = await fetchDirectoryEmojis(guild);
   const botMember = guild.members.me || await guild.members.fetchMe().catch(() => null);
   const required = [
     ['Manage Roles', PermissionFlagsBits.ManageRoles],
@@ -605,8 +648,12 @@ async function fetchGuildDirectory(guild, force = false) {
         color: role.hexColor || '#99a1a6',
         position: Number(role.rawPosition) || 0,
         editable: role.editable !== false,
+        managed: role.managed === true,
+        administrator: Boolean(role.permissions?.has?.(PermissionFlagsBits.Administrator)),
+        belowBot: role.editable !== false,
       }))
       .sort((left, right) => right.position - left.position || left.name.localeCompare(right.name)),
+    emojis,
     botPermissions: { usable: missing.length === 0, missing: missing.map((label) => ({ label })) },
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
@@ -635,6 +682,7 @@ function publicConfig(config) {
     leveling: config?.leveling || {},
     memberMessages: config?.memberMessages || {},
     messageTemplates: normalizeMessageTemplatesConfig(config?.messageTemplates),
+    reactionRoles: normalizeReactionRolesConfig(config?.reactionRoles),
     rngGame: config?.rngGame || {},
   };
 }
@@ -651,7 +699,7 @@ function safeOAuthReturnTo(value) {
   const templateId = String(parsed.searchParams.get('template') || '');
   const folderId = String(parsed.searchParams.get('folder') || '');
   if (/^\d{16,20}$/.test(guildId)) safe.set('guild', guildId);
-  if (view === 'message-templates') safe.set('view', view);
+  if (['message-templates', 'reaction-roles'].includes(view)) safe.set('view', view);
   if (/^[a-zA-Z0-9_-]{8,64}$/.test(templateId)) safe.set('template', templateId);
   if (/^[a-zA-Z0-9_-]{8,64}$/.test(folderId)) safe.set('folder', folderId);
   const query = safe.toString();
@@ -666,6 +714,17 @@ function mutateGuildMessageTemplates(guildId, mutation) {
   state.guilds[guildId].messageTemplates = collection;
   saveState(state);
   return { result, collection: normalizeMessageTemplatesConfig(getGuildConfigRaw(guildId)?.messageTemplates) };
+}
+
+async function mutateGuildReactionRoles(guildId, guild, mutation, options = {}) {
+  const state = loadState();
+  if (!state.guilds[guildId]) throw Object.assign(new Error('Guild is not configured.'), { statusCode: 404 });
+  const collection = normalizeReactionRolesConfig(state.guilds[guildId].reactionRoles);
+  const result = mutation(collection);
+  if (options.validateRoles !== false && result && configuredRoleIds(result).length) await validateReactionRoleRoles(result, guild);
+  state.guilds[guildId].reactionRoles = collection;
+  saveState(state);
+  return { result, collection: normalizeReactionRolesConfig(getGuildConfigRaw(guildId)?.reactionRoles) };
 }
 
 async function handleAuthStart(req, res, env, requestUrl) {
@@ -888,6 +947,71 @@ async function routeRequest(req, res, env, client, services = {}) {
     } else saved = mutateGuildMessageTemplates(guildId, (collection) => deleteTemplate(collection, templateId));
     logCommandSystem(`Admin ${auth.session.user.id} ${req.method === 'PATCH' ? 'updated' : 'deleted'} message template ${templateId} in guild ${guildId}.`);
     return sendJson(res, 200, { guildId, item: saved.result, messageTemplates: saved.collection });
+  }
+
+  const reactionRoleCollectionMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/reaction-roles$/);
+  if (req.method === 'GET' && reactionRoleCollectionMatch) {
+    const guildId = reactionRoleCollectionMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth) return;
+    return sendJson(res, 200, {
+      guildId,
+      reactionRoles: normalizeReactionRolesConfig(getGuildConfigRaw(guildId)?.reactionRoles),
+    });
+  }
+  if (req.method === 'POST' && reactionRoleCollectionMatch) {
+    const guildId = reactionRoleCollectionMatch[1];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    const body = await readJsonBody(req);
+    const saved = await mutateGuildReactionRoles(guildId, auth.guild, (collection) => createReactionRoleTemplate(collection, body));
+    logCommandSystem(`Admin ${auth.session.user.id} created Reaction Role template ${saved.result.id} in guild ${guildId}.`);
+    return sendJson(res, 201, { guildId, item: saved.result, reactionRoles: saved.collection });
+  }
+
+  const reactionRoleActionMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/reaction-roles\/([a-zA-Z0-9_-]{8,64})\/(duplicate|publish)$/);
+  if (req.method === 'POST' && reactionRoleActionMatch) {
+    const guildId = reactionRoleActionMatch[1];
+    const templateId = reactionRoleActionMatch[2];
+    const action = reactionRoleActionMatch[3];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    if (action === 'duplicate') {
+      const saved = await mutateGuildReactionRoles(guildId, auth.guild, (collection) => duplicateReactionRoleTemplate(collection, templateId));
+      logCommandSystem(`Admin ${auth.session.user.id} duplicated Reaction Role template ${templateId} as ${saved.result.id} in guild ${guildId}.`);
+      return sendJson(res, 201, { guildId, item: saved.result, reactionRoles: saved.collection });
+    }
+    const item = reactionRoleById(normalizeReactionRolesConfig(getGuildConfigRaw(guildId)?.reactionRoles), templateId);
+    const published = await publishReactionRoleTemplate(item, auth.guild);
+    const saved = await mutateGuildReactionRoles(guildId, auth.guild, (collection) => updateReactionRoleTemplate(collection, templateId, {
+      publishedMessageId: String(published.message?.id || ''),
+      channelId: String(published.channel?.id || ''),
+    }), { validateRoles: false });
+    logCommandSystem(`Admin ${auth.session.user.id} ${published.updated ? 'updated' : 'published'} Reaction Role template ${templateId} in channel ${published.channel.id} for guild ${guildId}.`);
+    return sendJson(res, 201, {
+      ok: true,
+      updated: published.updated,
+      guildId,
+      item: saved.result,
+      reactionRoles: saved.collection,
+      channelId: published.channel.id,
+      messageId: String(published.message?.id || ''),
+      messageUrl: String(published.message?.url || ''),
+    });
+  }
+
+  const reactionRoleItemMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/reaction-roles\/([a-zA-Z0-9_-]{8,64})$/);
+  if (reactionRoleItemMatch && ['PATCH', 'DELETE'].includes(req.method)) {
+    const guildId = reactionRoleItemMatch[1];
+    const templateId = reactionRoleItemMatch[2];
+    const auth = await requireGuildAdmin(req, res, env, client, guildId);
+    if (!auth || !requireCsrf(req, res, auth.session)) return;
+    const body = req.method === 'PATCH' ? await readJsonBody(req) : null;
+    const saved = req.method === 'PATCH'
+      ? await mutateGuildReactionRoles(guildId, auth.guild, (collection) => updateReactionRoleTemplate(collection, templateId, body))
+      : await mutateGuildReactionRoles(guildId, auth.guild, (collection) => deleteReactionRoleTemplate(collection, templateId), { validateRoles: false });
+    logCommandSystem(`Admin ${auth.session.user.id} ${req.method === 'PATCH' ? 'updated' : 'deleted'} Reaction Role template ${templateId} in guild ${guildId}.`);
+    return sendJson(res, 200, { guildId, item: saved.result, reactionRoles: saved.collection });
   }
 
   const internalCardMatch = pathname.match(/^\/api\/internal\/level-card\/(\d{16,20})$/);
@@ -1126,6 +1250,8 @@ function startAdminServer(client, services = {}) {
 module.exports = {
   createAdminRequestHandler,
   decodeLevelingMedia,
+  fetchDirectoryEmojis,
+  fetchGuildDirectory,
   levelCardRendererHeaders,
   routeRequest,
   safeOAuthReturnTo,
