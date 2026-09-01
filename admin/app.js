@@ -20,24 +20,7 @@
     { family: 'Oswald Variable', italic: false },
     { family: 'Caveat Variable', italic: false },
   ]);
-  const DEFAULT_EMOJIS = Object.freeze([
-    ['grinning face', '😀'], ['smiling face', '😄'], ['laughing face', '😆'], ['joy', '😂'], ['smiling eyes', '😊'],
-    ['heart eyes', '😍'], ['thinking face', '🤔'], ['salute', '🫡'], ['cool', '😎'], ['party face', '🥳'],
-    ['crying face', '😢'], ['angry face', '😠'], ['skull', '💀'], ['ghost', '👻'], ['robot', '🤖'],
-    ['wave', '👋'], ['thumbs up', '👍'], ['thumbs down', '👎'], ['clap', '👏'], ['raised hands', '🙌'],
-    ['handshake', '🤝'], ['pray', '🙏'], ['muscle', '💪'], ['point right', '👉'], ['eyes', '👀'],
-    ['brain', '🧠'], ['heart', '❤️'], ['orange heart', '🧡'], ['yellow heart', '💛'], ['green heart', '💚'],
-    ['blue heart', '💙'], ['purple heart', '💜'], ['sparkling heart', '💖'], ['broken heart', '💔'], ['fire', '🔥'],
-    ['sparkles', '✨'], ['star', '⭐'], ['boom', '💥'], ['hundred', '💯'], ['check mark', '✅'],
-    ['cross mark', '❌'], ['warning', '⚠️'], ['question', '❓'], ['exclamation', '❗'], ['gift', '🎁'],
-    ['party popper', '🎉'], ['balloon', '🎈'], ['trophy', '🏆'], ['medal', '🏅'], ['crown', '👑'],
-    ['artist palette', '🎨'], ['theater masks', '🎭'], ['game controller', '🎮'], ['dice', '🎲'], ['music', '🎵'],
-    ['camera', '📷'], ['bell', '🔔'], ['megaphone', '📣'], ['speech bubble', '💬'], ['mail', '✉️'],
-    ['rocket', '🚀'], ['lightning', '⚡'], ['sun', '☀️'], ['moon', '🌙'], ['rainbow', '🌈'],
-    ['flower', '🌸'], ['seedling', '🌱'], ['four leaf clover', '🍀'], ['tree', '🌳'], ['mushroom', '🍄'],
-    ['apple', '🍎'], ['carrot', '🥕'], ['pizza', '🍕'], ['cake', '🎂'], ['coffee', '☕'],
-    ['cat', '🐱'], ['dog', '🐶'], ['fox', '🦊'], ['frog', '🐸'], ['butterfly', '🦋'],
-  ].map(([name, character]) => Object.freeze({ id: '', name, character, animated: false, source: 'default' })));
+  const DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || { version: '', emojiCount: 0, groups: [] };
   const cardFontLoads = new Map();
   const CARD_PREVIEW_DEBOUNCE_MS = 350;
   const CARD_SNAP_DISTANCE = 6;
@@ -113,6 +96,8 @@
     reactionRoleComposerPanel: '',
     reactionRoleSaving: false,
     emojiSection: 'bot',
+    emojiCategory: DEFAULT_EMOJI_DATA.groups[0]?.id || '',
+    emojiPickerItems: [],
     emojiTarget: null,
     xpDropTesting: false,
     profile: null,
@@ -184,7 +169,7 @@
     reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
     reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleThumbnailToggle: $('#reactionRoleThumbnailToggle'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
     reactionRoleComposerPanel: $('#reactionRoleComposerPanel'), reactionRoleDiscordFrame: $('#reactionRoleDiscordFrame'), reactionRoleAccentButton: $('#reactionRoleAccentButton'), reactionRoleAccentColor: $('#reactionRoleAccentColor'), reactionRoleMessagePreview: $('#reactionRoleMessagePreview'), reactionRoleAdditionalContainers: $('#reactionRoleAdditionalContainers'), reactionRoleControlPreview: $('#reactionRoleControlPreview'), reactionRoleControls: $('#reactionRoleControls'), reactionRoleAddControl: $('#reactionRoleAddControl'), reactionRoleChannel: $('#reactionRoleChannel'), reactionRolePermissionStatus: $('#reactionRolePermissionStatus'), reactionRoleFinalPreview: $('#reactionRoleFinalPreview'), reactionRoleSaveDraft: $('#reactionRoleSaveDraft'), reactionRolePublish: $('#reactionRolePublish'),
-    emojiPickerDialog: $('#emojiPickerDialog'), emojiPickerClose: $('#emojiPickerClose'), emojiPickerSearch: $('#emojiPickerSearch'), emojiPickerStatus: $('#emojiPickerStatus'), emojiPickerGrid: $('#emojiPickerGrid'),
+    emojiPickerDialog: $('#emojiPickerDialog'), emojiPickerClose: $('#emojiPickerClose'), emojiPickerSearch: $('#emojiPickerSearch'), emojiPickerStatus: $('#emojiPickerStatus'), emojiPickerCategories: $('#emojiPickerCategories'), emojiPickerGrid: $('#emojiPickerGrid'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
     cardCanvas: $('#levelCardDraftCanvas'), cardAuthoritativeCanvas: $('#levelCardCanvas'), cardCanvasWrap: $('#cardCanvasWrap'), cardLayerList: $('#cardLayerList'),
     cardPreviewLabel: $('#cardPreviewLabel'),
@@ -1457,9 +1442,32 @@
     return `<${item.animated ? 'a' : ''}:${item.name}:${item.id}>`;
   }
 
-  function pickerItems(section = state.emojiSection) {
-    if (section === 'default') return DEFAULT_EMOJIS.map((emoji) => ({ ...emoji, searchName: emoji.name, name: emoji.character }));
+  function defaultEmojiItems(groupId = '') {
+    const groups = groupId ? DEFAULT_EMOJI_DATA.groups.filter((group) => group.id === groupId) : DEFAULT_EMOJI_DATA.groups;
+    return groups.flatMap((group) => group.emojis.map(([character, name]) => ({
+      id: '', name: character, character, animated: false, source: 'default', searchName: name, groupId: group.id,
+    })));
+  }
+
+  function pickerItems(section = state.emojiSection, allDefaults = false) {
+    if (section === 'default') return defaultEmojiItems(allDefaults ? '' : state.emojiCategory);
     return (state.directory.emojis?.[section] || []).map((emoji) => ({ ...normalizePickerEmoji(emoji), url: String(emoji.url || ''), searchName: String(emoji.name || '') }));
+  }
+
+  function renderEmojiCategories(search) {
+    const visible = state.emojiSection === 'default';
+    elements.emojiPickerCategories.hidden = !visible;
+    elements.emojiPickerCategories.replaceChildren();
+    if (!visible) return;
+    const fragment = document.createDocumentFragment();
+    for (const group of DEFAULT_EMOJI_DATA.groups) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.emojiCategory = group.id;
+      button.textContent = group.icon; button.title = group.name; button.setAttribute('aria-label', group.name);
+      const active = !search && group.id === state.emojiCategory;
+      button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active));
+      fragment.append(button);
+    }
+    elements.emojiPickerCategories.append(fragment);
   }
 
   function renderEmojiPicker() {
@@ -1469,11 +1477,16 @@
       button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
     });
     const failed = state.emojiSection !== 'default' && state.directory.emojis?.errors?.[state.emojiSection];
-    const items = pickerItems().filter((emoji) => !search || `${emoji.searchName || emoji.name} ${emoji.name}`.toLowerCase().includes(search));
+    renderEmojiCategories(search);
+    const items = pickerItems(state.emojiSection, Boolean(search)).filter((emoji) => !search || `${emoji.searchName || emoji.name} ${emoji.name}`.toLowerCase().includes(search));
+    state.emojiPickerItems = items;
+    const activeGroup = DEFAULT_EMOJI_DATA.groups.find((group) => group.id === state.emojiCategory);
     elements.emojiPickerStatus.className = `emoji-picker-status${failed ? ' error' : ''}`;
     elements.emojiPickerStatus.textContent = failed
       ? `${state.emojiSection === 'bot' ? 'Bot' : 'Group'} emojis could not be loaded. The other sections still work.`
-      : `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found' : ''}`;
+      : state.emojiSection === 'default'
+        ? `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found across all categories' : ` · ${activeGroup?.name || 'Default Emojis'}`} · Unicode ${DEFAULT_EMOJI_DATA.version}`
+        : `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found' : ''}`;
     elements.emojiPickerGrid.replaceChildren();
     if (!items.length) {
       const empty = document.createElement('div'); empty.className = 'emoji-picker-empty';
@@ -1491,6 +1504,7 @@
       fragment.append(button);
     }
     elements.emojiPickerGrid.append(fragment);
+    elements.emojiPickerGrid.scrollTop = 0;
   }
 
   function preferredInlineInput(scope) {
@@ -1521,6 +1535,7 @@
       resolved.end = Number.isInteger(resolved.input.selectionEnd) ? resolved.input.selectionEnd : resolved.start;
     }
     state.emojiTarget = resolved;
+    state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
     state.emojiSection = pickerItems('bot').length ? 'bot' : pickerItems('group').length ? 'group' : 'default';
     elements.emojiPickerSearch.value = '';
     renderEmojiPicker();
@@ -4453,7 +4468,14 @@
   elements.emojiPickerClose.addEventListener('click', closeEmojiPicker);
   elements.emojiPickerSearch.addEventListener('input', renderEmojiPicker);
   document.querySelector('.emoji-picker-tabs').addEventListener('click', (event) => { const tab = event.target.closest('[data-emoji-section]'); if (!tab) return; state.emojiSection = tab.dataset.emojiSection; renderEmojiPicker(); });
-  elements.emojiPickerGrid.addEventListener('click', (event) => { const button = event.target.closest('[data-emoji-index]'); if (button) applyPickedEmoji(pickerItems()[Number(button.dataset.emojiIndex)]); });
+  elements.emojiPickerCategories.addEventListener('click', (event) => {
+    const category = event.target.closest('[data-emoji-category]');
+    if (!category) return;
+    state.emojiCategory = category.dataset.emojiCategory;
+    elements.emojiPickerSearch.value = '';
+    renderEmojiPicker();
+  });
+  elements.emojiPickerGrid.addEventListener('click', (event) => { const button = event.target.closest('[data-emoji-index]'); if (button) applyPickedEmoji(state.emojiPickerItems[Number(button.dataset.emojiIndex)]); });
   elements.emojiPickerGrid.addEventListener('keydown', (event) => {
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
     const buttons = [...elements.emojiPickerGrid.querySelectorAll('[data-emoji-index]')]; const current = buttons.indexOf(event.target.closest('[data-emoji-index]')); if (current < 0) return;

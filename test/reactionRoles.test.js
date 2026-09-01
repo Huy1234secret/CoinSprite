@@ -289,12 +289,20 @@ test('application and guild emojis load independently, exclude unavailable entri
 test('dashboard exposes the shared picker and exactly three Reaction Roles tabs', () => {
   const fs = require('node:fs');
   const path = require('node:path');
+  const vm = require('node:vm');
   const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
+  const emojiData = fs.readFileSync(path.join(__dirname, '..', 'admin', 'emojiData.js'), 'utf8');
+  const emojiContext = { window: {} };
+  vm.runInNewContext(emojiData, emojiContext);
   assert.match(html, /data-view="message-templates"[\s\S]*data-view="reaction-roles"[\s\S]*data-view="rng-game"/);
   assert.deepEqual([...html.matchAll(/data-reaction-tab="([^"]+)"/g)].map((match) => match[1]), ['message', 'role-reaction', 'channel']);
   for (const id of ['levelingEmojiToggle', 'welcomeEmojiToggle', 'templateEmojiToggle', 'xpDropEmojiToggle', 'xpClaimEmojiToggle', 'reactionRoleEmojiToggle']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(app, /input\.dispatchEvent\(new Event\('input', \{ bubbles: true \}\)\)/);
   assert.match(app, /replaceChildren\(\)/);
   assert.match(app, /source: 'default'/);
+  assert.equal(emojiContext.window.COINSPRITE_EMOJI_DATA.version, '17.0');
+  assert.equal(emojiContext.window.COINSPRITE_EMOJI_DATA.groups.length, 8);
+  assert.ok(emojiContext.window.COINSPRITE_EMOJI_DATA.emojiCount >= 3000);
+  assert.match(html, /id="emojiPickerCategories"/);
 });

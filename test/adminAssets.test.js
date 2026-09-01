@@ -13,12 +13,14 @@ const {
 } = require('../src/adminAssets');
 const root = path.join(__dirname, '..');
 
-test('admin entrypoint receives content-derived JavaScript and stylesheet versions', () => {
+test('admin entrypoint receives content-derived JavaScript, emoji data, and stylesheet versions', () => {
   const index = loadAdminAsset('index.html');
+  const emojiData = loadAdminAsset('emojiData.js');
   const app = loadAdminAsset('app.js');
   const style = loadAdminAsset('style.css');
-  assert.ok(index && app && style);
+  assert.ok(index && emojiData && app && style);
   const html = index.data.toString('utf8');
+  assert.match(html, new RegExp(`/admin/emojiData\\.js\\?v=${emojiData.version}`));
   assert.match(html, new RegExp(`/admin/app\\.js\\?v=${app.version}`));
   assert.match(html, new RegExp(`/admin/style\\.css\\?v=${style.version}`));
   assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);

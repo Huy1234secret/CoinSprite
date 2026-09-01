@@ -8,6 +8,7 @@
   <title>CoinSprite · Bot Dashboard</title>
   <link rel="icon" type="image/png" href="/bot-avatar.png">
   <link rel="stylesheet" href="/admin/style.css">
+  <script src="/admin/emojiData.js" defer></script>
   <script src="/admin/app.js" defer></script>
 </head>
 <body>
@@ -459,7 +460,10 @@
         <button type="button" role="tab" aria-selected="false" data-emoji-section="default">Default Emojis</button>
       </div>
       <div id="emojiPickerStatus" class="emoji-picker-status" role="status"></div>
-      <div id="emojiPickerGrid" class="emoji-picker-grid" role="grid" aria-label="Emoji results"></div>
+      <div class="emoji-picker-catalog">
+        <nav id="emojiPickerCategories" class="emoji-picker-categories" aria-label="Default emoji categories" hidden></nav>
+        <div id="emojiPickerGrid" class="emoji-picker-grid" role="grid" aria-label="Emoji results"></div>
+      </div>
     </section>
   </dialog>
 </body>
