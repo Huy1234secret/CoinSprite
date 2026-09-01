@@ -58,7 +58,7 @@ function newTemplate(collection, overrides = {}, now = '2026-08-31T00:00:00.000Z
   }, now);
 }
 
-test('schema 20 preserves message-template defaults while adding Reaction Roles configuration', () => {
+test('schema 20 preserves existing configuration while upgrading Message Templates to schema 21', () => {
   const state = normalizeState({
     meta: { schemaVersion: 17, disabledGuilds: {} },
     guilds: {
@@ -69,7 +69,7 @@ test('schema 20 preserves message-template defaults while adding Reaction Roles 
       },
     },
   });
-  assert.equal(SCHEMA_VERSION, 20);
+  assert.equal(SCHEMA_VERSION, 21);
   assert.deepEqual(DEFAULT_GUILD_CONFIG.messageTemplates, DEFAULT_MESSAGE_TEMPLATES_CONFIG);
   assert.deepEqual(state.guilds[GUILD_A].messageTemplates, { folders: [], items: [] });
   assert.equal(state.guilds[GUILD_A].leveling.xp.min, 22);
@@ -366,7 +366,7 @@ test('authenticated deep links are bounded and the dashboard wires all snapshot 
   const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   assert.match(html, /data-view="message-templates"/);
-  assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="share"/);
+  assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="controls"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="share"/);
   assert.match(html, /id="levelingUseTemplate"[\s\S]*id="levelingSaveAsTemplate"/);
   assert.match(html, /id="welcomeUseTemplate"[\s\S]*id="welcomeSaveAsTemplate"/);
   assert.match(html, /id="levelingAdditionalContainerAdd"[\s\S]*id="welcomeAdditionalContainerAdd"[\s\S]*id="templateAdditionalContainerAdd"/);
