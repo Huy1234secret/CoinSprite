@@ -1,6 +1,7 @@
 const crypto = require('crypto');
-const { ChannelType } = require('discord.js');
+const { ButtonStyle, ChannelType } = require('discord.js');
 const {
+  appendValidatedInteractionActionRows,
   componentMessagePayload,
   deliveryPermissions,
   interpolateTemplate,
@@ -9,7 +10,9 @@ const {
   templateVariables,
 } = require('./messageComposer');
 
-const TEMPLATE_VERSION = 1;
+const TEMPLATE_VERSION = 2;
+const LEGACY_TEMPLATE_VERSION = 1;
+const MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX = 'mt';
 const MESSAGE_TEMPLATE_LIMITS = Object.freeze({
   folders: 50,
   templates: 100,
@@ -19,6 +22,21 @@ const MESSAGE_TEMPLATE_LIMITS = Object.freeze({
   media: 10,
   separators: 4,
   additionalContainers: 2,
+  buttons: 25,
+  buttonLabel: 80,
+  dropdownOptions: 25,
+  dropdownLabel: 100,
+  dropdownDescription: 100,
+  dropdownPlaceholder: 150,
+  customId: 100,
+});
+const MESSAGE_TEMPLATE_BUTTON_STYLES = Object.freeze(['Primary', 'Secondary', 'Success', 'Danger']);
+const MESSAGE_TEMPLATE_ACTION_TYPES = Object.freeze(['send_message', 'give_role', 'remove_role', 'dm_message']);
+const BUTTON_STYLE_VALUES = Object.freeze({
+  Primary: ButtonStyle.Primary ?? 1,
+  Secondary: ButtonStyle.Secondary ?? 2,
+  Success: ButtonStyle.Success ?? 3,
+  Danger: ButtonStyle.Danger ?? 4,
 });
 const GENERIC_TEMPLATE_VARIABLES = Object.freeze([
   'server', 'server_icon', 'channel', 'timestamp', 'separator',
@@ -35,7 +53,17 @@ const DEFAULT_MESSAGE_TEMPLATES_CONFIG = Object.freeze({
   folders: Object.freeze([]),
   items: Object.freeze([]),
 });
+const DEFAULT_TEMPLATE_CONTROLS = Object.freeze({
+  type: 'none',
+  buttons: Object.freeze([]),
+  dropdown: Object.freeze({
+    placeholder: 'Choose an option',
+    allowMultiple: false,
+    options: Object.freeze([]),
+  }),
+});
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/;
+const DISCORD_ID_PATTERN = /^\d{16,20}$/;
 
 class MessageTemplateError extends Error {
   constructor(message, statusCode = 400, code = 'INVALID_TEMPLATE') {
@@ -64,7 +92,11 @@ function cleanDescription(value) {
 
 function cleanDiscordId(value) {
   const text = String(value || '').trim();
-  return /^\d{16,20}$/.test(text) ? text : '';
+  return DISCORD_ID_PATTERN.test(text) ? text : '';
+}
+
+function cleanText(value, maximum, fallback = '') {
+  return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, maximum) || fallback;
 }
 
 function cleanHexColor(value, fallback = DEFAULT_TEMPLATE_LAYOUT.accentColor) {
@@ -126,6 +158,79 @@ function normalizeAdditionalTemplateContainers(value) {
   }));
 }
 
+function normalizeTemplateControlEmoji(value) {
+  const source = isObject(value) ? value : {};
+  const id = cleanDiscordId(source.id);
+  const name = cleanText(source.name, 100);
+  if (!name) return { id: '', name: '', animated: false, source: 'default' };
+  return {
+    id,
+    name,
+    animated: Boolean(id && source.animated === true),
+    source: id && source.source === 'bot' ? 'bot' : id ? 'group' : 'default',
+  };
+}
+
+function discordControlEmoji(value) {
+  const emoji = normalizeTemplateControlEmoji(value);
+  if (!emoji.name) return undefined;
+  return emoji.id
+    ? { id: emoji.id, name: emoji.name, animated: emoji.animated }
+    : { name: emoji.name };
+}
+
+function normalizeButtonStyle(value) {
+  if (MESSAGE_TEMPLATE_BUTTON_STYLES.includes(value)) return value;
+  return MESSAGE_TEMPLATE_BUTTON_STYLES.find((style) => BUTTON_STYLE_VALUES[style] === Number(value)) || 'Secondary';
+}
+
+function normalizeTemplateAction(value) {
+  const source = isObject(value) ? value : {};
+  const type = MESSAGE_TEMPLATE_ACTION_TYPES.includes(source.type) ? source.type : 'send_message';
+  if (['give_role', 'remove_role'].includes(type)) return { type, roleId: cleanDiscordId(source.roleId) };
+  return { type, templateId: ID_PATTERN.test(String(source.templateId || '')) ? String(source.templateId) : '' };
+}
+
+function normalizeTemplateControls(value) {
+  const source = isObject(value) ? value : {};
+  const buttonIds = new Set();
+  const buttons = (Array.isArray(source.buttons) ? source.buttons : [])
+    .slice(0, MESSAGE_TEMPLATE_LIMITS.buttons)
+    .map((button, index) => ({
+      id: normalizedId('control', button, index, buttonIds),
+      emoji: normalizeTemplateControlEmoji(button?.emoji),
+      label: cleanText(button?.label, MESSAGE_TEMPLATE_LIMITS.buttonLabel, `Button ${index + 1}`),
+      style: normalizeButtonStyle(button?.style),
+      sortOrder: Number.isFinite(Number(button?.sortOrder)) ? Math.max(0, Math.round(Number(button.sortOrder))) : index,
+      action: normalizeTemplateAction(button?.action),
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((button, index) => ({ ...button, sortOrder: index }));
+  const dropdownSource = isObject(source.dropdown) ? source.dropdown : {};
+  const optionIds = new Set();
+  const options = (Array.isArray(dropdownSource.options) ? dropdownSource.options : [])
+    .slice(0, MESSAGE_TEMPLATE_LIMITS.dropdownOptions)
+    .map((option, index) => ({
+      id: normalizedId('control', option, index, optionIds),
+      emoji: normalizeTemplateControlEmoji(option?.emoji),
+      title: cleanText(option?.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel, `Option ${index + 1}`),
+      description: cleanText(option?.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
+      sortOrder: Number.isFinite(Number(option?.sortOrder)) ? Math.max(0, Math.round(Number(option.sortOrder))) : index,
+      action: normalizeTemplateAction(option?.action),
+    }))
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((option, index) => ({ ...option, sortOrder: index }));
+  return {
+    type: ['button', 'dropdown'].includes(source.type) ? source.type : 'none',
+    buttons,
+    dropdown: {
+      placeholder: cleanText(dropdownSource.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder, 'Choose an option'),
+      allowMultiple: dropdownSource.allowMultiple === true,
+      options,
+    },
+  };
+}
+
 function normalizeMessageTemplatesConfig(value) {
   const source = isObject(value) ? value : {};
   const folderIds = new Set();
@@ -155,6 +260,9 @@ function normalizeMessageTemplatesConfig(value) {
         content: cleanContent(item?.content),
         layout: normalizeTemplateLayout(item?.layout),
         additionalContainers: normalizeAdditionalTemplateContainers(item?.additionalContainers),
+        controls: Number(item?.version) === LEGACY_TEMPLATE_VERSION
+          ? clone(DEFAULT_TEMPLATE_CONTROLS)
+          : normalizeTemplateControls(item?.controls),
         defaultChannelId: cleanDiscordId(item?.defaultChannelId),
         enabled: item?.enabled !== false,
         createdAt,
@@ -212,9 +320,96 @@ function parseTemplateLayout(value, label = 'Layout') {
   };
 }
 
-function parseTemplateDocument(value) {
-  assertAllowedFields(value, ['version', 'content', 'layout', 'additionalContainers'], 'Template JSON');
-  if (Number(value.version) !== TEMPLATE_VERSION) throw new MessageTemplateError(`Template JSON version must be ${TEMPLATE_VERSION}.`);
+function parseTemplateControlEmoji(value, label) {
+  assertAllowedFields(value, ['id', 'name', 'animated', 'source'], label);
+  if (value.id && !cleanDiscordId(value.id)) throw new MessageTemplateError(`${label}.id must be a Discord ID.`);
+  if (value.name !== undefined && typeof value.name !== 'string') throw new MessageTemplateError(`${label}.name must be a string.`);
+  if (value.animated !== undefined && typeof value.animated !== 'boolean') throw new MessageTemplateError(`${label}.animated must be true or false.`);
+  if (value.source !== undefined && !['default', 'group', 'bot'].includes(value.source)) throw new MessageTemplateError(`${label}.source is invalid.`);
+  return normalizeTemplateControlEmoji(value);
+}
+
+function parseTemplateAction(value, label, options = {}) {
+  if (!isObject(value)) throw new MessageTemplateError(`${label} must be a JSON object.`);
+  if (!MESSAGE_TEMPLATE_ACTION_TYPES.includes(value.type)) throw new MessageTemplateError(`${label}.type is invalid.`);
+  const templateAction = ['send_message', 'dm_message'].includes(value.type);
+  assertAllowedFields(value, templateAction ? ['type', 'templateId'] : ['type', 'roleId'], label);
+  if (templateAction) {
+    const templateId = String(value.templateId || '');
+    if (!ID_PATTERN.test(templateId)) throw new MessageTemplateError(`${label}.templateId is invalid.`);
+    if (options.collection && !templateById(options.collection, templateId) && !options.allowedMissingTemplateIds?.has?.(templateId)) {
+      throw new MessageTemplateError(`${label} must reference a Message Template in this server.`, 400, 'MISSING_ACTION_TEMPLATE');
+    }
+    return { type: value.type, templateId };
+  }
+  const roleId = cleanDiscordId(value.roleId);
+  if (!roleId) throw new MessageTemplateError(`${label}.roleId must be a Discord ID.`);
+  return { type: value.type, roleId };
+}
+
+function parseTemplateControls(value, options = {}) {
+  assertAllowedFields(value, ['type', 'buttons', 'dropdown'], 'Controls');
+  if (!['none', 'button', 'dropdown'].includes(value.type)) throw new MessageTemplateError('controls.type must be none, button, or dropdown.');
+  if (!Array.isArray(value.buttons)) throw new MessageTemplateError('controls.buttons must be an array.');
+  if (value.buttons.length > MESSAGE_TEMPLATE_LIMITS.buttons) throw new MessageTemplateError(`Button controls support up to ${MESSAGE_TEMPLATE_LIMITS.buttons} buttons.`);
+  const seenButtonIds = new Set();
+  const buttons = value.buttons.map((button, index) => {
+    const label = `Controls button ${index + 1}`;
+    assertAllowedFields(button, ['id', 'emoji', 'label', 'style', 'sortOrder', 'action'], label);
+    if (!ID_PATTERN.test(String(button.id || '')) || seenButtonIds.has(button.id)) throw new MessageTemplateError(`${label}.id must be unique and stable.`);
+    seenButtonIds.add(button.id);
+    if (typeof button.label !== 'string' || !button.label.trim() || button.label.trim().length > MESSAGE_TEMPLATE_LIMITS.buttonLabel) throw new MessageTemplateError(`${label}.label must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.buttonLabel} characters.`);
+    if (!MESSAGE_TEMPLATE_BUTTON_STYLES.includes(button.style)) throw new MessageTemplateError('Button style must be Primary, Secondary, Success, or Danger.');
+    if (!Number.isInteger(button.sortOrder) || button.sortOrder < 0) throw new MessageTemplateError(`${label}.sortOrder must be a non-negative integer.`);
+    return {
+      id: button.id,
+      emoji: parseTemplateControlEmoji(button.emoji, `${label} emoji`),
+      label: cleanText(button.label, MESSAGE_TEMPLATE_LIMITS.buttonLabel),
+      style: button.style,
+      sortOrder: button.sortOrder,
+      action: parseTemplateAction(button.action, `${label} action`, options),
+    };
+  }).sort((left, right) => left.sortOrder - right.sortOrder).map((button, index) => ({ ...button, sortOrder: index }));
+  assertAllowedFields(value.dropdown, ['placeholder', 'allowMultiple', 'options'], 'Controls dropdown');
+  if (typeof value.dropdown.placeholder !== 'string' || !value.dropdown.placeholder.trim() || value.dropdown.placeholder.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder) throw new MessageTemplateError(`controls.dropdown.placeholder must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder} characters.`);
+  if (typeof value.dropdown.allowMultiple !== 'boolean') throw new MessageTemplateError('controls.dropdown.allowMultiple must be true or false.');
+  if (!Array.isArray(value.dropdown.options)) throw new MessageTemplateError('controls.dropdown.options must be an array.');
+  if (value.dropdown.options.length > MESSAGE_TEMPLATE_LIMITS.dropdownOptions) throw new MessageTemplateError(`Dropdown controls support up to ${MESSAGE_TEMPLATE_LIMITS.dropdownOptions} options.`);
+  const seenOptionIds = new Set();
+  const dropdownOptions = value.dropdown.options.map((option, index) => {
+    const label = `Controls dropdown option ${index + 1}`;
+    assertAllowedFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
+    if (!ID_PATTERN.test(String(option.id || '')) || seenOptionIds.has(option.id)) throw new MessageTemplateError(`${label}.id must be unique and stable.`);
+    seenOptionIds.add(option.id);
+    if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownLabel) throw new MessageTemplateError(`${label}.title must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownLabel} characters.`);
+    if (typeof option.description !== 'string' || option.description.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownDescription) throw new MessageTemplateError(`${label}.description must be ${MESSAGE_TEMPLATE_LIMITS.dropdownDescription} characters or fewer.`);
+    if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new MessageTemplateError(`${label}.sortOrder must be a non-negative integer.`);
+    return {
+      id: option.id,
+      emoji: parseTemplateControlEmoji(option.emoji, `${label} emoji`),
+      title: cleanText(option.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel),
+      description: cleanText(option.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
+      sortOrder: option.sortOrder,
+      action: parseTemplateAction(option.action, `${label} action`, options),
+    };
+  }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, index) => ({ ...option, sortOrder: index }));
+  return {
+    type: value.type,
+    buttons,
+    dropdown: {
+      placeholder: cleanText(value.dropdown.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder),
+      allowMultiple: value.dropdown.allowMultiple,
+      options: dropdownOptions,
+    },
+  };
+}
+
+function parseTemplateDocument(value, options = {}) {
+  const version = Number(value?.version);
+  assertAllowedFields(value, version === LEGACY_TEMPLATE_VERSION
+    ? ['version', 'content', 'layout', 'additionalContainers']
+    : ['version', 'content', 'layout', 'additionalContainers', 'controls'], 'Template JSON');
+  if (![LEGACY_TEMPLATE_VERSION, TEMPLATE_VERSION].includes(version)) throw new MessageTemplateError(`Template JSON version must be ${LEGACY_TEMPLATE_VERSION} or ${TEMPLATE_VERSION}.`);
   const additional = value.additionalContainers === undefined ? [] : value.additionalContainers;
   if (!Array.isArray(additional)) throw new MessageTemplateError('additionalContainers must be an array.');
   if (additional.length > MESSAGE_TEMPLATE_LIMITS.additionalContainers) throw new MessageTemplateError(`Templates support up to ${MESSAGE_TEMPLATE_LIMITS.additionalContainers} additional containers.`);
@@ -230,6 +425,9 @@ function parseTemplateDocument(value) {
         layout: { ...parseTemplateLayout(container.layout, `${label} layout`), container: true },
       };
     }),
+    controls: version === LEGACY_TEMPLATE_VERSION
+      ? clone(DEFAULT_TEMPLATE_CONTROLS)
+      : parseTemplateControls(value.controls, options),
   };
 }
 
@@ -240,6 +438,7 @@ function templateDocument(item) {
     content: normalized?.content || '',
     layout: normalized?.layout || clone(DEFAULT_TEMPLATE_LAYOUT),
     additionalContainers: normalized?.additionalContainers || [],
+    controls: normalized?.controls || clone(DEFAULT_TEMPLATE_CONTROLS),
   };
 }
 
@@ -295,11 +494,11 @@ function deleteFolder(collection, id, now = new Date()) {
   return { folder, moved };
 }
 
-function createTemplate(collection, body = {}, now = new Date()) {
-  assertAllowedFields(body, ['name', 'description', 'folderId', 'defaultChannelId', 'enabled', 'content', 'layout', 'additionalContainers', 'document'], 'Template');
+function createTemplate(collection, body = {}, now = new Date(), options = {}) {
+  assertAllowedFields(body, ['name', 'description', 'folderId', 'defaultChannelId', 'enabled', 'content', 'layout', 'additionalContainers', 'controls', 'document'], 'Template');
   if (collection.items.length >= MESSAGE_TEMPLATE_LIMITS.templates) throw new MessageTemplateError(`A server can have up to ${MESSAGE_TEMPLATE_LIMITS.templates} templates.`);
-  if (body.document !== undefined && (body.content !== undefined || body.layout !== undefined || body.additionalContainers !== undefined)) {
-    throw new MessageTemplateError('Provide either document or content/layout/additionalContainers, not both.');
+  if (body.document !== undefined && (body.content !== undefined || body.layout !== undefined || body.additionalContainers !== undefined || body.controls !== undefined)) {
+    throw new MessageTemplateError('Provide either document or content/layout/additionalContainers/controls, not both.');
   }
   if (body.description !== undefined && String(body.description).length > MESSAGE_TEMPLATE_LIMITS.description) {
     throw new MessageTemplateError(`Description must be ${MESSAGE_TEMPLATE_LIMITS.description} characters or fewer.`);
@@ -307,13 +506,14 @@ function createTemplate(collection, body = {}, now = new Date()) {
   if (body.defaultChannelId && !cleanDiscordId(body.defaultChannelId)) throw new MessageTemplateError('Default destination channel is invalid.');
   if (body.enabled !== undefined && typeof body.enabled !== 'boolean') throw new MessageTemplateError('enabled must be true or false.');
   const document = body.document !== undefined
-    ? parseTemplateDocument(body.document)
+    ? parseTemplateDocument(body.document, { collection, allowedMissingTemplateIds: options.allowedMissingTemplateIds })
     : parseTemplateDocument({
       version: TEMPLATE_VERSION,
       content: String(body.content || ''),
       layout: body.layout || clone(DEFAULT_TEMPLATE_LAYOUT),
       additionalContainers: body.additionalContainers || [],
-    });
+      controls: body.controls || clone(DEFAULT_TEMPLATE_CONTROLS),
+    }, { collection, allowedMissingTemplateIds: options.allowedMissingTemplateIds });
   const timestamp = cleanTimestamp(now);
   const item = {
     id: nextId('template'),
@@ -326,6 +526,7 @@ function createTemplate(collection, body = {}, now = new Date()) {
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+  validateTemplateControlPayload(item);
   collection.items.push(item);
   return item;
 }
@@ -348,8 +549,15 @@ function updateTemplate(collection, id, body, now = new Date()) {
     if (typeof body.enabled !== 'boolean') throw new MessageTemplateError('enabled must be true or false.');
     item.enabled = body.enabled;
   }
-  if (body.document !== undefined) Object.assign(item, parseTemplateDocument(body.document));
+  if (body.document !== undefined) {
+    const allowedMissingTemplateIds = new Set([
+      ...(item.controls?.buttons || []),
+      ...(item.controls?.dropdown?.options || []),
+    ].map((entry) => entry.action?.templateId).filter(Boolean));
+    Object.assign(item, parseTemplateDocument(body.document, { collection, allowedMissingTemplateIds }));
+  }
   item.updatedAt = cleanTimestamp(now);
+  validateTemplateControlPayload(item);
   return item;
 }
 
@@ -364,14 +572,21 @@ function duplicateTemplate(collection, id, now = new Date()) {
     const suffix = ` ${number++}`;
     name = `${base.slice(0, MESSAGE_TEMPLATE_LIMITS.name - suffix.length)}${suffix}`;
   }
+  const document = templateDocument(source);
+  for (const button of document.controls.buttons) button.id = nextId('control');
+  for (const option of document.controls.dropdown.options) option.id = nextId('control');
+  const allowedMissingTemplateIds = new Set([
+    ...(source.controls?.buttons || []),
+    ...(source.controls?.dropdown?.options || []),
+  ].map((entry) => entry.action?.templateId).filter(Boolean));
   return createTemplate(collection, {
     name,
     description: source.description,
     folderId: source.folderId,
     defaultChannelId: source.defaultChannelId,
     enabled: source.enabled,
-    document: templateDocument(source),
-  }, now);
+    document,
+  }, now, { allowedMissingTemplateIds });
 }
 
 function deleteTemplate(collection, id) {
@@ -406,6 +621,141 @@ function genericTemplateValues(guild, channel, nowMs = Date.now()) {
   };
 }
 
+function compactDigest(value, length = 16) {
+  return crypto.createHash('sha256').update(String(value)).digest('base64url').slice(0, length);
+}
+
+function encodeGuildId(guildId) {
+  const id = cleanDiscordId(guildId);
+  return id ? BigInt(id).toString(36) : '';
+}
+
+function decodeGuildId(value) {
+  const text = String(value || '').toLowerCase();
+  if (!/^[0-9a-z]{1,16}$/.test(text)) return '';
+  let result = 0n;
+  for (const character of text) {
+    const digit = BigInt(Number.parseInt(character, 36));
+    if (digit < 0n || digit >= 36n) return '';
+    result = result * 36n + digit;
+  }
+  const id = result.toString(10);
+  return cleanDiscordId(id) && encodeGuildId(id) === text ? id : '';
+}
+
+function templateIdentityToken(templateId) {
+  return compactDigest(`template:${templateId}`);
+}
+
+function templateControlIdentityToken(controlId) {
+  return compactDigest(`control:${controlId}`);
+}
+
+function templateControlRevisionToken(item, type, control = null) {
+  const value = type === 'dropdown'
+    ? item?.controls?.dropdown
+    : control;
+  return compactDigest(`revision:${item?.updatedAt || ''}:${type}:${JSON.stringify(value || null)}`, 12);
+}
+
+function templateButtonCustomId(guildId, item, button) {
+  return `${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:${encodeGuildId(guildId)}:b:${templateIdentityToken(item?.id)}:${templateControlIdentityToken(button?.id)}:${templateControlRevisionToken(item, 'button', button)}`;
+}
+
+function templateSelectCustomId(guildId, item) {
+  return `${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:${encodeGuildId(guildId)}:d:${templateIdentityToken(item?.id)}:${templateControlRevisionToken(item, 'dropdown')}`;
+}
+
+function templateOptionValue(option) {
+  return templateControlIdentityToken(option?.id);
+}
+
+function parseTemplateControlCustomId(value) {
+  const text = String(value || '');
+  if (!text.startsWith(`${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:`) || text.length > MESSAGE_TEMPLATE_LIMITS.customId) return null;
+  let match = text.match(/^mt:([0-9a-z]{1,16}):b:([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{12})$/);
+  if (match) {
+    const guildId = decodeGuildId(match[1]);
+    return guildId ? { guildId, type: 'button', templateToken: match[2], controlToken: match[3], revisionToken: match[4] } : null;
+  }
+  match = text.match(/^mt:([0-9a-z]{1,16}):d:([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{12})$/);
+  if (!match) return null;
+  const guildId = decodeGuildId(match[1]);
+  return guildId ? { guildId, type: 'dropdown', templateToken: match[2], controlToken: '', revisionToken: match[3] } : null;
+}
+
+function assertConfiguredAction(action, label) {
+  if (['send_message', 'dm_message'].includes(action?.type) && ID_PATTERN.test(String(action.templateId || ''))) return;
+  if (['give_role', 'remove_role'].includes(action?.type) && cleanDiscordId(action.roleId)) return;
+  throw new MessageTemplateError(`Configure the action for ${label} before sending.`, 400, 'INCOMPLETE_CONTROL_ACTION');
+}
+
+function templateButtonActionRows(item, guildId) {
+  const buttons = item.controls.buttons.map((button, index) => {
+    assertConfiguredAction(button.action, `button ${index + 1}`);
+    const component = {
+      type: 2,
+      style: BUTTON_STYLE_VALUES[button.style],
+      custom_id: templateButtonCustomId(guildId, item, button),
+      label: button.label,
+    };
+    const emoji = discordControlEmoji(button.emoji);
+    if (emoji) component.emoji = emoji;
+    return component;
+  });
+  const rows = [];
+  for (let index = 0; index < buttons.length; index += 5) rows.push({ type: 1, components: buttons.slice(index, index + 5) });
+  return rows;
+}
+
+function templateDropdownActionRows(item, guildId) {
+  if (!item.controls.dropdown.options.length) return [];
+  const options = item.controls.dropdown.options.map((option, index) => {
+    assertConfiguredAction(option.action, `dropdown option ${index + 1}`);
+    const component = { label: option.title, value: templateOptionValue(option) };
+    if (option.description) component.description = option.description;
+    const emoji = discordControlEmoji(option.emoji);
+    if (emoji) component.emoji = emoji;
+    return component;
+  });
+  return [{
+    type: 1,
+    components: [{
+      type: 3,
+      custom_id: templateSelectCustomId(guildId, item),
+      placeholder: item.controls.dropdown.placeholder,
+      min_values: 1,
+      max_values: item.controls.dropdown.allowMultiple ? Math.min(MESSAGE_TEMPLATE_LIMITS.dropdownOptions, options.length) : 1,
+      options,
+    }],
+  }];
+}
+
+function templateControlActionRows(item, guildId) {
+  const controls = normalizeTemplateControls(item?.controls);
+  if (controls.type === 'none') return [];
+  if (!encodeGuildId(guildId)) throw new MessageTemplateError('Interactive controls require an originating Discord server.', 400, 'MISSING_CONTROL_GUILD');
+  const normalized = { ...item, controls };
+  if (controls.type === 'button') return templateButtonActionRows(normalized, guildId);
+  return templateDropdownActionRows(normalized, guildId);
+}
+
+function validateTemplateControlPayload(item, guildId = '123456789012345678') {
+  const controls = normalizeTemplateControls(item?.controls);
+  if (controls.type === 'none') return item;
+  const entries = controls.type === 'button' ? controls.buttons : controls.dropdown.options;
+  if (!entries.length) throw new MessageTemplateError(`Add at least one ${controls.type === 'button' ? 'button' : 'dropdown option'} or choose no controls.`);
+  const payload = componentMessagePayload(item?.content, item?.layout, {
+    label: item?.name || 'Message Template',
+    fallbackText: '-# Message template',
+    additionalContainers: item?.additionalContainers,
+    allowedUsers: [],
+  });
+  try { appendValidatedInteractionActionRows(payload, templateControlActionRows({ ...item, controls }, guildId)); }
+  catch (error) { throw new MessageTemplateError(error.message, 400, 'INVALID_CONTROL_COMPONENTS'); }
+  return item;
+}
+
 function buildTemplatePayload(item, guild, channel, options = {}) {
   const missing = unresolvedVariables(item);
   if (missing.length) throw new MessageTemplateError(`Resolve context-specific variable${missing.length === 1 ? '' : 's'} before sending: ${missing.map((name) => `{${name}}`).join(', ')}.`, 400, 'UNRESOLVED_VARIABLES');
@@ -416,12 +766,15 @@ function buildTemplatePayload(item, guild, channel, options = {}) {
     content: interpolateTemplate(container.content, values).slice(0, MESSAGE_TEMPLATE_LIMITS.content),
     layout: resolvedLayout(container.layout, values),
   }));
-  return componentMessagePayload(body, layout, {
+  const payload = componentMessagePayload(body, layout, {
     label: item.name,
     fallbackText: '-# Message template',
     additionalContainers,
     allowedUsers: [],
   });
+  const rows = templateControlActionRows(item, guild?.id);
+  try { return appendValidatedInteractionActionRows(payload, rows); }
+  catch (error) { throw new MessageTemplateError(error.message, 400, 'INVALID_CONTROL_COMPONENTS'); }
 }
 
 async function resolveTemplateChannel(guild, channelId) {
@@ -457,9 +810,14 @@ async function sendTemplate(item, guild, options = {}) {
 }
 
 module.exports = {
+  BUTTON_STYLE_VALUES,
   DEFAULT_MESSAGE_TEMPLATES_CONFIG,
+  DEFAULT_TEMPLATE_CONTROLS,
   DEFAULT_TEMPLATE_LAYOUT,
   GENERIC_TEMPLATE_VARIABLES,
+  MESSAGE_TEMPLATE_ACTION_TYPES,
+  MESSAGE_TEMPLATE_BUTTON_STYLES,
+  MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX,
   MESSAGE_TEMPLATE_LIMITS,
   MessageTemplateError,
   TEMPLATE_VERSION,
@@ -472,12 +830,24 @@ module.exports = {
   genericTemplateValues,
   itemVariableNames,
   normalizeMessageTemplatesConfig,
+  normalizeTemplateAction,
+  normalizeTemplateControlEmoji,
+  normalizeTemplateControls,
   normalizeTemplateLayout,
+  parseTemplateControlCustomId,
   parseTemplateDocument,
   renameFolder,
   sendTemplate,
   templateById,
+  templateButtonCustomId,
+  templateControlActionRows,
+  templateControlIdentityToken,
+  templateControlRevisionToken,
   templateDocument,
+  templateIdentityToken,
+  templateOptionValue,
+  templateSelectCustomId,
   unresolvedVariables,
   updateTemplate,
+  validateTemplateControlPayload,
 };

@@ -286,6 +286,7 @@
 
               <div class="template-tabs" role="tablist" aria-label="Template sections">
                 <button class="active" type="button" role="tab" aria-selected="true" data-template-tab="editor">Message Editor</button>
+                <button type="button" role="tab" aria-selected="false" data-template-tab="controls">Controls</button>
                 <button type="button" role="tab" aria-selected="false" data-template-tab="json">JSON</button>
                 <button type="button" role="tab" aria-selected="false" data-template-tab="settings">Settings</button>
                 <button type="button" role="tab" aria-selected="false" data-template-tab="share">Use &amp; Share</button>
@@ -297,9 +298,15 @@
                   <div class="discord-preview" aria-label="Template Discord preview">
                     <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="templateEmojiToggle" type="button">Emoji</button><button class="composer-add" id="templateVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="templateContainerAdd" type="button">Container</button><button class="composer-add" id="templateAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="templateThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="templateGalleryAdd" type="button">Gallery</button></div></div>
                     <div class="preview-tool-panel" id="templateComposerPanel" hidden></div>
-                    <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="templateDiscordFrame"><button class="discord-accent-button" id="templateAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="templateAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="templateMessagePreview"></div></div><div class="additional-container-list" id="templateAdditionalContainers"></div></div></div>
+                    <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="templateDiscordFrame"><button class="discord-accent-button" id="templateAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="templateAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="templateMessagePreview"></div></div><div class="additional-container-list" id="templateAdditionalContainers"></div><div id="templateControlPreview" class="rr-control-preview" aria-label="Interactive controls preview"></div></div></div>
                   </div>
                 </section>
+              </section>
+
+              <section class="template-tab-panel" data-template-panel="controls" hidden>
+                <div class="template-controls-head"><div><h3>Interactive controls</h3><p>Run one configured action when a member chooses a button or dropdown option.</p></div><div class="rr-mode-switch" role="group" aria-label="Message Template control type"><button class="active" type="button" data-template-control-mode="none">None</button><button type="button" data-template-control-mode="button">Buttons</button><button type="button" data-template-control-mode="dropdown">Dropdown</button></div></div>
+                <div id="templateControls" aria-live="polite"></div>
+                <button class="button small ghost" id="templateAddControl" type="button">+ Add button</button>
               </section>
 
               <section class="template-tab-panel" data-template-panel="json" hidden>
@@ -447,6 +454,16 @@
       <label class="template-picker-search">Search templates<input id="templatePickerSearch" type="search" maxlength="80" placeholder="Search by name"></label>
       <div id="templatePickerList" class="template-picker-list"></div>
       <div><button class="button ghost" value="cancel">Cancel</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="templateActionDialog" class="dialog template-action-dialog" aria-labelledby="templateActionTitle">
+    <form method="dialog">
+      <span class="dialog-icon" aria-hidden="true">&#x2699;</span>
+      <h2 id="templateActionTitle">Configure action</h2>
+      <p id="templateActionCopy">Choose the target used when this control is selected.</p>
+      <label class="template-action-target"><span id="templateActionTargetLabel">Target</span><select id="templateActionTarget" aria-describedby="templateActionHelp"></select><small id="templateActionHelp"></small></label>
+      <div><button class="button ghost" value="cancel">Cancel</button><button class="button primary" id="templateActionSave" type="button">Save action</button></div>
     </form>
   </dialog>
 

@@ -293,7 +293,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-detail-head p { margin: 0; color: var(--muted); font-size: 9px; }
 #templateStatusBadge { width: max-content; padding: 3px 6px; border: 1px solid rgba(185,245,71,.25); border-radius: 99px; color: var(--lime); background: rgba(185,245,71,.06); font-size: 7px; font-weight: 900; letter-spacing: .12em; }
 #templateStatusBadge.unsaved { border-color: rgba(255,201,102,.3); color: var(--warning); background: rgba(255,201,102,.07); }
-.template-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); border-bottom: 1px solid var(--line); background: rgba(5,8,7,.34); }
+.template-tabs { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); border-bottom: 1px solid var(--line); background: rgba(5,8,7,.34); }
 .template-tabs button { min-height: 45px; padding: 0 8px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; font-size: 9px; font-weight: 800; cursor: pointer; }
 .template-tabs button.active { border-bottom-color: var(--lime); color: var(--text); background: rgba(185,245,71,.035); }
 .template-tab-panel { padding: 18px; }
@@ -333,6 +333,28 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-picker-list button { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: rgba(0,0,0,.14); text-align: left; cursor: pointer; }
 .template-picker-list button:hover { border-color: rgba(185,245,71,.28); background: rgba(185,245,71,.05); }
 .template-picker-list small { color: var(--muted); font-size: 9px; }
+.template-controls-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.template-controls-head h3 { margin: 0 0 4px; font-size: 14px; }
+.template-controls-head p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.template-controls-head .rr-mode-switch { margin: 0; }
+.template-control-list { display: grid; gap: 9px; margin-bottom: 12px; }
+.template-control-row { display: grid; grid-template-columns: auto minmax(105px,.8fr) minmax(110px,.65fr) minmax(135px,.8fr) auto minmax(150px,1fr) auto; gap: 8px; align-items: end; padding: 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.13); }
+.template-control-row.dropdown { grid-template-columns: auto minmax(115px,.75fr) minmax(125px,.85fr) minmax(135px,.75fr) auto minmax(150px,1fr) auto; }
+.template-control-row.incomplete { border-color: rgba(255,107,107,.38); box-shadow: inset 3px 0 rgba(255,107,107,.7); }
+.template-control-row label { display: grid; gap: 4px; color: var(--muted); font-size: 8px; font-weight: 750; }
+.template-control-row input,.template-control-row select { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; font-size: 9px; }
+.template-action-configure { width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--lime); background: rgba(185,245,71,.05); cursor: pointer; }
+.template-action-summary { min-height: 36px; display: flex; align-items: center; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--soft); background: rgba(255,255,255,.02); font-size: 9px; line-height: 1.35; }
+.template-control-row.incomplete .template-action-summary { color: #ffb0b0; background: rgba(255,107,107,.06); }
+.template-control-empty { margin: 0 0 12px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 13px; color: var(--muted); font-size: 10px; text-align: center; }
+.template-dropdown-settings { display: grid; grid-template-columns: minmax(180px,1fr) minmax(180px,1fr); gap: 9px; margin-bottom: 12px; }
+.template-dropdown-settings > label { display: grid; gap: 5px; color: var(--muted); font-size: 8px; font-weight: 750; }
+.template-dropdown-settings input[type=text] { height: 36px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; }
+.template-dropdown-settings .rr-allow-multiple { min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.template-action-dialog { width: min(520px,calc(100vw - 28px)); }
+.template-action-target { display: grid; gap: 7px; margin: 16px 0; color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; }
+.template-action-target select { width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: #090d0b; }
+.template-action-target small { min-height: 16px; color: var(--muted); font-size: 8px; font-weight: 500; line-height: 1.45; }
 .composer-toolbar > div:first-child { display: grid; gap: 4px; }
 .composer-toolbar strong { font-size: 11px; }
 .composer-toolbar small { color: var(--muted); font-size: 9px; line-height: 1.4; }
@@ -786,6 +808,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .template-share-card > .button { grid-column: 1 / -1; }
   .template-json-head { flex-direction: column; }
   .template-json-head > div:last-child { justify-content: flex-start; }
+  .template-controls-head { flex-direction: column; }
+  .template-control-row,.template-control-row.dropdown { grid-template-columns: auto minmax(0,1fr) minmax(0,1fr); }
+  .template-control-row > label:nth-of-type(n+3),.template-action-summary,.template-control-row .rr-row-actions { grid-column: 1 / -1; }
+  .template-dropdown-settings { grid-template-columns: 1fr; }
 }
 
 @media (min-width: 621px) and (max-width: 1320px) {

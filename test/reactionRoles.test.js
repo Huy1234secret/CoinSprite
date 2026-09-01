@@ -66,12 +66,12 @@ function createItem(overrides = {}) {
   }, '2026-09-01T00:00:00Z');
 }
 
-test('schema 19 configuration upgrades safely to schema 20 with Reaction Roles defaults', () => {
+test('schema 19 configuration upgrades safely through schema 21 with Reaction Roles defaults', () => {
   const state = normalizeState({
     meta: { schemaVersion: 19, disabledGuilds: {} },
     guilds: { [GUILD_ID]: { leveling: { xp: { min: 21, max: 42 } } } },
   });
-  assert.equal(SCHEMA_VERSION, 20);
+  assert.equal(SCHEMA_VERSION, 21);
   assert.deepEqual(DEFAULT_GUILD_CONFIG.reactionRoles, { items: [] });
   assert.deepEqual(state.guilds[GUILD_ID].reactionRoles, { items: [] });
   assert.equal(state.guilds[GUILD_ID].leveling.xp.min, 21);

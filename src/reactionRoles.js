@@ -617,6 +617,7 @@ module.exports = {
   deleteReactionRoleTemplate,
   discordEmoji,
   duplicateReactionRoleTemplate,
+  fetchGuildRoles,
   handleReactionRoleInteraction,
   normalizeReactionRoleEmoji,
   normalizeReactionRolesConfig,

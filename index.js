@@ -42,6 +42,7 @@ const {
   handleGuildMemberUpdate,
 } = require('./src/memberMessages');
 const { handleReactionRoleInteraction } = require('./src/reactionRoles');
+const { handleMessageTemplateInteraction } = require('./src/messageTemplateInteractions');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
@@ -149,6 +150,7 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.InteractionCreate, async (interaction) => {
     const startedAt = Date.now();
     try {
+      if (await handleMessageTemplateInteraction(interaction, { client })) return;
       if (!isGuildEnabled(interaction.guildId)) {
         if (interaction.isRepliable?.()) {
           await interaction.reply({

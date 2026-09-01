@@ -88,6 +88,7 @@
     templateJsonValid: true,
     templateSaving: false,
     templatePickerContext: '',
+    templateActionTarget: null,
     reactionRoles: { items: [] },
     reactionRoleSelectedId: '',
     reactionRoleDraft: null,
@@ -155,11 +156,13 @@
     templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'),
     templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'), templateEmojiToggle: $('#templateEmojiToggle'),
     templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'), templateAdditionalContainers: $('#templateAdditionalContainers'),
+    templateControlPreview: $('#templateControlPreview'), templateControls: $('#templateControls'), templateAddControl: $('#templateAddControl'),
     templateAccentButton: $('#templateAccentButton'), templateAccentColor: $('#templateAccentColor'), templateCharacterCount: $('#templateCharacterCount'),
     templateJsonEditor: $('#templateJsonEditor'), templateJsonError: $('#templateJsonError'), templateJsonFormat: $('#templateJsonFormat'), templateJsonCopy: $('#templateJsonCopy'), templateJsonImport: $('#templateJsonImport'), templateResolvedPayload: $('#templateResolvedPayload'),
     templateName: $('#templateName'), templateDescription: $('#templateDescription'), templateFolderSelect: $('#templateFolderSelect'), templateChannel: $('#templateChannel'), templateEnabled: $('#templateEnabled'),
     templateVariableReference: $('#templateVariableReference'), templateSendHint: $('#templateSendHint'), templateSendChannel: $('#templateSendChannel'), templateSendTest: $('#templateSendTest'), templateSendNow: $('#templateSendNow'),
     templateShareLink: $('#templateShareLink'), templateCopyLink: $('#templateCopyLink'), templatePickerDialog: $('#templatePickerDialog'), templatePickerSearch: $('#templatePickerSearch'), templatePickerList: $('#templatePickerList'),
+    templateActionDialog: $('#templateActionDialog'), templateActionTitle: $('#templateActionTitle'), templateActionCopy: $('#templateActionCopy'), templateActionTargetLabel: $('#templateActionTargetLabel'), templateActionTarget: $('#templateActionTarget'), templateActionHelp: $('#templateActionHelp'), templateActionSave: $('#templateActionSave'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
@@ -1116,6 +1119,14 @@
   const TEMPLATE_LAYOUT_DEFAULTS = Object.freeze({
     container: true, accentColor: '#b9f547', thumbnailEnabled: false, thumbnailUrl: '', galleryUrls: Object.freeze([]),
   });
+  const TEMPLATE_ACTION_TYPES = Object.freeze(['send_message', 'give_role', 'remove_role', 'dm_message']);
+  const TEMPLATE_ACTION_LABELS = Object.freeze({
+    send_message: 'Send message', give_role: 'Give role', remove_role: 'Remove role', dm_message: 'DM message',
+  });
+  const TEMPLATE_CONTROL_DEFAULTS = Object.freeze({
+    type: 'none', buttons: Object.freeze([]),
+    dropdown: Object.freeze({ placeholder: 'Choose an option', allowMultiple: false, options: Object.freeze([]) }),
+  });
   const GENERIC_TEMPLATE_VARIABLES = [
     ['{server}', 'Server name'], ['{server_icon}', 'Server icon URL'], ['{channel}', 'Destination channel'],
     ['{timestamp}', 'Current Discord timestamp'], ['{separator}', 'Discord divider'],
@@ -1145,6 +1156,42 @@
     };
   }
 
+  function normalizeTemplateActionClient(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const type = TEMPLATE_ACTION_TYPES.includes(source.type) ? source.type : 'send_message';
+    return ['give_role', 'remove_role'].includes(type)
+      ? { type, roleId: /^\d{16,20}$/.test(String(source.roleId || '')) ? String(source.roleId) : '' }
+      : { type, templateId: /^[a-zA-Z0-9_-]{8,64}$/.test(String(source.templateId || '')) ? String(source.templateId) : '' };
+  }
+
+  function normalizeTemplateControlsClient(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const dropdown = source.dropdown && typeof source.dropdown === 'object' && !Array.isArray(source.dropdown) ? source.dropdown : {};
+    return {
+      type: ['button', 'dropdown'].includes(source.type) ? source.type : 'none',
+      buttons: (Array.isArray(source.buttons) ? source.buttons : []).slice(0, 25).map((button, index) => ({
+        id: String(button?.id || clientReactionId('control')),
+        emoji: normalizePickerEmoji(button?.emoji),
+        label: String(button?.label || `Button ${index + 1}`).trim().slice(0, 80) || `Button ${index + 1}`,
+        style: ['Primary', 'Secondary', 'Success', 'Danger'].includes(button?.style) ? button.style : 'Secondary',
+        sortOrder: index,
+        action: normalizeTemplateActionClient(button?.action),
+      })),
+      dropdown: {
+        placeholder: String(dropdown.placeholder || 'Choose an option').trim().slice(0, 150) || 'Choose an option',
+        allowMultiple: dropdown.allowMultiple === true,
+        options: (Array.isArray(dropdown.options) ? dropdown.options : []).slice(0, 25).map((option, index) => ({
+          id: String(option?.id || clientReactionId('control')),
+          emoji: normalizePickerEmoji(option?.emoji),
+          title: String(option?.title || `Option ${index + 1}`).trim().slice(0, 100) || `Option ${index + 1}`,
+          description: String(option?.description || '').trim().slice(0, 100),
+          sortOrder: index,
+          action: normalizeTemplateActionClient(option?.action),
+        })),
+      },
+    };
+  }
+
   function normalizeMessageTemplatesClient(value) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
     const folders = (Array.isArray(source.folders) ? source.folders : []).map((folder) => ({
@@ -1155,8 +1202,9 @@
     const items = (Array.isArray(source.items) ? source.items : []).map((item) => ({
       id: String(item.id || ''), folderId: folderIds.has(String(item.folderId || '')) ? String(item.folderId) : null,
       name: String(item.name || 'Template').trim().slice(0, 80), description: String(item.description || '').trim().slice(0, 500),
-      version: 1, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
+      version: 2, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
       additionalContainers: normalizeAdditionalContainersClient(item.additionalContainers, normalizeTemplateLayoutClient, 4000),
+      controls: Number(item.version) === 1 ? clone(TEMPLATE_CONTROL_DEFAULTS) : normalizeTemplateControlsClient(item.controls),
       defaultChannelId: String(item.defaultChannelId || ''), enabled: item.enabled !== false,
       createdAt: String(item.createdAt || ''), updatedAt: String(item.updatedAt || ''),
     })).filter((item) => item.id);
@@ -1562,6 +1610,14 @@
       window.setTimeout(() => { input.focus(); input.setSelectionRange(cursor, cursor); }, 0);
       return;
     }
+    if (['template-button', 'template-option'].includes(target.type)) {
+      const draft = state.templateDraft;
+      if (!draft) return;
+      const entries = target.type === 'template-button' ? draft.controls.buttons : draft.controls.dropdown.options;
+      if (entries[target.index]) entries[target.index].emoji = normalized;
+      closeEmojiPicker(); renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson(); refreshTemplateDirty();
+      return;
+    }
     const draft = state.reactionRoleDraft;
     if (!draft) return;
     const entries = target.type === 'button' ? draft.buttons : draft.dropdown.options;
@@ -1571,10 +1627,11 @@
 
   function templateDocument(draft = state.templateDraft) {
     return {
-      version: 1,
+      version: 2,
       content: String(draft?.content || '').slice(0, 4000),
       layout: normalizeTemplateLayoutClient(draft?.layout),
       additionalContainers: normalizeAdditionalContainersClient(draft?.additionalContainers, normalizeTemplateLayoutClient, 4000),
+      controls: normalizeTemplateControlsClient(draft?.controls),
     };
   }
 
@@ -1594,13 +1651,81 @@
     return normalizeTemplateLayoutClient(layout);
   }
 
+  function assertTemplateJsonFields(value, allowed, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} must be an object.`);
+    const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
+    if (unknown.length) throw new Error(`Unknown ${label} field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`);
+  }
+
+  function parseTemplateEmojiClient(value, label) {
+    assertTemplateJsonFields(value, ['id', 'name', 'animated', 'source'], label);
+    if (value.id && !/^\d{16,20}$/.test(String(value.id))) throw new Error(`${label}.id must be a Discord ID.`);
+    if (typeof value.name !== 'string') throw new Error(`${label}.name must be a string.`);
+    if (typeof value.animated !== 'boolean') throw new Error(`${label}.animated must be true or false.`);
+    if (!['default', 'group', 'bot'].includes(value.source)) throw new Error(`${label}.source is invalid.`);
+    return normalizePickerEmoji(value);
+  }
+
+  function parseTemplateActionClient(value, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !TEMPLATE_ACTION_TYPES.includes(value.type)) throw new Error(`${label}.type is invalid.`);
+    const templateAction = ['send_message', 'dm_message'].includes(value.type);
+    assertTemplateJsonFields(value, templateAction ? ['type', 'templateId'] : ['type', 'roleId'], label);
+    if (templateAction) {
+      const templateId = String(value.templateId || '');
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(templateId)) throw new Error(`${label}.templateId is invalid.`);
+      const stored = currentStoredTemplate();
+      const preservedMissing = [...(stored?.controls?.buttons || []), ...(stored?.controls?.dropdown?.options || [])]
+        .some((entry) => ['send_message', 'dm_message'].includes(entry.action?.type) && entry.action.templateId === templateId);
+      if (!state.messageTemplates.items.some((item) => item.id === templateId) && !preservedMissing) throw new Error(`${label} must reference a Message Template in this server.`);
+      return { type: value.type, templateId };
+    }
+    if (!/^\d{16,20}$/.test(String(value.roleId || ''))) throw new Error(`${label}.roleId must be a Discord ID.`);
+    return { type: value.type, roleId: String(value.roleId) };
+  }
+
+  function parseTemplateControlsClient(value) {
+    assertTemplateJsonFields(value, ['type', 'buttons', 'dropdown'], 'controls');
+    if (!['none', 'button', 'dropdown'].includes(value.type)) throw new Error('controls.type must be none, button, or dropdown.');
+    if (!Array.isArray(value.buttons) || value.buttons.length > 25) throw new Error('controls.buttons must be an array with at most 25 entries.');
+    const buttonIds = new Set();
+    const buttons = value.buttons.map((button, index) => {
+      const label = `controls.buttons[${index}]`;
+      assertTemplateJsonFields(button, ['id', 'emoji', 'label', 'style', 'sortOrder', 'action'], label);
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(button.id || '')) || buttonIds.has(button.id)) throw new Error(`${label}.id must be unique and stable.`);
+      buttonIds.add(button.id);
+      if (typeof button.label !== 'string' || !button.label.trim() || button.label.trim().length > 80) throw new Error(`${label}.label must be between 1 and 80 characters.`);
+      if (!['Primary', 'Secondary', 'Success', 'Danger'].includes(button.style)) throw new Error(`${label}.style is unsupported.`);
+      if (!Number.isInteger(button.sortOrder) || button.sortOrder < 0) throw new Error(`${label}.sortOrder must be a non-negative integer.`);
+      return { id: button.id, emoji: parseTemplateEmojiClient(button.emoji, `${label}.emoji`), label: button.label.trim(), style: button.style, sortOrder: button.sortOrder, action: parseTemplateActionClient(button.action, `${label}.action`) };
+    }).sort((left, right) => left.sortOrder - right.sortOrder).map((button, index) => ({ ...button, sortOrder: index }));
+    assertTemplateJsonFields(value.dropdown, ['placeholder', 'allowMultiple', 'options'], 'controls.dropdown');
+    if (typeof value.dropdown.placeholder !== 'string' || !value.dropdown.placeholder.trim() || value.dropdown.placeholder.trim().length > 150) throw new Error('controls.dropdown.placeholder must be between 1 and 150 characters.');
+    if (typeof value.dropdown.allowMultiple !== 'boolean') throw new Error('controls.dropdown.allowMultiple must be true or false.');
+    if (!Array.isArray(value.dropdown.options) || value.dropdown.options.length > 25) throw new Error('controls.dropdown.options must be an array with at most 25 entries.');
+    const optionIds = new Set();
+    const options = value.dropdown.options.map((option, index) => {
+      const label = `controls.dropdown.options[${index}]`;
+      assertTemplateJsonFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(option.id || '')) || optionIds.has(option.id)) throw new Error(`${label}.id must be unique and stable.`);
+      optionIds.add(option.id);
+      if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > 100) throw new Error(`${label}.title must be between 1 and 100 characters.`);
+      if (typeof option.description !== 'string' || option.description.trim().length > 100) throw new Error(`${label}.description must be 100 characters or fewer.`);
+      if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new Error(`${label}.sortOrder must be a non-negative integer.`);
+      return { id: option.id, emoji: parseTemplateEmojiClient(option.emoji, `${label}.emoji`), title: option.title.trim(), description: option.description.trim(), sortOrder: option.sortOrder, action: parseTemplateActionClient(option.action, `${label}.action`) };
+    }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, index) => ({ ...option, sortOrder: index }));
+    return { type: value.type, buttons, dropdown: { placeholder: value.dropdown.placeholder.trim(), allowMultiple: value.dropdown.allowMultiple, options } };
+  }
+
   function parseTemplateJsonText(text) {
     let parsed;
     try { parsed = JSON.parse(text); } catch (error) { throw new Error(`Invalid JSON: ${error.message}`); }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Template JSON must be an object.');
-    const unknown = Object.keys(parsed).filter((key) => !['version', 'content', 'layout', 'additionalContainers'].includes(key));
+    const version = Number(parsed.version);
+    const unknown = Object.keys(parsed).filter((key) => !(version === 1
+      ? ['version', 'content', 'layout', 'additionalContainers']
+      : ['version', 'content', 'layout', 'additionalContainers', 'controls']).includes(key));
     if (unknown.length) throw new Error(`Unknown template field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`);
-    if (parsed.version !== 1) throw new Error('Template JSON version must be 1.');
+    if (![1, 2].includes(version)) throw new Error('Template JSON version must be 1 or 2.');
     if (typeof parsed.content !== 'string') throw new Error('content must be a string.');
     if (parsed.content.length > 4000) throw new Error('content must be 4000 characters or fewer.');
     if ((parsed.content.match(/\{separator\}/gi) || []).length > 4) throw new Error('Templates support up to 4 dividers.');
@@ -1617,7 +1742,8 @@
       if ((container.content.match(/\{separator\}/gi) || []).length > 4) throw new Error(`Additional container ${index + 1} supports up to 4 dividers.`);
       return { content: container.content, layout: { ...parseTemplateLayoutClient(container.layout, `additionalContainers[${index}].layout`), container: true } };
     });
-    return { version: 1, content: parsed.content, layout, additionalContainers };
+    const controls = version === 1 ? clone(TEMPLATE_CONTROL_DEFAULTS) : parseTemplateControlsClient(parsed.controls);
+    return { version: 2, content: parsed.content, layout, additionalContainers, controls };
   }
 
   function templateVariableNames(item = state.templateDraft) {
@@ -1700,6 +1826,73 @@
     return validHttpUrl(resolved) ? resolved.trim() : '';
   }
 
+  function templateControlEntries(draft = state.templateDraft) {
+    return draft?.controls?.type === 'dropdown' ? draft.controls.dropdown.options : draft?.controls?.buttons || [];
+  }
+
+  function templateActionStatus(action) {
+    const label = TEMPLATE_ACTION_LABELS[action?.type] || 'Unknown action';
+    if (['send_message', 'dm_message'].includes(action?.type)) {
+      if (!action.templateId) return { complete: false, summary: `${label}: Choose a template` };
+      const target = state.messageTemplates.items.find((item) => item.id === action.templateId);
+      if (!target) return { complete: false, summary: `${label}: Missing template` };
+      if (!target.enabled) return { complete: false, summary: `${label}: ${target.name} is disabled` };
+      return { complete: true, summary: `${label}: ${target.name}` };
+    }
+    if (!action?.roleId) return { complete: false, summary: `${label}: Choose a role` };
+    const role = (state.directory.roles || []).find((item) => item.id === action.roleId);
+    if (!role) return { complete: false, summary: `${label}: Missing role` };
+    if (role.managed || role.administrator || role.editable === false || role.belowBot === false) return { complete: false, summary: `${label}: @${role.name} is not manageable` };
+    return { complete: true, summary: `${label}: @${role.name}` };
+  }
+
+  function templateActionOptions(selected) {
+    return TEMPLATE_ACTION_TYPES.map((type) => `<option value="${type}"${type === selected ? ' selected' : ''}>${TEMPLATE_ACTION_LABELS[type]}</option>`).join('');
+  }
+
+  function renderTemplateControlPreview() {
+    const draft = state.templateDraft;
+    if (!draft) return;
+    if (draft.controls.type === 'dropdown') {
+      const count = draft.controls.dropdown.options.length;
+      elements.templateControlPreview.innerHTML = count ? `<div class="rr-preview-select">${escapeHtml(draft.controls.dropdown.placeholder)} · ${count} option${count === 1 ? '' : 's'}${draft.controls.dropdown.allowMultiple ? ' · Multiple' : ''}</div>` : '';
+      return;
+    }
+    elements.templateControlPreview.innerHTML = draft.controls.type === 'button'
+      ? draft.controls.buttons.map((button) => `<button type="button" class="rr-preview-button ${button.style.toLowerCase()}" disabled>${reactionRoleEmojiHtml(button.emoji)} ${escapeHtml(button.label)}</button>`).join('')
+      : '';
+  }
+
+  function renderTemplateControls() {
+    const draft = state.templateDraft;
+    if (!draft) return;
+    document.querySelectorAll('[data-template-control-mode]').forEach((button) => {
+      const active = button.dataset.templateControlMode === draft.controls.type;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    elements.templateAddControl.hidden = draft.controls.type === 'none';
+    elements.templateAddControl.textContent = draft.controls.type === 'dropdown' ? '+ Add option' : '+ Add button';
+    elements.templateAddControl.disabled = templateControlEntries().length >= 25;
+    if (draft.controls.type === 'none') {
+      elements.templateControls.innerHTML = '<p class="template-control-empty">This template has no interactive controls.</p>';
+      return;
+    }
+    if (draft.controls.type === 'button') {
+      const rows = draft.controls.buttons.map((button, index) => {
+        const status = templateActionStatus(button.action);
+        return `<article class="template-control-row${status.complete ? '' : ' incomplete'}" data-template-control-row="button:${index}"><button class="rr-emoji-field" type="button" data-template-control-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label>Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-template-button-label="${index}"></label><label>Style<select data-template-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><label>Action<select data-template-control-action="button:${index}">${templateActionOptions(button.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="button:${index}" aria-label="Configure action for ${escapeHtml(button.label)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="button:${index}:-1" aria-label="Move ${escapeHtml(button.label)} up">↑</button><button type="button" data-template-control-move="button:${index}:1" aria-label="Move ${escapeHtml(button.label)} down">↓</button><button type="button" data-template-control-remove="button:${index}" aria-label="Remove ${escapeHtml(button.label)}">×</button></div></article>`;
+      }).join('');
+      elements.templateControls.innerHTML = `<div class="template-control-list">${rows || '<p class="template-control-empty">Add a button to configure its action.</p>'}</div>`;
+      return;
+    }
+    const rows = draft.controls.dropdown.options.map((option, index) => {
+      const status = templateActionStatus(option.action);
+      return `<article class="template-control-row dropdown${status.complete ? '' : ' incomplete'}" data-template-control-row="option:${index}"><button class="rr-emoji-field" type="button" data-template-control-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-template-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-template-option-description="${index}"></label><label>Action<select data-template-control-action="option:${index}">${templateActionOptions(option.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="option:${index}" aria-label="Configure action for ${escapeHtml(option.title)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="option:${index}:-1" aria-label="Move ${escapeHtml(option.title)} up">↑</button><button type="button" data-template-control-move="option:${index}:1" aria-label="Move ${escapeHtml(option.title)} down">↓</button><button type="button" data-template-control-remove="option:${index}" aria-label="Remove ${escapeHtml(option.title)}">×</button></div></article>`;
+    }).join('');
+    elements.templateControls.innerHTML = `<div class="template-dropdown-settings"><label>Placeholder<input type="text" maxlength="150" value="${escapeHtml(draft.controls.dropdown.placeholder)}" data-template-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-template-dropdown-multiple${draft.controls.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Only selected options run their configured actions.</small></span></label></div><div class="template-control-list">${rows || '<p class="template-control-empty">Add a dropdown option to configure its action.</p>'}</div>`;
+  }
+
   function syncTemplateJson(force = false) {
     if (!state.templateDraft || (!force && document.activeElement === elements.templateJsonEditor)) return;
     elements.templateJsonEditor.value = JSON.stringify(templateDocument(), null, 2);
@@ -1734,6 +1927,32 @@
     };
     const components = buildContainer(state.templateDraft.content, state.templateDraft.layout);
     for (const container of state.templateDraft.additionalContainers) components.push(...buildContainer(container.content, container.layout, true));
+    const previewId = (kind, id = '') => `mt:${String(state.guildId || 'guild').slice(-20)}:${kind}:${String(state.templateDraft.id || 'template').slice(-20)}${id ? `:${String(id).slice(-20)}` : ''}`.slice(0, 100);
+    const payloadEmoji = (value) => {
+      const emoji = normalizePickerEmoji(value);
+      if (!emoji.name) return undefined;
+      return emoji.id ? { id: emoji.id, name: emoji.name, animated: emoji.animated } : { name: emoji.name };
+    };
+    if (state.templateDraft.controls.type === 'button') {
+      const buttons = state.templateDraft.controls.buttons.map((button) => {
+        const component = { type: 2, style: { Primary: 1, Secondary: 2, Success: 3, Danger: 4 }[button.style], custom_id: previewId('b', button.id), label: button.label };
+        const emoji = payloadEmoji(button.emoji); if (emoji) component.emoji = emoji;
+        return component;
+      });
+      for (let index = 0; index < buttons.length; index += 5) components.push({ type: 1, components: buttons.slice(index, index + 5) });
+    }
+    if (state.templateDraft.controls.type === 'dropdown' && state.templateDraft.controls.dropdown.options.length) {
+      components.push({ type: 1, components: [{
+        type: 3, custom_id: previewId('d'), placeholder: state.templateDraft.controls.dropdown.placeholder,
+        min_values: 1, max_values: state.templateDraft.controls.dropdown.allowMultiple ? state.templateDraft.controls.dropdown.options.length : 1,
+        options: state.templateDraft.controls.dropdown.options.map((option) => {
+          const item = { label: option.title, value: `option:${String(option.id).slice(-32)}`.slice(0, 100) };
+          if (option.description) item.description = option.description;
+          const emoji = payloadEmoji(option.emoji); if (emoji) item.emoji = emoji;
+          return item;
+        }),
+      }] });
+    }
     return { flags: 32768, allowedMentions: { parse: [], users: [], roles: [] }, components };
   }
 
@@ -1801,6 +2020,7 @@
     elements.templateAdditionalContainerAdd.disabled = draft.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
     elements.templateCharacterCount.textContent = `${draft.content.length} / 4000`;
     if (renderTools) renderTemplateComposerPanel();
+    renderTemplateControlPreview();
     if (updateJson) syncTemplateJson();
     elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     renderTemplateVariableReference();
@@ -1835,6 +2055,7 @@
       panel.classList.toggle('active', active);
     });
     renderTemplateComposerPreview();
+    renderTemplateControls();
     syncTemplateJson(true);
     updateTemplateDeepLink();
   }
@@ -2062,9 +2283,11 @@
       state.templateDraft.content = documentValue.content;
       state.templateDraft.layout = documentValue.layout;
       state.templateDraft.additionalContainers = documentValue.additionalContainers;
+      state.templateDraft.controls = documentValue.controls;
       state.templateJsonValid = true;
       elements.templateJsonError.hidden = true;
       renderTemplateComposerPreview(true, false);
+      renderTemplateControls();
       if (showSuccess) showToast('JSON imported into the visual editor. Save to persist it.');
       return true;
     } catch (error) {
@@ -2140,7 +2363,78 @@
       renderTemplateComposerPreview(false);
       return;
     }
+    if (target.matches('[data-template-button-label]')) draft.controls.buttons[Number(target.dataset.templateButtonLabel)].label = target.value.slice(0, 80);
+    if (target.matches('[data-template-button-style]')) draft.controls.buttons[Number(target.dataset.templateButtonStyle)].style = target.value;
+    if (target.matches('[data-template-option-title]')) draft.controls.dropdown.options[Number(target.dataset.templateOptionTitle)].title = target.value.slice(0, 100);
+    if (target.matches('[data-template-option-description]')) draft.controls.dropdown.options[Number(target.dataset.templateOptionDescription)].description = target.value.slice(0, 100);
+    if (target.matches('[data-template-dropdown-placeholder]')) draft.controls.dropdown.placeholder = target.value.slice(0, 150);
+    if (target.matches('[data-template-dropdown-multiple]')) draft.controls.dropdown.allowMultiple = target.checked;
+    if (target.matches('[data-template-control-action]')) {
+      const [kind, rawIndex] = target.dataset.templateControlAction.split(':');
+      const entries = kind === 'button' ? draft.controls.buttons : draft.controls.dropdown.options;
+      const type = TEMPLATE_ACTION_TYPES.includes(target.value) ? target.value : 'send_message';
+      entries[Number(rawIndex)].action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
+    }
+    if (target.closest?.('[data-template-control-row]') || target.matches('[data-template-dropdown-placeholder],[data-template-dropdown-multiple]')) {
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+    }
     updateTemplateDeepLink();
+    refreshTemplateDirty();
+  }
+
+  function templateControlAt(spec) {
+    const [kind, rawIndex] = String(spec || '').split(':');
+    const index = Number(rawIndex);
+    const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdown?.options;
+    return Number.isInteger(index) && entries?.[index] ? { kind, index, entry: entries[index] } : null;
+  }
+
+  function safeTemplateRoles() {
+    return (state.directory.roles || []).filter((role) => role.managed !== true && role.administrator !== true && role.editable !== false && role.belowBot !== false);
+  }
+
+  function openTemplateActionDialog(spec) {
+    const target = templateControlAt(spec);
+    if (!target) return;
+    state.templateActionTarget = { kind: target.kind, index: target.index };
+    const action = target.entry.action;
+    const templateAction = ['send_message', 'dm_message'].includes(action.type);
+    elements.templateActionTitle.textContent = `Configure ${TEMPLATE_ACTION_LABELS[action.type]}`;
+    elements.templateActionCopy.textContent = templateAction
+      ? 'Choose a Message Template from this server. It is resolved again when the member interacts.'
+      : 'Choose a safe Discord role below CoinSprite. Role safety is rechecked at interaction time.';
+    elements.templateActionTargetLabel.textContent = templateAction ? 'Message Template' : 'Discord role';
+    if (templateAction) {
+      const selected = String(action.templateId || '');
+      const items = [...state.messageTemplates.items].sort((left, right) => left.name.localeCompare(right.name));
+      const options = ['<option value="">Choose a Message Template</option>', ...items.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.name)}${item.enabled ? '' : ' (disabled)'}</option>`)];
+      if (selected && !items.some((item) => item.id === selected)) options.push(`<option value="${escapeHtml(selected)}" selected disabled>Missing template (${escapeHtml(selected)})</option>`);
+      elements.templateActionTarget.innerHTML = options.join('');
+      elements.templateActionHelp.textContent = action.type === 'dm_message' ? 'Closed DMs produce a friendly private error.' : 'The template is sent in the text channel where the interaction occurs.';
+    } else {
+      const selected = String(action.roleId || '');
+      const roles = safeTemplateRoles();
+      const options = ['<option value="">Choose a manageable role</option>', ...roles.map((role) => `<option value="${role.id}"${role.id === selected ? ' selected' : ''} style="color:${roleColor(role.id)}">● @${escapeHtml(role.name)}</option>`)];
+      if (selected && !roles.some((role) => role.id === selected)) options.push(`<option value="${escapeHtml(selected)}" selected disabled>Missing or unmanageable role (${escapeHtml(selected)})</option>`);
+      elements.templateActionTarget.innerHTML = options.join('');
+      elements.templateActionHelp.textContent = 'Managed, Administrator, and above-bot roles are excluded.';
+    }
+    elements.templateActionDialog.showModal();
+    elements.templateActionTarget.focus();
+  }
+
+  function saveTemplateActionDialog() {
+    const target = templateControlAt(`${state.templateActionTarget?.kind}:${state.templateActionTarget?.index}`);
+    if (!target) return elements.templateActionDialog.close();
+    const selected = elements.templateActionTarget.value;
+    if (!selected) return showToast(`Choose a ${['send_message', 'dm_message'].includes(target.entry.action.type) ? 'Message Template' : 'Discord role'}.`, 'error');
+    if (['send_message', 'dm_message'].includes(target.entry.action.type)) target.entry.action.templateId = selected;
+    else target.entry.action.roleId = selected;
+    state.templateActionTarget = null;
+    elements.templateActionDialog.close();
+    renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+    elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     refreshTemplateDirty();
   }
 
@@ -4303,6 +4597,50 @@
     state.templateTab = tab.dataset.templateTab;
     renderTemplateEditor();
   });
+  elements.templateEditor.addEventListener('click', (event) => {
+    const mode = event.target.closest('[data-template-control-mode]');
+    if (mode && state.templateDraft) {
+      state.templateDraft.controls.type = mode.dataset.templateControlMode;
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty(); return;
+    }
+    const emoji = event.target.closest('[data-template-control-emoji]');
+    if (emoji) {
+      const [kind, rawIndex] = emoji.dataset.templateControlEmoji.split(':');
+      openEmojiPicker({ type: kind === 'button' ? 'template-button' : 'template-option', index: Number(rawIndex) }); return;
+    }
+    const configure = event.target.closest('[data-template-configure-action]');
+    if (configure) { openTemplateActionDialog(configure.dataset.templateConfigureAction); return; }
+    const remove = event.target.closest('[data-template-control-remove]');
+    if (remove) {
+      const target = templateControlAt(remove.dataset.templateControlRemove);
+      if (target) target.kind === 'button' ? state.templateDraft.controls.buttons.splice(target.index, 1) : state.templateDraft.controls.dropdown.options.splice(target.index, 1);
+      templateControlEntries().forEach((entry, index) => { entry.sortOrder = index; });
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty(); return;
+    }
+    const move = event.target.closest('[data-template-control-move]');
+    if (move) {
+      const [kind, rawFrom, rawDelta] = move.dataset.templateControlMove.split(':');
+      const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdown?.options;
+      const from = Number(rawFrom); const to = from + Number(rawDelta);
+      if (entries?.[from] && entries?.[to]) { const [item] = entries.splice(from, 1); entries.splice(to, 0, item); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+    }
+  });
+  elements.templateAddControl.addEventListener('click', () => {
+    const draft = state.templateDraft; if (!draft || draft.controls.type === 'none' || templateControlEntries().length >= 25) return;
+    if (draft.controls.type === 'button') draft.controls.buttons.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, label: `Button ${draft.controls.buttons.length + 1}`, style: 'Secondary', sortOrder: draft.controls.buttons.length, action: { type: 'send_message', templateId: '' } });
+    else draft.controls.dropdown.options.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, title: `Option ${draft.controls.dropdown.options.length + 1}`, description: '', sortOrder: draft.controls.dropdown.options.length, action: { type: 'send_message', templateId: '' } });
+    renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+    elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+    refreshTemplateDirty();
+    elements.templateControls.querySelector('[data-template-configure-action]:last-of-type')?.focus();
+  });
   elements.templateDuplicateButton.addEventListener('click', () => duplicateMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateDeleteButton.addEventListener('click', () => deleteMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateContainerAdd.addEventListener('click', () => {
@@ -4393,6 +4731,7 @@
     await navigator.clipboard?.writeText?.(elements.templateShareLink.value).catch(() => null);
     showToast('Authenticated template link copied.');
   });
+  elements.templateActionSave.addEventListener('click', saveTemplateActionDialog);
   elements.levelingUseTemplate.addEventListener('click', () => openTemplatePicker('leveling'));
   elements.welcomeUseTemplate.addEventListener('click', () => openTemplatePicker('memberMessages'));
   elements.levelingSaveAsTemplate.addEventListener('click', () => saveComposerAsTemplate('leveling').catch((error) => showToast(error.message, 'error')));
