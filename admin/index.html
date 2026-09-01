@@ -127,6 +127,7 @@
         <button class="nav-item active" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="welcomeMessagesNav" type="button" data-view="member-messages"><span class="nav-icon">&#x1F44B;</span><span><strong>Welcome Messages</strong><small>Join, leave &amp; boost</small></span></button>
         <button class="nav-item" id="messageTemplatesNav" type="button" data-view="message-templates"><span class="nav-icon">&#x2398;</span><span><strong>Message Templates</strong><small>Compose &amp; reuse</small></span></button>
+        <button class="nav-item" id="reactionRolesNav" type="button" data-view="reaction-roles"><span class="nav-icon">&#x1F3AD;</span><span><strong>Reaction Roles</strong><small>Self-assignable roles</small></span></button>
         <button class="nav-item" id="rngGameNav" type="button" data-view="rng-game"><span class="nav-icon">&#x1F955;</span><span><strong>RNG Game</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
@@ -168,7 +169,7 @@
                 <div class="composer-template-actions"><button class="button tiny ghost" id="levelingUseTemplate" type="button">Use template</button><button class="button tiny ghost" id="levelingSaveAsTemplate" type="button">Save as template</button></div>
               </header>
               <div class="discord-preview" aria-label="Live Discord preview">
-                <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="levelingVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="levelingContainerAdd" type="button">Container</button><button class="composer-add" id="levelingAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">Gallery</button></div></div>
+                <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="levelingEmojiToggle" type="button">Emoji</button><button class="composer-add" id="levelingVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="levelingContainerAdd" type="button">Container</button><button class="composer-add" id="levelingAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="levelingThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="levelingGalleryAdd" type="button">Gallery</button></div></div>
                 <div class="preview-tool-panel" id="levelingComposerPanel" hidden></div>
                 <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="levelingDiscordFrame"><button class="discord-accent-button" id="levelingAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="levelingAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="levelingMessagePreview"></div></div><div class="additional-container-list" id="levelingAdditionalContainers"></div></div></div>
               </div>
@@ -183,11 +184,11 @@
           <div class="xp-drop-message-grid">
             <section class="message-composer">
               <header class="composer-toolbar"><div><strong>Drop message</strong><small>Click the message to edit it with Markdown and crate variables.</small></div></header>
-              <div class="discord-preview"><div class="discord-preview-head"><span>DROP PREVIEW</span></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropMessagePreview"></div></div>
+              <div class="discord-preview"><div class="discord-preview-head"><span>DROP PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="xpDropEmojiToggle" type="button">Emoji</button></div></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropMessagePreview"></div></div>
             </section>
             <section class="message-composer">
               <header class="composer-toolbar"><div><strong>Claim message</strong><small>This private confirmation is shown after a successful claim.</small></div></header>
-              <div class="discord-preview"><div class="discord-preview-head"><span>CLAIM PREVIEW</span></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropClaimPreview"></div></div>
+              <div class="discord-preview"><div class="discord-preview-head"><span>CLAIM PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="xpClaimEmojiToggle" type="button">Emoji</button></div></div><div class="discord-frame has-container xp-drop-preview-frame" id="xpDropClaimPreview"></div></div>
             </section>
           </div>
           <div class="xp-drop-list" id="xpDropList"></div>
@@ -245,7 +246,7 @@
             <section class="message-composer wide">
               <header class="composer-toolbar"><div><strong>Live Discord message</strong><small>Click the message to edit. Variables are inserted at your cursor.</small></div><div class="composer-template-actions"><button class="button tiny ghost" id="welcomeUseTemplate" type="button">Use template</button><button class="button tiny ghost" id="welcomeSaveAsTemplate" type="button">Save as template</button></div></header>
               <div class="discord-preview" aria-label="Welcome message Discord preview">
-                <div class="discord-preview-head"><span id="welcomePreviewLabel">JOIN PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="welcomeVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="welcomeContainerAdd" type="button">Container</button><button class="composer-add" id="welcomeAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="welcomeThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="welcomeGalleryAdd" type="button">Gallery</button></div></div>
+                <div class="discord-preview-head"><span id="welcomePreviewLabel">JOIN PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="welcomeEmojiToggle" type="button">Emoji</button><button class="composer-add" id="welcomeVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="welcomeContainerAdd" type="button">Container</button><button class="composer-add" id="welcomeAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="welcomeThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="welcomeGalleryAdd" type="button">Gallery</button></div></div>
                 <div class="preview-tool-panel" id="welcomeComposerPanel" hidden></div>
                 <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="welcomeDiscordFrame"><button class="discord-accent-button" id="welcomeAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="welcomeAccentColor" type="color" value="#57f287" aria-label="Container color"><div id="welcomeMessagePreview"></div></div><div class="additional-container-list" id="welcomeAdditionalContainers"></div></div></div>
               </div>
@@ -293,7 +294,7 @@
                 <section class="message-composer wide template-composer">
                   <header class="composer-toolbar"><div><strong>Live Discord message</strong><small>Edit Markdown in the preview and insert variables at your cursor.</small></div><strong id="templateCharacterCount">0 / 4000</strong></header>
                   <div class="discord-preview" aria-label="Template Discord preview">
-                    <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="templateVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="templateContainerAdd" type="button">Container</button><button class="composer-add" id="templateAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="templateThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="templateGalleryAdd" type="button">Gallery</button></div></div>
+                    <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="templateEmojiToggle" type="button">Emoji</button><button class="composer-add" id="templateVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="templateContainerAdd" type="button">Container</button><button class="composer-add" id="templateAdditionalContainerAdd" type="button">+ Container</button><button class="composer-add" id="templateThumbnailAdd" type="button">Thumbnail</button><button class="composer-add" id="templateGalleryAdd" type="button">Gallery</button></div></div>
                     <div class="preview-tool-panel" id="templateComposerPanel" hidden></div>
                     <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="templateDiscordFrame"><button class="discord-accent-button" id="templateAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="templateAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="templateMessagePreview"></div></div><div class="additional-container-list" id="templateAdditionalContainers"></div></div></div>
                   </div>
@@ -322,6 +323,62 @@
               <section class="template-tab-panel" data-template-panel="share" hidden>
                 <section class="template-share-card"><span class="step">LINK</span><div><h3>Authenticated template link</h3><p>This opens the selected server, folder, and template. Anyone following it must still sign in and have Administrator permission.</p><label><span class="sr-only">Template link</span><input id="templateShareLink" type="text" readonly></label></div><button class="button small primary" id="templateCopyLink" type="button">Copy template link</button></section>
                 <section class="template-share-card"><span class="step">USE</span><div><h3>Use as a snapshot</h3><p>Open Leveling or Welcome Messages and choose <strong>Use template</strong>. Future template edits will not change the active feature configuration.</p></div></section>
+              </section>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="reactionRolesView" data-view-panel="reaction-roles" hidden>
+        <header class="workspace-head reaction-role-page-head">
+          <div><span class="eyebrow">REACTION ROLES</span><h1>Let members choose their place.</h1><p>Publish accessible buttons or dropdowns that safely keep self-assignable roles in sync.</p></div>
+          <button class="button primary" id="reactionRoleCreate" type="button">+ New template</button>
+        </header>
+
+        <div class="reaction-role-manager">
+          <aside class="reaction-role-library" aria-label="Reaction Role templates">
+            <header><strong>TEMPLATES</strong><small id="reactionRoleCount">0 saved</small></header>
+            <div id="reactionRoleList" class="reaction-role-list"></div>
+          </aside>
+          <section class="reaction-role-workspace">
+            <div class="template-empty" id="reactionRoleEmpty">
+              <span aria-hidden="true">&#x1F3AD;</span><h2>Create a Reaction Role</h2><p>Build a message, map safe roles, then publish it to a channel.</p><button class="button primary small" id="reactionRoleEmptyCreate" type="button">Create template</button>
+            </div>
+            <div id="reactionRoleEditor" hidden>
+              <header class="template-detail-head reaction-role-detail-head">
+                <div><span id="reactionRoleStatus">SAVED</span><input id="reactionRoleName" type="text" maxlength="80" aria-label="Reaction Role template name"><p id="reactionRolePublishedState">Not published</p></div>
+                <div><label class="rr-enabled"><input id="reactionRoleEnabled" type="checkbox"><span>Enabled</span></label><button class="button tiny ghost" id="reactionRoleDuplicate" type="button">Duplicate</button><button class="button tiny danger" id="reactionRoleDelete" type="button">Delete</button></div>
+              </header>
+              <div class="template-tabs reaction-role-tabs" role="tablist" aria-label="Reaction Role sections">
+                <button class="active" type="button" role="tab" aria-selected="true" data-reaction-tab="message">Message</button>
+                <button type="button" role="tab" aria-selected="false" data-reaction-tab="role-reaction">Role Reaction</button>
+                <button type="button" role="tab" aria-selected="false" data-reaction-tab="channel">Channel</button>
+              </div>
+
+              <section class="reaction-role-panel active" data-reaction-panel="message">
+                <div class="rr-template-actions"><button class="button tiny ghost" id="reactionRoleUseTemplate" type="button">Use template</button><small>Applying a Message Template stores a snapshot.</small></div>
+                <section class="message-composer wide">
+                  <div class="discord-preview" aria-label="Reaction Role message preview">
+                    <div class="discord-preview-head"><span>LIVE PREVIEW</span><div class="preview-tool-buttons"><button class="composer-add" id="reactionRoleEmojiToggle" type="button">Emoji</button><button class="composer-add" id="reactionRoleVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="reactionRoleContainerToggle" type="button">Container</button><button class="composer-add" id="reactionRoleAdditionalContainer" type="button">+ Container</button><button class="composer-add" id="reactionRoleThumbnailToggle" type="button">Thumbnail</button><button class="composer-add" id="reactionRoleGalleryToggle" type="button">Gallery</button></div></div>
+                    <div class="preview-tool-panel" id="reactionRoleComposerPanel" hidden></div>
+                    <div class="discord-message-row"><div class="discord-avatar">C</div><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Today at 12:00</time></div><div class="discord-frame" id="reactionRoleDiscordFrame"><button class="discord-accent-button" id="reactionRoleAccentButton" type="button" aria-label="Change container color"></button><input id="reactionRoleAccentColor" type="color" value="#b9f547" aria-label="Container color"><div id="reactionRoleMessagePreview"></div></div><div class="additional-container-list" id="reactionRoleAdditionalContainers"></div><div id="reactionRoleControlPreview" class="rr-control-preview"></div></div></div>
+                  </div>
+                </section>
+              </section>
+
+              <section class="reaction-role-panel" data-reaction-panel="role-reaction" hidden>
+                <div class="rr-mode-switch" role="group" aria-label="Reaction control type"><button class="active" type="button" data-reaction-mode="button">Buttons</button><button type="button" data-reaction-mode="dropdown">Dropdown</button></div>
+                <div id="reactionRoleControls"></div>
+                <button class="button small ghost" id="reactionRoleAddControl" type="button">+ Add button</button>
+              </section>
+
+              <section class="reaction-role-panel" data-reaction-panel="channel" hidden>
+                <div class="template-settings-grid rr-channel-grid">
+                  <label class="field-card"><span>Destination channel<small>Only channels where CoinSprite can send are listed</small></span><select id="reactionRoleChannel"></select></label>
+                  <div class="rr-permission-status" id="reactionRolePermissionStatus" role="status"></div>
+                </div>
+                <section class="rr-final-preview"><h3>Final Discord preview</h3><div id="reactionRoleFinalPreview"></div></section>
+                <div class="rr-publish-actions"><button class="button ghost" id="reactionRoleSaveDraft" type="button">Save draft</button><button class="button primary" id="reactionRolePublish" type="button">Publish / update message</button></div>
               </section>
             </div>
           </section>
@@ -390,6 +447,20 @@
       <div id="templatePickerList" class="template-picker-list"></div>
       <div><button class="button ghost" value="cancel">Cancel</button></div>
     </form>
+  </dialog>
+
+  <dialog id="emojiPickerDialog" class="emoji-picker-dialog" aria-labelledby="emojiPickerTitle">
+    <section>
+      <header><div><span class="dialog-icon" aria-hidden="true">&#x1F600;</span><div><h2 id="emojiPickerTitle">Choose an emoji</h2><p>Insert into the active message or interaction.</p></div></div><button type="button" id="emojiPickerClose" aria-label="Close emoji picker">&times;</button></header>
+      <label class="emoji-picker-search"><span class="sr-only">Search emojis</span><input id="emojiPickerSearch" type="search" maxlength="80" placeholder="Search by emoji name" autocomplete="off"></label>
+      <div class="emoji-picker-tabs" role="tablist" aria-label="Emoji source">
+        <button class="active" type="button" role="tab" aria-selected="true" data-emoji-section="bot">Bot Emojis</button>
+        <button type="button" role="tab" aria-selected="false" data-emoji-section="group">Group Emojis</button>
+        <button type="button" role="tab" aria-selected="false" data-emoji-section="default">Default Emojis</button>
+      </div>
+      <div id="emojiPickerStatus" class="emoji-picker-status" role="status"></div>
+      <div id="emojiPickerGrid" class="emoji-picker-grid" role="grid" aria-label="Emoji results"></div>
+    </section>
   </dialog>
 </body>
 </html>

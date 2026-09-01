@@ -58,7 +58,7 @@ function newTemplate(collection, overrides = {}, now = '2026-08-31T00:00:00.000Z
   }, now);
 }
 
-test('schema 19 adds bounded message-template and additional-container defaults while preserving existing guild settings', () => {
+test('schema 20 preserves message-template defaults while adding Reaction Roles configuration', () => {
   const state = normalizeState({
     meta: { schemaVersion: 17, disabledGuilds: {} },
     guilds: {
@@ -69,7 +69,7 @@ test('schema 19 adds bounded message-template and additional-container defaults 
       },
     },
   });
-  assert.equal(SCHEMA_VERSION, 19);
+  assert.equal(SCHEMA_VERSION, 20);
   assert.deepEqual(DEFAULT_GUILD_CONFIG.messageTemplates, DEFAULT_MESSAGE_TEMPLATES_CONFIG);
   assert.deepEqual(state.guilds[GUILD_A].messageTemplates, { folders: [], items: [] });
   assert.equal(state.guilds[GUILD_A].leveling.xp.min, 22);
@@ -372,7 +372,7 @@ test('authenticated deep links are bounded and the dashboard wires all snapshot 
   assert.match(html, /id="levelingAdditionalContainerAdd"[\s\S]*id="welcomeAdditionalContainerAdd"[\s\S]*id="templateAdditionalContainerAdd"/);
   assert.doesNotMatch(html, /id="template(?:Reset|Save)Button"/);
   assert.match(app, /state\.currentView === 'message-templates'[\s\S]*saveMessageTemplate/);
-  assert.match(app, /templateMode \? 'Save changes' : 'Apply changes'/);
+  assert.match(app, /templateMode \|\| reactionMode \? 'Save changes' : 'Apply changes'/);
   assert.match(app, /state\.config\.leveling\.announcements\.template = item\.content/);
   assert.match(app, /announcements\.additionalContainers = clone\(item\.additionalContainers\)/);
   assert.match(app, /const event = currentMemberMessage\(\);[\s\S]*event\.template = item\.content/);

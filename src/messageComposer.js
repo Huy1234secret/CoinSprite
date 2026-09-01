@@ -1,6 +1,9 @@
 const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 
 const COMPONENTS_V2_FLAG = MessageFlags.IsComponentsV2 ?? 32768;
+const COMPONENTS_V2_LIMIT = 40;
+const ACTION_ROW_COMPONENT_LIMIT = 5;
+const CUSTOM_ID_LIMIT = 100;
 
 function interpolateTemplate(template, values = {}) {
   return String(template || '').replace(/\{([a-z0-9_]+)\}/gi, (token, key) => (
@@ -112,6 +115,39 @@ function componentMessagePayload(content, layout = {}, options = {}) {
   };
 }
 
+function nestedComponentCount(components = []) {
+  return (Array.isArray(components) ? components : []).reduce((total, component) => {
+    if (!component || typeof component !== 'object') return total;
+    return total + 1 + nestedComponentCount(component.components);
+  }, 0);
+}
+
+function appendValidatedInteractionActionRows(payload, rows = []) {
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.components)) {
+    throw new TypeError('A Components V2 message payload is required.');
+  }
+  if (!Array.isArray(rows)) throw new TypeError('Interaction action rows must be an array.');
+  for (const [rowIndex, row] of rows.entries()) {
+    if (row?.type !== 1 || !Array.isArray(row.components) || row.components.length < 1) {
+      throw new RangeError(`Interaction row ${rowIndex + 1} must contain at least one component.`);
+    }
+    if (row.components.length > ACTION_ROW_COMPONENT_LIMIT) {
+      throw new RangeError(`Interaction row ${rowIndex + 1} exceeds Discord's five-component limit.`);
+    }
+    for (const component of row.components) {
+      const customId = String(component?.custom_id || '');
+      if (!customId || customId.length > CUSTOM_ID_LIMIT) {
+        throw new RangeError(`Interaction custom IDs must be between 1 and ${CUSTOM_ID_LIMIT} characters.`);
+      }
+    }
+  }
+  const components = [...payload.components, ...rows];
+  if (nestedComponentCount(components) > COMPONENTS_V2_LIMIT) {
+    throw new RangeError(`The completed message exceeds Discord's ${COMPONENTS_V2_LIMIT}-component limit.`);
+  }
+  return { ...payload, components };
+}
+
 async function deliveryPermissions(channel, guild, needsEmbedLinks = false) {
   if (!channel?.isTextBased?.() || typeof channel.send !== 'function') {
     return { ok: false, missing: ['message-capable channel'] };
@@ -130,12 +166,17 @@ async function deliveryPermissions(channel, guild, needsEmbedLinks = false) {
 }
 
 module.exports = {
+  ACTION_ROW_COMPONENT_LIMIT,
   COMPONENTS_V2_FLAG,
+  COMPONENTS_V2_LIMIT,
+  CUSTOM_ID_LIMIT,
   accentColorValue,
+  appendValidatedInteractionActionRows,
   componentMessagePayload,
   deliveryPermissions,
   interpolateTemplate,
   messageContentComponents,
+  nestedComponentCount,
   resolvedLayout,
   safeMediaUrl,
   templateVariables,

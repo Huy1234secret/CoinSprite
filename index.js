@@ -41,6 +41,7 @@ const {
   handleGuildMemberRemove,
   handleGuildMemberUpdate,
 } = require('./src/memberMessages');
+const { handleReactionRoleInteraction } = require('./src/reactionRoles');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
@@ -157,6 +158,7 @@ if (runtimeStarter.capabilities.bot) {
         }
         return;
       }
+      if (await handleReactionRoleInteraction(interaction)) return;
       if (await rngGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
     } catch (error) {
