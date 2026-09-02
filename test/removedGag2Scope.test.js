@@ -25,7 +25,7 @@ test('external stock modules, command, dashboard, and documentation are absent',
   }
 });
 
-test('global command synchronization sends an empty list and guild commands remain feature-scoped', () => {
+test('global commands stay empty and guild commands include core Counting plus enabled features', () => {
   const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
   assert.deepEqual(GLOBAL_APPLICATION_COMMANDS, []);
   assert.match(read('index.js'), /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
@@ -36,12 +36,12 @@ test('global command synchronization sends an empty list and guild commands rema
     leveling: { enabled: false },
     rngGame: { enabled: false },
   };
-  assert.deepEqual(featureCommandsForConfig(base), []);
+  assert.deepEqual(featureCommandsForConfig(base).map((command) => command.name), ['cs-balance']);
   assert.deepEqual(featureCommandsForConfig({
     ...base,
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
-  }).map((command) => command.name), ['level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
+  }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
   assert.ok(featureCommandsForConfig({
     ...base,
     features: { ...base.features, rngGame: true },

@@ -24,6 +24,7 @@ const {
   runtimeDiagnostic,
 } = require('./src/runtimeRole');
 const { createRngGameFeature } = require('./src/features/rng-game');
+const { createCountingFeature } = require('./src/features/counting');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
@@ -62,6 +63,15 @@ const rngGame = createRngGameFeature({
   chancePageUrl: `${dashboardBaseUrl()}/chances`,
   onError(error) {
     logCommandSystem(`RNG game event failed: ${safeErrorMessage(error)}`);
+  },
+});
+
+const countingGame = runtimeRole === 'panel' ? null : createCountingFeature({
+  getChannelId(guildId) {
+    return getGuildConfigRaw(guildId)?.counting?.channelId || '';
+  },
+  onError(error, context) {
+    logCommandSystem(`Counting ${context?.operation || 'Discord operation'} failed in guild ${context?.message?.guildId || 'unknown'}: ${safeErrorMessage(error)}`);
   },
 });
 
@@ -161,6 +171,7 @@ if (runtimeStarter.capabilities.bot) {
         return;
       }
       if (await handleReactionRoleInteraction(interaction)) return;
+      if (await countingGame.handleInteraction(interaction)) return;
       if (await rngGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
     } catch (error) {
@@ -174,6 +185,7 @@ if (runtimeStarter.capabilities.bot) {
     try {
       await handleBoostSystemMessage(message);
       if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
       logCommandSystem(`Message command handler failed in guild ${message.guildId || 'unknown'}: ${error?.message || 'unknown error'}`);

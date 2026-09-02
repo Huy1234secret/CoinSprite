@@ -12,6 +12,7 @@ const {
   getGuildConfigRaw,
   loadState,
   normalizeLevelingConfig,
+  normalizeCountingConfig,
   normalizeMessageTemplatesConfig,
   normalizeReactionRolesConfig,
   saveState,
@@ -610,6 +611,7 @@ async function fetchGuildDirectory(guild, force = false) {
     ['View Channels', PermissionFlagsBits.ViewChannel],
     ['Send Messages', PermissionFlagsBits.SendMessages],
     ['Read Message History', PermissionFlagsBits.ReadMessageHistory],
+    ['Add Reactions', PermissionFlagsBits.AddReactions],
     ['Use External Emojis', PermissionFlagsBits.UseExternalEmojis],
   ];
   const missing = required.filter(([, flag]) => !botMember?.permissions?.has?.(flag)).map(([label]) => label);
@@ -669,7 +671,28 @@ function publicConfig(config) {
     messageTemplates: normalizeMessageTemplatesConfig(config?.messageTemplates),
     reactionRoles: normalizeReactionRolesConfig(config?.reactionRoles),
     rngGame: config?.rngGame || {},
+    counting: normalizeCountingConfig(config?.counting),
   };
+}
+
+async function validateCountingChannel(guild, channelId) {
+  const id = normalizeCountingConfig({ channelId }).channelId;
+  if (!id) return '';
+  let channel = null;
+  try { channel = await guild?.channels?.fetch?.(id); } catch {}
+  channel ||= guild?.channels?.cache?.get?.(id) || null;
+  const messageCapableTypes = new Set([
+    ChannelType.GuildText,
+    ChannelType.GuildAnnouncement,
+    ChannelType.PublicThread,
+    ChannelType.PrivateThread,
+    ChannelType.AnnouncementThread,
+  ]);
+  const channelGuildId = channel?.guildId || channel?.guild?.id;
+  if (!channel || channelGuildId !== guild.id || !messageCapableTypes.has(channel.type) || !channel.isTextBased?.()) {
+    throw Object.assign(new Error('Counting channel must be a message-capable text channel in this server.'), { statusCode: 400 });
+  }
+  return id;
 }
 
 function safeOAuthReturnTo(value) {
@@ -684,7 +707,7 @@ function safeOAuthReturnTo(value) {
   const templateId = String(parsed.searchParams.get('template') || '');
   const folderId = String(parsed.searchParams.get('folder') || '');
   if (/^\d{16,20}$/.test(guildId)) safe.set('guild', guildId);
-  if (['message-templates', 'reaction-roles'].includes(view)) safe.set('view', view);
+  if (['message-templates', 'reaction-roles', 'games'].includes(view)) safe.set('view', view);
   if (/^[a-zA-Z0-9_-]{8,64}$/.test(templateId)) safe.set('template', templateId);
   if (/^[a-zA-Z0-9_-]{8,64}$/.test(folderId)) safe.set('folder', folderId);
   const query = safe.toString();
@@ -1149,8 +1172,9 @@ async function routeRequest(req, res, env, client, services = {}) {
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
     const hasMemberMessages = body?.memberMessages && typeof body.memberMessages === 'object' && !Array.isArray(body.memberMessages);
     const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
-    if (!hasLeveling && !hasMemberMessages && !hasRngGame) {
-      return sendJson(res, 400, { error: 'Leveling, Welcome Messages, or RNG game configuration is required.' });
+    const hasCounting = body?.counting && typeof body.counting === 'object' && !Array.isArray(body.counting);
+    if (!hasLeveling && !hasMemberMessages && !hasRngGame && !hasCounting) {
+      return sendJson(res, 400, { error: 'Leveling, Welcome Messages, RNG game, or Counting configuration is required.' });
     }
 
     const state = loadState();
@@ -1169,6 +1193,11 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     if (hasMemberMessages) state.guilds[guildId].memberMessages = mergePlain(state.guilds[guildId].memberMessages, body.memberMessages);
     if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
+    if (hasCounting) {
+      state.guilds[guildId].counting = {
+        channelId: await validateCountingChannel(auth.guild, body.counting.channelId),
+      };
+    }
     saveState(state);
     const config = getGuildConfigRaw(guildId);
 
@@ -1177,7 +1206,7 @@ async function routeRequest(req, res, env, client, services = {}) {
         .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
 
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasMemberMessages && 'Welcome Messages', hasRngGame && 'RNG game'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasMemberMessages && 'Welcome Messages', hasRngGame && 'RNG game', hasCounting && 'Counting'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config) });
   }
 
@@ -1223,5 +1252,6 @@ module.exports = {
   levelCardRendererHeaders,
   routeRequest,
   safeOAuthReturnTo,
+  validateCountingChannel,
   startAdminServer,
 };

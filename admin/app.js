@@ -132,8 +132,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'), mobileNavToggle: $('#mobileNavToggle'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'),
-    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), gamesNav: $('#gamesNav'),
+    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), gamesView: $('#gamesView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -142,6 +142,7 @@
     levelingEnabled: $('#levelingEnabled'), levelingXpMin: $('#levelingXpMin'), levelingXpMax: $('#levelingXpMax'),
     levelingCooldown: $('#levelingCooldown'), levelingBaseXp: $('#levelingBaseXp'), levelingGrowth: $('#levelingGrowth'),
     levelingMaxLevel: $('#levelingMaxLevel'), levelingCurvePreview: $('#levelingCurvePreview'),
+    countingChannel: $('#countingChannel'),
     levelingAnnounceEnabled: $('#levelingAnnounceEnabled'), levelingAnnounceChannel: $('#levelingAnnounceChannel'),
     levelingChannels: $('#levelingChannels'),
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
@@ -382,6 +383,10 @@
       };
     }).slice(0, 100);
     return source;
+  }
+
+  function normalizeCountingConfig(config) {
+    return { channelId: String(config?.counting?.channelId || '') };
   }
 
   const MEMBER_MESSAGE_DEFAULTS = Object.freeze({
@@ -2833,6 +2838,16 @@
     refreshDirty();
   }
 
+  function renderGames() {
+    if (!state.config?.counting) return;
+    elements.countingChannel.innerHTML = channelOptions(
+      state.config.counting.channelId,
+      (channel) => channel.sendable === true && channel.kind !== 'forum',
+      'Select a channel',
+    );
+    refreshDirty();
+  }
+
   function renderFeatureAccess() {
     if (!state.config) return;
     const levelingUnlocked = state.config.features?.leveling === true;
@@ -2851,6 +2866,7 @@
     return JSON.stringify({
       leveling: config.leveling,
       memberMessages: config.memberMessages,
+      counting: config.counting,
     });
   }
 
@@ -2891,6 +2907,7 @@
         ...configPayload.config,
         leveling: normalizeLevelingConfig(configPayload.config),
         memberMessages: normalizeMemberMessagesConfig(configPayload.config),
+        counting: normalizeCountingConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -2905,6 +2922,7 @@
       state.reactionRoleSavedSnapshot = '';
       renderFeatureAccess();
       renderLeveling();
+      renderGames();
       renderWelcomeMessages();
       renderTemplateWorkspace();
       renderReactionRoles();
@@ -2928,7 +2946,8 @@
     try {
       const leveling = clone(state.config.leveling);
       const memberMessages = clone(state.config.memberMessages);
-      const body = { memberMessages };
+      const counting = clone(state.config.counting);
+      const body = { memberMessages, counting };
       if (state.config.features?.leveling === true) body.leveling = leveling;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
@@ -2938,11 +2957,13 @@
         ...payload.config,
         leveling: normalizeLevelingConfig(payload.config),
         memberMessages: normalizeMemberMessagesConfig(payload.config),
+        counting: normalizeCountingConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderLeveling();
+      renderGames();
       renderWelcomeMessages();
       showToast('Dashboard settings updated.');
     } catch (error) {
@@ -3434,6 +3455,7 @@
     state.config = clone(state.savedConfig);
     renderFeatureAccess();
     renderLeveling();
+    renderGames();
     renderWelcomeMessages();
     showToast('Unsaved changes reset.');
   }
@@ -4463,7 +4485,7 @@
         const requestedGuild = deepLink.get('guild');
         const guildId = state.guilds.some((guild) => guild.id === requestedGuild) ? requestedGuild : state.guilds[0].id;
         await loadGuild(guildId);
-        if (['message-templates', 'reaction-roles'].includes(deepLink.get('view'))) setView(deepLink.get('view'));
+        if (['message-templates', 'reaction-roles', 'games'].includes(deepLink.get('view'))) setView(deepLink.get('view'));
       }
     } catch (error) {
       state.me = null;
@@ -4591,6 +4613,11 @@
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('input', (event) => updateMemberMessagesFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
+  elements.gamesView.addEventListener('change', (event) => {
+    if (event.target !== elements.countingChannel || !state.config?.counting) return;
+    state.config.counting.channelId = event.target.value;
+    refreshDirty();
+  });
   elements.messageTemplatesView.addEventListener('input', (event) => {
     if (event.target === elements.templateSearch) return renderTemplateList();
     if (event.target === elements.templateJsonEditor) return updateTemplateJsonFromInput();

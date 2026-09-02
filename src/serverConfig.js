@@ -10,7 +10,7 @@ const {
 } = require('./reactionRoles');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 22;
+const SCHEMA_VERSION = 23;
 const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
@@ -48,6 +48,7 @@ const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
   gameChannelIds: Object.freeze([]),
   cooldownBypassRoleIds: Object.freeze([]),
 });
+const DEFAULT_COUNTING_CONFIG = Object.freeze({ channelId: '' });
 const DEFAULT_MEMBER_MESSAGE_TEMPLATES = Object.freeze({
   join: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!',
   leave: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.',
@@ -103,6 +104,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   messageTemplates: DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   reactionRoles: DEFAULT_REACTION_ROLES_CONFIG,
   rngGame: DEFAULT_RNG_GAME_CONFIG,
+  counting: DEFAULT_COUNTING_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
 const DEFAULT_STATE = Object.freeze({
@@ -331,6 +333,11 @@ function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
   };
 }
 
+function normalizeCountingConfig(value) {
+  const source = isObject(value) ? value : {};
+  return { channelId: cleanId(source.channelId) };
+}
+
 function normalizeMemberMessagesConfig(value, defaults = DEFAULT_MEMBER_MESSAGES_CONFIG) {
   const source = isObject(value) ? value : {};
   const normalized = { enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false };
@@ -373,6 +380,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const messageTemplates = normalizeMessageTemplatesConfig(source.messageTemplates);
   const reactionRoles = normalizeReactionRolesConfig(source.reactionRoles);
   const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
+  const counting = normalizeCountingConfig(source.counting);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
     rngGame.enabled = false;
@@ -390,6 +398,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
     messageTemplates,
     reactionRoles,
     rngGame,
+    counting,
   };
 }
 
@@ -431,7 +440,7 @@ function loadState() {
   const raw = readJsonFile(STORE_PATH, { label: 'server configuration', fallback: DEFAULT_STATE });
   const normalized = normalizeState(raw);
   if (JSON.stringify(raw) !== JSON.stringify(normalized)) {
-    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-21.bak`);
+    backupFileOnce(STORE_PATH, `${STORE_PATH}.pre-schema-23.bak`);
     writeJsonAtomic(STORE_PATH, normalized);
   }
   return normalized;
@@ -556,6 +565,7 @@ function resolveLoggingChannelId(config, _feature, _type, fallback = '') {
 
 module.exports = {
   DEFAULT_FEATURES,
+  DEFAULT_COUNTING_CONFIG,
   DEFAULT_LEVELING_CONFIG,
   DEFAULT_MEMBER_MESSAGES_CONFIG,
   DEFAULT_MESSAGE_TEMPLATES_CONFIG,
@@ -582,6 +592,7 @@ module.exports = {
   isGuildRngGameEnabled,
   loadState,
   normalizeLevelingConfig,
+  normalizeCountingConfig,
   normalizeMemberMessagesConfig,
   normalizeMessageTemplatesConfig,
   normalizeReactionRolesConfig,
