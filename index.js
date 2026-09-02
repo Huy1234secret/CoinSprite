@@ -43,7 +43,6 @@ const {
 } = require('./src/memberMessages');
 const { handleReactionRoleInteraction } = require('./src/reactionRoles');
 const { handleMessageTemplateInteraction } = require('./src/messageTemplateInteractions');
-const { createRainbowRoleScheduler } = require('./src/rainbowRole');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
@@ -94,8 +93,6 @@ const client = new Client({
 
 setLogClient(client);
 
-const rainbowRoleScheduler = createRainbowRoleScheduler(client, { log: logCommandSystem });
-
 const runtimeStarter = createRuntimeStarter(runtimeRole, {
   async common() {
     console.info(`Ready as ${client.user.tag}`);
@@ -111,7 +108,6 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
 
     rngGame.startScheduler(client);
     startXpDropScheduler(client);
-    rainbowRoleScheduler.start();
   },
   async panel() {
     startAdminServer(client, { rngGame });
