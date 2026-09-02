@@ -23,6 +23,8 @@ test('admin entrypoint receives content-derived JavaScript, emoji data, and styl
   assert.match(html, new RegExp(`/admin/emojiData\\.js\\?v=${emojiData.version}`));
   assert.match(html, new RegExp(`/admin/app\\.js\\?v=${app.version}`));
   assert.match(html, new RegExp(`/admin/style\\.css\\?v=${style.version}`));
+  assert.match(html, /<meta id="emojiDataAsset" data-src="\/admin\/emojiData\.js\?v=[a-f0-9]{16}">/);
+  assert.doesNotMatch(html, /<script[^>]+src="\/admin\/emojiData\.js/);
   assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
   assert.doesNotMatch(html, /20260806-9/);
 });

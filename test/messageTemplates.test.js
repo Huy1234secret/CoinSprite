@@ -148,6 +148,40 @@ test('template create, update, move, duplicate, and delete use stable IDs and se
   assert.throws(() => updateTemplate(collection, copy.id, { updatedAt: 'client supplied' }), /Unknown template update field/);
 });
 
+test('dropdown option deletion and reordering persist by stable ID after save and reload', () => {
+  const collection = newCollection();
+  const item = newTemplate(collection);
+  const makeOption = (id, title, sortOrder) => ({
+    id, title, description: `${title} description`, sortOrder,
+    emoji: { id: '', name: '✨', animated: false, source: 'default' },
+    action: { type: 'give_role', roleId: CHANNEL_ID },
+  });
+  const dropdown = {
+    id: 'dropdown_stable1', placeholder: 'Choose one', allowMultiple: false, sortOrder: 0,
+    options: [
+      makeOption('control_option_a', 'Alpha', 0),
+      makeOption('control_option_b', 'Beta', 1),
+      makeOption('control_option_c', 'Gamma', 2),
+    ],
+  };
+  updateTemplate(collection, item.id, {
+    document: { ...templateDocument(item), controls: { type: 'dropdown', buttons: [], dropdowns: [dropdown] } },
+  }, '2026-08-31T04:00:00Z');
+
+  const savedDocument = templateDocument(item);
+  savedDocument.controls.dropdowns[0].options = [
+    { ...savedDocument.controls.dropdowns[0].options[2], sortOrder: 0 },
+    { ...savedDocument.controls.dropdowns[0].options[0], sortOrder: 1 },
+  ];
+  updateTemplate(collection, item.id, { document: savedDocument }, '2026-08-31T05:00:00Z');
+
+  const reloaded = normalizeMessageTemplatesConfig(JSON.parse(JSON.stringify(collection)));
+  const options = reloaded.items[0].controls.dropdowns[0].options;
+  assert.deepEqual(options.map((option) => option.id), ['control_option_c', 'control_option_a']);
+  assert.deepEqual(options.map((option) => option.sortOrder), [0, 1]);
+  assert.equal(options.some((option) => option.id === 'control_option_b'), false);
+});
+
 test('strict JSON accepts the versioned document and rejects unknown, unsafe, and over-limit fields', () => {
   const document = parseTemplateDocument({
     version: 1,

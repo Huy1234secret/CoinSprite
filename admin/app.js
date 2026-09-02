@@ -20,7 +20,14 @@
     { family: 'Oswald Variable', italic: false },
     { family: 'Caveat Variable', italic: false },
   ]);
-  const DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || { version: '', emojiCount: 0, groups: [] };
+  const EMPTY_EMOJI_DATA = Object.freeze({ version: '', emojiCount: 0, groups: Object.freeze([]) });
+  const DEFAULT_EMOJI_DATA_URL = document.querySelector('#emojiDataAsset')?.dataset.src || '/admin/emojiData.js';
+  const EMOJI_RENDER_BATCH = 160;
+  const EMOJI_SEARCH_DEBOUNCE_MS = 120;
+  let DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || EMPTY_EMOJI_DATA;
+  let defaultEmojiDataPromise = null;
+  let emojiSearchTimer = null;
+  const defaultEmojiItemCache = new Map();
   const cardFontLoads = new Map();
   const CARD_PREVIEW_DEBOUNCE_MS = 350;
   const CARD_SNAP_DISTANCE = 6;
@@ -86,7 +93,9 @@
     templateTab: 'editor',
     templateComposerPanel: '',
     templateJsonValid: true,
+    templateControlsValid: true,
     templateSaving: false,
+    templateSaveError: '',
     templatePickerContext: '',
     templateActionTarget: null,
     reactionRoles: { items: [] },
@@ -99,6 +108,7 @@
     emojiSection: 'bot',
     emojiCategory: DEFAULT_EMOJI_DATA.groups[0]?.id || '',
     emojiPickerItems: [],
+    emojiRenderedCount: 0,
     emojiTarget: null,
     inlineTextCarets: new Map(),
     xpDropTesting: false,
@@ -1504,16 +1514,52 @@
     return `<${item.animated ? 'a' : ''}:${item.name}:${item.id}>`;
   }
 
+  function ensureDefaultEmojiData() {
+    if (DEFAULT_EMOJI_DATA.groups.length) return Promise.resolve(DEFAULT_EMOJI_DATA);
+    if (defaultEmojiDataPromise) return defaultEmojiDataPromise;
+    defaultEmojiDataPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = DEFAULT_EMOJI_DATA_URL;
+      script.async = true;
+      script.addEventListener('load', () => {
+        DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || EMPTY_EMOJI_DATA;
+        if (!DEFAULT_EMOJI_DATA.groups.length) {
+          defaultEmojiDataPromise = null;
+          reject(new Error('The default emoji catalog is unavailable.'));
+          return;
+        }
+        defaultEmojiItemCache.clear();
+        if (!state.emojiCategory) state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
+        resolve(DEFAULT_EMOJI_DATA);
+      }, { once: true });
+      script.addEventListener('error', () => {
+        defaultEmojiDataPromise = null;
+        reject(new Error('The default emoji catalog could not be loaded.'));
+      }, { once: true });
+      document.head.append(script);
+    });
+    return defaultEmojiDataPromise;
+  }
+
   function defaultEmojiItems(groupId = '') {
+    const cacheKey = groupId || '*';
+    if (defaultEmojiItemCache.has(cacheKey)) return defaultEmojiItemCache.get(cacheKey);
     const groups = groupId ? DEFAULT_EMOJI_DATA.groups.filter((group) => group.id === groupId) : DEFAULT_EMOJI_DATA.groups;
-    return groups.flatMap((group) => group.emojis.map(([character, name]) => ({
-      id: '', name: character, character, animated: false, source: 'default', searchName: name, groupId: group.id,
+    const items = groups.flatMap((group) => group.emojis.map(([character, name]) => Object.freeze({
+      id: '', name: character, character, animated: false, source: 'default', searchName: name,
+      searchText: `${name} ${character}`.toLowerCase(), groupId: group.id,
     })));
+    defaultEmojiItemCache.set(cacheKey, items);
+    return items;
   }
 
   function pickerItems(section = state.emojiSection, allDefaults = false) {
     if (section === 'default') return defaultEmojiItems(allDefaults ? '' : state.emojiCategory);
-    return (state.directory.emojis?.[section] || []).map((emoji) => ({ ...normalizePickerEmoji(emoji), url: String(emoji.url || ''), searchName: String(emoji.name || '') }));
+    return (state.directory.emojis?.[section] || []).map((emoji) => {
+      const item = { ...normalizePickerEmoji(emoji), url: String(emoji.url || ''), searchName: String(emoji.name || '') };
+      item.searchText = `${item.searchName} ${item.name}`.toLowerCase();
+      return item;
+    });
   }
 
   function renderEmojiCategories(search) {
@@ -1532,31 +1578,25 @@
     elements.emojiPickerCategories.append(fragment);
   }
 
-  function renderEmojiPicker() {
-    const search = elements.emojiPickerSearch.value.trim().toLowerCase();
-    document.querySelectorAll('[data-emoji-section]').forEach((button) => {
-      const active = button.dataset.emojiSection === state.emojiSection;
-      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
-    });
-    const failed = state.emojiSection !== 'default' && state.directory.emojis?.errors?.[state.emojiSection];
-    renderEmojiCategories(search);
-    const items = pickerItems(state.emojiSection, Boolean(search)).filter((emoji) => !search || `${emoji.searchName || emoji.name} ${emoji.name}`.toLowerCase().includes(search));
-    state.emojiPickerItems = items;
-    const activeGroup = DEFAULT_EMOJI_DATA.groups.find((group) => group.id === state.emojiCategory);
-    elements.emojiPickerStatus.className = `emoji-picker-status${failed ? ' error' : ''}`;
-    elements.emojiPickerStatus.textContent = failed
-      ? `${state.emojiSection === 'bot' ? 'Bot' : 'Group'} emojis could not be loaded. The other sections still work.`
-      : state.emojiSection === 'default'
-        ? `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found across all categories' : ` · ${activeGroup?.name || 'Default Emojis'}`} · Unicode ${DEFAULT_EMOJI_DATA.version}`
-        : `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found' : ''}`;
-    elements.emojiPickerGrid.replaceChildren();
+  function appendEmojiPickerBatch(reset = false) {
+    const items = state.emojiPickerItems;
+    if (reset) {
+      elements.emojiPickerGrid.replaceChildren();
+      state.emojiRenderedCount = 0;
+    }
+    elements.emojiPickerGrid.querySelector('.emoji-picker-more')?.remove();
     if (!items.length) {
+      if (!reset) return;
+      const search = elements.emojiPickerSearch.value.trim();
       const empty = document.createElement('div'); empty.className = 'emoji-picker-empty';
       empty.textContent = search ? 'No emojis match this search.' : `No ${state.emojiSection === 'bot' ? 'Bot' : state.emojiSection === 'group' ? 'Group' : 'Default'} Emojis are available.`;
       elements.emojiPickerGrid.append(empty); return;
     }
+    const start = state.emojiRenderedCount;
+    const end = Math.min(items.length, start + EMOJI_RENDER_BATCH);
     const fragment = document.createDocumentFragment();
-    for (const [index, emoji] of items.entries()) {
+    for (let index = start; index < end; index += 1) {
+      const emoji = items[index];
       const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'gridcell');
       button.dataset.emojiIndex = String(index); button.setAttribute('aria-label', emoji.searchName || emoji.name); button.title = emoji.searchName || emoji.name;
       if (emoji.animated) button.classList.add('animated');
@@ -1565,7 +1605,32 @@
       } else button.textContent = emoji.name;
       fragment.append(button);
     }
+    state.emojiRenderedCount = end;
+    if (end < items.length) {
+      const more = document.createElement('div'); more.className = 'emoji-picker-more';
+      more.textContent = `Showing ${end} of ${items.length}`; fragment.append(more);
+    }
     elements.emojiPickerGrid.append(fragment);
+  }
+
+  function renderEmojiPicker() {
+    const search = elements.emojiPickerSearch.value.trim().toLowerCase();
+    document.querySelectorAll('[data-emoji-section]').forEach((button) => {
+      const active = button.dataset.emojiSection === state.emojiSection;
+      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
+    });
+    const failed = state.emojiSection !== 'default' && state.directory.emojis?.errors?.[state.emojiSection];
+    renderEmojiCategories(search);
+    const items = pickerItems(state.emojiSection, Boolean(search)).filter((emoji) => !search || emoji.searchText.includes(search));
+    state.emojiPickerItems = items;
+    const activeGroup = DEFAULT_EMOJI_DATA.groups.find((group) => group.id === state.emojiCategory);
+    elements.emojiPickerStatus.className = `emoji-picker-status${failed ? ' error' : ''}`;
+    elements.emojiPickerStatus.textContent = failed
+      ? `${state.emojiSection === 'bot' ? 'Bot' : 'Group'} emojis could not be loaded. The other sections still work.`
+      : state.emojiSection === 'default'
+        ? `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found across all categories' : ` · ${activeGroup?.name || 'Default Emojis'}`} · Unicode ${DEFAULT_EMOJI_DATA.version}`
+        : `${items.length} emoji${items.length === 1 ? '' : 's'}${search ? ' found' : ''}`;
+    appendEmojiPickerBatch(true);
     elements.emojiPickerGrid.scrollTop = 0;
   }
 
@@ -1613,9 +1678,10 @@
     }));
   }
 
-  function openEmojiPicker(target) {
+  async function openEmojiPicker(target) {
     const resolved = typeof target === 'string' ? { type: 'text', scope: target, input: preferredInlineInput(target) } : target;
     if (resolved?.type === 'text' && !resolved.input) return showToast('Open a message editor before choosing an emoji.', 'error');
+    resolved.trigger = resolved.trigger || document.activeElement;
     if (resolved?.type === 'text') {
       const bookmark = state.inlineTextCarets.get(resolved.scope);
       resolved.start = bookmark?.input === resolved.input ? bookmark.start : Number.isInteger(resolved.input.selectionStart) ? resolved.input.selectionStart : resolved.input.value.length;
@@ -1626,15 +1692,35 @@
     state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
     state.emojiSection = pickerItems('bot').length ? 'bot' : pickerItems('group').length ? 'group' : 'default';
     elements.emojiPickerSearch.value = '';
-    renderEmojiPicker();
     elements.emojiPickerDialog.showModal();
     elements.emojiPickerSearch.focus();
+    if (state.emojiSection === 'default' && !DEFAULT_EMOJI_DATA.groups.length) {
+      elements.emojiPickerStatus.className = 'emoji-picker-status';
+      elements.emojiPickerStatus.textContent = 'Loading the default emoji catalog…';
+      elements.emojiPickerGrid.replaceChildren();
+      const loading = document.createElement('div'); loading.className = 'emoji-picker-empty'; loading.textContent = 'Loading emojis…';
+      elements.emojiPickerGrid.append(loading);
+      try {
+        await ensureDefaultEmojiData();
+      } catch (error) {
+        elements.emojiPickerStatus.className = 'emoji-picker-status error';
+        elements.emojiPickerStatus.textContent = error.message;
+        loading.textContent = 'Try opening the picker again.';
+        return;
+      }
+    }
+    if (state.emojiTarget !== resolved || !elements.emojiPickerDialog.open) return;
+    if (!state.emojiCategory) state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
+    renderEmojiPicker();
   }
 
   function closeEmojiPicker(restoreText = true) {
     const target = state.emojiTarget;
+    window.clearTimeout(emojiSearchTimer);
+    emojiSearchTimer = null;
     if (elements.emojiPickerDialog.open) elements.emojiPickerDialog.close();
     if (restoreText && target?.type === 'text') restoreEmojiTextTarget(target, target.start, target.end);
+    else if (target?.trigger?.isConnected) window.requestAnimationFrame(() => target.trigger.focus({ preventScroll: true }));
   }
 
   function applyPickedEmoji(emoji) {
@@ -1653,13 +1739,16 @@
       return;
     }
     if (['template-button', 'template-option'].includes(target.type)) {
-      const draft = state.templateDraft;
-      if (!draft) return;
-      const entries = target.type === 'template-button'
-        ? draft.controls.buttons
-        : draft.controls.dropdowns[target.dropdownIndex]?.options;
-      if (entries[target.index]) entries[target.index].emoji = normalized;
-      closeEmojiPicker(); renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson(); refreshTemplateDirty();
+      const control = templateControlAt(target.spec);
+      if (!control) return;
+      control.entry.emoji = normalized;
+      const row = elements.templateControls.querySelector(`[data-template-control-row="${target.spec}"]`);
+      const button = row?.querySelector('[data-template-control-emoji]');
+      if (button) {
+        button.innerHTML = reactionRoleEmojiHtml(normalized);
+        button.setAttribute('aria-label', `Choose emoji for ${control.entry.label || control.entry.title || 'control'}`);
+      }
+      closeEmojiPicker(); renderTemplateControlPreview(); syncTemplateJson(); refreshTemplateDirty();
       return;
     }
     const draft = state.reactionRoleDraft;
@@ -1924,6 +2013,90 @@
     return TEMPLATE_ACTION_TYPES.map((type) => `<option value="${type}"${type === selected ? ' selected' : ''}>${TEMPLATE_ACTION_LABELS[type]}</option>`).join('');
   }
 
+  function templateDropdownAt(id) {
+    const dropdowns = state.templateDraft?.controls?.dropdowns || [];
+    const dropdownIndex = dropdowns.findIndex((entry) => entry.id === id);
+    return dropdownIndex >= 0 ? { dropdown: dropdowns[dropdownIndex], dropdownIndex, dropdowns } : null;
+  }
+
+  function newTemplateOption(index = 0, title = `Option ${index + 1}`) {
+    return {
+      id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' },
+      title, description: '', sortOrder: index, action: { type: 'send_message', templateId: '' },
+    };
+  }
+
+  function newTemplateDropdown(index = 0) {
+    return {
+      id: clientReactionId('dropdown'), placeholder: `Choose an option${index ? ` ${index + 1}` : ''}`,
+      allowMultiple: false, sortOrder: index, options: [newTemplateOption()],
+    };
+  }
+
+  function duplicateTemplateOptionTitle(dropdown, sourceTitle) {
+    const base = `${String(sourceTitle || 'Option').trim() || 'Option'} copy`.slice(0, 100);
+    const used = new Set(dropdown.options.map((option) => String(option.title || '').trim().toLocaleLowerCase()));
+    if (!used.has(base.toLocaleLowerCase())) return base;
+    let suffix = 2;
+    while (suffix < 100) {
+      const ending = ` ${suffix++}`;
+      const candidate = `${base.slice(0, 100 - ending.length)}${ending}`;
+      if (!used.has(candidate.toLocaleLowerCase())) return candidate;
+    }
+    return `Option ${clientReactionId('copy').slice(-8)}`;
+  }
+
+  function templateOptionValidation(dropdown, option) {
+    const title = String(option?.title || '').trim();
+    if (!title) return 'Title is required.';
+    if (title.length > 100) return 'Title must be 100 characters or fewer.';
+    const duplicate = dropdown.options.some((entry) => entry.id !== option.id && String(entry.title || '').trim().toLocaleLowerCase() === title.toLocaleLowerCase());
+    if (duplicate) return 'Use a unique title in this dropdown.';
+    if (String(option?.description || '').trim().length > 100) return 'Description must be 100 characters or fewer.';
+    return '';
+  }
+
+  function templateDropdownValidation(dropdown) {
+    if (!String(dropdown?.placeholder || '').trim()) return 'Placeholder is required.';
+    if (String(dropdown.placeholder).trim().length > 150) return 'Placeholder must be 150 characters or fewer.';
+    if (!dropdown.options.length) return 'Add at least one option.';
+    return '';
+  }
+
+  function templateControlsValidationErrors() {
+    const draft = state.templateDraft;
+    if (!draft || draft.controls.type !== 'dropdown') return [];
+    if (!draft.controls.dropdowns.length) return ['Add at least one dropdown.'];
+    return draft.controls.dropdowns.flatMap((dropdown) => [
+      templateDropdownValidation(dropdown),
+      ...dropdown.options.map((option) => templateOptionValidation(dropdown, option)),
+    ]).filter(Boolean);
+  }
+
+  function refreshTemplateControlValidation() {
+    state.templateControlsValid = templateControlsValidationErrors().length === 0;
+    for (const card of elements.templateControls.querySelectorAll('[data-template-dropdown-card]')) {
+      const resolved = templateDropdownAt(card.dataset.templateDropdownCard);
+      if (!resolved) continue;
+      const cardError = templateDropdownValidation(resolved.dropdown);
+      card.classList.toggle('incomplete', Boolean(cardError) || resolved.dropdown.options.some((option) => templateOptionValidation(resolved.dropdown, option)));
+      const message = card.querySelector('.template-dropdown-error');
+      if (message) { message.textContent = cardError; message.hidden = !cardError; }
+      const placeholder = card.querySelector('[data-template-dropdown-placeholder]');
+      placeholder?.setAttribute('aria-invalid', String(!String(resolved.dropdown.placeholder || '').trim()));
+    }
+    for (const row of elements.templateControls.querySelectorAll('[data-template-control-row^="option:"]')) {
+      const target = templateControlAt(row.dataset.templateControlRow);
+      if (!target?.dropdown) continue;
+      const validation = templateOptionValidation(target.dropdown, target.entry);
+      row.classList.toggle('incomplete', Boolean(validation) || !templateActionStatus(target.entry.action).complete);
+      const message = row.querySelector('.template-option-validation');
+      if (message) { message.textContent = validation; message.hidden = !validation; }
+      const title = row.querySelector('[data-template-option-title]');
+      title?.setAttribute('aria-invalid', String(Boolean(validation)));
+    }
+  }
+
   function renderTemplateControlPreview() {
     const draft = state.templateDraft;
     if (!draft) return;
@@ -1952,25 +2125,32 @@
     elements.templateAddControl.disabled = templateControlEntries().length >= (draft.controls.type === 'dropdown' ? 5 : 25);
     if (draft.controls.type === 'none') {
       elements.templateControls.innerHTML = '<p class="template-control-empty">This template has no interactive controls.</p>';
+      state.templateControlsValid = true;
       return;
     }
     if (draft.controls.type === 'button') {
       const rows = draft.controls.buttons.map((button, index) => {
         const status = templateActionStatus(button.action);
-        return `<article class="template-control-row${status.complete ? '' : ' incomplete'}" data-template-control-row="button:${index}"><button class="rr-emoji-field" type="button" data-template-control-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label class="template-control-primary">Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-template-button-label="${index}"></label><label class="template-control-secondary">Style<select data-template-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><label class="template-control-action">Action<select data-template-control-action="button:${index}">${templateActionOptions(button.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="button:${index}" aria-label="Configure action for ${escapeHtml(button.label)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="button:${index}:-1" aria-label="Move ${escapeHtml(button.label)} up">↑</button><button type="button" data-template-control-move="button:${index}:1" aria-label="Move ${escapeHtml(button.label)} down">↓</button><button type="button" data-template-control-remove="button:${index}" aria-label="Remove ${escapeHtml(button.label)}">×</button></div></article>`;
+        const spec = `button:${button.id}`;
+        return `<article class="template-control-row${status.complete ? '' : ' incomplete'}" data-template-control-row="${spec}"><button class="rr-emoji-field" type="button" data-template-control-emoji="${spec}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label class="template-control-primary">Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-template-button-label="${escapeHtml(button.id)}"></label><label class="template-control-secondary">Style<select data-template-button-style="${escapeHtml(button.id)}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><label class="template-control-action">Action<select data-template-control-action="${spec}">${templateActionOptions(button.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="${spec}" aria-label="Configure action for ${escapeHtml(button.label)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="${spec}:-1" aria-label="Move ${escapeHtml(button.label)} up" title="Move up"${index === 0 ? ' disabled' : ''}>↑</button><button type="button" data-template-control-move="${spec}:1" aria-label="Move ${escapeHtml(button.label)} down" title="Move down"${index === draft.controls.buttons.length - 1 ? ' disabled' : ''}>↓</button><button type="button" data-template-control-remove="${spec}" aria-label="Delete ${escapeHtml(button.label)}" title="Delete button">&#128465;</button></div></article>`;
       }).join('');
       elements.templateControls.innerHTML = `<div class="template-control-list">${rows || '<p class="template-control-empty">Add a button to configure its action.</p>'}</div>`;
+      state.templateControlsValid = true;
       return;
     }
     elements.templateControls.innerHTML = draft.controls.dropdowns.length ? draft.controls.dropdowns.map((dropdown, dropdownIndex) => {
       const rows = dropdown.options.map((option, optionIndex) => {
         const status = templateActionStatus(option.action);
-        const spec = `option:${dropdownIndex}:${optionIndex}`;
-        return `<article class="template-control-row dropdown${status.complete ? '' : ' incomplete'}" data-template-control-row="${spec}"><button class="rr-emoji-field" type="button" data-template-control-emoji="${spec}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label class="template-control-primary">Title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-template-option-title="${dropdownIndex}:${optionIndex}"></label><label class="template-control-secondary">Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-template-option-description="${dropdownIndex}:${optionIndex}"></label><label class="template-control-action">Action<select data-template-control-action="${spec}">${templateActionOptions(option.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="${spec}" aria-label="Configure action for ${escapeHtml(option.title)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="${spec}:-1" aria-label="Move ${escapeHtml(option.title)} up">↑</button><button type="button" data-template-control-move="${spec}:1" aria-label="Move ${escapeHtml(option.title)} down">↓</button><button type="button" data-template-control-remove="${spec}" aria-label="Remove ${escapeHtml(option.title)}">×</button></div></article>`;
+        const spec = `option:${dropdown.id}:${option.id}`;
+        const validation = templateOptionValidation(dropdown, option);
+        const validationId = `template-option-error-${option.id}`;
+        return `<article class="template-control-row dropdown${status.complete && !validation ? '' : ' incomplete'}" data-template-control-row="${spec}"><button class="rr-emoji-field" type="button" data-template-control-emoji="${spec}" aria-label="Choose emoji for ${escapeHtml(option.title || 'option')}">${reactionRoleEmojiHtml(option.emoji)}</button><label class="template-control-primary">Title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-template-option-title="${escapeHtml(dropdown.id)}:${escapeHtml(option.id)}" aria-describedby="${validationId}" aria-invalid="${Boolean(validation)}"></label><label class="template-control-secondary">Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-template-option-description="${escapeHtml(dropdown.id)}:${escapeHtml(option.id)}"></label><label class="template-control-action">Action<select data-template-control-action="${spec}">${templateActionOptions(option.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="${spec}" aria-label="Configure action for ${escapeHtml(option.title || 'option')}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><span class="template-option-validation" id="${validationId}"${validation ? '' : ' hidden'}>${escapeHtml(validation)}</span><div class="rr-row-actions template-option-actions"><button type="button" data-template-control-move="${spec}:-1" aria-label="Move ${escapeHtml(option.title || 'option')} up" title="Move up"${optionIndex === 0 ? ' disabled' : ''}>↑</button><button type="button" data-template-control-move="${spec}:1" aria-label="Move ${escapeHtml(option.title || 'option')} down" title="Move down"${optionIndex === dropdown.options.length - 1 ? ' disabled' : ''}>↓</button><button type="button" data-template-control-duplicate="${spec}" aria-label="Duplicate ${escapeHtml(option.title || 'option')}" title="Duplicate option">&#x2398;</button><button type="button" data-template-control-remove="${spec}" aria-label="Delete ${escapeHtml(option.title || 'option')}" title="Delete option">&#128465;</button></div></article>`;
       }).join('');
       const optionCount = `${dropdown.options.length} option${dropdown.options.length === 1 ? '' : 's'}`;
-      return `<section class="template-dropdown-card${dropdown.options.length ? '' : ' incomplete'}" data-template-dropdown-card="${dropdownIndex}"><header><div class="template-dropdown-title"><strong>Dropdown ${dropdownIndex + 1}</strong><span class="template-dropdown-count">${optionCount}</span></div><div class="template-dropdown-actions"><button type="button" class="template-dropdown-add-option" data-template-dropdown-add-option="${dropdownIndex}"${dropdown.options.length >= 25 ? ' disabled' : ''}>+ Add option</button><div class="rr-row-actions"><button type="button" data-template-dropdown-move="${dropdownIndex}:-1" aria-label="Move dropdown ${dropdownIndex + 1} up">↑</button><button type="button" data-template-dropdown-move="${dropdownIndex}:1" aria-label="Move dropdown ${dropdownIndex + 1} down">↓</button><button type="button" data-template-dropdown-remove="${dropdownIndex}" aria-label="Remove dropdown ${dropdownIndex + 1}">×</button></div></div></header><div class="template-dropdown-settings"><label>Placeholder<input type="text" maxlength="150" value="${escapeHtml(dropdown.placeholder)}" data-template-dropdown-placeholder="${dropdownIndex}"></label><label class="rr-allow-multiple"><input type="checkbox" data-template-dropdown-multiple="${dropdownIndex}"${dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Only selected options in this dropdown run their configured actions.</small></span></label></div><div class="template-control-list">${rows || '<p class="template-control-empty">Add an option to configure this dropdown.</p>'}</div></section>`;
+      const dropdownError = templateDropdownValidation(dropdown);
+      return `<section class="template-dropdown-card${dropdownError || dropdown.options.some((option) => templateOptionValidation(dropdown, option)) ? ' incomplete' : ''}" data-template-dropdown-card="${escapeHtml(dropdown.id)}"><header><div class="template-dropdown-title"><strong>Dropdown ${dropdownIndex + 1}</strong><span class="template-dropdown-count">${optionCount}</span></div><div class="template-dropdown-actions"><button type="button" class="template-dropdown-add-option" data-template-dropdown-add-option="${escapeHtml(dropdown.id)}"${dropdown.options.length >= 25 ? ' disabled' : ''}>+ Add option</button><div class="rr-row-actions"><button type="button" data-template-dropdown-move="${escapeHtml(dropdown.id)}:-1" aria-label="Move dropdown ${dropdownIndex + 1} up" title="Move dropdown up"${dropdownIndex === 0 ? ' disabled' : ''}>↑</button><button type="button" data-template-dropdown-move="${escapeHtml(dropdown.id)}:1" aria-label="Move dropdown ${dropdownIndex + 1} down" title="Move dropdown down"${dropdownIndex === draft.controls.dropdowns.length - 1 ? ' disabled' : ''}>↓</button><button type="button" data-template-dropdown-remove="${escapeHtml(dropdown.id)}" aria-label="Delete dropdown ${dropdownIndex + 1}" title="Delete dropdown">&#128465;</button></div></div></header><div class="template-dropdown-settings"><label>Placeholder<input type="text" maxlength="150" value="${escapeHtml(dropdown.placeholder)}" data-template-dropdown-placeholder="${escapeHtml(dropdown.id)}" aria-invalid="${!String(dropdown.placeholder || '').trim()}"></label><label class="rr-allow-multiple"><input type="checkbox" data-template-dropdown-multiple="${escapeHtml(dropdown.id)}"${dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Only selected options in this dropdown run their configured actions.</small></span></label></div><p class="template-dropdown-error"${dropdownError ? '' : ' hidden'}>${escapeHtml(dropdownError)}</p><div class="template-control-list">${rows || '<p class="template-control-empty">Add an option to configure this dropdown.</p>'}</div></section>`;
     }).join('') : '<p class="template-control-empty">Add a dropdown to configure its options and actions.</p>';
+    refreshTemplateControlValidation();
   }
 
   function syncTemplateJson(force = false) {
@@ -2054,11 +2234,14 @@
 
   function refreshTemplateDirty() {
     const dirty = templateIsDirty();
-    elements.templateStatusBadge.textContent = dirty ? 'UNSAVED' : 'SAVED';
-    elements.templateStatusBadge.classList.toggle('unsaved', dirty);
+    state.templateControlsValid = templateControlsValidationErrors().length === 0;
+    elements.templateStatusBadge.textContent = state.templateSaving ? 'SAVING' : state.templateSaveError ? 'SAVE ERROR' : dirty ? 'UNSAVED' : 'SAVED';
+    elements.templateStatusBadge.classList.toggle('unsaved', dirty && !state.templateSaveError);
+    elements.templateStatusBadge.classList.toggle('saving', state.templateSaving);
+    elements.templateStatusBadge.classList.toggle('error', Boolean(state.templateSaveError));
     const unresolved = templateVariableNames().filter((name) => !['server', 'server_icon', 'channel', 'timestamp', 'separator'].includes(name));
-    elements.templateSendTest.disabled = dirty || Boolean(unresolved.length);
-    elements.templateSendNow.disabled = dirty || !state.templateDraft?.enabled || Boolean(unresolved.length);
+    elements.templateSendTest.disabled = dirty || !state.templateControlsValid || Boolean(unresolved.length);
+    elements.templateSendNow.disabled = dirty || !state.templateControlsValid || !state.templateDraft?.enabled || Boolean(unresolved.length);
     refreshDirty();
   }
 
@@ -2161,6 +2344,7 @@
     state.templateSavedSnapshot = templateSnapshot();
     state.templateComposerPanel = '';
     state.templateJsonValid = true;
+    state.templateSaveError = '';
     if (options.reveal) state.templateFolderId = item.folderId || 'unfiled';
     renderTemplateWorkspace();
     return true;
@@ -2208,9 +2392,10 @@
   }
 
   async function saveMessageTemplate() {
-    if (!state.templateDraft || state.templateSaving || !templateIsDirty() || !state.templateJsonValid) return;
+    if (!state.templateDraft || state.templateSaving || !templateIsDirty() || !state.templateJsonValid || !state.templateControlsValid) return;
     state.templateSaving = true;
-    refreshDirty();
+    state.templateSaveError = '';
+    refreshTemplateDirty();
     try {
       const payload = await api(`/api/guilds/${state.guildId}/message-templates/${state.templateDraft.id}`, {
         method: 'PATCH', body: JSON.stringify({
@@ -2223,9 +2408,12 @@
       state.templateFolderId = payload.item.folderId || 'unfiled';
       renderTemplateWorkspace();
       showToast('Message template saved.');
+    } catch (error) {
+      state.templateSaveError = error.message || 'Message template could not be saved.';
+      throw error;
     } finally {
       state.templateSaving = false;
-      refreshDirty();
+      refreshTemplateDirty();
     }
   }
 
@@ -2235,6 +2423,7 @@
     state.templateDraft = clone(stored);
     state.templateSavedSnapshot = templateSnapshot();
     state.templateJsonValid = true;
+    state.templateSaveError = '';
     renderTemplateEditor();
     showToast('Unsaved template changes reset.');
   }
@@ -2446,48 +2635,62 @@
       renderTemplateComposerPreview(false);
       return;
     }
-    if (target.matches('[data-template-button-label]')) draft.controls.buttons[Number(target.dataset.templateButtonLabel)].label = target.value.slice(0, 80);
-    if (target.matches('[data-template-button-style]')) draft.controls.buttons[Number(target.dataset.templateButtonStyle)].style = target.value;
+    if (target.matches('[data-template-button-label]')) {
+      const button = draft.controls.buttons.find((entry) => entry.id === target.dataset.templateButtonLabel);
+      if (button) button.label = target.value.slice(0, 80);
+    }
+    if (target.matches('[data-template-button-style]')) {
+      const button = draft.controls.buttons.find((entry) => entry.id === target.dataset.templateButtonStyle);
+      if (button) button.style = target.value;
+    }
     if (target.matches('[data-template-option-title]')) {
-      const [dropdownIndex, optionIndex] = target.dataset.templateOptionTitle.split(':').map(Number);
-      if (draft.controls.dropdowns[dropdownIndex]?.options[optionIndex]) draft.controls.dropdowns[dropdownIndex].options[optionIndex].title = target.value.slice(0, 100);
+      const option = templateControlAt(`option:${target.dataset.templateOptionTitle}`)?.entry;
+      if (option) option.title = target.value.slice(0, 100);
     }
     if (target.matches('[data-template-option-description]')) {
-      const [dropdownIndex, optionIndex] = target.dataset.templateOptionDescription.split(':').map(Number);
-      if (draft.controls.dropdowns[dropdownIndex]?.options[optionIndex]) draft.controls.dropdowns[dropdownIndex].options[optionIndex].description = target.value.slice(0, 100);
+      const option = templateControlAt(`option:${target.dataset.templateOptionDescription}`)?.entry;
+      if (option) option.description = target.value.slice(0, 100);
     }
     if (target.matches('[data-template-dropdown-placeholder]')) {
-      const dropdown = draft.controls.dropdowns[Number(target.dataset.templateDropdownPlaceholder)];
+      const dropdown = templateDropdownAt(target.dataset.templateDropdownPlaceholder)?.dropdown;
       if (dropdown) dropdown.placeholder = target.value.slice(0, 150);
     }
     if (target.matches('[data-template-dropdown-multiple]')) {
-      const dropdown = draft.controls.dropdowns[Number(target.dataset.templateDropdownMultiple)];
+      const dropdown = templateDropdownAt(target.dataset.templateDropdownMultiple)?.dropdown;
       if (dropdown) dropdown.allowMultiple = target.checked;
     }
     if (target.matches('[data-template-control-action]')) {
-      const [kind, firstIndex, secondIndex] = target.dataset.templateControlAction.split(':');
-      const entries = kind === 'button' ? draft.controls.buttons : draft.controls.dropdowns[Number(firstIndex)]?.options;
-      const entryIndex = kind === 'button' ? Number(firstIndex) : Number(secondIndex);
+      const control = templateControlAt(target.dataset.templateControlAction);
       const type = TEMPLATE_ACTION_TYPES.includes(target.value) ? target.value : 'send_message';
-      if (entries?.[entryIndex]) entries[entryIndex].action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
+      if (control) control.entry.action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
     }
     if (target.closest?.('[data-template-control-row]') || target.matches('[data-template-dropdown-placeholder],[data-template-dropdown-multiple]')) {
       if (target.matches('[data-template-control-action]')) renderTemplateControls();
+      else refreshTemplateControlValidation();
       renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     }
+    state.templateSaveError = '';
     updateTemplateDeepLink();
     refreshTemplateDirty();
   }
 
   function templateControlAt(spec) {
-    const [kind, firstIndex, secondIndex] = String(spec || '').split(':');
-    const dropdownIndex = kind === 'option' ? Number(firstIndex) : null;
-    const index = Number(kind === 'button' ? firstIndex : secondIndex);
-    const entries = kind === 'button'
-      ? state.templateDraft?.controls?.buttons
-      : state.templateDraft?.controls?.dropdowns?.[dropdownIndex]?.options;
-    return Number.isInteger(index) && entries?.[index] ? { kind, dropdownIndex, index, entry: entries[index], entries } : null;
+    const [kind, firstId, secondId] = String(spec || '').split(':');
+    if (kind === 'button') {
+      const entries = state.templateDraft?.controls?.buttons || [];
+      const index = entries.findIndex((entry) => entry.id === firstId);
+      return index >= 0 ? { kind, dropdownIndex: null, index, entry: entries[index], entries, spec: `button:${firstId}` } : null;
+    }
+    if (kind !== 'option') return null;
+    const resolved = templateDropdownAt(firstId);
+    if (!resolved) return null;
+    const entries = resolved.dropdown.options;
+    const index = entries.findIndex((entry) => entry.id === secondId);
+    return index >= 0 ? {
+      kind, dropdown: resolved.dropdown, dropdownIndex: resolved.dropdownIndex, index,
+      entry: entries[index], entries, spec: `option:${firstId}:${secondId}`,
+    } : null;
   }
 
   function safeTemplateRoles() {
@@ -2497,7 +2700,7 @@
   function openTemplateActionDialog(spec) {
     const target = templateControlAt(spec);
     if (!target) return;
-    state.templateActionTarget = { kind: target.kind, dropdownIndex: target.dropdownIndex, index: target.index };
+    state.templateActionTarget = { spec: target.spec };
     const action = target.entry.action;
     const templateAction = ['send_message', 'dm_message'].includes(action.type);
     elements.templateActionTitle.textContent = `Configure ${TEMPLATE_ACTION_LABELS[action.type]}`;
@@ -2525,16 +2728,14 @@
   }
 
   function saveTemplateActionDialog() {
-    const actionTarget = state.templateActionTarget;
-    const target = templateControlAt(actionTarget?.kind === 'option'
-      ? `option:${actionTarget.dropdownIndex}:${actionTarget.index}`
-      : `button:${actionTarget?.index}`);
+    const target = templateControlAt(state.templateActionTarget?.spec);
     if (!target) return elements.templateActionDialog.close();
     const selected = elements.templateActionTarget.value;
     if (!selected) return showToast(`Choose a ${['send_message', 'dm_message'].includes(target.entry.action.type) ? 'Message Template' : 'Discord role'}.`, 'error');
     if (['send_message', 'dm_message'].includes(target.entry.action.type)) target.entry.action.templateId = selected;
     else target.entry.action.roleId = selected;
     state.templateActionTarget = null;
+    state.templateSaveError = '';
     elements.templateActionDialog.close();
     renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
     elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
@@ -2691,7 +2892,7 @@
       ? templateMode ? 'Saving template…' : reactionMode ? 'Saving Reaction Role…' : 'Applying changes…'
       : templateMode ? 'Unsaved template changes' : reactionMode ? 'Unsaved Reaction Role changes' : 'Unsaved changes';
     elements.saveButton.textContent = templateMode || reactionMode ? 'Save changes' : 'Apply changes';
-    elements.saveButton.disabled = !dirty || saving || (templateMode && !state.templateJsonValid);
+    elements.saveButton.disabled = !dirty || saving || (templateMode && (!state.templateJsonValid || !state.templateControlsValid));
     elements.resetButton.disabled = !dirty || saving;
   }
 
@@ -4700,12 +4901,13 @@
     state.templateTab = tab.dataset.templateTab;
     renderTemplateEditor();
   });
-  elements.templateEditor.addEventListener('click', (event) => {
+  elements.templateEditor.addEventListener('click', async (event) => {
     const mode = event.target.closest('[data-template-control-mode]');
     if (mode && state.templateDraft) {
       state.templateDraft.controls.type = mode.dataset.templateControlMode;
+      state.templateSaveError = '';
       if (state.templateDraft.controls.type === 'dropdown' && !state.templateDraft.controls.dropdowns.length) {
-        state.templateDraft.controls.dropdowns.push({ id: clientReactionId('dropdown'), placeholder: 'Choose an option', allowMultiple: false, sortOrder: 0, options: [] });
+        state.templateDraft.controls.dropdowns.push(newTemplateDropdown());
       }
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
@@ -4713,42 +4915,84 @@
     }
     const emoji = event.target.closest('[data-template-control-emoji]');
     if (emoji) {
-      const [kind, firstIndex, secondIndex] = emoji.dataset.templateControlEmoji.split(':');
-      openEmojiPicker(kind === 'button'
-        ? { type: 'template-button', index: Number(firstIndex) }
-        : { type: 'template-option', dropdownIndex: Number(firstIndex), index: Number(secondIndex) });
+      const spec = emoji.dataset.templateControlEmoji;
+      openEmojiPicker({ type: spec.startsWith('button:') ? 'template-button' : 'template-option', spec, trigger: emoji })
+        .catch((error) => showToast(error.message, 'error'));
       return;
     }
     const configure = event.target.closest('[data-template-configure-action]');
     if (configure) { openTemplateActionDialog(configure.dataset.templateConfigureAction); return; }
-    const remove = event.target.closest('[data-template-control-remove]');
-    if (remove) {
-      const target = templateControlAt(remove.dataset.templateControlRemove);
-      if (target) target.entries.splice(target.index, 1);
-      target?.entries.forEach((entry, index) => { entry.sortOrder = index; });
-      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
-      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
-      refreshTemplateDirty(); return;
-    }
-    const move = event.target.closest('[data-template-control-move]');
-    if (move) {
-      const parts = move.dataset.templateControlMove.split(':');
-      const kind = parts[0];
-      const dropdownIndex = kind === 'option' ? Number(parts[1]) : null;
-      const from = Number(kind === 'button' ? parts[1] : parts[2]);
-      const delta = Number(kind === 'button' ? parts[2] : parts[3]);
-      const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdowns?.[dropdownIndex]?.options;
-      const to = from + delta;
-      if (entries?.[from] && entries?.[to]) { const [item] = entries.splice(from, 1); entries.splice(to, 0, item); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+    const duplicate = event.target.closest('[data-template-control-duplicate]');
+    if (duplicate) {
+      const target = templateControlAt(duplicate.dataset.templateControlDuplicate);
+      if (!target?.dropdown) return;
+      if (target.entries.length >= 25) return showToast('A dropdown supports up to 25 options.', 'error');
+      const copy = clone(target.entry);
+      copy.id = clientReactionId('control');
+      copy.title = duplicateTemplateOptionTitle(target.dropdown, target.entry.title);
+      target.entries.splice(target.index + 1, 0, copy);
+      target.entries.forEach((entry, index) => { entry.sortOrder = index; });
+      state.templateSaveError = '';
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty();
+      elements.templateControls.querySelector(`[data-template-option-title="${target.dropdown.id}:${copy.id}"]`)?.focus();
+      return;
+    }
+    const remove = event.target.closest('[data-template-control-remove]');
+    if (remove) {
+      const target = templateControlAt(remove.dataset.templateControlRemove);
+      if (!target) return;
+      if (target.dropdown && target.entries.length <= 1) {
+        showToast('A dropdown must keep at least one option.', 'error');
+        remove.focus();
+        return;
+      }
+      if (target.dropdown) {
+        const confirmed = await confirmAction({
+          title: `Delete “${target.entry.title || 'this option'}”?`,
+          copy: 'The option and its configured action will be removed from this unsaved draft.',
+          confirmLabel: 'Delete option',
+        });
+        if (!confirmed) { remove.focus(); return; }
+      }
+      const focusEntry = target.entries[target.index + 1] || target.entries[target.index - 1];
+      if (target) target.entries.splice(target.index, 1);
+      target?.entries.forEach((entry, index) => { entry.sortOrder = index; });
+      state.templateSaveError = '';
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+      if (target.dropdown && focusEntry) elements.templateControls.querySelector(`[data-template-option-title="${target.dropdown.id}:${focusEntry.id}"]`)?.focus();
+      return;
+    }
+    const move = event.target.closest('[data-template-control-move]');
+    if (move) {
+      const value = move.dataset.templateControlMove;
+      const separator = value.lastIndexOf(':');
+      const target = templateControlAt(value.slice(0, separator));
+      const delta = Number(value.slice(separator + 1));
+      const to = target ? target.index + delta : -1;
+      if (target?.entries[target.index] && target.entries[to]) { const [item] = target.entries.splice(target.index, 1); target.entries.splice(to, 0, item); target.entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+      state.templateSaveError = '';
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+      elements.templateControls.querySelector(`[data-template-control-move^="${target?.spec}:"]`)?.focus();
       return;
     }
     const removeDropdown = event.target.closest('[data-template-dropdown-remove]');
     if (removeDropdown) {
-      state.templateDraft.controls.dropdowns.splice(Number(removeDropdown.dataset.templateDropdownRemove), 1);
+      const resolved = templateDropdownAt(removeDropdown.dataset.templateDropdownRemove);
+      if (!resolved) return;
+      if (state.templateDraft.controls.dropdowns.length <= 1) {
+        showToast('Dropdown mode must keep at least one dropdown.', 'error');
+        removeDropdown.focus();
+        return;
+      }
+      state.templateDraft.controls.dropdowns.splice(resolved.dropdownIndex, 1);
       state.templateDraft.controls.dropdowns.forEach((dropdown, index) => { dropdown.sortOrder = index; });
+      state.templateSaveError = '';
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty();
@@ -4756,23 +5000,28 @@
     }
     const moveDropdown = event.target.closest('[data-template-dropdown-move]');
     if (moveDropdown) {
-      const [from, delta] = moveDropdown.dataset.templateDropdownMove.split(':').map(Number);
-      const entries = state.templateDraft.controls.dropdowns; const to = from + delta;
-      if (entries[from] && entries[to]) { const [dropdown] = entries.splice(from, 1); entries.splice(to, 0, dropdown); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+      const [id, deltaText] = moveDropdown.dataset.templateDropdownMove.split(':');
+      const resolved = templateDropdownAt(id); const delta = Number(deltaText);
+      const entries = state.templateDraft.controls.dropdowns; const to = resolved ? resolved.dropdownIndex + delta : -1;
+      if (resolved && entries[to]) { const [dropdown] = entries.splice(resolved.dropdownIndex, 1); entries.splice(to, 0, dropdown); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+      state.templateSaveError = '';
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty();
+      elements.templateControls.querySelector(`[data-template-dropdown-move^="${id}:"]`)?.focus();
       return;
     }
     const addOption = event.target.closest('[data-template-dropdown-add-option]');
     if (addOption) {
-      const dropdown = state.templateDraft.controls.dropdowns[Number(addOption.dataset.templateDropdownAddOption)];
+      const dropdown = templateDropdownAt(addOption.dataset.templateDropdownAddOption)?.dropdown;
       if (!dropdown || dropdown.options.length >= 25) return;
-      dropdown.options.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, title: `Option ${dropdown.options.length + 1}`, description: '', sortOrder: dropdown.options.length, action: { type: 'send_message', templateId: '' } });
+      const option = newTemplateOption(dropdown.options.length);
+      dropdown.options.push(option);
+      state.templateSaveError = '';
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty();
-      elements.templateControls.querySelector(`[data-template-dropdown-card="${addOption.dataset.templateDropdownAddOption}"] [data-template-configure-action]:last-of-type`)?.focus();
+      elements.templateControls.querySelector(`[data-template-option-title="${dropdown.id}:${option.id}"]`)?.focus();
     }
   });
   elements.templateAddControl.addEventListener('click', () => {
@@ -4783,14 +5032,15 @@
     }
     else {
       if (draft.controls.dropdowns.length >= 5) return;
-      draft.controls.dropdowns.push({ id: clientReactionId('dropdown'), placeholder: `Choose an option ${draft.controls.dropdowns.length + 1}`, allowMultiple: false, sortOrder: draft.controls.dropdowns.length, options: [] });
+      draft.controls.dropdowns.push(newTemplateDropdown(draft.controls.dropdowns.length));
     }
+    state.templateSaveError = '';
     renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
     elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     refreshTemplateDirty();
     (draft.controls.type === 'button'
       ? elements.templateControls.querySelector('[data-template-configure-action]:last-of-type')
-      : elements.templateControls.querySelector(`[data-template-dropdown-card="${draft.controls.dropdowns.length - 1}"] [data-template-dropdown-placeholder]`))?.focus();
+      : elements.templateControls.querySelector(`[data-template-dropdown-card="${draft.controls.dropdowns.at(-1).id}"] [data-template-dropdown-placeholder]`))?.focus();
   });
   elements.templateDuplicateButton.addEventListener('click', () => duplicateMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateDeleteButton.addEventListener('click', () => deleteMessageTemplate().catch((error) => showToast(error.message, 'error')));
@@ -4954,15 +5204,30 @@
   document.addEventListener('keyup', (event) => rememberInlineTextCaret(event.target), true);
   document.addEventListener('input', (event) => rememberInlineTextCaret(event.target), true);
 
-  elements.levelingEmojiToggle.addEventListener('click', () => openEmojiPicker('leveling'));
-  elements.welcomeEmojiToggle.addEventListener('click', () => openEmojiPicker('memberMessages'));
-  elements.templateEmojiToggle.addEventListener('click', () => openEmojiPicker('messageTemplate'));
-  elements.xpDropEmojiToggle.addEventListener('click', () => openEmojiPicker('xpDrop'));
-  elements.xpClaimEmojiToggle.addEventListener('click', () => openEmojiPicker('xpClaim'));
-  elements.reactionRoleEmojiToggle.addEventListener('click', () => openEmojiPicker('reactionRole'));
+  elements.levelingEmojiToggle.addEventListener('click', () => openEmojiPicker('leveling').catch((error) => showToast(error.message, 'error')));
+  elements.welcomeEmojiToggle.addEventListener('click', () => openEmojiPicker('memberMessages').catch((error) => showToast(error.message, 'error')));
+  elements.templateEmojiToggle.addEventListener('click', () => openEmojiPicker('messageTemplate').catch((error) => showToast(error.message, 'error')));
+  elements.xpDropEmojiToggle.addEventListener('click', () => openEmojiPicker('xpDrop').catch((error) => showToast(error.message, 'error')));
+  elements.xpClaimEmojiToggle.addEventListener('click', () => openEmojiPicker('xpClaim').catch((error) => showToast(error.message, 'error')));
+  elements.reactionRoleEmojiToggle.addEventListener('click', () => openEmojiPicker('reactionRole').catch((error) => showToast(error.message, 'error')));
   elements.emojiPickerClose.addEventListener('click', closeEmojiPicker);
-  elements.emojiPickerSearch.addEventListener('input', renderEmojiPicker);
-  document.querySelector('.emoji-picker-tabs').addEventListener('click', (event) => { const tab = event.target.closest('[data-emoji-section]'); if (!tab) return; state.emojiSection = tab.dataset.emojiSection; renderEmojiPicker(); });
+  elements.emojiPickerSearch.addEventListener('input', () => {
+    window.clearTimeout(emojiSearchTimer);
+    elements.emojiPickerStatus.className = 'emoji-picker-status';
+    elements.emojiPickerStatus.textContent = 'Searching…';
+    emojiSearchTimer = window.setTimeout(renderEmojiPicker, EMOJI_SEARCH_DEBOUNCE_MS);
+  });
+  document.querySelector('.emoji-picker-tabs').addEventListener('click', async (event) => {
+    const tab = event.target.closest('[data-emoji-section]'); if (!tab) return;
+    state.emojiSection = tab.dataset.emojiSection;
+    if (state.emojiSection === 'default' && !DEFAULT_EMOJI_DATA.groups.length) {
+      elements.emojiPickerStatus.className = 'emoji-picker-status'; elements.emojiPickerStatus.textContent = 'Loading the default emoji catalog…';
+      try { await ensureDefaultEmojiData(); }
+      catch (error) { elements.emojiPickerStatus.className = 'emoji-picker-status error'; elements.emojiPickerStatus.textContent = error.message; return; }
+    }
+    if (!state.emojiCategory) state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
+    renderEmojiPicker();
+  });
   elements.emojiPickerCategories.addEventListener('click', (event) => {
     const category = event.target.closest('[data-emoji-category]');
     if (!category) return;
@@ -4971,8 +5236,12 @@
     renderEmojiPicker();
   });
   elements.emojiPickerGrid.addEventListener('click', (event) => { const button = event.target.closest('[data-emoji-index]'); if (button) applyPickedEmoji(state.emojiPickerItems[Number(button.dataset.emojiIndex)]); });
+  elements.emojiPickerGrid.addEventListener('scroll', () => {
+    if (elements.emojiPickerGrid.scrollTop + elements.emojiPickerGrid.clientHeight >= elements.emojiPickerGrid.scrollHeight - 120) appendEmojiPickerBatch();
+  }, { passive: true });
   elements.emojiPickerGrid.addEventListener('keydown', (event) => {
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(event.key)) return;
+    if (event.key === 'End' && state.emojiRenderedCount < state.emojiPickerItems.length) appendEmojiPickerBatch();
     const buttons = [...elements.emojiPickerGrid.querySelectorAll('[data-emoji-index]')]; const current = buttons.indexOf(event.target.closest('[data-emoji-index]')); if (current < 0) return;
     event.preventDefault(); const columns = Math.max(1, Math.round(elements.emojiPickerGrid.clientWidth / (buttons[0].offsetWidth + 6)));
     const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : event.key === 'ArrowUp' ? -columns : event.key === 'ArrowDown' ? columns : 0;
