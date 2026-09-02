@@ -3,25 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a0d0c">
-  <meta name="description" content="CoinSprite Discord bot dashboard">
-  <title>CoinSprite · Bot Dashboard</title>
-  <link rel="icon" type="image/png" href="/bot-avatar.png">
+  <meta name="theme-color" content="#0b0e0c">
+  <meta name="description" content="Run leveling, messages, reaction roles, and CoinSprite's RNG economy from one focused Discord dashboard.">
+  <title>CoinSprite · Discord community tools</title>
+  <link rel="icon" type="image/png" href="/admin/brand-icon.png">
   <link rel="stylesheet" href="/admin/style.css">
   <meta id="emojiDataAsset" data-src="/admin/emojiData.js">
   <script src="/admin/app.js" defer></script>
 </head>
 <body>
-  <div class="ambient ambient-one" aria-hidden="true"></div>
-  <div class="ambient ambient-two" aria-hidden="true"></div>
-
   <header class="topbar">
     <a class="brand" href="/admin" aria-label="CoinSprite home">
-      <span class="brand-mark"><img src="/bot-avatar.png" alt=""></span>
-      <span><strong>CoinSprite</strong><small>Bot dashboard</small></span>
+      <span class="brand-mark"><img src="/admin/brand-icon.png" alt=""></span>
+      <span><strong>CoinSprite</strong><small>Community tools</small></span>
     </a>
+    <nav class="public-links" aria-label="Public navigation" data-public-only>
+      <a href="#features">Features</a>
+      <a href="/chances">Crop chances</a>
+    </nav>
     <div class="topbar-actions">
-      <span class="live-pill"><i></i> Bot online</span>
+      <span class="live-pill"><i></i> Discord dashboard</span>
       <div class="account-wrap" id="accountWrap" hidden>
         <button class="user-chip" id="userChip" type="button" aria-haspopup="menu" aria-expanded="false">
           <img id="userAvatar" alt="">
@@ -40,23 +41,41 @@
 
   <main class="login-shell" id="loginPanel">
     <section class="login-copy">
-      <span class="eyebrow">Built for Discord.</span>
-      <h1>CoinSprite <em>bot.</em></h1>
-      <p>Simple tools for a smoother Discord community.</p>
-      <a class="button primary login-button" id="loginButton" href="/auth/discord">Continue with Discord <span aria-hidden="true">↗</span></a>
-      <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
-    </section>
-    <section class="signal-card" aria-label="Product preview">
-      <div class="signal-head"><span>LIVE FEED</span><b>02:41</b></div>
-      <div class="signal-orbit">
-        <span class="orbit-ring ring-one"></span><span class="orbit-ring ring-two"></span>
-        <div class="signal-core"><img src="/bot-avatar.png" alt="CoinSprite"></div>
-        <span class="signal-node node-one">Seeds</span>
-        <span class="signal-node node-two">Weather</span>
-        <span class="signal-node node-three">Sell</span>
+      <span class="eyebrow">Discord community operations</span>
+      <h1>Run the community.<br><em>Keep the fun.</em></h1>
+      <p>Leveling, polished member messages, self-assignable roles, and a deep RNG economy—organized in one fast dashboard.</p>
+      <div class="login-actions">
+        <a class="button primary login-button" id="loginButton" href="/auth/discord">Open with Discord <span aria-hidden="true">↗</span></a>
+        <a class="button ghost" href="#features">Explore features</a>
       </div>
-      <div class="signal-foot"><span><i></i> Connected</span><span>6 feeds</span></div>
+      <div class="login-note" id="loginStatus" role="status">Checking your session…</div>
+      <ul class="trust-list" aria-label="Product highlights">
+        <li>Discord-native</li><li>Server scoped</li><li>Admin controlled</li>
+      </ul>
     </section>
+    <section class="signal-card product-preview" aria-label="CoinSprite dashboard preview">
+      <header class="preview-header"><span><i></i> Community overview</span><b>Connected</b></header>
+      <div class="preview-layout">
+        <nav aria-label="Preview navigation"><span class="active">Leveling</span><span>Messages</span><span>Reaction roles</span><span>RNG game</span></nav>
+        <div class="preview-workspace">
+          <div class="preview-title"><div><small>LEVELING</small><strong>Activity settings</strong></div><span>Enabled</span></div>
+          <div class="preview-metrics"><div><small>XP range</small><strong>15–25</strong></div><div><small>Cooldown</small><strong>60 sec</strong></div><div><small>Max level</small><strong>100</strong></div></div>
+          <div class="preview-message"><span>C</span><div><strong>CoinSprite <small>APP</small></strong><p><b>@Mira</b> reached level 24. Keep it going!</p></div></div>
+          <div class="preview-row"><span>Role rewards</span><b>6 configured</b></div>
+          <div class="preview-row"><span>XP channels</span><b>4 active</b></div>
+        </div>
+      </div>
+    </section>
+    <section class="landing-features" id="features" aria-labelledby="featuresTitle">
+      <header><span class="eyebrow">Everything in its place</span><h2 id="featuresTitle">One compact control center</h2><p>Configure the parts your community uses without hunting through a maze of pages.</p></header>
+      <div class="feature-grid">
+        <article><span>01</span><div><h3>Progression</h3><p>Balance XP pacing, rewards, boosts, and scheduled drops.</p></div></article>
+        <article><span>02</span><div><h3>Messages</h3><p>Compose reusable Discord-native messages with live previews.</p></div></article>
+        <article><span>03</span><div><h3>Member choice</h3><p>Publish accessible buttons and dropdown-based reaction roles.</p></div></article>
+        <article><span>04</span><div><h3>RNG economy</h3><p>Manage game access while members roll, trade, and compete.</p></div></article>
+      </div>
+    </section>
+    <footer class="landing-footer"><span>CoinSprite</span><p>Focused tools for active Discord communities.</p><a href="/auth/discord">Open dashboard</a></footer>
   </main>
 
   <main class="profile-shell" id="profileShell" hidden>
@@ -124,7 +143,9 @@
         <p id="serverMeta">Choose a Discord server</p>
       </div>
 
-      <nav class="nav-list" aria-label="Dashboard">
+      <button class="mobile-nav-toggle" id="mobileNavToggle" type="button" aria-controls="dashboardNav" aria-expanded="false"><span>Workspace</span><b>Menu</b></button>
+
+      <nav class="nav-list" id="dashboardNav" aria-label="Dashboard">
         <button class="nav-item active" id="levelingNav" type="button" data-view="leveling"><span class="nav-icon">&#x219F;</span><span><strong>Leveling</strong><small>Locked by owner</small></span></button>
         <button class="nav-item" id="welcomeMessagesNav" type="button" data-view="member-messages"><span class="nav-icon">&#x1F44B;</span><span><strong>Welcome Messages</strong><small>Join, leave &amp; boost</small></span></button>
         <button class="nav-item" id="messageTemplatesNav" type="button" data-view="message-templates"><span class="nav-icon">&#x2398;</span><span><strong>Message Templates</strong><small>Compose &amp; reuse</small></span></button>

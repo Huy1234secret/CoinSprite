@@ -536,6 +536,9 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /option:\$\{dropdown\.id\}:\$\{option\.id\}/);
   assert.match(app, /EMOJI_SEARCH_DEBOUNCE_MS/);
   assert.match(app, /EMOJI_RENDER_BATCH/);
+  assert.match(app, /const EMOJI_RENDER_BATCH = 96/);
+  assert.match(app, /directoryEmojiItemCache/);
+  assert.match(app, /cached\?\.source === source/);
   assert.match(app, /ensureDefaultEmojiData/);
   assert.match(app, /appendEmojiPickerBatch/);
   assert.match(app, /controls\.dropdowns\.length >= 5/);

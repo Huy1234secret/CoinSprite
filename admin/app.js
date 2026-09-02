@@ -22,12 +22,13 @@
   ]);
   const EMPTY_EMOJI_DATA = Object.freeze({ version: '', emojiCount: 0, groups: Object.freeze([]) });
   const DEFAULT_EMOJI_DATA_URL = document.querySelector('#emojiDataAsset')?.dataset.src || '/admin/emojiData.js';
-  const EMOJI_RENDER_BATCH = 160;
+  const EMOJI_RENDER_BATCH = 96;
   const EMOJI_SEARCH_DEBOUNCE_MS = 120;
   let DEFAULT_EMOJI_DATA = window.COINSPRITE_EMOJI_DATA || EMPTY_EMOJI_DATA;
   let defaultEmojiDataPromise = null;
   let emojiSearchTimer = null;
   const defaultEmojiItemCache = new Map();
+  const directoryEmojiItemCache = new Map();
   const cardFontLoads = new Map();
   const CARD_PREVIEW_DEBOUNCE_MS = 350;
   const CARD_SNAP_DISTANCE = 6;
@@ -130,7 +131,7 @@
   const elements = {
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
-    userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'),
+    userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'), mobileNavToggle: $('#mobileNavToggle'),
     guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), rngGameNav: $('#rngGameNav'),
     levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
@@ -251,6 +252,7 @@
     elements.loginPanel.hidden = Boolean(user);
     elements.appShell.hidden = !user || profileRoute;
     elements.profileShell.hidden = !user || !profileRoute;
+    document.body.classList.toggle('is-authenticated', Boolean(user));
     elements.logoutButton.hidden = !user;
     elements.accountWrap.hidden = !user;
     elements.ownerNav.hidden = !state.me?.owner;
@@ -1555,11 +1557,16 @@
 
   function pickerItems(section = state.emojiSection, allDefaults = false) {
     if (section === 'default') return defaultEmojiItems(allDefaults ? '' : state.emojiCategory);
-    return (state.directory.emojis?.[section] || []).map((emoji) => {
+    const source = state.directory.emojis?.[section] || [];
+    const cached = directoryEmojiItemCache.get(section);
+    if (cached?.source === source) return cached.items;
+    const items = source.map((emoji) => {
       const item = { ...normalizePickerEmoji(emoji), url: String(emoji.url || ''), searchName: String(emoji.name || '') };
       item.searchText = `${item.searchName} ${item.name}`.toLowerCase();
-      return item;
+      return Object.freeze(item);
     });
+    directoryEmojiItemCache.set(section, { source, items });
+    return items;
   }
 
   function renderEmojiCategories(search) {
@@ -2914,6 +2921,7 @@
       ]);
       if (state.guildId !== guildId) return;
       state.directory = { channels: [], roles: [], emojis: { bot: [], group: [], errors: {} }, ...directoryPayload.directory };
+      directoryEmojiItemCache.clear();
       state.config = {
         ...configPayload.config,
         leveling: normalizeLevelingConfig(configPayload.config),
@@ -3128,6 +3136,8 @@
       return;
     }
     state.currentView = view;
+    document.body.classList.remove('mobile-nav-open');
+    elements.mobileNavToggle?.setAttribute('aria-expanded', 'false');
     document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
     document.querySelectorAll('[data-view-panel]').forEach((panel) => {
       const active = panel.dataset.viewPanel === view;
@@ -5272,6 +5282,13 @@
     if (event.key !== 'Escape') return;
     elements.accountMenu.hidden = true;
     elements.userChip.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('mobile-nav-open');
+    elements.mobileNavToggle?.setAttribute('aria-expanded', 'false');
+  });
+  elements.mobileNavToggle?.addEventListener('click', () => {
+    const open = !document.body.classList.contains('mobile-nav-open');
+    document.body.classList.toggle('mobile-nav-open', open);
+    elements.mobileNavToggle.setAttribute('aria-expanded', String(open));
   });
   document.querySelector('.nav-list').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');

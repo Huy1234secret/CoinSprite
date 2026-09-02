@@ -93,7 +93,7 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (!['index.html', 'emojiData.js', 'app.js', 'style.css', 'chances.html', 'chances.js', 'chances.css'].includes(filename)) return null;
+  if (!['index.html', 'emojiData.js', 'app.js', 'style.css', 'chances.html', 'chances.js', 'chances.css', 'brand-icon.png'].includes(filename)) return null;
   try {
     let source = fs.readFileSync(path.join(ADMIN_DIR, filename));
     if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
