@@ -1132,7 +1132,7 @@
   });
   const TEMPLATE_ACTION_TYPES = Object.freeze(['send_message', 'give_role', 'remove_role', 'dm_message']);
   const TEMPLATE_ACTION_LABELS = Object.freeze({
-    send_message: 'Send message', give_role: 'Give role', remove_role: 'Remove role', dm_message: 'DM message',
+    send_message: 'Send ephemeral message', give_role: 'Give role', remove_role: 'Remove role', dm_message: 'DM message',
   });
   const TEMPLATE_CONTROL_DEFAULTS = Object.freeze({
     type: 'none', buttons: Object.freeze([]),
@@ -2714,7 +2714,7 @@
       const options = ['<option value="">Choose a Message Template</option>', ...items.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.name)}${item.enabled ? '' : ' (disabled)'}</option>`)];
       if (selected && !items.some((item) => item.id === selected)) options.push(`<option value="${escapeHtml(selected)}" selected disabled>Missing template (${escapeHtml(selected)})</option>`);
       elements.templateActionTarget.innerHTML = options.join('');
-      elements.templateActionHelp.textContent = action.type === 'dm_message' ? 'Closed DMs produce a friendly private error.' : 'The template is sent in the text channel where the interaction occurs.';
+      elements.templateActionHelp.textContent = action.type === 'dm_message' ? 'Closed DMs produce a friendly private error.' : 'The template is shown only to the member who used the button or dropdown.';
     } else {
       const selected = String(action.roleId || '');
       const roles = safeTemplateRoles();

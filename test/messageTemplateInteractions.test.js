@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { PermissionFlagsBits } = require('discord.js');
+const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 
 const {
   DEFAULT_TEMPLATE_LAYOUT,
@@ -262,6 +262,7 @@ function runtimeFixture(collection, { initialRoles = [], dmFails = false, guildI
   const dms = [];
   const operations = [];
   const responses = [];
+  const followUps = [];
   const memberRoles = new Set(initialRoles);
   const makeRole = (id, name) => ({ id, name, managed: false, editable: true, permissions: { has: () => false }, comparePositionTo: () => -1 });
   const roles = new Map([[ROLE_A, makeRole(ROLE_A, 'Artist')], [ROLE_B, makeRole(ROLE_B, 'Gamer')]]);
@@ -299,15 +300,16 @@ function runtimeFixture(collection, { initialRoles = [], dmFails = false, guildI
     user, member: guildInteraction ? member : null, customId: '', values: [], deferred: false, replied: false,
     deferReply: async (payload) => { interaction.deferred = true; responses.push({ defer: payload }); },
     editReply: async (payload) => { responses.push(payload); },
+    followUp: async (payload) => { followUps.push(payload); },
     reply: async (payload) => { interaction.replied = true; responses.push(payload); },
   };
   return {
-    interaction, guild, channel, memberRoles, operations, responses, sent, dms,
+    interaction, guild, channel, memberRoles, operations, responses, followUps, sent, dms,
     getGuildConfigRaw: () => ({ enabled: true, messageTemplates: collection }),
   };
 }
 
-test('send-message and successful DM actions reuse full template payloads without chaining actions', async () => {
+test('ephemeral send-message and successful DM actions reuse full template payloads without chaining actions', async () => {
   const { collection, channelTarget, dmTarget } = collectionWithTargets();
   updateTemplate(collection, dmTarget.id, {
     document: { ...templateDocument(dmTarget), controls: controls('button', [button('control_nested12', 'send_message', channelTarget.id)]) },
@@ -320,14 +322,45 @@ test('send-message and successful DM actions reuse full template payloads withou
   fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
   fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   assert.equal(await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} }), true);
-  assert.equal(fixture.sent.length, 1);
+  assert.equal(fixture.sent.length, 0);
   assert.equal(fixture.dms.length, 1);
-  assert.deepEqual(fixture.sent[0].allowedMentions, { parse: [], users: [], roles: [] });
+  const ephemeralTemplate = fixture.responses.find((payload) => Array.isArray(payload.components));
+  assert.deepEqual(fixture.responses[0].defer, { flags: MessageFlags.Ephemeral });
+  assert.deepEqual(ephemeralTemplate.allowedMentions, { parse: [], users: [], roles: [] });
   assert.deepEqual(fixture.dms[0].allowedMentions, { parse: [], users: [], roles: [] });
   const dmButton = fixture.dms[0].components.find((component) => component.type === 1).components[0];
   assert.equal(parseTemplateControlCustomId(dmButton.custom_id).guildId, GUILD_ID);
-  assert.equal(fixture.sent.length, 1, 'nested DM controls are delivered but not automatically executed');
-  assert.match(fixture.responses.at(-1).content, /Completed 2 of 2 actions/);
+  assert.equal(fixture.sent.length, 0, 'nested DM controls are delivered but not automatically executed');
+  assert.match(fixture.followUps.at(-1).content, /Completed 2 of 2 actions/);
+  assert.ok(fixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
+});
+
+test('button and multi-select dropdown send-message actions are always ephemeral', async () => {
+  const { collection, channelTarget, dmTarget } = collectionWithTargets();
+  const buttonSource = createSource(collection, controls('button', [button('control_private1', 'send_message', channelTarget.id)]));
+  const buttonFixture = runtimeFixture(collection);
+  buttonFixture.interaction.customId = templateButtonCustomId(GUILD_ID, buttonSource, buttonSource.controls.buttons[0]);
+  await handleMessageTemplateInteraction(buttonFixture.interaction, { getGuildConfigRaw: buttonFixture.getGuildConfigRaw, log: () => {} });
+  assert.equal(buttonFixture.sent.length, 0);
+  assert.deepEqual(buttonFixture.responses[0].defer, { flags: MessageFlags.Ephemeral });
+  assert.ok(buttonFixture.responses.some((payload) => Array.isArray(payload.components)));
+  assert.ok(buttonFixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
+
+  const dropdownSource = createSource(collection, controls('dropdown', [
+    option('control_private2', 'send_message', channelTarget.id, { sortOrder: 0 }),
+    option('control_private3', 'send_message', dmTarget.id, { sortOrder: 1 }),
+  ], { allowMultiple: true }));
+  const dropdownFixture = runtimeFixture(collection);
+  dropdownFixture.interaction.customId = templateSelectCustomId(GUILD_ID, dropdownSource, activeDropdown(dropdownSource));
+  dropdownFixture.interaction.values = activeDropdown(dropdownSource).options.map(templateOptionValue);
+  await handleMessageTemplateInteraction(dropdownFixture.interaction, { getGuildConfigRaw: dropdownFixture.getGuildConfigRaw, log: () => {} });
+  assert.equal(dropdownFixture.sent.length, 0);
+  assert.deepEqual(dropdownFixture.responses[0].defer, { flags: MessageFlags.Ephemeral });
+  assert.ok(dropdownFixture.responses.some((payload) => Array.isArray(payload.components)));
+  assert.ok(dropdownFixture.followUps[0].flags & MessageFlags.Ephemeral);
+  assert.ok(dropdownFixture.followUps[0].flags & MessageFlags.IsComponentsV2);
+  assert.match(dropdownFixture.followUps.at(-1).content, /Completed 2 of 2 actions/);
+  assert.ok(dropdownFixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
 });
 
 test('DM failures are friendly and multi-select actions report partial success sequentially', async () => {
@@ -340,9 +373,9 @@ test('DM failures are friendly and multi-select actions report partial success s
   fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
   fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
-  assert.equal(fixture.sent.length, 1);
-  assert.match(fixture.responses.at(-1).content, /Completed 1 of 2 actions/);
-  assert.match(fixture.responses.at(-1).content, /direct messages may be closed/);
+  assert.equal(fixture.sent.length, 0);
+  assert.match(fixture.followUps.at(-1).content, /Completed 1 of 2 actions/);
+  assert.match(fixture.followUps.at(-1).content, /direct messages may be closed/);
 });
 
 test('each dropdown resolves only its own selected options', async () => {
@@ -377,7 +410,9 @@ test('already-sent version-2 dropdown custom IDs remain functional after migrati
   fixture.interaction.customId = legacyCustomId;
   fixture.interaction.values = sourceDropdown.options.map(templateOptionValue);
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
-  assert.equal(fixture.sent.length, 1);
+  assert.equal(fixture.sent.length, 0);
+  assert.deepEqual(fixture.responses[0].defer, { flags: MessageFlags.Ephemeral });
+  assert.ok(fixture.responses.some((payload) => Array.isArray(payload.components)));
 });
 
 test('give/remove role actions are safe and idempotent, including controls clicked in DMs', async () => {
@@ -489,6 +524,8 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /state\.templateDraft\.controls = documentValue\.controls/);
   assert.match(app, /resolvedTemplatePayloadPreview[\s\S]*custom_id/);
   assert.match(app, /Only selected options in this dropdown run their configured actions/);
+  assert.match(app, /Send ephemeral message/);
+  assert.match(app, /shown only to the member who used the button or dropdown/);
   assert.match(app, /data-template-dropdown-add-option/);
   assert.match(app, /data-template-control-duplicate/);
   assert.match(app, /Delete option/);

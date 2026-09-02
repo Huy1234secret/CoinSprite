@@ -4,7 +4,6 @@ const {
   buildTemplatePayload,
   normalizeMessageTemplatesConfig,
   parseTemplateControlCustomId,
-  sendTemplate,
   templateById,
   templateControlIdentityToken,
   templateControlRevisionToken,
@@ -22,11 +21,14 @@ async function deferEphemeral(interaction) {
   }
 }
 
-async function ephemeral(interaction, content) {
+async function ephemeral(interaction, content, options = {}) {
   const payload = {
     content: String(content || 'This Message Template action could not be completed.').slice(0, 1900),
     allowedMentions: { parse: [], users: [], roles: [] },
   };
+  if (options.followUp && typeof interaction?.followUp === 'function') {
+    return interaction.followUp({ ...payload, flags: EPHEMERAL });
+  }
   if (interaction?.deferred || interaction?.replied) return interaction.editReply?.(payload);
   return interaction?.reply?.({ ...payload, flags: EPHEMERAL });
 }
@@ -100,8 +102,16 @@ async function executeTemplateAction(action, context) {
     if (context.interaction?.guildId !== context.guild.id) {
       throw Object.assign(new Error('No server channel.'), { friendlyMessage: 'This action can send only from a server text channel.' });
     }
-    const sent = await sendTemplate(target, context.guild, { channelId: context.interaction.channelId });
-    return `Sent “${target.name}” in #${sent.channel?.name || sent.channel?.id || 'channel'}`;
+    const payload = buildTemplatePayload(target, context.guild, context.interaction.channel);
+    if (context.ephemeralTemplateCount) {
+      if (typeof context.interaction?.followUp !== 'function') throw new Error('Ephemeral follow-up delivery is unavailable.');
+      await context.interaction.followUp({ ...payload, flags: Number(payload.flags || 0) | EPHEMERAL });
+    } else {
+      if (typeof context.interaction?.editReply !== 'function') throw new Error('Ephemeral reply delivery is unavailable.');
+      await context.interaction.editReply(payload);
+    }
+    context.ephemeralTemplateCount = (context.ephemeralTemplateCount || 0) + 1;
+    return `Showed “${target.name}” privately`;
   }
   const payload = buildTemplatePayload(
     target,
@@ -200,13 +210,13 @@ async function handleMessageTemplateInteraction(interaction, options = {}) {
     }
   }
 
-  const context = { interaction, guild, collection, memberPromise: null, roleContextPromise: null };
+  const context = { interaction, guild, collection, memberPromise: null, roleContextPromise: null, ephemeralTemplateCount: 0 };
   const results = [];
   for (const control of controls) {
     try { results.push({ ok: true, message: await executeTemplateAction(control.action, context) }); }
     catch (error) { results.push({ ok: false, message: friendlyActionError(error, 'That action could not be completed.') }); }
   }
-  await ephemeral(interaction, resultSummary(results));
+  await ephemeral(interaction, resultSummary(results), { followUp: context.ephemeralTemplateCount > 0 });
   (options.log || require('./commandLogger').logCommandSystem)(`Message Template ${source.id} executed ${results.length} control action(s) for user ${interaction.user?.id || 'unknown'} in guild ${parsed.guildId}.`);
   return true;
 }
