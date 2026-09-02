@@ -493,6 +493,7 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /controls\.dropdowns\.length >= 5/);
   assert.match(app, /template-dropdown-title/);
   assert.match(app, /template-control-primary/);
+  assert.match(app, /if \(target\.matches\('\[data-template-control-action\]'\)\) renderTemplateControls\(\)/);
   assert.match(app, /rememberInlineTextCaret/);
   assert.match(app, /restoreEmojiTextTarget/);
   assert.match(css, /\.template-control-row\.incomplete/);

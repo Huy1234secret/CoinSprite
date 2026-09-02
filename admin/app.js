@@ -2472,7 +2472,8 @@
       if (entries?.[entryIndex]) entries[entryIndex].action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
     }
     if (target.closest?.('[data-template-control-row]') || target.matches('[data-template-dropdown-placeholder],[data-template-dropdown-multiple]')) {
-      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      if (target.matches('[data-template-control-action]')) renderTemplateControls();
+      renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     }
     updateTemplateDeepLink();
