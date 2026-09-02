@@ -29,6 +29,18 @@ test('admin entrypoint receives content-derived JavaScript, emoji data, and styl
   assert.doesNotMatch(html, /20260806-9/);
 });
 
+test('shared CoinSprite brand icon is available to every public page', () => {
+  const icon = loadAdminAsset('brand-icon.png');
+  assert.ok(icon);
+  assert.ok(icon.data.length > 1_000);
+  assert.match(icon.version, /^[a-f0-9]{16}$/);
+  for (const page of ['index.html', 'chances.html']) {
+    const html = loadAdminAsset(page).data.toString('utf8');
+    assert.match(html, /rel="icon" type="image\/png" href="\/admin\/brand-icon\.png"/);
+    assert.match(html, /class="brand-mark"><img src="\/admin\/brand-icon\.png"/);
+  }
+});
+
 test('stylesheet and bundled font URLs use recursive content hashes', () => {
   const style = loadAdminAsset('style.css').data.toString('utf8');
   const cssMatch = style.match(/\/admin\/fonts\/noto-sans\.css\?v=([a-f0-9]{16})/);

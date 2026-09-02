@@ -6,7 +6,7 @@
 .chance-identity .eyebrow { margin-bottom: 8px; }
 .chance-identity h1 { margin: 0; font-size: clamp(38px, 5vw, 64px); line-height: .96; letter-spacing: -.055em; }
 .chance-identity p { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
-.luck-card { min-width: 190px; display: grid; gap: 5px; padding: 17px 19px; border: 1px solid rgba(185,245,71,.25); border-radius: 17px; background: linear-gradient(145deg, rgba(185,245,71,.1), rgba(94,231,208,.035)), var(--panel); }
+.luck-card { min-width: 190px; display: grid; gap: 5px; padding: 17px 19px; border: 1px solid rgba(185,245,71,.25); border-radius: 17px; background: var(--panel); }
 .luck-card span { color: var(--lime); font-size: 9px; font-weight: 850; letter-spacing: .16em; }
 .luck-card strong { font-size: 25px; letter-spacing: -.03em; }
 .luck-card small { color: var(--muted); font-size: 11px; }
@@ -41,7 +41,7 @@
 @keyframes chance-spin { to { transform: rotate(360deg); } }
 .crop-chance-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; gap: 14px; }
 .crop-chance-card { min-width: 0; height: 330px; display: grid; grid-template-rows: 170px minmax(0,1fr); overflow: hidden; border: 2px solid var(--card-outline, rgba(255,255,255,.2)); border-radius: 19px; background: #12161d; box-shadow: 0 14px 34px rgba(0,0,0,.2); }
-.crop-chance-card.rainbow { border-color: transparent; background: linear-gradient(#12161d,#12161d) padding-box, linear-gradient(135deg,#f00,#ff8a00,#fff200,#22c55e,#00e5ff,#3b82f6,#a855f7,#f00) border-box; }
+.crop-chance-card.rainbow { border-color: #b8ef5a; background: #12161d; }
 .crop-chance-card:focus-within { outline: 2px solid var(--lime); outline-offset: 3px; }
 .chance-card-upper { position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 17px 17px 0 0; }
 .chance-card-upper::before { position: absolute; inset: 0; content: ""; opacity: .035; background-image: url('/assets/rng/studs-texture.png'); background-position: -88px -88px; background-size: 176px 176px; }
@@ -104,3 +104,30 @@
   .use-my-luck { padding-inline: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
+
+/* Compact probability workspace */
+.chances-shell { width: min(1440px,calc(100% - 32px)); padding: 24px 0 72px; }
+.chances-hero { gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.chance-identity { gap: 12px; }.chance-identity > img { width: 52px; height: 52px; border: 1px solid #536541; border-radius: 12px; box-shadow: none; }
+.chance-identity .eyebrow { margin-bottom: 4px; }.chance-identity h1 { font-size: clamp(24px,3vw,34px); line-height: 1.05; }.chance-identity p { margin-top: 5px; font-size: 11px; }
+.luck-card { min-width: 170px; gap: 3px; padding: 11px 13px; border-color: #46583d; border-radius: 9px; background: var(--panel); }.luck-card strong { font-size: 20px; }
+.chance-intro { gap: 18px; margin: 14px 0; padding: 14px 16px; border-radius: 9px; background: var(--panel); }.chance-intro .step { width: 28px; height: 28px; border-radius: 7px; }.chance-intro h2 { font-size: 15px; }.chance-intro p { margin-top: 4px; font-size: 10px; line-height: 1.5; }
+.calculation-badge,.preview-only { border-radius: 999px; }
+.luck-calculator { top: 68px; grid-template-columns: minmax(180px,.58fr) minmax(390px,1fr); gap: 8px 16px; margin-bottom: 14px; padding: 9px 11px; border-color: #46583d; border-radius: 9px; background: #121713; box-shadow: 0 8px 20px rgba(0,0,0,.22); backdrop-filter: none; }
+.luck-step,.luck-input-wrap { border-radius: 7px; }.new-player-note { margin-bottom: 14px; padding: 11px 13px; border-radius: 8px; }
+.chance-state { min-height: 200px; border-radius: 10px; background: var(--panel); }
+.crop-chance-grid { gap: 9px; }
+.crop-chance-card { height: 270px; grid-template-rows: 132px minmax(0,1fr); border-width: 1px; border-radius: 10px; background: #12161d; box-shadow: none; }
+.crop-chance-card.rainbow { border-color: var(--card-outline,#9b79ff); background: #12161d; }
+.chance-card-upper { border-radius: 9px 9px 0 0; }.chance-card-upper::before { display: none; background-image: none; }
+.chance-art-stage { width: 108px; height: 108px; border-radius: 13px; background: #0b0f13; }.chance-art-stage img { width: 88px; height: 92px; }
+.chance-card-info { padding: 10px 11px 11px; }.chance-card-title h2 { font-size: 15px; }.chance-comparison { gap: 5px; margin-top: 10px; }.chance-value strong { font-size: 10px; }.chance-value small { font-size: 8px; }
+.chance-signal { position: relative; min-height: 300px; }.chance-signal .signal-head,.chance-signal .signal-foot { position: absolute; right: 16px; left: 16px; z-index: 2; display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; }.chance-signal .signal-head { top: 14px; }.chance-signal .signal-head b { color: var(--lime); }.chance-signal .signal-foot { bottom: 14px; padding-top: 12px; border-top: 1px solid var(--line); }.chance-signal .signal-foot span { display: flex; align-items: center; gap: 7px; }
+.chance-signal-body { inset: 46px 16px 48px; gap: 10px; }.chance-signal-body > div { gap: 6px; padding: 16px 12px; border-radius: 9px; background: #0d110e; }.chance-signal-body strong { font-size: clamp(15px,2vw,20px); }.chance-signal-body > i { font-size: 20px; }
+@media (max-width: 700px) {
+  .chances-shell { width: min(100% - 24px,600px); padding-top: 18px; }.chance-identity > img { width: 46px; height: 46px; }.luck-card { width: 100%; }.chance-intro { align-items: flex-start; }
+  .luck-calculator { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 8px; border-radius: 9px; }.crop-chance-card { height: 250px; grid-template-rows: 118px minmax(0,1fr); }.chance-art-stage { width: 96px; height: 96px; }.chance-art-stage img { width: 78px; height: 82px; }
+}
+@media (max-width: 460px) {
+  .chance-identity h1 { font-size: 24px; }.crop-chance-card { height: 250px; grid-template-rows: 118px minmax(0,1fr); }.chance-art-stage { width: 96px; height: 96px; }.chance-art-stage img { width: 78px; height: 82px; }
+}
