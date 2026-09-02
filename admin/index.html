@@ -147,6 +147,7 @@
         <button class="nav-item" id="welcomeMessagesNav" type="button" data-view="member-messages"><span class="nav-icon">&#x1F44B;</span><span><strong>Welcome Messages</strong><small>Join, leave &amp; boost</small></span></button>
         <button class="nav-item" id="messageTemplatesNav" type="button" data-view="message-templates"><span class="nav-icon">&#x2398;</span><span><strong>Message Templates</strong><small>Compose &amp; reuse</small></span></button>
         <button class="nav-item" id="reactionRolesNav" type="button" data-view="reaction-roles"><span class="nav-icon">&#x1F3AD;</span><span><strong>Reaction Roles</strong><small>Self-assignable roles</small></span></button>
+        <button class="nav-item" id="gamesNav" type="button" data-view="games"><span class="nav-icon">&#x1F3AE;</span><span><strong>Games</strong><small>Counting</small></span></button>
         <button class="nav-item" id="ownerNav" type="button" data-view="owner" hidden><span class="nav-icon">⌘</span><span><strong>Owner panel</strong><small>Fleet & console</small></span></button>
       </nav>
 
@@ -238,6 +239,19 @@
 
         <section class="leveling-command-strip">
           <span>V2 COMMANDS</span><code>/level</code><code>/leaderboard</code><code>/level-set</code><code>/xp-add</code><code>/drop-crate</code><code>/leveling-setup</code>
+        </section>
+      </section>
+
+      <section class="view" id="gamesView" data-view-panel="games" hidden>
+        <header class="workspace-head">
+          <div><span class="eyebrow">GAMES</span><h1>Community games.</h1><p>Choose where CoinSprite's persistent server games run.</p></div>
+        </header>
+        <div class="games-tabs" role="tablist" aria-label="Games">
+          <button class="active" type="button" role="tab" aria-selected="true">Counting</button>
+        </div>
+        <section class="section-block counting-settings">
+          <div class="section-heading"><div><span class="step">01</span><h2>Counting</h2></div><p>Members count upward together. Selecting no channel disables the game.</p></div>
+          <label class="field-card counting-channel-setting"><span>Counting channel<small>One message-capable text channel in this server</small></span><select id="countingChannel"></select></label>
         </section>
       </section>
 

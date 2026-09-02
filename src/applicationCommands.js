@@ -1,5 +1,6 @@
 const { LEVELING_COMMANDS } = require('./leveling');
 const { RNG_GAME_COMMANDS } = require('./features/rng-game');
+const { COUNTING_COMMANDS } = require('./features/counting');
 const { getGuildConfigRaw } = require('./serverConfig');
 
 const GLOBAL_APPLICATION_COMMANDS = Object.freeze([]);
@@ -11,6 +12,7 @@ function commandJson(commands) {
 function featureCommandsForConfig(config) {
   if (!config || config.enabled === false) return [];
   const commands = [];
+  commands.push(...commandJson(COUNTING_COMMANDS));
   if (config.features?.leveling === true && config.leveling?.enabled === true) {
     commands.push(...commandJson(LEVELING_COMMANDS));
   }
