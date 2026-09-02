@@ -213,10 +213,13 @@ async function handleMessageTemplateInteraction(interaction, options = {}) {
   const context = { interaction, guild, collection, memberPromise: null, roleContextPromise: null, ephemeralTemplateCount: 0 };
   const results = [];
   for (const control of controls) {
-    try { results.push({ ok: true, message: await executeTemplateAction(control.action, context) }); }
-    catch (error) { results.push({ ok: false, message: friendlyActionError(error, 'That action could not be completed.') }); }
+    try { results.push({ ok: true, type: control.action.type, message: await executeTemplateAction(control.action, context) }); }
+    catch (error) { results.push({ ok: false, type: control.action.type, message: friendlyActionError(error, 'That action could not be completed.') }); }
   }
-  await ephemeral(interaction, resultSummary(results), { followUp: context.ephemeralTemplateCount > 0 });
+  const summarizedResults = results.filter((result) => result.type !== 'send_message' || !result.ok);
+  if (summarizedResults.length) {
+    await ephemeral(interaction, resultSummary(summarizedResults), { followUp: context.ephemeralTemplateCount > 0 });
+  }
   (options.log || require('./commandLogger').logCommandSystem)(`Message Template ${source.id} executed ${results.length} control action(s) for user ${interaction.user?.id || 'unknown'} in guild ${parsed.guildId}.`);
   return true;
 }
