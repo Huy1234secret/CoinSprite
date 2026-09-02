@@ -19,8 +19,6 @@ const {
 const { logCommandSystem } = require('./commandLogger');
 const { syncGuildApplicationCommands } = require('./applicationCommands');
 const { loadAdminAsset, loadAdminFont } = require('./adminAssets');
-const { cropChanceProfile } = require('./features/rng-game/services/chanceService');
-const { STUDS_TEXTURE_PATH } = require('./features/rng-game/services/indexRenderer');
 const { levelCardRendererIdentity, logLevelCardRendererIdentity } = require('./canvasFonts');
 const {
   handleOwnerConsole,
@@ -86,9 +84,6 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
-  ['/admin/chances.html', ['chances.html', 'text/html; charset=utf-8']],
-  ['/admin/chances.js', ['chances.js', 'application/javascript; charset=utf-8']],
-  ['/admin/chances.css', ['chances.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
@@ -457,17 +452,6 @@ function serveAdminFont(res, pathname, requestedVersion = '') {
   });
 }
 
-function serveStudsTexture(res) {
-  try {
-    return send(res, 200, fs.readFileSync(STUDS_TEXTURE_PATH), {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
-    });
-  } catch {
-    return send(res, 404, 'Not found');
-  }
-}
-
 function redirectBotAvatar(res, client) {
   const url = client.user?.displayAvatarURL?.({ extension: 'png', size: 128 });
   if (!url) return send(res, 404, 'Bot avatar unavailable');
@@ -690,7 +674,7 @@ function publicConfig(config) {
 
 function safeOAuthReturnTo(value) {
   const route = String(value || '');
-  if (['/admin', '/profile', '/chances'].includes(route)) return route;
+  if (['/admin', '/profile'].includes(route)) return route;
   let parsed;
   try { parsed = new URL(route, 'http://coinsprite.local'); } catch { return '/admin'; }
   if (parsed.origin !== 'http://coinsprite.local' || parsed.pathname !== '/admin') return '/admin';
@@ -771,9 +755,7 @@ async function routeRequest(req, res, env, client, services = {}) {
   const pathname = url.pathname;
 
   if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
-  if (req.method === 'GET' && (pathname === '/chances' || pathname === '/chances/')) return serveAsset(res, '/admin/chances.html');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
-  if (req.method === 'GET' && pathname === '/assets/rng/studs-texture.png') return serveStudsTexture(res);
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
   if (req.method === 'GET' && pathname.startsWith('/message-media/')) return serveLevelingMedia(res, pathname);
@@ -801,21 +783,6 @@ async function routeRequest(req, res, env, client, services = {}) {
       csrfToken: session.csrfToken,
       guilds: await accessibleGuilds(client, session),
     });
-  }
-
-  if (req.method === 'GET' && pathname === '/api/profile/crop-chances') {
-    const session = await requireSignedIn(req, res, env);
-    if (!session) return;
-    const repository = services.rngGame?.repository || services.rngRepository;
-    if (!repository) return sendJson(res, 503, { error: 'Crop chances are temporarily unavailable.' });
-    try {
-      return sendJson(res, 200, cropChanceProfile(repository, session.user.id, {
-        previewLuckMultiplier: url.searchParams.has('luck') ? url.searchParams.get('luck') : undefined,
-      }));
-    } catch (error) {
-      if (error instanceof RangeError) return sendJson(res, 400, { error: error.message });
-      throw error;
-    }
   }
 
   if (req.method === 'GET' && pathname === '/api/owner/overview') {

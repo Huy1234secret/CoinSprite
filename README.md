@@ -51,7 +51,7 @@ Production verification:
 
 Guild settings are stored in `data/server-config.json`, while member XP is stored atomically in `data/leveling.json`.
 
-Every optional feature defaults locked and disabled for every server; the bot owner can independently unlock Leveling and the RNG Game from the fleet's **Feature access** dropdown. When CoinSprite joins a server, it creates that server's configuration and makes it available in the owner panel.
+Every optional feature defaults locked and disabled for every server. The bot owner can manage Leveling access from the fleet's **Feature access** dropdown. When CoinSprite joins a server, it creates that server's configuration and makes it available in the owner panel.
 
 The dashboard lets Discord administrators configure unlocked features:
 
@@ -59,9 +59,8 @@ The dashboard lets Discord administrators configure unlocked features:
 - a live Discord-markdown Components V2 composer with containers, accent colors, thumbnails, `{separator}` lines, and image galleries;
 - scheduled XP crates with a global drop channel plus optional per-crate fallbacks, images, XP ranges, guided `s`/`m`/`h`/`d` duration inputs, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages (including `{list_claimed_user}`), and zero-XP test sends;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
-- multi-channel and forum access settings for the RNG Game, including cooldown-bypass roles.
 
-The focused application commands include the Leveling commands (including `/drop-crate`) and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/calculate-chance`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!calculate chance`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
+The focused application commands include the Leveling commands (including `/drop-crate`) and the RNG/economy commands `/roll`, `/inventory`, `/sell`, `/balance`, `/auto-roll`, `/upgrade`, `/index`, `/stat`, `/shop`, `/use`, `/g-rps`, and `/g-roulette`. RNG prefix commands are `c!roll`, `c!inventory`, `c!sell`, `c!balance`, `c!auto roll`, `c!auto-roll`, `c!upgrade`, `c!index`, `c!stat`, `c!shop`, and `c!use <item name> [amount]`. Prefix and slash entry points share the same services, locks, persistence, modifiers, and cooldowns.
 
 ### European Roulette
 
@@ -76,8 +75,6 @@ The focused application commands include the Leveling commands (including `/drop
 The unified `/inventory` and `c!inventory` response has Crops, Items, and Pets views. Item storage is unlimited. The Items view summarizes active expirations and watering-can charges, while the Pets view shows final combined bonuses after stacking and caps. Pet slot 1 is free, slot 2 costs 10,000,000 Sheckles, and slot 3 costs 50,000,000 Sheckles. Only equipped pet instances grant perks, so duplicate species can fill multiple slots only when the player owns enough copies.
 
 Egg animations live in `images/egg_open`. The current supplied filename convention is rarity-prefixed PascalCase: `CFrog.gif`, `CBunny.gif`, `UCOwl.gif`, `MDeer.gif`, `RTurtle.gif`, `LRobin.gif`, `LBee.gif`, `LButterfly.gif`, `MMonkey.gif`, `MFirefly.gif`, `MGoldenDragonfly.gif`, `MUnicorn.gif`, and `LBear.gif`. The centralized pet catalogue maps species to these filenames. A missing species animation falls back to `default.gif`, then to the pet emoji PNG.
-
-Signed-in players can also open `/chances` to compare every visible crop's base roll probability with the probability adjusted for their current Luck tier. Undiscovered crops remain masked, and Secret crops are excluded from the page and API response.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
