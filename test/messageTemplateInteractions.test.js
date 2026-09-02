@@ -15,6 +15,8 @@ const {
   parseTemplateDocument,
   templateButtonCustomId,
   templateDocument,
+  templateIdentityToken,
+  templateLegacyDropdownRevisionToken,
   templateOptionValue,
   templateSelectCustomId,
   updateTemplate,
@@ -58,7 +60,27 @@ function option(id, type, target, overrides = {}) {
   };
 }
 
+function dropdown(id, entries = [], overrides = {}) {
+  return {
+    id,
+    placeholder: overrides.placeholder || 'Choose an option',
+    allowMultiple: overrides.allowMultiple === true,
+    sortOrder: overrides.sortOrder || 0,
+    options: entries,
+  };
+}
+
 function controls(type, entries = [], overrides = {}) {
+  return {
+    type,
+    buttons: type === 'button' ? entries : [],
+    dropdowns: type === 'dropdown'
+      ? overrides.dropdowns || [dropdown('dropdown_default1', entries, overrides)]
+      : overrides.dropdowns || [],
+  };
+}
+
+function controlsV2(type, entries = [], overrides = {}) {
   return {
     type,
     buttons: type === 'button' ? entries : [],
@@ -68,6 +90,10 @@ function controls(type, entries = [], overrides = {}) {
       options: type === 'dropdown' ? entries : [],
     },
   };
+}
+
+function activeDropdown(source, index = 0) {
+  return source.controls.dropdowns[index];
 }
 
 function collectionWithTargets() {
@@ -88,7 +114,7 @@ function createSource(collection, controlValue, overrides = {}) {
   }, overrides.now || '2026-09-01T00:01:00Z');
 }
 
-test('schema-20 and version-1 Message Templates migrate to version 2 without data loss', () => {
+test('schema-20 and version-1 Message Templates migrate to version 3 without data loss', () => {
   const state = normalizeState({
     meta: { schemaVersion: 20, disabledGuilds: {} },
     guilds: { [GUILD_ID]: { messageTemplates: { items: [{
@@ -96,9 +122,9 @@ test('schema-20 and version-1 Message Templates migrate to version 2 without dat
       createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-02T00:00:00Z',
     }] } } },
   });
-  assert.equal(SCHEMA_VERSION, 21);
+  assert.equal(SCHEMA_VERSION, 22);
   const migrated = state.guilds[GUILD_ID].messageTemplates.items[0];
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.equal(migrated.content, 'Keep me');
   assert.deepEqual(migrated.controls, controls('none'));
   assert.deepEqual(normalizeState(state), state);
@@ -106,6 +132,31 @@ test('schema-20 and version-1 Message Templates migrate to version 2 without dat
   const imported = parseTemplateDocument({ version: 1, content: 'Legacy import', layout: DEFAULT_TEMPLATE_LAYOUT, additionalContainers: [] });
   assert.equal(imported.version, TEMPLATE_VERSION);
   assert.deepEqual(imported.controls, controls('none'));
+});
+
+test('schema-21 and version-2 dropdowns migrate to a stable one-item dropdown array', () => {
+  const legacyOption = option('control_legacy12', 'give_role', ROLE_A);
+  const state = normalizeState({
+    meta: { schemaVersion: 21, disabledGuilds: {} },
+    guilds: { [GUILD_ID]: { messageTemplates: { items: [{
+      id: 'template_legacyv2', name: 'Legacy v2', version: 2, content: 'Choose', layout: DEFAULT_TEMPLATE_LAYOUT,
+      additionalContainers: [], controls: controlsV2('dropdown', [legacyOption], { placeholder: 'Legacy menu' }),
+      createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-02T00:00:00Z',
+    }] } } },
+  });
+  const migrated = state.guilds[GUILD_ID].messageTemplates.items[0];
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.controls.dropdowns.length, 1);
+  assert.equal(migrated.controls.dropdowns[0].placeholder, 'Legacy menu');
+  assert.deepEqual(migrated.controls.dropdowns[0].options[0].action, legacyOption.action);
+  assert.deepEqual(normalizeState(state), state);
+
+  const imported = parseTemplateDocument({
+    version: 2, content: 'Legacy import', layout: DEFAULT_TEMPLATE_LAYOUT, additionalContainers: [],
+    controls: controlsV2('dropdown', [legacyOption]),
+  });
+  assert.equal(imported.version, 3);
+  assert.equal(imported.controls.dropdowns.length, 1);
 });
 
 test('control normalization is deterministic, bounded, idempotent, and strips malformed fields', () => {
@@ -127,10 +178,10 @@ test('control normalization is deterministic, bounded, idempotent, and strips ma
   assert.equal(first.items[0].controls.buttons[0].webhook, undefined);
 });
 
-test('strict version-2 JSON accepts all actions and rejects unknown, malformed, mismatched, and excessive fields', () => {
+test('strict version-3 JSON accepts all actions and rejects unknown, malformed, mismatched, and excessive fields', () => {
   const { collection, channelTarget, dmTarget } = collectionWithTargets();
   const valid = {
-    version: 2,
+    version: 3,
     content: 'Choose',
     layout: DEFAULT_TEMPLATE_LAYOUT,
     additionalContainers: [],
@@ -181,10 +232,29 @@ test('dropdown serialization supports 25 options and selected-option tokens only
   const source = createSource(collection, controls('dropdown', options, { allowMultiple: true, placeholder: 'Run actions' }));
   const payload = buildTemplatePayload(source, { id: GUILD_ID, name: 'Garden', iconURL: () => null }, { id: CHANNEL_ID });
   const menu = payload.components.find((component) => component.type === 1).components[0];
+  const sourceDropdown = source.controls.dropdowns[0];
   assert.equal(menu.options.length, 25);
   assert.equal(menu.max_values, 25);
-  assert.equal(menu.custom_id, templateSelectCustomId(GUILD_ID, source));
-  assert.deepEqual(menu.options.map((entry) => entry.value), source.controls.dropdown.options.map(templateOptionValue));
+  assert.equal(menu.custom_id, templateSelectCustomId(GUILD_ID, source, sourceDropdown));
+  assert.deepEqual(menu.options.map((entry) => entry.value), sourceDropdown.options.map(templateOptionValue));
+});
+
+test('five independent dropdowns serialize in order and a sixth is rejected', () => {
+  const { collection, channelTarget } = collectionWithTargets();
+  const dropdowns = Array.from({ length: 5 }, (_, index) => dropdown(`dropdown_${String(index).padStart(8, '0')}`, [
+    option(`control_${String(index).padStart(8, '0')}`, 'send_message', channelTarget.id),
+  ], { placeholder: `Menu ${index + 1}`, allowMultiple: index === 1, sortOrder: index }));
+  const source = createSource(collection, controls('dropdown', [], { dropdowns }));
+  const payload = buildTemplatePayload(source, { id: GUILD_ID, name: 'Garden', iconURL: () => null }, { id: CHANNEL_ID });
+  const menus = payload.components.filter((component) => component.type === 1).map((row) => row.components[0]).filter((component) => component.type === 3);
+  assert.equal(menus.length, 5);
+  assert.deepEqual(menus.map((menu) => menu.placeholder), ['Menu 1', 'Menu 2', 'Menu 3', 'Menu 4', 'Menu 5']);
+  assert.equal(new Set(menus.map((menu) => menu.custom_id)).size, 5);
+  menus.forEach((menu, index) => assert.equal(menu.custom_id, templateSelectCustomId(GUILD_ID, source, source.controls.dropdowns[index])));
+
+  const document = templateDocument(source);
+  document.controls.dropdowns.push(dropdown('dropdown_toomany1', [option('control_toomany1', 'send_message', channelTarget.id)], { sortOrder: 5 }));
+  assert.throws(() => parseTemplateDocument(document, { collection }), /up to 5 dropdowns/);
 });
 
 function runtimeFixture(collection, { initialRoles = [], dmFails = false, guildInteraction = true } = {}) {
@@ -247,8 +317,8 @@ test('send-message and successful DM actions reuse full template payloads withou
     option('control_dm12345', 'dm_message', dmTarget.id, { sortOrder: 1 }),
   ], { allowMultiple: true }));
   const fixture = runtimeFixture(collection);
-  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  fixture.interaction.values = source.controls.dropdown.options.map(templateOptionValue);
+  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   assert.equal(await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} }), true);
   assert.equal(fixture.sent.length, 1);
   assert.equal(fixture.dms.length, 1);
@@ -267,12 +337,47 @@ test('DM failures are friendly and multi-select actions report partial success s
     option('control_dm12345', 'dm_message', dmTarget.id, { sortOrder: 1 }),
   ], { allowMultiple: true }));
   const fixture = runtimeFixture(collection, { dmFails: true });
-  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  fixture.interaction.values = source.controls.dropdown.options.map(templateOptionValue);
+  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
   assert.equal(fixture.sent.length, 1);
   assert.match(fixture.responses.at(-1).content, /Completed 1 of 2 actions/);
   assert.match(fixture.responses.at(-1).content, /direct messages may be closed/);
+});
+
+test('each dropdown resolves only its own selected options', async () => {
+  const { collection, channelTarget, dmTarget } = collectionWithTargets();
+  const source = createSource(collection, controls('dropdown', [], { dropdowns: [
+    dropdown('dropdown_channel1', [option('control_channel1', 'send_message', channelTarget.id)], { sortOrder: 0 }),
+    dropdown('dropdown_direct12', [option('control_direct12', 'dm_message', dmTarget.id)], { sortOrder: 1 }),
+  ] }));
+  const fixture = runtimeFixture(collection);
+  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source, 1));
+  fixture.interaction.values = activeDropdown(source, 1).options.map(templateOptionValue);
+  await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
+  assert.equal(fixture.sent.length, 0);
+  assert.equal(fixture.dms.length, 1);
+
+  const crossDropdown = runtimeFixture(collection);
+  crossDropdown.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source, 1));
+  crossDropdown.interaction.values = activeDropdown(source, 0).options.map(templateOptionValue);
+  await handleMessageTemplateInteraction(crossDropdown.interaction, { getGuildConfigRaw: crossDropdown.getGuildConfigRaw, log: () => {} });
+  assert.equal(crossDropdown.sent.length, 0);
+  assert.equal(crossDropdown.dms.length, 0);
+  assert.match(crossDropdown.responses.at(-1).content, /unknown or stale/);
+});
+
+test('already-sent version-2 dropdown custom IDs remain functional after migration', async () => {
+  const { collection, channelTarget } = collectionWithTargets();
+  const source = createSource(collection, controls('dropdown', [option('control_legacy12', 'send_message', channelTarget.id)]));
+  const sourceDropdown = activeDropdown(source);
+  const legacyCustomId = `mt:${BigInt(GUILD_ID).toString(36)}:d:${templateIdentityToken(source.id)}:${templateLegacyDropdownRevisionToken(source, sourceDropdown)}`;
+  assert.equal(parseTemplateControlCustomId(legacyCustomId).legacy, true);
+  const fixture = runtimeFixture(collection);
+  fixture.interaction.customId = legacyCustomId;
+  fixture.interaction.values = sourceDropdown.options.map(templateOptionValue);
+  await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
+  assert.equal(fixture.sent.length, 1);
 });
 
 test('give/remove role actions are safe and idempotent, including controls clicked in DMs', async () => {
@@ -282,8 +387,8 @@ test('give/remove role actions are safe and idempotent, including controls click
     option('control_remove1', 'remove_role', ROLE_B, { sortOrder: 1 }),
   ], { allowMultiple: true }));
   const fixture = runtimeFixture(collection, { initialRoles: [ROLE_A], guildInteraction: false });
-  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  fixture.interaction.values = source.controls.dropdown.options.map(templateOptionValue);
+  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   const parsed = parseTemplateControlCustomId(fixture.interaction.customId);
   assert.equal(parsed.guildId, GUILD_ID);
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
@@ -292,15 +397,15 @@ test('give/remove role actions are safe and idempotent, including controls click
   assert.match(fixture.responses.at(-1).content, /already removed/);
 
   const addAndRemove = runtimeFixture(collection, { initialRoles: [ROLE_B] });
-  addAndRemove.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  addAndRemove.interaction.values = source.controls.dropdown.options.map(templateOptionValue);
+  addAndRemove.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  addAndRemove.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   await handleMessageTemplateInteraction(addAndRemove.interaction, { getGuildConfigRaw: addAndRemove.getGuildConfigRaw, log: () => {} });
   assert.deepEqual(addAndRemove.operations, [`add:${ROLE_A}`, `remove:${ROLE_B}`]);
 
   const unsafe = runtimeFixture(collection);
   unsafe.guild.roles.cache.get(ROLE_A).permissions.has = (flag) => flag === PermissionFlagsBits.Administrator;
-  unsafe.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  unsafe.interaction.values = [templateOptionValue(source.controls.dropdown.options[0])];
+  unsafe.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  unsafe.interaction.values = [templateOptionValue(activeDropdown(source).options[0])];
   await handleMessageTemplateInteraction(unsafe.interaction, { getGuildConfigRaw: unsafe.getGuildConfigRaw, log: () => {} });
   assert.deepEqual(unsafe.operations, []);
   assert.match(unsafe.responses.at(-1).content, /Administrator roles/);
@@ -347,8 +452,8 @@ test('dropdown rejects unknown selections before running any selected action', a
   const { collection, channelTarget } = collectionWithTargets();
   const source = createSource(collection, controls('dropdown', [option('control_send123', 'send_message', channelTarget.id)], { allowMultiple: true }));
   const fixture = runtimeFixture(collection);
-  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source);
-  fixture.interaction.values = [templateOptionValue(source.controls.dropdown.options[0]), 'tampered_option'];
+  fixture.interaction.customId = templateSelectCustomId(GUILD_ID, source, activeDropdown(source));
+  fixture.interaction.values = [templateOptionValue(activeDropdown(source).options[0]), 'tampered_option'];
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
   assert.equal(fixture.sent.length, 0);
   assert.match(fixture.responses.at(-1).content, /No actions were run/);
@@ -362,6 +467,13 @@ test('duplicating a template regenerates control IDs while preserving configured
   assert.deepEqual(duplicate.controls.buttons[0].action, source.controls.buttons[0].action);
   assert.notEqual(templateButtonCustomId(GUILD_ID, duplicate, duplicate.controls.buttons[0]), templateButtonCustomId(GUILD_ID, source, source.controls.buttons[0]));
   assert.deepEqual(templateDocument(duplicate).controls, duplicate.controls);
+
+  const dropdownSource = createSource(collection, controls('dropdown', [option('control_dropdown1', 'send_message', channelTarget.id)]));
+  const dropdownCopy = duplicateTemplate(collection, dropdownSource.id, '2026-09-01T01:01:00Z');
+  assert.notEqual(activeDropdown(dropdownCopy).id, activeDropdown(dropdownSource).id);
+  assert.notEqual(activeDropdown(dropdownCopy).options[0].id, activeDropdown(dropdownSource).options[0].id);
+  assert.deepEqual(activeDropdown(dropdownCopy).options[0].action, activeDropdown(dropdownSource).options[0].action);
+  assert.notEqual(templateSelectCustomId(GUILD_ID, dropdownCopy, activeDropdown(dropdownCopy)), templateSelectCustomId(GUILD_ID, dropdownSource, activeDropdown(dropdownSource)));
 });
 
 test('dashboard exposes controls, accessible gear settings, JSON round-trip, and resolved preview hooks', () => {
@@ -376,7 +488,12 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /controls: normalizeTemplateControlsClient/);
   assert.match(app, /state\.templateDraft\.controls = documentValue\.controls/);
   assert.match(app, /resolvedTemplatePayloadPreview[\s\S]*custom_id/);
-  assert.match(app, /Only selected options run their configured actions/);
+  assert.match(app, /Only selected options in this dropdown run their configured actions/);
+  assert.match(app, /data-template-dropdown-add-option/);
+  assert.match(app, /controls\.dropdowns\.length >= 5/);
+  assert.match(app, /rememberInlineTextCaret/);
+  assert.match(app, /restoreEmojiTextTarget/);
   assert.match(css, /\.template-control-row\.incomplete/);
+  assert.match(css, /\.template-dropdown-card/);
   assert.match(css, /\.template-action-dialog/);
 });

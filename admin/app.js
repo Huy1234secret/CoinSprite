@@ -100,6 +100,7 @@
     emojiCategory: DEFAULT_EMOJI_DATA.groups[0]?.id || '',
     emojiPickerItems: [],
     emojiTarget: null,
+    inlineTextCarets: new Map(),
     xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
@@ -1125,7 +1126,7 @@
   });
   const TEMPLATE_CONTROL_DEFAULTS = Object.freeze({
     type: 'none', buttons: Object.freeze([]),
-    dropdown: Object.freeze({ placeholder: 'Choose an option', allowMultiple: false, options: Object.freeze([]) }),
+    dropdowns: Object.freeze([]),
   });
   const GENERIC_TEMPLATE_VARIABLES = [
     ['{server}', 'Server name'], ['{server_icon}', 'Server icon URL'], ['{channel}', 'Destination channel'],
@@ -1166,7 +1167,6 @@
 
   function normalizeTemplateControlsClient(value) {
     const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    const dropdown = source.dropdown && typeof source.dropdown === 'object' && !Array.isArray(source.dropdown) ? source.dropdown : {};
     return {
       type: ['button', 'dropdown'].includes(source.type) ? source.type : 'none',
       buttons: (Array.isArray(source.buttons) ? source.buttons : []).slice(0, 25).map((button, index) => ({
@@ -1177,19 +1177,31 @@
         sortOrder: index,
         action: normalizeTemplateActionClient(button?.action),
       })),
-      dropdown: {
-        placeholder: String(dropdown.placeholder || 'Choose an option').trim().slice(0, 150) || 'Choose an option',
-        allowMultiple: dropdown.allowMultiple === true,
-        options: (Array.isArray(dropdown.options) ? dropdown.options : []).slice(0, 25).map((option, index) => ({
+      dropdowns: (Array.isArray(source.dropdowns) ? source.dropdowns : []).slice(0, 5).map((dropdown, dropdownIndex) => ({
+        id: String(dropdown?.id || clientReactionId('dropdown')),
+        placeholder: String(dropdown?.placeholder || `Choose an option ${dropdownIndex + 1}`).trim().slice(0, 150) || `Choose an option ${dropdownIndex + 1}`,
+        allowMultiple: dropdown?.allowMultiple === true,
+        sortOrder: dropdownIndex,
+        options: (Array.isArray(dropdown?.options) ? dropdown.options : []).slice(0, 25).map((option, optionIndex) => ({
           id: String(option?.id || clientReactionId('control')),
           emoji: normalizePickerEmoji(option?.emoji),
-          title: String(option?.title || `Option ${index + 1}`).trim().slice(0, 100) || `Option ${index + 1}`,
+          title: String(option?.title || `Option ${optionIndex + 1}`).trim().slice(0, 100) || `Option ${optionIndex + 1}`,
           description: String(option?.description || '').trim().slice(0, 100),
-          sortOrder: index,
+          sortOrder: optionIndex,
           action: normalizeTemplateActionClient(option?.action),
         })),
-      },
+      })),
     };
+  }
+
+  function normalizeTemplateControlsV2Client(value) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const dropdown = source.dropdown && typeof source.dropdown === 'object' && !Array.isArray(source.dropdown) ? source.dropdown : {};
+    return normalizeTemplateControlsClient({
+      type: source.type,
+      buttons: source.buttons,
+      dropdowns: [{ ...dropdown, id: clientReactionId('dropdown'), sortOrder: 0 }],
+    });
   }
 
   function normalizeMessageTemplatesClient(value) {
@@ -1202,9 +1214,11 @@
     const items = (Array.isArray(source.items) ? source.items : []).map((item) => ({
       id: String(item.id || ''), folderId: folderIds.has(String(item.folderId || '')) ? String(item.folderId) : null,
       name: String(item.name || 'Template').trim().slice(0, 80), description: String(item.description || '').trim().slice(0, 500),
-      version: 2, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
+      version: 3, content: String(item.content || '').slice(0, 4000), layout: normalizeTemplateLayoutClient(item.layout),
       additionalContainers: normalizeAdditionalContainersClient(item.additionalContainers, normalizeTemplateLayoutClient, 4000),
-      controls: Number(item.version) === 1 ? clone(TEMPLATE_CONTROL_DEFAULTS) : normalizeTemplateControlsClient(item.controls),
+      controls: Number(item.version) === 1
+        ? clone(TEMPLATE_CONTROL_DEFAULTS)
+        : Number(item.version) === 2 ? normalizeTemplateControlsV2Client(item.controls) : normalizeTemplateControlsClient(item.controls),
       defaultChannelId: String(item.defaultChannelId || ''), enabled: item.enabled !== false,
       createdAt: String(item.createdAt || ''), updatedAt: String(item.updatedAt || ''),
     })).filter((item) => item.id);
@@ -1566,21 +1580,47 @@
     };
     const root = roots[scope];
     if (!root) return null;
+    const bookmark = state.inlineTextCarets.get(scope);
+    const remembered = bookmark?.input?.isConnected && root.contains(bookmark.input) ? bookmark.input : null;
     const active = document.activeElement?.matches?.('[data-inline-message-input]') && root.contains(document.activeElement) ? document.activeElement : null;
     const editing = root.querySelector('[data-inline-message-editor].editing [data-inline-message-input]');
-    const input = active || editing || root.querySelector('[data-inline-message-input]');
+    const input = active || remembered || editing || root.querySelector('[data-inline-message-input]');
     if (input && !input.closest('[data-inline-message-editor]')?.classList.contains('editing')) {
       beginInlineMessageEdit(input.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-display]'));
     }
-    return root.querySelector('[data-inline-message-editor].editing [data-inline-message-input]') || input;
+    return input || root.querySelector('[data-inline-message-editor].editing [data-inline-message-input]');
+  }
+
+  function rememberInlineTextCaret(input) {
+    if (!input?.matches?.('[data-inline-message-input]')) return;
+    const scope = String(input.dataset.inlineTemplateScope || '');
+    if (!scope) return;
+    const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+    const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+    state.inlineTextCarets.set(scope, { input, start, end });
+  }
+
+  function restoreEmojiTextTarget(target, start = target?.start, end = start) {
+    const input = target?.input;
+    if (!input?.isConnected) return;
+    const safeStart = Math.max(0, Math.min(input.value.length, Number(start) || 0));
+    const safeEnd = Math.max(safeStart, Math.min(input.value.length, Number(end) || safeStart));
+    input.closest('[data-inline-message-editor]')?.classList.add('editing');
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(safeStart, safeEnd);
+      rememberInlineTextCaret(input);
+    }));
   }
 
   function openEmojiPicker(target) {
     const resolved = typeof target === 'string' ? { type: 'text', scope: target, input: preferredInlineInput(target) } : target;
     if (resolved?.type === 'text' && !resolved.input) return showToast('Open a message editor before choosing an emoji.', 'error');
     if (resolved?.type === 'text') {
-      resolved.start = Number.isInteger(resolved.input.selectionStart) ? resolved.input.selectionStart : resolved.input.value.length;
-      resolved.end = Number.isInteger(resolved.input.selectionEnd) ? resolved.input.selectionEnd : resolved.start;
+      const bookmark = state.inlineTextCarets.get(resolved.scope);
+      resolved.start = bookmark?.input === resolved.input ? bookmark.start : Number.isInteger(resolved.input.selectionStart) ? resolved.input.selectionStart : resolved.input.value.length;
+      resolved.end = bookmark?.input === resolved.input ? bookmark.end : Number.isInteger(resolved.input.selectionEnd) ? resolved.input.selectionEnd : resolved.start;
+      rememberInlineTextCaret(resolved.input);
     }
     state.emojiTarget = resolved;
     state.emojiCategory = DEFAULT_EMOJI_DATA.groups[0]?.id || '';
@@ -1591,8 +1631,10 @@
     elements.emojiPickerSearch.focus();
   }
 
-  function closeEmojiPicker() {
+  function closeEmojiPicker(restoreText = true) {
+    const target = state.emojiTarget;
     if (elements.emojiPickerDialog.open) elements.emojiPickerDialog.close();
+    if (restoreText && target?.type === 'text') restoreEmojiTextTarget(target, target.start, target.end);
   }
 
   function applyPickedEmoji(emoji) {
@@ -1606,14 +1648,16 @@
       input.value = `${input.value.slice(0, target.start)}${insertion}${input.value.slice(target.end)}`.slice(0, maximum);
       const cursor = Math.min(input.value.length, target.start + insertion.length);
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      closeEmojiPicker();
-      window.setTimeout(() => { input.focus(); input.setSelectionRange(cursor, cursor); }, 0);
+      closeEmojiPicker(false);
+      restoreEmojiTextTarget(target, cursor, cursor);
       return;
     }
     if (['template-button', 'template-option'].includes(target.type)) {
       const draft = state.templateDraft;
       if (!draft) return;
-      const entries = target.type === 'template-button' ? draft.controls.buttons : draft.controls.dropdown.options;
+      const entries = target.type === 'template-button'
+        ? draft.controls.buttons
+        : draft.controls.dropdowns[target.dropdownIndex]?.options;
       if (entries[target.index]) entries[target.index].emoji = normalized;
       closeEmojiPicker(); renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson(); refreshTemplateDirty();
       return;
@@ -1627,7 +1671,7 @@
 
   function templateDocument(draft = state.templateDraft) {
     return {
-      version: 2,
+      version: 3,
       content: String(draft?.content || '').slice(0, 4000),
       layout: normalizeTemplateLayoutClient(draft?.layout),
       additionalContainers: normalizeAdditionalContainersClient(draft?.additionalContainers, normalizeTemplateLayoutClient, 4000),
@@ -1674,7 +1718,10 @@
       const templateId = String(value.templateId || '');
       if (!/^[a-zA-Z0-9_-]{8,64}$/.test(templateId)) throw new Error(`${label}.templateId is invalid.`);
       const stored = currentStoredTemplate();
-      const preservedMissing = [...(stored?.controls?.buttons || []), ...(stored?.controls?.dropdown?.options || [])]
+      const preservedMissing = [
+        ...(stored?.controls?.buttons || []),
+        ...(stored?.controls?.dropdowns || []).flatMap((dropdown) => dropdown.options || []),
+      ]
         .some((entry) => ['send_message', 'dm_message'].includes(entry.action?.type) && entry.action.templateId === templateId);
       if (!state.messageTemplates.items.some((item) => item.id === templateId) && !preservedMissing) throw new Error(`${label} must reference a Message Template in this server.`);
       return { type: value.type, templateId };
@@ -1684,7 +1731,7 @@
   }
 
   function parseTemplateControlsClient(value) {
-    assertTemplateJsonFields(value, ['type', 'buttons', 'dropdown'], 'controls');
+    assertTemplateJsonFields(value, ['type', 'buttons', 'dropdowns'], 'controls');
     if (!['none', 'button', 'dropdown'].includes(value.type)) throw new Error('controls.type must be none, button, or dropdown.');
     if (!Array.isArray(value.buttons) || value.buttons.length > 25) throw new Error('controls.buttons must be an array with at most 25 entries.');
     const buttonIds = new Set();
@@ -1698,22 +1745,47 @@
       if (!Number.isInteger(button.sortOrder) || button.sortOrder < 0) throw new Error(`${label}.sortOrder must be a non-negative integer.`);
       return { id: button.id, emoji: parseTemplateEmojiClient(button.emoji, `${label}.emoji`), label: button.label.trim(), style: button.style, sortOrder: button.sortOrder, action: parseTemplateActionClient(button.action, `${label}.action`) };
     }).sort((left, right) => left.sortOrder - right.sortOrder).map((button, index) => ({ ...button, sortOrder: index }));
+    if (!Array.isArray(value.dropdowns) || value.dropdowns.length > 5) throw new Error('controls.dropdowns must be an array with at most 5 entries.');
+    const dropdownIds = new Set();
+    const dropdowns = value.dropdowns.map((dropdown, dropdownIndex) => {
+      const dropdownLabel = `controls.dropdowns[${dropdownIndex}]`;
+      assertTemplateJsonFields(dropdown, ['id', 'placeholder', 'allowMultiple', 'sortOrder', 'options'], dropdownLabel);
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(dropdown.id || '')) || dropdownIds.has(dropdown.id)) throw new Error(`${dropdownLabel}.id must be unique and stable.`);
+      dropdownIds.add(dropdown.id);
+      if (typeof dropdown.placeholder !== 'string' || !dropdown.placeholder.trim() || dropdown.placeholder.trim().length > 150) throw new Error(`${dropdownLabel}.placeholder must be between 1 and 150 characters.`);
+      if (typeof dropdown.allowMultiple !== 'boolean') throw new Error(`${dropdownLabel}.allowMultiple must be true or false.`);
+      if (!Number.isInteger(dropdown.sortOrder) || dropdown.sortOrder < 0) throw new Error(`${dropdownLabel}.sortOrder must be a non-negative integer.`);
+      if (!Array.isArray(dropdown.options) || dropdown.options.length > 25) throw new Error(`${dropdownLabel}.options must be an array with at most 25 entries.`);
+      const optionIds = new Set();
+      const options = dropdown.options.map((option, optionIndex) => {
+        const label = `${dropdownLabel}.options[${optionIndex}]`;
+        assertTemplateJsonFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
+        if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(option.id || '')) || optionIds.has(option.id)) throw new Error(`${label}.id must be unique and stable.`);
+        optionIds.add(option.id);
+        if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > 100) throw new Error(`${label}.title must be between 1 and 100 characters.`);
+        if (typeof option.description !== 'string' || option.description.trim().length > 100) throw new Error(`${label}.description must be 100 characters or fewer.`);
+        if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new Error(`${label}.sortOrder must be a non-negative integer.`);
+        return { id: option.id, emoji: parseTemplateEmojiClient(option.emoji, `${label}.emoji`), title: option.title.trim(), description: option.description.trim(), sortOrder: option.sortOrder, action: parseTemplateActionClient(option.action, `${label}.action`) };
+      }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, index) => ({ ...option, sortOrder: index }));
+      return { id: dropdown.id, placeholder: dropdown.placeholder.trim(), allowMultiple: dropdown.allowMultiple, sortOrder: dropdown.sortOrder, options };
+    }).sort((left, right) => left.sortOrder - right.sortOrder).map((dropdown, index) => ({ ...dropdown, sortOrder: index }));
+    return { type: value.type, buttons, dropdowns };
+  }
+
+  function parseTemplateControlsV2Client(value) {
+    assertTemplateJsonFields(value, ['type', 'buttons', 'dropdown'], 'controls');
     assertTemplateJsonFields(value.dropdown, ['placeholder', 'allowMultiple', 'options'], 'controls.dropdown');
-    if (typeof value.dropdown.placeholder !== 'string' || !value.dropdown.placeholder.trim() || value.dropdown.placeholder.trim().length > 150) throw new Error('controls.dropdown.placeholder must be between 1 and 150 characters.');
-    if (typeof value.dropdown.allowMultiple !== 'boolean') throw new Error('controls.dropdown.allowMultiple must be true or false.');
-    if (!Array.isArray(value.dropdown.options) || value.dropdown.options.length > 25) throw new Error('controls.dropdown.options must be an array with at most 25 entries.');
-    const optionIds = new Set();
-    const options = value.dropdown.options.map((option, index) => {
-      const label = `controls.dropdown.options[${index}]`;
-      assertTemplateJsonFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
-      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(option.id || '')) || optionIds.has(option.id)) throw new Error(`${label}.id must be unique and stable.`);
-      optionIds.add(option.id);
-      if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > 100) throw new Error(`${label}.title must be between 1 and 100 characters.`);
-      if (typeof option.description !== 'string' || option.description.trim().length > 100) throw new Error(`${label}.description must be 100 characters or fewer.`);
-      if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new Error(`${label}.sortOrder must be a non-negative integer.`);
-      return { id: option.id, emoji: parseTemplateEmojiClient(option.emoji, `${label}.emoji`), title: option.title.trim(), description: option.description.trim(), sortOrder: option.sortOrder, action: parseTemplateActionClient(option.action, `${label}.action`) };
-    }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, index) => ({ ...option, sortOrder: index }));
-    return { type: value.type, buttons, dropdown: { placeholder: value.dropdown.placeholder.trim(), allowMultiple: value.dropdown.allowMultiple, options } };
+    return parseTemplateControlsClient({
+      type: value.type,
+      buttons: value.buttons,
+      dropdowns: [{
+        id: clientReactionId('dropdown'),
+        placeholder: value.dropdown.placeholder,
+        allowMultiple: value.dropdown.allowMultiple,
+        sortOrder: 0,
+        options: value.dropdown.options,
+      }],
+    });
   }
 
   function parseTemplateJsonText(text) {
@@ -1725,7 +1797,7 @@
       ? ['version', 'content', 'layout', 'additionalContainers']
       : ['version', 'content', 'layout', 'additionalContainers', 'controls']).includes(key));
     if (unknown.length) throw new Error(`Unknown template field${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}.`);
-    if (![1, 2].includes(version)) throw new Error('Template JSON version must be 1 or 2.');
+    if (![1, 2, 3].includes(version)) throw new Error('Template JSON version must be 1, 2, or 3.');
     if (typeof parsed.content !== 'string') throw new Error('content must be a string.');
     if (parsed.content.length > 4000) throw new Error('content must be 4000 characters or fewer.');
     if ((parsed.content.match(/\{separator\}/gi) || []).length > 4) throw new Error('Templates support up to 4 dividers.');
@@ -1742,8 +1814,10 @@
       if ((container.content.match(/\{separator\}/gi) || []).length > 4) throw new Error(`Additional container ${index + 1} supports up to 4 dividers.`);
       return { content: container.content, layout: { ...parseTemplateLayoutClient(container.layout, `additionalContainers[${index}].layout`), container: true } };
     });
-    const controls = version === 1 ? clone(TEMPLATE_CONTROL_DEFAULTS) : parseTemplateControlsClient(parsed.controls);
-    return { version: 2, content: parsed.content, layout, additionalContainers, controls };
+    const controls = version === 1
+      ? clone(TEMPLATE_CONTROL_DEFAULTS)
+      : version === 2 ? parseTemplateControlsV2Client(parsed.controls) : parseTemplateControlsClient(parsed.controls);
+    return { version: 3, content: parsed.content, layout, additionalContainers, controls };
   }
 
   function templateVariableNames(item = state.templateDraft) {
@@ -1827,7 +1901,7 @@
   }
 
   function templateControlEntries(draft = state.templateDraft) {
-    return draft?.controls?.type === 'dropdown' ? draft.controls.dropdown.options : draft?.controls?.buttons || [];
+    return draft?.controls?.type === 'dropdown' ? draft.controls.dropdowns : draft?.controls?.buttons || [];
   }
 
   function templateActionStatus(action) {
@@ -1854,8 +1928,10 @@
     const draft = state.templateDraft;
     if (!draft) return;
     if (draft.controls.type === 'dropdown') {
-      const count = draft.controls.dropdown.options.length;
-      elements.templateControlPreview.innerHTML = count ? `<div class="rr-preview-select">${escapeHtml(draft.controls.dropdown.placeholder)} · ${count} option${count === 1 ? '' : 's'}${draft.controls.dropdown.allowMultiple ? ' · Multiple' : ''}</div>` : '';
+      elements.templateControlPreview.innerHTML = draft.controls.dropdowns.map((dropdown) => {
+        const count = dropdown.options.length;
+        return `<div class="rr-preview-select">${escapeHtml(dropdown.placeholder)} · ${count} option${count === 1 ? '' : 's'}${dropdown.allowMultiple ? ' · Multiple' : ''}</div>`;
+      }).join('');
       return;
     }
     elements.templateControlPreview.innerHTML = draft.controls.type === 'button'
@@ -1872,8 +1948,8 @@
       button.setAttribute('aria-pressed', String(active));
     });
     elements.templateAddControl.hidden = draft.controls.type === 'none';
-    elements.templateAddControl.textContent = draft.controls.type === 'dropdown' ? '+ Add option' : '+ Add button';
-    elements.templateAddControl.disabled = templateControlEntries().length >= 25;
+    elements.templateAddControl.textContent = draft.controls.type === 'dropdown' ? '+ Add dropdown' : '+ Add button';
+    elements.templateAddControl.disabled = templateControlEntries().length >= (draft.controls.type === 'dropdown' ? 5 : 25);
     if (draft.controls.type === 'none') {
       elements.templateControls.innerHTML = '<p class="template-control-empty">This template has no interactive controls.</p>';
       return;
@@ -1886,11 +1962,14 @@
       elements.templateControls.innerHTML = `<div class="template-control-list">${rows || '<p class="template-control-empty">Add a button to configure its action.</p>'}</div>`;
       return;
     }
-    const rows = draft.controls.dropdown.options.map((option, index) => {
-      const status = templateActionStatus(option.action);
-      return `<article class="template-control-row dropdown${status.complete ? '' : ' incomplete'}" data-template-control-row="option:${index}"><button class="rr-emoji-field" type="button" data-template-control-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-template-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-template-option-description="${index}"></label><label>Action<select data-template-control-action="option:${index}">${templateActionOptions(option.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="option:${index}" aria-label="Configure action for ${escapeHtml(option.title)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="option:${index}:-1" aria-label="Move ${escapeHtml(option.title)} up">↑</button><button type="button" data-template-control-move="option:${index}:1" aria-label="Move ${escapeHtml(option.title)} down">↓</button><button type="button" data-template-control-remove="option:${index}" aria-label="Remove ${escapeHtml(option.title)}">×</button></div></article>`;
-    }).join('');
-    elements.templateControls.innerHTML = `<div class="template-dropdown-settings"><label>Placeholder<input type="text" maxlength="150" value="${escapeHtml(draft.controls.dropdown.placeholder)}" data-template-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-template-dropdown-multiple${draft.controls.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Only selected options run their configured actions.</small></span></label></div><div class="template-control-list">${rows || '<p class="template-control-empty">Add a dropdown option to configure its action.</p>'}</div>`;
+    elements.templateControls.innerHTML = draft.controls.dropdowns.length ? draft.controls.dropdowns.map((dropdown, dropdownIndex) => {
+      const rows = dropdown.options.map((option, optionIndex) => {
+        const status = templateActionStatus(option.action);
+        const spec = `option:${dropdownIndex}:${optionIndex}`;
+        return `<article class="template-control-row dropdown${status.complete ? '' : ' incomplete'}" data-template-control-row="${spec}"><button class="rr-emoji-field" type="button" data-template-control-emoji="${spec}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-template-option-title="${dropdownIndex}:${optionIndex}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-template-option-description="${dropdownIndex}:${optionIndex}"></label><label>Action<select data-template-control-action="${spec}">${templateActionOptions(option.action.type)}</select></label><button class="template-action-configure" type="button" data-template-configure-action="${spec}" aria-label="Configure action for ${escapeHtml(option.title)}" title="Configure action">&#x2699;</button><span class="template-action-summary" role="status">${escapeHtml(status.summary)}</span><div class="rr-row-actions"><button type="button" data-template-control-move="${spec}:-1" aria-label="Move ${escapeHtml(option.title)} up">↑</button><button type="button" data-template-control-move="${spec}:1" aria-label="Move ${escapeHtml(option.title)} down">↓</button><button type="button" data-template-control-remove="${spec}" aria-label="Remove ${escapeHtml(option.title)}">×</button></div></article>`;
+      }).join('');
+      return `<section class="template-dropdown-card${dropdown.options.length ? '' : ' incomplete'}" data-template-dropdown-card="${dropdownIndex}"><header><strong>Dropdown ${dropdownIndex + 1}</strong><div class="rr-row-actions"><button type="button" data-template-dropdown-move="${dropdownIndex}:-1" aria-label="Move dropdown ${dropdownIndex + 1} up">↑</button><button type="button" data-template-dropdown-move="${dropdownIndex}:1" aria-label="Move dropdown ${dropdownIndex + 1} down">↓</button><button type="button" data-template-dropdown-remove="${dropdownIndex}" aria-label="Remove dropdown ${dropdownIndex + 1}">×</button></div></header><div class="template-dropdown-settings"><label>Placeholder<input type="text" maxlength="150" value="${escapeHtml(dropdown.placeholder)}" data-template-dropdown-placeholder="${dropdownIndex}"></label><label class="rr-allow-multiple"><input type="checkbox" data-template-dropdown-multiple="${dropdownIndex}"${dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Only selected options in this dropdown run their configured actions.</small></span></label><button type="button" class="template-dropdown-add-option" data-template-dropdown-add-option="${dropdownIndex}"${dropdown.options.length >= 25 ? ' disabled' : ''}>+ Add option</button></div><div class="template-control-list">${rows || '<p class="template-control-empty">Add an option to configure this dropdown.</p>'}</div></section>`;
+    }).join('') : '<p class="template-control-empty">Add a dropdown to configure its options and actions.</p>';
   }
 
   function syncTemplateJson(force = false) {
@@ -1941,17 +2020,20 @@
       });
       for (let index = 0; index < buttons.length; index += 5) components.push({ type: 1, components: buttons.slice(index, index + 5) });
     }
-    if (state.templateDraft.controls.type === 'dropdown' && state.templateDraft.controls.dropdown.options.length) {
-      components.push({ type: 1, components: [{
-        type: 3, custom_id: previewId('d'), placeholder: state.templateDraft.controls.dropdown.placeholder,
-        min_values: 1, max_values: state.templateDraft.controls.dropdown.allowMultiple ? state.templateDraft.controls.dropdown.options.length : 1,
-        options: state.templateDraft.controls.dropdown.options.map((option) => {
-          const item = { label: option.title, value: `option:${String(option.id).slice(-32)}`.slice(0, 100) };
-          if (option.description) item.description = option.description;
-          const emoji = payloadEmoji(option.emoji); if (emoji) item.emoji = emoji;
-          return item;
-        }),
-      }] });
+    if (state.templateDraft.controls.type === 'dropdown') {
+      for (const dropdown of state.templateDraft.controls.dropdowns) {
+        if (!dropdown.options.length) continue;
+        components.push({ type: 1, components: [{
+          type: 3, custom_id: previewId('d', dropdown.id), placeholder: dropdown.placeholder,
+          min_values: 1, max_values: dropdown.allowMultiple ? dropdown.options.length : 1,
+          options: dropdown.options.map((option) => {
+            const item = { label: option.title, value: `option:${String(option.id).slice(-32)}`.slice(0, 100) };
+            if (option.description) item.description = option.description;
+            const emoji = payloadEmoji(option.emoji); if (emoji) item.emoji = emoji;
+            return item;
+          }),
+        }] });
+      }
     }
     return { flags: 32768, allowedMentions: { parse: [], users: [], roles: [] }, components };
   }
@@ -2365,15 +2447,28 @@
     }
     if (target.matches('[data-template-button-label]')) draft.controls.buttons[Number(target.dataset.templateButtonLabel)].label = target.value.slice(0, 80);
     if (target.matches('[data-template-button-style]')) draft.controls.buttons[Number(target.dataset.templateButtonStyle)].style = target.value;
-    if (target.matches('[data-template-option-title]')) draft.controls.dropdown.options[Number(target.dataset.templateOptionTitle)].title = target.value.slice(0, 100);
-    if (target.matches('[data-template-option-description]')) draft.controls.dropdown.options[Number(target.dataset.templateOptionDescription)].description = target.value.slice(0, 100);
-    if (target.matches('[data-template-dropdown-placeholder]')) draft.controls.dropdown.placeholder = target.value.slice(0, 150);
-    if (target.matches('[data-template-dropdown-multiple]')) draft.controls.dropdown.allowMultiple = target.checked;
+    if (target.matches('[data-template-option-title]')) {
+      const [dropdownIndex, optionIndex] = target.dataset.templateOptionTitle.split(':').map(Number);
+      if (draft.controls.dropdowns[dropdownIndex]?.options[optionIndex]) draft.controls.dropdowns[dropdownIndex].options[optionIndex].title = target.value.slice(0, 100);
+    }
+    if (target.matches('[data-template-option-description]')) {
+      const [dropdownIndex, optionIndex] = target.dataset.templateOptionDescription.split(':').map(Number);
+      if (draft.controls.dropdowns[dropdownIndex]?.options[optionIndex]) draft.controls.dropdowns[dropdownIndex].options[optionIndex].description = target.value.slice(0, 100);
+    }
+    if (target.matches('[data-template-dropdown-placeholder]')) {
+      const dropdown = draft.controls.dropdowns[Number(target.dataset.templateDropdownPlaceholder)];
+      if (dropdown) dropdown.placeholder = target.value.slice(0, 150);
+    }
+    if (target.matches('[data-template-dropdown-multiple]')) {
+      const dropdown = draft.controls.dropdowns[Number(target.dataset.templateDropdownMultiple)];
+      if (dropdown) dropdown.allowMultiple = target.checked;
+    }
     if (target.matches('[data-template-control-action]')) {
-      const [kind, rawIndex] = target.dataset.templateControlAction.split(':');
-      const entries = kind === 'button' ? draft.controls.buttons : draft.controls.dropdown.options;
+      const [kind, firstIndex, secondIndex] = target.dataset.templateControlAction.split(':');
+      const entries = kind === 'button' ? draft.controls.buttons : draft.controls.dropdowns[Number(firstIndex)]?.options;
+      const entryIndex = kind === 'button' ? Number(firstIndex) : Number(secondIndex);
       const type = TEMPLATE_ACTION_TYPES.includes(target.value) ? target.value : 'send_message';
-      entries[Number(rawIndex)].action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
+      if (entries?.[entryIndex]) entries[entryIndex].action = ['give_role', 'remove_role'].includes(type) ? { type, roleId: '' } : { type, templateId: '' };
     }
     if (target.closest?.('[data-template-control-row]') || target.matches('[data-template-dropdown-placeholder],[data-template-dropdown-multiple]')) {
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
@@ -2384,10 +2479,13 @@
   }
 
   function templateControlAt(spec) {
-    const [kind, rawIndex] = String(spec || '').split(':');
-    const index = Number(rawIndex);
-    const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdown?.options;
-    return Number.isInteger(index) && entries?.[index] ? { kind, index, entry: entries[index] } : null;
+    const [kind, firstIndex, secondIndex] = String(spec || '').split(':');
+    const dropdownIndex = kind === 'option' ? Number(firstIndex) : null;
+    const index = Number(kind === 'button' ? firstIndex : secondIndex);
+    const entries = kind === 'button'
+      ? state.templateDraft?.controls?.buttons
+      : state.templateDraft?.controls?.dropdowns?.[dropdownIndex]?.options;
+    return Number.isInteger(index) && entries?.[index] ? { kind, dropdownIndex, index, entry: entries[index], entries } : null;
   }
 
   function safeTemplateRoles() {
@@ -2397,7 +2495,7 @@
   function openTemplateActionDialog(spec) {
     const target = templateControlAt(spec);
     if (!target) return;
-    state.templateActionTarget = { kind: target.kind, index: target.index };
+    state.templateActionTarget = { kind: target.kind, dropdownIndex: target.dropdownIndex, index: target.index };
     const action = target.entry.action;
     const templateAction = ['send_message', 'dm_message'].includes(action.type);
     elements.templateActionTitle.textContent = `Configure ${TEMPLATE_ACTION_LABELS[action.type]}`;
@@ -2425,7 +2523,10 @@
   }
 
   function saveTemplateActionDialog() {
-    const target = templateControlAt(`${state.templateActionTarget?.kind}:${state.templateActionTarget?.index}`);
+    const actionTarget = state.templateActionTarget;
+    const target = templateControlAt(actionTarget?.kind === 'option'
+      ? `option:${actionTarget.dropdownIndex}:${actionTarget.index}`
+      : `button:${actionTarget?.index}`);
     if (!target) return elements.templateActionDialog.close();
     const selected = elements.templateActionTarget.value;
     if (!selected) return showToast(`Choose a ${['send_message', 'dm_message'].includes(target.entry.action.type) ? 'Message Template' : 'Discord role'}.`, 'error');
@@ -4601,45 +4702,93 @@
     const mode = event.target.closest('[data-template-control-mode]');
     if (mode && state.templateDraft) {
       state.templateDraft.controls.type = mode.dataset.templateControlMode;
+      if (state.templateDraft.controls.type === 'dropdown' && !state.templateDraft.controls.dropdowns.length) {
+        state.templateDraft.controls.dropdowns.push({ id: clientReactionId('dropdown'), placeholder: 'Choose an option', allowMultiple: false, sortOrder: 0, options: [] });
+      }
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty(); return;
     }
     const emoji = event.target.closest('[data-template-control-emoji]');
     if (emoji) {
-      const [kind, rawIndex] = emoji.dataset.templateControlEmoji.split(':');
-      openEmojiPicker({ type: kind === 'button' ? 'template-button' : 'template-option', index: Number(rawIndex) }); return;
+      const [kind, firstIndex, secondIndex] = emoji.dataset.templateControlEmoji.split(':');
+      openEmojiPicker(kind === 'button'
+        ? { type: 'template-button', index: Number(firstIndex) }
+        : { type: 'template-option', dropdownIndex: Number(firstIndex), index: Number(secondIndex) });
+      return;
     }
     const configure = event.target.closest('[data-template-configure-action]');
     if (configure) { openTemplateActionDialog(configure.dataset.templateConfigureAction); return; }
     const remove = event.target.closest('[data-template-control-remove]');
     if (remove) {
       const target = templateControlAt(remove.dataset.templateControlRemove);
-      if (target) target.kind === 'button' ? state.templateDraft.controls.buttons.splice(target.index, 1) : state.templateDraft.controls.dropdown.options.splice(target.index, 1);
-      templateControlEntries().forEach((entry, index) => { entry.sortOrder = index; });
+      if (target) target.entries.splice(target.index, 1);
+      target?.entries.forEach((entry, index) => { entry.sortOrder = index; });
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty(); return;
     }
     const move = event.target.closest('[data-template-control-move]');
     if (move) {
-      const [kind, rawFrom, rawDelta] = move.dataset.templateControlMove.split(':');
-      const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdown?.options;
-      const from = Number(rawFrom); const to = from + Number(rawDelta);
+      const parts = move.dataset.templateControlMove.split(':');
+      const kind = parts[0];
+      const dropdownIndex = kind === 'option' ? Number(parts[1]) : null;
+      const from = Number(kind === 'button' ? parts[1] : parts[2]);
+      const delta = Number(kind === 'button' ? parts[2] : parts[3]);
+      const entries = kind === 'button' ? state.templateDraft?.controls?.buttons : state.templateDraft?.controls?.dropdowns?.[dropdownIndex]?.options;
+      const to = from + delta;
       if (entries?.[from] && entries?.[to]) { const [item] = entries.splice(from, 1); entries.splice(to, 0, item); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
       renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
       elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
       refreshTemplateDirty();
+      return;
+    }
+    const removeDropdown = event.target.closest('[data-template-dropdown-remove]');
+    if (removeDropdown) {
+      state.templateDraft.controls.dropdowns.splice(Number(removeDropdown.dataset.templateDropdownRemove), 1);
+      state.templateDraft.controls.dropdowns.forEach((dropdown, index) => { dropdown.sortOrder = index; });
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+      return;
+    }
+    const moveDropdown = event.target.closest('[data-template-dropdown-move]');
+    if (moveDropdown) {
+      const [from, delta] = moveDropdown.dataset.templateDropdownMove.split(':').map(Number);
+      const entries = state.templateDraft.controls.dropdowns; const to = from + delta;
+      if (entries[from] && entries[to]) { const [dropdown] = entries.splice(from, 1); entries.splice(to, 0, dropdown); entries.forEach((entry, index) => { entry.sortOrder = index; }); }
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+      return;
+    }
+    const addOption = event.target.closest('[data-template-dropdown-add-option]');
+    if (addOption) {
+      const dropdown = state.templateDraft.controls.dropdowns[Number(addOption.dataset.templateDropdownAddOption)];
+      if (!dropdown || dropdown.options.length >= 25) return;
+      dropdown.options.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, title: `Option ${dropdown.options.length + 1}`, description: '', sortOrder: dropdown.options.length, action: { type: 'send_message', templateId: '' } });
+      renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
+      elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
+      refreshTemplateDirty();
+      elements.templateControls.querySelector(`[data-template-dropdown-card="${addOption.dataset.templateDropdownAddOption}"] [data-template-configure-action]:last-of-type`)?.focus();
     }
   });
   elements.templateAddControl.addEventListener('click', () => {
-    const draft = state.templateDraft; if (!draft || draft.controls.type === 'none' || templateControlEntries().length >= 25) return;
-    if (draft.controls.type === 'button') draft.controls.buttons.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, label: `Button ${draft.controls.buttons.length + 1}`, style: 'Secondary', sortOrder: draft.controls.buttons.length, action: { type: 'send_message', templateId: '' } });
-    else draft.controls.dropdown.options.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, title: `Option ${draft.controls.dropdown.options.length + 1}`, description: '', sortOrder: draft.controls.dropdown.options.length, action: { type: 'send_message', templateId: '' } });
+    const draft = state.templateDraft; if (!draft || draft.controls.type === 'none') return;
+    if (draft.controls.type === 'button') {
+      if (draft.controls.buttons.length >= 25) return;
+      draft.controls.buttons.push({ id: clientReactionId('control'), emoji: { id: '', name: '✨', animated: false, source: 'default' }, label: `Button ${draft.controls.buttons.length + 1}`, style: 'Secondary', sortOrder: draft.controls.buttons.length, action: { type: 'send_message', templateId: '' } });
+    }
+    else {
+      if (draft.controls.dropdowns.length >= 5) return;
+      draft.controls.dropdowns.push({ id: clientReactionId('dropdown'), placeholder: `Choose an option ${draft.controls.dropdowns.length + 1}`, allowMultiple: false, sortOrder: draft.controls.dropdowns.length, options: [] });
+    }
     renderTemplateControls(); renderTemplateControlPreview(); syncTemplateJson();
     elements.templateResolvedPayload.textContent = JSON.stringify(resolvedTemplatePayloadPreview(), null, 2);
     refreshTemplateDirty();
-    elements.templateControls.querySelector('[data-template-configure-action]:last-of-type')?.focus();
+    (draft.controls.type === 'button'
+      ? elements.templateControls.querySelector('[data-template-configure-action]:last-of-type')
+      : elements.templateControls.querySelector(`[data-template-dropdown-card="${draft.controls.dropdowns.length - 1}"] [data-template-dropdown-placeholder]`))?.focus();
   });
   elements.templateDuplicateButton.addEventListener('click', () => duplicateMessageTemplate().catch((error) => showToast(error.message, 'error')));
   elements.templateDeleteButton.addEventListener('click', () => deleteMessageTemplate().catch((error) => showToast(error.message, 'error')));
@@ -4797,6 +4946,11 @@
     const removeGallery = event.target.closest('[data-remove-reaction-additional-gallery]'); if (removeGallery) { const [containerIndex, mediaIndex] = removeGallery.dataset.removeReactionAdditionalGallery.split(':').map(Number); draft.message.additionalContainers[containerIndex]?.layout.galleryUrls.splice(mediaIndex, 1); renderReactionRoleEditor(); }
   });
   elements.reactionRoleAdditionalContainers.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
+
+  document.addEventListener('selectionchange', () => rememberInlineTextCaret(document.activeElement));
+  document.addEventListener('pointerdown', () => rememberInlineTextCaret(document.activeElement), true);
+  document.addEventListener('keyup', (event) => rememberInlineTextCaret(event.target), true);
+  document.addEventListener('input', (event) => rememberInlineTextCaret(event.target), true);
 
   elements.levelingEmojiToggle.addEventListener('click', () => openEmojiPicker('leveling'));
   elements.welcomeEmojiToggle.addEventListener('click', () => openEmojiPicker('memberMessages'));

@@ -9,6 +9,7 @@ const {
   templateControlIdentityToken,
   templateControlRevisionToken,
   templateIdentityToken,
+  templateLegacyDropdownRevisionToken,
   templateOptionValue,
 } = require('./messageTemplates');
 const { fetchGuildRoles, roleSafety } = require('./reactionRoles');
@@ -169,18 +170,28 @@ async function handleMessageTemplateInteraction(interaction, options = {}) {
     }
     controls = [button];
   } else {
-    if (source.controls.type !== 'dropdown' || templateControlRevisionToken(source, 'dropdown') !== parsed.revisionToken) {
+    if (source.controls.type !== 'dropdown') {
+      await ephemeral(interaction, 'This dropdown is stale or has been removed.');
+      return true;
+    }
+    const dropdown = parsed.legacy
+      ? source.controls.dropdowns.length === 1 ? source.controls.dropdowns[0] : null
+      : uniqueMatch(source.controls.dropdowns, (entry) => templateControlIdentityToken(entry.id), parsed.controlToken);
+    const revision = parsed.legacy
+      ? templateLegacyDropdownRevisionToken(source, dropdown)
+      : templateControlRevisionToken(source, 'dropdown', dropdown);
+    if (!dropdown || revision !== parsed.revisionToken) {
       await ephemeral(interaction, 'This dropdown is stale or has been removed.');
       return true;
     }
     const selected = Array.isArray(interaction.values) ? interaction.values.map(String) : [];
     const uniqueSelected = new Set(selected);
-    if (!selected.length || uniqueSelected.size !== selected.length || (!source.controls.dropdown.allowMultiple && selected.length !== 1)) {
+    if (!selected.length || uniqueSelected.size !== selected.length || (!dropdown.allowMultiple && selected.length !== 1)) {
       await ephemeral(interaction, 'Choose a valid dropdown option.');
       return true;
     }
     for (const token of selected) {
-      const option = uniqueMatch(source.controls.dropdown.options, templateOptionValue, token);
+      const option = uniqueMatch(dropdown.options, templateOptionValue, token);
       if (!option) {
         await ephemeral(interaction, 'One or more selected options are unknown or stale. No actions were run.');
         return true;
