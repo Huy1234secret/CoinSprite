@@ -132,8 +132,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'), mobileNavToggle: $('#mobileNavToggle'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), rngGameNav: $('#rngGameNav'),
-    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), rngGameView: $('#rngGameView'), ownerView: $('#ownerView'), toast: $('#toast'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'),
+    levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
     ownerRefresh: $('#ownerRefresh'), consoleOutput: $('#consoleOutput'), consoleClear: $('#consoleClear'),
@@ -178,8 +178,6 @@
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
-    rngGameEnabled: $('#rngGameEnabled'), rngGameChannels: $('#rngGameChannels'),
-    rngCooldownBypassRoles: $('#rngCooldownBypassRoles'),
     reactionRoleCreate: $('#reactionRoleCreate'), reactionRoleEmptyCreate: $('#reactionRoleEmptyCreate'), reactionRoleCount: $('#reactionRoleCount'), reactionRoleList: $('#reactionRoleList'),
     reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
     reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleThumbnailToggle: $('#reactionRoleThumbnailToggle'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
@@ -422,17 +420,6 @@
       });
       source[type] = event;
     }
-    return source;
-  }
-
-  function normalizeRngGameConfig(config) {
-    const source = clone(config?.rngGame || {});
-    source.enabled = source.enabled === true;
-    const channelIds = Array.isArray(source.gameChannelIds) ? source.gameChannelIds : [source.gameChannelId];
-    source.gameChannelIds = [...new Set(channelIds.map(String).filter(Boolean))].slice(0, 100);
-    delete source.gameChannelId;
-    source.cooldownBypassRoleIds = [...new Set((source.cooldownBypassRoleIds || []).map(String))].slice(0, 100);
-    delete source.info;
     return source;
   }
 
@@ -2846,19 +2833,6 @@
     refreshDirty();
   }
 
-  function renderRngGame() {
-    const rngGame = state.config.rngGame;
-    elements.rngGameEnabled.checked = rngGame.enabled;
-    elements.rngGameChannels.innerHTML = channelOptions(rngGame.gameChannelIds);
-    elements.rngGameChannels.options[0].textContent = 'Choose one or more game channels';
-    const selected = new Set(rngGame.cooldownBypassRoleIds);
-    const roles = state.directory.roles || [];
-    elements.rngCooldownBypassRoles.innerHTML = roles.length
-      ? roles.map((role) => `<option value="${role.id}" ${selected.has(role.id) ? 'selected' : ''} style="color:${roleColor(role.id)}">● @${escapeHtml(role.name)}</option>`).join('')
-      : '<option disabled>No roles available</option>';
-    refreshDirty();
-  }
-
   function renderFeatureAccess() {
     if (!state.config) return;
     const levelingUnlocked = state.config.features?.leveling === true;
@@ -2867,15 +2841,7 @@
     const levelingLabel = elements.levelingNav.querySelector('small');
     if (levelingLabel) levelingLabel.textContent = levelingUnlocked ? 'XP & rewards' : 'Locked by owner';
     elements.levelingNav.title = levelingUnlocked ? '' : 'The bot owner must unlock Leveling for this server.';
-    const rngUnlocked = state.config.features?.rngGame === true;
-    elements.rngGameNav.disabled = !rngUnlocked;
-    elements.rngGameNav.classList.toggle('is-locked', !rngUnlocked);
-    const rngLabel = elements.rngGameNav.querySelector('small');
-    if (rngLabel) rngLabel.textContent = rngUnlocked ? 'Rolls & economy' : 'Locked by owner';
-    elements.rngGameNav.title = rngUnlocked ? '' : 'The bot owner must unlock RNG Game for this server.';
     if (!levelingUnlocked && state.currentView === 'leveling') {
-      setView('member-messages');
-    } else if (!rngUnlocked && state.currentView === 'rng-game') {
       setView('member-messages');
     }
   }
@@ -2885,7 +2851,6 @@
     return JSON.stringify({
       leveling: config.leveling,
       memberMessages: config.memberMessages,
-      rngGame: config.rngGame,
     });
   }
 
@@ -2926,7 +2891,6 @@
         ...configPayload.config,
         leveling: normalizeLevelingConfig(configPayload.config),
         memberMessages: normalizeMemberMessagesConfig(configPayload.config),
-        rngGame: normalizeRngGameConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -2942,7 +2906,6 @@
       renderFeatureAccess();
       renderLeveling();
       renderWelcomeMessages();
-      renderRngGame();
       renderTemplateWorkspace();
       renderReactionRoles();
       const deepLink = new URLSearchParams(location.search);
@@ -2965,10 +2928,8 @@
     try {
       const leveling = clone(state.config.leveling);
       const memberMessages = clone(state.config.memberMessages);
-      const rngGame = clone(state.config.rngGame);
       const body = { memberMessages };
       if (state.config.features?.leveling === true) body.leveling = leveling;
-      if (state.config.features?.rngGame === true) body.rngGame = rngGame;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -2977,14 +2938,12 @@
         ...payload.config,
         leveling: normalizeLevelingConfig(payload.config),
         memberMessages: normalizeMemberMessagesConfig(payload.config),
-        rngGame: normalizeRngGameConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
       renderFeatureAccess();
       renderLeveling();
       renderWelcomeMessages();
-      renderRngGame();
       showToast('Dashboard settings updated.');
     } catch (error) {
       showToast(error.message, 'error');
@@ -3021,15 +2980,13 @@
       ['storage', 'Storage', payload.storage.label, 'Live data and logs', payload.storage.usageRatio, payload.storage.maxLabel],
     ];
     const rows = (payload.guilds || []).map((guild) => {
-      const featureCount = Number(guild.features?.leveling === true)
-        + Number(guild.features?.rngGame === true);
+      const featureCount = Number(guild.features?.leveling === true);
       return `<tr>
       <td><div class="guild-cell">${guildIcon(guild)}<span><strong>${escapeHtml(guild.name)}</strong><small>${guild.id}</small></span></div></td>
       <td>${formatNumber(guild.totalUsers)}</td>
       <td><span class="status-pill ${guild.enabled ? '' : 'off'}">${guild.enabled ? 'Online' : 'Disabled'}</span></td>
       <td><details class="feature-dropdown"><summary>${featureCount} feature${featureCount === 1 ? '' : 's'}</summary><div>
         <label><input type="checkbox" data-owner-feature="leveling" data-guild-id="${guild.id}" ${guild.features?.leveling ? 'checked' : ''}><span><strong>Leveling</strong><small>${guild.features?.leveling ? 'Unlocked' : 'Locked'}</small></span></label>
-        <label><input type="checkbox" data-owner-feature="rngGame" data-guild-id="${guild.id}" ${guild.features?.rngGame ? 'checked' : ''}><span><strong>RNG Game</strong><small>${guild.features?.rngGame ? 'Unlocked' : 'Locked'}</small></span></label>
       </div></details></td>
       <td><div class="row-actions"><button class="text-button" type="button" data-owner-load="${guild.id}">Open</button><button class="text-button" type="button" data-owner-toggle="${guild.id}" data-enabled="${guild.enabled}">${guild.enabled ? 'Disable' : 'Enable'}</button></div></td>
     </tr>`;
@@ -3129,10 +3086,6 @@
     if (view === 'owner' && !state.me?.owner) return;
     if (view === 'leveling' && state.config?.features?.leveling !== true) {
       showToast('Leveling is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
-      return;
-    }
-    if (view === 'rng-game' && state.config?.features?.rngGame !== true) {
-      showToast('RNG Game is locked for this server. The bot owner can unlock it from Fleet control.', 'error');
       return;
     }
     state.currentView = view;
@@ -3448,19 +3401,6 @@
     finally { label?.classList.remove('uploading'); input.value = ''; }
   }
 
-  function updateRngGameFromControl(target) {
-    if (!state.config) return;
-    const rngGame = state.config.rngGame;
-    if (target === elements.rngGameEnabled) rngGame.enabled = target.checked;
-    if (target === elements.rngGameChannels) {
-      rngGame.gameChannelIds = [...target.selectedOptions].map((option) => option.value).filter(Boolean).slice(0, 100);
-    }
-    if (target === elements.rngCooldownBypassRoles) {
-      rngGame.cooldownBypassRoleIds = [...target.selectedOptions].map((option) => option.value).slice(0, 100);
-    }
-    refreshDirty();
-  }
-
   function addLevelReward() {
     if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
     const rewards = state.config.leveling.roleRewards;
@@ -3495,7 +3435,6 @@
     renderFeatureAccess();
     renderLeveling();
     renderWelcomeMessages();
-    renderRngGame();
     showToast('Unsaved changes reset.');
   }
 
@@ -4660,8 +4599,6 @@
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
   elements.reactionRolesView.addEventListener('input', (event) => updateReactionRoleFromControl(event.target));
   elements.reactionRolesView.addEventListener('change', (event) => updateReactionRoleFromControl(event.target));
-  elements.rngGameView.addEventListener('input', (event) => updateRngGameFromControl(event.target));
-  elements.rngGameView.addEventListener('change', (event) => updateRngGameFromControl(event.target));
   for (const preview of [
     elements.levelingMessagePreview, elements.levelingAdditionalContainers,
     elements.welcomeMessagePreview, elements.welcomeAdditionalContainers,
@@ -5324,13 +5261,11 @@
         state.config.features = payload.features;
         state.config.leveling = normalizeLevelingConfig(payload.config);
         state.config.memberMessages = normalizeMemberMessagesConfig(payload.config);
-        state.config.rngGame = normalizeRngGameConfig(payload.config);
         state.savedConfig = clone(state.config);
         state.savedSnapshot = snapshot();
         renderFeatureAccess();
       }
-      const featureLabel = input.dataset.ownerFeature === 'rngGame' ? 'RNG Game' : 'Leveling';
-      showToast(`${featureLabel} ${input.checked ? 'unlocked' : 'locked'} for this server.`);
+      showToast(`Leveling ${input.checked ? 'unlocked' : 'locked'} for this server.`);
       await loadOwner();
     } catch (error) {
       input.checked = !input.checked;

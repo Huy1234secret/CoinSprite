@@ -264,7 +264,8 @@ test('dashboard, shared media API, and Discord entrypoint expose the complete fe
   const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   const server = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
   const entrypoint = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
-  assert.match(html, /data-view="leveling"[\s\S]*data-view="member-messages"[\s\S]*data-view="rng-game"/);
+  assert.match(html, /data-view="leveling"[\s\S]*data-view="member-messages"[\s\S]*data-view="message-templates"[\s\S]*data-view="reaction-roles"/);
+  assert.doesNotMatch(html, /data-view="rng-game"/);
   assert.match(html, /data-member-event="join"/);
   assert.match(html, /data-member-event="leave"/);
   assert.match(html, /data-member-event="boost"/);

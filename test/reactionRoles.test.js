@@ -295,7 +295,8 @@ test('dashboard exposes the shared picker and exactly three Reaction Roles tabs'
   const emojiData = fs.readFileSync(path.join(__dirname, '..', 'admin', 'emojiData.js'), 'utf8');
   const emojiContext = { window: {} };
   vm.runInNewContext(emojiData, emojiContext);
-  assert.match(html, /data-view="message-templates"[\s\S]*data-view="reaction-roles"[\s\S]*data-view="rng-game"/);
+  assert.match(html, /data-view="message-templates"[\s\S]*data-view="reaction-roles"/);
+  assert.doesNotMatch(html, /data-view="rng-game"/);
   assert.deepEqual([...html.matchAll(/data-reaction-tab="([^"]+)"/g)].map((match) => match[1]), ['message', 'role-reaction', 'channel']);
   for (const id of ['levelingEmojiToggle', 'welcomeEmojiToggle', 'templateEmojiToggle', 'xpDropEmojiToggle', 'xpClaimEmojiToggle', 'reactionRoleEmojiToggle']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(app, /input\.dispatchEvent\(new Event\('input', \{ bubbles: true \}\)\)/);

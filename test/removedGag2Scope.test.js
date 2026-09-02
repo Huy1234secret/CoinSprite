@@ -83,22 +83,22 @@ test('current schema strips obsolete stock data while preserving unrelated setti
   assert.equal(state.guilds[guildId].features.gag2Stock, undefined);
 });
 
-test('dashboard retains leveling and RNG controls without stock navigation or APIs', () => {
+test('dashboard retains leveling controls without RNG or stock navigation and APIs', () => {
   const html = read('admin/index.html');
   const dashboard = read('admin/app.js');
   const server = read('src/adminServer.js');
   assert.match(html, /data-view="leveling"/);
-  assert.match(html, /data-view="rng-game"/);
-  assert.match(html, /id="rngGameChannels" multiple/);
+  assert.doesNotMatch(html, /data-view="rng-game"|id="rngGameChannels"|Crop Chances/i);
   assert.match(html, /id="xpDropList"/);
   assert.match(html, /id="xpDropChannel"/);
   assert.match(html, /id="xpDropTestButton"/);
   assert.match(dashboard, /normalizeLevelingConfig/);
-  assert.match(dashboard, /normalizeRngGameConfig/);
+  assert.doesNotMatch(dashboard, /normalizeRngGameConfig|renderRngGame/);
   assert.match(dashboard, /sendXpDropTest/);
   assert.match(dashboard, /list_claimed_user/);
   assert.match(dashboard, /data-xp-drop-duration-part/);
   assert.match(server, /xp-drops\\\/test/);
+  assert.doesNotMatch(server, /crop-chances|admin\\\/chances|STUDS_TEXTURE_PATH/);
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 
@@ -107,6 +107,7 @@ test('shop and RNG economy remain reachable after external stock removal', () =>
   const featureSource = read('src/features/rng-game/index.js');
   const shopSource = read('src/features/rng-game/services/shopService.js');
   assert.match(commandSource, /setName\('shop'\)/);
+  assert.doesNotMatch(commandSource, /calculate-chance|calculate chance/);
   assert.match(featureSource, /shopService/);
   assert.match(shopSource, /restock/i);
 });

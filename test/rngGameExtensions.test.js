@@ -210,7 +210,7 @@ test('migration defaults existing Auto Roll jobs to five per roll and preserves 
 test('all requested prefix commands and Auto Roll aliases use the shared command handlers', async () => {
   const aliases = [
     'c!roll', 'c!inventory', 'c!sell', 'c!balance', 'c!auto roll', 'c!auto-roll',
-    'c!upgrade', 'c!index', 'c!stat', 'c!calculate chance',
+    'c!upgrade', 'c!index', 'c!stat',
   ];
   for (const content of aliases) {
     const game = feature();
@@ -446,33 +446,6 @@ test('Index uses rounded-square cards and a dedicated Unicode-safe text face', (
   const context = createCanvas(500, 100).getContext('2d');
   assert.equal(fitIndexText(context, '???', 200).text, '???');
   assert.equal(fitIndexText(context, 'Dragon\u2019s Breath', 400).text, 'Dragon\u2019s Breath');
-});
-
-test('/calculate-chance and c!calculate chance use the signed-in player Luck profile', async () => {
-  const game = feature({ chancePageUrl: 'https://panel.example/chances' });
-  game.repository.getPlayer('chance-user');
-  game.db.prepare('UPDATE rng_players SET luck_tier = 6 WHERE user_id = ?').run('chance-user');
-  for (const kind of ['slash', 'prefix']) {
-    let payload;
-    if (kind === 'slash') {
-      await game.handleInteraction({
-        isChatInputCommand: () => true,
-        commandName: 'calculate-chance',
-        user: { id: 'chance-user' },
-        async reply(value) { payload = value; },
-      });
-    } else {
-      await game.handleMessage({
-        content: 'c!calculate chance',
-        author: { id: 'chance-user', bot: false },
-        async reply(value) { payload = value; },
-      });
-    }
-    const container = payload.components[0].components;
-    assert.match(container[0].content, /Luck Tier: \*\*6\*\*/);
-    assert.equal(container[2].components[0].url, 'https://panel.example/chances');
-  }
-  game.close();
 });
 
 test('Index cards confine studs above the divider and keep the image stage and crop on top', async () => {
