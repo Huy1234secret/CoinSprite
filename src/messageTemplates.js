@@ -10,7 +10,8 @@ const {
   templateVariables,
 } = require('./messageComposer');
 
-const TEMPLATE_VERSION = 2;
+const TEMPLATE_VERSION = 3;
+const PREVIOUS_TEMPLATE_VERSION = 2;
 const LEGACY_TEMPLATE_VERSION = 1;
 const MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX = 'mt';
 const MESSAGE_TEMPLATE_LIMITS = Object.freeze({
@@ -23,6 +24,7 @@ const MESSAGE_TEMPLATE_LIMITS = Object.freeze({
   separators: 4,
   additionalContainers: 2,
   buttons: 25,
+  dropdowns: 5,
   buttonLabel: 80,
   dropdownOptions: 25,
   dropdownLabel: 100,
@@ -56,11 +58,7 @@ const DEFAULT_MESSAGE_TEMPLATES_CONFIG = Object.freeze({
 const DEFAULT_TEMPLATE_CONTROLS = Object.freeze({
   type: 'none',
   buttons: Object.freeze([]),
-  dropdown: Object.freeze({
-    placeholder: 'Choose an option',
-    allowMultiple: false,
-    options: Object.freeze([]),
-  }),
+  dropdowns: Object.freeze([]),
 });
 const ID_PATTERN = /^[a-zA-Z0-9_-]{8,64}$/;
 const DISCORD_ID_PATTERN = /^\d{16,20}$/;
@@ -206,29 +204,53 @@ function normalizeTemplateControls(value) {
     }))
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((button, index) => ({ ...button, sortOrder: index }));
-  const dropdownSource = isObject(source.dropdown) ? source.dropdown : {};
-  const optionIds = new Set();
-  const options = (Array.isArray(dropdownSource.options) ? dropdownSource.options : [])
-    .slice(0, MESSAGE_TEMPLATE_LIMITS.dropdownOptions)
-    .map((option, index) => ({
-      id: normalizedId('control', option, index, optionIds),
-      emoji: normalizeTemplateControlEmoji(option?.emoji),
-      title: cleanText(option?.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel, `Option ${index + 1}`),
-      description: cleanText(option?.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
-      sortOrder: Number.isFinite(Number(option?.sortOrder)) ? Math.max(0, Math.round(Number(option.sortOrder))) : index,
-      action: normalizeTemplateAction(option?.action),
-    }))
+  const dropdownIds = new Set();
+  const dropdowns = (Array.isArray(source.dropdowns) ? source.dropdowns : [])
+    .slice(0, MESSAGE_TEMPLATE_LIMITS.dropdowns)
+    .map((dropdown, dropdownIndex) => {
+      const dropdownSource = isObject(dropdown) ? dropdown : {};
+      const optionIds = new Set();
+      const options = (Array.isArray(dropdownSource.options) ? dropdownSource.options : [])
+        .slice(0, MESSAGE_TEMPLATE_LIMITS.dropdownOptions)
+        .map((option, optionIndex) => ({
+          id: normalizedId('control', option, optionIndex, optionIds),
+          emoji: normalizeTemplateControlEmoji(option?.emoji),
+          title: cleanText(option?.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel, `Option ${optionIndex + 1}`),
+          description: cleanText(option?.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
+          sortOrder: Number.isFinite(Number(option?.sortOrder)) ? Math.max(0, Math.round(Number(option.sortOrder))) : optionIndex,
+          action: normalizeTemplateAction(option?.action),
+        }))
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((option, optionIndex) => ({ ...option, sortOrder: optionIndex }));
+      return {
+        id: normalizedId('dropdown', dropdownSource, dropdownIndex, dropdownIds),
+        placeholder: cleanText(dropdownSource.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder, `Choose an option ${dropdownIndex + 1}`),
+        allowMultiple: dropdownSource.allowMultiple === true,
+        sortOrder: Number.isFinite(Number(dropdownSource.sortOrder)) ? Math.max(0, Math.round(Number(dropdownSource.sortOrder))) : dropdownIndex,
+        options,
+      };
+    })
     .sort((left, right) => left.sortOrder - right.sortOrder)
-    .map((option, index) => ({ ...option, sortOrder: index }));
+    .map((dropdown, index) => ({ ...dropdown, sortOrder: index }));
   return {
     type: ['button', 'dropdown'].includes(source.type) ? source.type : 'none',
     buttons,
-    dropdown: {
-      placeholder: cleanText(dropdownSource.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder, 'Choose an option'),
-      allowMultiple: dropdownSource.allowMultiple === true,
-      options,
-    },
+    dropdowns,
   };
+}
+
+function normalizeTemplateControlsV2(value) {
+  const source = isObject(value) ? value : {};
+  const dropdown = isObject(source.dropdown) ? source.dropdown : {};
+  return normalizeTemplateControls({
+    type: source.type,
+    buttons: source.buttons,
+    dropdowns: [{
+      ...dropdown,
+      id: deterministicId('dropdown', dropdown, 0),
+      sortOrder: 0,
+    }],
+  });
 }
 
 function normalizeMessageTemplatesConfig(value) {
@@ -262,7 +284,9 @@ function normalizeMessageTemplatesConfig(value) {
         additionalContainers: normalizeAdditionalTemplateContainers(item?.additionalContainers),
         controls: Number(item?.version) === LEGACY_TEMPLATE_VERSION
           ? clone(DEFAULT_TEMPLATE_CONTROLS)
-          : normalizeTemplateControls(item?.controls),
+          : Number(item?.version) === PREVIOUS_TEMPLATE_VERSION
+            ? normalizeTemplateControlsV2(item?.controls)
+            : normalizeTemplateControls(item?.controls),
         defaultChannelId: cleanDiscordId(item?.defaultChannelId),
         enabled: item?.enabled !== false,
         createdAt,
@@ -348,7 +372,7 @@ function parseTemplateAction(value, label, options = {}) {
 }
 
 function parseTemplateControls(value, options = {}) {
-  assertAllowedFields(value, ['type', 'buttons', 'dropdown'], 'Controls');
+  assertAllowedFields(value, ['type', 'buttons', 'dropdowns'], 'Controls');
   if (!['none', 'button', 'dropdown'].includes(value.type)) throw new MessageTemplateError('controls.type must be none, button, or dropdown.');
   if (!Array.isArray(value.buttons)) throw new MessageTemplateError('controls.buttons must be an array.');
   if (value.buttons.length > MESSAGE_TEMPLATE_LIMITS.buttons) throw new MessageTemplateError(`Button controls support up to ${MESSAGE_TEMPLATE_LIMITS.buttons} buttons.`);
@@ -370,38 +394,66 @@ function parseTemplateControls(value, options = {}) {
       action: parseTemplateAction(button.action, `${label} action`, options),
     };
   }).sort((left, right) => left.sortOrder - right.sortOrder).map((button, index) => ({ ...button, sortOrder: index }));
-  assertAllowedFields(value.dropdown, ['placeholder', 'allowMultiple', 'options'], 'Controls dropdown');
-  if (typeof value.dropdown.placeholder !== 'string' || !value.dropdown.placeholder.trim() || value.dropdown.placeholder.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder) throw new MessageTemplateError(`controls.dropdown.placeholder must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder} characters.`);
-  if (typeof value.dropdown.allowMultiple !== 'boolean') throw new MessageTemplateError('controls.dropdown.allowMultiple must be true or false.');
-  if (!Array.isArray(value.dropdown.options)) throw new MessageTemplateError('controls.dropdown.options must be an array.');
-  if (value.dropdown.options.length > MESSAGE_TEMPLATE_LIMITS.dropdownOptions) throw new MessageTemplateError(`Dropdown controls support up to ${MESSAGE_TEMPLATE_LIMITS.dropdownOptions} options.`);
-  const seenOptionIds = new Set();
-  const dropdownOptions = value.dropdown.options.map((option, index) => {
-    const label = `Controls dropdown option ${index + 1}`;
-    assertAllowedFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
-    if (!ID_PATTERN.test(String(option.id || '')) || seenOptionIds.has(option.id)) throw new MessageTemplateError(`${label}.id must be unique and stable.`);
-    seenOptionIds.add(option.id);
-    if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownLabel) throw new MessageTemplateError(`${label}.title must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownLabel} characters.`);
-    if (typeof option.description !== 'string' || option.description.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownDescription) throw new MessageTemplateError(`${label}.description must be ${MESSAGE_TEMPLATE_LIMITS.dropdownDescription} characters or fewer.`);
-    if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new MessageTemplateError(`${label}.sortOrder must be a non-negative integer.`);
+  if (!Array.isArray(value.dropdowns)) throw new MessageTemplateError('controls.dropdowns must be an array.');
+  if (value.dropdowns.length > MESSAGE_TEMPLATE_LIMITS.dropdowns) throw new MessageTemplateError(`Message Templates support up to ${MESSAGE_TEMPLATE_LIMITS.dropdowns} dropdowns.`);
+  const seenDropdownIds = new Set();
+  const dropdowns = value.dropdowns.map((dropdown, dropdownIndex) => {
+    const dropdownLabel = `Controls dropdown ${dropdownIndex + 1}`;
+    assertAllowedFields(dropdown, ['id', 'placeholder', 'allowMultiple', 'sortOrder', 'options'], dropdownLabel);
+    if (!ID_PATTERN.test(String(dropdown.id || '')) || seenDropdownIds.has(dropdown.id)) throw new MessageTemplateError(`${dropdownLabel}.id must be unique and stable.`);
+    seenDropdownIds.add(dropdown.id);
+    if (typeof dropdown.placeholder !== 'string' || !dropdown.placeholder.trim() || dropdown.placeholder.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder) throw new MessageTemplateError(`${dropdownLabel}.placeholder must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder} characters.`);
+    if (typeof dropdown.allowMultiple !== 'boolean') throw new MessageTemplateError(`${dropdownLabel}.allowMultiple must be true or false.`);
+    if (!Number.isInteger(dropdown.sortOrder) || dropdown.sortOrder < 0) throw new MessageTemplateError(`${dropdownLabel}.sortOrder must be a non-negative integer.`);
+    if (!Array.isArray(dropdown.options)) throw new MessageTemplateError(`${dropdownLabel}.options must be an array.`);
+    if (dropdown.options.length > MESSAGE_TEMPLATE_LIMITS.dropdownOptions) throw new MessageTemplateError(`Each dropdown supports up to ${MESSAGE_TEMPLATE_LIMITS.dropdownOptions} options.`);
+    const seenOptionIds = new Set();
+    const dropdownOptions = dropdown.options.map((option, optionIndex) => {
+      const label = `${dropdownLabel} option ${optionIndex + 1}`;
+      assertAllowedFields(option, ['id', 'emoji', 'title', 'description', 'sortOrder', 'action'], label);
+      if (!ID_PATTERN.test(String(option.id || '')) || seenOptionIds.has(option.id)) throw new MessageTemplateError(`${label}.id must be unique and stable.`);
+      seenOptionIds.add(option.id);
+      if (typeof option.title !== 'string' || !option.title.trim() || option.title.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownLabel) throw new MessageTemplateError(`${label}.title must be between 1 and ${MESSAGE_TEMPLATE_LIMITS.dropdownLabel} characters.`);
+      if (typeof option.description !== 'string' || option.description.trim().length > MESSAGE_TEMPLATE_LIMITS.dropdownDescription) throw new MessageTemplateError(`${label}.description must be ${MESSAGE_TEMPLATE_LIMITS.dropdownDescription} characters or fewer.`);
+      if (!Number.isInteger(option.sortOrder) || option.sortOrder < 0) throw new MessageTemplateError(`${label}.sortOrder must be a non-negative integer.`);
+      return {
+        id: option.id,
+        emoji: parseTemplateControlEmoji(option.emoji, `${label} emoji`),
+        title: cleanText(option.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel),
+        description: cleanText(option.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
+        sortOrder: option.sortOrder,
+        action: parseTemplateAction(option.action, `${label} action`, options),
+      };
+    }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, optionIndex) => ({ ...option, sortOrder: optionIndex }));
     return {
-      id: option.id,
-      emoji: parseTemplateControlEmoji(option.emoji, `${label} emoji`),
-      title: cleanText(option.title, MESSAGE_TEMPLATE_LIMITS.dropdownLabel),
-      description: cleanText(option.description, MESSAGE_TEMPLATE_LIMITS.dropdownDescription),
-      sortOrder: option.sortOrder,
-      action: parseTemplateAction(option.action, `${label} action`, options),
+      id: dropdown.id,
+      placeholder: cleanText(dropdown.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder),
+      allowMultiple: dropdown.allowMultiple,
+      sortOrder: dropdown.sortOrder,
+      options: dropdownOptions,
     };
-  }).sort((left, right) => left.sortOrder - right.sortOrder).map((option, index) => ({ ...option, sortOrder: index }));
+  }).sort((left, right) => left.sortOrder - right.sortOrder).map((dropdown, index) => ({ ...dropdown, sortOrder: index }));
   return {
     type: value.type,
     buttons,
-    dropdown: {
-      placeholder: cleanText(value.dropdown.placeholder, MESSAGE_TEMPLATE_LIMITS.dropdownPlaceholder),
-      allowMultiple: value.dropdown.allowMultiple,
-      options: dropdownOptions,
-    },
+    dropdowns,
   };
+}
+
+function parseTemplateControlsV2(value, options = {}) {
+  assertAllowedFields(value, ['type', 'buttons', 'dropdown'], 'Controls');
+  assertAllowedFields(value.dropdown, ['placeholder', 'allowMultiple', 'options'], 'Controls dropdown');
+  return parseTemplateControls({
+    type: value.type,
+    buttons: value.buttons,
+    dropdowns: [{
+      id: deterministicId('dropdown', value.dropdown, 0),
+      placeholder: value.dropdown.placeholder,
+      allowMultiple: value.dropdown.allowMultiple,
+      sortOrder: 0,
+      options: value.dropdown.options,
+    }],
+  }, options);
 }
 
 function parseTemplateDocument(value, options = {}) {
@@ -409,7 +461,7 @@ function parseTemplateDocument(value, options = {}) {
   assertAllowedFields(value, version === LEGACY_TEMPLATE_VERSION
     ? ['version', 'content', 'layout', 'additionalContainers']
     : ['version', 'content', 'layout', 'additionalContainers', 'controls'], 'Template JSON');
-  if (![LEGACY_TEMPLATE_VERSION, TEMPLATE_VERSION].includes(version)) throw new MessageTemplateError(`Template JSON version must be ${LEGACY_TEMPLATE_VERSION} or ${TEMPLATE_VERSION}.`);
+  if (![LEGACY_TEMPLATE_VERSION, PREVIOUS_TEMPLATE_VERSION, TEMPLATE_VERSION].includes(version)) throw new MessageTemplateError(`Template JSON version must be ${LEGACY_TEMPLATE_VERSION}, ${PREVIOUS_TEMPLATE_VERSION}, or ${TEMPLATE_VERSION}.`);
   const additional = value.additionalContainers === undefined ? [] : value.additionalContainers;
   if (!Array.isArray(additional)) throw new MessageTemplateError('additionalContainers must be an array.');
   if (additional.length > MESSAGE_TEMPLATE_LIMITS.additionalContainers) throw new MessageTemplateError(`Templates support up to ${MESSAGE_TEMPLATE_LIMITS.additionalContainers} additional containers.`);
@@ -427,7 +479,9 @@ function parseTemplateDocument(value, options = {}) {
     }),
     controls: version === LEGACY_TEMPLATE_VERSION
       ? clone(DEFAULT_TEMPLATE_CONTROLS)
-      : parseTemplateControls(value.controls, options),
+      : version === PREVIOUS_TEMPLATE_VERSION
+        ? parseTemplateControlsV2(value.controls, options)
+        : parseTemplateControls(value.controls, options),
   };
 }
 
@@ -552,7 +606,7 @@ function updateTemplate(collection, id, body, now = new Date()) {
   if (body.document !== undefined) {
     const allowedMissingTemplateIds = new Set([
       ...(item.controls?.buttons || []),
-      ...(item.controls?.dropdown?.options || []),
+      ...(item.controls?.dropdowns || []).flatMap((dropdown) => dropdown.options || []),
     ].map((entry) => entry.action?.templateId).filter(Boolean));
     Object.assign(item, parseTemplateDocument(body.document, { collection, allowedMissingTemplateIds }));
   }
@@ -574,10 +628,13 @@ function duplicateTemplate(collection, id, now = new Date()) {
   }
   const document = templateDocument(source);
   for (const button of document.controls.buttons) button.id = nextId('control');
-  for (const option of document.controls.dropdown.options) option.id = nextId('control');
+  for (const dropdown of document.controls.dropdowns) {
+    dropdown.id = nextId('dropdown');
+    for (const option of dropdown.options) option.id = nextId('control');
+  }
   const allowedMissingTemplateIds = new Set([
     ...(source.controls?.buttons || []),
-    ...(source.controls?.dropdown?.options || []),
+    ...(source.controls?.dropdowns || []).flatMap((dropdown) => dropdown.options || []),
   ].map((entry) => entry.action?.templateId).filter(Boolean));
   return createTemplate(collection, {
     name,
@@ -652,18 +709,24 @@ function templateControlIdentityToken(controlId) {
 }
 
 function templateControlRevisionToken(item, type, control = null) {
-  const value = type === 'dropdown'
-    ? item?.controls?.dropdown
-    : control;
-  return compactDigest(`revision:${item?.updatedAt || ''}:${type}:${JSON.stringify(value || null)}`, 12);
+  return compactDigest(`revision:${item?.updatedAt || ''}:${type}:${JSON.stringify(control || null)}`, 12);
+}
+
+function templateLegacyDropdownRevisionToken(item, dropdown) {
+  const legacyDropdown = {
+    placeholder: dropdown?.placeholder,
+    allowMultiple: dropdown?.allowMultiple === true,
+    options: dropdown?.options || [],
+  };
+  return compactDigest(`revision:${item?.updatedAt || ''}:dropdown:${JSON.stringify(legacyDropdown)}`, 12);
 }
 
 function templateButtonCustomId(guildId, item, button) {
   return `${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:${encodeGuildId(guildId)}:b:${templateIdentityToken(item?.id)}:${templateControlIdentityToken(button?.id)}:${templateControlRevisionToken(item, 'button', button)}`;
 }
 
-function templateSelectCustomId(guildId, item) {
-  return `${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:${encodeGuildId(guildId)}:d:${templateIdentityToken(item?.id)}:${templateControlRevisionToken(item, 'dropdown')}`;
+function templateSelectCustomId(guildId, item, dropdown) {
+  return `${MESSAGE_TEMPLATE_CUSTOM_ID_PREFIX}:${encodeGuildId(guildId)}:d:${templateIdentityToken(item?.id)}:${templateControlIdentityToken(dropdown?.id)}:${templateControlRevisionToken(item, 'dropdown', dropdown)}`;
 }
 
 function templateOptionValue(option) {
@@ -678,10 +741,15 @@ function parseTemplateControlCustomId(value) {
     const guildId = decodeGuildId(match[1]);
     return guildId ? { guildId, type: 'button', templateToken: match[2], controlToken: match[3], revisionToken: match[4] } : null;
   }
+  match = text.match(/^mt:([0-9a-z]{1,16}):d:([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{12})$/);
+  if (match) {
+    const guildId = decodeGuildId(match[1]);
+    return guildId ? { guildId, type: 'dropdown', templateToken: match[2], controlToken: match[3], revisionToken: match[4], legacy: false } : null;
+  }
   match = text.match(/^mt:([0-9a-z]{1,16}):d:([a-zA-Z0-9_-]{16}):([a-zA-Z0-9_-]{12})$/);
   if (!match) return null;
   const guildId = decodeGuildId(match[1]);
-  return guildId ? { guildId, type: 'dropdown', templateToken: match[2], controlToken: '', revisionToken: match[3] } : null;
+  return guildId ? { guildId, type: 'dropdown', templateToken: match[2], controlToken: '', revisionToken: match[3], legacy: true } : null;
 }
 
 function assertConfiguredAction(action, label) {
@@ -709,26 +777,28 @@ function templateButtonActionRows(item, guildId) {
 }
 
 function templateDropdownActionRows(item, guildId) {
-  if (!item.controls.dropdown.options.length) return [];
-  const options = item.controls.dropdown.options.map((option, index) => {
-    assertConfiguredAction(option.action, `dropdown option ${index + 1}`);
-    const component = { label: option.title, value: templateOptionValue(option) };
-    if (option.description) component.description = option.description;
-    const emoji = discordControlEmoji(option.emoji);
-    if (emoji) component.emoji = emoji;
-    return component;
+  return item.controls.dropdowns.map((dropdown, dropdownIndex) => {
+    if (!dropdown.options.length) throw new MessageTemplateError(`Add at least one option to dropdown ${dropdownIndex + 1} before sending.`, 400, 'EMPTY_CONTROL_DROPDOWN');
+    const options = dropdown.options.map((option, optionIndex) => {
+      assertConfiguredAction(option.action, `dropdown ${dropdownIndex + 1} option ${optionIndex + 1}`);
+      const component = { label: option.title, value: templateOptionValue(option) };
+      if (option.description) component.description = option.description;
+      const emoji = discordControlEmoji(option.emoji);
+      if (emoji) component.emoji = emoji;
+      return component;
+    });
+    return {
+      type: 1,
+      components: [{
+        type: 3,
+        custom_id: templateSelectCustomId(guildId, item, dropdown),
+        placeholder: dropdown.placeholder,
+        min_values: 1,
+        max_values: dropdown.allowMultiple ? Math.min(MESSAGE_TEMPLATE_LIMITS.dropdownOptions, options.length) : 1,
+        options,
+      }],
+    };
   });
-  return [{
-    type: 1,
-    components: [{
-      type: 3,
-      custom_id: templateSelectCustomId(guildId, item),
-      placeholder: item.controls.dropdown.placeholder,
-      min_values: 1,
-      max_values: item.controls.dropdown.allowMultiple ? Math.min(MESSAGE_TEMPLATE_LIMITS.dropdownOptions, options.length) : 1,
-      options,
-    }],
-  }];
 }
 
 function templateControlActionRows(item, guildId) {
@@ -743,8 +813,8 @@ function templateControlActionRows(item, guildId) {
 function validateTemplateControlPayload(item, guildId = '123456789012345678') {
   const controls = normalizeTemplateControls(item?.controls);
   if (controls.type === 'none') return item;
-  const entries = controls.type === 'button' ? controls.buttons : controls.dropdown.options;
-  if (!entries.length) throw new MessageTemplateError(`Add at least one ${controls.type === 'button' ? 'button' : 'dropdown option'} or choose no controls.`);
+  const entries = controls.type === 'button' ? controls.buttons : controls.dropdowns;
+  if (!entries.length) throw new MessageTemplateError(`Add at least one ${controls.type === 'button' ? 'button' : 'dropdown'} or choose no controls.`);
   const payload = componentMessagePayload(item?.content, item?.layout, {
     label: item?.name || 'Message Template',
     fallbackText: '-# Message template',
@@ -842,6 +912,7 @@ module.exports = {
   templateButtonCustomId,
   templateControlActionRows,
   templateControlIdentityToken,
+  templateLegacyDropdownRevisionToken,
   templateControlRevisionToken,
   templateDocument,
   templateIdentityToken,

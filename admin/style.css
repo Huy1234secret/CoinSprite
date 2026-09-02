@@ -347,10 +347,16 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-action-summary { min-height: 36px; display: flex; align-items: center; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--soft); background: rgba(255,255,255,.02); font-size: 9px; line-height: 1.35; }
 .template-control-row.incomplete .template-action-summary { color: #ffb0b0; background: rgba(255,107,107,.06); }
 .template-control-empty { margin: 0 0 12px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 13px; color: var(--muted); font-size: 10px; text-align: center; }
-.template-dropdown-settings { display: grid; grid-template-columns: minmax(180px,1fr) minmax(180px,1fr); gap: 9px; margin-bottom: 12px; }
+.template-dropdown-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 13px; border: 1px solid var(--line-strong); border-radius: 15px; background: rgba(255,255,255,.018); }
+.template-dropdown-card.incomplete { border-color: rgba(255,107,107,.38); box-shadow: inset 3px 0 rgba(255,107,107,.7); }
+.template-dropdown-card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.template-dropdown-card > header strong { font-size: 11px; }
+.template-dropdown-settings { display: grid; grid-template-columns: minmax(180px,1fr) minmax(180px,1fr) auto; gap: 9px; margin-bottom: 0; align-items: end; }
 .template-dropdown-settings > label { display: grid; gap: 5px; color: var(--muted); font-size: 8px; font-weight: 750; }
 .template-dropdown-settings input[type=text] { height: 36px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; }
 .template-dropdown-settings .rr-allow-multiple { min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.template-dropdown-add-option { height: 36px; padding: 0 12px; border: 1px solid rgba(185,245,71,.28); border-radius: 9px; color: var(--lime); background: rgba(185,245,71,.05); font-size: 9px; font-weight: 800; cursor: pointer; }
+.template-dropdown-add-option:disabled { opacity: .45; cursor: not-allowed; }
 .template-action-dialog { width: min(520px,calc(100vw - 28px)); }
 .template-action-target { display: grid; gap: 7px; margin: 16px 0; color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; }
 .template-action-target select { width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: #090d0b; }
