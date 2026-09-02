@@ -29,7 +29,9 @@ function createCountingFeature(options = {}) {
     if (result.status === 'incorrect') {
       try {
         await message.channel?.send?.({
-          content: `The count was broken by <@${message.author.id}>. Start again at **1**.`,
+          content: result.reason === 'same-user'
+            ? `<@${message.author.id}> counted twice in a row. Wait for someone else to take a turn. Start again at **1**.`
+            : `The count was broken by <@${message.author.id}>. Start again at **1**.`,
           allowedMentions: SAFE_ALLOWED_MENTIONS,
         });
       } catch (error) {
@@ -59,3 +61,4 @@ module.exports = {
   SAFE_ALLOWED_MENTIONS,
   createCountingFeature,
 };
+

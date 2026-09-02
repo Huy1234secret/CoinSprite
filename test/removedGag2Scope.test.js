@@ -25,7 +25,7 @@ test('external stock modules, command, dashboard, and documentation are absent',
   }
 });
 
-test('global commands stay empty and guild commands include core Counting plus enabled features', () => {
+test('global commands stay empty and guild commands exclude the removed RNG game commands', () => {
   const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
   assert.deepEqual(GLOBAL_APPLICATION_COMMANDS, []);
   assert.match(read('index.js'), /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
@@ -42,11 +42,11 @@ test('global commands stay empty and guild commands include core Counting plus e
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
   }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
-  assert.ok(featureCommandsForConfig({
+  assert.deepEqual(featureCommandsForConfig({
     ...base,
     features: { ...base.features, rngGame: true },
     rngGame: { enabled: true },
-  }).some((command) => command.name === 'shop'));
+  }).map((command) => command.name), ['cs-balance']);
 });
 
 test('current schema strips obsolete stock data while preserving unrelated settings', () => {
@@ -111,3 +111,4 @@ test('shop and RNG economy remain reachable after external stock removal', () =>
   assert.match(featureSource, /shopService/);
   assert.match(shopSource, /restock/i);
 });
+

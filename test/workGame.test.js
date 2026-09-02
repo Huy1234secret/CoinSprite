@@ -95,7 +95,7 @@ function interaction(overrides = {}) {
   return { calls, value };
 }
 
-test('/g-work is registered only with the RNG-game command set', () => {
+test('/g-work is no longer registered with the removed RNG-game commands', () => {
   const base = { enabled: true, features: { rngGame: false }, rngGame: { enabled: false } };
   assert.equal(featureCommandsForConfig(base).some((command) => command.name === 'g-work'), false);
   const commands = featureCommandsForConfig({
@@ -103,7 +103,7 @@ test('/g-work is registered only with the RNG-game command set', () => {
     features: { rngGame: true },
     rngGame: { enabled: true },
   });
-  assert.equal(commands.some((command) => command.name === 'g-work'), true);
+  assert.equal(commands.some((command) => command.name === 'g-work'), false);
 });
 
 test('initial work payload is a white Components V2 select with exact actions and emojis', () => {
@@ -539,3 +539,4 @@ test('work game payload uses white V2 edits and all custom IDs stay under Discor
   assert.ok(ids.every((id) => id.length < 100));
   game.close();
 });
+
