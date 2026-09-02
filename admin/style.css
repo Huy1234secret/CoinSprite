@@ -70,28 +70,29 @@
 .rr-final-message{display:grid;gap:.5rem;color:#dbdee1}.rr-final-message article{border-left:4px solid var(--accent,#b9f547);background:#2b2d31;border-radius:4px;padding:.8rem;white-space:pre-wrap}.rr-final-controls{display:flex;gap:.35rem;flex-wrap:wrap}
 
 .emoji-picker-dialog{width:min(680px,calc(100vw - 2rem));max-height:min(720px,calc(100vh - 2rem));padding:0;border:1px solid #39413b;border-radius:20px;background:#171b18;color:#f3f6f1;box-shadow:0 30px 90px #000a}
-.emoji-picker-dialog::backdrop{background:#050706b8;backdrop-filter:blur(5px)}
-.emoji-picker-dialog>section{padding:1rem;display:grid;gap:.75rem}
+.emoji-picker-dialog::backdrop{background:#050706d9}
+.emoji-picker-dialog>section{padding:.85rem;display:grid;gap:.6rem}
 .emoji-picker-dialog header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}.emoji-picker-dialog header>div{display:flex;gap:.75rem}.emoji-picker-dialog h2,.emoji-picker-dialog p{margin:0}.emoji-picker-dialog p{color:#98a39b;font-size:.8rem}.emoji-picker-dialog header>button{border:0;background:transparent;color:#cbd2cc;font-size:1.6rem;cursor:pointer}
 .emoji-picker-search input{width:100%;border:1px solid #39413b;border-radius:12px;background:#0f1210;color:#f3f6f1;padding:.75rem .9rem}
 .emoji-picker-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem}.emoji-picker-tabs button{border:1px solid #39413b;border-radius:10px;background:#202521;color:#aeb8b0;padding:.58rem;cursor:pointer}.emoji-picker-tabs button.active{border-color:#b9f547;color:#dfffae;background:#2a3325}
 .emoji-picker-status{min-height:1.2rem;color:#98a39b;font-size:.8rem}
 .emoji-picker-status.error{color:#ff8c8c}
-.emoji-picker-catalog{display:grid;grid-template-columns:auto minmax(0,1fr);min-height:390px;overflow:hidden;border:1px solid #303831;border-radius:14px;background:#111512}
+.emoji-picker-catalog{display:grid;grid-template-columns:auto minmax(0,1fr);min-height:340px;overflow:hidden;border:1px solid #303831;border-radius:12px;background:#111512}
 .emoji-picker-categories{display:flex;flex-direction:column;gap:.25rem;overflow-y:auto;padding:.4rem;border-right:1px solid #303831;background:#191e1a}
 .emoji-picker-categories[hidden]{display:none}.emoji-picker-categories[hidden]+.emoji-picker-grid{grid-column:1/-1}
 .emoji-picker-categories button{width:42px;height:42px;flex:0 0 42px;border:1px solid transparent;border-radius:10px;background:transparent;color:#b8c1ba;display:grid;place-items:center;cursor:pointer;font-size:1.25rem;filter:grayscale(1)}
 .emoji-picker-categories button:hover,.emoji-picker-categories button:focus,.emoji-picker-categories button.active{outline:0;border-color:#526149;background:#293128;color:#f2f7ef;filter:none}.emoji-picker-categories button.active{box-shadow:inset 3px 0 #b9f547}
-.emoji-picker-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));align-content:start;gap:.35rem;overflow:auto;max-height:390px;padding:.55rem}
+.emoji-picker-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));align-content:start;gap:.35rem;overflow:auto;max-height:360px;padding:.55rem;overscroll-behavior:contain}
 .emoji-picker-grid button{aspect-ratio:1;border:1px solid transparent;border-radius:10px;background:#202521;color:#fff;display:grid;place-items:center;cursor:pointer;font-size:1.45rem;position:relative}
 .emoji-picker-grid button:hover,.emoji-picker-grid button:focus{outline:0;border-color:#b9f547;background:#2a3325}.emoji-picker-grid img{width:30px;height:30px;object-fit:contain}.emoji-picker-grid .animated::after{content:'GIF';position:absolute;right:2px;bottom:2px;font-size:.45rem;background:#000b;border-radius:3px;padding:1px 2px}
 .emoji-picker-empty{grid-column:1/-1;min-height:180px;display:grid;place-items:center;text-align:center;color:#98a39b}
+.emoji-picker-more{grid-column:1/-1;padding:.45rem;color:#98a39b;font-size:.72rem;text-align:center}
 
 @media (max-width:900px){.reaction-role-manager{grid-template-columns:1fr}.reaction-role-library{position:static;min-height:0}.reaction-role-list{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.rr-control-row,.rr-control-row.dropdown{grid-template-columns:repeat(2,minmax(0,1fr))}.rr-row-actions{grid-column:1/-1}.emoji-picker-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
 @media (max-width:560px){.rr-control-row,.rr-control-row.dropdown{grid-template-columns:1fr}.emoji-picker-tabs{grid-template-columns:1fr}.emoji-picker-categories button{width:38px;height:38px;flex-basis:38px}.emoji-picker-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.reaction-role-detail-head input[type=text]{width:100%}}
 
 * { box-sizing: border-box; }
-html { min-width: 320px; background: var(--bg); scroll-behavior: smooth; }
+html { min-width: 0; background: var(--bg); scroll-behavior: smooth; }
 body { min-height: 100vh; margin: 0; color: var(--text); background:
   radial-gradient(circle at 14% 5%, rgba(185, 245, 71, .08), transparent 28rem),
   radial-gradient(circle at 90% 80%, rgba(94, 231, 208, .06), transparent 30rem), var(--bg); }
@@ -293,6 +294,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-detail-head p { margin: 0; color: var(--muted); font-size: 9px; }
 #templateStatusBadge { width: max-content; padding: 3px 6px; border: 1px solid rgba(185,245,71,.25); border-radius: 99px; color: var(--lime); background: rgba(185,245,71,.06); font-size: 7px; font-weight: 900; letter-spacing: .12em; }
 #templateStatusBadge.unsaved { border-color: rgba(255,201,102,.3); color: var(--warning); background: rgba(255,201,102,.07); }
+#templateStatusBadge.saving { border-color: rgba(94,231,208,.3); color: var(--cyan); background: rgba(94,231,208,.07); }
+#templateStatusBadge.error { border-color: rgba(255,107,107,.35); color: #ffb0b0; background: rgba(255,107,107,.08); }
 .template-tabs { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); border-bottom: 1px solid var(--line); background: rgba(5,8,7,.34); }
 .template-tabs button { min-height: 45px; padding: 0 8px; border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; font-size: 9px; font-weight: 800; cursor: pointer; }
 .template-tabs button.active { border-bottom-color: var(--lime); color: var(--text); background: rgba(185,245,71,.035); }
@@ -333,13 +336,14 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-picker-list button { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: rgba(0,0,0,.14); text-align: left; cursor: pointer; }
 .template-picker-list button:hover { border-color: rgba(185,245,71,.28); background: rgba(185,245,71,.05); }
 .template-picker-list small { color: var(--muted); font-size: 9px; }
-.template-controls-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.template-controls-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .template-controls-head h3 { margin: 0 0 4px; font-size: 14px; }
 .template-controls-head p { margin: 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .template-controls-head .rr-mode-switch { margin: 0; }
-.template-control-list { display: grid; gap: 9px; margin-bottom: 12px; }
-.template-control-row { display: grid; grid-template-columns: auto minmax(105px,.8fr) minmax(110px,.65fr) minmax(135px,.8fr) auto minmax(150px,1fr) auto; grid-template-areas: "emoji primary secondary action configure summary actions"; gap: 8px; align-items: end; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 14px; background: rgba(0,0,0,.13); }
-.template-control-row.dropdown { grid-template-columns: auto minmax(115px,.75fr) minmax(125px,.85fr) minmax(135px,.75fr) auto minmax(150px,1fr) auto; }
+.template-control-list { container-type: inline-size; display: grid; gap: 7px; min-width: 0; max-width: 100%; margin-bottom: 8px; }
+.template-control-row { width: 100%; max-width: 100%; display: grid; grid-template-columns: 40px minmax(0,1fr) minmax(0,.8fr) minmax(0,.85fr) 36px minmax(0,1fr) auto; grid-template-areas: "emoji primary secondary action configure summary actions"; gap: 6px; align-items: end; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 11px; background: rgba(0,0,0,.13); }
+.template-control-row.dropdown { grid-template-columns: 40px minmax(0,1fr) minmax(0,1.1fr) minmax(0,.8fr) 36px minmax(0,1fr) auto; }
+.template-control-row > *,.template-control-row label { min-width: 0; max-width: 100%; }
 .template-control-row > .rr-emoji-field { grid-area: emoji; }
 .template-control-primary { grid-area: primary; }
 .template-control-secondary { grid-area: secondary; }
@@ -347,28 +351,50 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .template-control-row > .template-action-configure { grid-area: configure; }
 .template-control-row > .template-action-summary { grid-area: summary; min-width: 0; overflow-wrap: anywhere; }
 .template-control-row > .rr-row-actions { grid-area: actions; }
+.template-control-row > .rr-emoji-field { width: 40px; }
+.template-control-row > .rr-row-actions { flex-wrap: wrap; justify-content: flex-end; }
+.template-control-row > .rr-row-actions button { min-width: 36px; height: 36px; }
+.template-control-row > .rr-row-actions button:disabled { opacity: .35; cursor: not-allowed; }
 .template-control-row.incomplete { border-color: rgba(255,107,107,.38); box-shadow: inset 3px 0 rgba(255,107,107,.7); }
-.template-control-row label { display: grid; gap: 4px; color: var(--muted); font-size: 8px; font-weight: 750; }
+.template-control-row label { display: grid; gap: 3px; color: var(--muted); font-size: 8px; font-weight: 750; }
 .template-control-row input,.template-control-row select { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; font-size: 9px; }
 .template-action-configure { width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--lime); background: rgba(185,245,71,.05); cursor: pointer; }
 .template-action-summary { min-height: 36px; display: flex; align-items: center; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; color: var(--soft); background: rgba(255,255,255,.02); font-size: 9px; line-height: 1.35; }
 .template-control-row.incomplete .template-action-summary { color: #ffb0b0; background: rgba(255,107,107,.06); }
+.template-option-validation { grid-column: 2 / -1; color: #ffb0b0; font-size: 8px; line-height: 1.35; overflow-wrap: anywhere; }
 .template-control-empty { margin: 0 0 12px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 13px; color: var(--muted); font-size: 10px; text-align: center; }
-.template-dropdown-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 13px; border: 1px solid var(--line-strong); border-radius: 15px; background: rgba(255,255,255,.018); }
+.template-dropdown-card { width: 100%; max-width: 100%; display: grid; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid var(--line-strong); border-radius: 12px; background: rgba(255,255,255,.018); }
 .template-dropdown-card.incomplete { border-color: rgba(255,107,107,.38); box-shadow: inset 3px 0 rgba(255,107,107,.7); }
-.template-dropdown-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.template-dropdown-title,.template-dropdown-actions { display: flex; align-items: center; gap: 8px; }
+.template-dropdown-card > header { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; }
+.template-dropdown-title,.template-dropdown-actions { min-width: 0; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .template-dropdown-title strong { font-size: 11px; }
 .template-dropdown-count { padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.025); font-size: 8px; font-weight: 750; }
-.template-dropdown-settings { display: grid; grid-template-columns: minmax(220px,1.15fr) minmax(220px,.85fr); gap: 9px; margin-bottom: 0; align-items: stretch; }
-.template-dropdown-settings > label { display: grid; gap: 5px; color: var(--muted); font-size: 8px; font-weight: 750; }
+.template-dropdown-settings { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,.85fr); gap: 7px; margin-bottom: 0; align-items: stretch; }
+.template-dropdown-settings > label { min-width: 0; max-width: 100%; display: grid; gap: 4px; color: var(--muted); font-size: 8px; font-weight: 750; }
 .template-dropdown-settings input[type=text] { height: 36px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; }
-.template-dropdown-settings .rr-allow-multiple { min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.template-dropdown-settings .rr-allow-multiple { min-height: 42px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 9px; }
 .template-dropdown-settings .rr-allow-multiple > span { display: grid; gap: 2px; min-width: 0; }
 .template-dropdown-settings .rr-allow-multiple strong,.template-dropdown-settings .rr-allow-multiple small { display: block; overflow-wrap: anywhere; line-height: 1.35; }
 .template-dropdown-settings .rr-allow-multiple small { color: var(--muted); font-weight: 500; }
 .template-dropdown-add-option { height: 34px; padding: 0 11px; border: 1px solid rgba(185,245,71,.28); border-radius: 9px; color: var(--lime); background: rgba(185,245,71,.05); font-size: 9px; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .template-dropdown-add-option:disabled { opacity: .45; cursor: not-allowed; }
+.template-dropdown-error { margin: 0; color: #ffb0b0; font-size: 8px; line-height: 1.35; overflow-wrap: anywhere; }
+
+@container (max-width: 560px) {
+  .template-control-row,.template-control-row.dropdown { grid-template-columns: 40px minmax(0,1fr) minmax(0,1fr) auto; grid-template-areas: "emoji primary secondary actions" ". action action configure" "summary summary summary summary" "validation validation validation validation"; }
+  .template-control-row > .rr-row-actions { align-self: center; justify-self: end; }
+  .template-option-validation { grid-area: validation; }
+}
+
+@container (max-width: 420px) {
+  .template-control-row,.template-control-row.dropdown { grid-template-columns: 40px minmax(0,1fr) auto; grid-template-areas: "emoji primary actions" "secondary secondary secondary" "action action configure" "summary summary summary" "validation validation validation"; }
+  .template-control-row { padding: 7px; }
+  .template-option-validation { grid-area: validation; }
+}
+
+@container (max-width: 320px) {
+  .template-option-actions { display: grid; grid-template-columns: repeat(2,36px); }
+}
 .template-action-dialog { width: min(520px,calc(100vw - 28px)); }
 .template-action-target { display: grid; gap: 7px; margin: 16px 0; color: var(--muted); font-size: 10px; font-weight: 800; text-align: left; }
 .template-action-target select { width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: #090d0b; }
@@ -707,8 +733,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .inspector-panel { grid-column: 1 / -1; border-top: 1px solid var(--line); border-left: 0; }
   .inspector-fields { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .inspector-fields label.wide { grid-column: span 2; }
-  .template-control-row,.template-control-row.dropdown { grid-template-columns: 44px minmax(0,1fr) minmax(0,1fr) auto; grid-template-areas: "emoji primary secondary actions" ". action action configure" "summary summary summary summary"; }
-  .template-control-row > .rr-row-actions { align-self: center; justify-self: end; }
   .template-dropdown-settings { grid-template-columns: minmax(0,1.15fr) minmax(0,.85fr); }
 }
 
@@ -830,7 +854,6 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
   .template-json-head { flex-direction: column; }
   .template-json-head > div:last-child { justify-content: flex-start; }
   .template-controls-head { flex-direction: column; }
-  .template-control-row,.template-control-row.dropdown { grid-template-columns: 44px minmax(0,1fr) auto; grid-template-areas: "emoji primary actions" "secondary secondary secondary" "action action configure" "summary summary summary"; }
   .template-dropdown-actions { width: 100%; }
   .template-dropdown-add-option { flex: 1; }
   .template-dropdown-settings { grid-template-columns: 1fr; }
