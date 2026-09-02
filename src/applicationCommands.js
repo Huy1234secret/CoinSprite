@@ -1,5 +1,4 @@
 const { LEVELING_COMMANDS } = require('./leveling');
-const { RNG_GAME_COMMANDS } = require('./features/rng-game');
 const { COUNTING_COMMANDS } = require('./features/counting');
 const { getGuildConfigRaw } = require('./serverConfig');
 
@@ -16,9 +15,6 @@ function featureCommandsForConfig(config) {
   if (config.features?.leveling === true && config.leveling?.enabled === true) {
     commands.push(...commandJson(LEVELING_COMMANDS));
   }
-  if (config.features?.rngGame === true && config.rngGame?.enabled === true) {
-    commands.push(...commandJson(RNG_GAME_COMMANDS));
-  }
   return commands;
 }
 
@@ -34,3 +30,4 @@ module.exports = {
   featureCommandsForConfig,
   syncGuildApplicationCommands,
 };
+

@@ -4,13 +4,20 @@ class CountingRepository {
   constructor(db, options = {}) {
     this.db = db;
     this.clock = options.clock || Date.now;
-    this.getStateStatement = db.prepare('SELECT next_expected FROM counting_guild_state WHERE guild_id = ?');
+    this.getStateStatement = db.prepare('SELECT next_expected, last_user_id FROM counting_guild_state WHERE guild_id = ?');
     this.insertStateStatement = db.prepare(`
       INSERT OR IGNORE INTO counting_guild_state (guild_id, next_expected, updated_at)
       VALUES (?, '1', ?)
     `);
-    this.updateStateStatement = db.prepare(`
-      UPDATE counting_guild_state SET next_expected = ?, updated_at = ? WHERE guild_id = ?
+    this.advanceStateStatement = db.prepare(`
+      UPDATE counting_guild_state
+      SET next_expected = ?, last_user_id = ?, updated_at = ?
+      WHERE guild_id = ?
+    `);
+    this.resetStateStatement = db.prepare(`
+      UPDATE counting_guild_state
+      SET next_expected = '1', last_user_id = NULL, updated_at = ?
+      WHERE guild_id = ?
     `);
     this.getBalanceStatement = db.prepare('SELECT balance FROM counting_bronze_balances WHERE user_id = ?');
     this.upsertBalanceStatement = db.prepare(`
@@ -29,9 +36,11 @@ class CountingRepository {
 
       const now = BigInt(this.clock());
       this.insertStateStatement.run(attempt.guildId, now);
-      const expected = BigInt(this.getStateStatement.get(attempt.guildId).next_expected);
+      const state = this.getStateStatement.get(attempt.guildId);
+      const expected = BigInt(state.next_expected);
       const submitted = attempt.submittedValue === null ? null : BigInt(attempt.submittedValue);
-      const correct = submitted !== null && submitted === expected;
+      const sameUser = state.last_user_id === attempt.userId;
+      const correct = submitted !== null && submitted === expected && !sameUser;
       let credited = 0n;
       let balance = this.balance(attempt.userId);
 
@@ -41,9 +50,9 @@ class CountingRepository {
         if (credited < 0n) credited = 0n;
         balance += credited;
         this.upsertBalanceStatement.run(attempt.userId, balance, now);
-        this.updateStateStatement.run((submitted + 1n).toString(), now, attempt.guildId);
+        this.advanceStateStatement.run((submitted + 1n).toString(), attempt.userId, now, attempt.guildId);
       } else {
-        this.updateStateStatement.run('1', now, attempt.guildId);
+        this.resetStateStatement.run(now, attempt.guildId);
       }
 
       const outcome = correct ? 'correct' : 'incorrect';
@@ -58,6 +67,7 @@ class CountingRepository {
       );
       return {
         status: outcome,
+        reason: correct ? null : (submitted === expected && sameUser ? 'same-user' : 'wrong-count'),
         expected: expected.toString(),
         nextExpected: correct ? (submitted + 1n).toString() : '1',
         credited,
@@ -86,3 +96,4 @@ class CountingRepository {
 }
 
 module.exports = { CountingRepository, MAX_BRONZE_BALANCE };
+
