@@ -331,7 +331,7 @@ test('ephemeral send-message and successful DM actions reuse full template paylo
   const dmButton = fixture.dms[0].components.find((component) => component.type === 1).components[0];
   assert.equal(parseTemplateControlCustomId(dmButton.custom_id).guildId, GUILD_ID);
   assert.equal(fixture.sent.length, 0, 'nested DM controls are delivered but not automatically executed');
-  assert.match(fixture.followUps.at(-1).content, /Completed 2 of 2 actions/);
+  assert.match(fixture.followUps.at(-1).content, /Done — Sent “DM target” by DM/);
   assert.ok(fixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
 });
 
@@ -344,7 +344,7 @@ test('button and multi-select dropdown send-message actions are always ephemeral
   assert.equal(buttonFixture.sent.length, 0);
   assert.deepEqual(buttonFixture.responses[0].defer, { flags: MessageFlags.Ephemeral });
   assert.ok(buttonFixture.responses.some((payload) => Array.isArray(payload.components)));
-  assert.ok(buttonFixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
+  assert.equal(buttonFixture.followUps.length, 0, 'the rendered template needs no redundant success summary');
 
   const dropdownSource = createSource(collection, controls('dropdown', [
     option('control_private2', 'send_message', channelTarget.id, { sortOrder: 0 }),
@@ -359,8 +359,8 @@ test('button and multi-select dropdown send-message actions are always ephemeral
   assert.ok(dropdownFixture.responses.some((payload) => Array.isArray(payload.components)));
   assert.ok(dropdownFixture.followUps[0].flags & MessageFlags.Ephemeral);
   assert.ok(dropdownFixture.followUps[0].flags & MessageFlags.IsComponentsV2);
-  assert.match(dropdownFixture.followUps.at(-1).content, /Completed 2 of 2 actions/);
-  assert.ok(dropdownFixture.followUps.at(-1).flags & MessageFlags.Ephemeral);
+  assert.equal(dropdownFixture.followUps.length, 1, 'only the second rendered template is sent as a follow-up');
+  assert.equal(dropdownFixture.followUps[0].content, undefined);
 });
 
 test('DM failures are friendly and multi-select actions report partial success sequentially', async () => {
@@ -374,7 +374,6 @@ test('DM failures are friendly and multi-select actions report partial success s
   fixture.interaction.values = activeDropdown(source).options.map(templateOptionValue);
   await handleMessageTemplateInteraction(fixture.interaction, { getGuildConfigRaw: fixture.getGuildConfigRaw, log: () => {} });
   assert.equal(fixture.sent.length, 0);
-  assert.match(fixture.followUps.at(-1).content, /Completed 1 of 2 actions/);
   assert.match(fixture.followUps.at(-1).content, /direct messages may be closed/);
 });
 
