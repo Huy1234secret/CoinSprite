@@ -491,9 +491,13 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /Only selected options in this dropdown run their configured actions/);
   assert.match(app, /data-template-dropdown-add-option/);
   assert.match(app, /controls\.dropdowns\.length >= 5/);
+  assert.match(app, /template-dropdown-title/);
+  assert.match(app, /template-control-primary/);
   assert.match(app, /rememberInlineTextCaret/);
   assert.match(app, /restoreEmojiTextTarget/);
   assert.match(css, /\.template-control-row\.incomplete/);
   assert.match(css, /\.template-dropdown-card/);
+  assert.match(css, /grid-template-areas: "emoji primary secondary actions"/);
+  assert.match(css, /\.template-dropdown-settings \.rr-allow-multiple > span/);
   assert.match(css, /\.template-action-dialog/);
 });
