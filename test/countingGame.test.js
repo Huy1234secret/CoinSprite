@@ -297,7 +297,7 @@ test('game commands are registered for every enabled guild even when no Counting
     features: { leveling: false },
     counting: { channelId: '' },
   });
-  assert.deepEqual(commands.map((command) => command.name), ['cs-balance', 'cs-work']);
+  assert.deepEqual(commands.map((command) => command.name), ['cs-balance', 'cs-work', 'cs-inventory']);
 });
 
 test('configuration migration preserves existing settings and normalizes Counting', () => {

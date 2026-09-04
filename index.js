@@ -25,6 +25,7 @@ const {
 } = require('./src/runtimeRole');
 const { createCountingFeature } = require('./src/features/counting');
 const { createWorkFeature } = require('./src/features/work');
+const { createInventoryFeature } = require('./src/features/inventory');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
@@ -82,6 +83,14 @@ const workGame = runtimeRole === 'panel' ? null : createWorkFeature({
   },
   reportError(error, context) {
     logCommandSystem(`Work ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
+  },
+});
+
+const inventoryFeature = runtimeRole === 'panel' ? null : createInventoryFeature({
+  db: workGame.db,
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
+  reportError(error, context) {
+    logCommandSystem(`Inventory ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
   },
 });
 
@@ -155,6 +164,7 @@ if (runtimeStarter.capabilities.bot) {
         return;
       }
       if (await workGame.handleInteraction(interaction)) return;
+      if (await inventoryFeature.handleInteraction(interaction)) return;
       if (await handleReactionRoleInteraction(interaction)) return;
       if (await countingGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
@@ -169,6 +179,7 @@ if (runtimeStarter.capabilities.bot) {
     try {
       await handleBoostSystemMessage(message);
       if (isGuildEnabled(message.guildId) && await workGame.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {

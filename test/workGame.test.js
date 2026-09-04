@@ -58,15 +58,16 @@ test('/cs-work is registered for every enabled guild and cswork parsing is exact
 test('Game command settings normalize multiple selections and default to unrestricted access', () => {
   assert.deepEqual(normalizeGamesConfig({}), { commandSettings: [] });
   const games = normalizeGamesConfig({ commandSettings: [
-    { id: 'first', channelIds: [CHANNEL, OTHER_CHANNEL, 'bad', CHANNEL], commands: ['cs-work', 'cs-balance', 'bad'] },
+    { id: 'first', channelIds: [CHANNEL, OTHER_CHANNEL, 'bad', CHANNEL], commands: ['cs-work', 'cs-balance', 'cs-inventory', 'bad'] },
     { id: 'second', channelIds: [OTHER_CHANNEL], commands: ['cs-work'] },
   ] });
-  assert.deepEqual(games.commandSettings[0], { id: 'first', channelIds: [CHANNEL, OTHER_CHANNEL], commands: ['cs-work', 'cs-balance'] });
+  assert.deepEqual(games.commandSettings[0], { id: 'first', channelIds: [CHANNEL, OTHER_CHANNEL], commands: ['cs-work', 'cs-balance', 'cs-inventory'] });
   const normalized = normalizeState({ guilds: { [GUILD]: { games } } });
   assert.deepEqual(normalized.guilds[GUILD].games, games);
   assert.equal(gameCommandAllowed({}, CHANNEL, 'cs-work'), true);
   assert.equal(gameCommandAllowed({ games }, CHANNEL, 'cs-work'), true);
   assert.equal(gameCommandAllowed({ games }, OTHER_CHANNEL, 'cs-balance'), true);
+  assert.equal(gameCommandAllowed({ games }, OTHER_CHANNEL, 'cs-inventory'), true);
   assert.equal(gameCommandAllowed({ games }, '999', 'cs-work'), false);
 });
 
