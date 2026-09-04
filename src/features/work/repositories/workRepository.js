@@ -164,7 +164,7 @@ class WorkRepository {
   }
 
   get(sessionId) { return hydrate(this.byId.get(String(sessionId))); }
-  getActive(_guildId, userId) { return hydrate(this.activeFor.get(String(userId))); }
+  getActive(userId) { return hydrate(this.activeFor.get(String(userId))); }
   listActive() { return this.db.prepare("SELECT * FROM work_sessions WHERE status='active'").all().map(hydrate); }
   attachMessage(sessionId, messageId) { this.attach.run(String(messageId), String(sessionId)); return this.get(sessionId); }
   saveState(sessionId, state) { this.updateState.run(JSON.stringify(state), String(sessionId)); return this.get(sessionId); }
