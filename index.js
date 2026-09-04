@@ -45,6 +45,8 @@ const {
 } = require('./src/memberMessages');
 const { handleReactionRoleInteraction } = require('./src/reactionRoles');
 const { handleMessageTemplateInteraction } = require('./src/messageTemplateInteractions');
+const { isOwnerSession } = require('./src/ownerPanelRoutes');
+const { createOwnerTestCommand } = require('./src/ownerTestCommand');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const { role: runtimeRole } = requireSchedulerRole();
@@ -91,6 +93,15 @@ const inventoryFeature = runtimeRole === 'panel' ? null : createInventoryFeature
   isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
   reportError(error, context) {
     logCommandSystem(`Inventory ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
+  },
+});
+
+const ownerTestCommand = runtimeRole === 'panel' ? null : createOwnerTestCommand({
+  isOwner: (message) => isOwnerSession({ user: message.author }, client),
+  routes: {
+    cswork: workGame.handleMessage,
+    csbalance: countingGame.handleMessage,
+    csinventory: inventoryFeature.handleMessage,
   },
 });
 
@@ -178,6 +189,7 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.MessageCreate, async (message) => {
     try {
       await handleBoostSystemMessage(message);
+      if (isGuildEnabled(message.guildId) && await ownerTestCommand.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await workGame.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
