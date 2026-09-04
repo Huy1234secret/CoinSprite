@@ -387,4 +387,3 @@ test('restart recovery expires persisted sessions once without duplicate reward 
     fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3 });
   }
 });
-
