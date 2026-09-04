@@ -5,7 +5,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 
-const { createRngGameFeature, RNG_GAME_COMMANDS } = require('../src/features/rng-game');
+const { createRngGameFeature } = require('../src/features/rng-game');
 const { statPayload } = require('../src/features/rng-game/components/builders');
 const { RARITY_EMOJIS, SHECKLES_EMOJI } = require('../src/features/rng-game/data/emojis');
 const { SEED_BY_ID } = require('../src/features/rng-game/data/seeds');
@@ -111,7 +111,6 @@ test('new players return a complete zeroed statistics model', () => {
   });
   game.close();
 });
-
 test('a successful repository manual roll increments total rolls once', () => {
   const game = feature();
   assert.equal(rollSeed(game.repository, 'manual').status, 'ok');
@@ -119,29 +118,6 @@ test('a successful repository manual roll increments total rolls once', () => {
     [game.repository.statistics('manual').totalRolls, game.repository.statistics('manual').autoRolls],
     [1n, 0n],
   );
-  game.close();
-});
-
-test('a successful slash roll increments total rolls once', async () => {
-  const game = feature();
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'roll',
-    user: { id: 'slash-roll' },
-    async reply() {},
-  });
-  assert.equal(game.repository.statistics('slash-roll').totalRolls, 1n);
-  game.close();
-});
-
-test('a successful prefix roll increments total rolls once', async () => {
-  const game = feature();
-  await game.handleMessage({
-    content: 'c!roll',
-    author: { id: 'prefix-roll', bot: false },
-    async reply() { return {}; },
-  });
-  assert.equal(game.repository.statistics('prefix-roll').totalRolls, 1n);
   game.close();
 });
 
@@ -473,12 +449,6 @@ test('starting balance, refunds, and purchases are excluded from earnings', () =
   game.close();
 });
 
-test('/stat is registered only as an RNG slash command with the exact description', () => {
-  const command = RNG_GAME_COMMANDS.find((entry) => entry.data.name === 'stat');
-  assert.ok(command);
-  assert.equal(command.data.description, 'View your all-time RNG rolling statistics.');
-});
-
 test('the stat payload uses the exact V2 layout, avatar, formatters, and safe mentions', () => {
   const avatarCalls = [];
   const user = {
@@ -523,21 +493,15 @@ test('the stat payload uses the exact V2 layout, avatar, formatters, and safe me
   );
 });
 
-test('/stat returns the exact empty state and works during Auto Roll', async () => {
+test('the stat payload returns the exact empty state during Auto Roll', () => {
   const game = feature({ clock: () => 1_000 });
   fund(game, 'stat-empty', 60n);
   const preview = game.autoRollService.preview('stat-empty', '1m', []);
   game.autoRollService.start('stat-empty', preview, { guildId: 'g', channelId: 'c' });
-  let payload;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'stat',
-    user: {
-      id: 'stat-empty',
-      displayAvatarURL: () => 'https://cdn.example/empty.png',
-    },
-    async reply(value) { payload = value; },
-  });
+  const payload = statPayload({
+    id: 'stat-empty',
+    displayAvatarURL: () => 'https://cdn.example/empty.png',
+  }, game.repository.statistics('stat-empty'));
   const content = payload.components[0].components;
   assert.match(content[0].components[0].content, /Has done 0 rolls[\s\S]*0 auto-rolls/);
   assert.match(content[2].content, /Highest rarity discovered: None/);
@@ -546,40 +510,5 @@ test('/stat returns the exact empty state and works during Auto Roll', async () 
   assert.match(content[2].content, /Highest weight discovered: 0\.00 kg/);
   assert.match(content[4].content, /Earning all time: 0/);
   assert.match(content[4].content, /Highest earning in one sale: 0/);
-  game.close();
-});
-
-test('/stat follows configured RNG access channels and the existing sale lock', async () => {
-  const game = feature({
-    getGuildPolicy: () => ({
-      unlocked: true,
-      enabled: true,
-      gameChannelIds: ['rng-channel'],
-      cooldownBypassRoleIds: [],
-    }),
-  });
-  let payload;
-  const user = { id: 'stat-access', displayAvatarURL: () => 'https://cdn.example/stat.png' };
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'stat',
-    guildId: 'guild',
-    channelId: 'wrong-channel',
-    member: { roles: [] },
-    user,
-    async reply(value) { payload = value; },
-  });
-  assert.match(payload.components[0].components[0].content, /Command unavailable/);
-  game.saleSessions.create('stat-access');
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'stat',
-    guildId: 'guild',
-    channelId: 'rng-channel',
-    member: { roles: [] },
-    user,
-    async reply(value) { payload = value; },
-  });
-  assert.match(payload.components[0].components[0].content, /Sale in progress/);
   game.close();
 });

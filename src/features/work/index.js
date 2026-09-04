@@ -1,8 +1,9 @@
 const { WORK_GAMES } = require('./data');
-const { WORK_COMMANDS, createWorkCommandHandler } = require('./commands');
 const { createWorkComponentHandler } = require('./components/handler');
 const { WorkRepository } = require('./repositories/workRepository');
 const { WorkService } = require('./services/workService');
+
+const WORK_COMMANDS = Object.freeze([]);
 
 function createWorkFeature(options) {
   const clock = options.clock || Date.now;
@@ -20,19 +21,16 @@ function createWorkFeature(options) {
   const context = {
     clock,
     games: options.games || WORK_GAMES,
-    getGuildPolicy: options.getGuildPolicy,
     reportError: options.reportError,
     random,
     repository,
     service,
   };
-  const handleCommand = createWorkCommandHandler(context);
   const handleComponent = createWorkComponentHandler(context);
   return {
     ...context,
     commands: WORK_COMMANDS,
     async handleInteraction(interaction) {
-      if (await handleCommand(interaction)) return true;
       return handleComponent(interaction);
     },
   };

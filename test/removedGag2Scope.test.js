@@ -102,12 +102,10 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 
-test('shop and RNG economy remain reachable after external stock removal', () => {
-  const commandSource = read('src/features/rng-game/commands/index.js');
+test('shop and RNG services remain available without a command module', () => {
   const featureSource = read('src/features/rng-game/index.js');
   const shopSource = read('src/features/rng-game/services/shopService.js');
-  assert.match(commandSource, /setName\('shop'\)/);
-  assert.doesNotMatch(commandSource, /calculate-chance|calculate chance/);
+  assert.equal(fs.existsSync(path.join(root, 'src', 'features', 'rng-game', 'commands', 'index.js')), false);
   assert.match(featureSource, /shopService/);
   assert.match(shopSource, /restock/i);
 });

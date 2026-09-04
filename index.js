@@ -46,21 +46,8 @@ const { handleReactionRoleInteraction } = require('./src/reactionRoles');
 const { handleMessageTemplateInteraction } = require('./src/messageTemplateInteractions');
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
-const DEFAULT_DASHBOARD_BASE_URL = 'https://panel.coin-sprite.com';
 const { role: runtimeRole } = requireSchedulerRole();
-function getRngGuildPolicy(guildId) {
-  const guildConfig = getGuildConfigRaw(guildId);
-  return {
-    unlocked: guildConfig?.enabled !== false && guildConfig?.features?.rngGame === true,
-    enabled: guildConfig?.rngGame?.enabled === true,
-    gameChannelIds: guildConfig?.rngGame?.gameChannelIds || [],
-    cooldownBypassRoleIds: guildConfig?.rngGame?.cooldownBypassRoleIds || [],
-  };
-}
-
 const rngGame = createRngGameFeature({
-  getGuildPolicy: getRngGuildPolicy,
-  chancePageUrl: `${dashboardBaseUrl()}/chances`,
   onError(error) {
     logCommandSystem(`RNG game event failed: ${safeErrorMessage(error)}`);
   },
@@ -74,16 +61,6 @@ const countingGame = runtimeRole === 'panel' ? null : createCountingFeature({
     logCommandSystem(`Counting ${context?.operation || 'Discord operation'} failed in guild ${context?.message?.guildId || 'unknown'}: ${safeErrorMessage(error)}`);
   },
 });
-
-function dashboardBaseUrl() {
-  const configured = String(process.env.PUBLIC_WEB_BASE_URL || '').trim().replace(/\/+$/g, '');
-  if (configured) return configured;
-  try {
-    return new URL(process.env.DISCORD_REDIRECT_URI || '').origin;
-  } catch {
-    return DEFAULT_DASHBOARD_BASE_URL;
-  }
-}
 
 async function syncGuildCommands(guild) {
   await syncGuildApplicationCommands(guild).catch((error) => {

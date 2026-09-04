@@ -1,4 +1,3 @@
-const { RNG_GAME_COMMANDS: BASE_RNG_GAME_COMMANDS, createCommandHandlers } = require('./commands');
 const { createComponentHandler } = require('./components/handler');
 const { autoRollEndedPayload, indexPayload } = require('./components/builders');
 const { canceledPayload } = require('./components/rpsBuilders');
@@ -27,9 +26,9 @@ const { RouletteExpiryScheduler, RouletteRevealScheduler, RouletteService } = re
 const { CropIndexRenderer, indexDiscoveryCount } = require('./services/indexRenderer');
 const { createSecretRollAnnouncer } = require('./services/secretRollAnnouncement');
 const { ActionStore, SaleSessionStore, ViewStore } = require('./services/sessionStore');
-const { WORK_COMMANDS, createWorkFeature } = require('../work');
+const { createWorkFeature } = require('../work');
 
-const RNG_GAME_COMMANDS = Object.freeze([...BASE_RNG_GAME_COMMANDS, ...WORK_COMMANDS]);
+const RNG_GAME_COMMANDS = Object.freeze([]);
 
 function createRngGameFeature(options = {}) {
   const clock = options.clock || Date.now;
@@ -62,10 +61,6 @@ function createRngGameFeature(options = {}) {
     return task;
   }
   const shopRenderer = options.shopRenderer || new ShopPageRenderer(options.shopRendererOptions);
-  const hatchDelay = options.hatchDelay || ((milliseconds) => new Promise((resolve) => {
-    const timer = setTimeout(resolve, milliseconds);
-    timer.unref?.();
-  }));
   let discordClient = options.client || null;
   const reportError = (error, event) => {
     try {
@@ -273,12 +268,10 @@ function createRngGameFeature(options = {}) {
     autoRollService,
     db,
     gameService,
-    getGuildPolicy: options.getGuildPolicy,
     inventoryViews,
     indexRenderer,
     indexViews,
     itemRepository,
-    hatchDelay,
     getClient: () => discordClient || options.getClient?.() || null,
     getBotUser: () => (discordClient || options.getClient?.())?.user || null,
     reportError,
@@ -300,12 +293,10 @@ function createRngGameFeature(options = {}) {
     saleSessions,
     tokenRepository,
   };
-  const commands = createCommandHandlers(context);
   const handleComponent = createComponentHandler(context);
   const work = options.workFeature || createWorkFeature({
     db,
     playerRepository: repository,
-    getGuildPolicy: options.getGuildPolicy,
     clock,
     random: options.workRandom,
     createId: options.workCreateId,
@@ -330,11 +321,12 @@ function createRngGameFeature(options = {}) {
       rouletteRevealScheduler.start();
     },
     async handleInteraction(interaction) {
-      if (await commands.handleSlash(interaction)) return true;
       if (await handleComponent(interaction)) return true;
       return work.handleInteraction(interaction);
     },
-    handleMessage: commands.handlePrefix,
+    handleMessage() {
+      return false;
+    },
     close() {
       actions.clear();
       autoRollScheduler.stop();

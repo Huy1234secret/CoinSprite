@@ -4,7 +4,7 @@ const path = require('path');
 const test = require('node:test');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
-const { RNG_GAME_COMMANDS, createRngGameFeature } = require('../src/features/rng-game');
+const { createRngGameFeature } = require('../src/features/rng-game');
 const {
   RPS_CANVAS_HEIGHT,
   RPS_CANVAS_WIDTH,
@@ -475,7 +475,7 @@ test('lobby authorization, turn authorization, higher bets, and terminal-state g
   game.close();
 });
 
-test('only the /g-rps invoker may choose the initial mode', async () => {
+test('only the RPS table host may choose the initial mode', async () => {
   const game = feature();
   fund(game, 'owner', { tokens: 100n });
   const created = game.rpsService.createGame('guild', 'channel', profile('owner'));
@@ -489,32 +489,24 @@ test('only the /g-rps invoker may choose the initial mode', async () => {
     reply: async (payload) => { reply = payload; },
   });
   assert.equal(handled, true);
-  assert.match(reply.components[0].components[0].content, /Only the command invoker/);
+  assert.match(reply.components[0].components[0].content, /Only the table host/);
   assert.equal(game.rpsService.game(created.game.id).mode, null);
   game.close();
 });
 
-test('/exchange-token confirmation rechecks and atomically updates the existing wallet', async () => {
+test('exchange confirmation rechecks and atomically updates the existing wallet', async () => {
   const game = feature();
   fund(game, 'slash-user', { sheckles: 10_000n });
-  let preview;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'exchange-token',
-    guildId: 'guild',
-    channelId: 'channel',
-    member: null,
-    user: { id: 'slash-user' },
-    options: { getInteger: () => 10 },
-    reply: async (payload) => { preview = payload; },
+  const action = game.actions.create('slash-user', {
+    kind: 'token-exchange',
+    tokenAmount: 10n,
+    sheckleCost: 10_000n,
   });
-  const button = preview.components[0].components.find((component) => component.type === 1).components[0];
-  assert.equal(button.disabled, false);
   let success;
   await game.handleInteraction({
     isChatInputCommand: () => false,
     isButton: () => true,
-    customId: button.custom_id,
+    customId: `rng:exchange:confirm:${action.id}`,
     user: { id: 'slash-user' },
     deferUpdate: async () => {},
     editReply: async (payload) => { success = payload; },
@@ -527,37 +519,15 @@ test('/exchange-token confirmation rechecks and atomically updates the existing 
   game.close();
 });
 
-test('/g-rps creates a persistent choosing-mode game and stores its Discord message ID', async () => {
+test('RPS service creates a persistent choosing-mode game and stores its Discord message ID', () => {
   const game = feature();
-  let payload;
-  const handled = await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'g-rps',
-    guildId: 'guild',
-    channelId: 'channel',
-    member: { displayName: 'Host' },
-    user: { id: 'slash-host', username: 'Host', displayAvatarURL: () => '' },
-    reply: async (value) => { payload = value; },
-    fetchReply: async () => ({ id: 'discord-message' }),
-  });
-  assert.equal(handled, true);
-  const select = payload.components[0].components.find((component) => component.type === 1).components[0];
-  assert.match(select.custom_id, /^rng:rps:mode:game-/);
-  const created = game.rpsService.game(select.custom_id.split(':').at(-1));
+  const result = game.rpsService.createGame('guild', 'channel', profile('slash-host'));
+  game.rpsRepository.setMessage(result.game.id, 'discord-message');
+  const created = game.rpsService.game(result.game.id);
   assert.equal(created.state, RPS_STATES.CHOOSING_MODE);
   assert.equal(created.messageId, 'discord-message');
   assert.equal(created.hostUserId, 'slash-host');
   game.close();
-});
-
-test('RPS slash commands and exchange limits are registered with safe server-side bounds', () => {
-  const commands = new Map(RNG_GAME_COMMANDS.map(({ data }) => [data.name, data.toJSON()]));
-  assert.ok(commands.has('g-rps'));
-  const exchange = commands.get('exchange-token');
-  assert.equal(exchange.options[0].name, 'amount-token');
-  assert.equal(exchange.options[0].required, true);
-  assert.equal(exchange.options[0].min_value, 1);
-  assert.equal(exchange.options[0].max_value, 100);
 });
 
 test('all RPS assets have authoritative dimensions and every table renders an original-size PNG', async () => {

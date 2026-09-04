@@ -22,7 +22,6 @@ const {
 } = require('../src/features/rng-game/services/rngService');
 const { upgradeCost } = require('../src/features/rng-game/services/gameService');
 const { SaleSessionStore } = require('../src/features/rng-game/services/sessionStore');
-const { evaluateRngGameAccess } = require('../src/features/rng-game/services/accessPolicy');
 const { formatChanceWithRatio } = require('../src/features/rng-game/utils/format');
 const { filterInventory, normalizeCropName } = require('../src/features/rng-game/utils/normalize');
 
@@ -147,139 +146,6 @@ test('seed registry uses the revised maximum crop values', () => {
   assert.equal(CROP_EMOJIS.briar_rose, '<:BriarRoseFruit:1536254839263068200>');
 });
 
-test('prefix and slash roll paths share one five-second cooldown', async () => {
-  let now = 10_000;
-  const game = feature({ clock: () => now });
-  let slashReply;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'roll',
-    user: { id: 'shared' },
-    reply: async (payload) => { slashReply = payload; },
-    customId: '',
-  });
-  assert.match(slashReply.components[0].components[0].components[0].content, /You have rolled/);
-  let prefixReply;
-  await game.handleMessage({
-    content: 'c!roll',
-    author: { id: 'shared', bot: false },
-    reply: async (payload) => { prefixReply = payload; },
-  });
-  assert.match(prefixReply.components[0].components[0].content, /Roll cooldown/);
-  now += 5_000;
-  await game.handleMessage({ content: 'c!roll', author: { id: 'shared', bot: false }, reply: async (payload) => { prefixReply = payload; } });
-  assert.match(prefixReply.components[0].components[0].components[0].content, /You have rolled/);
-  game.close();
-});
-
-test('configured game channels and forum posts are enforced for slash and prefix economy commands', async () => {
-  const game = feature({
-    getGuildPolicy: () => ({ unlocked: true, enabled: true, gameChannelIds: ['game', 'side-game', 'game-forum'], cooldownBypassRoleIds: [] }),
-  });
-  let slashReply;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'balance',
-    guildId: 'guild',
-    channelId: 'elsewhere',
-    member: { roles: [] },
-    user: { id: 'channel-user' },
-    reply: async (payload) => { slashReply = payload; },
-  });
-  assert.match(slashReply.components[0].components[0].content, /only available in <#game>, <#side-game>, <#game-forum>/);
-  let prefixReply;
-  await game.handleMessage({
-    content: 'c!roll',
-    guildId: 'guild',
-    channelId: 'elsewhere',
-    member: { roles: [] },
-    author: { id: 'channel-user', bot: false },
-    reply: async (payload) => { prefixReply = payload; },
-  });
-  assert.match(prefixReply.components[0].components[0].content, /only available in <#game>, <#side-game>, <#game-forum>/);
-  assert.equal(game.repository.inventoryState('channel-user').items.length, 0);
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'balance',
-    guildId: 'guild',
-    channelId: 'slash-forum-post',
-    channel: { parentId: 'game-forum' },
-    member: { roles: [] },
-    user: { id: 'slash-forum-user' },
-    reply: async (payload) => { slashReply = payload; },
-  });
-  assert.match(slashReply.components[0].components[0].content, /Balance/);
-  await game.handleMessage({
-    content: 'c!balance',
-    guildId: 'guild',
-    channelId: 'prefix-forum-post',
-    channel: { parentId: 'game-forum' },
-    member: { roles: [] },
-    author: { id: 'prefix-forum-user', bot: false },
-    reply: async (payload) => { prefixReply = payload; },
-  });
-  assert.match(prefixReply.components[0].components[0].content, /Balance/);
-  game.close();
-});
-
-test('any configured bypass role skips the shared slash and prefix roll cooldown', async () => {
-  let now = 20_000;
-  const game = feature({
-    clock: () => now,
-    getGuildPolicy: () => ({ unlocked: true, enabled: true, gameChannelId: 'game', cooldownBypassRoleIds: ['vip', 'booster'] }),
-  });
-  let reply;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'roll',
-    guildId: 'guild',
-    channelId: 'game',
-    member: { roles: [] },
-    user: { id: 'bypass-user' },
-    reply: async (payload) => { reply = payload; },
-  });
-  assert.match(reply.components[0].components[0].components[0].content, /You have rolled/);
-  await game.handleMessage({
-    content: 'c!roll',
-    guildId: 'guild',
-    channelId: 'game',
-    member: { roles: ['vip'] },
-    author: { id: 'bypass-user', bot: false },
-    reply: async (payload) => { reply = payload; },
-  });
-  assert.match(reply.components[0].components[0].components[0].content, /You have rolled/);
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'roll',
-    guildId: 'guild',
-    channelId: 'game',
-    member: { roles: [] },
-    user: { id: 'bypass-user' },
-    reply: async (payload) => { reply = payload; },
-  });
-  assert.match(reply.components[0].components[0].content, /Roll cooldown/);
-  assert.equal(game.repository.inventoryState('bypass-user').items.length, 2);
-  game.close();
-});
-
-test('RNG access policy rejects locked, disabled, and unconfigured servers', () => {
-  const source = { guildId: 'guild', channelId: 'game', member: { roles: [] } };
-  assert.match(evaluateRngGameAccess(source, () => ({ unlocked: false })).reason, /locked/);
-  assert.match(evaluateRngGameAccess(source, () => ({ unlocked: true, enabled: false })).reason, /disabled/);
-  assert.match(evaluateRngGameAccess(source, () => ({ unlocked: true, enabled: true })).reason, /game channel/);
-  const allowed = evaluateRngGameAccess({
-    ...source,
-    member: { roles: { cache: new Map([['vip', {}], ['member', {}]]) } },
-  }, () => ({ unlocked: true, enabled: true, gameChannelIds: ['other-game', 'game'], cooldownBypassRoleIds: ['vip', 'booster'] }));
-  assert.deepEqual(allowed, { allowed: true, bypassCooldown: true });
-  const legacyAllowed = evaluateRngGameAccess(source, () => ({
-    unlocked: true,
-    enabled: true,
-    gameChannelId: 'game',
-  }));
-  assert.deepEqual(legacyAllowed, { allowed: true, bypassCooldown: false });
-});
-
 test('full inventory rejects before RNG and does not consume cooldown', () => {
   let randomCalls = 0;
   const game = feature({ rng: (maximum) => { randomCalls += 1; return maximum - 1; } });
@@ -391,21 +257,12 @@ test('sell navigation buttons use valid text labels instead of punctuation emoji
   assert.equal(Object.hasOwn(navigation[2], 'emoji'), false);
 });
 
-test('an active sell session locks rolls and other economy commands without consuming cooldown', async () => {
+test('an active sell session locks rolls without consuming cooldown', () => {
   const game = feature();
   game.saleSessions.create('locked');
   const result = game.gameService.roll('locked');
   assert.equal(result.status, 'locked');
   assert.equal(game.db.prepare('SELECT COUNT(*) AS count FROM rng_roll_cooldowns').get().count, 0n);
-  let reply;
-  await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'balance',
-    user: { id: 'locked' },
-    reply: async (payload) => { reply = payload; },
-    customId: '',
-  });
-  assert.match(reply.components[0].components[0].content, /Sale in progress/);
   game.close();
 });
 
