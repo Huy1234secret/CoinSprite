@@ -24,7 +24,6 @@ const {
   runtimeDiagnostic,
 } = require('./src/runtimeRole');
 const { createCountingFeature } = require('./src/features/counting');
-const { createWorkFeature } = require('./src/features/work');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
@@ -34,8 +33,6 @@ const {
 const {
   handleLevelingInteraction,
   handleLevelingMessage,
-  awardMemberXp,
-  memberStats,
   startXpDropScheduler,
 } = require('./src/leveling');
 const {
@@ -74,25 +71,6 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
-const workGame = runtimeRole === 'panel' ? null : createWorkFeature({
-  isLevelingEnabled: require('./src/serverConfig').isGuildLevelingEnabled,
-  getLevel: (guildId, userId) => memberStats(guildId, userId).level,
-  awardXp: (guildId, userId, amount, sessionId) => awardMemberXp(
-    client.guilds.cache.get(guildId) || guildId,
-    userId,
-    amount,
-    { idempotencyKey: sessionId },
-  ),
-  async editRecovered(session, payload) {
-    const channel = client.channels.cache.get(session.channelId) || await client.channels.fetch(session.channelId).catch(() => null);
-    const message = channel?.messages?.cache?.get(session.messageId) || await channel?.messages?.fetch?.(session.messageId).catch(() => null);
-    if (message) await message.edit(payload);
-  },
-  reportError(error, context) {
-    logCommandSystem(`Work ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
-  },
-});
-
 setLogClient(client);
 
 const runtimeStarter = createRuntimeStarter(runtimeRole, {
@@ -109,7 +87,6 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
     startXpDropScheduler(client);
-    await workGame.recover();
   },
   async panel() {
     startAdminServer(client);
@@ -153,7 +130,6 @@ if (runtimeStarter.capabilities.bot) {
     const startedAt = Date.now();
     try {
       if (await handleMessageTemplateInteraction(interaction, { client })) return;
-      if (await workGame.handleInteraction(interaction)) return;
       if (!isGuildEnabled(interaction.guildId)) {
         if (interaction.isRepliable?.()) {
           await interaction.reply({
@@ -176,7 +152,6 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.MessageCreate, async (message) => {
     try {
       await handleBoostSystemMessage(message);
-      if (await workGame.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
