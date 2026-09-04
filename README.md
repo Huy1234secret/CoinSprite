@@ -65,6 +65,14 @@ The dashboard lets Discord administrators configure unlocked features:
 
 The published application-command surface contains the Counting balance command and the commands for enabled Leveling features. Counting messages and the `csbalance` text command share the same persistent Bronze balance.
 
+### Data scope
+
+Player-owned data in the **Games** tab is global to a Discord user across every server. Bronze balance, Work level and XP, Work streak and cooldown, inventory, equipment, currencies, future Game progression, and the one-active-Work-session restriction use Discord `user_id` as their identity key without `guild_id`. A player therefore sees the same Game profile and inventory wherever CoinSprite is installed.
+
+Server configuration and shared or contextual Game state remain per-server. Games command/channel settings, the configured Counting channel, each Counting sequence and last counter, processed-message provenance, and the guild/channel/message that hosts a Work session all retain `guild_id`.
+
+The **Leveling** tab is separate from Game progression and remains fully server-scoped. Its XP, levels, cooldowns, leaderboards, rewards, and member records continue to use the `guildId + userId` identity in `src/leveling.js`; Leveling data is not stored in the Games SQLite database.
+
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
 ## Validation
