@@ -32,8 +32,8 @@ const PIPE_EMOJIS = Object.freeze({
   // connectivity checks; games/plumber.js uses connector bitmasks exclusively.
   ne: emoji('CSPipe22', '1545109101409730620'),
   es: emoji('CSPipe21', '1545125911722983435'),
-  sw: emoji('CSPipe23', '1545125914109546556'),
-  wn: emoji('CSPipe24', '1545125916009828453'),
+  sw: emoji('CSPipe24', '1545125916009828453'),
+  wn: emoji('CSPipe23', '1545125914109546556'),
   wne: emoji('CSPipe4', '1545109105910485073'),
   nes: emoji('CSPipe41', '1545125917851000853'),
   esw: emoji('CSPipe42', '1545125920329834516'),
@@ -49,3 +49,4 @@ const WORK_EMOJIS = Object.freeze({
 });
 
 module.exports = { BURGER_EMOJIS, PIPE_EMOJIS, TRASH_EMOJIS, WORK_EMOJIS };
+
