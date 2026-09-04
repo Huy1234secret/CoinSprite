@@ -25,7 +25,7 @@ test('external stock modules, command, dashboard, and documentation are absent',
   }
 });
 
-test('global commands stay empty and guild commands contain retained features plus Work when leveling is enabled', () => {
+test('global commands stay empty and guild commands contain only retained features', () => {
   const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
   assert.deepEqual(GLOBAL_APPLICATION_COMMANDS, []);
   assert.match(read('index.js'), /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
@@ -40,7 +40,7 @@ test('global commands stay empty and guild commands contain retained features pl
     ...base,
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
-  }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate', 'cs-work']);
+  }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
 });
 
 test('current schema strips obsolete stock and RNG data while preserving retained settings', () => {
@@ -96,9 +96,10 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 
-test('obsolete RNG source, media, and report scripts are absent', () => {
+test('obsolete game source, media, and report scripts are absent', () => {
   for (const target of [
     ['src', 'features', 'rng-game'],
+    ['src', 'features', 'work'],
     ['images', 'egg_open'],
     ['images', 'roulette'],
     ['images', 'RPS'],
