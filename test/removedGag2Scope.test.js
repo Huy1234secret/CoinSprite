@@ -25,16 +25,15 @@ test('external stock modules, command, dashboard, and documentation are absent',
   }
 });
 
-test('global commands stay empty and guild commands exclude the removed RNG game commands', () => {
+test('global commands stay empty and guild commands contain only retained features', () => {
   const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
   assert.deepEqual(GLOBAL_APPLICATION_COMMANDS, []);
   assert.match(read('index.js'), /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
 
   const base = {
     enabled: true,
-    features: { leveling: false, rngGame: false },
+    features: { leveling: false },
     leveling: { enabled: false },
-    rngGame: { enabled: false },
   };
   assert.deepEqual(featureCommandsForConfig(base).map((command) => command.name), ['cs-balance']);
   assert.deepEqual(featureCommandsForConfig({
@@ -42,14 +41,9 @@ test('global commands stay empty and guild commands exclude the removed RNG game
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
   }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
-  assert.deepEqual(featureCommandsForConfig({
-    ...base,
-    features: { ...base.features, rngGame: true },
-    rngGame: { enabled: true },
-  }).map((command) => command.name), ['cs-balance']);
 });
 
-test('current schema strips obsolete stock data while preserving unrelated settings', () => {
+test('current schema strips obsolete stock and RNG data while preserving retained settings', () => {
   const config = require('../src/serverConfig');
   const guildId = '123456789012345678';
   const state = config.normalizeState({
@@ -77,8 +71,8 @@ test('current schema strips obsolete stock data while preserving unrelated setti
   assert.equal(state.guilds[guildId].channels.commandLogThread, '223456789012345678');
   assert.equal(state.guilds[guildId].features.leveling, true);
   assert.equal(state.guilds[guildId].leveling.enabled, true);
-  assert.equal(state.guilds[guildId].features.rngGame, true);
-  assert.equal(state.guilds[guildId].rngGame.enabled, true);
+  assert.equal(state.guilds[guildId].features.rngGame, undefined);
+  assert.equal(state.guilds[guildId].rngGame, undefined);
   assert.equal(state.guilds[guildId].gag2Stock, undefined);
   assert.equal(state.guilds[guildId].features.gag2Stock, undefined);
 });
@@ -102,11 +96,17 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 
-test('shop and RNG services remain available without a command module', () => {
-  const featureSource = read('src/features/rng-game/index.js');
-  const shopSource = read('src/features/rng-game/services/shopService.js');
-  assert.equal(fs.existsSync(path.join(root, 'src', 'features', 'rng-game', 'commands', 'index.js')), false);
-  assert.match(featureSource, /shopService/);
-  assert.match(shopSource, /restock/i);
+test('obsolete game source, media, and report scripts are absent', () => {
+  for (const target of [
+    ['src', 'features', 'rng-game'],
+    ['src', 'features', 'work'],
+    ['images', 'egg_open'],
+    ['images', 'roulette'],
+    ['images', 'RPS'],
+  ]) assert.equal(fs.existsSync(path.join(root, ...target)), false, target.join('/'));
+  for (let number = 0; number <= 36; number += 1) {
+    assert.equal(fs.existsSync(path.join(root, `${number}.png`)), false, `${number}.png`);
+  }
+  assert.deepEqual(fs.readdirSync(path.join(root, 'scripts')), ['generateEmojiData.js']);
 });
 

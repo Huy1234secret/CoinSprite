@@ -12,8 +12,6 @@ const FONT_SOURCES = Object.freeze([
   { packageName: '@fontsource-variable/caveat', family: 'Caveat Variable', stylesheets: ['index.css'] },
   { packageName: '@fontsource-variable/noto-sans-sc', family: 'CoinSprite Unicode', stylesheets: ['index.css'] },
 ]);
-const INDEX_CANVAS_FONT_FAMILY = 'CoinSprite Index Sans';
-
 let fontStatus = null;
 
 function shortHash(parts) {
@@ -109,31 +107,6 @@ function registerCanvasFonts(options = {}) {
   return fontStatus;
 }
 
-function registerIndexCanvasFont(globalFonts = GlobalFonts) {
-  if (globalFonts.has(INDEX_CANVAS_FONT_FAMILY)) return INDEX_CANVAS_FONT_FAMILY;
-  const entry = {
-    packageName: '@fontsource-variable/noto-sans',
-    family: INDEX_CANVAS_FONT_FAMILY,
-    filename: 'noto-sans-latin-wght-normal.woff2',
-  };
-  try {
-    const packageDirectory = path.dirname(require.resolve(`${entry.packageName}/package.json`));
-    const fontPath = path.join(packageDirectory, 'files', entry.filename);
-    if (!globalFonts.registerFromPath(fontPath, entry.family) || !globalFonts.has(entry.family)) {
-      throw new Error('registerFromPath returned false');
-    }
-  } catch (error) {
-    const message = registrationFailure(entry, error);
-    console.error(message);
-    throw new Error(message, { cause: error });
-  }
-  return INDEX_CANVAS_FONT_FAMILY;
-}
-
-// Register the complete Latin face before the general Fontsource subsets. The
-// native canvas registry does not retain CSS unicode-range metadata when many
-// subset files share one family, which can otherwise render text as tofu boxes.
-registerIndexCanvasFont();
 const CANVAS_FONT_STATUS = registerCanvasFonts();
 const LEVEL_CARD_RENDERER_VERSION = `level-card-${shortHash([
   Buffer.from(`font-manifest=${CANVAS_FONT_STATUS.manifestHash}\0`),
@@ -152,13 +125,6 @@ function assertCanvasFontsAvailable(globalFonts = GlobalFonts) {
   const missing = CANVAS_FONT_STATUS.families.filter((family) => !globalFonts.has(family));
   if (missing.length) throw new Error(`Required level card fonts are unavailable: ${missing.join(', ')}`);
   return CANVAS_FONT_STATUS;
-}
-
-function assertIndexCanvasFontAvailable(globalFonts = GlobalFonts) {
-  if (!globalFonts.has(INDEX_CANVAS_FONT_FAMILY)) {
-    throw new Error(`Required RNG Index font is unavailable: ${INDEX_CANVAS_FONT_FAMILY}`);
-  }
-  return INDEX_CANVAS_FONT_FAMILY;
 }
 
 function levelCardRendererIdentity() {
@@ -181,14 +147,11 @@ function logLevelCardRendererIdentity(log = console.info, component = 'Runtime')
 module.exports = {
   CANVAS_FONT_STATUS,
   FONT_SOURCES,
-  INDEX_CANVAS_FONT_FAMILY,
   LEVEL_CARD_BUILD_VERSION,
   LEVEL_CARD_RENDERER_VERSION,
   assertCanvasFontsAvailable,
-  assertIndexCanvasFontAvailable,
   levelCardRendererIdentity,
   logLevelCardRendererIdentity,
   registerCanvasFonts,
-  registerIndexCanvasFont,
   resolveFontManifest,
 };

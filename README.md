@@ -1,10 +1,13 @@
 # CoinSprite
 
-CoinSprite is a focused Discord service for a seed RNG economy, multiplayer casino games, and community leveling. The runtime contains three product surfaces:
+CoinSprite is a focused Discord community service. The runtime contains these product surfaces:
 
-- **Seed RNG economy** — secure crop rolls, persistent crop/item/pet inventories and balances, a global item shop, consumable effects, pet hatching/equipment, selling, filtering, pagination, and capacity upgrades.
 - **Leveling** — anti-spam message XP, channel and role boosts, scheduled claimable XP crates, live-composed messages, leaderboards, and milestone roles.
-- **Owner panel** — bot health, connected guilds, per-server feature access, enable/disable controls, and a live operational console.
+- **Counting and Bronze balance** — turn-safe counting with persistent rewards, a text balance lookup, and an application-command balance lookup.
+- **Message Templates** — reusable Components V2 messages with buttons, dropdowns, role actions, ephemeral responses, and direct messages.
+- **Reaction Roles** — button and dropdown role menus with permission-safe publishing and runtime verification.
+- **Welcome Messages** — configurable join, leave, and server-boost messages.
+- **Owner panel** — bot health, connected guilds, per-server Leveling access, enable/disable controls, and a live operational console.
 
 Tickets, moderation, giveaways, invite rewards, and other general-purpose dashboard modules are not loaded by the application.
 
@@ -33,9 +36,9 @@ Tickets, moderation, giveaways, invite rewards, and other general-purpose dashbo
 
 For production, terminate TLS through a reverse proxy, bind the app to `127.0.0.1`, and set `ADMIN_COOKIE_SECURE=true`.
 
-Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. Use `npm run deploy:bot` for the Discord gateway, command registration, and RNG schedulers. Use `npm run deploy:panel` for the web panel only. `npm start` deliberately runs the combined role for local development.
+Bot and panel deployments must both install with `npm ci`; do not use `npm install` in either deployment. Use `npm run deploy:bot` for the Discord gateway, command registration, and scheduled bot jobs. Use `npm run deploy:panel` for the web panel only. `npm start` deliberately runs the combined role for local development.
 
-The panel role fails closed: it does not register Discord commands, attach Discord interaction/message handlers, or start game schedulers. Production should run exactly **one** `deploy:bot` scheduler-enabled replica; panel replicas may scale separately. Startup diagnostics report the runtime role, scheduler state, instance identity, PID, hostname, shard, and service name without logging credentials.
+The panel role fails closed: it does not register Discord commands, attach Discord interaction/message handlers, or start scheduled bot jobs. Production should run exactly **one** `deploy:bot` scheduler-enabled replica; panel replicas may scale separately. Startup diagnostics report the runtime role, scheduler state, instance identity, PID, hostname, shard, and service name without logging credentials.
 
 For pixel-identical level cards, deploy the bot and panel from the same commit and `package-lock.json`, run `npm ci` in both deployments, and set identical `LEVEL_CARD_RENDER_SECRET` and `COINSPRITE_BUILD_VERSION` values. Point the bot's `PUBLIC_WEB_BASE_URL` at the panel. The renderer rejects a panel whose build, renderer, or installed-font manifest differs from the bot instead of falling back to a stale local card.
 
@@ -60,21 +63,7 @@ The dashboard lets Discord administrators configure unlocked features:
 - scheduled XP crates with a global drop channel plus optional per-crate fallbacks, images, XP ranges, guided `s`/`m`/`h`/`d` duration inputs, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages (including `{list_claimed_user}`), and zero-XP test sends;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
-The published application-command surface is limited to Counting and enabled Leveling commands. RNG, economy, casino, and work commands are not registered or routed, and the legacy RNG prefix-command surface is disabled.
-
-### European Roulette
-
-The retained roulette engine provides a persistent single-zero European table for solo house play or a host plus one to three invited players. Each player escrows independent token bets and settles against the house. The table supports Straight, Split, Street, Corner, Six Line, both zero Trios, First Four, all Dozens and Columns, Red/Black, Even/Odd, and Low/High. Individual and per-player round stake are capped at 1,000 token value, with at most 12 distinct positions. Undo, clear, leave, cancellation, and expiry refund unresolved escrow transactionally; completed bets use standard European total-return multipliers. Roulette and RPS share one active-casino-player lock so a wallet cannot escrow into both games simultaneously.
-
-### Shop, items, and pets
-
-The retained shop engine renders an owner-bound Components V2 shop with one cached 1920×1080 landscape composite PNG per page, arranged as three columns by two rows. A two-item final page is centered without stretching or filler entries. Every player sees and pays the same catalogue price; Luck, BIG, pets, and active consumables never personalize the rendered Shop or checkout. Global stock is replaced every 30 minutes on fixed wall-clock boundaries; every catalogue item independently rolls its restock chance and inclusive stock range. Restock epochs and stock survive restarts, and purchase confirmation rechecks the current catalogue version, fixed price, stock, and BigInt balance in one idempotent transaction.
-
-Item consumption is atomic. Timed mushrooms target one crop rarity, timed sprinklers improve crop weight and BIG chance, watering cans add successful-roll charges, and Common Eggs hatch pets. Reusing the same timed item extends duration without multiplying its strength. Secret Mushroom adds a fixed 0.025 percentage points to the base Secret chance and cannot be amplified by Luck, pets, or repeat use. Different mushroom rarities may coexist, only one sprinkler may be active, and watering-can charges are consumed only after a crop instance commits. Manual and Auto Rolls resolve the same persisted modifier snapshot; combined crop weight is capped at ×2.50, effective BIG chance at 15%, pet-only value bonus at 20%, and Common probability has a 10% floor.
-
-The inventory model has Crops, Items, and Pets views. Item storage is unlimited. The Items view summarizes active expirations and watering-can charges, while the Pets view shows final combined bonuses after stacking and caps. Pet slot 1 is free, slot 2 costs 10,000,000 Sheckles, and slot 3 costs 50,000,000 Sheckles. Only equipped pet instances grant perks, so duplicate species can fill multiple slots only when the player owns enough copies.
-
-Egg animations live in `images/egg_open`. The current supplied filename convention is rarity-prefixed PascalCase: `CFrog.gif`, `CBunny.gif`, `UCOwl.gif`, `MDeer.gif`, `RTurtle.gif`, `LRobin.gif`, `LBee.gif`, `LButterfly.gif`, `MMonkey.gif`, `MFirefly.gif`, `MGoldenDragonfly.gif`, `MUnicorn.gif`, and `LBear.gif`. The centralized pet catalogue maps species to these filenames. A missing species animation falls back to `default.gif`, then to the pet emoji PNG.
+The published application-command surface contains the Counting balance command and the commands for enabled Leveling features. Counting messages and the `csbalance` text command share the same persistent Bronze balance.
 
 All dashboard writes require a same-session CSRF token. Guild edits require Discord Administrator permission; fleet controls require a configured owner identity or the Discord application owner.
 
@@ -82,9 +71,6 @@ All dashboard writes require a same-session CSRF token. Guild edits require Disc
 
 ```bash
 npm test
-npm run report:rng-items-pets
-npm run report:shop-balance
-npm run report:pet-value
 ```
 
-The test suite covers multi-server onboarding, runtime-role isolation, RNG rolls and auto-roll idempotency, shop restocks and purchases, item effects, pet hatching and slots, roulette settlement and rendering, manual/Auto modifier parity, upgrades, discoveries and index rendering, leveling curves and Components V2 payloads, configuration security, persistence, live metrics, and permissions. The deterministic reports print fixed-price Shop and pet-value checkpoints, verify restock scarcity, Super-over-Legendary ordering, expected uplift, fixed-point egg odds, and money-loop safety, enumerate all three-pet combinations, and fail if probability or modifier caps are violated.
+The test suite covers multi-server onboarding, runtime-role isolation, Counting persistence and turn safety, Leveling curves and Components V2 payloads, XP drops, Message Templates, Reaction Roles, Welcome Messages, configuration security, live metrics, and permissions.

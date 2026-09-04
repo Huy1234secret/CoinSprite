@@ -1,7 +1,7 @@
 {
   "name": "coinsprite",
   "version": "1.0.0",
-  "description": "A Discord RNG economy, multiplayer casino, community leveling, and owner dashboard.",
+  "description": "A Discord community bot with leveling, counting, message templates, reaction roles, welcome messages, and an owner dashboard.",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -9,13 +9,7 @@
     "start:bot": "node src/entrypoints/bot.js",
     "start:panel": "node src/entrypoints/panel.js",
     "test": "node --test --test-concurrency=1",
-    "preview:rps": "node scripts/renderRpsPreviews.js",
-    "preview:roulette": "node scripts/renderRoulettePreviews.js",
     "generate:emoji-data": "node scripts/generateEmojiData.js",
-    "report:rng-luck": "node scripts/rngLuckReport.js",
-    "report:rng-items-pets": "node scripts/rngItemsPetsReport.js",
-    "report:shop-balance": "node scripts/shopBalanceReport.js",
-    "report:pet-value": "node scripts/petValueReport.js",
     "predeploy:bot": "npm ci",
     "deploy:bot": "node src/entrypoints/bot.js",
     "predeploy:panel": "npm ci",
@@ -23,9 +17,8 @@
   },
   "keywords": [
     "discord",
-    "rng-game",
-    "roulette",
-    "leveling"
+    "leveling",
+    "counting"
   ],
   "author": "",
   "license": "ISC",

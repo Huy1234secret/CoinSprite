@@ -37,10 +37,10 @@ test('configuration and feature access accept arbitrary valid server IDs', () =>
 
   assert.ok(ensureGuildConfig(firstGuildId));
   assert.ok(ensureGuildConfig(secondGuildId));
-  const updated = setGuildFeatureAccess(secondGuildId, { leveling: true, rngGame: true });
+  const updated = setGuildFeatureAccess(secondGuildId, { leveling: true });
 
   assert.equal(updated.features.leveling, true);
-  assert.equal(updated.features.rngGame, true);
+  assert.deepEqual(updated.features, { leveling: true });
   assert.deepEqual(getConfiguredGuildIds().sort(), [firstGuildId, secondGuildId].sort());
 });
 

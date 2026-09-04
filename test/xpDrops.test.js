@@ -16,7 +16,7 @@ fs.writeFileSync(process.env.SERVER_CONFIG_STORE_PATH, JSON.stringify({
   guilds: {
     [guildId]: {
       enabled: true,
-      features: { leveling: true, rngGame: false, fullBot: false },
+      features: { leveling: true },
       channels: { commandLogThread: '' },
       leveling: {
         enabled: true,
@@ -33,7 +33,6 @@ fs.writeFileSync(process.env.SERVER_CONFIG_STORE_PATH, JSON.stringify({
           }],
         },
       },
-      rngGame: { enabled: false, gameChannelIds: [], cooldownBypassRoleIds: [] },
     },
   },
 }));

@@ -23,7 +23,6 @@ const {
   requireSchedulerRole,
   runtimeDiagnostic,
 } = require('./src/runtimeRole');
-const { createRngGameFeature } = require('./src/features/rng-game');
 const { createCountingFeature } = require('./src/features/counting');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
@@ -47,12 +46,6 @@ const { handleMessageTemplateInteraction } = require('./src/messageTemplateInter
 
 const EPHEMERAL = MessageFlags.Ephemeral ?? 64;
 const { role: runtimeRole } = requireSchedulerRole();
-const rngGame = createRngGameFeature({
-  onError(error) {
-    logCommandSystem(`RNG game event failed: ${safeErrorMessage(error)}`);
-  },
-});
-
 const countingGame = runtimeRole === 'panel' ? null : createCountingFeature({
   getChannelId(guildId) {
     return getGuildConfigRaw(guildId)?.counting?.channelId || '';
@@ -93,11 +86,10 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     });
     await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
-    rngGame.startScheduler(client);
     startXpDropScheduler(client);
   },
   async panel() {
-    startAdminServer(client, { rngGame });
+    startAdminServer(client);
   },
 });
 
@@ -149,7 +141,6 @@ if (runtimeStarter.capabilities.bot) {
       }
       if (await handleReactionRoleInteraction(interaction)) return;
       if (await countingGame.handleInteraction(interaction)) return;
-      if (await rngGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
     } catch (error) {
       const diagnostic = formatInteractionFailure(error, interaction, { startedAt });
@@ -161,7 +152,6 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.MessageCreate, async (message) => {
     try {
       await handleBoostSystemMessage(message);
-      if (isGuildEnabled(message.guildId) && await rngGame.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
