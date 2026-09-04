@@ -99,7 +99,7 @@ const inventoryFeature = runtimeRole === 'panel' ? null : createInventoryFeature
 const ownerTestCommand = runtimeRole === 'panel' ? null : createOwnerTestCommand({
   isOwner: (message) => isOwnerSession({ user: message.author }, client),
   routes: {
-    cswork: workGame.handleMessage,
+    cswork: workGame.handleOwnerTestMessage,
     csbalance: countingGame.handleMessage,
     csinventory: inventoryFeature.handleMessage,
   },

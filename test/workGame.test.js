@@ -9,7 +9,7 @@ const { messagePayloadErrors, payloadMetrics } = require('../src/features/shared
 const { BURGER_MESSAGES, BURGER_ORDER_SEEDS } = require('../src/features/work/data/burgerOrders');
 const { PIPE_EMOJIS } = require('../src/features/work/data/emojis');
 const { TRASH_ITEMS } = require('../src/features/work/data/trashItems');
-const { activeGamePayload, cooldownPayload } = require('../src/features/work/components/builders');
+const { activeGamePayload, cooldownPayload, settledPayload } = require('../src/features/work/components/builders');
 const { parseWorkCommand } = require('../src/features/work/commands');
 const { createWorkFeature } = require('../src/features/work');
 const { applyBurgerAction, createBurgerGame } = require('../src/features/work/games/burger');
@@ -105,14 +105,22 @@ test('Trash Sorter covers six unambiguous catalogs, 3–20 items, and sequential
   assert.equal(applyTrashAction(minimum, wrong).outcome, 'failed');
 });
 
-test('Electrician generates 6–24 accessible buttons, unique pairs, selection, matching, and mismatch failure', () => {
-  assert.equal(BUILTIN_PAIRS.length, 12);
+test('Electrician uses emoji-only same-shape pairs, existing colors, selection, matching, and mismatch failure', () => {
+  const existingColors = new Set(['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Purple', 'Brown', 'Black', 'White']);
+  assert.equal(BUILTIN_PAIRS.length, 18);
+  assert.ok(BUILTIN_PAIRS.every((pair) => existingColors.has(pair.color)));
+  assert.equal(new Set(BUILTIN_PAIRS.map((pair) => pair.emoji)).size, BUILTIN_PAIRS.length);
   for (const [difficulty, expected] of [['easy', 6], ['expert', 24]]) {
     const state = createElectricianGame(difficulty, () => difficulty === 'easy' ? 0 : 0.9999);
     assert.equal(state.buttons.length, expected);
     assert.equal(state.buttons.length % 2, 0);
     assert.equal(new Set(state.buttons.map((button) => button.pair)).size, expected / 2);
-    assert.ok(state.buttons.every((button) => /circle|square/.test(button.label)));
+    assert.ok(state.buttons.every((button) => !Object.hasOwn(button, 'label')));
+    for (const pair of new Set(state.buttons.map((button) => button.pair))) {
+      const matching = state.buttons.filter((button) => button.pair === pair);
+      assert.equal(matching.length, 2);
+      assert.equal(matching[0].emoji, matching[1].emoji);
+    }
   }
   const state = createElectricianGame('easy', () => 0);
   assert.equal(applyElectricianAction(state, 'wire-0').outcome, 'active');
@@ -229,6 +237,8 @@ test('success atomically applies global cooldown, new-streak salary, shared Bron
   assert.equal(repository.balance(USER), MAX_BRONZE_BALANCE);
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.create(sessionInput({ sessionId: 'other-guild', guildId: OTHER_GUILD })).status, 'cooldown');
+  assert.equal(repository.create(sessionInput({ sessionId: 'owner-test', bypassCooldown: true })).status, 'created');
+  repository.abortSend('owner-test');
   now += WORK_COOLDOWN_MS;
   assert.equal(repository.create(sessionInput({ sessionId: 'ready', guildId: OTHER_GUILD })).status, 'created');
   db.close();
@@ -291,7 +301,7 @@ test('feature routing ignores unsafe messages, starts cswork before Counting, de
   let now = 1_000_000;
   const { db } = memory(() => now);
   const feature = createWorkFeature({
-    db, clock: () => now, rng: () => 0, createId: () => 'feature',
+    db, clock: () => now, rng: () => 0, createId: sequence(['feature', 'cooldown-attempt', 'owner-test']),
     setTimer: () => ({ unref() {} }), clearTimer() {}, isCommandAllowed: () => true,
   });
   assert.equal(await feature.handleMessage({ guildId: null, content: 'cswork', author: { id: USER } }), false);
@@ -321,7 +331,14 @@ test('feature routing ignores unsafe messages, starts cswork before Counting, de
     message: { id: MESSAGE, async edit(payload) { edited = payload; } },
   });
   assert.match(edited.components[0].components[0].content, new RegExp(`<@${USER}>.*<t:${Math.floor((now + WORK_COOLDOWN_MS) / 1000)}:R>`));
-  assert.match(edited.components[0].components[2].content, /Work Level: 1 `0\/100`/);
+  assert.doesNotMatch(edited.components[0].components[2].content, /Work Level/);
+  let cooldown;
+  await feature.handleMessage({ ...messageSource, async reply(payload) { cooldown = payload; return { id: MESSAGE }; } });
+  assert.match(cooldown.components[0].components[0].content, /you can work again/);
+  let ownerTest;
+  await feature.handleOwnerTestMessage({ ...messageSource, async reply(payload) { ownerTest = payload; return { id: MESSAGE }; } });
+  assert.match(ownerTest.components[0].components[0].content, /You're a Trash Sorter/);
+  assert.equal(feature.repository.get('owner-test').status, 'active');
   feature.close();
   db.close();
 });
@@ -346,10 +363,23 @@ test('Components V2 payloads stay within limits with unique compact IDs and exac
     assert.ok(ids.every((id) => id.startsWith('cswork:') && id.length <= 100));
     assert.ok(payloadMetrics(payload).components <= 40);
   }
-  assert.match(activeGamePayload({ sessionId: 'a', job: 'electrician', state: states.electrician, deadline: 2_000_000 }).components[0].components[0].content, /You're an Electrician/);
+  const electricianPayload = activeGamePayload({ sessionId: 'a', job: 'electrician', state: states.electrician, deadline: 2_000_000 });
+  assert.match(electricianPayload.components[0].components[0].content, /You're an Electrician/);
+  const wireButtons = electricianPayload.components[0].components
+    .filter((component) => component.type === 1)
+    .flatMap((row) => row.components);
+  assert.equal(wireButtons.length, 24);
+  assert.ok(wireButtons.every((wire) => wire.emoji?.name && !Object.hasOwn(wire, 'label')));
+  const completedPayload = settledPayload({
+    sessionId: 'done', userId: USER, job: 'electrician', status: 'succeeded',
+    salaryCredited: 25, xpAwarded: 20, levelsGained: 0, tokensAwarded: 0,
+  }, { profile: { userId: USER, level: 1, xp: 20, streak: 1, cooldownUntil: 1_600_000 } });
+  assert.match(completedPayload.components[0].components[2].content, /Work XP: \+20/);
+  assert.doesNotMatch(completedPayload.components[0].components[2].content, /Work Level/);
   const cooldown = cooldownPayload(USER, 1_600_000, { userId: USER, level: 3, xp: 4, streak: 12, cooldownUntil: 1_600_000 });
   assert.match(cooldown.components[0].components[0].content, /<t:1600:R>/);
   assert.match(cooldown.components[0].components[2].content, /×1\.12 Earnings/);
+  assert.doesNotMatch(cooldown.components[0].components[2].content, /Work Level/);
   assert.equal(cooldown.components[0].components[3].components[0].disabled, true);
 });
 

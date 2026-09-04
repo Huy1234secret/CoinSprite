@@ -2,7 +2,6 @@ const { v2Payload, WHITE } = require('../../shared/components');
 const { assertValidMessagePayload } = require('../../shared/discordPayload');
 const { BURGER_EMOJIS, PIPE_EMOJIS, TRASH_EMOJIS, WORK_EMOJIS } = require('../data/emojis');
 const { PIECES } = require('../games/plumber');
-const { requiredXp } = require('../repositories/workRepository');
 
 const JOB_NAMES = Object.freeze({
   burger: 'Burger Maker', trash: 'Trash Sorter', plumber: 'Plumber', electrician: 'Electrician',
@@ -30,9 +29,8 @@ function rows(buttons) {
     type: 1, components: buttons.slice(index * 5, index * 5 + 5),
   }));
 }
-function statusText(userId, profile) {
-  return `${WORK_EMOJIS.level} Work Level: ${profile.level} \`${profile.xp}/${requiredXp(profile.level)}\`\n`
-    + `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${((100 + profile.streak) / 100).toFixed(2)} Earnings\``;
+function statusText(_userId, profile) {
+  return `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${((100 + profile.streak) / 100).toFixed(2)} Earnings\``;
 }
 
 function gameMessage(session) {
@@ -42,7 +40,7 @@ function gameMessage(session) {
     return `-# Sort the item below:\n### ${current.item} \`${session.state.sorted}/${session.state.required}\``;
   }
   if (session.job === 'plumber') return 'Reconnect the pipeline!';
-  return 'Connect the two wires with the same color.';
+  return 'Connect the two wires with the same color and shape.';
 }
 
 function controlRows(session, options = {}) {
@@ -74,7 +72,7 @@ function controlRows(session, options = {}) {
     }));
   }
   return rows(session.state.buttons.map((wire) => button(session.sessionId, `wire-${wire.id}`, {
-    label: wire.label,
+    emoji: { name: wire.emoji },
     disabled: disabled || session.state.matched.includes(wire.pair),
     style: session.state.matched.includes(wire.pair) ? 3 : (session.state.selected === wire.id ? 1 : 2),
   })));
