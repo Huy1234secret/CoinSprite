@@ -91,7 +91,9 @@ class WorkRepository {
       const active = hydrate(this.activeFor.get(input.userId));
       if (active) return { status: 'active', session: active, profile: this.profile(input.userId) };
       const profile = this.profile(input.userId);
-      if (profile.cooldownUntil > now) return { status: 'cooldown', nextWorkAt: profile.cooldownUntil, profile };
+      if (!input.bypassCooldown && profile.cooldownUntil > now) {
+        return { status: 'cooldown', nextWorkAt: profile.cooldownUntil, profile };
+      }
       this.insert.run({ ...input, stateJson: JSON.stringify(input.state), createdAt: BigInt(now) });
       return { status: 'created', session: hydrate(this.byId.get(input.sessionId)), profile };
     }).immediate;
@@ -149,6 +151,7 @@ class WorkRepository {
         ...input,
         sessionId: String(input.sessionId), guildId: String(input.guildId), channelId: String(input.channelId),
         userId: String(input.userId), difficulty: String(input.difficulty || 'normal'),
+        bypassCooldown: input.bypassCooldown === true,
         normalizedDifficulty: Math.max(0, Math.min(1, Number(input.normalizedDifficulty) || 0)),
         deadline: BigInt(input.deadline), baseSalary: Number(input.baseSalary), xpReward: Number(input.xpReward),
       });
