@@ -1,6 +1,7 @@
 const { BURGER_ORDER_SEEDS, BURGER_MESSAGES, FILLINGS } = require('../data/burgerOrders');
 
-const RANGES = Object.freeze({ easy: [3, 7], normal: [8, 12], hard: [13, 17], expert: [18, 23] });
+// Ranges count fillings only. The bottom and top buns are added separately.
+const RANGES = Object.freeze({ easy: [2, 7], normal: [8, 13], hard: [14, 19], expert: [20, 25] });
 const pick = (rng, values) => values[Math.min(values.length - 1, Math.floor(rng() * values.length))];
 
 function shuffle(values, rng) {
@@ -30,22 +31,24 @@ function createBurgerGame(difficulty, rng) {
   const seed = BURGER_ORDER_SEEDS[seedIndex];
   const fillings = Array.from({ length: count }, (_, index) => seed[index % seed.length] || FILLINGS[(seedIndex + index) % FILLINGS.length]);
   const target = ['bottom_bun', ...fillings, 'top_bun'];
-  const answerOrder = [...new Set(target)];
-  let buttons = shuffle(answerOrder, rng);
-  if (buttons.every((value, index) => value === answerOrder[index])) buttons = [...buttons.slice(1), buttons[0]];
+  const buttons = shuffle(target.map((ingredient, id) => ({ id, ingredient, completed: false })), rng);
   return {
     target,
     cursor: 0,
     buttons,
     message: `A customer says:\n> ${pick(rng, BURGER_MESSAGES).replace('{fillings}', naturalList(fillings))}`,
-    difficulty: (target.length - 5) / 20,
+    difficulty: (fillings.length - 2) / 23,
   };
 }
 
 function applyBurgerAction(state, action) {
-  if (!state.buttons.includes(action) || action !== state.target[state.cursor]) {
+  const match = /^burger-(\d{1,2})$/.exec(String(action));
+  const button = match ? state.buttons.find((entry) => entry.id === Number(match[1])) : null;
+  if (!button || button.completed) return { outcome: 'active' };
+  if (button.ingredient !== state.target[state.cursor]) {
     return { outcome: 'failed', reason: 'The burger was stacked in the wrong order.' };
   }
+  button.completed = true;
   state.cursor += 1;
   return state.cursor === state.target.length ? { outcome: 'succeeded' } : { outcome: 'active' };
 }
