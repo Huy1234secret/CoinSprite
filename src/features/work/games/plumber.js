@@ -21,10 +21,22 @@ const PIECES = Object.freeze({
 });
 
 const LAYOUTS = Object.freeze({
-  easy: { rows: [0, 1], columns: [1, 2, 3], valves: [[0, 0, 'E'], [1, 4, 'W']] },
-  normal: { rows: [1, 2, 3], columns: [0, 1, 2, 3], valves: [[0, 1, 'S'], [4, 2, 'N']] },
-  hard: { rows: [0, 1, 2, 3], columns: [0, 1, 2, 3], valves: [[0, 4, 'W'], [1, 4, 'W'], [2, 4, 'W'], [3, 4, 'W']] },
-  expert: { rows: [0, 1, 2, 3], columns: [0, 1, 2, 3, 4], valves: [[4, 0, 'N'], [4, 1, 'N'], [4, 2, 'N'], [4, 3, 'N'], [4, 4, 'N']] },
+  easy: Object.freeze([
+    { name: 'staircase', shape: ['.##..', '..#..', '..##.', '...##', '.....'], valves: [[0, 0, 'E'], [4, 4, 'N']] },
+    { name: 'reverse-staircase', shape: ['...#.', '.###.', '.#...', '##...', '.....'], valves: [[0, 4, 'W'], [4, 0, 'N']] },
+  ]),
+  normal: Object.freeze([
+    { name: 'clipped-left', shape: ['.##..', '####.', '####.', '.##..', '.....'], valves: [[0, 0, 'E'], [4, 2, 'N']] },
+    { name: 'clipped-right', shape: ['..##.', '.####', '.####', '..##.', '.....'], valves: [[0, 4, 'S'], [4, 2, 'N']] },
+  ]),
+  hard: Object.freeze([
+    { name: 'center-notch', shape: ['.###.', '#####', '##.##', '.###.', '.....'], valves: [[0, 0, 'E'], [0, 4, 'W'], [4, 1, 'N'], [4, 3, 'N']] },
+    { name: 'side-notch', shape: ['.##..', '####.', '#.##.', '####.', '.##..'], valves: [[0, 0, 'E'], [0, 3, 'S'], [4, 0, 'N'], [4, 3, 'N']] },
+  ]),
+  expert: Object.freeze([
+    { name: 'hollow-center', shape: ['.###.', '#####', '##.##', '#####', '.###.'], valves: [[0, 0, 'S'], [0, 4, 'S'], [4, 0, 'N'], [4, 4, 'N']] },
+    { name: 'twin-cutout', shape: ['.###.', '#####', '#.#.#', '#####', '.###.'], valves: [[0, 0, 'S'], [0, 4, 'S'], [4, 0, 'N'], [4, 4, 'N']] },
+  ]),
 });
 
 const key = (row, column) => `${row},${column}`;
@@ -48,8 +60,11 @@ function plumberDifficulty(rotatablePipes, valveCount, minimumSolutionRotations)
 
 function createPlumberGame(difficulty, rng) {
   if (typeof rng !== 'function') throw new TypeError('Plumber requires an injected random-number generator.');
-  const layout = LAYOUTS[difficulty];
-  const core = new Set(layout.rows.flatMap((row) => layout.columns.map((column) => key(row, column))));
+  const layouts = LAYOUTS[difficulty];
+  const layout = layouts[Math.min(layouts.length - 1, Math.floor(rng() * layouts.length))];
+  const core = new Set(layout.shape.flatMap((line, row) => [...line]
+    .map((marker, column) => marker === '#' ? key(row, column) : null)
+    .filter(Boolean)));
   const cells = Array.from({ length: 25 }, (_, index) => ({ row: Math.floor(index / 5), column: index % 5, type: 'empty' }));
   for (const cell of cells) {
     if (!core.has(key(cell.row, cell.column))) continue;
@@ -62,6 +77,7 @@ function createPlumberGame(difficulty, rng) {
     }
     cell.type = 'pipe';
     cell.solution = pieceFor([...new Set(sides)]);
+    if (!cell.solution) throw new Error(`Invalid Plumber layout ${layout.name} at ${key(cell.row, cell.column)}.`);
     cell.piece = cell.solution;
   }
   for (const [row, column, inward] of layout.valves) {
@@ -85,6 +101,7 @@ function createPlumberGame(difficulty, rng) {
     .reduce((sum, cell) => sum + rotationsUntil(cell.piece, cell.solution), 0);
   return {
     cells,
+    layout: layout.name,
     rotatablePipes,
     valveCount: layout.valves.length,
     minimumSolutionRotations,

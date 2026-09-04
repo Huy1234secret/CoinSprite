@@ -1,6 +1,7 @@
 const { TRASH_ITEMS } = require('../data/trashItems');
 
-const REQUIRED = Object.freeze({ easy: [3, 6], normal: [7, 10], hard: [11, 15], expert: [16, 20] });
+// Item counts exclude the category buttons and rise steadily with difficulty.
+const REQUIRED = Object.freeze({ easy: [2, 3], normal: [4, 5], hard: [6, 8], expert: [9, 10] });
 
 function shuffle(values, rng) {
   const output = [...values];
@@ -16,7 +17,7 @@ function createTrashGame(difficulty, rng) {
   const all = Object.entries(TRASH_ITEMS).flatMap(([category, items]) => items.map((item) => ({ item, category })));
   const [minimum, maximum] = REQUIRED[difficulty];
   const required = minimum + Math.floor(rng() * (maximum - minimum + 1));
-  return { required, sorted: 0, items: shuffle(all, rng).slice(0, required), difficulty: (required - 3) / 17 };
+  return { required, sorted: 0, items: shuffle(all, rng).slice(0, required), difficulty: (required - 2) / 8 };
 }
 
 function applyTrashAction(state, action) {

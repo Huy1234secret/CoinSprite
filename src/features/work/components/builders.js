@@ -46,8 +46,10 @@ function gameMessage(session) {
 function controlRows(session, options = {}) {
   const disabled = options.disabled === true;
   if (session.job === 'burger') {
-    return rows(session.state.buttons.map((name) => button(session.sessionId, name, {
-      emoji: BURGER_EMOJIS[name], label: INGREDIENT_LABELS[name], disabled,
+    return rows(session.state.buttons.map((entry) => button(session.sessionId, `burger-${entry.id}`, {
+      emoji: BURGER_EMOJIS[entry.ingredient], label: INGREDIENT_LABELS[entry.ingredient],
+      disabled: disabled || entry.completed,
+      style: entry.completed ? 3 : 2,
     })));
   }
   if (session.job === 'trash') {
@@ -136,7 +138,7 @@ function settledPayload(session, result, options = {}) {
       + `${WORK_EMOJIS.level} Work XP: +${session.xpAwarded}\n`
       + `${statusText(session.userId, profile)}${levelLine}`;
   } else {
-    details = `No salary or Work XP was earned.\n${WORK_EMOJIS.fire} Work Streak: 0 \`×1.00 Earnings\``;
+    details = `No salary or Work XP was earned.\n${WORK_EMOJIS.fire} You lose all streaks`;
   }
   return checked([{
     type: 17,

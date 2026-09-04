@@ -12,13 +12,13 @@ const { TRASH_ITEMS } = require('../src/features/work/data/trashItems');
 const { activeGamePayload, cooldownPayload, settledPayload } = require('../src/features/work/components/builders');
 const { parseWorkCommand } = require('../src/features/work/commands');
 const { createWorkFeature } = require('../src/features/work');
-const { applyBurgerAction, createBurgerGame } = require('../src/features/work/games/burger');
+const { RANGES: BURGER_RANGES, applyBurgerAction, createBurgerGame } = require('../src/features/work/games/burger');
 const { BUILTIN_PAIRS, applyElectricianAction, createElectricianGame } = require('../src/features/work/games/electrician');
 const {
   DIRECTION_BITS, DIRECTIONS, LAYOUTS, OPPOSITE, PIECES, applyPlumberAction,
   createPlumberGame, openMask, validatePlumber,
 } = require('../src/features/work/games/plumber');
-const { applyTrashAction, createTrashGame } = require('../src/features/work/games/trash');
+const { REQUIRED: TRASH_REQUIRED, applyTrashAction, createTrashGame } = require('../src/features/work/games/trash');
 const { openDatabase } = require('../src/features/work/repositories/database');
 const {
   MAX_BRONZE_BALANCE, WORK_COOLDOWN_MS, WorkRepository, applyWorkXp, requiredXp,
@@ -77,28 +77,60 @@ test('Burger catalog yields at least 100 unique natural phrases and recipes with
   assert.ok(BURGER_ORDER_SEEDS.some((seed) => new Set(seed).size < seed.length));
   for (const seed of BURGER_ORDER_SEEDS) assert.ok(seed.length >= 3 && seed.length <= 23);
   for (let index = 0; index < 100; index += 1) {
-    const state = createBurgerGame(['easy', 'normal', 'hard', 'expert'][index % 4], sequence([(index + 0.5) / 101, 0.25, 0.75]));
+    const difficulty = ['easy', 'normal', 'hard', 'expert'][index % 4];
+    const state = createBurgerGame(difficulty, sequence([(index + 0.5) / 101, 0.25, 0.75]));
+    const fillingCount = state.target.length - 2;
     assert.equal(state.target[0], 'bottom_bun');
     assert.equal(state.target.at(-1), 'top_bun');
-    assert.ok(state.target.length >= 5 && state.target.length <= 25);
-    assert.equal(new Set(state.buttons).size, state.buttons.length);
-    assert.ok(state.target.every((ingredient) => state.buttons.includes(ingredient)));
+    assert.ok(fillingCount >= BURGER_RANGES[difficulty][0] && fillingCount <= BURGER_RANGES[difficulty][1]);
+    assert.ok(fillingCount >= 2 && fillingCount <= 25);
+    assert.equal(state.buttons.length, state.target.length);
+    assert.equal(new Set(state.buttons.map((button) => button.id)).size, state.buttons.length);
+    assert.deepEqual(state.buttons.toSorted((left, right) => left.id - right.id).map((button) => button.ingredient), state.target);
+    assert.ok(state.buttons.every((button) => button.completed === false));
     assert.match(state.message, /^A customer says:\n> /);
   }
-  const repeated = { target: ['bottom_bun', 'beef_patty', 'cheese', 'beef_patty', 'top_bun'], cursor: 0, buttons: ['cheese', 'top_bun', 'beef_patty', 'bottom_bun'] };
-  for (const ingredient of repeated.target) assert.notEqual(applyBurgerAction(repeated, ingredient).outcome, 'failed');
+  for (const [difficulty, [minimum, maximum]] of Object.entries(BURGER_RANGES)) {
+    assert.equal(createBurgerGame(difficulty, () => 0).target.length - 2, minimum);
+    assert.equal(createBurgerGame(difficulty, () => 0.9999).target.length - 2, maximum);
+  }
+  const target = ['bottom_bun', 'beef_patty', 'cheese', 'beef_patty', 'top_bun'];
+  const repeated = { target, cursor: 0, buttons: target.map((ingredient, id) => ({ id, ingredient, completed: false })) };
+  for (const ingredient of repeated.target) {
+    const next = repeated.buttons.find((button) => !button.completed && button.ingredient === ingredient);
+    assert.notEqual(applyBurgerAction(repeated, `burger-${next.id}`).outcome, 'failed');
+    assert.equal(next.completed, true);
+  }
   assert.equal(repeated.cursor, 5);
-  assert.equal(applyBurgerAction({ target: ['bottom_bun'], cursor: 0, buttons: ['bottom_bun', 'cheese'] }, 'cheese').outcome, 'failed');
+  const duplicateClick = {
+    target: ['bottom_bun', 'top_bun'], cursor: 0,
+    buttons: [{ id: 0, ingredient: 'bottom_bun', completed: false }, { id: 1, ingredient: 'top_bun', completed: false }],
+  };
+  assert.equal(applyBurgerAction(duplicateClick, 'burger-0').outcome, 'active');
+  assert.equal(applyBurgerAction(duplicateClick, 'burger-0').outcome, 'active');
+  assert.equal(duplicateClick.cursor, 1);
+  assert.equal(applyBurgerAction({
+    target: ['bottom_bun'], cursor: 0,
+    buttons: [{ id: 0, ingredient: 'bottom_bun', completed: false }, { id: 1, ingredient: 'cheese', completed: false }],
+  }, 'burger-1').outcome, 'failed');
 });
 
-test('Trash Sorter covers six unambiguous catalogs, 3–20 items, and sequential correctness', () => {
+test('Trash Sorter covers expanded unambiguous catalogs, 2–10 items by difficulty, and sequential correctness', () => {
   assert.deepEqual(Object.keys(TRASH_ITEMS), ['recycle', 'organic', 'medical', 'hazardous', 'glass', 'general']);
-  for (const items of Object.values(TRASH_ITEMS)) assert.equal(new Set(items).size, 20);
+  const allItems = Object.values(TRASH_ITEMS).flat();
+  for (const items of Object.values(TRASH_ITEMS)) assert.equal(new Set(items).size, 30);
+  assert.equal(new Set(allItems).size, allItems.length);
   const minimum = createTrashGame('easy', () => 0);
   const maximum = createTrashGame('expert', () => 0.9999);
-  assert.equal(minimum.required, 3);
-  assert.equal(maximum.required, 20);
-  assert.equal(new Set(maximum.items.map((entry) => entry.item)).size, 20);
+  assert.equal(minimum.required, 2);
+  assert.equal(maximum.required, 10);
+  assert.equal(minimum.difficulty, 0);
+  assert.equal(maximum.difficulty, 1);
+  assert.equal(new Set(maximum.items.map((entry) => entry.item)).size, 10);
+  for (const [difficulty, [minimumRequired, maximumRequired]] of Object.entries(TRASH_REQUIRED)) {
+    assert.equal(createTrashGame(difficulty, () => 0).required, minimumRequired);
+    assert.equal(createTrashGame(difficulty, () => 0.9999).required, maximumRequired);
+  }
   const first = minimum.items[0];
   assert.equal(applyTrashAction(minimum, first.category).outcome, 'active');
   const wrong = Object.keys(TRASH_ITEMS).find((category) => category !== minimum.items[1].category);
@@ -154,6 +186,20 @@ test('Plumber boards are solvable 5×5 networks with edge valves, bitmask rotati
     pipe.piece = PIECES[pipe.piece].next;
     assert.equal(validatePlumber(state), false);
   }
+  for (const difficulty of Object.keys(LAYOUTS)) {
+    assert.ok(LAYOUTS[difficulty].length >= 2);
+    const variants = [createPlumberGame(difficulty, () => 0), createPlumberGame(difficulty, () => 0.9999)];
+    assert.notEqual(variants[0].layout, variants[1].layout);
+    for (const variant of variants) {
+      const pipes = variant.cells.filter((cell) => cell.type === 'pipe');
+      const rows = pipes.map((cell) => cell.row);
+      const columns = pipes.map((cell) => cell.column);
+      const boundingArea = (Math.max(...rows) - Math.min(...rows) + 1) * (Math.max(...columns) - Math.min(...columns) + 1);
+      assert.ok(pipes.length < boundingArea, `${variant.layout} should contain a visible cutout`);
+      for (const cell of pipes) cell.piece = cell.solution;
+      assert.equal(validatePlumber(variant), true);
+    }
+  }
   for (const [name, piece] of Object.entries(PIECES)) {
     assert.equal(piece.mask, piece.sides.reduce((mask, side) => mask | DIRECTION_BITS[side], 0));
     let rotated = name;
@@ -172,7 +218,7 @@ test('Plumber boards are solvable 5×5 networks with edge valves, bitmask rotati
   );
   assert.equal(openMask({ type: 'pipe', piece: 'NE' }), DIRECTION_BITS.N | DIRECTION_BITS.E);
   const state = createPlumberGame('easy', () => 0);
-  const index = state.cells.findIndex((cell) => cell.type === 'pipe');
+  const index = state.cells.findIndex((cell) => cell.type === 'pipe' && cell.piece === cell.solution);
   const before = state.cells[index].piece;
   assert.equal(applyPlumberAction(state, `pipe-${index}`).outcome, 'active');
   assert.equal(state.cells[index].piece, PIECES[before].next);
@@ -201,10 +247,10 @@ test('normalized reward and timer formulas hit the specified deterministic bound
     assert.deepEqual(rewardsFor(job, 1), { baseSalary: config.salary[1], xpReward: config.xp[1] });
   }
   assert.equal(scaledReward([10, 140], 0.5), 75);
-  assert.equal(timerSeconds('burger', { target: Array(5) }), 45);
-  assert.equal(timerSeconds('burger', { target: Array(25) }), 105);
-  assert.equal(timerSeconds('trash', { required: 3 }), 40);
-  assert.equal(timerSeconds('trash', { required: 20 }), 105);
+  assert.equal(timerSeconds('burger', { target: Array(4) }), 45);
+  assert.equal(timerSeconds('burger', { target: Array(27) }), 110);
+  assert.equal(timerSeconds('trash', { required: 2 }), 40);
+  assert.equal(timerSeconds('trash', { required: 10 }), 65);
   assert.equal(timerSeconds('electrician', { buttons: Array(6) }), 45);
   assert.equal(timerSeconds('electrician', { buttons: Array(24) }), 97);
   assert.equal(timerSeconds('plumber', { rotatablePipes: 20, minimumSolutionRotations: 60 }), 230);
@@ -370,12 +416,28 @@ test('Components V2 payloads stay within limits with unique compact IDs and exac
     .flatMap((row) => row.components);
   assert.equal(wireButtons.length, 24);
   assert.ok(wireButtons.every((wire) => wire.emoji?.name && !Object.hasOwn(wire, 'label')));
+  const burgerState = createBurgerGame('easy', () => 0);
+  const firstBurgerButton = burgerState.buttons.find((button) => button.ingredient === burgerState.target[0]);
+  assert.equal(applyBurgerAction(burgerState, `burger-${firstBurgerButton.id}`).outcome, 'active');
+  const burgerPayload = activeGamePayload({ sessionId: 'burger', job: 'burger', state: burgerState, deadline: 2_000_000 });
+  const burgerButtons = burgerPayload.components[0].components
+    .filter((component) => component.type === 1)
+    .flatMap((row) => row.components);
+  const completedBurgerButton = burgerButtons.find((button) => button.custom_id === `cswork:burger:burger-${firstBurgerButton.id}`);
+  assert.equal(completedBurgerButton.disabled, true);
+  assert.equal(completedBurgerButton.style, 3);
+  assert.ok(burgerButtons.some((button) => !button.disabled && button.style === 2));
   const completedPayload = settledPayload({
     sessionId: 'done', userId: USER, job: 'electrician', status: 'succeeded',
     salaryCredited: 25, xpAwarded: 20, levelsGained: 0, tokensAwarded: 0,
   }, { profile: { userId: USER, level: 1, xp: 20, streak: 1, cooldownUntil: 1_600_000 } });
   assert.match(completedPayload.components[0].components[2].content, /Work XP: \+20/);
   assert.doesNotMatch(completedPayload.components[0].components[2].content, /Work Level/);
+  const failedPayload = settledPayload({
+    sessionId: 'failed', userId: USER, job: 'burger', status: 'failed', failureReason: 'Wrong ingredient.',
+  }, { profile: { userId: USER, level: 1, xp: 0, streak: 0, cooldownUntil: 1_600_000 } });
+  assert.match(failedPayload.components[0].components[2].content, /You lose all streaks/);
+  assert.doesNotMatch(failedPayload.components[0].components[2].content, /Work Streak: 0/);
   const cooldown = cooldownPayload(USER, 1_600_000, { userId: USER, level: 3, xp: 4, streak: 12, cooldownUntil: 1_600_000 });
   assert.match(cooldown.components[0].components[0].content, /<t:1600:R>/);
   assert.match(cooldown.components[0].components[2].content, /×1\.12 Earnings/);
