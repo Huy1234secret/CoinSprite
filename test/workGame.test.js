@@ -23,7 +23,7 @@ const { openDatabase } = require('../src/features/work/repositories/database');
 const {
   MAX_BRONZE_BALANCE, WORK_COOLDOWN_MS, WorkRepository, applyWorkXp, requiredXp,
 } = require('../src/features/work/repositories/workRepository');
-const { JOB_CONFIG, WorkService, rewardsFor, scaledReward, timerSeconds } = require('../src/features/work/services/workService');
+const { JOB_CONFIG, WorkService, chooseDifficulty, rewardsFor, scaledReward, timerSeconds } = require('../src/features/work/services/workService');
 const { gameCommandAllowed, normalizeGamesConfig, normalizeState } = require('../src/serverConfig');
 
 const GUILD = '123456789012345678';
@@ -83,7 +83,7 @@ test('Burger catalog yields at least 100 unique natural phrases and recipes with
     assert.equal(state.target[0], 'bottom_bun');
     assert.equal(state.target.at(-1), 'top_bun');
     assert.ok(fillingCount >= BURGER_RANGES[difficulty][0] && fillingCount <= BURGER_RANGES[difficulty][1]);
-    assert.ok(fillingCount >= 2 && fillingCount <= 25);
+    assert.ok(fillingCount >= 2 && fillingCount <= 10);
     assert.equal(state.buttons.length, state.target.length);
     assert.equal(new Set(state.buttons.map((button) => button.id)).size, state.buttons.length);
     assert.deepEqual(state.buttons.toSorted((left, right) => left.id - right.id).map((button) => button.ingredient), state.target);
@@ -248,7 +248,7 @@ test('normalized reward and timer formulas hit the specified deterministic bound
   }
   assert.equal(scaledReward([10, 140], 0.5), 75);
   assert.equal(timerSeconds('burger', { target: Array(4) }), 45);
-  assert.equal(timerSeconds('burger', { target: Array(27) }), 110);
+  assert.equal(timerSeconds('burger', { target: Array(12) }), 66);
   assert.equal(timerSeconds('trash', { required: 2 }), 40);
   assert.equal(timerSeconds('trash', { required: 10 }), 65);
   assert.equal(timerSeconds('electrician', { buttons: Array(6) }), 45);
@@ -262,6 +262,27 @@ test('Work XP carries over multiple levels and requires exactly one token per le
   assert.equal(requiredXp(3), 240);
   assert.deepEqual(applyWorkXp(1, 90, 25), { level: 2, xp: 15, levelsGained: 1 });
   assert.deepEqual(applyWorkXp(1, 0, 1_000), { level: 5, xp: 160, levelsGained: 4 });
+});
+
+test('Work difficulty follows level 0, 5, 15, and 30 unlock thresholds', async () => {
+  for (const level of [0, 1, 4]) assert.equal(chooseDifficulty(level), 'easy');
+  for (const level of [5, 14]) assert.equal(chooseDifficulty(level), 'normal');
+  for (const level of [15, 29]) assert.equal(chooseDifficulty(level), 'hard');
+  for (const level of [30, 100]) assert.equal(chooseDifficulty(level), 'expert');
+
+  const { db, repository } = memory();
+  repository.profile(USER);
+  db.prepare('UPDATE work_profiles SET level=30 WHERE user_id=?').run(USER);
+  const service = new WorkService(repository, {
+    clock: () => 1_000_000, rng: sequence([0.3, 0.9999]), createId: () => 'leveled',
+    setTimer: () => ({ unref() {} }), clearTimer() {},
+  });
+  const started = await service.start({ guildId: GUILD, channelId: CHANNEL, userId: USER }, async () => MESSAGE);
+  assert.equal(started.session.job, 'burger');
+  assert.equal(started.session.difficulty, 'expert');
+  assert.equal(started.session.state.target.length - 2, 10);
+  service.close();
+  db.close();
 });
 
 test('success atomically applies global cooldown, new-streak salary, shared Bronze cap, Work XP, and inventory once', () => {
@@ -423,6 +444,7 @@ test('Components V2 payloads stay within limits with unique compact IDs and exac
   const burgerButtons = burgerPayload.components[0].components
     .filter((component) => component.type === 1)
     .flatMap((row) => row.components);
+  assert.ok(burgerButtons.every((ingredient) => ingredient.emoji && !Object.hasOwn(ingredient, 'label')));
   const completedBurgerButton = burgerButtons.find((button) => button.custom_id === `cswork:burger:burger-${firstBurgerButton.id}`);
   assert.equal(completedBurgerButton.disabled, true);
   assert.equal(completedBurgerButton.style, 3);

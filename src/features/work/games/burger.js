@@ -1,7 +1,7 @@
 const { BURGER_ORDER_SEEDS, BURGER_MESSAGES, FILLINGS } = require('../data/burgerOrders');
 
 // Ranges count fillings only. The bottom and top buns are added separately.
-const RANGES = Object.freeze({ easy: [2, 7], normal: [8, 13], hard: [14, 19], expert: [20, 25] });
+const RANGES = Object.freeze({ easy: [2, 3], normal: [2, 5], hard: [2, 7], expert: [2, 10] });
 const pick = (rng, values) => values[Math.min(values.length - 1, Math.floor(rng() * values.length))];
 
 function shuffle(values, rng) {
@@ -37,7 +37,7 @@ function createBurgerGame(difficulty, rng) {
     cursor: 0,
     buttons,
     message: `A customer says:\n> ${pick(rng, BURGER_MESSAGES).replace('{fillings}', naturalList(fillings))}`,
-    difficulty: (fillings.length - 2) / 23,
+    difficulty: (fillings.length - 2) / 8,
   };
 }
 
