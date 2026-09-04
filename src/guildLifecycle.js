@@ -4,7 +4,7 @@ function createGuildCreateHandler(options = {}) {
     if (!guild?.id || options.botEnabled === false) return { initialized: false };
     options.ensureGuildConfig?.(guild.id);
     await options.syncGuildCommands?.(guild);
-    log(`CoinSprite leveling and RNG configuration created for guild ${guild.id}.`);
+    log(`CoinSprite configuration created for guild ${guild.id}.`);
     return { initialized: true };
   };
 }

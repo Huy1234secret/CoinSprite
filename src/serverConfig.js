@@ -10,7 +10,7 @@ const {
 } = require('./reactionRoles');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 23;
+const SCHEMA_VERSION = 24;
 const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
@@ -42,11 +42,6 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
     claimTemplate: '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining',
     crates: Object.freeze([]),
   }),
-});
-const DEFAULT_RNG_GAME_CONFIG = Object.freeze({
-  enabled: false,
-  gameChannelIds: Object.freeze([]),
-  cooldownBypassRoleIds: Object.freeze([]),
 });
 const DEFAULT_COUNTING_CONFIG = Object.freeze({ channelId: '' });
 const DEFAULT_MEMBER_MESSAGE_TEMPLATES = Object.freeze({
@@ -92,8 +87,6 @@ function isObject(value) {
 
 const DEFAULT_FEATURES = Object.freeze({
   leveling: false,
-  rngGame: false,
-  fullBot: false,
 });
 const DEFAULT_GUILD_CONFIG = Object.freeze({
   enabled: true,
@@ -103,7 +96,6 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   memberMessages: DEFAULT_MEMBER_MESSAGES_CONFIG,
   messageTemplates: DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   reactionRoles: DEFAULT_REACTION_ROLES_CONFIG,
-  rngGame: DEFAULT_RNG_GAME_CONFIG,
   counting: DEFAULT_COUNTING_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
@@ -316,23 +308,6 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
   };
 }
 
-function normalizeRngGameConfig(value, defaults = DEFAULT_RNG_GAME_CONFIG) {
-  const source = isObject(value) ? value : {};
-  const channelIds = Array.isArray(source.gameChannelIds)
-    ? source.gameChannelIds
-    : (source.gameChannelId !== undefined
-      ? [source.gameChannelId]
-      : (Array.isArray(defaults.gameChannelIds) ? defaults.gameChannelIds : [defaults.gameChannelId]));
-  const roleIds = Array.isArray(source.cooldownBypassRoleIds)
-    ? source.cooldownBypassRoleIds.map(cleanId).filter(Boolean)
-    : defaults.cooldownBypassRoleIds;
-  return {
-    enabled: source.enabled === undefined ? defaults.enabled === true : source.enabled === true,
-    gameChannelIds: [...new Set(channelIds.map(cleanId).filter(Boolean))].slice(0, 100),
-    cooldownBypassRoleIds: [...new Set(roleIds)].slice(0, 100),
-  };
-}
-
 function normalizeCountingConfig(value) {
   const source = isObject(value) ? value : {};
   return { channelId: cleanId(source.channelId) };
@@ -379,25 +354,20 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const memberMessages = normalizeMemberMessagesConfig(source.memberMessages, defaults.memberMessages);
   const messageTemplates = normalizeMessageTemplatesConfig(source.messageTemplates);
   const reactionRoles = normalizeReactionRolesConfig(source.reactionRoles);
-  const rngGame = normalizeRngGameConfig(source.rngGame, defaults.rngGame);
   const counting = normalizeCountingConfig(source.counting);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
-    rngGame.enabled = false;
   }
   return {
     enabled: source.enabled !== false,
     features: {
       leveling: options.resetFeatureLocks ? false : source.features?.leveling === true,
-      rngGame: options.resetFeatureLocks ? false : source.features?.rngGame === true,
-      fullBot: false,
     },
     channels: { commandLogThread: cleanId(source.channels?.commandLogThread) },
     leveling,
     memberMessages,
     messageTemplates,
     reactionRoles,
-    rngGame,
     counting,
   };
 }
@@ -523,28 +493,18 @@ function isGuildEnabled(guildId) {
   return Boolean(getGuildConfig(guildId));
 }
 
-function isGuildFullBotEnabled() {
-  return false;
-}
-
 function setGuildFeatureAccess(guildId, features = {}) {
   const id = cleanId(guildId);
   if (!id) return null;
   const state = loadState();
   state.guilds[id] ||= defaultConfigForGuild(id);
   state.guilds[id].leveling ||= clone(DEFAULT_LEVELING_CONFIG);
-  state.guilds[id].rngGame ||= clone(DEFAULT_RNG_GAME_CONFIG);
   state.guilds[id].features = {
     leveling: features.leveling === undefined
       ? state.guilds[id].features?.leveling === true
       : features.leveling === true,
-    rngGame: features.rngGame === undefined
-      ? state.guilds[id].features?.rngGame === true
-      : features.rngGame === true,
-    fullBot: false,
   };
   if (!state.guilds[id].features.leveling) state.guilds[id].leveling.enabled = false;
-  if (!state.guilds[id].features.rngGame) state.guilds[id].rngGame.enabled = false;
   saveState(state);
   return getGuildConfigRaw(id);
 }
@@ -552,11 +512,6 @@ function setGuildFeatureAccess(guildId, features = {}) {
 function isGuildLevelingEnabled(guildId) {
   const config = getGuildConfig(guildId);
   return Boolean(config?.features?.leveling && config.leveling?.enabled !== false);
-}
-
-function isGuildRngGameEnabled(guildId) {
-  const config = getGuildConfig(guildId);
-  return Boolean(config?.features?.rngGame && config.rngGame?.enabled === true);
 }
 
 function resolveLoggingChannelId(config, _feature, _type, fallback = '') {
@@ -570,7 +525,6 @@ module.exports = {
   DEFAULT_MEMBER_MESSAGES_CONFIG,
   DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   DEFAULT_REACTION_ROLES_CONFIG,
-  DEFAULT_RNG_GAME_CONFIG,
   DEFAULT_GUILD_CONFIG,
   DEFAULT_COINSPRITE_GUILD_CONFIG,
   DEFAULT_GUILD_ID,
@@ -587,16 +541,13 @@ module.exports = {
   getGuildConfigRaw,
   getGuildConfigValue,
   isGuildEnabled,
-  isGuildFullBotEnabled,
   isGuildLevelingEnabled,
-  isGuildRngGameEnabled,
   loadState,
   normalizeLevelingConfig,
   normalizeCountingConfig,
   normalizeMemberMessagesConfig,
   normalizeMessageTemplatesConfig,
   normalizeReactionRolesConfig,
-  normalizeRngGameConfig,
   normalizeState,
   resolveLoggingChannelId,
   saveState,

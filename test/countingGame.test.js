@@ -294,7 +294,7 @@ test('Bronze balance formatter abbreviates without floating point', () => {
 test('cs-balance is registered for every enabled guild even when no Counting channel is set', () => {
   const commands = featureCommandsForConfig({
     enabled: true,
-    features: { leveling: false, rngGame: false },
+    features: { leveling: false },
     counting: { channelId: '' },
   });
   assert.deepEqual(commands.map((command) => command.name), ['cs-balance']);

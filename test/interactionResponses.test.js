@@ -38,7 +38,7 @@ test('acknowledgement helpers cover fresh, deferred, replied, expired, and raced
   for (const code of [10062, 40060]) {
     const reports = [];
     const interaction = {
-      customId: 'rng:rps:reveal:private-game-id',
+      customId: 'mt:2n9c:b:template-token:control-token:revision-token',
       guildId: 'guild',
       channelId: 'channel',
       isButton: () => true,
@@ -66,8 +66,8 @@ test('interaction diagnostics include selected control validation paths and payl
     components: [{ type: 17, components: [{ type: 10, content: 'trade' }] }],
   } };
   const interaction = {
-    customId: 'rng:sale:select:123456789012345678',
-    values: ['crop-1'],
+    customId: 'mt:2n9c:d:template-token:control-token:revision-token',
+    values: ['option-1'],
     commandName: '',
     guildId: '123456789012345678',
     channelId: '223456789012345678',
@@ -75,10 +75,10 @@ test('interaction diagnostics include selected control validation paths and payl
     replied: false,
     isStringSelectMenu: () => true,
   };
-  assert.equal(safeControlKind(interaction.customId), 'rng:sale:select');
+  assert.equal(safeControlKind(interaction.customId), 'mt:2n9c:d');
   const diagnostic = formatInteractionFailure(error, interaction, { operation: 'defer-update', startedAt: Date.now() - 5 });
-  assert.match(diagnostic, /kind=string-select.*control=rng:sale:select/);
-  assert.match(diagnostic, /customId="rng:sale:select:123456789012345678" selected="crop-1"/);
+  assert.match(diagnostic, /kind=string-select.*control=mt:2n9c:d/);
+  assert.match(diagnostic, /customId="mt:2n9c:d:template-token:control-token:revision-token" selected="option-1"/);
   assert.match(diagnostic, /code=50035.*status=400/);
   assert.match(diagnostic, /components\[0\]\.components\[1\]\.components\[1\]\.custom_id/);
   assert.match(diagnostic, /COMPONENT_CUSTOM_ID_DUPLICATED.*Component custom id must be unique/);

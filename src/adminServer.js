@@ -663,14 +663,11 @@ function publicConfig(config) {
     enabled: config?.enabled !== false,
     features: {
       leveling: config?.features?.leveling === true,
-      rngGame: config?.features?.rngGame === true,
-      fullBot: false,
     },
     leveling: config?.leveling || {},
     memberMessages: config?.memberMessages || {},
     messageTemplates: normalizeMessageTemplatesConfig(config?.messageTemplates),
     reactionRoles: normalizeReactionRolesConfig(config?.reactionRoles),
-    rngGame: config?.rngGame || {},
     counting: normalizeCountingConfig(config?.counting),
   };
 }
@@ -1171,10 +1168,9 @@ async function routeRequest(req, res, env, client, services = {}) {
     const body = await readJsonBody(req);
     const hasLeveling = body?.leveling && typeof body.leveling === 'object' && !Array.isArray(body.leveling);
     const hasMemberMessages = body?.memberMessages && typeof body.memberMessages === 'object' && !Array.isArray(body.memberMessages);
-    const hasRngGame = body?.rngGame && typeof body.rngGame === 'object' && !Array.isArray(body.rngGame);
     const hasCounting = body?.counting && typeof body.counting === 'object' && !Array.isArray(body.counting);
-    if (!hasLeveling && !hasMemberMessages && !hasRngGame && !hasCounting) {
-      return sendJson(res, 400, { error: 'Leveling, Welcome Messages, RNG game, or Counting configuration is required.' });
+    if (!hasLeveling && !hasMemberMessages && !hasCounting) {
+      return sendJson(res, 400, { error: 'Leveling, Welcome Messages, or Counting configuration is required.' });
     }
 
     const state = loadState();
@@ -1182,17 +1178,11 @@ async function routeRequest(req, res, env, client, services = {}) {
     if (hasLeveling && state.guilds[guildId].features?.leveling !== true) {
       return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
     }
-    if (hasRngGame && state.guilds[guildId].features?.rngGame !== true) {
-      return sendJson(res, 403, { error: 'RNG Game is locked for this server. Ask the bot owner to unlock it.' });
-    }
     state.guilds[guildId].features = {
       leveling: state.guilds[guildId].features?.leveling === true,
-      rngGame: state.guilds[guildId].features?.rngGame === true,
-      fullBot: false,
     };
     if (hasLeveling) state.guilds[guildId].leveling = mergePlain(state.guilds[guildId].leveling, body.leveling);
     if (hasMemberMessages) state.guilds[guildId].memberMessages = mergePlain(state.guilds[guildId].memberMessages, body.memberMessages);
-    if (hasRngGame) state.guilds[guildId].rngGame = mergePlain(state.guilds[guildId].rngGame, body.rngGame);
     if (hasCounting) {
       state.guilds[guildId].counting = {
         channelId: await validateCountingChannel(auth.guild, body.counting.channelId),
@@ -1201,12 +1191,12 @@ async function routeRequest(req, res, env, client, services = {}) {
     saveState(state);
     const config = getGuildConfigRaw(guildId);
 
-    if (hasLeveling || hasRngGame) {
+    if (hasLeveling) {
       await syncGuildApplicationCommands(auth.guild)
         .catch((error) => logCommandSystem(`Feature command sync failed for guild ${guildId}: ${error?.message || 'unknown error'}`));
     }
 
-    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasMemberMessages && 'Welcome Messages', hasRngGame && 'RNG game', hasCounting && 'Counting'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
+    logCommandSystem(`Admin ${auth.session.user.id} updated ${[hasLeveling && 'leveling', hasMemberMessages && 'Welcome Messages', hasCounting && 'Counting'].filter(Boolean).join(' and ')} for guild ${guildId}.`);
     return sendJson(res, 200, { guildId, config: publicConfig(config) });
   }
 

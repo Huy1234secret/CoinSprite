@@ -1,15 +1,13 @@
 {
   "meta": {
-    "schemaVersion": 20,
+    "schemaVersion": 24,
     "disabledGuilds": {}
   },
   "guilds": {
     "YOUR_ALLOWED_GUILD_ID": {
       "enabled": true,
       "features": {
-        "leveling": false,
-        "rngGame": false,
-        "fullBot": false
+        "leveling": false
       },
       "channels": {
         "commandLogThread": ""
@@ -51,11 +49,6 @@
       },
       "reactionRoles": {
         "items": []
-      },
-      "rngGame": {
-        "enabled": false,
-        "gameChannelIds": [],
-        "cooldownBypassRoleIds": []
       }
     }
   }
