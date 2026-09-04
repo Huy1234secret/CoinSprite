@@ -442,7 +442,7 @@ test('foreign controls receive the exact ephemeral ownership error', async () =>
     values: ['check-stat'],
   });
   await game.handleInteraction(attempt.value);
-  assert.match(content(attempt.calls.replies[0]), /These aren't your work controls\. Run \/g-work to start your own shift\./);
+  assert.match(content(attempt.calls.replies[0]), /These aren't your work controls\./);
   game.close();
 });
 
@@ -459,7 +459,7 @@ test('expired component edits stale controls and sends the requested ephemeral e
   await game.handleInteraction(press.value);
   assert.equal(press.calls.updates.length, 1);
   assert.match(content(press.calls.updates[0]), /Shift Expired/);
-  assert.match(content(press.calls.followUps[0]), /This work shift has expired\. Run \/g-work to start another\./);
+  assert.match(content(press.calls.followUps[0]), /This work shift has expired\./);
   game.close();
 });
 

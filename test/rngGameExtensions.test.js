@@ -207,35 +207,6 @@ test('migration defaults existing Auto Roll jobs to five per roll and preserves 
   }
 });
 
-test('all requested prefix commands and Auto Roll aliases use the shared command handlers', async () => {
-  const aliases = [
-    'c!roll', 'c!inventory', 'c!sell', 'c!balance', 'c!auto roll', 'c!auto-roll',
-    'c!upgrade', 'c!index', 'c!stat',
-  ];
-  for (const content of aliases) {
-    const game = feature();
-    let replies = 0;
-    let edits = 0;
-    const handled = await game.handleMessage({
-      content,
-      author: {
-        id: `user-${content}`,
-        username: 'Prefix',
-        bot: false,
-        displayAvatarURL: () => 'https://cdn.example/prefix.png',
-      },
-      reply: async () => {
-        replies += 1;
-        return { id: 'response', edit: async () => { edits += 1; } };
-      },
-    });
-    assert.equal(handled, true, content);
-    assert.equal(replies, 1, content);
-    if (content === 'c!index') assert.equal(edits, 1);
-    game.close();
-  }
-});
-
 test('normalized Luck sampling retains Carrot at the final tier-zero boundary', () => {
   let draw = 0;
   const result = cascadingRoll({

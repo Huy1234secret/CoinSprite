@@ -5,7 +5,7 @@ const path = require('path');
 const test = require('node:test');
 const { loadImage } = require('@napi-rs/canvas');
 
-const { createRngGameFeature, RNG_GAME_COMMANDS } = require('../src/features/rng-game');
+const { createRngGameFeature } = require('../src/features/rng-game');
 const { inventoryPayload } = require('../src/features/rng-game/components/builders');
 const {
   eggAnimationSource,
@@ -14,7 +14,6 @@ const {
   purchasePreviewPayload,
   shopPayload,
 } = require('../src/features/rng-game/components/itemBuilders');
-const { parsePrefixUse } = require('../src/features/rng-game/commands');
 const {
   ITEMS,
   ITEM_BY_ID,
@@ -23,7 +22,6 @@ const {
 const { PETS, PET_SLOT_PRICES } = require('../src/features/rng-game/data/pets');
 const { SEEDS } = require('../src/features/rng-game/data/seeds');
 const { assertValidMessagePayload } = require('../src/features/shared/discordPayload');
-const { COMPONENTS_V2_FLAG } = require('../src/features/shared/components');
 const {
   MAX_EFFECTIVE_BIG_CHANCE_BPS,
   MAX_VALUE_BONUS_BPS,
@@ -93,60 +91,6 @@ function user(id = 'user') {
     displayAvatarURL: () => 'https://cdn.example/avatar.png',
   };
 }
-
-test('/shop, c!shop, /use, and c!use are registered and routed', async () => {
-  const commands = new Map(RNG_GAME_COMMANDS.map((entry) => [entry.data.name, entry.data.toJSON()]));
-  assert.ok(commands.has('shop'));
-  assert.ok(commands.has('use'));
-  assert.equal(commands.get('use').options.find((option) => option.name === 'item').choices.length, ITEMS.length);
-
-  const game = feature({ restockRng: () => 9_999 });
-  let loadingReply;
-  let shopReply;
-  assert.equal(await game.handleMessage({
-    id: 'prefix-shop',
-    content: 'c!shop',
-    author: { ...user('shop-user'), bot: false },
-    reply: async (payload) => {
-      loadingReply = payload;
-      return { edit: async (edited) => { shopReply = edited; } };
-    },
-  }), true);
-  assert.match(JSON.stringify(loadingReply), /Loading the item shop/);
-  assert.equal(loadingReply.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
-  assert.match(shopReply.components[0].components[0].content, /CoinSprite shop/);
-  assert.equal(shopReply.flags, undefined, 'edits inherit the initial Components V2 message flag');
-  assert.equal(shopReply.files.length, 1);
-
-  let slashLoading;
-  let slashShop;
-  let deferCalls = 0;
-  assert.equal(await game.handleInteraction({
-    id: 'slash-shop',
-    commandName: 'shop',
-    isChatInputCommand: () => true,
-    user: user('slash-shop-user'),
-    deferReply: async () => { deferCalls += 1; },
-    reply: async (payload) => { slashLoading = payload; },
-    editReply: async (payload) => { slashShop = payload; },
-  }), true);
-  assert.equal(deferCalls, 0, 'Components V2 cannot be established by a deferred interaction response');
-  assert.equal(slashLoading.flags & COMPONENTS_V2_FLAG, COMPONENTS_V2_FLAG);
-  assert.match(slashShop.components[0].components[0].content, /CoinSprite shop/);
-  game.close();
-});
-
-test('prefix /use parsing is case-insensitive, longest-name-first, and validates amounts', () => {
-  assert.deepEqual(parsePrefixUse('c!use Super Watering Can 12'), {
-    status: 'ok', itemId: 'super_watering_can', amount: 12n,
-  });
-  assert.deepEqual(parsePrefixUse('C!USE legendary mushroom'), {
-    status: 'ok', itemId: 'legendary_mushroom', amount: 1n,
-  });
-  assert.equal(parsePrefixUse('c!use common sprinkler nope').status, 'invalid');
-  assert.equal(parsePrefixUse('c!use not an item').status, 'invalid');
-  assert.equal(parsePrefixUse('c!shop'), null);
-});
 
 test('authoritative fixed prices, effects, restock scarcity, and configuration version are exact', () => {
   const expected = {
@@ -468,31 +412,6 @@ test('egg consumption and duplicate operation delivery persist pets only once', 
   assert.equal(replay.pets[0].pet.id, 'frog');
   assert.equal(game.itemRepository.petState('duplicate-hatch').instances.length, 2);
   assert.equal(game.itemRepository.itemInventory('duplicate-hatch').length, 0);
-  game.close();
-});
-
-test('egg opening waits exactly five injected seconds and edits the same prefix response', async () => {
-  const delays = [];
-  const edits = [];
-  const game = feature({
-    hatchRng: () => 0,
-    hatchDelay: async (milliseconds) => { delays.push(milliseconds); },
-  });
-  grantItem(game, 'animated-hatch', 'common_egg', 1);
-  let initial;
-  await game.handleMessage({
-    id: 'egg-message',
-    content: 'c!use Common Egg',
-    author: { ...user('animated-hatch'), bot: false },
-    reply: async (payload) => {
-      initial = payload;
-      return { edit: async (edited) => { edits.push(edited); } };
-    },
-  });
-  assert.deepEqual(delays, [5_000]);
-  assert.match(JSON.stringify(initial), /Opening x1 Common Egg/);
-  assert.equal(edits.length, 1);
-  assert.match(JSON.stringify(edits[0]), /Pet hatched: Frog/);
   game.close();
 });
 

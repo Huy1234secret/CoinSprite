@@ -93,7 +93,7 @@ function createRpsComponentHandler(context) {
 
   async function hostOnly(interaction, game) {
     if (game?.hostUserId === String(interaction.user.id)) return true;
-    await ephemeralError(interaction, 'Not your RPS controls', 'Only the command invoker can use this control.');
+    await ephemeralError(interaction, 'Not your RPS controls', 'Only the table host can use this control.');
     return false;
   }
 
@@ -108,7 +108,7 @@ function createRpsComponentHandler(context) {
     if (!await acknowledge(interaction)) return true;
     const action = actions.claim(parts[3], interaction.user.id);
     if (!action || action.kind !== 'token-exchange') {
-      await ephemeralError(interaction, 'Expired exchange', 'Run `/exchange-token` again to create a fresh confirmation.');
+      await ephemeralError(interaction, 'Expired exchange', 'This exchange confirmation is no longer available.');
       return true;
     }
     const result = tokenRepository.exchange(

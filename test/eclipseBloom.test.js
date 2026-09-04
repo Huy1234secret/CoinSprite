@@ -216,21 +216,14 @@ test('discovering Eclipse Bloom invalidates and refreshes only that user’s ope
   });
   const edits = { roller: [], other: [] };
   for (const userId of Object.keys(edits)) {
-    await game.handleMessage({
-      content: 'c!index',
-      author: { id: userId, username: userId, bot: false },
-      async reply() {
-        return { async edit(payload) { edits[userId].push(payload); } };
-      },
-    });
+    const view = game.indexViews.create(userId, { maxPage: 6 });
+    view.editOriginal = async (payload) => { edits[userId].push(payload); };
   }
-  assert.equal(edits.roller.length, 1);
-  assert.equal(edits.other.length, 1);
   const rolled = game.gameService.roll('roller');
   assert.equal(rolled.seed, ECLIPSE);
   await waitForCallbacks();
-  assert.equal(edits.roller.length, 2);
-  assert.equal(edits.other.length, 1);
+  assert.equal(edits.roller.length, 1);
+  assert.equal(edits.other.length, 0);
   assert.match(edits.roller.at(-1).components[0].components[0].content, /1 \/ 33 crops/);
   assert.ok(log.some((entry) => entry.type === 'invalidate' && entry.userId === 'roller'));
   assert.equal(log.some((entry) => entry.type === 'invalidate' && entry.userId === 'other'), false);
@@ -291,41 +284,6 @@ test('the centralized announcer uses the default channel and ignores non-Secret 
   assert.equal(await announce({ userId: 'user', seed: SEED_BY_ID.get('carrot'), finalWeightUnits: 10 }), false);
   assert.deepEqual(fetched, [DEFAULT_SECRET_ROLL_CHANNEL_ID]);
   assert.equal(sent.length, 1);
-});
-
-test('slash and prefix Secret rolls each send exactly one announcement', async () => {
-  for (const commandType of ['slash', 'prefix']) {
-    const sent = [];
-    const game = feature({
-      secretRollAnnouncer: undefined,
-      client: {
-        channels: {
-          async fetch(channelId) {
-            assert.equal(channelId, DEFAULT_SECRET_ROLL_CHANNEL_ID);
-            return { isTextBased: () => true, async send(payload) { sent.push(payload); } };
-          },
-        },
-      },
-      rng: secretRng(),
-    });
-    if (commandType === 'slash') {
-      await game.handleInteraction({
-        isChatInputCommand: () => true,
-        commandName: 'roll',
-        user: { id: 'slash-user' },
-        async reply() {},
-      });
-    } else {
-      await game.handleMessage({
-        content: 'c!roll',
-        author: { id: 'prefix-user', bot: false },
-        async reply() { return {}; },
-      });
-    }
-    await waitForCallbacks();
-    assert.equal(sent.length, 1, commandType);
-    game.close();
-  }
 });
 
 test('an Auto Roll Secret sends exactly one announcement after persistence', async () => {

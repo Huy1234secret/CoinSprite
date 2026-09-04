@@ -10,8 +10,8 @@ const {
 } = require('./builders');
 const { acknowledgeUpdate, sendEphemeral } = require('../../shared/interactionResponses');
 
-const NOT_OWNER = "These aren't your work controls. Run /g-work to start your own shift.";
-const EXPIRED = 'This work shift has expired. Run /g-work to start another.';
+const NOT_OWNER = "These aren't your work controls.";
+const EXPIRED = 'This work shift has expired.';
 
 async function ephemeral(interaction, message) {
   const payload = workError(message);
@@ -76,7 +76,7 @@ function createWorkComponentHandler(context) {
     const session = repository.session(sessionId);
     if (session && !await ownerCheck(interaction, session.userId)) return true;
     if (!session) {
-      await ephemeral(interaction, 'This work shift is no longer available. Run /g-work to start another.');
+      await ephemeral(interaction, 'This work shift is no longer available.');
       return true;
     }
     if (session.state === 'expired') {
@@ -119,8 +119,8 @@ function createWorkComponentHandler(context) {
     const messages = {
       consumed: 'That ingredient was already used.',
       'invalid-slot': 'That ingredient control is invalid.',
-      resolved: 'This work shift has already ended. Run /g-work to start another.',
-      missing: 'This work shift is no longer available. Run /g-work to start another.',
+      resolved: 'This work shift has already ended.',
+      missing: 'This work shift is no longer available.',
     };
     await ephemeral(interaction, messages[result.status] || 'That ingredient could not be used.');
     return true;

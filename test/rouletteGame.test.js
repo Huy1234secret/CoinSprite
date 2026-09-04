@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const test = require('node:test');
 const { loadImage } = require('@napi-rs/canvas');
-const { RNG_GAME_COMMANDS, createRngGameFeature } = require('../src/features/rng-game');
+const { createRngGameFeature } = require('../src/features/rng-game');
 const {
   RED_NUMBERS,
   ROULETTE_ACTION_OPTIONS,
@@ -73,9 +73,7 @@ function place(game, gameId, userId, type, target, amount, key) {
   return game.rouletteService.place(gameId, userId, type, target, String(amount), key || `${gameId}:${userId}:${type}:${target}:${Math.random()}`);
 }
 
-test('/g-roulette is registered with the public table controls and no legacy selectors', () => {
-  const command = RNG_GAME_COMMANDS.find(({ data }) => data.name === 'g-roulette')?.data.toJSON();
-  assert.equal(command.description, 'Play European Roulette with tokens.');
+test('the public roulette table controls contain no legacy selectors', () => {
   const payload = rouletteBettingPayload({
     id: 'game', hostUserId: 'host', revision: 0,
     participants: [{ ...profile('host'), seat: 0, ready: false }], bets: [],
@@ -93,21 +91,11 @@ test('/g-roulette is registered with the public table controls and no legacy sel
   assert.equal(ROULETTE_BET_OPTIONS.length, 20);
 });
 
-test('/g-roulette immediately persists BETTING with the invoker as host and participant', async () => {
+test('roulette creation immediately persists BETTING with the host as a participant', () => {
   const game = feature({ rouletteRenderer: { render: async () => Buffer.from('png'), clear() {} } });
-  let payload;
-  assert.equal(await game.handleInteraction({
-    isChatInputCommand: () => true,
-    commandName: 'g-roulette',
-    guildId: 'guild',
-    channelId: 'channel',
-    member: { displayName: 'Host' },
-    user: { id: 'host', username: 'Host', displayAvatarURL: () => '' },
-    reply: async (value) => { payload = value; },
-    fetchReply: async () => ({ id: 'discord-message' }),
-  }), true);
-  const menu = payload.components[0].components.flatMap((entry) => entry.components || []).find((entry) => entry.custom_id?.startsWith('rng:roulette:action:'));
-  const created = game.rouletteService.game(menu.custom_id.split(':').at(-1));
+  const result = game.rouletteService.createGame('guild', 'channel', profile('host'));
+  game.rouletteRepository.setMessage(result.game.id, 'discord-message', game.rouletteService.now());
+  const created = game.rouletteService.game(result.game.id);
   assert.equal(created.state, ROULETTE_STATES.BETTING);
   assert.equal(created.hostUserId, 'host');
   assert.deepEqual(created.participants.map(({ userId, seat, accepted }) => ({ userId, seat, accepted })), [{ userId: 'host', seat: 0, accepted: true }]);

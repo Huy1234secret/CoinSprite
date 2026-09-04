@@ -229,7 +229,7 @@ function inventoryPayload(user, state, view, options = {}) {
     view.page = clampPage(view.page, maxPage);
     const shown = entries.slice((view.page - 1) * INVENTORY_PAGE_SIZE, view.page * INVENTORY_PAGE_SIZE);
     if (!shown.length) {
-      inner.push({ type: 10, content: '-# You do not own any items. Visit /shop to purchase some.' });
+      inner.push({ type: 10, content: '-# You do not own any items.' });
     } else {
       for (const entry of shown) {
         inner.push({
