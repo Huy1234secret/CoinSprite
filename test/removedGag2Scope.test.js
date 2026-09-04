@@ -25,7 +25,7 @@ test('external stock modules, command, dashboard, and documentation are absent',
   }
 });
 
-test('global commands stay empty and guild commands contain only retained features', () => {
+test('global commands stay empty and enabled guilds always include game commands', () => {
   const { GLOBAL_APPLICATION_COMMANDS, featureCommandsForConfig } = require('../src/applicationCommands');
   assert.deepEqual(GLOBAL_APPLICATION_COMMANDS, []);
   assert.match(read('index.js'), /client\.application\.commands\.set\(GLOBAL_APPLICATION_COMMANDS\)/);
@@ -35,12 +35,12 @@ test('global commands stay empty and guild commands contain only retained featur
     features: { leveling: false },
     leveling: { enabled: false },
   };
-  assert.deepEqual(featureCommandsForConfig(base).map((command) => command.name), ['cs-balance']);
+  assert.deepEqual(featureCommandsForConfig(base).map((command) => command.name), ['cs-balance', 'cs-work', 'cs-inventory']);
   assert.deepEqual(featureCommandsForConfig({
     ...base,
     features: { ...base.features, leveling: true },
     leveling: { enabled: true },
-  }).map((command) => command.name), ['cs-balance', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
+  }).map((command) => command.name), ['cs-balance', 'cs-work', 'cs-inventory', 'level', 'leaderboard', 'level-set', 'xp-add', 'leveling-setup', 'drop-crate']);
 });
 
 test('current schema strips obsolete stock and RNG data while preserving retained settings', () => {
@@ -96,10 +96,9 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });
 
-test('obsolete game source, media, and report scripts are absent', () => {
+test('obsolete RNG source, media, and report scripts are absent', () => {
   for (const target of [
     ['src', 'features', 'rng-game'],
-    ['src', 'features', 'work'],
     ['images', 'egg_open'],
     ['images', 'roulette'],
     ['images', 'RPS'],

@@ -122,7 +122,7 @@ test('schema-20 and version-1 Message Templates migrate to version 3 without dat
       createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-02T00:00:00Z',
     }] } } },
   });
-  assert.equal(SCHEMA_VERSION, 24);
+  assert.equal(SCHEMA_VERSION, 25);
   const migrated = state.guilds[GUILD_ID].messageTemplates.items[0];
   assert.equal(migrated.version, 3);
   assert.equal(migrated.content, 'Keep me');

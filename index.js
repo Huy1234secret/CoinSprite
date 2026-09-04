@@ -24,6 +24,8 @@ const {
   runtimeDiagnostic,
 } = require('./src/runtimeRole');
 const { createCountingFeature } = require('./src/features/counting');
+const { createWorkFeature } = require('./src/features/work');
+const { createInventoryFeature } = require('./src/features/inventory');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
@@ -50,6 +52,7 @@ const countingGame = runtimeRole === 'panel' ? null : createCountingFeature({
   getChannelId(guildId) {
     return getGuildConfigRaw(guildId)?.counting?.channelId || '';
   },
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
   onError(error, context) {
     logCommandSystem(`Counting ${context?.operation || 'Discord operation'} failed in guild ${context?.message?.guildId || 'unknown'}: ${safeErrorMessage(error)}`);
   },
@@ -71,6 +74,26 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
+const workGame = runtimeRole === 'panel' ? null : createWorkFeature({
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
+  async editRecovered(session, payload) {
+    const channel = client.channels.cache.get(session.channelId) || await client.channels.fetch(session.channelId).catch(() => null);
+    const message = channel?.messages?.cache?.get(session.messageId) || await channel?.messages?.fetch?.(session.messageId).catch(() => null);
+    if (message) await message.edit(payload);
+  },
+  reportError(error, context) {
+    logCommandSystem(`Work ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
+  },
+});
+
+const inventoryFeature = runtimeRole === 'panel' ? null : createInventoryFeature({
+  db: workGame.db,
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
+  reportError(error, context) {
+    logCommandSystem(`Inventory ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
+  },
+});
+
 setLogClient(client);
 
 const runtimeStarter = createRuntimeStarter(runtimeRole, {
@@ -87,6 +110,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     await Promise.all([...client.guilds.cache.values()].map(syncGuildCommands));
 
     startXpDropScheduler(client);
+    await workGame.recover();
   },
   async panel() {
     startAdminServer(client);
@@ -139,6 +163,8 @@ if (runtimeStarter.capabilities.bot) {
         }
         return;
       }
+      if (await workGame.handleInteraction(interaction)) return;
+      if (await inventoryFeature.handleInteraction(interaction)) return;
       if (await handleReactionRoleInteraction(interaction)) return;
       if (await countingGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
@@ -152,6 +178,8 @@ if (runtimeStarter.capabilities.bot) {
   client.on(Events.MessageCreate, async (message) => {
     try {
       await handleBoostSystemMessage(message);
+      if (isGuildEnabled(message.guildId) && await workGame.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {

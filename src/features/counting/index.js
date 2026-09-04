@@ -11,7 +11,7 @@ function createCountingFeature(options = {}) {
   const db = options.db || openDatabase({ databasePath: options.databasePath, migrationsPath: options.migrationsPath });
   const repository = options.repository || new CountingRepository(db, { clock: options.clock });
   const service = options.service || new CountingService(repository);
-  const commands = createCommandHandlers(service);
+  const commands = createCommandHandlers(service, { isCommandAllowed: options.isCommandAllowed });
   const reportError = (error, operation, message) => {
     try { options.onError?.(error, { operation, message }); } catch {}
   };

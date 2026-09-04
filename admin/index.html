@@ -253,6 +253,11 @@
           <div class="section-heading"><div><span class="step">01</span><h2>Counting</h2></div><p>Members count upward together. Selecting no channel disables the game.</p></div>
           <label class="field-card counting-channel-setting"><span>Counting channel<small>One message-capable text channel in this server</small></span><select id="countingChannel"></select></label>
         </section>
+        <section class="section-block game-command-settings">
+          <div class="section-heading"><div><span class="step">02</span><h2>Command settings</h2></div><p>Add multiple routing rules. Each rule can include multiple channels and multiple game commands. With no rules, commands are available in every channel.</p></div>
+          <div id="gameCommandSettings" class="game-command-setting-list"></div>
+          <button id="gameAddCommandSetting" class="secondary-button" type="button">+ Add command setting</button>
+        </section>
       </section>
 
       <section class="view" id="welcomeMessagesView" data-view-panel="member-messages" hidden>
