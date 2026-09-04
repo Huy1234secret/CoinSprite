@@ -2,6 +2,7 @@ const { v2Payload, WHITE } = require('../../shared/components');
 const { assertValidMessagePayload } = require('../../shared/discordPayload');
 const { BURGER_EMOJIS, PIPE_EMOJIS, TRASH_EMOJIS, WORK_EMOJIS } = require('../data/emojis');
 const { PIECES } = require('../games/plumber');
+const { requiredXp } = require('../repositories/workRepository');
 
 const JOB_NAMES = Object.freeze({
   burger: 'Burger Maker', trash: 'Trash Sorter', plumber: 'Plumber', electrician: 'Electrician',
@@ -29,8 +30,12 @@ function rows(buttons) {
     type: 1, components: buttons.slice(index * 5, index * 5 + 5),
   }));
 }
-function statusText(_userId, profile) {
+function streakText(profile) {
   return `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${((100 + profile.streak) / 100).toFixed(2)} Earnings\``;
+}
+function statusText(_userId, profile) {
+  return `${WORK_EMOJIS.level} Work Level: ${profile.level} \`${profile.xp}/${requiredXp(profile.level)}\`\n`
+    + streakText(profile);
 }
 
 function gameMessage(session) {
@@ -136,7 +141,7 @@ function settledPayload(session, result, options = {}) {
       : '';
     details = `${WORK_EMOJIS.bronze} Salary: +${session.salaryCredited}\n`
       + `${WORK_EMOJIS.level} Work XP: +${session.xpAwarded}\n`
-      + `${statusText(session.userId, profile)}${levelLine}`;
+      + `${streakText(profile)}${levelLine}`;
   } else {
     details = `No salary or Work XP was earned.\n${WORK_EMOJIS.fire} You lose all streaks`;
   }

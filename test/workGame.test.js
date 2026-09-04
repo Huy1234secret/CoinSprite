@@ -377,7 +377,7 @@ test('feature routing ignores unsafe messages, starts cswork before Counting, de
     message: { id: MESSAGE, async edit(payload) { edited = payload; } },
   });
   assert.match(edited.components[0].components[0].content, new RegExp(`<@${USER}>.*<t:${Math.floor((now + WORK_COOLDOWN_MS) / 1000)}:R>`));
-  assert.doesNotMatch(edited.components[0].components[2].content, /Work Level/);
+  assert.match(edited.components[0].components[2].content, /Work Level: 1 `0\/100`/);
   let cooldown;
   await feature.handleMessage({ ...messageSource, async reply(payload) { cooldown = payload; return { id: MESSAGE }; } });
   assert.match(cooldown.components[0].components[0].content, /you can work again/);
@@ -440,8 +440,8 @@ test('Components V2 payloads stay within limits with unique compact IDs and exac
   assert.doesNotMatch(failedPayload.components[0].components[2].content, /Work Streak: 0/);
   const cooldown = cooldownPayload(USER, 1_600_000, { userId: USER, level: 3, xp: 4, streak: 12, cooldownUntil: 1_600_000 });
   assert.match(cooldown.components[0].components[0].content, /<t:1600:R>/);
+  assert.match(cooldown.components[0].components[2].content, /Work Level: 3 `4\/240`/);
   assert.match(cooldown.components[0].components[2].content, /×1\.12 Earnings/);
-  assert.doesNotMatch(cooldown.components[0].components[2].content, /Work Level/);
   assert.equal(cooldown.components[0].components[3].components[0].disabled, true);
 });
 
