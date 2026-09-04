@@ -11,7 +11,7 @@ const BURGER_EMOJIS = Object.freeze({
   onion: emoji('CSOnion', '1545050461386838118'),
   mustard: emoji('CSMustard', '1545050458450559078'),
   lettuce: emoji('CSLettuce', '1545050456319860837'),
-  beef_patty: Object.freeze({ name: '🥩' }),
+  beef_patty: emoji('CSBeef', '1545385864807325696'),
 });
 
 const TRASH_EMOJIS = Object.freeze({
