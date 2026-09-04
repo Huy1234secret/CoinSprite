@@ -153,13 +153,38 @@ test('Plumber boards are solvable 5×5 networks with edge valves, bitmask rotati
     assert.equal(rotated, name);
     assert.deepEqual(new Set(PIECES[piece.next].sides), new Set(piece.sides.map((side) => ({ N: 'E', E: 'S', S: 'W', W: 'N' })[side])));
   }
-  assert.equal(PIPE_EMOJIS.ne.name, 'CSPipe22');
+  assert.deepEqual(
+    ['NE', 'ES', 'SW', 'WN'].map((piece) => PIPE_EMOJIS[PIECES[piece].emoji]),
+    [
+      { name: 'CSPipe22', id: '1545109101409730620' },
+      { name: 'CSPipe21', id: '1545125911722983435' },
+      { name: 'CSPipe24', id: '1545125916009828453' },
+      { name: 'CSPipe23', id: '1545125914109546556' },
+    ],
+  );
   assert.equal(openMask({ type: 'pipe', piece: 'NE' }), DIRECTION_BITS.N | DIRECTION_BITS.E);
   const state = createPlumberGame('easy', () => 0);
   const index = state.cells.findIndex((cell) => cell.type === 'pipe');
   const before = state.cells[index].piece;
   assert.equal(applyPlumberAction(state, `pipe-${index}`).outcome, 'active');
   assert.equal(state.cells[index].piece, PIECES[before].next);
+
+  const solvedCornerLoop = [
+    { row: 0, column: 0, type: 'pipe', piece: 'ES', solution: 'ES' },
+    { row: 0, column: 1, type: 'pipe', piece: 'SW', solution: 'SW' },
+    { row: 1, column: 0, type: 'pipe', piece: 'NE', solution: 'NE' },
+    { row: 1, column: 1, type: 'pipe', piece: 'WN', solution: 'WN' },
+  ];
+  assert.equal(validatePlumber({ cells: solvedCornerLoop }), true);
+  for (const solution of ['NE', 'ES', 'SW', 'WN']) {
+    const finishingState = { cells: structuredClone(solvedCornerLoop) };
+    const finishingIndex = finishingState.cells.findIndex((cell) => cell.solution === solution);
+    const finishingCell = finishingState.cells[finishingIndex];
+    finishingCell.piece = Object.keys(PIECES).find((piece) => PIECES[piece].next === solution);
+    assert.equal(validatePlumber(finishingState), false);
+    assert.equal(applyPlumberAction(finishingState, `pipe-${finishingIndex}`).outcome, 'succeeded');
+    assert.equal(finishingCell.piece, solution);
+  }
 });
 
 test('normalized reward and timer formulas hit the specified deterministic bounds', () => {
