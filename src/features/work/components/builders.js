@@ -8,12 +8,6 @@ const JOB_NAMES = Object.freeze({
   burger: 'Burger Maker', trash: 'Trash Sorter', plumber: 'Plumber', electrician: 'Electrician',
 });
 const JOB_ARTICLES = Object.freeze({ burger: 'a', trash: 'a', plumber: 'a', electrician: 'an' });
-const INGREDIENT_LABELS = Object.freeze({
-  bottom_bun: 'Bottom Bun', top_bun: 'Top Bun', beef_patty: 'Beef Patty', ketchup: 'Ketchup',
-  cucumber: 'Cucumber', cheese: 'Cheese', mayonnaise: 'Mayonnaise', tomato: 'Tomato',
-  onion: 'Onion', mustard: 'Mustard', lettuce: 'Lettuce',
-});
-
 function checked(components, options = {}) { return assertValidMessagePayload(v2Payload(components, options)); }
 function button(sessionId, action, options = {}) {
   return {
@@ -52,7 +46,7 @@ function controlRows(session, options = {}) {
   const disabled = options.disabled === true;
   if (session.job === 'burger') {
     return rows(session.state.buttons.map((entry) => button(session.sessionId, `burger-${entry.id}`, {
-      emoji: BURGER_EMOJIS[entry.ingredient], label: INGREDIENT_LABELS[entry.ingredient],
+      emoji: BURGER_EMOJIS[entry.ingredient],
       disabled: disabled || entry.completed,
       style: entry.completed ? 3 : 2,
     })));
@@ -160,7 +154,7 @@ function settledPayload(session, result, options = {}) {
 }
 
 module.exports = {
-  INGREDIENT_LABELS, JOB_ARTICLES, JOB_NAMES, activeGamePayload, activeSessionPayload,
+  JOB_ARTICLES, JOB_NAMES, activeGamePayload, activeSessionPayload,
   button, controlRows, cooldownPayload, gameMessage, ownershipDeniedPayload,
   rows, settledPayload, statusText, unavailablePayload,
 };

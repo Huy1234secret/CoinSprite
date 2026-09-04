@@ -35,8 +35,12 @@ function rewardsFor(job, difficulty) {
   };
 }
 function systemRng() { return crypto.randomInt(0, 2 ** 32) / 2 ** 32; }
-function chooseDifficulty(_level, rng = systemRng) {
-  return DIFFICULTIES[Math.min(3, Math.floor(rng() * DIFFICULTIES.length))];
+function chooseDifficulty(level) {
+  const workLevel = Math.max(0, Number(level) || 0);
+  if (workLevel >= 30) return 'expert';
+  if (workLevel >= 15) return 'hard';
+  if (workLevel >= 5) return 'normal';
+  return 'easy';
 }
 function rewardFor(job, difficulty) {
   const normalized = typeof difficulty === 'number' ? difficulty : DIFFICULTIES.indexOf(difficulty) / 3;
@@ -64,7 +68,8 @@ class WorkService {
   buildGame(job, difficulty) { return GAME_FACTORIES[job](difficulty, this.rng); }
 
   async start(input, send) {
-    const difficulty = chooseDifficulty(0, this.rng);
+    const profile = this.repository.profile(input.userId);
+    const difficulty = chooseDifficulty(profile.level);
     const job = JOBS[Math.min(JOBS.length - 1, Math.floor(this.rng() * JOBS.length))];
     const state = this.buildGame(job, difficulty);
     const normalizedDifficulty = clamp(Number(state.difficulty), 0, 1);
