@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { balancePayload, invalidTargetPayload } = require('../components/builders');
+const { balancePayload, commandUnavailablePayload, invalidTargetPayload } = require('../components/builders');
 
 const COUNTING_COMMANDS = Object.freeze([{
   data: new SlashCommandBuilder()
@@ -31,13 +31,17 @@ async function resolveTextTarget(message, argument) {
   }
 }
 
-function createCommandHandlers(service) {
+function createCommandHandlers(service, options = {}) {
   async function replyWithBalance(source, user) {
     await source.reply(balancePayload(user, service.balance(user.id)));
   }
 
   async function handleInteraction(interaction) {
     if (!interaction.isChatInputCommand?.() || interaction.commandName !== 'cs-balance') return false;
+    if (options.isCommandAllowed && !options.isCommandAllowed(interaction.guildId, interaction.channelId, 'cs-balance')) {
+      await interaction.reply(commandUnavailablePayload({ ephemeral: true }));
+      return true;
+    }
     const user = interaction.options.getUser('user') || interaction.user;
     await replyWithBalance(interaction, user);
     return true;
@@ -46,6 +50,10 @@ function createCommandHandlers(service) {
   async function handleMessage(message) {
     const command = parseBalanceCommand(message.content);
     if (!command) return false;
+    if (options.isCommandAllowed && !options.isCommandAllowed(message.guildId, message.channelId, 'cs-balance')) {
+      await message.reply(commandUnavailablePayload());
+      return true;
+    }
     const user = await resolveTextTarget(message, command.argument);
     if (!user) await message.reply(invalidTargetPayload());
     else await replyWithBalance(message, user);

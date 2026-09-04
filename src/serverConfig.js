@@ -10,7 +10,7 @@ const {
 } = require('./reactionRoles');
 
 const STORE_PATH = process.env.SERVER_CONFIG_STORE_PATH || path.join(__dirname, '..', 'data', 'server-config.json');
-const SCHEMA_VERSION = 24;
+const SCHEMA_VERSION = 25;
 const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
 const FEATURE_LOCK_RESET_SCHEMA_VERSION = 10;
 const DEFAULT_GUILD_ID = cleanId(process.env.DEFAULT_GUILD_ID);
@@ -44,6 +44,8 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   }),
 });
 const DEFAULT_COUNTING_CONFIG = Object.freeze({ channelId: '' });
+const GAME_COMMAND_KEYS = Object.freeze(['cs-work', 'cs-balance']);
+const DEFAULT_GAMES_CONFIG = Object.freeze({ commandSettings: Object.freeze([]) });
 const DEFAULT_MEMBER_MESSAGE_TEMPLATES = Object.freeze({
   join: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!',
   leave: '## {display_name} has left the server\nThanks for being part of {server}. We now have **{member_count}** members.',
@@ -97,6 +99,7 @@ const DEFAULT_GUILD_CONFIG = Object.freeze({
   messageTemplates: DEFAULT_MESSAGE_TEMPLATES_CONFIG,
   reactionRoles: DEFAULT_REACTION_ROLES_CONFIG,
   counting: DEFAULT_COUNTING_CONFIG,
+  games: DEFAULT_GAMES_CONFIG,
 });
 const DEFAULT_COINSPRITE_GUILD_CONFIG = DEFAULT_GUILD_CONFIG;
 const DEFAULT_STATE = Object.freeze({
@@ -313,6 +316,36 @@ function normalizeCountingConfig(value) {
   return { channelId: cleanId(source.channelId) };
 }
 
+function normalizeGamesConfig(value) {
+  const source = isObject(value) ? value : {};
+  const seen = new Set();
+  const commandSettings = (Array.isArray(source.commandSettings) ? source.commandSettings : [])
+    .map((setting, index) => {
+      const rawId = String(setting?.id || '').trim();
+      let id = /^[a-zA-Z0-9_-]{1,40}$/.test(rawId) ? rawId : `setting-${index + 1}`;
+      while (seen.has(id)) id = `${id.slice(0, 32)}-${index + 1}`;
+      seen.add(id);
+      return {
+        id,
+        channelIds: [...new Set((Array.isArray(setting?.channelIds) ? setting.channelIds : []).map(cleanId).filter(Boolean))].slice(0, 25),
+        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((key) => GAME_COMMAND_KEYS.includes(key)))],
+      };
+    })
+    .filter((setting) => setting.channelIds.length && setting.commands.length)
+    .slice(0, 50);
+  return { commandSettings };
+}
+
+function gameCommandAllowed(config, channelId, command) {
+  const settings = normalizeGamesConfig(config?.games).commandSettings;
+  if (!settings.length) return true;
+  return settings.some((setting) => setting.commands.includes(String(command)) && setting.channelIds.includes(String(channelId)));
+}
+
+function isGameCommandAllowed(guildId, channelId, command) {
+  return gameCommandAllowed(getGuildConfigRaw(guildId), channelId, command);
+}
+
 function normalizeMemberMessagesConfig(value, defaults = DEFAULT_MEMBER_MESSAGES_CONFIG) {
   const source = isObject(value) ? value : {};
   const normalized = { enabled: source.enabled === undefined ? defaults.enabled !== false : source.enabled !== false };
@@ -355,6 +388,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
   const messageTemplates = normalizeMessageTemplatesConfig(source.messageTemplates);
   const reactionRoles = normalizeReactionRolesConfig(source.reactionRoles);
   const counting = normalizeCountingConfig(source.counting);
+  const games = normalizeGamesConfig(source.games);
   if (options.resetFeatureLocks) {
     leveling.enabled = false;
   }
@@ -369,6 +403,7 @@ function normalizeGuildConfig(guildId, value, options = {}) {
     messageTemplates,
     reactionRoles,
     counting,
+    games,
   };
 }
 
@@ -521,6 +556,7 @@ function resolveLoggingChannelId(config, _feature, _type, fallback = '') {
 module.exports = {
   DEFAULT_FEATURES,
   DEFAULT_COUNTING_CONFIG,
+  DEFAULT_GAMES_CONFIG,
   DEFAULT_LEVELING_CONFIG,
   DEFAULT_MEMBER_MESSAGES_CONFIG,
   DEFAULT_MESSAGE_TEMPLATES_CONFIG,
@@ -540,11 +576,14 @@ module.exports = {
   getGuildConfig,
   getGuildConfigRaw,
   getGuildConfigValue,
+  gameCommandAllowed,
   isGuildEnabled,
+  isGameCommandAllowed,
   isGuildLevelingEnabled,
   loadState,
   normalizeLevelingConfig,
   normalizeCountingConfig,
+  normalizeGamesConfig,
   normalizeMemberMessagesConfig,
   normalizeMessageTemplatesConfig,
   normalizeReactionRolesConfig,

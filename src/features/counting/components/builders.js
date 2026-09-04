@@ -40,9 +40,14 @@ function invalidTargetPayload(options = {}) {
   return errorPayload('User not found\nUse `csbalance`, a user mention, or a Discord user ID.', options);
 }
 
+function commandUnavailablePayload(options = {}) {
+  return errorPayload('This game command is not enabled in this channel.', options);
+}
+
 module.exports = {
   BRONZE_COIN_EMOJI,
   balancePayload,
+  commandUnavailablePayload,
   formatBronzeBalance,
   invalidTargetPayload,
 };

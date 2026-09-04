@@ -58,7 +58,7 @@ function newTemplate(collection, overrides = {}, now = '2026-08-31T00:00:00.000Z
   }, now);
 }
 
-test('schema 20 preserves existing configuration while upgrading Message Templates through schema 24', () => {
+test('schema 20 preserves existing configuration while upgrading Message Templates through schema 25', () => {
   const state = normalizeState({
     meta: { schemaVersion: 17, disabledGuilds: {} },
     guilds: {
@@ -69,7 +69,7 @@ test('schema 20 preserves existing configuration while upgrading Message Templat
       },
     },
   });
-  assert.equal(SCHEMA_VERSION, 24);
+  assert.equal(SCHEMA_VERSION, 25);
   assert.deepEqual(DEFAULT_GUILD_CONFIG.messageTemplates, DEFAULT_MESSAGE_TEMPLATES_CONFIG);
   assert.deepEqual(state.guilds[GUILD_A].messageTemplates, { folders: [], items: [] });
   assert.equal(state.guilds[GUILD_A].leveling.xp.min, 22);

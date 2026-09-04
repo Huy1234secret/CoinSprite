@@ -291,13 +291,13 @@ test('Bronze balance formatter abbreviates without floating point', () => {
   for (const [value, expected] of examples) assert.equal(formatBronzeBalance(value), expected);
 });
 
-test('cs-balance is registered for every enabled guild even when no Counting channel is set', () => {
+test('game commands are registered for every enabled guild even when no Counting channel is set', () => {
   const commands = featureCommandsForConfig({
     enabled: true,
     features: { leveling: false },
     counting: { channelId: '' },
   });
-  assert.deepEqual(commands.map((command) => command.name), ['cs-balance']);
+  assert.deepEqual(commands.map((command) => command.name), ['cs-balance', 'cs-work']);
 });
 
 test('configuration migration preserves existing settings and normalizes Counting', () => {
@@ -325,7 +325,7 @@ test('dashboard exposes Games/Counting and PATCH channel validation is guild iso
   assert.match(html, /data-view="games"[^>]*>[\s\S]*?<strong>Games<\/strong>/);
   assert.match(html, /class="games-tabs"[\s\S]*?>Counting<\/button>/);
   assert.equal((html.match(/id="countingChannel"/g) || []).length, 1);
-  assert.match(script, /body = \{ memberMessages, counting \}/);
+  assert.match(script, /body = \{ memberMessages, counting, games \}/);
   assert.match(server, /requireGuildAdmin\(req, res, env, client, guildId\)/);
   assert.match(server, /requireCsrf\(req, res, auth\.session\)/);
 

@@ -142,7 +142,7 @@
     levelingEnabled: $('#levelingEnabled'), levelingXpMin: $('#levelingXpMin'), levelingXpMax: $('#levelingXpMax'),
     levelingCooldown: $('#levelingCooldown'), levelingBaseXp: $('#levelingBaseXp'), levelingGrowth: $('#levelingGrowth'),
     levelingMaxLevel: $('#levelingMaxLevel'), levelingCurvePreview: $('#levelingCurvePreview'),
-    countingChannel: $('#countingChannel'),
+    countingChannel: $('#countingChannel'), gameCommandSettings: $('#gameCommandSettings'), gameAddCommandSetting: $('#gameAddCommandSetting'),
     levelingAnnounceEnabled: $('#levelingAnnounceEnabled'), levelingAnnounceChannel: $('#levelingAnnounceChannel'),
     levelingChannels: $('#levelingChannels'),
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
@@ -387,6 +387,16 @@
 
   function normalizeCountingConfig(config) {
     return { channelId: String(config?.counting?.channelId || '') };
+  }
+
+  function normalizeGamesConfig(config) {
+    return {
+      commandSettings: (Array.isArray(config?.games?.commandSettings) ? config.games.commandSettings : []).map((setting, index) => ({
+        id: String(setting?.id || `setting-${index + 1}`),
+        channelIds: [...new Set((Array.isArray(setting?.channelIds) ? setting.channelIds : []).map(String).filter(Boolean))],
+        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance'].includes(command)))],
+      })),
+    };
   }
 
   const MEMBER_MESSAGE_DEFAULTS = Object.freeze({
@@ -2845,7 +2855,22 @@
       (channel) => channel.sendable === true && channel.kind !== 'forum',
       'Select a channel',
     );
+    renderGameCommandSettings();
     refreshDirty();
+  }
+
+  function renderGameCommandSettings() {
+    const settings = state.config?.games?.commandSettings || [];
+    const commandOptions = [
+      ['cs-work', 'Work (/cs-work and cswork)'],
+      ['cs-balance', 'Bronze balance (/cs-balance and csbalance)'],
+    ];
+    elements.gameCommandSettings.innerHTML = settings.length ? settings.map((setting, index) => `
+      <article class="game-command-setting" data-game-setting="${index}">
+        <label>Channels <small>Select one or more</small><select multiple data-game-setting-channels="${index}">${channelOptions(setting.channelIds, (channel) => channel.sendable === true && channel.kind !== 'forum', 'Choose channels')}</select></label>
+        <label>Commands <small>Select one or more</small><select multiple data-game-setting-commands="${index}">${commandOptions.map(([value, label]) => `<option value="${value}" ${setting.commands.includes(value) ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+        <button type="button" data-remove-game-setting="${index}">Remove</button>
+      </article>`).join('') : '<div class="empty-state"><strong>No command settings</strong><span>Game commands are available in every channel.</span></div>';
   }
 
   function renderFeatureAccess() {
@@ -2867,6 +2892,7 @@
       leveling: config.leveling,
       memberMessages: config.memberMessages,
       counting: config.counting,
+      games: config.games,
     });
   }
 
@@ -2908,6 +2934,7 @@
         leveling: normalizeLevelingConfig(configPayload.config),
         memberMessages: normalizeMemberMessagesConfig(configPayload.config),
         counting: normalizeCountingConfig(configPayload.config),
+        games: normalizeGamesConfig(configPayload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -2947,7 +2974,8 @@
       const leveling = clone(state.config.leveling);
       const memberMessages = clone(state.config.memberMessages);
       const counting = clone(state.config.counting);
-      const body = { memberMessages, counting };
+      const games = clone(state.config.games);
+      const body = { memberMessages, counting, games };
       if (state.config.features?.leveling === true) body.leveling = leveling;
       const payload = await api(`/api/guilds/${state.guildId}/config`, {
         method: 'PATCH',
@@ -2958,6 +2986,7 @@
         leveling: normalizeLevelingConfig(payload.config),
         memberMessages: normalizeMemberMessagesConfig(payload.config),
         counting: normalizeCountingConfig(payload.config),
+        games: normalizeGamesConfig(payload.config),
       };
       state.savedSnapshot = snapshot();
       state.savedConfig = clone(state.config);
@@ -4614,9 +4643,28 @@
   elements.welcomeMessagesView.addEventListener('input', (event) => updateMemberMessagesFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
   elements.gamesView.addEventListener('change', (event) => {
-    if (event.target !== elements.countingChannel || !state.config?.counting) return;
-    state.config.counting.channelId = event.target.value;
+    if (!state.config?.counting || !state.config?.games) return;
+    if (event.target === elements.countingChannel) state.config.counting.channelId = event.target.value;
+    const channelIndex = event.target.dataset.gameSettingChannels;
+    const commandIndex = event.target.dataset.gameSettingCommands;
+    if (channelIndex !== undefined) state.config.games.commandSettings[Number(channelIndex)].channelIds = [...event.target.selectedOptions].map((option) => option.value).filter(Boolean);
+    if (commandIndex !== undefined) state.config.games.commandSettings[Number(commandIndex)].commands = [...event.target.selectedOptions].map((option) => option.value).filter(Boolean);
     refreshDirty();
+  });
+  elements.gamesView.addEventListener('click', (event) => {
+    if (!state.config?.games) return;
+    if (event.target === elements.gameAddCommandSetting) {
+      state.config.games.commandSettings.push({ id: clientReactionId('game'), channelIds: [], commands: [] });
+      renderGameCommandSettings();
+      refreshDirty();
+      return;
+    }
+    const index = event.target.dataset.removeGameSetting;
+    if (index !== undefined) {
+      state.config.games.commandSettings.splice(Number(index), 1);
+      renderGameCommandSettings();
+      refreshDirty();
+    }
   });
   elements.messageTemplatesView.addEventListener('input', (event) => {
     if (event.target === elements.templateSearch) return renderTemplateList();

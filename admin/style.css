@@ -221,6 +221,14 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .games-tabs button.active { border-color: rgba(185,245,71,.22); color: var(--text); background: rgba(185,245,71,.08); }
 .counting-settings { max-width: 760px; }
 .counting-channel-setting { max-width: 560px; }
+.game-command-settings { max-width: 900px; }
+.game-command-setting-list { display: grid; gap: 10px; margin-bottom: 12px; }
+.game-command-setting { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 10px; align-items: end; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: rgba(0,0,0,.13); }
+.game-command-setting label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 800; }
+.game-command-setting select { width: 100%; min-height: 118px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: #090d0b; font: inherit; font-size: 10px; }
+.game-command-setting select option { padding: 4px; }
+.game-command-setting button { min-height: 38px; padding: 0 12px; border: 1px solid rgba(255,107,107,.28); border-radius: 9px; color: #ffb0b0; background: rgba(255,107,107,.06); cursor: pointer; }
+@media (max-width: 720px) { .game-command-setting { grid-template-columns: 1fr; } }
 .sidebar-foot { margin-top: auto; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.02); }
 .scope-badge { padding: 5px 8px; color: var(--lime); font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
 .sidebar-foot p { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
