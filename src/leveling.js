@@ -223,6 +223,8 @@ function normalizeRecord(value = {}) {
     lastXpAt: Math.max(0, Number(value.lastXpAt) || 0),
     lastMessageAt: Math.max(0, Number(value.lastMessageAt) || 0),
     lastMessageHash: String(value.lastMessageHash || '').slice(0, 64),
+    workAwardIds: [...new Set((Array.isArray(value.workAwardIds) ? value.workAwardIds : [])
+      .map(String).filter((id) => /^[a-zA-Z0-9_-]{1,32}$/.test(id)))].slice(-500),
     updatedAt: Math.max(0, Number(value.updatedAt) || 0),
   };
 }
@@ -384,6 +386,22 @@ function applyXpToRecord(record, amount, config = DEFAULT_LEVELING_CONFIG, nowMs
   record.updatedAt = nowMs;
   const newLevel = levelForXp(record.xp, config.curve);
   return { amount: record.xp - oldXp, oldXp, newXp: record.xp, oldLevel, newLevel, record };
+}
+
+async function awardMemberXp(guildOrId, userId, amount, options = {}) {
+  const guildId = String(guildOrId?.id || guildOrId);
+  const config = options.config || levelingConfig(guildId);
+  const record = userRecord(guildId, String(userId));
+  const awardId = String(options.idempotencyKey || '');
+  if (awardId && record.workAwardIds.includes(awardId)) {
+    const currentLevel = levelForXp(record.xp, config.curve);
+    return { amount: 0, oldXp: record.xp, newXp: record.xp, oldLevel: currentLevel, newLevel: currentLevel, record, duplicate: true };
+  }
+  if (awardId) record.workAwardIds = [...record.workAwardIds, awardId].slice(-500);
+  const result = applyXpToRecord(record, amount, config, options.nowMs ?? Date.now());
+  scheduleSave();
+  if (guildOrId?.members) await syncRewardRoles(guildOrId, String(userId), result.newLevel, config);
+  return result;
 }
 
 function memberStats(guildId, userId, config = levelingConfig(guildId)) {
@@ -2071,6 +2089,7 @@ module.exports = {
   LEVELING_COMMANDS,
   announcementText,
   applyXpToRecord,
+  awardMemberXp,
   bestMemberStats,
   buildLeaderboardPayload,
   leaderboardPageModal,
