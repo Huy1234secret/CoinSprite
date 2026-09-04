@@ -1,11 +1,14 @@
 const BUILTIN_PAIRS = Object.freeze([
-  { color: 'Red', circle: '🔴', square: '🟥' }, { color: 'Orange', circle: '🟠', square: '🟧' },
-  { color: 'Yellow', circle: '🟡', square: '🟨' }, { color: 'Green', circle: '🟢', square: '🟩' },
-  { color: 'Blue', circle: '🔵', square: '🟦' }, { color: 'Purple', circle: '🟣', square: '🟪' },
-  { color: 'Brown', circle: '🟤', square: '🟫' }, { color: 'Black', circle: '⚫', square: '⬛' },
-  { color: 'White', circle: '⚪', square: '⬜' },
-  { color: 'Cyan', circle: '●', square: '■' }, { color: 'Pink', circle: '●', square: '■' },
-  { color: 'Lime', circle: '●', square: '■' },
+  { color: 'Red', shape: 'circle', emoji: '🔴' }, { color: 'Orange', shape: 'circle', emoji: '🟠' },
+  { color: 'Yellow', shape: 'circle', emoji: '🟡' }, { color: 'Green', shape: 'circle', emoji: '🟢' },
+  { color: 'Blue', shape: 'circle', emoji: '🔵' }, { color: 'Purple', shape: 'circle', emoji: '🟣' },
+  { color: 'Brown', shape: 'circle', emoji: '🟤' }, { color: 'Black', shape: 'circle', emoji: '⚫' },
+  { color: 'White', shape: 'circle', emoji: '⚪' },
+  { color: 'Red', shape: 'square', emoji: '🟥' }, { color: 'Orange', shape: 'square', emoji: '🟧' },
+  { color: 'Yellow', shape: 'square', emoji: '🟨' }, { color: 'Green', shape: 'square', emoji: '🟩' },
+  { color: 'Blue', shape: 'square', emoji: '🟦' }, { color: 'Purple', shape: 'square', emoji: '🟪' },
+  { color: 'Brown', shape: 'square', emoji: '🟫' }, { color: 'Black', shape: 'square', emoji: '⬛' },
+  { color: 'White', shape: 'square', emoji: '⬜' },
 ]);
 const PAIR_RANGES = Object.freeze({ easy: [3, 5], normal: [5, 7], hard: [7, 9], expert: [9, 12] });
 
@@ -25,12 +28,12 @@ function createElectricianGame(difficulty, rng, customPairs = []) {
   void customPairs;
   const registry = BUILTIN_PAIRS;
   const [minimum, ordinaryMaximum] = PAIR_RANGES[difficulty];
-  const maximum = difficulty === 'expert' ? registry.length : Math.min(ordinaryMaximum, registry.length);
+  const maximum = Math.min(ordinaryMaximum, registry.length);
   const count = Math.max(Math.min(minimum, registry.length), minimum + Math.floor(rng() * Math.max(1, maximum - minimum + 1)));
   const selectedPairs = shuffle(registry.map((pair, pairIndex) => ({ ...pair, pairIndex })), rng).slice(0, count);
-  const buttons = shuffle(selectedPairs.flatMap(({ color, circle, square, pairIndex }) => [
-    { pair: pairIndex, emoji: circle, label: `${circle} ${color} circle` },
-    { pair: pairIndex, emoji: square, label: `${square} ${color} square` },
+  const buttons = shuffle(selectedPairs.flatMap(({ emoji, pairIndex }) => [
+    { pair: pairIndex, emoji },
+    { pair: pairIndex, emoji },
   ]), rng).map((button, index) => ({ ...button, id: index }));
   return { buttons, selected: null, matched: [], difficulty: (buttons.length - 6) / 18 };
 }

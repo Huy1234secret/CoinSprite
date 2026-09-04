@@ -72,7 +72,8 @@ class WorkService {
     const deadline = Number(this.clock()) + timerSeconds(job, state) * 1000;
     const created = this.repository.create({
       sessionId: this.createId(), guildId: String(input.guildId), channelId: String(input.channelId),
-      userId: String(input.userId), job, difficulty, normalizedDifficulty, deadline, state, ...rewards,
+      userId: String(input.userId), job, difficulty, normalizedDifficulty, deadline, state,
+      bypassCooldown: input.bypassCooldown === true, ...rewards,
     });
     if (created.status !== 'created') return created;
     try {

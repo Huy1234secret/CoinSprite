@@ -19,7 +19,7 @@ function createWorkFeature(options = {}) {
     },
   });
 
-  async function start(source, ephemeralStatus) {
+  async function start(source, ephemeralStatus, startOptions = {}) {
     const userId = String(source.user?.id || source.author?.id || '');
     if (!options.isCommandAllowed?.(source.guildId, source.channelId, 'cs-work') && options.isCommandAllowed) {
       await source.reply(unavailablePayload({ ephemeral: ephemeralStatus }));
@@ -27,6 +27,7 @@ function createWorkFeature(options = {}) {
     }
     const result = await service.start({
       guildId: source.guildId, channelId: source.channelId, userId,
+      bypassCooldown: startOptions.bypassCooldown === true,
     }, async (payload) => {
       const sent = await source.reply(payload);
       if (sent?.id) return sent.id;
@@ -88,8 +89,13 @@ function createWorkFeature(options = {}) {
     return start(message, false);
   }
 
+  async function handleOwnerTestMessage(message) {
+    if (!message?.guildId || message.author?.bot || message.webhookId || message.system || !parseWorkCommand(message.content)) return false;
+    return start(message, false, { bypassCooldown: true });
+  }
+
   return {
-    commands: WORK_COMMANDS, db, repository, service, handleInteraction, handleMessage,
+    commands: WORK_COMMANDS, db, repository, service, handleInteraction, handleMessage, handleOwnerTestMessage,
     recover: () => service.recover(),
     close() { service.close(); if (!options.db && db.open) db.close(); },
   };
