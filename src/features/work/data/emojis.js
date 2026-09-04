@@ -49,4 +49,3 @@ const WORK_EMOJIS = Object.freeze({
 });
 
 module.exports = { BURGER_EMOJIS, PIPE_EMOJIS, TRASH_EMOJIS, WORK_EMOJIS };
-
