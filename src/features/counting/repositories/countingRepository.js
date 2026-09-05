@@ -1,8 +1,11 @@
+const { AchievementRepository } = require('../../achievements/repository');
+const { reward } = require('../../achievements/catalog');
 const MAX_BRONZE_BALANCE = 1_000_000n;
 
 class CountingRepository {
   constructor(db, options = {}) {
     this.db = db;
+    this.achievements = new AchievementRepository(db);
     this.clock = options.clock || Date.now;
     this.getStateStatement = db.prepare('SELECT next_expected, last_user_id FROM counting_guild_state WHERE guild_id = ?');
     this.insertStateStatement = db.prepare(`
@@ -46,7 +49,8 @@ class CountingRepository {
 
       if (correct) {
         const remaining = MAX_BRONZE_BALANCE - balance;
-        credited = submitted < remaining ? submitted : remaining;
+        const payout = reward(submitted, this.achievements.perks(attempt.userId).counting);
+        credited = payout < remaining ? payout : remaining;
         if (credited < 0n) credited = 0n;
         balance += credited;
         this.upsertBalanceStatement.run(attempt.userId, balance, now);
@@ -65,6 +69,7 @@ class CountingRepository {
         submitted?.toString() ?? null,
         now,
       );
+      if (correct) this.achievements.count(attempt, now);
       return {
         status: outcome,
         reason: correct ? null : (submitted === expected && sameUser ? 'same-user' : 'wrong-count'),
