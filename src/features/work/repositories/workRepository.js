@@ -1,3 +1,5 @@
+const { AchievementRepository } = require('../../achievements/repository');
+const { reward } = require('../../achievements/catalog');
 const MAX_BRONZE_BALANCE = 1_000_000n;
 const WORK_COOLDOWN_MS = 10 * 60_000;
 const WORK_TOKEN_KEY = 'work_token';
@@ -60,6 +62,7 @@ function applyWorkXp(level, xp, amount) {
 class WorkRepository {
   constructor(db, options = {}) {
     this.db = db;
+    this.achievements = new AchievementRepository(db);
     this.clock = options.clock || Date.now;
     this.byId = db.prepare('SELECT * FROM work_sessions WHERE session_id = ?');
     this.activeFor = db.prepare("SELECT * FROM work_sessions WHERE user_id = ? AND status = 'active'");
@@ -107,14 +110,18 @@ class WorkRepository {
       const oldProfile = this.profile(session.userId);
       const succeeded = status === 'succeeded';
       const streak = succeeded ? oldProfile.streak + 1 : 0;
-      const finalSalary = succeeded ? Math.floor(session.baseSalary * (100 + streak) / 100) : 0;
+      const perks = this.achievements.perks(session.userId);
+      const salary = succeeded ? reward(session.baseSalary,
+        (100n + perks.streak) * BigInt(streak) + perks.work + (session.difficulty === 'expert' ? perks.expert : 0n)) : 0n;
+      const finalSalary = Number(salary);
+      const xpAwarded = succeeded ? Number(reward(session.xpReward, perks.xp)) : 0;
       const oldBalance = BigInt(this.getBalanceStatement.get(session.userId)?.balance || 0);
       const room = oldBalance < MAX_BRONZE_BALANCE ? MAX_BRONZE_BALANCE - oldBalance : 0n;
-      const creditedBigInt = succeeded ? (BigInt(finalSalary) < room ? BigInt(finalSalary) : room) : 0n;
+      const creditedBigInt = salary < room ? salary : room;
       const salaryCredited = Number(creditedBigInt);
       if (succeeded) this.upsertBalanceStatement.run(session.userId, oldBalance + creditedBigInt, BigInt(now));
       const progression = succeeded
-        ? applyWorkXp(oldProfile.level, oldProfile.xp, session.xpReward)
+        ? applyWorkXp(oldProfile.level, oldProfile.xp, xpAwarded)
         : { level: oldProfile.level, xp: oldProfile.xp, levelsGained: 0 };
       const cooldownUntil = now + WORK_COOLDOWN_MS;
       this.updateProfileStatement.run(
@@ -126,7 +133,7 @@ class WorkRepository {
       const result = this.settleStatement.run({
         sessionId,
         status,
-        xpAwarded: succeeded ? session.xpReward : 0,
+        xpAwarded,
         salaryCredited,
         levelsGained: progression.levelsGained,
         tokensAwarded: progression.levelsGained,
@@ -134,6 +141,7 @@ class WorkRepository {
         settledAt: BigInt(now),
       });
       if (!result.changes) return { changed: false, session: hydrate(this.byId.get(sessionId)), profile: this.profile(session.userId) };
+      this.achievements.work({ ...session, status }, { ...progression, streak }, BigInt(now));
       return {
         changed: true,
         nextWorkAt: cooldownUntil,

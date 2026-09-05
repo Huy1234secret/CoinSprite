@@ -1,6 +1,7 @@
 const { LEVELING_COMMANDS } = require('./leveling');
 const { COUNTING_COMMANDS } = require('./features/counting');
 const { WORK_COMMANDS } = require('./features/work');
+const { ACHIEVEMENT_COMMANDS } = require('./features/achievements');
 const { INVENTORY_COMMANDS } = require('./features/inventory');
 const { getGuildConfigRaw } = require('./serverConfig');
 
@@ -16,6 +17,7 @@ function featureCommandsForConfig(config) {
   commands.push(...commandJson(COUNTING_COMMANDS));
   commands.push(...commandJson(WORK_COMMANDS));
   commands.push(...commandJson(INVENTORY_COMMANDS));
+  commands.push(...commandJson(ACHIEVEMENT_COMMANDS));
   if (config.features?.leveling === true && config.leveling?.enabled === true) {
     commands.push(...commandJson(LEVELING_COMMANDS));
   }

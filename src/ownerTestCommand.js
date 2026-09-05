@@ -5,6 +5,8 @@ const COMMAND_ALIASES = Object.freeze({
   'cs-work': Object.freeze({ route: 'cswork', command: 'cswork' }),
   csbalance: Object.freeze({ route: 'csbalance', command: 'csbalance' }),
   'cs-balance': Object.freeze({ route: 'csbalance', command: 'csbalance' }),
+  csachievements: Object.freeze({ route: 'csachievements', command: 'csachievements' }),
+  'cs-achievements': Object.freeze({ route: 'csachievements', command: 'csachievements' }),
   csinventory: Object.freeze({ route: 'csinventory', command: 'csinventory' }),
   'cs-inventory': Object.freeze({ route: 'csinventory', command: 'csinventory' }),
 });
@@ -50,7 +52,7 @@ function createOwnerTestCommand(options = {}) {
     }
     const route = parsed.route && routes[parsed.route];
     if (!route) {
-      await reply(message, 'Supported test commands: `cswork`, `csbalance`, and `csinventory`.');
+      await reply(message, 'Supported test commands: `cswork`, `csbalance`, `csinventory`, and `csachievements`.');
       return true;
     }
     if (!await route(forwardedMessage(message, parsed.content))) {
