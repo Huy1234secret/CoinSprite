@@ -93,6 +93,20 @@ test('Work bonuses add exactly, filter Expert earnings, and start on the next jo
   assert.deepEqual(achievements.snapshot(USER), before);
 });
 
+test('Reliable Employee adds its active tier bonus to the base 0.01 multiplier per streak point', t => {
+  const { work, achievements, db } = setup(t);
+  work.profile(USER);
+  const track = CATALOG.find(item => item.id === 'reliable_employee');
+  for (const [tier, bestStreak] of [0, 5, 20, 50, 100].entries()) {
+    seed(achievements, { best_streak: bestStreak });
+    db.prepare('UPDATE work_profiles SET streak=2 WHERE user_id=?').run(USER);
+    const result = job(work, `streak-bonus-${tier}`, { baseSalary: 10000 });
+    // The successful job reaches streak 3: base 0.01 plus only the active tier's bonus.
+    assert.equal(result.finalSalary, [10300, 10600, 10900, 11200, 11500][tier]);
+    if (tier) assert.ok(track.tiers[tier - 1].perk.includes(`(+0.0${tier + 1} total per point)`));
+  }
+});
+
 test('XP uses pre-event perks only; failed/time-out jobs reset live streak without revoking medals; aborted sends do not', t => {
   const { work, achievements, db } = setup(t);
   seed(achievements, { work: 249, best_streak: 20 });
