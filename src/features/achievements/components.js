@@ -1,4 +1,5 @@
 const { MEDALS, CATALOG, requirement } = require('./catalog');
+const { COUNT_SUCCESS_EMOJI } = require('../counting/emojis');
 const { WHITE, v2Payload } = require('../shared/components');
 const { assertValidMessagePayload } = require('../shared/discordPayload');
 const { inventoryPageModal, inventoryErrorPayload } = require('../inventory/components/builders');
@@ -23,11 +24,13 @@ function achievementPayload(ownerId, data, options = {}) {
     const target = track.tiers[max ? unlocked - 1 : unlocked].target;
     const progress = max ? BigInt(target) : BigInt(data.progress[track.metric]);
     const slots = track.tiers.map((tier, i) => emoji(i < unlocked ? MEDALS[tier.medal] : 'CSEMedal')).join(' ');
-    return `**${track.name}** ${active?.roman || 'Locked'} ─ ${slots}\n\n* ${requirement(track, progress > BigInt(target) ? target : progress, target)}${max ? ' MAX' : ''}\n\n-# Perks: ${active?.perk || '-'}`;
+    const status = max ? `Completed ${COUNT_SUCCESS_EMOJI}`
+      : requirement(track, progress > BigInt(target) ? target : progress, target);
+    return `**${track.name}** ${active?.roman || 'Locked'} ─ ${slots}\n* ${status}\n-# Perks: ${active?.perk || '-'}`;
   });
   return assertValidMessagePayload(v2Payload([{
     type: 17, accent_color: WHITE, components: [
-      { type: 10, content: `### <@${ownerId}>'s Achievements\n\n-# * You've earned ${Object.entries(MEDALS).map(([key, name]) => `\`${counts[key]}\`${emoji(name)}`).join(', ')}.` },
+      { type: 10, content: `### <@${ownerId}>'s Achievements\n-# * You've earned ${Object.entries(MEDALS).map(([key, name]) => `\`${counts[key]}\`${emoji(name)}`).join(', ')}.` },
       { type: 14, divider: true, spacing: 1 },
       ...entries.map(content => ({ type: 10, content })),
       { type: 14, divider: true, spacing: 1 },
