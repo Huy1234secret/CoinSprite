@@ -90,10 +90,18 @@ test('draw pays exact prizes above the old cap once and consumes only its own da
   assert.deepEqual(messagePayloadErrors(rollPayload(draw, repo.winners(draw.id), 'https://example.com/profile?tab=inventory')), []);
   assert.deepEqual(messagePayloadErrors(winnerDm(draw, repo.winners(draw.id), 'https://example.com/profile?tab=inventory')), []);
 });
-test('matching pays only the highest rank and checks suffixes', () => {
+test('matching pays only the highest rank across either adjacent block and every single-pair position', () => {
   const draw = { first: '5A-1B-0F', second: ['1B-0F', '3C-2D'], third: ['0F', '2D', '9Z'] };
   assert.equal(rankFor('5A-1B-0F', draw), 1); assert.equal(rankFor('6A-1B-0F', draw), 2);
-  assert.equal(rankFor('6A-4B-0F', draw), 3); assert.equal(rankFor('0F-1B-4A', draw), null);
+  assert.equal(rankFor('6A-4B-0F', draw), 3); assert.equal(rankFor('0F-1B-4A', draw), 3);
+  const ticket = '5B-1E-0Y';
+  for (const second of ['5B-1E', '1E-0Y']) assert.equal(rankFor(ticket, { first: '', second: [second], third: ['0Y'] }), 2);
+  for (const third of ['5B', '1E', '0Y']) assert.equal(rankFor(ticket, { first: '', second: [], third: [third] }), 3);
+  assert.equal(rankFor(ticket, { first: ticket, second: ['5B-1E'], third: ['5B'] }), 1);
+  assert.equal(rankFor(ticket, { first: '', second: ['5B-1E', '1E-0Y'], third: ['5B', '1E', '0Y'] }), 2);
+  for (const second of ['1E-5B', '0Y-1E', '5B-0Y']) assert.equal(rankFor(ticket, { first: '', second: [second], third: [] }), null);
+  assert.equal(rankFor('5B-0Y-1E', { first: '', second: ['5B-1E'], third: [] }), null);
+  assert.equal(rankFor(ticket, { first: '', second: [], third: ['0Z'] }), null);
 });
 test('draw failures roll back tickets, wallet, draw number and deliveries together', t => {
   const { db, repo, setTime } = setup(t); buy(repo, 1); setTime(cutoff('2026-09-07'));

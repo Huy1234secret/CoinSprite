@@ -40,7 +40,7 @@ function rollPayload(draw, winners, url = ticketsUrl()) {
     { type: 10, content: groups[0] || '-# none' },
     ...(groups.length > 1 ? [{ type: 10, content: '-# Winner list continues in the following messages.' }] : []),
     { type: 14, divider: true, spacing: 1 },
-    { type: 10, content: `-# Next roll <t:${Math.floor((cutoff(draw.date) + DAY) / 1000)}:R>\n-# Match all pairs for first prize, the last two for second, or the last pair for third. Each ticket wins its highest prize only.` },
+    { type: 10, content: `-# Next roll <t:${Math.floor((cutoff(draw.date) + DAY) / 1000)}:R>\n-# Match all pairs for first prize, any two adjacent pairs in order for second, or any single pair for third. Each ticket wins its highest prize only.` },
   ] }, { type: 1, components: [{ type: 2, style: 5, label: 'Check my tickets', url }] }]);
   if (banner) payload.files = [{ attachment: banner, name: 'lotteryimage.png' }];
   return assertValidMessagePayload(payload);

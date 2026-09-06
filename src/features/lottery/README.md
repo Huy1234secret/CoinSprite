@@ -9,8 +9,10 @@ Daily draws award each ticket's highest matching prize:
 | Prize | Match | Winning codes | Value |
 | --- | --- | --- | --- |
 | First | All three pairs | 1 | 1,757 Silver |
-| Second | Last two pairs | 8 distinct suffixes | 845,000 Bronze |
-| Third | Last pair | 16 distinct suffixes | 1,625 Bronze |
+| Second | Any two adjacent pairs, in order | 8 distinct two-pair codes | 845,000 Bronze |
+| Third | Any single pair | 16 distinct pairs | 1,625 Bronze |
+
+For example, `5B-1E-0Y` wins second prize if `5B-1E` or `1E-0Y` is drawn, and third prize if `5B`, `1E`, or `0Y` is drawn. Second-prize pairs must remain adjacent and in the drawn order. Stored results from already-settled draws are unchanged.
 
 One person may win on multiple tickets and at multiple ranks. Prize credits and the immutable draw commit in a single transaction before announcements are sent. Only tickets assigned to that draw date are consumed. A failed transaction rolls back both settlement and wallet changes.
 
