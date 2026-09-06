@@ -25,7 +25,8 @@ function rows(buttons) {
   }));
 }
 function streakText(profile) {
-  return `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${((100 + profile.streak) / 100).toFixed(2)} Earnings\``;
+  const multiplier = 1 + profile.streak * (100 + (profile.streakBonus || 0)) / 10000;
+  return `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${multiplier.toFixed(2)} Earnings\``;
 }
 function statusText(_userId, profile) {
   return `${WORK_EMOJIS.level} Work Level: ${profile.level} \`${profile.xp}/${requiredXp(profile.level)}\`\n`

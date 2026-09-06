@@ -106,7 +106,7 @@ test('Work progression, inventory, active-session lock, and cooldown are global 
 
     const settlement = work.settle('scope-session', 'succeeded');
     assert.deepEqual(settlement.profile, {
-      userId: USER_A, level: 2, xp: 15, streak: 8, cooldownUntil: now + WORK_COOLDOWN_MS,
+      userId: USER_A, level: 2, xp: 15, streak: 8, cooldownUntil: now + WORK_COOLDOWN_MS, streakBonus: 100,
     });
     assert.equal(work.balance(USER_A), 27n);
 
@@ -123,7 +123,7 @@ test('Work progression, inventory, active-session lock, and cooldown are global 
 
     assert.deepEqual(work.profile(USER_A), settlement.profile, 'Work profile has one user-only identity in every guild');
     assert.deepEqual(work.profile(USER_B), {
-      userId: USER_B, level: 1, xp: 0, streak: 0, cooldownUntil: 0,
+      userId: USER_B, level: 1, xp: 0, streak: 0, cooldownUntil: 0, streakBonus: 0,
     });
     assert.equal(work.balance(USER_B), 0n);
     assert.deepEqual(inventory.page(USER_B).items, []);
