@@ -16,8 +16,9 @@ function unique(count, pairs, rng) {
 }
 function rankFor(ticket, draw) {
   if (ticket === draw.first) return 1;
-  if (draw.second.includes(ticket.slice(3))) return 2;
-  if (draw.third.includes(ticket.slice(6))) return 3;
+  const pairs = ticket.split('-');
+  if (draw.second.includes(pairs.slice(0, 2).join('-')) || draw.second.includes(pairs.slice(1).join('-'))) return 2;
+  if (pairs.some(pair => draw.third.includes(pair))) return 3;
   return null;
 }
 function hydrate(row) { return row ? { id: Number(row.id), date: row.draw_date, first: row.first,
