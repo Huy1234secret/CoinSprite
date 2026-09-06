@@ -1064,3 +1064,40 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 @media (max-width: 360px) {
   .brand small,.live-pill { display: none; }.topbar-actions { gap: 4px; }.preview-workspace { padding: 10px; }.emoji-picker-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }.studio-actions { grid-template-columns: 1fr; }
 }
+.inventory-tabs { display:flex; gap:8px; margin:20px 0; }
+.inventory-tabs button { padding:12px 22px; border-radius:12px; }
+.inventory-tabs button[aria-pressed="true"] { color:#b9f547; border-color:#b9f547; background:#202919; }
+.inventory-selected .profile-save-dock { display:none !important; }
+#webInventory { padding:24px; border:1px solid #30382d; border-radius:20px; background:#111610; }
+.inventory-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px; }
+.inventory-toolbar > div:first-child { flex:1; }
+.inventory-toolbar p { color:#a8b0a2; margin-top:6px; }
+.inventory-scroll { overflow-x:auto; padding:4px; }
+.inventory-grid { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); grid-template-rows:repeat(5,1fr); gap:10px; min-width:580px; max-width:880px; margin:auto; }
+.inventory-cell { position:relative; display:grid; place-items:center; aspect-ratio:1; min-width:0; background:#1c231a; border:1px solid #333f2b; border-radius:14px; font-size:32px; padding:8px; transition:transform .15s,background .15s; }
+button.inventory-cell:hover,button.inventory-cell:focus-visible { transform:translateY(-2px); background:#2c3823; outline:2px solid #b9f547; }
+.inventory-cell img { width:60%; max-height:60%; object-fit:contain; }
+.inventory-cell small { position:absolute; right:7px; bottom:5px; font-size:12px; color:#fff; font-variant-numeric:tabular-nums; }
+.inventory-pager { display:flex; align-items:center; justify-content:center; gap:18px; margin-top:20px; }
+.inventory-tooltip { position:fixed; z-index:1000; max-width:290px; padding:16px; border:1px solid #77875a; border-radius:12px; background:#151c12; color:#dbe6d0; box-shadow:0 12px 36px #0008; pointer-events:none; font-size:13px; line-height:1.7; }
+.inventory-tooltip strong { display:block; color:#fff; font-size:16px; margin-bottom:6px; }
+.ticket-dialog { width:min(820px,calc(100vw - 32px)); max-height:85vh; overflow:auto; padding:28px; border:1px solid #465438; border-radius:20px; background:#11170f; color:#eef3e8; margin:auto; }
+.ticket-dialog::backdrop { background:#000b; backdrop-filter:blur(5px); }
+.ticket-dialog .inventory-toolbar h2 { flex:1; }
+.ticket-dialog p,.ticket-dialog > small { color:#b0bba8; line-height:1.6; }
+.ticket-filters { display:flex; flex-wrap:wrap; gap:16px; margin:20px 0; }
+.ticket-filters label { display:grid; gap:8px; flex:1; min-width:180px; }
+.ticket-filters input,.ticket-filters select { width:100%; min-height:42px; padding:10px 12px; border:1px solid #465438; border-radius:9px; background:#1b2417; color:#eef3e8; font:inherit; }
+.ticket-filters input:focus-visible,.ticket-filters select:focus-visible { outline:2px solid #b9f547; outline-offset:2px; }
+.ticket-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr)); gap:12px; }
+.ticket-code { padding:18px; border:1px solid #36432d; border-radius:12px; background:#20291b; display:grid; gap:6px; }
+.ticket-code strong { font:700 20px monospace; letter-spacing:1px; }
+.ticket-code small { font-size:12px; }
+.ticket-code.prize-1 { color:#ffd76b; border-color:#aa8730; background:#302819; }
+.ticket-code.prize-2 { color:#d4deee; border-color:#7c8caa; background:#232a35; }
+.ticket-code.prize-3 { color:#dfa073; border-color:#a26e46; background:#30241c; }
+.ticket-earning { color:white; display:flex; align-items:center; gap:3px; }
+.ticket-earning img { width:17px; height:17px; }
+.inventory-tabs button,.inventory-toolbar button,.inventory-pager button { background:#192016; color:#edf3e8; border:1px solid #46513b; border-radius:10px; padding:10px 16px; cursor:pointer; font:inherit; }
+.inventory-tabs button[aria-pressed="true"] { color:#b9f547; border-color:#b9f547; background:#202919; }
+.inventory-pager button:disabled { opacity:.4; cursor:default; }

@@ -391,10 +391,11 @@
 
   function normalizeGamesConfig(config) {
     return {
+      lotteryChannelId: String(config?.games?.lotteryChannelId || ''),
       commandSettings: (Array.isArray(config?.games?.commandSettings) ? config.games.commandSettings : []).map((setting, index) => ({
         id: String(setting?.id || `setting-${index + 1}`),
         channelIds: [...new Set((Array.isArray(setting?.channelIds) ? setting.channelIds : []).map(String).filter(Boolean))],
-        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements'].includes(command)))],
+        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop'].includes(command)))],
       })),
     };
   }
@@ -2850,6 +2851,8 @@
 
   function renderGames() {
     if (!state.config?.counting) return;
+    $('#lotteryChannel').innerHTML = channelOptions(state.config.games.lotteryChannelId,
+      channel => channel.sendable === true && channel.kind !== 'forum', 'Use Games channel (automatic)');
     elements.countingChannel.innerHTML = channelOptions(
       state.config.counting.channelId,
       (channel) => channel.sendable === true && channel.kind !== 'forum',
@@ -2863,9 +2866,10 @@
     const settings = state.config?.games?.commandSettings || [];
     const commandOptions = [
       ['cs-work', 'Work (/cs-work and cswork)'],
-      ['cs-balance', 'Bronze balance (/cs-balance and csbalance)'],
+      ['cs-balance', 'Silver & Bronze balance (/cs-balance and csbalance)'],
       ['cs-inventory', 'Inventory (/cs-inventory and csinventory)'],
       ['cs-achievements', 'Achievements (/cs-achievements and csachievements)'],
+      ['cs-shop', 'Shop (/cs-shop and csshop)'],
     ];
     elements.gameCommandSettings.innerHTML = settings.length ? settings.map((setting, index) => `
       <article class="game-command-setting" data-game-setting="${index}">
@@ -4647,6 +4651,7 @@
   elements.gamesView.addEventListener('change', (event) => {
     if (!state.config?.counting || !state.config?.games) return;
     if (event.target === elements.countingChannel) state.config.counting.channelId = event.target.value;
+    if (event.target === $('#lotteryChannel')) state.config.games.lotteryChannelId = event.target.value;
     const channelIndex = event.target.dataset.gameSettingChannels;
     const commandIndex = event.target.dataset.gameSettingCommands;
     if (channelIndex !== undefined) state.config.games.commandSettings[Number(channelIndex)].channelIds = [...event.target.selectedOptions].map((option) => option.value).filter(Boolean);

@@ -4,7 +4,7 @@ const { balancePayload, commandUnavailablePayload, invalidTargetPayload } = requ
 const COUNTING_COMMANDS = Object.freeze([{
   data: new SlashCommandBuilder()
     .setName('cs-balance')
-    .setDescription('View a Bronze Coin balance.')
+    .setDescription('View a Silver and Bronze Coin balance.')
     .addUserOption((option) => option.setName('user').setDescription('User to view')),
 }]);
 

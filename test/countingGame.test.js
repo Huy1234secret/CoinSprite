@@ -212,7 +212,7 @@ test('duplicate deliveries and near-simultaneous messages are transactionally sa
   db.close();
 });
 
-test('Bronze rewards cap at 1,000,000 while arbitrary-precision counts keep advancing', async () => {
+test('Bronze rewards cross Silver thresholds while arbitrary-precision counts keep advancing', async () => {
   const { db, feature } = memoryFeature();
   const now = BigInt(Date.now());
   db.prepare('INSERT INTO counting_guild_state (guild_id, next_expected, updated_at) VALUES (?, ?, ?)')
@@ -221,17 +221,17 @@ test('Bronze rewards cap at 1,000,000 while arbitrary-precision counts keep adva
     .run(USER_ID, 999999n, now);
 
   await feature.handleMessage(fakeMessage('1000000').message);
-  assert.equal(feature.service.balance(USER_ID), 1_000_000n);
+  assert.equal(feature.service.balance(USER_ID), 1_999_999n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '1000001');
   await feature.handleMessage(fakeMessage('1000001', { author: user(OTHER_USER_ID, 'Other') }).message);
-  assert.equal(feature.service.balance(USER_ID), 1_000_000n);
+  assert.equal(feature.service.balance(USER_ID), 1_999_999n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '1000002');
 
   db.prepare('UPDATE counting_guild_state SET next_expected = ? WHERE guild_id = ?')
     .run('9007199254740993', GUILD_ID);
   await feature.handleMessage(fakeMessage('9007199254740993').message);
   assert.equal(feature.service.nextExpected(GUILD_ID), '9007199254740994');
-  assert.equal(feature.service.balance(USER_ID), 1_000_000n);
+  assert.equal(feature.service.balance(USER_ID), 1_999_999n + 9007199254740993n);
   db.close();
 });
 
@@ -279,14 +279,14 @@ test('balance response is a white Components V2 container with thumbnail, text, 
   assert.equal(section.type, 9);
   assert.equal(section.accessory.type, 11);
   assert.equal(section.accessory.media.url, `https://cdn.example/${USER_ID}.png`);
-  assert.equal(section.components[0].content, `### <@${USER_ID}>'s Balance\n\n- 13.5k ${BRONZE_COIN_EMOJI}`);
+  assert.equal(section.components[0].content, `### <@${USER_ID}>'s Balance\n\n- 13,500 ${BRONZE_COIN_EMOJI}`);
   assert.deepEqual(payload.allowedMentions, SAFE_ALLOWED_MENTIONS);
 });
 
-test('Bronze balance formatter abbreviates without floating point', () => {
+test('Bronze balance formatter preserves exact values without floating point', () => {
   const examples = new Map([
-    [0n, '0'], [999n, '999'], [1_000n, '1k'], [13_500n, '13.5k'],
-    [100_000n, '100k'], [999_999n, '999.9k'], [1_000_000n, '1m'], [9_000_000n, '1m'],
+    [0n, '0'], [999n, '999'], [1_000n, '1,000'], [13_500n, '13,500'],
+    [100_000n, '100,000'], [999_999n, '999,999'], [1_000_000n, '1,000,000'], [9_000_000n, '9,000,000'],
   ]);
   for (const [value, expected] of examples) assert.equal(formatBronzeBalance(value), expected);
 });
@@ -297,7 +297,7 @@ test('game commands are registered for every enabled guild even when no Counting
     features: { leveling: false },
     counting: { channelId: '' },
   });
-  assert.deepEqual(commands.map((command) => command.name), ['cs-balance', 'cs-work', 'cs-inventory', 'cs-achievements']);
+  assert.deepEqual(commands.map((command) => command.name), ['cs-balance', 'cs-work', 'cs-inventory', 'cs-shop', 'cs-achievements']);
 });
 
 test('configuration migration preserves existing settings and normalizes Counting', () => {

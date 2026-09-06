@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/admin/style.css">
   <meta id="emojiDataAsset" data-src="/admin/emojiData.js">
   <script src="/admin/app.js" defer></script>
+  <script src="/admin/inventory.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -79,11 +80,25 @@
     <header class="profile-heading">
       <div class="profile-identity">
         <img id="profileAvatar" alt="">
-        <div><span class="eyebrow">YOUR PROFILE</span><h1 id="profileName">Member</h1><p>Design the level card CoinSprite sends from <code>/level</code>.</p></div>
+        <div><span class="eyebrow">YOUR PROFILE</span><h1 id="profileName">Member</h1><p>Customize your level card and browse your inventory.</p></div>
       </div>
       <a class="button ghost" href="/admin">Manage servers</a>
     </header>
 
+    <nav class="inventory-tabs" aria-label="Profile tabs"><button type="button" id="profileCardTab" aria-pressed="true">Level card</button><button type="button" id="profileInventoryTab" aria-pressed="false">Inventory</button></nav>
+    <section id="webInventory" hidden aria-label="Your inventory">
+      <div class="inventory-toolbar"><div><h2>Your inventory</h2><p>Items you have earned and collected.</p></div><button type="button" id="ticketHistoryButton">Lottery tickets &amp; history</button><button type="button" id="inventoryRefresh">Refresh</button></div>
+      <p id="inventoryStatus" role="status"></p><div class="inventory-scroll"><div id="inventoryGrid" class="inventory-grid"></div></div>
+      <div class="inventory-pager"><button type="button" id="inventoryPrevious">Previous</button><span id="inventoryPage"></span><button type="button" id="inventoryNext">Next</button></div>
+    </section>
+    <div id="inventoryTooltip" class="inventory-tooltip" role="tooltip" hidden></div>
+    <dialog id="ticketDialog" class="ticket-dialog"><div class="inventory-toolbar"><h2>Lottery Ticket 1</h2><button type="button" id="ticketClose" aria-label="Close ticket list">Close</button></div>
+      <p>Draws at 20:00 UTC+7. Full code → first prize; last two pairs → second; last pair → third. Each ticket earns its highest prize only.</p>
+      <div class="ticket-filters"><label>Draw date<select id="ticketDate"></select></label><label>Search codes<input id="ticketSearch" type="search" maxlength="8" placeholder="5A-1B-0F"></label></div>
+      <p id="ticketStatus" role="status"></p><div id="ticketList" class="ticket-list"></div>
+      <div class="inventory-pager"><button type="button" id="ticketPrevious">Previous</button><span id="ticketPage"></span><button type="button" id="ticketNext">Next</button></div>
+      <small>History is available for 30 days. Settled tickets leave your inventory; their codes and results remain here.</small>
+    </dialog>
     <section class="card-studio" aria-label="Level card editor">
       <header class="studio-head">
         <div><span class="step">01</span><div><h2>Level card studio</h2><p>Drag elements with smart guides. Use any edge to resize and the top handle to rotate.</p></div></div>
@@ -252,6 +267,7 @@
         <section class="section-block counting-settings">
           <div class="section-heading"><div><span class="step">01</span><h2>Counting</h2></div><p>Members count upward together. Selecting no channel disables the game.</p></div>
           <label class="field-card counting-channel-setting"><span>Counting channel<small>One message-capable text channel in this server</small></span><select id="countingChannel"></select></label>
+          <label class="field-card counting-channel-setting"><span>Lottery channel<small>Daily draw at 20:00 UTC+7. Defaults to a configured Games channel, then the last shop channel or server system channel.</small></span><select id="lotteryChannel"></select></label>
         </section>
         <section class="section-block game-command-settings">
           <div class="section-heading"><div><span class="step">02</span><h2>Command settings</h2></div><p>Add multiple routing rules. Each rule can include multiple channels and multiple game commands. With no rules, commands are available in every channel.</p></div>

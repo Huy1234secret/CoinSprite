@@ -21,7 +21,7 @@ const {
 const { REQUIRED: TRASH_REQUIRED, applyTrashAction, createTrashGame } = require('../src/features/work/games/trash');
 const { openDatabase } = require('../src/features/work/repositories/database');
 const {
-  MAX_BRONZE_BALANCE, WORK_COOLDOWN_MS, WorkRepository, applyWorkXp, requiredXp,
+  WORK_COOLDOWN_MS, WorkRepository, applyWorkXp, requiredXp,
 } = require('../src/features/work/repositories/workRepository');
 const { JOB_CONFIG, WorkService, chooseDifficulty, rewardsFor, scaledReward, timerSeconds } = require('../src/features/work/services/workService');
 const { gameCommandAllowed, normalizeGamesConfig, normalizeState } = require('../src/serverConfig');
@@ -56,7 +56,7 @@ test('/cs-work is registered for every enabled guild and cswork parsing is exact
 });
 
 test('Game command settings normalize multiple selections and default to unrestricted access', () => {
-  assert.deepEqual(normalizeGamesConfig({}), { commandSettings: [] });
+  assert.deepEqual(normalizeGamesConfig({}), { commandSettings: [], lotteryChannelId: '' });
   const games = normalizeGamesConfig({ commandSettings: [
     { id: 'first', channelIds: [CHANNEL, OTHER_CHANNEL, 'bad', CHANNEL], commands: ['cs-work', 'cs-balance', 'cs-inventory', 'bad'] },
     { id: 'second', channelIds: [OTHER_CHANNEL], commands: ['cs-work'] },
@@ -274,7 +274,7 @@ test('Work difficulty follows level 0, 5, 15, and 30 unlock thresholds', async (
   repository.profile(USER);
   db.prepare('UPDATE work_profiles SET level=30 WHERE user_id=?').run(USER);
   const service = new WorkService(repository, {
-    clock: () => 1_000_000, rng: sequence([0.3, 0.9999]), createId: () => 'leveled',
+    clock: () => 1_000_000, rng: sequence([0.15, 0.9999]), createId: () => 'leveled',
     setTimer: () => ({ unref() {} }), clearTimer() {},
   });
   const started = await service.start({ guildId: GUILD, channelId: CHANNEL, userId: USER }, async () => MESSAGE);
@@ -285,23 +285,23 @@ test('Work difficulty follows level 0, 5, 15, and 30 unlock thresholds', async (
   db.close();
 });
 
-test('success atomically applies global cooldown, new-streak salary, shared Bronze cap, Work XP, and inventory once', () => {
+test('success atomically applies global cooldown, new-streak salary across Silver threshold, Work XP, and inventory once', () => {
   let now = 1_000_000;
   const { db, repository } = memory(() => now);
   repository.profile(USER);
   db.prepare('UPDATE work_profiles SET xp=90,streak=11 WHERE user_id=?').run(USER);
-  db.prepare('INSERT INTO counting_bronze_balances (user_id,balance,updated_at) VALUES (?,?,?)').run(USER, MAX_BRONZE_BALANCE - 5n, 0);
+  db.prepare('INSERT INTO counting_bronze_balances (user_id,balance,updated_at) VALUES (?,?,?)').run(USER, 999995n, 0);
   assert.equal(repository.create(sessionInput()).status, 'created');
   repository.attachMessage('session', MESSAGE);
   const first = repository.settle('session', 'succeeded');
   assert.equal(first.changed, true);
   assert.equal(first.finalSalary, 112);
-  assert.equal(first.session.salaryCredited, 5);
-  assert.equal(repository.balance(USER), MAX_BRONZE_BALANCE);
+  assert.equal(first.session.salaryCredited, 112);
+  assert.equal(repository.balance(USER), 1000107n);
   assert.deepEqual(first.profile, { userId: USER, level: 2, xp: 15, streak: 12, cooldownUntil: now + WORK_COOLDOWN_MS, streakBonus: 100 });
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.settle('session', 'succeeded').changed, false);
-  assert.equal(repository.balance(USER), MAX_BRONZE_BALANCE);
+  assert.equal(repository.balance(USER), 1000107n);
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.create(sessionInput({ sessionId: 'other-guild', guildId: OTHER_GUILD })).status, 'cooldown');
   assert.equal(repository.create(sessionInput({ sessionId: 'owner-test', bypassCooldown: true })).status, 'created');

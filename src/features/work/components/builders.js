@@ -3,11 +3,13 @@ const { assertValidMessagePayload } = require('../../shared/discordPayload');
 const { BURGER_EMOJIS, PIPE_EMOJIS, TRASH_EMOJIS, WORK_EMOJIS } = require('../data/emojis');
 const { PIECES } = require('../games/plumber');
 const { requiredXp } = require('../repositories/workRepository');
+const { captchaImage } = require('../games/newJobs');
 
 const JOB_NAMES = Object.freeze({
+  odd: 'Emoji Inspector', cashier: 'Cashier', colors: 'Color Match', captcha: 'CAPTCHA Solver',
   burger: 'Burger Maker', trash: 'Trash Sorter', plumber: 'Plumber', electrician: 'Electrician',
 });
-const JOB_ARTICLES = Object.freeze({ burger: 'a', trash: 'a', plumber: 'a', electrician: 'an' });
+const JOB_ARTICLES = Object.freeze({ burger: 'a', trash: 'a', plumber: 'a', electrician: 'an', odd: 'an', cashier: 'a', colors: 'a', captcha: 'a' });
 function checked(components, options = {}) { return assertValidMessagePayload(v2Payload(components, options)); }
 function button(sessionId, action, options = {}) {
   return {
@@ -34,6 +36,10 @@ function statusText(_userId, profile) {
 }
 
 function gameMessage(session) {
+  if (session.job === 'odd') return 'Find and press the one different emoji. You have one attempt!';
+  if (session.job === 'cashier') return `Customer pays: **${(session.state.paid / 100).toFixed(2)}**\n🧾 Total: **${(session.state.total / 100).toFixed(2)}**\nSubmit the change due (use 0 for exact payment).`;
+  if (session.job === 'captcha') return 'Read the image and submit its characters. Letters are case-insensitive.';
+  if (session.job === 'colors') return `Match this pattern:\n${[0, 3, 6].map(i => session.state.target.slice(i, i + 3).map(n => session.state.colors[n]).join('')).join('\n')}\nCycle: ${[...session.state.colors, session.state.colors[0]].join(' → ')}\nPress a square to cycle its color.`;
   if (session.job === 'burger') return `${session.state.message}\n\nBuilt: ${session.state.cursor}/${session.state.target.length}`;
   if (session.job === 'trash') {
     const current = session.state.items[Math.min(session.state.sorted, session.state.items.length - 1)];
@@ -45,6 +51,13 @@ function gameMessage(session) {
 
 function controlRows(session, options = {}) {
   const disabled = options.disabled === true;
+  if (session.job === 'odd') return rows(Array.from({ length: session.state.count }, (_, i) => button(session.sessionId, `odd-${i}`, {
+    emoji: { name: i === session.state.answer ? session.state.odd : session.state.normal }, disabled,
+  })));
+  if (session.job === 'colors') return [0, 3, 6].map(start => ({ type: 1,
+    components: session.state.cells.slice(start, start + 3).map((color, i) => button(session.sessionId, `color-${start + i}`, { emoji: { name: session.state.colors[color] }, disabled })),
+  }));
+  if (['cashier', 'captcha'].includes(session.job)) return rows([button(session.sessionId, 'submit', { label: 'SUBMIT', disabled })]);
   if (session.job === 'burger') {
     return rows(session.state.buttons.map((entry) => button(session.sessionId, `burger-${entry.id}`, {
       emoji: BURGER_EMOJIS[entry.ingredient],
@@ -81,16 +94,19 @@ function controlRows(session, options = {}) {
 }
 
 function activeGamePayload(session, options = {}) {
-  return checked([{
+  const payload = checked([{
     type: 17,
     accent_color: WHITE,
     components: [
       { type: 10, content: `### You're ${JOB_ARTICLES[session.job]} ${JOB_NAMES[session.job]}\n-# You have <t:${Math.floor(session.deadline / 1000)}:R> to complete the job.` },
       { type: 14, divider: true, spacing: 1 },
       { type: 10, content: gameMessage(session) },
+      ...(session.job === 'captcha' ? [{ type: 12, items: [{ media: { url: 'attachment://captcha.png' }, description: 'Work CAPTCHA puzzle' }] }] : []),
       ...controlRows(session),
     ],
   }], options);
+  if (session.job === 'captcha') payload.files = [{ attachment: captchaImage(session.state), name: 'captcha.png' }];
+  return payload;
 }
 
 function cooldownPayload(userId, nextWorkAt, profile, options = {}) {

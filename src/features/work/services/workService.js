@@ -4,22 +4,31 @@ const { applyBurgerAction, createBurgerGame } = require('../games/burger');
 const { applyTrashAction, createTrashGame } = require('../games/trash');
 const { applyPlumberAction, createPlumberGame } = require('../games/plumber');
 const { applyElectricianAction, createElectricianGame } = require('../games/electrician');
+const newJobs = require('../games/newJobs');
 
 const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard', 'expert']);
-const JOBS = Object.freeze(['trash', 'burger', 'electrician', 'plumber']);
+const JOBS = Object.freeze(['trash', 'burger', 'electrician', 'plumber', 'odd', 'cashier', 'colors', 'captcha']);
 const JOB_CONFIG = Object.freeze({
+  odd: { salary: [15, 220], xp: [15, 95] },
+  cashier: { salary: [25, 270], xp: [20, 110] },
+  colors: { salary: [30, 300], xp: [25, 130] },
+  captcha: { salary: [20, 240], xp: [18, 100] },
   trash: { salary: [10, 140], xp: [12, 55] },
   electrician: { salary: [25, 260], xp: [20, 120] },
   burger: { salary: [30, 300], xp: [25, 130] },
   plumber: { salary: [80, 350], xp: [45, 180] },
 });
 const GAME_FACTORIES = Object.freeze({
+  odd: newJobs.createOddGame, cashier: newJobs.createCashierGame,
+  colors: newJobs.createColorGame, captcha: newJobs.createCaptchaGame,
   burger: createBurgerGame,
   trash: createTrashGame,
   plumber: createPlumberGame,
   electrician: createElectricianGame,
 });
 const GAME_ACTIONS = Object.freeze({
+  odd: newJobs.applyOddAction, cashier: newJobs.applyCashierAction,
+  colors: newJobs.applyColorAction, captcha: newJobs.applyCaptchaAction,
   burger: applyBurgerAction,
   trash: applyTrashAction,
   plumber: applyPlumberAction,
@@ -47,6 +56,10 @@ function rewardFor(job, difficulty) {
   return rewardsFor(job, normalized);
 }
 function timerSeconds(job, state) {
+  if (job === 'odd') return 35 + state.difficulty * 20;
+  if (job === 'cashier') return 60 + state.difficulty * 30;
+  if (job === 'colors') return 90 + state.difficulty * 45;
+  if (job === 'captcha') return 60 + state.difficulty * 15;
   if (job === 'burger') return clamp(30 + 3 * state.target.length, 45, 110);
   if (job === 'trash') return clamp(25 + 4 * state.required, 40, 110);
   if (job === 'electrician') return clamp(25 + 3 * state.buttons.length, 45, 100);

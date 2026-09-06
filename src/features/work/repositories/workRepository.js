@@ -1,6 +1,5 @@
 const { AchievementRepository } = require('../../achievements/repository');
 const { reward } = require('../../achievements/catalog');
-const MAX_BRONZE_BALANCE = 1_000_000n;
 const WORK_COOLDOWN_MS = 10 * 60_000;
 const WORK_TOKEN_KEY = 'work_token';
 
@@ -116,10 +115,9 @@ class WorkRepository {
       const finalSalary = Number(salary);
       const xpAwarded = succeeded ? Number(reward(session.xpReward, perks.xp)) : 0;
       const oldBalance = BigInt(this.getBalanceStatement.get(session.userId)?.balance || 0);
-      const room = oldBalance < MAX_BRONZE_BALANCE ? MAX_BRONZE_BALANCE - oldBalance : 0n;
-      const creditedBigInt = salary < room ? salary : room;
+      const creditedBigInt = salary;
       const salaryCredited = Number(creditedBigInt);
-      if (succeeded) this.upsertBalanceStatement.run(session.userId, oldBalance + creditedBigInt, BigInt(now));
+      if (succeeded) this.upsertBalanceStatement.run(session.userId, (oldBalance + creditedBigInt).toString(), BigInt(now));
       const progression = succeeded
         ? applyWorkXp(oldProfile.level, oldProfile.xp, xpAwarded)
         : { level: oldProfile.level, xp: oldProfile.xp, levelsGained: 0 };
@@ -191,6 +189,6 @@ class WorkRepository {
 }
 
 module.exports = {
-  MAX_BRONZE_BALANCE, WORK_COOLDOWN_MS, WORK_TOKEN_KEY, WorkRepository,
+  WORK_COOLDOWN_MS, WORK_TOKEN_KEY, WorkRepository,
   applyWorkXp, hydrate, hydrateProfile, requiredXp,
 };

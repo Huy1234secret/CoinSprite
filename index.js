@@ -29,6 +29,8 @@ const { createAchievementFeature } = require('./src/features/achievements');
 const { AchievementOutbox } = require('./src/features/achievements/outbox');
 const { resolveEmoji } = require('./src/features/achievements/components');
 const { createInventoryFeature } = require('./src/features/inventory');
+const { createShopFeature } = require('./src/features/shop');
+const { LotteryScheduler } = require('./src/features/lottery/scheduler');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
 const { formatInteractionFailure, safeErrorMessage } = require('./src/features/shared/interactionResponses');
 const {
@@ -105,6 +107,12 @@ const achievementFeature = runtimeRole === 'panel' ? null : createAchievementFea
   isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
   reportError: error => logCommandSystem('Achievements failed: ' + safeErrorMessage(error)),
 });
+const shopFeature = runtimeRole === 'panel' ? null : createShopFeature({ db: workGame.db,
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed });
+const lotteryScheduler = runtimeRole === 'panel' ? null : new LotteryScheduler(workGame.db, client, {
+  isGuildEnabled, getGuildConfig: getGuildConfigRaw,
+  reportError: error => logCommandSystem('Lottery failed: ' + safeErrorMessage(error)),
+});
 const achievementOutbox = runtimeRole === 'panel' ? null : new AchievementOutbox(workGame.db, client, {
   reportError: (error, context) => logCommandSystem('Achievement announcement ' + (context?.record?.id || '') + ' failed: ' + safeErrorMessage(error)),
 });
@@ -116,6 +124,7 @@ const ownerTestCommand = runtimeRole === 'panel' ? null : createOwnerTestCommand
     csbalance: countingGame.handleMessage,
     csinventory: inventoryFeature.handleMessage,
     csachievements: achievementFeature.handleMessage,
+    csshop: shopFeature.handleMessage,
   },
 });
 
@@ -138,6 +147,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     await workGame.recover();
     await client.application.emojis.fetch().catch(error => logCommandSystem(safeErrorMessage(error)));
     await achievementOutbox.start();
+    await lotteryScheduler.start();
   },
   async panel() {
     startAdminServer(client);
@@ -193,6 +203,7 @@ if (runtimeStarter.capabilities.bot) {
       if (await workGame.handleInteraction(interaction)) return;
       if (await inventoryFeature.handleInteraction(interaction)) return;
       if (await achievementFeature.handleInteraction(interaction)) return;
+      if (await shopFeature.handleInteraction(interaction)) return;
       if (await handleReactionRoleInteraction(interaction)) return;
       if (await countingGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
@@ -210,6 +221,7 @@ if (runtimeStarter.capabilities.bot) {
       if (isGuildEnabled(message.guildId) && await workGame.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await achievementFeature.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await shopFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
