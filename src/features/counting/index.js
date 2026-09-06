@@ -3,8 +3,7 @@ const { CountingRepository } = require('./repositories/countingRepository');
 const { openDatabase } = require('./repositories/database');
 const { CountingService } = require('./services/countingService');
 
-const COUNT_SUCCESS_EMOJI = '<:CSY:1544764502036447232>';
-const COUNT_FAILURE_EMOJI = '<:CSN:1544764506381615104>';
+const { COUNT_SUCCESS_EMOJI, COUNT_FAILURE_EMOJI } = require('./emojis');
 const SAFE_ALLOWED_MENTIONS = Object.freeze({ parse: [], users: [], roles: [], repliedUser: false });
 
 function createCountingFeature(options = {}) {

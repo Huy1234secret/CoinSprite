@@ -163,7 +163,7 @@ test('progress, rewards, medals, and outbox all roll back if enqueue fails', t =
   assert.equal(count(db, counting, 'atomic-count', 777).status, 'correct');
 });
 
-test('menu renders five then two tracks, permanent medal summaries, omitted slots, next progress and MAX', t => {
+test('menu renders compact tracks, permanent medals, next progress and completed requirements', t => {
   const { achievements } = setup(t);
   seed(achievements, { work: 50, best_streak: 20, streak: 2, level: 30, jackpot: 1, sixty_seven: 1 });
   const service = new AchievementService(achievements, emoji);
@@ -175,7 +175,10 @@ test('menu renders five then two tracks, permanent medal summaries, omitted slot
   assert.match(text(first), /Career Worker\*\* II/);
   assert.match(text(first), /50 \/ 250/);
   assert.match(text(first), /2 \/ 50/);
-  assert.match(text(first), /30 \/ 30` MAX/);
+  assert.match(text(first), /Completed <:CSY:1544764502036447232>/);
+  assert.doesNotMatch(text(first), /30 \/ 30|MAX|\n\n/);
+  const worker = first.components[0].components.find(c => c.content?.startsWith('**Career Worker'));
+  assert.doesNotMatch(worker.content, /Completed/);
   assert.match(text(first), /`4`<:CSBMedal/);
   assert.match(text(first), /`3`<:CSSMedal/);
   assert.match(text(first), /`1`<:CSGMedal/);
@@ -185,6 +188,8 @@ test('menu renders five then two tracks, permanent medal summaries, omitted slot
   assert.match(text(second), /JACKPOT\*\* I ─ <:CSDMedal/);
   assert.match(text(second), /\*\*67\*\* I ─ <:CSBMedal/);
   assert.ok(!text(second).includes('CSEMedal'));
+  assert.equal((text(second).match(/Completed <:CSY:1544764502036447232>/g) || []).length, 2);
+  assert.doesNotMatch(text(second), /Submit the valid count|MAX|\n\n/);
   assert.deepEqual(first.allowedMentions, { parse: [], users: [], roles: [], repliedUser: false });
   assert.equal(first.flags & 64, 0);
 });
