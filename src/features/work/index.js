@@ -30,10 +30,10 @@ function createWorkFeature(options = {}) {
       bypassCooldown: startOptions.bypassCooldown === true,
     }, async (payload) => {
       const sent = await source.reply(payload);
-      if (sent?.id) return sent.id;
-      const fetched = await source.fetchReply?.();
-      if (!fetched?.id) throw new Error('Discord did not return the Work message ID.');
-      return fetched.id;
+      // InteractionResponse.id is the interaction ID, not the posted message ID.
+      const message = source.isChatInputCommand?.() ? await source.fetchReply() : sent;
+      if (!message?.id) throw new Error('Discord did not return the Work message ID.');
+      return message.id;
     });
     if (result.status === 'cooldown') {
       await source.reply(cooldownPayload(userId, result.nextWorkAt, result.profile, { ephemeral: ephemeralStatus }));
