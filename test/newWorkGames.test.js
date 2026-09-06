@@ -9,6 +9,39 @@ const { openDatabase } = require('../src/features/work/repositories/database');
 const USER = '123456789012345678', GUILD = '223456789012345678', CHANNEL = '323456789012345678', MESSAGE = '423456789012345678';
 let seed = 12345;
 const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+test('slash Work saves the fetched message ID and lets its owner submit a Cashier modal', async t => {
+  const db = openDatabase({ databasePath: ':memory:' }); t.after(() => db.close());
+  const feature = createWorkFeature({ db, clock: () => 100000, rng: () => .65, createId: () => 'slash-cashier',
+    setTimer: () => ({ unref() {} }), clearTimer() {} });
+  t.after(() => feature.close());
+  const source = { isChatInputCommand: () => true, commandName: 'cs-work', user: { id: USER }, guildId: GUILD, channelId: CHANNEL,
+    reply: async () => ({ id: '923456789012345678' }), fetchReply: async () => ({ id: MESSAGE }) };
+  await feature.handleInteraction(source);
+  const session = feature.repository.get('slash-cashier');
+  assert.equal(session.job, 'cashier'); assert.equal(session.messageId, MESSAGE);
+  let modal;
+  const button = { isButton: () => true, customId: 'cswork:slash-cashier:submit', user: { id: USER }, guildId: GUILD, channelId: CHANNEL,
+    message: { id: MESSAGE, edit: async () => {} }, showModal: async p => { modal = p; } };
+  await feature.handleInteraction(button); assert.equal(modal.custom_id, 'cswork:slash-cashier:answer');
+  for (const change of [{ user: { id: 'other' } }, { message: { id: 'another-message' } }]) {
+    let denied;
+    await feature.handleInteraction({ ...button, ...change, reply: async p => { denied = p; }, showModal: () => assert.fail('Unauthorized modal opened') });
+    assert.equal(denied.flags & 64, 64);
+  }
+  await feature.handleInteraction({ ...button, isButton: () => false, isModalSubmit: () => true, customId: modal.custom_id,
+    fields: { getTextInputValue: () => ((session.state.paid - session.state.total) / 100).toFixed(2) }, deferUpdate: async () => {} });
+  assert.equal(feature.repository.get('slash-cashier').status, 'succeeded');
+});
+test('a missing slash reply message aborts Work without saving the interaction ID or charging a cooldown', async t => {
+  const db = openDatabase({ databasePath: ':memory:' }); t.after(() => db.close());
+  const feature = createWorkFeature({ db, clock: () => 100000, rng: () => .65, createId: () => 'missing-reply' });
+  t.after(() => feature.close());
+  await assert.rejects(() => feature.handleInteraction({ isChatInputCommand: () => true, commandName: 'cs-work', user: { id: USER }, guildId: GUILD, channelId: CHANNEL,
+    reply: async () => ({ id: '923456789012345678' }), fetchReply: async () => null }), /message ID/);
+  const session = feature.repository.get('missing-reply');
+  assert.equal(session.status, 'aborted'); assert.equal(session.messageId, '');
+  assert.equal(feature.repository.profile(USER).cooldownUntil, 0);
+});
 test('odd-one-out has exactly one odd emoji and correct button counts at every difficulty', () => {
   for (const [i, difficulty] of ['easy', 'normal', 'hard', 'expert'].entries()) {
     for (let n = 0; n < 30; n++) {
