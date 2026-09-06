@@ -85,6 +85,7 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/brand-icon.png', ['brand-icon.png', 'image/png']],
   ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
+  ['/admin/inventory.js', ['inventory.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
@@ -697,6 +698,7 @@ async function validateCountingChannel(guild, channelId) {
 async function validateGamesConfig(guild, value) {
   const games = normalizeGamesConfig(value);
   return {
+    lotteryChannelId: await validateCountingChannel(guild, games.lotteryChannelId),
     commandSettings: await Promise.all(games.commandSettings.map(async (setting) => ({
       ...setting,
       channelIds: await Promise.all(setting.channelIds.map((channelId) => validateCountingChannel(guild, channelId))),
@@ -709,6 +711,7 @@ function safeOAuthReturnTo(value) {
   if (['/admin', '/profile'].includes(route)) return route;
   let parsed;
   try { parsed = new URL(route, 'http://coinsprite.local'); } catch { return '/admin'; }
+  if (parsed.origin === 'http://coinsprite.local' && parsed.pathname === '/profile') return parsed.searchParams.get('tab') === 'inventory' ? '/profile?tab=inventory' : '/profile';
   if (parsed.origin !== 'http://coinsprite.local' || parsed.pathname !== '/admin') return '/admin';
   const safe = new URLSearchParams();
   const guildId = String(parsed.searchParams.get('guild') || '');
@@ -1042,6 +1045,20 @@ async function routeRequest(req, res, env, client, services = {}) {
       'Content-Disposition': 'inline; filename="level-card.png"',
       ...levelCardRendererHeaders(profile),
     });
+  }
+
+  if (req.method === 'GET' && ['/api/profile/inventory', '/api/profile/lottery'].includes(pathname)) {
+    const session = await requireSignedIn(req, res, env);
+    if (!session) return;
+    const db = require('./features/work/repositories/database').openDatabase();
+    try {
+      const result = pathname.endsWith('/inventory')
+        ? require('./features/inventory/web').inventorySnapshot(db, session.user.id)
+        : new (require('./features/lottery/repository').LotteryRepository)(db).history(session.user.id,
+          url.searchParams.get('date'), url.searchParams.get('search'), url.searchParams.get('page'));
+      return sendJson(res, 200, result);
+    } catch (error) { return sendJson(res, 400, { error: error.message }); }
+    finally { db.close(); }
   }
 
   if (req.method === 'GET' && pathname === '/api/profile/card') {

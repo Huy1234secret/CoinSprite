@@ -1,6 +1,5 @@
 const { AchievementRepository } = require('../../achievements/repository');
 const { reward } = require('../../achievements/catalog');
-const MAX_BRONZE_BALANCE = 1_000_000n;
 
 class CountingRepository {
   constructor(db, options = {}) {
@@ -48,12 +47,10 @@ class CountingRepository {
       let balance = this.balance(attempt.userId);
 
       if (correct) {
-        const remaining = MAX_BRONZE_BALANCE - balance;
         const payout = reward(submitted, this.achievements.perks(attempt.userId).counting);
-        credited = payout < remaining ? payout : remaining;
-        if (credited < 0n) credited = 0n;
+        credited = payout;
         balance += credited;
-        this.upsertBalanceStatement.run(attempt.userId, balance, now);
+        this.upsertBalanceStatement.run(attempt.userId, balance.toString(), now);
         this.advanceStateStatement.run((submitted + 1n).toString(), attempt.userId, now, attempt.guildId);
       } else {
         this.resetStateStatement.run(now, attempt.guildId);
@@ -100,5 +97,5 @@ class CountingRepository {
   }
 }
 
-module.exports = { CountingRepository, MAX_BRONZE_BALANCE };
+module.exports = { CountingRepository };
 

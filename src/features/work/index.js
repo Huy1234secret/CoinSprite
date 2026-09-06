@@ -48,10 +48,11 @@ function createWorkFeature(options = {}) {
       if (!interaction.guildId || !interaction.user?.id) return false;
       return start(interaction, true);
     }
-    if (!interaction.isButton?.() || !String(interaction.customId || '').startsWith('cswork:')) return false;
+    if ((!interaction.isButton?.() && !interaction.isModalSubmit?.()) || !String(interaction.customId || '').startsWith('cswork:')) return false;
     const parts = String(interaction.customId).split(':');
     if (parts.length !== 3) return false;
-    const [, sessionId, action] = parts;
+    const [, sessionId, requestedAction] = parts;
+    let action = requestedAction;
     const session = repository.get(sessionId);
     if (!session) {
       await sendEphemeral(interaction, unavailablePayload({ ephemeral: true }));
@@ -65,6 +66,16 @@ function createWorkFeature(options = {}) {
       await sendEphemeral(interaction, ownershipDeniedPayload({ ephemeral: true }));
       return true;
     }
+    if (requestedAction === 'submit' && interaction.isButton?.() && ['cashier', 'captcha'].includes(session.job)
+      && session.status === 'active' && Number(options.clock?.() ?? Date.now()) < session.deadline) {
+      await interaction.showModal({ custom_id: `cswork:${sessionId}:answer`, title: session.job === 'cashier' ? 'Change due' : 'Solve CAPTCHA',
+        components: [{ type: 1, components: [{ type: 4, custom_id: 'answer', label: session.job === 'cashier' ? 'Change (e.g. 12.50 or 0)' : 'Characters in the image', style: 1, required: true, max_length: 16 }] }] });
+      return true;
+    }
+    if (interaction.isModalSubmit?.()) {
+      if (requestedAction !== 'answer' || !['cashier', 'captcha'].includes(session.job)) return false;
+      action = `answer:${interaction.fields.getTextInputValue('answer')}`;
+    } else if (requestedAction === 'answer') return false;
     if (!await acknowledgeUpdate(interaction, { reportError: options.reportError })) return true;
     if (action === 'back') {
       const profile = repository.profile(session.userId);

@@ -44,7 +44,7 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   }),
 });
 const DEFAULT_COUNTING_CONFIG = Object.freeze({ channelId: '' });
-const GAME_COMMAND_KEYS = Object.freeze(['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements']);
+const GAME_COMMAND_KEYS = Object.freeze(['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop']);
 const DEFAULT_GAMES_CONFIG = Object.freeze({ commandSettings: Object.freeze([]) });
 const DEFAULT_MEMBER_MESSAGE_TEMPLATES = Object.freeze({
   join: '## Welcome to {server}, {user}! 🎉\nYou’re member **#{member_count}**. We’re happy to have you here!',
@@ -333,7 +333,7 @@ function normalizeGamesConfig(value) {
     })
     .filter((setting) => setting.channelIds.length && setting.commands.length)
     .slice(0, 50);
-  return { commandSettings };
+  return { commandSettings, lotteryChannelId: cleanId(source.lotteryChannelId) };
 }
 
 function gameCommandAllowed(config, channelId, command) {

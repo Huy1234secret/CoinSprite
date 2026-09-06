@@ -7,6 +7,9 @@ const ITEM_CATALOG = Object.freeze([
     type: 'Currency',
     sortOrder: 100,
   }),
+  Object.freeze({ itemKey: 'lottery_ticket_1', name: 'Lottery Ticket 1', emoji: '<:CSLotteryticket:1546202786532818944>',
+    rarity: 'Common', type: 'Useable', value: 1000, sortOrder: 200,
+    description: 'Automatically enters the next daily lottery at 20:00 UTC+7. View codes and 30-day results in your website inventory.' }),
 ]);
 
 const ITEM_BY_KEY = new Map(ITEM_CATALOG.map((item) => [item.itemKey, item]));

@@ -62,7 +62,7 @@ Bot, webhook, and system messages are already ignored by Counting.
 ## Verification
 
 Run `npm test`. `test/achievements.test.js` covers catalog thresholds, permanent
-slots, replacement perks, exact rewards, next-event timing, caps, transactional
+slots, replacement perks, exact rewards, next-event timing, Silver thresholds, transactional
 rollback, source channels, medal thumbnails, pagination ownership, migration,
 duplicate events, durable recovery, worker claims, and failed delivery retries.
 Live Discord delivery and deployed emoji availability require the bot environment.

@@ -1,4 +1,5 @@
 const { errorPayload, v2Payload, WHITE } = require('../../shared/components');
+const { formatCurrency } = require('../../shared/currency');
 
 const BRONZE_COIN_EMOJI = '<:CSBC:1544762628474282064>';
 
@@ -6,13 +7,7 @@ function formatBronzeBalance(value) {
   let amount;
   try { amount = BigInt(value ?? 0); } catch { amount = 0n; }
   if (amount < 0n) amount = 0n;
-  if (amount > 1_000_000n) amount = 1_000_000n;
-  if (amount === 1_000_000n) return '1m';
-  if (amount < 1_000n) return amount.toString();
-  const tenths = amount / 100n;
-  const whole = tenths / 10n;
-  const decimal = tenths % 10n;
-  return decimal === 0n ? `${whole}k` : `${whole}.${decimal}k`;
+  return amount.toLocaleString('en-US');
 }
 
 function avatarUrl(user) {
@@ -29,7 +24,7 @@ function balancePayload(user, balance, options = {}) {
       type: 9,
       components: [{
         type: 10,
-        content: `### <@${user.id}>'s Balance\n\n- ${formatBronzeBalance(balance)} ${BRONZE_COIN_EMOJI}`,
+        content: `### <@${user.id}>'s Balance\n\n- ${formatCurrency(balance)}`,
       }],
       accessory: { type: 11, media: { url: avatarUrl(user) } },
     }],

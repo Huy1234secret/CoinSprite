@@ -93,13 +93,13 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (!['index.html', 'emojiData.js', 'app.js', 'style.css', 'brand-icon.png'].includes(filename)) return null;
+  if (!['index.html', 'emojiData.js', 'app.js', 'inventory.js', 'style.css', 'brand-icon.png'].includes(filename)) return null;
   try {
     let source = fs.readFileSync(path.join(ADMIN_DIR, filename));
     if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
     if (filename.endsWith('.html')) {
       let html = source.toString('utf8');
-      const assetNames = ['style.css', 'emojiData.js', 'app.js'];
+      const assetNames = ['style.css', 'emojiData.js', 'app.js', 'inventory.js'];
       for (const assetName of assetNames) {
         const asset = loadAdminAsset(assetName);
         if (asset) {
