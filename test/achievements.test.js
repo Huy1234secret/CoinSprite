@@ -17,6 +17,7 @@ const { messagePayloadErrors } = require('../src/features/shared/discordPayload'
 const { featureCommandsForConfig } = require('../src/applicationCommands');
 const { normalizeGamesConfig, gameCommandAllowed } = require('../src/serverConfig');
 const { createCountingFeature } = require('../src/features/counting');
+const { cooldownPayload, settledPayload, activeSessionPayload } = require('../src/features/work/components/builders');
 const USER = '323456789012345678';
 const GUILD = '123456789012345678';
 const CHANNEL = '223456789012345678';
@@ -104,6 +105,23 @@ test('Reliable Employee adds its active tier bonus to the base 0.01 multiplier p
     // The successful job reaches streak 3: base 0.01 plus only the active tier's bonus.
     assert.equal(result.finalSalary, [10300, 10600, 10900, 11200, 11500][tier]);
     if (tier) assert.ok(track.tiers[tier - 1].perk.includes(`(+0.0${tier + 1} total per point)`));
+  }
+});
+
+test('Work status and completion display the permanent achievement streak bonus after a reset', t => {
+  const { work, achievements, db } = setup(t);
+  for (const [tier, bestStreak] of [0, 5, 20, 50, 100].entries()) {
+    seed(achievements, { best_streak: bestStreak });
+    work.profile(USER);
+    db.prepare('UPDATE work_profiles SET streak=0 WHERE user_id=?').run(USER);
+    const result = job(work, `display-streak-${tier}`);
+    const expected = `Work Streak: 1 \`×1.0${tier + 1} Earnings\``;
+    const profile = work.profile(USER);
+    for (const payload of [settledPayload(result.session, result),
+      cooldownPayload(USER, result.nextWorkAt, profile), activeSessionPayload(USER, result.session, profile)]) {
+      assert.ok(text(payload).includes(expected));
+      assert.deepEqual(messagePayloadErrors(payload), []);
+    }
   }
 });
 

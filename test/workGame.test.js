@@ -298,7 +298,7 @@ test('success atomically applies global cooldown, new-streak salary, shared Bron
   assert.equal(first.finalSalary, 112);
   assert.equal(first.session.salaryCredited, 5);
   assert.equal(repository.balance(USER), MAX_BRONZE_BALANCE);
-  assert.deepEqual(first.profile, { userId: USER, level: 2, xp: 15, streak: 12, cooldownUntil: now + WORK_COOLDOWN_MS });
+  assert.deepEqual(first.profile, { userId: USER, level: 2, xp: 15, streak: 12, cooldownUntil: now + WORK_COOLDOWN_MS, streakBonus: 100 });
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.settle('session', 'succeeded').changed, false);
   assert.equal(repository.balance(USER), MAX_BRONZE_BALANCE);

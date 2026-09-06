@@ -181,7 +181,8 @@ class WorkRepository {
   profile(userId) {
     const id = String(userId);
     this.ensureProfileStatement.run(id, BigInt(number(this.clock())));
-    return hydrateProfile(this.getProfileStatement.get(id));
+    return { ...hydrateProfile(this.getProfileStatement.get(id)),
+      streakBonus: Number(this.achievements.perks(id).streak) };
   }
   inventory(userId, itemKey = WORK_TOKEN_KEY) {
     return number(this.inventoryStatement.get(String(userId), String(itemKey))?.quantity);
