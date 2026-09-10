@@ -1,0 +1,6 @@
+ALTER TABLE work_profiles ADD COLUMN career_id INTEGER;
+ALTER TABLE work_profiles ADD COLUMN career_day_start INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE work_profiles ADD COLUMN daily_completed INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE work_profiles ADD COLUMN daily_boost_tier INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE work_profiles ADD COLUMN salary_boost INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE work_profiles ADD COLUMN job_change_until INTEGER NOT NULL DEFAULT 0;

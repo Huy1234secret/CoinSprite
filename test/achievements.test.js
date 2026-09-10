@@ -81,41 +81,33 @@ test('Work bonuses add exactly, filter Expert earnings, and start on the next jo
   work.profile(USER);
   db.prepare('UPDATE work_profiles SET streak=9 WHERE user_id=?').run(USER);
   const first = job(work, 'threshold', { difficulty: 'expert' });
-  assert.equal(first.finalSalary, 254); // 1 + .1 + .1 + .01 + .0625
+  assert.equal(first.finalSalary, 214); // 200 * (1 + .01 + .0625)
   assert.equal(achievements.snapshot(USER).earned.career_worker, 2);
   const next = job(work, 'next', { difficulty: 'expert' });
-  assert.equal(next.finalSalary, 271); // 200 * (1 + .11 + .11 + .075 + .0625)
+  assert.equal(next.finalSalary, 216); // 200 * (1 + .02 + .0625)
   db.prepare('UPDATE work_profiles SET streak=9 WHERE user_id=?').run(USER);
-  assert.equal(job(work, 'example', { difficulty: 'expert' }).finalSalary, 267);
+  assert.equal(job(work, 'example', { difficulty: 'expert' }).finalSalary, 216);
   db.prepare('UPDATE work_profiles SET streak=9 WHERE user_id=?').run(USER);
-  assert.equal(job(work, 'non-expert').finalSalary, 255);
+  assert.equal(job(work, 'non-expert').finalSalary, 204);
   const before = achievements.snapshot(USER);
   assert.equal(work.settle('example', 'succeeded').changed, false);
   assert.deepEqual(achievements.snapshot(USER), before);
 });
 
-test('Reliable Employee adds its active tier bonus to the base 0.01 multiplier per streak point', t => {
-  const { work, achievements, db } = setup(t);
-  work.profile(USER);
-  const track = CATALOG.find(item => item.id === 'reliable_employee');
-  for (const [tier, bestStreak] of [0, 5, 20, 50, 100].entries()) {
-    seed(achievements, { best_streak: bestStreak });
-    db.prepare('UPDATE work_profiles SET streak=2 WHERE user_id=?').run(USER);
-    const result = job(work, `streak-bonus-${tier}`, { baseSalary: 10000 });
-    // The successful job reaches streak 3: base 0.01 plus only the active tier's bonus.
-    assert.equal(result.finalSalary, [10300, 10600, 10900, 11200, 11500][tier]);
-    if (tier) assert.ok(track.tiers[tier - 1].perk.includes(`(+0.0${tier + 1} total per point)`));
+test('Reliable Employee provides additive percentage points and replaces lower tiers', () => {
+  for (let tier = 0; tier <= 4; tier++) {
+    assert.equal(perks({ reliable_employee: tier }).salaryBoost, BigInt(tier * 500));
   }
 });
 
-test('Work status and completion display the permanent achievement streak bonus after a reset', t => {
+test('Work status and completion display salary boost instead of streaks', t => {
   const { work, achievements, db } = setup(t);
   for (const [tier, bestStreak] of [0, 5, 20, 50, 100].entries()) {
     seed(achievements, { best_streak: bestStreak });
     work.profile(USER);
     db.prepare('UPDATE work_profiles SET streak=0 WHERE user_id=?').run(USER);
     const result = job(work, `display-streak-${tier}`);
-    const expected = `Work Streak: 1 \`×1.0${tier + 1} Earnings\``;
+    const expected = 'Boost salary: 0%';
     const profile = work.profile(USER);
     for (const payload of [settledPayload(result.session, result),
       cooldownPayload(USER, result.nextWorkAt, profile), activeSessionPayload(USER, result.session, profile)]) {
@@ -129,7 +121,7 @@ test('XP uses pre-event perks only; failed/time-out jobs reset live streak witho
   const { work, achievements, db } = setup(t);
   seed(achievements, { work: 249, best_streak: 20 });
   assert.equal(job(work, 'xp-threshold', { xpReward: 100 }).session.xpAwarded, 100);
-  assert.equal(job(work, 'xp-next', { xpReward: 199 }).session.xpAwarded, 200);
+  assert.equal(job(work, 'xp-next', { xpReward: 199 }).session.xpAwarded, 199);
   job(work, 'fail', {}, 'failed');
   assert.equal(achievements.snapshot(USER).progress.streak, 0n);
   assert.equal(achievements.snapshot(USER).earned.reliable_employee, 2);
@@ -175,7 +167,7 @@ test('threshold Counting payout uses old perk, Work crosses the Silver threshold
   assert.equal(count(db, counting, '26th', 100).credited, 110n);
   db.prepare('UPDATE counting_bronze_balances SET balance=999999 WHERE user_id=?').run(USER);
   const result = job(work, 'cap', { difficulty: 'expert' });
-  assert.equal(result.session.salaryCredited, 202);
+  assert.equal(result.session.salaryCredited, 200);
   assert.equal(achievements.snapshot(USER).progress.expert, 1n);
 });
 
@@ -351,7 +343,7 @@ test('backfill is versioned, silent, repeat-safe and based on settled history pl
   const db = openDatabase({ databasePath: ':memory:' });
   migrateCounting(db);
   t.after(() => db.close());
-  db.prepare('INSERT INTO work_profiles VALUES (?,30,0,7,0,0)').run(USER);
+  db.prepare('INSERT INTO work_profiles(user_id,level,xp,streak,cooldown_until,updated_at) VALUES (?,30,0,7,0,0)').run(USER);
   const insert = db.prepare(`INSERT INTO work_sessions(session_id,guild_id,channel_id,user_id,job,difficulty,deadline,state_json,status,created_at,settled_at)
     VALUES (?, ?, ?, ?, 'burger','expert',1,'{}',?, ?, ?)`);
   for (let i = 0; i < 10; i++) insert.run(`old-${i}`, GUILD, CHANNEL, USER, 'succeeded', i, i + 1);

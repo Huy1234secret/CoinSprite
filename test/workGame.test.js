@@ -285,7 +285,7 @@ test('Work difficulty follows level 0, 5, 15, and 30 unlock thresholds', async (
   db.close();
 });
 
-test('success atomically applies global cooldown, new-streak salary across Silver threshold, Work XP, and inventory once', () => {
+test('success atomically applies global cooldown, salary without streak bonuses across Silver threshold, Work XP, and inventory once', () => {
   let now = 1_000_000;
   const { db, repository } = memory(() => now);
   repository.profile(USER);
@@ -295,13 +295,13 @@ test('success atomically applies global cooldown, new-streak salary across Silve
   repository.attachMessage('session', MESSAGE);
   const first = repository.settle('session', 'succeeded');
   assert.equal(first.changed, true);
-  assert.equal(first.finalSalary, 112);
-  assert.equal(first.session.salaryCredited, 112);
-  assert.equal(repository.balance(USER), 1000107n);
-  assert.deepEqual(first.profile, { userId: USER, level: 2, xp: 15, streak: 12, cooldownUntil: now + WORK_COOLDOWN_MS, streakBonus: 100 });
+  assert.equal(first.finalSalary, 100);
+  assert.equal(first.session.salaryCredited, 100);
+  assert.equal(repository.balance(USER), 1000095n);
+  assert.deepEqual(first.profile, { userId: USER, level: 2, xp: 15, streak: 12, cooldownUntil: now + WORK_COOLDOWN_MS, careerId: null, career: null, dayStart: 0, dailyCompleted: 0, dailyBoostTier: 0, salaryBoost: 0, jobChangeUntil: 0, totalCompleted: 1, salaryBoostBonus: 5 });
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.settle('session', 'succeeded').changed, false);
-  assert.equal(repository.balance(USER), 1000107n);
+  assert.equal(repository.balance(USER), 1000095n);
   assert.equal(repository.inventory(USER), 1);
   assert.equal(repository.create(sessionInput({ sessionId: 'other-guild', guildId: OTHER_GUILD })).status, 'cooldown');
   assert.equal(repository.create(sessionInput({ sessionId: 'owner-test', bypassCooldown: true })).status, 'created');
@@ -458,12 +458,12 @@ test('Components V2 payloads stay within limits with unique compact IDs and exac
   const failedPayload = settledPayload({
     sessionId: 'failed', userId: USER, job: 'burger', status: 'failed', failureReason: 'Wrong ingredient.',
   }, { profile: { userId: USER, level: 1, xp: 0, streak: 0, cooldownUntil: 1_600_000 } });
-  assert.match(failedPayload.components[0].components[2].content, /You lose all streaks/);
+  assert.match(failedPayload.components[0].components[2].content, /No salary or Work XP was earned/);
   assert.doesNotMatch(failedPayload.components[0].components[2].content, /Work Streak: 0/);
   const cooldown = cooldownPayload(USER, 1_600_000, { userId: USER, level: 3, xp: 4, streak: 12, cooldownUntil: 1_600_000 });
   assert.match(cooldown.components[0].components[0].content, /<t:1600:R>/);
   assert.match(cooldown.components[0].components[2].content, /Work Level: 3 `4\/240`/);
-  assert.match(cooldown.components[0].components[2].content, /×1\.12 Earnings/);
+  assert.match(cooldown.components[0].components[2].content, /Boost salary: 0%/);
   assert.equal(cooldown.components[0].components[3].components[0].disabled, true);
 });
 

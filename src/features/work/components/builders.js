@@ -26,13 +26,13 @@ function rows(buttons) {
     type: 1, components: buttons.slice(index * 5, index * 5 + 5),
   }));
 }
-function streakText(profile) {
-  const multiplier = 1 + profile.streak * (100 + (profile.streakBonus || 0)) / 10000;
-  return `${WORK_EMOJIS.fire} Work Streak: ${profile.streak} \`×${multiplier.toFixed(2)} Earnings\``;
+function salaryBoostText(profile) {
+  return `${WORK_EMOJIS.fire} Boost salary: ${(profile.salaryBoost || 0) + (profile.careerId ? profile.salaryBoostBonus || 0 : 0)}%`;
 }
 function statusText(_userId, profile) {
   return `${WORK_EMOJIS.level} Work Level: ${profile.level} \`${profile.xp}/${requiredXp(profile.level)}\`\n`
-    + streakText(profile);
+    + salaryBoostText(profile)
+    + (profile.career ? `\nJob: **${profile.career.name}** · Daily work: ${profile.dailyCompleted}/${profile.career.dailyRequired}` : '');
 }
 
 function gameMessage(session) {
@@ -117,7 +117,7 @@ function cooldownPayload(userId, nextWorkAt, profile, options = {}) {
       { type: 10, content: `### <@${userId}>, you can work again <t:${Math.floor(nextWorkAt / 1000)}:R>` },
       { type: 14, divider: true, spacing: 1 },
       { type: 10, content: statusText(userId, profile) },
-      { type: 1, components: [button('status', 'work', { label: 'Work', disabled: true })] },
+      { type: 1, components: [button('status', 'work', { label: 'Work', disabled: true }), button(userId, 'jobs-0', { label: 'Job list' })] },
     ],
   }], options);
 }
@@ -152,9 +152,9 @@ function settledPayload(session, result, options = {}) {
       : '';
     details = `${WORK_EMOJIS.bronze} Salary: +${session.salaryCredited}\n`
       + `${WORK_EMOJIS.level} Work XP: +${session.xpAwarded}\n`
-      + `${streakText(profile)}${levelLine}`;
+      + `${salaryBoostText(profile)}${levelLine}`;
   } else {
-    details = `No salary or Work XP was earned.\n${WORK_EMOJIS.fire} You lose all streaks`;
+    details = `No salary or Work XP was earned.`;
   }
   return checked([{
     type: 17,
@@ -165,9 +165,10 @@ function settledPayload(session, result, options = {}) {
         : `### Job failed\n-# ${session.failureReason || result.reason || 'The job was not completed.'}` },
       { type: 14, divider: true, spacing: 1 },
       { type: 10, content: details },
-      { type: 1, components: [button(session.sessionId, 'back', { label: 'Back' })] },
+      { type: 1, components: [button(session.sessionId, 'back', { label: 'Back' }), button(session.userId, 'jobs-0', { label: 'Job list' })] },
     ],
-  }], { ...options, initial: false });
+  }, ...(result.boostIncreased ? [{ type: 17, accent_color: 0xFACC15, components: [{ type: 10,
+    content: `### <@${session.userId}> Your boss increased your salary for your hard work!\n-# You now earn ${profile.salaryBoost + profile.salaryBoostBonus}% more salary. Nice!` }] }] : [])], { ...options, initial: false });
 }
 
 module.exports = {
