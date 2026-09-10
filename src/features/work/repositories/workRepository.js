@@ -1,5 +1,6 @@
 const { AchievementRepository } = require('../../achievements/repository');
 const { reward } = require('../../achievements/catalog');
+const { CAREERS, DAY_MS, BOOST_GOALS } = require('../data/careers');
 const WORK_COOLDOWN_MS = 10 * 60_000;
 const WORK_TOKEN_KEY = 'work_token';
 
@@ -36,6 +37,10 @@ function hydrateProfile(row) {
     userId: String(row?.user_id || ''),
     level: Math.max(1, number(row?.level) || 1),
     xp: Math.max(0, number(row?.xp)),
+    careerId: number(row?.career_id) || null,
+    dayStart: number(row?.career_day_start), dailyCompleted: number(row?.daily_completed),
+    dailyBoostTier: number(row?.daily_boost_tier), salaryBoost: number(row?.salary_boost),
+    jobChangeUntil: number(row?.job_change_until),
     streak: Math.max(0, number(row?.streak)),
     cooldownUntil: Math.max(0, number(row?.cooldown_until)),
   };
@@ -92,11 +97,13 @@ class WorkRepository {
       this.ensureProfileStatement.run(input.userId, BigInt(now));
       const active = hydrate(this.activeFor.get(input.userId));
       if (active) return { status: 'active', session: active, profile: this.profile(input.userId) };
+      const employment = this.refreshEmployment(input.userId, now);
       const profile = this.profile(input.userId);
+      if (employment.fired || (!profile.careerId && profile.jobChangeUntil > now)) return { status: 'fired', profile };
       if (!input.bypassCooldown && profile.cooldownUntil > now) {
         return { status: 'cooldown', nextWorkAt: profile.cooldownUntil, profile };
       }
-      this.insert.run({ ...input, stateJson: JSON.stringify(input.state), createdAt: BigInt(now) });
+      this.insert.run({ ...input, baseSalary: profile.career?.salary ?? input.baseSalary, stateJson: JSON.stringify(input.state), createdAt: BigInt(now) });
       return { status: 'created', session: hydrate(this.byId.get(input.sessionId)), profile };
     }).immediate;
     this.settleTransaction = db.transaction((sessionId, status, failureReason) => {
@@ -106,12 +113,30 @@ class WorkRepository {
       }
       const now = number(this.clock());
       this.ensureProfileStatement.run(session.userId, BigInt(now));
+      if (this.refreshEmployment(session.userId, now).fired) {
+        status = 'failed';
+        failureReason = 'Your boss fired you for missing the daily work requirement.';
+      }
       const oldProfile = this.profile(session.userId);
+      if (!oldProfile.careerId && oldProfile.jobChangeUntil > now) {
+        status = 'failed';
+        failureReason = 'Your boss fired you for missing the daily work requirement.';
+      }
       const succeeded = status === 'succeeded';
       const streak = succeeded ? oldProfile.streak + 1 : 0;
       const perks = this.achievements.perks(session.userId);
-      const salary = succeeded ? reward(session.baseSalary,
-        (100n + perks.streak) * BigInt(streak) + perks.work + (session.difficulty === 'expert' ? perks.expert : 0n)) : 0n;
+      const salaryBase = session.baseSalary;
+      const boost = oldProfile.career ? BigInt(oldProfile.salaryBoost * 100) + perks.salaryBoost : 0n;
+      const salary = succeeded ? BigInt(salaryBase) * (10000n + boost)
+        * (10000n + perks.work + (session.difficulty === 'expert' ? perks.expert : 0n)) / 100000000n : 0n;
+      let boostIncreased = false;
+      if (succeeded && oldProfile.career) {
+        const completed = oldProfile.dailyCompleted + 1;
+        const tier = BOOST_GOALS.filter(goal => completed >= oldProfile.career.dailyRequired + goal).length;
+        boostIncreased = tier > oldProfile.dailyBoostTier;
+        this.db.prepare('UPDATE work_profiles SET daily_completed=?,daily_boost_tier=?,salary_boost=salary_boost+? WHERE user_id=?')
+          .run(completed, tier, Math.max(0, tier - oldProfile.dailyBoostTier) * 10, session.userId);
+      }
       const finalSalary = Number(salary);
       const xpAwarded = succeeded ? Number(reward(session.xpReward, perks.xp)) : 0;
       const oldBalance = BigInt(this.getBalanceStatement.get(session.userId)?.balance || 0);
@@ -143,7 +168,7 @@ class WorkRepository {
       return {
         changed: true,
         nextWorkAt: cooldownUntil,
-        finalSalary,
+        finalSalary, boostIncreased,
         balance: oldBalance + creditedBigInt,
         session: hydrate(this.byId.get(sessionId)),
         profile: this.profile(session.userId),
@@ -180,7 +205,41 @@ class WorkRepository {
     const id = String(userId);
     this.ensureProfileStatement.run(id, BigInt(number(this.clock())));
     return { ...hydrateProfile(this.getProfileStatement.get(id)),
-      streakBonus: Number(this.achievements.perks(id).streak) };
+      career: CAREERS[number(this.getProfileStatement.get(id)?.career_id) - 1] || null,
+      totalCompleted: Number(this.achievements.snapshot(id).progress.work),
+      salaryBoostBonus: Number(this.achievements.perks(id).salaryBoost) / 100 };
+  }
+  refreshEmployment(userId, now = number(this.clock())) {
+    const profile = this.profile(userId);
+    if (!profile.career || now < profile.dayStart + DAY_MS) return { fired: false };
+    const elapsed = Math.floor((now - profile.dayStart) / DAY_MS);
+    if (profile.dailyCompleted < profile.career.dailyRequired || elapsed > 1) {
+      // Start the lock when the missed requirement is detected, so the firing notice always grants 24 hours.
+      this.db.prepare('UPDATE work_profiles SET career_id=NULL,salary_boost=0,daily_completed=0,daily_boost_tier=0,job_change_until=? WHERE user_id=?')
+        .run(BigInt(now + DAY_MS), String(userId));
+      return { fired: true };
+    }
+    this.db.prepare('UPDATE work_profiles SET career_day_start=?,daily_completed=0,daily_boost_tier=0 WHERE user_id=?')
+      .run(BigInt(profile.dayStart + DAY_MS), String(userId));
+    return { fired: false };
+  }
+  employment(userId) {
+    return this.db.transaction(() => { this.refreshEmployment(String(userId)); return this.profile(userId); }).immediate();
+  }
+  applyCareer(userId, careerId) {
+    return this.db.transaction(() => {
+      const id = String(userId), now = number(this.clock());
+      this.refreshEmployment(id, now);
+      const profile = this.profile(id), career = CAREERS[Number(careerId) - 1];
+      if (!career || profile.level < career.level || profile.totalCompleted < career.totalRequired)
+        return { status: 'requirements', profile };
+      if (profile.careerId === career.id) return { status: 'applied', profile };
+      if (this.getActive(id)) return { status: 'active', profile };
+      if (profile.jobChangeUntil > now) return { status: 'cooldown', profile };
+      this.db.prepare('UPDATE work_profiles SET career_id=?,career_day_start=?,daily_completed=0,daily_boost_tier=0,job_change_until=? WHERE user_id=?')
+        .run(career.id, BigInt(now), BigInt(now + DAY_MS), id);
+      return { status: 'applied', profile: this.profile(id) };
+    }).immediate();
   }
   inventory(userId, itemKey = WORK_TOKEN_KEY) {
     return number(this.inventoryStatement.get(String(userId), String(itemKey))?.quantity);

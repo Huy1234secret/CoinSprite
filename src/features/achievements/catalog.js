@@ -10,14 +10,11 @@ function track(id, name, metric, thresholds, perks, bonuses, slots = medals) {
 }
 const CATALOG = [
   track('career_worker', 'Career Worker', 'work', [10, 50, 250, 1000],
-    ['×1.01 earnings from Work', '×1.075 earnings from Work', '×1.2 earnings from Work; ×1.01 Work XP', '×1.5 earnings from Work; ×1.05 Work XP'],
-    [{ work: 100 }, { work: 750 }, { work: 2000, xp: 100 }, { work: 5000, xp: 500 }]),
+    ['×1.01 earnings from Work', '×1.02 earnings from Work', '×1.04 earnings from Work', '×1.075 earnings from Work'],
+    [{ work: 100 }, { work: 200 }, { work: 400 }, { work: 750 }]),
   track('reliable_employee', 'Reliable Employee', 'streak', [5, 20, 50, 100],
-    ['Each streak point adds an extra +0.01 to Work earnings multiplier (+0.02 total per point)',
-      'Each streak point adds an extra +0.02 to Work earnings multiplier (+0.03 total per point)',
-      'Each streak point adds an extra +0.03 to Work earnings multiplier (+0.04 total per point)',
-      'Each streak point adds an extra +0.04 to Work earnings multiplier (+0.05 total per point)'],
-    [{ streak: 100 }, { streak: 200 }, { streak: 300 }, { streak: 400 }]),
+    ['Salary boost +5 percentage points', 'Salary boost +10 percentage points', 'Salary boost +15 percentage points', 'Salary boost +20 percentage points'],
+    [{ salaryBoost: 500 }, { salaryBoost: 1000 }, { salaryBoost: 1500 }, { salaryBoost: 2000 }]),
   track('career_advancement', 'Career Advancement', 'level', [5, 15, 30],
     ['Unlock Medium jobs', 'Unlock Hard jobs', 'Unlock Expert jobs'], [], medals.slice(0, 3)),
   track('expert_specialist', 'Expert Specialist', 'expert', [10, 25, 50, 100],
@@ -30,7 +27,7 @@ const CATALOG = [
   track('67', '67', 'sixty_seven', [1], ['×1.067 Counting earnings'], [{ counting: 670 }], ['bronze']),
 ];
 function perks(earned) {
-  const result = { work: 0n, expert: 0n, xp: 0n, counting: 0n, streak: 0n };
+  const result = { work: 0n, expert: 0n, xp: 0n, counting: 0n, salaryBoost: 0n };
   for (const item of CATALOG) {
     const active = item.tiers[(earned[item.id] || 0) - 1];
     for (const [key, value] of Object.entries(active?.bonuses || {})) result[key] += BigInt(value);

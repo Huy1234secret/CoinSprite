@@ -6,6 +6,7 @@ const { openDatabase } = require('./repositories/database');
 const { WorkRepository } = require('./repositories/workRepository');
 const { WorkService } = require('./services/workService');
 const { acknowledgeUpdate, sendEphemeral } = require('../shared/interactionResponses');
+const { jobsPayload, firedPayload } = require('./components/careers');
 
 function createWorkFeature(options = {}) {
   const db = options.db || openDatabase({ databasePath: options.databasePath, migrationsPath: options.migrationsPath });
@@ -35,7 +36,9 @@ function createWorkFeature(options = {}) {
       if (!message?.id) throw new Error('Discord did not return the Work message ID.');
       return message.id;
     });
-    if (result.status === 'cooldown') {
+    if (result.status === 'fired') {
+      await source.reply(firedPayload(userId, result.profile, { ephemeral: ephemeralStatus }));
+    } else if (result.status === 'cooldown') {
       await source.reply(cooldownPayload(userId, result.nextWorkAt, result.profile, { ephemeral: ephemeralStatus }));
     } else if (result.status === 'active') {
       await source.reply(activeSessionPayload(userId, result.session, result.profile, { ephemeral: ephemeralStatus }));
@@ -52,6 +55,30 @@ function createWorkFeature(options = {}) {
     const parts = String(interaction.customId).split(':');
     if (parts.length !== 3) return false;
     const [, sessionId, requestedAction] = parts;
+    if (/^(jobs-\d+|apply-\d+|home)$/.test(requestedAction)) {
+      if (sessionId !== String(interaction.user?.id)) {
+        await sendEphemeral(interaction, ownershipDeniedPayload({ ephemeral: true }));
+        return true;
+      }
+      if (options.isCommandAllowed && !options.isCommandAllowed(interaction.guildId, interaction.channelId, 'cs-work')) {
+        await sendEphemeral(interaction, unavailablePayload({ ephemeral: true }));
+        return true;
+      }
+      if (!await acknowledgeUpdate(interaction, { reportError: options.reportError })) return true;
+      let profile = repository.employment(sessionId), notice = '';
+      const applying = requestedAction.startsWith('apply-');
+      const value = Number(requestedAction.split('-')[1]);
+      if (applying) {
+        const result = repository.applyCareer(sessionId, value);
+        profile = result.profile;
+        notice = { applied: 'Your application is accepted.', active: 'Finish your active work before changing jobs.',
+          requirements: 'You do not meet this job’s requirements.', cooldown: `You can apply or change jobs <t:${Math.floor(profile.jobChangeUntil / 1000)}:R>.` }[result.status];
+      }
+      await interaction.message.edit(requestedAction === 'home'
+        ? cooldownPayload(sessionId, profile.cooldownUntil, profile, { initial: false })
+        : jobsPayload(sessionId, profile, applying ? Math.floor((value - 1) / 5) : value, notice, { initial: false }));
+      return true;
+    }
     let action = requestedAction;
     const session = repository.get(sessionId);
     if (!session) {

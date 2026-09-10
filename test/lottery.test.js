@@ -86,7 +86,7 @@ test('draw pays exact prizes above the old cap once and consumes only its own da
   assert.equal(count.processAttempt({ messageId: 'above-cap', guildId: GUILD, channelId: CHANNEL, userId: USER, submittedValue: '1' }).credited, 1n);
   const work = new WorkRepository(db, { clock: () => cutoff('2026-09-07') });
   work.create({ sessionId: 'above-cap', guildId: GUILD, channelId: CHANNEL, userId: USER, job: 'cashier', difficulty: 'easy', deadline: cutoff('2026-09-08'), state: {}, baseSalary: 100, xpReward: 0 });
-  assert.equal(work.settle('above-cap', 'succeeded').session.salaryCredited, 101);
+  assert.equal(work.settle('above-cap', 'succeeded').session.salaryCredited, 100);
   assert.deepEqual(messagePayloadErrors(rollPayload(draw, repo.winners(draw.id), 'https://example.com/profile?tab=inventory')), []);
   assert.deepEqual(messagePayloadErrors(winnerDm(draw, repo.winners(draw.id), 'https://example.com/profile?tab=inventory')), []);
 });
