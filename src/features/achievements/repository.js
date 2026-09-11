@@ -12,6 +12,12 @@ class AchievementRepository {
         db.exec(fs.readFileSync(path.join(__dirname, 'migrations/001_achievements.sql'), 'utf8'));
         db.prepare('INSERT INTO achievement_schema_migrations VALUES (?)').run('001');
       }
+      if (!db.prepare('SELECT 1 FROM achievement_schema_migrations WHERE version=?').get('003_trivia')) {
+        for (const column of ['trivia_easy', 'trivia_medium', 'trivia_hard', 'trivia_level']) {
+          db.exec(`ALTER TABLE achievement_progress ADD COLUMN ${column} INTEGER NOT NULL DEFAULT ${column === 'trivia_level' ? 1 : 0}`);
+        }
+        db.prepare('INSERT INTO achievement_schema_migrations VALUES (?)').run('003_trivia');
+      }
       this.backfill('work');
       this.backfill('counting');
     }).immediate();
@@ -22,7 +28,7 @@ class AchievementRepository {
       || { work: 0n, expert: 0n, streak: 0n, best_streak: 0n, level: 1n, counts: 0n, jackpot: 0n, sixty_seven: 0n };
     const earned = Object.fromEntries(this.db.prepare('SELECT track, MAX(tier) AS tier FROM achievement_medals WHERE user_id=? GROUP BY track').all(userId)
       .map(row => [row.track, Number(row.tier)]));
-    return { progress, earned };
+    return { progress: { trivia_easy: 0n, trivia_medium: 0n, trivia_hard: 0n, trivia_level: 1n, ...progress }, earned };
   }
   perks(userId) { return perks(this.snapshot(userId).earned); }
   unlock(userId, event = null) {

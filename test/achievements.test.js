@@ -71,7 +71,8 @@ test('every exact threshold unlocks permanent slots in order and perks replace l
     achievements.unlock(user);
     assert.equal(achievements.snapshot(user).earned[track.id], track.tiers.length);
   }
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM achievement_medals').get().n, 21n);
+  // Level-15 and level-40 fixtures also unlock their lower Trivia milestones.
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM achievement_medals').get().n, BigInt(CATALOG.reduce((sum, track) => sum + track.tiers.length, 0) + 3));
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM achievement_outbox').get().n, 0n);
 });
 
@@ -195,7 +196,7 @@ test('menu renders compact tracks, permanent medals, next progress and completed
   const second = achievementPayload(USER, service.page(USER, 2));
   assert.deepEqual(messagePayloadErrors(first), []);
   assert.equal(service.page(USER).items.length, 5);
-  assert.equal(service.page(USER, 2).items.length, 2);
+  assert.equal(service.page(USER, 2).items.length, 5);
   assert.match(text(first), /Career Worker\*\* II/);
   assert.match(text(first), /50 \/ 250/);
   assert.match(text(first), /2 \/ 50/);
@@ -211,7 +212,7 @@ test('menu renders compact tracks, permanent medals, next progress and completed
   assert.equal((advancement.content.match(/Medal:/g) || []).length, 3);
   assert.match(text(second), /JACKPOT\*\* I ─ <:CSDMedal/);
   assert.match(text(second), /\*\*67\*\* I ─ <:CSBMedal/);
-  assert.ok(!text(second).includes('CSEMedal'));
+  assert.match(text(second), /Quick Thinker/);
   assert.equal((text(second).match(/Completed <:CSY:1544764502036447232>/g) || []).length, 2);
   assert.doesNotMatch(text(second), /Submit the valid count|MAX|\n\n/);
   assert.deepEqual(first.allowedMentions, { parse: [], users: [], roles: [], repliedUser: false });
@@ -248,7 +249,7 @@ test('commands register and obey Games restrictions; only owners paginate origin
   assert.equal(payload.flags & 64, 64);
   const submit = value => ({ isModalSubmit: () => true, customId: modal.custom_id, user: { id: USER }, fields: { getTextInputValue: () => value },
     async reply(p) { payload = p; }, async deferUpdate() { this.deferred = true; }, async editReply(p) { payload = p; } });
-  for (const value of ['', '0', '-1', '1.1', '1e0', '03', '3', '9'.repeat(10000)]) {
+  for (const value of ['', '0', '-1', '1.1', '1e0', '03', '4', '9'.repeat(10000)]) {
     await feature.handleInteraction({ ...submit(value), editReply() { assert.fail(); } });
     assert.equal(payload.flags & 64, 64);
   }
@@ -256,7 +257,7 @@ test('commands register and obey Games restrictions; only owners paginate origin
   assert.equal(payload.flags & 64, 64);
   await feature.handleInteraction(submit('2'));
   assert.equal(payload.flags, undefined);
-  assert.match(text(payload), /Page 2\/2/);
+  assert.match(text(payload), /Page 2\/3/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM achievement_outbox').get().n, 0n);
 });
 
@@ -354,7 +355,8 @@ test('backfill is versioned, silent, repeat-safe and based on settled history pl
   db.prepare("INSERT INTO counting_processed_messages VALUES ('wrong-count',?,?,?,'incorrect','67',0)").run(GUILD, CHANNEL, USER);
   db.prepare('INSERT INTO counting_bronze_balances VALUES (?,1000000,0)').run('wallet-only');
   const a = new AchievementRepository(db);
-  assert.deepEqual(a.snapshot(USER).progress, { user_id: USER, work: 10n, expert: 10n, streak: 7n, best_streak: 10n, level: 30n, counts: 1n, jackpot: 1n, sixty_seven: 0n });
+  assert.deepEqual(a.snapshot(USER).progress, { user_id: USER, work: 10n, expert: 10n, streak: 7n, best_streak: 10n, level: 30n, counts: 1n, jackpot: 1n, sixty_seven: 0n,
+    trivia_easy: 0n, trivia_medium: 0n, trivia_hard: 0n, trivia_level: 1n });
   const snapshot = a.snapshot(USER);
   new AchievementRepository(db);
   assert.deepEqual(a.snapshot(USER), snapshot);

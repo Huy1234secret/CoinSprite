@@ -29,6 +29,7 @@ const { createAchievementFeature } = require('./src/features/achievements');
 const { AchievementOutbox } = require('./src/features/achievements/outbox');
 const { resolveEmoji } = require('./src/features/achievements/components');
 const { createInventoryFeature } = require('./src/features/inventory');
+const { createTriviaFeature } = require('./src/features/trivia');
 const { createShopFeature } = require('./src/features/shop');
 const { LotteryScheduler } = require('./src/features/lottery/scheduler');
 const { createGuildCreateHandler } = require('./src/guildLifecycle');
@@ -93,6 +94,17 @@ const workGame = runtimeRole === 'panel' ? null : createWorkFeature({
   },
 });
 
+const triviaFeature = runtimeRole === 'panel' ? null : createTriviaFeature({
+  db: workGame.db,
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
+  async editRecovered(session, payload) {
+    const channel = client.channels.cache.get(session.channelId) || await client.channels.fetch(session.channelId);
+    const message = await channel.messages.fetch(session.messageId);
+    await message.edit(payload);
+  },
+  reportError: error => logCommandSystem('Trivia failed: ' + safeErrorMessage(error)),
+});
+
 const inventoryFeature = runtimeRole === 'panel' ? null : createInventoryFeature({
   db: workGame.db,
   isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
@@ -145,6 +157,7 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
 
     startXpDropScheduler(client);
     await workGame.recover();
+    await triviaFeature.recover();
     await client.application.emojis.fetch().catch(error => logCommandSystem(safeErrorMessage(error)));
     await achievementOutbox.start();
     await lotteryScheduler.start();
@@ -204,6 +217,7 @@ if (runtimeStarter.capabilities.bot) {
       if (await inventoryFeature.handleInteraction(interaction)) return;
       if (await achievementFeature.handleInteraction(interaction)) return;
       if (await shopFeature.handleInteraction(interaction)) return;
+      if (await triviaFeature.handleInteraction(interaction)) return;
       if (await handleReactionRoleInteraction(interaction)) return;
       if (await countingGame.handleInteraction(interaction)) return;
       if (await handleLevelingInteraction(interaction)) return;
@@ -222,6 +236,7 @@ if (runtimeStarter.capabilities.bot) {
       if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await achievementFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await shopFeature.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await triviaFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await countingGame.handleMessage(message)) return;
       await handleLevelingMessage(message);
     } catch (error) {
