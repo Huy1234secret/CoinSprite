@@ -25,9 +25,21 @@ const CATALOG = [
     [{ counting: 1000 }, { counting: 2000 }, { counting: 3000 }, { counting: 5000 }]),
   track('jackpot', 'JACKPOT', 'jackpot', [1], ['×1.777 Counting earnings'], [{ counting: 7770 }], ['diamond']),
   track('67', '67', 'sixty_seven', [1], ['×1.067 Counting earnings'], [{ counting: 670 }], ['bronze']),
+  track('quick_thinker', 'Quick Thinker', 'trivia_easy', [20, 100, 400, 1000],
+    ['+1% Trivia earnings', '+3.5% Trivia earnings', '+8% Trivia earnings', '+12.5% Trivia earnings'],
+    [{ trivia: 100 }, { trivia: 350 }, { trivia: 800 }, { trivia: 1250 }]),
+  track('sharp_mind', 'Sharp Mind', 'trivia_medium', [20, 100, 400, 1000],
+    ['+2% Trivia earnings', '+7% Trivia earnings', '+16% Trivia earnings', '+25% Trivia earnings'],
+    [{ trivia: 200 }, { trivia: 700 }, { trivia: 1600 }, { trivia: 2500 }]),
+  track('trivia_mastermind', 'Trivia Mastermind', 'trivia_hard', [20, 100, 400, 1000],
+    ['+4% Trivia earnings', '+14% Trivia earnings', '+32% Trivia earnings', '+50% Trivia earnings'],
+    [{ trivia: 400 }, { trivia: 1400 }, { trivia: 3200 }, { trivia: 5000 }]),
+  track('rising_scholar', 'Rising Scholar', 'trivia_level', [5], ['No perk'], [], ['bronze']),
+  track('knowledge_seeker', 'Knowledge Seeker', 'trivia_level', [15], ['No perk'], [], ['silver']),
+  track('living_encyclopedia', 'Living Encyclopedia', 'trivia_level', [40], ['No perk'], [], ['golden']),
 ];
 function perks(earned) {
-  const result = { work: 0n, expert: 0n, xp: 0n, counting: 0n, salaryBoost: 0n };
+  const result = { work: 0n, expert: 0n, xp: 0n, counting: 0n, salaryBoost: 0n, trivia: 0n };
   for (const item of CATALOG) {
     const active = item.tiers[(earned[item.id] || 0) - 1];
     for (const [key, value] of Object.entries(active?.bonuses || {})) result[key] += BigInt(value);
@@ -38,6 +50,10 @@ function reward(base, bonus) { return BigInt(base) * (SCALE + BigInt(bonus)) / S
 function requirement(item, current, target) {
   const progress = `\`${current} / ${target}\``;
   switch (item.metric) {
+    case 'trivia_easy': return `Answer ${progress} Easy Trivia correctly`;
+    case 'trivia_medium': return `Answer ${progress} Medium Trivia correctly`;
+    case 'trivia_hard': return `Answer ${progress} Hard Trivia correctly`;
+    case 'trivia_level': return `Reach Trivia level ${progress}`;
     case 'work': return `Complete ${progress} jobs`;
     case 'expert': return `Complete ${progress} Expert jobs`;
     case 'streak': return `Complete ${progress} jobs without failing`;

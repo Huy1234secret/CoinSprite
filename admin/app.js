@@ -395,7 +395,7 @@
       commandSettings: (Array.isArray(config?.games?.commandSettings) ? config.games.commandSettings : []).map((setting, index) => ({
         id: String(setting?.id || `setting-${index + 1}`),
         channelIds: [...new Set((Array.isArray(setting?.channelIds) ? setting.channelIds : []).map(String).filter(Boolean))],
-        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop'].includes(command)))],
+        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop', 'cs-trivia'].includes(command)))],
       })),
     };
   }
@@ -2870,6 +2870,7 @@
       ['cs-inventory', 'Inventory (/cs-inventory and csinventory)'],
       ['cs-achievements', 'Achievements (/cs-achievements and csachievements)'],
       ['cs-shop', 'Shop (/cs-shop and csshop)'],
+      ['cs-trivia', 'Trivia (/cs-trivia and cstrivia)'],
     ];
     elements.gameCommandSettings.innerHTML = settings.length ? settings.map((setting, index) => `
       <article class="game-command-setting" data-game-setting="${index}">
