@@ -151,10 +151,22 @@ test('all payload states fit Discord limits and reveal the right colors', t => {
   assert.deepEqual(messagePayloadErrors(game({ ...reveal, status: 'ended' })), []);
 });
 test('question bank has four unique choices and avoids repeats until exhausted', () => {
+  const allQuestions = new Set();
   for (const difficulty of Object.keys(BANK)) {
+    assert.equal(BANK[difficulty].length, 300, `${difficulty} must contain 300 questions`);
+    for (const [prompt, ...answers] of BANK[difficulty]) {
+      const normalized = value => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      assert.ok(prompt.length > 10 && prompt.length <= 500, prompt);
+      assert.equal(answers.length, 4, prompt);
+      assert.equal(new Set(answers.map(normalized)).size, 4, prompt);
+      assert.ok(answers.every(answer => answer.trim() === answer && answer.length > 0 && answer.length <= 80), prompt);
+      assert.equal(allQuestions.has(normalized(prompt)), false, `Duplicate question: ${prompt}`);
+      allQuestions.add(normalized(prompt));
+    }
     let seen = [];
     for (let i = 0; i < BANK[difficulty].length; i++) {
       const q = question(difficulty, seen, () => 0);
+      assert.equal(q.answers[q.correct], BANK[difficulty][q.seen.at(-1)][1]);
       assert.equal(new Set(q.answers).size, 4); assert.ok(q.answers.every(a => a.length <= 80));
       assert.equal(q.seen.length, i + 1); seen = q.seen;
     }

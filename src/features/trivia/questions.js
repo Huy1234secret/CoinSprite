@@ -1,6 +1,6 @@
 const { randomInt } = require('node:crypto');
 
-// Original, local multiple-choice bank: no network dependency during a timed game.
+// Original questions stay first so persisted seen indices retain their meaning.
 // The first answer in each source row is correct; choices are shuffled for display.
 const BANK = {
   easy: [
@@ -55,6 +55,11 @@ const BANK = {
     ['Which mathematician introduced the famous seven bridges of Konigsberg solution?', 'Leonhard Euler', 'Carl Gauss', 'Pierre Fermat', 'Blaise Pascal'],
   ],
 };
+// Imported questions are bundled locally; playing never calls an external API.
+// Attribution and licensing: data/ATTRIBUTION.md.
+for (const difficulty of Object.keys(BANK)) {
+  BANK[difficulty].push(...require(`./data/${difficulty}.json`));
+}
 function question(difficulty, seen = [], random = randomInt) {
   const bank = BANK[difficulty];
   let available = bank.map((_, i) => i).filter(i => !seen.includes(i));

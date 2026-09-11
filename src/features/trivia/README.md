@@ -31,10 +31,14 @@ correct answers in Easy, Medium and Hard respectively. Their coin bonuses are
 1/3.5/8/12.5%, 2/7/16/25%, and 4/14/32/50%. Rising Scholar (level 5), Knowledge
 Seeker (15), and Living Encyclopedia (40) award medals without earning perks.
 
-The local bank contains 15 questions per difficulty. Choices shuffle on each
+The local bank contains 300 questions per difficulty (900 total). Choices shuffle on each
 question and questions do not repeat until that difficulty's bank is exhausted.
-Extend `questions.js` with four distinct choices, keeping the correct choice
-first in each source row and each choice within Discord's 80-character limit.
+The original 15 questions remain first in `questions.js`, followed by 285
+imported questions in each `data/<difficulty>.json` file. Keep this ordering
+stable because saved sessions store question indices. Each row contains a
+question, its correct choice, and three incorrect choices; answer labels must
+fit Discord's 80-character limit. Imported data is attributed and licensed in
+[`data/ATTRIBUTION.md`](data/ATTRIBUTION.md). No network access is needed to play.
 
 SQLite transactions settle each question once and save the answer, wallet,
 profile, achievements and announcement outbox together. Duplicate clicks and
