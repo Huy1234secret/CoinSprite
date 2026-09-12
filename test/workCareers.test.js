@@ -126,7 +126,7 @@ test('job buttons enforce owner and channel restrictions and navigate/apply on t
   await click('apply-100'); assert.equal(repo.profile('u').careerId, 100); assert.match(JSON.stringify(edited), /Applied/);
   edited = undefined; followedUp = undefined;
   await click('apply-99'); assert.equal(edited, undefined); assert.equal(followedUp.flags, 64);
-  assert.match(followedUp.content, /You can apply or change jobs/);
+  assert.match(followedUp.content, /You still have a job application cooldown/);
   await click('home'); assert.match(JSON.stringify(edited), /Job list/);
 });
 test('a late success cannot restore employment or collect salary after a menu detects firing', t => {
