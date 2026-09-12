@@ -73,13 +73,13 @@ function createWorkFeature(options = {}) {
         profile = result.profile;
         if (result.status === 'cooldown') {
           await sendEphemeral(interaction, {
-            content: `You can apply or change jobs <t:${Math.floor(profile.jobChangeUntil / 1000)}:R>.`,
+            content: `You still have a job application cooldown. Try again <t:${Math.floor(profile.jobChangeUntil / 1000)}:R>.`,
             flags: 64,
           });
           return true;
         }
         notice = { applied: 'Your application is accepted.', active: 'Finish your active work before changing jobs.',
-          requirements: 'You do not meet this job’s requirements.', cooldown: `You can apply or change jobs <t:${Math.floor(profile.jobChangeUntil / 1000)}:R>.` }[result.status];
+          requirements: 'You do not meet this job’s requirements.' }[result.status];
       }
       await interaction.message.edit(requestedAction === 'home'
         ? cooldownPayload(sessionId, profile.cooldownUntil, profile, { initial: false })
