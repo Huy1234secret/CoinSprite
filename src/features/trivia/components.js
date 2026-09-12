@@ -10,8 +10,8 @@ const button = (label, custom_id, disabled = false, style = 2) => ({ type: 2, la
 function menu(userId, profile, options = {}) {
   const filled = Math.min(10, Math.floor(profile.xp / profile.nextXp * 10));
   return v2Payload([{ type: 17, accent_color: 0xFFFFFF, components: [
-    text(`### <@${userId}> Welcome to Trivia game\n\n- Trivia level: ${profile.level}\n\n${'▰'.repeat(filled)}${'▱'.repeat(10 - filled)} ${profile.xp}/${profile.nextXp} XP`),
-    separator(), text('Select a difficulty to begin'), separator(),
+    text(`### 🧠 Welcome to Trivia, <@${userId}>!\n⭐ Trivia level: ${profile.level}\n\`${'█'.repeat(filled)}${'░'.repeat(10 - filled)}\` **${profile.xp}/${profile.nextXp} XP**`),
+    separator(), text('🎮 Choose a difficulty to start!'),
     row(Object.entries(DIFFICULTIES).map(([key, value]) => button(value.label, `cstrivia:start:${userId}:${key}`, profile.level < value.level))),
   ] }], options);
 }
