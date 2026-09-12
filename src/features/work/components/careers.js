@@ -15,7 +15,6 @@ function jobsPayload(user, profile, requestedPage = 0, notice = '', options = {}
     ? `### Your job: ${profile.career.name}\n-# Daily work: ${profile.dailyCompleted}/${profile.career.dailyRequired}. Resets <t:${Math.floor((profile.dayStart + 86400000) / 1000)}:R>.`
     : '### You don’t have a job yet.\n-# Select a job to apply.' }];
   if (notice) components.push({ type: 10, content: notice });
-  if (profile.jobChangeUntil) components.push({ type: 10, content: `-# Job application/change cooldown: <t:${Math.floor(profile.jobChangeUntil / 1000)}:R>.` });
   components.push(separator());
   for (const career of CAREERS.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)) {
     const levelOk = profile.level >= career.level, workOk = profile.totalCompleted >= career.totalRequired;
