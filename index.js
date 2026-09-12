@@ -154,6 +154,16 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
       console.log(`[WS] ${client.ws.ping} ms`);
     }, 5000).unref();
 
+    let expected = Date.now() + 1000;
+    setInterval(() => {
+      const now = Date.now();
+      const lag = now - expected;
+      if (lag > 20) {
+        console.log(`Event loop lag: ${lag}ms`);
+      }
+      expected = now + 1000;
+    }, 1000).unref();
+
     await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
       logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
     });
