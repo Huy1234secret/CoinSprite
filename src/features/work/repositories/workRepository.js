@@ -236,7 +236,7 @@ class WorkRepository {
       if (profile.careerId === career.id) return { status: 'applied', profile };
       if (this.getActive(id)) return { status: 'active', profile };
       if (profile.jobChangeUntil > now) return { status: 'cooldown', profile };
-      this.db.prepare('UPDATE work_profiles SET career_id=?,career_day_start=?,daily_completed=0,daily_boost_tier=0,job_change_until=? WHERE user_id=?')
+      this.db.prepare('UPDATE work_profiles SET career_id=?,career_day_start=?,daily_completed=0,daily_boost_tier=0,salary_boost=0,job_change_until=? WHERE user_id=?')
         .run(career.id, BigInt(now), BigInt(now + DAY_MS), id);
       return { status: 'applied', profile: this.profile(id) };
     }).immediate();
