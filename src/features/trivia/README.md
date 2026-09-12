@@ -31,13 +31,34 @@ correct answers in Easy, Medium and Hard respectively. Their coin bonuses are
 1/3.5/8/12.5%, 2/7/16/25%, and 4/14/32/50%. Rising Scholar (level 5), Knowledge
 Seeker (15), and Living Encyclopedia (40) award medals without earning perks.
 
-The local bank contains 300 questions per difficulty (900 total). Choices shuffle on each
-question and questions do not repeat until that difficulty's bank is exhausted.
-The original 15 questions remain first in `questions.js`, followed by 285
-imported questions in each `data/<difficulty>.json` file. Keep this ordering
-stable because saved sessions store question indices. Each row contains a
-question, its correct choice, and three incorrect choices; answer labels must
-fit Discord's 80-character limit. Imported data is attributed and licensed in
+The local bank contains **350 questions per difficulty (1,050 total)**. Topic
+breadth grows with difficulty, while the questions within shared topics deepen:
+
+| Difficulty | Topics |
+| --- | --- |
+| Easy: 6 types | Everyday knowledge, animals, food, basic maths, simple science, familiar geography and landmarks |
+| Medium: 14 types | All Easy topics plus history, sports, technology, movies/TV, music, popular video games, cartoons, and anime |
+| Hard: 22 types | All Medium topics plus advanced science, advanced maths, literature/comics, mythology, art/architecture, programming, gaming lore, and anime lore |
+
+Easy uses 350 original general-knowledge questions rather than imported fandom
+questions. Medium uses school-level knowledge and broader entertainment. Hard
+uses more specialized questions, including within shared topics. A question's
+topic appears above its prompt; players still select difficulty, not category.
+`types.js` defines cumulative topic allowlists, checked when the banks load.
+
+Each `data/<difficulty>.json` record contains a stable `id`, topic `type`,
+`source`, and `row`: `[question, correct, incorrect, incorrect, incorrect]`.
+Answer labels must fit Discord's 80-character limit. Choices shuffle on each
+question and prompts do not repeat until that difficulty's bank is exhausted.
+Retain a question's ID when correcting it or moving it between banks.
+
+New sessions store stable IDs instead of array positions. `data/legacy-ids.json`
+maps the previous 300-question banks' indices to those IDs, preserving history
+for retained questions. An already displayed question keeps its persisted
+answers and timer, then advances into the new bank after settlement. Do not
+reorder or regenerate the legacy mapping during future data updates.
+
+Data licensing and source attribution are in
 [`data/ATTRIBUTION.md`](data/ATTRIBUTION.md). No network access is needed to play.
 
 SQLite transactions settle each question once and save the answer, wallet,

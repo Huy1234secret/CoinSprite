@@ -1,1997 +1,4202 @@
 [
-  [
-    "Who was the previous drummer of blink-182 before Travis Barker?",
-    "Scott Raynor",
-    "Atom Willard",
-    "Ilan Rubin",
-    "Derek Grant"
-  ],
-  [
-    "During World War I, which nation's monarchs were blood related?",
-    "England, Germany, Russia",
-    "France, Russia, Germany",
-    "Serbia, Russia, Croatia",
-    "Germany, Spain, Austria"
-  ],
-  [
-    "In 2004, which person(s) created \"Roblox\"?",
-    "David Baszucki and Erik Cassel",
-    "Erik Cassel",
-    "Jonas Alto and Sarah Smith",
-    "James Kolein"
-  ],
-  [
-    "What scientific suborder does the family Hyaenidae belong to?",
-    "Feliformia",
-    "Haplorhini",
-    "Caniformia",
-    "Ciconiiformes"
-  ],
-  [
-    "In the Beatrix Potter books, what type of animal is Tommy Brock?",
-    "Badger",
-    "Fox",
-    "Frog",
-    "Rabbit"
-  ],
-  [
-    "Which of these is a semiconductor amplifying device?",
-    "transistor",
-    "tube",
-    "diode",
-    "P-N junction"
-  ],
-  [
-    "Akatsuki's subclass in \"Log Horizon\" is what?",
-    "Tracker",
-    "Assassin",
-    "Scribe",
-    "Apprentice"
-  ],
-  [
-    "Which of these Indian languages is not part of the Indo-European language family?",
-    "Tamil",
-    "Hindi",
-    "Punjabi",
-    "Urdu"
-  ],
-  [
-    "How old was Laurence Fishburne when Francis Ford Coppola cast him in Apocalypse Now (1979)?",
-    "14",
-    "16",
-    "18",
-    "20"
-  ],
-  [
-    "What was the development code name for the \"Urza's Destiny\" expansion for \"Magic: The Gathering\", released in 1999?",
-    "Chimichanga",
-    "Burrito",
-    "Taquito",
-    "Enchilada"
-  ],
-  [
-    "What was the first successful and commercially viable photographic technique?",
-    "The Daguerreotype",
-    "Collodion process",
-    "The Turin Shroud",
-    "Kodachrome film"
-  ],
-  [
-    "What is the smallest number that can be expressed as the sum of two positive cubes in two different ways?",
-    "1729",
-    "91",
-    "561",
-    "4104"
-  ],
-  [
-    "Dutch computer scientist Mark Overmars is known for creating which game development engine?",
-    "Game Maker",
-    "Stencyl",
-    "Construct",
-    "Torque 2D"
-  ],
-  [
-    "Which of these European cities was the first to host the modern Summer Olympic Games three times?",
-    "London",
-    "Paris",
-    "Athens",
-    "Rome"
-  ],
-  [
-    "Which of these is NOT a car model produced by Malaysian car manufacturer Proton?",
-    "Kelisa",
-    "Saga",
-    "Perdana",
-    "Inspira"
-  ],
-  [
-    "The theme for the popular science fiction series \"Doctor Who\" was composed by who?",
-    "Ron Grainer",
-    "Murray Gold",
-    "Delia Derbyshire",
-    "Peter Howell"
-  ],
-  [
-    "What is the largest freshwater lake by volume?",
-    "Lake Baikal",
-    "Lake Superior",
-    "Lake Huron",
-    "Lake Michigan"
-  ],
-  [
-    "Which nation joined NATO as its 29th member in 2017?",
-    "Montenegro",
-    "Estonia",
-    "Andorra",
-    "Iceland"
-  ],
-  [
-    "Which of the following films was Don Bluth both the writer, director, and producer for?",
-    "All Dogs Go To Heaven",
-    "Titan A.E.",
-    "Anastasia",
-    "The Land Before Time"
-  ],
-  [
-    "In the Homestuck Series, what is the alternate name for the Kingdom of Lights?",
-    "Prospit",
-    "No Name",
-    "Golden City",
-    "Yellow Moon"
-  ],
-  [
-    "Who is a minor god that is protector and creator of various arts, such as cheese making and bee keeping.",
-    "Aristaeus",
-    "Autonoe",
-    "Carme",
-    "Cephisso"
-  ],
-  [
-    "Who wrote the lyrics for Leonard Bernstein's 1957 Brodway musical West Side Story?",
-    "Stephen Sondheim",
-    "Himself",
-    "Oscar Hammerstein",
-    "Richard Rodgers"
-  ],
-  [
-    "Gabe Newell was born in which year?",
-    "1962",
-    "1970",
-    "1960",
-    "1972"
-  ],
-  [
-    "Who built the first laser?",
-    "Theodore Harold Maiman",
-    "Nikola Tesla",
-    "Jack Kilby",
-    "Edith Clarke"
-  ],
-  [
-    "Which of these artists did NOT feature in the fitfh studio album \"Humanz\" by British virtual band Gorillaz?",
-    "Snoop Dogg",
-    "Vince Staples",
-    "Pusha T",
-    "Danny Brown"
-  ],
-  [
-    "When was the \"Siege of Leningrad\" lifted during World War II?",
-    "January 1944",
-    "September 1943",
-    "November 1943",
-    "March 1944"
-  ],
-  [
-    "In the \"Halo\" series, what is the name of the race of aliens humans refer to as \"Grunts\"?",
-    "Unggoy",
-    "Huragok",
-    "Sangheili",
-    "Yanme'e"
-  ],
-  [
-    "What type of creature is a Bonobo?",
-    "Ape",
-    "Lion",
-    "Parrot",
-    "Wildcat"
-  ],
-  [
-    "In the Harry Potter universe, what is Cornelius Fudge's middle name?",
-    "Oswald",
-    "James",
-    "Harold",
-    "Christopher"
-  ],
-  [
-    "Which of the following liquids is least viscous? Assume temperature is 25°C.",
-    "Acetone",
-    "Water",
-    "Mercury",
-    "Benzene"
-  ],
-  [
-    "Who is the horror manga artist who made Uzumaki?",
-    "Junji Ito",
-    "Kazuo Umezu",
-    "Shintaro Kago",
-    "Sui Ishida"
-  ],
-  [
-    "Xanthophobia is the fear of what color?",
-    "Yellow",
-    "Blue",
-    "Red",
-    "Green"
-  ],
-  [
-    "In order to cut costs, what were most of the extras of Mad Max (1979) paid with?",
-    "Beer",
-    "Fast food",
-    "Food stamps",
-    "They weren't paid"
-  ],
-  [
-    "Which card is on the cover of the Beta rulebook of \"Magic: The Gathering\"?",
-    "Bog Wraith",
-    "Island",
-    "Rock Hydra",
-    "Elvish Archers"
-  ],
-  [
-    "How many paint and pastel versions of \"The Scream\" is Norwegian painter Edvard Munch believed to have produced?",
-    "4",
-    "1",
-    "3",
-    "2"
-  ],
-  [
-    "Which of these did mathematician Leonhard Euler NOT develop?",
-    "An improvement to the Fast Fourier Transform",
-    "A method of solving first-order differential equations",
-    "An identity linking the numbers e, pi and i",
-    "A formula linking vertices, edges and faces on a graph"
-  ],
-  [
-    "What type of sound chip does the Super Nintendo Entertainment System (SNES) have?",
-    "ADPCM Sampler",
-    "FM Synthesizer",
-    "Programmable Sound Generator (PSG)",
-    "PCM Sampler"
-  ],
-  [
-    "How many times did Martina Navratilova win the Wimbledon Singles Championship?",
-    "Nine",
-    "Ten",
-    "Seven",
-    "Eight"
-  ],
-  [
-    "Which of the following FIA Rally cars was approved for use in the Group B class first?",
-    "Porsche 911 Turbo",
-    "Audi Quattro A2",
-    "BMW M1",
-    "Lancia Rally 037"
-  ],
-  [
-    "In Star Trek, what is the name of Spock's father?",
-    "Sarek",
-    "Tuvok",
-    "T'Pal",
-    "Surak"
-  ],
-  [
-    "What North American tourist attraction is served by the \"Maid of the Mist\" tour company?",
-    "Niagara Falls",
-    "Whistler, British Columbia",
-    "Disney World",
-    "Yosemite National Park"
-  ],
-  [
-    "Who was the longest-serving senator in US history, serving from 1959 to 2010?",
-    "Robert Byrd",
-    "Daniel Inouye",
-    "Strom Thurmond",
-    "Joe Biden"
-  ],
-  [
-    "Benny, Brain, Fancy-Fancy, Spook and Choo-Choo were known associates of what Hanna Barbera cartoon character?",
-    "Top Cat",
-    "Yogi Bear",
-    "Snagglepuss",
-    "Scooby-Doo"
-  ],
-  [
-    "When was the Garfield comic first published?",
-    "1978",
-    "1982",
-    "1973",
-    "1988"
-  ],
-  [
-    "Who did Hippomenes defeat in a footrace?",
-    "Atalanta",
-    "Peleus",
-    "Theseus",
-    "Jason"
-  ],
-  [
-    "Who played \"Charlie Price\" in the musical \"Kinky Boots\" on Broadway in New York from May 26th - Aug 6th 2017?",
-    "Brendon Urie",
-    "Ed Sheeren",
-    "Tom Cruise",
-    "Dallon Weekes"
-  ],
-  [
-    "Which round does a WW2 M1 Garand fire?",
-    ".30-06",
-    ".308",
-    "7.62",
-    "7.62x51mm"
-  ],
-  [
-    "Which of the following is NOT a real song from the band Thousand Foot Krutch?",
-    "Limitless Fury",
-    "Let The Sparks Fly",
-    "Down",
-    "Give Up The Ghost"
-  ],
-  [
-    "The Arab Spring was a series of protests and rebellions that began in which of these Arab nations?",
-    "Tunisia",
-    "Morocco",
-    "Syria",
-    "Egypt"
-  ],
-  [
-    "In the game \"VA-11 Hall-A\" during Virgilio's ending, Virgilio opens his own:",
-    "Curry Stand",
-    "Bar",
-    "Museum",
-    "Law Firm"
-  ],
-  [
-    "What is the scientific name of the cheetah?",
-    "Acinonyx jubatus",
-    "Panthera onca",
-    "Lynx rufus",
-    "Felis catus"
-  ],
-  [
-    "Which author and poet famously wrote the line, \"The female of the species is more deadly than the male\"?",
-    "Rudyard Kipling",
-    "Edgar Allan Poe",
-    "William Shakespeare",
-    "William Wordsworth"
-  ],
-  [
-    "Which of the following plastic is commonly used for window frames, gutters and drain pipes?",
-    "Polyvinylchloride (PVC)",
-    "Polyethylene (PE)",
-    "Polypropylene (PP)",
-    "Polystyrene (PS)"
-  ],
-  [
-    "Who was the Author of the manga Monster Hunter Orage?",
-    "Hiro Mashima",
-    "Shin Yamamoto",
-    "Keiichi Hikami",
-    "Hirohiko Araki"
-  ],
-  [
-    "What was Bank of America originally established as?",
-    "Bank of Italy",
-    "Bank of Long Island",
-    "Bank of Pennsylvania",
-    "Bank of Charlotte"
-  ],
-  [
-    "In the movie \"Scream\" who is Ghost Face?",
-    "Billy Loomis and Stu Macher",
-    "Dewey Riley",
-    "Sidney Prescott",
-    "Archie Prescott and Philip Marv"
-  ],
-  [
-    "Which ability from the \"Magic: The Gathering\" Scars of Mirrodin expansion involves having at least three artifacts in play?",
-    "Metalcraft",
-    "Affinity",
-    "Imprint",
-    "Living Weapon"
-  ],
-  [
-    "Albrecht Dürer's birthplace and place of death were in...",
-    "Nürnberg",
-    "Augsburg",
-    "Bamberg",
-    "Berlin"
-  ],
-  [
-    "Integration is the reverse of what mathematical operation?",
-    "Differentiation",
-    "Division",
-    "Standard Deviation",
-    "Multiplication"
-  ],
-  [
-    "Which of the following computer components can be built using only NAND gates?",
-    "ALU",
-    "CPU",
-    "RAM",
-    "Register"
-  ],
-  [
-    "Which male player won the gold medal of table tennis singles in 2016 Olympics Games?",
-    "Ma Long (China)",
-    "Zhang Jike (China)",
-    "Jun Mizutani (Japan)",
-    "Vladimir Samsonov (Belarus)"
-  ],
-  [
-    "The difference between the lengths of a Boeing 777-300ER and an Airbus A350-1000 is closest to:",
-    "0.1m",
-    "1m",
-    "10m",
-    "100m"
-  ],
-  [
-    "In \"Star Trek\", what sauce is commonly used by Klingons on bregit lung?",
-    "Grapok sauce",
-    "Gazorpazorp pudding",
-    "Sweet chili sauce",
-    "Grapork sauce"
-  ],
-  [
-    "What is the name of the Canadian national anthem?",
-    "O Canada",
-    "O Red Maple",
-    "Leaf-Spangled Banner",
-    "March of the Puck Drop"
-  ],
-  [
-    "\"Yes, America Can!\" was this United States politician's de facto campaign slogan in 2004.",
-    "George W. Bush",
-    "John Kerry",
-    "Barack Obama",
-    "Al Gore"
-  ],
-  [
-    "Which cartoon family lives in 31 Spooner Street, Quahog, Rhode Island USA?",
-    "The Griffins",
-    "The Simpsons",
-    "The Jetsons",
-    "The Hills"
-  ],
-  [
-    "In what Homestuck Update was [S] Game Over released?",
-    "October 25th, 2014",
-    "April 13th, 2009",
-    "April 8th, 2012",
-    "August 28th, 2003"
-  ],
-  [
-    "Which Norse God has a horse named Sleipnir?",
-    "Odin",
-    "Thor",
-    "Frigg",
-    "Balder"
-  ],
-  [
-    "Who was not in the band \"The Smiths\"?",
-    "Martin Chambers",
-    "Morrissey",
-    "Andy Rourke",
-    "Mike Joyce"
-  ],
-  [
-    "Who was the President of the United States during the signing of the Gadsden Purchase?",
-    "Franklin Pierce",
-    "Andrew Johnson",
-    "Abraham Lincoln",
-    "James Polk"
-  ],
-  [
-    "Which drive form was added into Kingdom Hearts II Final Mix?",
-    "Limit Form",
-    "Valor Form",
-    "Wisdom Form",
-    "Anti Form"
-  ],
-  [
-    "Which of the following is another name for the \"Poecilotheria Metallica Tarantula\"?",
-    "Gooty",
-    "Hopper",
-    "Silver Stripe",
-    "Woebegone"
-  ],
-  [
-    "In which classic novel is there a character named Homer Simpson?",
-    "The Day of the Locust",
-    "Catch-22",
-    "Of Mice and Men",
-    "A Separate Peace"
-  ],
-  [
-    "What is the scientific name of the red fox?",
-    "Vulpes Vulpes",
-    "Vulpes Redus",
-    "Red Fox",
-    "Vulpes Vulpie"
-  ],
-  [
-    "In \"Hunter x Hunter\", what are members in Killua's family known for being?",
-    "Assassins",
-    "Bandits",
-    "Hunters",
-    "Ninjas"
-  ],
-  [
-    "Virtual reality company Oculus VR lost which of it's co-founders in a freak car accident in 2013?",
-    "Andrew Scott Reisse",
-    "Nate Mitchell",
-    "Jack McCauley",
-    "Palmer Luckey"
-  ],
-  [
-    "In the Friday The 13th series, what year did Jason drown in?",
-    "1957",
-    "1955",
-    "1953",
-    "1959"
-  ],
-  [
-    "What do you declare in Rīchi Mahjong when you've drawn your winning tile?",
-    "Tsumo",
-    "Ron",
-    "Rīchi",
-    "Kan"
-  ],
-  [
-    "What nationality was the famous artist Pablo Picasso?",
-    "Spanish",
-    "French",
-    "Italian",
-    "German"
-  ],
-  [
-    "What is the plane curve proposed by Descartes to challenge Fermat's extremum-finding techniques called?",
-    "Folium of Descartes",
-    "Elliptic Paraboloid of Descartes",
-    "Cartesian Coordinates",
-    "Descarte's Helicoid"
-  ],
-  [
-    "What is the maximum value of a 32-bit signed binary integer?",
-    "2,147,483,647",
-    "255",
-    "2048",
-    "9,223,372,036,854,775,807"
-  ],
-  [
-    "Which year was the third Super Bowl held?",
-    "1969",
-    "1968",
-    "1971",
-    "1970"
-  ],
-  [
-    "What model was the sports car gifted to Yuri Gagarin by the French government in 1965?",
-    "Matra Djet",
-    "Porsche 911",
-    "Alpine A110",
-    "AC Cobra"
-  ],
-  [
-    "Which of these voices wasn't a choice for the House AI in \"The Simpsons Treehouse of Horror\" short, House of Whacks?",
-    "George Clooney",
-    "Matthew Perry",
-    "Dennis Miller",
-    "Pierce Brosnan"
-  ],
-  [
-    "How many islands does Kuwait have?",
-    "9",
-    "3",
-    "6",
-    "2"
-  ],
-  [
-    "In the web-comic Homestuck, what is the name of the game the 4 kids play?",
-    "Sburb",
-    "Homesick",
-    "Husslie",
-    "Hiveswap"
-  ],
-  [
-    "Better known by his nickname Logan, what is Wolverine's birth name?",
-    "James Howlett",
-    "Logan Wolf",
-    "Thomas Wilde",
-    "John Savage"
-  ],
-  [
-    "Which member of the English band \"The xx\" released their solo album \"In Colour\" in 2015?",
-    "Jamie xx",
-    "Romy Madley Croft",
-    "Oliver Sim",
-    "Baria Qureshi"
-  ],
-  [
-    "When did Spanish Peninsular War start?",
-    "1808",
-    "1806",
-    "1810",
-    "1809"
-  ],
-  [
-    "Which gaming series includes \"The Diabolical Box\" and \"The Curious Village\"?",
-    "Professor Layton",
-    "Persona",
-    "Etrian Odyssey",
-    "Sam & Max"
-  ],
-  [
-    "Which of these animals is NOT a lizard?",
-    "Tuatara",
-    "Komodo Dragon",
-    "Gila Monster",
-    "Green Iguana"
-  ],
-  [
-    "What is the name of the town in which Lily and James Potter are buried?",
-    "Godric's Hollow",
-    "Hogsmeade",
-    "Ottery St. Catchpole",
-    "Little Hangleton"
-  ],
-  [
-    "How many types of quarks are there in the standard model of physics?",
-    "6",
-    "2",
-    "3",
-    "4"
-  ],
-  [
-    "Which animation studio animated \"Hidamari Sketch\"?",
-    "Shaft",
-    "Trigger",
-    "Kyoto Animation",
-    "Production I.G"
-  ],
-  [
-    "Which product did Nokia, the telecommunications company, originally sell?",
-    "Paper",
-    "Phones",
-    "Computers",
-    "Processors"
-  ],
-  [
-    "What was the last Marx Brothers film to feature Zeppo?",
-    "Duck Soup",
-    "A Night at the Opera",
-    "A Day at the Races",
-    "Monkey Business"
-  ],
-  [
-    "Painter Piet Mondrian (1872 - 1944) was a part of what movement?",
-    "Neoplasticism",
-    "Precisionism",
-    "Cubism",
-    "Impressionism"
-  ],
-  [
-    "What is the derivative of Acceleration with respect to time?",
-    "Jerk",
-    "Shift",
-    "Bump",
-    "Slide"
-  ],
-  [
-    "What is the codename of the eighth generation Intel Core micro-architecture launched in October 2017?",
-    "Coffee Lake",
-    "Sandy Bridge",
-    "Skylake",
-    "Broadwell"
-  ],
-  [
-    "Which player \"kung-fu kicked\" a Crystal Palace fan in January 1995?",
-    "Eric Cantona",
-    "David Seamen",
-    "Ashley Cole",
-    "Mark Hughes"
-  ],
-  [
-    "Which Variable Valve Timing technology is used by BMW?",
-    "VANOS",
-    "VVT-iw",
-    "VVEL",
-    "MultiAir"
-  ],
-  [
-    "In \"It's Always Sunny in Philadelphia\" what was the name of Frank's wrestling persona?",
-    "The Trash Man",
-    "Bird of War",
-    "Day Man",
-    "The Maniac"
-  ],
-  [
-    "What is the capital of Wisconsin, USA?",
-    "Madison",
-    "Milwaukee",
-    "Wisconsin Dells",
-    "Green Bay"
-  ],
-  [
-    "Who voice acted the character Hiccup in the movie \"How to Train Your Dragon\"?",
-    "Jay Baruchel",
-    "Jack Brauchel",
-    "John Powell",
-    "Gerard Butler"
-  ],
-  [
-    "In the Hellboy universe, what was Abe Sapien's birth name?",
-    "Langdon Everett Caul",
-    "Lord Baltimore",
-    "Sir Edward Grey",
-    "Landis Pope"
-  ],
-  [
-    "Dallon Weekes, former touring basist of Panic! At the Disco, created his own band in 2016 called...",
-    "I Don't Know How But They Found Me",
-    "Cheats At Hide And Seek",
-    "Where Did You All Come From?",
-    "Run Away From The People"
-  ],
-  [
-    "When was Adolf Hitler appointed as Chancellor of Germany?",
-    "January 30, 1933",
-    "September 1, 1939",
-    "February 27, 1933",
-    "October 6, 1939"
-  ],
-  [
-    "Which character from the Mega Man series made a small cameo on Volt Catfish's introduction scene in CD versions of Mega Man X3?",
-    "Auto",
-    "Eddie",
-    "Tango",
-    "Rush"
-  ],
-  [
-    "What is the name of the copper-rich protein that creates the blue blood in the Antarctic octopus?",
-    "Hemocyanin",
-    "Cytochrome",
-    "Iron",
-    "Methionine"
-  ],
-  [
-    "In the book series \"Odd Thomas\", Danny Jessup has what genetic disease?",
-    "Osteogenesis Imperfecta",
-    "Spinocerebellar ataxia",
-    "Adrenoleukodystrophy",
-    "Cystic Fibrosis"
-  ],
-  [
-    "A comet's gaseous envelope (which creates the tail) is called what?",
-    "The coma",
-    "The wake",
-    "The backwash",
-    "The ablative"
-  ],
-  [
-    "What is the name of the school in the anime and manga \"Gosick\"?",
-    "St. Marguerite",
-    "St. Augustine",
-    "St. Mary",
-    "St. Bernadette"
-  ],
-  [
-    "Who founded the Khan Academy?",
-    "Sal Khan",
-    "Ben Khan",
-    "Kitt Khan",
-    "Adel Khan"
-  ],
-  [
-    "In Youtuber Jerma985's 2014 film \"Rat Movie: Mystery of the Mayan Treasure,\" who is the man who tries to steal the Mayan Treasure?",
-    "Dick Dastardly Richards",
-    "Gabe \"The Glue Man\" Degrossi",
-    "Bootleg Duck Dynasty Byeah Batman",
-    "Demon Lord Zeraxos"
-  ],
-  [
-    "What year did Albrecht Dürer create the painting \"The Young Hare\"?",
-    "1502",
-    "1702",
-    "1402",
-    "1602"
-  ],
-  [
-    "What is the approximate value of mathematical constant e?",
-    "2.72",
-    "3.14",
-    "1.62",
-    "1.41"
-  ],
-  [
-    "Which of the following is NOT a computer science algorithm?",
-    "Float Sort",
-    "Bubble Sort",
-    "Merge Sort",
-    "Quick Sort"
-  ],
-  [
-    "What engine is in the Lexus SC400?",
-    "1UZ-FE",
-    "2JZ-GTE",
-    "7M-GTE",
-    "5M-GE"
-  ],
-  [
-    "What is the name of the pirate that sings the intro to \"Spongebob Squarepants\"?",
-    "Painty",
-    "Patchy",
-    "Lloyd",
-    "Larry"
-  ],
-  [
-    "What is the tallest mountain in Canada?",
-    "Mount Logan",
-    "Mont Tremblant",
-    "Whistler Mountain",
-    "Blue Mountain"
-  ],
-  [
-    "In the 1968 Cartoon Show \"Wacky Races\" what was the name of cavemen duo who rode in The Boulder Mobile?",
-    "The Slag Brothers",
-    "The Slate Brothers",
-    "The Rock Brothers",
-    "The Stone Brothers"
-  ],
-  [
-    "What rock group is named after a gym teacher who taught at the original band members' high school?",
-    "Lynyrd Skynyrd",
-    "Jefferson Airplane",
-    "Pink Floyd",
-    "The Byrds"
-  ],
-  [
-    "Which Australian Prime Minister disappeared in 1967 and was never found?",
-    "Harold Holt",
-    "Paul Keating",
-    "Edmund Barton",
-    "Scott Morrison"
-  ],
-  [
-    "What is the name of the alien species introduced in Shadow the Hedgehog (2005)?",
-    "Black Arms",
-    "The Swarm",
-    "Black Hive",
-    "The Eclipse"
-  ],
-  [
-    "Which species is a \"mountain chicken\"?",
-    "Frog",
-    "Chicken",
-    "Horse",
-    "Fly"
-  ],
-  [
-    "In the \"Harry Potter\" series, what is Headmaster Dumbledore's full name?",
-    "Albus Percival Wulfric Brian Dumbledore",
-    "Albus Valum Jetta Mobius Dumbledore",
-    "Albus James Lunae Otto Dumbledore",
-    "Albus Valencium Horatio Kul Dumbledore"
-  ],
-  [
-    "Where in the human body is the Pineal Gland located?",
-    "Brain",
-    "Groin",
-    "Chest",
-    "Throat"
-  ],
-  [
-    "In \"One Piece\", what does \"the Pirate King\" mean to the captain of the Straw Hat Pirates?",
-    "Freedom",
-    "Promise",
-    "Adventure",
-    "Friendship"
-  ],
-  [
-    "Originally another word for poppy, coquelicot is a shade of what?",
-    "Red",
-    "Green",
-    "Blue",
-    "Pink"
-  ],
-  [
-    "Which 1994 film did Roger Ebert famously despise, saying \"I hated hated hated hated hated this movie\".",
-    "North",
-    "3 Ninjas Kick Back",
-    "The Santa Clause",
-    "Richie Rich"
-  ],
-  [
-    "When was Salvador Dali's painting, \"The Persistence of Memory,\" completed?",
-    "1931",
-    "1932",
-    "1929",
-    "1934"
-  ],
-  [
-    "How many zeptometres are inside one femtometre?",
-    "1,000,000",
-    "10",
-    "1,000,000,000",
-    "1000"
-  ],
-  [
-    "Which of these was the name of a bug found in April 2014 in the publicly available OpenSSL cryptography library?",
-    "Heartbleed",
-    "Shellshock",
-    "Corrupted Blood",
-    "Shellscript"
-  ],
-  [
-    "Which one of these chassis codes are used by BMW 3-series?",
-    "E46",
-    "E39",
-    "E85",
-    "F10"
-  ],
-  [
-    "What was the callsign of Commander William Adama in Battlestar Galactica (2004)?",
-    "Husker",
-    "Starbuck",
-    "Apollo",
-    "Crashdown"
-  ],
-  [
-    "Into which basin does the Jordan River flow into?",
-    "Dead Sea",
-    "Aral Sea",
-    "Caspian Sea",
-    "Salton Sea"
-  ],
-  [
-    "What was Maggie Simpson's first canonical word, not including the Tracey Ullman shorts?",
-    "Daddy.",
-    "Sequel?",
-    "Ja!",
-    "Rusty!"
-  ],
-  [
-    "Where was Nicki Minaj born?",
-    "Trinidad and Tobago",
-    "Haiti",
-    "Saint Lucia",
-    "Grenada"
-  ],
-  [
-    "Which is the hull NO. of the Fletcher class destroyer Fletcher?",
-    "DD-445",
-    "DD-992",
-    "DD-444",
-    "DD-446"
-  ],
-  [
-    "According to the lore of \"Starbound\", what does the \"Colony Deed\" do when it is placed down?",
-    "Sends out an advertisement for someone to move in.",
-    "Teleports somebody from somewhere on the planet it is placed.",
-    "Teleports a random person to the location.",
-    "Materializes a new being at it's location."
-  ],
-  [
-    "Which of these does Charlie NOT read in The Perks of Being a Wallflower?",
-    "The Grapes of Wrath",
-    "Hamlet",
-    "The Great Gatsby",
-    "Peter Pan"
-  ],
-  [
-    "\"The Big Bang Theory\" was first theorized by a priest of what religious ideology?",
-    "Catholic",
-    "Christian",
-    "Jewish",
-    "Islamic"
-  ],
-  [
-    "In which manga did the \"404 Girl\" from 4chan originate from?",
-    "Yotsuba&!",
-    "Azumanga Daioh",
-    "Lucky Star",
-    "Clover"
-  ],
-  [
-    "What is the weight of a Gold Bar in Fallout: New Vegas?",
-    "35 Pounds",
-    "30 Pounds",
-    "40 Pounds",
-    "32.50 Pounds"
-  ],
-  [
-    "In what year was the first Indian movie submitted for an Oscar?",
-    "1957",
-    "1962",
-    "1938",
-    "1954"
-  ],
-  [
-    "What is the default port for HTTP?",
-    "80",
-    "53",
-    "443",
-    "23"
-  ],
-  [
-    "In 2014, over 6 million General Motors vehicles were recalled due to what critical flaw?",
-    "Faulty ignition switch",
-    "Malfunctioning gas pedal",
-    "Breaking fuel lines",
-    "Faulty brake pads"
-  ],
-  [
-    "Which former Coronation Street actress was once a hostess on the British Game Show \"Double Your Money\"?",
-    "Amanda Barrie",
-    "Sue Nicholls",
-    "Violet Carson",
-    "Jean Alexander"
-  ],
-  [
-    "In what part of Wales will you find the village Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch?",
-    "Anglesey",
-    "Pembrokeshire",
-    "Wrexham",
-    "Bridgend"
-  ],
-  [
-    "Who played Stan's dog in the South Park episode \"Big Gay Al's Big Gay Boat Ride\"?",
-    "George Clooney",
-    "Jay Leno",
-    "Matt Stone",
-    "Robert Smith"
-  ],
-  [
-    "Björk's \"Unison\" contains a sample of which Oval song?",
-    "Aero Deck",
-    "Textuell",
-    "Panorama",
-    "Do While"
-  ],
-  [
-    "Who assassinated President James A. Garfield?",
-    "Charles Guiteau",
-    "Sirhan Sirhan",
-    "Leon Czolgosz",
-    "John Wilkes Booth"
-  ],
-  [
-    "In \"The Binding of Isaac\", which item instantly kills Mom and Mom's Heart?",
-    "The Bible",
-    "The Halo",
-    "Brimstone",
-    "Book of Shadows"
-  ],
-  [
-    "Which classic horror character killed Elizabeth Lavenza?",
-    "Frankenstein's Monster",
-    "Count Dracula",
-    "Werewolf",
-    "The Creature from the Black Lagoon"
-  ],
-  [
-    "In physics, conservation of energy and conservation of momentum are both consequences of which of the following?",
-    "Noether's Theorem",
-    "Bell's Theorem",
-    "Wick's Theorem",
-    "Carnot's Theorem"
-  ],
-  [
-    "In \"Jewelpet Sunshine\", what is the song that plays when Kanon and her friends bust out of prison?",
-    "I Don't Want to Miss a Thing",
-    "Eye Of The Tiger",
-    "Born to be Wild",
-    "Ruby Ring"
-  ],
-  [
-    "Going by the International Code of Signals, which single flag is interpreted as \"I require assistance (not distress)\"?",
-    "Victor",
-    "Kilo",
-    "Papa",
-    "Delta"
-  ],
-  [
-    "In 2012, which movie won every category in the 32nd \"Golden Raspberry Awards\"?",
-    "Jack and Jill",
-    "The Girl with the Dragon Tattoo",
-    "Thor",
-    "The King's Speech"
-  ],
-  [
-    "Which of these names was an actual codename for a cancelled Microsoft project?",
-    "Neptune",
-    "Enceladus",
-    "Pollux",
-    "Saturn"
-  ],
-  [
-    "In the TV Show \"Donkey Kong Country\", which episode did the song \"Eddie, Let Me Go Back To My Home\" play in?",
-    "It's a Wonderful Life",
-    "Message In A Bottle Show",
-    "To The Moon Baboon",
-    "Ape-Nesia"
-  ],
-  [
-    "The Maluku islands (informally known as the Spice Islands) belong to which country?",
-    "Indonesia",
-    "Chile",
-    "New Zealand",
-    "Fiji"
-  ],
-  [
-    "In the \"Star Wars\" universe, what species is Grand Admiral Thrawn?",
-    "Chiss",
-    "Gungans",
-    "Pantorans",
-    "Twi'lek"
-  ],
-  [
-    "Which artists' version of the song \"The Tide is High\" came first?",
-    "The Paragons",
-    "Blondie",
-    "Kardinal Offishall",
-    "Atomic Kitten"
-  ],
-  [
-    "How long did the Warsaw Uprising during World War II last?",
-    "63 Days",
-    "20 Days",
-    "55 Days",
-    "224 Days"
-  ],
-  [
-    "How many trophies are there in \"Super Smash Bros. for Nintendo 3DS\"?",
-    "685",
-    "1360",
-    "716",
-    "1155"
-  ],
-  [
-    "In which classic novel by Mark Twain did a beggar and Prince of Wales switch clothes, and learn about social class inequality?",
-    "The Prince and the Pauper",
-    "Hamlet",
-    "Wealthy Boy and the Schmuck",
-    "A Modern Twain Story"
-  ],
-  [
-    "Which is not a type of neuron?",
-    "Perceptual Neuron",
-    "Sensory Neuron",
-    "Motor Neuron",
-    "Interneuron"
-  ],
-  [
-    "What is the last line muttered in the anime film \"The End of Evangelion\"?",
-    "\"How disgusting.\"",
-    "\"Idiot, I won't let you kill me!\"",
-    "\"Nothing.\"",
-    "\"Goddammit, Shinji.\""
-  ],
-  [
-    "Disney's Haunted Mansion is home to a trio of Hitchhiking Ghosts. Which of these is NOT one of them?",
-    "Harry",
-    "Gus",
-    "Phineas",
-    "Ezra"
-  ],
-  [
-    "Which was the first of Alfred Hitchcock's movies to be filmed in colour?",
-    "Rope",
-    "Psycho",
-    "Vertigo",
-    "Rebecca"
-  ],
-  [
-    "Australia, Japan, and Southeast Asia are in which ITU Region?",
-    "Region 3",
-    "Region 1",
-    "Region 2",
-    "Region 4"
-  ],
-  [
-    "What is the Klingon's afterlife called?",
-    "Sto-vo-kor",
-    "Valhalla",
-    "Karon'gahk",
-    "New Jersey"
-  ],
-  [
-    "What is the name of the formerly rich fishing grounds off the island of Newfoundland, Canada?",
-    "Grand Banks",
-    "Great Barrier Reef",
-    "Mariana Trench",
-    "Hudson Bay"
-  ],
-  [
-    "In \"Gravity Falls\", the character Bill Cipher remarks that \"the universe is what?\"",
-    "A hologram",
-    "An illusion",
-    "A simulation",
-    "Corrupting"
-  ],
-  [
-    "In Kendrick Lamar's 2012 album, \"Good Kid, M.A.A.D City\", the album's story takes place in which city?",
-    "Compton",
-    "Detroit",
-    "New York",
-    "Baltimore"
-  ],
-  [
-    "Before the American colonies switched to the Gregorian calendar in 1752, on what date did their new year start?",
-    "March 25th",
-    "June 1st",
-    "September 25th",
-    "December 1st"
-  ],
-  [
-    "In Counter Strike: Global Offensive, what is the code implanted onto the C4 as the Terrorists plant the bomb?",
-    "7355608",
-    "7890728",
-    "7256380",
-    "7726354"
-  ],
-  [
-    "Which of the following are cells of the adaptive immune system?",
-    "Cytotoxic T cells",
-    "Dendritic cells",
-    "Natural killer cells",
-    "White blood cells"
-  ],
-  [
-    "In the anime Initial D, how does Takumi Fujiwara describe a drift?",
-    "'. . . the front tires slide so the car won't face the inside'",
-    "'. . . the wheels lose traction, making the car slide sideways'",
-    "'. . . the car oversteers through a curve, causing it to turn faster'",
-    "'. . . you turn a lot'"
-  ],
-  [
-    "The word \"abulia\" means which of the following?",
-    "The inability to make decisions",
-    "The inability to stand up",
-    "The inability to concentrate on anything",
-    "A feverish desire to rip one's clothes off"
-  ],
-  [
-    "In the \"Jurassic Park\" universe, what was the first dinosaur cloned by InGen in 1986?",
-    "Velociraptor",
-    "Triceratops",
-    "Troodon",
-    "Brachiosaurus"
-  ],
-  [
-    "What national museum will you find in Cooperstown, New York?",
-    "National Baseball Hall of Fame",
-    "Metropolitan Museum of Art",
-    "National Toy Hall of Fame",
-    "Museum of Modern Art"
-  ],
-  [
-    "In the TV show \"Rick and Morty\", Rick uses the catchphrase \"Wubba Lubba Dub Dub\", which means what in Birdperson?",
-    "I am in great pain, please help me.",
-    "I pray that my life ends soon.",
-    "Lets get this party started!",
-    "I am suffering, please help me."
-  ],
-  [
-    "What is Justin Bieber's debut Album?",
-    "My World 2.0",
-    "U Smile",
-    "Baby",
-    "Purpose"
-  ],
-  [
-    "Which U.S. president was said to have been too honest to lie to his father about chopping down a cherry tree?",
-    "George Washington",
-    "Abraham Lincoln",
-    "Thomas Jefferson",
-    "James Monroe"
-  ],
-  [
-    "In the game \"Sonic the Hedgehog (1991)\" how many chaos emeralds could you collect?",
-    "6",
-    "8",
-    "7",
-    "9"
-  ],
-  [
-    "What is the name for the auditory illusion of a note that seems to be rising infinitely?",
-    "Shepard Tone",
-    "Glissandro Illusion",
-    "Fransen Effect",
-    "McGurck Effect"
-  ],
-  [
-    "In \"One Piece\", who is the girl who overcame her enslaved past and became an agent of an army to fight the corrupt government?",
-    "Koala",
-    "Boa Hancock",
-    "Nico Robin",
-    "Emporio Ivankov"
-  ],
-  [
-    "What year was Queen Elizabeth II born?",
-    "1926",
-    "1923",
-    "1929",
-    "1930"
-  ],
-  [
-    "In the 1976 film 'Taxi Driver', how many guns did Travis buy from the salesman?",
-    "4",
-    "2",
-    "6",
-    "1"
-  ],
-  [
-    "Which of these is NOT a real tectonic plate?",
-    "Atlantic Plate",
-    "North American Plate",
-    "Eurasian Plate",
-    "Nazca Plate"
-  ],
-  [
-    "What event inspired The Cranberries song \"Zombie\" ?",
-    "The Warrington Bombings",
-    "September 11 Attacks",
-    "The Manchester Arena Bombing",
-    "The July 7th bombings"
-  ],
-  [
-    "What age was King Henry V when he died?",
-    "35",
-    "62",
-    "87",
-    "73"
-  ],
-  [
-    "In the Mario Kart series, which game introduced the \"Shield Drifting\" mechanic?",
-    "Mario Kart Arcade GP DX",
-    "Mario Kart: Double Dash",
-    "Mario Kart Super Circuit",
-    "Mario Kart DS"
-  ],
-  [
-    "Which moon is the only satellite in our solar system to possess a dense atmosphere?",
-    "Titan",
-    "Europa",
-    "Miranda",
-    "Callisto"
-  ],
-  [
-    "In \"Hunter x Hunter\", which of the following is NOT a type of Nen aura?",
-    "Restoration",
-    "Emission",
-    "Transmutation",
-    "Specialization"
-  ],
-  [
-    "According to the 2014-2015 Australian Bureau of Statistics, what percentage of Australians were born overseas?",
-    "28%",
-    "13%",
-    "20%",
-    "7%"
-  ],
-  [
-    "Who Voices the Devil on Devil's Flight in Final Destination 3?",
-    "Tony Todd",
-    "Wendy Christensen",
-    "Ian McKinley",
-    "Kevin Fischer"
-  ],
-  [
-    "What city is known as the Rose Capital of the World?",
-    "Tyler, Texas",
-    "San Diego, California",
-    "Miami, Florida",
-    "Anaheim, California"
-  ],
-  [
-    "Who recorded the 1975 album 'Captain Fantastic and the Brown Dirt Cowboy'?",
-    "Elton John",
-    "John Denver",
-    "Billy Joel",
-    "Joe Cocker"
-  ],
-  [
-    "Who was the last emperor of Mexico?",
-    "Ferdinand Maximilian",
-    "Andrés Manuel López Obrador",
-    "Napoleon III",
-    "Agustín de Iturbide"
-  ],
-  [
-    "Which of these TrackMania environments was NOT in the original game?",
-    "Bay",
-    "Desert",
-    "Snow",
-    "Rally"
-  ],
-  [
-    "Coulrophobia is the irrational fear of what?",
-    "Clowns",
-    "Cemeteries",
-    "Needles",
-    "Tunnels"
-  ],
-  [
-    "Who was the Director of the 1988 Anime film \"Grave of the Fireflies\"?",
-    "Isao Takahata",
-    "Hayao Miyazaki",
-    "Satoshi Kon",
-    "Sunao Katabuchi"
-  ],
-  [
-    "To which language family does Kazakh belong?",
-    "Turkic",
-    "Mongolic",
-    "Indo-European",
-    "Uralic"
-  ],
-  [
-    "Which of the following Inuit languages was the FIRST to use a unique writing system not based on the Latin alphabet?",
-    "Inuktitut",
-    "Inuinnaqtun",
-    "Greenlandic",
-    "Inupiat"
-  ],
-  [
-    "The song \"Old Town Road\" by American rapper Lil Nas X samples the song \"34 Ghosts IV\" by which band?",
-    "Nine Inch Nails",
-    "Death Grips",
-    "Iron Maiden",
-    "Animal Collective"
-  ],
-  [
-    "In what year did the Battle of Verdun take place?",
-    "1916",
-    "1917",
-    "1915",
-    "1918"
-  ],
-  [
-    "In \"Sonic the Hedgehog 3\" for the Sega Genesis, what is the color of the second Chaos Emerald you can get from Special Stages?",
-    "Orange",
-    "Blue",
-    "Green",
-    "Magenta"
-  ],
-  [
-    "Which horizon in a soil profile consists of bedrock?",
-    "R",
-    "O",
-    "B",
-    "D"
-  ],
-  [
-    "Which person from \"JoJo's Bizarre Adventure\" does NOT house a reference to a band, artist, or song earlier than 1980?",
-    "Giorno Giovanna",
-    "Josuke Higashikata",
-    "Jolyne Cujoh",
-    "Johnny Joestar"
-  ],
-  [
-    "Which of the following is an existing family in \"The Sims\"?",
-    "The Goth Family",
-    "The Family",
-    "The Simoleon Family",
-    "The Proud Family"
-  ],
-  [
-    "What is the official German name of the Swiss Federal Railways?",
-    "Schweizerische Bundesbahnen",
-    "Schweizerische Nationalbahnen",
-    "Bundesbahnen der Schweiz",
-    "Schweizerische Staatsbahnen"
-  ],
-  [
-    "Long John Baldry, the voice of Dr. Robotnik in Adventures Of Sonic The Hedgehog, was in a band with which music artist in the 1960s?",
-    "Elton John",
-    "Freddie Mercury",
-    "Paul McCartney",
-    "Johnny Cash"
-  ],
-  [
-    "When was Finland's 100th year of being independent?",
-    "2017",
-    "2016",
-    "2018",
-    "2015"
-  ],
-  [
-    "Which of these online games was originally named LindenWorld in it's early development?",
-    "SecondLife",
-    "ActiveWorlds",
-    "IMVU",
-    "HabboHotel"
-  ],
-  [
-    "An organic compound is considered an alcohol if it has what functional group?",
-    "Hydroxyl",
-    "Carbonyl",
-    "Alkyl",
-    "Aldehyde"
-  ],
-  [
-    "In the anime, \"Hunter X Hunter\", what is the main protagonist's name?",
-    "Gon",
-    "Gin",
-    "Gan",
-    "Gen"
-  ],
-  [
-    "How long did it take the motorized window washers of the original World Trade Center to clean the entire exterior of the building?",
-    "1 Month",
-    "3 Weeks",
-    "1 Week",
-    "2 Months"
-  ],
-  [
-    "Which country is the Taedong River in?",
-    "North Korea",
-    "South Korea",
-    "Japan",
-    "China"
-  ],
-  [
-    "What is the English title of the vaporwave track \"リサフランク420 / 現代のコンピュー\" by Macintosh Plus (Vektroid)?",
-    "Lisa Frank 420 / Modern Computing",
-    "Smoke Weed 420 / Everyday",
-    "Make Your Move 420 / My Mind",
-    "It's All In Your Head 420 / Understand"
-  ],
-  [
-    "What is the name of the Boeing B-29 that dropped the 'Little Boy' atomic bomb on Hiroshima?",
-    "Enola Gay",
-    "Necessary Evil",
-    "The Great Artiste",
-    "Full House"
-  ],
-  [
-    "What was the code name given to Sonic the Hedgehog 4 during its development?",
-    "Project Needlemouse",
-    "Project Bluespike",
-    "Project Roboegg",
-    "Project Darksphere"
-  ],
-  [
-    "What is the molecular formula of Ozone?",
-    "O3",
-    "C6H2O6",
-    "N2O",
-    "SO4"
-  ],
-  [
-    "The \"To Love-Ru\" Manga was started in what year?",
-    "2006",
-    "2007",
-    "2004",
-    "2005"
-  ],
-  [
-    "The word \"aprosexia\" means which of the following?",
-    "The inability to concentrate on anything",
-    "The inability to make decisions",
-    "A feverish desire to rip one's clothes off",
-    "The inability to stand up"
-  ],
-  [
-    "Ouagadougou is the capital of which African country?",
-    "Burkina Faso",
-    "Central African Republic",
-    "Senegal",
-    "Zambia"
-  ],
-  [
-    "Which of these songs is not by Tatsuro Yamashita?",
-    "Lucky Lady Feel So Good",
-    "Merry-Go Round",
-    "Let's Dance Baby",
-    "Love Talkin'"
-  ],
-  [
-    "What was the code name for the Allied invasion of Southern France on August 15th, 1944?",
-    "Operation Dragoon",
-    "Operation Overlord",
-    "Operation Market Garden",
-    "Operation Torch"
-  ],
-  [
-    "How many partners can you obtain in Paper Mario: The Thousand-Year Door?",
-    "7",
-    "6",
-    "9",
-    "10"
-  ],
-  [
-    "What is the scientific name of the knee cap?",
-    "Patella",
-    "Femur",
-    "Foramen Magnum",
-    "Scapula"
-  ],
-  [
-    "Which of the following is not another name for the eggplant?",
-    "Potimarron",
-    "Brinjal",
-    "Guinea Squash",
-    "Melongene"
-  ],
-  [
-    "Which is not a country in Africa?",
-    "Guyana",
-    "Senegal",
-    "Liberia",
-    "Somalia"
-  ],
-  [
-    "In the metal band Slipknot, there are 9 members, which member labelled themselves number 6?",
-    "Shawn Crahan (Clown)",
-    "Sid Wilson",
-    "Cory Taylor",
-    "Mick Thomson"
-  ],
-  [
-    "Which one of these rulers did not belong to the Habsburg dynasty?",
-    "Philip V",
-    "Charles V",
-    "Philip II",
-    "Francis Joseph"
-  ],
-  [
-    "In the game \"The Sims\", how many Simoleons does each family start with?",
-    "20,000",
-    "10,000",
-    "15,000",
-    "25,000"
-  ],
-  [
-    "Where is the Gluteus Maximus muscle located?",
-    "Butt",
-    "Arm",
-    "Head",
-    "Torso"
-  ],
-  [
-    "The Quadrangularis Reversum is best described as which of the following?",
-    "A percussion instrument",
-    "A building in Oxford University",
-    "A chess move",
-    "A geometric theorem"
-  ],
-  [
-    "What is the name of rocky region that spans most of eastern Canada?",
-    "Canadian Shield",
-    "Rocky Mountains",
-    "Appalachian Mountains",
-    "Himalayas"
-  ],
-  [
-    "Which of these songs is NOT included in the Suicide Squad OST?",
-    "Skies on Fire - AC/DC",
-    "Heathens - Twenty One Pilots",
-    "Without Me - Eminem",
-    "Fortunate Son - Creedence Clearwater Revival"
-  ],
-  [
-    "What was the aim of the \"Umbrella Revolution\" in Hong Kong in 2014?",
-    "Genuine universal suffrage",
-    "Gaining Independence",
-    "Go back under British Rule",
-    "Lower taxes"
-  ],
-  [
-    "In Animal Crossing: New Leaf, which of these paintings from Redd's Art Gallery is always genuine?",
-    "Warm Painting",
-    "Jolly Painting",
-    "Neutral Painting",
-    "Wistful Painting"
-  ],
-  [
-    "Which of these animals belongs in class Chondrichthyes?",
-    "Great white shark",
-    "Octopus",
-    "Killer whale",
-    "Catfish"
-  ],
-  [
-    "The Panama Canal was officially opened by which US president?",
-    "Woodrow Wilson",
-    "Calvin Coolidge",
-    "Herbert Hoover",
-    "Theodore Roosevelt"
-  ],
-  [
-    "Which of these countries is NOT a part of the Asian continent?",
-    "Suriname",
-    "Georgia",
-    "Russia",
-    "Singapore"
-  ],
-  [
-    "Which company did the animation for Peter Gabriel's Video Sledgehammer (1986)?",
-    "Aardman Animations",
-    "HIT Entertainment",
-    "Illumination Entertainment",
-    "VIZ Media"
-  ],
-  [
-    "From 1940 to 1942, what was the capital-in-exile of Free France ?",
-    "Brazzaville",
-    "Algiers",
-    "Paris",
-    "Tunis"
-  ],
-  [
-    "In the game Call of Duty, what is the last level where you play as an American soldier?",
-    "Festung Recogne",
-    "Ste. Mere-Eglise (Day)",
-    "Chateau",
-    "Brecourt"
-  ],
-  [
-    "What is the scientific name for the extinct hominin known as \"Lucy\"?",
-    "Australopithecus Afarensis",
-    "Australopithecus Africanus",
-    "Australopithecus Architeuthis",
-    "Australopithecus Antaris"
-  ],
-  [
-    "What is the romanized Arabic word for \"moon\"?",
-    "Qamar",
-    "Najma",
-    "Kawkab",
-    "Shams"
-  ],
-  [
-    "Which of these is NOT a province in China?",
-    "Yangtze",
-    "Fujian",
-    "Sichuan",
-    "Guangdong"
-  ],
-  [
-    "Which year was the album \"Floral Shoppe\" by Macintosh Plus released?",
-    "2011",
-    "2014",
-    "2013",
-    "2012"
-  ],
-  [
-    "Which of the following physicists did NOT work on the Manhattan project?",
-    "Murray Gell-Mann",
-    "Richard Feynman",
-    "J. Robert Oppenheimer",
-    "John Von-Neumann"
-  ],
-  [
-    "Which of these characters in \"Undertale\" can the player NOT go on a date with?",
-    "Toriel",
-    "Papyrus",
-    "Undyne",
-    "Alphys"
-  ],
-  [
-    "Which of these chemical compounds is NOT found in gastric acid?",
-    "Sulfuric acid",
-    "Hydrochloric acid",
-    "Potassium chloride",
-    "Sodium chloride"
-  ],
-  [
-    "In which city is the Big Nickel located in Canada?",
-    "Sudbury, Ontario",
-    "Calgary, Alberta",
-    "Halifax, Nova Scotia",
-    "Victoria, British Columbia"
-  ],
-  [
-    "Which of these songs was released in 1996?",
-    "The Smashing Pumpkins - \"1979\"",
-    "Prince - \"1999\"",
-    "James Blunt - \"1973\"",
-    "David Bowie - \"1984\""
-  ],
-  [
-    "When did Lithuania declare independence from the Soviet Union?",
-    "March 11th, 1990",
-    "December 25th, 1991",
-    "December 5th, 1991",
-    "April 20th, 1989"
-  ],
-  [
-    "Which team won the \"Tom Clancy's Rainbow Six Siege\" Invitational Event February 2017 in the PC Category?",
-    "Continuum",
-    "GIFU",
-    "Santos Dexterity",
-    "eRa Eternity"
-  ],
-  [
-    "Which of the following is a major muscle of the back?",
-    "Trapezius",
-    "Trapezium",
-    "Trapezoid",
-    "Triquetrum"
-  ],
-  [
-    "Which city is the capital of Michigan?",
-    "Lansing",
-    "Kalamazoo",
-    "Ann Arbor",
-    "Detroit"
-  ],
-  [
-    "What was the last Aphex Twin album released before his decade-long hiatus?",
-    "Drukqs",
-    "Windowlicker",
-    "Syro",
-    "Collected Ambient Works 85-92"
-  ],
-  [
-    "In the year 1900, what were the most popular first names given to boy and girl babies born in the United States?",
-    "John and Mary",
-    "Joseph and Catherine",
-    "William and Elizabeth",
-    "George and Anne"
-  ],
-  [
-    "In Xenoblade Chronicles X, which class has a sniper rifle as it's primary weapon?",
-    "Partisan Eagle",
-    "Blast Fencer",
-    "Winged Viper",
-    "Bastion Warrior"
-  ],
-  [
-    "The 'Islets of Langerhans' is found in which human organ?",
-    "Pancreas",
-    "Kidney",
-    "Liver",
-    "Brain"
-  ],
-  [
-    "What year was Min Yoongi from South Korea boy band \"BTS\" born in?",
-    "1993",
-    "1992",
-    "1995",
-    "1994"
-  ],
-  [
-    "In which year did the Tokyo Subway Sarin Attack occur?",
-    "1995",
-    "2001",
-    "2011",
-    "1991"
-  ],
-  [
-    "In \"Call Of Duty: Zombies\", what does the game traditionally reward you for completing a boss round?",
-    "Max Ammo",
-    "A Pack-A-Punched gun",
-    "Death Machine",
-    "Monkey Bombs"
-  ],
-  [
-    "Which of the following is the term for \"surgical complications resulting from surgical sponges left inside the patient's body?",
-    "Gossypiboma",
-    "Gongoozler",
-    "Jentacular",
-    "Meupareunia"
-  ],
-  [
-    "Who sings the rap song \"Secret Wars Part 1\"?",
-    "The Last Emperor",
-    "MC Frontalot",
-    "Busdriver",
-    "Masta Killa"
-  ],
-  [
-    "Who was the British Prime Minister at the outbreak of the Second World War in 1939?",
-    "Neville Chamberlain",
-    "Stanley Baldwin",
-    "Winston Churchill",
-    "Ramsay MacDonald"
-  ],
-  [
-    "Which of these weapon classes DO NOT appear in the first Monster Hunter game?",
-    "Bow",
-    "Hammer",
-    "Heavy Bowgun",
-    "Light Bowgun"
-  ],
-  [
-    "What is the British term for a 64th note?",
-    "Hemidemisemiquaver",
-    "Semihemidemisemiquaver",
-    "Semiquaver",
-    "Demisemiquaver"
-  ],
-  [
-    "In the game Danganronpa: Happy Trigger Havoc, the character Aoi Asahina's ultimate ability is what?",
-    "Ultimate Swimmer",
-    "Ultimate Detective",
-    "Ultimate Gambler",
-    "Ultimate Dancer"
-  ],
-  [
-    "Who was the first Jazz Musician to win the Pulitzer Prize for Music",
-    "Wynton Marsalis",
-    "Michael Brecker",
-    "Herbie Hancock",
-    "Joe Henderson"
-  ],
-  [
-    "Which of the four empires in Eve Online was the first to achieve faster than light travel?",
-    "Amarr Empire",
-    "Caldari State",
-    "Gallente Federation",
-    "Minmatar Republic"
-  ],
-  [
-    "Which Elton John hit starts with the line \"When are you gonna come down\"?",
-    "Goodbye Yellow Brick Road",
-    "Rocket Man",
-    "Bennie and the Jets",
-    "Crocodile Rock"
-  ],
-  [
-    "What Touhou Project character's first ever appearance was as a midboss in the eighth game, Imperishable Night?",
-    "Tewi Inaba",
-    "Mystia Lorelei",
-    "Kaguya Houraisan",
-    "Rumia"
-  ],
-  [
-    "Who had a 1981 hit with the song \"Japanese Boy\"?",
-    "Aneka",
-    "Toyah",
-    "Sandra",
-    "Madonna"
-  ],
-  [
-    "In \"Magicka\", which two elements are combined to cast the spell, \"Nullify\"?",
-    "Arcane + Shield",
-    "Lightning + Shield",
-    "Lightning + Life",
-    "Arcane + Life"
-  ],
-  [
-    "In the video game Undertale, what Fun Value is required to obtain the Fake Hallway?",
-    "66",
-    "91",
-    "45",
-    "39"
-  ],
-  [
-    "Which of these Pokémon cannot learn Surf?",
-    "Arbok",
-    "Linoone",
-    "Tauros",
-    "Nidoking"
-  ],
-  [
-    "In the \"Little Lost Girl\" Easter Egg in Call of Duty: Black Ops II, what's the last step required for the achievement?",
-    "Raise Hell",
-    "Freedom",
-    "Skewer the Winged Beast",
-    "Ascend from Darkness"
-  ],
-  [
-    "How long are all the cutscenes from Metal Gear Solid 4 (PS3, 2008) combined?",
-    "8 hours",
-    "4 hours",
-    "12 hours",
-    "5 hours"
-  ],
-  [
-    "What is the name of the main character in the video game VA-11 HALL-A: Cyberpunk Bartender Action?",
-    "Jill",
-    "Dana",
-    "Alma",
-    "Anna"
-  ]
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which quantum number describes an electron orbital's angular momentum?",
+      "Azimuthal quantum number",
+      "Principal quantum number",
+      "Spin quantum number",
+      "Magnetic quantum number"
+    ],
+    "source": "original",
+    "id": "c4436c60649f67547460da69"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "What type of bond joins amino acids in a protein?",
+      "Peptide bond",
+      "Glycosidic bond",
+      "Phosphodiester bond",
+      "Hydrogen bond only"
+    ],
+    "source": "original",
+    "id": "5063924ae55f84c10e2ecfca"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which enzyme joins Okazaki fragments during DNA replication?",
+      "DNA ligase",
+      "Helicase",
+      "Primase",
+      "RNA polymerase"
+    ],
+    "source": "original",
+    "id": "94f66075b443445f4f0318fd"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which organelle modifies and packages proteins for secretion?",
+      "Golgi apparatus",
+      "Nucleolus",
+      "Centrosome",
+      "Peroxisome"
+    ],
+    "source": "original",
+    "id": "f9998f880d394083e80e08c9"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which law relates a gas's pressure inversely to volume at constant temperature?",
+      "Boyle's law",
+      "Charles's law",
+      "Ohm's law",
+      "Hooke's law"
+    ],
+    "source": "original",
+    "id": "37d1b407d38daec2cc2772e6"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "What is the conjugate base of carbonic acid after losing one proton?",
+      "Bicarbonate",
+      "Carbonate",
+      "Hydroxide",
+      "Acetate"
+    ],
+    "source": "original",
+    "id": "b46a8e946ad4c39d1aed1d07"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which electron configuration describes neutral neon?",
+      "1s2 2s2 2p6",
+      "1s2 2s2 2p5",
+      "1s2 2s2 2p4",
+      "1s2 2s1"
+    ],
+    "source": "original",
+    "id": "a6173261aa24fe02925a7bcd"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which particle is the antiparticle of the electron?",
+      "Positron",
+      "Proton",
+      "Neutron",
+      "Muon"
+    ],
+    "source": "original",
+    "id": "fbb78e112a738e4d018fc3ac"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which thermodynamic potential equals internal energy plus pressure times volume?",
+      "Enthalpy",
+      "Entropy",
+      "Helmholtz free energy",
+      "Chemical potential"
+    ],
+    "source": "original",
+    "id": "c60c87ae40d852372d58aa8b"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which process produces two identical copies of a DNA molecule?",
+      "Semiconservative replication",
+      "Translation",
+      "Transcription",
+      "Glycolysis"
+    ],
+    "source": "original",
+    "id": "fb8da382648f36d1c5f2b189"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the determinant of the matrix with rows (1, 2) and (3, 4)?",
+      "-2",
+      "2",
+      "10",
+      "-10"
+    ],
+    "source": "original",
+    "id": "c51d69189eacf08d85ac2268"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the derivative of e^(3x) with respect to x?",
+      "3e^(3x)",
+      "e^(3x)",
+      "3x e^(3x)",
+      "e^(3x)/3"
+    ],
+    "source": "original",
+    "id": "98e82be7ab219eaa27dd48d4"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the indefinite integral of 1/x for nonzero x?",
+      "ln(abs(x)) + C",
+      "x ln(x) + C",
+      "1/x^2 + C",
+      "e^x + C"
+    ],
+    "source": "original",
+    "id": "c792d61f7ff982ba01e91ac9"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "How many elements does the power set of a five-element set contain?",
+      "32",
+      "25",
+      "10",
+      "64"
+    ],
+    "source": "original",
+    "id": "723d556c501ea2ed113d783a"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the value of i raised to the fourth power?",
+      "1",
+      "-1",
+      "i",
+      "-i"
+    ],
+    "source": "original",
+    "id": "66f6e6a99ed37af263f1e537"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "Which theorem relates a line integral around a closed curve to a surface integral of curl?",
+      "Stokes' theorem",
+      "Bayes' theorem",
+      "Rolle's theorem",
+      "Fermat's little theorem"
+    ],
+    "source": "original",
+    "id": "c71c75d1e161c7e7221b32d3"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "How many ways can five distinct objects be arranged in a row?",
+      "120",
+      "25",
+      "60",
+      "100"
+    ],
+    "source": "original",
+    "id": "fa38911822f523c8d687ff12"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the sum of the infinite series 1/2 + 1/4 + 1/8 + ...?",
+      "1",
+      "2",
+      "1/2",
+      "3/2"
+    ],
+    "source": "original",
+    "id": "6717d7af59df0fe01fefff3b"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the eigenvalue of the identity matrix for any nonzero eigenvector?",
+      "1",
+      "0",
+      "-1",
+      "2"
+    ],
+    "source": "original",
+    "id": "e4ca7c898ec8b1bf8a5bde87"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the derivative of arctan(x)?",
+      "1/(1+x^2)",
+      "1/(1-x^2)",
+      "1/sqrt(1-x^2)",
+      "-1/(1+x^2)"
+    ],
+    "source": "original",
+    "id": "1f356cadd1f8069cc4d99331"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which data structure normally gives average constant-time key lookup?",
+      "Hash table",
+      "Linked list",
+      "Unsorted array scan",
+      "Binary search tree without balancing"
+    ],
+    "source": "original",
+    "id": "6fb9dc5b87166ee8886ec3fb"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which sorting algorithm has worst-case time complexity O(n log n)?",
+      "Merge sort",
+      "Bubble sort",
+      "Insertion sort",
+      "Selection sort"
+    ],
+    "source": "original",
+    "id": "3ad0b61ee22de4ff198176f7"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What does a database transaction's atomicity guarantee?",
+      "All its operations commit or none do",
+      "Every query is fast",
+      "Rows are alphabetized",
+      "Data is always compressed"
+    ],
+    "source": "original",
+    "id": "5b7e85230f1cc88f49dcbe1a"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which SQL clause filters groups after aggregation?",
+      "HAVING",
+      "WHERE",
+      "ORDER BY",
+      "LIMIT"
+    ],
+    "source": "original",
+    "id": "fc80c13ac3f718f11aeecaa7"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What is the usual time complexity of binary search on a sorted array?",
+      "O(log n)",
+      "O(n)",
+      "O(n log n)",
+      "O(n^2)"
+    ],
+    "source": "original",
+    "id": "86719853c126d3568dd60412"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which HTTP method is defined as idempotent and replaces a resource representation?",
+      "PUT",
+      "POST",
+      "CONNECT",
+      "PATCH"
+    ],
+    "source": "original",
+    "id": "e82b79742b693b8728552fa0"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which design pattern ensures a class has only one instance?",
+      "Singleton",
+      "Observer",
+      "Adapter",
+      "Decorator"
+    ],
+    "source": "original",
+    "id": "424764b34b13f5b2438bd578"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What does a mutex primarily protect against?",
+      "Concurrent access to a shared resource",
+      "Network packet loss",
+      "Disk fragmentation",
+      "Invalid HTML"
+    ],
+    "source": "original",
+    "id": "0c934e504acc3bf9e1f795e7"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What is a closure in programming?",
+      "A function retaining access to its lexical environment",
+      "A forced program exit",
+      "An encrypted variable",
+      "A database index"
+    ],
+    "source": "original",
+    "id": "9f504b23d7e712506d753793"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What does tail-call optimization allow in eligible recursive calls?",
+      "Reusing the current stack frame",
+      "Sorting the input automatically",
+      "Creating a new thread each call",
+      "Avoiding all memory allocation"
+    ],
+    "source": "original",
+    "id": "9ed11776c85e08e8f56e6a83"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote The Brothers Karamazov?",
+      "Fyodor Dostoevsky",
+      "Gabriel Garcia Marquez",
+      "Franz Kafka",
+      "Virginia Woolf"
+    ],
+    "source": "original",
+    "id": "cefab19a436a2b7a94449786"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote One Hundred Years of Solitude?",
+      "Gabriel Garcia Marquez",
+      "Franz Kafka",
+      "Virginia Woolf",
+      "Chinua Achebe"
+    ],
+    "source": "original",
+    "id": "c17656f30426169af4087e3a"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote The Trial?",
+      "Franz Kafka",
+      "Virginia Woolf",
+      "Chinua Achebe",
+      "Umberto Eco"
+    ],
+    "source": "original",
+    "id": "b9c99d947afdc1df1002e6a8"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote Mrs Dalloway?",
+      "Virginia Woolf",
+      "Chinua Achebe",
+      "Umberto Eco",
+      "Italo Calvino"
+    ],
+    "source": "original",
+    "id": "2aaca0447ef5989c25710519"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote Things Fall Apart?",
+      "Chinua Achebe",
+      "Umberto Eco",
+      "Italo Calvino",
+      "William Faulkner"
+    ],
+    "source": "original",
+    "id": "506a3898d395f51c74bdf97a"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote The Name of the Rose?",
+      "Umberto Eco",
+      "Italo Calvino",
+      "William Faulkner",
+      "Toni Morrison"
+    ],
+    "source": "original",
+    "id": "3236db8293ff76d33cf11053"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote Invisible Cities?",
+      "Italo Calvino",
+      "William Faulkner",
+      "Toni Morrison",
+      "Albert Camus"
+    ],
+    "source": "original",
+    "id": "0fc338900eeba368b6503165"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote The Sound and the Fury?",
+      "William Faulkner",
+      "Toni Morrison",
+      "Albert Camus",
+      "Fyodor Dostoevsky"
+    ],
+    "source": "original",
+    "id": "a8c0d496a460674378f7ca03"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote Beloved?",
+      "Toni Morrison",
+      "Albert Camus",
+      "Fyodor Dostoevsky",
+      "Gabriel Garcia Marquez"
+    ],
+    "source": "original",
+    "id": "9fa0e73266c4a6fc3aea12c5"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote The Stranger?",
+      "Albert Camus",
+      "Fyodor Dostoevsky",
+      "Gabriel Garcia Marquez",
+      "Franz Kafka"
+    ],
+    "source": "original",
+    "id": "9586d62b1e6d79bb9214330e"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Norse god who loses a hand to Fenrir?",
+      "Tyr",
+      "Hestia",
+      "Thoth",
+      "Charon"
+    ],
+    "source": "original",
+    "id": "d4e2563c4c9027182d29da01"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Greek goddess of the hearth?",
+      "Hestia",
+      "Thoth",
+      "Charon",
+      "Heimdall"
+    ],
+    "source": "original",
+    "id": "4d40ea0e87ad4c4937d7275b"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Egyptian god commonly depicted with an ibis head?",
+      "Thoth",
+      "Charon",
+      "Heimdall",
+      "Atlas"
+    ],
+    "source": "original",
+    "id": "d0aa32487381172e579014cb"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Greek ferryman who carries souls across the underworld's rivers?",
+      "Charon",
+      "Heimdall",
+      "Atlas",
+      "Ma'at"
+    ],
+    "source": "original",
+    "id": "d8632989f56d2eda6abef109"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Norse figure who guards Bifrost?",
+      "Heimdall",
+      "Atlas",
+      "Ma'at",
+      "Iris"
+    ],
+    "source": "original",
+    "id": "764b893ab3266e905a5492ef"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Greek Titan condemned to hold up the sky?",
+      "Atlas",
+      "Ma'at",
+      "Iris",
+      "Hel"
+    ],
+    "source": "original",
+    "id": "69c23e0133b457f206e8e940"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Egyptian goddess associated with truth and cosmic order?",
+      "Ma'at",
+      "Iris",
+      "Hel",
+      "Morpheus"
+    ],
+    "source": "original",
+    "id": "0c856c43d3943ddddd40fe0a"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Greek goddess of the rainbow?",
+      "Iris",
+      "Hel",
+      "Morpheus",
+      "Tyr"
+    ],
+    "source": "original",
+    "id": "17af646731e251bec1203281"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Norse goddess associated with the realm of the dead bearing her name?",
+      "Hel",
+      "Morpheus",
+      "Tyr",
+      "Hestia"
+    ],
+    "source": "original",
+    "id": "85791533cd35c58f23c87c9c"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In mythology, who is the Greek god associated with dreams?",
+      "Morpheus",
+      "Tyr",
+      "Hestia",
+      "Thoth"
+    ],
+    "source": "original",
+    "id": "6704a45dfd5bf9998540214f"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed Guernica?",
+      "Pablo Picasso",
+      "Raphael",
+      "Hieronymus Bosch",
+      "Jan van Eyck"
+    ],
+    "source": "original",
+    "id": "54503d1c97baf22fa378bbf0"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The School of Athens?",
+      "Raphael",
+      "Hieronymus Bosch",
+      "Jan van Eyck",
+      "Rembrandt"
+    ],
+    "source": "original",
+    "id": "e993f805eda3bab19b15bdd4"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Garden of Earthly Delights?",
+      "Hieronymus Bosch",
+      "Jan van Eyck",
+      "Rembrandt",
+      "Gustav Klimt"
+    ],
+    "source": "original",
+    "id": "83a3e3f88ab10e08a54f661f"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Arnolfini Portrait?",
+      "Jan van Eyck",
+      "Rembrandt",
+      "Gustav Klimt",
+      "Rene Magritte"
+    ],
+    "source": "original",
+    "id": "9872470bfc20b337b73ae88b"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Night Watch?",
+      "Rembrandt",
+      "Gustav Klimt",
+      "Rene Magritte",
+      "Le Corbusier"
+    ],
+    "source": "original",
+    "id": "755c9c9c955e0c7704ee1de4"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Kiss (the gold-leaf painting)?",
+      "Gustav Klimt",
+      "Rene Magritte",
+      "Le Corbusier",
+      "Ludwig Mies van der Rohe"
+    ],
+    "source": "original",
+    "id": "fcae037d63a8c8aeae352148"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Son of Man?",
+      "Rene Magritte",
+      "Le Corbusier",
+      "Ludwig Mies van der Rohe",
+      "Frank Gehry"
+    ],
+    "source": "original",
+    "id": "c06556ca33a6257eb8fada63"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed Villa Savoye?",
+      "Le Corbusier",
+      "Ludwig Mies van der Rohe",
+      "Frank Gehry",
+      "Pablo Picasso"
+    ],
+    "source": "original",
+    "id": "cf7b5a48617a9692c8428566"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Barcelona Pavilion?",
+      "Ludwig Mies van der Rohe",
+      "Frank Gehry",
+      "Pablo Picasso",
+      "Raphael"
+    ],
+    "source": "original",
+    "id": "b4c725e82dbec8ea3f506c27"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who created or designed The Guggenheim Museum Bilbao?",
+      "Frank Gehry",
+      "Pablo Picasso",
+      "Raphael",
+      "Hieronymus Bosch"
+    ],
+    "source": "original",
+    "id": "c8348cece7887d3c73a32cdc"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which animal order contains rabbits, hares, and pikas?",
+      "Lagomorpha",
+      "Rodentia",
+      "Carnivora",
+      "Primates"
+    ],
+    "source": "original",
+    "id": "79667f9a77e93b57aa39bd8d"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which class contains cartilaginous fishes such as sharks and rays?",
+      "Chondrichthyes",
+      "Actinopterygii",
+      "Amphibia",
+      "Reptilia"
+    ],
+    "source": "original",
+    "id": "ed117b9a600178be264b1ce1"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What is the scientific name of the gray wolf?",
+      "Canis lupus",
+      "Canis latrans",
+      "Vulpes vulpes",
+      "Ursus arctos"
+    ],
+    "source": "original",
+    "id": "a90688bec6cb3965c1f2557b"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which mammalian order includes whales and dolphins as cetaceans?",
+      "Artiodactyla",
+      "Carnivora",
+      "Primates",
+      "Lagomorpha"
+    ],
+    "source": "original",
+    "id": "a2f6a58289ccbd39d85636b2"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which structure lets most bony fish regulate buoyancy?",
+      "Swim bladder",
+      "Lateral fin",
+      "Gizzard",
+      "Mantle"
+    ],
+    "source": "original",
+    "id": "b6b24b19f3dee6930fa45cd1"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What is the term for an animal active mainly at dawn and dusk?",
+      "Crepuscular",
+      "Diurnal",
+      "Nocturnal",
+      "Arboreal"
+    ],
+    "source": "original",
+    "id": "c27e4f0dad5be3b90376e93a"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which phylum contains jellyfish and corals?",
+      "Cnidaria",
+      "Mollusca",
+      "Annelida",
+      "Arthropoda"
+    ],
+    "source": "original",
+    "id": "38a28606075ba0fe20591917"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which term describes animals that maintain body temperature mainly using external heat?",
+      "Ectotherms",
+      "Endotherms",
+      "Homeotherms only",
+      "Autotrophs"
+    ],
+    "source": "original",
+    "id": "03e6758043cfcdea821754aa"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What is the larval form of a sea urchin commonly called?",
+      "Pluteus",
+      "Tadpole",
+      "Nauplius",
+      "Caterpillar"
+    ],
+    "source": "original",
+    "id": "e2107307e78c4585cb35338b"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which skeletal material forms the internal skeleton of sharks?",
+      "Cartilage",
+      "Chitin",
+      "Keratin",
+      "Silica"
+    ],
+    "source": "original",
+    "id": "07c2d44ab4842aa47aecb264"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which reaction chiefly causes browning when bread is toasted?",
+      "Maillard reaction",
+      "Saponification",
+      "Hydrolysis of cellulose",
+      "Alcoholic fermentation"
+    ],
+    "source": "original",
+    "id": "e7966cdbf99b4712c5e1e3d0"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which Japanese term describes the savory taste associated with glutamate?",
+      "Umami",
+      "Amami",
+      "Nigami",
+      "Sanmi"
+    ],
+    "source": "original",
+    "id": "797d82d7aa2a7e1084c99091"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which French mother sauce starts with a white roux and milk?",
+      "Bechamel",
+      "Veloute",
+      "Espagnole",
+      "Hollandaise"
+    ],
+    "source": "original",
+    "id": "c2746c6ffc8503aa5bd25e92"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which French mother sauce is an emulsion of egg yolk and butter?",
+      "Hollandaise",
+      "Bechamel",
+      "Veloute",
+      "Espagnole"
+    ],
+    "source": "original",
+    "id": "5edf4846ddfefae67b2fbe28"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which protein network gives wheat dough its elasticity?",
+      "Gluten",
+      "Casein",
+      "Collagen",
+      "Keratin"
+    ],
+    "source": "original",
+    "id": "25b0542ed9ffdf2fd8a9f928"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which fungus is traditionally used to make koji?",
+      "Aspergillus oryzae",
+      "Penicillium roqueforti",
+      "Saccharomyces cerevisiae",
+      "Agaricus bisporus"
+    ],
+    "source": "original",
+    "id": "99eb004b3b040c6ab4532179"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which compound is chiefly responsible for chili peppers' heat?",
+      "Capsaicin",
+      "Piperine",
+      "Menthol",
+      "Vanillin"
+    ],
+    "source": "original",
+    "id": "b47378ac7819d0d2852012e8"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which compound is chiefly responsible for black pepper's pungency?",
+      "Piperine",
+      "Capsaicin",
+      "Limonene",
+      "Eugenol"
+    ],
+    "source": "original",
+    "id": "edd1a94de2b56ed880c077c6"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which Italian term describes pasta cooked firm to the bite?",
+      "Al dente",
+      "Al forno",
+      "Alla panna",
+      "In brodo"
+    ],
+    "source": "original",
+    "id": "37d79ab675a3220071f2e0ef"
+  },
+  {
+    "type": "food",
+    "row": [
+      "What is the culinary name for a mixture of flour and fat cooked together to thicken sauces?",
+      "Roux",
+      "Jus",
+      "Confit",
+      "Mirepoix"
+    ],
+    "source": "original",
+    "id": "7f9757b5f4cddaccce650b9b"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What does the word sesquipedalian describe?",
+      "The use of long words",
+      "Fear of crowds",
+      "A type of handwriting",
+      "A rhythmic breathing pattern"
+    ],
+    "source": "original",
+    "id": "43ae04e20530e58155735b28"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is a pangram?",
+      "A sentence using every letter of an alphabet",
+      "A word spelled identically backward",
+      "A poem of fourteen lines",
+      "A word with one syllable"
+    ],
+    "source": "original",
+    "id": "e3461367e9fb743450ecf8e2"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is an oxymoron?",
+      "A combination of apparently contradictory terms",
+      "An exaggerated comparison",
+      "An imitation of sound",
+      "A repeated vowel sound"
+    ],
+    "source": "original",
+    "id": "4a58401d622817ec334ab0ad"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the name for a word formed from another by rearranging its letters?",
+      "Anagram",
+      "Acronym",
+      "Antonym",
+      "Homophone"
+    ],
+    "source": "original",
+    "id": "436dadcce86b7ef591d7b348"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the dot over a lowercase i or j called?",
+      "Tittle",
+      "Serif",
+      "Ligature",
+      "Cedilla"
+    ],
+    "source": "original",
+    "id": "252e7466befb8f0ebab823bd"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the plastic or metal tip of a shoelace called?",
+      "Aglet",
+      "Ferrule",
+      "Grommet",
+      "Rivet"
+    ],
+    "source": "original",
+    "id": "2ad9c9b102d3dfe2a99736cf"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the metal band that holds an eraser on a pencil called?",
+      "Ferrule",
+      "Aglet",
+      "Eyelet",
+      "Gusset"
+    ],
+    "source": "original",
+    "id": "ca5711bcf5dac823ce5a9516"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "Which rhetorical device uses a part to represent a whole, as in all hands on deck?",
+      "Synecdoche",
+      "Anaphora",
+      "Hyperbole",
+      "Onomatopoeia"
+    ],
+    "source": "original",
+    "id": "884de9cf2e00ef7572a0e1d4"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the study of the origins and histories of words called?",
+      "Etymology",
+      "Entomology",
+      "Ethology",
+      "Epistemology"
+    ],
+    "source": "original",
+    "id": "219eaaf0f22b0ff46f071692"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the small projecting stroke at the end of a letter in certain fonts called?",
+      "Serif",
+      "Kerning",
+      "Leading",
+      "Baseline"
+    ],
+    "source": "original",
+    "id": "20268394fb23a2e558978d13"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which strait connects the Red Sea to the Gulf of Aden?",
+      "Bab el-Mandeb",
+      "Bosporus",
+      "Dardanelles",
+      "Strait of Malacca"
+    ],
+    "source": "original",
+    "id": "1bd0c8fb65e12f439e250010"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which river flows through the city of Vientiane?",
+      "Mekong",
+      "Irrawaddy",
+      "Salween",
+      "Red River"
+    ],
+    "source": "original",
+    "id": "4b0ed4e4467cbc4228a1dc59"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which mountain range contains Mount Elbrus?",
+      "Caucasus",
+      "Carpathians",
+      "Pyrenees",
+      "Urals"
+    ],
+    "source": "original",
+    "id": "e5dbd85fbe6022dba20dc99b"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which country contains the Danakil Depression's Dallol area?",
+      "Ethiopia",
+      "Kenya",
+      "Sudan",
+      "Chad"
+    ],
+    "source": "original",
+    "id": "02dd99a59e9e3c20109ede3f"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which African lake is the source of the Shire River?",
+      "Lake Malawi",
+      "Lake Victoria",
+      "Lake Chad",
+      "Lake Turkana"
+    ],
+    "source": "original",
+    "id": "2e801faa1d55881c210119e7"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which sea is connected to the Black Sea by the Kerch Strait?",
+      "Sea of Azov",
+      "Caspian Sea",
+      "Aegean Sea",
+      "Adriatic Sea"
+    ],
+    "source": "original",
+    "id": "ae22e9519f6dae1be0374076"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which island is divided between Indonesia, Malaysia, and Brunei?",
+      "Borneo",
+      "Sumatra",
+      "Java",
+      "Sulawesi"
+    ],
+    "source": "original",
+    "id": "ad75b2ddfd82fa321afa05ef"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which river forms much of the border between Laos and Thailand?",
+      "Mekong",
+      "Yangtze",
+      "Ganges",
+      "Irrawaddy"
+    ],
+    "source": "original",
+    "id": "b96b7351485140af67ef1c0e"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which European river empties into the Caspian Sea?",
+      "Volga",
+      "Danube",
+      "Rhine",
+      "Seine"
+    ],
+    "source": "original",
+    "id": "692f6e84eddf923d55c6d8a9"
+  },
+  {
+    "type": "geography",
+    "row": [
+      "Which country contains the historical region of Transylvania?",
+      "Romania",
+      "Hungary",
+      "Bulgaria",
+      "Serbia"
+    ],
+    "source": "original",
+    "id": "cff7b185833c3aaec3a7bc14"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is the cube root of 2197?",
+      "13",
+      "11",
+      "12",
+      "17"
+    ],
+    "source": "original",
+    "id": "44a1cd9597051b0136ac3d9c"
+  },
+  {
+    "type": "math",
+    "row": [
+      "How many diagonals does a regular hexagon have?",
+      "9",
+      "6",
+      "12",
+      "15"
+    ],
+    "source": "original",
+    "id": "e45c606dd083994f4ed62513"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is the sum of the interior angles of a nonagon?",
+      "1260 degrees",
+      "1080 degrees",
+      "1440 degrees",
+      "1620 degrees"
+    ],
+    "source": "original",
+    "id": "d60083a28e8b0c7b4e44fe06"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is 7 factorial?",
+      "5040",
+      "720",
+      "2520",
+      "40320"
+    ],
+    "source": "original",
+    "id": "221f8b1a9501ec06ebdccfe9"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is the least common multiple of 18 and 24?",
+      "72",
+      "36",
+      "48",
+      "144"
+    ],
+    "source": "original",
+    "id": "0f19964059b68d1dd5f0758a"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is the greatest common divisor of 84 and 126?",
+      "42",
+      "21",
+      "14",
+      "28"
+    ],
+    "source": "original",
+    "id": "2a54cc90f9ef182a29815918"
+  },
+  {
+    "type": "math",
+    "row": [
+      "How many distinct prime factors does 210 have?",
+      "4",
+      "3",
+      "5",
+      "6"
+    ],
+    "source": "original",
+    "id": "3bda4e249f498d0b039993af"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is log base 3 of 243?",
+      "5",
+      "4",
+      "6",
+      "7"
+    ],
+    "source": "original",
+    "id": "fe337e4a7a97ba0217d67c68"
+  },
+  {
+    "type": "math",
+    "row": [
+      "What is the remainder when 2^10 is divided by 7?",
+      "2",
+      "1",
+      "3",
+      "4"
+    ],
+    "source": "original",
+    "id": "7792b77b630365725bcadad9"
+  },
+  {
+    "type": "math",
+    "row": [
+      "A fair coin is tossed three times. What is the probability of exactly two heads?",
+      "3/8",
+      "1/8",
+      "1/4",
+      "1/2"
+    ],
+    "source": "original",
+    "id": "fcb50b1f85e4d0d7d49fa5b3"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which element has the chemical symbol Sb?",
+      "Antimony",
+      "Samarium",
+      "Strontium",
+      "Scandium"
+    ],
+    "source": "original",
+    "id": "25606626593e580c12d08240"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which element has the chemical symbol W?",
+      "Tungsten",
+      "Tin",
+      "Tantalum",
+      "Tellurium"
+    ],
+    "source": "original",
+    "id": "3804671cebd0b4725140fa2d"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which mineral defines hardness 9 on the Mohs scale?",
+      "Corundum",
+      "Quartz",
+      "Topaz",
+      "Diamond"
+    ],
+    "source": "original",
+    "id": "34fbdd17b2e7e521f11fcda1"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which mineral defines hardness 1 on the Mohs scale?",
+      "Talc",
+      "Gypsum",
+      "Calcite",
+      "Fluorite"
+    ],
+    "source": "original",
+    "id": "9c73c179bf04a195dadaba82"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which planet's largest moon is Ganymede?",
+      "Jupiter",
+      "Saturn",
+      "Uranus",
+      "Neptune"
+    ],
+    "source": "original",
+    "id": "1fef8960eb8c586a97a2e12d"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which planet's largest moon is Triton?",
+      "Neptune",
+      "Uranus",
+      "Saturn",
+      "Jupiter"
+    ],
+    "source": "original",
+    "id": "858895923b363096de22b73a"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which gland produces the hormone melatonin?",
+      "Pineal gland",
+      "Thyroid gland",
+      "Adrenal gland",
+      "Pituitary gland"
+    ],
+    "source": "original",
+    "id": "24d76e88189fcb01cb97f8f2"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which blood vessel carries oxygenated blood from the lungs to the heart?",
+      "Pulmonary vein",
+      "Pulmonary artery",
+      "Vena cava",
+      "Coronary sinus"
+    ],
+    "source": "original",
+    "id": "c85a61491c7dace68b9bfa2e"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which inner-ear structure is primarily responsible for hearing?",
+      "Cochlea",
+      "Semicircular canals",
+      "Eustachian tube",
+      "Eardrum"
+    ],
+    "source": "original",
+    "id": "63eafd439ec3da898bd5ee94"
+  },
+  {
+    "type": "science",
+    "row": [
+      "Which part of a nephron performs the initial filtration of blood?",
+      "Glomerulus",
+      "Loop of Henle",
+      "Collecting duct",
+      "Distal tubule"
+    ],
+    "source": "original",
+    "id": "28c009bfc21579570e2c0476"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which Elite Four member from the first generation of Pokémon became the champion in the next generation?",
+      "Lance",
+      "Agatha",
+      "Bruno",
+      "Lorelei"
+    ],
+    "source": "opentdb",
+    "id": "9b2ab10340060246f822be67"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "In Ms. Kobayashi's Dragon Maid, who is Kobayashi's maid?",
+      "Tohru",
+      "Lucoa",
+      "Kanna",
+      "Elma"
+    ],
+    "source": "opentdb",
+    "id": "5e3dff012d68ade7263d5e14"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who painted the biblical fresco The Creation of Adam?",
+      "Michelangelo",
+      "Leonardo da Vinci",
+      "Caravaggio",
+      "Rembrandt"
+    ],
+    "source": "opentdb",
+    "id": "c8ff174bd1409d4562402d37"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who is the creator of the comic series \"The Walking Dead\"?",
+      "Robert Kirkman",
+      "Stan Lee",
+      "Malcolm Wheeler-Nicholson",
+      "Robert Crumb"
+    ],
+    "source": "opentdb",
+    "id": "30e89732bfcf313e286600c6"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "What mytological creatures have women's faces and vultures' bodies?",
+      "Harpies",
+      "Mermaids",
+      "Nymph",
+      "Lilith"
+    ],
+    "source": "opentdb",
+    "id": "a4dbbab119d10c46dbef6795"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In Digimon, what is the Japanese name for the final evolutionary stage?",
+      "Ultimate",
+      "Mega",
+      "Adult",
+      "Champion"
+    ],
+    "source": "opentdb",
+    "id": "1f4f0d9cdf665a7dfe9e4ec9"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "What is the boss round featured in the \"Call Of Duty: Zombies\" map \"Five\"?",
+      "The Pentagon Thief",
+      "Hellhounds",
+      "Jumping Jacks",
+      "Napalm Zombie"
+    ],
+    "source": "opentdb",
+    "id": "2697e7fbb1ac169d8e0a3b37"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Who was the previous drummer of blink-182 before Travis Barker?",
+      "Scott Raynor",
+      "Atom Willard",
+      "Ilan Rubin",
+      "Derek Grant"
+    ],
+    "source": "opentdb",
+    "id": "6414f6266dac47c7acb4df36"
+  },
+  {
+    "type": "history",
+    "row": [
+      "During World War I, which nation's monarchs were blood related?",
+      "England, Germany, Russia",
+      "France, Russia, Germany",
+      "Serbia, Russia, Croatia",
+      "Germany, Spain, Austria"
+    ],
+    "source": "opentdb",
+    "id": "6fbb68a4dd1c3c9b544c864d"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What scientific suborder does the family Hyaenidae belong to?",
+      "Feliformia",
+      "Haplorhini",
+      "Caniformia",
+      "Ciconiiformes"
+    ],
+    "source": "opentdb",
+    "id": "11c78b142bf710cde144490c"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which of these is a semiconductor amplifying device?",
+      "transistor",
+      "tube",
+      "diode",
+      "P-N junction"
+    ],
+    "source": "opentdb",
+    "id": "08b12e5762a78520d2b238e5"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "Which of these Indian languages is not part of the Indo-European language family?",
+      "Tamil",
+      "Hindi",
+      "Punjabi",
+      "Urdu"
+    ],
+    "source": "opentdb",
+    "id": "21bc9e18cb680050dd399def"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "How old was Laurence Fishburne when Francis Ford Coppola cast him in Apocalypse Now (1979)?",
+      "14",
+      "16",
+      "18",
+      "20"
+    ],
+    "source": "opentdb",
+    "id": "cd3725ecbbeaae03e116d01b"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the smallest number that can be expressed as the sum of two positive cubes in two different ways?",
+      "1729",
+      "91",
+      "561",
+      "4104"
+    ],
+    "source": "opentdb",
+    "id": "279b4fac410633d8d8fb8a06"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Dutch computer scientist Mark Overmars is known for creating which game development engine?",
+      "Game Maker",
+      "Stencyl",
+      "Construct",
+      "Torque 2D"
+    ],
+    "source": "opentdb",
+    "id": "b5d683fd2fa4b96840dc280d"
+  },
+  {
+    "type": "sports",
+    "row": [
+      "Which of these European cities was the first to host the modern Summer Olympic Games three times?",
+      "London",
+      "Paris",
+      "Athens",
+      "Rome"
+    ],
+    "source": "opentdb",
+    "id": "abc1c8b60b02a4896bf487f2"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "Which of the following films was Don Bluth both the writer, director, and producer for?",
+      "All Dogs Go To Heaven",
+      "Titan A.E.",
+      "Anastasia",
+      "The Land Before Time"
+    ],
+    "source": "opentdb",
+    "id": "89747e5b63d1a56bd91a24e7"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which of the following computer components can be built using only NAND gates?",
+      "ALU",
+      "CPU",
+      "RAM",
+      "Register"
+    ],
+    "source": "opentdb",
+    "id": "476d5f3629fdb9a36f37ca52"
+  },
+  {
+    "type": "food",
+    "row": [
+      "Which of the following is not another name for the eggplant?",
+      "Potimarron",
+      "Brinjal",
+      "Guinea Squash",
+      "Melongene"
+    ],
+    "source": "opentdb",
+    "id": "ca27bb5589092fc4cdbc9deb"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which psychopath(s) in Dead Rising 1 gave you the small chainsaw?",
+      "Adam the Clown",
+      "Cliff Hudson",
+      "The convicts",
+      "Larry the butcher"
+    ],
+    "source": "opentdb",
+    "id": "15ea8af3a4758084ec4c9c81"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "In the anime Black Butler, who is betrothed to be married to Ciel Phantomhive?",
+      "Elizabeth Midford",
+      "Rachel Phantomhive",
+      "Alexis Leon Midford",
+      "Angelina Dalles"
+    ],
+    "source": "opentdb",
+    "id": "1b62736147ddaf3038a0de11"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Who painted the Mona Lisa?",
+      "Leonardo da Vinci",
+      "Pablo Picasso",
+      "Vincent van Gogh",
+      "Michelangelo"
+    ],
+    "source": "opentdb",
+    "id": "9dbcce771063d35f5fef7f34"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Which famous spy novelist wrote the childrens' story \"Chitty-Chitty-Bang-Bang\"?",
+      "Ian Fleming",
+      "Joseph Conrad",
+      "John Buchan",
+      "Graham Greene"
+    ],
+    "source": "opentdb",
+    "id": "70e2dba5b77b63bc3c728ded"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Who was the King of Gods in Ancient Greek mythology?",
+      "Zeus",
+      "Apollo",
+      "Hermes",
+      "Poseidon"
+    ],
+    "source": "opentdb",
+    "id": "1546b68c53e7fdf8581a7e77"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In the anime Noragami who is one of the main protagonists?",
+      "Yukine",
+      "Karuha",
+      "Mineha",
+      "Mayu"
+    ],
+    "source": "opentdb",
+    "id": "58fa69becf2dc455a2ce40c1"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In the fighting game \"Skullgirls,\" which character utilizes a folding chair called the \"Hurting\" as a weapon?",
+      "Beowulf",
+      "Big Band",
+      "Squigly",
+      "Cerebella"
+    ],
+    "source": "opentdb",
+    "id": "f22640b02b4a59a77a4fbbcc"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Who wrote the lyrics for Leonard Bernstein's 1957 Brodway musical West Side Story?",
+      "Stephen Sondheim",
+      "Himself",
+      "Oscar Hammerstein",
+      "Richard Rodgers"
+    ],
+    "source": "opentdb",
+    "id": "88643906da348c58cd5b46ca"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Which nation joined NATO as its 29th member in 2017?",
+      "Montenegro",
+      "Estonia",
+      "Andorra",
+      "Iceland"
+    ],
+    "source": "opentdb",
+    "id": "89afc97ce0f58678cc1117fe"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What is the scientific name of the cheetah?",
+      "Acinonyx jubatus",
+      "Panthera onca",
+      "Lynx rufus",
+      "Felis catus"
+    ],
+    "source": "opentdb",
+    "id": "a0cabd314303ac87f2908fe4"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which of the following liquids is least viscous? Assume temperature is 25°C.",
+      "Acetone",
+      "Water",
+      "Mercury",
+      "Benzene"
+    ],
+    "source": "opentdb",
+    "id": "e764502a6b2fc421c0ba4355"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "Xanthophobia is the fear of what color?",
+      "Yellow",
+      "Blue",
+      "Red",
+      "Green"
+    ],
+    "source": "opentdb",
+    "id": "511ff6653b81faad911f2e4c"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "The theme for the popular science fiction series \"Doctor Who\" was composed by who?",
+      "Ron Grainer",
+      "Murray Gold",
+      "Delia Derbyshire",
+      "Peter Howell"
+    ],
+    "source": "opentdb",
+    "id": "6d5cf043dced1e8a4ec1feca"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "Which of these did mathematician Leonhard Euler NOT develop?",
+      "An improvement to the Fast Fourier Transform",
+      "A method of solving first-order differential equations",
+      "An identity linking the numbers e, pi and i",
+      "A formula linking vertices, edges and faces on a graph"
+    ],
+    "source": "opentdb",
+    "id": "c3e340c26d1fbd47cd60c519"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which of these is NOT a car model produced by Malaysian car manufacturer Proton?",
+      "Kelisa",
+      "Saga",
+      "Perdana",
+      "Inspira"
+    ],
+    "source": "opentdb",
+    "id": "9943702e81e95737b602f562"
+  },
+  {
+    "type": "sports",
+    "row": [
+      "How many times did Martina Navratilova win the Wimbledon Singles Championship?",
+      "Nine",
+      "Ten",
+      "Seven",
+      "Eight"
+    ],
+    "source": "opentdb",
+    "id": "9d3b748fdd7c4884b832367e"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "Benny, Brain, Fancy-Fancy, Spook and Choo-Choo were known associates of what Hanna Barbera cartoon character?",
+      "Top Cat",
+      "Yogi Bear",
+      "Snagglepuss",
+      "Scooby-Doo"
+    ],
+    "source": "opentdb",
+    "id": "d39fd9b9957767a56eb3e463"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What is the maximum value of a 32-bit signed binary integer?",
+      "2,147,483,647",
+      "255",
+      "2048",
+      "9,223,372,036,854,775,807"
+    ],
+    "source": "opentdb",
+    "id": "aaa988683dc5cf4c4ccbaab7"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "In the game \"DELTARUNE\", what is Ralsei's special ability?",
+      "Pacify",
+      "Persuade",
+      "Eliminate",
+      "Hug"
+    ],
+    "source": "opentdb",
+    "id": "0204973e40d33f7c69897704"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Who is the armored titan in \"Attack On Titan\"?",
+      "Reiner Braun",
+      "Armin Arlelt",
+      "Mikasa Ackermann",
+      "Eren Jaeger"
+    ],
+    "source": "opentdb",
+    "id": "37a3d17ded35b8437896c20c"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Which time signature is commonly known as “Cut Time?”",
+      "2/2",
+      "4/4",
+      "6/8",
+      "3/4"
+    ],
+    "source": "opentdb",
+    "id": "d862bce6aee02dd067d38daa"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "What is the full first name of the babysitter in Calvin and Hobbes?",
+      "Rosalyn",
+      "Rose",
+      "Ruby",
+      "Rachel"
+    ],
+    "source": "opentdb",
+    "id": "75f264794c8cb29bcf25769e"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Who in Greek mythology, who led the Argonauts in search of the Golden Fleece?",
+      "Jason",
+      "Castor",
+      "Daedalus",
+      "Odysseus"
+    ],
+    "source": "opentdb",
+    "id": "f17933912d2a0699e1a20d44"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "What is the name of JoJo's Bizarre Adventure Part 5?",
+      "Vento Aureo",
+      "Vento Oreo",
+      "Vanto Aureo",
+      "Vento Eureo"
+    ],
+    "source": "opentdb",
+    "id": "808f5deb471ed10f88323fea"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "Which character in the \"Animal Crossing\" series uses the phrase \"zip zoom\" when talking to the player?",
+      "Scoot",
+      "Drake",
+      "Bill",
+      "Mallary"
+    ],
+    "source": "opentdb",
+    "id": "6f8a7de781d246af10538488"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Which of these artists did NOT feature in the fitfh studio album \"Humanz\" by British virtual band Gorillaz?",
+      "Snoop Dogg",
+      "Vince Staples",
+      "Pusha T",
+      "Danny Brown"
+    ],
+    "source": "opentdb",
+    "id": "9ac79104262cbefcf703de0d"
+  },
+  {
+    "type": "history",
+    "row": [
+      "When was the \"Siege of Leningrad\" lifted during World War II?",
+      "January 1944",
+      "September 1943",
+      "November 1943",
+      "March 1944"
+    ],
+    "source": "opentdb",
+    "id": "ed2969b75a57ba8cdd2d5cb8"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which of the following is another name for the \"Poecilotheria Metallica Tarantula\"?",
+      "Gooty",
+      "Hopper",
+      "Silver Stripe",
+      "Woebegone"
+    ],
+    "source": "opentdb",
+    "id": "b3051826e25eafcdf83af02d"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which of the following plastic is commonly used for window frames, gutters and drain pipes?",
+      "Polyvinylchloride (PVC)",
+      "Polyethylene (PE)",
+      "Polypropylene (PP)",
+      "Polystyrene (PS)"
+    ],
+    "source": "opentdb",
+    "id": "f269c9e3cb7b62d31fe257d3"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What was Bank of America originally established as?",
+      "Bank of Italy",
+      "Bank of Long Island",
+      "Bank of Pennsylvania",
+      "Bank of Charlotte"
+    ],
+    "source": "opentdb",
+    "id": "da46b119fcffa19cff4e92d5"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In order to cut costs, what were most of the extras of Mad Max (1979) paid with?",
+      "Beer",
+      "Fast food",
+      "Food stamps",
+      "They weren't paid"
+    ],
+    "source": "opentdb",
+    "id": "947b9ce30ac9600daa87606f"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "Integration is the reverse of what mathematical operation?",
+      "Differentiation",
+      "Division",
+      "Standard Deviation",
+      "Multiplication"
+    ],
+    "source": "opentdb",
+    "id": "5f28720bab6e3fac95e6fe4f"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Gabe Newell was born in which year?",
+      "1962",
+      "1970",
+      "1960",
+      "1972"
+    ],
+    "source": "opentdb",
+    "id": "4a9c3da836373c50704598aa"
+  },
+  {
+    "type": "sports",
+    "row": [
+      "Which male player won the gold medal of table tennis singles in 2016 Olympics Games?",
+      "Ma Long (China)",
+      "Zhang Jike (China)",
+      "Jun Mizutani (Japan)",
+      "Vladimir Samsonov (Belarus)"
+    ],
+    "source": "opentdb",
+    "id": "984f51e9cf8a286798fb9ed8"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "Which cartoon family lives in 31 Spooner Street, Quahog, Rhode Island USA?",
+      "The Griffins",
+      "The Simpsons",
+      "The Jetsons",
+      "The Hills"
+    ],
+    "source": "opentdb",
+    "id": "da3639ebfab9795909d1fec0"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "Which of the following is NOT a computer science algorithm?",
+      "Float Sort",
+      "Bubble Sort",
+      "Merge Sort",
+      "Quick Sort"
+    ],
+    "source": "opentdb",
+    "id": "1ff1fea91bf15b09a7e3c6fb"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which of these is not a wonder weapon in \"Call Of Duty: Zombies\"?",
+      "R115 Resonator",
+      "GKZ-45 Mk3",
+      "Ray Gun",
+      "Scavenger"
+    ],
+    "source": "opentdb",
+    "id": "bcc52f4e17b5de834b547095"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "What year did \"Bishoujo Senshi Sailor Moon\" air in Japan?",
+      "1992",
+      "1989",
+      "1990",
+      "1994"
+    ],
+    "source": "opentdb",
+    "id": "edfae9ba71d04684bb6b1417"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Which one of these paintings is not by Caspar David Friedrich?",
+      "The Black Sea",
+      "The Sea of Ice",
+      "Wanderer above the Sea of Fog",
+      "The Monk by the Sea"
+    ],
+    "source": "opentdb",
+    "id": "e612ca4d0f3eab5472e755b0"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "George Orwell wrote this book, which is often considered a statement on government oversight.",
+      "1984",
+      "The Old Man and the Sea",
+      "Catcher and the Rye",
+      "To Kill a Mockingbird"
+    ],
+    "source": "opentdb",
+    "id": "683de6a2dde93106d2582bc3"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "The greek god Poseidon was the god of what?",
+      "The Sea",
+      "War",
+      "Sun",
+      "Fire"
+    ],
+    "source": "opentdb",
+    "id": "2c42846f9d232086c65ec0fc"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "What's the English Dub Name of \"Smile Precure\"?",
+      "Glitter Force",
+      "Sparkle Girls",
+      "Fairy Tale Patrol",
+      "Power Princesses"
+    ],
+    "source": "opentdb",
+    "id": "f5c8ead7ca0672f2f7c1c3b4"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In the game Nuclear Throne, what character is only usable in a play through with Melting?",
+      "Skeleton",
+      "Frog",
+      "Horror",
+      "Plant"
+    ],
+    "source": "opentdb",
+    "id": "9635fa088b9a99fad8205282"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Who played \"Charlie Price\" in the musical \"Kinky Boots\" on Broadway in New York from May 26th - Aug 6th 2017?",
+      "Brendon Urie",
+      "Ed Sheeren",
+      "Tom Cruise",
+      "Dallon Weekes"
+    ],
+    "source": "opentdb",
+    "id": "940f30cf488cce80c10c9fbe"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Who was the longest-serving senator in US history, serving from 1959 to 2010?",
+      "Robert Byrd",
+      "Daniel Inouye",
+      "Strom Thurmond",
+      "Joe Biden"
+    ],
+    "source": "opentdb",
+    "id": "ee4f924ab58f9b279f962d14"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which of these animals is NOT a lizard?",
+      "Tuatara",
+      "Komodo Dragon",
+      "Gila Monster",
+      "Green Iguana"
+    ],
+    "source": "opentdb",
+    "id": "237bbd050d67fb708b372208"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "What is the scientific name of the red fox?",
+      "Vulpes Vulpes",
+      "Vulpes Redus",
+      "Red Fox",
+      "Vulpes Vulpie"
+    ],
+    "source": "opentdb",
+    "id": "b7f48de456f0886b506c34f0"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "Originally another word for poppy, coquelicot is a shade of what?",
+      "Red",
+      "Green",
+      "Blue",
+      "Pink"
+    ],
+    "source": "opentdb",
+    "id": "b816412c0b58ad4e623a19b1"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In Star Trek, what is the name of Spock's father?",
+      "Sarek",
+      "Tuvok",
+      "T'Pal",
+      "Surak"
+    ],
+    "source": "opentdb",
+    "id": "2a3e48112e85a43d71dfc60b"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the plane curve proposed by Descartes to challenge Fermat's extremum-finding techniques called?",
+      "Folium of Descartes",
+      "Elliptic Paraboloid of Descartes",
+      "Cartesian Coordinates",
+      "Descarte's Helicoid"
+    ],
+    "source": "opentdb",
+    "id": "6aea3fc886fb93bdb12807d9"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Who built the first laser?",
+      "Theodore Harold Maiman",
+      "Nikola Tesla",
+      "Jack Kilby",
+      "Edith Clarke"
+    ],
+    "source": "opentdb",
+    "id": "569d42dbb3f1a088ee0ac1fd"
+  },
+  {
+    "type": "sports",
+    "row": [
+      "Which year was the third Super Bowl held?",
+      "1969",
+      "1968",
+      "1971",
+      "1970"
+    ],
+    "source": "opentdb",
+    "id": "c6c17dd37655f10728d2ad93"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "Which of these voices wasn't a choice for the House AI in \"The Simpsons Treehouse of Horror\" short, House of Whacks?",
+      "George Clooney",
+      "Matthew Perry",
+      "Dennis Miller",
+      "Pierce Brosnan"
+    ],
+    "source": "opentdb",
+    "id": "9111cc7a21c7abfa06134e44"
+  },
+  {
+    "type": "programming",
+    "row": [
+      "What is the default port for HTTP?",
+      "80",
+      "53",
+      "443",
+      "23"
+    ],
+    "source": "opentdb",
+    "id": "f0b2ad7c48a59114e05105b9"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which eSports team came first place in The International Dota 2 Championship 2016?",
+      "Wings Gaming",
+      "Digital Chaos",
+      "Evil Geniuses",
+      "Fnatic"
+    ],
+    "source": "opentdb",
+    "id": "8b226454040e4e74413f27f9"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "In \"One Piece\", which one of the following is NOT an Ancient Weapon?",
+      "Jupiter",
+      "Uranus",
+      "Poseidon",
+      "Pluton"
+    ],
+    "source": "opentdb",
+    "id": "089ac9ef8f37641126193ffd"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Which artist’s studio was known as 'The Factory'?",
+      "Andy Warhol",
+      "Roy Lichtenstein",
+      "David Hockney",
+      "Peter Blake"
+    ],
+    "source": "opentdb",
+    "id": "81e18eecf359b5fa49ebe750"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "This Marvel superhero is often called \"The man without fear\".",
+      "Daredevil",
+      "Thor",
+      "Wolverine",
+      "Hulk"
+    ],
+    "source": "opentdb",
+    "id": "d8671aa3182e0ef6e3479939"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Which Greek & Roman god was known as the god of music, truth and prophecy, healing, the sun and light, plague, poetry, and more?",
+      "Apollo",
+      "Aphrodite",
+      "Artemis",
+      "Athena"
+    ],
+    "source": "opentdb",
+    "id": "343963531839fa612f2aaef9"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In \"Toriko\", which of the following foods is knowingly compatible with Toriko?",
+      "Poison Potato",
+      "Mors Oil",
+      "Alpacookie",
+      "Parmesansho Fruit"
+    ],
+    "source": "opentdb",
+    "id": "a85b29eb857b184f5ee3b1b6"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In the Assassin's Creed series,what was the name of Desmond Miles given by Abstergo?",
+      "Subject 17",
+      "Subject 16",
+      "Subject 18",
+      "Altaïr Ibn-La'Ahad"
+    ],
+    "source": "opentdb",
+    "id": "33ccccdb1cb85286122ffe67"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Which of the following is NOT a real song from the band Thousand Foot Krutch?",
+      "Limitless Fury",
+      "Let The Sparks Fly",
+      "Down",
+      "Give Up The Ghost"
+    ],
+    "source": "opentdb",
+    "id": "1301f19401f9f617c7e6be79"
+  },
+  {
+    "type": "history",
+    "row": [
+      "The Arab Spring was a series of protests and rebellions that began in which of these Arab nations?",
+      "Tunisia",
+      "Morocco",
+      "Syria",
+      "Egypt"
+    ],
+    "source": "opentdb",
+    "id": "575006aee4febd6d3d3e9d70"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "What is the name of the copper-rich protein that creates the blue blood in the Antarctic octopus?",
+      "Hemocyanin",
+      "Cytochrome",
+      "Iron",
+      "Methionine"
+    ],
+    "source": "opentdb",
+    "id": "f0125ddf444672d37be01958"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "How many types of quarks are there in the standard model of physics?",
+      "6",
+      "2",
+      "3",
+      "4"
+    ],
+    "source": "opentdb",
+    "id": "b41020e5127fdbc678690cdf"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "Going by the International Code of Signals, which single flag is interpreted as \"I require assistance (not distress)\"?",
+      "Victor",
+      "Kilo",
+      "Papa",
+      "Delta"
+    ],
+    "source": "opentdb",
+    "id": "d124d594e2fab574d8268cc2"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In the movie \"Scream\" who is Ghost Face?",
+      "Billy Loomis and Stu Macher",
+      "Dewey Riley",
+      "Sidney Prescott",
+      "Archie Prescott and Philip Marv"
+    ],
+    "source": "opentdb",
+    "id": "41832647f9741c3a42b4bea7"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the derivative of Acceleration with respect to time?",
+      "Jerk",
+      "Shift",
+      "Bump",
+      "Slide"
+    ],
+    "source": "opentdb",
+    "id": "42bd98862ea5521a7bc2f83c"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "What type of sound chip does the Super Nintendo Entertainment System (SNES) have?",
+      "ADPCM Sampler",
+      "FM Synthesizer",
+      "Programmable Sound Generator (PSG)",
+      "PCM Sampler"
+    ],
+    "source": "opentdb",
+    "id": "5897b9dba6a40a2c4f9483a9"
+  },
+  {
+    "type": "sports",
+    "row": [
+      "Which player \"kung-fu kicked\" a Crystal Palace fan in January 1995?",
+      "Eric Cantona",
+      "David Seamen",
+      "Ashley Cole",
+      "Mark Hughes"
+    ],
+    "source": "opentdb",
+    "id": "8d07fc71233f462c64d271cd"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In the web-comic Homestuck, what is the name of the game the 4 kids play?",
+      "Sburb",
+      "Homesick",
+      "Husslie",
+      "Hiveswap"
+    ],
+    "source": "opentdb",
+    "id": "622484c270a4de9e1bf95127"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "How many times do you fight Gilgamesh in \"Final Fantasy 5\"?",
+      "6",
+      "4",
+      "5",
+      "3"
+    ],
+    "source": "opentdb",
+    "id": "bb95ecd78e31f3f4d1296825"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Aoi Miyamori is the production manager of what anime in \"Shirobako\"?",
+      "The Third Aerial Girls Squad",
+      "Exodus!",
+      "Andes Chucky",
+      "Angel Beats!"
+    ],
+    "source": "opentdb",
+    "id": "8fca8eec403fbdef033e6c3c"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Which famed architect, who died in 2019 aged 102, designed the glass pyramid at the Louvre museum in Paris?",
+      "I. M. Pei",
+      "Pascale Guédot",
+      "Frank Gehry",
+      "Wang Shu"
+    ],
+    "source": "opentdb",
+    "id": "a15badb99a62089eee01aa44"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "\"Green Eggs And Ham\" is a book by which author?",
+      "Dr. Seuss",
+      "Beatrix Potter",
+      "Roald Dahl",
+      "A.A. Milne"
+    ],
+    "source": "opentdb",
+    "id": "b25b89baa63e590ed50d7b3d"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "The Nike apparel and footwear brand takes it's name from the Greek goddess of what?",
+      "Victory",
+      "Courage",
+      "Strength",
+      "Honor"
+    ],
+    "source": "opentdb",
+    "id": "07d9f4822ea5c0de74cb0cd2"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In the \"Re:Zero\" manga series, which of the following Sin Archbishops eats Rem's existence?",
+      "Ley Batenkaitos",
+      "Roy Alphard",
+      "Petelgeuse Romanee-Conti",
+      "Louis Arneb"
+    ],
+    "source": "opentdb",
+    "id": "733bbe2969248b6075c4ffab"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In \"Warhammer: End Times - Vermintide\", what is the name of the rat faction you fight in the game?",
+      "Skaven",
+      "Ratmen",
+      "The Horde",
+      "Chaos"
+    ],
+    "source": "opentdb",
+    "id": "2a06187db67f5637cce6abb8"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Who was not in the band \"The Smiths\"?",
+      "Martin Chambers",
+      "Morrissey",
+      "Andy Rourke",
+      "Mike Joyce"
+    ],
+    "source": "opentdb",
+    "id": "78f1b9de2d31c192b693f5ec"
+  },
+  {
+    "type": "history",
+    "row": [
+      "\"Yes, America Can!\" was this United States politician's de facto campaign slogan in 2004.",
+      "George W. Bush",
+      "John Kerry",
+      "Barack Obama",
+      "Al Gore"
+    ],
+    "source": "opentdb",
+    "id": "a2ab0c3e500f37d0dd1eeba4"
+  },
+  {
+    "type": "animals",
+    "row": [
+      "Which species is a \"mountain chicken\"?",
+      "Frog",
+      "Chicken",
+      "Horse",
+      "Fly"
+    ],
+    "source": "opentdb",
+    "id": "ade5b7d6a78e9549db28c6c0"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "A comet's gaseous envelope (which creates the tail) is called what?",
+      "The coma",
+      "The wake",
+      "The backwash",
+      "The ablative"
+    ],
+    "source": "opentdb",
+    "id": "78419c67586d22bc3bc37116"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "The word \"abulia\" means which of the following?",
+      "The inability to make decisions",
+      "The inability to stand up",
+      "The inability to concentrate on anything",
+      "A feverish desire to rip one's clothes off"
+    ],
+    "source": "opentdb",
+    "id": "d306bbe46cd35ba9d3cbfe5f"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In \"Star Trek\", what sauce is commonly used by Klingons on bregit lung?",
+      "Grapok sauce",
+      "Gazorpazorp pudding",
+      "Sweet chili sauce",
+      "Grapork sauce"
+    ],
+    "source": "opentdb",
+    "id": "e6c7c3caaa831fe1c29ac75c"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "What is the approximate value of mathematical constant e?",
+      "2.72",
+      "3.14",
+      "1.62",
+      "1.41"
+    ],
+    "source": "opentdb",
+    "id": "03e0d8d302298a2017da0811"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which of the following FIA Rally cars was approved for use in the Group B class first?",
+      "Porsche 911 Turbo",
+      "Audi Quattro A2",
+      "BMW M1",
+      "Lancia Rally 037"
+    ],
+    "source": "opentdb",
+    "id": "c5bee040f99ce314bbd16a78"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "What is the name of the pirate that sings the intro to \"Spongebob Squarepants\"?",
+      "Painty",
+      "Patchy",
+      "Lloyd",
+      "Larry"
+    ],
+    "source": "opentdb",
+    "id": "9f708c631947cc993eacf8ee"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "In \"Phantasy Star Online 2\", which is the first area that you are granted access to?",
+      "Forest",
+      "Swamp",
+      "Plains",
+      "Caves"
+    ],
+    "source": "opentdb",
+    "id": "6a15e7c23c88a7187da98735"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "In Haikyuu!!, who is not a member of Karasuno VBC?",
+      "Shigeru Yahaba",
+      "Tadashi Yamaguchi",
+      "Hisashi Kinoshita",
+      "Kazuhito Narita"
+    ],
+    "source": "opentdb",
+    "id": "d54f4099dafe8b9e1cabad8d"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "The architect known as Le Corbusier was an important figure in what style of architecture?",
+      "Modernism",
+      "Neoclassical",
+      "Baroque",
+      "Gothic Revival"
+    ],
+    "source": "opentdb",
+    "id": "3ce40cab1873419a4dac06c3"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "In \"Homestuck\" the \"Kingdom of Darkness\" is also known as?",
+      "Derse",
+      "Skaia",
+      "Prospit",
+      "The Medium"
+    ],
+    "source": "opentdb",
+    "id": "4d91ccdccabad391b037964f"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In most traditions, who was the wife of Zeus?",
+      "Hera",
+      "Aphrodite",
+      "Athena",
+      "Hestia"
+    ],
+    "source": "opentdb",
+    "id": "133a74538b70ea65e4f7ff3b"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "What is the name of the infamous pachinko machine from \"Kaiji\"?",
+      "The Bog",
+      "The Devil",
+      "The Undefeated",
+      "The Dragon"
+    ],
+    "source": "opentdb",
+    "id": "8296bcbd24c81e54d7f343d9"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "Who is the main character in most of the games of the YS series?",
+      "Adol Christin",
+      "Character doesn't have a name",
+      "Estelle Bright",
+      "Roger Wilco"
+    ],
+    "source": "opentdb",
+    "id": "0dec704e4e49bb74d02e516a"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Which member of the English band \"The xx\" released their solo album \"In Colour\" in 2015?",
+      "Jamie xx",
+      "Romy Madley Croft",
+      "Oliver Sim",
+      "Baria Qureshi"
+    ],
+    "source": "opentdb",
+    "id": "a8a77812529e577228c44c2b"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Who was the President of the United States during the signing of the Gadsden Purchase?",
+      "Franklin Pierce",
+      "Andrew Johnson",
+      "Abraham Lincoln",
+      "James Polk"
+    ],
+    "source": "opentdb",
+    "id": "ad9633071499d58b441c5bed"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Where in the human body is the Pineal Gland located?",
+      "Brain",
+      "Groin",
+      "Chest",
+      "Throat"
+    ],
+    "source": "opentdb",
+    "id": "e8e75823d87a2485f9d6ab01"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "According to the 2014-2015 Australian Bureau of Statistics, what percentage of Australians were born overseas?",
+      "28%",
+      "13%",
+      "20%",
+      "7%"
+    ],
+    "source": "opentdb",
+    "id": "2178ada9728bec1a1d681d81"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In the Friday The 13th series, what year did Jason drown in?",
+      "1957",
+      "1955",
+      "1953",
+      "1959"
+    ],
+    "source": "opentdb",
+    "id": "9fbfd9b44bf44427e2ca6ce9"
+  },
+  {
+    "type": "advanced_math",
+    "row": [
+      "How many zeptometres are inside one femtometre?",
+      "1,000,000",
+      "10",
+      "1,000,000,000",
+      "1000"
+    ],
+    "source": "opentdb",
+    "id": "9bc082ea1c19b1f9715ca8f7"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which round does a WW2 M1 Garand fire?",
+      ".30-06",
+      ".308",
+      "7.62",
+      "7.62x51mm"
+    ],
+    "source": "opentdb",
+    "id": "4838b7694b8fd6c82dae6da5"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In the 1968 Cartoon Show \"Wacky Races\" what was the name of cavemen duo who rode in The Boulder Mobile?",
+      "The Slag Brothers",
+      "The Slate Brothers",
+      "The Rock Brothers",
+      "The Stone Brothers"
+    ],
+    "source": "opentdb",
+    "id": "e8ba0e0a6dbca55b65d4f10c"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which of the following created and directed the Katamari Damacy series?",
+      "Keita Takahashi",
+      "Hideki Kamiya",
+      "Shu Takumi",
+      "Shinji Mikami"
+    ],
+    "source": "opentdb",
+    "id": "7c3b0032b67e042d0601cc83"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "What year did the anime \"Himouto! Umaru-chan\" air?",
+      "2015",
+      "2014",
+      "2012",
+      "2013"
+    ],
+    "source": "opentdb",
+    "id": "c489c3e01b3244d9f3c3774e"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Out of these four buildings, which one is the tallest, with a height of 1,483 ft (451.9 m)?",
+      "Petronas Twin Towers, Malaysia",
+      "Zifeng Tower, China",
+      "Trump Intl. Hotel & Tower, United States",
+      "Al Hamra Tower, Kuwait"
+    ],
+    "source": "opentdb",
+    "id": "505a11e387b15eda4b72ee86"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who wrote the novel 'Fear And Loathing In Las Vegas'?",
+      "Hunter S. Thompson",
+      "F. Scott Fitzgerald",
+      "Henry Miller",
+      "William S. Burroughs"
+    ],
+    "source": "opentdb",
+    "id": "9adcea64e3bc4e81ed47c189"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "What is the name of the Greek god of peaceful deaths?",
+      "Thanatos",
+      "Tartarus",
+      "Hades",
+      "Moros"
+    ],
+    "source": "opentdb",
+    "id": "a6f5877e1b031cf442004d36"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In \"Hunter x Hunter\", what are members in Killua's family known for being?",
+      "Assassins",
+      "Bandits",
+      "Hunters",
+      "Ninjas"
+    ],
+    "source": "opentdb",
+    "id": "4227451d3403ecea2cf4f1e2"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "What was the development code name for the \"Urza's Destiny\" expansion for \"Magic: The Gathering\", released in 1999?",
+      "Chimichanga",
+      "Burrito",
+      "Taquito",
+      "Enchilada"
+    ],
+    "source": "opentdb",
+    "id": "55a5e2bf073c2ece4e1cf6ce"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Dallon Weekes, former touring basist of Panic! At the Disco, created his own band in 2016 called...",
+      "I Don't Know How But They Found Me",
+      "Cheats At Hide And Seek",
+      "Where Did You All Come From?",
+      "Run Away From The People"
+    ],
+    "source": "opentdb",
+    "id": "6b0abfae2de88ef4ba4e8e6a"
+  },
+  {
+    "type": "history",
+    "row": [
+      "When did Spanish Peninsular War start?",
+      "1808",
+      "1806",
+      "1810",
+      "1809"
+    ],
+    "source": "opentdb",
+    "id": "a278a5b23d62e9d80465a18f"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "\"The Big Bang Theory\" was first theorized by a priest of what religious ideology?",
+      "Catholic",
+      "Christian",
+      "Jewish",
+      "Islamic"
+    ],
+    "source": "opentdb",
+    "id": "6ea80255f54d50675195ee70"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "To which language family does Kazakh belong?",
+      "Turkic",
+      "Mongolic",
+      "Indo-European",
+      "Uralic"
+    ],
+    "source": "opentdb",
+    "id": "ef0137d71182c04d85008285"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "What was the last Marx Brothers film to feature Zeppo?",
+      "Duck Soup",
+      "A Night at the Opera",
+      "A Day at the Races",
+      "Monkey Business"
+    ],
+    "source": "opentdb",
+    "id": "a5315210423d8251e2448092"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "The difference between the lengths of a Boeing 777-300ER and an Airbus A350-1000 is closest to:",
+      "0.1m",
+      "1m",
+      "10m",
+      "100m"
+    ],
+    "source": "opentdb",
+    "id": "eeb31d4a458189501ef9a36d"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "What was Maggie Simpson's first canonical word, not including the Tracey Ullman shorts?",
+      "Daddy.",
+      "Sequel?",
+      "Ja!",
+      "Rusty!"
+    ],
+    "source": "opentdb",
+    "id": "1f2657444652062e8fea88cf"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "In 2004, which person(s) created \"Roblox\"?",
+      "David Baszucki and Erik Cassel",
+      "Erik Cassel",
+      "Jonas Alto and Sarah Smith",
+      "James Kolein"
+    ],
+    "source": "opentdb",
+    "id": "0b0881cec38afabafdd94a67"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "In \"Black Lagoon\", what colour is Rock's tie?",
+      "Teal",
+      "Crimson",
+      "Dark Brown",
+      "Black"
+    ],
+    "source": "opentdb",
+    "id": "1fd04647e0c9f6025979c805"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Out of these four buildings, which one is the tallest, with a height of 1,776 ft (541.3 m)?",
+      "One World Trade Center, United States",
+      "Taipei 101, Taiwan",
+      "Willis Tower, United States",
+      "Jin Mao Tower, China"
+    ],
+    "source": "opentdb",
+    "id": "f2b67db4d9abf69d0efe5cdd"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "In \"Homestuck\" what is Dave Strider's guardian?",
+      "Bro",
+      "Becquerel",
+      "Doc Scratch",
+      "Halley"
+    ],
+    "source": "opentdb",
+    "id": "bb9b1ccc4d1e5f420dad068b"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "According to the Egyptian Myth of Osiris, who murdered Osiris?",
+      "Set",
+      "Horus",
+      "Ra",
+      "Anhur"
+    ],
+    "source": "opentdb",
+    "id": "5e80a442d567f300a9dda41e"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "What is the name of the school in the anime and manga \"Gosick\"?",
+      "St. Marguerite",
+      "St. Augustine",
+      "St. Mary",
+      "St. Bernadette"
+    ],
+    "source": "opentdb",
+    "id": "39f4eb266430992933d72bdb"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In the \"Halo\" series, what is the name of the race of aliens humans refer to as \"Grunts\"?",
+      "Unggoy",
+      "Huragok",
+      "Sangheili",
+      "Yanme'e"
+    ],
+    "source": "opentdb",
+    "id": "3195d5cf28f28a7b49a8dccc"
+  },
+  {
+    "type": "music",
+    "row": [
+      "What rock group is named after a gym teacher who taught at the original band members' high school?",
+      "Lynyrd Skynyrd",
+      "Jefferson Airplane",
+      "Pink Floyd",
+      "The Byrds"
+    ],
+    "source": "opentdb",
+    "id": "b421e3a17215f662ef79129d"
+  },
+  {
+    "type": "history",
+    "row": [
+      "When was Adolf Hitler appointed as Chancellor of Germany?",
+      "January 30, 1933",
+      "September 1, 1939",
+      "February 27, 1933",
+      "October 6, 1939"
+    ],
+    "source": "opentdb",
+    "id": "990f283e60513e58d2e61c66"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "In physics, conservation of energy and conservation of momentum are both consequences of which of the following?",
+      "Noether's Theorem",
+      "Bell's Theorem",
+      "Wick's Theorem",
+      "Carnot's Theorem"
+    ],
+    "source": "opentdb",
+    "id": "bf0e5c2f9d9e3f5b70e11832"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "The word \"aprosexia\" means which of the following?",
+      "The inability to concentrate on anything",
+      "The inability to make decisions",
+      "A feverish desire to rip one's clothes off",
+      "The inability to stand up"
+    ],
+    "source": "opentdb",
+    "id": "c0be627375ded33589717b17"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In \"It's Always Sunny in Philadelphia\" what was the name of Frank's wrestling persona?",
+      "The Trash Man",
+      "Bird of War",
+      "Day Man",
+      "The Maniac"
+    ],
+    "source": "opentdb",
+    "id": "ca7dc7335a03de461f32812d"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Virtual reality company Oculus VR lost which of it's co-founders in a freak car accident in 2013?",
+      "Andrew Scott Reisse",
+      "Nate Mitchell",
+      "Jack McCauley",
+      "Palmer Luckey"
+    ],
+    "source": "opentdb",
+    "id": "f35762267abc910b2f7564d4"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "Who played Stan's dog in the South Park episode \"Big Gay Al's Big Gay Boat Ride\"?",
+      "George Clooney",
+      "Jay Leno",
+      "Matt Stone",
+      "Robert Smith"
+    ],
+    "source": "opentdb",
+    "id": "86f31c36cd7543485882f91c"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which card is on the cover of the Beta rulebook of \"Magic: The Gathering\"?",
+      "Bog Wraith",
+      "Island",
+      "Rock Hydra",
+      "Elvish Archers"
+    ],
+    "source": "opentdb",
+    "id": "e3969602646c737593185541"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Which Japanese music group was formed to produce theme music for the anime \"Guilty Crown\"?",
+      "Egoist",
+      "Goose house",
+      "Babymetal",
+      "Garnidelia"
+    ],
+    "source": "opentdb",
+    "id": "7ae70467e2eedfaf3b919561"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Out of these four buildings, which one is the tallest, with a height of 1,250 ft (381 m)?",
+      "Empire State Building, United States",
+      "Bank of China Tower, Hong Kong",
+      "Federation Tower, Russia",
+      "Gevora Hotal, United Arab Emirates"
+    ],
+    "source": "opentdb",
+    "id": "5a36a28f7678276154001242"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Who was the original author of Frankenstein?",
+      "Mary Shelley",
+      "Edgar Allan Poe",
+      "Bram Stoker",
+      "H. P. Lovecraft"
+    ],
+    "source": "opentdb",
+    "id": "a64320fc02ad9b7cdbb8d02c"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Who is the father of Icarus, who flew too close to the sun?",
+      "Daedalus",
+      "Minos",
+      "Perseus",
+      "Zeus"
+    ],
+    "source": "opentdb",
+    "id": "823c00ff29a754a5695c6fda"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In which manga did the \"404 Girl\" from 4chan originate from?",
+      "Yotsuba&!",
+      "Azumanga Daioh",
+      "Lucky Star",
+      "Clover"
+    ],
+    "source": "opentdb",
+    "id": "68fe2719c1d7c93324948810"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "In the game \"VA-11 Hall-A\" during Virgilio's ending, Virgilio opens his own:",
+      "Curry Stand",
+      "Bar",
+      "Museum",
+      "Law Firm"
+    ],
+    "source": "opentdb",
+    "id": "bbbf18a3562d4bdc439b2dee"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Björk's \"Unison\" contains a sample of which Oval song?",
+      "Aero Deck",
+      "Textuell",
+      "Panorama",
+      "Do While"
+    ],
+    "source": "opentdb",
+    "id": "8f1b4258f46977ca0236aec3"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Which Australian Prime Minister disappeared in 1967 and was never found?",
+      "Harold Holt",
+      "Paul Keating",
+      "Edmund Barton",
+      "Scott Morrison"
+    ],
+    "source": "opentdb",
+    "id": "8bd48d272c60fb9356daeb65"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which is not a type of neuron?",
+      "Perceptual Neuron",
+      "Sensory Neuron",
+      "Motor Neuron",
+      "Interneuron"
+    ],
+    "source": "opentdb",
+    "id": "e4ee25562c8ef1694de560d7"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "The Quadrangularis Reversum is best described as which of the following?",
+      "A percussion instrument",
+      "A building in Oxford University",
+      "A chess move",
+      "A geometric theorem"
+    ],
+    "source": "opentdb",
+    "id": "7399cae682ee2b47a20460cd"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In Youtuber Jerma985's 2014 film \"Rat Movie: Mystery of the Mayan Treasure,\" who is the man who tries to steal the Mayan Treasure?",
+      "Dick Dastardly Richards",
+      "Gabe \"The Glue Man\" Degrossi",
+      "Bootleg Duck Dynasty Byeah Batman",
+      "Demon Lord Zeraxos"
+    ],
+    "source": "opentdb",
+    "id": "c98745faed4cee3871567264"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "What model was the sports car gifted to Yuri Gagarin by the French government in 1965?",
+      "Matra Djet",
+      "Porsche 911",
+      "Alpine A110",
+      "AC Cobra"
+    ],
+    "source": "opentdb",
+    "id": "bdf80d06f1812c924e22d56f"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In the TV Show \"Donkey Kong Country\", which episode did the song \"Eddie, Let Me Go Back To My Home\" play in?",
+      "It's a Wonderful Life",
+      "Message In A Bottle Show",
+      "To The Moon Baboon",
+      "Ape-Nesia"
+    ],
+    "source": "opentdb",
+    "id": "a5d0fd6492f9bcfd7c418431"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which ability from the \"Magic: The Gathering\" Scars of Mirrodin expansion involves having at least three artifacts in play?",
+      "Metalcraft",
+      "Affinity",
+      "Imprint",
+      "Living Weapon"
+    ],
+    "source": "opentdb",
+    "id": "611f530700c1cd8037a785a6"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Who was the first Legendary Pokemon to be defeated by Ash Ketchum in the Pokémon anime?",
+      "Articuno",
+      "Darkrai",
+      "Latios",
+      "Regice"
+    ],
+    "source": "opentdb",
+    "id": "305e7451c1db9c43c580e792"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "What was the first successful and commercially viable photographic technique?",
+      "The Daguerreotype",
+      "Collodion process",
+      "The Turin Shroud",
+      "Kodachrome film"
+    ],
+    "source": "opentdb",
+    "id": "aa2c30e59901c800c913236b"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "Which superhero is known for his super speed?",
+      "Flash",
+      "Superman",
+      "Batman",
+      "Spiderman"
+    ],
+    "source": "opentdb",
+    "id": "332eca95ff40a2e3c744c710"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "A minotaur is half human half what?",
+      "Bull",
+      "Cow",
+      "Horse",
+      "Eagle"
+    ],
+    "source": "opentdb",
+    "id": "60cb500b83196d036afb5f73"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In \"Jewelpet Sunshine\", what is the song that plays when Kanon and her friends bust out of prison?",
+      "I Don't Want to Miss a Thing",
+      "Eye Of The Tiger",
+      "Born to be Wild",
+      "Ruby Ring"
+    ],
+    "source": "opentdb",
+    "id": "f60d58ec84bbba9481416ab7"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "Which drive form was added into Kingdom Hearts II Final Mix?",
+      "Limit Form",
+      "Valor Form",
+      "Wisdom Form",
+      "Anti Form"
+    ],
+    "source": "opentdb",
+    "id": "9cc996221817a12e35fef33e"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Which artists' version of the song \"The Tide is High\" came first?",
+      "The Paragons",
+      "Blondie",
+      "Kardinal Offishall",
+      "Atomic Kitten"
+    ],
+    "source": "opentdb",
+    "id": "f1c292b18a507dbd649d792f"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Which is the hull NO. of the Fletcher class destroyer Fletcher?",
+      "DD-445",
+      "DD-992",
+      "DD-444",
+      "DD-446"
+    ],
+    "source": "opentdb",
+    "id": "cc9b828d83316f64ea467b16"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which of the following are cells of the adaptive immune system?",
+      "Cytotoxic T cells",
+      "Dendritic cells",
+      "Natural killer cells",
+      "White blood cells"
+    ],
+    "source": "opentdb",
+    "id": "2c7b2747ea56279fea12a81b"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "The Panama Canal was officially opened by which US president?",
+      "Woodrow Wilson",
+      "Calvin Coolidge",
+      "Herbert Hoover",
+      "Theodore Roosevelt"
+    ],
+    "source": "opentdb",
+    "id": "2bbba085ffebe8624025c038"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "Which 1994 film did Roger Ebert famously despise, saying \"I hated hated hated hated hated this movie\".",
+      "North",
+      "3 Ninjas Kick Back",
+      "The Santa Clause",
+      "Richie Rich"
+    ],
+    "source": "opentdb",
+    "id": "418f66ad8214a43e4496ef39"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which product did Nokia, the telecommunications company, originally sell?",
+      "Paper",
+      "Phones",
+      "Computers",
+      "Processors"
+    ],
+    "source": "opentdb",
+    "id": "4c306c3aab740f9d92b96210"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In the \"Star Wars\" universe, what species is Grand Admiral Thrawn?",
+      "Chiss",
+      "Gungans",
+      "Pantorans",
+      "Twi'lek"
+    ],
+    "source": "opentdb",
+    "id": "3e34dd002291c06b44e1fc13"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "What do you declare in Rīchi Mahjong when you've drawn your winning tile?",
+      "Tsumo",
+      "Ron",
+      "Rīchi",
+      "Kan"
+    ],
+    "source": "opentdb",
+    "id": "130e0663a25c66c12fd5a9f8"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "What was studio Trigger's first original long-form animated series for television?",
+      "Kill la Kill",
+      "Kiznaiver",
+      "Inferno Cop",
+      "Gurren Lagann"
+    ],
+    "source": "opentdb",
+    "id": "76e6f312145716a0e5f83f60"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "How many paint and pastel versions of \"The Scream\" is Norwegian painter Edvard Munch believed to have produced?",
+      "4",
+      "1",
+      "3",
+      "2"
+    ],
+    "source": "opentdb",
+    "id": "b0405e9612e771992195e58e"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "What's Harry Potter's dad's name?",
+      "James Potter",
+      "Joey Potter",
+      "Frank Potter",
+      "Hairy Potter Sr."
+    ],
+    "source": "opentdb",
+    "id": "ef41c0aeaf0732c6e8a98e50"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "In Greek Mythology, who killed Achilles?",
+      "Paris",
+      "Hector",
+      "Helen",
+      "Pericles"
+    ],
+    "source": "opentdb",
+    "id": "e3c910ffe10213af4b0c504d"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "What is the last line muttered in the anime film \"The End of Evangelion\"?",
+      "\"How disgusting.\"",
+      "\"Idiot, I won't let you kill me!\"",
+      "\"Nothing.\"",
+      "\"Goddammit, Shinji.\""
+    ],
+    "source": "opentdb",
+    "id": "263048b31354c538197051d3"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "Which character from the Mega Man series made a small cameo on Volt Catfish's introduction scene in CD versions of Mega Man X3?",
+      "Auto",
+      "Eddie",
+      "Tango",
+      "Rush"
+    ],
+    "source": "opentdb",
+    "id": "55506cd2cf04feb66cd57e73"
+  },
+  {
+    "type": "music",
+    "row": [
+      "In Kendrick Lamar's 2012 album, \"Good Kid, M.A.A.D City\", the album's story takes place in which city?",
+      "Compton",
+      "Detroit",
+      "New York",
+      "Baltimore"
+    ],
+    "source": "opentdb",
+    "id": "48b9cfc34e98ab54363539d4"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Who assassinated President James A. Garfield?",
+      "Charles Guiteau",
+      "Sirhan Sirhan",
+      "Leon Czolgosz",
+      "John Wilkes Booth"
+    ],
+    "source": "opentdb",
+    "id": "4527fe3abf5d628e462abc4e"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "What is the name for the auditory illusion of a note that seems to be rising infinitely?",
+      "Shepard Tone",
+      "Glissandro Illusion",
+      "Fransen Effect",
+      "McGurck Effect"
+    ],
+    "source": "opentdb",
+    "id": "01e4b17de48a71f6e831097e"
+  },
+  {
+    "type": "everyday",
+    "row": [
+      "What is the romanized Arabic word for \"moon\"?",
+      "Qamar",
+      "Najma",
+      "Kawkab",
+      "Shams"
+    ],
+    "source": "opentdb",
+    "id": "67ca4399ba71a64dd3b983d2"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "What was the callsign of Commander William Adama in Battlestar Galactica (2004)?",
+      "Husker",
+      "Starbuck",
+      "Apollo",
+      "Crashdown"
+    ],
+    "source": "opentdb",
+    "id": "37459ec2613ab856fd5097db"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "What is the codename of the eighth generation Intel Core micro-architecture launched in October 2017?",
+      "Coffee Lake",
+      "Sandy Bridge",
+      "Skylake",
+      "Broadwell"
+    ],
+    "source": "opentdb",
+    "id": "6b80c8f6c5b3687d43696649"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In \"Gravity Falls\", the character Bill Cipher remarks that \"the universe is what?\"",
+      "A hologram",
+      "An illusion",
+      "A simulation",
+      "Corrupting"
+    ],
+    "source": "opentdb",
+    "id": "3ede6aefdf18472d225c6e9e"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "Which gaming series includes \"The Diabolical Box\" and \"The Curious Village\"?",
+      "Professor Layton",
+      "Persona",
+      "Etrian Odyssey",
+      "Sam & Max"
+    ],
+    "source": "opentdb",
+    "id": "e11f603c23558fe8565fd6b7"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "What year does Part 7 of \"JoJo's Bizarre Adventure\" take place in?",
+      "1890",
+      "1888",
+      "1999",
+      "2003"
+    ],
+    "source": "opentdb",
+    "id": "f773da823b22eb56ea3dc6df"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Albrecht Dürer's birthplace and place of death were in...",
+      "Nürnberg",
+      "Augsburg",
+      "Bamberg",
+      "Berlin"
+    ],
+    "source": "opentdb",
+    "id": "f44855d76eb3ad216310099a"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "What's the second book in George R. R. Martin's 'A Song of Ice and Fire' series?",
+      "A Clash of Kings",
+      "A Dance with Dragons",
+      "A Storm of Swords",
+      "A Feast for Crows"
+    ],
+    "source": "opentdb",
+    "id": "e56acffad21d68b753a18627"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "The Maori hold that which island nation was founded by Kupe, who discovered it under a long white cloud?",
+      "New Zealand",
+      "Vanuatu",
+      "Fiji",
+      "Hawaii"
+    ],
+    "source": "opentdb",
+    "id": "ef3c15727b29cff446cca2e7"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In \"One Piece\", who is the girl who overcame her enslaved past and became an agent of an army to fight the corrupt government?",
+      "Koala",
+      "Boa Hancock",
+      "Nico Robin",
+      "Emporio Ivankov"
+    ],
+    "source": "opentdb",
+    "id": "a5c458b18ab32ff26366361e"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "What is the name of the alien species introduced in Shadow the Hedgehog (2005)?",
+      "Black Arms",
+      "The Swarm",
+      "Black Hive",
+      "The Eclipse"
+    ],
+    "source": "opentdb",
+    "id": "57094cbed2f0e88e49e43b7e"
+  },
+  {
+    "type": "music",
+    "row": [
+      "What event inspired The Cranberries song \"Zombie\" ?",
+      "The Warrington Bombings",
+      "September 11 Attacks",
+      "The Manchester Arena Bombing",
+      "The July 7th bombings"
+    ],
+    "source": "opentdb",
+    "id": "7aa96acb4c462779852ce7d3"
+  },
+  {
+    "type": "history",
+    "row": [
+      "How long did the Warsaw Uprising during World War II last?",
+      "63 Days",
+      "20 Days",
+      "55 Days",
+      "224 Days"
+    ],
+    "source": "opentdb",
+    "id": "76d732a4eaad6188de5f3652"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which moon is the only satellite in our solar system to possess a dense atmosphere?",
+      "Titan",
+      "Europa",
+      "Miranda",
+      "Callisto"
+    ],
+    "source": "opentdb",
+    "id": "aba9069bcfb9d6c36caaca86"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In what year was the first Indian movie submitted for an Oscar?",
+      "1957",
+      "1962",
+      "1938",
+      "1954"
+    ],
+    "source": "opentdb",
+    "id": "b73cec92a8103ded41058a6a"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which Variable Valve Timing technology is used by BMW?",
+      "VANOS",
+      "VVT-iw",
+      "VVEL",
+      "MultiAir"
+    ],
+    "source": "opentdb",
+    "id": "743efd58982408188a220307"
+  },
+  {
+    "type": "cartoons",
+    "row": [
+      "In the TV show \"Rick and Morty\", Rick uses the catchphrase \"Wubba Lubba Dub Dub\", which means what in Birdperson?",
+      "I am in great pain, please help me.",
+      "I pray that my life ends soon.",
+      "Lets get this party started!",
+      "I am suffering, please help me."
+    ],
+    "source": "opentdb",
+    "id": "a4023dd8c3ee8423516f5f61"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "What is the weight of a Gold Bar in Fallout: New Vegas?",
+      "35 Pounds",
+      "30 Pounds",
+      "40 Pounds",
+      "32.50 Pounds"
+    ],
+    "source": "opentdb",
+    "id": "5677a7ad1672bbc828029fe1"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "The main antagonist of the second part of JoJo's Bizarre Adventure is which of the following?",
+      "Kars",
+      "Erina Joestar",
+      "Santana",
+      "Wired Beck"
+    ],
+    "source": "opentdb",
+    "id": "2e50125e9318f57ed2cccfe6"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "Painter Piet Mondrian (1872 - 1944) was a part of what movement?",
+      "Neoplasticism",
+      "Precisionism",
+      "Cubism",
+      "Impressionism"
+    ],
+    "source": "opentdb",
+    "id": "488b4a8dc8d0a245e4b5206d"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "In the Hellboy universe, who founded the BPRD?",
+      "Trevor Bruttenholm",
+      "Kate Corrigan",
+      "Johann Kraus",
+      "Benjamin Daimio"
+    ],
+    "source": "opentdb",
+    "id": "45fc0b5538515c95b39ec22b"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Who is a minor god that is protector and creator of various arts, such as cheese making and bee keeping.",
+      "Aristaeus",
+      "Autonoe",
+      "Carme",
+      "Cephisso"
+    ],
+    "source": "opentdb",
+    "id": "b57dd05831150f05e6d85942"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "Which person from \"JoJo's Bizarre Adventure\" does NOT house a reference to a band, artist, or song earlier than 1980?",
+      "Giorno Giovanna",
+      "Josuke Higashikata",
+      "Jolyne Cujoh",
+      "Johnny Joestar"
+    ],
+    "source": "opentdb",
+    "id": "9a80cddb9f0c5365e1801abe"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "According to the lore of \"Starbound\", what does the \"Colony Deed\" do when it is placed down?",
+      "Sends out an advertisement for someone to move in.",
+      "Teleports somebody from somewhere on the planet it is placed.",
+      "Teleports a random person to the location.",
+      "Materializes a new being at it's location."
+    ],
+    "source": "opentdb",
+    "id": "70ba4169c014cdeacddeb888"
+  },
+  {
+    "type": "music",
+    "row": [
+      "Who recorded the 1975 album 'Captain Fantastic and the Brown Dirt Cowboy'?",
+      "Elton John",
+      "John Denver",
+      "Billy Joel",
+      "Joe Cocker"
+    ],
+    "source": "opentdb",
+    "id": "82a2976a70bdebfd1e4fbbab"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Before the American colonies switched to the Gregorian calendar in 1752, on what date did their new year start?",
+      "March 25th",
+      "June 1st",
+      "September 25th",
+      "December 1st"
+    ],
+    "source": "opentdb",
+    "id": "1c7be16689a9635bb8732cc1"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Coulrophobia is the irrational fear of what?",
+      "Clowns",
+      "Cemeteries",
+      "Needles",
+      "Tunnels"
+    ],
+    "source": "opentdb",
+    "id": "19f2b1fe840fc36f7ffff2a9"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "Which former Coronation Street actress was once a hostess on the British Game Show \"Double Your Money\"?",
+      "Amanda Barrie",
+      "Sue Nicholls",
+      "Violet Carson",
+      "Jean Alexander"
+    ],
+    "source": "opentdb",
+    "id": "fac593e61af5c2f65d1499aa"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "What engine is in the Lexus SC400?",
+      "1UZ-FE",
+      "2JZ-GTE",
+      "7M-GTE",
+      "5M-GE"
+    ],
+    "source": "opentdb",
+    "id": "d7d90520151f2cdf608db2ee"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "In \"The Binding of Isaac\", which item instantly kills Mom and Mom's Heart?",
+      "The Bible",
+      "The Halo",
+      "Brimstone",
+      "Book of Shadows"
+    ],
+    "source": "opentdb",
+    "id": "5a321c8883a9bd386fb20ce5"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Akatsuki's subclass in \"Log Horizon\" is what?",
+      "Tracker",
+      "Assassin",
+      "Scribe",
+      "Apprentice"
+    ],
+    "source": "opentdb",
+    "id": "f1dde426174848d9f4da0d33"
+  },
+  {
+    "type": "art_architecture",
+    "row": [
+      "What year did Albrecht Dürer create the painting \"The Young Hare\"?",
+      "1502",
+      "1702",
+      "1402",
+      "1602"
+    ],
+    "source": "opentdb",
+    "id": "d36d305c26794a16844652b6"
+  },
+  {
+    "type": "literature",
+    "row": [
+      "What is the name of the author of book series 'Percy Jackson'?",
+      "Rick Riordan",
+      "J.K. Rowling",
+      "Sandra Bullock",
+      "Roald Dahl"
+    ],
+    "source": "opentdb",
+    "id": "6b00c1a37dd5a475c2c78d66"
+  },
+  {
+    "type": "mythology",
+    "row": [
+      "Who did Hippomenes defeat in a footrace?",
+      "Atalanta",
+      "Peleus",
+      "Theseus",
+      "Jason"
+    ],
+    "source": "opentdb",
+    "id": "499e353902dd870ef290c5a6"
+  },
+  {
+    "type": "anime_lore",
+    "row": [
+      "In the anime, \"Hunter X Hunter\", what is the main protagonist's name?",
+      "Gon",
+      "Gin",
+      "Gan",
+      "Gen"
+    ],
+    "source": "opentdb",
+    "id": "cab4b6f3f1b199bc998bdd1b"
+  },
+  {
+    "type": "game_lore",
+    "row": [
+      "Which of these online games was originally named LindenWorld in it's early development?",
+      "SecondLife",
+      "ActiveWorlds",
+      "IMVU",
+      "HabboHotel"
+    ],
+    "source": "opentdb",
+    "id": "0c8f48755ee047fbfde29960"
+  },
+  {
+    "type": "music",
+    "row": [
+      "The song \"Old Town Road\" by American rapper Lil Nas X samples the song \"34 Ghosts IV\" by which band?",
+      "Nine Inch Nails",
+      "Death Grips",
+      "Iron Maiden",
+      "Animal Collective"
+    ],
+    "source": "opentdb",
+    "id": "814a3e52b0c44616f5d74784"
+  },
+  {
+    "type": "history",
+    "row": [
+      "Which U.S. president was said to have been too honest to lie to his father about chopping down a cherry tree?",
+      "George Washington",
+      "Abraham Lincoln",
+      "Thomas Jefferson",
+      "James Monroe"
+    ],
+    "source": "opentdb",
+    "id": "6f95e34f17bc7e8f9c5d3564"
+  },
+  {
+    "type": "advanced_science",
+    "row": [
+      "Which horizon in a soil profile consists of bedrock?",
+      "R",
+      "O",
+      "B",
+      "D"
+    ],
+    "source": "opentdb",
+    "id": "21169ca1c65117d3043f6652"
+  },
+  {
+    "type": "movies",
+    "row": [
+      "In 2012, which movie won every category in the 32nd \"Golden Raspberry Awards\"?",
+      "Jack and Jill",
+      "The Girl with the Dragon Tattoo",
+      "Thor",
+      "The King's Speech"
+    ],
+    "source": "opentdb",
+    "id": "7b9f72e18a831a3134f739dd"
+  },
+  {
+    "type": "technology",
+    "row": [
+      "Which of these was the name of a bug found in April 2014 in the publicly available OpenSSL cryptography library?",
+      "Heartbleed",
+      "Shellshock",
+      "Corrupted Blood",
+      "Shellscript"
+    ],
+    "source": "opentdb",
+    "id": "cd9ba4fc1f27bd085241bbda"
+  },
+  {
+    "type": "video_games",
+    "row": [
+      "How many trophies are there in \"Super Smash Bros. for Nintendo 3DS\"?",
+      "685",
+      "1360",
+      "716",
+      "1155"
+    ],
+    "source": "opentdb",
+    "id": "2d39e6bcc532befeae168c70"
+  },
+  {
+    "type": "anime",
+    "row": [
+      "Who is the horror manga artist who made Uzumaki?",
+      "Junji Ito",
+      "Kazuo Umezu",
+      "Shintaro Kago",
+      "Sui Ishida"
+    ],
+    "source": "opentdb",
+    "id": "a39353ee24d2b475a60950b0"
+  }
 ]
