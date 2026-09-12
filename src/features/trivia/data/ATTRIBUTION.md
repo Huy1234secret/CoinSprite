@@ -1,27 +1,32 @@
-# Imported Trivia questions
+# Trivia question data
 
-`easy.json`, `medium.json`, and `hard.json` each contain 285 multiple-choice
-questions adapted from **Open Trivia Database (Open Trivia DB)** and its
-community contributors, operated by **PIXELTAIL GAMES LLC**.
+The question banks in easy.json, medium.json, and hard.json are distributed under
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0):
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Records marked source: opentdb are adapted from Open Trivia Database (Open Trivia
+DB) and its community contributors, maintained by PIXELTAIL GAMES LLC.
 
 - Source: https://opentdb.com/
 - API and licensing statement: https://opentdb.com/api_config.php
-- License: **Creative Commons Attribution-ShareAlike 4.0 International**
-  (CC BY-SA 4.0), https://creativecommons.org/licenses/by-sa/4.0/
-- Retrieved: September 11, 2026.
+- Original retrieval: September 11, 2026.
 
-These three data files are distributed under CC BY-SA 4.0. The repository's
-software license does not replace the license of this imported question data.
-Retain this attribution and license notice when redistributing the data or
-adaptations, and license adaptations of the data under CC BY-SA 4.0.
+Records marked source: original were written for CoinSprite and are contributed
+under the same CC BY-SA 4.0 license as these data files. Easy contains 350 original
+questions. Medium and Hard combine original questions with retained imports.
 
-Changes from the source: selected multiple-choice questions using the source's
-Easy/Medium/Hard labels; decoded Base64 text; normalized whitespace; excluded
-duplicate prompts, unclear or dated items, oversized answer labels, and choices
-that depend on their display position; corrected selected spelling and wording;
-and converted records to `[question, correct, incorrect, incorrect, incorrect]`.
-Categories were interleaved to provide a mix of topics. No endorsement by Open
-Trivia DB, its contributors, or PIXELTAIL GAMES LLC is implied.
+Changes to imported material include selection, whitespace normalization,
+spelling/wording corrections, exclusion of unclear or dated items, topic tagging,
+reclassification by knowledge depth, stable identifiers, and conversion into
+question/correct/three-incorrect rows. Source difficulty labels are no longer
+treated as authoritative. Original question records were added across general
+knowledge and specialist subjects. Questions use source labels for provenance,
+not as executable instructions.
 
-The 15 original questions per difficulty in `../questions.js` are separate from
-this import. They precede the imported rows to preserve saved question indices.
+Retain this attribution and license notice when redistributing the data or its
+adaptations, and license adaptations of the data under CC BY-SA 4.0. The
+repository's software license does not replace the data license. No endorsement
+by Open Trivia DB, its contributors, or PIXELTAIL GAMES LLC is implied.
+
+legacy-ids.json contains only content-derived identifiers mapping the previous
+banks' numeric positions to stable IDs for saved-game compatibility.

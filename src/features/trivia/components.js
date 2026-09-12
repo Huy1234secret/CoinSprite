@@ -24,7 +24,7 @@ function game(s, options = {}) {
   const feedback = s.status === 'feedback';
   return v2Payload([{ type: 17, accent_color: config.color, components: [
     text(`### ${config.label} Trivia\n-# Trivia ${s.number}# • ${HEART.repeat(s.lives)}${BROKEN_HEART.repeat(config.lives - s.lives)} • ${feedback ? 'Time paused' : `You have <t:${Math.ceil(s.deadline / 1000)}:R>`}`),
-    separator(), text(`**${s.question.text}**`),
+    separator(), text(`${s.question.topic ? `-# 📚 ${s.question.topic}\n` : ''}**${s.question.text}**`),
     row(s.question.answers.map((answer, index) => button(answer, `cstrivia:answer:${s.id}:${s.number}:${index}`, feedback,
       feedback && index === s.question.correct ? 3 : feedback && index === s.selected ? 4 : 2))),
   ] }], options);

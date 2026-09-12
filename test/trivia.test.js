@@ -4,7 +4,8 @@ const { openDatabase } = require('../src/features/work/repositories/database');
 const { TriviaRepository, DIFFICULTIES } = require('../src/features/trivia/repository');
 const { createTriviaFeature, parseTriviaCommand } = require('../src/features/trivia');
 const { menu, game } = require('../src/features/trivia/components');
-const { BANK, question } = require('../src/features/trivia/questions');
+const { BANK, RECORDS, LEGACY_IDS, question } = require('../src/features/trivia/questions');
+const { TOPICS, DIFFICULTY_TOPICS } = require('../src/features/trivia/types');
 const { messagePayloadErrors } = require('../src/features/shared/discordPayload');
 const { featureCommandsForConfig } = require('../src/applicationCommands');
 const { gameCommandAllowed, normalizeGamesConfig } = require('../src/serverConfig');
@@ -153,12 +154,13 @@ test('all payload states fit Discord limits and reveal the right colors', t => {
 test('question bank has four unique choices and avoids repeats until exhausted', () => {
   const allQuestions = new Set();
   for (const difficulty of Object.keys(BANK)) {
-    assert.equal(BANK[difficulty].length, 300, `${difficulty} must contain 300 questions`);
+    assert.equal(BANK[difficulty].length, 350, `${difficulty} must contain 350 questions`);
     for (const [prompt, ...answers] of BANK[difficulty]) {
       const normalized = value => value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
       assert.ok(prompt.length > 10 && prompt.length <= 500, prompt);
       assert.equal(answers.length, 4, prompt);
-      assert.equal(new Set(answers.map(normalized)).size, 4, prompt);
+      // Keep mathematical signs: -2 and 2 are different answer choices.
+      assert.equal(new Set(answers.map(value => value.normalize('NFKC').toLowerCase().trim())).size, 4, prompt);
       assert.ok(answers.every(answer => answer.trim() === answer && answer.length > 0 && answer.length <= 80), prompt);
       assert.equal(allQuestions.has(normalized(prompt)), false, `Duplicate question: ${prompt}`);
       allQuestions.add(normalized(prompt));
@@ -166,12 +168,65 @@ test('question bank has four unique choices and avoids repeats until exhausted',
     let seen = [];
     for (let i = 0; i < BANK[difficulty].length; i++) {
       const q = question(difficulty, seen, () => 0);
-      assert.equal(q.answers[q.correct], BANK[difficulty][q.seen.at(-1)][1]);
+      assert.equal(q.answers[q.correct], RECORDS[difficulty].find(entry => entry.id === q.id).row[1]);
+      assert.equal(q.topic, TOPICS[q.type]);
       assert.equal(new Set(q.answers).size, 4); assert.ok(q.answers.every(a => a.length <= 80));
       assert.equal(q.seen.length, i + 1); seen = q.seen;
     }
     assert.equal(question(difficulty, seen).seen.length, 1);
   }
+});
+test('topic breadth grows from six to fourteen to twenty-two with every topic represented', () => {
+  const expected = { easy: 6, medium: 14, hard: 22 };
+  const ids = new Set();
+  for (const [difficulty, entries] of Object.entries(RECORDS)) {
+    const topics = new Set(entries.map(entry => entry.type));
+    assert.equal(topics.size, expected[difficulty]);
+    assert.deepEqual([...topics].sort(), [...DIFFICULTY_TOPICS[difficulty]].sort());
+    for (const entry of entries) {
+      assert.match(entry.id, /^[a-f0-9]{24}$/);
+      assert.equal(ids.has(entry.id), false, entry.row[0]);
+      ids.add(entry.id);
+      assert.ok(['original', 'opentdb'].includes(entry.source));
+    }
+  }
+  assert.ok(DIFFICULTY_TOPICS.easy.every(type => DIFFICULTY_TOPICS.medium.includes(type)));
+  assert.ok(DIFFICULTY_TOPICS.medium.every(type => DIFFICULTY_TOPICS.hard.includes(type)));
+  assert.ok(RECORDS.easy.every(entry => entry.source === 'original'));
+});
+test('legacy numeric history translates to stable IDs without repeating retained questions', () => {
+  for (const difficulty of Object.keys(RECORDS)) {
+    const retained = RECORDS[difficulty].find(entry => LEGACY_IDS[difficulty].includes(entry.id));
+    assert.ok(retained, difficulty);
+    const oldIndex = LEGACY_IDS[difficulty].indexOf(retained.id);
+    let seen = [oldIndex];
+    for (let i = 0; i < RECORDS[difficulty].length - 1; i++) {
+      const next = question(difficulty, seen, () => 0);
+      assert.notEqual(next.id, retained.id);
+      assert.ok(next.seen.includes(retained.id));
+      assert.ok(next.seen.every(id => typeof id === 'string'));
+      seen = next.seen;
+    }
+    assert.equal(question(difficulty, seen).seen.length, 1);
+  }
+});
+test('a persisted pre-update question still settles before advancing into the new bank', t => {
+  const { repo, setNow } = setup(t);
+  const session = repo.start(USER, 'easy', context);
+  session.question = { text: 'How many sides does a hexagon have?',
+    answers: ['6', '5', '7', '8'], correct: 0, seen: [1] };
+  repo.save(session);
+  assert.deepEqual(messagePayloadErrors(game(session)), []);
+  const reveal = repo.answer(session.id, USER, 1, 0);
+  assert.equal(reveal.correctCount, 1);
+  setNow(reveal.revealUntil);
+  const next = repo.advance(session.id);
+  assert.ok(next.question.topic);
+  assert.ok(next.question.seen.includes(LEGACY_IDS.easy[1]));
+  assert.notEqual(next.question.id, LEGACY_IDS.easy[1]);
+  const payload = game(next);
+  assert.deepEqual(messagePayloadErrors(payload), []);
+  assert.ok(payload.components[0].components.some(c => c.content?.includes(next.question.topic)));
 });
 test('Discord ownership, locked buttons, duplicate clicks and recovery timers', async t => {
   const { repo, db, setNow } = setup(t);
