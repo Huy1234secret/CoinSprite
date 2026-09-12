@@ -104,6 +104,7 @@ test('all job pages have valid Discord payloads with eligible, locked and applie
   section = page.components[0].components.find(c => c.type === 9);
   assert.equal(section.accessory.style, 3); assert.equal(section.accessory.label, 'Apply');
   repo.applyCareer('u', 1); page = jobsPayload('u', repo.profile('u'));
+  assert.doesNotMatch(JSON.stringify(page), /Job application\/change cooldown/);
   section = page.components[0].components.find(c => c.type === 9);
   assert.equal(section.accessory.label, 'Applied'); assert.equal(section.accessory.disabled, true);
   assert.deepEqual(messagePayloadErrors(firedPayload('u', repo.profile('u'))), []);
