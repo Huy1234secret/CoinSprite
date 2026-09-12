@@ -150,6 +150,10 @@ const runtimeStarter = createRuntimeStarter(runtimeRole, {
     for (const guild of client.guilds.cache.values()) ensureGuildConfig(guild.id);
   },
   async bot() {
+    setInterval(() => {
+      console.log(`[WS] ${client.ws.ping} ms`);
+    }, 5000).unref();
+
     await client.application.commands.set(GLOBAL_APPLICATION_COMMANDS).catch((error) => {
       logCommandSystem(`Application command registration failed: ${error?.message || 'unknown error'}`);
     });
