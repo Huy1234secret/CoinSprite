@@ -41,18 +41,20 @@ test('catalog follows all formulas, rounded-up requirements and decade boundarie
   assert.deepEqual([0, 9, 10, 88, 89, 90, 99].map(i => CAREERS[i].dailyRequired), [3, 3, 4, 11, 12, 12, 12]);
 });
 test('applications validate both requirements, active games and exact 24-hour job changes', t => {
-  const { repo, qualify, create, work, advance } = setup(t);
+  const { db, repo, qualify, create, work, advance } = setup(t);
   assert.equal(repo.applyCareer('u', 1).status, 'requirements');
   qualify(1, 14); assert.equal(repo.applyCareer('u', 1).status, 'requirements');
   qualify(1, 5010); assert.equal(repo.applyCareer('u', 2).status, 'requirements');
   qualify(); const active = create();
   assert.equal(repo.applyCareer('u', 1).status, 'active'); repo.abortSend(active.session.sessionId);
   assert.equal(repo.applyCareer('u', 1).status, 'applied');
+  db.prepare('UPDATE work_profiles SET salary_boost=40 WHERE user_id=?').run('u');
   assert.equal(repo.applyCareer('u', 2).status, 'cooldown');
   for (let i = 0; i < 3; i++) work();
   advance(DAY_MS - 1); assert.equal(repo.applyCareer('u', 2).status, 'cooldown');
   advance(1); assert.equal(repo.applyCareer('u', 2).status, 'applied');
   assert.equal(repo.profile('u').dailyCompleted, 0);
+  assert.equal(repo.profile('u').salaryBoost, 0);
 });
 test('CEO boost milestones stack once per daily tier, survive failure and reset only upon firing', t => {
   const { repo, qualify, work, advance, create, now } = setup(t);
@@ -102,24 +104,29 @@ test('all job pages have valid Discord payloads with eligible, locked and applie
   section = page.components[0].components.find(c => c.type === 9);
   assert.equal(section.accessory.style, 3); assert.equal(section.accessory.label, 'Apply');
   repo.applyCareer('u', 1); page = jobsPayload('u', repo.profile('u'));
+  assert.doesNotMatch(JSON.stringify(page), /Job application\/change cooldown/);
   section = page.components[0].components.find(c => c.type === 9);
   assert.equal(section.accessory.label, 'Applied'); assert.equal(section.accessory.disabled, true);
   assert.deepEqual(messagePayloadErrors(firedPayload('u', repo.profile('u'))), []);
 });
 test('job buttons enforce owner and channel restrictions and navigate/apply on the same message', async t => {
   const { db, repo, qualify, now } = setup(t);
-  let allowed = true, edited, replied;
+  let allowed = true, edited, replied, followedUp;
   const feature = createWorkFeature({ db, repository: repo, clock: now, isCommandAllowed: () => allowed });
   t.after(() => feature.close());
   const click = (action, user = 'u') => feature.handleInteraction({
     isButton: () => true, customId: `cswork:u:${action}`, user: { id: user }, guildId: 'g', channelId: 'c',
-    async deferUpdate() {}, async reply(payload) { replied = payload; },
+    async deferUpdate() { this.deferred = true; }, async reply(payload) { replied = payload; },
+    async followUp(payload) { followedUp = payload; },
     message: { id: 'm', async edit(payload) { edited = payload; } },
   });
   await click('jobs-0', 'other'); assert.ok(replied); assert.equal(edited, undefined);
   replied = undefined; allowed = false; await click('apply-1'); assert.ok(replied); assert.equal(repo.profile('u').careerId, null);
   allowed = true; qualify(); await click('jobs-19'); assert.match(JSON.stringify(edited), /Page 20 \/ 20/);
   await click('apply-100'); assert.equal(repo.profile('u').careerId, 100); assert.match(JSON.stringify(edited), /Applied/);
+  edited = undefined; followedUp = undefined;
+  await click('apply-99'); assert.equal(edited, undefined); assert.equal(followedUp.flags, 64);
+  assert.match(followedUp.content, /You still have a job application cooldown/);
   await click('home'); assert.match(JSON.stringify(edited), /Job list/);
 });
 test('a late success cannot restore employment or collect salary after a menu detects firing', t => {
