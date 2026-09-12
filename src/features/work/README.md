@@ -23,7 +23,8 @@ At daily requirement + 5, 10, 16, 23, 31, 40, 50, 61, 73 and 86 successes, add
 each period; earned boosts persist and can accumulate again on subsequent days.
 CEO earns all ten daily increases at 98 successes. A yellow container appears on
 the completion that earns an increase. That increase applies to subsequent pay.
-Minigame failure alone and voluntary job changes do not erase earned boosts.
+Minigame failure alone does not erase earned boosts. Changing jobs resets the
+career-earned salary boost to zero; permanent achievement perks remain.
 
 Reliable Employee adds 5/10/15/20 percentage points while employed. Career Worker
 provides ×1.01/1.02/1.04/1.075 earnings and no longer grants XP. Only the highest
