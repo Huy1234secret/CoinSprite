@@ -713,7 +713,8 @@ function processMessageXp(message, options = {}) {
   record.lastMessageAt = nowMs;
   record.messages += 1;
   record.updatedAt = nowMs;
-  const cooldownMs = Math.max(5, Number(config.xp.cooldownSeconds) || 60) * 1000;
+  const configuredCooldown = Number(config.xp.cooldownSeconds);
+  const cooldownMs = Math.max(0, Number.isFinite(configuredCooldown) ? configuredCooldown : 60) * 1000;
   if (record.lastXpAt && nowMs - record.lastXpAt < cooldownMs) {
     scheduleSave();
     return { awarded: false, reason: 'cooldown', record };

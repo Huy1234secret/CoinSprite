@@ -313,7 +313,7 @@
     source.xp ||= {};
     source.xp.min = Math.round(clampNumber(source.xp.min, 1, 1000, 15));
     source.xp.max = Math.round(clampNumber(source.xp.max, source.xp.min, 2000, 25));
-    source.xp.cooldownSeconds = Math.round(clampNumber(source.xp.cooldownSeconds, 5, 3600, 60));
+    source.xp.cooldownSeconds = Math.round(clampNumber(source.xp.cooldownSeconds, 0, 3600, 60));
     source.curve ||= {};
     source.curve.baseXp = Math.round(clampNumber(source.curve.baseXp, 25, 100000, 100));
     source.curve.growth = clampNumber(source.curve.growth, 1, 3, 1.5);
@@ -3228,7 +3228,7 @@
       elements.levelingXpMax.value = leveling.xp.max;
     }
     if (target === elements.levelingXpMax) leveling.xp.max = Math.round(clampNumber(target.value, leveling.xp.min, 2000, 25));
-    if (target === elements.levelingCooldown) leveling.xp.cooldownSeconds = Math.round(clampNumber(target.value, 5, 3600, 60));
+    if (target === elements.levelingCooldown) leveling.xp.cooldownSeconds = Math.round(clampNumber(target.value, 0, 3600, 60));
     if (target === elements.levelingBaseXp) leveling.curve.baseXp = Math.round(clampNumber(target.value, 25, 100000, 100));
     if (target === elements.levelingGrowth) leveling.curve.growth = clampNumber(target.value, 1, 3, 1.5);
     if (target === elements.levelingMaxLevel) {

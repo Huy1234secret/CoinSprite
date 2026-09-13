@@ -267,7 +267,7 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     xp: {
       min: minimumXp,
       max: maximumXp,
-      cooldownSeconds: clampNumber(source.xp?.cooldownSeconds, 5, 3600, defaults.xp.cooldownSeconds),
+      cooldownSeconds: clampNumber(source.xp?.cooldownSeconds, 0, 3600, defaults.xp.cooldownSeconds),
     },
     curve: {
       baseXp: clampNumber(source.curve?.baseXp, 25, 100000, defaults.curve.baseXp),

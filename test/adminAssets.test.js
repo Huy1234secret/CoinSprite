@@ -29,6 +29,14 @@ test('admin entrypoint receives content-derived JavaScript, emoji data, and styl
   assert.doesNotMatch(html, /20260806-9/);
 });
 
+test('dashboard accepts a zero-second chat XP cooldown', () => {
+  const html = loadAdminAsset('index.html').data.toString('utf8');
+  const app = loadAdminAsset('app.js').data.toString('utf8');
+  assert.match(html, /id="levelingCooldown" type="number" min="0" max="3600"/);
+  assert.match(app, /clampNumber\(source\.xp\.cooldownSeconds, 0, 3600, 60\)/);
+  assert.match(app, /clampNumber\(target\.value, 0, 3600, 60\)/);
+});
+
 test('shared CoinSprite brand icon is available to the public dashboard', () => {
   const icon = loadAdminAsset('brand-icon.png');
   assert.ok(icon);
