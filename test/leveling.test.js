@@ -68,7 +68,7 @@ function withCaBxMetadata(png) {
 
 test('leveling config clamps pacing and normalizes reward milestones', () => {
   const config = normalizeLevelingConfig({
-    xp: { min: -5, max: 9999, cooldownSeconds: 1 },
+    xp: { min: -5, max: 9999, cooldownSeconds: -1 },
     curve: { baseXp: 5, growth: 9, maxLevel: 50 },
     announcements: {
       template: '## ✨ Level {level}\nWelcome {user} to level {level}!\n\n`{bar}` {progress_xp}/{needed_xp} → {next_level}',
@@ -96,7 +96,7 @@ test('leveling config clamps pacing and normalizes reward milestones', () => {
       { roleId: '623456789012345678', multiplier: -4 },
     ],
   });
-  assert.deepEqual(config.xp, { min: 1, max: 2000, cooldownSeconds: 5 });
+  assert.deepEqual(config.xp, { min: 1, max: 2000, cooldownSeconds: 0 });
   assert.deepEqual(config.curve, { baseXp: 25, growth: 3, maxLevel: 50 });
   assert.equal(config.announcements.template, '## ✨ Level {level}\nWelcome {user} to level {level}!\n\n`{bar}` {progress_xp}/{needed_xp} → {next_level}');
   assert.deepEqual(config.channelMultipliers, { '123456789012345678': 0, '123456789012345679': 10 });

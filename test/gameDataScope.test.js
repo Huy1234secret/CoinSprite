@@ -185,6 +185,26 @@ test('Leveling XP, cooldown, and leaderboard state remain independent per guild 
   assert.equal(memberStats(GUILD_B, USER_A, config).rank, 1);
 });
 
+test('Leveling awards every eligible message when chat XP cooldown is zero', () => {
+  resetLevelingCache();
+  const config = structuredClone(DEFAULT_LEVELING_CONFIG);
+  config.enabled = true;
+  config.xp = { min: 1, max: 100, cooldownSeconds: 0 };
+  config.channelMultipliers = { [CHANNEL_A]: 1 };
+  const message = (content) => ({
+    guildId: GUILD_A, channelId: CHANNEL_A, content,
+    author: { id: USER_A }, member: { roles: { cache: new Map() } }, channel: {},
+  });
+
+  assert.equal(processMessageXp(message('first message'), {
+    config, nowMs: 1_000, amount: 10, fingerprint: 'zero-cooldown-1',
+  }).awarded, true);
+  assert.equal(processMessageXp(message('second message'), {
+    config, nowMs: 1_000, amount: 10, fingerprint: 'zero-cooldown-2',
+  }).awarded, true);
+  assert.equal(memberStats(GUILD_A, USER_A, config).xp, 20);
+});
+
 test('schema keys global player data by user and retains guild provenance for shared/context records', () => {
   const { db } = gameDatabase();
   try {
