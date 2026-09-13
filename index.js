@@ -25,6 +25,7 @@ const {
 } = require('./src/runtimeRole');
 const { createCountingFeature } = require('./src/features/counting');
 const { createWorkFeature } = require('./src/features/work');
+const { createBegFeature } = require('./src/features/beg');
 const { createAchievementFeature } = require('./src/features/achievements');
 const { AchievementOutbox } = require('./src/features/achievements/outbox');
 const { resolveEmoji } = require('./src/features/achievements/components');
@@ -94,6 +95,14 @@ const workGame = runtimeRole === 'panel' ? null : createWorkFeature({
   },
 });
 
+const begFeature = runtimeRole === 'panel' ? null : createBegFeature({
+  db: workGame.db,
+  isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
+  reportError(error, context) {
+    logCommandSystem(`Beg ${context?.kind || 'interaction'} failed: ${safeErrorMessage(error)}`);
+  },
+});
+
 const triviaFeature = runtimeRole === 'panel' ? null : createTriviaFeature({
   db: workGame.db,
   isCommandAllowed: require('./src/serverConfig').isGameCommandAllowed,
@@ -133,6 +142,7 @@ const ownerTestCommand = runtimeRole === 'panel' ? null : createOwnerTestCommand
   isOwner: (message) => isOwnerSession({ user: message.author }, client),
   routes: {
     cswork: workGame.handleOwnerTestMessage,
+    csbeg: begFeature.handleOwnerTestMessage,
     csbalance: countingGame.handleMessage,
     csinventory: inventoryFeature.handleMessage,
     csachievements: achievementFeature.handleMessage,
@@ -228,6 +238,7 @@ if (runtimeStarter.capabilities.bot) {
         return;
       }
       if (await workGame.handleInteraction(interaction)) return;
+      if (await begFeature.handleInteraction(interaction)) return;
       if (await inventoryFeature.handleInteraction(interaction)) return;
       if (await achievementFeature.handleInteraction(interaction)) return;
       if (await shopFeature.handleInteraction(interaction)) return;
@@ -247,6 +258,7 @@ if (runtimeStarter.capabilities.bot) {
       await handleBoostSystemMessage(message);
       if (isGuildEnabled(message.guildId) && await ownerTestCommand.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await workGame.handleMessage(message)) return;
+      if (isGuildEnabled(message.guildId) && await begFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await inventoryFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await achievementFeature.handleMessage(message)) return;
       if (isGuildEnabled(message.guildId) && await shopFeature.handleMessage(message)) return;

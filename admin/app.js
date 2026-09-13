@@ -395,7 +395,7 @@
       commandSettings: (Array.isArray(config?.games?.commandSettings) ? config.games.commandSettings : []).map((setting, index) => ({
         id: String(setting?.id || `setting-${index + 1}`),
         channelIds: [...new Set((Array.isArray(setting?.channelIds) ? setting.channelIds : []).map(String).filter(Boolean))],
-        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop', 'cs-trivia'].includes(command)))],
+        commands: [...new Set((Array.isArray(setting?.commands) ? setting.commands : []).map(String).filter((command) => ['cs-work', 'cs-beg', 'cs-balance', 'cs-inventory', 'cs-achievements', 'cs-shop', 'cs-trivia'].includes(command)))],
       })),
     };
   }
@@ -2866,6 +2866,7 @@
     const settings = state.config?.games?.commandSettings || [];
     const commandOptions = [
       ['cs-work', 'Work (/cs-work and cswork)'],
+      ['cs-beg', 'Beg (/cs-beg and csbeg)'],
       ['cs-balance', 'Silver & Bronze balance (/cs-balance and csbalance)'],
       ['cs-inventory', 'Inventory (/cs-inventory and csinventory)'],
       ['cs-achievements', 'Achievements (/cs-achievements and csachievements)'],
