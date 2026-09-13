@@ -3,6 +3,8 @@ const { ALLOWED_MENTIONS } = require('./features/shared/format');
 const COMMAND_ALIASES = Object.freeze({
   cswork: Object.freeze({ route: 'cswork', command: 'cswork' }),
   'cs-work': Object.freeze({ route: 'cswork', command: 'cswork' }),
+  csbeg: Object.freeze({ route: 'csbeg', command: 'csbeg' }),
+  'cs-beg': Object.freeze({ route: 'csbeg', command: 'csbeg' }),
   csbalance: Object.freeze({ route: 'csbalance', command: 'csbalance' }),
   'cs-balance': Object.freeze({ route: 'csbalance', command: 'csbalance' }),
   csachievements: Object.freeze({ route: 'csachievements', command: 'csachievements' }),
@@ -52,7 +54,7 @@ function createOwnerTestCommand(options = {}) {
     }
     const route = parsed.route && routes[parsed.route];
     if (!route) {
-      await reply(message, 'Supported test commands: `cswork`, `csbalance`, `csinventory`, and `csachievements`.');
+      await reply(message, 'Supported test commands: `cswork`, `csbeg`, `csbalance`, `csinventory`, and `csachievements`.');
       return true;
     }
     if (!await route(forwardedMessage(message, parsed.content))) {

@@ -1,6 +1,7 @@
 const { LEVELING_COMMANDS } = require('./leveling');
 const { COUNTING_COMMANDS } = require('./features/counting');
 const { WORK_COMMANDS } = require('./features/work');
+const { BEG_COMMANDS } = require('./features/beg');
 const { ACHIEVEMENT_COMMANDS } = require('./features/achievements');
 const { INVENTORY_COMMANDS } = require('./features/inventory');
 const { TRIVIA_COMMANDS } = require('./features/trivia');
@@ -18,6 +19,7 @@ function featureCommandsForConfig(config) {
   const commands = [];
   commands.push(...commandJson(COUNTING_COMMANDS));
   commands.push(...commandJson(WORK_COMMANDS));
+  commands.push(...commandJson(BEG_COMMANDS));
   commands.push(...commandJson(INVENTORY_COMMANDS));
   commands.push(...commandJson(SHOP_COMMANDS));
   commands.push(...commandJson(TRIVIA_COMMANDS));

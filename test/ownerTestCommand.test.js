@@ -31,6 +31,12 @@ test('cstest parsing is case-insensitive and recognizes supported command aliase
   assert.deepEqual(parseTestCommand('  CSTEST /CS-WORK  '), {
     argument: '/CS-WORK', route: 'cswork', content: 'cswork',
   });
+  assert.deepEqual(parseTestCommand('cstest csbeg'), {
+    argument: 'csbeg', route: 'csbeg', content: 'csbeg',
+  });
+  assert.deepEqual(parseTestCommand('cstest /cs-beg'), {
+    argument: '/cs-beg', route: 'csbeg', content: 'csbeg',
+  });
   assert.deepEqual(parseTestCommand(`cstest csbalance ${USER}`), {
     argument: `csbalance ${USER}`, route: 'csbalance', content: `csbalance ${USER}`,
   });
