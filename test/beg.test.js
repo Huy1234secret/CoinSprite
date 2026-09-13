@@ -3,11 +3,11 @@ const test = require('node:test');
 
 const { featureCommandsForConfig } = require('../src/applicationCommands');
 const {
-  BUTTON_LABEL_LIMIT, OUTCOME_COLORS, buttonLabel, menuPayload, outcomePayload,
+  BUTTON_LABEL_LIMIT, OUTCOME_COLORS, buttonLabel, menuPayload, outcomeMessage, outcomePayload,
 } = require('../src/features/beg/components');
 const { parseBegCommand } = require('../src/features/beg/commands');
 const {
-  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, TIERS,
+  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, TIERS,
 } = require('../src/features/beg/data/approaches');
 const { createBegFeature } = require('../src/features/beg');
 const { migrateBeg } = require('../src/features/beg/migrate');
@@ -100,7 +100,35 @@ test('catalog has 100 unique authored approaches split evenly across four risk t
     assert.ok(item.successChance > 0 && item.successChance + item.lossChance <= 100);
     assert.ok(item.reward[0] > 0 && item.reward[1] >= item.reward[0]);
     assert.ok(item.loss[0] >= 0 && item.loss[1] >= item.loss[0]);
+    for (const key of ['successMessages', 'failureMessages', 'lossMessages']) {
+      assert.equal(item[key].length, MESSAGE_VARIANT_COUNT);
+      assert.equal(new Set(item[key]).size, MESSAGE_VARIANT_COUNT, `${item.id}.${key} must be unique`);
+    }
     if (item.tier === 'safe') assert.deepEqual(item.loss, [0, 0]);
+  }
+  const allMessages = APPROACHES.flatMap(item => [
+    ...item.successMessages, ...item.failureMessages, ...item.lossMessages,
+  ]);
+  assert.equal(allMessages.length, 6_000);
+  assert.equal(new Set(allMessages).size, 6_000);
+});
+
+test('outcome message selection varies across attempts and remains stable for replays', () => {
+  const approach = APPROACH_BY_ID['borrowed-violin'];
+  for (const [outcome, messages] of [
+    ['success', approach.successMessages],
+    ['fail', approach.failureMessages],
+    ['loss', approach.lossMessages],
+  ]) {
+    const selected = new Set(Array.from({ length: 2_000 }, (_, index) => (
+      outcomeMessage(approach, outcome, `variant-session-${index}`)
+    )));
+    assert.equal(selected.size, MESSAGE_VARIANT_COUNT);
+    assert.ok([...selected].every(message => messages.includes(message)));
+    assert.equal(
+      outcomeMessage(approach, outcome, 'stable-session'),
+      outcomeMessage(approach, outcome, 'stable-session'),
+    );
   }
 });
 
@@ -167,13 +195,14 @@ test('menu uses four grey text-only approach buttons with valid limits', () => {
 
 test('outcomes use unique flavor, shared currency formatting, result colors, and no blank lines', () => {
   for (const approach of APPROACHES) {
-    for (const [outcome, amount, story, color] of [
-      ['success', 5n, approach.success, OUTCOME_COLORS.success],
-      ['fail', 0n, approach.failure, OUTCOME_COLORS.fail],
-      ['loss', 5n, approach.lossMessage, OUTCOME_COLORS.loss],
+    for (const [outcome, amount, messages, color] of [
+      ['success', 5n, approach.successMessages, OUTCOME_COLORS.success],
+      ['fail', 0n, approach.failureMessages, OUTCOME_COLORS.fail],
+      ['loss', 5n, approach.lossMessages, OUTCOME_COLORS.loss],
     ]) {
+      const sessionId = `payload-${approach.id}-${outcome}`;
       const payload = outcomePayload({ session: {
-        approachId: approach.id, outcome, amount, balanceAfter: 123n, cooldownUntil: 1_060_000,
+        sessionId, approachId: approach.id, outcome, amount, balanceAfter: 123n, cooldownUntil: 1_060_000,
       } });
       assert.deepEqual(messagePayloadErrors(payload), []);
       assertNoBlankLines(payload);
@@ -181,7 +210,8 @@ test('outcomes use unique flavor, shared currency formatting, result colors, and
       assert.equal(payload.components[0].components.length, 1);
       const text = payload.components[0].components[0].content;
       assert.match(text, new RegExp(`^### ${approach.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
-      assert.ok(text.includes(story));
+      assert.ok(text.includes(outcomeMessage(approach, outcome, sessionId)));
+      assert.ok(messages.some(message => text.includes(message)));
       assert.match(text, /<:CSBC:/);
     }
   }

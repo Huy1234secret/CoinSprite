@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { assertValidMessagePayload } = require('../shared/discordPayload');
 const { errorPayload, v2Payload, WHITE } = require('../shared/components');
 const { formatCurrency } = require('../shared/currency');
@@ -15,6 +16,18 @@ function timestamp(value) { return `<t:${Math.floor(Number(value) / 1000)}:R>`; 
 
 function buttonLabel(approach) {
   return approach.name.slice(0, BUTTON_LABEL_LIMIT);
+}
+
+function outcomeMessage(approach, outcome, sessionId = '') {
+  const messages = outcome === 'success'
+    ? approach.successMessages
+    : outcome === 'loss'
+      ? approach.lossMessages
+      : approach.failureMessages;
+  const digest = crypto.createHash('sha256')
+    .update(`${sessionId}:${approach.id}:${outcome}`)
+    .digest();
+  return messages[digest.readUInt32BE(0) % messages.length];
 }
 
 function menuPayload(session, options = {}) {
@@ -42,16 +55,13 @@ function menuPayload(session, options = {}) {
 function outcomePayload(result, options = {}) {
   const { session } = result;
   const approach = APPROACH_BY_ID[session.approachId];
-  let story;
+  const story = outcomeMessage(approach, session.outcome, session.sessionId);
   let change;
   if (session.outcome === 'success') {
-    story = approach.success;
     change = `**+${formatCurrency(session.amount)}**`;
   } else if (session.outcome === 'loss') {
-    story = approach.lossMessage;
     change = `**−${formatCurrency(session.amount)}**`;
   } else {
-    story = approach.failure;
     change = '**No coins received**';
   }
   const content = [
@@ -98,6 +108,6 @@ function invalidApproachPayload(options = {}) {
 
 module.exports = {
   BUTTON_LABEL_LIMIT, OUTCOME_COLORS, activeMenuPayload, buttonLabel, cooldownPayload, expiredPayload,
-  invalidApproachPayload, menuPayload, outcomePayload, ownershipDeniedPayload,
+  invalidApproachPayload, menuPayload, outcomeMessage, outcomePayload, ownershipDeniedPayload,
   timestamp, unavailablePayload,
 };

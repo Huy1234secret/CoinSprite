@@ -10,6 +10,79 @@ const TIERS = Object.freeze([
 ]);
 
 const TIER_BY_ID = Object.freeze(Object.fromEntries(TIERS.map(tier => [tier.id, tier])));
+const MESSAGE_VARIANT_COUNT = 20;
+const OUTCOME_MESSAGE_CODAS = Object.freeze({
+  success: Object.freeze([
+    'A nearby pigeon nods like it invested early.',
+    'The crowd applauds, mostly because nobody understands how that worked.',
+    'You pocket the Bronze with the speed of someone avoiding taxes.',
+    'A bard immediately begins exaggerating your achievement.',
+    'Even the town guard looks impressed, which is deeply concerning.',
+    'You take a bow so confident that two people tip you again.',
+    'Your wallet makes a tiny noise that sounds suspiciously like applause.',
+    'A merchant asks for your business plan. You wisely refuse.',
+    'For six glorious seconds, you are the local economy.',
+    'Someone calls it talent; you decide not to correct them.',
+    'The pigeons begin following you as their new financial advisor.',
+    'You count the coins twice and somehow look professional doing it.',
+    'A child copies your victory pose and improves it immediately.',
+    'The street declares you a genius with absolutely no investigation.',
+    'You leave before anyone discovers luck did most of the work.',
+    'A witness asks for lessons, so you charge them one more Bronze.',
+    'Your cup is now heavier than your qualifications.',
+    'A guard salutes. You salute back despite having no authority.',
+    'The result exceeds your plan, mainly because there was no plan.',
+    'You grin like a dragon that just found an unattended treasury.',
+  ]),
+  fail: Object.freeze([
+    'A nearby pigeon files a formal complaint about the performance.',
+    'The awkward silence grows old enough to start paying rent.',
+    'Someone begins clapping, then realizes they are alone and stops.',
+    'You check the cup again in case money has learned teleportation.',
+    'A merchant offers free advice, somehow making the situation worse.',
+    'The crowd vanishes with the efficiency of trained magicians.',
+    'A guard writes something down. You hope it is not your name.',
+    'You take a bow and nearly owe the pavement an apology.',
+    'Even your shadow tries to stand a little farther away.',
+    'A child asks if this is what unemployment looks like.',
+    'Your cup remains lighter than the plot of a bad tavern play.',
+    'Someone tosses you a leaf, which is technically not currency.',
+    'The pigeons hold an emergency meeting about secondhand embarrassment.',
+    'You call it a rehearsal. Nobody asks when the real show starts.',
+    'A bard nearby rhymes your name with “financial shame.”',
+    'The town square votes unanimously to forget this happened.',
+    'You find a silver lining, but it also refuses to pay you.',
+    'One spectator offers exposure. You remain tragically unexposed.',
+    'The result sets a new record nobody wanted measured.',
+    'You dust yourself off, although dignity is much harder to clean.',
+  ]),
+  loss: Object.freeze([
+    'Your wallet achieves a dramatic weight-loss goal without consent.',
+    'The missing Bronze is already updating its address.',
+    'You have purchased an expensive lesson with no refund policy.',
+    'Every pocket is empty, including the one you do not remember owning.',
+    'A nearby pigeon suddenly looks suspiciously wealthy.',
+    'Your balance moves backward so fast it deserves wheels.',
+    'The culprit escapes, along with your brief trust in society.',
+    'You secure the remaining coins with the intensity of a castle siege.',
+    'A merchant calls it “market forces” and refuses to elaborate.',
+    'Your good mood and your Bronze leave in the same carriage.',
+    'The vanished coins are now pursuing exciting opportunities elsewhere.',
+    'Even your remaining Bronze sounds disappointed in you.',
+    'You retrace your steps and discover several new ways to feel foolish.',
+    'The town gains a cautionary tale, funded entirely by you.',
+    'There is no receipt, but the regret appears fully itemized.',
+    'That decision costs more than your dignity, which was already discounted.',
+    'A guard recommends better choices with breathtakingly bad timing.',
+    'Your wallet requests a private meeting about recent management decisions.',
+    'You stare at the empty space where financial stability briefly lived.',
+    'The Bronze is gone, but the embarrassment has chosen to stay.',
+  ]),
+});
+
+function messageVariants(message, outcome) {
+  return Object.freeze(OUTCOME_MESSAGE_CODAS[outcome].map(coda => `${message} ${coda}`));
+}
 
 function balancedReward(tier, successChance) {
   const averageLoss = (tier.loss[0] + tier.loss[1]) / 2;
@@ -25,6 +98,9 @@ function approach(tierId, id, name, successChance, _referenceReward, success, fa
   return Object.freeze({
     tier: tierId, id, name, successChance, reward: balancedReward(tier, successChance),
     lossChance: tier.lossChance, loss: tier.loss, success, failure, lossMessage,
+    successMessages: messageVariants(success, 'success'),
+    failureMessages: messageVariants(failure, 'fail'),
+    lossMessages: messageVariants(lossMessage, 'loss'),
   });
 }
 
@@ -444,5 +520,5 @@ const APPROACHES_BY_TIER = Object.freeze(Object.fromEntries(TIERS.map(tier => [
 ])));
 
 module.exports = {
-  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, TIERS, TIER_BY_ID, balancedReward,
+  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, TIERS, TIER_BY_ID, balancedReward,
 };
