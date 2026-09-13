@@ -3,7 +3,8 @@
 `/cs-beg` and the exact text command `csbeg` open the same public Components V2
 game. Each menu contains four buttons selected from 100 individually authored
 approaches. Every approach has a unique name plus unique success, ordinary-failure,
-and wallet-loss flavor text.
+and wallet-loss flavor text. Each of those three outcomes has 20 distinct message
+variants per approach, for 6,000 possible outcome messages across the catalog.
 
 ## Menu and selection
 
@@ -51,7 +52,9 @@ slightly higher realized expected value. All values are stored as BigInt-compati
 decimal Bronze text in the canonical `counting_bronze_balances` wallet.
 
 Result containers use a green accent for success, red for ordinary failure, and
-black when the player loses Bronze.
+black when the player loses Bronze. A message variant is selected deterministically
+from the session ID, approach, and outcome, so different attempts get variety while
+duplicate clicks and recovered results keep the same story.
 
 ## Persistence and safety
 
