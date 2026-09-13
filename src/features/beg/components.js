@@ -1,31 +1,28 @@
 const { assertValidMessagePayload } = require('../shared/discordPayload');
 const { errorPayload, v2Payload, WHITE } = require('../shared/components');
 const { formatCurrency } = require('../shared/currency');
-const { APPROACH_BY_ID, TIER_BY_ID } = require('./data/approaches');
+const { APPROACH_BY_ID } = require('./data/approaches');
 
 const BUTTON_LABEL_LIMIT = 80;
+const SECONDARY_BUTTON_STYLE = 2;
+const OUTCOME_COLORS = Object.freeze({
+  success: 0x57f287,
+  fail: 0xed4245,
+  loss: 0x000000,
+});
 
-function integer(value) { return Number(value).toLocaleString('en-US'); }
 function timestamp(value) { return `<t:${Math.floor(Number(value) / 1000)}:R>`; }
 
 function buttonLabel(approach) {
-  const tier = TIER_BY_ID[approach.tier];
-  const suffix = ` · ${approach.successChance}% · ${integer(approach.reward[0])}–${integer(approach.reward[1])}`;
-  const prefix = `${tier.emoji} `;
-  const room = Math.max(1, BUTTON_LABEL_LIMIT - prefix.length - suffix.length);
-  const name = approach.name.length <= room
-    ? approach.name
-    : `${approach.name.slice(0, Math.max(1, room - 1)).trimEnd()}…`;
-  return `${prefix}${name}${suffix}`;
+  return approach.name.slice(0, BUTTON_LABEL_LIMIT);
 }
 
 function menuPayload(session, options = {}) {
   const buttons = session.offeredApproachIds.map((approachId) => {
     const approach = APPROACH_BY_ID[approachId];
-    const tier = TIER_BY_ID[approach.tier];
     return {
       type: 2,
-      style: tier.buttonStyle,
+      style: SECONDARY_BUTTON_STYLE,
       custom_id: `csbeg:${session.sessionId}:${approach.id}`,
       label: buttonLabel(approach),
     };
@@ -66,7 +63,7 @@ function outcomePayload(result, options = {}) {
   ].join('\n');
   return assertValidMessagePayload(v2Payload([{
     type: 17,
-    accent_color: WHITE,
+    accent_color: OUTCOME_COLORS[session.outcome] ?? OUTCOME_COLORS.fail,
     components: [{ type: 10, content }],
   }], options));
 }
@@ -100,7 +97,7 @@ function invalidApproachPayload(options = {}) {
 }
 
 module.exports = {
-  BUTTON_LABEL_LIMIT, activeMenuPayload, buttonLabel, cooldownPayload, expiredPayload,
+  BUTTON_LABEL_LIMIT, OUTCOME_COLORS, activeMenuPayload, buttonLabel, cooldownPayload, expiredPayload,
   invalidApproachPayload, menuPayload, outcomePayload, ownershipDeniedPayload,
   timestamp, unavailablePayload,
 };
