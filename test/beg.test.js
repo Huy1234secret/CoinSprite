@@ -3,11 +3,11 @@ const test = require('node:test');
 
 const { featureCommandsForConfig } = require('../src/applicationCommands');
 const {
-  BUTTON_LABEL_LIMIT, buttonLabel, menuPayload, outcomePayload,
+  BUTTON_LABEL_LIMIT, OUTCOME_COLORS, buttonLabel, menuPayload, outcomePayload,
 } = require('../src/features/beg/components');
 const { parseBegCommand } = require('../src/features/beg/commands');
 const {
-  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, TIERS, TIER_BY_ID,
+  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, TIERS,
 } = require('../src/features/beg/data/approaches');
 const { createBegFeature } = require('../src/features/beg');
 const { migrateBeg } = require('../src/features/beg/migrate');
@@ -136,7 +136,7 @@ test('csbeg parsing and /cs-beg registration are exact', () => {
   assert.equal(gameCommandAllowed({ games }, 'other', 'cs-beg'), false);
 });
 
-test('menu is the exact white four-button Components V2 structure with valid limits', () => {
+test('menu uses four grey text-only approach buttons with valid limits', () => {
   for (let index = 0; index < APPROACHES.length; index += 4) {
     const ids = APPROACHES.slice(index, index + 4).map(item => item.id);
     while (ids.length < 4) ids.push(APPROACHES[ids.length].id);
@@ -155,27 +155,29 @@ test('menu is the exact white four-button Components V2 structure with valid lim
     assert.equal(buttons.length, 4);
     for (const [slot, button] of buttons.entries()) {
       const approach = APPROACH_BY_ID[ids[slot]];
-      assert.equal(button.style, TIER_BY_ID[approach.tier].buttonStyle);
+      assert.equal(button.style, 2);
+      assert.equal(button.label, approach.name);
       assert.equal(button.label, buttonLabel(approach));
+      assert.equal(button.emoji, undefined);
       assert.ok(button.label.length <= BUTTON_LABEL_LIMIT);
       assert.ok(button.custom_id.length <= 100);
     }
   }
 });
 
-test('outcomes use unique flavor, shared currency formatting, white containers, and no blank lines', () => {
+test('outcomes use unique flavor, shared currency formatting, result colors, and no blank lines', () => {
   for (const approach of APPROACHES) {
-    for (const [outcome, amount, story] of [
-      ['success', 5n, approach.success],
-      ['fail', 0n, approach.failure],
-      ['loss', 0n, approach.lossMessage],
+    for (const [outcome, amount, story, color] of [
+      ['success', 5n, approach.success, OUTCOME_COLORS.success],
+      ['fail', 0n, approach.failure, OUTCOME_COLORS.fail],
+      ['loss', 5n, approach.lossMessage, OUTCOME_COLORS.loss],
     ]) {
       const payload = outcomePayload({ session: {
         approachId: approach.id, outcome, amount, balanceAfter: 123n, cooldownUntil: 1_060_000,
       } });
       assert.deepEqual(messagePayloadErrors(payload), []);
       assertNoBlankLines(payload);
-      assert.equal(payload.components[0].accent_color, 0xffffff);
+      assert.equal(payload.components[0].accent_color, color);
       assert.equal(payload.components[0].components.length, 1);
       const text = payload.components[0].components[0].content;
       assert.match(text, new RegExp(`^### ${approach.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));

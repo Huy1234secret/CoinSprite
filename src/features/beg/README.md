@@ -15,9 +15,9 @@ replacement. The server accepts only an approach recorded among the session's
 four options.
 
 The menu is public, has a white container, and contains exactly one heading, one
-separator, one instruction, and one row of four buttons. Button colors are green,
-blue, red, and gray for Safe, Uncertain, Risky, and Ridiculous. Labels include the
-risk emoji, shortened approach name, success chance, and reward range.
+separator, one instruction, and one row of four gray secondary buttons. Each
+text-only label contains just the approach name, without an emoji, success chance,
+or reward range.
 
 ## Probabilities and economy
 
@@ -49,6 +49,9 @@ catalog averages are:
 Actual loss is capped at the current wallet, so low-balance players have a
 slightly higher realized expected value. All values are stored as BigInt-compatible
 decimal Bronze text in the canonical `counting_bronze_balances` wallet.
+
+Result containers use a green accent for success, red for ordinary failure, and
+black when the player loses Bronze.
 
 ## Persistence and safety
 
