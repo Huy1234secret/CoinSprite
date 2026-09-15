@@ -15,7 +15,7 @@ test('external stock modules, command, dashboard, and documentation are absent',
     'src/adminServer.js',
     'src/serverConfig.js',
     'src/ownerPanelRoutes.js',
-    'admin/index.html',
+    'admin/layout.js',
     'admin/app.js',
     'README.md',
     'package.json',
@@ -78,7 +78,7 @@ test('current schema strips obsolete stock and RNG data while preserving retaine
 });
 
 test('dashboard retains leveling controls without RNG or stock navigation and APIs', () => {
-  const html = read('admin/index.html');
+  const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const dashboard = read('admin/app.js');
   const server = read('src/adminServer.js');
   assert.match(html, /data-view="leveling"/);

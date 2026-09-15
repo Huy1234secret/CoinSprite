@@ -397,7 +397,7 @@ test('authenticated deep links are bounded and the dashboard wires all snapshot 
   assert.equal(safeOAuthReturnTo(`/admin?guild=${GUILD_A}&view=message-templates&template=${id}&folder=folder_12345678`), `/admin?guild=${GUILD_A}&view=message-templates&template=${id}&folder=folder_12345678`);
   assert.equal(safeOAuthReturnTo('https://evil.example/admin?view=message-templates'), '/admin');
   assert.equal(safeOAuthReturnTo('/admin?guild=bad&view=owner&token=secret'), '/admin');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   assert.match(html, /data-view="message-templates"/);
   assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="controls"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="share"/);
