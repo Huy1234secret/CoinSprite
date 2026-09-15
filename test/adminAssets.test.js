@@ -17,14 +17,12 @@ test('admin entrypoint receives content-derived JavaScript, emoji data, and styl
   const index = loadAdminAsset('document');
   const emojiData = loadAdminAsset('emojiData.js');
   const app = loadAdminAsset('app.js');
-  const style = loadAdminAsset('style.css');
-  const dashboardStyle = loadAdminAsset('dashboard.css');
-  assert.ok(index && emojiData && app && style && dashboardStyle);
+  const style = loadAdminAsset('ui.css');
+  assert.ok(index && emojiData && app && style);
   const html = index.data.toString('utf8');
   assert.match(html, new RegExp(`/admin/emojiData\\.js\\?v=${emojiData.version}`));
   assert.match(html, new RegExp(`/admin/app\\.js\\?v=${app.version}`));
-  assert.match(html, new RegExp(`/admin/style\\.css\\?v=${style.version}`));
-  assert.match(html, new RegExp(`/admin/dashboard\\.css\\?v=${dashboardStyle.version}`));
+  assert.match(html, new RegExp(`/admin/ui\\.css\\?v=${style.version}`));
   assert.match(html, /<meta id="emojiDataAsset" data-src="\/admin\/emojiData\.js\?v=[a-f0-9]{16}">/);
   assert.doesNotMatch(html, /<script[^>]+src="\/admin\/emojiData\.js/);
   assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
@@ -43,8 +41,12 @@ test('remade dashboard has no HTML source file and retains every main view', () 
   assert.deepEqual(fs.readdirSync(path.join(root, 'admin')).filter((name) => name.endsWith('.html')), []);
   assert.equal(loadAdminAsset('index.html'), null);
   const document = loadAdminAsset('document').data.toString('utf8');
-  assert.match(document, /One place for your server\./);
-  assert.doesNotMatch(document, /product-preview|landing-features|Explore features/);
+  assert.match(document, /Your server, in focus\./);
+  assert.match(document, /class="dashboard-strip"[\s\S]*class="nav-list"/);
+  assert.doesNotMatch(document, /product-preview|landing-features|Explore features|class="sidebar"/);
+  assert.equal(fs.existsSync(path.join(root, 'admin', 'dashboardTree.json')), false);
+  assert.equal(loadAdminAsset('style.css'), null);
+  assert.equal(loadAdminAsset('dashboard.css'), null);
   for (const view of ['leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
     assert.match(document, new RegExp(`data-view="${view}"`));
     assert.match(document, new RegExp(`data-view-panel="${view}"`));
@@ -69,7 +71,7 @@ test('shared CoinSprite brand icon is available to the public dashboard', () => 
 });
 
 test('stylesheet and bundled font URLs use recursive content hashes', () => {
-  const style = loadAdminAsset('style.css').data.toString('utf8');
+  const style = loadAdminAsset('ui.css').data.toString('utf8');
   const cssMatch = style.match(/\/admin\/fonts\/noto-sans\.css\?v=([a-f0-9]{16})/);
   const unicodeCssMatch = style.match(/\/admin\/fonts\/noto-sans-sc\.css\?v=([a-f0-9]{16})/);
   assert.ok(cssMatch);
@@ -84,7 +86,7 @@ test('stylesheet and bundled font URLs use recursive content hashes', () => {
 });
 
 test('browser card fonts expose every bundled normal, bold, and available italic face', () => {
-  const style = loadAdminAsset('style.css').data.toString('utf8');
+  const style = loadAdminAsset('ui.css').data.toString('utf8');
   for (const [key, entry] of Object.entries(ADMIN_FONT_PACKAGES)) {
     assert.match(style, new RegExp(`/admin/fonts/${key}\\.css\\?v=[a-f0-9]{16}`));
     const css = loadAdminFont(`/admin/fonts/${key}.css`).data.toString('utf8');
