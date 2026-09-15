@@ -5,8 +5,11 @@ Players can complete minigames before applying, earning the level and lifetime
 successful-work requirements for their first career. Applications are global per
 user, like the wallet and work cooldown. An active minigame prevents a job change.
 
-The 100 careers use `level³ + level + 100` as their base payout per successful
-minigame. Lifetime requirements are rounded up from `10 + 5 × level^1.5`.
+Before applying for a career, every Easy minigame pays a 1,000 Bronze base salary.
+Higher difficulties scale by minigame complexity up to 3,500 Bronze. The 100
+careers are evenly balanced from 1,000 Bronze for Leaf Raker to 200,000 Bronze
+for Chief Executive Officer. Lifetime requirements are rounded up from
+`10 + 5 × level^1.5`.
 Daily requirements start at three for jobs 1–10 and increase each decade;
 jobs 90–100 explicitly require twelve. CEO requires 5,010 lifetime successes.
 

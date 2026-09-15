@@ -1,5 +1,6 @@
 const { AchievementRepository } = require('../../achievements/repository');
 const { reward } = require('../../achievements/catalog');
+const COUNTING_REWARD_MULTIPLIER = 10n;
 
 class CountingRepository {
   constructor(db, options = {}) {
@@ -47,7 +48,8 @@ class CountingRepository {
       let balance = this.balance(attempt.userId);
 
       if (correct) {
-        const payout = reward(submitted, this.achievements.perks(attempt.userId).counting);
+        const payout = reward(submitted * COUNTING_REWARD_MULTIPLIER,
+          this.achievements.perks(attempt.userId).counting);
         credited = payout;
         balance += credited;
         this.upsertBalanceStatement.run(attempt.userId, balance.toString(), now);
@@ -97,5 +99,5 @@ class CountingRepository {
   }
 }
 
-module.exports = { CountingRepository };
+module.exports = { COUNTING_REWARD_MULTIPLIER, CountingRepository };
 

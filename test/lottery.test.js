@@ -83,7 +83,7 @@ test('draw pays exact prizes above the old cap once and consumes only its own da
   assert.equal(repo.balance(USER), before + PRIZES[1] + PRIZES[2] + PRIZES[3]);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lottery_deliveries').get().n, 2n);
   const count = new CountingRepository(db);
-  assert.equal(count.processAttempt({ messageId: 'above-cap', guildId: GUILD, channelId: CHANNEL, userId: USER, submittedValue: '1' }).credited, 1n);
+  assert.equal(count.processAttempt({ messageId: 'above-cap', guildId: GUILD, channelId: CHANNEL, userId: USER, submittedValue: '1' }).credited, 10n);
   const work = new WorkRepository(db, { clock: () => cutoff('2026-09-07') });
   work.create({ sessionId: 'above-cap', guildId: GUILD, channelId: CHANNEL, userId: USER, job: 'cashier', difficulty: 'easy', deadline: cutoff('2026-09-08'), state: {}, baseSalary: 100, xpReward: 0 });
   assert.equal(work.settle('above-cap', 'succeeded').session.salaryCredited, 100);

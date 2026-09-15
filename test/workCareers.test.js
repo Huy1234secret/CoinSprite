@@ -2,7 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { openDatabase } = require('../src/features/work/repositories/database');
 const { WorkRepository } = require('../src/features/work/repositories/workRepository');
-const { CAREERS, DAY_MS } = require('../src/features/work/data/careers');
+const {
+  CAREERS, DAY_MS, MAX_CAREER_SALARY, MIN_CAREER_SALARY, careerSalary,
+} = require('../src/features/work/data/careers');
 const { jobsPayload, firedPayload } = require('../src/features/work/components/careers');
 const { settledPayload } = require('../src/features/work/components/builders');
 const { messagePayloadErrors } = require('../src/features/shared/discordPayload');
@@ -28,14 +30,16 @@ function setup(t) {
   }
   return { db, repo, qualify, create, work, advance: ms => { now += ms; }, now: () => now };
 }
-test('catalog follows all formulas, rounded-up requirements and decade boundaries', () => {
+test('catalog spans balanced salary bounds, rounded-up requirements and decade boundaries', () => {
   assert.equal(CAREERS.length, 100);
   assert.equal(CAREERS[0].name, 'Leaf Raker');
   assert.equal(CAREERS[99].name, 'Chief Executive Officer');
   assert.equal(CAREERS[99].totalRequired, 5010);
-  assert.equal(CAREERS[99].salary, 1000200);
+  assert.equal(CAREERS[0].salary, MIN_CAREER_SALARY);
+  assert.equal(CAREERS[99].salary, MAX_CAREER_SALARY);
   for (const [i, job] of CAREERS.entries()) {
-    assert.equal(job.salary, (i + 1) ** 3 + i + 101);
+    assert.equal(job.salary, careerSalary(i + 1));
+    if (i) assert.ok(job.salary > CAREERS[i - 1].salary);
     assert.equal(job.totalRequired, Math.ceil(10 + 5 * (i + 1) ** 1.5));
   }
   assert.deepEqual([0, 9, 10, 88, 89, 90, 99].map(i => CAREERS[i].dailyRequired), [3, 3, 4, 11, 12, 12, 12]);
@@ -92,7 +96,7 @@ test('salary uses the career formula and additive Reliable points with Career Wo
   db.prepare('UPDATE work_profiles SET salary_boost=100 WHERE user_id=?').run('u');
   db.prepare('INSERT INTO achievement_medals VALUES (?,?,?)').run('u', 'career_worker', 4);
   db.prepare('INSERT INTO achievement_medals VALUES (?,?,?)').run('u', 'reliable_employee', 4);
-  assert.equal(work().session.salaryCredited, Number(1000200n * 22000n * 10750n / 100000000n));
+  assert.equal(work().session.salaryCredited, Number(200000n * 22000n * 10750n / 100000000n));
 });
 test('all job pages have valid Discord payloads with eligible, locked and applied buttons', t => {
   const { repo, qualify } = setup(t);

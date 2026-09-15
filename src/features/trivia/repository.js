@@ -4,10 +4,21 @@ const { reward } = require('../achievements/catalog');
 const { question } = require('./questions');
 
 const DIFFICULTIES = Object.freeze({
-  easy: { label: 'Easy', level: 1, lives: 3, seconds: 60, bonus: 8, coins: [5, 25], xp: [1, 5], color: 0x57F287 },
-  medium: { label: 'Medium', level: 15, lives: 2, seconds: 30, bonus: 9, coins: [10, 50], xp: [3, 15], color: 0xFEE75C },
-  hard: { label: 'Hard', level: 40, lives: 1, seconds: 15, bonus: 10, coins: [20, 100], xp: [9, 45], color: 0xED4245 },
+  easy: { label: 'Easy', level: 1, lives: 3, seconds: 60, bonus: 8, xp: [1, 5], color: 0x57F287 },
+  medium: { label: 'Medium', level: 15, lives: 2, seconds: 30, bonus: 9, xp: [3, 15], color: 0xFEE75C },
+  hard: { label: 'Hard', level: 40, lives: 1, seconds: 15, bonus: 10, xp: [9, 45], color: 0xED4245 },
 });
+const COINS_BY_QUESTION = Object.freeze({
+  easy: Object.freeze([50, 65, 80, 100]),
+  medium: Object.freeze([75, 100, 125, 150]),
+  hard: Object.freeze([100, 150, 200, 250]),
+});
+function coinsFor(difficulty, number) {
+  const rewards = COINS_BY_QUESTION[difficulty];
+  if (!rewards) throw new Error('Unknown Trivia difficulty.');
+  const tier = number <= 10 ? 0 : number <= 25 ? 1 : number <= 50 ? 2 : 3;
+  return rewards[tier];
+}
 class TriviaRepository {
   constructor(db, { clock = Date.now, random = randomInt } = {}) {
     this.db = db; this.clock = clock; this.random = random;
@@ -58,7 +69,7 @@ class TriviaRepository {
       if (!timedOut) s.answered++;
       if (correct) {
         const roll = range => range[0] + this.random(range[1] - range[0] + 1);
-        const coins = reward(roll(config.coins), this.achievements.perks(userId).trivia);
+        const coins = reward(coinsFor(s.difficulty, s.number), this.achievements.perks(userId).trivia);
         const xp = roll(config.xp);
         const wallet = this.db.prepare('SELECT balance FROM counting_bronze_balances WHERE user_id=?').get(userId);
         this.db.prepare(`INSERT INTO counting_bronze_balances VALUES (?,?,?) ON CONFLICT(user_id)
@@ -93,4 +104,4 @@ class TriviaRepository {
     }).immediate();
   }
 }
-module.exports = { TriviaRepository, DIFFICULTIES };
+module.exports = { COINS_BY_QUESTION, DIFFICULTIES, TriviaRepository, coinsFor };

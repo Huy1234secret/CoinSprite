@@ -7,7 +7,8 @@ const {
 } = require('../src/features/beg/components');
 const { parseBegCommand } = require('../src/features/beg/commands');
 const {
-  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, TIERS,
+  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, MINIMUM_REWARD,
+  TARGET_NET, TIERS,
 } = require('../src/features/beg/data/approaches');
 const { createBegFeature } = require('../src/features/beg');
 const { migrateBeg } = require('../src/features/beg/migrate');
@@ -98,7 +99,7 @@ test('catalog has 100 unique authored approaches split evenly across four risk t
   }
   for (const item of APPROACHES) {
     assert.ok(item.successChance > 0 && item.successChance + item.lossChance <= 100);
-    assert.ok(item.reward[0] > 0 && item.reward[1] >= item.reward[0]);
+    assert.ok(item.reward[0] >= MINIMUM_REWARD && item.reward[1] >= item.reward[0]);
     assert.ok(item.loss[0] >= 0 && item.loss[1] >= item.loss[0]);
     for (const key of ['successMessages', 'failureMessages', 'lossMessages']) {
       assert.equal(item[key].length, MESSAGE_VARIANT_COUNT);
@@ -132,7 +133,7 @@ test('outcome message selection varies across attempts and remains stable for re
   }
 });
 
-test('rebalance keeps every tier near four Bronze average net value', () => {
+test('rebalance keeps every approach at 100+ Bronze and every tier near the target net', () => {
   const averages = Object.fromEntries(TIERS.map((tier) => {
     const values = APPROACHES_BY_TIER[tier.id].map((item) => {
       const rewardAverage = (item.reward[0] + item.reward[1]) / 2;
@@ -141,7 +142,10 @@ test('rebalance keeps every tier near four Bronze average net value', () => {
     });
     return [tier.id, values.reduce((sum, value) => sum + value, 0) / values.length];
   }));
-  for (const value of Object.values(averages)) assert.ok(value >= 2 && value <= 5, String(averages));
+  assert.equal(Math.min(...APPROACHES.map(item => item.reward[0])), MINIMUM_REWARD);
+  for (const value of Object.values(averages)) {
+    assert.ok(value >= TARGET_NET - 1 && value <= TARGET_NET + 1, String(averages));
+  }
   assert.ok(APPROACH_BY_ID['coin-black-hole'].reward[1] > APPROACH_BY_ID['cardboard-sign'].reward[1] * 100);
 });
 

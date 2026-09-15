@@ -140,17 +140,17 @@ test('XP uses pre-event perks only; failed/time-out jobs reset live streak witho
 
 test('Counting accepted 67/777, global totals and arbitrary-size exact additive rewards', t => {
   const { db, counting, achievements } = setup(t);
-  assert.equal(count(db, counting, '67', 67).credited, 67n);
-  assert.equal(count(db, counting, '777', 777, 'second-guild').credited, 829n);
+  assert.equal(count(db, counting, '67', 67).credited, 670n);
+  assert.equal(count(db, counting, '777', 777, 'second-guild').credited, 8290n);
   seed(achievements, { counts: 100 });
-  assert.equal(count(db, counting, 'example', 100).credited, 204n);
+  assert.equal(count(db, counting, 'example', 100).credited, 2044n);
   const bonus = achievements.perks(USER).counting;
   assert.equal(bonus, 10440n);
   const huge = 10n ** 100n + 67n;
   assert.equal(reward(huge, bonus), huge * 20440n / 10000n);
-  assert.equal(count(db, counting, 'huge', huge).balance, 1100n + huge * 20440n / 10000n);
+  assert.equal(count(db, counting, 'huge', huge).balance, 11004n + huge * 10n * 20440n / 10000n);
   const prior = achievements.snapshot(USER).progress.counts;
-  assert.equal(count(db, counting, 'cap', 1).credited, 2n);
+  assert.equal(count(db, counting, 'cap', 1).credited, 20n);
   assert.equal(achievements.snapshot(USER).progress.counts, prior + 1n);
   const snapshot = achievements.snapshot(USER);
   assert.equal(counting.processAttempt({ messageId: 'cap', guildId: GUILD, channelId: CHANNEL, userId: USER, submittedValue: '1' }).status, 'duplicate');
@@ -164,8 +164,8 @@ test('Counting accepted 67/777, global totals and arbitrary-size exact additive 
 test('threshold Counting payout uses old perk, Work crosses the Silver threshold and advances Expert totals', t => {
   const { db, counting, work, achievements } = setup(t);
   seed(achievements, { counts: 24 });
-  assert.equal(count(db, counting, '25th', 100).credited, 100n);
-  assert.equal(count(db, counting, '26th', 100).credited, 110n);
+  assert.equal(count(db, counting, '25th', 100).credited, 1000n);
+  assert.equal(count(db, counting, '26th', 100).credited, 1100n);
   db.prepare('UPDATE counting_bronze_balances SET balance=999999 WHERE user_id=?').run(USER);
   const result = job(work, 'cap', { difficulty: 'expert' });
   assert.equal(result.session.salaryCredited, 200);
@@ -313,7 +313,7 @@ test('outbox retries missing emoji/permission failure, coordinates workers, and 
   const options = { clock: () => now, resolveEmoji: name => configured ? emoji(name) : null, reportError: error => errors.push(error.message) };
   await new AchievementOutbox(db, client, options).drain();
   assert.match(errors[0], /CSDMedal/);
-  assert.equal(counting.balance(USER), 777n);
+  assert.equal(counting.balance(USER), 7770n);
   now += 60000; configured = true;
   await new AchievementOutbox(db, client, options).drain();
   assert.match(errors[1], /permissions/);
