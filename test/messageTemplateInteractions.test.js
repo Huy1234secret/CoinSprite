@@ -511,7 +511,7 @@ test('duplicating a template regenerates control IDs while preserving configured
 });
 
 test('dashboard exposes controls, accessible gear settings, JSON round-trip, and resolved preview hooks', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   const css = fs.readFileSync(path.join(__dirname, '..', 'admin', 'style.css'), 'utf8');
   assert.match(html, /data-template-tab="controls"/);

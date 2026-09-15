@@ -290,7 +290,7 @@ test('dashboard exposes the shared picker and exactly three Reaction Roles tabs'
   const fs = require('node:fs');
   const path = require('node:path');
   const vm = require('node:vm');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'admin', 'index.html'), 'utf8');
+  const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   const emojiData = fs.readFileSync(path.join(__dirname, '..', 'admin', 'emojiData.js'), 'utf8');
   const emojiContext = { window: {} };

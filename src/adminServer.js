@@ -434,11 +434,11 @@ function versionedCacheControl(requestedVersion, currentVersion) {
 
 function serveAsset(res, pathname, requestedVersion = '') {
   const asset = PUBLIC_ASSETS.get(pathname);
-  const filename = asset?.[0] || 'index.html';
+  const filename = asset?.[0] || 'document';
   const contentType = asset?.[1] || 'text/html; charset=utf-8';
   const loaded = loadAdminAsset(filename);
   if (!loaded) return send(res, 404, 'Not found');
-  const index = filename === 'index.html';
+  const index = filename === 'document';
   return send(res, 200, loaded.data, {
     'Content-Type': contentType,
     'Cache-Control': index ? 'no-store, max-age=0' : versionedCacheControl(requestedVersion, loaded.version),
@@ -789,7 +789,7 @@ async function routeRequest(req, res, env, client, services = {}) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
-  if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/index.html');
+  if (req.method === 'GET' && (pathname === '/' || pathname === '/admin' || pathname === '/admin/' || pathname === '/profile' || pathname === '/profile/')) return serveAsset(res, '/admin/document');
   if (req.method === 'GET' && PUBLIC_ASSETS.has(pathname)) return serveAsset(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/admin/fonts/')) return serveAdminFont(res, pathname, url.searchParams.get('v') || '');
   if (req.method === 'GET' && pathname.startsWith('/leveling-media/')) return serveLevelingMedia(res, pathname);
