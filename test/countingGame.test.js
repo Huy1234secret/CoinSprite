@@ -323,7 +323,7 @@ test('dashboard exposes Games/Counting and PATCH channel validation is guild iso
   const script = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'adminServer.js'), 'utf8');
   assert.match(html, /data-view="games"[^>]*>[\s\S]*?<strong>Games<\/strong>/);
-  assert.match(html, /class="games-tabs"[\s\S]*?>🧮 Counting<\/button>/);
+  assert.match(html, /class="games-tabs"[\s\S]*?>🧮<\/span>Counting<\/button>/);
   assert.equal((html.match(/id="countingChannel"/g) || []).length, 1);
   assert.match(script, /body = \{ memberMessages, counting, games \}/);
   assert.match(server, /requireGuildAdmin\(req, res, env, client, guildId\)/);

@@ -86,7 +86,7 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/inventory.js', ['inventory.js', 'application/javascript; charset=utf-8']],
-  ['/admin/ui.css', ['ui.css', 'text/css; charset=utf-8']],
+  ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();

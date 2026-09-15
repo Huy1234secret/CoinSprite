@@ -1,92 +1,104 @@
-const { el, render, action } = require('./layoutKit');
-const profile = require('./pages/profile');
-const leveling = require('./pages/leveling');
-const games = require('./pages/games');
-const memberMessages = require('./pages/memberMessages');
-const templates = require('./pages/templates');
-const reactionRoles = require('./pages/reactionRoles');
-const owner = require('./pages/owner');
-const dialogs = require('./pages/dialogs');
+// Browser document assembled from a DOM description. Dashboard controls are
+// retained as data so their existing behavior stays intact without an HTML file.
+const tree = require('./dashboardTree.json');
 
-const destinations = [
-  ['levelingNav', 'leveling', '🏅', 'Leveling', 'XP and rewards'],
-  ['welcomeMessagesNav', 'member-messages', '👋', 'Welcome', 'Member events'],
-  ['messageTemplatesNav', 'message-templates', '📝', 'Templates', 'Reusable messages'],
-  ['reactionRolesNav', 'reaction-roles', '🎭', 'Roles', 'Member choice'],
+const node = (tag, attrs = {}, ...children) => ({ tag, attrs, children: children.flat() });
+const render = (entry) => {
+  if (typeof entry === 'string') return entry;
+  const attributes = Object.entries(entry.attrs || {}).map(([name, value]) => value === true ? ` ${name}` : ` ${name}="${value}"`).join('');
+  const opening = `<${entry.tag}${attributes}>`;
+  if (new Set(['input', 'meta', 'link', 'img', 'br', 'hr', 'source']).has(entry.tag)) return opening;
+  return `${opening}${(entry.children || []).map(render).join('')}</${entry.tag}>`;
+};
+
+const brand = node('a', { class: 'brand', href: '/admin', 'aria-label': 'CoinSprite home' },
+  node('span', { class: 'brand-mark', 'aria-hidden': 'true' }, '🪙'),
+  node('span', {}, node('strong', {}, 'CoinSprite'), node('small', {}, 'Control panel')));
+
+const header = node('header', { class: 'topbar' },
+  brand,
+  node('div', { class: 'topbar-actions' },
+    node('span', { class: 'live-pill' }, node('i'), ' Discord tools'),
+    node('div', { class: 'account-wrap', id: 'accountWrap', hidden: true },
+      node('button', { class: 'user-chip', id: 'userChip', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
+        node('img', { id: 'userAvatar', alt: '' }), node('span', { id: 'sessionLabel' }), node('i', { 'aria-hidden': 'true' }, '&#8964;')),
+      node('div', { class: 'account-menu', id: 'accountMenu', role: 'menu', hidden: true },
+        node('a', { href: '/admin', role: 'menuitem' }, node('b', {}, 'Manage server'), node('small', {}, 'Community settings')),
+        node('a', { href: '/profile', role: 'menuitem' }, node('b', {}, 'Profile'), node('small', {}, 'Level card and inventory')))),
+    node('button', { class: 'button ghost small', id: 'logoutButton', type: 'button', hidden: true }, 'Sign out')));
+
+const landing = node('main', { class: 'login-shell', id: 'loginPanel' },
+  node('section', { class: 'login-copy' },
+    node('span', { class: 'eyebrow' }, 'COINSPRITE / DISCORD'),
+    node('h1', {}, 'One place for your server.'),
+    node('p', {}, 'Manage leveling, messages, roles, and games without the clutter.'),
+    node('div', { class: 'login-actions' },
+      node('a', { class: 'button primary login-button', id: 'loginButton', href: '/auth/discord' }, 'Continue with Discord ', node('span', { 'aria-hidden': 'true' }, '&#8599;'))),
+    node('p', { class: 'login-note', id: 'loginStatus', role: 'status' }, 'Checking your session…')));
+
+const navigation = [
+  ['levelingNav', 'leveling', '🏅', 'Leveling', 'Locked by owner'],
+  ['welcomeMessagesNav', 'member-messages', '👋', 'Welcome messages', 'Join, leave and boost'],
+  ['messageTemplatesNav', 'message-templates', '📝', 'Message templates', 'Compose and reuse'],
+  ['reactionRolesNav', 'reaction-roles', '🎭', 'Reaction roles', 'Member-selected roles'],
   ['gamesNav', 'games', '🎮', 'Games', 'Counting and lottery'],
-  ['ownerNav', 'owner', '🛠️', 'Owner', 'Fleet tools'],
+  ['ownerNav', 'owner', '🛠️', 'Owner panel', 'Fleet and console'],
 ];
 
-function topbar() {
-  return el('header', { class: 'topbar' },
-    el('a', { class: 'brand', href: '/admin', 'aria-label': 'CoinSprite home' },
-      el('span', { class: 'brand-mark', 'aria-hidden': 'true' }, '🪙'),
-      el('span', {}, el('strong', {}, 'CoinSprite'), el('small', {}, 'COMMUNITY STUDIO'))),
-    el('div', { class: 'topbar-actions' },
-      el('span', { class: 'live-pill' }, 'DISCORD / CONTROL'),
-      el('div', { class: 'account-wrap', id: 'accountWrap', hidden: true },
-        el('button', { class: 'user-chip', id: 'userChip', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
-          el('img', { id: 'userAvatar', alt: '' }), el('span', { id: 'sessionLabel' }), el('span', { 'aria-hidden': 'true' }, '⌄')),
-        el('div', { class: 'account-menu', id: 'accountMenu', role: 'menu', hidden: true },
-          el('a', { href: '/admin', role: 'menuitem' }, '⚙️ Manage server'),
-          el('a', { href: '/profile', role: 'menuitem' }, '🪪 My profile'))),
-      action('logoutButton', 'Sign out', 'quiet', { hidden: true })));
-}
+const sidebar = node('aside', { class: 'sidebar' },
+  node('div', { class: 'server-block' },
+    node('label', { for: 'guildSelect' }, 'CURRENT SERVER'),
+    node('div', { class: 'select-wrap' }, node('select', { id: 'guildSelect', disabled: true }, node('option', { value: '' }, 'No editable servers'))),
+    node('p', { id: 'serverMeta' }, 'Choose a Discord server')),
+  node('button', { class: 'mobile-nav-toggle', id: 'mobileNavToggle', type: 'button', 'aria-controls': 'dashboardNav', 'aria-expanded': 'false' }, node('span', {}, 'Workspace'), node('b', {}, 'Menu')),
+  node('nav', { class: 'nav-list', id: 'dashboardNav', 'aria-label': 'Dashboard' },
+    navigation.map(([id, view, emoji, label, description], index) => node('button', {
+      class: `nav-item${index === 0 ? ' active' : ''}`, id, type: 'button', 'data-view': view,
+      ...(view === 'owner' ? { hidden: true } : {}),
+    }, node('span', { class: 'nav-icon', 'aria-hidden': 'true' }, emoji), node('span', {}, node('strong', {}, label), node('small', {}, description))))));
 
-function landing() {
-  return el('main', { class: 'login-shell', id: 'loginPanel' },
-    el('div', { class: 'login-accent', 'aria-hidden': 'true' }, '🪙'),
-    el('section', { class: 'login-copy' },
-      el('span', { class: 'eyebrow' }, 'COINSPRITE / COMMUNITY STUDIO'),
-      el('h1', {}, 'Your server, in focus.'),
-      el('p', {}, 'Set up the parts that make your community feel alive.'),
-      el('a', { class: 'action primary login-button', id: 'loginButton', href: '/auth/discord' }, 'Continue with Discord ↗'),
-      el('p', { class: 'login-note', id: 'loginStatus', role: 'status' }, 'Checking your session…')));
+const emojiTabs = {
+  profileCardTab: '🪪', profileInventoryTab: '🎒',
+};
+const dataTabs = {
+  'data-member-event': { join: '👋', leave: '🚪', boost: '✨' },
+  'data-template-tab': { editor: '✏️', controls: '🎛️', json: '📋', settings: '⚙️', share: '🔗' },
+  'data-reaction-tab': { message: '💬', 'role-reaction': '🎭', channel: '📣' },
+  'data-emoji-section': { bot: '🤖', group: '👥', default: '😀' },
+};
+function addTabIcons(entry) {
+  if (typeof entry === 'string') return;
+  const emoji = emojiTabs[entry.attrs?.id] || (entry.tag === 'button' && entry.children?.includes('Counting') ? '🧮' : '') || Object.entries(dataTabs).map(([key, values]) => values[entry.attrs?.[key]]).find(Boolean);
+  if (emoji && entry.tag === 'button') entry.children.unshift(node('span', { class: 'tab-emoji', 'aria-hidden': 'true' }, emoji));
+  for (const child of entry.children || []) addTabIcons(child);
 }
+addTabIcons(tree.profile);
+for (const view of tree.views) addTabIcons(view);
+for (const dialog of tree.dialogs) addTabIcons(dialog);
 
-function serverStrip() {
-  return el('div', { class: 'dashboard-strip' },
-    el('div', { class: 'server-block' },
-      el('label', { for: 'guildSelect' }, 'SERVER'),
-      el('select', { id: 'guildSelect', disabled: true }, el('option', { value: '' }, 'No editable servers')),
-      el('small', { id: 'serverMeta' }, 'Choose a Discord server')),
-    el('button', { class: 'mobile-nav-toggle', id: 'mobileNavToggle', type: 'button', 'aria-controls': 'dashboardNav', 'aria-expanded': 'false' }, '☰ Sections'),
-    el('nav', { class: 'nav-list', id: 'dashboardNav', 'aria-label': 'Dashboard sections' },
-      destinations.map(([id, view, icon, label, note], index) => el('button', {
-        class: `nav-item${index === 0 ? ' active' : ''}`, id, type: 'button', 'data-view': view,
-        hidden: view === 'owner',
-      }, el('span', { class: 'nav-icon', 'aria-hidden': 'true' }, icon),
-      el('span', {}, el('strong', {}, label), el('small', {}, note))))));
-}
+const workspace = node('section', { class: 'workspace' },
+  node('div', { class: 'toast', id: 'toast', role: 'status', 'aria-live': 'polite', hidden: true }),
+  tree.views,
+  node('footer', { class: 'save-dock', id: 'saveDock', role: 'status', 'aria-live': 'polite', hidden: true },
+    node('span', { id: 'saveState' }, 'Unsaved changes'),
+    node('div', {}, node('button', { class: 'button ghost', id: 'resetButton', type: 'button' }, 'Reset'), node('button', { class: 'button primary', id: 'saveButton', type: 'button' }, 'Apply changes'))));
 
-function app() {
-  return el('main', { class: 'app-shell', id: 'appShell', hidden: true },
-    serverStrip(),
-    el('section', { class: 'workspace' },
-      el('div', { class: 'toast', id: 'toast', role: 'status', 'aria-live': 'polite', hidden: true }),
-      leveling(), memberMessages(), templates(), reactionRoles(), games(), owner(),
-      el('footer', { class: 'save-dock', id: 'saveDock', role: 'status', 'aria-live': 'polite', hidden: true },
-        el('span', { id: 'saveState' }, 'Unsaved changes'),
-        el('div', {}, action('resetButton', 'Reset'), action('saveButton', 'Apply changes', 'primary')))));
-}
-
-function documentHead() {
-  return el('head', {},
-    el('meta', { charset: 'utf-8' }),
-    el('meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }),
-    el('meta', { name: 'theme-color', content: '#e9e7e1' }),
-    el('meta', { name: 'description', content: 'CoinSprite community studio for Discord servers.' }),
-    el('title', {}, 'CoinSprite · Community studio'),
-    el('link', { rel: 'icon', type: 'image/png', href: '/admin/brand-icon.png' }),
-    el('link', { rel: 'stylesheet', href: '/admin/ui.css' }),
-    el('meta', { id: 'emojiDataAsset', 'data-src': '/admin/emojiData.js' }),
-    el('script', { src: '/admin/app.js', defer: true }),
-    el('script', { src: '/admin/inventory.js', defer: true }));
-}
+const dashboard = node('main', { class: 'app-shell', id: 'appShell', hidden: true }, sidebar, workspace);
+const head = node('head', {},
+  node('meta', { charset: 'utf-8' }),
+  node('meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }),
+  node('meta', { name: 'theme-color', content: '#171717' }),
+  node('meta', { name: 'description', content: 'A focused control panel for your Discord community.' }),
+  node('title', {}, 'CoinSprite · Control panel'),
+  node('link', { rel: 'icon', type: 'image/png', href: '/admin/brand-icon.png' }),
+  node('link', { rel: 'stylesheet', href: '/admin/style.css' }),
+  node('link', { rel: 'stylesheet', href: '/admin/dashboard.css' }),
+  node('meta', { id: 'emojiDataAsset', 'data-src': '/admin/emojiData.js' }),
+  node('script', { src: '/admin/app.js', defer: true }),
+  node('script', { src: '/admin/inventory.js', defer: true }));
 
 function renderAdminDocument() {
-  return `<!doctype html>${render(el('html', { lang: 'en' },
-    documentHead(), el('body', {}, topbar(), landing(), profile(), app(), dialogs())))}`;
+  return `<!doctype html>${render(node('html', { lang: 'en' }, head, node('body', {}, header, landing, tree.profile, dashboard, tree.dialogs)))}`;
 }
 
 module.exports = { renderAdminDocument };
