@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { openDatabase } = require('../src/features/work/repositories/database');
-const { TriviaRepository, DIFFICULTIES } = require('../src/features/trivia/repository');
+const { TriviaRepository, DIFFICULTIES, coinsFor } = require('../src/features/trivia/repository');
 const { createTriviaFeature, parseTriviaCommand } = require('../src/features/trivia');
 const { menu, game } = require('../src/features/trivia/components');
 const { BANK, RECORDS, LEGACY_IDS, question } = require('../src/features/trivia/questions');
@@ -43,11 +43,11 @@ for (const [difficulty, config] of Object.entries(DIFFICULTIES)) {
     assert.equal(s.lives, config.lives);
     setNow(s.deadline - 5000);
     const correct = repo.answer(s.id, USER, 1, s.question.correct);
-    assert.equal(correct.coins, String(config.coins[0]));
+    assert.equal(correct.coins, String(coinsFor(difficulty, 1)));
     assert.equal(correct.xp, config.xp[0]);
     assert.equal(correct.remaining, 5000 + config.bonus * 1000);
     assert.equal(repo.answer(s.id, USER, 1, s.question.correct), null);
-    assert.equal(db.prepare('SELECT balance FROM counting_bronze_balances WHERE user_id=?').get(USER).balance, String(config.coins[0]));
+    assert.equal(db.prepare('SELECT balance FROM counting_bronze_balances WHERE user_id=?').get(USER).balance, String(coinsFor(difficulty, 1)));
     assert.equal(repo.advance(s.id), null);
     setNow(correct.revealUntil); const next = repo.advance(s.id);
     assert.equal(next.number, 2);
@@ -58,14 +58,24 @@ for (const [difficulty, config] of Object.entries(DIFFICULTIES)) {
     setNow(wrong.revealUntil);
     assert.equal(repo.advance(s.id).status, config.lives === 1 ? 'ended' : 'question');
   });
-  test(`${difficulty}: inclusive maximum rewards and 60 second cap`, t => {
+  test(`${difficulty}: maximum XP reward and 60 second cap`, t => {
     const { repo, unlock } = setup(t, upper => upper - 1); unlock(config.level);
     const s = repo.start(USER, difficulty, context);
     const next = repo.answer(s.id, USER, 1, s.question.correct);
-    assert.equal(next.coins, String(config.coins[1])); assert.equal(next.xp, config.xp[1]);
+    assert.equal(next.coins, String(coinsFor(difficulty, 1))); assert.equal(next.xp, config.xp[1]);
     assert.equal(next.remaining, Math.min(60000, (config.seconds + config.bonus) * 1000));
   });
 }
+test('coin rewards follow the requested question bands at every boundary', () => {
+  const expected = {
+    easy: [[1, 50], [10, 50], [11, 65], [25, 65], [26, 80], [50, 80], [51, 100]],
+    medium: [[1, 75], [10, 75], [11, 100], [25, 100], [26, 125], [50, 125], [51, 150]],
+    hard: [[1, 100], [10, 100], [11, 150], [25, 150], [26, 200], [50, 200], [51, 250]],
+  };
+  for (const [difficulty, cases] of Object.entries(expected)) {
+    for (const [number, coins] of cases) assert.equal(coinsFor(difficulty, number), coins);
+  }
+});
 test('timeouts consume one life, reject late correct answers, and end at zero', t => {
   const { repo, setNow } = setup(t);
   let s = repo.start(USER, 'easy', context);
@@ -96,7 +106,7 @@ test('XP levels, milestones and additive highest-tier bonuses persist atomically
   assert.equal(repo.achievements.perks(USER).trivia, 8750n);
   assert.equal(repo.achievements.snapshot(USER).earned.living_encyclopedia, 1);
   const fresh = new TriviaRepository(db);
-  assert.equal(fresh.get(s.id).coins, '5'); assert.equal(fresh.profile(USER).level, 5);
+  assert.equal(fresh.get(s.id).coins, '50'); assert.equal(fresh.profile(USER).level, 5);
 });
 test('failed reward transaction does not consume answer or grant XP', t => {
   const { repo, db } = setup(t);
@@ -113,7 +123,7 @@ test('achievement coin bonuses apply to the next answer without boosting XP', t 
   repo.achievements.unlock(USER);
   const s = repo.start(USER, 'easy', context);
   const next = repo.answer(s.id, USER, 1, s.question.correct);
-  assert.equal(next.coins, '46'); // floor(25 * 1.875)
+  assert.equal(next.coins, '93'); // floor(50 * 1.875)
   assert.equal(next.xp, 5);
 });
 test('Back opens the updated menu and channel restrictions also block buttons', async t => {

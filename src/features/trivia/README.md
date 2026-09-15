@@ -4,11 +4,20 @@ Use `/cs-trivia` or `cstrivia` in an enabled guild. The Games panel can restrict
 Trivia to selected channels. Menus and games belong to the invoking player;
 only one active game per player is permitted across guilds.
 
-| Difficulty | Required level | Lives | Initial time | Correct answer adds | Coins | Trivia XP |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Easy | 1 | 3 | 60s | 8s | 5–25 | 1–5 |
-| Medium | 15 | 2 | 30s | 9s | 10–50 | 3–15 |
-| Hard | 40 | 1 | 15s | 10s | 20–100 | 9–45 |
+| Difficulty | Required level | Lives | Initial time | Correct answer adds | Trivia XP |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Easy | 1 | 3 | 60s | 8s | 1–5 |
+| Medium | 15 | 2 | 30s | 9s | 3–15 |
+| Hard | 40 | 1 | 15s | 10s | 9–45 |
+
+Every correct answer pays a fixed base amount determined by the current question:
+
+| Question | Easy | Medium | Hard |
+| --- | ---: | ---: | ---: |
+| 1–10 | 50 | 75 | 100 |
+| 11–25 | 65 | 100 | 150 |
+| 26–50 | 80 | 125 | 200 |
+| 51+ | 100 | 150 | 250 |
 
 The running clock caps at 60 seconds. A wrong answer consumes one life and
 preserves the remaining time. A timeout consumes one life and resets the clock
@@ -18,8 +27,8 @@ edits. All answer buttons are disabled during the reveal; the correct choice is
 green and an incorrect selected choice is red. After the last reveal, the game
 shows submitted-answer count, correct-answer count, earnings and a Back button.
 
-Rewards are independently and uniformly rolled per correct answer, then saved
-immediately in the shared coin wallet and the separate Trivia profile. Trivia
+The question-band coin reward and independently rolled XP are saved immediately
+in the shared coin wallet and the separate Trivia profile. Trivia
 starts at level 1 and requires `100 × current level` XP for each next level;
 surplus XP carries over. Achievement bonuses apply to coins, not XP. The highest
 tier from each track replaces its lower tiers, and the three tracks add together.

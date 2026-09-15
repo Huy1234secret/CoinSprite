@@ -1,12 +1,15 @@
+const MINIMUM_REWARD = 100;
+const TARGET_NET = 127;
+
 const TIERS = Object.freeze([
   Object.freeze({ id: 'safe', name: 'Safe', emoji: '🟢', weight: 45, buttonStyle: 3,
-    lossChance: 0, loss: Object.freeze([0, 0]), targetNet: 4 }),
+    lossChance: 0, loss: Object.freeze([0, 0]), targetNet: TARGET_NET }),
   Object.freeze({ id: 'uncertain', name: 'Uncertain', emoji: '🟡', weight: 30, buttonStyle: 1,
-    lossChance: 5, loss: Object.freeze([4, 12]), targetNet: 4 }),
+    lossChance: 5, loss: Object.freeze([4, 12]), targetNet: TARGET_NET }),
   Object.freeze({ id: 'risky', name: 'Risky', emoji: '🔴', weight: 20, buttonStyle: 4,
-    lossChance: 12, loss: Object.freeze([12, 40]), targetNet: 4 }),
+    lossChance: 12, loss: Object.freeze([12, 40]), targetNet: TARGET_NET }),
   Object.freeze({ id: 'ridiculous', name: 'Ridiculous', emoji: '💀', weight: 5, buttonStyle: 2,
-    lossChance: 25, loss: Object.freeze([40, 160]), targetNet: 4 }),
+    lossChance: 25, loss: Object.freeze([40, 160]), targetNet: TARGET_NET }),
 ]);
 
 const TIER_BY_ID = Object.freeze(Object.fromEntries(TIERS.map(tier => [tier.id, tier])));
@@ -88,8 +91,8 @@ function balancedReward(tier, successChance) {
   const averageLoss = (tier.loss[0] + tier.loss[1]) / 2;
   const averageReward = (tier.targetNet + tier.lossChance / 100 * averageLoss) / (successChance / 100);
   return Object.freeze([
-    Math.max(1, Math.floor(averageReward * 0.75)),
-    Math.max(1, Math.ceil(averageReward * 1.25)),
+    Math.max(MINIMUM_REWARD, Math.floor(averageReward * 0.75)),
+    Math.max(MINIMUM_REWARD, Math.ceil(averageReward * 1.25)),
   ]);
 }
 
@@ -520,5 +523,6 @@ const APPROACHES_BY_TIER = Object.freeze(Object.fromEntries(TIERS.map(tier => [
 ])));
 
 module.exports = {
-  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, TIERS, TIER_BY_ID, balancedReward,
+  APPROACHES, APPROACHES_BY_TIER, APPROACH_BY_ID, MESSAGE_VARIANT_COUNT, MINIMUM_REWARD,
+  TARGET_NET, TIERS, TIER_BY_ID, balancedReward,
 };

@@ -9,14 +9,14 @@ const newJobs = require('../games/newJobs');
 const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard', 'expert']);
 const JOBS = Object.freeze(['trash', 'burger', 'electrician', 'plumber', 'odd', 'cashier', 'colors', 'captcha']);
 const JOB_CONFIG = Object.freeze({
-  odd: { salary: [15, 220], xp: [15, 95] },
-  cashier: { salary: [25, 270], xp: [20, 110] },
-  colors: { salary: [30, 300], xp: [25, 130] },
-  captcha: { salary: [20, 240], xp: [18, 100] },
-  trash: { salary: [10, 140], xp: [12, 55] },
-  electrician: { salary: [25, 260], xp: [20, 120] },
-  burger: { salary: [30, 300], xp: [25, 130] },
-  plumber: { salary: [80, 350], xp: [45, 180] },
+  odd: { salary: [1_000, 2_200], xp: [15, 95] },
+  cashier: { salary: [1_000, 2_700], xp: [20, 110] },
+  colors: { salary: [1_000, 3_000], xp: [25, 130] },
+  captcha: { salary: [1_000, 2_400], xp: [18, 100] },
+  trash: { salary: [1_000, 1_400], xp: [12, 55] },
+  electrician: { salary: [1_000, 2_600], xp: [20, 120] },
+  burger: { salary: [1_000, 3_000], xp: [25, 130] },
+  plumber: { salary: [1_000, 3_500], xp: [45, 180] },
 });
 const GAME_FACTORIES = Object.freeze({
   odd: newJobs.createOddGame, cashier: newJobs.createCashierGame,

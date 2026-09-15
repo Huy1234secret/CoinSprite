@@ -63,7 +63,7 @@ The dashboard lets Discord administrators configure unlocked features:
 - scheduled XP crates with a global drop channel plus optional per-crate fallbacks, images, XP ranges, guided `s`/`m`/`h`/`d` duration inputs, chances, claim limits, optional despawn timers, repeat-claim controls, colors, editable drop/claim messages (including `{list_claimed_user}`), and zero-XP test sends;
 - stackable or highest-only milestone role rewards, with server role colors shown in selectors.
 
-The published application-command surface contains the Counting balance command and the commands for enabled Leveling features. Counting messages and the `csbalance` text command share the same persistent Bronze balance.
+The published application-command surface contains the Counting balance command and the commands for enabled Leveling features. Each accepted Counting number awards ten times its value before achievement bonuses; Counting messages and the `csbalance` text command share the same persistent Bronze balance.
 
 ### Data scope
 

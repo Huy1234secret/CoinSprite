@@ -243,10 +243,12 @@ test('Plumber boards are solvable 5×5 networks with edge valves, bitmask rotati
 
 test('normalized reward and timer formulas hit the specified deterministic bounds', () => {
   for (const [job, config] of Object.entries(JOB_CONFIG)) {
+    assert.equal(config.salary[0], 1_000);
+    assert.ok(config.salary[1] >= config.salary[0] && config.salary[1] <= 3_500);
     assert.deepEqual(rewardsFor(job, 0), { baseSalary: config.salary[0], xpReward: config.xp[0] });
     assert.deepEqual(rewardsFor(job, 1), { baseSalary: config.salary[1], xpReward: config.xp[1] });
   }
-  assert.equal(scaledReward([10, 140], 0.5), 75);
+  assert.equal(scaledReward([1_000, 1_400], 0.5), 1_200);
   assert.equal(timerSeconds('burger', { target: Array(4) }), 45);
   assert.equal(timerSeconds('burger', { target: Array(12) }), 66);
   assert.equal(timerSeconds('trash', { required: 2 }), 40);

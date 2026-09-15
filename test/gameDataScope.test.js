@@ -71,20 +71,20 @@ test('Bronze is global while Counting sequences and turn ownership remain indepe
   const { db, counting } = gameDatabase();
   try {
     assert.equal(counting.processMessage(countMessage('a-1', GUILD_A, USER_A, '1')).status, 'correct');
-    assert.equal(counting.balance(USER_A), 1n, 'Bronze earned in guild A is visible through the global user balance');
+    assert.equal(counting.balance(USER_A), 10n, 'Bronze earned in guild A is visible through the global user balance');
     assert.equal(counting.nextExpected(GUILD_A), '2');
     assert.equal(counting.nextExpected(GUILD_B), '1');
 
     assert.equal(counting.processMessage(countMessage('b-1', GUILD_B, USER_A, '1')).status, 'correct');
-    assert.equal(counting.balance(USER_A), 2n, 'the same user accumulates one balance across guilds');
+    assert.equal(counting.balance(USER_A), 20n, 'the same user accumulates one balance across guilds');
     assert.equal(counting.nextExpected(GUILD_A), '2');
     assert.equal(counting.nextExpected(GUILD_B), '2');
 
     assert.equal(counting.processMessage(countMessage('a-2', GUILD_A, USER_B, '2')).status, 'correct');
     assert.equal(counting.nextExpected(GUILD_A), '3');
     assert.equal(counting.nextExpected(GUILD_B), '2');
-    assert.equal(counting.balance(USER_B), 2n);
-    assert.equal(counting.balance(USER_A), 2n, 'different users never share Bronze');
+    assert.equal(counting.balance(USER_B), 20n);
+    assert.equal(counting.balance(USER_A), 20n, 'different users never share Bronze');
   } finally {
     db.close();
   }

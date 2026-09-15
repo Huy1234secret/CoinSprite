@@ -80,15 +80,15 @@ test('a new sequence begins at 1 and correct messages advance, award, and react'
   const first = fakeMessage('1');
   assert.equal(await feature.handleMessage(first.message), true);
   assert.equal(feature.service.nextExpected(GUILD_ID), '2');
-  assert.equal(feature.service.balance(USER_ID), 1n);
+  assert.equal(feature.service.balance(USER_ID), 10n);
   assert.deepEqual(first.calls.reactions, [COUNT_SUCCESS_EMOJI]);
   assert.deepEqual(first.calls.sends, []);
 
   const second = fakeMessage('2', { author: user(OTHER_USER_ID, 'Other') });
   await feature.handleMessage(second.message);
   assert.equal(feature.service.nextExpected(GUILD_ID), '3');
-  assert.equal(feature.service.balance(USER_ID), 1n);
-  assert.equal(feature.service.balance(OTHER_USER_ID), 2n);
+  assert.equal(feature.service.balance(USER_ID), 10n);
+  assert.equal(feature.service.balance(OTHER_USER_ID), 20n);
   assert.deepEqual(second.calls.reactions, [COUNT_SUCCESS_EMOJI]);
   db.close();
 });
@@ -106,8 +106,8 @@ test('duplicate, skipped, lower, malformed, and repeated attempts reset without 
       const repeated = fakeMessage('2');
       await feature.handleMessage(repeated.message);
       assert.equal(feature.service.nextExpected(GUILD_ID), '1');
-      assert.equal(feature.service.balance(USER_ID), 1n);
-      assert.equal(feature.service.balance(OTHER_USER_ID), 2n);
+      assert.equal(feature.service.balance(USER_ID), 10n);
+      assert.equal(feature.service.balance(OTHER_USER_ID), 20n);
       assert.deepEqual(repeated.calls.reactions, [COUNT_FAILURE_EMOJI]);
       assert.equal(repeated.calls.sends.length, 1);
     } else {
@@ -131,7 +131,7 @@ test('the same user cannot count twice in a row', async () => {
   await feature.handleMessage(repeated.message);
 
   assert.equal(feature.service.nextExpected(GUILD_ID), '1');
-  assert.equal(feature.service.balance(USER_ID), 1n);
+  assert.equal(feature.service.balance(USER_ID), 10n);
   assert.deepEqual(repeated.calls.reactions, [COUNT_FAILURE_EMOJI]);
   assert.deepEqual(repeated.calls.sends, [{
     content: `<@${USER_ID}> counted twice in a row. Wait for someone else to take a turn. Start again at **1**.`,
@@ -184,8 +184,8 @@ test('state and balances persist after reopening the Counting database', async (
 
     const reopened = createCountingFeature({ databasePath, getChannelId: () => CHANNEL_ID });
     assert.equal(reopened.service.nextExpected(GUILD_ID), '3');
-    assert.equal(reopened.service.balance(USER_ID), 1n);
-    assert.equal(reopened.service.balance(OTHER_USER_ID), 2n);
+    assert.equal(reopened.service.balance(USER_ID), 10n);
+    assert.equal(reopened.service.balance(OTHER_USER_ID), 20n);
     reopened.close();
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -199,15 +199,15 @@ test('duplicate deliveries and near-simultaneous messages are transactionally sa
     feature.handleMessage(duplicate.message),
     feature.handleMessage(duplicate.message),
   ]);
-  assert.equal(feature.service.balance(USER_ID), 1n);
+  assert.equal(feature.service.balance(USER_ID), 10n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '2');
   assert.equal(duplicate.calls.reactions.length, 1);
 
   const one = fakeMessage('2', { author: user(OTHER_USER_ID, 'Other') });
   const two = fakeMessage('3');
   await Promise.all([feature.handleMessage(one.message), feature.handleMessage(two.message)]);
-  assert.equal(feature.service.balance(USER_ID), 4n);
-  assert.equal(feature.service.balance(OTHER_USER_ID), 2n);
+  assert.equal(feature.service.balance(USER_ID), 40n);
+  assert.equal(feature.service.balance(OTHER_USER_ID), 20n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '4');
   db.close();
 });
@@ -221,17 +221,17 @@ test('Bronze rewards cross Silver thresholds while arbitrary-precision counts ke
     .run(USER_ID, 999999n, now);
 
   await feature.handleMessage(fakeMessage('1000000').message);
-  assert.equal(feature.service.balance(USER_ID), 1_999_999n);
+  assert.equal(feature.service.balance(USER_ID), 10_999_999n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '1000001');
   await feature.handleMessage(fakeMessage('1000001', { author: user(OTHER_USER_ID, 'Other') }).message);
-  assert.equal(feature.service.balance(USER_ID), 1_999_999n);
+  assert.equal(feature.service.balance(USER_ID), 10_999_999n);
   assert.equal(feature.service.nextExpected(GUILD_ID), '1000002');
 
   db.prepare('UPDATE counting_guild_state SET next_expected = ? WHERE guild_id = ?')
     .run('9007199254740993', GUILD_ID);
   await feature.handleMessage(fakeMessage('9007199254740993').message);
   assert.equal(feature.service.nextExpected(GUILD_ID), '9007199254740994');
-  assert.equal(feature.service.balance(USER_ID), 1_999_999n + 9007199254740993n);
+  assert.equal(feature.service.balance(USER_ID), 10_999_999n + 10n * 9007199254740993n);
   db.close();
 });
 
@@ -249,7 +249,7 @@ test('slash and text balance commands share global balance data and resolve all 
     reply: async (payload) => slashReplies.push(payload),
   };
   assert.equal(await feature.handleInteraction(slash), true);
-  assert.match(slashReplies[0].components[0].components[0].components[0].content, /- 1 <:CSBC:/);
+  assert.match(slashReplies[0].components[0].components[0].components[0].content, /- 10 <:CSBC:/);
 
   slash.options.getUser = () => other;
   await feature.handleInteraction(slash);

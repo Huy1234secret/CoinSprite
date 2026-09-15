@@ -27,13 +27,14 @@ failure. Success and loss are absolute probabilities; the remainder is failure.
 Safe approaches have no loss outcome. Uncertain, Risky, and Ridiculous loss
 chances are 5%, 12%, and 25%.
 
-Rewards were rebalanced for the one-minute cooldown. For each approach:
+Rewards are balanced to an approximately equal expected net while keeping every
+successful payout at 100 Bronze or more. For each approach:
 
 ```text
 average loss A = (loss minimum + loss maximum) / 2
-required success average R = (4 + loss chance × A) / success chance
-reward minimum = floor(0.75 × R)
-reward maximum = ceil(1.25 × R)
+required success average R = (127 + loss chance × A) / success chance
+reward minimum = max(100, floor(0.75 × R))
+reward maximum = max(100, ceil(1.25 × R))
 expected net = success chance × average reward − loss chance × A
 ```
 
@@ -42,10 +43,10 @@ catalog averages are:
 
 | Tier | Success range | Loss range | Reward range across tier | Average net |
 | --- | ---: | ---: | ---: | ---: |
-| Safe | 55–95% | 0 | 3–10 | 4.0396 Bronze |
-| Uncertain | 30–54% | 4–12 | 6–19 | 4.0146 Bronze |
-| Risky | 10–29% | 12–40 | 18–89 | 4.0070 Bronze |
-| Ridiculous | 1–9% | 40–160 | 241–3,625 | 3.9972 Bronze |
+| Safe | 55–95% | 0 | 100–289 | 127.0656 Bronze |
+| Uncertain | 30–54% | 4–12 | 176–531 | 127.0308 Bronze |
+| Risky | 10–29% | 12–40 | 336–1,627 | 126.9956 Bronze |
+| Ridiculous | 1–9% | 40–160 | 1,266–19,000 | 127.0038 Bronze |
 
 Actual loss is capped at the current wallet, so low-balance players have a
 slightly higher realized expected value. All values are stored as BigInt-compatible
