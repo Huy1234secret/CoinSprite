@@ -82,11 +82,9 @@ const LEVELING_MEDIA_TYPES = Object.freeze({
   webp: { extension: 'webp', contentType: 'image/webp' },
 });
 const PUBLIC_ASSETS = new Map([
-  ['/admin/brand-icon.png', ['brand-icon.png', 'image/png']],
   ['/admin/emojiData.js', ['emojiData.js', 'application/javascript; charset=utf-8']],
-  ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
-  ['/admin/inventory.js', ['inventory.js', 'application/javascript; charset=utf-8']],
-  ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
+  ['/admin/workspace.js', ['workspace.js', 'application/javascript; charset=utf-8']],
+  ['/admin/workspace.css', ['workspace.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
