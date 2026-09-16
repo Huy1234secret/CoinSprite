@@ -512,8 +512,8 @@ test('duplicating a template regenerates control IDs while preserving configured
 
 test('dashboard exposes controls, accessible gear settings, JSON round-trip, and resolved preview hooks', () => {
   const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
-  const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'admin', 'style.css'), 'utf8');
+  const app = require('../testSupport/dashboardSource')();
+  const css = fs.readFileSync(path.join(__dirname, '..', 'admin', 'workspace.css'), 'utf8');
   assert.match(html, /data-template-tab="controls"/);
   assert.match(html, /id="templateControlPreview"/);
   assert.match(html, /id="templateActionDialog"[\s\S]*aria-labelledby="templateActionTitle"/);
@@ -549,7 +549,7 @@ test('dashboard exposes controls, accessible gear settings, JSON round-trip, and
   assert.match(app, /restoreEmojiTextTarget/);
   assert.match(css, /\.template-control-row\.incomplete/);
   assert.match(css, /\.template-dropdown-card/);
-  assert.match(css, /grid-template-areas: "emoji primary secondary actions"/);
+  assert.match(css, /\.template-control-row[^}]*flex-wrap:\s*wrap/);
   assert.match(css, /\.template-dropdown-settings \.rr-allow-multiple > span/);
   assert.match(css, /container-type:\s*inline-size/);
   assert.match(css, /@container \(max-width:\s*420px\)/);

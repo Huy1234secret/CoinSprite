@@ -16,34 +16,32 @@ const root = path.join(__dirname, '..');
 test('admin entrypoint receives content-derived JavaScript, emoji data, and stylesheet versions', () => {
   const index = loadAdminAsset('document');
   const emojiData = loadAdminAsset('emojiData.js');
-  const app = loadAdminAsset('app.js');
-  const style = loadAdminAsset('style.css');
-  const dashboardStyle = loadAdminAsset('dashboard.css');
-  assert.ok(index && emojiData && app && style && dashboardStyle);
+  const app = loadAdminAsset('workspace.js');
+  const style = loadAdminAsset('workspace.css');
+  assert.ok(index && emojiData && app && style);
   const html = index.data.toString('utf8');
   assert.match(html, new RegExp(`/admin/emojiData\\.js\\?v=${emojiData.version}`));
-  assert.match(html, new RegExp(`/admin/app\\.js\\?v=${app.version}`));
-  assert.match(html, new RegExp(`/admin/style\\.css\\?v=${style.version}`));
-  assert.match(html, new RegExp(`/admin/dashboard\\.css\\?v=${dashboardStyle.version}`));
+  assert.match(html, new RegExp(`/admin/workspace\\.js\\?v=${app.version}`));
+  assert.match(html, new RegExp(`/admin/workspace\\.css\\?v=${style.version}`));
   assert.match(html, /<meta id="emojiDataAsset" data-src="\/admin\/emojiData\.js\?v=[a-f0-9]{16}">/);
   assert.doesNotMatch(html, /<script[^>]+src="\/admin\/emojiData\.js/);
-  assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,550px\)/);
+  assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,\s*550px\)/);
   assert.doesNotMatch(html, /20260806-9/);
 });
 
 test('dashboard accepts a zero-second chat XP cooldown', () => {
   const html = loadAdminAsset('document').data.toString('utf8');
-  const app = loadAdminAsset('app.js').data.toString('utf8');
+  const app = loadAdminAsset('workspace.js').data.toString('utf8');
   assert.match(html, /id="levelingCooldown" type="number" min="0" max="3600"/);
   assert.match(app, /clampNumber\(source\.xp\.cooldownSeconds, 0, 3600, 60\)/);
   assert.match(app, /clampNumber\(target\.value, 0, 3600, 60\)/);
 });
 
-test('remade dashboard has no HTML source file and retains every main view', () => {
-  assert.deepEqual(fs.readdirSync(path.join(root, 'admin')).filter((name) => name.endsWith('.html')), []);
+test('replacement dashboard retains every audited control and main view', () => {
+  assert.ok(fs.existsSync(path.join(root, 'admin', 'views', 'profile.html')));
   assert.equal(loadAdminAsset('index.html'), null);
   const document = loadAdminAsset('document').data.toString('utf8');
-  assert.match(document, /One place for your server\./);
+  assert.match(document, /A good home for/);
   assert.doesNotMatch(document, /product-preview|landing-features|Explore features/);
   for (const view of ['leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
     assert.match(document, new RegExp(`data-view="${view}"`));
@@ -52,24 +50,25 @@ test('remade dashboard has no HTML source file and retains every main view', () 
   for (const emoji of ['🏅', '👋', '📝', '🎭', '🎮', '🛠️']) assert.ok(document.includes(emoji));
   const ids = [...document.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length);
-  const bindings = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
-  const requiredIds = [...bindings.matchAll(/\$\('#([^']+)'\)/g)].map((match) => match[1]);
+  const bindings = fs.readFileSync(path.join(root, 'admin', 'workspace.js'), 'utf8');
+  const requiredIds = [...bindings.matchAll(/\$\(["']#([^"']+)["']\)/g)].map((match) => match[1]);
   assert.deepEqual(requiredIds.filter((id) => !ids.includes(id)), []);
+  const audit = fs.readFileSync(path.join(root,'docs/dashboard-audit.md'),'utf8');
+  const auditedIds = [...audit.matchAll(/^\| [^|]+ \| ([a-zA-Z][a-zA-Z0-9]+) \|/gm)].map(match=>match[1]).filter(id=>id!=='ID');
+  assert.ok(auditedIds.length >= 228);
+  assert.deepEqual(auditedIds.filter(id=>!ids.includes(id)),[]);
 });
 
-test('shared CoinSprite brand icon is available to the public dashboard', () => {
-  const icon = loadAdminAsset('brand-icon.png');
-  assert.ok(icon);
-  assert.ok(icon.data.length > 1_000);
-  assert.match(icon.version, /^[a-f0-9]{16}$/);
+test('every bot avatar and favicon uses the existing live bot identity endpoint', () => {
   const html = loadAdminAsset('document').data.toString('utf8');
-  assert.match(html, /rel="icon" type="image\/png" href="\/admin\/brand-icon\.png"/);
-  assert.match(html, /class="brand-mark" aria-hidden="true">🪙/);
-  for (const removed of ['chances.html', 'chances.css', 'chances.js']) assert.equal(loadAdminAsset(removed), null);
+  assert.match(html, /rel="icon" href="\/bot-avatar\.png"/);
+  assert.ok((html.match(/src="\/bot-avatar\.png"/g) || []).length >= 6);
+  assert.doesNotMatch(html, /brand-icon|class="discord-avatar">C/);
+  for (const old of ['app.js','inventory.js','style.css','dashboard.css','brand-icon.png']) assert.equal(loadAdminAsset(old), null);
 });
 
 test('stylesheet and bundled font URLs use recursive content hashes', () => {
-  const style = loadAdminAsset('style.css').data.toString('utf8');
+  const style = loadAdminAsset('workspace.css').data.toString('utf8');
   const cssMatch = style.match(/\/admin\/fonts\/noto-sans\.css\?v=([a-f0-9]{16})/);
   const unicodeCssMatch = style.match(/\/admin\/fonts\/noto-sans-sc\.css\?v=([a-f0-9]{16})/);
   assert.ok(cssMatch);
@@ -84,7 +83,7 @@ test('stylesheet and bundled font URLs use recursive content hashes', () => {
 });
 
 test('browser card fonts expose every bundled normal, bold, and available italic face', () => {
-  const style = loadAdminAsset('style.css').data.toString('utf8');
+  const style = loadAdminAsset('workspace.css').data.toString('utf8');
   for (const [key, entry] of Object.entries(ADMIN_FONT_PACKAGES)) {
     assert.match(style, new RegExp(`/admin/fonts/${key}\\.css\\?v=[a-f0-9]{16}`));
     const css = loadAdminFont(`/admin/fonts/${key}.css`).data.toString('utf8');
@@ -114,9 +113,9 @@ test('browser font validation fails closed and rejects a loaded fallback face', 
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /Required browser Fontsource package is unavailable: @fontsource-variable\/noto-sans/);
 
-  const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'admin', 'workspace.js'), 'utf8');
   assert.match(app, /normalizedFontFaceFamily\(entry\.family\) === face\.family/);
-  assert.match(app, /entry\.status === 'loaded'/);
+  assert.match(app, /entry\.status === ["']loaded["']/);
   assert.match(app, /!exact \|\| !declared \|\| !document\.fonts\.check/);
   assert.match(app, /Required browser font silently fell back/);
 });

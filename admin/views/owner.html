@@ -1,0 +1,27 @@
+<section class="view" id="ownerView" data-view-panel="owner" hidden>
+  <header class="workspace-head">
+    <div>
+      <span class="eyebrow">Owner only</span>
+      <h1>Your bot, at a glance</h1>
+      <p>Health, communities, access, and live bot output.</p>
+    </div>
+    <button class="button ghost" id="ownerRefresh" type="button">Refresh</button>
+  </header>
+  <div id="ownerOverview" class="owner-overview"></div>
+  <p id="ownerLiveStatus" class="microcopy" role="status" aria-live="polite"></p>
+  <section class="console-panel">
+    <div class="console-head">
+      <div>
+        <span class="console-light"></span>
+        <strong>Live console</strong>
+      </div>
+      <div>
+        <button class="text-button" id="consoleClear" type="button">Clear</button>
+        <button class="text-button" id="consoleToggle" type="button">Pause</button>
+      </div>
+    </div>
+    <div class="console-output" id="consoleOutput" tabindex="0">
+      <p class="console-empty">Waiting for bot activity…</p>
+    </div>
+  </section>
+</section>
