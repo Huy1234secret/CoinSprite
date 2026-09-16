@@ -1,16 +1,16 @@
 <section class="view" id="reactionRolesView" data-view-panel="reaction-roles" hidden>
-  <header class="workspace-head reaction-role-page-head">
-    <div>
-      <span class="eyebrow">REACTION ROLES</span>
-      <h1>Let members choose their place.</h1>
-      <p>Publish accessible buttons or dropdowns that safely keep self-assignable roles in sync.</p>
+  <header class="dashboard-hero compact-hero reaction-role-page-head">
+    <div class="hero-copy">
+      <span class="eyebrow">🎭 ROLE MENUS</span>
+      <h1>Turn role selection into a guided flow.</h1>
+      <p>Write the prompt, map only safe assignable roles, then publish to a verified channel.</p>
     </div>
-    <button class="button primary" id="reactionRoleCreate" type="button">+ New template</button>
+    <button class="button primary" id="reactionRoleCreate" type="button">＋ New role menu</button>
   </header>
   <div class="reaction-role-manager">
     <aside class="reaction-role-library" aria-label="Reaction Role templates">
       <header>
-        <strong>TEMPLATES</strong>
+        <strong>ROLE MENUS</strong>
         <small id="reactionRoleCount">0 saved</small>
       </header>
       <div id="reactionRoleList" class="reaction-role-list"></div>
@@ -18,9 +18,9 @@
     <section class="reaction-role-workspace">
       <div class="template-empty" id="reactionRoleEmpty">
         <span aria-hidden="true">&#x1F3AD;</span>
-        <h2>Create a Reaction Role</h2>
-        <p>Build a message, map safe roles, then publish it to a channel.</p>
-        <button class="button primary small" id="reactionRoleEmptyCreate" type="button">Create template</button>
+        <h2>Create a member-facing role menu</h2>
+        <p>CoinSprite verifies permissions before a button or dropdown can be published.</p>
+        <button class="button primary small" id="reactionRoleEmptyCreate" type="button">Create role menu</button>
       </div>
       <div id="reactionRoleEditor" hidden>
         <header class="template-detail-head reaction-role-detail-head">
@@ -38,27 +38,27 @@
             <button class="button tiny danger" id="reactionRoleDelete" type="button">Delete</button>
           </div>
         </header>
-        <div class="template-tabs reaction-role-tabs" role="tablist" aria-label="Reaction Role sections">
-          <button class="active" type="button" role="tab" aria-selected="true" data-reaction-tab="message">Message</button>
-          <button type="button" role="tab" aria-selected="false" data-reaction-tab="role-reaction">Role Reaction</button>
-          <button type="button" role="tab" aria-selected="false" data-reaction-tab="channel">Channel</button>
+        <div class="template-tabs reaction-role-tabs workflow-tabs" role="tablist" aria-label="Role menu workflow">
+          <button class="active" type="button" role="tab" aria-selected="true" data-reaction-tab="message"><span>01</span> Prompt</button>
+          <button type="button" role="tab" aria-selected="false" data-reaction-tab="role-reaction"><span>02</span> Role choices</button>
+          <button type="button" role="tab" aria-selected="false" data-reaction-tab="channel"><span>03</span> Verify &amp; publish</button>
         </div>
         <section class="reaction-role-panel active" data-reaction-panel="message">
           <div class="rr-template-actions">
-            <button class="button tiny ghost" id="reactionRoleUseTemplate" type="button">Use template</button>
-            <small>Applying a Message Template stores a snapshot.</small>
+            <button class="button tiny ghost" id="reactionRoleUseTemplate" type="button">📝 Start from message studio</button>
+            <small>A template is copied as a safe snapshot; future edits remain independent.</small>
           </div>
           <section class="message-composer wide">
             <div class="discord-preview" aria-label="Reaction Role message preview">
               <div class="discord-preview-head">
-                <span>MESSAGE PREVIEW</span>
+                <span>ROLE MENU CANVAS</span>
                 <div class="preview-tool-buttons">
-                  <button class="composer-add" id="reactionRoleEmojiToggle" type="button">Emoji</button>
+                  <button class="composer-add" id="reactionRoleEmojiToggle" type="button">😊 Emoji</button>
                   <button class="composer-add" id="reactionRoleVariablesToggle" type="button">{ } Variables</button>
-                  <button class="composer-add" id="reactionRoleContainerToggle" type="button">Container</button>
-                  <button class="composer-add" id="reactionRoleAdditionalContainer" type="button">+ Container</button>
-                  <button class="composer-add" id="reactionRoleThumbnailToggle" type="button">Thumbnail</button>
-                  <button class="composer-add" id="reactionRoleGalleryToggle" type="button">Gallery</button>
+                  <button class="composer-add" id="reactionRoleContainerToggle" type="button">▣ Container</button>
+                  <button class="composer-add" id="reactionRoleAdditionalContainer" type="button">＋ Block</button>
+                  <button class="composer-add" id="reactionRoleThumbnailToggle" type="button">🖼️ Thumbnail</button>
+                  <button class="composer-add" id="reactionRoleGalleryToggle" type="button">🎞️ Gallery</button>
                 </div>
               </div>
               <div class="preview-tool-panel" id="reactionRoleComposerPanel" hidden></div>
@@ -88,7 +88,7 @@
             <button type="button" data-reaction-mode="dropdown">Dropdown</button>
           </div>
           <div id="reactionRoleControls"></div>
-          <button class="button small ghost" id="reactionRoleAddControl" type="button">+ Add button</button>
+          <button class="button small ghost" id="reactionRoleAddControl" type="button">＋ Add role choice</button>
         </section>
         <section class="reaction-role-panel" data-reaction-panel="channel" hidden>
           <div class="template-settings-grid rr-channel-grid">
@@ -102,12 +102,12 @@ Destination channel
             <div class="rr-permission-status" id="reactionRolePermissionStatus" role="status"></div>
           </div>
           <section class="rr-final-preview">
-            <h3>Final Discord preview</h3>
+            <h3>Final member experience</h3>
             <div id="reactionRoleFinalPreview"></div>
           </section>
           <div class="rr-publish-actions">
-            <button class="button ghost" id="reactionRoleSaveDraft" type="button">Save draft</button>
-            <button class="button primary" id="reactionRolePublish" type="button">Publish / update message</button>
+            <button class="button ghost" id="reactionRoleSaveDraft" type="button">Save without publishing</button>
+            <button class="button primary" id="reactionRolePublish" type="button">Publish verified menu</button>
           </div>
         </section>
       </div>

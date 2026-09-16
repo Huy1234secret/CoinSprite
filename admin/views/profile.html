@@ -1,27 +1,27 @@
 <main class="profile-shell" id="profileShell" hidden>
-  <header class="profile-heading">
+  <header class="profile-heading profile-hero">
     <div class="profile-identity">
       <img id="profileAvatar" alt="">
       <div>
-        <span class="eyebrow">YOUR PROFILE</span>
+        <span class="eyebrow">🪪 PLAYER WORKSHOP</span>
         <h1 id="profileName">Member</h1>
-        <p>Customize your level card and browse your inventory.</p>
+        <p>Design the identity shown by <code>/level</code> and inspect everything you have earned.</p>
       </div>
     </div>
-    <a class="button ghost" href="/admin">Manage servers</a>
+    <a class="button ghost" href="/admin">← Server control room</a>
   </header>
   <nav class="inventory-tabs" aria-label="Profile tabs">
-    <button type="button" id="profileCardTab" aria-pressed="true">Level card</button>
-    <button type="button" id="profileInventoryTab" aria-pressed="false">Inventory</button>
+    <button type="button" id="profileCardTab" aria-pressed="true"><span>🎨</span> Level card studio</button>
+    <button type="button" id="profileInventoryTab" aria-pressed="false"><span>🎒</span> Inventory &amp; lottery</button>
   </nav>
   <section id="webInventory" hidden aria-label="Your inventory">
     <div class="inventory-toolbar">
       <div>
-        <h2>Your inventory</h2>
-        <p>Items you have earned and collected.</p>
+        <h2>Your global inventory</h2>
+        <p>Items, currency, and tickets follow your Discord account across every server.</p>
       </div>
-      <button type="button" id="ticketHistoryButton">Lottery tickets &amp; history</button>
-      <button type="button" id="inventoryRefresh">Refresh</button>
+      <button type="button" id="ticketHistoryButton">🎟️ Tickets &amp; draw history</button>
+      <button type="button" id="inventoryRefresh">↻ Refresh</button>
     </div>
     <p id="inventoryStatus" role="status"></p>
     <div class="inventory-scroll">
@@ -62,10 +62,10 @@ Search codes
   <section class="card-studio" aria-label="Level card editor">
     <header class="studio-head">
       <div>
-        <span class="step">01</span>
+        <span class="step">LIVE</span>
         <div>
-          <h2>Level card studio</h2>
-          <p>Drag elements with smart guides. Use any edge to resize and the top handle to rotate.</p>
+          <h2>Level card canvas</h2>
+          <p>Arrange layers directly, then verify the authoritative server render before saving.</p>
         </div>
       </div>
       <div class="studio-actions">
@@ -91,7 +91,7 @@ Search codes
     </header>
     <div class="studio-grid">
       <aside class="layers-panel">
-        <span class="panel-label">ELEMENTS</span>
+        <span class="panel-label">LAYER STACK</span>
         <div class="layer-list" id="cardLayerList"></div>
       </aside>
       <div class="card-workbench">
@@ -106,7 +106,7 @@ Search codes
         </p>
       </div>
       <aside class="inspector-panel">
-        <span class="panel-label">INSPECTOR</span>
+        <span class="panel-label">SELECTED LAYER</span>
         <h3 id="cardInspectorTitle">Background</h3>
         <div id="cardInspector"></div>
       </aside>

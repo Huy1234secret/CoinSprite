@@ -1,20 +1,20 @@
 <section class="view" id="messageTemplatesView" data-view-panel="message-templates" hidden>
-  <header class="workspace-head template-page-head">
-    <div>
-      <span class="eyebrow">MESSAGE TEMPLATES</span>
-      <h1>Every message, thoughtfully made.</h1>
-      <p>Organize polished Discord messages, inspect their JSON, and send them safely.</p>
+  <header class="dashboard-hero compact-hero template-page-head">
+    <div class="hero-copy">
+      <span class="eyebrow">📝 MESSAGE STUDIO</span>
+      <h1>Compose once. Deliver with confidence.</h1>
+      <p>Keep reusable Discord messages organized, interactive, inspectable, and ready to send.</p>
     </div>
-    <button class="button primary" id="templateCreateButton" type="button">+ New template</button>
+    <button class="button primary" id="templateCreateButton" type="button">＋ New message</button>
   </header>
   <div class="template-manager" id="templateManager">
     <aside class="template-folders" aria-label="Template folders">
       <header>
         <div>
-          <span>COLLECTIONS</span>
+          <span>FOLDERS</span>
           <small id="templateTotalCount">0 templates</small>
         </div>
-        <button type="button" id="templateFolderCreate" aria-label="Create folder" title="Create folder">+</button>
+        <button type="button" id="templateFolderCreate" aria-label="Create folder" title="Create folder">＋</button>
       </header>
       <nav id="templateFolderList" aria-label="Folders"></nav>
     </aside>
@@ -22,18 +22,18 @@
       <header>
         <label>
           <span class="sr-only">Search templates</span>
-          <input id="templateSearch" type="search" maxlength="80" placeholder="Search templates…">
+          <input id="templateSearch" type="search" maxlength="80" placeholder="Search messages…">
         </label>
-        <button type="button" id="templateListCreate" aria-label="Create template">+</button>
+        <button type="button" id="templateListCreate" aria-label="Create template">＋</button>
       </header>
       <div class="template-list" id="templateList"></div>
     </section>
     <section class="template-detail" aria-label="Selected template workspace">
       <div class="template-empty" id="templateEmptyState">
-        <span aria-hidden="true">📋</span>
-        <h2>Select a template</h2>
-        <p>Choose one from the library or create a blank template to begin.</p>
-        <button class="button primary small" id="templateEmptyCreate" type="button">Create template</button>
+        <span aria-hidden="true">📝</span>
+        <h2>Choose a message to open the studio</h2>
+        <p>Browse a folder on the left, or begin with a clean message.</p>
+        <button class="button primary small" id="templateEmptyCreate" type="button">Create blank message</button>
       </div>
       <div id="templateEditor" hidden>
         <header class="template-detail-head">
@@ -47,32 +47,32 @@
             <button class="button tiny danger" id="templateDeleteButton" type="button">Delete</button>
           </div>
         </header>
-        <div class="template-tabs" role="tablist" aria-label="Template sections">
-          <button class="active" type="button" role="tab" aria-selected="true" data-template-tab="editor">Message Editor</button>
-          <button type="button" role="tab" aria-selected="false" data-template-tab="controls">Controls</button>
-          <button type="button" role="tab" aria-selected="false" data-template-tab="json">JSON</button>
-          <button type="button" role="tab" aria-selected="false" data-template-tab="settings">Settings</button>
-          <button type="button" role="tab" aria-selected="false" data-template-tab="share">Use &amp; Share</button>
+        <div class="template-tabs workflow-tabs" role="tablist" aria-label="Template workflow">
+          <button class="active" type="button" role="tab" aria-selected="true" data-template-tab="editor"><span>01</span> Compose</button>
+          <button type="button" role="tab" aria-selected="false" data-template-tab="controls"><span>02</span> Actions</button>
+          <button type="button" role="tab" aria-selected="false" data-template-tab="settings"><span>03</span> Delivery</button>
+          <button type="button" role="tab" aria-selected="false" data-template-tab="json"><span>04</span> Data</button>
+          <button type="button" role="tab" aria-selected="false" data-template-tab="share"><span>05</span> Share</button>
         </div>
         <section class="template-tab-panel active" data-template-panel="editor">
           <section class="message-composer wide template-composer">
             <header class="composer-toolbar">
               <div>
-                <strong>Live Discord message</strong>
-                <small>Edit Markdown in the preview and insert variables at your cursor.</small>
+                <span class="live-dot"></span><strong>Live Discord message</strong>
+                <small>Select preview text to edit Markdown in context.</small>
               </div>
               <strong id="templateCharacterCount">0 / 4000</strong>
             </header>
             <div class="discord-preview" aria-label="Template Discord preview">
               <div class="discord-preview-head">
-                <span>MESSAGE PREVIEW</span>
+                <span>MESSAGE CANVAS</span>
                 <div class="preview-tool-buttons">
-                  <button class="composer-add" id="templateEmojiToggle" type="button">Emoji</button>
+                  <button class="composer-add" id="templateEmojiToggle" type="button">😊 Emoji</button>
                   <button class="composer-add" id="templateVariablesToggle" type="button">{ } Variables</button>
-                  <button class="composer-add" id="templateContainerAdd" type="button">Container</button>
-                  <button class="composer-add" id="templateAdditionalContainerAdd" type="button">+ Container</button>
-                  <button class="composer-add" id="templateThumbnailAdd" type="button">Thumbnail</button>
-                  <button class="composer-add" id="templateGalleryAdd" type="button">Gallery</button>
+                  <button class="composer-add" id="templateContainerAdd" type="button">▣ Container</button>
+                  <button class="composer-add" id="templateAdditionalContainerAdd" type="button">＋ Block</button>
+                  <button class="composer-add" id="templateThumbnailAdd" type="button">🖼️ Thumbnail</button>
+                  <button class="composer-add" id="templateGalleryAdd" type="button">🎞️ Gallery</button>
                 </div>
               </div>
               <div class="preview-tool-panel" id="templateComposerPanel" hidden></div>

@@ -400,7 +400,7 @@ test('authenticated deep links are bounded and the dashboard wires all snapshot 
   const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const app = require('../testSupport/dashboardSource')();
   assert.match(html, /data-view="message-templates"/);
-  assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="controls"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="share"/);
+  assert.match(html, /data-template-tab="editor"[\s\S]*data-template-tab="controls"[\s\S]*data-template-tab="settings"[\s\S]*data-template-tab="json"[\s\S]*data-template-tab="share"/);
   assert.match(html, /id="levelingUseTemplate"[\s\S]*id="levelingSaveAsTemplate"/);
   assert.match(html, /id="welcomeUseTemplate"[\s\S]*id="welcomeSaveAsTemplate"/);
   assert.match(html, /id="levelingAdditionalContainerAdd"[\s\S]*id="welcomeAdditionalContainerAdd"[\s\S]*id="templateAdditionalContainerAdd"/);
