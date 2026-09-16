@@ -1,26 +1,46 @@
 <section class="view" id="gamesView" data-view-panel="games" hidden>
-  <header class="dashboard-hero compact-hero">
-    <div class="hero-copy"><span class="eyebrow">🎮 GAMES ROUTING</span><h1>Put every game in the right room.</h1><p>Choose the channels that host shared games and limit commands only when a route needs boundaries.</p></div>
-  </header>
-  <div class="game-route-layout">
-    <aside class="game-catalog">
-      <span>AVAILABLE SYSTEMS</span>
-      <button class="active" type="button"><b>🔢</b><span><strong>Counting</strong><small>Shared server sequence</small></span><em>LIVE</em></button>
-      <div class="catalog-note"><b>🌐</b><p><strong>Player progress is global</strong><small>Balances, inventory, careers, and Work progress follow each Discord user between servers.</small></p></div>
-    </aside>
-    <div class="game-routing-board">
-      <section class="operation-block route-destinations">
-        <header class="operation-heading"><div><span class="step">01</span><div><p>SERVER DESTINATIONS</p><h2>Choose persistent game channels</h2></div></div><p>Selecting no Counting channel disables that game here.</p></header>
-        <div class="route-cards">
-          <label class="route-card"><span>🔢</span><div><strong>Counting channel</strong><small>One message-capable text channel for the shared sequence</small></div><select id="countingChannel"></select></label>
-          <label class="route-card"><span>🎟️</span><div><strong>Lottery results</strong><small>Daily draw at 20:00 UTC+7, with safe server fallbacks</small></div><select id="lotteryChannel"></select></label>
-        </div>
-      </section>
-      <section class="operation-block command-routing">
-        <header class="operation-heading"><div><span class="step">02</span><div><p>COMMAND ACCESS</p><h2>Build routing rules only where needed</h2></div></div><button id="gameAddCommandSetting" class="button primary small" type="button">＋ Add routing rule</button></header>
-        <div class="routing-help"><span>ℹ️</span><p>With no rules, game commands work in every channel. Each rule can target several commands and several channels.</p></div>
-        <div id="gameCommandSettings" class="game-command-setting-list"></div>
-      </section>
+  <header class="workspace-head">
+    <div>
+      <span class="eyebrow">GAMES</span>
+      <h1>A place to play.</h1>
+      <p>Choose where CoinSprite's persistent server games run.</p>
     </div>
+  </header>
+  <div class="games-tabs" role="tablist" aria-label="Games">
+    <button class="active" type="button" role="tab" aria-selected="true">Counting</button>
   </div>
+  <section class="section-block counting-settings">
+    <div class="section-heading">
+      <div>
+        <span class="step">01</span>
+        <h2>Counting</h2>
+      </div>
+      <p>Members count upward together. Selecting no channel disables the game.</p>
+    </div>
+    <label class="field-card counting-channel-setting">
+      <span>
+Counting channel
+        <small>One message-capable text channel in this server</small>
+      </span>
+      <select id="countingChannel"></select>
+    </label>
+    <label class="field-card counting-channel-setting">
+      <span>
+Lottery channel
+        <small>Daily draw at 20:00 UTC+7. Defaults to a configured Games channel, then the last shop channel or server system channel.</small>
+      </span>
+      <select id="lotteryChannel"></select>
+    </label>
+  </section>
+  <section class="section-block game-command-settings">
+    <div class="section-heading">
+      <div>
+        <span class="step">02</span>
+        <h2>Command settings</h2>
+      </div>
+      <p>Add multiple routing rules. Each rule can include multiple channels and multiple game commands. With no rules, commands are available in every channel.</p>
+    </div>
+    <div id="gameCommandSettings" class="game-command-setting-list"></div>
+    <button id="gameAddCommandSetting" class="secondary-button" type="button">+ Add command setting</button>
+  </section>
 </section>

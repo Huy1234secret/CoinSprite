@@ -25,7 +25,7 @@ test('admin entrypoint receives content-derived JavaScript, emoji data, and styl
   assert.match(html, new RegExp(`/admin/workspace\\.css\\?v=${style.version}`));
   assert.match(html, /<meta id="emojiDataAsset" data-src="\/admin\/emojiData\.js\?v=[a-f0-9]{16}">/);
   assert.doesNotMatch(html, /<script[^>]+src="\/admin\/emojiData\.js/);
-  assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,\s*1000px\)/);
+  assert.match(style.data.toString('utf8'), /\.level-card-canvas-wrap[^}]*width:\s*min\(100%,\s*550px\)/);
   assert.doesNotMatch(html, /20260806-9/);
 });
 
@@ -41,7 +41,7 @@ test('replacement dashboard retains every audited control and main view', () => 
   assert.ok(fs.existsSync(path.join(root, 'admin', 'views', 'profile.html')));
   assert.equal(loadAdminAsset('index.html'), null);
   const document = loadAdminAsset('document').data.toString('utf8');
-  assert.match(document, /Run the community/);
+  assert.match(document, /A good home for/);
   assert.doesNotMatch(document, /product-preview|landing-features|Explore features/);
   for (const view of ['leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
     assert.match(document, new RegExp(`data-view="${view}"`));

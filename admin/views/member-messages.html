@@ -1,40 +1,104 @@
 <section class="view" id="welcomeMessagesView" data-view-panel="member-messages" hidden>
-  <header class="dashboard-hero">
-    <div class="hero-copy"><span class="eyebrow">👋 MEMBER MOMENTS</span><h1>Give each arrival and exit the right tone.</h1><p>Configure join, leave, and boost messages independently while keeping one master control.</p></div>
-    <label class="power-control"><span><small>SYSTEM STATUS</small><strong>Member messages</strong><em>Master switch for every event</em></span><input id="welcomeMessagesEnabled" type="checkbox"><i></i></label>
+  <header class="workspace-head welcome-messages-head">
+    <div>
+      <span class="eyebrow">WELCOME MESSAGES</span>
+      <h1>Mark every community moment.</h1>
+      <p>Greet new members, acknowledge departures, and celebrate boosts with independent Discord messages.</p>
+    </div>
+    <div class="head-actions">
+      <label class="switch-card header-switch">
+        <span>
+          <strong>Welcome Messages</strong>
+          <small>Master switch for all member events</small>
+        </span>
+        <input id="welcomeMessagesEnabled" type="checkbox">
+        <i></i>
+      </label>
+    </div>
   </header>
-
-  <div class="member-message-workbench">
-    <nav class="member-message-tabs event-rail" role="tablist" aria-label="Member event">
-      <span>CHOOSE A MOMENT</span>
-      <button class="active" type="button" role="tab" aria-selected="true" data-member-event="join"><b>👋</b><span><strong>Join</strong><small>Welcome new arrivals</small></span><em>01</em></button>
-      <button type="button" role="tab" aria-selected="false" data-member-event="leave"><b>🚪</b><span><strong>Leave</strong><small>Acknowledge departures</small></span><em>02</em></button>
-      <button type="button" role="tab" aria-selected="false" data-member-event="boost"><b>💜</b><span><strong>Boost</strong><small>Celebrate supporters</small></span><em>03</em></button>
-    </nav>
-
-    <section class="operation-block member-message-editor">
-      <header class="operation-heading member-message-heading">
-        <div><span class="step" id="welcomeEventStep">01</span><div><p>ACTIVE MOMENT</p><h2 id="welcomeEventTitle">Join message</h2></div></div>
-        <button class="button small ghost" id="welcomeEventReset" type="button">↺ Restore event default</button>
-      </header>
-      <p class="member-message-description" id="welcomeEventDescription">Sent after a new member joins this Discord server.</p>
-      <div class="composer-layout member-composer-layout">
-        <aside class="composer-settings">
-          <label class="switch-card compact-switch"><span><strong>Send this message</strong><small id="welcomeEventToggleCopy">When a member joins</small></span><input id="welcomeEventEnabled" type="checkbox"><i></i></label>
-          <label class="field-card"><span>Destination channel<small>Only channels CoinSprite can post in</small></span><select id="welcomeEventChannel"></select></label>
-          <div class="template-actions-vertical"><button class="button ghost" id="welcomeUseTemplate" type="button">📝 Use a saved template</button><button class="button ghost" id="welcomeSaveAsTemplate" type="button">💾 Save to message studio</button></div>
-        </aside>
-        <section class="message-composer wide live-surface">
-          <header class="composer-toolbar"><div><span class="live-dot"></span><strong>Live Discord message</strong><small>Pick text inside the preview to edit it in context.</small></div></header>
-          <div class="discord-preview" aria-label="Member message Discord preview">
-            <div class="discord-preview-head"><span id="welcomePreviewLabel">JOIN MESSAGE</span><div class="preview-tool-buttons">
-              <button class="composer-add" id="welcomeEmojiToggle" type="button">😊 Emoji</button><button class="composer-add" id="welcomeVariablesToggle" type="button">{ } Variables</button><button class="composer-add" id="welcomeContainerAdd" type="button">▣ Container</button><button class="composer-add" id="welcomeAdditionalContainerAdd" type="button">＋ Block</button><button class="composer-add" id="welcomeThumbnailAdd" type="button">🖼️ Thumbnail</button><button class="composer-add" id="welcomeGalleryAdd" type="button">🎞️ Gallery</button>
-            </div></div>
-            <div class="preview-tool-panel" id="welcomeComposerPanel" hidden></div>
-            <div class="discord-message-row"><img class="discord-avatar" src="/bot-avatar.png" alt="CoinSprite avatar" width="36" height="36"><div class="discord-message-body"><div><strong>CoinSprite</strong><i>APP</i><time>Preview</time></div><div class="discord-frame" id="welcomeDiscordFrame"><button class="discord-accent-button" id="welcomeAccentButton" type="button" aria-label="Change container color" title="Change container color"></button><input id="welcomeAccentColor" type="color" value="#57f287" aria-label="Container color"><div id="welcomeMessagePreview"></div></div><div class="additional-container-list" id="welcomeAdditionalContainers"></div></div></div>
-          </div>
-        </section>
-      </div>
-    </section>
+  <div class="member-message-tabs" role="tablist" aria-label="Welcome message event">
+    <button class="active" type="button" role="tab" aria-selected="true" data-member-event="join">
+      <span>Join</span>
+      <small>New arrivals</small>
+    </button>
+    <button type="button" role="tab" aria-selected="false" data-member-event="leave">
+      <span>Leave</span>
+      <small>Departures</small>
+    </button>
+    <button type="button" role="tab" aria-selected="false" data-member-event="boost">
+      <span>Boost</span>
+      <small>Server boosts</small>
+    </button>
   </div>
+  <section class="section-block member-message-editor">
+    <div class="section-heading member-message-heading">
+      <div>
+        <span class="step" id="welcomeEventStep">01</span>
+        <h2 id="welcomeEventTitle">Join message</h2>
+      </div>
+      <div class="member-message-actions">
+        <button class="button small ghost" id="welcomeEventReset" type="button">Reset join default</button>
+      </div>
+    </div>
+    <p class="member-message-description" id="welcomeEventDescription">Sent after a new member joins this Discord server.</p>
+    <div class="leveling-announcement-grid">
+      <label class="switch-card compact-switch">
+        <span>
+          <strong>Event message</strong>
+          <small id="welcomeEventToggleCopy">Send when a member joins</small>
+        </span>
+        <input id="welcomeEventEnabled" type="checkbox">
+        <i></i>
+      </label>
+      <label class="field-card">
+        <span>
+Destination channel
+          <small>Only channels where CoinSprite can post are listed</small>
+        </span>
+        <select id="welcomeEventChannel"></select>
+      </label>
+      <section class="message-composer wide">
+        <header class="composer-toolbar">
+          <div>
+            <strong>Live Discord message</strong>
+            <small>Click the message to edit. Variables are inserted at your cursor.</small>
+          </div>
+          <div class="composer-template-actions">
+            <button class="button tiny ghost" id="welcomeUseTemplate" type="button">Use template</button>
+            <button class="button tiny ghost" id="welcomeSaveAsTemplate" type="button">Save as template</button>
+          </div>
+        </header>
+        <div class="discord-preview" aria-label="Welcome message Discord preview">
+          <div class="discord-preview-head">
+            <span id="welcomePreviewLabel">JOIN PREVIEW</span>
+            <div class="preview-tool-buttons">
+              <button class="composer-add" id="welcomeEmojiToggle" type="button">Emoji</button>
+              <button class="composer-add" id="welcomeVariablesToggle" type="button">{ } Variables</button>
+              <button class="composer-add" id="welcomeContainerAdd" type="button">Container</button>
+              <button class="composer-add" id="welcomeAdditionalContainerAdd" type="button">+ Container</button>
+              <button class="composer-add" id="welcomeThumbnailAdd" type="button">Thumbnail</button>
+              <button class="composer-add" id="welcomeGalleryAdd" type="button">Gallery</button>
+            </div>
+          </div>
+          <div class="preview-tool-panel" id="welcomeComposerPanel" hidden></div>
+          <div class="discord-message-row">
+            <img class="discord-avatar" src="/bot-avatar.png" alt="CoinSprite avatar" width="36" height="36">
+            <div class="discord-message-body">
+              <div>
+                <strong>CoinSprite</strong>
+                <i>APP</i>
+                <time>Preview</time>
+              </div>
+              <div class="discord-frame" id="welcomeDiscordFrame">
+                <button class="discord-accent-button" id="welcomeAccentButton" type="button" aria-label="Change container color" title="Change container color"></button>
+                <input id="welcomeAccentColor" type="color" value="#57f287" aria-label="Container color">
+                <div id="welcomeMessagePreview"></div>
+              </div>
+              <div class="additional-container-list" id="welcomeAdditionalContainers"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
 </section>
