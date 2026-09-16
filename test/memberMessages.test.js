@@ -261,7 +261,7 @@ test('member-update and system-message boost signals produce one announcement', 
 test('dashboard, shared media API, and Discord entrypoint expose the complete feature', () => {
   const root = path.join(__dirname, '..');
   const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
-  const app = require('../testSupport/dashboardSource')();
+  const app = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
   const server = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
   const entrypoint = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
   assert.match(html, /data-view="leveling"[\s\S]*data-view="member-messages"[\s\S]*data-view="message-templates"[\s\S]*data-view="reaction-roles"/);

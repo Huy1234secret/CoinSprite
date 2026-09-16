@@ -13,9 +13,7 @@
     "predeploy:bot": "npm ci",
     "deploy:bot": "node src/entrypoints/bot.js",
     "predeploy:panel": "npm ci",
-    "deploy:panel": "node src/entrypoints/panel.js",
-    "build:dashboard": "node admin/build.cjs",
-    "build": "npm run build:dashboard"
+    "deploy:panel": "node src/entrypoints/panel.js"
   },
   "keywords": [
     "discord",
@@ -39,8 +37,5 @@
     "better-sqlite3": "^12.4.1",
     "discord.js": "^14.26.4",
     "dotenv": "^16.6.1"
-  },
-  "devDependencies": {
-    "esbuild": "^0.28.2"
   }
 }

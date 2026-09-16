@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { renderAdminDocument } = require('../admin/document.cjs');
+const { renderAdminDocument } = require('../admin/layout');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
 const ADMIN_FONT_PACKAGES = Object.freeze({
@@ -94,13 +94,13 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (!['document', 'emojiData.js', 'workspace.js', 'workspace.css'].includes(filename)) return null;
+  if (!['document', 'emojiData.js', 'app.js', 'inventory.js', 'style.css', 'dashboard.css', 'brand-icon.png'].includes(filename)) return null;
   try {
     let source = filename === 'document' ? Buffer.from(renderAdminDocument()) : fs.readFileSync(path.join(ADMIN_DIR, filename));
     if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
     if (filename === 'document') {
       let html = source.toString('utf8');
-      const assetNames = ['workspace.css', 'emojiData.js', 'workspace.js'];
+      const assetNames = ['style.css', 'dashboard.css', 'emojiData.js', 'app.js', 'inventory.js'];
       for (const assetName of assetNames) {
         const asset = loadAdminAsset(assetName);
         if (asset) {
