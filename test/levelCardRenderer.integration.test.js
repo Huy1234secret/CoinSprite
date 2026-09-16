@@ -119,7 +119,7 @@ async function internalRender(origin, identity, renderKey, renderUser, renderSta
 
 test('the primary saved web preview receives the authoritative PNG', () => {
   const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
-  const app = require('../testSupport/dashboardSource')();
+  const app = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   assert.match(html, /id="levelCardCanvas"[^>]+Authoritative server-rendered level card preview/);
   assert.match(html, /id="levelCardDraftCanvas"[^>]+hidden/);
   assert.doesNotMatch(html, /levelCardExactCanvas|cardExactWrap/);
