@@ -125,7 +125,6 @@
     cardPreviewRequest: 0,
     cardPreviewHash: '',
     cardPreviewTimer: null,
-    mediaDrag: null,
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -625,40 +624,9 @@
       : validHttpUrl(value) ? String(value).trim() : '';
   }
 
-  function channelMention(id) {
-    return (state.directory.channels || []).find((channel) => channel.id === id) || null;
-  }
-
-  function roleMention(id) {
-    return (state.directory.roles || []).find((role) => role.id === id) || null;
-  }
-
-  function mentionMarkup(type, id, editor = false) {
-    const isRole = type === 'role';
-    const item = isRole ? roleMention(id) : channelMention(id);
-    const name = item?.name || (isRole ? 'unknown-role' : 'unknown-channel');
-    const raw = isRole ? `<@&${id}>` : `<#${id}>`;
-    const color = isRole ? roleColor(id) : '#c9cdfb';
-    const label = `${isRole ? '@' : '#'}${name}`;
-    const className = editor ? 'editor-mention' : 'discord-mention';
-    return `<span class="${className} ${isRole ? 'role' : 'channel'}" style="--mention-color:${color}" data-inline-mention="${escapeHtml(raw)}" title="${isRole ? 'Role' : 'Channel'} ${escapeHtml(label)}">${escapeHtml(label)}</span>`;
-  }
-
-  function stashMentions(value, fragments, editor = false) {
-    return String(value || '').replace(/<#(\d{16,20})>|<@&(\d{16,20})>/g, (_match, channelId, roleId) => {
-      fragments.push(mentionMarkup(roleId ? 'role' : 'channel', roleId || channelId, editor));
-      return `\uE100${fragments.length - 1}\uE101`;
-    });
-  }
-
-  function restoreFragments(html, fragments) {
-    return html.replace(/\uE100(\d+)\uE101/g, (_, index) => fragments[Number(index)] || '');
-  }
-
   function discordInlineMarkdown(value) {
-    const fragments = [];
     const code = [];
-    let html = escapeHtml(stashMentions(value, fragments)).replace(/`([^`\n]+)`/g, (_, content) => {
+    let html = escapeHtml(value).replace(/`([^`\n]+)`/g, (_, content) => {
       code.push(`<code>${content}</code>`);
       return `\uE000${code.length - 1}\uE001`;
     });
@@ -669,8 +637,7 @@
       .replace(/\|\|([^|\n]+)\|\|/g, '<span class="discord-spoiler">$1</span>')
       .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
       .replace(/_([^_\n]+)_/g, '<em>$1</em>');
-    html = html.replace(/\uE000(\d+)\uE001/g, (_, index) => code[Number(index)] || '');
-    return restoreFragments(html, fragments);
+    return html.replace(/\uE000(\d+)\uE001/g, (_, index) => code[Number(index)] || '');
   }
 
   function discordMarkdown(value) {
@@ -690,7 +657,7 @@
       fragments.push(html);
       return `\uE000${fragments.length - 1}\uE001`;
     };
-    let html = escapeHtml(stashMentions(value, fragments, true));
+    let html = escapeHtml(value);
     html = html
       .replace(/`([^`\n]+)`/g, (_, content) => stash(`<span class="markdown-syntax">\`</span><code>${content}</code><span class="markdown-syntax">\`</span>`))
       .replace(/\*\*([^*\n]+)\*\*/g, (_, content) => stash(`<span class="markdown-syntax">**</span><strong>${content}</strong><span class="markdown-syntax">**</span>`))
@@ -700,8 +667,7 @@
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
       .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
-    html = html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
-    return restoreFragments(html, fragments);
+    return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
   function editorMarkdown(value) {
@@ -761,273 +727,42 @@
     const previewValues = input.dataset.inlineTemplateScope === 'memberMessages'
       ? memberMessagePreviewValues(state.memberMessageEvent)
       : input.dataset.inlineTemplateScope === 'messageTemplate' ? genericTemplatePreviewValues() : {};
-    display.innerHTML = renderedEditableTemplate(input.value, previewValues);
-    updateInlineAutocomplete(input);
+    display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
   }
 
-  function beginInlineMessageEdit(trigger, mentionToken = '') {
+  function beginInlineMessageEdit(trigger) {
     const editor = trigger.closest('[data-inline-message-editor]');
     const input = editor?.querySelector('[data-inline-message-input]');
     if (!editor || !input) return;
     editor.classList.add('editing');
     syncInlineEditorVisual(input);
     input.focus();
-    if (mentionToken) {
-      const start = input.value.indexOf(mentionToken);
-      const end = start >= 0 ? start + mentionToken.length : input.value.length;
-      input.setSelectionRange(start >= 0 ? start : end, end);
-      openInlineMentionPicker(input, mentionToken, start >= 0 ? start : end, end);
-    } else input.setSelectionRange(input.value.length, input.value.length);
+    input.setSelectionRange(input.value.length, input.value.length);
   }
 
   function finishInlineMessageEdit(editor) {
     if (!editor?.classList.contains('editing')) return;
     editor.classList.remove('editing');
-    closeInlineAutocomplete(editor);
     const input = editor.querySelector('[data-inline-message-input]');
     const display = editor.querySelector('[data-inline-message-display]');
     if (input && display) {
       const previewValues = input.dataset.inlineTemplateScope === 'memberMessages'
         ? memberMessagePreviewValues(state.memberMessageEvent)
         : ['messageTemplate', 'reactionRole'].includes(input.dataset.inlineTemplateScope) ? genericTemplatePreviewValues() : {};
-      display.innerHTML = renderedEditableTemplate(input.value, previewValues);
+      display.innerHTML = `${renderedEditableTemplate(input.value, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span>`;
     }
   }
 
   function inlineTemplateEditor(template, field = 'template', scope = 'announcements', label = 'level-up message', previewValues = {}, maxLength = 3000, additionalContainerIndex = null) {
     const containerData = Number.isInteger(additionalContainerIndex) ? ` data-additional-container-index="${additionalContainerIndex}"` : '';
     return `<div class="inline-message-editor" data-inline-message-editor data-template-field="${escapeHtml(field)}" data-template-scope="${escapeHtml(scope)}"${containerData}>
-      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, previewValues)}</div>
+      <div class="inline-message-display" data-inline-message-display role="button" tabindex="0" aria-label="Edit ${escapeHtml(label)}">${renderedEditableTemplate(template, previewValues)}<span class="inline-edit-badge" aria-hidden="true">EDIT</span></div>
       <div class="inline-message-source-shell">
         <div class="inline-message-highlight" data-inline-message-highlight aria-hidden="true">${editorMarkdown(template)}</div>
-        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}"${containerData} maxlength="${maxLength}" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template" aria-autocomplete="list" aria-expanded="false">${escapeHtml(template)}</textarea>
-        <div class="inline-message-autocomplete" data-inline-message-autocomplete role="listbox" aria-label="Message suggestions" hidden></div>
+        <textarea class="inline-message-input" data-inline-message-input data-inline-template-field="${escapeHtml(field)}" data-inline-template-scope="${escapeHtml(scope)}"${containerData} maxlength="${maxLength}" rows="5" spellcheck="true" aria-label="${escapeHtml(label)} template">${escapeHtml(template)}</textarea>
       </div>
-      <div class="inline-message-actions"><span>Type <code>{</code> for variables, <code>#</code> for channels, <code>@&amp;</code> for roles, or <code>{image}</code> for media.</span><button type="button" data-inline-message-done>Done</button></div>
+      <div class="inline-message-actions"><span>Markdown and variables update live.</span><button type="button" data-inline-message-done>Done</button></div>
     </div>`;
-  }
-
-  function inlineMessageRecord(scope) {
-    if (scope === 'announcements') return state.config?.leveling?.announcements || null;
-    if (scope === 'memberMessages') return currentMemberMessage();
-    if (scope === 'messageTemplate') return state.templateDraft;
-    if (scope === 'reactionRole') return state.reactionRoleDraft?.message || null;
-    return null;
-  }
-
-  function inlineLayoutForInput(input) {
-    const record = inlineMessageRecord(input?.dataset.inlineTemplateScope);
-    if (!record) return null;
-    const containerIndex = Number(input.dataset.additionalContainerIndex);
-    return Number.isInteger(containerIndex) ? record.additionalContainers?.[containerIndex]?.layout || null : record.layout || null;
-  }
-
-  function inlineVariableOptions(input) {
-    const scope = input.dataset.inlineTemplateScope;
-    let variables = GENERIC_TEMPLATE_VARIABLES;
-    if (scope === 'announcements') variables = LEVELING_VARIABLES;
-    if (scope === 'xpDrops') variables = XP_DROP_VARIABLES;
-    if (scope === 'memberMessages') variables = [...MEMBER_MESSAGE_COMMON_VARIABLES, ...MEMBER_MESSAGE_EVENT_VARIABLES[state.memberMessageEvent]];
-    const choices = variables.map(([value, detail]) => ({ type: 'variable', value, label: value, detail }));
-    if (inlineLayoutForInput(input)) choices.unshift({ type: 'image', value: '{image}', label: '{image}', detail: 'Add an image URL or upload' });
-    return choices;
-  }
-
-  function inlineAutocompleteItems(type, query, input) {
-    const normalized = String(query || '').toLowerCase().replace(/^[@#&{]+/, '');
-    let items = [];
-    if (type === 'variable') items = inlineVariableOptions(input);
-    if (type === 'channel') {
-      items = (state.directory.channels || [])
-        .filter((channel) => !channel.archived && channel.kind !== 'category')
-        .map((channel) => ({ type, value: `<#${channel.id}>`, label: `#${channel.name}`, detail: channel.parentName || 'Discord channel' }));
-    }
-    if (type === 'role') {
-      items = (state.directory.roles || []).map((role) => ({
-        type, value: `<@&${role.id}>`, label: `@${role.name}`, detail: role.managed ? 'Managed role' : 'Discord role', color: roleColor(role.id),
-      }));
-    }
-    return items.filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(normalized)).slice(0, 10);
-  }
-
-  function inlineAutocompleteMatch(input) {
-    const caret = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
-    const before = input.value.slice(0, caret);
-    const role = before.match(/(?:^|\s)@&([a-z0-9_-]*)$/i);
-    if (role) return { type: 'role', query: role[1], start: before.lastIndexOf('@&'), end: caret };
-    const variable = before.match(/\{([a-z0-9_]*)$/i);
-    if (variable) return { type: 'variable', query: variable[1], start: before.lastIndexOf('{'), end: caret };
-    const channel = before.match(/(?:^|\s)#([a-z0-9_-]*)$/i);
-    if (channel) return { type: 'channel', query: channel[1], start: before.lastIndexOf('#'), end: caret };
-    return null;
-  }
-
-  function closeInlineAutocomplete(editor) {
-    const panel = editor?.querySelector('[data-inline-message-autocomplete]');
-    const input = editor?.querySelector('[data-inline-message-input]');
-    if (panel) { panel.hidden = true; panel.innerHTML = ''; }
-    if (input) input.setAttribute('aria-expanded', 'false');
-    if (editor) {
-      editor._inlineAutocomplete = null;
-      editor._inlineAutocompleteForce = null;
-    }
-  }
-
-  function updateInlineAutocomplete(input) {
-    const editor = input?.closest('[data-inline-message-editor]');
-    const panel = editor?.querySelector('[data-inline-message-autocomplete]');
-    if (!editor || !panel || !editor.classList.contains('editing')) return;
-    if (editor._inlineAutocompleteForce?.value !== undefined && editor._inlineAutocompleteForce.value !== input.value) {
-      editor._inlineAutocompleteForce = null;
-    }
-    const match = editor._inlineAutocompleteForce || inlineAutocompleteMatch(input);
-    if (!match) return closeInlineAutocomplete(editor);
-    const items = inlineAutocompleteItems(match.type, match.query || '', input);
-    editor._inlineAutocomplete = { ...match, items, selected: Math.min(editor._inlineAutocomplete?.selected || 0, Math.max(0, items.length - 1)) };
-    if (!items.length) return closeInlineAutocomplete(editor);
-    panel.innerHTML = items.map((item, index) => `<button type="button" role="option" aria-selected="${index === editor._inlineAutocomplete.selected}" data-inline-suggestion-index="${index}" style="--suggestion-color:${item.color || ''}"><span class="autocomplete-mark ${item.type}">${item.type === 'channel' ? '#' : item.type === 'role' ? '@' : '{ }'}</span><span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.detail)}</small></span><kbd>${index === editor._inlineAutocomplete.selected ? 'Enter' : ''}</kbd></button>`).join('');
-    panel.hidden = false;
-    input.setAttribute('aria-expanded', 'true');
-  }
-
-  function insertInlineSuggestion(input, index) {
-    const editor = input?.closest('[data-inline-message-editor]');
-    const autocomplete = editor?._inlineAutocomplete;
-    const item = autocomplete?.items?.[index];
-    if (!item) return;
-    const suffix = ['channel', 'role'].includes(item.type) && !/^\s/.test(input.value.slice(autocomplete.end)) ? ' ' : '';
-    input.value = `${input.value.slice(0, autocomplete.start)}${item.value}${suffix}${input.value.slice(autocomplete.end)}`.slice(0, Number(input.maxLength) || 4000);
-    const caret = Math.min(input.value.length, autocomplete.start + item.value.length + suffix.length);
-    closeInlineAutocomplete(editor);
-    input.focus();
-    input.setSelectionRange(caret, caret);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  function handleInlineAutocompleteKeydown(event, input) {
-    const editor = input.closest('[data-inline-message-editor]');
-    const autocomplete = editor?._inlineAutocomplete;
-    if (!autocomplete?.items?.length) return false;
-    if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
-      event.preventDefault();
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      autocomplete.selected = (autocomplete.selected + delta + autocomplete.items.length) % autocomplete.items.length;
-      updateInlineAutocomplete(input);
-      return true;
-    }
-    if (['Enter', 'Tab'].includes(event.key)) {
-      event.preventDefault();
-      insertInlineSuggestion(input, autocomplete.selected);
-      return true;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      closeInlineAutocomplete(editor);
-      return true;
-    }
-    return false;
-  }
-
-  function openInlineMentionPicker(input, token, start, end) {
-    const editor = input.closest('[data-inline-message-editor]');
-    if (!editor) return;
-    editor._inlineAutocompleteForce = { type: token.startsWith('<@&') ? 'role' : 'channel', query: '', start, end, value: input.value };
-    updateInlineAutocomplete(input);
-  }
-
-  function refreshInlineComposer(scope) {
-    if (scope === 'announcements') renderMessagePreview();
-    if (scope === 'memberMessages') renderWelcomeMessagePreview();
-    if (scope === 'messageTemplate') renderTemplateComposerPreview();
-    if (scope === 'reactionRole') renderReactionRoleEditor();
-  }
-
-  function focusNewestGalleryInput(scope, containerIndex, mediaIndex) {
-    const prefix = { announcements: 'leveling', memberMessages: 'welcome', messageTemplate: 'template', reactionRole: 'reaction' }[scope];
-    if (!prefix) return;
-    let selector = `[data-${prefix}-gallery-url="${mediaIndex}"]`;
-    let root = { announcements: elements.levelingComposerPanel, memberMessages: elements.welcomeComposerPanel, messageTemplate: elements.templateComposerPanel, reactionRole: elements.reactionRoleComposerPanel }[scope];
-    if (Number.isInteger(containerIndex)) {
-      selector = `[data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"]`;
-      root = { announcements: elements.levelingAdditionalContainers, memberMessages: elements.welcomeAdditionalContainers, messageTemplate: elements.templateAdditionalContainers, reactionRole: elements.reactionRoleAdditionalContainers }[scope];
-    }
-    root?.querySelector(selector)?.focus();
-  }
-
-  function consumeImageShortcut(input) {
-    const caret = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
-    if (!/\{image\}$/i.test(input.value.slice(0, caret))) return false;
-    const layout = inlineLayoutForInput(input);
-    if (!layout) return false;
-    if (layout.galleryUrls.length >= 10) {
-      showToast('A Discord gallery supports up to 10 images.', 'error');
-      return false;
-    }
-    const start = caret - 7;
-    input.value = `${input.value.slice(0, start)}${input.value.slice(caret)}`;
-    input.setSelectionRange(start, start);
-    layout.galleryUrls.push('');
-    const mediaIndex = layout.galleryUrls.length - 1;
-    const scope = input.dataset.inlineTemplateScope;
-    const containerIndex = Number(input.dataset.additionalContainerIndex);
-    if (!Number.isInteger(containerIndex)) {
-      if (scope === 'announcements') state.levelingComposerPanel = 'gallery';
-      if (scope === 'memberMessages') state.memberMessageComposerPanel = 'gallery';
-      if (scope === 'messageTemplate') state.templateComposerPanel = 'gallery';
-      if (scope === 'reactionRole') state.reactionRoleComposerPanel = 'gallery';
-    }
-    window.setTimeout(() => {
-      refreshInlineComposer(scope);
-      focusNewestGalleryInput(scope, containerIndex, mediaIndex);
-    }, 0);
-    return true;
-  }
-
-  function galleryLayoutForSortKey(key) {
-    const [prefix, containerPart] = String(key || '').split(':');
-    let record = null;
-    if (prefix === 'leveling') record = state.config?.leveling?.announcements;
-    if (prefix === 'welcome') record = currentMemberMessage();
-    if (prefix === 'template') record = state.templateDraft;
-    if (prefix === 'reaction') record = state.reactionRoleDraft?.message;
-    if (!record) return null;
-    if (containerPart === 'main') return record.layout;
-    const containerIndex = Number(containerPart);
-    return Number.isInteger(containerIndex) ? record.additionalContainers?.[containerIndex]?.layout || null : null;
-  }
-
-  function renderGalleryScope(prefix) {
-    if (prefix === 'leveling') { renderMessagePreview(); refreshDirty(); }
-    if (prefix === 'welcome') { renderWelcomeMessagePreview(); refreshDirty(); }
-    if (prefix === 'template') { renderTemplateComposerPreview(); refreshTemplateDirty(); }
-    if (prefix === 'reaction') { renderReactionRoleEditor(); refreshDirty(); }
-  }
-
-  function clearMediaDropTargets() {
-    document.querySelectorAll('.sortable-media.drop-target').forEach((row) => row.classList.remove('drop-target'));
-  }
-
-  function reorderGallery(sourceKey, targetKey) {
-    const source = String(sourceKey || '').split(':');
-    const target = String(targetKey || '').split(':');
-    if (source.length !== 3 || target.length !== 3 || source[0] !== target[0] || source[1] !== target[1]) return;
-    const layout = galleryLayoutForSortKey(sourceKey);
-    const from = Number(source[2]);
-    const to = Number(target[2]);
-    if (!layout || !Number.isInteger(from) || !Number.isInteger(to) || from === to || !layout.galleryUrls[from] && layout.galleryUrls[from] !== '') return;
-    const [item] = layout.galleryUrls.splice(from, 1);
-    layout.galleryUrls.splice(to, 0, item);
-    renderGalleryScope(source[0]);
-  }
-
-  function moveGalleryItem(sortKey, direction) {
-    const parts = String(sortKey || '').split(':');
-    const index = Number(parts[2]);
-    if (parts.length !== 3 || !Number.isInteger(index)) return;
-    const nextIndex = index + Number(direction || 0);
-    const layout = galleryLayoutForSortKey(sortKey);
-    if (!layout || nextIndex < 0 || nextIndex >= layout.galleryUrls.length) return;
-    reorderGallery(sortKey, `${parts[0]}:${parts[1]}:${nextIndex}`);
   }
 
   const LEVELING_VARIABLES = [
@@ -1038,18 +773,6 @@
     ['{progress_xp}', 'XP earned inside this level'], ['{needed_xp}', 'XP required for the next level'],
     ['{total_xp}', 'Member total XP'], ['{separator}', 'Insert a Discord divider in the message'],
   ];
-
-  function thumbnailPanelHtml({ layout, help, placeholder, inputAttribute, uploadAttribute, removeAttribute }) {
-    return `<div class="media-panel-head"><div><strong>Add thumbnail</strong><small>${escapeHtml(help)}</small></div>${layout.thumbnailEnabled ? `<button type="button" ${removeAttribute}>Remove</button>` : ''}</div>
-      <div class="media-choice-grid">
-        <label class="media-choice"><span>Image URL or variable</span><small>Paste a direct image link or a supported profile variable.</small><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="${escapeHtml(placeholder)}" ${inputAttribute}></label>
-        <div class="media-choice upload-choice"><span>Upload a file</span><small>PNG, JPG, WebP, or GIF up to 10 MB.</small><label class="media-upload">Choose image<input type="file" accept="image/*" ${uploadAttribute}="thumbnail"></label></div>
-      </div>`;
-  }
-
-  function galleryRowsHtml(urls, { prefix, inputAttribute, uploadAttribute, removeAttribute, placeholder }) {
-    return urls.map((url, index) => `<div class="media-entry sortable-media" draggable="true" data-media-sort="${prefix}:main:${index}"><button class="media-drag-handle" type="button" aria-label="Drag image ${index + 1} to reorder" title="Drag to reorder"><span aria-hidden="true"></span></button><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="${escapeHtml(placeholder)}" ${inputAttribute}="${index}"><div class="media-sort-controls" aria-label="Reorder image ${index + 1}"><button type="button" data-media-move="-1" ${index === 0 ? 'disabled' : ''} aria-label="Move image ${index + 1} up">&uarr;</button><button type="button" data-media-move="1" ${index === urls.length - 1 ? 'disabled' : ''} aria-label="Move image ${index + 1} down">&darr;</button></div><label class="media-upload">Upload<input type="file" accept="image/*" ${uploadAttribute}="gallery" data-media-index="${index}"></label><button type="button" ${removeAttribute}="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-  }
 
   function renderComposerPanel() {
     const panel = state.levelingComposerPanel;
@@ -1065,11 +788,11 @@
       return;
     }
     if (panel === 'thumbnail') {
-      elements.levelingComposerPanel.innerHTML = thumbnailPanelHtml({ layout, help: 'Use {user_profile}, a direct URL, or an upload.', placeholder: '{user_profile} or https://example.com/thumbnail.png', inputAttribute: 'data-leveling-thumbnail-url', uploadAttribute: 'data-leveling-media-upload', removeAttribute: 'data-remove-thumbnail' });
+      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload any decodable image or GIF up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-leveling-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = galleryRowsHtml(layout.galleryUrls, { prefix: 'leveling', inputAttribute: 'data-leveling-gallery-url', uploadAttribute: 'data-leveling-media-upload', removeAttribute: 'data-remove-gallery', placeholder: '{user_profile} or https://example.com/image.png' });
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add with <code>{image}</code>, URL, or upload. Drag images to reorder.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>Type {image} in the message or use a button above to add the first image.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function readMediaFile(file) {
@@ -1184,20 +907,13 @@
     renderComposerPanel();
   }
 
-  function galleryPreviewHtml(layout, resolveMedia) {
-    if (!layout.galleryUrls?.length) return '';
-    return `<div class="discord-gallery">${layout.galleryUrls.map((value, index) => {
-      const url = resolveMedia(value);
-      return url ? `<img src="${escapeHtml(url)}" alt="Gallery image ${index + 1}">` : '<div class="discord-gallery-placeholder"><strong>Image ready</strong><span>Add a URL or upload a file</span></div>';
-    }).join('')}</div>`;
-  }
-
   function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia }) {
     const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
     const thumbnail = layout.thumbnailEnabled
       ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
       : '';
-    const galleryHtml = galleryPreviewHtml(layout, resolveMedia);
+    const gallery = (layout.galleryUrls || []).map(resolveMedia).filter(Boolean);
+    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
     frame.classList.toggle('has-container', layout.container);
     frame.classList.toggle('no-container', !layout.container);
     frame.style.setProperty('--accent-color', layout.accentColor);
@@ -1215,13 +931,14 @@
       const thumbnail = layout.thumbnailEnabled
         ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
         : '';
-      const galleryPreview = galleryPreviewHtml(layout, resolveMedia);
-      const galleryRows = layout.galleryUrls.map((url, mediaIndex) => `<div class="media-entry sortable-media" draggable="true" data-media-sort="${prefix}:${containerIndex}:${mediaIndex}"><button class="media-drag-handle" type="button" aria-label="Drag image ${mediaIndex + 1} to reorder" title="Drag to reorder"><span aria-hidden="true"></span></button><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="Image URL or supported variable" data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"><div class="media-sort-controls" aria-label="Reorder image ${mediaIndex + 1}"><button type="button" data-media-move="-1" ${mediaIndex === 0 ? 'disabled' : ''} aria-label="Move image ${mediaIndex + 1} up">&uarr;</button><button type="button" data-media-move="1" ${mediaIndex === layout.galleryUrls.length - 1 ? 'disabled' : ''} aria-label="Move image ${mediaIndex + 1} down">&darr;</button></div><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"></label><button type="button" data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}" aria-label="Remove gallery image ${mediaIndex + 1}">&times;</button></div>`).join('');
+      const gallery = layout.galleryUrls.map(resolveMedia).filter(Boolean);
+      const galleryPreview = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
+      const galleryRows = layout.galleryUrls.map((url, mediaIndex) => `<div class="media-entry"><span>${mediaIndex + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"></label><button type="button" data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}" aria-label="Remove gallery image ${mediaIndex + 1}">&times;</button></div>`).join('');
       const content = inlineTemplateEditor(container.content, 'content', scope, `container ${containerIndex + 2} message`, previewValues, maxLength, containerIndex);
-      return `<section class="additional-container-card discord-frame has-container" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
-        <header class="additional-container-toolbar"><div><span>LIVE CONTAINER</span><strong>Container ${containerIndex + 2}</strong></div><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
+      return `<section class="additional-container-card" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
+        <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
         <div class="discord-section"><div>${content}</div>${thumbnail}</div>${galleryPreview}
-        <div class="additional-container-media preview-tool-panel"><div class="media-panel-head"><div><strong>Thumbnail &amp; gallery</strong><small>The same URL, upload, and drag controls as the main container.</small></div><div><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}"></label></div></div><div class="media-choice-grid compact"><label class="media-choice"><span>Thumbnail URL or variable</span><small>Use a direct image URL or supported profile variable.</small><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="Image URL or supported variable" data-${prefix}-additional-thumbnail-url="${containerIndex}"></label><div class="media-choice upload-choice"><span>Upload thumbnail</span><small>PNG, JPG, WebP, or GIF up to 10 MB.</small><label class="media-upload">Choose image<input type="file" accept="image/*" data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"></label></div></div><div class="media-list">${galleryRows || '<p>Type {image} in this container or add an image above.</p>'}</div></div>
+        <details class="additional-container-media"><summary>Images</summary><div class="media-entry"><span>Thumb</span><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="Image URL or supported variable" data-${prefix}-additional-thumbnail-url="${containerIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"></label></div><div class="additional-gallery-head"><strong>Gallery</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}"></label></div><div class="media-list">${galleryRows || '<p>No gallery images yet.</p>'}</div></details>
       </section>`;
     }).join('');
   }
@@ -1297,11 +1014,11 @@
       return;
     }
     if (panel === 'thumbnail') {
-      elements.welcomeComposerPanel.innerHTML = thumbnailPanelHtml({ layout, help: 'Use {user_avatar}, {server_icon}, a direct URL, or an upload.', placeholder: '{user_avatar} or https://example.com/image.png', inputAttribute: 'data-welcome-thumbnail-url', uploadAttribute: 'data-welcome-media-upload', removeAttribute: 'data-remove-welcome-thumbnail' });
+      elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_avatar}, {server_icon}, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-welcome-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_avatar} or https://example.com/image.png" data-welcome-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-welcome-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = galleryRowsHtml(layout.galleryUrls, { prefix: 'welcome', inputAttribute: 'data-welcome-gallery-url', uploadAttribute: 'data-welcome-media-upload', removeAttribute: 'data-remove-welcome-gallery', placeholder: '{server_icon} or https://example.com/image.png' });
-    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add with <code>{image}</code>, URL, or upload. Drag images to reorder.</small></div><div><button type="button" data-add-welcome-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>Type {image} in the message or use a button above to add the first image.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{server_icon} or https://example.com/image.png" data-welcome-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-welcome-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-welcome-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function renderWelcomeMessagePreview(renderTools = true) {
@@ -1633,11 +1350,11 @@
       return;
     }
     if (panel === 'thumbnail') {
-      elements.reactionRoleComposerPanel.innerHTML = thumbnailPanelHtml({ layout, help: 'Use {server_icon}, a direct URL, or an upload.', placeholder: '{server_icon} or https://example.com/image.png', inputAttribute: 'data-reaction-thumbnail-url', uploadAttribute: 'data-reaction-media-upload', removeAttribute: 'data-remove-reaction-thumbnail' });
+      elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, an image URL, or an upload.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-reaction-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-reaction-thumbnail-url><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = galleryRowsHtml(layout.galleryUrls, { prefix: 'reaction', inputAttribute: 'data-reaction-gallery-url', uploadAttribute: 'data-reaction-media-upload', removeAttribute: 'data-remove-reaction-gallery', placeholder: '{server_icon} or https://example.com/image.png' });
-    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add with <code>{image}</code>, URL, or upload. Drag images to reorder.</small></div><div><button type="button" data-add-reaction-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>Type {image} in the message or use a button above to add the first image.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" data-reaction-gallery-url="${index}" placeholder="https://example.com/image.png"><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-reaction-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-reaction-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function renderReactionRoleMessage() {
@@ -2555,11 +2272,11 @@
       return;
     }
     if (panel === 'thumbnail') {
-      elements.templateComposerPanel.innerHTML = thumbnailPanelHtml({ layout, help: 'Use {server_icon}, {user_profile}, a direct URL, or an upload.', placeholder: '{server_icon} or https://example.com/image.png', inputAttribute: 'data-template-thumbnail-url', uploadAttribute: 'data-template-media-upload', removeAttribute: 'data-remove-template-thumbnail' });
+      elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, a supported context media variable, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-template-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-template-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-template-media-upload="thumbnail"></label></div>`;
       return;
     }
-    const rows = galleryRowsHtml(layout.galleryUrls, { prefix: 'template', inputAttribute: 'data-template-gallery-url', uploadAttribute: 'data-template-media-upload', removeAttribute: 'data-remove-template-gallery', placeholder: '{server_icon} or https://example.com/image.png' });
-    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add with <code>{image}</code>, URL, or upload. Drag images to reorder.</small></div><div><button type="button" data-add-template-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-template-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>Type {image} in the message or use a button above to add the first image.</p>'}</div>`;
+    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-template-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-template-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-template-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
+    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-template-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-template-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function renderTemplateComposerPreview(renderTools = true, updateJson = true) {
@@ -2869,7 +2586,6 @@
     const draft = state.templateDraft;
     if (!draft) return;
     if (target.matches('[data-inline-message-input]') && target.dataset.inlineTemplateScope === 'messageTemplate') {
-      consumeImageShortcut(target);
       const containerIndex = Number(target.dataset.additionalContainerIndex);
       if (Number.isInteger(containerIndex) && draft.additionalContainers[containerIndex]) draft.additionalContainers[containerIndex].content = target.value.slice(0, 4000);
       else draft.content = target.value.slice(0, 4000);
@@ -3555,7 +3271,6 @@
     if (!state.config) return;
     const leveling = state.config.leveling;
     if (target.matches('[data-inline-message-input]')) {
-      consumeImageShortcut(target);
       const field = target.dataset.inlineTemplateField;
       const limits = { template: 3000 };
       if (target.dataset.inlineTemplateScope === 'xpDrops') {
@@ -3696,7 +3411,6 @@
     const event = currentMemberMessage();
     if (!event) return;
     if (target.matches('[data-inline-message-input]')) {
-      consumeImageShortcut(target);
       const containerIndex = Number(target.dataset.additionalContainerIndex);
       if (Number.isInteger(containerIndex) && event.additionalContainers[containerIndex]) event.additionalContainers[containerIndex].content = target.value.slice(0, 3000);
       else event.template = target.value.slice(0, 3000);
@@ -3746,7 +3460,6 @@
     const draft = state.reactionRoleDraft;
     if (!draft) return;
     if (target.matches('[data-inline-message-input]')) {
-      consumeImageShortcut(target);
       const index = Number(target.dataset.additionalContainerIndex);
       if (Number.isInteger(index) && draft.message.additionalContainers[index]) draft.message.additionalContainers[index].content = target.value.slice(0, 4000);
       else draft.message.content = target.value.slice(0, 4000);
@@ -5043,33 +4756,20 @@
     elements.reactionRoleMessagePreview, elements.reactionRoleAdditionalContainers,
     elements.xpDropMessagePreview, elements.xpDropClaimPreview,
   ]) {
-    preview.addEventListener('pointerdown', (event) => {
-      if (event.target.closest('[data-inline-suggestion-index]')) event.preventDefault();
-    });
     preview.addEventListener('click', (event) => {
-      const suggestion = event.target.closest('[data-inline-suggestion-index]');
-      if (suggestion) {
-        const input = suggestion.closest('[data-inline-message-editor]')?.querySelector('[data-inline-message-input]');
-        if (input) insertInlineSuggestion(input, Number(suggestion.dataset.inlineSuggestionIndex));
-        return;
-      }
-      const mention = event.target.closest('[data-inline-mention]');
-      if (mention) return beginInlineMessageEdit(mention.closest('[data-inline-message-display]'), mention.dataset.inlineMention);
       const edit = event.target.closest('[data-inline-message-display]');
       if (edit) return beginInlineMessageEdit(edit);
       const done = event.target.closest('[data-inline-message-done]');
       if (done) finishInlineMessageEdit(done.closest('[data-inline-message-editor]'));
     });
     preview.addEventListener('keydown', (event) => {
-      const input = event.target.closest('[data-inline-message-input]');
-      if (input && handleInlineAutocompleteKeydown(event, input)) return;
       const edit = event.target.closest('[data-inline-message-display]');
       if (edit && ['Enter', ' '].includes(event.key)) {
         event.preventDefault();
         beginInlineMessageEdit(edit);
         return;
       }
-      if (input && event.key === 'Escape') input.blur();
+      if (event.target.matches('[data-inline-message-input]') && event.key === 'Escape') event.target.blur();
     });
     preview.addEventListener('focusout', (event) => {
       const editor = event.target.closest('[data-inline-message-editor]');
@@ -5596,47 +5296,6 @@
   });
   elements.reactionRoleAdditionalContainers.addEventListener('change', (event) => { const input = event.target.closest('[data-reaction-media-upload]'); if (input) uploadReactionRoleMedia(input); });
 
-  document.addEventListener('dragstart', (event) => {
-    const row = event.target.closest?.('[data-media-sort]');
-    if (!row) return;
-    state.mediaDrag = row.dataset.mediaSort;
-    row.classList.add('dragging');
-    event.dataTransfer?.setData('text/plain', state.mediaDrag);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-  });
-  document.addEventListener('dragover', (event) => {
-    const row = event.target.closest?.('[data-media-sort]');
-    if (!row || !state.mediaDrag) return;
-    const source = state.mediaDrag.split(':').slice(0, 2).join(':');
-    const target = row.dataset.mediaSort.split(':').slice(0, 2).join(':');
-    if (source !== target) return;
-    event.preventDefault();
-    clearMediaDropTargets();
-    row.classList.add('drop-target');
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  });
-  document.addEventListener('drop', (event) => {
-    const row = event.target.closest?.('[data-media-sort]');
-    const sourceKey = state.mediaDrag || event.dataTransfer?.getData('text/plain');
-    if (row && sourceKey) {
-      event.preventDefault();
-      reorderGallery(sourceKey, row.dataset.mediaSort);
-    }
-    state.mediaDrag = null;
-    clearMediaDropTargets();
-  });
-  document.addEventListener('dragend', () => {
-    state.mediaDrag = null;
-    document.querySelectorAll('.sortable-media.dragging').forEach((row) => row.classList.remove('dragging'));
-    clearMediaDropTargets();
-  });
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest?.('[data-media-move]');
-    const row = button?.closest('[data-media-sort]');
-    if (!button || !row) return;
-    moveGalleryItem(row.dataset.mediaSort, Number(button.dataset.mediaMove));
-  });
-
   document.addEventListener('selectionchange', () => rememberInlineTextCaret(document.activeElement));
   document.addEventListener('pointerdown', () => rememberInlineTextCaret(document.activeElement), true);
   document.addEventListener('keyup', (event) => rememberInlineTextCaret(event.target), true);
@@ -5785,5 +5444,4 @@
 
   loadSession();
 })();
-
 

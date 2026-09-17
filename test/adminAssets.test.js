@@ -60,24 +60,6 @@ test('remade dashboard has no HTML source file and retains every main view', () 
   assert.deepEqual(requiredIds.filter((id) => !ids.includes(id)), []);
 });
 
-test('message composers use inline Discord autocomplete and unified media controls', () => {
-  const app = loadAdminAsset('app.js').data.toString('utf8');
-  const dashboardStyle = loadAdminAsset('dashboard.css').data.toString('utf8');
-  assert.match(app, /aria-autocomplete="list"/);
-  assert.match(app, /data-inline-message-autocomplete/);
-  assert.match(app, /value: `<#\$\{channel\.id\}>`/);
-  assert.match(app, /value: `<@&\$\{role\.id\}>`/);
-  assert.match(app, /function consumeImageShortcut/);
-  assert.match(app, /layout\.galleryUrls\.push\(''\)/);
-  assert.match(app, /data-media-sort/);
-  assert.match(app, /data-media-move/);
-  assert.match(app, /media-choice-grid/);
-  assert.match(dashboardStyle, /#levelingVariablesToggle[\s\S]*display:\s*none\s*!important/);
-  assert.match(dashboardStyle, /\.discord-mention/);
-  assert.match(dashboardStyle, /\.inline-message-autocomplete/);
-  assert.match(dashboardStyle, /\.sortable-media\.drop-target/);
-});
-
 test('shared CoinSprite brand icon is available to the public dashboard', () => {
   const icon = loadAdminAsset('brand-icon.png');
   assert.ok(icon);
@@ -143,4 +125,3 @@ test('browser font validation fails closed and rejects a loaded fallback face', 
   assert.match(app, /!exact \|\| !declared \|\| !document\.fonts\.check/);
   assert.match(app, /Required browser font silently fell back/);
 });
-
