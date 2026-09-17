@@ -360,4 +360,3 @@ test('repository operation results remain explicit and never require JSON serial
   db.close();
 });
 
-
