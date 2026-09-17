@@ -76,7 +76,7 @@
     directory: { channels: [], roles: [], emojis: { bot: [], group: [], errors: {} }, botPermissions: { usable: true, missing: [] } },
     savedSnapshot: '',
     savedConfig: null,
-    currentView: 'leveling',
+    currentView: 'overview',
     saving: false,
     consoleTimer: null,
     metricsTimer: null,
@@ -132,7 +132,8 @@
     appShell: $('#appShell'), loginPanel: $('#loginPanel'), loginStatus: $('#loginStatus'), loginButton: $('#loginButton'),
     logoutButton: $('#logoutButton'), accountWrap: $('#accountWrap'), accountMenu: $('#accountMenu'),
     userChip: $('#userChip'), userAvatar: $('#userAvatar'), sessionLabel: $('#sessionLabel'), mobileNavToggle: $('#mobileNavToggle'),
-    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), gamesNav: $('#gamesNav'),
+    guildSelect: $('#guildSelect'), serverMeta: $('#serverMeta'), overviewNav: $('#overviewNav'), ownerNav: $('#ownerNav'), levelingNav: $('#levelingNav'), welcomeMessagesNav: $('#welcomeMessagesNav'), messageTemplatesNav: $('#messageTemplatesNav'), reactionRolesNav: $('#reactionRolesNav'), gamesNav: $('#gamesNav'),
+    overviewView: $('#overviewView'), overviewTitle: $('#overviewTitle'), overviewSubtitle: $('#overviewSubtitle'), overviewHealth: $('#overviewHealth'), overviewMetrics: $('#overviewMetrics'), overviewFeatures: $('#overviewFeatures'), overviewReadinessValue: $('#overviewReadinessValue'), overviewReadinessCopy: $('#overviewReadinessCopy'), overviewReadinessBar: $('#overviewReadinessBar'), overviewReadinessList: $('#overviewReadinessList'),
     levelingView: $('#levelingView'), welcomeMessagesView: $('#welcomeMessagesView'), messageTemplatesView: $('#messageTemplatesView'), reactionRolesView: $('#reactionRolesView'), gamesView: $('#gamesView'), ownerView: $('#ownerView'), toast: $('#toast'),
     saveDock: $('#saveDock'),
     saveButton: $('#saveButton'), resetButton: $('#resetButton'), saveState: $('#saveState'), ownerOverview: $('#ownerOverview'),
@@ -2881,6 +2882,64 @@
       </article>`).join('') : '<div class="empty-state"><strong>No command settings</strong><span>Game commands are available in every channel.</span></div>';
   }
 
+  function renderOverview() {
+    if (!state.config) return;
+    const guild = state.guilds.find((item) => item.id === state.guildId);
+    const messageEvents = ['join', 'leave', 'boost'].filter((event) => state.config.memberMessages?.[event]?.enabled);
+    const templateCount = state.messageTemplates.items.length;
+    const reactionRoleCount = state.reactionRoles.items.length;
+    const gameRouteCount = Number(Boolean(state.config.counting?.channelId))
+      + Number(Boolean(state.config.games?.lotteryChannelId))
+      + state.config.games.commandSettings.length;
+    const levelingUnlocked = state.config.features?.leveling === true;
+    const levelingActive = levelingUnlocked && state.config.leveling?.enabled === true;
+    const messagesActive = state.config.memberMessages?.enabled !== false && messageEvents.length > 0;
+    const permissionReady = state.directory.botPermissions?.usable !== false;
+    const enabledSystems = [levelingActive, messagesActive, templateCount > 0, reactionRoleCount > 0, gameRouteCount > 0].filter(Boolean).length;
+    const activeChannels = state.directory.channels.filter((channel) => !channel.archived).length;
+
+    elements.overviewTitle.textContent = guild ? `${guild.name}, at a glance.` : 'Your community command center.';
+    elements.overviewSubtitle.textContent = guild
+      ? 'See what is live, what needs attention, and where to go next.'
+      : 'Select a server to see its setup, health, and shortcuts.';
+    elements.overviewHealth.classList.toggle('warning', !permissionReady);
+    elements.overviewHealth.innerHTML = `<i></i><span><strong>${permissionReady ? 'Bot connection healthy' : 'Permissions need attention'}</strong><small>${permissionReady ? `${activeChannels} channels available` : `${state.directory.botPermissions?.missing?.length || 1} permission issue${state.directory.botPermissions?.missing?.length === 1 ? '' : 's'}`}</small></span>`;
+
+    const metrics = [
+      ['Active systems', `${enabledSystems} / 5`, enabledSystems === 5 ? 'Everything is running' : `${5 - enabledSystems} available to configure`],
+      ['Message templates', formatNumber(templateCount), templateCount ? 'Ready to reuse' : 'Create your first template'],
+      ['Connected channels', formatNumber(activeChannels), `${formatNumber(state.directory.roles.length)} roles detected`],
+      ['Reaction roles', formatNumber(reactionRoleCount), reactionRoleCount ? 'Member choices configured' : 'No menus created yet'],
+    ];
+    elements.overviewMetrics.innerHTML = metrics.map(([label, value, detail]) => `<article><small>${label}</small><strong>${value}</strong><span>${detail}</span></article>`).join('');
+
+    const features = [
+      ['leveling', 'Leveling', levelingUnlocked ? (levelingActive ? 'Active' : 'Paused') : 'Locked', levelingUnlocked ? (levelingActive ? 'XP, rewards, and progression are live.' : 'Configured but currently switched off.') : 'Unlock access from the owner panel.', !levelingUnlocked],
+      ['member-messages', 'Welcome messages', messagesActive ? `${messageEvents.length} live` : 'Not active', messageEvents.length ? `${messageEvents.map((name) => name[0].toUpperCase() + name.slice(1)).join(', ')} flows configured.` : 'Set up join, leave, or boost journeys.', false],
+      ['message-templates', 'Message templates', templateCount ? `${templateCount} ready` : 'Empty', templateCount ? 'Reusable messages are ready to send.' : 'Build once, reuse across your server.', false],
+      ['reaction-roles', 'Reaction roles', reactionRoleCount ? `${reactionRoleCount} ready` : 'Empty', reactionRoleCount ? 'Self-serve member roles are configured.' : 'Create a menu for member-selected roles.', false],
+      ['games', 'Community games', gameRouteCount ? `${gameRouteCount} routed` : 'Not routed', gameRouteCount ? 'Counting, lottery, or commands have destinations.' : 'Choose where games and commands can run.', false],
+    ];
+    elements.overviewFeatures.innerHTML = features.map(([view, title, status, detail, disabled]) => `<button type="button" data-overview-view="${view}" ${disabled ? 'disabled' : ''}>
+      <span class="feature-status-dot ${status === 'Active' || /live|ready|routed/.test(status) ? 'active' : disabled ? 'locked' : ''}"></span>
+      <span><strong>${title}</strong><small>${detail}</small></span>
+      <em>${status}</em><b aria-hidden="true">→</b>
+    </button>`).join('');
+
+    const readinessItems = [
+      [permissionReady, 'Required bot permissions'],
+      [activeChannels > 0, 'At least one available channel'],
+      [enabledSystems > 0, 'One community system active'],
+      [templateCount > 0 || reactionRoleCount > 0, 'Reusable content created'],
+    ];
+    const readyCount = readinessItems.filter(([ready]) => ready).length;
+    const readiness = Math.round(readyCount / readinessItems.length * 100);
+    elements.overviewReadinessValue.textContent = `${readiness}%`;
+    elements.overviewReadinessCopy.textContent = readiness === 100 ? 'Everything is ready to run' : `${readinessItems.length - readyCount} setup step${readinessItems.length - readyCount === 1 ? '' : 's'} remaining`;
+    elements.overviewReadinessBar.style.width = `${readiness}%`;
+    elements.overviewReadinessList.innerHTML = readinessItems.map(([ready, label]) => `<li class="${ready ? 'complete' : ''}"><i aria-hidden="true">${ready ? '✓' : ''}</i><span>${label}</span></li>`).join('');
+  }
+
   function renderFeatureAccess() {
     if (!state.config) return;
     const levelingUnlocked = state.config.features?.leveling === true;
@@ -2890,7 +2949,7 @@
     if (levelingLabel) levelingLabel.textContent = levelingUnlocked ? 'XP & rewards' : 'Locked by owner';
     elements.levelingNav.title = levelingUnlocked ? '' : 'The bot owner must unlock Leveling for this server.';
     if (!levelingUnlocked && state.currentView === 'leveling') {
-      setView('member-messages');
+      setView('overview');
     }
   }
 
@@ -2961,6 +3020,7 @@
       renderWelcomeMessages();
       renderTemplateWorkspace();
       renderReactionRoles();
+      renderOverview();
       const deepLink = new URLSearchParams(location.search);
       const requestedTemplate = deepLink.get('template');
       const requestedFolder = deepLink.get('folder');
@@ -3002,6 +3062,7 @@
       renderLeveling();
       renderGames();
       renderWelcomeMessages();
+      renderOverview();
       showToast('Dashboard settings updated.');
     } catch (error) {
       showToast(error.message, 'error');
@@ -3155,6 +3216,11 @@
       panel.hidden = !active;
       panel.classList.toggle('active', active);
     });
+    const url = new URL(location.href);
+    if (view === 'overview') url.searchParams.delete('view');
+    else url.searchParams.set('view', view);
+    history.replaceState(null, '', url);
+    if (view === 'overview') renderOverview();
     if (view === 'owner') loadOwner();
     else {
       stopConsolePolling();
@@ -4522,7 +4588,7 @@
         const requestedGuild = deepLink.get('guild');
         const guildId = state.guilds.some((guild) => guild.id === requestedGuild) ? requestedGuild : state.guilds[0].id;
         await loadGuild(guildId);
-        if (['message-templates', 'reaction-roles', 'games'].includes(deepLink.get('view'))) setView(deepLink.get('view'));
+        if (['overview', 'leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner'].includes(deepLink.get('view'))) setView(deepLink.get('view'));
       }
     } catch (error) {
       state.me = null;
@@ -5314,6 +5380,10 @@
   document.querySelector('.nav-list').addEventListener('click', (event) => {
     const button = event.target.closest('[data-view]');
     if (button) setView(button.dataset.view);
+  });
+  elements.overviewView.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-overview-view]');
+    if (button && !button.disabled) setView(button.dataset.overviewView);
   });
   elements.ownerRefresh.addEventListener('click', loadOwner);
   elements.ownerOverview.addEventListener('click', async (event) => {

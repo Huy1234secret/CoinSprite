@@ -43,13 +43,14 @@ test('remade dashboard has no HTML source file and retains every main view', () 
   assert.deepEqual(fs.readdirSync(path.join(root, 'admin')).filter((name) => name.endsWith('.html')), []);
   assert.equal(loadAdminAsset('index.html'), null);
   const document = loadAdminAsset('document').data.toString('utf8');
-  assert.match(document, /One place for your server\./);
-  assert.doesNotMatch(document, /product-preview|landing-features|Explore features/);
-  for (const view of ['leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
+  assert.match(document, /Run your community/);
+  assert.match(document, /Everything important, at a glance\./);
+  for (const view of ['overview', 'leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
     assert.match(document, new RegExp(`data-view="${view}"`));
     assert.match(document, new RegExp(`data-view-panel="${view}"`));
   }
-  for (const emoji of ['🏅', '👋', '📝', '🎭', '🎮', '🛠️']) assert.ok(document.includes(emoji));
+  assert.match(document, /class="nav-icon"[^>]*><svg class="icon"/);
+  assert.doesNotMatch(document, /class="tab-emoji"/);
   const ids = [...document.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length);
   const bindings = fs.readFileSync(path.join(root, 'admin', 'app.js'), 'utf8');
@@ -64,7 +65,9 @@ test('shared CoinSprite brand icon is available to the public dashboard', () => 
   assert.match(icon.version, /^[a-f0-9]{16}$/);
   const html = loadAdminAsset('document').data.toString('utf8');
   assert.match(html, /rel="icon" type="image\/png" href="\/admin\/brand-icon\.png"/);
-  assert.match(html, /class="brand-mark" aria-hidden="true">🪙/);
+  assert.match(html, /class="brand-mark" aria-hidden="true"><svg class="icon"/);
+  const server = fs.readFileSync(path.join(root, 'src', 'adminServer.js'), 'utf8');
+  assert.match(server, /\['\/admin\/dashboard\.css', \['dashboard\.css', 'text\/css; charset=utf-8'\]\]/);
   for (const removed of ['chances.html', 'chances.css', 'chances.js']) assert.equal(loadAdminAsset(removed), null);
 });
 
