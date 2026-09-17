@@ -123,4 +123,3 @@ test('browser font validation fails closed and rejects a loaded fallback face', 
   assert.match(app, /!exact \|\| !declared \|\| !document\.fonts\.check/);
   assert.match(app, /Required browser font silently fell back/);
 });
-

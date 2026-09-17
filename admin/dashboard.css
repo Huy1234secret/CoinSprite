@@ -268,4 +268,3 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .games-tabs, .member-message-tabs, .template-tabs, .reaction-role-tabs, .inventory-tabs, .emoji-picker-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
   .member-message-tabs button, .template-tabs button, .emoji-picker-tabs button { flex: 0 0 auto; }
 }
-

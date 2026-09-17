@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 86719)
-Total output lines: 5447
+Warning: truncated output (original token count: 85381)
+Total output lines: 5446
 
 (() => {
   'use strict';
@@ -1389,7 +1389,45 @@ Total output lines: 5447
     if (draft.interactionType === 'button') {
       elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings">${draft.buttons.map((button, index) => `<article class="rr-control-row" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label>Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-rr-button-label="${index}"></label><label>Role<select data-rr-button-role="${index}">${roleOptions(button.roleId)}</select></label><label>Style<select data-rr-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
     } else {
-      ele…36719 tokens truncated… 'italic'] : ['normal'];
+      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings"><label>Placeholder<input class="reaction-role-composer-input" type="text" maxlength="150" value="${escapeHtml(draft.dropdown.placeholder)}" data-rr-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-rr-allow-multiple${draft.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Add selected roles and remove unselected roles managed by this template.</small></span></label></div><div class="rr-dropdown-options">${draft.dropdown.options.map((option, index) => `<article class="rr-control-row dropdown" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Selection title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-rr-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-rr-option-description="${index}"></label><label>Role<select data-rr-option-role="${index}">${roleOptions(option.roleId)}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="…35381 tokens truncated…ll;
+  }
+
+  function cardRoundRect(context, x, y, width, height, radius) {
+    context.beginPath();
+    context.roundRect(x, y, width, height, Math.min(radius, width / 2, height / 2));
+  }
+
+  function drawCardCover(context, image, x, y, width, height, offsetX = 0, offsetY = 0, scale = 1) {
+    const base = Math.max(width / image.naturalWidth, height / image.naturalHeight) * scale;
+    const drawWidth = image.naturalWidth * base;
+    const drawHeight = image.naturalHeight * base;
+    context.drawImage(image, x + (width - drawWidth) / 2 + offsetX, y + (height - drawHeight) / 2 + offsetY, drawWidth, drawHeight);
+  }
+
+  function normalizedCardRotation(value) {
+    const rotation = Number(value);
+    if (!Number.isFinite(rotation)) return 0;
+    return ((rotation + 180) % 360 + 360) % 360 - 180;
+  }
+
+  function cardFont(item, size = item?.size) {
+    const family = CARD_FONT_FAMILIES[item?.fontFamily] || CARD_FONT_FAMILIES.sans;
+    return `${item?.italic ? 'italic' : 'normal'} ${item?.bold === false || item?.weight === 'normal' ? 'normal' : 'bold'} ${Math.max(1, Number(size) || 1)}px ${family}`;
+  }
+
+  function normalizedFontFaceFamily(value) {
+    return String(value || '').replace(/^['"]|['"]$/g, '');
+  }
+
+  function ensureCardFontsReady() {
+    if (cardFontsReadyPromise) return cardFontsReadyPromise;
+    cardFontsReadyPromise = (async () => {
+      if (!document.fonts?.load || !document.fonts?.check || !document.fonts?.ready || !document.fonts[Symbol.iterator]) {
+        throw new Error('This browser cannot verify the required level-card fonts. The draft editor is unavailable.');
+      }
+      const requests = [];
+      for (const face of CARD_REQUIRED_FONT_FACES) {
+        const styles = face.italic ? ['normal', 'italic'] : ['normal'];
         for (const style of styles) {
           for (const weight of [400, 700]) {
             const font = `${style} ${weight} 32px "${face.family}"`;
@@ -3136,4 +3174,3 @@ Total output lines: 5447
 
   loadSession();
 })();
-

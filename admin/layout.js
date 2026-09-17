@@ -138,4 +138,3 @@ function renderAdminDocument() {
 }
 
 module.exports = { renderAdminDocument };
-
