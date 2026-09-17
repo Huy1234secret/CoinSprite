@@ -2898,7 +2898,7 @@
     const enabledSystems = [levelingActive, messagesActive, templateCount > 0, reactionRoleCount > 0, gameRouteCount > 0].filter(Boolean).length;
     const activeChannels = state.directory.channels.filter((channel) => !channel.archived).length;
 
-    elements.overviewTitle.textContent = guild ? `${guild.name}, at a glance.` : 'Your community command center.';
+    elements.overviewTitle.textContent = guild ? `${guild.name}, in one view.` : 'Your server, in one view.';
     elements.overviewSubtitle.textContent = guild
       ? 'See what is live, what needs attention, and where to go next.'
       : 'Select a server to see its setup, health, and shortcuts.';
@@ -5444,3 +5444,4 @@
 
   loadSession();
 })();
+
