@@ -13,6 +13,9 @@ const iconPaths = {
   games: ['M8 8h8a5 5 0 0 1 4.7 6.7l-1 3a2.4 2.4 0 0 1-4 1l-1.8-2.2h-3.8l-1.8 2.2a2.4 2.4 0 0 1-4-1l-1-3A5 5 0 0 1 8 8Z', 'M7 12v4', 'M5 14h4', 'M16 12h.01', 'M18 15h.01'],
   owner: ['M12 3 4 7v5c0 5 3.4 8.1 8 9 4.6-.9 8-4 8-9V7l-8-4Z', 'M9 12l2 2 4-4'],
   arrow: ['M5 12h14', 'm14 7 5 5-5 5'],
+  hash: ['M10 3 8 21', 'M16 3l-2 18', 'M4 9h16', 'M3 15h16'],
+  bolt: ['m13 2-9 12h7l-1 8 9-12h-7l1-8Z'],
+  members: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
 };
 const icon = (name, className = 'icon') => node('svg', {
   class: className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8',
@@ -28,12 +31,13 @@ const render = (entry) => {
 
 const brand = node('a', { class: 'brand', href: '/admin', 'aria-label': 'CoinSprite home' },
   node('span', { class: 'brand-mark', 'aria-hidden': 'true' }, icon('coin')),
-  node('span', {}, node('strong', {}, 'CoinSprite'), node('small', {}, 'Community studio')));
+  node('span', {}, node('strong', {}, 'CoinSprite'), node('small', {}, 'Discord control center')));
 
 const header = node('header', { class: 'topbar' },
   brand,
+  node('div', { class: 'topbar-context', 'aria-hidden': 'true' }, icon('hash'), node('span', {}, 'control-center')),
   node('div', { class: 'topbar-actions' },
-    node('span', { class: 'live-pill' }, node('i'), ' Bot connected'),
+    node('span', { class: 'live-pill' }, node('i'), ' Discord bot online'),
     node('div', { class: 'account-wrap', id: 'accountWrap', hidden: true },
       node('button', { class: 'user-chip', id: 'userChip', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' },
         node('img', { id: 'userAvatar', alt: '' }), node('span', { id: 'sessionLabel' }), node('i', { 'aria-hidden': 'true' }, '&#8964;')),
@@ -44,55 +48,83 @@ const header = node('header', { class: 'topbar' },
 
 const landing = node('main', { class: 'login-shell', id: 'loginPanel' },
   node('section', { class: 'login-copy' },
-    node('span', { class: 'eyebrow' }, 'YOUR SERVER, IN MOTION'),
-    node('h1', {}, 'Run your community. ', node('em', {}, 'Keep the magic.')),
-    node('p', {}, 'Shape every member moment from one expressive studio—progression, welcomes, messages, roles, and games included.'),
+    node('span', { class: 'eyebrow' }, 'YOUR DISCORD, UNDER CONTROL'),
+    node('h1', {}, 'One dashboard. ', node('em', {}, 'Every community move.')),
+    node('p', {}, 'Configure leveling, member journeys, reusable messages, reaction roles, and games from a control center that feels instantly familiar.'),
     node('div', { class: 'login-actions' },
-      node('a', { class: 'button primary login-button', id: 'loginButton', href: '/auth/discord' }, 'Enter the studio ', icon('arrow', 'button-icon'))),
+      node('a', { class: 'button primary login-button', id: 'loginButton', href: '/auth/discord' }, 'Continue with Discord ', icon('arrow', 'button-icon'))),
     node('p', { class: 'login-note', id: 'loginStatus', role: 'status' }, 'Checking your Discord session…'),
     node('ul', { class: 'trust-list', 'aria-label': 'Dashboard highlights' },
-      node('li', {}, 'Discord sign-in'), node('li', {}, 'Preview before publish'), node('li', {}, 'Changes stay in draft'))),
+      node('li', {}, 'Secure Discord sign-in'), node('li', {}, 'Live message previews'), node('li', {}, 'You control every change'))),
   node('aside', { class: 'login-preview', 'aria-label': 'CoinSprite dashboard preview' },
-    node('div', { class: 'preview-kicker' }, node('span', {}, node('i'), ' LIVE SERVER PULSE'), node('b', {}, 'COINSPRITE / 01')),
+    node('div', { class: 'preview-kicker' }, node('span', {}, icon('hash'), ' control-center'), node('b', {}, node('i'), ' ONLINE')),
     node('div', { class: 'preview-body' },
       node('div', { class: 'preview-rail', 'aria-hidden': 'true' }, icon('overview'), icon('leveling'), icon('welcome'), icon('roles'), icon('games')),
+      node('div', { class: 'preview-channels', 'aria-hidden': 'true' },
+        node('strong', {}, 'COINSPRITE HQ'),
+        node('small', {}, 'SERVER DASHBOARD'),
+        node('span', { class: 'active' }, icon('hash'), ' overview'),
+        node('span', {}, icon('bolt'), ' leveling'),
+        node('span', {}, icon('members'), ' member-journeys'),
+        node('span', {}, icon('templates'), ' message-studio'),
+        node('span', {}, icon('games'), ' community-games')),
       node('div', { class: 'preview-content' },
-        node('span', { class: 'preview-label' }, 'TODAY IN YOUR WORLD'),
-        node('h2', {}, 'Everything important, at a glance. Then make it move.'),
+        node('span', { class: 'preview-label' }, 'GOOD AFTERNOON, ADMIN'),
+        node('h2', {}, 'Your community is online and ready.'),
         node('div', { class: 'preview-stat-grid' },
-          node('span', {}, node('small', {}, 'AUTOMATIONS'), node('strong', {}, '06'), node('em', {}, '5 healthy')),
+          node('span', {}, node('small', {}, 'SYSTEMS LIVE'), node('strong', {}, '06'), node('em', {}, 'all healthy')),
           node('span', {}, node('small', {}, 'MESSAGES'), node('strong', {}, '12'), node('em', {}, 'ready to send')),
-          node('span', {}, node('small', {}, 'CHANNELS'), node('strong', {}, '24'), node('em', {}, 'connected'))),
+          node('span', {}, node('small', {}, 'SETUP'), node('strong', {}, '92%'), node('em', {}, 'almost there'))),
         node('div', { class: 'preview-activity' },
-          node('span', {}, icon('leveling'), node('i', {}, node('b', {}, 'Leveling engine'), node('small', {}, 'Awarding XP on a 60s cooldown')), node('em', {}, 'ACTIVE')),
-          node('span', {}, icon('welcome'), node('i', {}, node('b', {}, 'Welcome flow'), node('small', {}, 'Join message routed to #general')), node('em', {}, 'READY')),
+          node('span', {}, icon('leveling'), node('i', {}, node('b', {}, 'Leveling engine'), node('small', {}, 'XP is flowing across 8 channels')), node('em', {}, 'ACTIVE')),
+          node('span', {}, icon('welcome'), node('i', {}, node('b', {}, 'Welcome journey'), node('small', {}, 'New members land in #general')), node('em', {}, 'READY')),
           node('span', {}, icon('games'), node('i', {}, node('b', {}, 'Community games'), node('small', {}, 'Counting and lottery configured')), node('em', {}, '2 LIVE')))))));
 
 const navigation = [
-  ['overviewNav', 'overview', 'overview', 'Home', 'Server pulse'],
-  ['levelingNav', 'leveling', 'leveling', 'Progress', 'XP and rewards'],
-  ['welcomeMessagesNav', 'member-messages', 'welcome', 'Journeys', 'Join, leave and boost'],
-  ['messageTemplatesNav', 'message-templates', 'templates', 'Messages', 'Compose and reuse'],
-  ['reactionRolesNav', 'reaction-roles', 'roles', 'Roles', 'Member choices'],
-  ['gamesNav', 'games', 'games', 'Play', 'Counting and lottery'],
-  ['ownerNav', 'owner', 'owner', 'Ops', 'Fleet and console'],
+  ['overviewNav', 'overview', 'overview', 'Overview', 'Server pulse', 'server'],
+  ['levelingNav', 'leveling', 'leveling', 'Leveling', 'XP and rewards', 'community'],
+  ['welcomeMessagesNav', 'member-messages', 'welcome', 'Member journeys', 'Join, leave and boost', 'community'],
+  ['messageTemplatesNav', 'message-templates', 'templates', 'Message studio', 'Compose and reuse', 'automation'],
+  ['reactionRolesNav', 'reaction-roles', 'roles', 'Reaction roles', 'Member choices', 'automation'],
+  ['gamesNav', 'games', 'games', 'Community games', 'Counting and lottery', 'automation'],
+  ['ownerNav', 'owner', 'owner', 'Owner console', 'Fleet and operations', 'operations'],
 ];
 
+const navItem = ([id, view, iconName, label, description]) => node('button', {
+  class: `nav-item${id === 'overviewNav' ? ' active' : ''}`, id, type: 'button', 'data-view': view,
+  ...(view === 'owner' ? { hidden: true } : {}),
+}, node('span', { class: 'nav-icon', 'aria-hidden': 'true' }, icon(iconName)), node('span', {}, node('strong', {}, label), node('small', {}, description)));
+
+const serverRail = node('aside', { class: 'server-rail', 'aria-label': 'CoinSprite workspace' },
+  node('a', { class: 'rail-home', href: '/admin', 'aria-label': 'CoinSprite home' }, icon('coin')),
+  node('span', { class: 'rail-divider', 'aria-hidden': 'true' }),
+  node('span', { class: 'rail-server active', 'aria-hidden': 'true' }, 'CS'),
+  node('span', { class: 'rail-server muted', 'aria-hidden': 'true' }, icon('members')),
+  node('span', { class: 'rail-spacer', 'aria-hidden': 'true' }),
+  node('span', { class: 'rail-status', 'aria-hidden': 'true' }, node('i'), 'LIVE'));
+
 const sidebar = node('aside', { class: 'sidebar' },
+  node('div', { class: 'sidebar-title' },
+    node('span', { class: 'server-avatar', 'aria-hidden': 'true' }, 'CS'),
+    node('span', {}, node('strong', {}, 'Server control'), node('small', {}, 'CoinSprite workspace'))),
   node('div', { class: 'server-block' },
-    node('label', { for: 'guildSelect' }, 'WORKING IN'),
+    node('label', { for: 'guildSelect' }, 'ACTIVE DISCORD SERVER'),
     node('div', { class: 'select-wrap' }, node('select', { id: 'guildSelect', disabled: true }, node('option', { value: '' }, 'No editable servers'))),
     node('p', { id: 'serverMeta' }, 'Choose a Discord server')),
-  node('button', { class: 'mobile-nav-toggle', id: 'mobileNavToggle', type: 'button', 'aria-controls': 'dashboardNav', 'aria-expanded': 'false' }, node('span', {}, 'Navigate'), node('b', {}, 'Open menu')),
+  node('button', { class: 'mobile-nav-toggle', id: 'mobileNavToggle', type: 'button', 'aria-controls': 'dashboardNav', 'aria-expanded': 'false' }, node('span', {}, 'Dashboard menu'), node('b', {}, 'Open')),
   node('nav', { class: 'nav-list', id: 'dashboardNav', 'aria-label': 'Dashboard' },
-    navigation.map(([id, view, iconName, label, description], index) => node('button', {
-      class: `nav-item${index === 0 ? ' active' : ''}`, id, type: 'button', 'data-view': view,
-      ...(view === 'owner' ? { hidden: true } : {}),
-    }, node('span', { class: 'nav-icon', 'aria-hidden': 'true' }, icon(iconName)), node('span', {}, node('strong', {}, label), node('small', {}, description))))));
+    node('div', { class: 'nav-group' }, node('span', { class: 'nav-group-label' }, 'SERVER'), navigation.filter((entry) => entry[5] === 'server').map(navItem)),
+    node('div', { class: 'nav-group' }, node('span', { class: 'nav-group-label' }, 'COMMUNITY'), navigation.filter((entry) => entry[5] === 'community').map(navItem)),
+    node('div', { class: 'nav-group' }, node('span', { class: 'nav-group-label' }, 'AUTOMATION'), navigation.filter((entry) => entry[5] === 'automation').map(navItem)),
+    node('div', { class: 'nav-group' }, node('span', { class: 'nav-group-label' }, 'OPERATIONS'), navigation.filter((entry) => entry[5] === 'operations').map(navItem))),
+  node('div', { class: 'sidebar-footer' },
+    node('span', { 'aria-hidden': 'true' }, icon('bolt')),
+    node('span', {}, node('strong', {}, 'Bot connected'), node('small', {}, 'All systems operational')),
+    node('i', { 'aria-hidden': 'true' })));
 
 const overview = node('section', { class: 'view active overview-view', id: 'overviewView', 'data-view-panel': 'overview' },
   node('header', { class: 'workspace-head overview-head' },
-    node('div', {}, node('span', { class: 'eyebrow' }, 'COMMUNITY PULSE'), node('h1', { id: 'overviewTitle' }, 'Your server, in one view.'), node('p', { id: 'overviewSubtitle' }, 'Choose a server to see what is live, what needs attention, and where to go next.')),
+    node('div', {}, node('span', { class: 'eyebrow' }, 'SERVER OVERVIEW'), node('h1', { id: 'overviewTitle' }, 'Your community command center.'), node('p', { id: 'overviewSubtitle' }, 'Choose a server to see what is live, what needs attention, and where to go next.')),
     node('span', { class: 'overview-health', id: 'overviewHealth' }, node('i'), node('span', {}, node('strong', {}, 'Loading workspace'), node('small', {}, 'Checking configuration')))),
   node('section', { class: 'overview-metrics', id: 'overviewMetrics', 'aria-label': 'Server summary' }),
   node('div', { class: 'overview-grid' },
@@ -119,13 +151,13 @@ const workspace = node('section', { class: 'workspace' },
     node('span', { id: 'saveState' }, 'Unsaved changes'),
     node('div', {}, node('button', { class: 'button ghost', id: 'resetButton', type: 'button' }, 'Reset'), node('button', { class: 'button primary', id: 'saveButton', type: 'button' }, 'Apply changes'))));
 
-const dashboard = node('main', { class: 'app-shell', id: 'appShell', hidden: true }, sidebar, workspace);
+const dashboard = node('main', { class: 'app-shell', id: 'appShell', hidden: true }, serverRail, sidebar, workspace);
 const head = node('head', {},
   node('meta', { charset: 'utf-8' }),
   node('meta', { name: 'viewport', content: 'width=device-width, initial-scale=1' }),
-  node('meta', { name: 'theme-color', content: '#f3f1eb' }),
-  node('meta', { name: 'description', content: 'CoinSprite Studio for shaping Discord community experiences.' }),
-  node('title', {}, 'CoinSprite · Community Studio'),
+  node('meta', { name: 'theme-color', content: '#0b0c0f' }),
+  node('meta', { name: 'description', content: 'CoinSprite control center for Discord community settings.' }),
+  node('title', {}, 'CoinSprite · Discord Control Center'),
   node('link', { rel: 'icon', type: 'image/png', href: '/admin/brand-icon.png' }),
   node('link', { rel: 'stylesheet', href: '/admin/style.css' }),
   node('link', { rel: 'stylesheet', href: '/admin/dashboard.css' }),
@@ -134,8 +166,13 @@ const head = node('head', {},
   node('script', { src: '/admin/inventory.js', defer: true }));
 
 function renderAdminDocument() {
-  return `<!doctype html>${render(node('html', { lang: 'en' }, head, node('body', {}, header, landing, tree.profile, dashboard, tree.dialogs)))}`;
+  return `<!doctype html>${render(node('html', { lang: 'en' }, head, node('body', {},
+    node('a', { class: 'skip-link', href: '#mainContent' }, 'Skip to content'),
+    header,
+    node('div', { id: 'mainContent', tabindex: '-1' }, landing, tree.profile, dashboard),
+    tree.dialogs)))}`;
 }
 
 module.exports = { renderAdminDocument };
+
 
