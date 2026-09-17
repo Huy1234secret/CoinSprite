@@ -233,4 +233,3 @@ Before delivering any UI code, verify:
 - [ ] Responsive: 375px, 768px, 1024px, 1440px
 - [ ] No content hidden behind fixed navbars
 - [ ] No horizontal scroll on mobile
-
