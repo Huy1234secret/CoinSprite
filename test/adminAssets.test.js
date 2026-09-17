@@ -43,8 +43,10 @@ test('remade dashboard has no HTML source file and retains every main view', () 
   assert.deepEqual(fs.readdirSync(path.join(root, 'admin')).filter((name) => name.endsWith('.html')), []);
   assert.equal(loadAdminAsset('index.html'), null);
   const document = loadAdminAsset('document').data.toString('utf8');
-  assert.match(document, /Run your community/);
-  assert.match(document, /Everything important, at a glance\./);
+  assert.match(document, /One dashboard\./);
+  assert.match(document, /Your community is online and ready\./);
+  assert.match(document, /class="server-rail"/);
+  assert.match(document, /class="preview-channels"/);
   for (const view of ['overview', 'leveling', 'member-messages', 'message-templates', 'reaction-roles', 'games', 'owner']) {
     assert.match(document, new RegExp(`data-view="${view}"`));
     assert.match(document, new RegExp(`data-view-panel="${view}"`));
