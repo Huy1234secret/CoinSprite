@@ -87,6 +87,7 @@ const PUBLIC_ASSETS = new Map([
   ['/admin/app.js', ['app.js', 'application/javascript; charset=utf-8']],
   ['/admin/inventory.js', ['inventory.js', 'application/javascript; charset=utf-8']],
   ['/admin/style.css', ['style.css', 'text/css; charset=utf-8']],
+  ['/admin/dashboard.css', ['dashboard.css', 'text/css; charset=utf-8']],
 ]);
 const sessions = new Map();
 const directoryCache = new Map();
@@ -1276,3 +1277,4 @@ module.exports = {
   validateCountingChannel,
   startAdminServer,
 };
+
