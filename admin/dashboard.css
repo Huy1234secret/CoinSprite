@@ -660,4 +660,3 @@ input:hover:not(:disabled), textarea:hover:not(:disabled), select:hover:not(:dis
   .overview-metrics { grid-template-columns: 1fr; }
   .overview-metrics article { min-height: 104px; }
 }
-
