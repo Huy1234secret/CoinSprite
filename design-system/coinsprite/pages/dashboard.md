@@ -62,4 +62,3 @@
 ## Recommendations
 
 - Effects: Hover tooltips, chart zoom on click, row highlighting on hover, smooth filter animations, data loading spinners
-
