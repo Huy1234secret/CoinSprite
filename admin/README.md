@@ -4,4 +4,3 @@ The admin panel has no `.html` source files. `layout.js` assembles the sign-in e
 
 `style.css` contains the functional editor foundations and Discord-specific previews. `dashboard.css` is the visual system: deep black surfaces, high-contrast yellow actions, a Discord-familiar three-column shell, compact cards, visible focus states, and responsive behavior. Keep functional IDs and `data-*` attributes stable when editing the tree or app bindings.
 
-
