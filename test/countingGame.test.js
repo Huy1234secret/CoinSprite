@@ -322,8 +322,8 @@ test('dashboard exposes Games/Counting and PATCH channel validation is guild iso
   const html = require('../src/adminAssets').loadAdminAsset('document').data.toString('utf8');
   const script = fs.readFileSync(path.join(__dirname, '..', 'admin', 'app.js'), 'utf8');
   const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'adminServer.js'), 'utf8');
-  assert.match(html, /data-view="games"[^>]*>[\s\S]*?<strong>Games<\/strong>/);
-  assert.match(html, /class="games-tabs"[\s\S]*?>🧮<\/span>Counting<\/button>/);
+  assert.match(html, /data-view="games"[^>]*>[\s\S]*?<strong>Community games<\/strong>/);
+  assert.match(html, /class="games-tabs"[\s\S]*?<button[^>]*>Counting<\/button>/);
   assert.equal((html.match(/id="countingChannel"/g) || []).length, 1);
   assert.match(script, /body = \{ memberMessages, counting, games \}/);
   assert.match(server, /requireGuildAdmin\(req, res, env, client, guildId\)/);
@@ -359,4 +359,5 @@ test('repository operation results remain explicit and never require JSON serial
   assert.equal(repository.nextExpected(GUILD_ID), '2');
   db.close();
 });
+
 
