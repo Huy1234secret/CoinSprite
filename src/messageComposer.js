@@ -46,46 +46,98 @@ function resolvedLayout(layout = {}, values = {}) {
 }
 
 function messageContentComponents(content, layout = {}, _label = 'Message', options = {}) {
+  const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
+  const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
+  const galleryPosition = layout.galleryPosition || 'bottom';
+
+  if (Array.isArray(layout.blocks) && layout.blocks.length > 0) {
+    const components = [];
+    let thumbnailPlaced = false;
+    for (const block of layout.blocks) {
+      if (block.type === 'text') {
+        const text = String(block.content || '').trim();
+        if (!text) continue;
+        if (thumbnailUrl && !thumbnailPlaced) {
+          components.push({
+            type: 9,
+            components: [{ type: 10, content: text }],
+            accessory: { type: 11, media: { url: thumbnailUrl } },
+          });
+          thumbnailPlaced = true;
+        } else {
+          components.push({ type: 10, content: text });
+        }
+      } else if (block.type === 'gallery') {
+        const urls = [...new Set((block.urls || galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
+        if (urls.length) {
+          components.push({
+            type: 12,
+            items: urls.map((url) => ({ media: { url } })),
+          });
+        }
+      } else if (block.type === 'separator') {
+        if (components.length && components.at(-1)?.type !== 14) {
+          components.push({ type: 14, divider: true, spacing: 1 });
+        }
+      }
+    }
+    if (!components.length) components.push({ type: 10, content: options.fallbackText || '-# Message' });
+    if (thumbnailUrl && !thumbnailPlaced) {
+      const first = components.shift();
+      components.unshift({
+        type: 9,
+        components: [first?.type === 10 ? first : { type: 10, content: options.fallbackText || '-# Message' }],
+        accessory: { type: 11, media: { url: thumbnailUrl } },
+      });
+    }
+    return components;
+  }
+
   const rawParts = String(content || '').split(/\{separator\}/gi);
   const parts = rawParts.length > 5
     ? [...rawParts.slice(0, 4), rawParts.slice(4).join('\n')]
     : rawParts;
-  const thumbnailUrl = layout.thumbnailEnabled ? safeMediaUrl(layout.thumbnailUrl) : '';
-  const components = [];
+  const textComponents = [];
   let thumbnailPlaced = false;
 
   for (let index = 0; index < parts.length; index += 1) {
     const text = parts[index].trim();
-    if (index > 0 && components.length && components.at(-1)?.type !== 14) {
-      components.push({ type: 14, divider: true, spacing: 1 });
+    if (index > 0 && textComponents.length && textComponents.at(-1)?.type !== 14) {
+      textComponents.push({ type: 14, divider: true, spacing: 1 });
     }
     if (!text) continue;
     if (thumbnailUrl && !thumbnailPlaced) {
-      components.push({
+      textComponents.push({
         type: 9,
         components: [{ type: 10, content: text }],
         accessory: { type: 11, media: { url: thumbnailUrl } },
       });
       thumbnailPlaced = true;
-    } else components.push({ type: 10, content: text });
+    } else textComponents.push({ type: 10, content: text });
   }
 
-  if (!components.length) components.push({ type: 10, content: options.fallbackText || '-# Message' });
+  if (!textComponents.length) textComponents.push({ type: 10, content: options.fallbackText || '-# Message' });
   if (thumbnailUrl && !thumbnailPlaced) {
-    const first = components.shift();
-    components.unshift({
+    const first = textComponents.shift();
+    textComponents.unshift({
       type: 9,
       components: [first?.type === 10 ? first : { type: 10, content: options.fallbackText || '-# Message' }],
       accessory: { type: 11, media: { url: thumbnailUrl } },
     });
   }
 
-  const galleryUrls = [...new Set((layout.galleryUrls || []).map(safeMediaUrl).filter(Boolean))].slice(0, 10);
-  if (galleryUrls.length) {
-    components.push({
-      type: 12,
-      items: galleryUrls.map((url) => ({ media: { url } })),
-    });
+  const galleryComponent = galleryUrls.length ? {
+    type: 12,
+    items: galleryUrls.map((url) => ({ media: { url } })),
+  } : null;
+
+  const components = [];
+  if (galleryPosition === 'top' && galleryComponent) {
+    components.push(galleryComponent);
+  }
+  components.push(...textComponents);
+  if (galleryPosition !== 'top' && galleryComponent) {
+    components.push(galleryComponent);
   }
   return components;
 }

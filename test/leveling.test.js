@@ -308,6 +308,89 @@ test('level-up composer builds container, thumbnail, separator, and gallery comp
   assert.doesNotMatch(JSON.stringify(payload), /"description"/);
 });
 
+test('role boosts multiply when mode is stackable and cap at ten', () => {
+  const config = {
+    channelMultipliers: { '123456789012345678': 1 },
+    roleBoostMode: 'stackable',
+    roleBoosts: [
+      { roleId: '223456789012345678', multiplier: 2 },
+      { roleId: '323456789012345678', multiplier: 3 },
+    ],
+  };
+  const message = {
+    channelId: '123456789012345678',
+    channel: { parentId: null },
+    member: { roles: { cache: new Map([['223456789012345678', {}], ['323456789012345678', {}]]) } },
+  };
+  assert.deepEqual(xpMultiplierForMessage(message, config), {
+    channelMultiplier: 1, roleMultiplier: 6, multiplier: 6,
+  });
+
+  const overflowConfig = {
+    channelMultipliers: { '123456789012345678': 1 },
+    roleBoostMode: 'stackable',
+    roleBoosts: [
+      { roleId: '223456789012345678', multiplier: 4 },
+      { roleId: '323456789012345678', multiplier: 5 },
+    ],
+  };
+  assert.deepEqual(xpMultiplierForMessage(message, overflowConfig), {
+    channelMultiplier: 1, roleMultiplier: 10, multiplier: 10,
+  });
+});
+
+test('level-up composer places media gallery above message when galleryPosition is top', () => {
+  const payload = levelUpAnnouncementPayload('Level up content!', {
+    announcements: {
+      layout: {
+        container: true,
+        accentColor: '#57f287',
+        galleryPosition: 'top',
+        thumbnailEnabled: false,
+        galleryUrls: ['https://example.com/top-image.png'],
+      },
+    },
+  });
+  assert.equal(payload.components[0].components[0].type, 12); // Media gallery first
+  assert.equal(payload.components[0].components[1].type, 10); // Text component second
+});
+
+test('XP drop supports {crate} in media templates and resolves to crate image', () => {
+  const normalized = normalizeLevelingConfig({
+    announcements: {
+      layout: {
+        thumbnailUrl: '{crate}',
+        galleryUrls: ['{crate}'],
+      },
+    },
+    xpDrops: {
+      dropThumbnailUrl: '{crate}',
+      claimThumbnailUrl: '{user_profile}',
+    },
+  });
+  assert.equal(normalized.announcements.layout.thumbnailUrl, '{crate}');
+  assert.deepEqual(normalized.announcements.layout.galleryUrls, ['{crate}']);
+  assert.equal(normalized.xpDrops.dropThumbnailUrl, '{crate}');
+  assert.equal(normalized.xpDrops.claimThumbnailUrl, '{user_profile}');
+
+  const drop = {
+    id: 'crate_1',
+    crateName: 'Mythic Box',
+    imageUrl: 'https://example.com/mythic.png',
+    color: '#925cff',
+    xpMin: 100, xpMax: 200,
+    claimLimit: 3,
+    claims: [],
+    thumbnailEnabled: true,
+    thumbnailUrl: '{crate}',
+    dropTemplate: 'Drop: {crate} with {crate_xp} XP',
+  };
+  const payload = xpDropMessagePayload(drop, { serverName: 'Garden' });
+  assert.equal(payload.components[0].type, 17);
+  const section = payload.components[0].components.find((c) => c.type === 9);
+  assert.equal(section.accessory.media.url, 'https://example.com/mythic.png');
+});
+
 test('XP curve and level calculation agree at boundaries', () => {
   const curve = { baseXp: 100, growth: 1.5, maxLevel: 100 };
   assert.equal(xpThresholdForLevel(0, curve), 0);
