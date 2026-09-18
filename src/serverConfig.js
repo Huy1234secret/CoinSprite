@@ -34,10 +34,15 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
   channelMultipliers: Object.freeze({}),
   roleRewards: Object.freeze([]),
   roleBoosts: Object.freeze([]),
+  roleBoostMode: 'highest',
   stackRoleRewards: true,
   xpDrops: Object.freeze({
     enabled: false,
     channelId: '',
+    dropThumbnailEnabled: true,
+    dropThumbnailUrl: '{crate}',
+    claimThumbnailEnabled: false,
+    claimThumbnailUrl: '{user_profile}',
     dropTemplate: '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}',
     claimTemplate: '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining',
     crates: Object.freeze([]),
@@ -130,9 +135,11 @@ function cleanWebUrl(value) {
   }
 }
 
+const LEVELING_MEDIA_VARIABLES = new Set(['{user_profile}', '{crate}']);
+
 function cleanLevelingMediaUrl(value) {
   const text = String(value || '').trim();
-  return text.toLowerCase() === '{user_profile}' ? '{user_profile}' : cleanWebUrl(text);
+  return LEVELING_MEDIA_VARIABLES.has(text.toLowerCase()) ? text.toLowerCase() : cleanWebUrl(text);
 }
 
 const MEMBER_MEDIA_VARIABLES = new Set(['{user_avatar}', '{server_icon}']);
@@ -287,6 +294,7 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
         thumbnailUrl: cleanLevelingMediaUrl(layoutSource.thumbnailUrl),
         galleryUrls: [...new Set((Array.isArray(layoutSource.galleryUrls) ? layoutSource.galleryUrls : [])
           .map(cleanLevelingMediaUrl).filter(Boolean))].slice(0, 10),
+        galleryPosition: ['top', 'bottom'].includes(layoutSource.galleryPosition) ? layoutSource.galleryPosition : (layoutDefaults.galleryPosition || 'bottom'),
       },
       additionalContainers: normalizeAdditionalMessageContainers(source.announcements?.additionalContainers, {
         cleanMedia: cleanLevelingMediaUrl,
@@ -296,12 +304,21 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
     channelMultipliers,
     roleRewards,
     roleBoosts,
+    roleBoostMode: ['stackable', 'highest'].includes(source.roleBoostMode) ? source.roleBoostMode : (defaults.roleBoostMode || 'highest'),
     stackRoleRewards: source.stackRoleRewards === undefined
       ? defaults.stackRoleRewards !== false
       : source.stackRoleRewards !== false,
     xpDrops: {
       enabled: xpDropSource.enabled === undefined ? xpDropDefaults.enabled === true : xpDropSource.enabled === true,
       channelId: cleanId(xpDropSource.channelId),
+      dropThumbnailEnabled: xpDropSource.dropThumbnailEnabled === undefined
+        ? xpDropDefaults.dropThumbnailEnabled !== false
+        : xpDropSource.dropThumbnailEnabled !== false,
+      dropThumbnailUrl: cleanLevelingMediaUrl(xpDropSource.dropThumbnailUrl || xpDropDefaults.dropThumbnailUrl || '{crate}'),
+      claimThumbnailEnabled: xpDropSource.claimThumbnailEnabled === undefined
+        ? xpDropDefaults.claimThumbnailEnabled === true
+        : xpDropSource.claimThumbnailEnabled === true,
+      claimThumbnailUrl: cleanLevelingMediaUrl(xpDropSource.claimThumbnailUrl || xpDropDefaults.claimThumbnailUrl || '{user_profile}'),
       dropTemplate: String(xpDropSource.dropTemplate || xpDropDefaults.dropTemplate)
         .trim().slice(0, 3000) || xpDropDefaults.dropTemplate,
       claimTemplate: String(xpDropSource.claimTemplate || xpDropDefaults.claimTemplate)

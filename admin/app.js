@@ -148,8 +148,10 @@
     levelingChannels: $('#levelingChannels'),
     levelingStackRewards: $('#levelingStackRewards'), levelingRewards: $('#levelingRewards'),
     levelingAddReward: $('#levelingAddReward'), levelingBoosts: $('#levelingBoosts'), levelingAddBoost: $('#levelingAddBoost'),
-    levelingContainerAdd: $('#levelingContainerAdd'), levelingAdditionalContainerAdd: $('#levelingAdditionalContainerAdd'), levelingThumbnailAdd: $('#levelingThumbnailAdd'),
-    levelingGalleryAdd: $('#levelingGalleryAdd'), levelingVariablesToggle: $('#levelingVariablesToggle'), levelingEmojiToggle: $('#levelingEmojiToggle'),
+    roleBoostModeHighest: $('#roleBoostModeHighest'), roleBoostModeStackable: $('#roleBoostModeStackable'),
+    levelingContainerAdd: $('#levelingContainerAdd'), levelingAdditionalContainerAdd: $('#levelingAdditionalContainerAdd'),
+    levelingThumbnailControl: $('#levelingThumbnailControl'), levelingThumbnailPanel: $('#levelingThumbnailPanel'),
+    levelingGalleryAdd: $('#levelingGalleryAdd'), levelingEmojiToggle: $('#levelingEmojiToggle'),
     levelingComposerPanel: $('#levelingComposerPanel'),
     levelingDiscordFrame: $('#levelingDiscordFrame'), levelingMessagePreview: $('#levelingMessagePreview'), levelingAdditionalContainers: $('#levelingAdditionalContainers'),
     levelingAccentButton: $('#levelingAccentButton'), levelingAccentColor: $('#levelingAccentColor'),
@@ -178,7 +180,9 @@
     templateShareLink: $('#templateShareLink'), templateCopyLink: $('#templateCopyLink'), templatePickerDialog: $('#templatePickerDialog'), templatePickerSearch: $('#templatePickerSearch'), templatePickerList: $('#templatePickerList'),
     templateActionDialog: $('#templateActionDialog'), templateActionTitle: $('#templateActionTitle'), templateActionCopy: $('#templateActionCopy'), templateActionTargetLabel: $('#templateActionTargetLabel'), templateActionTarget: $('#templateActionTarget'), templateActionHelp: $('#templateActionHelp'), templateActionSave: $('#templateActionSave'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
-    xpDropVariables: $('#xpDropVariables'), xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
+    xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
+    xpDropThumbnailControl: $('#xpDropThumbnailControl'), xpDropThumbnailPanel: $('#xpDropThumbnailPanel'),
+    xpClaimThumbnailControl: $('#xpClaimThumbnailControl'), xpClaimThumbnailPanel: $('#xpClaimThumbnailPanel'),
     xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
     reactionRoleCreate: $('#reactionRoleCreate'), reactionRoleEmptyCreate: $('#reactionRoleEmptyCreate'), reactionRoleCount: $('#reactionRoleCount'), reactionRoleList: $('#reactionRoleList'),
     reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
@@ -286,6 +290,24 @@
     return /^\d+(?:\.\d+)?[smhd]$/.test(text) && Number.parseFloat(text) > 0 ? text : fallback;
   }
 
+  function durationToSeconds(val) {
+    const match = String(val || '').trim().toLowerCase().match(/^(\d+(?:\.\d+)?)([smhd])$/);
+    if (!match) return null;
+    const num = parseFloat(match[1]);
+    if (!Number.isFinite(num) || num <= 0) return null;
+    const unit = match[2];
+    const mult = unit === 's' ? 1 : unit === 'm' ? 60 : unit === 'h' ? 3600 : 86400;
+    return num * mult;
+  }
+
+  function isValidCrateDuration(val, optional = false) {
+    const text = String(val || '').trim();
+    if (optional && (!text || text === '0' || text.toLowerCase() === 'never')) return true;
+    const seconds = durationToSeconds(text);
+    if (seconds === null) return false;
+    return seconds >= 60 && seconds <= 86400;
+  }
+
   const MAX_ADDITIONAL_MESSAGE_CONTAINERS = 2;
 
   function newAdditionalContainer(accentColor = '#b9f547') {
@@ -334,6 +356,8 @@
     source.announcements.layout.thumbnailEnabled = source.announcements.layout.thumbnailEnabled === true;
     source.announcements.layout.thumbnailUrl = String(source.announcements.layout.thumbnailUrl || '').slice(0, 2000);
     source.announcements.layout.galleryUrls = (source.announcements.layout.galleryUrls || []).map(String).slice(0, 10);
+    source.announcements.layout.galleryPosition = ['top', 'bottom'].includes(String(source.announcements.layout.galleryPosition).toLowerCase())
+      ? source.announcements.layout.galleryPosition.toLowerCase() : 'bottom';
     source.announcements.additionalContainers = normalizeAdditionalContainersClient(source.announcements.additionalContainers, (layout) => {
       const normalized = layout && typeof layout === 'object' && !Array.isArray(layout) ? layout : {};
       return {
@@ -343,6 +367,7 @@
         thumbnailUrl: validMediaTemplate(normalized.thumbnailUrl) ? String(normalized.thumbnailUrl).trim() : '',
         galleryUrls: [...new Set((Array.isArray(normalized.galleryUrls) ? normalized.galleryUrls : [])
           .map((url) => String(url).trim()).filter(validMediaTemplate))].slice(0, 10),
+        galleryPosition: ['top', 'bottom'].includes(String(normalized.galleryPosition).toLowerCase()) ? normalized.galleryPosition.toLowerCase() : 'bottom',
       };
     });
     source.channelMultipliers = Object.fromEntries(Object.entries(source.channelMultipliers || {}).map(([id, multiplier]) => [
@@ -356,10 +381,16 @@
       roleId: String(boost.roleId || ''),
       multiplier: Math.round(clampNumber(boost.multiplier, 0, 10, 1)),
     })).filter((boost) => boost.roleId).slice(0, 100);
+    source.roleBoostMode = ['stackable', 'highest'].includes(String(source.roleBoostMode).toLowerCase())
+      ? source.roleBoostMode.toLowerCase() : 'highest';
     source.stackRoleRewards = source.stackRoleRewards !== false;
     source.xpDrops ||= {};
     source.xpDrops.enabled = source.xpDrops.enabled === true;
     source.xpDrops.channelId = String(source.xpDrops.channelId || '');
+    source.xpDrops.dropThumbnailEnabled = source.xpDrops.dropThumbnailEnabled !== false;
+    source.xpDrops.dropThumbnailUrl = validMediaTemplate(source.xpDrops.dropThumbnailUrl) ? String(source.xpDrops.dropThumbnailUrl).trim() : '{crate}';
+    source.xpDrops.claimThumbnailEnabled = source.xpDrops.claimThumbnailEnabled === true;
+    source.xpDrops.claimThumbnailUrl = validMediaTemplate(source.xpDrops.claimThumbnailUrl) ? String(source.xpDrops.claimThumbnailUrl).trim() : '{user_profile}';
     source.xpDrops.dropTemplate = String(source.xpDrops.dropTemplate || '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}').slice(0, 3000);
     source.xpDrops.claimTemplate = String(source.xpDrops.claimTemplate || '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining').slice(0, 3000);
     const usedCrateIds = new Set();
@@ -375,10 +406,10 @@
         imageUrl: String(crate.imageUrl || '').slice(0, 2000),
         xp: { min: minimum, max: Math.round(clampNumber(crate.xp?.max ?? crate.xpMax, minimum, 1_000_000, Math.max(100, minimum))) },
         channelId: String(crate.channelId || ''),
-        dropEvery: normalizeDurationInput(crate.dropEvery, '30m'),
+        dropEvery: String(crate.dropEvery || '30m').trim().slice(0, 16),
         chancePercent: clampNumber(crate.chancePercent, 0, 100, 100),
         claimLimit: Math.round(clampNumber(crate.claimLimit, 1, 1000, 1)),
-        despawnAfter: normalizeDurationInput(crate.despawnAfter, '', true),
+        despawnAfter: String(crate.despawnAfter || '').trim().slice(0, 16),
         allowMultipleClaims: crate.allowMultipleClaims === true,
         containerColor: /^#[0-9a-f]{6}$/i.test(crate.containerColor || '') ? crate.containerColor.toLowerCase() : '#b9f547',
       };
@@ -486,17 +517,197 @@
     return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#99a1a6';
   }
 
+  function updateThumbnailControlUI(scope) {
+    if (scope === 'leveling') {
+      const layout = state.config?.leveling?.announcements?.layout;
+      const control = elements.levelingThumbnailControl;
+      if (!control || !layout) return;
+      const hasThumb = layout.thumbnailEnabled && Boolean(layout.thumbnailUrl);
+      control.classList.toggle('has-thumbnail', hasThumb);
+      if (hasThumb) {
+        const previewUrl = previewMediaUrl(layout.thumbnailUrl);
+        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
+      } else {
+        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
+      }
+    } else if (scope === 'xpDrop') {
+      const xpDrops = state.config?.leveling?.xpDrops;
+      const control = elements.xpDropThumbnailControl;
+      if (!control || !xpDrops) return;
+      const hasThumb = xpDrops.dropThumbnailEnabled !== false;
+      control.classList.toggle('has-thumbnail', hasThumb);
+      if (hasThumb) {
+        const previewUrl = previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}');
+        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
+      } else {
+        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
+      }
+    } else if (scope === 'xpClaim') {
+      const xpDrops = state.config?.leveling?.xpDrops;
+      const control = elements.xpClaimThumbnailControl;
+      if (!control || !xpDrops) return;
+      const hasThumb = xpDrops.claimThumbnailEnabled === true;
+      control.classList.toggle('has-thumbnail', hasThumb);
+      if (hasThumb) {
+        const previewUrl = previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}');
+        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
+      } else {
+        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
+      }
+    }
+  }
+
+  function renderThumbnailPanel(scope) {
+    if (scope === 'leveling') {
+      const panel = elements.levelingThumbnailPanel;
+      const layout = state.config?.leveling?.announcements?.layout;
+      if (!panel || !layout) return;
+      panel.innerHTML = `<div class="thumbnail-panel-inner">
+        <div class="thumbnail-panel-header">
+          <strong>Thumbnail image</strong>
+          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="leveling" aria-label="Close">&times;</button>
+        </div>
+        <div class="thumbnail-panel-field">
+          <label>
+            <span>Image URL or variable</span>
+            <input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl || '')}" placeholder="{user_profile} or https://..." data-leveling-thumbnail-url>
+          </label>
+          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="leveling"><code>{user_profile}</code></button>
+          </div>
+        </div>
+        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
+          <label class="media-upload">
+            Upload image
+            <input type="file" accept="image/*" data-leveling-media-upload="thumbnail">
+          </label>
+          ${layout.thumbnailEnabled
+            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="leveling">Remove</button>'
+            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="leveling">Enable</button>'}
+        </div>
+      </div>`;
+    } else if (scope === 'xpDrop') {
+      const panel = elements.xpDropThumbnailPanel;
+      const xpDrops = state.config?.leveling?.xpDrops;
+      if (!panel || !xpDrops) return;
+      const url = xpDrops.dropThumbnailUrl || '{crate}';
+      const enabled = xpDrops.dropThumbnailEnabled !== false;
+      panel.innerHTML = `<div class="thumbnail-panel-inner">
+        <div class="thumbnail-panel-header">
+          <strong>Drop thumbnail</strong>
+          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="xpDrop" aria-label="Close">&times;</button>
+        </div>
+        <div class="thumbnail-panel-field">
+          <label>
+            <span>Image URL or variable</span>
+            <input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{crate} or https://..." data-xp-drop-thumbnail-url>
+          </label>
+          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="button tiny ghost" data-insert-thumb-var="{crate}" data-thumb-scope="xpDrop"><code>{crate}</code></button>
+            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="xpDrop"><code>{user_profile}</code></button>
+          </div>
+        </div>
+        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
+          <label class="media-upload">
+            Upload image
+            <input type="file" accept="image/*" data-xp-drop-media-upload="thumbnail">
+          </label>
+          ${enabled
+            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpDrop">Remove</button>'
+            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpDrop">Enable</button>'}
+        </div>
+      </div>`;
+    } else if (scope === 'xpClaim') {
+      const panel = elements.xpClaimThumbnailPanel;
+      const xpDrops = state.config?.leveling?.xpDrops;
+      if (!panel || !xpDrops) return;
+      const url = xpDrops.claimThumbnailUrl || '{user_profile}';
+      const enabled = xpDrops.claimThumbnailEnabled === true;
+      panel.innerHTML = `<div class="thumbnail-panel-inner">
+        <div class="thumbnail-panel-header">
+          <strong>Claim thumbnail</strong>
+          <button type="button" class="thumbnail-panel-close" data-close-thumbnail="xpClaim" aria-label="Close">&times;</button>
+        </div>
+        <div class="thumbnail-panel-field">
+          <label>
+            <span>Image URL or variable</span>
+            <input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://..." data-xp-claim-thumbnail-url>
+          </label>
+          <div class="variable-quick-pills" style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="button tiny ghost" data-insert-thumb-var="{user_profile}" data-thumb-scope="xpClaim"><code>{user_profile}</code></button>
+            <button type="button" class="button tiny ghost" data-insert-thumb-var="{crate}" data-thumb-scope="xpClaim"><code>{crate}</code></button>
+          </div>
+        </div>
+        <div class="thumbnail-panel-actions" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">
+          <label class="media-upload">
+            Upload image
+            <input type="file" accept="image/*" data-xp-claim-media-upload="thumbnail">
+          </label>
+          ${enabled
+            ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpClaim">Remove</button>'
+            : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpClaim">Enable</button>'}
+        </div>
+      </div>`;
+    }
+  }
+
   function renderLevelingChannels() {
     const multipliers = state.config.leveling.channelMultipliers || {};
     const channels = (state.directory.channels || []).filter((channel) => !channel.archived && channel.kind !== 'category');
-    elements.levelingChannels.innerHTML = channels.length ? channels.map((channel) => {
-      const active = Object.prototype.hasOwnProperty.call(multipliers, channel.id);
-      const multiplier = active ? multipliers[channel.id] : 1;
-      return `<article class="xp-channel-option${active ? ' selected' : ''}">
-        <label class="xp-channel-toggle"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''}><span><b>#</b><strong>${escapeHtml(channel.name)}</strong><small>${escapeHtml(channel.parentName || 'No category')}</small></span><i aria-hidden="true">${active ? '&#x2713;' : '+'}</i></label>
-        <label class="channel-multiplier" ${active ? '' : 'hidden'}><span>Multi:</span><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
-      </article>`;
-    }).join('') : '<p class="empty-state">No eligible text channels found.</p>';
+    if (!channels.length) {
+      elements.levelingChannels.innerHTML = '<p class="empty-state">No eligible text channels found.</p>';
+      return;
+    }
+    state.collapsedCategories ||= new Set();
+
+    const categoryMap = new Map();
+    channels.forEach((channel) => {
+      const parentId = channel.parentId || '__uncategorized__';
+      const parentName = channel.parentName || 'General Channels';
+      if (!categoryMap.has(parentId)) {
+        categoryMap.set(parentId, { id: parentId, name: parentName, channels: [] });
+      }
+      categoryMap.get(parentId).channels.push(channel);
+    });
+
+    let html = '';
+    categoryMap.forEach((cat) => {
+      const isCollapsed = state.collapsedCategories.has(cat.id);
+      const total = cat.channels.length;
+      const activeCount = cat.channels.filter((c) => Object.prototype.hasOwnProperty.call(multipliers, c.id)).length;
+      const allSelected = activeCount === total && total > 0;
+      const someSelected = activeCount > 0 && activeCount < total;
+
+      const channelsHtml = cat.channels.map((channel) => {
+        const active = Object.prototype.hasOwnProperty.call(multipliers, channel.id);
+        const multiplier = active ? multipliers[channel.id] : 1;
+        return `<article class="xp-channel-option${active ? ' selected' : ''}">
+          <label class="xp-channel-toggle"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''}><span><b>#</b><strong>${escapeHtml(channel.name)}</strong></span><i aria-hidden="true">${active ? '&#x2713;' : '+'}</i></label>
+          <label class="channel-multiplier" ${active ? '' : 'hidden'}><span>Multi:</span><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
+        </article>`;
+      }).join('');
+
+      html += `<section class="channel-category-card" data-category-id="${escapeHtml(cat.id)}">
+        <header class="channel-category-header">
+          <button type="button" class="category-collapse-toggle" data-category-collapse="${escapeHtml(cat.id)}" aria-label="Toggle ${escapeHtml(cat.name)} category">
+            ${isCollapsed ? '&#9654;' : '&#9660;'}
+          </button>
+          <label class="category-bulk-label">
+            <input type="checkbox" data-category-bulk="${escapeHtml(cat.id)}" ${allSelected ? 'checked' : ''} ${someSelected ? 'data-indeterminate="true"' : ''}>
+            <span class="category-title">${escapeHtml(cat.name)}</span>
+          </label>
+          <span class="category-count-badge">${activeCount}/${total}</span>
+        </header>
+        <div class="channel-category-body" ${isCollapsed ? 'hidden' : ''}>
+          ${channelsHtml}
+        </div>
+      </section>`;
+    });
+
+    elements.levelingChannels.innerHTML = html;
+    elements.levelingChannels.querySelectorAll('input[data-indeterminate="true"]').forEach((cb) => {
+      cb.indeterminate = true;
+    });
   }
 
   function renderLevelingRewards() {
@@ -511,6 +722,9 @@
 
   function renderLevelingBoosts() {
     const boosts = state.config.leveling.roleBoosts || [];
+    const mode = state.config?.leveling?.roleBoostMode || 'highest';
+    if (elements.roleBoostModeHighest) elements.roleBoostModeHighest.checked = mode === 'highest';
+    if (elements.roleBoostModeStackable) elements.roleBoostModeStackable.checked = mode === 'stackable';
     elements.levelingBoosts.innerHTML = boosts.length ? boosts.map((boost, index) => `<article class="reward-row boost-row" style="--role-color:${roleColor(boost.roleId)}">
       <span class="reward-level-mark boost-mark">XP</span>
       <label class="reward-role-field"><small><i class="role-color-dot"></i>Discord role</small><select data-level-boost-role="${index}">${roleOptions(boost.roleId)}</select></label>
@@ -528,17 +742,6 @@
     ['{total_xp}', 'Member total XP'], ['{server}', 'Server name'], ['{channel}', 'Drop channel'], ['{separator}', 'Discord divider'],
   ];
 
-  function xpDropDurationEditor(value, index, field, label, optional = false) {
-    const match = String(value || '').match(/^(\d+(?:\.\d+)?)([smhd])$/i);
-    const amount = match?.[1] || (optional ? '' : '30');
-    const unit = match?.[2]?.toLowerCase() || 'm';
-    const units = [['s', 'Seconds'], ['m', 'Minutes'], ['h', 'Hours'], ['d', 'Days']];
-    return `<span class="xp-drop-duration" role="group" aria-label="${escapeHtml(label)}">
-      <input type="number" min="0" max="31536000" step="any" inputmode="decimal" value="${escapeHtml(amount)}" placeholder="${optional ? 'Never' : '30'}" data-xp-drop-field="${field}" data-xp-drop-duration-part="amount" data-xp-drop-index="${index}" aria-label="${escapeHtml(label)} amount">
-      <select data-xp-drop-field="${field}" data-xp-drop-duration-part="unit" data-xp-drop-index="${index}" aria-label="${escapeHtml(label)} unit">${units.map(([key, name]) => `<option value="${key}" ${key === unit ? 'selected' : ''}>${name}</option>`).join('')}</select>
-    </span>`;
-  }
-
   function renderXpDropMessagePreviews() {
     const xpDrops = state.config.leveling.xpDrops;
     const selectedId = elements.xpDropTestCrate.value;
@@ -546,32 +749,87 @@
       name: 'Common Crate', imageUrl: '', containerColor: '#b9f547', claimLimit: 3,
     };
     const color = /^#[0-9a-f]{6}$/i.test(crate.containerColor || '') ? crate.containerColor : '#b9f547';
-    const image = previewMediaUrl(crate.imageUrl);
     elements.xpDropMessagePreview.style.setProperty('--accent-color', color);
     elements.xpDropClaimPreview.style.setProperty('--accent-color', color);
-    elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${image ? `<img class="discord-thumbnail" src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>'}</div><div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
-    elements.xpDropClaimPreview.innerHTML = inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message');
+
+    const dropThumbEnabled = xpDrops.dropThumbnailEnabled !== false;
+    const dropThumbUrl = previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}');
+    const dropThumbHtml = dropThumbEnabled
+      ? (dropThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(dropThumbUrl)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>')
+      : '';
+    elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${dropThumbHtml}</div><div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
+
+    const claimThumbEnabled = xpDrops.claimThumbnailEnabled === true;
+    const claimThumbUrl = previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}');
+    const claimThumbHtml = claimThumbEnabled
+      ? (claimThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(claimThumbUrl)}" alt="Claimed">` : '<div class="discord-thumbnail placeholder">IMG</div>')
+      : '';
+    elements.xpDropClaimPreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message')}</div>${claimThumbHtml}</div>`;
+
+    updateThumbnailControlUI('xpDrop');
+    updateThumbnailControlUI('xpClaim');
   }
 
   function renderXpDropList() {
     const crates = state.config.leveling.xpDrops.crates;
     elements.xpDropList.innerHTML = crates.length ? crates.map((crate, index) => {
       const image = previewMediaUrl(crate.imageUrl);
-      return `<article class="xp-drop-card" style="--crate-color:${crate.containerColor}" data-xp-drop-card="${index}">
-        <header><div><span class="crate-number">${String(index + 1).padStart(2, '0')}</span><div><strong>${escapeHtml(crate.name)}</strong><small>${crate.enabled ? 'Scheduled' : 'Paused'} · ${escapeHtml(crate.dropEvery)} · ${crate.chancePercent}% chance</small></div></div><div><label class="crate-enabled"><input type="checkbox" data-xp-drop-field="enabled" data-xp-drop-index="${index}" ${crate.enabled ? 'checked' : ''}><span>Enabled</span></label><button type="button" class="reward-remove" data-remove-xp-drop="${index}">Remove</button></div></header>
-        <div class="xp-drop-card-body">
-          <div class="xp-drop-art">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)} image">` : '<span>NO IMAGE</span>'}<label class="media-upload">Upload image<input type="file" accept="image/*" data-xp-drop-media="${index}"></label><small>Any decodable image or GIF, up to 10 MB</small></div>
-          <div class="xp-drop-fields">
-            <label class="wide"><span>Crate name</span><input type="text" maxlength="80" value="${escapeHtml(crate.name)}" data-xp-drop-field="name" data-xp-drop-index="${index}"></label>
-            <label><span>Minimum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.min}" data-xp-drop-field="xpMin" data-xp-drop-index="${index}"></label>
-            <label><span>Maximum XP</span><input type="number" min="1" max="1000000" value="${crate.xp.max}" data-xp-drop-field="xpMax" data-xp-drop-index="${index}"></label>
-            <label class="wide"><span>Fallback channel</span><select data-xp-drop-field="channelId" data-xp-drop-index="${index}">${channelOptions(crate.channelId, (channel) => channel.kind !== 'forum', 'Use global crate channel')}</select><small>Used only when no global crate channel is selected</small></label>
-            <label><span>Drop every</span>${xpDropDurationEditor(crate.dropEvery, index, 'dropEvery', 'Drop every')}<small>Choose an amount and time unit</small></label>
-            <label><span>Chance (%)</span><input type="number" min="0" max="100" step="0.01" value="${crate.chancePercent}" data-xp-drop-field="chancePercent" data-xp-drop-index="${index}"></label>
-            <label><span>Claim limit</span><input type="number" min="1" max="1000" value="${crate.claimLimit}" data-xp-drop-field="claimLimit" data-xp-drop-index="${index}"></label>
-            <label><span>Despawn after</span>${xpDropDurationEditor(crate.despawnAfter, index, 'despawnAfter', 'Despawn after', true)}<small>Leave the amount empty for no despawn</small></label>
-            <label><span>Container color</span><span class="crate-color-input"><input type="color" value="${crate.containerColor}" data-xp-drop-field="containerColor" data-xp-drop-index="${index}"><code>${crate.containerColor}</code></span></label>
-            <label class="wide crate-multi-claim"><input type="checkbox" data-xp-drop-field="allowMultipleClaims" data-xp-drop-index="${index}" ${crate.allowMultipleClaims ? 'checked' : ''}><span><strong>Allow a person to claim multiple times</strong><small>Off by default. When on, one member can consume more than one claim slot.</small></span></label>
+      const isDropValid = isValidCrateDuration(crate.dropEvery, false);
+      const isDespawnValid = isValidCrateDuration(crate.despawnAfter, true);
+      return `<article class="compact-crate-card" style="--crate-color:${escapeHtml(crate.containerColor)}" data-xp-drop-card="${index}">
+        <div class="xp-drop-card-layout">
+          <div class="tile-clickable" data-xp-drop-tile="${index}" title="Click to upload/replace crate image">
+            ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)}">` : '<div class="tile-empty"><span class="tile-icon">&#x1F4E6;</span><span>Upload</span></div>'}
+            <div class="tile-overlay">Change</div>
+            <input type="file" accept="image/*" class="sr-only" data-xp-drop-media="${index}">
+          </div>
+          <div class="xp-drop-rows">
+            <div class="xp-drop-row row-1">
+              <label>
+                <span class="field-label">Crate name</span>
+                <input type="text" maxlength="80" value="${escapeHtml(crate.name)}" data-xp-drop-field="name" data-xp-drop-index="${index}">
+              </label>
+              <div class="field-group">
+                <span class="field-label">XP Min – Max</span>
+                <div class="min-max-inputs">
+                  <input type="number" min="1" max="1000000" value="${crate.xp.min}" data-xp-drop-field="xpMin" data-xp-drop-index="${index}" placeholder="Min">
+                  <span class="range-sep">–</span>
+                  <input type="number" min="1" max="1000000" value="${crate.xp.max}" data-xp-drop-field="xpMax" data-xp-drop-index="${index}" placeholder="Max">
+                </div>
+              </div>
+              <div class="field-group chance-time-group">
+                <label>
+                  <span class="field-label">Chance (%)</span>
+                  <input type="number" min="0" max="100" step="0.01" value="${crate.chancePercent}" data-xp-drop-field="chancePercent" data-xp-drop-index="${index}">
+                </label>
+                <label>
+                  <span class="field-label">Drop every (1m–24h)</span>
+                  <input type="text" maxlength="10" value="${escapeHtml(crate.dropEvery)}" placeholder="30m" data-xp-drop-field="dropEvery" data-xp-drop-index="${index}" class="${isDropValid ? '' : 'invalid-duration'}" aria-label="Drop every interval">
+                </label>
+              </div>
+            </div>
+            <div class="xp-drop-row row-2">
+              <label>
+                <span class="field-label">Claim limit</span>
+                <input type="number" min="1" max="1000" value="${crate.claimLimit}" data-xp-drop-field="claimLimit" data-xp-drop-index="${index}">
+              </label>
+              <label>
+                <span class="field-label">Despawn after (1m–24h)</span>
+                <input type="text" maxlength="10" value="${escapeHtml(crate.despawnAfter)}" placeholder="Never (e.g. 10m)" data-xp-drop-field="despawnAfter" data-xp-drop-index="${index}" class="${isDespawnValid ? '' : 'invalid-duration'}" aria-label="Despawn after interval">
+              </label>
+              <label>
+                <span class="field-label">Message Color</span>
+                <span class="crate-color-input">
+                  <input type="color" value="${escapeHtml(crate.containerColor)}" data-xp-drop-field="containerColor" data-xp-drop-index="${index}">
+                  <code>${escapeHtml(crate.containerColor)}</code>
+                </span>
+              </label>
+              <label class="crate-multi-claim-compact">
+                <input type="checkbox" data-xp-drop-field="allowMultipleClaims" data-xp-drop-index="${index}" ${crate.allowMultipleClaims ? 'checked' : ''}>
+                <span class="field-label">Multi Claim</span>
+              </label>
+              <button type="button" class="reward-remove" data-remove-xp-drop="${index}" aria-label="Remove ${escapeHtml(crate.name)}">&times; Remove</button>
+            </div>
           </div>
         </div>
       </article>`;
@@ -584,7 +842,9 @@
     const selectedChannel = elements.xpDropTestChannel.value;
     elements.xpDropsEnabled.checked = xpDrops.enabled;
     elements.xpDropChannel.innerHTML = channelOptions(xpDrops.channelId, (channel) => channel.kind !== 'forum', 'Choose a drop channel');
-    elements.xpDropVariables.innerHTML = XP_DROP_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('');
+    if (elements.xpDropVariables) {
+      elements.xpDropVariables.innerHTML = XP_DROP_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('');
+    }
     renderXpDropList();
     elements.xpDropTestCrate.innerHTML = xpDrops.crates.length
       ? xpDrops.crates.map((crate) => `<option value="${escapeHtml(crate.id)}" ${crate.id === selectedCrate ? 'selected' : ''}>${escapeHtml(crate.name)}</option>`).join('')
@@ -615,13 +875,21 @@
   }
 
   function validMediaTemplate(value) {
-    return String(value || '').trim().toLowerCase() === '{user_profile}' || validHttpUrl(value);
+    const trimmed = String(value || '').trim().toLowerCase();
+    return trimmed === '{user_profile}' || trimmed === '{crate}' || validHttpUrl(value);
   }
 
   function previewMediaUrl(value) {
-    return String(value || '').trim().toLowerCase() === '{user_profile}'
-      ? 'https://cdn.discordapp.com/embed/avatars/0.png'
-      : validHttpUrl(value) ? String(value).trim() : '';
+    const trimmed = String(value || '').trim().toLowerCase();
+    if (trimmed === '{user_profile}') {
+      return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
+    if (trimmed === '{crate}') {
+      const xpDrops = state.config?.leveling?.xpDrops;
+      const crate = xpDrops?.crates?.find((item) => item.id === elements.xpDropTestCrate?.value) || xpDrops?.crates?.[0];
+      return crate?.imageUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
+    return validHttpUrl(value) ? String(value).trim() : '';
   }
 
   function discordInlineMarkdown(value) {
@@ -645,6 +913,7 @@
       if (/^###\s/.test(line)) return `<h3>${discordInlineMarkdown(line.slice(4))}</h3>`;
       if (/^##\s/.test(line)) return `<h2>${discordInlineMarkdown(line.slice(3))}</h2>`;
       if (/^#\s/.test(line)) return `<h1>${discordInlineMarkdown(line.slice(2))}</h1>`;
+      if (/^-\#\s/.test(line)) return `<div class="discord-line discord-subtext">${discordInlineMarkdown(line.slice(3))}</div>`;
       if (/^>\s?/.test(line)) return `<blockquote>${discordInlineMarkdown(line.replace(/^>\s?/, ''))}</blockquote>`;
       if (/^-\s/.test(line)) return `<div class="discord-list-item">&#8226;<span>${discordInlineMarkdown(line.slice(2))}</span></div>`;
       return line ? `<div class="discord-line">${discordInlineMarkdown(line)}</div>` : '<div class="discord-line"><br></div>';
@@ -666,16 +935,18 @@
       .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
-      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
     return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
   function editorMarkdown(value) {
     return String(value || '').split('\n').map((line) => {
       const heading = line.match(/^(#{1,3}\s)(.*)$/);
+      const subtext = line.match(/^(-\#\s)(.*)$/);
       const quote = line.match(/^(>\s?)(.*)$/);
       const list = line.match(/^(-\s)(.*)$/);
       if (heading) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(heading[1])}</span><strong>${editorInlineMarkdown(heading[2])}</strong></div>`;
+      if (subtext) return `<div class="editor-source-line discord-subtext"><span class="markdown-syntax">${escapeHtml(subtext[1])}</span>${editorInlineMarkdown(subtext[2])}</div>`;
       if (quote) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(quote[1])}</span>${editorInlineMarkdown(quote[2])}</div>`;
       if (list) return `<div class="editor-source-line"><span class="markdown-syntax">${escapeHtml(list[1])}</span>${editorInlineMarkdown(list[2])}</div>`;
       return `<div class="editor-source-line">${line ? editorInlineMarkdown(line) : '<br>'}</div>`;
@@ -774,14 +1045,237 @@
     ['{total_xp}', 'Member total XP'], ['{separator}', 'Insert a Discord divider in the message'],
   ];
 
+  const VARIABLE_AUTOCOMPLETE_MAP = {
+    leveling: [
+      { token: '{user}', desc: 'Mention the member' },
+      { token: '{user_profile}', desc: 'Member profile image URL' },
+      { token: '{user_id}', desc: 'Member Discord ID' },
+      { token: '{user_level}', desc: 'Current member level' },
+      { token: '{user_xp}', desc: 'Total member XP' },
+      { token: '{role}', desc: 'Highest unlocked role reward' },
+      { token: '{level}', desc: 'New level unlocked' },
+      { token: '{xp}', desc: 'XP threshold reached' },
+      { token: '{username}', desc: 'Member username' },
+      { token: '{next_level}', desc: 'Next level' },
+      { token: '{server}', desc: 'Server name' },
+      { token: '{bar}', desc: 'Live XP progress bar' },
+      { token: '{progress_xp}', desc: 'XP earned inside this level' },
+      { token: '{needed_xp}', desc: 'XP required for next level' },
+      { token: '{total_xp}', desc: 'Member total XP' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+    xpDrop: [
+      { token: '{crate}', desc: 'Name of the dropped crate' },
+      { token: '{crate_xp}', desc: 'XP amount or range in crate' },
+      { token: '{user}', desc: 'Member who spawned crate' },
+      { token: '{claim_limit}', desc: 'Max claimants allowed' },
+      { token: '{drop_interval}', desc: 'Interval between crate drops' },
+      { token: '{despawn_time}', desc: 'Time until crate despawns' },
+      { token: '{channel}', desc: 'Drop channel' },
+      { token: '{server}', desc: 'Server name' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+    xpClaim: [
+      { token: '{crate}', desc: 'Name of the claimed crate' },
+      { token: '{crate_xp}', desc: 'XP amount awarded' },
+      { token: '{user}', desc: 'Claiming member mention' },
+      { token: '{claim_limit}', desc: 'Max claimants allowed' },
+      { token: '{user_xp}', desc: 'Updated member XP total' },
+      { token: '{user_level}', desc: 'Updated member level' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+    memberMessages: [
+      { token: '{user}', desc: 'Member mention' },
+      { token: '{user_profile}', desc: 'Member avatar image URL' },
+      { token: '{user_id}', desc: 'Member Discord ID' },
+      { token: '{guild_name}', desc: 'Server name' },
+      { token: '{member_count}', desc: 'Current member count' },
+      { token: '{username}', desc: 'Discord username' },
+      { token: '{display_name}', desc: 'Server display name' },
+      { token: '{server}', desc: 'Server name' },
+      { token: '{channel}', desc: 'Channel mention' },
+      { token: '{timestamp}', desc: 'Event time' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+    reactionRole: [
+      { token: '{user}', desc: 'Member mention' },
+      { token: '{guild_name}', desc: 'Server name' },
+      { token: '{server}', desc: 'Server name' },
+      { token: '{server_icon}', desc: 'Server icon URL' },
+      { token: '{channel}', desc: 'Destination channel' },
+      { token: '{timestamp}', desc: 'Event timestamp' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+    messageTemplate: [
+      { token: '{user}', desc: 'Member mention' },
+      { token: '{user_profile}', desc: 'Member avatar URL' },
+      { token: '{guild_name}', desc: 'Server name' },
+      { token: '{server}', desc: 'Server name' },
+      { token: '{server_icon}', desc: 'Server icon URL' },
+      { token: '{channel}', desc: 'Destination channel' },
+      { token: '{timestamp}', desc: 'Current timestamp' },
+      { token: '{separator}', desc: 'Discord divider' },
+    ],
+  };
+
+  const autocompleteState = {
+    active: false,
+    input: null,
+    triggerIndex: -1,
+    query: '',
+    items: [],
+    selectedIndex: 0,
+    element: null,
+  };
+
+  function getAutocompleteScope(input) {
+    if (!input) return 'leveling';
+    const scope = input.dataset.inlineTemplateScope;
+    const field = input.dataset.inlineTemplateField;
+    if (scope === 'announcements') return 'leveling';
+    if (scope === 'xpDrops') {
+      return field === 'claimTemplate' ? 'xpClaim' : 'xpDrop';
+    }
+    if (scope === 'memberMessages') return 'memberMessages';
+    if (scope === 'reactionRole') return 'reactionRole';
+    if (scope === 'messageTemplate') return 'messageTemplate';
+    return 'leveling';
+  }
+
+  function ensureAutocompletePopup() {
+    if (autocompleteState.element) return autocompleteState.element;
+    const popup = document.createElement('div');
+    popup.className = 'variable-autocomplete-popup';
+    popup.hidden = true;
+    popup.setAttribute('role', 'listbox');
+    popup.setAttribute('aria-label', 'Variable suggestions');
+    document.body.appendChild(popup);
+    autocompleteState.element = popup;
+
+    popup.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      const item = event.target.closest('.variable-autocomplete-item');
+      if (!item) return;
+      const index = Number(item.dataset.autocompleteIndex);
+      if (!Number.isNaN(index)) selectAutocompleteItem(index);
+    });
+
+    return popup;
+  }
+
+  function closeAutocomplete() {
+    autocompleteState.active = false;
+    autocompleteState.input = null;
+    autocompleteState.triggerIndex = -1;
+    autocompleteState.query = '';
+    autocompleteState.items = [];
+    autocompleteState.selectedIndex = 0;
+    if (autocompleteState.element) {
+      autocompleteState.element.hidden = true;
+      autocompleteState.element.innerHTML = '';
+    }
+  }
+
+  function renderAutocompleteItems() {
+    const popup = ensureAutocompletePopup();
+    if (!autocompleteState.items.length) {
+      closeAutocomplete();
+      return;
+    }
+    popup.innerHTML = autocompleteState.items.map((item, index) => `
+      <div class="variable-autocomplete-item${index === autocompleteState.selectedIndex ? ' selected' : ''}" data-autocomplete-index="${index}" role="option" aria-selected="${index === autocompleteState.selectedIndex}">
+        <code>${escapeHtml(item.token)}</code>
+        <small>${escapeHtml(item.desc)}</small>
+      </div>
+    `).join('');
+    popup.hidden = false;
+    const selectedEl = popup.children[autocompleteState.selectedIndex];
+    if (selectedEl) selectedEl.scrollIntoView({ block: 'nearest' });
+  }
+
+  function positionAutocompletePopup(input) {
+    const popup = ensureAutocompletePopup();
+    if (!popup || !input) return;
+    const rect = input.getBoundingClientRect();
+    const popupWidth = 270;
+    const popupHeight = 220;
+    let top = rect.bottom + window.scrollY + 4;
+    let left = rect.left + window.scrollX;
+    if (rect.bottom + popupHeight > window.innerHeight && rect.top > popupHeight) {
+      top = rect.top + window.scrollY - popupHeight - 4;
+    }
+    if (left + popupWidth > window.innerWidth) {
+      left = Math.max(8, window.innerWidth - popupWidth - 12);
+    }
+    popup.style.position = 'absolute';
+    popup.style.top = `${top}px`;
+    popup.style.left = `${left}px`;
+  }
+
+  function checkAutocompleteTrigger(input) {
+    if (!input?.matches?.('[data-inline-message-input]')) {
+      closeAutocomplete();
+      return;
+    }
+    const caret = input.selectionStart;
+    const textBeforeCaret = input.value.slice(0, caret);
+    const match = textBeforeCaret.match(/\{([a-zA-Z0-9_]*)$/);
+    if (!match) {
+      closeAutocomplete();
+      return;
+    }
+    const query = match[1].toLowerCase();
+    const triggerIndex = textBeforeCaret.length - match[0].length;
+    const scope = getAutocompleteScope(input);
+    const pool = VARIABLE_AUTOCOMPLETE_MAP[scope] || VARIABLE_AUTOCOMPLETE_MAP.leveling;
+    const filtered = pool.filter((item) => {
+      const raw = item.token.slice(1, -1).toLowerCase();
+      return raw.includes(query);
+    });
+
+    if (!filtered.length) {
+      closeAutocomplete();
+      return;
+    }
+
+    autocompleteState.active = true;
+    autocompleteState.input = input;
+    autocompleteState.triggerIndex = triggerIndex;
+    autocompleteState.query = query;
+    autocompleteState.items = filtered;
+    autocompleteState.selectedIndex = 0;
+
+    positionAutocompletePopup(input);
+    renderAutocompleteItems();
+  }
+
+  function selectAutocompleteItem(index) {
+    const item = autocompleteState.items[index];
+    const input = autocompleteState.input;
+    if (!item || !input) {
+      closeAutocomplete();
+      return;
+    }
+    const caret = input.selectionStart;
+    const before = input.value.slice(0, autocompleteState.triggerIndex);
+    const after = input.value.slice(caret);
+    const completedToken = item.token;
+    input.value = before + completedToken + after;
+    const nextCaret = before.length + completedToken.length;
+    input.setSelectionRange(nextCaret, nextCaret);
+    closeAutocomplete();
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function renderComposerPanel() {
     const panel = state.levelingComposerPanel;
     const layout = state.config.leveling.announcements.layout;
     elements.levelingComposerPanel.hidden = !panel;
     elements.levelingComposerPanel.dataset.panel = panel;
-    elements.levelingVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.levelingThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
-    elements.levelingGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMediaTemplate));
+    elements.levelingVariablesToggle?.classList.toggle('active', panel === 'variables');
+    elements.levelingThumbnailAdd?.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
+    elements.levelingGalleryAdd?.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMediaTemplate));
     if (!panel) return;
     if (panel === 'variables') {
       elements.levelingComposerPanel.innerHTML = `<div class="variable-guide">${LEVELING_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
@@ -791,8 +1285,10 @@
       elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload any decodable image or GIF up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-leveling-media-upload="thumbnail"></label></div>`;
       return;
     }
+    const pos = layout.galleryPosition || 'bottom';
+    const posToggle = `<div class="gallery-position-toggle" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--muted,#99a1a6);">Position:</span><button type="button" class="button tiny ${pos === 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="top">Above message</button><button type="button" class="button tiny ${pos !== 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="bottom">Below message</button></div>`;
     const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div>${posToggle}<div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
   }
 
   function readMediaFile(file) {
@@ -849,9 +1345,7 @@
 
   async function uploadXpDropMedia(input) {
     const file = input.files?.[0];
-    const index = Number(input.dataset.xpDropMedia);
-    const crate = state.config?.leveling?.xpDrops?.crates?.[index];
-    if (!file || !crate) return;
+    if (!file) return;
     if (!file.type.startsWith('image/')) {
       input.value = '';
       return showToast('Upload an image file.', 'error');
@@ -860,16 +1354,33 @@
       input.value = '';
       return showToast('Images must be 10 MB or smaller.', 'error');
     }
-    const label = input.closest('.media-upload');
+    const label = input.closest('.media-upload') || input.closest('.tile-clickable');
     label?.classList.add('uploading');
     try {
       const result = await api(`/api/guilds/${state.guildId}/leveling-media`, {
         method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
       });
-      crate.imageUrl = result.url;
-      renderXpDrops();
+      if (input.dataset.xpDropMediaUpload === 'thumbnail') {
+        state.config.leveling.xpDrops.dropThumbnailUrl = result.url;
+        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpDrop');
+        updateThumbnailControlUI('xpDrop');
+      } else if (input.dataset.xpClaimMediaUpload === 'thumbnail') {
+        state.config.leveling.xpDrops.claimThumbnailUrl = result.url;
+        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpClaim');
+        updateThumbnailControlUI('xpClaim');
+      } else {
+        const index = Number(input.dataset.xpDropMedia);
+        const crate = state.config?.leveling?.xpDrops?.crates?.[index];
+        if (!crate) throw new Error('That crate no longer exists.');
+        crate.imageUrl = result.url;
+        renderXpDrops();
+      }
       refreshDirty();
-      showToast('Crate image uploaded. Apply changes when you are ready.');
+      showToast('Image uploaded. Apply changes when you are ready.');
     } catch (error) {
       showToast(error.message || 'Image upload failed.', 'error');
     } finally {
@@ -921,7 +1432,9 @@
     accentInput.value = layout.accentColor;
     containerButton.classList.toggle('active', layout.container);
     containerButton.textContent = layout.container ? 'Container on' : 'Container off';
-    preview.innerHTML = `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
+    preview.innerHTML = layout.galleryPosition === 'top'
+      ? `${galleryHtml}<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>`
+      : `<div class="discord-section"><div>${contentHtml}</div>${thumbnail}</div>${galleryHtml}`;
   }
 
   function renderAdditionalContainerEditors({ root, containers, prefix, scope, previewValues, resolveMedia, maxLength }) {
@@ -937,7 +1450,7 @@
       const content = inlineTemplateEditor(container.content, 'content', scope, `container ${containerIndex + 2} message`, previewValues, maxLength, containerIndex);
       return `<section class="additional-container-card" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
         <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
-        <div class="discord-section"><div>${content}</div>${thumbnail}</div>${galleryPreview}
+        ${layout.galleryPosition === 'top' ? galleryPreview : ''}<div class="discord-section"><div>${content}</div>${thumbnail}</div>${layout.galleryPosition !== 'top' ? galleryPreview : ''}
         <details class="additional-container-media"><summary>Images</summary><div class="media-entry"><span>Thumb</span><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="Image URL or supported variable" data-${prefix}-additional-thumbnail-url="${containerIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"></label></div><div class="additional-gallery-head"><strong>Gallery</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}"></label></div><div class="media-list">${galleryRows || '<p>No gallery images yet.</p>'}</div></details>
       </section>`;
     }).join('');
@@ -958,6 +1471,7 @@
       prefix: 'leveling', scope: 'announcements', previewValues: {}, resolveMedia: previewMediaUrl, maxLength: 3000,
     });
     elements.levelingAdditionalContainerAdd.disabled = announcements.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS;
+    updateThumbnailControlUI('leveling');
     if (renderTools) renderComposerPanel();
   }
 
@@ -3305,10 +3819,29 @@
     if ([elements.levelingBaseXp, elements.levelingGrowth, elements.levelingMaxLevel].includes(target)) renderCurvePreview();
     if (target === elements.levelingAnnounceEnabled) leveling.announcements.enabled = target.checked;
     if (target === elements.levelingAnnounceChannel) leveling.announcements.channelId = target.value;
+    if (target.name === 'roleBoostMode') {
+      leveling.roleBoostMode = target.value === 'stackable' ? 'stackable' : 'highest';
+    }
+    if (target.matches('[data-leveling-gallery-pos]')) {
+      leveling.announcements.layout.galleryPosition = target.dataset.levelingGalleryPos;
+      renderMessagePreview();
+      renderComposerPanel();
+    }
     if (target.matches('[data-leveling-thumbnail-url]')) {
       leveling.announcements.layout.thumbnailUrl = target.value.slice(0, 2000);
       leveling.announcements.layout.thumbnailEnabled = validMediaTemplate(target.value);
       renderMessagePreview(false);
+      updateThumbnailControlUI('leveling');
+    }
+    if (target.matches('[data-xp-drop-thumbnail-url]')) {
+      leveling.xpDrops.dropThumbnailUrl = target.value.slice(0, 2000);
+      leveling.xpDrops.dropThumbnailEnabled = Boolean(target.value.trim());
+      renderXpDropMessagePreviews();
+    }
+    if (target.matches('[data-xp-claim-thumbnail-url]')) {
+      leveling.xpDrops.claimThumbnailUrl = target.value.slice(0, 2000);
+      leveling.xpDrops.claimThumbnailEnabled = Boolean(target.value.trim());
+      renderXpDropMessagePreviews();
     }
     if (target === elements.levelingAccentColor) {
       leveling.announcements.layout.accentColor = target.value;
@@ -3328,6 +3861,15 @@
       renderMessagePreview(false);
     }
     if (target === elements.levelingStackRewards) leveling.stackRoleRewards = target.checked;
+    if (target.matches('[data-category-bulk]')) {
+      const card = target.closest('.channel-category-card');
+      const checkboxes = card ? card.querySelectorAll('input[data-leveling-channel]') : [];
+      checkboxes.forEach((cb) => {
+        if (target.checked) leveling.channelMultipliers[cb.value] = leveling.channelMultipliers[cb.value] ?? 1;
+        else delete leveling.channelMultipliers[cb.value];
+      });
+      renderLevelingChannels();
+    }
     if (target.matches('[data-leveling-channel]')) {
       if (target.checked) leveling.channelMultipliers[target.value] = 1;
       else delete leveling.channelMultipliers[target.value];
@@ -3375,28 +3917,24 @@
         else if (field === 'xpMin') {
           crate.xp.min = Math.round(clampNumber(target.value, 1, 1_000_000, crate.xp.min));
           crate.xp.max = Math.max(crate.xp.min, crate.xp.max);
-        } else if (field === 'xpMax') crate.xp.max = Math.round(clampNumber(target.value, crate.xp.min, 1_000_000, crate.xp.max));
-        else if (field === 'dropEvery' || field === 'despawnAfter') {
-          const duration = target.closest('.xp-drop-duration');
-          if (duration) {
-            const amount = duration.querySelector('[data-xp-drop-duration-part="amount"]')?.value.trim() || '';
-            const unit = duration.querySelector('[data-xp-drop-duration-part="unit"]')?.value || 'm';
-            crate[field] = amount && Number(amount) > 0 ? `${amount}${unit}`.slice(0, 16) : '';
-          } else crate[field] = target.value.slice(0, 16);
-        }
-        else if (field === 'chancePercent') crate.chancePercent = clampNumber(target.value, 0, 100, crate.chancePercent);
-        else if (field === 'claimLimit') crate.claimLimit = Math.round(clampNumber(target.value, 1, 1000, crate.claimLimit));
-        else if (field === 'containerColor') {
+        } else if (field === 'xpMax') {
+          crate.xp.max = Math.round(clampNumber(target.value, crate.xp.min, 1_000_000, crate.xp.max));
+        } else if (field === 'dropEvery') {
+          crate.dropEvery = target.value.trim().slice(0, 16);
+          target.classList.toggle('invalid-duration', !isValidCrateDuration(target.value, false));
+        } else if (field === 'despawnAfter') {
+          crate.despawnAfter = target.value.trim().slice(0, 16);
+          target.classList.toggle('invalid-duration', !isValidCrateDuration(target.value, true));
+        } else if (field === 'chancePercent') {
+          crate.chancePercent = clampNumber(target.value, 0, 100, crate.chancePercent);
+        } else if (field === 'claimLimit') {
+          crate.claimLimit = Math.round(clampNumber(target.value, 1, 1000, crate.claimLimit));
+        } else if (field === 'containerColor') {
           crate.containerColor = target.value;
-          target.closest('.xp-drop-card')?.style.setProperty('--crate-color', target.value);
+          target.closest('.compact-crate-card')?.style.setProperty('--crate-color', target.value);
           const code = target.closest('.crate-color-input')?.querySelector('code');
           if (code) code.textContent = target.value;
         }
-        const card = target.closest('.xp-drop-card');
-        const heading = card?.querySelector('header strong');
-        const summary = card?.querySelector('header small');
-        if (heading) heading.textContent = crate.name || 'Unnamed crate';
-        if (summary) summary.textContent = `${crate.enabled ? 'Scheduled' : 'Paused'} · ${crate.dropEvery || 'invalid interval'} · ${crate.chancePercent}% chance`;
         const testOption = [...elements.xpDropTestCrate.options].find((option) => option.value === crate.id);
         if (testOption) testOption.textContent = crate.name || 'Unnamed crate';
         renderXpDropMessagePreviews();
@@ -4789,13 +5327,18 @@
   elements.xpDropAdd.addEventListener('click', addXpDrop);
   elements.xpDropTestButton.addEventListener('click', sendXpDropTest);
   elements.xpDropTestCrate.addEventListener('change', renderXpDropMessagePreviews);
-  elements.xpDropVariables.addEventListener('click', async (event) => {
+  elements.xpDropVariables?.addEventListener('click', async (event) => {
     const variable = event.target.closest('[data-copy-variable]');
     if (!variable) return;
     await navigator.clipboard?.writeText?.(variable.dataset.copyVariable).catch(() => null);
     showToast(`${variable.dataset.copyVariable} copied.`);
   });
   elements.xpDropList.addEventListener('click', (event) => {
+    const tile = event.target.closest('[data-xp-drop-tile]');
+    if (tile && event.target.tagName !== 'INPUT') {
+      tile.querySelector('input[type="file"]')?.click();
+      return;
+    }
     const button = event.target.closest('[data-remove-xp-drop]');
     if (!button || !state.config) return;
     state.config.leveling.xpDrops.crates.splice(Number(button.dataset.removeXpDrop), 1);
@@ -4805,6 +5348,51 @@
   elements.xpDropList.addEventListener('change', (event) => {
     const upload = event.target.closest('[data-xp-drop-media]');
     if (upload) uploadXpDropMedia(upload);
+  });
+  elements.levelingThumbnailControl?.addEventListener('click', () => {
+    if (!elements.levelingThumbnailPanel) return;
+    elements.levelingThumbnailPanel.hidden = !elements.levelingThumbnailPanel.hidden;
+    if (!elements.levelingThumbnailPanel.hidden) {
+      if (elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
+      if (elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
+      renderThumbnailPanel('leveling');
+    }
+  });
+  elements.xpDropThumbnailControl?.addEventListener('click', () => {
+    if (!elements.xpDropThumbnailPanel) return;
+    elements.xpDropThumbnailPanel.hidden = !elements.xpDropThumbnailPanel.hidden;
+    if (!elements.xpDropThumbnailPanel.hidden) {
+      if (elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
+      if (elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
+      renderThumbnailPanel('xpDrop');
+    }
+  });
+  elements.xpClaimThumbnailControl?.addEventListener('click', () => {
+    if (!elements.xpClaimThumbnailPanel) return;
+    elements.xpClaimThumbnailPanel.hidden = !elements.xpClaimThumbnailPanel.hidden;
+    if (!elements.xpClaimThumbnailPanel.hidden) {
+      if (elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
+      if (elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
+      renderThumbnailPanel('xpClaim');
+    }
+  });
+  for (const panel of [elements.levelingThumbnailPanel, elements.xpDropThumbnailPanel, elements.xpClaimThumbnailPanel]) {
+    panel?.addEventListener('change', (event) => {
+      const levelingUpload = event.target.closest('[data-leveling-media-upload]');
+      if (levelingUpload) uploadLevelingMedia(levelingUpload);
+      const dropUpload = event.target.closest('[data-xp-drop-media-upload], [data-xp-claim-media-upload]');
+      if (dropUpload) uploadXpDropMedia(dropUpload);
+    });
+  }
+  elements.levelingChannels?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-category-collapse]');
+    if (btn) {
+      const catId = btn.dataset.categoryCollapse;
+      state.collapsedCategories ||= new Set();
+      if (state.collapsedCategories.has(catId)) state.collapsedCategories.delete(catId);
+      else state.collapsedCategories.add(catId);
+      renderLevelingChannels();
+    }
   });
   elements.levelingContainerAdd.addEventListener('click', () => {
     state.config.leveling.announcements.layout.container = !state.config.leveling.announcements.layout.container;
@@ -4844,8 +5432,8 @@
     const upload = event.target.closest('[data-leveling-media-upload]');
     if (upload) uploadLevelingMedia(upload);
   });
-  elements.levelingVariablesToggle.addEventListener('click', () => toggleComposerPanel('variables'));
-  elements.levelingThumbnailAdd.addEventListener('click', () => toggleComposerPanel('thumbnail'));
+  elements.levelingVariablesToggle?.addEventListener('click', () => toggleComposerPanel('variables'));
+  elements.levelingThumbnailAdd?.addEventListener('click', () => toggleComposerPanel('thumbnail'));
   elements.levelingGalleryAdd.addEventListener('click', () => toggleComposerPanel('gallery'));
   elements.levelingAccentButton.addEventListener('click', () => elements.levelingAccentColor.click());
   elements.levelingComposerPanel.addEventListener('click', async (event) => {
@@ -5359,7 +5947,151 @@
     renderLevelingBoosts();
     refreshDirty();
   });
+  document.addEventListener('keydown', (event) => {
+    if (!autocompleteState.active) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      autocompleteState.selectedIndex = (autocompleteState.selectedIndex + 1) % autocompleteState.items.length;
+      renderAutocompleteItems();
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      autocompleteState.selectedIndex = (autocompleteState.selectedIndex - 1 + autocompleteState.items.length) % autocompleteState.items.length;
+      renderAutocompleteItems();
+      return;
+    }
+    if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      event.stopPropagation();
+      selectAutocompleteItem(autocompleteState.selectedIndex);
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeAutocomplete();
+      return;
+    }
+  }, true);
+
+  document.addEventListener('input', (event) => {
+    if (event.target.matches?.('[data-inline-message-input]')) {
+      checkAutocompleteTrigger(event.target);
+    }
+  });
+
+  window.addEventListener('scroll', () => {
+    if (autocompleteState.active && autocompleteState.input) {
+      positionAutocompletePopup(autocompleteState.input);
+    }
+  }, true);
+
+  window.addEventListener('resize', () => {
+    if (autocompleteState.active && autocompleteState.input) {
+      positionAutocompletePopup(autocompleteState.input);
+    }
+  });
+
   document.addEventListener('click', (event) => {
+    if (autocompleteState.active && !autocompleteState.element?.contains(event.target) && event.target !== autocompleteState.input) {
+      closeAutocomplete();
+    }
+    const closeBtn = event.target.closest('[data-close-thumbnail]');
+    if (closeBtn) {
+      const scope = closeBtn.dataset.closeThumbnail;
+      if (scope === 'leveling' && elements.levelingThumbnailPanel) elements.levelingThumbnailPanel.hidden = true;
+      if (scope === 'xpDrop' && elements.xpDropThumbnailPanel) elements.xpDropThumbnailPanel.hidden = true;
+      if (scope === 'xpClaim' && elements.xpClaimThumbnailPanel) elements.xpClaimThumbnailPanel.hidden = true;
+      return;
+    }
+    const varBtn = event.target.closest('[data-insert-thumb-var]');
+    if (varBtn) {
+      const token = varBtn.dataset.insertThumbVar;
+      const scope = varBtn.dataset.thumbScope;
+      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
+        state.config.leveling.announcements.layout.thumbnailUrl = token;
+        state.config.leveling.announcements.layout.thumbnailEnabled = true;
+        renderMessagePreview(false);
+        renderThumbnailPanel('leveling');
+        updateThumbnailControlUI('leveling');
+        refreshDirty();
+      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.dropThumbnailUrl = token;
+        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpDrop');
+        updateThumbnailControlUI('xpDrop');
+        refreshDirty();
+      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.claimThumbnailUrl = token;
+        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpClaim');
+        updateThumbnailControlUI('xpClaim');
+        refreshDirty();
+      }
+      return;
+    }
+    const removeBtn = event.target.closest('[data-remove-thumbnail]');
+    if (removeBtn) {
+      const scope = removeBtn.dataset.removeThumbnail;
+      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
+        state.config.leveling.announcements.layout.thumbnailEnabled = false;
+        renderMessagePreview(false);
+        renderThumbnailPanel('leveling');
+        updateThumbnailControlUI('leveling');
+        refreshDirty();
+      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.dropThumbnailEnabled = false;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpDrop');
+        updateThumbnailControlUI('xpDrop');
+        refreshDirty();
+      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.claimThumbnailEnabled = false;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpClaim');
+        updateThumbnailControlUI('xpClaim');
+        refreshDirty();
+      }
+      return;
+    }
+    const enableBtn = event.target.closest('[data-enable-thumbnail]');
+    if (enableBtn) {
+      const scope = enableBtn.dataset.enableThumbnail;
+      if (scope === 'leveling' && state.config?.leveling?.announcements?.layout) {
+        state.config.leveling.announcements.layout.thumbnailEnabled = true;
+        renderMessagePreview(false);
+        renderThumbnailPanel('leveling');
+        updateThumbnailControlUI('leveling');
+        refreshDirty();
+      } else if (scope === 'xpDrop' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.dropThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpDrop');
+        updateThumbnailControlUI('xpDrop');
+        refreshDirty();
+      } else if (scope === 'xpClaim' && state.config?.leveling?.xpDrops) {
+        state.config.leveling.xpDrops.claimThumbnailEnabled = true;
+        renderXpDropMessagePreviews();
+        renderThumbnailPanel('xpClaim');
+        updateThumbnailControlUI('xpClaim');
+        refreshDirty();
+      }
+      return;
+    }
+    if (elements.levelingThumbnailPanel && !elements.levelingThumbnailPanel.hidden && !elements.levelingThumbnailPanel.contains(event.target) && !elements.levelingThumbnailControl?.contains(event.target)) {
+      elements.levelingThumbnailPanel.hidden = true;
+    }
+    if (elements.xpDropThumbnailPanel && !elements.xpDropThumbnailPanel.hidden && !elements.xpDropThumbnailPanel.contains(event.target) && !elements.xpDropThumbnailControl?.contains(event.target)) {
+      elements.xpDropThumbnailPanel.hidden = true;
+    }
+    if (elements.xpClaimThumbnailPanel && !elements.xpClaimThumbnailPanel.hidden && !elements.xpClaimThumbnailPanel.contains(event.target) && !elements.xpClaimThumbnailControl?.contains(event.target)) {
+      elements.xpClaimThumbnailPanel.hidden = true;
+    }
     if (!event.target.closest('.account-wrap')) {
       elements.accountMenu.hidden = true;
       elements.userChip.setAttribute('aria-expanded', 'false');

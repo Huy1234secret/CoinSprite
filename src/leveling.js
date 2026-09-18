@@ -689,7 +689,12 @@ function xpMultiplierForMessage(message, config) {
   const matchingRoleBoosts = (config.roleBoosts || [])
     .filter((boost) => memberRoles?.has?.(boost.roleId))
     .map((boost) => Math.max(0, Math.min(10, Number(boost.multiplier) || 0)));
-  const roleMultiplier = matchingRoleBoosts.length ? Math.max(...matchingRoleBoosts) : 1;
+  const isStackable = config.roleBoostMode === 'stackable';
+  const roleMultiplier = matchingRoleBoosts.length
+    ? (isStackable
+      ? Math.min(10, matchingRoleBoosts.reduce((acc, m) => acc * m, 1))
+      : Math.max(...matchingRoleBoosts))
+    : 1;
   return {
     channelMultiplier,
     roleMultiplier,
@@ -1506,6 +1511,7 @@ function xpDropTemplateText(template, crate, values = {}) {
     claimedUserList = parts.join(', ');
   }
   const replacements = {
+    crate: safeName(crate.name || crate.crateName || 'XP Crate'),
     crate_name: safeName(crate.name || crate.crateName || 'XP Crate'),
     xp_min: number(crate.xp?.min ?? crate.xpMin),
     xp_max: number(crate.xp?.max ?? crate.xpMax),
@@ -1539,8 +1545,17 @@ function xpDropMessagePayload(drop, options = {}) {
   const boundedContent = contentParts.length > 4
     ? [...contentParts.slice(0, 3), contentParts.slice(3).join('\n')].join('{separator}')
     : content;
+  const isThumbnail = drop.thumbnailEnabled === true;
+  const resolvedThumbnail = isThumbnail ? (drop.thumbnailUrl === '{crate}' ? drop.imageUrl : (drop.thumbnailUrl || drop.imageUrl)) : '';
+  const galleryUrls = drop.galleryUrls
+    ? drop.galleryUrls.map((u) => (u === '{crate}' ? drop.imageUrl : u)).filter(Boolean)
+    : (!isThumbnail && drop.imageUrl ? [drop.imageUrl] : []);
   const components = announcementContentComponents(boundedContent, {
-    galleryUrls: drop.imageUrl ? [drop.imageUrl] : [],
+    thumbnailEnabled: isThumbnail && Boolean(resolvedThumbnail),
+    thumbnailUrl: resolvedThumbnail,
+    galleryUrls,
+    galleryPosition: drop.galleryPosition || 'bottom',
+    blocks: drop.blocks,
   });
   if (components.length) components.push({ type: 14, divider: true, spacing: 1 });
   components.push({

@@ -90,7 +90,7 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(dashboard, /normalizeRngGameConfig|renderRngGame/);
   assert.match(dashboard, /sendXpDropTest/);
   assert.match(dashboard, /list_claimed_user/);
-  assert.match(dashboard, /data-xp-drop-duration-part/);
+  assert.match(dashboard, /data-xp-drop-field="dropEvery"/);
   assert.match(server, /xp-drops\\\/test/);
   assert.doesNotMatch(server, /crop-chances|admin\\\/chances|STUDS_TEXTURE_PATH/);
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
