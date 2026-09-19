@@ -85,13 +85,13 @@ test('dashboard retains leveling controls without RNG or stock navigation and AP
   assert.doesNotMatch(html, /data-view="rng-game"|id="rngGameChannels"|Crop Chances/i);
   assert.match(html, /id="xpDropList"/);
   assert.match(html, /id="xpDropChannel"/);
-  assert.match(html, /id="xpDropTestButton"/);
+  assert.doesNotMatch(html, /id="xpDropTestButton"|Send a test crate/);
   assert.match(dashboard, /normalizeLevelingConfig/);
   assert.doesNotMatch(dashboard, /normalizeRngGameConfig|renderRngGame/);
-  assert.match(dashboard, /sendXpDropTest/);
+  assert.doesNotMatch(dashboard, /sendXpDropTest|xp-drops\/test/);
   assert.match(dashboard, /list_claimed_user/);
   assert.match(dashboard, /data-xp-drop-field="dropEvery"/);
-  assert.match(server, /xp-drops\\\/test/);
+  assert.doesNotMatch(server, /xp-drops\\\/test/);
   assert.doesNotMatch(server, /crop-chances|admin\\\/chances|STUDS_TEXTURE_PATH/);
   assert.doesNotMatch(server, /gag2-stock|setup-progress|roleAssignment|roleSpecsForType/i);
 });

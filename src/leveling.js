@@ -246,10 +246,15 @@ function normalizeActiveXpDrop(value = {}) {
     color: safeColor(value.color, '#b9f547'),
     dropTemplate: String(value.dropTemplate || '').slice(0, 3000),
     claimTemplate: String(value.claimTemplate || '').slice(0, 3000),
+    ...(value.dropThumbnailEnabled === undefined ? {} : { dropThumbnailEnabled: value.dropThumbnailEnabled === true }),
+    ...(value.dropThumbnailUrl === undefined ? {} : { dropThumbnailUrl: String(value.dropThumbnailUrl || '').slice(0, 2000) }),
+    ...(value.dropGalleryUrls === undefined ? {} : { dropGalleryUrls: (Array.isArray(value.dropGalleryUrls) ? value.dropGalleryUrls : []).map(String).slice(0, 10) }),
+    ...(value.claimThumbnailEnabled === undefined ? {} : { claimThumbnailEnabled: value.claimThumbnailEnabled === true }),
+    ...(value.claimThumbnailUrl === undefined ? {} : { claimThumbnailUrl: String(value.claimThumbnailUrl || '').slice(0, 2000) }),
+    ...(value.claimGalleryUrls === undefined ? {} : { claimGalleryUrls: (Array.isArray(value.claimGalleryUrls) ? value.claimGalleryUrls : []).map(String).slice(0, 10) }),
     dropEvery: String(value.dropEvery || '').slice(0, 32),
     chancePercent: Math.max(0, Math.min(100, Number(value.chancePercent) || 0)),
     despawnAfter: String(value.despawnAfter || '').slice(0, 32),
-    test: value.test === true,
     claims,
     createdAt: Math.max(0, Number(value.createdAt) || 0),
     expiresAt: Math.max(0, Number(value.expiresAt) || 0),
@@ -1511,7 +1516,6 @@ function xpDropTemplateText(template, crate, values = {}) {
     claimedUserList = parts.join(', ');
   }
   const replacements = {
-    crate: safeName(crate.name || crate.crateName || 'XP Crate'),
     crate_name: safeName(crate.name || crate.crateName || 'XP Crate'),
     xp_min: number(crate.xp?.min ?? crate.xpMin),
     xp_max: number(crate.xp?.max ?? crate.xpMax),
@@ -1534,6 +1538,13 @@ function xpDropTemplateText(template, crate, values = {}) {
   return output;
 }
 
+function resolvedXpDropMedia(value, drop, values = {}) {
+  const media = String(value || '').trim().toLowerCase();
+  if (media === '{crate}') return safeMediaUrl(drop.imageUrl);
+  if (media === '{user_profile}') return safeMediaUrl(values.userProfile);
+  return safeMediaUrl(value);
+}
+
 function xpDropMessagePayload(drop, options = {}) {
   const claimsLeft = Math.max(0, drop.claimLimit - drop.claims.length);
   const content = xpDropTemplateText(drop.dropTemplate, drop, {
@@ -1545,11 +1556,12 @@ function xpDropMessagePayload(drop, options = {}) {
   const boundedContent = contentParts.length > 4
     ? [...contentParts.slice(0, 3), contentParts.slice(3).join('\n')].join('{separator}')
     : content;
-  const isThumbnail = drop.thumbnailEnabled === true;
-  const resolvedThumbnail = isThumbnail ? (drop.thumbnailUrl === '{crate}' ? drop.imageUrl : (drop.thumbnailUrl || drop.imageUrl)) : '';
-  const galleryUrls = drop.galleryUrls
-    ? drop.galleryUrls.map((u) => (u === '{crate}' ? drop.imageUrl : u)).filter(Boolean)
-    : (!isThumbnail && drop.imageUrl ? [drop.imageUrl] : []);
+  const isThumbnail = drop.dropThumbnailEnabled === true || drop.thumbnailEnabled === true;
+  const thumbnailTemplate = drop.dropThumbnailUrl ?? drop.thumbnailUrl ?? (drop.imageUrl ? '{crate}' : '');
+  const resolvedThumbnail = isThumbnail ? resolvedXpDropMedia(thumbnailTemplate, drop) : '';
+  const configuredGallery = drop.dropGalleryUrls ?? drop.galleryUrls;
+  const galleryUrls = (Array.isArray(configuredGallery) ? configuredGallery : (!isThumbnail && drop.imageUrl ? ['{crate}'] : []))
+    .map((url) => resolvedXpDropMedia(url, drop)).filter(Boolean).slice(0, 10);
   const components = announcementContentComponents(boundedContent, {
     thumbnailEnabled: isThumbnail && Boolean(resolvedThumbnail),
     thumbnailUrl: resolvedThumbnail,
@@ -1579,14 +1591,23 @@ function xpDropMessagePayload(drop, options = {}) {
   };
 }
 
-function xpDropClaimPayload(content, color) {
+function xpDropClaimPayload(content, color, drop = {}, values = {}) {
+  const thumbnailUrl = drop.claimThumbnailEnabled
+    ? resolvedXpDropMedia(drop.claimThumbnailUrl, drop, values)
+    : '';
+  const galleryUrls = (drop.claimGalleryUrls || [])
+    .map((url) => resolvedXpDropMedia(url, drop, values)).filter(Boolean).slice(0, 10);
   return {
     flags: COMPONENTS_V2_FLAG | EPHEMERAL_FLAG,
     allowedMentions: { parse: [], users: [], roles: [] },
     components: [{
       type: 17,
       accent_color: accentColorValue(color),
-      components: announcementContentComponents(content),
+      components: announcementContentComponents(content, {
+        thumbnailEnabled: Boolean(thumbnailUrl),
+        thumbnailUrl,
+        galleryUrls,
+      }),
     }],
   };
 }
@@ -1632,7 +1653,7 @@ function scheduleXpDropExpiry(guild, drop) {
   timer.unref?.();
 }
 
-async function sendXpDrop({ guild, crate, channelId, test = false, templates } = {}) {
+async function sendXpDrop({ guild, crate, channelId, templates } = {}) {
   const xpDrops = templates || levelingConfig(guild.id).xpDrops;
   const destinationId = String(channelId || xpDrops?.channelId || crate?.channelId || '');
   const channel = await resolveXpDropChannel(guild, destinationId);
@@ -1652,10 +1673,15 @@ async function sendXpDrop({ guild, crate, channelId, test = false, templates } =
     color: crate.containerColor,
     dropTemplate: xpDrops.dropTemplate,
     claimTemplate: xpDrops.claimTemplate,
+    dropThumbnailEnabled: xpDrops.dropThumbnailEnabled,
+    dropThumbnailUrl: xpDrops.dropThumbnailUrl,
+    dropGalleryUrls: xpDrops.dropGalleryUrls,
+    claimThumbnailEnabled: xpDrops.claimThumbnailEnabled,
+    claimThumbnailUrl: xpDrops.claimThumbnailUrl,
+    claimGalleryUrls: xpDrops.claimGalleryUrls,
     dropEvery: crate.dropEvery,
     chancePercent: crate.chancePercent,
     despawnAfter: crate.despawnAfter,
-    test,
     claims: [],
     createdAt: now,
     expiresAt: despawnSeconds ? now + despawnSeconds * 1000 : 0,
@@ -1665,7 +1691,7 @@ async function sendXpDrop({ guild, crate, channelId, test = false, templates } =
   guildLevelingState(guild.id).xpDrops.active[drop.id] = drop;
   scheduleSave();
   scheduleXpDropExpiry(guild, drop);
-  logCommandSystem(`${test ? 'Test XP drop' : 'XP drop'} ${drop.crateId} sent in ${guild.id}/${channel.id}.`);
+  logCommandSystem(`XP drop ${drop.crateId} sent in ${guild.id}/${channel.id}.`);
   return { drop, message: sent, channel };
 }
 
@@ -1709,11 +1735,9 @@ async function handleXpDropClaim(interaction) {
   let stats = memberStats(interaction.guildId, interaction.user.id);
   let result = null;
   let config = null;
-  if (!drop.test) {
-    config = levelingConfig(interaction.guildId);
-    result = applyXpToRecord(userRecord(interaction.guildId, interaction.user.id), xp, config);
-    stats = memberStats(interaction.guildId, interaction.user.id, config);
-  }
+  config = levelingConfig(interaction.guildId);
+  result = applyXpToRecord(userRecord(interaction.guildId, interaction.user.id), xp, config);
+  stats = memberStats(interaction.guildId, interaction.user.id, config);
   if (!claimsLeft) delete drops[dropId];
   flushLevelingState();
   if (result) await syncRewardRoles(interaction.guild, interaction.user.id, result.newLevel, config);
@@ -1736,8 +1760,9 @@ async function handleXpDropClaim(interaction) {
     serverName: interaction.guild?.name,
     channelId: interaction.channelId,
   });
-  if (drop.test) claimText = `-# Test crate — no XP was awarded.\n${claimText}`;
-  await completeEphemeral(interaction, xpDropClaimPayload(claimText, drop.color));
+  let userProfile = '';
+  try { userProfile = String(interaction.user?.displayAvatarURL?.({ extension: 'png', size: 256 }) || ''); } catch {}
+  await completeEphemeral(interaction, xpDropClaimPayload(claimText, drop.color, drop, { userProfile }));
   return true;
 }
 
@@ -2124,6 +2149,7 @@ module.exports = {
   startXpDropScheduler,
   runXpDropScheduler,
   reserveXpDropClaim,
+  xpDropClaimPayload,
   xpDropMessagePayload,
   xpDropTemplateText,
   xpThresholdForLevel,

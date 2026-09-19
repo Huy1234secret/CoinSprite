@@ -39,6 +39,24 @@ test('dashboard accepts a zero-second chat XP cooldown', () => {
   assert.match(app, /clampNumber\(target\.value, 0, 3600, 60\)/);
 });
 
+test('Leveling dashboard uses compact headers, shared media tiles, and real disabled controls', () => {
+  const html = loadAdminAsset('document').data.toString('utf8');
+  const app = loadAdminAsset('app.js').data.toString('utf8');
+  const style = loadAdminAsset('style.css').data.toString('utf8');
+  assert.match(html, /class="workspace-head leveling-workspace-head"[^]*?<h1>Leveling<\/h1>/);
+  assert.doesNotMatch(html, /Turn activity into progress|Random XP feels natural|Click any text inside the message|Drop collectible crates on a schedule/);
+  assert.doesNotMatch(html, /Send a test crate|id="xpDropTestButton"/);
+  assert.match(app, /function mediaGalleryEditorHtml/);
+  assert.match(app, /gallery\.push\(''\); state\.levelingComposerPanel = 'gallery'/);
+  assert.match(app, /control\.dataset\.levelingDisabled = 'true';\s*control\.disabled = true/);
+  assert.match(app, /setAttribute\('aria-disabled', String\(disabled\)\)/);
+  assert.doesNotMatch(app, /token: '\{crate\}'/);
+  assert.match(app, /token: '\{crate_name\}'/);
+  assert.match(style, /\.discord-gallery\.media-count-3 img:first-child/);
+  assert.match(style, /\.leveling-channels-boosts-grid \{ grid-template-columns: repeat\(3/);
+  assert.match(style, /\.ignored-channel-list \{ grid-template-columns: 1fr/);
+});
+
 test('remade dashboard has no HTML source file and retains every main view', () => {
   assert.deepEqual(fs.readdirSync(path.join(root, 'admin')).filter((name) => name.endsWith('.html')), []);
   assert.equal(loadAdminAsset('index.html'), null);

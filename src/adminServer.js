@@ -41,8 +41,6 @@ const {
   normalizeLevelCardDesign,
   renderLevelCard,
   saveLevelCardDesign,
-  findXpDropCrate,
-  sendXpDrop,
 } = require('./leveling');
 const {
   createFolder,
@@ -631,7 +629,7 @@ async function fetchGuildDirectory(guild, force = false) {
       rawPosition: Number(channel.rawPosition) || 0,
     })).sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '') || a.rawPosition - b.rawPosition || a.name.localeCompare(b.name)),
     roles: [...roles.values()]
-      .filter((role) => role.id !== guild.id && !role.managed)
+      .filter((role) => role.id !== guild.id)
       .map((role) => ({
         id: role.id,
         name: role.name,
@@ -1151,38 +1149,6 @@ async function routeRequest(req, res, env, client, services = {}) {
       try { origin = new URL(env.redirectUri).origin; } catch { origin = `http://${req.headers.host || `${env.host}:${env.port}`}`; }
     }
     return sendJson(res, 201, { url: `${origin}/${levelingMediaMatch[2]}-media/${guildId}/${id}.${media.extension}` });
-  }
-
-  const xpDropTestMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/xp-drops\/test$/);
-  if (req.method === 'POST' && xpDropTestMatch) {
-    const guildId = xpDropTestMatch[1];
-    const auth = await requireGuildAdmin(req, res, env, client, guildId);
-    if (!auth || !requireCsrf(req, res, auth.session)) return;
-    if (getGuildConfigRaw(guildId)?.features?.leveling !== true) {
-      return sendJson(res, 403, { error: 'Leveling is locked for this server. Ask the bot owner to unlock it.' });
-    }
-    const body = await readJsonBody(req);
-    const savedLeveling = getGuildConfigRaw(guildId)?.leveling || {};
-    const leveling = normalizeLevelingConfig({
-      ...savedLeveling,
-      xpDrops: body?.xpDrops && typeof body.xpDrops === 'object' ? body.xpDrops : savedLeveling.xpDrops,
-    });
-    const crate = findXpDropCrate(leveling, body?.crateId);
-    if (!crate) return sendJson(res, 400, { error: 'Choose an existing crate.' });
-    const sent = await sendXpDrop({
-      guild: auth.guild,
-      crate,
-      channelId: String(body?.channelId || ''),
-      test: true,
-      templates: leveling.xpDrops,
-    });
-    return sendJson(res, 201, {
-      ok: true,
-      crateId: crate.id,
-      channelId: sent.channel.id,
-      messageId: sent.message.id,
-      messageUrl: sent.message.url || '',
-    });
   }
 
   const configMatch = pathname.match(/^\/api\/guilds\/(\d{16,20})\/config$/);

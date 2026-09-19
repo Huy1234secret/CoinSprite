@@ -37,14 +37,9 @@ fs.writeFileSync(process.env.SERVER_CONFIG_STORE_PATH, JSON.stringify({
   },
 }));
 
-const { getGuildConfig } = require('../src/serverConfig');
 const {
-  flushLevelingState,
-  handleXpDropClaim,
-  memberStats,
   resetLevelingCache,
   runXpDropScheduler,
-  sendXpDrop,
 } = require('../src/leveling');
 
 test.after(() => {
@@ -81,36 +76,4 @@ test('XP drop scheduler waits one interval, rolls chance, and sends the configur
   assert.equal(await runXpDropScheduler(client, { nowMs: 2_000, random: () => 0 }), 1);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].payload.components[0].components.at(-1).components[0].label, 'Claim Common Crate');
-});
-
-test('test crate claims update limits and confirmation without awarding XP', async () => {
-  resetLevelingCache();
-  const { guild } = fixture();
-  const crate = getGuildConfig(guildId).leveling.xpDrops.crates[0];
-  const { drop } = await sendXpDrop({ guild, crate, test: true, templates: getGuildConfig(guildId).leveling.xpDrops });
-  const edits = [];
-  const replies = [];
-  const interaction = {
-    customId: `leveling:xp-drop:${drop.id}`,
-    guildId,
-    channelId,
-    guild,
-    client: guild.client,
-    user: { id: '523456789012345678', username: 'Tester', globalName: 'Tester' },
-    member: { displayName: 'Tester' },
-    message: { id: drop.messageId, edit: async (payload) => edits.push(payload) },
-    deferred: false,
-    replied: false,
-    deferReply: async function deferReply() { this.deferred = true; },
-    editReply: async (payload) => replies.push(payload),
-  };
-  const before = memberStats(guildId, interaction.user.id).xp;
-  await handleXpDropClaim(interaction);
-  const after = memberStats(guildId, interaction.user.id).xp;
-  assert.equal(before, 0);
-  assert.equal(after, 0);
-  assert.equal(edits.length, 1);
-  assert.match(edits[0].components[0].components[0].content, /<@523456789012345678>/);
-  assert.match(replies[0].components[0].components[0].content, /no XP was awarded/i);
-  flushLevelingState();
 });

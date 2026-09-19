@@ -38,6 +38,7 @@ const {
   resolvedAnnouncementLayout,
   xpThresholdForLevel,
   xpDropMessagePayload,
+  xpDropClaimPayload,
   xpDropTemplateText,
   xpMultiplierForMessage,
 } = require('../src/leveling');
@@ -360,18 +361,23 @@ test('XP drop supports {crate} in media templates and resolves to crate image', 
     announcements: {
       layout: {
         thumbnailUrl: '{crate}',
-        galleryUrls: ['{crate}'],
+        galleryUrls: ['{crate}', '', 'https://example.com/level.png'],
       },
     },
     xpDrops: {
       dropThumbnailUrl: '{crate}',
       claimThumbnailUrl: '{user_profile}',
+      dropGalleryUrls: ['', '{crate}', 'bad', ...Array.from({ length: 12 }, (_, index) => `https://example.com/${index}.png`)],
+      claimGalleryUrls: ['{crate}', '{user_profile}', ''],
     },
   });
-  assert.equal(normalized.announcements.layout.thumbnailUrl, '{crate}');
-  assert.deepEqual(normalized.announcements.layout.galleryUrls, ['{crate}']);
+  assert.equal(normalized.announcements.layout.thumbnailUrl, '');
+  assert.deepEqual(normalized.announcements.layout.galleryUrls, ['https://example.com/level.png']);
   assert.equal(normalized.xpDrops.dropThumbnailUrl, '{crate}');
   assert.equal(normalized.xpDrops.claimThumbnailUrl, '{user_profile}');
+  assert.equal(normalized.xpDrops.dropGalleryUrls.length, 10);
+  assert.equal(normalized.xpDrops.dropGalleryUrls[0], '{crate}');
+  assert.deepEqual(normalized.xpDrops.claimGalleryUrls, ['{crate}', '{user_profile}']);
 
   const drop = {
     id: 'crate_1',
@@ -381,14 +387,30 @@ test('XP drop supports {crate} in media templates and resolves to crate image', 
     xpMin: 100, xpMax: 200,
     claimLimit: 3,
     claims: [],
-    thumbnailEnabled: true,
-    thumbnailUrl: '{crate}',
+    dropThumbnailEnabled: true,
+    dropThumbnailUrl: '{crate}',
+    dropGalleryUrls: ['{crate}', '', 'https://example.com/extra.png'],
+    claimThumbnailEnabled: true,
+    claimThumbnailUrl: '{crate}',
+    claimGalleryUrls: ['{crate}', '{user_profile}', ''],
     dropTemplate: 'Drop: {crate} with {crate_xp} XP',
   };
   const payload = xpDropMessagePayload(drop, { serverName: 'Garden' });
   assert.equal(payload.components[0].type, 17);
   const section = payload.components[0].components.find((c) => c.type === 9);
   assert.equal(section.accessory.media.url, 'https://example.com/mythic.png');
+  const gallery = payload.components[0].components.find((c) => c.type === 12);
+  assert.deepEqual(gallery.items.map((item) => item.media.url), ['https://example.com/mythic.png', 'https://example.com/extra.png']);
+  assert.match(payload.components[0].components[0].components[0].content, /\{crate\}/);
+
+  const claim = xpDropClaimPayload('Claimed!', '#925cff', drop, { userProfile: 'https://example.com/member.png' });
+  assert.equal(claim.components[0].components[0].accessory.media.url, 'https://example.com/mythic.png');
+  assert.deepEqual(claim.components[0].components[1].items.map((item) => item.media.url), [
+    'https://example.com/mythic.png', 'https://example.com/member.png',
+  ]);
+
+  const withoutImage = xpDropMessagePayload({ ...drop, imageUrl: '', dropGalleryUrls: ['{crate}'], dropThumbnailEnabled: false });
+  assert.equal(withoutImage.components[0].components.some((component) => component.type === 12), false);
 });
 
 test('XP curve and level calculation agree at boundaries', () => {
