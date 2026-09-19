@@ -510,18 +510,40 @@
     elements.levelingCurvePreview.innerHTML = `<span>CURVE PREVIEW</span><div>${levels.map((level) => `<article><small>LEVEL ${level}</small><strong>${formatNumber(xpThreshold(level))} XP</strong></article>`).join('')}</div>`;
   }
 
+  function normalizeRoleColor(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const numeric = Math.max(0, Math.min(0xffffff, Math.trunc(value)));
+      return numeric ? `#${numeric.toString(16).padStart(6, '0')}` : '';
+    }
+    const text = String(value || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(text) && text.toLowerCase() !== '#000000') return text.toLowerCase();
+    return '';
+  }
+
+  function roleColor(roleId) {
+    const role = (state.directory.roles || []).find((item) => item.id === roleId);
+    return normalizeRoleColor(role?.hexColor) || normalizeRoleColor(role?.color) || '#99a1a6';
+  }
+
+  function roleTextColor(roleId) {
+    const color = roleColor(roleId);
+    const channels = color.slice(1).match(/../g).map((part) => Number.parseInt(part, 16) / 255)
+      .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    return (luminance + 0.05) / (0.0066 + 0.05) >= 4.5 ? color : '#f2f3f5';
+  }
+
+  function roleSelectAttributes(roleId) {
+    return `data-role-select style="--role-select-color:${roleColor(roleId)};color:${roleTextColor(roleId)}"`;
+  }
+
   function roleOptions(selected) {
     const roles = state.directory.roles || [];
     return ['<option value="">Choose a Discord role</option>', ...roles.map((role) => {
       const unavailable = role.editable === false || role.managed === true || role.administrator === true;
       const reason = role.administrator ? ' (Administrator blocked)' : role.managed ? ' (managed role)' : role.editable === false ? ' (above CoinSprite)' : '';
-      return `<option value="${role.id}" style="color:${roleColor(role.id)}" ${role.id === selected ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>\u25cf @${escapeHtml(role.name)}${reason}</option>`;
+      return `<option value="${role.id}" style="color:${roleTextColor(role.id)}" ${role.id === selected ? 'selected' : ''} ${unavailable ? 'disabled' : ''}>\u25cf @${escapeHtml(role.name)}${reason}</option>`;
     })].join('');
-  }
-
-  function roleColor(roleId) {
-    const color = (state.directory.roles || []).find((role) => role.id === roleId)?.color;
-    return /^#[0-9a-f]{6}$/i.test(color || '') && color.toLowerCase() !== '#000000' ? color : '#99a1a6';
   }
 
   function roleUnavailableReason(role) {
@@ -536,7 +558,7 @@
     const selected = roles.find((role) => role.id === selectedId);
     const listId = `role-list-${target.replace(/[^a-z0-9_-]/gi, '-')}`;
     const selectedName = selected ? `@${selected.name}` : 'Choose a Discord role';
-    return `<div class="role-listbox" data-role-listbox data-role-target="${escapeHtml(target)}">
+    return `<div class="role-listbox" data-role-listbox data-role-target="${escapeHtml(target)}" style="--role-selected-color:${roleColor(selectedId)};--role-selected-text:${roleTextColor(selectedId)}">
       <button type="button" class="role-listbox-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="${listId}">
         <i class="role-option-dot" style="--role-option-color:${roleColor(selectedId)}"></i><span>${escapeHtml(selectedName)}</span><b aria-hidden="true">⌄</b>
       </button>
@@ -544,7 +566,7 @@
         ${roles.map((role) => {
           const reason = roleUnavailableReason(role);
           const selectedOption = role.id === selectedId;
-          return `<button type="button" role="option" data-role-option="${role.id}" aria-selected="${selectedOption}" ${reason ? 'aria-disabled="true" disabled' : ''} class="role-listbox-option${selectedOption ? ' selected' : ''}${reason ? ' disabled' : ''}" title="${escapeHtml(reason)}">
+          return `<button type="button" role="option" data-role-option="${role.id}" aria-selected="${selectedOption}" ${reason ? 'aria-disabled="true" disabled' : ''} class="role-listbox-option${selectedOption ? ' selected' : ''}${reason ? ' disabled' : ''}" style="--role-option-text:${roleTextColor(role.id)}" title="${escapeHtml(reason)}">
             <i class="role-option-dot" style="--role-option-color:${roleColor(role.id)}"></i><span>@${escapeHtml(role.name)}</span>${selectedOption ? '<b aria-hidden="true">✓</b>' : ''}${reason ? `<small>${escapeHtml(reason)}</small>` : ''}
           </button>`;
         }).join('')}
@@ -583,6 +605,7 @@
       control.dataset.mediaScope = scope;
       control.dataset.mediaContainer = '-1';
       control.dataset.mediaKind = 'thumbnail';
+      control.dataset.mediaTrigger = '';
       control.setAttribute('aria-expanded', 'false');
       control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || MEDIA_ICON_URL)}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
       control.setAttribute('aria-label', `${previewUrl ? 'Change' : 'Upload'} ${label}`);
@@ -697,24 +720,30 @@
     elements.xpDropMessagePreview.style.setProperty('--accent-color', color);
     elements.xpDropClaimPreview.style.setProperty('--accent-color', color);
 
-    const dropThumbEnabled = xpDrops.dropThumbnailEnabled !== false;
-    const dropThumbUrl = previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}');
-    const dropThumbHtml = dropThumbEnabled
-      ? (dropThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(dropThumbUrl)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>')
-      : '';
+    const dropThumbLayout = {
+      thumbnailEnabled: xpDrops.dropThumbnailEnabled !== false,
+      thumbnailUrl: xpDrops.dropThumbnailUrl || '{crate}',
+    };
+    const dropThumbHtml = thumbnailTileHtml({
+      layout: dropThumbLayout,
+      resolvedUrl: dropThumbLayout.thumbnailEnabled ? previewMediaUrl(dropThumbLayout.thumbnailUrl) : '',
+      label: 'Drop thumbnail', scope: 'xpDrop',
+    });
     const dropGallery = mediaGalleryEditorHtml({ urls: xpDrops.dropGalleryUrls, resolveMedia: previewMediaUrl, scope: 'xpDrop' });
     elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${dropThumbHtml}</div>${dropGallery}<div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
 
-    const claimThumbEnabled = xpDrops.claimThumbnailEnabled === true;
-    const claimThumbUrl = previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}');
-    const claimThumbHtml = claimThumbEnabled
-      ? (claimThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(claimThumbUrl)}" alt="Claimed">` : '<div class="discord-thumbnail placeholder">IMG</div>')
-      : '';
+    const claimThumbLayout = {
+      thumbnailEnabled: xpDrops.claimThumbnailEnabled === true,
+      thumbnailUrl: xpDrops.claimThumbnailUrl || '{user_profile}',
+    };
+    const claimThumbHtml = thumbnailTileHtml({
+      layout: claimThumbLayout,
+      resolvedUrl: claimThumbLayout.thumbnailEnabled ? previewMediaUrl(claimThumbLayout.thumbnailUrl) : '',
+      label: 'Claim thumbnail', scope: 'xpClaim',
+    });
     const claimGallery = mediaGalleryEditorHtml({ urls: xpDrops.claimGalleryUrls, resolveMedia: previewMediaUrl, scope: 'xpClaim' });
     elements.xpDropClaimPreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message')}</div>${claimThumbHtml}</div>${claimGallery}`;
 
-    updateThumbnailControlUI('xpDrop');
-    updateThumbnailControlUI('xpClaim');
   }
 
   function renderXpDropList() {
@@ -724,17 +753,13 @@
       const isDropValid = isValidCrateDuration(crate.dropEvery, false);
       const isDespawnValid = isValidCrateDuration(crate.despawnAfter, true);
       return `<article class="compact-crate-card" style="--crate-color:${escapeHtml(crate.containerColor)}" data-xp-drop-card="${index}">
-        <button type="button" class="crate-remove-corner" data-remove-xp-drop="${index}" aria-label="Remove Crate ${index + 1}">&times;</button>
+        <button type="button" class="crate-remove-corner" data-remove-xp-drop="${index}" aria-label="Remove ${escapeHtml(crate.name)}">&times;</button>
         <div class="xp-drop-card-layout">
           <div class="crate-media-editor${image ? ' populated' : ' empty'}">
-            <button type="button" class="tile-clickable" data-toggle-crate-media aria-expanded="${image ? 'false' : 'true'}" aria-label="${image ? `Change image for ${escapeHtml(crate.name)}` : `Upload image for ${escapeHtml(crate.name)}`}">
+            <button type="button" class="tile-clickable" data-media-trigger data-media-scope="crate" data-media-container="${index}" data-media-kind="image" aria-expanded="false" aria-label="${image ? `Change image for ${escapeHtml(crate.name)}` : `Upload image for ${escapeHtml(crate.name)}`}">
               <img src="${escapeHtml(image || MEDIA_ICON_URL)}" alt="">
               <span class="tile-overlay">${image ? 'Change' : 'Upload'}</span>
             </button>
-            <div class="crate-media-picker" ${image ? 'hidden' : ''}>
-              <input type="url" maxlength="2000" value="${escapeHtml(crate.imageUrl)}" placeholder="https://example.com/crate.png" data-xp-drop-image-url="${index}" aria-label="${escapeHtml(crate.name)} image URL">
-              <label class="media-upload">Upload<input type="file" accept="image/*" data-xp-drop-media="${index}"></label>
-            </div>
           </div>
           <div class="xp-drop-rows">
             <div class="xp-drop-row row-1">
@@ -1222,6 +1247,10 @@
   }
 
   function mediaTarget(scope, containerIndex = -1) {
+    if (scope === 'crate') {
+      const owner = state.config?.leveling?.xpDrops?.crates?.[containerIndex];
+      return owner ? { owner, enabledKey: '', urlKey: 'imageUrl', galleryKey: '' } : null;
+    }
     if (scope === 'xpDrop' || scope === 'xpClaim') {
       const owner = state.config?.leveling?.xpDrops;
       if (!owner) return null;
@@ -1237,6 +1266,7 @@
   }
 
   function mediaVariables(scope) {
+    if (scope === 'crate') return [];
     if (scope === 'welcome') return ['{user_avatar}', '{server_icon}'];
     if (['xpDrop', 'xpClaim'].includes(scope)) return ['{crate}', '{user_profile}'];
     if (['template', 'reaction'].includes(scope)) return ['{server_icon}', '{user_avatar}', '{user_profile}'];
@@ -1253,6 +1283,7 @@
     else if (scope === 'welcome') renderWelcomeMessagePreview();
     else if (scope === 'template') renderTemplateComposerPreview();
     else if (scope === 'reaction') renderReactionRoleMessage();
+    else if (scope === 'crate') renderXpDrops();
     else renderXpDropMessagePreviews();
     refreshDirty();
   }
@@ -1326,16 +1357,16 @@
   }
 
   function setMediaValue(target, kind, mediaIndex, value) {
-    if (kind === 'thumbnail') {
+    if (kind !== 'gallery') {
       target.owner[target.urlKey] = value;
-      target.owner[target.enabledKey] = Boolean(value);
+      if (target.enabledKey) target.owner[target.enabledKey] = Boolean(value);
     } else target.owner[target.galleryKey][mediaIndex] = value;
   }
 
   async function uploadMediaValue(active, file) {
     if (!file?.type?.startsWith('image/')) throw new Error('Upload an image file.');
     if (file.size > 10 * 1024 * 1024) throw new Error('Images must be 10 MB or smaller.');
-    const endpoint = ['leveling', 'xpDrop', 'xpClaim'].includes(active.scope) ? 'leveling-media' : 'message-media';
+    const endpoint = ['leveling', 'xpDrop', 'xpClaim', 'crate'].includes(active.scope) ? 'leveling-media' : 'message-media';
     const result = await api(`/api/guilds/${active.guildId}/${endpoint}`, {
       method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
     });
@@ -1350,15 +1381,17 @@
     const target = mediaTarget(scope, containerIndex);
     if (!target) return;
     closeMediaPopover({ restoreFocus: false });
-    const source = kind === 'thumbnail' ? target.owner[target.urlKey] : target.owner[target.galleryKey]?.[mediaIndex];
+    const singleImage = kind !== 'gallery';
+    const source = singleImage ? target.owner[target.urlKey] : target.owner[target.galleryKey]?.[mediaIndex];
+    const removable = kind === 'thumbnail' ? target.owner[target.enabledKey] === true : singleImage && Boolean(source);
     const variables = mediaVariables(scope);
     const popover = document.createElement('section');
     popover.className = 'media-popover';
     popover.setAttribute('role', 'dialog');
-    popover.setAttribute('aria-label', kind === 'thumbnail' ? 'Choose thumbnail image' : `Choose gallery image ${mediaIndex + 1}`);
+    popover.setAttribute('aria-label', kind === 'thumbnail' ? 'Choose thumbnail image' : kind === 'image' ? 'Choose crate image' : `Choose gallery image ${mediaIndex + 1}`);
     popover.innerHTML = `<label><span>Image URL${variables.length ? ' or variable' : ''}</span><input type="text" maxlength="2000" value="${escapeHtml(source || '')}" placeholder="https://example.com/image.png" data-media-url></label>
       ${variables.length ? `<small>${variables.map(escapeHtml).join(' · ')}</small>` : ''}
-      <div class="media-popover-actions"><label class="media-upload">Upload image<input type="file" accept="image/*" data-media-upload></label>${kind === 'thumbnail' && target.owner[target.enabledKey] ? '<button type="button" class="button tiny danger" data-media-clear>Remove</button>' : ''}<button type="button" class="button tiny primary" data-media-apply>Use image</button></div>
+      <div class="media-popover-actions"><label class="media-upload">Upload image<input type="file" accept="image/*" data-media-upload></label>${removable ? '<button type="button" class="button tiny danger" data-media-clear>Remove image</button>' : ''}<button type="button" class="button tiny primary" data-media-apply>Use image</button></div>
       <p class="media-popover-error" role="alert"></p>`;
     document.body.append(popover);
     const active = {
@@ -1417,8 +1450,8 @@
     const containerIndex = Number(trigger.dataset.mediaContainer || -1);
     const target = mediaTarget(scope, containerIndex);
     if (!target) return;
-    if (trigger.dataset.mediaKind === 'thumbnail') {
-      target.owner[target.enabledKey] = false;
+    if (trigger.dataset.mediaKind !== 'gallery') {
+      if (target.enabledKey) target.owner[target.enabledKey] = false;
       target.owner[target.urlKey] = '';
     } else target.owner[target.galleryKey].splice(Number(trigger.dataset.mediaIndex), 1);
     closeMediaPopover({ restoreFocus: false });
@@ -1439,38 +1472,6 @@
     cleanLayoutMedia(message.layout);
     for (const container of message.additionalContainers || []) cleanLayoutMedia(container.layout);
     return message;
-  }
-
-  async function uploadXpDropMedia(input) {
-    const file = input.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      input.value = '';
-      return showToast('Upload an image file.', 'error');
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      input.value = '';
-      return showToast('Images must be 10 MB or smaller.', 'error');
-    }
-    const label = input.closest('.media-upload') || input.closest('.tile-clickable');
-    label?.classList.add('uploading');
-    try {
-      const result = await api(`/api/guilds/${state.guildId}/leveling-media`, {
-        method: 'POST', body: JSON.stringify({ dataUrl: await readMediaFile(file) }),
-      });
-      const index = Number(input.dataset.xpDropMedia);
-      const crate = state.config?.leveling?.xpDrops?.crates?.[index];
-      if (!crate) throw new Error('That crate no longer exists.');
-      crate.imageUrl = result.url;
-      renderXpDrops();
-      refreshDirty();
-      showToast('Image uploaded. Apply changes when you are ready.');
-    } catch (error) {
-      showToast(error.message || 'Image upload failed.', 'error');
-    } finally {
-      label?.classList.remove('uploading');
-      input.value = '';
-    }
   }
 
   function toggleComposerPanel(panel) {
@@ -1908,9 +1909,9 @@
     elements.reactionRoleAddControl.textContent = draft.interactionType === 'dropdown' ? '+ Add option' : '+ Add button';
     elements.reactionRoleAddControl.disabled = reactionRoleEntries().length >= 25;
     if (draft.interactionType === 'button') {
-      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings">${draft.buttons.map((button, index) => `<article class="rr-control-row" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label>Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-rr-button-label="${index}"></label><label>Role<select data-rr-button-role="${index}">${roleOptions(button.roleId)}</select></label><label>Style<select data-rr-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
+      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings">${draft.buttons.map((button, index) => `<article class="rr-control-row" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="button:${index}" aria-label="Choose emoji for ${escapeHtml(button.label)}">${reactionRoleEmojiHtml(button.emoji)}</button><label>Label<input type="text" maxlength="80" value="${escapeHtml(button.label)}" data-rr-button-label="${index}"></label><label>Role<select data-rr-button-role="${index}" ${roleSelectAttributes(button.roleId)}>${roleOptions(button.roleId)}</select></label><label>Style<select data-rr-button-style="${index}">${['Primary','Secondary','Success','Danger'].map((style) => `<option${style === button.style ? ' selected' : ''}>${style}</option>`).join('')}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
     } else {
-      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings"><label>Placeholder<input class="reaction-role-composer-input" type="text" maxlength="150" value="${escapeHtml(draft.dropdown.placeholder)}" data-rr-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-rr-allow-multiple${draft.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Add selected roles and remove unselected roles managed by this template.</small></span></label></div><div class="rr-dropdown-options">${draft.dropdown.options.map((option, index) => `<article class="rr-control-row dropdown" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Selection title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-rr-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-rr-option-description="${index}"></label><label>Role<select data-rr-option-role="${index}">${roleOptions(option.roleId)}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
+      elements.reactionRoleControls.innerHTML = `<div class="rr-control-settings"><label>Placeholder<input class="reaction-role-composer-input" type="text" maxlength="150" value="${escapeHtml(draft.dropdown.placeholder)}" data-rr-dropdown-placeholder></label><label class="rr-allow-multiple"><input type="checkbox" data-rr-allow-multiple${draft.dropdown.allowMultiple ? ' checked' : ''}><span><strong>Allow multiple selections</strong><small>Add selected roles and remove unselected roles managed by this template.</small></span></label></div><div class="rr-dropdown-options">${draft.dropdown.options.map((option, index) => `<article class="rr-control-row dropdown" data-rr-row="${index}"><button class="rr-emoji-field" type="button" data-reaction-emoji="option:${index}" aria-label="Choose emoji for ${escapeHtml(option.title)}">${reactionRoleEmojiHtml(option.emoji)}</button><label>Selection title<input type="text" maxlength="100" value="${escapeHtml(option.title)}" data-rr-option-title="${index}"></label><label>Description<input type="text" maxlength="100" value="${escapeHtml(option.description)}" data-rr-option-description="${index}"></label><label>Role<select data-rr-option-role="${index}" ${roleSelectAttributes(option.roleId)}>${roleOptions(option.roleId)}</select></label><div class="rr-row-actions"><button type="button" data-rr-move="${index}:-1" aria-label="Move up">↑</button><button type="button" data-rr-move="${index}:1" aria-label="Move down">↓</button><button type="button" data-rr-remove="${index}" aria-label="Remove">×</button></div></article>`).join('')}</div>`;
     }
   }
 
@@ -3182,6 +3183,9 @@
       : 'Choose a safe Discord role below CoinSprite. Role safety is rechecked at interaction time.';
     elements.templateActionTargetLabel.textContent = templateAction ? 'Message Template' : 'Discord role';
     if (templateAction) {
+      delete elements.templateActionTarget.dataset.roleSelect;
+      elements.templateActionTarget.style.removeProperty('--role-select-color');
+      elements.templateActionTarget.style.removeProperty('color');
       const selected = String(action.templateId || '');
       const items = [...state.messageTemplates.items].sort((left, right) => left.name.localeCompare(right.name));
       const options = ['<option value="">Choose a Message Template</option>', ...items.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.name)}${item.enabled ? '' : ' (disabled)'}</option>`)];
@@ -3191,9 +3195,12 @@
     } else {
       const selected = String(action.roleId || '');
       const roles = safeTemplateRoles();
-      const options = ['<option value="">Choose a manageable role</option>', ...roles.map((role) => `<option value="${role.id}"${role.id === selected ? ' selected' : ''} style="color:${roleColor(role.id)}">● @${escapeHtml(role.name)}</option>`)];
+      const options = ['<option value="">Choose a manageable role</option>', ...roles.map((role) => `<option value="${role.id}"${role.id === selected ? ' selected' : ''} style="color:${roleTextColor(role.id)}">● @${escapeHtml(role.name)}</option>`)];
       if (selected && !roles.some((role) => role.id === selected)) options.push(`<option value="${escapeHtml(selected)}" selected disabled>Missing or unmanageable role (${escapeHtml(selected)})</option>`);
       elements.templateActionTarget.innerHTML = options.join('');
+      elements.templateActionTarget.dataset.roleSelect = '';
+      elements.templateActionTarget.style.setProperty('--role-select-color', roleColor(selected));
+      elements.templateActionTarget.style.color = roleTextColor(selected);
       elements.templateActionHelp.textContent = 'Managed, Administrator, and above-bot roles are excluded.';
     }
     elements.templateActionDialog.showModal();
@@ -3858,12 +3865,11 @@
     }
     if (target.matches('[data-level-boost-multiplier]')) {
       const boost = leveling.roleBoosts[Number(target.dataset.levelBoostMultiplier)];
-      if (boost) boost.multiplier = Math.round(clampNumber(target.value, 0, 10, 1));
-    }
-    if (target.matches('[data-xp-drop-image-url]')) {
-      const crate = leveling.xpDrops.crates[Number(target.dataset.xpDropImageUrl)];
-      if (crate) crate.imageUrl = target.value.trim().slice(0, 2000);
-      renderXpDropMessagePreviews();
+      if (boost) {
+        const multiplier = Math.round(clampNumber(target.value, 0, 10, boost.multiplier));
+        boost.multiplier = multiplier;
+        if (target.value !== '' && Number(target.value) !== multiplier) target.value = String(multiplier);
+      }
     }
     if (target.matches('[data-xp-drop-field]')) {
       const index = Number(target.dataset.xpDropIndex);
@@ -5152,13 +5158,12 @@
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
   });
-  const isCrateMediaPickerInput = (target) => Boolean(target.closest?.('.crate-media-picker'));
   elements.levelingView.addEventListener('input', (event) => {
-    if (!isCrateMediaPickerInput(event.target)) updateLevelingFromControl(event.target);
+    updateLevelingFromControl(event.target);
   });
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
   elements.welcomeMessagesView.addEventListener('input', (event) => {
-    if (!isCrateMediaPickerInput(event.target)) updateMemberMessagesFromControl(event.target);
+    updateMemberMessagesFromControl(event.target);
   });
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
   elements.gamesView.addEventListener('change', (event) => {
@@ -5189,13 +5194,18 @@
   elements.messageTemplatesView.addEventListener('input', (event) => {
     if (event.target === elements.templateSearch) return renderTemplateList();
     if (event.target === elements.templateJsonEditor) return updateTemplateJsonFromInput();
-    if (!isCrateMediaPickerInput(event.target)) updateTemplateDraftFromControl(event.target);
+    updateTemplateDraftFromControl(event.target);
   });
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
   elements.reactionRolesView.addEventListener('input', (event) => {
-    if (!isCrateMediaPickerInput(event.target)) updateReactionRoleFromControl(event.target);
+    updateReactionRoleFromControl(event.target);
   });
   elements.reactionRolesView.addEventListener('change', (event) => updateReactionRoleFromControl(event.target));
+  document.addEventListener('change', (event) => {
+    if (!event.target.matches?.('[data-role-select]')) return;
+    event.target.style.setProperty('--role-select-color', roleColor(event.target.value));
+    event.target.style.color = roleTextColor(event.target.value);
+  });
   document.addEventListener('click', (event) => {
     const roleTrigger = event.target.closest('.role-listbox-trigger');
     if (roleTrigger) {
@@ -5291,26 +5301,11 @@
     showToast(`${variable.dataset.copyVariable} copied.`);
   });
   elements.xpDropList.addEventListener('click', (event) => {
-    const tile = event.target.closest('[data-toggle-crate-media]');
-    if (tile) {
-      const picker = tile.closest('.crate-media-editor')?.querySelector('.crate-media-picker');
-      if (picker) {
-        picker.hidden = !picker.hidden;
-        tile.setAttribute('aria-expanded', String(!picker.hidden));
-        if (!picker.hidden) picker.querySelector('input')?.focus();
-      }
-      return;
-    }
     const button = event.target.closest('[data-remove-xp-drop]');
     if (!button || !state.config) return;
     state.config.leveling.xpDrops.crates.splice(Number(button.dataset.removeXpDrop), 1);
     renderXpDrops();
     refreshDirty();
-  });
-  elements.xpDropList.addEventListener('change', (event) => {
-    const upload = event.target.closest('[data-xp-drop-media]');
-    if (upload) uploadXpDropMedia(upload);
-    else if (event.target.matches('[data-xp-drop-image-url]')) renderXpDropList();
   });
   elements.levelingChannels?.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-category-collapse]');

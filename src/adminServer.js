@@ -634,7 +634,8 @@ async function fetchGuildDirectory(guild, force = false) {
       .map((role) => ({
         id: role.id,
         name: role.name,
-        color: role.hexColor || '#99a1a6',
+        color: normalizeDiscordRoleColor(role.color, role.hexColor),
+        hexColor: normalizeDiscordRoleColor(role.hexColor, ''),
         position: Number(role.rawPosition) || 0,
         editable: role.editable !== false,
         managed: role.managed === true,
@@ -647,6 +648,17 @@ async function fetchGuildDirectory(guild, force = false) {
   };
   directoryCache.set(guild.id, { createdAt: Date.now(), directory });
   return directory;
+}
+
+function normalizeDiscordRoleColor(value, fallback) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const numeric = Math.max(0, Math.min(0xffffff, Math.trunc(value)));
+    if (numeric) return `#${numeric.toString(16).padStart(6, '0')}`;
+  }
+  const text = String(value || '').trim();
+  if (/^#[0-9a-f]{6}$/i.test(text) && text.toLowerCase() !== '#000000') return text.toLowerCase();
+  if (fallback === '') return '';
+  return fallback === undefined ? '#99a1a6' : normalizeDiscordRoleColor(fallback);
 }
 
 function mergePlain(base, patch) {
@@ -1239,6 +1251,7 @@ module.exports = {
   fetchDirectoryEmojis,
   fetchGuildDirectory,
   levelCardRendererHeaders,
+  normalizeDiscordRoleColor,
   routeRequest,
   safeOAuthReturnTo,
   validateCountingChannel,
