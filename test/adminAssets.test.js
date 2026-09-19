@@ -12,7 +12,7 @@ const {
   loadAdminAsset,
   loadAdminFont,
 } = require('../src/adminAssets');
-const { routeRequest } = require('../src/adminServer');
+const { normalizeDiscordRoleColor, routeRequest } = require('../src/adminServer');
 const root = path.join(__dirname, '..');
 
 test('admin entrypoint receives content-derived JavaScript, emoji data, and stylesheet versions', () => {
@@ -127,11 +127,33 @@ test('shared media placeholder URL returns the PNG asset over HTTP', async () =>
 
 test('shared media editor cleans empty slots and isolates XP Drop from Claim', () => {
   const app = loadAdminAsset('app.js').data.toString('utf8');
+  const style = loadAdminAsset('style.css').data.toString('utf8');
   assert.match(app, /const stem = scope === 'xpDrop' \? 'drop' : 'claim'/);
   assert.match(app, /galleryKey: `\$\{stem\}GalleryUrls`/);
   assert.match(app, /\.map\(\(value\) => String\(value \|\| ''\)\.trim\(\)\)\.filter\(Boolean\)/);
   assert.match(app, /if \(gallery\.length >= MAX_GALLERY_IMAGES\)/);
   assert.match(app, /data-media-container="\$\{containerIndex\}"/);
+  assert.match(app, /control\.dataset\.mediaTrigger = ''/);
+  assert.match(app, /data-media-scope="crate" data-media-container="\$\{index\}" data-media-kind="image"/);
+  assert.doesNotMatch(app, /data-toggle-crate-media|data-xp-drop-image-url|data-xp-drop-media/);
+  assert.match(style, /\.discord-gallery \{[^}]*width: min\(100%, 700px\);[^}]*max-height: 320px;/s);
+  assert.match(style, /\.discord-gallery\.media-count-1 \{[^}]*280px/);
+  assert.match(style, /\.crate-remove-corner \{[^}]*width: 22px;[^}]*height: 22px;[^}]*font-size: 14px;/s);
+  assert.match(style, /\.multiplier-input \{ width: 88px; height: 38px;/);
+});
+
+test('Discord numeric and string role colors normalize to six-digit hex', () => {
+  const app = loadAdminAsset('app.js').data.toString('utf8');
+  const style = loadAdminAsset('style.css').data.toString('utf8');
+  assert.equal(normalizeDiscordRoleColor(0xf85f5), '#0f85f5');
+  assert.equal(normalizeDiscordRoleColor('#F47FFF'), '#f47fff');
+  assert.equal(normalizeDiscordRoleColor(0), '#99a1a6');
+  assert.equal(normalizeDiscordRoleColor(null), '#99a1a6');
+  assert.equal(normalizeDiscordRoleColor(null, ''), '');
+  assert.match(app, /numeric\.toString\(16\)\.padStart\(6, '0'\)/);
+  assert.match(app, /normalizeRoleColor\(role\?\.hexColor\) \|\| normalizeRoleColor\(role\?\.color\)/);
+  assert.match(style, /\.role-listbox-option \{[^}]*color: var\(--role-option-text/);
+  assert.match(style, /\.role-listbox-trigger \{[^}]*color: var\(--role-selected-text/s);
 });
 
 test('stylesheet and bundled font URLs use recursive content hashes', () => {
