@@ -112,7 +112,6 @@
     emojiRenderedCount: 0,
     emojiTarget: null,
     inlineTextCarets: new Map(),
-    xpDropTesting: false,
     profile: null,
     profileSavedSnapshot: '',
     cardSelection: 'background',
@@ -160,7 +159,7 @@
     welcomeEventStep: $('#welcomeEventStep'), welcomeEventTitle: $('#welcomeEventTitle'), welcomeEventDescription: $('#welcomeEventDescription'),
     welcomeEventToggleCopy: $('#welcomeEventToggleCopy'), welcomePreviewLabel: $('#welcomePreviewLabel'),
     welcomeVariablesToggle: $('#welcomeVariablesToggle'), welcomeContainerAdd: $('#welcomeContainerAdd'), welcomeAdditionalContainerAdd: $('#welcomeAdditionalContainerAdd'),
-    welcomeThumbnailAdd: $('#welcomeThumbnailAdd'), welcomeGalleryAdd: $('#welcomeGalleryAdd'), welcomeEmojiToggle: $('#welcomeEmojiToggle'),
+    welcomeGalleryAdd: $('#welcomeGalleryAdd'), welcomeEmojiToggle: $('#welcomeEmojiToggle'),
     welcomeComposerPanel: $('#welcomeComposerPanel'), welcomeDiscordFrame: $('#welcomeDiscordFrame'),
     welcomeMessagePreview: $('#welcomeMessagePreview'), welcomeAdditionalContainers: $('#welcomeAdditionalContainers'), welcomeAccentButton: $('#welcomeAccentButton'), welcomeAccentColor: $('#welcomeAccentColor'),
     levelingUseTemplate: $('#levelingUseTemplate'), levelingSaveAsTemplate: $('#levelingSaveAsTemplate'),
@@ -170,7 +169,7 @@
     templateCreateButton: $('#templateCreateButton'), templateEmptyCreate: $('#templateEmptyCreate'), templateEmptyState: $('#templateEmptyState'), templateEditor: $('#templateEditor'),
     templateStatusBadge: $('#templateStatusBadge'), templateEditorTitle: $('#templateEditorTitle'), templateTimestamps: $('#templateTimestamps'),
     templateDuplicateButton: $('#templateDuplicateButton'), templateDeleteButton: $('#templateDeleteButton'),
-    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateThumbnailAdd: $('#templateThumbnailAdd'), templateGalleryAdd: $('#templateGalleryAdd'), templateEmojiToggle: $('#templateEmojiToggle'),
+    templateVariablesToggle: $('#templateVariablesToggle'), templateContainerAdd: $('#templateContainerAdd'), templateAdditionalContainerAdd: $('#templateAdditionalContainerAdd'), templateGalleryAdd: $('#templateGalleryAdd'), templateEmojiToggle: $('#templateEmojiToggle'),
     templateComposerPanel: $('#templateComposerPanel'), templateDiscordFrame: $('#templateDiscordFrame'), templateMessagePreview: $('#templateMessagePreview'), templateAdditionalContainers: $('#templateAdditionalContainers'),
     templateControlPreview: $('#templateControlPreview'), templateControls: $('#templateControls'), templateAddControl: $('#templateAddControl'),
     templateAccentButton: $('#templateAccentButton'), templateAccentColor: $('#templateAccentColor'), templateCharacterCount: $('#templateCharacterCount'),
@@ -181,12 +180,12 @@
     templateActionDialog: $('#templateActionDialog'), templateActionTitle: $('#templateActionTitle'), templateActionCopy: $('#templateActionCopy'), templateActionTargetLabel: $('#templateActionTargetLabel'), templateActionTarget: $('#templateActionTarget'), templateActionHelp: $('#templateActionHelp'), templateActionSave: $('#templateActionSave'),
     xpDropsEnabled: $('#xpDropsEnabled'), xpDropChannel: $('#xpDropChannel'), xpDropAdd: $('#xpDropAdd'), xpDropList: $('#xpDropList'),
     xpDropMessagePreview: $('#xpDropMessagePreview'), xpDropClaimPreview: $('#xpDropClaimPreview'), xpDropEmojiToggle: $('#xpDropEmojiToggle'), xpClaimEmojiToggle: $('#xpClaimEmojiToggle'),
+    xpDropGalleryAdd: $('#xpDropGalleryAdd'), xpClaimGalleryAdd: $('#xpClaimGalleryAdd'),
     xpDropThumbnailControl: $('#xpDropThumbnailControl'), xpDropThumbnailPanel: $('#xpDropThumbnailPanel'),
     xpClaimThumbnailControl: $('#xpClaimThumbnailControl'), xpClaimThumbnailPanel: $('#xpClaimThumbnailPanel'),
-    xpDropTestCrate: $('#xpDropTestCrate'), xpDropTestChannel: $('#xpDropTestChannel'), xpDropTestButton: $('#xpDropTestButton'),
     reactionRoleCreate: $('#reactionRoleCreate'), reactionRoleEmptyCreate: $('#reactionRoleEmptyCreate'), reactionRoleCount: $('#reactionRoleCount'), reactionRoleList: $('#reactionRoleList'),
     reactionRoleEmpty: $('#reactionRoleEmpty'), reactionRoleEditor: $('#reactionRoleEditor'), reactionRoleStatus: $('#reactionRoleStatus'), reactionRoleName: $('#reactionRoleName'), reactionRolePublishedState: $('#reactionRolePublishedState'), reactionRoleEnabled: $('#reactionRoleEnabled'),
-    reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleThumbnailToggle: $('#reactionRoleThumbnailToggle'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
+    reactionRoleDuplicate: $('#reactionRoleDuplicate'), reactionRoleDelete: $('#reactionRoleDelete'), reactionRoleUseTemplate: $('#reactionRoleUseTemplate'), reactionRoleEmojiToggle: $('#reactionRoleEmojiToggle'), reactionRoleVariablesToggle: $('#reactionRoleVariablesToggle'), reactionRoleContainerToggle: $('#reactionRoleContainerToggle'), reactionRoleAdditionalContainer: $('#reactionRoleAdditionalContainer'), reactionRoleGalleryToggle: $('#reactionRoleGalleryToggle'),
     reactionRoleComposerPanel: $('#reactionRoleComposerPanel'), reactionRoleDiscordFrame: $('#reactionRoleDiscordFrame'), reactionRoleAccentButton: $('#reactionRoleAccentButton'), reactionRoleAccentColor: $('#reactionRoleAccentColor'), reactionRoleMessagePreview: $('#reactionRoleMessagePreview'), reactionRoleAdditionalContainers: $('#reactionRoleAdditionalContainers'), reactionRoleControlPreview: $('#reactionRoleControlPreview'), reactionRoleControls: $('#reactionRoleControls'), reactionRoleAddControl: $('#reactionRoleAddControl'), reactionRoleChannel: $('#reactionRoleChannel'), reactionRolePermissionStatus: $('#reactionRolePermissionStatus'), reactionRoleFinalPreview: $('#reactionRoleFinalPreview'), reactionRoleSaveDraft: $('#reactionRoleSaveDraft'), reactionRolePublish: $('#reactionRolePublish'),
     emojiPickerDialog: $('#emojiPickerDialog'), emojiPickerClose: $('#emojiPickerClose'), emojiPickerSearch: $('#emojiPickerSearch'), emojiPickerStatus: $('#emojiPickerStatus'), emojiPickerCategories: $('#emojiPickerCategories'), emojiPickerGrid: $('#emojiPickerGrid'),
     profileShell: $('#profileShell'), profileAvatar: $('#profileAvatar'), profileName: $('#profileName'),
@@ -354,8 +353,10 @@
     source.announcements.layout.accentColor = /^#[0-9a-f]{6}$/i.test(source.announcements.layout.accentColor || '')
       ? source.announcements.layout.accentColor.toLowerCase() : '#b9f547';
     source.announcements.layout.thumbnailEnabled = source.announcements.layout.thumbnailEnabled === true;
-    source.announcements.layout.thumbnailUrl = String(source.announcements.layout.thumbnailUrl || '').slice(0, 2000);
-    source.announcements.layout.galleryUrls = (source.announcements.layout.galleryUrls || []).map(String).slice(0, 10);
+    source.announcements.layout.thumbnailUrl = validMediaTemplate(source.announcements.layout.thumbnailUrl)
+      ? String(source.announcements.layout.thumbnailUrl).trim() : '';
+    source.announcements.layout.galleryUrls = [...new Set((Array.isArray(source.announcements.layout.galleryUrls) ? source.announcements.layout.galleryUrls : [])
+      .map((url) => String(url).trim()).filter(validMediaTemplate))].slice(0, 10);
     source.announcements.layout.galleryPosition = ['top', 'bottom'].includes(String(source.announcements.layout.galleryPosition).toLowerCase())
       ? source.announcements.layout.galleryPosition.toLowerCase() : 'bottom';
     source.announcements.additionalContainers = normalizeAdditionalContainersClient(source.announcements.additionalContainers, (layout) => {
@@ -388,9 +389,13 @@
     source.xpDrops.enabled = source.xpDrops.enabled === true;
     source.xpDrops.channelId = String(source.xpDrops.channelId || '');
     source.xpDrops.dropThumbnailEnabled = source.xpDrops.dropThumbnailEnabled !== false;
-    source.xpDrops.dropThumbnailUrl = validMediaTemplate(source.xpDrops.dropThumbnailUrl) ? String(source.xpDrops.dropThumbnailUrl).trim() : '{crate}';
+    source.xpDrops.dropThumbnailUrl = validXpDropMediaTemplate(source.xpDrops.dropThumbnailUrl) ? String(source.xpDrops.dropThumbnailUrl).trim() : '{crate}';
+    source.xpDrops.dropGalleryUrls = [...new Set((Array.isArray(source.xpDrops.dropGalleryUrls) ? source.xpDrops.dropGalleryUrls : [])
+      .map((url) => String(url).trim()).filter(validXpDropMediaTemplate))].slice(0, 10);
     source.xpDrops.claimThumbnailEnabled = source.xpDrops.claimThumbnailEnabled === true;
-    source.xpDrops.claimThumbnailUrl = validMediaTemplate(source.xpDrops.claimThumbnailUrl) ? String(source.xpDrops.claimThumbnailUrl).trim() : '{user_profile}';
+    source.xpDrops.claimThumbnailUrl = validXpDropMediaTemplate(source.xpDrops.claimThumbnailUrl) ? String(source.xpDrops.claimThumbnailUrl).trim() : '{user_profile}';
+    source.xpDrops.claimGalleryUrls = [...new Set((Array.isArray(source.xpDrops.claimGalleryUrls) ? source.xpDrops.claimGalleryUrls : [])
+      .map((url) => String(url).trim()).filter(validXpDropMediaTemplate))].slice(0, 10);
     source.xpDrops.dropTemplate = String(source.xpDrops.dropTemplate || '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}').slice(0, 3000);
     source.xpDrops.claimTemplate = String(source.xpDrops.claimTemplate || '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining').slice(0, 3000);
     const usedCrateIds = new Set();
@@ -517,6 +522,57 @@
     return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#99a1a6';
   }
 
+  function roleUnavailableReason(role) {
+    if (role?.managed) return 'Managed by an integration';
+    if (role?.administrator) return 'Administrator role';
+    if (role?.editable === false || role?.belowBot === false) return "Above the bot's highest role";
+    return '';
+  }
+
+  function roleListboxHtml(selectedId, target) {
+    const roles = state.directory.roles || [];
+    const selected = roles.find((role) => role.id === selectedId);
+    const listId = `role-list-${target.replace(/[^a-z0-9_-]/gi, '-')}`;
+    const selectedName = selected ? `@${selected.name}` : 'Choose a Discord role';
+    return `<div class="role-listbox" data-role-listbox data-role-target="${escapeHtml(target)}">
+      <button type="button" class="role-listbox-trigger" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="${listId}">
+        <i class="role-option-dot" style="--role-option-color:${roleColor(selectedId)}"></i><span>${escapeHtml(selectedName)}</span><b aria-hidden="true">⌄</b>
+      </button>
+      <div class="role-listbox-options" id="${listId}" role="listbox" tabindex="-1" hidden>
+        ${roles.map((role) => {
+          const reason = roleUnavailableReason(role);
+          const selectedOption = role.id === selectedId;
+          return `<button type="button" role="option" data-role-option="${role.id}" aria-selected="${selectedOption}" ${reason ? 'aria-disabled="true" disabled' : ''} class="role-listbox-option${selectedOption ? ' selected' : ''}${reason ? ' disabled' : ''}" title="${escapeHtml(reason)}">
+            <i class="role-option-dot" style="--role-option-color:${roleColor(role.id)}"></i><span>@${escapeHtml(role.name)}</span>${selectedOption ? '<b aria-hidden="true">✓</b>' : ''}${reason ? `<small>${escapeHtml(reason)}</small>` : ''}
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  function closeRoleListboxes(except = null) {
+    document.querySelectorAll('[data-role-listbox]').forEach((listbox) => {
+      if (listbox === except) return;
+      listbox.querySelector('.role-listbox-options').hidden = true;
+      listbox.querySelector('.role-listbox-trigger').setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function chooseLevelingRole(target, roleId) {
+    const [kind, indexText] = String(target || '').split(':');
+    const index = Number(indexText);
+    const role = (state.directory.roles || []).find((item) => item.id === roleId);
+    if (!role || roleUnavailableReason(role)) return;
+    if (kind === 'reward' && state.config.leveling.roleRewards[index]) {
+      state.config.leveling.roleRewards[index].roleId = roleId;
+      renderLevelingRewards();
+    } else if (kind === 'boost' && state.config.leveling.roleBoosts[index]) {
+      state.config.leveling.roleBoosts[index].roleId = roleId;
+      renderLevelingBoosts();
+    }
+    refreshDirty();
+  }
+
   function updateThumbnailControlUI(scope) {
     if (scope === 'leveling') {
       const layout = state.config?.leveling?.announcements?.layout;
@@ -524,36 +580,27 @@
       if (!control || !layout) return;
       const hasThumb = layout.thumbnailEnabled && Boolean(layout.thumbnailUrl);
       control.classList.toggle('has-thumbnail', hasThumb);
-      if (hasThumb) {
-        const previewUrl = previewMediaUrl(layout.thumbnailUrl);
-        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
-      } else {
-        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
-      }
+      const previewUrl = hasThumb ? previewMediaUrl(layout.thumbnailUrl) : '';
+      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
+      control.setAttribute('aria-label', previewUrl ? 'Change thumbnail' : 'Upload thumbnail');
     } else if (scope === 'xpDrop') {
       const xpDrops = state.config?.leveling?.xpDrops;
       const control = elements.xpDropThumbnailControl;
       if (!control || !xpDrops) return;
       const hasThumb = xpDrops.dropThumbnailEnabled !== false;
       control.classList.toggle('has-thumbnail', hasThumb);
-      if (hasThumb) {
-        const previewUrl = previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}');
-        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
-      } else {
-        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
-      }
+      const previewUrl = hasThumb ? previewMediaUrl(xpDrops.dropThumbnailUrl || '{crate}') : '';
+      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
+      control.setAttribute('aria-label', previewUrl ? 'Change drop thumbnail' : 'Upload drop thumbnail');
     } else if (scope === 'xpClaim') {
       const xpDrops = state.config?.leveling?.xpDrops;
       const control = elements.xpClaimThumbnailControl;
       if (!control || !xpDrops) return;
       const hasThumb = xpDrops.claimThumbnailEnabled === true;
       control.classList.toggle('has-thumbnail', hasThumb);
-      if (hasThumb) {
-        const previewUrl = previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}');
-        control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl)}" alt="Thumbnail"><span class="thumbnail-control-badge">THUMB</span>`;
-      } else {
-        control.innerHTML = '<span class="thumbnail-control-empty">+</span>';
-      }
+      const previewUrl = hasThumb ? previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}') : '';
+      control.innerHTML = `<img class="thumbnail-control-img" src="${escapeHtml(previewUrl || '/images/imageIcon.png')}" alt=""><span class="thumbnail-control-action">${previewUrl ? 'Change' : 'Upload'}</span>`;
+      control.setAttribute('aria-label', previewUrl ? 'Change claim thumbnail' : 'Upload claim thumbnail');
     }
   }
 
@@ -592,6 +639,13 @@
       if (!panel || !xpDrops) return;
       const url = xpDrops.dropThumbnailUrl || '{crate}';
       const enabled = xpDrops.dropThumbnailEnabled !== false;
+      const gallery = mediaGalleryEditorHtml({
+        urls: xpDrops.dropGalleryUrls, resolveMedia: previewMediaUrl,
+        urlAttrs: (index) => `data-xp-drop-gallery-url="${index}"`,
+        uploadAttrs: (index) => `data-xp-drop-media-upload="gallery" data-media-index="${index}"`,
+        removeAttrs: (index) => `data-remove-xp-drop-gallery="${index}"`,
+        placeholder: '{crate} or https://example.com/image.png',
+      });
       panel.innerHTML = `<div class="thumbnail-panel-inner">
         <div class="thumbnail-panel-header">
           <strong>Drop thumbnail</strong>
@@ -616,6 +670,7 @@
             ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpDrop">Remove</button>'
             : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpDrop">Enable</button>'}
         </div>
+        <div class="thumbnail-panel-header media-gallery-panel-head"><strong>Drop gallery</strong></div>${gallery}
       </div>`;
     } else if (scope === 'xpClaim') {
       const panel = elements.xpClaimThumbnailPanel;
@@ -623,6 +678,13 @@
       if (!panel || !xpDrops) return;
       const url = xpDrops.claimThumbnailUrl || '{user_profile}';
       const enabled = xpDrops.claimThumbnailEnabled === true;
+      const gallery = mediaGalleryEditorHtml({
+        urls: xpDrops.claimGalleryUrls, resolveMedia: previewMediaUrl,
+        urlAttrs: (index) => `data-xp-claim-gallery-url="${index}"`,
+        uploadAttrs: (index) => `data-xp-claim-media-upload="gallery" data-media-index="${index}"`,
+        removeAttrs: (index) => `data-remove-xp-claim-gallery="${index}"`,
+        placeholder: '{crate}, {user_profile}, or image URL',
+      });
       panel.innerHTML = `<div class="thumbnail-panel-inner">
         <div class="thumbnail-panel-header">
           <strong>Claim thumbnail</strong>
@@ -647,6 +709,7 @@
             ? '<button type="button" class="button tiny ghost danger" data-remove-thumbnail="xpClaim">Remove</button>'
             : '<button type="button" class="button tiny ghost" data-enable-thumbnail="xpClaim">Enable</button>'}
         </div>
+        <div class="thumbnail-panel-header media-gallery-panel-head"><strong>Claim gallery</strong></div>${gallery}
       </div>`;
     }
   }
@@ -683,7 +746,7 @@
         const multiplier = active ? multipliers[channel.id] : 1;
         return `<article class="xp-channel-option${active ? ' selected' : ''}">
           <label class="xp-channel-toggle"><input type="checkbox" data-leveling-channel value="${channel.id}" ${active ? 'checked' : ''}><span><b>#</b><strong>${escapeHtml(channel.name)}</strong></span><i aria-hidden="true">${active ? '&#x2713;' : '+'}</i></label>
-          <label class="channel-multiplier" ${active ? '' : 'hidden'}><span>Multi:</span><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
+          <label class="channel-multiplier" ${active ? '' : 'hidden'}><input type="number" min="0" max="10" step="1" value="${multiplier}" data-leveling-channel-multiplier="${channel.id}" aria-label="${escapeHtml(channel.name)} XP multiplier"><b>&times;</b></label>
         </article>`;
       }).join('');
 
@@ -713,9 +776,8 @@
   function renderLevelingRewards() {
     const rewards = state.config.leveling.roleRewards || [];
     elements.levelingRewards.innerHTML = rewards.length ? rewards.map((reward, index) => `<article class="reward-row" style="--role-color:${roleColor(reward.roleId)}">
-      <span class="reward-level-mark">LV</span>
       <label><small>Level</small><input type="number" min="1" max="${state.config.leveling.curve.maxLevel}" value="${reward.level}" data-level-reward-level="${index}"></label>
-      <label class="reward-role-field"><small><i class="role-color-dot"></i>Discord role</small><select data-level-reward-role="${index}">${roleOptions(reward.roleId)}</select></label>
+      <div class="reward-role-field"><small>Discord role</small>${roleListboxHtml(reward.roleId, `reward:${index}`)}</div>
       <button type="button" class="reward-remove" data-remove-level-reward="${index}" aria-label="Remove level ${reward.level} reward">Remove</button>
     </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role rewards yet</strong><span>Add milestones such as Level 5, 10, and 25.</span></div>';
   }
@@ -726,8 +788,7 @@
     if (elements.roleBoostModeHighest) elements.roleBoostModeHighest.checked = mode === 'highest';
     if (elements.roleBoostModeStackable) elements.roleBoostModeStackable.checked = mode === 'stackable';
     elements.levelingBoosts.innerHTML = boosts.length ? boosts.map((boost, index) => `<article class="reward-row boost-row" style="--role-color:${roleColor(boost.roleId)}">
-      <span class="reward-level-mark boost-mark">XP</span>
-      <label class="reward-role-field"><small><i class="role-color-dot"></i>Discord role</small><select data-level-boost-role="${index}">${roleOptions(boost.roleId)}</select></label>
+      <div class="reward-role-field"><small>Discord role</small>${roleListboxHtml(boost.roleId, `boost:${index}`)}</div>
       <label><small>Multiplier</small><span class="multiplier-input"><b>&times;</b><input type="number" min="0" max="10" step="1" value="${boost.multiplier}" data-level-boost-multiplier="${index}"></span></label>
       <button type="button" class="reward-remove" data-remove-level-boost="${index}" aria-label="Remove role XP boost">Remove</button>
     </article>`).join('') : '<div class="empty-state reward-empty"><strong>No role boosts yet</strong><span>Add a role and choose an XP multiplier from ×0 to ×10.</span></div>';
@@ -744,8 +805,7 @@
 
   function renderXpDropMessagePreviews() {
     const xpDrops = state.config.leveling.xpDrops;
-    const selectedId = elements.xpDropTestCrate.value;
-    const crate = xpDrops.crates.find((item) => item.id === selectedId) || xpDrops.crates[0] || {
+    const crate = xpDrops.crates[0] || {
       name: 'Common Crate', imageUrl: '', containerColor: '#b9f547', claimLimit: 3,
     };
     const color = /^#[0-9a-f]{6}$/i.test(crate.containerColor || '') ? crate.containerColor : '#b9f547';
@@ -757,14 +817,16 @@
     const dropThumbHtml = dropThumbEnabled
       ? (dropThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(dropThumbUrl)}" alt="${escapeHtml(crate.name)}">` : '<div class="discord-thumbnail placeholder">CRATE</div>')
       : '';
-    elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${dropThumbHtml}</div><div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
+    const dropGallery = discordGalleryHtml(xpDrops.dropGalleryUrls.map(previewMediaUrl));
+    elements.xpDropMessagePreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.dropTemplate, 'dropTemplate', 'xpDrops', 'XP drop message')}</div>${dropThumbHtml}</div>${dropGallery}<div class="discord-separator"></div><button class="xp-drop-fake-claim" type="button" disabled>Claim ${escapeHtml(crate.name)}</button>`;
 
     const claimThumbEnabled = xpDrops.claimThumbnailEnabled === true;
     const claimThumbUrl = previewMediaUrl(xpDrops.claimThumbnailUrl || '{user_profile}');
     const claimThumbHtml = claimThumbEnabled
       ? (claimThumbUrl ? `<img class="discord-thumbnail" src="${escapeHtml(claimThumbUrl)}" alt="Claimed">` : '<div class="discord-thumbnail placeholder">IMG</div>')
       : '';
-    elements.xpDropClaimPreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message')}</div>${claimThumbHtml}</div>`;
+    const claimGallery = discordGalleryHtml(xpDrops.claimGalleryUrls.map(previewMediaUrl));
+    elements.xpDropClaimPreview.innerHTML = `<div class="discord-section"><div>${inlineTemplateEditor(xpDrops.claimTemplate, 'claimTemplate', 'xpDrops', 'XP claim message')}</div>${claimThumbHtml}</div>${claimGallery}`;
 
     updateThumbnailControlUI('xpDrop');
     updateThumbnailControlUI('xpClaim');
@@ -777,11 +839,17 @@
       const isDropValid = isValidCrateDuration(crate.dropEvery, false);
       const isDespawnValid = isValidCrateDuration(crate.despawnAfter, true);
       return `<article class="compact-crate-card" style="--crate-color:${escapeHtml(crate.containerColor)}" data-xp-drop-card="${index}">
+        <button type="button" class="crate-remove-corner" data-remove-xp-drop="${index}" aria-label="Remove Crate ${index + 1}">&times;</button>
         <div class="xp-drop-card-layout">
-          <div class="tile-clickable" data-xp-drop-tile="${index}" title="Click to upload/replace crate image">
-            ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(crate.name)}">` : '<div class="tile-empty"><span class="tile-icon">&#x1F4E6;</span><span>Upload</span></div>'}
-            <div class="tile-overlay">Change</div>
-            <input type="file" accept="image/*" class="sr-only" data-xp-drop-media="${index}">
+          <div class="crate-media-editor${image ? ' populated' : ' empty'}">
+            <button type="button" class="tile-clickable" data-toggle-crate-media aria-expanded="${image ? 'false' : 'true'}" aria-label="${image ? `Change image for ${escapeHtml(crate.name)}` : `Upload image for ${escapeHtml(crate.name)}`}">
+              <img src="${escapeHtml(image || '/images/imageIcon.png')}" alt="">
+              <span class="tile-overlay">${image ? 'Change' : 'Upload'}</span>
+            </button>
+            <div class="crate-media-picker" ${image ? 'hidden' : ''}>
+              <input type="url" maxlength="2000" value="${escapeHtml(crate.imageUrl)}" placeholder="https://example.com/crate.png" data-xp-drop-image-url="${index}" aria-label="${escapeHtml(crate.name)} image URL">
+              <label class="media-upload">Upload<input type="file" accept="image/*" data-xp-drop-media="${index}"></label>
+            </div>
           </div>
           <div class="xp-drop-rows">
             <div class="xp-drop-row row-1">
@@ -828,31 +896,21 @@
                 <input type="checkbox" data-xp-drop-field="allowMultipleClaims" data-xp-drop-index="${index}" ${crate.allowMultipleClaims ? 'checked' : ''}>
                 <span class="field-label">Multi Claim</span>
               </label>
-              <button type="button" class="reward-remove" data-remove-xp-drop="${index}" aria-label="Remove ${escapeHtml(crate.name)}">&times; Remove</button>
             </div>
           </div>
         </div>
       </article>`;
-    }).join('') : '<div class="empty-state reward-empty"><strong>No XP crates yet</strong><span>Add a crate to configure scheduled drops and test claims.</span></div>';
+    }).join('') : '<div class="empty-state reward-empty"><strong>No XP crates yet</strong><span>Add a crate to configure scheduled drops.</span></div>';
   }
 
   function renderXpDrops() {
     const xpDrops = state.config.leveling.xpDrops;
-    const selectedCrate = elements.xpDropTestCrate.value;
-    const selectedChannel = elements.xpDropTestChannel.value;
     elements.xpDropsEnabled.checked = xpDrops.enabled;
     elements.xpDropChannel.innerHTML = channelOptions(xpDrops.channelId, (channel) => channel.kind !== 'forum', 'Choose a drop channel');
     if (elements.xpDropVariables) {
       elements.xpDropVariables.innerHTML = XP_DROP_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('');
     }
     renderXpDropList();
-    elements.xpDropTestCrate.innerHTML = xpDrops.crates.length
-      ? xpDrops.crates.map((crate) => `<option value="${escapeHtml(crate.id)}" ${crate.id === selectedCrate ? 'selected' : ''}>${escapeHtml(crate.name)}</option>`).join('')
-      : '<option value="">Add a crate first</option>';
-    elements.xpDropTestChannel.innerHTML = channelOptions(selectedChannel, (channel) => channel.kind !== 'forum');
-    elements.xpDropTestChannel.options[0].textContent = 'Use configured crate drop channel';
-    elements.xpDropTestButton.disabled = state.xpDropTesting || !xpDrops.crates.length;
-    elements.xpDropTestButton.textContent = state.xpDropTesting ? 'Sending…' : 'Send test';
     renderXpDropMessagePreviews();
   }
 
@@ -876,7 +934,12 @@
 
   function validMediaTemplate(value) {
     const trimmed = String(value || '').trim().toLowerCase();
-    return trimmed === '{user_profile}' || trimmed === '{crate}' || validHttpUrl(value);
+    return trimmed === '{user_profile}' || validHttpUrl(value);
+  }
+
+  function validXpDropMediaTemplate(value) {
+    const trimmed = String(value || '').trim().toLowerCase();
+    return ['{user_profile}', '{crate}'].includes(trimmed) || validHttpUrl(value);
   }
 
   function previewMediaUrl(value) {
@@ -886,8 +949,7 @@
     }
     if (trimmed === '{crate}') {
       const xpDrops = state.config?.leveling?.xpDrops;
-      const crate = xpDrops?.crates?.find((item) => item.id === elements.xpDropTestCrate?.value) || xpDrops?.crates?.[0];
-      return crate?.imageUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
+      return xpDrops?.crates?.[0]?.imageUrl || '';
     }
     return validHttpUrl(value) ? String(value).trim() : '';
   }
@@ -935,7 +997,7 @@
       .replace(/\|\|([^|\n]+)\|\|/g, (_, content) => stash(`<span class="markdown-syntax">||</span><span class="editor-spoiler">${content}</span><span class="markdown-syntax">||</span>`))
       .replace(/\*([^*\n]+)\*/g, (_, content) => stash(`<span class="markdown-syntax">*</span><em>${content}</em><span class="markdown-syntax">*</span>`))
       .replace(/_([^_\n]+)_/g, (_, content) => stash(`<span class="markdown-syntax">_</span><em>${content}</em><span class="markdown-syntax">_</span>`))
-      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
+      .replace(/\{(?:user|user_profile|username|level|next_level|server|channel|bar|progress_xp|needed_xp|total_xp|crate_name|xp_min|xp_max|xp|claim_limit|claims_left|list_claimed_user|chance|drop_every|despawn_time|separator)\}/gi, (token) => stash(`<span class="editor-token">${token}</span>`));
     return html.replace(/\uE000(\d+)\uE001/g, (_, index) => fragments[Number(index)] || '');
   }
 
@@ -961,7 +1023,7 @@
 
   function previewMessageValue(template, extraValues = {}) {
     const xpDrops = state.config?.leveling?.xpDrops;
-    const crate = xpDrops?.crates?.find((item) => item.id === elements.xpDropTestCrate?.value) || xpDrops?.crates?.[0];
+    const crate = xpDrops?.crates?.[0];
     const minimum = crate?.xp?.min ?? 50;
     const maximum = crate?.xp?.max ?? 100;
     const claimed = Math.round((Number(minimum) + Number(maximum)) / 2);
@@ -1065,23 +1127,29 @@
       { token: '{separator}', desc: 'Discord divider' },
     ],
     xpDrop: [
-      { token: '{crate}', desc: 'Name of the dropped crate' },
-      { token: '{crate_xp}', desc: 'XP amount or range in crate' },
-      { token: '{user}', desc: 'Member who spawned crate' },
+      { token: '{crate_name}', desc: 'Name of the dropped crate' },
+      { token: '{xp_min}', desc: 'Minimum XP in crate' },
+      { token: '{xp_max}', desc: 'Maximum XP in crate' },
       { token: '{claim_limit}', desc: 'Max claimants allowed' },
-      { token: '{drop_interval}', desc: 'Interval between crate drops' },
+      { token: '{claims_left}', desc: 'Remaining claims' },
+      { token: '{list_claimed_user}', desc: 'Members who claimed' },
+      { token: '{chance}', desc: 'Drop chance percent' },
+      { token: '{drop_every}', desc: 'Interval between crate drops' },
       { token: '{despawn_time}', desc: 'Time until crate despawns' },
       { token: '{channel}', desc: 'Drop channel' },
       { token: '{server}', desc: 'Server name' },
       { token: '{separator}', desc: 'Discord divider' },
     ],
     xpClaim: [
-      { token: '{crate}', desc: 'Name of the claimed crate' },
-      { token: '{crate_xp}', desc: 'XP amount awarded' },
+      { token: '{crate_name}', desc: 'Name of the claimed crate' },
+      { token: '{xp}', desc: 'XP amount awarded' },
       { token: '{user}', desc: 'Claiming member mention' },
+      { token: '{username}', desc: 'Claiming member name' },
       { token: '{claim_limit}', desc: 'Max claimants allowed' },
-      { token: '{user_xp}', desc: 'Updated member XP total' },
-      { token: '{user_level}', desc: 'Updated member level' },
+      { token: '{claims_left}', desc: 'Remaining claims' },
+      { token: '{list_claimed_user}', desc: 'Members who claimed' },
+      { token: '{total_xp}', desc: 'Updated member XP total' },
+      { token: '{level}', desc: 'Updated member level' },
       { token: '{separator}', desc: 'Discord divider' },
     ],
     memberMessages: [
@@ -1268,27 +1336,51 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function mediaGalleryEditorHtml({ urls, resolveMedia, urlAttrs, uploadAttrs, removeAttrs, placeholder = 'https://example.com/image.png' }) {
+    return `<div class="media-gallery-editor media-count-${Math.min(urls.length, 10)}">${urls.map((rawUrl, index) => {
+      const previewUrl = resolveMedia(rawUrl);
+      const populated = Boolean(previewUrl);
+      return `<article class="media-slot${populated ? ' populated' : ' empty'}">
+        <button type="button" class="media-slot-visual" data-toggle-media-slot aria-expanded="${populated ? 'false' : 'true'}" aria-label="${populated ? `Change image ${index + 1}` : `Choose image ${index + 1}`}">
+          ${populated ? `<img src="${escapeHtml(previewUrl)}" alt="">` : '<img src="/images/imageIcon.png" alt="">'}
+          <span>${populated ? 'Change' : 'Upload or URL'}</span>
+        </button>
+        <button type="button" class="media-slot-remove" ${removeAttrs(index)} aria-label="Remove image ${index + 1}">&times;</button>
+        <div class="media-slot-picker" ${populated ? 'hidden' : ''}>
+          <input type="url" maxlength="2000" value="${escapeHtml(rawUrl)}" placeholder="${escapeHtml(placeholder)}" ${urlAttrs(index)} aria-label="Image ${index + 1} URL">
+          <label class="media-upload">Upload<input type="file" accept="image/*" ${uploadAttrs(index)}></label>
+        </div>
+      </article>`;
+    }).join('')}</div>`;
+  }
+
+  function discordGalleryHtml(urls) {
+    const media = urls.filter(Boolean).slice(0, 10);
+    return media.length ? `<div class="discord-gallery media-count-${media.length}">${media.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
+  }
+
   function renderComposerPanel() {
     const panel = state.levelingComposerPanel;
     const layout = state.config.leveling.announcements.layout;
     elements.levelingComposerPanel.hidden = !panel;
     elements.levelingComposerPanel.dataset.panel = panel;
     elements.levelingVariablesToggle?.classList.toggle('active', panel === 'variables');
-    elements.levelingThumbnailAdd?.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
     elements.levelingGalleryAdd?.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMediaTemplate));
     if (!panel) return;
     if (panel === 'variables') {
       elements.levelingComposerPanel.innerHTML = `<div class="variable-guide">${LEVELING_VARIABLES.map(([token, meaning]) => `<button type="button" data-copy-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
       return;
     }
-    if (panel === 'thumbnail') {
-      elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_profile}, paste an image URL, or upload any decodable image or GIF up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_profile} or https://example.com/thumbnail.png" data-leveling-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-leveling-media-upload="thumbnail"></label></div>`;
-      return;
-    }
     const pos = layout.galleryPosition || 'bottom';
     const posToggle = `<div class="gallery-position-toggle" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--muted,#99a1a6);">Position:</span><button type="button" class="button tiny ${pos === 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="top">Above message</button><button type="button" class="button tiny ${pos !== 'top' ? 'primary' : 'ghost'}" data-leveling-gallery-pos="bottom">Below message</button></div>`;
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{user_profile} or https://example.com/image.png" data-leveling-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images with {user_profile}, a URL, or an upload.</small></div><div><button type="button" data-add-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-leveling-media-upload="gallery"></label></div></div>${posToggle}<div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const gallery = mediaGalleryEditorHtml({
+      urls: layout.galleryUrls, resolveMedia: previewMediaUrl,
+      urlAttrs: (index) => `data-leveling-gallery-url="${index}"`,
+      uploadAttrs: (index) => `data-leveling-media-upload="gallery" data-media-index="${index}"`,
+      removeAttrs: (index) => `data-remove-gallery="${index}"`,
+      placeholder: '{user_profile} or https://example.com/image.png',
+    });
+    elements.levelingComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-gallery-url>Add Images</button></div>${posToggle}${gallery}`;
   }
 
   function readMediaFile(file) {
@@ -1366,12 +1458,24 @@
         renderXpDropMessagePreviews();
         renderThumbnailPanel('xpDrop');
         updateThumbnailControlUI('xpDrop');
+      } else if (input.dataset.xpDropMediaUpload === 'gallery') {
+        const gallery = state.config.leveling.xpDrops.dropGalleryUrls;
+        const index = Number(input.dataset.mediaIndex);
+        if (Number.isInteger(index) && index >= 0 && index < gallery.length) gallery[index] = result.url;
+        else if (gallery.length < 10) gallery.push(result.url);
+        renderXpDropMessagePreviews(); renderThumbnailPanel('xpDrop');
       } else if (input.dataset.xpClaimMediaUpload === 'thumbnail') {
         state.config.leveling.xpDrops.claimThumbnailUrl = result.url;
         state.config.leveling.xpDrops.claimThumbnailEnabled = true;
         renderXpDropMessagePreviews();
         renderThumbnailPanel('xpClaim');
         updateThumbnailControlUI('xpClaim');
+      } else if (input.dataset.xpClaimMediaUpload === 'gallery') {
+        const gallery = state.config.leveling.xpDrops.claimGalleryUrls;
+        const index = Number(input.dataset.mediaIndex);
+        if (Number.isInteger(index) && index >= 0 && index < gallery.length) gallery[index] = result.url;
+        else if (gallery.length < 10) gallery.push(result.url);
+        renderXpDropMessagePreviews(); renderThumbnailPanel('xpClaim');
       } else {
         const index = Number(input.dataset.xpDropMedia);
         const crate = state.config?.leveling?.xpDrops?.crates?.[index];
@@ -1389,42 +1493,35 @@
     }
   }
 
-  async function sendXpDropTest() {
-    if (state.xpDropTesting || !state.config) return;
-    const crateId = elements.xpDropTestCrate.value;
-    if (!crateId) return showToast('Add a crate before sending a test.', 'error');
-    state.xpDropTesting = true;
-    renderXpDrops();
-    try {
-      const result = await api(`/api/guilds/${state.guildId}/xp-drops/test`, {
-        method: 'POST',
-        body: JSON.stringify({
-          crateId,
-          channelId: elements.xpDropTestChannel.value,
-          xpDrops: state.config.leveling.xpDrops,
-        }),
-      });
-      showToast(`Test crate sent to <#${result.channelId}>. Claims will not award XP.`);
-    } catch (error) {
-      showToast(error.message || 'The test crate could not be sent.', 'error');
-    } finally {
-      state.xpDropTesting = false;
-      renderXpDrops();
-    }
-  }
-
   function toggleComposerPanel(panel) {
     state.levelingComposerPanel = state.levelingComposerPanel === panel ? '' : panel;
     renderComposerPanel();
   }
 
-  function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia }) {
+  function thumbnailTileHtml({ layout, resolvedUrl, label = 'Thumbnail', urlAttrs, uploadAttrs, removeKey }) {
+    const populated = layout.thumbnailEnabled && Boolean(resolvedUrl);
+    return `<div class="composer-thumbnail-editor${populated ? ' populated' : ' empty'}">
+      <button type="button" class="composer-thumbnail-tile" data-toggle-thumbnail-tile aria-expanded="false" aria-label="${populated ? `Change ${label}` : `Upload ${label}`}">
+        <img src="${escapeHtml(populated ? resolvedUrl : '/images/imageIcon.png')}" alt="">
+        <span>${populated ? 'Change' : 'Upload'}</span>
+      </button>
+      ${layout.thumbnailEnabled ? `<button type="button" class="media-slot-remove thumbnail-remove" data-shared-thumbnail-remove="${escapeHtml(removeKey)}" aria-label="Remove ${escapeHtml(label)}">&times;</button>` : ''}
+      <div class="thumbnail-inline-picker" hidden>
+        <input type="url" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl || '')}" placeholder="Image URL" ${urlAttrs} aria-label="${escapeHtml(label)} URL">
+        <label class="media-upload">Upload<input type="file" accept="image/*" ${uploadAttrs}></label>
+      </div>
+    </div>`;
+  }
+
+  function renderDiscordComposerPreview({ frame, preview, accentButton, accentInput, containerButton, layout, contentHtml, resolveMedia, thumbnailEditor }) {
     const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
-    const thumbnail = layout.thumbnailEnabled
-      ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
-      : '';
+    const thumbnail = thumbnailEditor
+      ? thumbnailTileHtml({ layout, resolvedUrl: thumbnailUrl, ...thumbnailEditor })
+      : layout.thumbnailEnabled
+        ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
+        : '';
     const gallery = (layout.galleryUrls || []).map(resolveMedia).filter(Boolean);
-    const galleryHtml = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
+    const galleryHtml = discordGalleryHtml(gallery);
     frame.classList.toggle('has-container', layout.container);
     frame.classList.toggle('no-container', !layout.container);
     frame.style.setProperty('--accent-color', layout.accentColor);
@@ -1441,17 +1538,25 @@
     root.innerHTML = containers.map((container, containerIndex) => {
       const layout = container.layout;
       const thumbnailUrl = layout.thumbnailEnabled ? resolveMedia(layout.thumbnailUrl) : '';
-      const thumbnail = layout.thumbnailEnabled
-        ? thumbnailUrl ? `<img class="discord-thumbnail" src="${escapeHtml(thumbnailUrl)}" alt="">` : '<div class="discord-thumbnail placeholder">IMG</div>'
-        : '';
+      const thumbnail = thumbnailTileHtml({
+        layout, resolvedUrl: thumbnailUrl, label: `Container ${containerIndex + 2} thumbnail`,
+        urlAttrs: `data-${prefix}-additional-thumbnail-url="${containerIndex}"`,
+        uploadAttrs: `data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"`,
+        removeKey: `${prefix}:${containerIndex}`,
+      });
       const gallery = layout.galleryUrls.map(resolveMedia).filter(Boolean);
-      const galleryPreview = gallery.length ? `<div class="discord-gallery">${gallery.map((url) => `<img src="${escapeHtml(url)}" alt="">`).join('')}</div>` : '';
-      const galleryRows = layout.galleryUrls.map((url, mediaIndex) => `<div class="media-entry"><span>${mediaIndex + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"></label><button type="button" data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}" aria-label="Remove gallery image ${mediaIndex + 1}">&times;</button></div>`).join('');
+      const galleryPreview = discordGalleryHtml(gallery);
+      const galleryEditor = mediaGalleryEditorHtml({
+        urls: layout.galleryUrls, resolveMedia,
+        urlAttrs: (mediaIndex) => `data-${prefix}-additional-gallery-url="${containerIndex}:${mediaIndex}"`,
+        uploadAttrs: (mediaIndex) => `data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}" data-media-index="${mediaIndex}"`,
+        removeAttrs: (mediaIndex) => `data-remove-${prefix}-additional-gallery="${containerIndex}:${mediaIndex}"`,
+      });
       const content = inlineTemplateEditor(container.content, 'content', scope, `container ${containerIndex + 2} message`, previewValues, maxLength, containerIndex);
       return `<section class="additional-container-card" style="--accent-color:${escapeHtml(layout.accentColor)}" data-additional-container-card="${containerIndex}">
         <header><strong>Container ${containerIndex + 2}</strong><div><label class="additional-container-color" title="Container color"><span>Accent</span><input type="color" value="${escapeHtml(layout.accentColor)}" data-${prefix}-additional-accent="${containerIndex}" aria-label="Container ${containerIndex + 2} color"></label><button type="button" data-remove-${prefix}-additional-container="${containerIndex}">Remove</button></div></header>
         ${layout.galleryPosition === 'top' ? galleryPreview : ''}<div class="discord-section"><div>${content}</div>${thumbnail}</div>${layout.galleryPosition !== 'top' ? galleryPreview : ''}
-        <details class="additional-container-media"><summary>Images</summary><div class="media-entry"><span>Thumb</span><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="Image URL or supported variable" data-${prefix}-additional-thumbnail-url="${containerIndex}"><label class="media-upload">Upload<input type="file" accept="image/*" data-${prefix}-media-upload="thumbnail" data-additional-container-index="${containerIndex}"></label></div><div class="additional-gallery-head"><strong>Gallery</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-${prefix}-media-upload="gallery" data-additional-container-index="${containerIndex}"></label></div><div class="media-list">${galleryRows || '<p>No gallery images yet.</p>'}</div></details>
+        <div class="additional-container-media"><div class="additional-gallery-head"><strong>Images</strong><button type="button" data-add-${prefix}-additional-gallery="${containerIndex}">Add Images</button></div>${galleryEditor}</div>
       </section>`;
     }).join('');
   }
@@ -1519,7 +1624,6 @@
     elements.welcomeComposerPanel.hidden = !panel;
     elements.welcomeComposerPanel.dataset.panel = panel;
     elements.welcomeVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.welcomeThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
     elements.welcomeGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validMemberMediaTemplate));
     if (!panel) return;
     if (panel === 'variables') {
@@ -1527,12 +1631,14 @@
       elements.welcomeComposerPanel.innerHTML = `<div class="variable-guide">${variables.map(([token, meaning]) => `<button type="button" data-insert-member-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
       return;
     }
-    if (panel === 'thumbnail') {
-      elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {user_avatar}, {server_icon}, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-welcome-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{user_avatar} or https://example.com/image.png" data-welcome-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-welcome-media-upload="thumbnail"></label></div>`;
-      return;
-    }
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="{server_icon} or https://example.com/image.png" data-welcome-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-welcome-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-welcome-gallery-url>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-welcome-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const gallery = mediaGalleryEditorHtml({
+      urls: layout.galleryUrls, resolveMedia: memberMessagePreviewMediaUrl,
+      urlAttrs: (index) => `data-welcome-gallery-url="${index}"`,
+      uploadAttrs: (index) => `data-welcome-media-upload="gallery" data-media-index="${index}"`,
+      removeAttrs: (index) => `data-remove-welcome-gallery="${index}"`,
+      placeholder: '{server_icon} or https://example.com/image.png',
+    });
+    elements.welcomeComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-welcome-gallery-url>Add Images</button></div>${gallery}`;
   }
 
   function renderWelcomeMessagePreview(renderTools = true) {
@@ -1546,6 +1652,10 @@
       accentButton: elements.welcomeAccentButton, accentInput: elements.welcomeAccentColor,
       containerButton: elements.welcomeContainerAdd, layout, contentHtml: text,
       resolveMedia: (url) => memberMessagePreviewMediaUrl(url),
+      thumbnailEditor: {
+        urlAttrs: 'data-welcome-thumbnail-url', uploadAttrs: 'data-welcome-media-upload="thumbnail"',
+        removeKey: 'welcome:main', label: `${state.memberMessageEvent} message thumbnail`,
+      },
     });
     renderAdditionalContainerEditors({
       root: elements.welcomeAdditionalContainers,
@@ -1856,19 +1966,19 @@
     const layout = draft.message.layout;
     elements.reactionRoleComposerPanel.hidden = !panel;
     elements.reactionRoleVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.reactionRoleThumbnailToggle.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
     elements.reactionRoleGalleryToggle.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
     if (!panel) return;
     if (panel === 'variables') {
       elements.reactionRoleComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-reaction-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
       return;
     }
-    if (panel === 'thumbnail') {
-      elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, an image URL, or an upload.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-reaction-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-reaction-thumbnail-url><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="thumbnail"></label></div>`;
-      return;
-    }
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" data-reaction-gallery-url="${index}" placeholder="https://example.com/image.png"><label class="media-upload">Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-reaction-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-reaction-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-reaction-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const gallery = mediaGalleryEditorHtml({
+      urls: layout.galleryUrls, resolveMedia: templatePreviewMediaUrl,
+      urlAttrs: (index) => `data-reaction-gallery-url="${index}"`,
+      uploadAttrs: (index) => `data-reaction-media-upload="gallery" data-media-index="${index}"`,
+      removeAttrs: (index) => `data-remove-reaction-gallery="${index}"`,
+    });
+    elements.reactionRoleComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-reaction-gallery>Add Images</button></div>${gallery}`;
   }
 
   function renderReactionRoleMessage() {
@@ -1880,6 +1990,10 @@
       accentButton: elements.reactionRoleAccentButton, accentInput: elements.reactionRoleAccentColor,
       containerButton: elements.reactionRoleContainerToggle, layout: draft.message.layout,
       contentHtml: content, resolveMedia: templatePreviewMediaUrl,
+      thumbnailEditor: {
+        urlAttrs: 'data-reaction-thumbnail-url', uploadAttrs: 'data-reaction-media-upload="thumbnail"',
+        removeKey: 'reaction:main', label: 'Reaction Role thumbnail',
+      },
     });
     renderAdditionalContainerEditors({
       root: elements.reactionRoleAdditionalContainers, containers: draft.message.additionalContainers,
@@ -2778,19 +2892,19 @@
     elements.templateComposerPanel.hidden = !panel;
     elements.templateComposerPanel.dataset.panel = panel;
     elements.templateVariablesToggle.classList.toggle('active', panel === 'variables');
-    elements.templateThumbnailAdd.classList.toggle('active', panel === 'thumbnail' || layout.thumbnailEnabled);
     elements.templateGalleryAdd.classList.toggle('active', panel === 'gallery' || layout.galleryUrls.some(validTemplateMedia));
     if (!panel) return;
     if (panel === 'variables') {
       elements.templateComposerPanel.innerHTML = `<div class="variable-guide">${GENERIC_TEMPLATE_VARIABLES.map(([token, meaning]) => `<button type="button" data-insert-template-variable="${escapeHtml(token)}"><code>${escapeHtml(token)}</code><span>${escapeHtml(meaning)}</span></button>`).join('')}</div>`;
       return;
     }
-    if (panel === 'thumbnail') {
-      elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Thumbnail</strong><small>Use {server_icon}, a supported context media variable, an image URL, or an upload up to 10 MB.</small></div>${layout.thumbnailEnabled ? '<button type="button" data-remove-template-thumbnail>Remove</button>' : ''}</div><div class="media-entry"><input type="text" maxlength="2000" value="${escapeHtml(layout.thumbnailUrl)}" placeholder="{server_icon} or https://example.com/image.png" data-template-thumbnail-url><label class="media-upload">Upload image<input type="file" accept="image/*" data-template-media-upload="thumbnail"></label></div>`;
-      return;
-    }
-    const rows = layout.galleryUrls.map((url, index) => `<div class="media-entry"><span>${index + 1}</span><input type="text" maxlength="2000" value="${escapeHtml(url)}" placeholder="https://example.com/image.png" data-template-gallery-url="${index}"><label class="media-upload">Upload<input type="file" accept="image/*" data-template-media-upload="gallery" data-media-index="${index}"></label><button type="button" data-remove-template-gallery="${index}" aria-label="Remove gallery image ${index + 1}">&times;</button></div>`).join('');
-    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 image URLs or uploads.</small></div><div><button type="button" data-add-template-gallery>+ URL</button><label class="media-upload">+ Upload<input type="file" accept="image/*" data-template-media-upload="gallery"></label></div></div><div class="media-list">${rows || '<p>No gallery images yet.</p>'}</div>`;
+    const gallery = mediaGalleryEditorHtml({
+      urls: layout.galleryUrls, resolveMedia: templatePreviewMediaUrl,
+      urlAttrs: (index) => `data-template-gallery-url="${index}"`,
+      uploadAttrs: (index) => `data-template-media-upload="gallery" data-media-index="${index}"`,
+      removeAttrs: (index) => `data-remove-template-gallery="${index}"`,
+    });
+    elements.templateComposerPanel.innerHTML = `<div class="media-panel-head"><div><strong>Image gallery</strong><small>Add up to 10 images in display order.</small></div><button type="button" data-add-template-gallery>Add Images</button></div>${gallery}`;
   }
 
   function renderTemplateComposerPreview(renderTools = true, updateJson = true) {
@@ -2801,6 +2915,10 @@
       frame: elements.templateDiscordFrame, preview: elements.templateMessagePreview,
       accentButton: elements.templateAccentButton, accentInput: elements.templateAccentColor,
       containerButton: elements.templateContainerAdd, layout: draft.layout, contentHtml, resolveMedia: templatePreviewMediaUrl,
+      thumbnailEditor: {
+        urlAttrs: 'data-template-thumbnail-url', uploadAttrs: 'data-template-media-upload="thumbnail"',
+        removeKey: 'template:main', label: 'Message template thumbnail',
+      },
     });
     renderAdditionalContainerEditors({
       root: elements.templateAdditionalContainers,
@@ -3342,8 +3460,46 @@
     showToast(`Saved “${payload.item.name}” as a template.`);
   }
 
+  function disableLevelingRegion(region, disabled, except = []) {
+    if (!region) return;
+    region.classList.toggle('feature-disabled', disabled);
+    region.setAttribute('aria-disabled', String(disabled));
+    if (!disabled) return;
+    region.querySelectorAll('button,input,select,textarea,[contenteditable="true"]').forEach((control) => {
+      if (!except.includes(control) && !control.disabled) {
+        control.dataset.levelingDisabled = 'true';
+        control.disabled = true;
+      }
+    });
+  }
+
+  function applyLevelingDisabledState() {
+    const leveling = state.config.leveling;
+    elements.levelingView.querySelectorAll('[data-leveling-disabled="true"]').forEach((control) => {
+      control.disabled = false;
+      delete control.dataset.levelingDisabled;
+    });
+    elements.levelingView.classList.toggle('leveling-disabled', !leveling.enabled);
+    if (!leveling.enabled) {
+      elements.levelingView.querySelectorAll('button,input,select,textarea,[contenteditable="true"]').forEach((control) => {
+        if (control !== elements.levelingEnabled && !control.disabled) {
+          control.dataset.levelingDisabled = 'true';
+          control.disabled = true;
+        }
+      });
+      [...elements.levelingView.children].filter((child) => !child.classList.contains('leveling-workspace-head')).forEach((region) => region.setAttribute('aria-disabled', 'true'));
+      return;
+    }
+    [...elements.levelingView.children].forEach((region) => region.removeAttribute('aria-disabled'));
+    disableLevelingRegion(document.querySelector('.leveling-message-section'), !leveling.announcements.enabled, [elements.levelingAnnounceEnabled]);
+    disableLevelingRegion(document.querySelector('.xp-drop-section'), !leveling.xpDrops.enabled, [elements.xpDropsEnabled]);
+  }
+
   function renderLeveling() {
     const leveling = state.config.leveling;
+    const featureGrid = elements.levelingView.querySelector('.leveling-channels-boosts-grid');
+    const rewardsSection = elements.levelingView.querySelector('.leveling-role-rewards-section');
+    if (featureGrid && rewardsSection?.parentElement !== featureGrid) featureGrid.append(rewardsSection);
     elements.levelingEnabled.checked = leveling.enabled;
     elements.levelingXpMin.value = leveling.xp.min;
     elements.levelingXpMax.value = leveling.xp.max;
@@ -3361,6 +3517,7 @@
     renderLevelingBoosts();
     renderMessagePreview();
     renderXpDrops();
+    applyLevelingDisabledState();
     refreshDirty();
   }
 
@@ -3799,8 +3956,8 @@
       refreshDirty();
       return;
     }
-    if (target === elements.levelingEnabled) leveling.enabled = target.checked;
-    if (target === elements.xpDropsEnabled) leveling.xpDrops.enabled = target.checked;
+    if (target === elements.levelingEnabled) { leveling.enabled = target.checked; renderLeveling(); return; }
+    if (target === elements.xpDropsEnabled) { leveling.xpDrops.enabled = target.checked; renderLeveling(); return; }
     if (target === elements.xpDropChannel) leveling.xpDrops.channelId = target.value;
     if (target === elements.levelingXpMin) {
       leveling.xp.min = Math.round(clampNumber(target.value, 1, 1000, 15));
@@ -3817,7 +3974,7 @@
       renderLevelingRewards();
     }
     if ([elements.levelingBaseXp, elements.levelingGrowth, elements.levelingMaxLevel].includes(target)) renderCurvePreview();
-    if (target === elements.levelingAnnounceEnabled) leveling.announcements.enabled = target.checked;
+    if (target === elements.levelingAnnounceEnabled) { leveling.announcements.enabled = target.checked; renderLeveling(); return; }
     if (target === elements.levelingAnnounceChannel) leveling.announcements.channelId = target.value;
     if (target.name === 'roleBoostMode') {
       leveling.roleBoostMode = target.value === 'stackable' ? 'stackable' : 'highest';
@@ -3841,6 +3998,14 @@
     if (target.matches('[data-xp-claim-thumbnail-url]')) {
       leveling.xpDrops.claimThumbnailUrl = target.value.slice(0, 2000);
       leveling.xpDrops.claimThumbnailEnabled = Boolean(target.value.trim());
+      renderXpDropMessagePreviews();
+    }
+    if (target.matches('[data-xp-drop-gallery-url]')) {
+      leveling.xpDrops.dropGalleryUrls[Number(target.dataset.xpDropGalleryUrl)] = target.value.slice(0, 2000);
+      renderXpDropMessagePreviews();
+    }
+    if (target.matches('[data-xp-claim-gallery-url]')) {
+      leveling.xpDrops.claimGalleryUrls[Number(target.dataset.xpClaimGalleryUrl)] = target.value.slice(0, 2000);
       renderXpDropMessagePreviews();
     }
     if (target === elements.levelingAccentColor) {
@@ -3906,6 +4071,11 @@
       const boost = leveling.roleBoosts[Number(target.dataset.levelBoostMultiplier)];
       if (boost) boost.multiplier = Math.round(clampNumber(target.value, 0, 10, 1));
     }
+    if (target.matches('[data-xp-drop-image-url]')) {
+      const crate = leveling.xpDrops.crates[Number(target.dataset.xpDropImageUrl)];
+      if (crate) crate.imageUrl = target.value.trim().slice(0, 2000);
+      renderXpDropMessagePreviews();
+    }
     if (target.matches('[data-xp-drop-field]')) {
       const index = Number(target.dataset.xpDropIndex);
       const crate = leveling.xpDrops.crates[index];
@@ -3935,8 +4105,6 @@
           const code = target.closest('.crate-color-input')?.querySelector('code');
           if (code) code.textContent = target.value;
         }
-        const testOption = [...elements.xpDropTestCrate.options].find((option) => option.value === crate.id);
-        if (testOption) testOption.textContent = crate.name || 'Unnamed crate';
         renderXpDropMessagePreviews();
       }
     }
@@ -4067,7 +4235,7 @@
     if (!state.config || state.config.leveling.roleRewards.length >= 100) return;
     const rewards = state.config.leveling.roleRewards;
     const lastLevel = rewards.length ? Math.max(...rewards.map((reward) => reward.level)) : 0;
-    const firstRole = (state.directory.roles || []).find((role) => role.editable !== false);
+    const firstRole = (state.directory.roles || []).find((role) => !roleUnavailableReason(role));
     rewards.push({ level: Math.min(state.config.leveling.curve.maxLevel, lastLevel + 5 || 5), roleId: firstRole?.id || '' });
     renderLevelingRewards();
     refreshDirty();
@@ -4076,7 +4244,7 @@
 
   function addLevelBoost() {
     if (!state.config || state.config.leveling.roleBoosts.length >= 100) return;
-    const firstUnused = (state.directory.roles || []).find((role) => role.editable !== false
+    const firstUnused = (state.directory.roles || []).find((role) => !roleUnavailableReason(role)
       && !state.config.leveling.roleBoosts.some((boost) => boost.roleId === role.id));
     state.config.leveling.roleBoosts.push({ roleId: firstUnused?.id || '', multiplier: 2 });
     renderLevelingBoosts();
@@ -5250,9 +5418,14 @@
     await api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => null);
     location.assign('/admin');
   });
-  elements.levelingView.addEventListener('input', (event) => updateLevelingFromControl(event.target));
+  const isInlineMediaPickerInput = (target) => Boolean(target.closest?.('.thumbnail-inline-picker, .media-slot-picker, .crate-media-picker'));
+  elements.levelingView.addEventListener('input', (event) => {
+    if (!isInlineMediaPickerInput(event.target)) updateLevelingFromControl(event.target);
+  });
   elements.levelingView.addEventListener('change', (event) => updateLevelingFromControl(event.target));
-  elements.welcomeMessagesView.addEventListener('input', (event) => updateMemberMessagesFromControl(event.target));
+  elements.welcomeMessagesView.addEventListener('input', (event) => {
+    if (!isInlineMediaPickerInput(event.target)) updateMemberMessagesFromControl(event.target);
+  });
   elements.welcomeMessagesView.addEventListener('change', (event) => updateMemberMessagesFromControl(event.target));
   elements.gamesView.addEventListener('change', (event) => {
     if (!state.config?.counting || !state.config?.games) return;
@@ -5282,11 +5455,99 @@
   elements.messageTemplatesView.addEventListener('input', (event) => {
     if (event.target === elements.templateSearch) return renderTemplateList();
     if (event.target === elements.templateJsonEditor) return updateTemplateJsonFromInput();
-    updateTemplateDraftFromControl(event.target);
+    if (!isInlineMediaPickerInput(event.target)) updateTemplateDraftFromControl(event.target);
   });
   elements.messageTemplatesView.addEventListener('change', (event) => updateTemplateDraftFromControl(event.target));
-  elements.reactionRolesView.addEventListener('input', (event) => updateReactionRoleFromControl(event.target));
+  elements.reactionRolesView.addEventListener('input', (event) => {
+    if (!isInlineMediaPickerInput(event.target)) updateReactionRoleFromControl(event.target);
+  });
   elements.reactionRolesView.addEventListener('change', (event) => updateReactionRoleFromControl(event.target));
+  document.addEventListener('click', (event) => {
+    const roleTrigger = event.target.closest('.role-listbox-trigger');
+    if (roleTrigger) {
+      const listbox = roleTrigger.closest('[data-role-listbox]');
+      const options = listbox.querySelector('.role-listbox-options');
+      const opening = options.hidden;
+      closeRoleListboxes(listbox);
+      options.hidden = !opening;
+      roleTrigger.setAttribute('aria-expanded', String(opening));
+      if (opening) (options.querySelector('[aria-selected="true"]:not(:disabled)') || options.querySelector('[role="option"]:not(:disabled)'))?.focus();
+      return;
+    }
+    const roleOption = event.target.closest('[data-role-option]');
+    if (roleOption && !roleOption.disabled) {
+      const listbox = roleOption.closest('[data-role-listbox]');
+      const target = listbox.dataset.roleTarget;
+      chooseLevelingRole(target, roleOption.dataset.roleOption);
+      closeRoleListboxes();
+      document.querySelector(`[data-role-target="${CSS.escape(target)}"] .role-listbox-trigger`)?.focus();
+      return;
+    }
+    if (!event.target.closest('[data-role-listbox]')) closeRoleListboxes();
+    const galleryTile = event.target.closest('[data-toggle-media-slot]');
+    if (galleryTile) {
+      const picker = galleryTile.closest('.media-slot')?.querySelector('.media-slot-picker');
+      if (picker) {
+        picker.hidden = !picker.hidden;
+        galleryTile.setAttribute('aria-expanded', String(!picker.hidden));
+        if (!picker.hidden) picker.querySelector('input')?.focus();
+      }
+      return;
+    }
+    const thumbnailTile = event.target.closest('[data-toggle-thumbnail-tile]');
+    if (thumbnailTile) {
+      const picker = thumbnailTile.closest('.composer-thumbnail-editor')?.querySelector('.thumbnail-inline-picker');
+      if (picker) {
+        picker.hidden = !picker.hidden;
+        thumbnailTile.setAttribute('aria-expanded', String(!picker.hidden));
+        if (!picker.hidden) picker.querySelector('input')?.focus();
+      }
+      return;
+    }
+    const remove = event.target.closest('[data-shared-thumbnail-remove]');
+    if (!remove) return;
+    const [scope, indexText] = remove.dataset.sharedThumbnailRemove.split(':');
+    const index = indexText === 'main' ? null : Number(indexText);
+    let layout = null;
+    let render = null;
+    if (scope === 'welcome') { layout = index === null ? currentMemberMessage()?.layout : currentMemberMessage()?.additionalContainers[index]?.layout; render = renderWelcomeMessagePreview; }
+    if (scope === 'template') { layout = index === null ? state.templateDraft?.layout : state.templateDraft?.additionalContainers[index]?.layout; render = renderTemplateComposerPreview; }
+    if (scope === 'reaction') { layout = index === null ? state.reactionRoleDraft?.message?.layout : state.reactionRoleDraft?.message?.additionalContainers[index]?.layout; render = renderReactionRoleMessage; }
+    if (scope === 'leveling') { layout = state.config?.leveling?.announcements?.additionalContainers[index]?.layout; render = renderMessagePreview; }
+    if (!layout) return;
+    layout.thumbnailEnabled = false;
+    layout.thumbnailUrl = '';
+    render();
+    refreshDirty();
+  });
+  document.addEventListener('change', (event) => {
+    if (!event.target.closest?.('.composer-thumbnail-editor')) return;
+    if (event.target.dataset.additionalContainerIndex !== undefined) return;
+    if (event.target.matches('[data-welcome-media-upload]')) uploadWelcomeMedia(event.target);
+    else if (event.target.matches('[data-template-media-upload]')) uploadTemplateMedia(event.target);
+    else if (event.target.matches('[data-reaction-media-upload]')) uploadReactionRoleMedia(event.target);
+    else if (event.target.matches('[data-leveling-media-upload]')) uploadLevelingMedia(event.target);
+  });
+  document.addEventListener('keydown', (event) => {
+    const trigger = event.target.closest?.('.role-listbox-trigger');
+    if (trigger && ['ArrowDown', 'Enter', ' '].includes(event.key)) {
+      event.preventDefault(); trigger.click(); return;
+    }
+    const option = event.target.closest?.('[data-role-option]');
+    if (!option) return;
+    const listbox = option.closest('[data-role-listbox]');
+    const enabled = [...listbox.querySelectorAll('[data-role-option]:not(:disabled)')];
+    const index = enabled.indexOf(option);
+    if (event.key === 'Escape') {
+      event.preventDefault(); closeRoleListboxes(); listbox.querySelector('.role-listbox-trigger').focus(); return;
+    }
+    if (['Enter', ' '].includes(event.key)) { event.preventDefault(); option.click(); return; }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + enabled.length) % enabled.length;
+    enabled[next]?.focus();
+  });
   for (const preview of [
     elements.levelingMessagePreview, elements.levelingAdditionalContainers,
     elements.welcomeMessagePreview, elements.welcomeAdditionalContainers,
@@ -5325,8 +5586,6 @@
   elements.levelingAddReward.addEventListener('click', addLevelReward);
   elements.levelingAddBoost.addEventListener('click', addLevelBoost);
   elements.xpDropAdd.addEventListener('click', addXpDrop);
-  elements.xpDropTestButton.addEventListener('click', sendXpDropTest);
-  elements.xpDropTestCrate.addEventListener('change', renderXpDropMessagePreviews);
   elements.xpDropVariables?.addEventListener('click', async (event) => {
     const variable = event.target.closest('[data-copy-variable]');
     if (!variable) return;
@@ -5334,9 +5593,14 @@
     showToast(`${variable.dataset.copyVariable} copied.`);
   });
   elements.xpDropList.addEventListener('click', (event) => {
-    const tile = event.target.closest('[data-xp-drop-tile]');
-    if (tile && event.target.tagName !== 'INPUT') {
-      tile.querySelector('input[type="file"]')?.click();
+    const tile = event.target.closest('[data-toggle-crate-media]');
+    if (tile) {
+      const picker = tile.closest('.crate-media-editor')?.querySelector('.crate-media-picker');
+      if (picker) {
+        picker.hidden = !picker.hidden;
+        tile.setAttribute('aria-expanded', String(!picker.hidden));
+        if (!picker.hidden) picker.querySelector('input')?.focus();
+      }
       return;
     }
     const button = event.target.closest('[data-remove-xp-drop]');
@@ -5348,6 +5612,7 @@
   elements.xpDropList.addEventListener('change', (event) => {
     const upload = event.target.closest('[data-xp-drop-media]');
     if (upload) uploadXpDropMedia(upload);
+    else if (event.target.matches('[data-xp-drop-image-url]')) renderXpDropList();
   });
   elements.levelingThumbnailControl?.addEventListener('click', () => {
     if (!elements.levelingThumbnailPanel) return;
@@ -5433,22 +5698,17 @@
     if (upload) uploadLevelingMedia(upload);
   });
   elements.levelingVariablesToggle?.addEventListener('click', () => toggleComposerPanel('variables'));
-  elements.levelingThumbnailAdd?.addEventListener('click', () => toggleComposerPanel('thumbnail'));
-  elements.levelingGalleryAdd.addEventListener('click', () => toggleComposerPanel('gallery'));
+  elements.levelingGalleryAdd.addEventListener('click', () => {
+    const gallery = state.config.leveling.announcements.layout.galleryUrls;
+    if (gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); state.levelingComposerPanel = 'gallery'; renderMessagePreview(); refreshDirty();
+  });
   elements.levelingAccentButton.addEventListener('click', () => elements.levelingAccentColor.click());
   elements.levelingComposerPanel.addEventListener('click', async (event) => {
     const variable = event.target.closest('[data-copy-variable]');
     if (variable) {
       await navigator.clipboard?.writeText?.(variable.dataset.copyVariable).catch(() => null);
       return showToast(`${variable.dataset.copyVariable} copied.`);
-    }
-    if (event.target.closest('[data-remove-thumbnail]')) {
-      const layout = state.config.leveling.announcements.layout;
-      layout.thumbnailEnabled = false;
-      layout.thumbnailUrl = '';
-      renderMessagePreview();
-      refreshDirty();
-      return;
     }
     if (event.target.closest('[data-add-gallery-url]')) {
       const gallery = state.config.leveling.announcements.layout.galleryUrls;
@@ -5517,21 +5777,17 @@
     if (upload) uploadWelcomeMedia(upload);
   });
   elements.welcomeVariablesToggle.addEventListener('click', () => toggleWelcomeComposerPanel('variables'));
-  elements.welcomeThumbnailAdd.addEventListener('click', () => toggleWelcomeComposerPanel('thumbnail'));
-  elements.welcomeGalleryAdd.addEventListener('click', () => toggleWelcomeComposerPanel('gallery'));
+  elements.welcomeGalleryAdd.addEventListener('click', () => {
+    const gallery = currentMemberMessage()?.layout.galleryUrls;
+    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); state.memberMessageComposerPanel = 'gallery'; renderWelcomeMessagePreview(); refreshDirty();
+  });
   elements.welcomeAccentButton.addEventListener('click', () => elements.welcomeAccentColor.click());
   elements.welcomeComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-member-variable]');
     if (variable) return insertMemberMessageVariable(variable.dataset.insertMemberVariable);
     const current = currentMemberMessage();
     if (!current) return;
-    if (event.target.closest('[data-remove-welcome-thumbnail]')) {
-      current.layout.thumbnailEnabled = false;
-      current.layout.thumbnailUrl = '';
-      renderWelcomeMessagePreview();
-      refreshDirty();
-      return;
-    }
     if (event.target.closest('[data-add-welcome-gallery-url]')) {
       if (current.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
       current.layout.galleryUrls.push('');
@@ -5767,22 +6023,16 @@
   elements.templateVariablesToggle.addEventListener('click', () => {
     state.templateComposerPanel = state.templateComposerPanel === 'variables' ? '' : 'variables'; renderTemplateComposerPanel();
   });
-  elements.templateThumbnailAdd.addEventListener('click', () => {
-    state.templateComposerPanel = state.templateComposerPanel === 'thumbnail' ? '' : 'thumbnail'; renderTemplateComposerPanel();
-  });
   elements.templateGalleryAdd.addEventListener('click', () => {
-    state.templateComposerPanel = state.templateComposerPanel === 'gallery' ? '' : 'gallery'; renderTemplateComposerPanel();
+    const gallery = state.templateDraft?.layout.galleryUrls;
+    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); state.templateComposerPanel = 'gallery'; renderTemplateComposerPreview();
   });
   elements.templateAccentButton.addEventListener('click', () => elements.templateAccentColor.click());
   elements.templateComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-template-variable]');
     if (variable) return insertTemplateVariable(variable.dataset.insertTemplateVariable);
     if (!state.templateDraft) return;
-    if (event.target.closest('[data-remove-template-thumbnail]')) {
-      state.templateDraft.layout.thumbnailEnabled = false;
-      state.templateDraft.layout.thumbnailUrl = '';
-      return renderTemplateComposerPreview();
-    }
     if (event.target.closest('[data-add-template-gallery]')) {
       if (state.templateDraft.layout.galleryUrls.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
       state.templateDraft.layout.galleryUrls.push('');
@@ -5865,13 +6115,15 @@
   elements.reactionRoleContainerToggle.addEventListener('click', () => { if (!state.reactionRoleDraft) return; state.reactionRoleDraft.message.layout.container = !state.reactionRoleDraft.message.layout.container; renderReactionRoleEditor(); });
   elements.reactionRoleAdditionalContainer.addEventListener('click', () => { const draft = state.reactionRoleDraft; if (!draft || draft.message.additionalContainers.length >= MAX_ADDITIONAL_MESSAGE_CONTAINERS) return; draft.message.additionalContainers.push(newAdditionalContainer(draft.message.layout.accentColor)); renderReactionRoleEditor(); });
   elements.reactionRoleVariablesToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'variables' ? '' : 'variables'; renderReactionRoleComposerPanel(); });
-  elements.reactionRoleThumbnailToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'thumbnail' ? '' : 'thumbnail'; renderReactionRoleComposerPanel(); });
-  elements.reactionRoleGalleryToggle.addEventListener('click', () => { state.reactionRoleComposerPanel = state.reactionRoleComposerPanel === 'gallery' ? '' : 'gallery'; renderReactionRoleComposerPanel(); });
+  elements.reactionRoleGalleryToggle.addEventListener('click', () => {
+    const gallery = state.reactionRoleDraft?.message?.layout.galleryUrls;
+    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); state.reactionRoleComposerPanel = 'gallery'; renderReactionRoleEditor();
+  });
   elements.reactionRoleAccentButton.addEventListener('click', () => elements.reactionRoleAccentColor.click());
   elements.reactionRoleComposerPanel.addEventListener('click', (event) => {
     const variable = event.target.closest('[data-insert-reaction-variable]'); if (variable) return insertReactionRoleVariable(variable.dataset.insertReactionVariable);
     const draft = state.reactionRoleDraft; if (!draft) return;
-    if (event.target.closest('[data-remove-reaction-thumbnail]')) { draft.message.layout.thumbnailEnabled = false; draft.message.layout.thumbnailUrl = ''; renderReactionRoleEditor(); return; }
     if (event.target.closest('[data-add-reaction-gallery]')) { if (draft.message.layout.galleryUrls.length < 10) draft.message.layout.galleryUrls.push(''); renderReactionRoleEditor(); return; }
     const remove = event.target.closest('[data-remove-reaction-gallery]'); if (remove) { draft.message.layout.galleryUrls.splice(Number(remove.dataset.removeReactionGallery), 1); renderReactionRoleEditor(); }
   });
@@ -5894,6 +6146,16 @@
   elements.templateEmojiToggle.addEventListener('click', () => openEmojiPicker('messageTemplate').catch((error) => showToast(error.message, 'error')));
   elements.xpDropEmojiToggle.addEventListener('click', () => openEmojiPicker('xpDrop').catch((error) => showToast(error.message, 'error')));
   elements.xpClaimEmojiToggle.addEventListener('click', () => openEmojiPicker('xpClaim').catch((error) => showToast(error.message, 'error')));
+  elements.xpDropGalleryAdd.addEventListener('click', () => {
+    const gallery = state.config?.leveling?.xpDrops?.dropGalleryUrls;
+    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); elements.xpDropThumbnailPanel.hidden = false; renderThumbnailPanel('xpDrop'); refreshDirty();
+  });
+  elements.xpClaimGalleryAdd.addEventListener('click', () => {
+    const gallery = state.config?.leveling?.xpDrops?.claimGalleryUrls;
+    if (!gallery || gallery.length >= 10) return showToast('A Discord gallery supports up to 10 images.', 'error');
+    gallery.push(''); elements.xpClaimThumbnailPanel.hidden = false; renderThumbnailPanel('xpClaim'); refreshDirty();
+  });
   elements.reactionRoleEmojiToggle.addEventListener('click', () => openEmojiPicker('reactionRole').catch((error) => showToast(error.message, 'error')));
   elements.emojiPickerClose.addEventListener('click', closeEmojiPicker);
   elements.emojiPickerSearch.addEventListener('input', () => {
@@ -5998,6 +6260,16 @@
   document.addEventListener('click', (event) => {
     if (autocompleteState.active && !autocompleteState.element?.contains(event.target) && event.target !== autocompleteState.input) {
       closeAutocomplete();
+    }
+    const removeDropGallery = event.target.closest('[data-remove-xp-drop-gallery]');
+    if (removeDropGallery) {
+      state.config.leveling.xpDrops.dropGalleryUrls.splice(Number(removeDropGallery.dataset.removeXpDropGallery), 1);
+      renderXpDropMessagePreviews(); renderThumbnailPanel('xpDrop'); refreshDirty(); return;
+    }
+    const removeClaimGallery = event.target.closest('[data-remove-xp-claim-gallery]');
+    if (removeClaimGallery) {
+      state.config.leveling.xpDrops.claimGalleryUrls.splice(Number(removeClaimGallery.dataset.removeXpClaimGallery), 1);
+      renderXpDropMessagePreviews(); renderThumbnailPanel('xpClaim'); refreshDirty(); return;
     }
     const closeBtn = event.target.closest('[data-close-thumbnail]');
     if (closeBtn) {

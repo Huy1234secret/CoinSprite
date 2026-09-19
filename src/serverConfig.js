@@ -41,8 +41,10 @@ const DEFAULT_LEVELING_CONFIG = Object.freeze({
     channelId: '',
     dropThumbnailEnabled: true,
     dropThumbnailUrl: '{crate}',
+    dropGalleryUrls: Object.freeze([]),
     claimThumbnailEnabled: false,
     claimThumbnailUrl: '{user_profile}',
+    claimGalleryUrls: Object.freeze([]),
     dropTemplate: '## 🎁 {crate_name} appeared!\nBe one of the first **{claim_limit}** members to claim **{xp_min}–{xp_max} XP**.\n-# {claims_left} claim(s) remaining · disappears {despawn_time}',
     claimTemplate: '## ✦ {crate_name} claimed\n{user} found **{xp} XP** and is now level **{level}**.\n-# {claims_left} claim(s) remaining',
     crates: Object.freeze([]),
@@ -135,11 +137,17 @@ function cleanWebUrl(value) {
   }
 }
 
-const LEVELING_MEDIA_VARIABLES = new Set(['{user_profile}', '{crate}']);
+const LEVELING_MEDIA_VARIABLES = new Set(['{user_profile}']);
+const XP_DROP_MEDIA_VARIABLES = new Set(['{user_profile}', '{crate}']);
 
 function cleanLevelingMediaUrl(value) {
   const text = String(value || '').trim();
   return LEVELING_MEDIA_VARIABLES.has(text.toLowerCase()) ? text.toLowerCase() : cleanWebUrl(text);
+}
+
+function cleanXpDropMediaUrl(value) {
+  const text = String(value || '').trim();
+  return XP_DROP_MEDIA_VARIABLES.has(text.toLowerCase()) ? text.toLowerCase() : cleanWebUrl(text);
 }
 
 const MEMBER_MEDIA_VARIABLES = new Set(['{user_avatar}', '{server_icon}']);
@@ -314,11 +322,15 @@ function normalizeLevelingConfig(value, defaults = DEFAULT_LEVELING_CONFIG) {
       dropThumbnailEnabled: xpDropSource.dropThumbnailEnabled === undefined
         ? xpDropDefaults.dropThumbnailEnabled !== false
         : xpDropSource.dropThumbnailEnabled !== false,
-      dropThumbnailUrl: cleanLevelingMediaUrl(xpDropSource.dropThumbnailUrl || xpDropDefaults.dropThumbnailUrl || '{crate}'),
+      dropThumbnailUrl: cleanXpDropMediaUrl(xpDropSource.dropThumbnailUrl || xpDropDefaults.dropThumbnailUrl || '{crate}'),
+      dropGalleryUrls: [...new Set((Array.isArray(xpDropSource.dropGalleryUrls) ? xpDropSource.dropGalleryUrls : xpDropDefaults.dropGalleryUrls || [])
+        .map(cleanXpDropMediaUrl).filter(Boolean))].slice(0, 10),
       claimThumbnailEnabled: xpDropSource.claimThumbnailEnabled === undefined
         ? xpDropDefaults.claimThumbnailEnabled === true
         : xpDropSource.claimThumbnailEnabled === true,
-      claimThumbnailUrl: cleanLevelingMediaUrl(xpDropSource.claimThumbnailUrl || xpDropDefaults.claimThumbnailUrl || '{user_profile}'),
+      claimThumbnailUrl: cleanXpDropMediaUrl(xpDropSource.claimThumbnailUrl || xpDropDefaults.claimThumbnailUrl || '{user_profile}'),
+      claimGalleryUrls: [...new Set((Array.isArray(xpDropSource.claimGalleryUrls) ? xpDropSource.claimGalleryUrls : xpDropDefaults.claimGalleryUrls || [])
+        .map(cleanXpDropMediaUrl).filter(Boolean))].slice(0, 10),
       dropTemplate: String(xpDropSource.dropTemplate || xpDropDefaults.dropTemplate)
         .trim().slice(0, 3000) || xpDropDefaults.dropTemplate,
       claimTemplate: String(xpDropSource.claimTemplate || xpDropDefaults.claimTemplate)

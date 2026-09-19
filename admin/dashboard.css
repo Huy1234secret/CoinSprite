@@ -507,7 +507,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .setting-card, .field-card, .switch-card, .xp-drop-channel-card { border-color: var(--line); border-radius: 9px; color: var(--soft); background: var(--panel-2); }
 .setting-card:hover, .field-card:hover, .switch-card:hover { border-color: #454a55; }
 .setting-card input, .field-card select, .field-card textarea, .reward-row input, .reward-row select,
-.xp-drop-fields input:not([type="checkbox"]):not([type="color"]), .xp-drop-fields select, .xp-drop-test-panel select,
+.xp-drop-fields input:not([type="checkbox"]):not([type="color"]), .xp-drop-fields select,
 .template-library > header input, .template-picker-search input, .template-code-label textarea,
 .template-control-row input, .template-control-row select, .rr-control-row input, .rr-control-row select,
 input[type="text"], input[type="number"], input[type="search"], input[type="url"], textarea, select {
