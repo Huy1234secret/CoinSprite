@@ -1566,7 +1566,7 @@ function xpDropMessagePayload(drop, options = {}) {
     thumbnailEnabled: isThumbnail && Boolean(resolvedThumbnail),
     thumbnailUrl: resolvedThumbnail,
     galleryUrls,
-    galleryPosition: drop.galleryPosition || 'bottom',
+    galleryPosition: 'bottom',
     blocks: drop.blocks,
   });
   if (components.length) components.push({ type: 14, divider: true, spacing: 1 });

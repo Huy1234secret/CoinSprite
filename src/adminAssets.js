@@ -4,6 +4,7 @@ const path = require('path');
 const { renderAdminDocument } = require('../admin/layout');
 
 const ADMIN_DIR = path.join(__dirname, '..', 'admin');
+const IMAGE_DIR = path.join(__dirname, '..', 'images');
 const ADMIN_FONT_PACKAGES = Object.freeze({
   'noto-sans': { packageName: '@fontsource-variable/noto-sans', family: 'Noto Sans Variable', stylesheets: ['index.css', 'wght-italic.css'] },
   'noto-sans-sc': { packageName: '@fontsource-variable/noto-sans-sc', family: 'Noto Sans SC Variable', stylesheets: ['index.css'] },
@@ -94,9 +95,10 @@ function versionAdminStylesheet(source) {
 }
 
 function loadAdminAsset(filename) {
-  if (!['document', 'emojiData.js', 'app.js', 'inventory.js', 'style.css', 'dashboard.css', 'brand-icon.png'].includes(filename)) return null;
+  if (!['document', 'emojiData.js', 'app.js', 'inventory.js', 'style.css', 'dashboard.css', 'brand-icon.png', 'imageIcon.png'].includes(filename)) return null;
   try {
-    let source = filename === 'document' ? Buffer.from(renderAdminDocument()) : fs.readFileSync(path.join(ADMIN_DIR, filename));
+    const directory = filename === 'imageIcon.png' ? IMAGE_DIR : ADMIN_DIR;
+    let source = filename === 'document' ? Buffer.from(renderAdminDocument()) : fs.readFileSync(path.join(directory, filename));
     if (filename.endsWith('.css')) source = Buffer.from(versionAdminStylesheet(source.toString('utf8')));
     if (filename === 'document') {
       let html = source.toString('utf8');
